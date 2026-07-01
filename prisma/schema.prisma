@@ -1,0 +1,161 @@
+// Prisma schema — Estetica ERP (MVP)
+// Mono-cliente por ahora. Los modelos ya incluyen los campos necesarios
+// para migrar a multi-tenant (agregar Business/tenantId), stock y comisiones
+// en etapas posteriores sin romper el esquema actual.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum PaymentMethod {
+  MERCADOPAGO
+  EFECTIVO
+  TRANSFERENCIA
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+model Box {
+  id            String         @id @default(cuid())
+  name          String
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  professionals Professional[]
+  appointments  Appointment[]
+  blocks        BoxBlock[]
+}
+
+// Bloquea un box durante un rango de fechas (ej. reservado para un servicio
+// especial) sin tener que reasignar el box fijo de cada profesional.
+model BoxBlock {
+  id        String   @id @default(cuid())
+  box       Box      @relation(fields: [boxId], references: [id], onDelete: Cascade)
+  boxId     String
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([boxId, startsAt, endsAt])
+}
+
+model Professional {
+  id                String        @id @default(cuid())
+  name              String
+  email             String?
+  phone             String?
+  active            Boolean       @default(true)
+  box               Box?          @relation(fields: [boxId], references: [id])
+  boxId             String?
+  commissionPercent Float         @default(0)
+  services          Service[]     @relation("ProfessionalServices")
+  appointments      Appointment[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model Service {
+  id            String           @id @default(cuid())
+  name          String
+  durationMin   Int
+  price         Float
+  active        Boolean          @default(true)
+  professionals Professional[]   @relation("ProfessionalServices")
+  appointments  Appointment[]
+  products      ServiceProduct[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+// Insumo de stock (ej. cera, crema, guantes).
+model Product {
+  id           String           @id @default(cuid())
+  name         String
+  unit         String           @default("unidades")
+  stock        Float            @default(0)
+  lowStockAt   Float            @default(5)
+  active       Boolean          @default(true)
+  services     ServiceProduct[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+// Cuánto de un producto consume un servicio cada vez que se realiza.
+// Al completar un turno se descuenta quantity del stock del producto.
+model ServiceProduct {
+  id        String  @id @default(cuid())
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  quantity  Float   @default(1)
+
+  @@unique([serviceId, productId])
+}
+
+model Client {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String
+  email        String?
+  notes        String?
+  birthDate    DateTime?
+  appointments Appointment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Appointment {
+  id             String            @id @default(cuid())
+  client         Client            @relation(fields: [clientId], references: [id])
+  clientId       String
+  professional   Professional      @relation(fields: [professionalId], references: [id])
+  professionalId String
+  service        Service           @relation(fields: [serviceId], references: [id])
+  serviceId      String
+  box            Box               @relation(fields: [boxId], references: [id])
+  boxId          String
+  startsAt       DateTime
+  endsAt         DateTime
+  status         AppointmentStatus @default(PENDING)
+  payment        Payment?
+  reminderSentAt DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([professionalId, startsAt])
+  @@index([boxId, startsAt])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  appointment     Appointment   @relation(fields: [appointmentId], references: [id])
+  appointmentId   String        @unique
+  amount          Float
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  mpPaymentId     String?
+  mpPreferenceId  String?
+  comprobanteNro  String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
