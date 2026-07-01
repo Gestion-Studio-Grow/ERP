@@ -60,14 +60,14 @@ export default async function Home() {
 
         <div className="relative mx-auto max-w-5xl px-6 py-28 sm:py-36 text-center text-white">
           <p className="text-sm tracking-[0.25em] uppercase mb-4 opacity-90">
-            [Acá va tu rubro: ej. Estética · Spa · Bienestar]
+            Estética · Spa · Bienestar — Barrio La Alameda, Canning
           </p>
           <h1 className="font-serif text-4xl sm:text-6xl leading-tight mb-6">
-            [Acá va el título principal de tu negocio]
+            Beauty &amp; Spa
           </h1>
           <p className="max-w-xl mx-auto mb-10 text-base sm:text-lg opacity-90">
-            [Acá va la bajada: contale al cliente por qué reservar con vos —
-            rapidez, calidad, ubicación, lo que quieras destacar]
+            Un espacio de Carolina Haponiuk pensado para tu bienestar. Reservá
+            tu turno online en menos de un minuto y desconectá del día a día.
           </p>
           <Link
             href="/reserva"

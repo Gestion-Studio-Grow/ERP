@@ -17,7 +17,7 @@ export default function Sidebar() {
 
   return (
     <nav className="w-40 sm:w-56 shrink-0 border-r px-2 sm:px-3 py-5">
-      <div className="px-3 mb-6 font-semibold text-lg text-neutral-400">[Tu marca]</div>
+      <div className="px-3 mb-6 font-semibold text-lg text-neutral-800">Beauty &amp; Spa</div>
       <div className="space-y-1">
         {items.map((item) => {
           const active = item.exact

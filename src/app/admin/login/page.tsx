@@ -10,7 +10,7 @@ export default async function LoginPage({
   return (
     <main className="min-h-screen flex items-center justify-center bg-white px-6">
       <div className="w-full max-w-sm">
-        <p className="text-sm text-neutral-400 mb-1">[Tu marca]</p>
+        <p className="text-sm text-neutral-400 mb-1">Beauty &amp; Spa</p>
         <h1 className="text-2xl font-semibold mb-6">Ingresar al panel</h1>
 
         {error && (

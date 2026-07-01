@@ -18,8 +18,9 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Reservá tu turno online",
-  description: "Sistema de turnos, clientes y caja para tu negocio.",
+  title: "Beauty & Spa — Reservá tu turno online",
+  description:
+    "Beauty & Spa de Carolina Haponiuk, Barrio La Alameda, Canning. Reservá tu turno de masajes, faciales y tratamientos corporales online.",
 };
 
 export default function RootLayout({
