@@ -8,8 +8,10 @@ export default async function ReservaPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-14">
-      <h1 className="text-3xl font-semibold mb-1">Reservá tu turno</h1>
-      <p className="text-neutral-500 mb-10">
+      <h1 className="font-serif text-3xl sm:text-4xl mb-2" style={{ color: "var(--spa-mocha-dark)" }}>
+        Reservá tu turno
+      </h1>
+      <p className="mb-10" style={{ color: "var(--spa-mocha)" }}>
         Elegí profesional, servicio y horario disponible. Te confirmamos por WhatsApp.
       </p>
       <BookingForm professionals={professionals} />

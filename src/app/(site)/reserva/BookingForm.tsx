@@ -13,11 +13,13 @@ type Professional = {
 
 function StepLabel({ n, active, children }: { n: number; active: boolean; children: React.ReactNode }) {
   return (
-    <label className="flex items-center gap-2 text-sm font-medium mb-2">
+    <label
+      className="flex items-center gap-2 text-sm font-medium mb-2"
+      style={{ color: "var(--spa-mocha-dark)" }}
+    >
       <span
-        className={`flex h-5 w-5 items-center justify-center rounded-full text-xs ${
-          active ? "bg-black text-white" : "bg-neutral-200 text-neutral-500"
-        }`}
+        className="flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+        style={{ background: active ? "var(--spa-mocha-dark)" : "#c9bfb4" }}
       >
         {n}
       </span>
@@ -56,7 +58,10 @@ export default function BookingForm({ professionals }: { professionals: Professi
   return (
     <div className="space-y-8">
       {(professional || service || selectedSlot) && (
-        <div className="rounded-lg border bg-neutral-50 p-4 text-sm space-y-1">
+        <div
+          className="rounded-lg p-4 text-sm space-y-1"
+          style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+        >
           {professional && (
             <p>
               <span className="text-neutral-500">Profesional:</span> {professional.name}
@@ -169,9 +174,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
                     key={slot}
                     type="button"
                     onClick={() => setSelectedSlot(slot)}
-                    className={`rounded-md border px-3 py-2 text-sm ${
-                      isSelected ? "border-black bg-black text-white" : "hover:border-black"
-                    }`}
+                    className="rounded-md border px-3 py-2 text-sm transition-colors"
+                    style={
+                      isSelected
+                        ? { background: "var(--spa-mocha-dark)", borderColor: "var(--spa-mocha-dark)", color: "white" }
+                        : { borderColor: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }
+                    }
                   >
                     {label}
                   </button>
@@ -207,11 +215,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
             />
             <button
               type="submit"
-              className="w-full rounded-md bg-black text-white py-2.5 font-medium"
+              className="w-full rounded-full py-3 font-medium transition-transform hover:scale-[1.02]"
+              style={{ background: "var(--spa-gold)", color: "var(--spa-ink)" }}
             >
               Confirmar turno
             </button>
-            <p className="text-xs text-neutral-500 text-center">
+            <p className="text-xs text-center" style={{ color: "var(--spa-mocha)" }}>
               Te vamos a contactar por WhatsApp para coordinar el pago y confirmar el turno.
             </p>
           </div>

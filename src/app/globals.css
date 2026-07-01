@@ -3,6 +3,16 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Paleta "spa aesthetic" — mocha mousse / sage / hueso cálido */
+  --spa-cream: #f7f2ec;
+  --spa-ivory: #fbf8f4;
+  --spa-mocha: #7a5c4a;
+  --spa-mocha-dark: #4f382b;
+  --spa-sage: #8a9a83;
+  --spa-sage-light: #e4e9df;
+  --spa-gold: #b08d57;
+  --spa-ink: #2f2a26;
 }
 
 @theme inline {
@@ -10,6 +20,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-spa-serif);
 }
 
 body {

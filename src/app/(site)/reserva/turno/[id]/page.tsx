@@ -34,15 +34,22 @@ export default async function MyAppointmentPage({
 
   return (
     <div className="mx-auto max-w-lg px-6 py-16">
-      <h1 className="text-2xl font-semibold mb-1">Tu turno</h1>
-      <p className="text-neutral-500 mb-8">Hola {appointment.client.name}, acá está el detalle.</p>
+      <h1 className="font-serif text-3xl mb-1" style={{ color: "var(--spa-mocha-dark)" }}>
+        Tu turno
+      </h1>
+      <p className="mb-8" style={{ color: "var(--spa-mocha)" }}>
+        Hola {appointment.client.name}, acá está el detalle.
+      </p>
 
-      <div className="rounded-lg border p-5 space-y-2 mb-6">
-        <p><span className="text-neutral-500">Servicio:</span> {appointment.service.name}</p>
-        <p><span className="text-neutral-500">Profesional:</span> {appointment.professional.name}</p>
-        <p><span className="text-neutral-500">Box:</span> {appointment.box.name}</p>
+      <div
+        className="rounded-lg p-5 space-y-2 mb-6"
+        style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+      >
+        <p><span style={{ color: "var(--spa-mocha)" }}>Servicio:</span> {appointment.service.name}</p>
+        <p><span style={{ color: "var(--spa-mocha)" }}>Profesional:</span> {appointment.professional.name}</p>
+        <p><span style={{ color: "var(--spa-mocha)" }}>Box:</span> {appointment.box.name}</p>
         <p>
-          <span className="text-neutral-500">Fecha y hora:</span>{" "}
+          <span style={{ color: "var(--spa-mocha)" }}>Fecha y hora:</span>{" "}
           {appointment.startsAt.toLocaleString("es-AR", { dateStyle: "full", timeStyle: "short" })}
         </p>
         <p className="pt-1">
@@ -55,14 +62,16 @@ export default async function MyAppointmentPage({
       {canCancel && <CancelButton appointmentId={appointment.id} />}
 
       {!canCancel && appointment.status === "CANCELLED" && (
-        <p className="text-sm text-neutral-500 mb-6">Este turno fue cancelado.</p>
+        <p className="text-sm mb-6" style={{ color: "var(--spa-mocha)" }}>
+          Este turno fue cancelado.
+        </p>
       )}
 
       <div className="flex gap-4 text-sm">
-        <Link href="/reserva" className="underline">
+        <Link href="/reserva" className="underline" style={{ color: "var(--spa-mocha-dark)" }}>
           Reservar otro turno
         </Link>
-        <Link href="/" className="underline text-neutral-500">
+        <Link href="/" className="underline" style={{ color: "var(--spa-mocha)" }}>
           Volver al inicio
         </Link>
       </div>
