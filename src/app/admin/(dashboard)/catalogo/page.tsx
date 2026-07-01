@@ -4,6 +4,8 @@ import ServicesSection from "./ServicesSection";
 import ProfessionalsSection from "./ProfessionalsSection";
 import ProductsSection from "./ProductsSection";
 
+export const dynamic = "force-dynamic";
+
 export default async function CatalogoPage() {
   const { boxes, services, professionals, products } = await getCatalog();
 

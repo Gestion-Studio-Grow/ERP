@@ -1,6 +1,8 @@
 import { getProfessionalsWithServices } from "@/lib/actions";
 import BookingForm from "./BookingForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function ReservaPage() {
   const professionals = await getProfessionalsWithServices();
 

@@ -2,6 +2,8 @@ import { getAppointments } from "@/lib/actions";
 import AppointmentRow from "../AppointmentRow";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
   CONFIRMED: "Confirmado",

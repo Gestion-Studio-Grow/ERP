@@ -1,5 +1,7 @@
 import { getReportData } from "@/lib/actions";
 
+export const dynamic = "force-dynamic";
+
 function Table({ title, rows }: { title: string; rows: { label: string; total: number }[] }) {
   return (
     <div className="rounded-lg border p-4">

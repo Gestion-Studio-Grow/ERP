@@ -1,6 +1,8 @@
 import { getDashboardData } from "@/lib/actions";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 function Kpi({ label, value, href }: { label: string; value: string; href?: string }) {
   const content = (
     <div className="rounded-lg border p-3 sm:p-4 hover:border-neutral-400 transition-colors">

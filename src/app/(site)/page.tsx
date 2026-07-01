@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getCatalog } from "@/lib/catalog-actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const { services, professionals } = await getCatalog();
   const activeServices = services.filter((s) => s.active);
