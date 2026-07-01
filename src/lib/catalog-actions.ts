@@ -86,10 +86,11 @@ export async function deleteBoxBlock(formData: FormData) {
 
 export async function createService(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
+  const description = String(formData.get("description") || "").trim();
   const durationMin = Number(formData.get("durationMin"));
   const price = Number(formData.get("price"));
   if (!name || !durationMin || !price) return;
-  await prisma.service.create({ data: { name, durationMin, price } });
+  await prisma.service.create({ data: { name, description: description || null, durationMin, price } });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -103,10 +104,14 @@ export async function toggleServiceActive(formData: FormData) {
 export async function updateService(formData: FormData) {
   const id = String(formData.get("id"));
   const name = String(formData.get("name") || "").trim();
+  const description = String(formData.get("description") || "").trim();
   const durationMin = Number(formData.get("durationMin"));
   const price = Number(formData.get("price"));
   if (!name || !durationMin || !price) return;
-  await prisma.service.update({ where: { id }, data: { name, durationMin, price } });
+  await prisma.service.update({
+    where: { id },
+    data: { name, description: description || null, durationMin, price },
+  });
   revalidatePath(CATALOG_PATH);
 }
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getCatalog } from "@/lib/catalog-actions";
+import ServicesAccordion from "./ServicesAccordion";
 
 export const dynamic = "force-dynamic";
 
@@ -128,33 +129,17 @@ export default async function Home() {
             <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-mocha-dark)" }}>
               Precios y duración
             </h2>
+            <p className="text-sm mt-3" style={{ color: "var(--spa-mocha)" }}>
+              Tocá un servicio para ver el detalle.
+            </p>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {activeServices.map((s) => (
-              <div
-                key={s.id}
-                className="rounded-xl p-6 flex items-center justify-between transition-shadow hover:shadow-lg"
-                style={{ background: "var(--spa-ivory)" }}
-              >
-                <div>
-                  <p className="font-serif text-lg" style={{ color: "var(--spa-mocha-dark)" }}>
-                    {s.name}
-                  </p>
-                  <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
-                    {s.durationMin} min
-                  </p>
-                </div>
-                <p className="font-serif text-xl" style={{ color: "var(--spa-gold)" }}>
-                  ${s.price.toLocaleString("es-AR")}
-                </p>
-              </div>
-            ))}
-            {activeServices.length === 0 && (
-              <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
-                Próximamente vamos a publicar los servicios.
-              </p>
-            )}
-          </div>
+          {activeServices.length > 0 ? (
+            <ServicesAccordion services={activeServices} />
+          ) : (
+            <p className="text-sm text-center" style={{ color: "var(--spa-mocha)" }}>
+              Próximamente vamos a publicar los servicios.
+            </p>
+          )}
         </div>
       </section>
 

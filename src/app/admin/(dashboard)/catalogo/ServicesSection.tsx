@@ -14,6 +14,7 @@ type ServiceProductLink = { productId: string; quantity: number; product: Produc
 type Service = {
   id: string;
   name: string;
+  description: string | null;
   durationMin: number;
   price: number;
   active: boolean;
@@ -89,41 +90,50 @@ function ServiceRow({ service, products }: { service: Service; products: Product
               await updateService(fd);
               setEditing(false);
             }}
-            className="grid grid-cols-[1fr_110px_110px_auto] items-center gap-2 px-4 py-2.5"
+            className="grid grid-cols-[1fr_110px_110px_auto] items-start gap-2 px-4 py-2.5"
           >
             <input type="hidden" name="id" value={service.id} />
-            <input
-              name="name"
-              defaultValue={service.name}
-              required
-              className="rounded-md border px-2 py-1 text-sm"
-            />
-            <input
-              name="durationMin"
-              type="number"
-              min={5}
-              step={5}
-              defaultValue={service.durationMin}
-              required
-              className="rounded-md border px-2 py-1 text-sm"
-            />
-            <input
-              name="price"
-              type="number"
-              min={0}
-              step={100}
-              defaultValue={service.price}
-              required
-              className="rounded-md border px-2 py-1 text-sm"
-            />
-            <div className="flex gap-3 justify-end whitespace-nowrap">
-              <button type="submit" className="text-sm font-medium">
-                Guardar
-              </button>
-              <button type="button" onClick={() => setEditing(false)} className="text-sm text-neutral-500">
-                Cancelar
-              </button>
+            <div className="col-span-4 grid grid-cols-[1fr_110px_110px_auto] gap-2">
+              <input
+                name="name"
+                defaultValue={service.name}
+                required
+                className="rounded-md border px-2 py-1 text-sm"
+              />
+              <input
+                name="durationMin"
+                type="number"
+                min={5}
+                step={5}
+                defaultValue={service.durationMin}
+                required
+                className="rounded-md border px-2 py-1 text-sm"
+              />
+              <input
+                name="price"
+                type="number"
+                min={0}
+                step={100}
+                defaultValue={service.price}
+                required
+                className="rounded-md border px-2 py-1 text-sm"
+              />
+              <div className="flex gap-3 justify-end whitespace-nowrap">
+                <button type="submit" className="text-sm font-medium">
+                  Guardar
+                </button>
+                <button type="button" onClick={() => setEditing(false)} className="text-sm text-neutral-500">
+                  Cancelar
+                </button>
+              </div>
             </div>
+            <textarea
+              name="description"
+              defaultValue={service.description ?? ""}
+              placeholder="Descripción para la web: qué incluye, beneficios, para quién es..."
+              rows={3}
+              className="col-span-4 rounded-md border px-2 py-1.5 text-sm"
+            />
           </form>
         </td>
       </tr>
@@ -255,6 +265,12 @@ export default function ServicesSection({
           required
           placeholder="Precio $"
           className="rounded-md border px-3 py-2 text-sm"
+        />
+        <textarea
+          name="description"
+          placeholder="Descripción para la web (opcional): qué incluye, beneficios, para quién es..."
+          rows={2}
+          className="col-span-4 rounded-md border px-3 py-2 text-sm"
         />
         <button
           type="submit"
