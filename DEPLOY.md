@@ -27,10 +27,23 @@ Configurar en el proyecto de Vercel → Settings → Environment Variables:
 
 ## 3. Deploy
 
-1. `git init` (si el proyecto todavía no es un repo) y subir a GitHub.
-2. En Vercel: Import Project → seleccionar el repo.
-3. Cargar las variables de entorno de la tabla de arriba.
-4. Deploy.
+**Opción A — Netlify** (usada por límite de proyectos en Vercel Hobby):
+
+1. Entrar a [netlify.com](https://netlify.com), loguearse con GitHub.
+2. "Add new site" → "Import an existing project" → elegir el repo `ERP`.
+3. Netlify detecta Next.js automáticamente (usa `netlify.toml` del repo).
+4. Cargar las variables de entorno de la tabla de arriba en Site settings → Environment variables.
+5. Deploy.
+
+⚠️ El cron de recordatorios (`vercel.json`) es específico de Vercel. En Netlify
+hay que migrarlo a una [Scheduled Function](https://docs.netlify.com/functions/scheduled-functions/)
+— pendiente en el backlog, no bloquea el resto del sistema.
+
+**Opción B — Vercel** (si más adelante liberás un proyecto o pasás a Pro):
+
+1. Import Project → seleccionar el repo.
+2. Cargar las variables de entorno de la tabla de arriba.
+3. Deploy.
 
 ## 4. Primera migración + datos de ejemplo
 
