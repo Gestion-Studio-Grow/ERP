@@ -88,12 +88,14 @@ async function bookAppointment({
   startsAtIso,
   clientId,
   status,
+  notes,
 }: {
   professionalId: string;
   serviceId: string;
   startsAtIso: string;
   clientId: string;
   status: BookingStatus;
+  notes?: string;
 }) {
   const [service, professional] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
@@ -156,7 +158,17 @@ async function bookAppointment({
     }
 
     return tx.appointment.create({
-      data: { clientId, professionalId, serviceId, boxId, startsAt, endsAt, status },
+      data: {
+        clientId,
+        professionalId,
+        serviceId,
+        boxId,
+        startsAt,
+        endsAt,
+        status,
+        priceAtBooking: service.price,
+        notes: notes?.trim() || null,
+      },
     });
   });
 }
@@ -195,6 +207,7 @@ export async function createManualAppointment(formData: FormData) {
   const clientPhone = String(formData.get("clientPhone"));
   const statusInput = String(formData.get("status"));
   const status: BookingStatus = statusInput === "CONFIRMED" ? "CONFIRMED" : "PENDING";
+  const notes = String(formData.get("notes") || "");
 
   if (!clientName.trim() || !clientPhone.trim()) {
     throw new Error("Nombre y teléfono del cliente son obligatorios.");
@@ -205,7 +218,7 @@ export async function createManualAppointment(formData: FormData) {
     client = await prisma.client.create({ data: { name: clientName, phone: clientPhone } });
   }
 
-  await bookAppointment({ professionalId, serviceId, startsAtIso, clientId: client.id, status });
+  await bookAppointment({ professionalId, serviceId, startsAtIso, clientId: client.id, status, notes });
 
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
@@ -228,11 +241,15 @@ export async function confirmPayment(formData: FormData) {
     include: { service: true },
   });
 
+  // Cobrar el precio congelado al reservar (AMD-003); fallback al precio actual
+  // del servicio solo para turnos anteriores a esta feature (priceAtBooking null).
+  const amount = appointment.priceAtBooking ?? appointment.service.price;
+
   await prisma.payment.upsert({
     where: { appointmentId },
     create: {
       appointmentId,
-      amount: appointment.service.price,
+      amount,
       method,
       status: "APPROVED",
       comprobanteNro: `REC-${Date.now()}`,

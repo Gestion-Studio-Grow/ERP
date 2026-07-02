@@ -7,6 +7,8 @@ type Appointment = {
   id: string;
   startsAt: Date;
   status: string;
+  priceAtBooking: number | null;
+  notes: string | null;
   client: { name: string; phone: string };
   professional: { name: string };
   service: { name: string; price: number };
@@ -70,9 +72,14 @@ export default function AppointmentRow({
               label={statusLabel[appointment.status] ?? appointment.status}
             />
             <span className="text-sm font-medium">
-              ${appointment.service.price.toLocaleString("es-AR")}
+              ${(appointment.priceAtBooking ?? appointment.service.price).toLocaleString("es-AR")}
             </span>
           </div>
+          {appointment.notes && (
+            <p className="text-sm text-neutral-600 mt-2 rounded-md bg-amber-50 px-2 py-1">
+              📝 {appointment.notes}
+            </p>
+          )}
         </div>
 
         {isPending && (

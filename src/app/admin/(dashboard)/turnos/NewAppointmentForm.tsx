@@ -183,6 +183,12 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
               <option value="CONFIRMED">Confirmado (ya pagó o pactado en persona)</option>
               <option value="PENDING">Pendiente de pago</option>
             </select>
+            <textarea
+              name="notes"
+              rows={2}
+              placeholder="Notas (opcional): preferencias, tono, alergias…"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
             {error && <p className="text-sm text-red-600">{error}</p>}
             <SubmitButton
               pendingText="Creando turno…"

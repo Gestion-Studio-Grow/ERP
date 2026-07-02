@@ -154,6 +154,12 @@ model Appointment {
   startsAt       DateTime
   endsAt         DateTime
   status         AppointmentStatus @default(PENDING)
+  // Precio del servicio congelado al momento de reservar (AMD-003): el precio
+  // del servicio puede cambiar entre la reserva y el cobro; esto evita la
+  // discusión con el cliente. Nullable para los turnos previos a esta feature.
+  priceAtBooking Float?
+  // Nota libre de la recepción (AMD-003): "quiere el mismo tono de la vez pasada".
+  notes          String?
   payment        Payment?
   review         Review?
   reminderSentAt DateTime?
