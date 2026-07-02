@@ -8,18 +8,25 @@ const CATALOG_PATH = "/admin/catalogo";
 export async function getCatalog() {
   const [boxes, services, professionals, products] = await Promise.all([
     prisma.box.findMany({
+      where: { deletedAt: null },
       orderBy: { name: "asc" },
       include: { blocks: { where: { endsAt: { gte: new Date() } }, orderBy: { startsAt: "asc" } } },
     }),
     prisma.service.findMany({
+      where: { deletedAt: null },
       orderBy: { name: "asc" },
       include: { products: { include: { product: true } } },
     }),
     prisma.professional.findMany({
+      where: { deletedAt: null },
       orderBy: { name: "asc" },
-      include: { box: true, services: true, workingHours: { orderBy: { dayOfWeek: "asc" } } },
+      include: {
+        box: true,
+        services: { where: { deletedAt: null } },
+        workingHours: { orderBy: { dayOfWeek: "asc" } },
+      },
     }),
-    prisma.product.findMany({ orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
   ]);
   return { boxes, services, professionals, products };
 }
@@ -54,8 +61,10 @@ export async function deleteBox(formData: FormData) {
   if (appointmentCount > 0) {
     throw new Error("No se puede eliminar: este box tiene turnos asociados. Desactivalo en su lugar.");
   }
+  // Soft-delete (AMD-001): se marca deletedAt, no se borra físicamente, para
+  // conservar historial y permitir deshacer. Se desasignan los profesionales.
   await prisma.professional.updateMany({ where: { boxId: id }, data: { boxId: null } });
-  await prisma.box.delete({ where: { id } });
+  await prisma.box.update({ where: { id }, data: { deletedAt: new Date() } });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -121,7 +130,7 @@ export async function deleteService(formData: FormData) {
   if (appointmentCount > 0) {
     throw new Error("No se puede eliminar: este servicio tiene turnos asociados. Desactivalo en su lugar.");
   }
-  await prisma.service.delete({ where: { id } });
+  await prisma.service.update({ where: { id }, data: { deletedAt: new Date() } });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -179,7 +188,12 @@ export async function toggleProductActive(formData: FormData) {
 
 export async function deleteProduct(formData: FormData) {
   const id = String(formData.get("id"));
-  await prisma.product.delete({ where: { id } });
+  // Soft-delete + desvincular de los servicios que lo consumían (para que no
+  // se siga descontando stock de un producto eliminado).
+  await prisma.$transaction([
+    prisma.serviceProduct.deleteMany({ where: { productId: id } }),
+    prisma.product.update({ where: { id }, data: { deletedAt: new Date() } }),
+  ]);
   revalidatePath(CATALOG_PATH);
 }
 
@@ -242,7 +256,7 @@ export async function deleteProfessional(formData: FormData) {
       "No se puede eliminar: este profesional tiene turnos asociados. Desactivalo en su lugar."
     );
   }
-  await prisma.professional.delete({ where: { id } });
+  await prisma.professional.update({ where: { id }, data: { deletedAt: new Date() } });
   revalidatePath(CATALOG_PATH);
 }
 

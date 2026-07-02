@@ -37,6 +37,7 @@ model Box {
   id            String         @id @default(cuid())
   name          String
   active        Boolean        @default(true)
+  deletedAt     DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   professionals Professional[]
@@ -67,6 +68,7 @@ model Professional {
   box               Box?          @relation(fields: [boxId], references: [id])
   boxId             String?
   commissionPercent Float         @default(0)
+  deletedAt         DateTime?
   services          Service[]     @relation("ProfessionalServices")
   appointments      Appointment[]
   reviews           Review[]
@@ -96,6 +98,7 @@ model Service {
   durationMin   Int
   price         Float
   active        Boolean          @default(true)
+  deletedAt     DateTime?
   professionals Professional[]   @relation("ProfessionalServices")
   appointments  Appointment[]
   products      ServiceProduct[]
@@ -111,6 +114,7 @@ model Product {
   stock        Float            @default(0)
   lowStockAt   Float            @default(5)
   active       Boolean          @default(true)
+  deletedAt    DateTime?
   services     ServiceProduct[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt

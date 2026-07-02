@@ -7,8 +7,8 @@ import { BUFFER_MIN } from "@/lib/business-config";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
-    where: { active: true },
-    include: { services: { where: { active: true } }, box: true },
+    where: { active: true, deletedAt: null },
+    include: { services: { where: { active: true, deletedAt: null } }, box: true },
   });
 }
 
@@ -102,13 +102,13 @@ async function bookAppointment({
     prisma.professional.findUniqueOrThrow({ where: { id: professionalId }, include: { box: true } }),
   ]);
 
-  if (!professional.active) {
+  if (!professional.active || professional.deletedAt) {
     throw new Error("Este profesional ya no está disponible para reservas.");
   }
-  if (!service.active) {
+  if (!service.active || service.deletedAt) {
     throw new Error("Este servicio ya no está disponible.");
   }
-  if (!professional.boxId || !professional.box?.active) {
+  if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
     throw new Error("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");
   }
 
@@ -409,7 +409,7 @@ export async function getAgendaDay(date: string) {
 
   const [professionals, appointments] = await Promise.all([
     prisma.professional.findMany({
-      where: { active: true },
+      where: { active: true, deletedAt: null },
       orderBy: { name: "asc" },
       include: { box: true },
     }),
@@ -441,7 +441,7 @@ export async function getDashboardData() {
         where: { status: "APPROVED", createdAt: { gte: weekStart } },
         select: { amount: true },
       }),
-      prisma.professional.count({ where: { active: true } }),
+      prisma.professional.count({ where: { active: true, deletedAt: null } }),
       prisma.client.count(),
     ]);
 
