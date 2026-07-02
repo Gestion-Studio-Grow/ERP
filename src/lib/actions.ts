@@ -10,6 +10,7 @@ import {
   todayInBusinessTz,
   dateStrInBusinessTz,
 } from "@/lib/datetime";
+import { auditAdmin, auditPublic } from "@/lib/audit";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -205,6 +206,14 @@ export async function createAppointment(formData: FormData) {
     status: "PENDING",
   });
 
+  await auditPublic({
+    action: "create",
+    entity: "Appointment",
+    entityId: appointment.id,
+    clientPhone,
+    changes: { professionalId, serviceId, startsAt: appointment.startsAt },
+  });
+
   redirect(`/reserva/confirmacion/${appointment.id}`);
 }
 
@@ -227,7 +236,21 @@ export async function createManualAppointment(formData: FormData) {
     client = await prisma.client.create({ data: { name: clientName, phone: clientPhone } });
   }
 
-  await bookAppointment({ professionalId, serviceId, startsAtIso, clientId: client.id, status, notes });
+  const appointment = await bookAppointment({
+    professionalId,
+    serviceId,
+    startsAtIso,
+    clientId: client.id,
+    status,
+    notes,
+  });
+
+  await auditAdmin({
+    action: "create_manual",
+    entity: "Appointment",
+    entityId: appointment.id,
+    changes: { professionalId, serviceId, startsAt: appointment.startsAt, status },
+  });
 
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
@@ -272,6 +295,13 @@ export async function confirmPayment(formData: FormData) {
   await prisma.appointment.update({
     where: { id: appointmentId },
     data: { status: "CONFIRMED" },
+  });
+
+  await auditAdmin({
+    action: "confirm_payment",
+    entity: "Appointment",
+    entityId: appointmentId,
+    changes: { method, amount, status: "CONFIRMED" },
   });
 
   revalidatePath("/admin");
@@ -344,6 +374,7 @@ export async function cancelAppointment(formData: FormData) {
     where: { id: appointmentId },
     data: { status: "CANCELLED" },
   });
+  await auditAdmin({ action: "cancel", entity: "Appointment", entityId: appointmentId });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
 }
@@ -358,6 +389,7 @@ export async function markNoShow(formData: FormData) {
     where: { id: appointmentId },
     data: { status: "NO_SHOW" },
   });
+  await auditAdmin({ action: "no_show", entity: "Appointment", entityId: appointmentId });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
 }
@@ -387,6 +419,8 @@ export async function completeAppointment(formData: FormData) {
       data: { status: "COMPLETED" },
     });
   });
+
+  await auditAdmin({ action: "complete", entity: "Appointment", entityId: appointmentId });
 
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");

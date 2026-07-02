@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { auditPublic } from "@/lib/audit";
 
 export async function getMyAppointment(id: string) {
   return prisma.appointment.findUnique({
@@ -31,7 +32,7 @@ export async function createReview(formData: FormData) {
     throw new Error("Ya dejaste una reseña para este turno.");
   }
 
-  await prisma.review.create({
+  const review = await prisma.review.create({
     data: {
       appointmentId,
       professionalId: appointment.professionalId,
@@ -39,6 +40,14 @@ export async function createReview(formData: FormData) {
       rating,
       comment: comment || null,
     },
+  });
+
+  await auditPublic({
+    action: "create",
+    entity: "Review",
+    entityId: review.id,
+    clientPhone: appointment.client.phone,
+    changes: { rating, appointmentId },
   });
 
   revalidatePath(`/reserva/turno/${appointmentId}`);
@@ -60,6 +69,7 @@ export async function cancelMyAppointment(formData: FormData) {
   }
 
   await prisma.appointment.update({ where: { id }, data: { status: "CANCELLED" } });
+  await auditPublic({ action: "cancel", entity: "Appointment", entityId: id });
   revalidatePath(`/reserva/turno/${id}`);
   revalidatePath("/admin/turnos");
 }

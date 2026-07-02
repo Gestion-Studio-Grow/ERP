@@ -11,6 +11,7 @@ const items = [
   { href: "/admin/catalogo", label: "Catálogo" },
   { href: "/admin/resenas", label: "Reseñas" },
   { href: "/admin/reportes", label: "Reportes" },
+  { href: "/admin/auditoria", label: "Auditoría" },
 ];
 
 export default function Sidebar() {

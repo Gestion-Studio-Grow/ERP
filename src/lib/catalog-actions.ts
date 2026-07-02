@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { businessWallTimeToUtc } from "@/lib/datetime";
+import { auditAdmin } from "@/lib/audit";
 
 const CATALOG_PATH = "/admin/catalogo";
 
@@ -66,6 +67,7 @@ export async function deleteBox(formData: FormData) {
   // conservar historial y permitir deshacer. Se desasignan los profesionales.
   await prisma.professional.updateMany({ where: { boxId: id }, data: { boxId: null } });
   await prisma.box.update({ where: { id }, data: { deletedAt: new Date() } });
+  await auditAdmin({ action: "delete", entity: "Box", entityId: id });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -119,9 +121,18 @@ export async function updateService(formData: FormData) {
   const durationMin = Number(formData.get("durationMin"));
   const price = Number(formData.get("price"));
   if (!name || !durationMin || !price) return;
+  // Capturar el precio anterior para auditar el cambio (dispute: "ese precio no
+  // lo cambié yo", ADR-009 §4).
+  const before = await prisma.service.findUnique({ where: { id }, select: { price: true, name: true } });
   await prisma.service.update({
     where: { id },
     data: { name, description: description || null, durationMin, price },
+  });
+  await auditAdmin({
+    action: "update",
+    entity: "Service",
+    entityId: id,
+    changes: { name, price: { from: before?.price, to: price }, durationMin },
   });
   revalidatePath(CATALOG_PATH);
 }
@@ -133,6 +144,7 @@ export async function deleteService(formData: FormData) {
     throw new Error("No se puede eliminar: este servicio tiene turnos asociados. Desactivalo en su lugar.");
   }
   await prisma.service.update({ where: { id }, data: { deletedAt: new Date() } });
+  await auditAdmin({ action: "delete", entity: "Service", entityId: id });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -196,6 +208,7 @@ export async function deleteProduct(formData: FormData) {
     prisma.serviceProduct.deleteMany({ where: { productId: id } }),
     prisma.product.update({ where: { id }, data: { deletedAt: new Date() } }),
   ]);
+  await auditAdmin({ action: "delete", entity: "Product", entityId: id });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -259,6 +272,7 @@ export async function deleteProfessional(formData: FormData) {
     );
   }
   await prisma.professional.update({ where: { id }, data: { deletedAt: new Date() } });
+  await auditAdmin({ action: "delete", entity: "Professional", entityId: id });
   revalidatePath(CATALOG_PATH);
 }
 

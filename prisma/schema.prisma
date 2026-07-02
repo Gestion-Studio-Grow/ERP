@@ -202,3 +202,21 @@ model Payment {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }
+
+// Registro append-only de mutaciones de negocio (ADR-009 §4). Se puebla desde
+// un único helper (src/lib/audit.ts) invocado por la capa de server actions —
+// un solo punto de intercepción, no triggers dispersos. Es Fase 1, no Fase 3:
+// retrofitearlo después dejaría un agujero histórico permanente.
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String // quién: "admin", "cliente:<telefono>", "system"
+  action    String // "create" | "update" | "confirm_payment" | "complete" | "cancel" | "no_show" | "delete" | ...
+  entity    String // "Appointment" | "Service" | "Box" | "Product" | "Professional" | "Review" | ...
+  entityId  String?
+  changes   Json? // detalle / diff antes-después
+  channel   String? // "admin" | "public"
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
