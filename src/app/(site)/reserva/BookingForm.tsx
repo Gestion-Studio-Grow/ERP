@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { createAppointment, getAvailableSlots } from "@/lib/actions";
+import SubmitButton from "@/components/SubmitButton";
 
 type Service = { id: string; name: string; durationMin: number; price: number };
 type Professional = {
@@ -218,9 +219,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
               className={inputClass}
               style={inputStyle}
             />
-            <button type="submit" className="btn-editorial-solid w-full justify-center text-xs uppercase tracking-[0.1em] mt-2">
+            <SubmitButton
+              pendingText="Confirmando…"
+              className="btn-editorial-solid w-full justify-center text-xs uppercase tracking-[0.1em] mt-2"
+            >
               Confirmar turno
-            </button>
+            </SubmitButton>
             <p className="text-xs text-center" style={{ color: "var(--spa-mocha)" }}>
               Te vamos a contactar por WhatsApp para coordinar el pago y confirmar el turno.
             </p>

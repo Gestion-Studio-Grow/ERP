@@ -6,6 +6,24 @@ import ServicesAccordion from "./ServicesAccordion";
 
 export const dynamic = "force-dynamic";
 
+const howItWorks = [
+  {
+    n: "01",
+    title: "Elegí tu servicio",
+    description: "Mirá el menú, la duración y el precio de cada tratamiento antes de reservar.",
+  },
+  {
+    n: "02",
+    title: "Elegí día y horario",
+    description: "Vemos la agenda real del profesional — solo se muestran horarios efectivamente libres.",
+  },
+  {
+    n: "03",
+    title: "Confirmamos por WhatsApp",
+    description: "Te escribimos para coordinar el pago. Podés cancelar tu turno online cuando quieras.",
+  },
+];
+
 const categories = [
   { n: "01", name: "Masajes", description: "Relajantes, descontracturantes y con piedras calientes." },
   { n: "02", name: "Faciales", description: "Limpiezas profundas, peelings y tratamientos de luminosidad." },
@@ -138,6 +156,38 @@ export default async function Home() {
               Próximamente vamos a publicar los servicios.
             </p>
           )}
+        </div>
+      </section>
+
+      {/* Cómo reservar — genera confianza, 100% server-rendered, sin JS extra */}
+      <section className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)", background: "var(--spa-sage-light)" }}>
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="mb-14 max-w-md">
+            <p
+              className="text-xs uppercase tracking-[0.3em] mb-3"
+              style={{ color: "var(--spa-gold)" }}
+            >
+              Sin sorpresas
+            </p>
+            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-ink)" }}>
+              Cómo reservar
+            </h2>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-10">
+            {howItWorks.map((step) => (
+              <div key={step.n}>
+                <p className="font-serif text-4xl mb-4" style={{ color: "var(--spa-gold)" }}>
+                  {step.n}
+                </p>
+                <h3 className="font-serif text-xl mb-2" style={{ color: "var(--spa-ink)" }}>
+                  {step.title}
+                </h3>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--spa-mocha)" }}>
+                  {step.description}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

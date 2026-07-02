@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cancelMyAppointment } from "@/lib/client-actions";
+import SubmitButton from "@/components/SubmitButton";
 
 export default function CancelButton({ appointmentId }: { appointmentId: string }) {
   const [confirming, setConfirming] = useState(false);
@@ -33,9 +34,12 @@ export default function CancelButton({ appointmentId }: { appointmentId: string 
           }}
         >
           <input type="hidden" name="id" value={appointmentId} />
-          <button type="submit" className="rounded-md bg-red-600 text-white px-4 py-2 text-sm font-medium">
+          <SubmitButton
+            pendingText="Cancelando…"
+            className="rounded-md bg-red-600 text-white px-4 py-2 text-sm font-medium"
+          >
             Sí, cancelar
-          </button>
+          </SubmitButton>
         </form>
         <button
           onClick={() => setConfirming(false)}

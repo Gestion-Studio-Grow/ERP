@@ -8,6 +8,7 @@ import {
   deleteProfessional,
   setWorkingHours,
 } from "@/lib/catalog-actions";
+import { useToast } from "../ToastProvider";
 
 type Box = { id: string; name: string; active: boolean };
 type Service = { id: string; name: string; active: boolean };
@@ -107,6 +108,7 @@ function ProfessionalRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [editingHours, setEditingHours] = useState(false);
+  const { showError, showSuccess } = useToast();
 
   if (editing) {
     return (
@@ -222,8 +224,9 @@ function ProfessionalRow({
               if (!confirm(`¿Eliminar a "${p.name}"? Esta acción no se puede deshacer.`)) return;
               try {
                 await deleteProfessional(fd);
+                showSuccess(`"${p.name}" eliminado.`);
               } catch (err) {
-                alert(err instanceof Error ? err.message : "No se pudo eliminar.");
+                showError(err instanceof Error ? err.message : "No se pudo eliminar.");
               }
             }}
           >

@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { createManualAppointment } from "@/lib/actions";
 import { getAvailableSlots } from "@/lib/actions";
+import SubmitButton from "@/components/SubmitButton";
 
 type Service = { id: string; name: string; durationMin: number; price: number };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
@@ -183,12 +184,12 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
               <option value="PENDING">Pendiente de pago</option>
             </select>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <button
-              type="submit"
+            <SubmitButton
+              pendingText="Creando turno…"
               className="w-full rounded-md bg-black text-white py-2 text-sm font-medium"
             >
               Crear turno
-            </button>
+            </SubmitButton>
           </div>
         )}
       </form>

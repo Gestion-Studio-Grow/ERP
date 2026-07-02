@@ -1,6 +1,7 @@
 "use client";
 
 import { confirmPayment, cancelAppointment, completeAppointment, markNoShow } from "@/lib/actions";
+import SubmitButton from "@/components/SubmitButton";
 
 type Appointment = {
   id: string;
@@ -83,18 +84,18 @@ export default function AppointmentRow({
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="TRANSFERENCIA">Transferencia</option>
               </select>
-              <button
-                type="submit"
+              <SubmitButton
+                pendingText="Confirmando…"
                 className="rounded-md bg-black text-white px-3 py-1.5 text-sm font-medium whitespace-nowrap"
               >
                 Confirmar pago
-              </button>
+              </SubmitButton>
             </form>
             <form action={cancelAppointment}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <button type="submit" className="text-sm text-neutral-500 hover:text-red-600">
+              <SubmitButton pendingText="Cancelando…" className="text-sm text-neutral-500 hover:text-red-600">
                 Cancelar turno
-              </button>
+              </SubmitButton>
             </form>
           </div>
         )}
@@ -103,24 +104,24 @@ export default function AppointmentRow({
           <div className="flex flex-col gap-2 min-w-[220px]">
             <form action={completeAppointment}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <button
-                type="submit"
+              <SubmitButton
+                pendingText="Guardando…"
                 className="rounded-md bg-black text-white px-3 py-1.5 text-sm font-medium whitespace-nowrap"
               >
                 Marcar como completado
-              </button>
+              </SubmitButton>
             </form>
             <form action={cancelAppointment}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <button type="submit" className="text-sm text-neutral-500 hover:text-red-600">
+              <SubmitButton pendingText="Cancelando…" className="text-sm text-neutral-500 hover:text-red-600">
                 Cancelar turno
-              </button>
+              </SubmitButton>
             </form>
             <form action={markNoShow}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <button type="submit" className="text-sm text-neutral-500 hover:text-red-600">
+              <SubmitButton pendingText="Guardando…" className="text-sm text-neutral-500 hover:text-red-600">
                 No se presentó
-              </button>
+              </SubmitButton>
             </form>
           </div>
         )}

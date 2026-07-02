@@ -1,7 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import { createReview } from "@/lib/client-actions";
+
+function SendButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={disabled || pending}
+      className="rounded-full px-6 py-2.5 text-sm font-medium disabled:opacity-40"
+      style={{ background: "var(--spa-mocha-dark)", color: "var(--spa-ivory)" }}
+    >
+      {pending ? "Enviando…" : "Enviar reseña"}
+    </button>
+  );
+}
 
 function Star({ filled, onClick, onHover }: { filled: boolean; onClick: () => void; onHover: () => void }) {
   return (
@@ -91,14 +106,7 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
 
         {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={rating === 0}
-          className="rounded-full px-6 py-2.5 text-sm font-medium disabled:opacity-40"
-          style={{ background: "var(--spa-mocha-dark)", color: "var(--spa-ivory)" }}
-        >
-          Enviar reseña
-        </button>
+        <SendButton disabled={rating === 0} />
       </form>
     </div>
   );

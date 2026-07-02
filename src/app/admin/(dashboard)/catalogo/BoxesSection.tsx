@@ -9,6 +9,7 @@ import {
   createBoxBlock,
   deleteBoxBlock,
 } from "@/lib/catalog-actions";
+import { useToast } from "../ToastProvider";
 
 type BoxBlock = { id: string; startsAt: Date; endsAt: Date; reason: string };
 type Box = { id: string; name: string; active: boolean; blocks: BoxBlock[] };
@@ -20,6 +21,7 @@ function fmt(d: Date) {
 function BoxRow({ box }: { box: Box }) {
   const [editing, setEditing] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  const { showError, showSuccess } = useToast();
 
   return (
     <div className="rounded-lg border px-4 py-2.5">
@@ -70,8 +72,9 @@ function BoxRow({ box }: { box: Box }) {
                 if (!confirm(`¿Eliminar "${box.name}"? Esta acción no se puede deshacer.`)) return;
                 try {
                   await deleteBox(fd);
+                  showSuccess(`"${box.name}" eliminado.`);
                 } catch (err) {
-                  alert(err instanceof Error ? err.message : "No se pudo eliminar.");
+                  showError(err instanceof Error ? err.message : "No se pudo eliminar.");
                 }
               }}
             >
@@ -116,8 +119,9 @@ function BoxRow({ box }: { box: Box }) {
             try {
               await createBoxBlock(fd);
               setBlocking(false);
+              showSuccess("Box bloqueado para esas fechas.");
             } catch (err) {
-              alert(err instanceof Error ? err.message : "No se pudo crear el bloqueo.");
+              showError(err instanceof Error ? err.message : "No se pudo crear el bloqueo.");
             }
           }}
           className="mt-3 grid grid-cols-2 gap-2 rounded-md bg-neutral-50 p-3"

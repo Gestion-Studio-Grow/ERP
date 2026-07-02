@@ -1,5 +1,6 @@
 import { getAppointments, getProfessionalsWithServices } from "@/lib/actions";
 import AppointmentRow from "../AppointmentRow";
+import AppointmentsHistoryList from "./AppointmentsHistoryList";
 import NewAppointmentForm from "../NewAppointmentForm";
 import Link from "next/link";
 
@@ -56,14 +57,7 @@ export default async function TurnosListaPage() {
 
       <section>
         <h2 className="text-lg font-medium mb-3">Historial</h2>
-        <div className="space-y-3">
-          {rest.length === 0 && (
-            <p className="text-sm text-neutral-500">Todavía no hay turnos en el historial.</p>
-          )}
-          {rest.map((a) => (
-            <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} />
-          ))}
-        </div>
+        <AppointmentsHistoryList appointments={rest} statusLabel={statusLabel} />
       </section>
     </main>
   );

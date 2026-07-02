@@ -8,6 +8,7 @@ import {
   deleteService,
   setServiceProducts,
 } from "@/lib/catalog-actions";
+import { useToast } from "../ToastProvider";
 
 type Product = { id: string; name: string; unit: string; active: boolean };
 type ServiceProductLink = { productId: string; quantity: number; product: Product };
@@ -80,6 +81,7 @@ function InsumosEditor({ service, products }: { service: Service; products: Prod
 function ServiceRow({ service, products }: { service: Service; products: Product[] }) {
   const [editing, setEditing] = useState(false);
   const [editingInsumos, setEditingInsumos] = useState(false);
+  const { showError, showSuccess } = useToast();
 
   if (editing) {
     return (
@@ -183,8 +185,9 @@ function ServiceRow({ service, products }: { service: Service; products: Product
               if (!confirm(`¿Eliminar "${service.name}"? Esta acción no se puede deshacer.`)) return;
               try {
                 await deleteService(fd);
+                showSuccess(`"${service.name}" eliminado.`);
               } catch (err) {
-                alert(err instanceof Error ? err.message : "No se pudo eliminar.");
+                showError(err instanceof Error ? err.message : "No se pudo eliminar.");
               }
             }}
           >
