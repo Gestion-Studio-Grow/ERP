@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { whatsappLink } from "@/lib/business-config";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -63,7 +64,12 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           </span>
           <div className="flex flex-wrap items-center gap-5">
             <span>Barrio La Alameda, Canning</span>
-            <a href="#" className="hover:opacity-70">
+            <a
+              href={whatsappLink("Hola! Quería consultar sobre un turno en Beauty & Spa.")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:opacity-70"
+            >
               Escribinos por WhatsApp
             </a>
             <Link href="/admin" className="opacity-60 hover:opacity-100">

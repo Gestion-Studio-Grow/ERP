@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { BUFFER_MIN } from "@/lib/business-config";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -39,7 +40,16 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
         })
       : Promise.resolve([]),
   ]);
-  const busy = [...existing, ...boxBlocks];
+  // Los turnos reales suman un margen de limpieza/preparación antes y
+  // después; los bloqueos de box (BoxBlock) ya son rangos explícitos y no
+  // necesitan margen extra.
+  const busy = [
+    ...existing.map((a) => ({
+      startsAt: new Date(a.startsAt.getTime() - BUFFER_MIN * 60000),
+      endsAt: new Date(a.endsAt.getTime() + BUFFER_MIN * 60000),
+    })),
+    ...boxBlocks,
+  ];
 
   const slots: string[] = [];
   const stepMin = 30;
@@ -94,11 +104,13 @@ export async function createAppointment(formData: FormData) {
     // Re-check availability inside the transaction to close the race window
     // between "show free slots" and "write the booking" — two requests
     // landing on the same slot must not both succeed.
+    const bufferedStart = new Date(startsAt.getTime() - BUFFER_MIN * 60000);
+    const bufferedEnd = new Date(endsAt.getTime() + BUFFER_MIN * 60000);
     const conflicts = await tx.appointment.findMany({
       where: {
         status: { in: ["PENDING", "CONFIRMED"] },
-        startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
+        startsAt: { lt: bufferedEnd },
+        endsAt: { gt: bufferedStart },
         OR: [{ professionalId }, { boxId }],
       },
       select: { professionalId: true, boxId: true },
