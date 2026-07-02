@@ -12,13 +12,28 @@ export async function getProfessionalsWithServices() {
   });
 }
 
+// Devuelve la ventana de trabajo del profesional ese día según su horario
+// configurado, o null si ese día no trabaja.
+async function getWorkingWindow(professionalId: string, date: string) {
+  const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
+  const hours = await prisma.workingHours.findUnique({
+    where: { professionalId_dayOfWeek: { professionalId, dayOfWeek } },
+  });
+  if (!hours) return null;
+  return {
+    dayStart: new Date(`${date}T${hours.startTime}:00`),
+    dayEnd: new Date(`${date}T${hours.endTime}:00`),
+  };
+}
+
 export async function getAvailableSlots(professionalId: string, serviceId: string, date: string) {
-  const [service, professional] = await Promise.all([
+  const [service, professional, window] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
     prisma.professional.findUniqueOrThrow({ where: { id: professionalId } }),
+    getWorkingWindow(professionalId, date),
   ]);
-  const dayStart = new Date(`${date}T09:00:00`);
-  const dayEnd = new Date(`${date}T19:00:00`);
+  if (!window) return [];
+  const { dayStart, dayEnd } = window;
 
   const [existing, boxBlocks] = await Promise.all([
     prisma.appointment.findMany({
@@ -65,14 +80,21 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
   return slots;
 }
 
-export async function createAppointment(formData: FormData) {
-  const professionalId = String(formData.get("professionalId"));
-  const serviceId = String(formData.get("serviceId"));
-  const startsAtIso = String(formData.get("startsAt"));
-  const clientName = String(formData.get("clientName"));
-  const clientPhone = String(formData.get("clientPhone"));
-  const clientEmail = String(formData.get("clientEmail") || "");
+type BookingStatus = "PENDING" | "CONFIRMED";
 
+async function bookAppointment({
+  professionalId,
+  serviceId,
+  startsAtIso,
+  clientId,
+  status,
+}: {
+  professionalId: string;
+  serviceId: string;
+  startsAtIso: string;
+  clientId: string;
+  status: BookingStatus;
+}) {
   const [service, professional] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
     prisma.professional.findUniqueOrThrow({ where: { id: professionalId }, include: { box: true } }),
@@ -92,15 +114,13 @@ export async function createAppointment(formData: FormData) {
   const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
   const boxId = professional.boxId;
 
-  let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
-  if (!client) {
-    client = await prisma.client.create({
-      data: { name: clientName, phone: clientPhone, email: clientEmail || undefined },
-    });
+  const dateStr = startsAtIso.slice(0, 10);
+  const window = await getWorkingWindow(professionalId, dateStr);
+  if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
+    throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
-  const clientId = client.id;
 
-  const appointment = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     // Re-check availability inside the transaction to close the race window
     // between "show free slots" and "write the booking" — two requests
     // landing on the same slot must not both succeed.
@@ -136,19 +156,60 @@ export async function createAppointment(formData: FormData) {
     }
 
     return tx.appointment.create({
-      data: {
-        clientId,
-        professionalId,
-        serviceId,
-        boxId,
-        startsAt,
-        endsAt,
-        status: "PENDING",
-      },
+      data: { clientId, professionalId, serviceId, boxId, startsAt, endsAt, status },
     });
+  });
+}
+
+export async function createAppointment(formData: FormData) {
+  const professionalId = String(formData.get("professionalId"));
+  const serviceId = String(formData.get("serviceId"));
+  const startsAtIso = String(formData.get("startsAt"));
+  const clientName = String(formData.get("clientName"));
+  const clientPhone = String(formData.get("clientPhone"));
+  const clientEmail = String(formData.get("clientEmail") || "");
+
+  let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
+  if (!client) {
+    client = await prisma.client.create({
+      data: { name: clientName, phone: clientPhone, email: clientEmail || undefined },
+    });
+  }
+
+  const appointment = await bookAppointment({
+    professionalId,
+    serviceId,
+    startsAtIso,
+    clientId: client.id,
+    status: "PENDING",
   });
 
   redirect(`/reserva/confirmacion/${appointment.id}`);
+}
+
+export async function createManualAppointment(formData: FormData) {
+  const professionalId = String(formData.get("professionalId"));
+  const serviceId = String(formData.get("serviceId"));
+  const startsAtIso = String(formData.get("startsAt"));
+  const clientName = String(formData.get("clientName"));
+  const clientPhone = String(formData.get("clientPhone"));
+  const statusInput = String(formData.get("status"));
+  const status: BookingStatus = statusInput === "CONFIRMED" ? "CONFIRMED" : "PENDING";
+
+  if (!clientName.trim() || !clientPhone.trim()) {
+    throw new Error("Nombre y teléfono del cliente son obligatorios.");
+  }
+
+  let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
+  if (!client) {
+    client = await prisma.client.create({ data: { name: clientName, phone: clientPhone } });
+  }
+
+  await bookAppointment({ professionalId, serviceId, startsAtIso, clientId: client.id, status });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/lista");
 }
 
 export async function getAppointments() {
@@ -255,6 +316,20 @@ export async function cancelAppointment(formData: FormData) {
   await prisma.appointment.update({
     where: { id: appointmentId },
     data: { status: "CANCELLED" },
+  });
+  revalidatePath("/admin");
+  revalidatePath("/admin/turnos");
+}
+
+export async function markNoShow(formData: FormData) {
+  const appointmentId = String(formData.get("appointmentId"));
+  const appointment = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+  if (appointment.status !== "CONFIRMED") {
+    throw new Error('Solo se puede marcar "no se presentó" un turno confirmado.');
+  }
+  await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: { status: "NO_SHOW" },
   });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");

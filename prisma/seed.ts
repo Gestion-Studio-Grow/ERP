@@ -36,12 +36,20 @@ async function main() {
     data: { name: "Radiofrecuencia corporal", durationMin: 45, price: 25000 },
   });
 
+  // Lunes a sábado, 9 a 19hs por defecto (se ajusta después desde Catálogo).
+  const mondayToSaturday = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+    dayOfWeek,
+    startTime: "09:00",
+    endTime: "19:00",
+  }));
+
   await prisma.professional.create({
     data: {
       name: "Laura Gómez",
       phone: "1122334455",
       boxId: box1.id,
       services: { connect: [{ id: masajes.id }, { id: masajePiedras.id }] },
+      workingHours: { create: mondayToSaturday },
     },
   });
 
@@ -51,6 +59,7 @@ async function main() {
       phone: "1133445566",
       boxId: box2.id,
       services: { connect: [{ id: limpiezaFacial.id }, { id: peeling.id }] },
+      workingHours: { create: mondayToSaturday },
     },
   });
 
@@ -62,6 +71,7 @@ async function main() {
       services: {
         connect: [{ id: radiofrecuencia.id }, { id: peeling.id }],
       },
+      workingHours: { create: mondayToSaturday },
     },
   });
 

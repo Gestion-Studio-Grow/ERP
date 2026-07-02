@@ -6,10 +6,12 @@ import {
   toggleProfessionalActive,
   updateProfessional,
   deleteProfessional,
+  setWorkingHours,
 } from "@/lib/catalog-actions";
 
 type Box = { id: string; name: string; active: boolean };
 type Service = { id: string; name: string; active: boolean };
+type WorkingHour = { dayOfWeek: number; startTime: string; endTime: string };
 type Professional = {
   id: string;
   name: string;
@@ -18,7 +20,81 @@ type Professional = {
   box: Box | null;
   services: Service[];
   commissionPercent: number;
+  workingHours: WorkingHour[];
 };
+
+const DAYS = [
+  { n: 1, label: "Lunes" },
+  { n: 2, label: "Martes" },
+  { n: 3, label: "Miércoles" },
+  { n: 4, label: "Jueves" },
+  { n: 5, label: "Viernes" },
+  { n: 6, label: "Sábado" },
+  { n: 0, label: "Domingo" },
+];
+const DAY_SHORT: Record<number, string> = {
+  0: "Dom",
+  1: "Lun",
+  2: "Mar",
+  3: "Mié",
+  4: "Jue",
+  5: "Vie",
+  6: "Sáb",
+};
+
+function scheduleSummary(hours: WorkingHour[]) {
+  if (hours.length === 0) return "Sin horario configurado";
+  return [...hours]
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    .map((h) => `${DAY_SHORT[h.dayOfWeek]} ${h.startTime}–${h.endTime}`)
+    .join(" · ");
+}
+
+function WorkingHoursEditor({ professional: p }: { professional: Professional }) {
+  const byDay = new Map(p.workingHours.map((h) => [h.dayOfWeek, h]));
+
+  return (
+    <div className="rounded-lg border p-4 bg-neutral-50">
+      <p className="text-sm font-medium mb-3">Horario semanal</p>
+      <form action={setWorkingHours} className="space-y-2">
+        <input type="hidden" name="professionalId" value={p.id} />
+        {DAYS.map((d) => {
+          const existing = byDay.get(d.n);
+          return (
+            <div key={d.n} className="flex items-center gap-3 text-sm">
+              <label className="flex items-center gap-2 w-28 shrink-0">
+                <input
+                  type="checkbox"
+                  name="enabledDay"
+                  value={d.n}
+                  defaultChecked={!!existing}
+                />
+                {d.label}
+              </label>
+              <input type="hidden" name="day" value={d.n} />
+              <input
+                type="time"
+                name="startTime"
+                defaultValue={existing?.startTime ?? "09:00"}
+                className="rounded-md border px-2 py-1"
+              />
+              <span className="text-neutral-400">a</span>
+              <input
+                type="time"
+                name="endTime"
+                defaultValue={existing?.endTime ?? "19:00"}
+                className="rounded-md border px-2 py-1"
+              />
+            </div>
+          );
+        })}
+        <button type="submit" className="text-sm font-medium mt-1">
+          Guardar horario
+        </button>
+      </form>
+    </div>
+  );
+}
 
 function ProfessionalRow({
   professional: p,
@@ -30,6 +106,7 @@ function ProfessionalRow({
   services: Service[];
 }) {
   const [editing, setEditing] = useState(false);
+  const [editingHours, setEditingHours] = useState(false);
 
   if (editing) {
     return (
@@ -124,6 +201,12 @@ function ProfessionalRow({
           {p.name}
         </span>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setEditingHours((v) => !v)}
+            className="text-sm text-neutral-500 hover:underline"
+          >
+            Horario
+          </button>
           <button onClick={() => setEditing(true)} className="text-sm text-neutral-500 hover:underline">
             Editar
           </button>
@@ -160,6 +243,13 @@ function ProfessionalRow({
           ? p.services.map((s) => s.name).join(", ")
           : "Sin servicios asignados"}
       </p>
+      <p className="text-xs text-neutral-400 mt-1">{scheduleSummary(p.workingHours)}</p>
+
+      {editingHours && (
+        <div className="mt-3">
+          <WorkingHoursEditor professional={p} />
+        </div>
+      )}
     </div>
   );
 }
@@ -177,7 +267,8 @@ export default function ProfessionalsSection({
     <section>
       <h2 className="text-lg font-medium mb-1">Profesionales</h2>
       <p className="text-sm text-neutral-500 mb-3">
-        Cada profesional tiene un box fijo y los servicios que puede realizar.
+        Cada profesional tiene un box fijo, los servicios que puede realizar y su propio horario
+        semanal — los días sin horario configurado no se ofrecen para reservar.
       </p>
       <div className="space-y-2 mb-4">
         {professionals.map((p) => (
@@ -247,6 +338,9 @@ export default function ProfessionalsSection({
             )}
           </div>
         </div>
+        <p className="text-xs text-neutral-400">
+          El horario semanal se configura después de crear el profesional, con el botón "Horario".
+        </p>
         <button
           type="submit"
           className="w-full rounded-md bg-black text-white px-4 py-2 text-sm font-medium"

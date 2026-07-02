@@ -70,8 +70,23 @@ model Professional {
   services          Service[]     @relation("ProfessionalServices")
   appointments      Appointment[]
   reviews           Review[]
+  workingHours      WorkingHours[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+}
+
+// Horario de trabajo de un profesional para un día de la semana
+// (0 = domingo ... 6 = sábado). Si un profesional no tiene fila para un
+// día, se considera que no trabaja ese día.
+model WorkingHours {
+  id             String       @id @default(cuid())
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  professionalId String
+  dayOfWeek      Int
+  startTime      String // "09:00"
+  endTime        String // "19:00"
+
+  @@unique([professionalId, dayOfWeek])
 }
 
 model Service {

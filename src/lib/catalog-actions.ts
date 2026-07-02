@@ -17,7 +17,7 @@ export async function getCatalog() {
     }),
     prisma.professional.findMany({
       orderBy: { name: "asc" },
-      include: { box: true, services: true },
+      include: { box: true, services: true, workingHours: { orderBy: { dayOfWeek: "asc" } } },
     }),
     prisma.product.findMany({ orderBy: { name: "asc" } }),
   ]);
@@ -243,5 +243,29 @@ export async function deleteProfessional(formData: FormData) {
     );
   }
   await prisma.professional.delete({ where: { id } });
+  revalidatePath(CATALOG_PATH);
+}
+
+// --- Working hours ---
+
+export async function setWorkingHours(formData: FormData) {
+  const professionalId = String(formData.get("professionalId"));
+  const days = formData.getAll("day").map(Number);
+  const starts = formData.getAll("startTime").map(String);
+  const ends = formData.getAll("endTime").map(String);
+  const enabled = new Set(formData.getAll("enabledDay").map(Number));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.workingHours.deleteMany({ where: { professionalId } });
+    for (let i = 0; i < days.length; i++) {
+      const day = days[i];
+      if (!enabled.has(day)) continue;
+      if (!starts[i] || !ends[i] || starts[i] >= ends[i]) continue;
+      await tx.workingHours.create({
+        data: { professionalId, dayOfWeek: day, startTime: starts[i], endTime: ends[i] },
+      });
+    }
+  });
+
   revalidatePath(CATALOG_PATH);
 }

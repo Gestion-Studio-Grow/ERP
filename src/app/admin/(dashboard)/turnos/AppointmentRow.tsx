@@ -1,6 +1,6 @@
 "use client";
 
-import { confirmPayment, cancelAppointment, completeAppointment } from "@/lib/actions";
+import { confirmPayment, cancelAppointment, completeAppointment, markNoShow } from "@/lib/actions";
 
 type Appointment = {
   id: string;
@@ -114,6 +114,12 @@ export default function AppointmentRow({
               <input type="hidden" name="appointmentId" value={appointment.id} />
               <button type="submit" className="text-sm text-neutral-500 hover:text-red-600">
                 Cancelar turno
+              </button>
+            </form>
+            <form action={markNoShow}>
+              <input type="hidden" name="appointmentId" value={appointment.id} />
+              <button type="submit" className="text-sm text-neutral-500 hover:text-red-600">
+                No se presentó
               </button>
             </form>
           </div>

@@ -1,5 +1,6 @@
-import { getAppointments } from "@/lib/actions";
+import { getAppointments, getProfessionalsWithServices } from "@/lib/actions";
 import AppointmentRow from "../AppointmentRow";
+import NewAppointmentForm from "../NewAppointmentForm";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,10 @@ export const statusLabel: Record<string, string> = {
 };
 
 export default async function TurnosListaPage() {
-  const appointments = await getAppointments();
+  const [appointments, professionals] = await Promise.all([
+    getAppointments(),
+    getProfessionalsWithServices(),
+  ]);
   const pending = appointments.filter((a) => a.status === "PENDING");
   const rest = appointments.filter((a) => a.status !== "PENDING");
 
@@ -30,9 +34,11 @@ export default async function TurnosListaPage() {
           Lista
         </Link>
       </div>
-      <p className="text-neutral-500 mb-8">
+      <p className="text-neutral-500 mb-6">
         Confirmá el turno manualmente cuando recibas el comprobante por WhatsApp.
       </p>
+
+      <NewAppointmentForm professionals={professionals} />
 
       <section className="mb-10">
         <h2 className="text-lg font-medium mb-3">
