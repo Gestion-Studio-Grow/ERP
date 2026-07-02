@@ -2,6 +2,7 @@ import { getMyAppointment } from "@/lib/client-actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import CancelButton from "./CancelButton";
+import ReviewForm from "./ReviewForm";
 
 const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
@@ -60,6 +61,19 @@ export default async function MyAppointmentPage({
       </div>
 
       {canCancel && <CancelButton appointmentId={appointment.id} />}
+
+      {appointment.status === "COMPLETED" && !appointment.review && (
+        <ReviewForm appointmentId={appointment.id} />
+      )}
+
+      {appointment.status === "COMPLETED" && appointment.review && (
+        <div
+          className="rounded-lg p-5 text-sm mb-6"
+          style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+        >
+          Ya dejaste tu reseña ({appointment.review.rating}/5). ¡Gracias!
+        </div>
+      )}
 
       {!canCancel && appointment.status === "CANCELLED" && (
         <p className="text-sm mb-6" style={{ color: "var(--spa-mocha)" }}>

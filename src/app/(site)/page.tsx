@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getCatalog } from "@/lib/catalog-actions";
+import { getPublishedReviews } from "@/lib/reviews-actions";
 import ServicesAccordion from "./ServicesAccordion";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function Home() {
   const { services, professionals } = await getCatalog();
   const activeServices = services.filter((s) => s.active);
   const activeProfessionals = professionals.filter((p) => p.active);
+  const reviews = await getPublishedReviews();
 
   return (
     <>
@@ -183,6 +185,40 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {/* Testimonios */}
+      {reviews.length > 0 && (
+        <section className="py-20" style={{ background: "var(--spa-sage-light)" }}>
+          <div className="mx-auto max-w-5xl px-6">
+            <div className="text-center mb-12">
+              <p className="text-sm tracking-[0.2em] uppercase mb-2" style={{ color: "var(--spa-mocha)" }}>
+                Lo que dicen de nosotros
+              </p>
+              <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-mocha-dark)" }}>
+                Testimonios
+              </h2>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {reviews.map((r) => (
+                <div key={r.id} className="rounded-2xl p-6" style={{ background: "var(--spa-ivory)" }}>
+                  <div className="mb-3" style={{ color: "var(--spa-gold)" }}>
+                    {"★".repeat(r.rating)}
+                    <span style={{ color: "var(--spa-sage-light)" }}>{"★".repeat(5 - r.rating)}</span>
+                  </div>
+                  {r.comment && (
+                    <p className="text-sm mb-4 leading-relaxed" style={{ color: "var(--spa-mocha-dark)" }}>
+                      &ldquo;{r.comment}&rdquo;
+                    </p>
+                  )}
+                  <p className="font-serif text-sm" style={{ color: "var(--spa-mocha)" }}>
+                    {r.clientName} · {r.professional.name}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* CTA final */}
       <section className="relative overflow-hidden">

@@ -69,6 +69,7 @@ model Professional {
   commissionPercent Float         @default(0)
   services          Service[]     @relation("ProfessionalServices")
   appointments      Appointment[]
+  reviews           Review[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 }
@@ -139,12 +140,28 @@ model Appointment {
   endsAt         DateTime
   status         AppointmentStatus @default(PENDING)
   payment        Payment?
+  review         Review?
   reminderSentAt DateTime?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
   @@index([professionalId, startsAt])
   @@index([boxId, startsAt])
+}
+
+// Reseña rápida que el cliente puede dejar una vez que el turno se completó.
+// "published" la controla el dueño del negocio antes de que se vea en la web.
+model Review {
+  id             String       @id @default(cuid())
+  appointment    Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  appointmentId  String       @unique
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  professionalId String
+  clientName     String
+  rating         Int
+  comment        String?
+  published      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
 }
 
 model Payment {
