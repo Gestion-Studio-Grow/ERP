@@ -11,15 +11,15 @@ type Professional = {
   box: { name: string } | null;
 };
 
-function StepLabel({ n, active, children }: { n: number; active: boolean; children: React.ReactNode }) {
+function StepLabel({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <label
-      className="flex items-center gap-2 text-sm font-medium mb-2"
-      style={{ color: "var(--spa-mocha-dark)" }}
+      className="flex items-center gap-3 text-xs uppercase tracking-[0.15em] mb-3"
+      style={{ color: "var(--spa-ink)" }}
     >
       <span
-        className="flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
-        style={{ background: active ? "var(--spa-mocha-dark)" : "#c9bfb4" }}
+        className="flex h-6 w-6 items-center justify-center text-xs font-serif"
+        style={{ border: "1px solid var(--spa-ink)" }}
       >
         {n}
       </span>
@@ -27,6 +27,9 @@ function StepLabel({ n, active, children }: { n: number; active: boolean; childr
     </label>
   );
 }
+
+const inputClass = "w-full px-3 py-2.5 text-sm bg-transparent";
+const inputStyle = { border: "1px solid var(--spa-hairline)", color: "var(--spa-ink)" };
 
 export default function BookingForm({ professionals }: { professionals: Professional[] }) {
   const [professionalId, setProfessionalId] = useState("");
@@ -56,26 +59,26 @@ export default function BookingForm({ professionals }: { professionals: Professi
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {(professional || service || selectedSlot) && (
         <div
-          className="rounded-lg p-4 text-sm space-y-1"
-          style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+          className="p-5 text-sm space-y-1.5"
+          style={{ background: "var(--spa-sage-light)", color: "var(--spa-ink)" }}
         >
           {professional && (
             <p>
-              <span className="text-neutral-500">Profesional:</span> {professional.name}
+              <span style={{ color: "var(--spa-mocha)" }}>Profesional</span> — {professional.name}
             </p>
           )}
           {service && (
             <p>
-              <span className="text-neutral-500">Servicio:</span> {service.name} · $
+              <span style={{ color: "var(--spa-mocha)" }}>Servicio</span> — {service.name} · $
               {service.price.toLocaleString("es-AR")}
             </p>
           )}
           {selectedSlot && (
             <p>
-              <span className="text-neutral-500">Horario:</span>{" "}
+              <span style={{ color: "var(--spa-mocha)" }}>Horario</span> —{" "}
               {new Date(selectedSlot).toLocaleString("es-AR", {
                 dateStyle: "full",
                 timeStyle: "short",
@@ -85,15 +88,14 @@ export default function BookingForm({ professionals }: { professionals: Professi
         </div>
       )}
 
-      <form action={createAppointment} className="space-y-6">
+      <form action={createAppointment} className="space-y-8">
         <div>
-          <StepLabel n={1} active>
-            Profesional
-          </StepLabel>
+          <StepLabel n={1}>Profesional</StepLabel>
           <select
             name="professionalId"
             required
-            className="w-full rounded-md border px-3 py-2"
+            className={inputClass}
+            style={inputStyle}
             value={professionalId}
             onChange={(e) => {
               setProfessionalId(e.target.value);
@@ -112,13 +114,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
         {professional && (
           <div>
-            <StepLabel n={2} active>
-              Servicio
-            </StepLabel>
+            <StepLabel n={2}>Servicio</StepLabel>
             <select
               name="serviceId"
               required
-              className="w-full rounded-md border px-3 py-2"
+              className={inputClass}
+              style={inputStyle}
               value={serviceId}
               onChange={(e) => {
                 setServiceId(e.target.value);
@@ -137,13 +138,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
         {serviceId && (
           <div>
-            <StepLabel n={3} active>
-              Fecha
-            </StepLabel>
+            <StepLabel n={3}>Fecha</StepLabel>
             <input
               type="date"
               required
-              className="w-full rounded-md border px-3 py-2"
+              className={inputClass}
+              style={inputStyle}
               value={date}
               onChange={(e) => {
                 setDate(e.target.value);
@@ -155,12 +155,16 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
         {date && (
           <div>
-            <StepLabel n={4} active>
-              Horario disponible
-            </StepLabel>
-            {isPending && <p className="text-sm text-neutral-500">Buscando horarios…</p>}
+            <StepLabel n={4}>Horario disponible</StepLabel>
+            {isPending && (
+              <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
+                Buscando horarios…
+              </p>
+            )}
             {!isPending && slots.length === 0 && (
-              <p className="text-sm text-neutral-500">No hay horarios disponibles ese día.</p>
+              <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
+                No hay horarios disponibles ese día.
+              </p>
             )}
             <div className="grid grid-cols-3 gap-2">
               {slots.map((slot) => {
@@ -174,11 +178,11 @@ export default function BookingForm({ professionals }: { professionals: Professi
                     key={slot}
                     type="button"
                     onClick={() => setSelectedSlot(slot)}
-                    className="rounded-md border px-3 py-2 text-sm transition-colors"
+                    className="px-3 py-2 text-sm transition-colors"
                     style={
                       isSelected
-                        ? { background: "var(--spa-mocha-dark)", borderColor: "var(--spa-mocha-dark)", color: "white" }
-                        : { borderColor: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }
+                        ? { background: "var(--spa-ink)", border: "1px solid var(--spa-ink)", color: "var(--spa-ivory)" }
+                        : { border: "1px solid var(--spa-hairline)", color: "var(--spa-ink)" }
                     }
                   >
                     {label}
@@ -191,33 +195,30 @@ export default function BookingForm({ professionals }: { professionals: Professi
         )}
 
         {selectedSlot && (
-          <div className="space-y-3 border-t pt-6">
-            <StepLabel n={5} active>
-              Tus datos
-            </StepLabel>
+          <div className="space-y-3 pt-8" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
+            <StepLabel n={5}>Tus datos</StepLabel>
             <input
               name="clientName"
               required
               placeholder="Nombre y apellido"
-              className="w-full rounded-md border px-3 py-2"
+              className={inputClass}
+              style={inputStyle}
             />
             <input
               name="clientPhone"
               required
               placeholder="Teléfono"
-              className="w-full rounded-md border px-3 py-2"
+              className={inputClass}
+              style={inputStyle}
             />
             <input
               name="clientEmail"
               type="email"
               placeholder="Email (opcional)"
-              className="w-full rounded-md border px-3 py-2"
+              className={inputClass}
+              style={inputStyle}
             />
-            <button
-              type="submit"
-              className="w-full rounded-full py-3 font-medium transition-transform hover:scale-[1.02]"
-              style={{ background: "var(--spa-gold)", color: "var(--spa-ink)" }}
-            >
+            <button type="submit" className="btn-editorial-solid w-full justify-center text-xs uppercase tracking-[0.1em] mt-2">
               Confirmar turno
             </button>
             <p className="text-xs text-center" style={{ color: "var(--spa-mocha)" }}>

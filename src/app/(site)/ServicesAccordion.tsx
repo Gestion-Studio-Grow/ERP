@@ -10,21 +10,20 @@ type Service = {
   price: number;
 };
 
-function ChevronIcon({ open }: { open: boolean }) {
+function PlusIcon({ open }: { open: boolean }) {
   return (
     <svg
-      width="18"
-      height="18"
+      width="16"
+      height="16"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.5"
       strokeLinecap="round"
-      strokeLinejoin="round"
       className="transition-transform duration-300 shrink-0"
-      style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+      style={{ transform: open ? "rotate(45deg)" : "rotate(0deg)" }}
     >
-      <path d="m6 9 6 6 6-6" />
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }
@@ -33,37 +32,31 @@ function ServiceItem({ service }: { service: Service }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden transition-shadow"
-      style={{
-        background: "var(--spa-ivory)",
-        boxShadow: open ? "0 8px 30px rgba(79,56,43,0.12)" : "none",
-      }}
-    >
+    <div style={{ borderBottom: "1px solid var(--spa-hairline)" }}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
+        className="w-full flex items-center justify-between gap-4 py-6 text-left"
       >
         <div className="flex items-baseline gap-3 min-w-0">
           <span
-            className="font-serif text-lg sm:text-xl truncate"
-            style={{ color: "var(--spa-mocha-dark)" }}
+            className="font-serif text-xl sm:text-2xl truncate"
+            style={{ color: "var(--spa-ink)" }}
           >
             {service.name}
           </span>
           <span
-            className="text-xs whitespace-nowrap uppercase tracking-wide"
-            style={{ color: "var(--spa-sage)" }}
+            className="text-xs whitespace-nowrap uppercase tracking-[0.1em]"
+            style={{ color: "var(--spa-mocha)" }}
           >
             {service.durationMin} min
           </span>
         </div>
-        <div className="flex items-center gap-4 shrink-0">
-          <span className="font-serif text-lg" style={{ color: "var(--spa-gold)" }}>
+        <div className="flex items-center gap-5 shrink-0">
+          <span className="text-base" style={{ color: "var(--spa-gold)" }}>
             ${service.price.toLocaleString("es-AR")}
           </span>
-          <span style={{ color: "var(--spa-mocha)" }}>
-            <ChevronIcon open={open} />
+          <span style={{ color: "var(--spa-ink)" }}>
+            <PlusIcon open={open} />
           </span>
         </div>
       </button>
@@ -73,15 +66,13 @@ function ServiceItem({ service }: { service: Service }) {
         style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden">
-          <div
-            className="px-6 pb-6 pt-0 text-sm leading-relaxed border-t"
-            style={{ color: "var(--spa-mocha)", borderColor: "var(--spa-sage-light)" }}
+          <p
+            className="pb-6 pr-16 text-sm leading-relaxed"
+            style={{ color: "var(--spa-mocha)" }}
           >
-            <p className="pt-4">
-              {service.description ||
-                "Un tratamiento pensado para tu bienestar. Consultanos por WhatsApp si querés más detalles antes de reservar."}
-            </p>
-          </div>
+            {service.description ||
+              "Un tratamiento pensado para tu bienestar. Consultanos por WhatsApp si querés más detalles antes de reservar."}
+          </p>
         </div>
       </div>
     </div>
@@ -90,7 +81,7 @@ function ServiceItem({ service }: { service: Service }) {
 
 export default function ServicesAccordion({ services }: { services: Service[] }) {
   return (
-    <div className="space-y-3">
+    <div style={{ borderTop: "1px solid var(--spa-hairline)" }}>
       {services.map((s) => (
         <ServiceItem key={s.id} service={s} />
       ))}

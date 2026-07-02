@@ -7,30 +7,10 @@ import ServicesAccordion from "./ServicesAccordion";
 export const dynamic = "force-dynamic";
 
 const categories = [
-  {
-    name: "Masajes",
-    description: "Relajantes, descontracturantes y con piedras calientes.",
-    image:
-      "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Faciales",
-    description: "Limpiezas profundas, peelings y tratamientos de luminosidad.",
-    image:
-      "https://images.unsplash.com/photo-1519823551278-64ac92734fb1?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Corporales",
-    description: "Radiofrecuencia, exfoliación y rituales reafirmantes.",
-    image:
-      "https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Bienestar",
-    description: "Rituales sensoriales para desconectar del día a día.",
-    image:
-      "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=800&q=80",
-  },
+  { n: "01", name: "Masajes", description: "Relajantes, descontracturantes y con piedras calientes." },
+  { n: "02", name: "Faciales", description: "Limpiezas profundas, peelings y tratamientos de luminosidad." },
+  { n: "03", name: "Corporales", description: "Radiofrecuencia, exfoliación y rituales reafirmantes." },
+  { n: "04", name: "Bienestar", description: "Rituales sensoriales para desconectar del día a día." },
 ];
 
 export default async function Home() {
@@ -41,104 +21,120 @@ export default async function Home() {
 
   return (
     <>
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0">
+      {/* Hero — split asimétrico, no el clásico centrado sobre foto oscura */}
+      <section className="grid lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="flex flex-col justify-center px-6 sm:px-12 py-20 lg:py-0 order-2 lg:order-1">
+          <p
+            className="text-xs uppercase tracking-[0.3em] mb-6"
+            style={{ color: "var(--spa-gold)" }}
+          >
+            Barrio La Alameda, Canning
+          </p>
+          <h1
+            className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[0.95] mb-8 max-w-lg"
+            style={{ color: "var(--spa-ink)" }}
+          >
+            El tiempo,
+            <br />
+            para vos.
+          </h1>
+          <p
+            className="max-w-sm mb-10 text-base leading-relaxed"
+            style={{ color: "var(--spa-mocha)" }}
+          >
+            Un espacio de Carolina Haponiuk dedicado al bienestar. Reservá tu
+            turno online en menos de un minuto.
+          </p>
+          <div>
+            <Link href="/reserva" className="btn-editorial-solid text-xs uppercase tracking-[0.1em]">
+              Reservar turno →
+            </Link>
+          </div>
+        </div>
+        <div className="relative h-[50vh] lg:h-auto order-1 lg:order-2">
           <Image
-            src="https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=2000&q=80"
-            alt=""
+            src="https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1400&q=80"
+            alt="Beauty & Spa"
             fill
             priority
             className="object-cover"
           />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(180deg, rgba(47,42,38,0.55) 0%, rgba(47,42,38,0.72) 100%)",
-            }}
-          />
-        </div>
-
-        <div className="relative mx-auto max-w-5xl px-6 py-28 sm:py-36 text-center text-white">
-          <p className="text-sm tracking-[0.25em] uppercase mb-4 opacity-90">
-            Estética · Spa · Bienestar — Barrio La Alameda, Canning
-          </p>
-          <h1 className="font-serif text-4xl sm:text-6xl leading-tight mb-6">
-            Beauty &amp; Spa
-          </h1>
-          <p className="max-w-xl mx-auto mb-10 text-base sm:text-lg opacity-90">
-            Un espacio de Carolina Haponiuk pensado para tu bienestar. Reservá
-            tu turno online en menos de un minuto y desconectá del día a día.
-          </p>
-          <Link
-            href="/reserva"
-            className="inline-block rounded-full px-8 py-3.5 font-medium transition-transform hover:scale-105"
-            style={{ background: "var(--spa-gold)", color: "var(--spa-ink)" }}
-          >
-            Reservar turno ahora
-          </Link>
         </div>
       </section>
 
-      {/* Categorías */}
-      <section className="py-20" style={{ background: "var(--spa-ivory)" }}>
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="text-center mb-12">
+      {/* Categorías — lista editorial numerada, no grilla de 4 tarjetas iguales */}
+      <section className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
+        <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-[0.9fr_1.1fr] gap-12 items-start">
+          <div className="relative aspect-[4/5] lg:sticky lg:top-24">
+            <Image
+              src="https://images.unsplash.com/photo-1596178065887-1198b6148b2b?auto=format&fit=crop&w=900&q=80"
+              alt="Nuestro spa"
+              fill
+              className="object-cover"
+            />
+          </div>
+          <div>
             <p
-              className="text-sm tracking-[0.2em] uppercase mb-2"
-              style={{ color: "var(--spa-sage)" }}
+              className="text-xs uppercase tracking-[0.3em] mb-3"
+              style={{ color: "var(--spa-gold)" }}
             >
-              Nuestro spa
+              Lo que ofrecemos
             </p>
-            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-mocha-dark)" }}>
+            <h2
+              className="font-serif text-3xl sm:text-4xl mb-10"
+              style={{ color: "var(--spa-ink)" }}
+            >
               Tratamientos pensados para vos
             </h2>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {categories.map((c) => (
-              <div key={c.name} className="group relative overflow-hidden rounded-2xl aspect-[3/4]">
-                <Image
-                  src={c.image}
-                  alt={c.name}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-110"
-                />
+            <div>
+              {categories.map((c) => (
                 <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, rgba(47,42,38,0) 40%, rgba(47,42,38,0.85) 100%)",
-                  }}
-                />
-                <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-                  <h3 className="font-serif text-xl mb-1">{c.name}</h3>
-                  <p className="text-xs opacity-90 leading-snug">{c.description}</p>
+                  key={c.n}
+                  className="flex items-baseline gap-6 py-6"
+                  style={{ borderTop: "1px solid var(--spa-hairline)" }}
+                >
+                  <span
+                    className="font-serif text-sm shrink-0"
+                    style={{ color: "var(--spa-gold)" }}
+                  >
+                    {c.n}
+                  </span>
+                  <div>
+                    <h3
+                      className="font-serif text-2xl mb-1"
+                      style={{ color: "var(--spa-ink)" }}
+                    >
+                      {c.name}
+                    </h3>
+                    <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
+                      {c.description}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* Servicios */}
-      <section id="servicios" className="py-20" style={{ background: "var(--spa-sage-light)" }}>
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="text-center mb-12">
-            <p className="text-sm tracking-[0.2em] uppercase mb-2" style={{ color: "var(--spa-mocha)" }}>
+      <section id="servicios" className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
+        <div className="mx-auto max-w-3xl px-6">
+          <div className="mb-14">
+            <p
+              className="text-xs uppercase tracking-[0.3em] mb-3"
+              style={{ color: "var(--spa-gold)" }}
+            >
               Menú de servicios
             </p>
-            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-mocha-dark)" }}>
+            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-ink)" }}>
               Precios y duración
             </h2>
-            <p className="text-sm mt-3" style={{ color: "var(--spa-mocha)" }}>
-              Tocá un servicio para ver el detalle.
-            </p>
           </div>
           {activeServices.length > 0 ? (
             <ServicesAccordion services={activeServices} />
           ) : (
-            <p className="text-sm text-center" style={{ color: "var(--spa-mocha)" }}>
+            <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
               Próximamente vamos a publicar los servicios.
             </p>
           )}
@@ -146,39 +142,41 @@ export default async function Home() {
       </section>
 
       {/* Profesionales */}
-      <section id="profesionales" className="py-20" style={{ background: "var(--spa-ivory)" }}>
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="text-center mb-12">
-            <p className="text-sm tracking-[0.2em] uppercase mb-2" style={{ color: "var(--spa-sage)" }}>
+      <section id="profesionales" className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="mb-14">
+            <p
+              className="text-xs uppercase tracking-[0.3em] mb-3"
+              style={{ color: "var(--spa-gold)" }}
+            >
               Equipo
             </p>
-            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-mocha-dark)" }}>
+            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-ink)" }}>
               Profesionales especializados
             </h2>
           </div>
-          <div className="grid sm:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-3 gap-px" style={{ background: "var(--spa-hairline)" }}>
             {activeProfessionals.map((p) => (
-              <div
-                key={p.id}
-                className="rounded-xl p-6 text-center border"
-                style={{ borderColor: "var(--spa-sage-light)" }}
-              >
+              <div key={p.id} className="p-8" style={{ background: "var(--spa-ivory)" }}>
                 <div
-                  className="h-16 w-16 mx-auto rounded-full border border-dashed mb-4 flex items-center justify-center text-[9px] text-center leading-tight"
-                  style={{ borderColor: "var(--spa-gold)", color: "var(--spa-mocha)" }}
+                  className="aspect-square mb-5 flex items-center justify-center text-[10px] text-center leading-tight"
+                  style={{ border: "1px solid var(--spa-hairline)", color: "var(--spa-mocha)" }}
                 >
                   tu foto
                 </div>
-                <p className="font-serif text-lg" style={{ color: "var(--spa-mocha-dark)" }}>
+                <p className="font-serif text-xl mb-1" style={{ color: "var(--spa-ink)" }}>
                   {p.name}
                 </p>
-                <p className="text-sm mt-1" style={{ color: "var(--spa-mocha)" }}>
-                  {p.services.map((s) => s.name).join(", ") || "Sin servicios asignados"}
+                <p
+                  className="text-xs uppercase tracking-[0.1em]"
+                  style={{ color: "var(--spa-mocha)" }}
+                >
+                  {p.services.map((s) => s.name).join(" · ") || "Sin servicios asignados"}
                 </p>
               </div>
             ))}
             {activeProfessionals.length === 0 && (
-              <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
+              <p className="text-sm p-8" style={{ color: "var(--spa-mocha)" }}>
                 Próximamente vamos a publicar el equipo.
               </p>
             )}
@@ -188,29 +186,40 @@ export default async function Home() {
 
       {/* Testimonios */}
       {reviews.length > 0 && (
-        <section className="py-20" style={{ background: "var(--spa-sage-light)" }}>
+        <section className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
           <div className="mx-auto max-w-5xl px-6">
-            <div className="text-center mb-12">
-              <p className="text-sm tracking-[0.2em] uppercase mb-2" style={{ color: "var(--spa-mocha)" }}>
-                Lo que dicen de nosotros
-              </p>
-              <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-mocha-dark)" }}>
+            <div className="mb-14">
+              <p
+                className="text-xs uppercase tracking-[0.3em] mb-3"
+                style={{ color: "var(--spa-gold)" }}
+              >
                 Testimonios
+              </p>
+              <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-ink)" }}>
+                Lo que dicen de nosotros
               </h2>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid sm:grid-cols-3 gap-10">
               {reviews.map((r) => (
-                <div key={r.id} className="rounded-2xl p-6" style={{ background: "var(--spa-ivory)" }}>
-                  <div className="mb-3" style={{ color: "var(--spa-gold)" }}>
-                    {"★".repeat(r.rating)}
-                    <span style={{ color: "var(--spa-sage-light)" }}>{"★".repeat(5 - r.rating)}</span>
-                  </div>
+                <div key={r.id}>
+                  <p
+                    className="font-serif text-4xl leading-none mb-3"
+                    style={{ color: "var(--spa-gold)" }}
+                  >
+                    &ldquo;
+                  </p>
                   {r.comment && (
-                    <p className="text-sm mb-4 leading-relaxed" style={{ color: "var(--spa-mocha-dark)" }}>
-                      &ldquo;{r.comment}&rdquo;
+                    <p
+                      className="text-sm mb-5 leading-relaxed"
+                      style={{ color: "var(--spa-ink)" }}
+                    >
+                      {r.comment}
                     </p>
                   )}
-                  <p className="font-serif text-sm" style={{ color: "var(--spa-mocha)" }}>
+                  <p
+                    className="text-xs uppercase tracking-[0.1em]"
+                    style={{ color: "var(--spa-mocha)" }}
+                  >
                     {r.clientName} · {r.professional.name}
                   </p>
                 </div>
@@ -220,25 +229,18 @@ export default async function Home() {
         </section>
       )}
 
-      {/* CTA final */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <Image
-            src="https://images.unsplash.com/photo-1596178065887-1198b6148b2b?auto=format&fit=crop&w=2000&q=80"
-            alt=""
-            fill
-            className="object-cover"
-          />
-          <div className="absolute inset-0" style={{ background: "rgba(47,42,38,0.68)" }} />
-        </div>
-        <div className="relative mx-auto max-w-3xl px-6 py-24 text-center text-white">
-          <h2 className="font-serif text-3xl sm:text-4xl mb-6">¿Lista para tu próximo turno?</h2>
+      {/* CTA final — banda de tinta, sin repetir el patrón de foto+overlay del hero */}
+      <section style={{ background: "var(--spa-ink)" }}>
+        <div className="mx-auto max-w-3xl px-6 py-24 text-center">
+          <h2 className="font-serif text-3xl sm:text-4xl mb-8" style={{ color: "var(--spa-ivory)" }}>
+            ¿Lista para tu próximo turno?
+          </h2>
           <Link
             href="/reserva"
-            className="inline-block rounded-full px-8 py-3.5 font-medium transition-transform hover:scale-105"
+            className="inline-flex items-center gap-2 px-8 py-3.5 text-xs uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
             style={{ background: "var(--spa-gold)", color: "var(--spa-ink)" }}
           >
-            Reservar turno
+            Reservar turno →
           </Link>
         </div>
       </section>

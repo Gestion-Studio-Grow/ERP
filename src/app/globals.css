@@ -4,15 +4,17 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* Paleta "spa aesthetic" — mocha mousse / sage / hueso cálido */
-  --spa-cream: #f7f2ec;
-  --spa-ivory: #fbf8f4;
-  --spa-mocha: #7a5c4a;
-  --spa-mocha-dark: #4f382b;
-  --spa-sage: #8a9a83;
-  --spa-sage-light: #e4e9df;
-  --spa-gold: #b08d57;
-  --spa-ink: #2f2a26;
+  /* Paleta editorial — hueso cálido, tinta casi negra, un solo acento
+     (arcilla/brass) usado con moderación. Referencia: Aesop, Aman, COS. */
+  --spa-cream: #f4efe7;
+  --spa-ivory: #faf7f2;
+  --spa-mocha: #6b5d4f;
+  --spa-mocha-dark: #201b16;
+  --spa-sage: #7c8a72;
+  --spa-sage-light: #eef0e9;
+  --spa-gold: #a3714a;
+  --spa-ink: #1c1815;
+  --spa-hairline: rgba(28, 24, 21, 0.14);
 }
 
 @theme inline {
@@ -36,4 +38,39 @@ input:focus-visible,
 select:focus-visible {
   outline: 2px solid #171717;
   outline-offset: 2px;
+}
+
+/* Botón editorial: rectángulo con borde de tinta, sin relleno gomoso ni
+   sombra — el tipo de tratamiento que usan Aesop/COS en vez del pill
+   genérico. Hover invierte a fondo tinta. */
+.btn-editorial {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.75rem;
+  border: 1px solid var(--spa-ink);
+  color: var(--spa-ink);
+  background: transparent;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+.btn-editorial:hover {
+  background: var(--spa-ink);
+  color: var(--spa-ivory);
+}
+.btn-editorial-solid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.75rem;
+  border: 1px solid var(--spa-ink);
+  background: var(--spa-ink);
+  color: var(--spa-ivory);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  transition: background-color 0.25s ease, opacity 0.25s ease;
+}
+.btn-editorial-solid:hover {
+  opacity: 0.82;
 }

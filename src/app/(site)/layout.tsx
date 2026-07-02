@@ -8,45 +8,45 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       style={{ background: "var(--spa-ivory)", color: "var(--spa-ink)" }}
     >
       <header
-        className="border-b backdrop-blur sticky top-0 z-10"
-        style={{ borderColor: "var(--spa-sage-light)", background: "rgba(251,248,244,0.9)" }}
+        className="sticky top-0 z-10"
+        style={{
+          borderBottom: "1px solid var(--spa-hairline)",
+          background: "var(--spa-ivory)",
+        }}
       >
-        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
+        <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between gap-6">
+          <Link href="/" className="flex items-baseline gap-2 shrink-0">
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-serif"
-              style={{ borderColor: "var(--spa-gold)", color: "var(--spa-mocha)" }}
+              className="font-serif text-2xl leading-none tracking-tight"
+              style={{ color: "var(--spa-ink)" }}
             >
-              B
+              Beauty
             </span>
             <span
-              className="font-serif text-xl tracking-tight whitespace-nowrap"
-              style={{ color: "var(--spa-mocha-dark)" }}
+              className="text-[10px] uppercase tracking-[0.3em]"
+              style={{ color: "var(--spa-gold)" }}
             >
-              Beauty &amp; Spa
+              &amp; Spa
             </span>
           </Link>
-          <nav className="flex items-center gap-5 sm:gap-8 text-sm">
+
+          <nav className="flex items-center gap-8">
             <Link
               href="/#servicios"
-              className="hidden sm:inline transition-colors hover:opacity-70"
-              style={{ color: "var(--spa-mocha-dark)" }}
+              className="hidden sm:inline text-xs uppercase tracking-[0.15em] transition-opacity hover:opacity-60"
+              style={{ color: "var(--spa-ink)" }}
             >
               Servicios
             </Link>
             <Link
               href="/#profesionales"
-              className="hidden sm:inline transition-colors hover:opacity-70"
-              style={{ color: "var(--spa-mocha-dark)" }}
+              className="hidden sm:inline text-xs uppercase tracking-[0.15em] transition-opacity hover:opacity-60"
+              style={{ color: "var(--spa-ink)" }}
             >
-              Profesionales
+              Equipo
             </Link>
-            <Link
-              href="/reserva"
-              className="rounded-full px-5 py-2.5 font-medium whitespace-nowrap text-sm transition-transform hover:scale-105"
-              style={{ background: "var(--spa-mocha-dark)", color: "var(--spa-ivory)" }}
-            >
-              Reservar turno
+            <Link href="/reserva" className="btn-editorial-solid text-xs uppercase tracking-[0.1em]">
+              Reservar
             </Link>
           </nav>
         </div>
@@ -54,28 +54,56 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
 
       <main className="flex-1">{children}</main>
 
-      <footer className="border-t" style={{ borderColor: "var(--spa-sage-light)" }}>
-        <div
-          className="mx-auto max-w-6xl px-6 py-10 text-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between"
-          style={{ color: "var(--spa-mocha)" }}
-        >
-          <span className="font-serif text-base" style={{ color: "var(--spa-mocha-dark)" }}>
-            © {new Date().getFullYear()} Beauty &amp; Spa — Carolina Haponiuk
-          </span>
-          <div className="flex flex-wrap items-center gap-5">
-            <span>Barrio La Alameda, Canning</span>
+      <footer style={{ borderTop: "1px solid var(--spa-hairline)" }}>
+        <div className="mx-auto max-w-6xl px-6 py-14 grid gap-10 sm:grid-cols-3">
+          <div>
+            <p className="font-serif text-lg mb-2" style={{ color: "var(--spa-ink)" }}>
+              Beauty &amp; Spa
+            </p>
+            <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
+              Carolina Haponiuk
+              <br />
+              Barrio La Alameda, Canning
+            </p>
+          </div>
+          <div>
+            <p
+              className="text-xs uppercase tracking-[0.2em] mb-3"
+              style={{ color: "var(--spa-gold)" }}
+            >
+              Contacto
+            </p>
             <a
               href={whatsappLink("Hola! Quería consultar sobre un turno en Beauty & Spa.")}
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:opacity-70"
+              className="text-sm underline underline-offset-4 decoration-[var(--spa-hairline)] hover:decoration-current"
+              style={{ color: "var(--spa-mocha)" }}
             >
-              Escribinos por WhatsApp
+              WhatsApp
             </a>
-            <Link href="/admin" className="opacity-60 hover:opacity-100">
+          </div>
+          <div>
+            <p
+              className="text-xs uppercase tracking-[0.2em] mb-3"
+              style={{ color: "var(--spa-gold)" }}
+            >
+              Panel
+            </p>
+            <Link
+              href="/admin"
+              className="text-sm underline underline-offset-4 decoration-[var(--spa-hairline)] hover:decoration-current"
+              style={{ color: "var(--spa-mocha)" }}
+            >
               Acceso administrador
             </Link>
           </div>
+        </div>
+        <div
+          className="mx-auto max-w-6xl px-6 py-5 text-xs"
+          style={{ borderTop: "1px solid var(--spa-hairline)", color: "var(--spa-mocha)" }}
+        >
+          © {new Date().getFullYear()} Beauty &amp; Spa
         </div>
       </footer>
     </div>
