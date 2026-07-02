@@ -1,5 +1,6 @@
 import { getDashboardData } from "@/lib/actions";
 import Link from "next/link";
+import { fmtTime } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -40,12 +41,7 @@ export default async function DashboardPage() {
         <div className="space-y-2">
           {data.todayAppointments.map((a) => (
             <div key={a.id} className="rounded-lg border p-3 flex items-center justify-between text-sm">
-              <span className="font-medium">
-                {new Date(a.startsAt).toLocaleTimeString("es-AR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
+              <span className="font-medium">{fmtTime(a.startsAt)}</span>
               <span className="text-neutral-600 flex-1 px-4">
                 {a.client.name} — {a.service.name}
               </span>

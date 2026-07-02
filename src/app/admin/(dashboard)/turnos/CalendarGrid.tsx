@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AppointmentRow from "./AppointmentRow";
+import { wallHourMinuteInBusinessTz, fmtTime } from "@/lib/datetime";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
 type Appointment = {
@@ -40,7 +41,9 @@ const SLOT_MIN = 30;
 const SLOT_COUNT = ((DAY_END_HOUR - DAY_START_HOUR) * 60) / SLOT_MIN;
 
 function slotIndex(date: Date) {
-  const minutesFromStart = (date.getHours() - DAY_START_HOUR) * 60 + date.getMinutes();
+  // Hora de pared en la zona del negocio, no la del navegador de quien mira.
+  const { hour, minute } = wallHourMinuteInBusinessTz(date);
+  const minutesFromStart = (hour - DAY_START_HOUR) * 60 + minute;
   return Math.round(minutesFromStart / SLOT_MIN);
 }
 

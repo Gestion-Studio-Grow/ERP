@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { createAppointment, getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
+import { fmtDateTime, fmtTime } from "@/lib/datetime";
 
 type Service = { id: string; name: string; durationMin: number; price: number };
 type Professional = {
@@ -80,10 +81,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
           {selectedSlot && (
             <p>
               <span style={{ color: "var(--spa-mocha)" }}>Horario</span> —{" "}
-              {new Date(selectedSlot).toLocaleString("es-AR", {
-                dateStyle: "full",
-                timeStyle: "short",
-              })}
+              {fmtDateTime(selectedSlot)}
             </p>
           )}
         </div>
@@ -169,10 +167,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
             )}
             <div className="grid grid-cols-3 gap-2">
               {slots.map((slot) => {
-                const label = new Date(slot).toLocaleTimeString("es-AR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
+                const label = fmtTime(slot);
                 const isSelected = slot === selectedSlot;
                 return (
                   <button

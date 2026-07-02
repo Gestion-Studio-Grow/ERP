@@ -10,12 +10,13 @@ import {
   deleteBoxBlock,
 } from "@/lib/catalog-actions";
 import { useToast } from "../ToastProvider";
+import { fmtShortDate } from "@/lib/datetime";
 
 type BoxBlock = { id: string; startsAt: Date; endsAt: Date; reason: string };
 type Box = { id: string; name: string; active: boolean; blocks: BoxBlock[] };
 
 function fmt(d: Date) {
-  return new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return fmtShortDate(d);
 }
 
 function BoxRow({ box }: { box: Box }) {

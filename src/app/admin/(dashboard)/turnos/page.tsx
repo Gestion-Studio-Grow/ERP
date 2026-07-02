@@ -1,15 +1,14 @@
 import { getAgendaDay } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
+import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
 
-function toDateStr(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
+// Suma días a una fecha de calendario "YYYY-MM-DD" de forma estable ante zonas
+// (se ancla a mediodía UTC, así nunca cruza la medianoche por el offset).
 function addDays(dateStr: string, days: number) {
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return toDateStr(d);
+  const d = new Date(`${dateStr}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 export default async function TurnosCalendarPage({
@@ -18,14 +17,11 @@ export default async function TurnosCalendarPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const { date: dateParam } = await searchParams;
-  const date = dateParam ?? toDateStr(new Date());
+  const today = todayInBusinessTz();
+  const date = dateParam ?? today;
   const { professionals, appointments } = await getAgendaDay(date);
 
-  const label = new Date(`${date}T00:00:00`).toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-  });
+  const label = fmtCalendarDateLabel(date);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
@@ -47,7 +43,7 @@ export default async function TurnosCalendarPage({
           ← Anterior
         </Link>
         <Link
-          href={`/admin/turnos?date=${toDateStr(new Date())}`}
+          href={`/admin/turnos?date=${today}`}
           className="rounded-md border px-3 py-1.5 text-sm hover:bg-neutral-50"
         >
           Hoy

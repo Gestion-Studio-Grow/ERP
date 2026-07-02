@@ -4,6 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { BUFFER_MIN } from "@/lib/business-config";
+import {
+  businessWallTimeToUtc,
+  dayOfWeekForDate,
+  todayInBusinessTz,
+  dateStrInBusinessTz,
+} from "@/lib/datetime";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -15,14 +21,15 @@ export async function getProfessionalsWithServices() {
 // Devuelve la ventana de trabajo del profesional ese día según su horario
 // configurado, o null si ese día no trabaja.
 async function getWorkingWindow(professionalId: string, date: string) {
-  const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
+  const dayOfWeek = dayOfWeekForDate(date);
   const hours = await prisma.workingHours.findUnique({
     where: { professionalId_dayOfWeek: { professionalId, dayOfWeek } },
   });
   if (!hours) return null;
+  // Las horas de atención son de pared en la zona del negocio → UTC (AMD-004).
   return {
-    dayStart: new Date(`${date}T${hours.startTime}:00`),
-    dayEnd: new Date(`${date}T${hours.endTime}:00`),
+    dayStart: businessWallTimeToUtc(date, hours.startTime),
+    dayEnd: businessWallTimeToUtc(date, hours.endTime),
   };
 }
 
@@ -116,7 +123,9 @@ async function bookAppointment({
   const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
   const boxId = professional.boxId;
 
-  const dateStr = startsAtIso.slice(0, 10);
+  // El día del turno se deriva del instante en la zona del negocio, no del
+  // slice del ISO (que está en UTC y podría caer en otro día calendario).
+  const dateStr = dateStrInBusinessTz(startsAt);
   const window = await getWorkingWindow(professionalId, dateStr);
   if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
     throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
@@ -289,7 +298,8 @@ export async function getReportData() {
   const comisionPorProfesional = new Map<string, { comision: number; ingresos: number }>();
 
   for (const p of payments) {
-    const day = p.appointment.startsAt.toISOString().slice(0, 10);
+    // Agrupar por día calendario del negocio, no por día UTC.
+    const day = dateStrInBusinessTz(p.appointment.startsAt);
     porDia.set(day, (porDia.get(day) ?? 0) + p.amount);
 
     const prof = p.appointment.professional.name;
@@ -404,7 +414,8 @@ export async function getClient(id: string) {
 }
 
 export async function getAgendaDay(date: string) {
-  const dayStart = new Date(`${date}T00:00:00`);
+  // Límites del día calendario del negocio, convertidos a UTC.
+  const dayStart = businessWallTimeToUtc(date, "00:00");
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
   const [professionals, appointments] = await Promise.all([
@@ -424,8 +435,8 @@ export async function getAgendaDay(date: string) {
 }
 
 export async function getDashboardData() {
-  const now = new Date();
-  const todayStart = new Date(now.toISOString().slice(0, 10) + "T00:00:00");
+  // "Hoy" es el día calendario del negocio, no el del servidor (UTC).
+  const todayStart = businessWallTimeToUtc(todayInBusinessTz(), "00:00");
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
   const weekStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
 

@@ -2,6 +2,7 @@
 
 import { confirmPayment, cancelAppointment, completeAppointment, markNoShow } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
+import { fmtDateTime } from "@/lib/datetime";
 
 type Appointment = {
   id: string;
@@ -60,12 +61,7 @@ export default function AppointmentRow({
             {appointment.service.name} · {appointment.professional.name} ·{" "}
             {appointment.box.name}
           </p>
-          <p className="text-sm text-neutral-500">
-            {new Date(appointment.startsAt).toLocaleString("es-AR", {
-              dateStyle: "full",
-              timeStyle: "short",
-            })}
-          </p>
+          <p className="text-sm text-neutral-500">{fmtDateTime(appointment.startsAt)}</p>
           <div className="flex items-center gap-2 mt-2">
             <StatusBadge
               status={appointment.status}

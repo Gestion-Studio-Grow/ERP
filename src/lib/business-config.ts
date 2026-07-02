@@ -10,6 +10,13 @@ export const BUSINESS_WHATSAPP = "5491100000000"; // reemplazar por el número r
 // calcular disponibilidad, no es un turno visible en la agenda.
 export const BUFFER_MIN = 10;
 
+// Zona horaria del negocio (AMD-004). Es CONFIGURACIÓN, no la zona del
+// servidor: en Netlify el server corre en UTC, así que interpretar las horas
+// de atención con la zona del servidor daría horarios corridos. Toda hora de
+// pared ("09:00") se interpreta en esta zona y se persiste en UTC.
+// TODO (G1): pasar a columna por-tenant cuando llegue multi-tenant.
+export const BUSINESS_TIMEZONE = "America/Argentina/Buenos_Aires";
+
 export function whatsappLink(message: string) {
   return `https://wa.me/${BUSINESS_WHATSAPP}?text=${encodeURIComponent(message)}`;
 }

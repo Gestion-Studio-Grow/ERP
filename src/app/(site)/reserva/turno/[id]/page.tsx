@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import CancelButton from "./CancelButton";
 import ReviewForm from "./ReviewForm";
+import { fmtDateTime } from "@/lib/datetime";
 
 const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
@@ -51,7 +52,7 @@ export default async function MyAppointmentPage({
         <p><span style={{ color: "var(--spa-mocha)" }}>Box:</span> {appointment.box.name}</p>
         <p>
           <span style={{ color: "var(--spa-mocha)" }}>Fecha y hora:</span>{" "}
-          {appointment.startsAt.toLocaleString("es-AR", { dateStyle: "full", timeStyle: "short" })}
+          {fmtDateTime(appointment.startsAt)}
         </p>
         <p className="pt-1">
           <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyles[appointment.status]}`}>

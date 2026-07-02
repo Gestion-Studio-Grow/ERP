@@ -1,6 +1,7 @@
 import { getClient } from "@/lib/actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { fmtDateTime } from "@/lib/datetime";
 
 const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
@@ -55,11 +56,7 @@ export default async function ClienteDetailPage({
               </span>
             </div>
             <p className="text-neutral-500">
-              {a.professional.name} ·{" "}
-              {new Date(a.startsAt).toLocaleString("es-AR", {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
+              {a.professional.name} · {fmtDateTime(a.startsAt)}
             </p>
           </div>
         ))}

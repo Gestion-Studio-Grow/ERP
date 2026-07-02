@@ -1,4 +1,5 @@
 import { getReviews, togglePublished, deleteReview } from "@/lib/reviews-actions";
+import { fmtShortDate } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export default async function ResenasPage() {
                 </div>
                 {r.comment && <p className="text-sm text-neutral-600 mb-1">{r.comment}</p>}
                 <p className="text-xs text-neutral-400">
-                  {r.createdAt.toLocaleDateString("es-AR", { dateStyle: "medium" })}
+                  {fmtShortDate(r.createdAt)}
                 </p>
               </div>
               <div className="flex flex-col gap-2 items-end whitespace-nowrap">

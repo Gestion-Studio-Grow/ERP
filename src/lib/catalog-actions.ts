@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { businessWallTimeToUtc } from "@/lib/datetime";
 
 const CATALOG_PATH = "/admin/catalogo";
 
@@ -75,8 +76,9 @@ export async function createBoxBlock(formData: FormData) {
   const reason = String(formData.get("reason") || "").trim();
   if (!boxId || !startDate || !endDate || !reason) return;
 
-  const startsAt = new Date(`${startDate}T00:00:00`);
-  const endsAt = new Date(`${endDate}T23:59:59`);
+  // Rango de bloqueo en días de pared del negocio → UTC (AMD-004).
+  const startsAt = businessWallTimeToUtc(startDate, "00:00");
+  const endsAt = businessWallTimeToUtc(endDate, "23:59");
   if (endsAt <= startsAt) {
     throw new Error("La fecha de fin debe ser posterior a la de inicio.");
   }

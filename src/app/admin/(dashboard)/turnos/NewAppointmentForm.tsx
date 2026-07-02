@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { createManualAppointment } from "@/lib/actions";
 import { getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
+import { fmtTime } from "@/lib/datetime";
 
 type Service = { id: string; name: string; durationMin: number; price: number };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
@@ -140,10 +141,7 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
             )}
             <div className="grid grid-cols-4 gap-2">
               {slots.map((slot) => {
-                const label = new Date(slot).toLocaleTimeString("es-AR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
+                const label = fmtTime(slot);
                 const isSelected = slot === selectedSlot;
                 return (
                   <button

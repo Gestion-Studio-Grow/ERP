@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { fmtDateTime } from "@/lib/datetime";
 
 export default async function ConfirmacionPage({
   params,
@@ -38,10 +39,7 @@ export default async function ConfirmacionPage({
         <p><span style={{ color: "var(--spa-mocha)" }}>Box:</span> {appointment.box.name}</p>
         <p>
           <span style={{ color: "var(--spa-mocha)" }}>Fecha y hora:</span>{" "}
-          {appointment.startsAt.toLocaleString("es-AR", {
-            dateStyle: "full",
-            timeStyle: "short",
-          })}
+          {fmtDateTime(appointment.startsAt)}
         </p>
         <p className="pt-1">
           <span
