@@ -22,6 +22,7 @@ barre, así queda rastro de una sesión a la otra.
 ## Abiertos
 
 - [ ] `/sesion-feature implementar RBAC/usuarios (ADR-017)` — tabla `User` + enum `UserRole` + migración que siembra el OWNER de Carolina; `auth.ts` (token con `userId`, hashing scrypt), login por email+password, `getCurrentUser()`/`requireRole()`, `actor` real en `audit.ts`, `requireRole(...)` en cada Server Action de `/admin`, UI de gestión de usuarios. Sin romper el acceso actual. *(origen: sesión de arquitectura — 2026-07-03)*
+- [ ] `/sesion-feature activar RLS de Postgres (ADR-018)` — **disparo: cuando se provisione el 2º tenant, no antes.** Migración con `ENABLE ROW LEVEL SECURITY` + policies `USING (tenant_id = current_setting('app.current_tenant_id'))` en cada tabla de negocio; rol de app sin `BYPASSRLS`; extensión de Prisma (`$allOperations`) que envuelve cada operación en `$transaction` con `SET LOCAL app.current_tenant_id`; resolución de tenant por request (subdominio/sesión) en `tenant.ts` conservando el assert fail-closed como red. **Ensayo obligatorio en branch de Neon con tenant sintético antes de tocar producción.** *(origen: sesión de arquitectura — 2026-07-03)*
 
 ## Hechos (pendientes de poda por `/sesion-consolidacion`)
 
