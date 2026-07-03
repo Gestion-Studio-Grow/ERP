@@ -23,6 +23,24 @@ Variables de entorno necesarias en `.env` (ver `DEPLOY.md` para el detalle de ca
 
 Para features de negocio (no arquitectura), el punto de entrada es `BACKLOG.md`, no `docs/adr/`.
 
+## Verificar antes de pushear (sin deployar)
+
+Cada `git push` a `main` dispara un deploy real en Netlify — minimizar cuántos
+pushes se hacen por sesión es parte del flujo, no un detalle. Para eso:
+
+```bash
+npx tsc --noEmit             # tipos, sin efectos secundarios
+npm run build && npm run start   # build de producción servido en localhost:3000
+```
+
+`build` + `start` corren el mismo código que correría en Netlify, con lecturas
+reales contra Neon, pero **sin tocar Netlify** — el deploy lo dispara `git
+push`, ningún comando local. Es la forma de probar el cambio "como en
+producción" antes de empujarlo. Verificar acá, no en el sitio real.
+
+Meta: un push por tema de sesión (una vez que está verificado y listo), no un
+push por cada edición chica.
+
 ## Convención de commits
 
 - Un commit = un cambio completo y verificado (build + type-check pasan), no un checkpoint intermedio.
