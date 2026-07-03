@@ -46,9 +46,7 @@ Orden pensado para que en ningún momento el sitio en producción deje de andar,
 ### Fase B — Transferencia del repositorio (GitHub como source of truth)
 - [x] **B1.** Transferido. Slug real de la org: **`Gestion-Studio-Grow`** (con guiones — no `GestionStudioGrow` como se supuso al principio del plan).
 - [x] **B2.** Historial de commits y todo lo demás preservado — verificado (`git log` local coincide commit a commit con `origin/main` del repo nuevo).
-- [ ] **B3.** Confirmar el acceso de Facundo al repo específico (no alcanza con estar invitado a la org si la org no le da acceso por default a todos los repos):
-  - `Gestion-Studio-Grow` → `ERP` → Settings → Collaborators and teams.
-  - Si Facundo no aparece con acceso ahí todavía, agregarlo explícitamente con permiso **Write**.
+- [ ] **B3. Omitido por ahora (decisión del equipo, 2026-07-03) — no bloquea nada de lo que sigue.** Confirmar el acceso de Facundo al repo específico, cuando el equipo lo retome: `Gestion-Studio-Grow` → `ERP` → Settings → Collaborators and teams; si no aparece con acceso, agregarlo con permiso **Write**.
 - [x] **B4.** Remote local actualizado en esta máquina:
   ```bash
   git remote set-url origin https://github.com/Gestion-Studio-Grow/ERP.git
