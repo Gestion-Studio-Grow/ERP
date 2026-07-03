@@ -45,3 +45,6 @@ next-env.d.ts
 # local sqlite leftovers (proyecto ya usa Postgres)
 *.db
 *.db-journal
+
+# Local Netlify folder
+.netlify
