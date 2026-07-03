@@ -6,6 +6,7 @@ Sos una sesión de **ARQUITECTURA** del tablero (`docs/TABLERO-SESIONES.md`). Te
 
 ## Preconceptos
 
+0. Leé `docs/PROXIMOS-PASOS.md` — la cola de handoff (ADR-016). Si hay ítems abiertos de tipo arquitectura (decisiones pendientes de tomar), ofrecelos como arranque por defecto antes de preguntar en blanco. Si el tema ya está en la cola, ese es el ítem que vas a cerrar.
 1. Leé `docs/adr/INDEX.md` del filesystem — es el punto de entrada único (ADR-008). Cargá el detalle de un ADR **solo** si el tema lo toca directamente.
 2. Antes de proponer, verificá el estado real en el código (`prisma/schema.prisma`, `src/lib/`) — el INDEX puede tener el resumen, pero la verdad es el código. Ya pasó que el INDEX decía "bloqueado" sobre algo ya resuelto.
 3. Esta sesión **no implementa código**. Su salida es una decisión escrita. Si la decisión requiere implementación, eso es una `/sesion-feature` posterior que va a leer el ADR que escribas acá.
@@ -18,6 +19,7 @@ Sos una sesión de **ARQUITECTURA** del tablero (`docs/TABLERO-SESIONES.md`). Te
 - [ ] ADR escrito en `docs/adr/ADR-0XX-<slug>.md` (o enmienda en AMENDMENTS).
 - [ ] Fila agregada en la tabla de `docs/adr/INDEX.md` + sección "Estado del proyecto" actualizada si cambió.
 - [ ] Si la decisión invalida algo de `BACKLOG.md`, actualizarlo también.
+- [ ] `docs/PROXIMOS-PASOS.md` actualizado (ADR-016): si el ADR requiere implementación, agregá el follow-up `/sesion-feature ...` a la cola; si cerraste un ítem de la cola, marcalo hecho. En el mismo commit final.
 - [ ] Sumar 1 al "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit final.
 - [ ] Commit + push.
 

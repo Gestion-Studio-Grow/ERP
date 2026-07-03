@@ -8,7 +8,7 @@
 
 ## Contador de consolidación
 
-**Sesiones sin consolidar: 1**
+**Sesiones sin consolidar: 2**
 
 Sube en 1 cada vez que cierra una sesión de feature/arquitectura/negocio/seguridad (paso final de su checklist de cierre, en el mismo commit). Vuelve a 0 cuando cierra `/sesion-consolidacion`. No dispara nada solo — es una marca de texto para que se vea a simple vista, apenas se lee este archivo, cuántas sesiones pasaron sin el repaso general. Referencia informal: en ~5 conviene abrir `/sesion-consolidacion`.
 
@@ -25,6 +25,10 @@ Sube en 1 cada vez que cierra una sesión de feature/arquitectura/negocio/seguri
 | `/sesion-seguridad <tema>` | Auditar la postura de seguridad o endurecer una superficie (auth, secretos, aislamiento, validación) | `SECURITY.md` + `docs/adr/INDEX.md` (001/005/AMD-005) + código | Fixes de endurecimiento commiteados + `SECURITY.md` al día. Decisiones estructurales (RLS, roles) se derivan a `/sesion-arquitectura` |
 
 **Regla de oro del tablero:** si una sesión empieza a derivar hacia otro tipo (una feature descubre una decisión de arquitectura, una consolidación descubre un bug), **no se resuelve ahí** — se anota y se abre la sesión del tipo correcto. Es lo que mantiene los threads baratos y encontrables.
+
+## La cola de handoff (`docs/PROXIMOS-PASOS.md`, ADR-016)
+
+El "qué sigue después de cerrar esto" **no se dice en el chat** (que la sesión siguiente no lee) — se persiste en `docs/PROXIMOS-PASOS.md`. Es la tercera cosa que produce una sesión, junto a las decisiones (ADR) y las features (BACKLOG). Cada comando la **lee al abrir** (ofrece los ítems que le tocan como arranque por defecto, sin preguntar en blanco) y la **escribe al cerrar** (anota el follow-up que disparó); `/sesion-consolidacion` la **poda**. Esto es lo que borra la charla repetida de "¿qué abro ahora?".
 
 > **Guía de lectura para el equipo:** el libro de usuario amigable de este sistema es `docs/MANUAL-SESIONES.md`, y el comando `/manual` muestra la versión corta al instante. No son tipos de sesión (no abren trabajo), son la puerta de entrada; este tablero sigue siendo la spec canónica.
 

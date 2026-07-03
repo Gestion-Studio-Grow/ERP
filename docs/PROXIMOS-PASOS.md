@@ -1,0 +1,28 @@
+# Próximos pasos — cola de handoff entre sesiones
+
+**Qué es:** la cola donde cada sesión deja el trabajo concreto que disparó, para que la
+sesión siguiente lo lea del repo en vez de re-descubrirlo en una charla. Es la pieza que
+faltaba de ADR-008: las decisiones ya persistían como ADR y las features en BACKLOG, pero
+el *handoff* ("qué sigue después de cerrar esto") vivía en el chat — lo único que la sesión
+siguiente no lee. Ver **ADR-016**.
+
+**Cómo se usa (lo hacen los comandos solos, no a mano):**
+- **Al abrir** una sesión: el comando lee esta cola y ofrece los ítems abiertos que le tocan
+  a su tipo como punto de arranque por defecto, antes de preguntar en blanco.
+- **Al cerrar** una sesión: si disparó un follow-up concreto, lo agrega acá con el comando
+  sugerido; si completó un ítem de la cola, lo marca hecho.
+- **Al consolidar:** `/sesion-consolidacion` poda esta cola (saca lo hecho, revalida lo abierto).
+
+**Convención de cada ítem:** `[ ]` abierto / `[x]` hecho · comando sugerido · descripción ·
+`(origen: <tipo de sesión> — <fecha>)`. Lo hecho se deja tildado hasta que consolidación lo
+barre, así queda rastro de una sesión a la otra.
+
+---
+
+## Abiertos
+
+- [ ] `/sesion-feature blindar getCurrentTenantId fail-closed (ADR-015)` — reemplazar el `findFirstOrThrow` de `src/lib/tenant.ts` por resolución fail-closed (throw si hay ≠1 tenant) y corregir los comentarios "no hay leak posible" en `tenant.ts` y `schema.prisma`. *(origen: sesión de arquitectura — 2026-07-03)*
+
+## Hechos (pendientes de poda por `/sesion-consolidacion`)
+
+_(vacío)_

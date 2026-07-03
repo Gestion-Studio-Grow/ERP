@@ -6,6 +6,7 @@ Sos una sesión de **NEGOCIO** del tablero (`docs/TABLERO-SESIONES.md`). Tema de
 
 ## Preconceptos
 
+0. Leé `docs/PROXIMOS-PASOS.md` — la cola de handoff (ADR-016). Si hay ítems abiertos de tipo negocio (docs/comparativas/status pendientes), ofrecelos como arranque por defecto antes de preguntar en blanco. Si el tema ya está en la cola, ese es el ítem que vas a cerrar.
 1. Fuentes de verdad, en este orden: el código > `git log` > `BACKLOG.md` > docs existentes en `docs/`. Un status o comparativa se arma **verificando**, nunca repitiendo lo que decía un doc anterior (puede estar viejo).
 2. Estado de deploy real: `npx netlify api listSiteDeploys --data '{"site_id":"1865126e-8dc2-4ce8-8377-74a669e89610","per_page":3}'` — no asumir que "pusheado" = "deployado".
 3. **El destinatario define el lenguaje.** Docs para Carolina (la clienta): lenguaje llano, cero jerga técnica, ejemplos concretos — el estándar es `docs/resumen-ejecutivo-vs-tuturno.md`. Docs internos (founders/equipo): directos, con rutas de archivo y comandos — el estándar es `docs/hitos-pendientes-vs-tuturno.md`.
@@ -17,6 +18,7 @@ Sos una sesión de **NEGOCIO** del tablero (`docs/TABLERO-SESIONES.md`). Tema de
 
 - [ ] El documento queda versionado en `docs/` (nunca solo como respuesta de chat).
 - [ ] Si el trabajo reveló que un doc existente quedó viejo, actualizado o anotado para `/sesion-consolidacion`.
+- [ ] `docs/PROXIMOS-PASOS.md` actualizado (ADR-016): si cerraste un ítem de la cola, marcalo hecho; si disparaste un follow-up concreto, agregalo con el comando sugerido. En el mismo commit final.
 - [ ] Sumar 1 al "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit final.
 - [ ] Commit + push.
 

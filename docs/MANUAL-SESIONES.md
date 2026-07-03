@@ -101,6 +101,16 @@ corto y encontrable.
 
 ---
 
+## No tenés que acordarte de qué sigue: la cola lo sabe
+
+El "qué hago después de cerrar esto" no vive en tu cabeza ni en el chat del thread
+anterior — vive en `docs/PROXIMOS-PASOS.md` (ADR-016). Cada sesión, al cerrar, deja
+ahí el trabajo concreto que disparó (con el comando sugerido); cada sesión, al abrir,
+lee esa cola y te ofrece lo que le toca **antes de preguntarte en blanco**. O sea:
+abrís `/sesion-feature` y ya te dice "lo pendiente para vos es X — ¿ese o hay otro?".
+No hay que reconstruir de memoria dónde quedó todo. `/sesion-consolidacion` limpia la
+cola cada tanto (saca lo hecho, revalida lo abierto).
+
 ## Reglas que valen en toda sesión
 
 - **Autorización permanente** para el ciclo código→build→commit→push→deploy sin

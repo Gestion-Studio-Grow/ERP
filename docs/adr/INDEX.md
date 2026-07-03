@@ -19,6 +19,7 @@ Punto de entrada para cualquier sesión nueva con Claude. Pegá este índice pri
 | 013 | Precio diferencial vecino/a | G19: `Service.residentPrice` opcional, siempre menor al precio general, visible como beneficio (nunca recargo). Implementado y deployado. |
 | 014 | Seña obligatoria + cupones | G20 (seña visible en los 3 puntos de reserva; cobro sigue manual, sin Mercado Pago todavía) y G21 (cupones, validados y consumidos server-side dentro de la transacción de reserva). Implementado y deployado. |
 | 015 | Resolución de tenant fail-closed | Blinda G1 antes del 2º tenant: `getCurrentTenantId()` lanza error si hay ≠1 tenant en vez de agarrar "el más viejo" en silencio. No toca el diferimiento de RLS (lo refuerza). Pendiente de implementación (`/sesion-feature`). |
+| 016 | Handoff persistido (cola de próximos pasos) | Enmienda operativa de ADR-008: el "qué sigue" deja de vivir en el chat y se persiste en `docs/PROXIMOS-PASOS.md`. Cada comando la lee al abrir y la escribe al cerrar; consolidación la poda. Implementado. |
 
 ## Estado del proyecto (actualizado 2026-07-03)
 - **Piloto vivo:** `estetica-erp` (este repo) — Beauty & Spa "CH Estética" de Carolina Haponiuk, desplegado en Netlify + Postgres (Neon), deploy automático en cada push a `main`.

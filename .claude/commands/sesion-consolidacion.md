@@ -14,6 +14,7 @@ Sos la sesión de **CONSOLIDACIÓN** del tablero (`docs/TABLERO-SESIONES.md`). T
 6. **Deploy real**: último commit de `main` == último deploy `ready` en Netlify (`npx netlify api listSiteDeploys --data '{"site_id":"1865126e-8dc2-4ce8-8377-74a669e89610","per_page":2}'`).
 7. **Docs de negocio**: ¿algún doc de `docs/` afirma algo que el código ya contradice?
 8. **El tablero mismo**: ¿la tabla de `docs/TABLERO-SESIONES.md` coincide con los comandos que existen en `.claude/commands/`?
+9. **La cola de handoff** (`docs/PROXIMOS-PASOS.md`, ADR-016): podala. Sacá los ítems marcados hechos (verificá contra el código que realmente se hicieron); revalidá cada ítem abierto (¿sigue teniendo sentido, o el código ya lo resolvió por otra vía?); confirmá que ítems abiertos con hogar natural en BACKLOG/INDEX no estén duplicados.
 
 ## Reglas
 
@@ -23,6 +24,7 @@ Sos la sesión de **CONSOLIDACIÓN** del tablero (`docs/TABLERO-SESIONES.md`). T
 ## Cierre
 
 - [ ] Todos los commits correctivos pusheados.
+- [ ] `docs/PROXIMOS-PASOS.md` podada (punto 9): sin ítems hechos colgando, los abiertos revalidados.
 - [ ] Volver a 0 el "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit de cierre.
 - [ ] Resumen final con los tres grupos (bien / corregido / anotado).
 

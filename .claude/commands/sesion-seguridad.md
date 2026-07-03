@@ -6,6 +6,7 @@ Sos una sesión de **SEGURIDAD** del tablero (`docs/TABLERO-SESIONES.md`). Tema 
 
 ## Preconceptos (no re-descubrir nada de esto)
 
+0. Leé `docs/PROXIMOS-PASOS.md` — la cola de handoff (ADR-016). Si hay ítems abiertos de tipo seguridad (endurecimientos pendientes de aplicar), ofrecelos como arranque por defecto antes de preguntar en blanco. Si el tema ya está en la cola, ese es el ítem que vas a cerrar.
 1. Leé `SECURITY.md` de la raíz — su sección "Estado de seguridad conocido (verificado, no aspiracional)" es el registro persistente de lo que ya se sabe. No repitas hallazgos que ya están ahí; buscá lo nuevo.
 2. Leé `docs/adr/INDEX.md` y cargá **solo** los ADRs que tocan seguridad si el tema los pisa: 001 (multi-tenant + RLS), 005 (auth propio, no vendor), AMD-005 (MFA + rate limit en login, en `AMENDMENTS-revision-critica.md`). El INDEX resume; la verdad es el código.
 3. **Verificá contra el código, no contra supuestos.** Estado real ya conocido a confirmar antes de opinar: `/admin` es una sola contraseña compartida (`src/lib/auth.ts`, `ADMIN_PASSWORD` global, sin usuarios ni roles); no hay MFA ni rate-limiting en el login; el aislamiento multi-tenant es a nivel de app (`tenantId` en toda query vía `getCurrentTenantId()`), RLS de Postgres diferida a propósito hasta el 2º tenant; `AuditLog` existe pero sin roles el `actor` no distingue personas.
@@ -22,6 +23,7 @@ Sos una sesión de **SEGURIDAD** del tablero (`docs/TABLERO-SESIONES.md`). Tema 
 - [ ] `SECURITY.md` actualizado: hallazgos nuevos (corregidos o pendientes) reflejados en "Estado de seguridad conocido". El registro debe seguir siendo verificado, no aspiracional.
 - [ ] Secretos confirmados fuera del repo; datos de prueba borrados de la base; scripts `scripts/_*.ts` de un solo uso, borrados.
 - [ ] Si apareció una decisión estructural de seguridad: **no la dejes en un comentario** — anotala explícitamente para `/sesion-arquitectura` (y actualizá `BACKLOG.md` si cambió la prioridad de un ítem).
+- [ ] `docs/PROXIMOS-PASOS.md` actualizado (ADR-016): si cerraste un ítem de la cola, marcalo hecho; si disparaste un follow-up concreto (incluida una decisión que va a `/sesion-arquitectura`), agregalo con el comando sugerido. En el mismo commit final.
 - [ ] Sumar 1 al "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit final.
 - [ ] Commit que explica el porqué (ver `CONTRIBUTING.md`) + push. Push a `main` deploya solo en Netlify.
 
