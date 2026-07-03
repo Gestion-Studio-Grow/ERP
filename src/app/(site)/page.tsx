@@ -1,297 +1,229 @@
-import Link from "next/link";
-import Image from "next/image";
+import { getPublicBookingData } from "@/lib/actions";
 import { getCatalog } from "@/lib/catalog-actions";
-import { getPublishedReviews } from "@/lib/reviews-actions";
-import ServicesAccordion from "./ServicesAccordion";
+import ReserveButton from "./_ch/ReserveButton";
+import Reveal from "./_ch/Reveal";
+import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
 
 export const dynamic = "force-dynamic";
 
-const howItWorks = [
-  {
-    n: "01",
-    title: "Elegí tu servicio",
-    description: "Mirá el menú, la duración y el precio de cada tratamiento antes de reservar.",
-  },
-  {
-    n: "02",
-    title: "Elegí día y horario",
-    description: "Vemos la agenda real del profesional — solo se muestran horarios efectivamente libres.",
-  },
-  {
-    n: "03",
-    title: "Confirmamos por WhatsApp",
-    description: "Te escribimos para coordinar el pago. Podés cancelar tu turno online cuando quieras.",
-  },
-];
-
-const categories = [
-  { n: "01", name: "Masajes", description: "Relajantes, descontracturantes y con piedras calientes." },
-  { n: "02", name: "Faciales", description: "Limpiezas profundas, peelings y tratamientos de luminosidad." },
-  { n: "03", name: "Corporales", description: "Radiofrecuencia, exfoliación y rituales reafirmantes." },
-  { n: "04", name: "Bienestar", description: "Rituales sensoriales para desconectar del día a día." },
-];
+const eyebrow: React.CSSProperties = {
+  fontFamily: "var(--font-body), system-ui, sans-serif",
+  textTransform: "uppercase",
+  letterSpacing: ".22em",
+  fontWeight: 600,
+  fontSize: ".75rem",
+  color: "var(--ch-mocha)",
+};
+const display = (extra?: React.CSSProperties): React.CSSProperties => ({
+  fontFamily: "var(--font-display), Georgia, serif",
+  ...extra,
+});
+const linkAccent: React.CSSProperties = {
+  color: "var(--ch-petrol)",
+  textDecoration: "underline",
+  textUnderlineOffset: 4,
+  textDecorationColor: "rgba(154,131,80,.5)",
+  textDecorationThickness: 1,
+};
 
 export default async function Home() {
-  const { services, professionals } = await getCatalog();
-  const activeServices = services.filter((s) => s.active);
+  const [{ groups }, { professionals }] = await Promise.all([getPublicBookingData(), getCatalog()]);
   const activeProfessionals = professionals.filter((p) => p.active);
-  const reviews = await getPublishedReviews();
 
   return (
     <>
-      {/* Hero — split asimétrico, no el clásico centrado sobre foto oscura */}
-      <section className="grid lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="flex flex-col justify-center px-6 sm:px-12 py-20 lg:py-0 order-2 lg:order-1">
-          <p
-            className="text-xs uppercase tracking-[0.3em] mb-6"
-            style={{ color: "var(--spa-gold)" }}
-          >
-            Barrio La Alameda, Canning
-          </p>
-          <h1
-            className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[0.95] mb-8 max-w-lg"
-            style={{ color: "var(--spa-ink)" }}
-          >
-            El tiempo,
-            <br />
-            para vos.
+      {/* HERO */}
+      <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(32px,8vw,48px) 24px clamp(40px,8vw,64px)", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
+        <div style={{ flex: "1 1 440px", minWidth: 300 }}>
+          <p style={{ ...eyebrow, margin: "0 0 16px" }}>La Alameda · Canning</p>
+          <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 340, margin: 0 })}>
+            Tu tiempo, cuidado a metros de casa.
           </h1>
-          <p
-            className="max-w-sm mb-10 text-base leading-relaxed"
-            style={{ color: "var(--spa-mocha)" }}
-          >
-            Un espacio de Carolina Haponiuk dedicado al bienestar. Reservá tu
-            turno online en menos de un minuto.
+          <p style={{ margin: "20px 0 0", fontSize: "1.0625rem", color: "rgba(32,31,27,.8)", maxWidth: "28rem", lineHeight: 1.65 }}>
+            Estética y spa dentro del barrio, con Carolina. Reservás en un minuto.
           </p>
-          <div>
-            <Link href="/reserva" className="btn-editorial-solid text-xs uppercase tracking-[0.1em]">
-              Reservar turno →
-            </Link>
+          <div style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+            <ReserveButton />
+            <a href="#servicios" style={linkAccent}>Ver servicios</a>
           </div>
         </div>
-        <div className="relative h-[50vh] lg:h-auto order-1 lg:order-2">
-          <Image
-            src="https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1400&q=80"
-            alt="Beauty & Spa"
-            fill
-            priority
-            className="object-cover"
+        <div style={{ flex: "1 1 360px", minWidth: 280 }}>
+          <PhotoPlaceholder
+            ratio="4 / 5"
+            gradient="radial-gradient(120% 90% at 78% 20%, rgba(46,110,119,.25), transparent 55%),linear-gradient(135deg,#D8CBB4 0%,#B79C7E 45%,#856B52 100%)"
+            caption="Manos acomodando lino sobre camilla de madera · luz de ventana, tarde cálida · frasco de vidrio petróleo como único acento frío"
           />
         </div>
       </section>
 
-      {/* Categorías — lista editorial numerada, no grilla de 4 tarjetas iguales */}
-      <section className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
-        <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-[0.9fr_1.1fr] gap-12 items-start">
-          <div className="relative aspect-[4/5] lg:sticky lg:top-24">
-            <Image
-              src="https://images.unsplash.com/photo-1596178065887-1198b6148b2b?auto=format&fit=crop&w=900&q=80"
-              alt="Nuestro spa"
-              fill
-              className="object-cover"
-            />
-          </div>
-          <div>
-            <p
-              className="text-xs uppercase tracking-[0.3em] mb-3"
-              style={{ color: "var(--spa-gold)" }}
-            >
-              Lo que ofrecemos
-            </p>
-            <h2
-              className="font-serif text-3xl sm:text-4xl mb-10"
-              style={{ color: "var(--spa-ink)" }}
-            >
-              Tratamientos pensados para vos
-            </h2>
-            <div>
-              {categories.map((c) => (
-                <div
-                  key={c.n}
-                  className="flex items-baseline gap-6 py-6"
-                  style={{ borderTop: "1px solid var(--spa-hairline)" }}
-                >
-                  <span
-                    className="font-serif text-sm shrink-0"
-                    style={{ color: "var(--spa-gold)" }}
-                  >
-                    {c.n}
-                  </span>
-                  <div>
-                    <h3
-                      className="font-serif text-2xl mb-1"
-                      style={{ color: "var(--spa-ink)" }}
-                    >
-                      {c.name}
-                    </h3>
-                    <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
-                      {c.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* PROPUESTA DE VALOR */}
+      <section style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(56px,10vw,96px) 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 40 }}>
+          {[
+            ["Tiempo", "Entrás, te atienden, seguís tu día."],
+            ["Cercanía", "Dentro del barrio. Sin salir, sin tránsito."],
+            ["Cuidado", "Protocolos serios, piel que ya conocemos."],
+          ].map(([t, d]) => (
+            <Reveal key={t}>
+              <h3 style={display({ fontSize: "1.25rem", fontWeight: 420, margin: "0 0 8px" })}>{t}</h3>
+              <p style={{ fontSize: ".875rem", color: "rgba(32,31,27,.7)", lineHeight: 1.7, margin: 0 }}>{d}</p>
+            </Reveal>
+          ))}
         </div>
       </section>
 
-      {/* Servicios */}
-      <section id="servicios" className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
-        <div className="mx-auto max-w-3xl px-6">
-          <div className="mb-14">
-            <p
-              className="text-xs uppercase tracking-[0.3em] mb-3"
-              style={{ color: "var(--spa-gold)" }}
-            >
-              Menú de servicios
-            </p>
-            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-ink)" }}>
-              Precios y duración
-            </h2>
-          </div>
-          {activeServices.length > 0 ? (
-            <ServicesAccordion services={activeServices} />
-          ) : (
-            <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
-              Próximamente vamos a publicar los servicios.
-            </p>
+      {/* SERVICIOS */}
+      <section id="servicios" style={{ maxWidth: 1152, margin: "0 auto", padding: "64px 24px" }}>
+        <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que hacemos</p>
+        <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 380, margin: "0 0 40px" })}>Servicios</h2>
+        <div style={{ maxWidth: 768 }}>
+          {groups.length === 0 && (
+            <p style={{ color: "var(--ch-mocha)" }}>Próximamente publicamos el menú de servicios.</p>
+          )}
+          {groups.map((g) => (
+            <div key={g.id} style={{ marginBottom: 32 }}>
+              <h3 style={display({ fontSize: "1.5rem", fontWeight: 420, margin: "0 0 8px" })}>{g.name}</h3>
+              {g.services.map((it) => (
+                <div key={it.id} style={{ borderBottom: "1px solid rgba(199,180,156,.6)", padding: "12px 8px", margin: "0 -8px", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16 }}>
+                  <span>{it.name}</span>
+                  <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)", whiteSpace: "nowrap" }}>
+                    {it.durationMin} min · ${it.price.toLocaleString("es-AR")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 48 }}>
+          <PhotoPlaceholder
+            ratio="16 / 9"
+            gradient="linear-gradient(135deg,#C7B49C,#856B52 70%,#5b4636)"
+            caption="Macro de manos en un masaje · piel real, aceite, luz rasante · sin producto de vitrina, sin caras"
+          />
+        </div>
+      </section>
+
+      {/* EQUIPO */}
+      <section id="equipo" style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(56px,10vw,96px) 24px" }}>
+          <p style={{ ...eyebrow, margin: "0 0 12px" }}>Quién te atiende</p>
+          <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 380, margin: "0 0 48px" })}>Equipo</h2>
+          {activeProfessionals.map((p) => (
+            <Reveal key={p.id} style={{ padding: "32px 0", display: "flex", gap: 24, alignItems: "flex-start", borderTop: "1px solid rgba(199,180,156,.3)" }}>
+              <div style={{ position: "relative", width: 64, height: 64, borderRadius: 9999, flexShrink: 0, overflow: "hidden" }}>
+                <PhotoPlaceholder ratio="1 / 1" rounded={false} gradient="linear-gradient(150deg,#E6DDCE 0%,#C7B49C 60%,#856B52 120%)" caption="Retrato cálido, luz lateral" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={display({ fontSize: "clamp(1.15rem,2vw,1.5rem)", lineHeight: 1.4, fontWeight: 380, color: "var(--ch-ink)", margin: 0 })}>
+                  {p.name}
+                </p>
+                <p style={{ margin: "12px 0 0", fontSize: ".875rem", color: "var(--ch-mocha)" }}>
+                  {p.services.length > 0 ? p.services.map((s) => s.name).slice(0, 4).join(" · ") : "Estética integral"}
+                </p>
+              </div>
+            </Reveal>
+          ))}
+          {activeProfessionals.length === 0 && (
+            <p style={{ color: "var(--ch-mocha)" }}>Próximamente presentamos al equipo.</p>
           )}
         </div>
       </section>
 
-      {/* Cómo reservar — genera confianza, 100% server-rendered, sin JS extra */}
-      <section className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)", background: "var(--spa-sage-light)" }}>
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="mb-14 max-w-md">
-            <p
-              className="text-xs uppercase tracking-[0.3em] mb-3"
-              style={{ color: "var(--spa-gold)" }}
-            >
-              Sin sorpresas
-            </p>
-            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-ink)" }}>
-              Cómo reservar
-            </h2>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-10">
-            {howItWorks.map((step) => (
-              <div key={step.n}>
-                <p className="font-serif text-4xl mb-4" style={{ color: "var(--spa-gold)" }}>
-                  {step.n}
-                </p>
-                <h3 className="font-serif text-xl mb-2" style={{ color: "var(--spa-ink)" }}>
-                  {step.title}
-                </h3>
-                <p className="text-sm leading-relaxed" style={{ color: "var(--spa-mocha)" }}>
-                  {step.description}
-                </p>
+      {/* CÓMO RESERVAR */}
+      <section style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(56px,10vw,96px) 24px" }}>
+          <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 380, margin: "0 0 48px" })}>Cómo reservar</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 40, fontSize: ".875rem" }}>
+            {[
+              ["01", "Elegí el servicio."],
+              ["02", "Elegí día y profesional."],
+              ["03", "Confirmás y listo."],
+            ].map(([n, t]) => (
+              <div key={n}>
+                <p style={{ color: "var(--ch-mocha)", margin: "0 0 4px" }}>{n}</p>
+                <p style={{ color: "rgba(32,31,27,.8)", margin: 0 }}>{t}</p>
               </div>
             ))}
+          </div>
+          <div style={{ marginTop: 48 }}>
+            <ReserveButton>Reservar ahora</ReserveButton>
           </div>
         </div>
       </section>
 
-      {/* Profesionales */}
-      <section id="profesionales" className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="mb-14">
-            <p
-              className="text-xs uppercase tracking-[0.3em] mb-3"
-              style={{ color: "var(--spa-gold)" }}
-            >
-              Equipo
-            </p>
-            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-ink)" }}>
-              Profesionales especializados
+      {/* CONFIANZA */}
+      <section style={{ background: "var(--ch-sage-deep)", color: "var(--ch-ivory)" }}>
+        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(48px,9vw,80px) 24px", display: "flex", flexWrap: "wrap", gap: 40, alignItems: "center" }}>
+          <Reveal style={{ flex: "1 1 380px", minWidth: 280 }}>
+            <p style={{ ...eyebrow, color: "var(--ch-clay)", margin: "0 0 16px" }}>Seriedad, sin ruido</p>
+            <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", lineHeight: 1.2, fontWeight: 380, margin: 0 })}>
+              Un espacio dentro del barrio, pensado para pocos.
             </h2>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-px" style={{ background: "var(--spa-hairline)" }}>
-            {activeProfessionals.map((p) => (
-              <div key={p.id} className="p-8" style={{ background: "var(--spa-ivory)" }}>
-                <div
-                  className="aspect-square mb-5 flex items-center justify-center text-[10px] text-center leading-tight"
-                  style={{ border: "1px solid var(--spa-hairline)", color: "var(--spa-mocha)" }}
-                >
-                  tu foto
-                </div>
-                <p className="font-serif text-xl mb-1" style={{ color: "var(--spa-ink)" }}>
-                  {p.name}
-                </p>
-                <p
-                  className="text-xs uppercase tracking-[0.1em]"
-                  style={{ color: "var(--spa-mocha)" }}
-                >
-                  {p.services.map((s) => s.name).join(" · ") || "Sin servicios asignados"}
-                </p>
-              </div>
-            ))}
-            {activeProfessionals.length === 0 && (
-              <p className="text-sm p-8" style={{ color: "var(--spa-mocha)" }}>
-                Próximamente vamos a publicar el equipo.
-              </p>
-            )}
+            <p style={{ margin: "20px 0 0", color: "rgba(243,238,229,.85)", maxWidth: "28rem", lineHeight: 1.7 }}>
+              Turnos que no se pisan. Alguien que ya te conoce.
+            </p>
+            <p style={{ margin: "24px 0 0", paddingLeft: 16, borderLeft: "2px solid var(--ch-petrol)", fontSize: ".875rem", color: "rgba(243,238,229,.8)" }}>
+              Material esterilizado · Turnos espaciados · Productos con trazabilidad
+            </p>
+          </Reveal>
+          <div style={{ flex: "1 1 340px", minWidth: 280 }}>
+            <PhotoPlaceholder
+              ratio="4 / 3"
+              gradient="radial-gradient(90% 80% at 30% 30%, rgba(46,110,119,.35),transparent 60%),linear-gradient(150deg,#4b5344,#414A3C 70%,#2f362b)"
+              caption="Instrumental esterilizado y toallas de lino dobladas · frascos de vidrio petróleo · orden cálido, nunca laboratorio"
+            />
           </div>
         </div>
       </section>
 
-      {/* Testimonios */}
-      {reviews.length > 0 && (
-        <section className="py-24" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
-          <div className="mx-auto max-w-5xl px-6">
-            <div className="mb-14">
-              <p
-                className="text-xs uppercase tracking-[0.3em] mb-3"
-                style={{ color: "var(--spa-gold)" }}
-              >
-                Testimonios
-              </p>
-              <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "var(--spa-ink)" }}>
-                Lo que dicen de nosotros
-              </h2>
-            </div>
-            <div className="grid sm:grid-cols-3 gap-10">
-              {reviews.map((r) => (
-                <div key={r.id}>
-                  <p
-                    className="font-serif text-4xl leading-none mb-3"
-                    style={{ color: "var(--spa-gold)" }}
-                  >
-                    &ldquo;
-                  </p>
-                  {r.comment && (
-                    <p
-                      className="text-sm mb-5 leading-relaxed"
-                      style={{ color: "var(--spa-ink)" }}
-                    >
-                      {r.comment}
-                    </p>
-                  )}
-                  <p
-                    className="text-xs uppercase tracking-[0.1em]"
-                    style={{ color: "var(--spa-mocha)" }}
-                  >
-                    {r.clientName} · {r.professional.name}
-                  </p>
+      {/* CTA CIERRE */}
+      <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(64px,14vw,128px) 24px", borderTop: "1px solid rgba(199,180,156,.3)" }}>
+        <h2 style={display({ fontSize: "clamp(2.4rem,5vw,3.9rem)", fontWeight: 340, margin: 0 })}>Tu tiempo, cerca.</h2>
+        <p style={{ margin: "16px 0 0", fontSize: "1.125rem", color: "rgba(32,31,27,.8)", maxWidth: "28rem" }}>
+          Reservá tu turno en menos de un minuto.
+        </p>
+        <div style={{ marginTop: 32 }}>
+          <ReserveButton />
+        </div>
+      </section>
+
+      {/* CONTACTO / CÓMO LLEGAR */}
+      <section id="contacto" style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(56px,10vw,96px) 24px", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
+          <Reveal style={{ flex: "1 1 380px", minWidth: 280 }}>
+            <p style={{ ...eyebrow, margin: "0 0 12px" }}>Dónde estamos</p>
+            <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", fontWeight: 380, margin: "0 0 32px" })}>Cómo llegar</h2>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {[
+                ["Dirección", "Barrio La Alameda, Canning"],
+                ["Horarios", "Lun a sáb · 9 a 19 h"],
+                ["Reservas", "Online, en un minuto"],
+              ].map(([k, v], i) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "14px 0", borderTop: "1px solid rgba(199,180,156,.4)", borderBottom: i === 2 ? "1px solid rgba(199,180,156,.4)" : undefined }}>
+                  <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)" }}>{k}</span>
+                  <span style={{ fontSize: ".9375rem", textAlign: "right" }}>{v}</span>
                 </div>
               ))}
             </div>
+            <div style={{ marginTop: 32 }}>
+              <a
+                href={"https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Barrio La Alameda, Canning, Buenos Aires")}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ background: "var(--ch-ink)", color: "var(--ch-ivory)", padding: "12px 24px", textDecoration: "none", fontSize: 15 }}
+              >
+                Cómo llegar
+              </a>
+            </div>
+          </Reveal>
+          <div style={{ flex: "1 1 340px", minWidth: 280 }}>
+            <PhotoPlaceholder
+              ratio="4 / 3"
+              pin
+              gradient="linear-gradient(160deg,#E6DDCE 0%,#C7B49C 55%,#6B7660 130%)"
+              caption="Croquis del barrio con el acceso a CH · trazo sobrio, sin logotipos de terceros"
+            />
           </div>
-        </section>
-      )}
-
-      {/* CTA final — banda de tinta, sin repetir el patrón de foto+overlay del hero */}
-      <section style={{ background: "var(--spa-ink)" }}>
-        <div className="mx-auto max-w-3xl px-6 py-24 text-center">
-          <h2 className="font-serif text-3xl sm:text-4xl mb-8" style={{ color: "var(--spa-ivory)" }}>
-            ¿Lista para tu próximo turno?
-          </h2>
-          <Link
-            href="/reserva"
-            className="inline-flex items-center gap-2 px-8 py-3.5 text-xs uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
-            style={{ background: "var(--spa-gold)", color: "var(--spa-ink)" }}
-          >
-            Reservar turno →
-          </Link>
         </div>
       </section>
     </>

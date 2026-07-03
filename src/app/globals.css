@@ -15,6 +15,20 @@
   --spa-gold: #a3714a;
   --spa-ink: #1c1815;
   --spa-hairline: rgba(28, 24, 21, 0.14);
+
+  /* CH Estética (rediseño 2026) — tokens del handoff, hex exactos. */
+  --ch-ivory: #f3eee5; /* fondo base */
+  --ch-linen: #e6ddce; /* fondo secundario / hover / monograma fantasma */
+  --ch-clay: #c7b49c; /* bordes / hairlines */
+  --ch-mocha: #856b52; /* texto secundario, eyebrows */
+  --ch-terracotta: #a85e3c; /* acento alternativo */
+  --ch-sage: #6b7660;
+  --ch-sage-deep: #414a3c; /* bloques oscuros (confianza, footer) */
+  --ch-petrol: #2c6e77; /* acento principal */
+  --ch-teal-logo: #1e93a6; /* monograma CH */
+  --ch-ink: #201f1b; /* texto principal, botones sólidos */
+  --ch-brass: #9a8350; /* subrayado de links */
+  --ch-hairline: rgba(199, 180, 156, 0.5);
 }
 
 @theme inline {
@@ -23,6 +37,8 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-spa-serif);
+  --font-display: var(--font-fraunces);
+  --font-body: var(--font-hanken);
 }
 
 body {

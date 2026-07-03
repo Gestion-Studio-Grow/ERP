@@ -1,111 +1,46 @@
 import Link from "next/link";
-import { whatsappLink } from "@/lib/business-config";
+import { getPublicBookingData } from "@/lib/actions";
+import { nextBusinessDays } from "@/lib/datetime";
+import { BUSINESS_WHATSAPP } from "@/lib/business-config";
+import BookingProvider from "./_ch/BookingProvider";
+import Header from "./_ch/Header";
 
-export default function SiteLayout({ children }: { children: React.ReactNode }) {
+export const dynamic = "force-dynamic";
+
+export default async function SiteLayout({ children }: { children: React.ReactNode }) {
+  const { groups, professionals } = await getPublicBookingData();
+  const days = nextBusinessDays(14);
+  const whatsapp = BUSINESS_WHATSAPP.replace(/\D/g, "");
+
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ background: "var(--spa-ivory)", color: "var(--spa-ink)" }}
-    >
-      <header
-        className="sticky top-0 z-10"
-        style={{
-          borderBottom: "1px solid var(--spa-hairline)",
-          background: "var(--spa-ivory)",
-        }}
-      >
-        <div className="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between gap-6">
-          <Link href="/" className="flex items-baseline gap-2 shrink-0">
-            <span
-              className="font-serif text-2xl leading-none tracking-tight"
-              style={{ color: "var(--spa-ink)" }}
-            >
-              Beauty
-            </span>
-            <span
-              className="text-[10px] uppercase tracking-[0.3em]"
-              style={{ color: "var(--spa-gold)" }}
-            >
-              &amp; Spa
-            </span>
-          </Link>
+    <BookingProvider data={{ groups, professionals, days, whatsapp }}>
+      <div style={{ background: "var(--ch-ivory)", color: "var(--ch-ink)", fontFamily: "var(--font-body), system-ui, sans-serif" }}>
+        <Header />
+        <main id="top">{children}</main>
 
-          <nav className="flex items-center gap-8">
-            <Link
-              href="/#servicios"
-              className="hidden sm:inline text-xs uppercase tracking-[0.15em] transition-opacity hover:opacity-60"
-              style={{ color: "var(--spa-ink)" }}
-            >
-              Servicios
-            </Link>
-            <Link
-              href="/#profesionales"
-              className="hidden sm:inline text-xs uppercase tracking-[0.15em] transition-opacity hover:opacity-60"
-              style={{ color: "var(--spa-ink)" }}
-            >
-              Equipo
-            </Link>
-            <Link href="/reserva" className="btn-editorial-solid text-xs uppercase tracking-[0.1em]">
-              Reservar
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main className="flex-1">{children}</main>
-
-      <footer style={{ borderTop: "1px solid var(--spa-hairline)" }}>
-        <div className="mx-auto max-w-6xl px-6 py-14 grid gap-10 sm:grid-cols-3">
-          <div>
-            <p className="font-serif text-lg mb-2" style={{ color: "var(--spa-ink)" }}>
-              Beauty &amp; Spa
-            </p>
-            <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
-              Carolina Haponiuk
-              <br />
-              Barrio La Alameda, Canning
-            </p>
+        <footer style={{ background: "var(--ch-sage-deep)", color: "rgba(243,238,229,.8)" }}>
+          <div style={{ maxWidth: 1152, margin: "0 auto", padding: "48px 24px", display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 24, fontSize: ".875rem" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
+                <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--ch-teal-logo)" }}>CH</span>
+                <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--ch-clay)" }}>Estética</span>
+              </div>
+              <p style={{ margin: 0 }}>Barrio La Alameda, Canning · Buenos Aires</p>
+            </div>
+            <div>
+              <p style={{ color: "var(--ch-ivory)", margin: "0 0 4px" }}>Horarios</p>
+              <p style={{ margin: 0 }}>Lun a sáb · 9 a 19 h</p>
+            </div>
+            <div>
+              <p style={{ color: "var(--ch-ivory)", margin: "0 0 4px" }}>Contacto</p>
+              <p style={{ margin: 0 }}>Reservas por la web · WhatsApp con turno confirmado</p>
+              <Link href="/admin" style={{ color: "rgba(243,238,229,.55)", textDecoration: "underline", textUnderlineOffset: 4, fontSize: ".8125rem" }}>
+                Acceso administrador
+              </Link>
+            </div>
           </div>
-          <div>
-            <p
-              className="text-xs uppercase tracking-[0.2em] mb-3"
-              style={{ color: "var(--spa-gold)" }}
-            >
-              Contacto
-            </p>
-            <a
-              href={whatsappLink("Hola! Quería consultar sobre un turno en Beauty & Spa.")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm underline underline-offset-4 decoration-[var(--spa-hairline)] hover:decoration-current"
-              style={{ color: "var(--spa-mocha)" }}
-            >
-              WhatsApp
-            </a>
-          </div>
-          <div>
-            <p
-              className="text-xs uppercase tracking-[0.2em] mb-3"
-              style={{ color: "var(--spa-gold)" }}
-            >
-              Panel
-            </p>
-            <Link
-              href="/admin"
-              className="text-sm underline underline-offset-4 decoration-[var(--spa-hairline)] hover:decoration-current"
-              style={{ color: "var(--spa-mocha)" }}
-            >
-              Acceso administrador
-            </Link>
-          </div>
-        </div>
-        <div
-          className="mx-auto max-w-6xl px-6 py-5 text-xs"
-          style={{ borderTop: "1px solid var(--spa-hairline)", color: "var(--spa-mocha)" }}
-        >
-          © {new Date().getFullYear()} Beauty &amp; Spa
-        </div>
-      </footer>
-    </div>
+        </footer>
+      </div>
+    </BookingProvider>
   );
 }

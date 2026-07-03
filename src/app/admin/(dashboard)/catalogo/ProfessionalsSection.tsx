@@ -7,12 +7,18 @@ import {
   updateProfessional,
   deleteProfessional,
   setWorkingHours,
+  createProfessionalBlock,
+  deleteProfessionalBlock,
+  setProfessionalServiceCommission,
 } from "@/lib/catalog-actions";
+import { fmtShortDate } from "@/lib/datetime";
 import { useToast } from "../ToastProvider";
 
 type Box = { id: string; name: string; active: boolean };
 type Service = { id: string; name: string; active: boolean };
 type WorkingHour = { dayOfWeek: number; startTime: string; endTime: string };
+type Block = { id: string; startsAt: Date; endsAt: Date; reason: string };
+type ServiceCommission = { serviceId: string; commissionPercent: number };
 type Professional = {
   id: string;
   name: string;
@@ -22,6 +28,8 @@ type Professional = {
   services: Service[];
   commissionPercent: number;
   workingHours: WorkingHour[];
+  blocks: Block[];
+  serviceCommissions: ServiceCommission[];
 };
 
 const DAYS = [
@@ -97,6 +105,116 @@ function WorkingHoursEditor({ professional: p }: { professional: Professional })
   );
 }
 
+// Novedades / ausencias del profesional (G9): franco, vacaciones, no viene tal día.
+function NovedadesEditor({ professional: p }: { professional: Professional }) {
+  const { showError } = useToast();
+  return (
+    <div className="rounded-lg border p-4 bg-neutral-50">
+      <p className="text-sm font-medium mb-1">Novedades / ausencias</p>
+      <p className="text-xs text-neutral-500 mb-3">
+        Bloqueá los días que este profesional no está (franco, vacaciones, no viene). La agenda no
+        va a ofrecer turnos con él en ese rango.
+      </p>
+      {p.blocks.length > 0 && (
+        <ul className="space-y-1 mb-3">
+          {p.blocks.map((b) => (
+            <li key={b.id} className="flex items-center justify-between text-sm">
+              <span>
+                {fmtShortDate(b.startsAt)} – {fmtShortDate(b.endsAt)} ·{" "}
+                <span className="text-neutral-500">{b.reason}</span>
+              </span>
+              <form action={deleteProfessionalBlock}>
+                <input type="hidden" name="id" value={b.id} />
+                <button type="submit" className="text-xs text-red-600 hover:underline">
+                  Quitar
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        action={async (fd) => {
+          try {
+            await createProfessionalBlock(fd);
+          } catch (err) {
+            showError(err instanceof Error ? err.message : "No se pudo guardar la novedad.");
+          }
+        }}
+        className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1.5fr_auto] items-end gap-2"
+      >
+        <input type="hidden" name="professionalId" value={p.id} />
+        <label className="text-xs text-neutral-500">
+          Desde
+          <input type="date" name="startDate" required className="mt-1 w-full rounded-md border px-2 py-1 text-sm" />
+        </label>
+        <label className="text-xs text-neutral-500">
+          Hasta
+          <input type="date" name="endDate" required className="mt-1 w-full rounded-md border px-2 py-1 text-sm" />
+        </label>
+        <input
+          name="reason"
+          required
+          placeholder="Motivo (vacaciones, franco...)"
+          className="col-span-2 sm:col-span-1 rounded-md border px-2 py-1.5 text-sm"
+        />
+        <button
+          type="submit"
+          className="col-span-2 sm:col-span-1 rounded-md bg-black text-white px-3 py-2 sm:py-1.5 text-sm font-medium"
+        >
+          Agregar
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// Comisión por servicio (G18): override del % general para servicios puntuales.
+function CommissionsEditor({ professional: p }: { professional: Professional }) {
+  const overrideFor = (serviceId: string) =>
+    p.serviceCommissions.find((c) => c.serviceId === serviceId)?.commissionPercent;
+  return (
+    <div className="rounded-lg border p-4 bg-neutral-50">
+      <p className="text-sm font-medium mb-1">Comisión por servicio</p>
+      <p className="text-xs text-neutral-500 mb-3">
+        Comisión general: <strong>{p.commissionPercent}%</strong>. Si un servicio paga distinto,
+        poné el porcentaje acá. Dejalo vacío para usar el general.
+      </p>
+      {p.services.length === 0 ? (
+        <p className="text-sm text-neutral-500">Este profesional no tiene servicios asignados.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {p.services.map((s) => (
+            <form
+              key={s.id}
+              action={setProfessionalServiceCommission}
+              className="flex items-center gap-2 text-sm"
+            >
+              <input type="hidden" name="professionalId" value={p.id} />
+              <input type="hidden" name="serviceId" value={s.id} />
+              <span className="flex-1 truncate">{s.name}</span>
+              <input
+                name="commissionPercent"
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                defaultValue={overrideFor(s.id) ?? ""}
+                placeholder={`${p.commissionPercent}`}
+                className="w-20 rounded-md border px-2 py-1 text-sm"
+              />
+              <span className="text-neutral-400">%</span>
+              <button type="submit" className="text-xs font-medium text-neutral-600 hover:underline">
+                Guardar
+              </button>
+            </form>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfessionalRow({
   professional: p,
   boxes,
@@ -108,6 +226,8 @@ function ProfessionalRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [editingHours, setEditingHours] = useState(false);
+  const [editingNovedades, setEditingNovedades] = useState(false);
+  const [editingComisiones, setEditingComisiones] = useState(false);
   const { showError, showSuccess } = useToast();
 
   if (editing) {
@@ -198,16 +318,28 @@ function ProfessionalRow({
 
   return (
     <div className="rounded-lg border px-4 py-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <span className={p.active ? "font-medium" : "font-medium text-neutral-400 line-through"}>
           {p.name}
         </span>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <button
             onClick={() => setEditingHours((v) => !v)}
             className="text-sm text-neutral-500 hover:underline"
           >
             Horario
+          </button>
+          <button
+            onClick={() => setEditingNovedades((v) => !v)}
+            className="text-sm text-neutral-500 hover:underline"
+          >
+            Novedades
+          </button>
+          <button
+            onClick={() => setEditingComisiones((v) => !v)}
+            className="text-sm text-neutral-500 hover:underline"
+          >
+            Comisiones
           </button>
           <button onClick={() => setEditing(true)} className="text-sm text-neutral-500 hover:underline">
             Editar
@@ -251,6 +383,16 @@ function ProfessionalRow({
       {editingHours && (
         <div className="mt-3">
           <WorkingHoursEditor professional={p} />
+        </div>
+      )}
+      {editingNovedades && (
+        <div className="mt-3">
+          <NovedadesEditor professional={p} />
+        </div>
+      )}
+      {editingComisiones && (
+        <div className="mt-3">
+          <CommissionsEditor professional={p} />
         </div>
       )}
     </div>

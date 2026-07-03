@@ -3,11 +3,12 @@ import BoxesSection from "./BoxesSection";
 import ServicesSection from "./ServicesSection";
 import ProfessionalsSection from "./ProfessionalsSection";
 import ProductsSection from "./ProductsSection";
+import ResourcesSection from "./ResourcesSection";
 
 export const dynamic = "force-dynamic";
 
 export default async function CatalogoPage() {
-  const { boxes, services, professionals, products } = await getCatalog();
+  const { boxes, services, professionals, products, categories, resources } = await getCatalog();
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
@@ -18,7 +19,13 @@ export default async function CatalogoPage() {
 
       <div className="space-y-10">
         <BoxesSection boxes={boxes} />
-        <ServicesSection services={services} products={products} />
+        <ServicesSection
+          services={services}
+          products={products}
+          categories={categories}
+          resources={resources}
+        />
+        <ResourcesSection resources={resources} />
         <ProductsSection products={products} />
         <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} />
       </div>

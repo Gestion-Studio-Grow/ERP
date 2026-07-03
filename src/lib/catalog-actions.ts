@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { auditAdmin } from "@/lib/audit";
+import { getCurrentTenantId } from "@/lib/tenant";
 
 const CATALOG_PATH = "/admin/catalogo";
 
 export async function getCatalog() {
-  const [boxes, services, professionals, products] = await Promise.all([
+  const [boxes, services, professionals, products, categories, resources] = await Promise.all([
     prisma.box.findMany({
       where: { deletedAt: null },
       orderBy: { name: "asc" },
@@ -16,8 +17,12 @@ export async function getCatalog() {
     }),
     prisma.service.findMany({
       where: { deletedAt: null },
-      orderBy: { name: "asc" },
-      include: { products: { include: { product: true } } },
+      orderBy: [{ category: { order: "asc" } }, { name: "asc" }],
+      include: {
+        products: { include: { product: true } },
+        category: true,
+        resources: { include: { resource: true } },
+      },
     }),
     prisma.professional.findMany({
       where: { deletedAt: null },
@@ -26,11 +31,15 @@ export async function getCatalog() {
         box: true,
         services: { where: { deletedAt: null } },
         workingHours: { orderBy: { dayOfWeek: "asc" } },
+        blocks: { where: { endsAt: { gte: new Date() } }, orderBy: { startsAt: "asc" } },
+        serviceCommissions: true,
       },
     }),
     prisma.product.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
+    prisma.serviceCategory.findMany({ orderBy: { order: "asc" } }),
+    prisma.resource.findMany({ orderBy: { name: "asc" }, include: { services: true } }),
   ]);
-  return { boxes, services, professionals, products };
+  return { boxes, services, professionals, products, categories, resources };
 }
 
 // --- Boxes ---
@@ -38,7 +47,7 @@ export async function getCatalog() {
 export async function createBox(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   if (!name) return;
-  await prisma.box.create({ data: { name } });
+  await prisma.box.create({ data: { tenantId: await getCurrentTenantId(), name } });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -85,7 +94,9 @@ export async function createBoxBlock(formData: FormData) {
     throw new Error("La fecha de fin debe ser posterior a la de inicio.");
   }
 
-  await prisma.boxBlock.create({ data: { boxId, startsAt, endsAt, reason } });
+  await prisma.boxBlock.create({
+    data: { tenantId: await getCurrentTenantId(), boxId, startsAt, endsAt, reason },
+  });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -102,8 +113,18 @@ export async function createService(formData: FormData) {
   const description = String(formData.get("description") || "").trim();
   const durationMin = Number(formData.get("durationMin"));
   const price = Number(formData.get("price"));
+  const categoryId = String(formData.get("categoryId") || "") || null;
   if (!name || !durationMin || !price) return;
-  await prisma.service.create({ data: { name, description: description || null, durationMin, price } });
+  await prisma.service.create({
+    data: {
+      tenantId: await getCurrentTenantId(),
+      name,
+      description: description || null,
+      durationMin,
+      price,
+      categoryId,
+    },
+  });
   revalidatePath(CATALOG_PATH);
 }
 
@@ -120,13 +141,14 @@ export async function updateService(formData: FormData) {
   const description = String(formData.get("description") || "").trim();
   const durationMin = Number(formData.get("durationMin"));
   const price = Number(formData.get("price"));
+  const categoryId = String(formData.get("categoryId") || "") || null;
   if (!name || !durationMin || !price) return;
   // Capturar el precio anterior para auditar el cambio (dispute: "ese precio no
   // lo cambié yo", ADR-009 §4).
   const before = await prisma.service.findUnique({ where: { id }, select: { price: true, name: true } });
   await prisma.service.update({
     where: { id },
-    data: { name, description: description || null, durationMin, price },
+    data: { name, description: description || null, durationMin, price, categoryId },
   });
   await auditAdmin({
     action: "update",
@@ -152,13 +174,14 @@ export async function setServiceProducts(formData: FormData) {
   const serviceId = String(formData.get("serviceId"));
   const productIds = formData.getAll("productId").map(String);
   const quantities = formData.getAll("quantity").map(Number);
+  const tenantId = await getCurrentTenantId();
 
   await prisma.$transaction(async (tx) => {
     await tx.serviceProduct.deleteMany({ where: { serviceId } });
     for (let i = 0; i < productIds.length; i++) {
       if (!productIds[i] || !quantities[i]) continue;
       await tx.serviceProduct.create({
-        data: { serviceId, productId: productIds[i], quantity: quantities[i] },
+        data: { tenantId, serviceId, productId: productIds[i], quantity: quantities[i] },
       });
     }
   });
@@ -174,7 +197,13 @@ export async function createProduct(formData: FormData) {
   const lowStockAt = Number(formData.get("lowStockAt"));
   if (!name || Number.isNaN(stock)) return;
   await prisma.product.create({
-    data: { name, unit, stock, lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt },
+    data: {
+      tenantId: await getCurrentTenantId(),
+      name,
+      unit,
+      stock,
+      lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt,
+    },
   });
   revalidatePath(CATALOG_PATH);
 }
@@ -224,6 +253,7 @@ export async function createProfessional(formData: FormData) {
 
   await prisma.professional.create({
     data: {
+      tenantId: await getCurrentTenantId(),
       name,
       phone: phone || undefined,
       boxId,
@@ -284,6 +314,7 @@ export async function setWorkingHours(formData: FormData) {
   const starts = formData.getAll("startTime").map(String);
   const ends = formData.getAll("endTime").map(String);
   const enabled = new Set(formData.getAll("enabledDay").map(Number));
+  const tenantId = await getCurrentTenantId();
 
   await prisma.$transaction(async (tx) => {
     await tx.workingHours.deleteMany({ where: { professionalId } });
@@ -292,10 +323,133 @@ export async function setWorkingHours(formData: FormData) {
       if (!enabled.has(day)) continue;
       if (!starts[i] || !ends[i] || starts[i] >= ends[i]) continue;
       await tx.workingHours.create({
-        data: { professionalId, dayOfWeek: day, startTime: starts[i], endTime: ends[i] },
+        data: { tenantId, professionalId, dayOfWeek: day, startTime: starts[i], endTime: ends[i] },
       });
     }
   });
 
+  revalidatePath(CATALOG_PATH);
+}
+
+// --- Novedades / bloqueos de agenda por profesional (G9) ---
+
+export async function createProfessionalBlock(formData: FormData) {
+  const professionalId = String(formData.get("professionalId"));
+  const startDate = String(formData.get("startDate") || "");
+  const endDate = String(formData.get("endDate") || "");
+  const reason = String(formData.get("reason") || "").trim();
+  if (!professionalId || !startDate || !endDate || !reason) return;
+
+  // Rango en días de pared del negocio → UTC (AMD-004).
+  const startsAt = businessWallTimeToUtc(startDate, "00:00");
+  const endsAt = businessWallTimeToUtc(endDate, "23:59");
+  if (endsAt <= startsAt) {
+    throw new Error("La fecha de fin debe ser posterior a la de inicio.");
+  }
+
+  await prisma.professionalBlock.create({
+    data: { tenantId: await getCurrentTenantId(), professionalId, startsAt, endsAt, reason },
+  });
+  await auditAdmin({
+    action: "create",
+    entity: "ProfessionalBlock",
+    entityId: professionalId,
+    changes: { reason, startDate, endDate },
+  });
+  revalidatePath(CATALOG_PATH);
+}
+
+export async function deleteProfessionalBlock(formData: FormData) {
+  const id = String(formData.get("id"));
+  await prisma.professionalBlock.delete({ where: { id } });
+  await auditAdmin({ action: "delete", entity: "ProfessionalBlock", entityId: id });
+  revalidatePath(CATALOG_PATH);
+}
+
+// --- Comisión por (profesional, servicio) (G18) ---
+
+// Guarda o borra el override de comisión de un servicio para un profesional.
+// Un valor vacío borra el override (vuelve a usar la comisión general).
+export async function setProfessionalServiceCommission(formData: FormData) {
+  const professionalId = String(formData.get("professionalId"));
+  const serviceId = String(formData.get("serviceId"));
+  const raw = String(formData.get("commissionPercent") || "").trim();
+  if (!professionalId || !serviceId) return;
+
+  if (raw === "") {
+    await prisma.professionalServiceCommission.deleteMany({ where: { professionalId, serviceId } });
+    revalidatePath(CATALOG_PATH);
+    return;
+  }
+
+  const commissionPercent = Number(raw);
+  if (Number.isNaN(commissionPercent) || commissionPercent < 0 || commissionPercent > 100) {
+    throw new Error("La comisión debe ser un porcentaje entre 0 y 100.");
+  }
+
+  await prisma.professionalServiceCommission.upsert({
+    where: { professionalId_serviceId: { professionalId, serviceId } },
+    create: {
+      tenantId: await getCurrentTenantId(),
+      professionalId,
+      serviceId,
+      commissionPercent,
+    },
+    update: { commissionPercent },
+  });
+  await auditAdmin({
+    action: "update",
+    entity: "ProfessionalServiceCommission",
+    entityId: `${professionalId}:${serviceId}`,
+    changes: { commissionPercent },
+  });
+  revalidatePath(CATALOG_PATH);
+}
+
+// --- Recursos con capacidad: máquinas / gabinetes (G17) ---
+
+export async function createResource(formData: FormData) {
+  const name = String(formData.get("name") || "").trim();
+  const quantity = Number(formData.get("quantity"));
+  if (!name || Number.isNaN(quantity) || quantity < 1) return;
+  await prisma.resource.create({
+    data: { tenantId: await getCurrentTenantId(), name, quantity },
+  });
+  revalidatePath(CATALOG_PATH);
+}
+
+export async function updateResource(formData: FormData) {
+  const id = String(formData.get("id"));
+  const name = String(formData.get("name") || "").trim();
+  const quantity = Number(formData.get("quantity"));
+  if (!name || Number.isNaN(quantity) || quantity < 1) return;
+  await prisma.resource.update({ where: { id }, data: { name, quantity } });
+  revalidatePath(CATALOG_PATH);
+}
+
+export async function deleteResource(formData: FormData) {
+  const id = String(formData.get("id"));
+  // ServiceResource cae por onDelete: Cascade.
+  await prisma.resource.delete({ where: { id } });
+  revalidatePath(CATALOG_PATH);
+}
+
+// Asigna qué recursos (y cuántas unidades) consume un servicio.
+export async function setServiceResources(formData: FormData) {
+  const serviceId = String(formData.get("serviceId"));
+  const resourceIds = formData.getAll("resourceId").map(String);
+  const units = formData.getAll("units").map(Number);
+  const tenantId = await getCurrentTenantId();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.serviceResource.deleteMany({ where: { serviceId } });
+    for (let i = 0; i < resourceIds.length; i++) {
+      if (!resourceIds[i]) continue;
+      const u = Number.isNaN(units[i]) || units[i] < 1 ? 1 : units[i];
+      await tx.serviceResource.create({
+        data: { tenantId, serviceId, resourceId: resourceIds[i], units: u },
+      });
+    }
+  });
   revalidatePath(CATALOG_PATH);
 }

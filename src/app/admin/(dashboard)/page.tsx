@@ -33,6 +33,18 @@ export default async function DashboardPage() {
         <Kpi label="Clientes" value={String(data.clientsCount)} href="/admin/clientes" />
       </div>
 
+      {data.blocksToday.length > 0 && (
+        <div className="mb-6 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+          <span className="font-medium">Hoy no está: </span>
+          {data.blocksToday.map((b, i) => (
+            <span key={i}>
+              {b.professional.name} ({b.reason})
+              {i < data.blocksToday.length - 1 ? " · " : ""}
+            </span>
+          ))}
+        </div>
+      )}
+
       <section>
         <h2 className="text-lg font-medium mb-3">Agenda de hoy</h2>
         {data.todayAppointments.length === 0 && (

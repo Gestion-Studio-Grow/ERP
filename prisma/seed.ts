@@ -16,28 +16,38 @@ async function main() {
   await prisma.boxBlock.deleteMany();
   await prisma.box.deleteMany();
 
-  const box1 = await prisma.box.create({ data: { name: "Box 1" } });
-  const box2 = await prisma.box.create({ data: { name: "Box 2" } });
-  const box3 = await prisma.box.create({ data: { name: "Box 3" } });
+  // Todo cuelga de un tenant (ADR-001 / ADR-010 G1). En un alta fresca se crea
+  // el tenant primero y cada entidad se le asigna.
+  const tenant = await prisma.tenant.upsert({
+    where: { slug: "beauty-spa" },
+    update: {},
+    create: { name: "Beauty & Spa", slug: "beauty-spa" },
+  });
+  const tenantId = tenant.id;
+
+  const box1 = await prisma.box.create({ data: { tenantId, name: "Box 1" } });
+  const box2 = await prisma.box.create({ data: { tenantId, name: "Box 2" } });
+  const box3 = await prisma.box.create({ data: { tenantId, name: "Box 3" } });
 
   const masajes = await prisma.service.create({
-    data: { name: "Masaje descontracturante", durationMin: 60, price: 15000 },
+    data: { tenantId, name: "Masaje descontracturante", durationMin: 60, price: 15000 },
   });
   const masajePiedras = await prisma.service.create({
-    data: { name: "Masaje con piedras calientes", durationMin: 75, price: 18000 },
+    data: { tenantId, name: "Masaje con piedras calientes", durationMin: 75, price: 18000 },
   });
   const limpiezaFacial = await prisma.service.create({
-    data: { name: "Limpieza facial profunda", durationMin: 50, price: 20000 },
+    data: { tenantId, name: "Limpieza facial profunda", durationMin: 50, price: 20000 },
   });
   const peeling = await prisma.service.create({
-    data: { name: "Peeling químico", durationMin: 40, price: 22000 },
+    data: { tenantId, name: "Peeling químico", durationMin: 40, price: 22000 },
   });
   const radiofrecuencia = await prisma.service.create({
-    data: { name: "Radiofrecuencia corporal", durationMin: 45, price: 25000 },
+    data: { tenantId, name: "Radiofrecuencia corporal", durationMin: 45, price: 25000 },
   });
 
   // Lunes a sábado, 9 a 19hs por defecto (se ajusta después desde Catálogo).
   const mondayToSaturday = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+    tenantId,
     dayOfWeek,
     startTime: "09:00",
     endTime: "19:00",
@@ -45,6 +55,7 @@ async function main() {
 
   await prisma.professional.create({
     data: {
+      tenantId,
       name: "Laura Gómez",
       phone: "1122334455",
       boxId: box1.id,
@@ -55,6 +66,7 @@ async function main() {
 
   await prisma.professional.create({
     data: {
+      tenantId,
       name: "Marina Suárez",
       phone: "1133445566",
       boxId: box2.id,
@@ -65,6 +77,7 @@ async function main() {
 
   await prisma.professional.create({
     data: {
+      tenantId,
       name: "Carla Díaz",
       phone: "1144556677",
       boxId: box3.id,
@@ -76,7 +89,7 @@ async function main() {
   });
 
   await prisma.client.create({
-    data: { name: "Sofía Pérez", phone: "1155667788", email: "sofia@example.com" },
+    data: { tenantId, name: "Sofía Pérez", phone: "1155667788", email: "sofia@example.com" },
   });
 
   console.log("Seed completo.");

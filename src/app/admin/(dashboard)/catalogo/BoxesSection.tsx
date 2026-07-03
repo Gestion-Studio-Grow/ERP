@@ -49,9 +49,9 @@ function BoxRow({ box }: { box: Box }) {
           </button>
         </form>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
           <span className={box.active ? "" : "text-neutral-400 line-through"}>{box.name}</span>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <button
               onClick={() => setBlocking((v) => !v)}
               className="text-sm text-neutral-500 hover:underline"

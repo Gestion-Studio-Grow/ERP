@@ -47,7 +47,7 @@ Es decir: convergemos en el **modelo de datos y la seguridad** (lo caro de arreg
 ### Brechas foundacionales — CARAS de diferir (cerrar durante la convergencia)
 | # | Brecha | ADR | Por qué es cara de diferir |
 |---|---|---|---|
-| G1 | **`tenant_id` en toda tabla + RLS** | 001 | El ADR entero es "diseñá esto desde el día 1 o sufrí". Retrofitear multi-tenancy sobre datos productivos es la migración más dolorosa que existe. **Máxima prioridad.** |
+| G1 | **`tenant_id` en toda tabla + RLS** | 001 | El ADR entero es "diseñá esto desde el día 1 o sufrí". Retrofitear multi-tenancy sobre datos productivos es la migración más dolorosa que existe. **Máxima prioridad.** → **Mitad de datos ✅ (2026-07-02)**: modelo `Tenant` + `tenantId` NOT NULL indexado en las 12 tablas, backfill de la base viva sin pérdida, threading en cada create vía `src/lib/tenant.ts`. **Mitad de RLS diferida** hasta el 2º tenant (con 1 tenant no hay leak posible; RLS+pooling es el mayor footgun). |
 | G2 | **Overbooking en el motor (`EXCLUDE USING GIST` + `TSTZRANGE`)** | 004 | Hoy es Alternativa A (la rechazada). Migrarlo es acotado (una tabla) pero hay que hacerlo antes de que el volumen de reservas concurrentes crezca. |
 | G3 | **Soft-delete (`deleted_at`)** | AMD-001 | Hoy hacemos DELETE físico. Necesario para audit trail y "borré por error". Cada día que pasa se pierden datos irrecuperables. |
 | G4 | **Audit trail (`audit_log` append-only)** | 009 §4 | *"No es Fase 3: es Fase 1. Retrofitear deja un agujero histórico permanente."* Cada mutación sin auditar hoy es historia que nunca vamos a poder reconstruir. |
@@ -78,10 +78,12 @@ Es decir: convergemos en el **modelo de datos y la seguridad** (lo caro de arreg
 2. G4 Audit trail → interceptar en un solo punto las mutaciones (hoy las server actions de `lib/`), tabla `audit_log`. Empezar a auditar YA aunque sea rústico.
 3. G1 `tenant_id` + RLS → **la decisión de fondo.** Se agrega `tenant_id` a cada tabla (con el tenant "Beauty & Spa" como primer registro), políticas RLS, y el contexto de tenant en la sesión. Es la ola más grande.
 
-**Ola 2 — Integridad y seguridad del dominio:**
-4. G2 Overbooking al motor (`EXCLUDE USING GIST`) — reemplaza la transacción de app.
-5. G8 Rate limit en login (rápido) → luego MFA para Admin.
-6. G9 Bloqueo de agenda por profesional.
+**Ola 2 — Features del relevamiento con el cliente (ADR-011) + integridad del dominio:**
+4. G16 Categorías de servicios (+ carga de Ducha escocesa / Pileta climatizada bajo "Spa").
+5. G9 Novedades/disponibilidad por profesional (`ProfessionalBlock`, ver ADR-011 §2).
+6. G18 Comisión por (profesional, servicio) — tabla de unión explícita.
+7. G2 Overbooking al motor (`EXCLUDE USING GIST`) **+ G17 recursos con capacidad** (máquinas/gabinetes) — comparten la lógica de solapamiento temporal, se hacen juntos (ADR-011 §3).
+8. G8 Rate limit en login (rápido) → luego MFA para Admin.
 
 **Ola 3 — Operación multi-usuario:**
 7. G7 RBAC 3 roles.

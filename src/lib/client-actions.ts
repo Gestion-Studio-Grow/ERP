@@ -34,6 +34,7 @@ export async function createReview(formData: FormData) {
 
   const review = await prisma.review.create({
     data: {
+      tenantId: appointment.tenantId,
       appointmentId,
       professionalId: appointment.professionalId,
       clientName: appointment.client.name,

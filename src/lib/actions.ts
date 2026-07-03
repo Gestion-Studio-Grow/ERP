@@ -11,6 +11,7 @@ import {
   dateStrInBusinessTz,
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit";
+import { getCurrentTenantId } from "@/lib/tenant";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -43,7 +44,14 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
   if (!window) return [];
   const { dayStart, dayEnd } = window;
 
-  const [existing, boxBlocks] = await Promise.all([
+  // Recursos que consume este servicio (G17): máquinas/gabinetes con capacidad.
+  const serviceResources = await prisma.serviceResource.findMany({
+    where: { serviceId },
+    include: { resource: true },
+  });
+  const resourceIds = serviceResources.map((sr) => sr.resourceId);
+
+  const [existing, boxBlocks, professionalBlocks, resourceUsage] = await Promise.all([
     prisma.appointment.findMany({
       where: {
         status: { in: ["PENDING", "CONFIRMED"] },
@@ -62,9 +70,32 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
           select: { startsAt: true, endsAt: true },
         })
       : Promise.resolve([]),
+    // Bloqueos del profesional ese día (G9): franco / vacaciones / novedad.
+    prisma.professionalBlock.findMany({
+      where: { professionalId, startsAt: { lt: dayEnd }, endsAt: { gt: dayStart } },
+      select: { startsAt: true, endsAt: true },
+    }),
+    // Turnos del día que usan alguno de los recursos que necesita este servicio,
+    // con las unidades que consume cada uno (para medir ocupación por franja).
+    resourceIds.length > 0
+      ? prisma.appointment.findMany({
+          where: {
+            status: { in: ["PENDING", "CONFIRMED"] },
+            startsAt: { gte: dayStart, lt: dayEnd },
+            service: { resources: { some: { resourceId: { in: resourceIds } } } },
+          },
+          select: {
+            startsAt: true,
+            endsAt: true,
+            service: {
+              select: { resources: { where: { resourceId: { in: resourceIds } }, select: { resourceId: true, units: true } } },
+            },
+          },
+        })
+      : Promise.resolve([]),
   ]);
   // Los turnos reales suman un margen de limpieza/preparación antes y
-  // después; los bloqueos de box (BoxBlock) ya son rangos explícitos y no
+  // después; los bloqueos de box/profesional ya son rangos explícitos y no
   // necesitan margen extra.
   const busy = [
     ...existing.map((a) => ({
@@ -72,6 +103,7 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
       endsAt: new Date(a.endsAt.getTime() + BUFFER_MIN * 60000),
     })),
     ...boxBlocks,
+    ...professionalBlocks,
   ];
 
   const slots: string[] = [];
@@ -82,8 +114,25 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
     t = new Date(t.getTime() + stepMin * 60000)
   ) {
     const slotEnd = new Date(t.getTime() + service.durationMin * 60000);
-    const overlaps = busy.some((a) => t < a.endsAt && slotEnd > a.startsAt);
-    if (!overlaps) slots.push(t.toISOString());
+    if (busy.some((a) => t < a.endsAt && slotEnd > a.startsAt)) continue;
+
+    // Capacidad de recursos (G17): para cada recurso requerido, la suma de
+    // unidades de los turnos que se solapan más lo que este turno consume no
+    // puede superar la cantidad disponible.
+    let resourceOk = true;
+    for (const sr of serviceResources) {
+      const overlapUnits = resourceUsage
+        .filter((a) => t < a.endsAt && slotEnd > a.startsAt)
+        .reduce((sum, a) => {
+          const link = a.service.resources.find((r) => r.resourceId === sr.resourceId);
+          return sum + (link?.units ?? 0);
+        }, 0);
+      if (overlapUnits + sr.units > sr.resource.quantity) {
+        resourceOk = false;
+        break;
+      }
+    }
+    if (resourceOk) slots.push(t.toISOString());
   }
   return slots;
 }
@@ -167,8 +216,44 @@ async function bookAppointment({
       );
     }
 
+    // Bloqueo del profesional (G9): franco / vacaciones / novedad.
+    const professionalBlocked = await tx.professionalBlock.findFirst({
+      where: { professionalId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
+    });
+    if (professionalBlocked) {
+      throw new Error(
+        `El profesional no está disponible en ese horario (${professionalBlocked.reason}). Elegí otro horario.`
+      );
+    }
+
+    // Capacidad de recursos (G17): máquinas/gabinetes compartidos. No usa buffer.
+    const serviceResources = await tx.serviceResource.findMany({
+      where: { serviceId },
+      include: { resource: true },
+    });
+    for (const sr of serviceResources) {
+      const overlapping = await tx.appointment.findMany({
+        where: {
+          status: { in: ["PENDING", "CONFIRMED"] },
+          startsAt: { lt: endsAt },
+          endsAt: { gt: startsAt },
+          service: { resources: { some: { resourceId: sr.resourceId } } },
+        },
+        select: {
+          service: { select: { resources: { where: { resourceId: sr.resourceId }, select: { units: true } } } },
+        },
+      });
+      const used = overlapping.reduce((sum, a) => sum + (a.service.resources[0]?.units ?? 0), 0);
+      if (used + sr.units > sr.resource.quantity) {
+        throw new Error(
+          `No hay "${sr.resource.name}" disponible en ese horario (capacidad completa). Elegí otro horario.`
+        );
+      }
+    }
+
     return tx.appointment.create({
       data: {
+        tenantId: await getCurrentTenantId(),
         clientId,
         professionalId,
         serviceId,
@@ -194,7 +279,12 @@ export async function createAppointment(formData: FormData) {
   let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
   if (!client) {
     client = await prisma.client.create({
-      data: { name: clientName, phone: clientPhone, email: clientEmail || undefined },
+      data: {
+        tenantId: await getCurrentTenantId(),
+        name: clientName,
+        phone: clientPhone,
+        email: clientEmail || undefined,
+      },
     });
   }
 
@@ -217,6 +307,107 @@ export async function createAppointment(formData: FormData) {
   redirect(`/reserva/confirmacion/${appointment.id}`);
 }
 
+// Datos que consume el modal de reserva público (rediseño CH Estética):
+// categorías con sus servicios activos + profesionales activos con box, y los
+// ids de servicios que cada uno realiza (para filtrar el paso "profesional").
+export async function getPublicBookingData() {
+  const [categories, uncategorized, professionals] = await Promise.all([
+    prisma.serviceCategory.findMany({
+      orderBy: { order: "asc" },
+      include: {
+        services: {
+          where: { active: true, deletedAt: null },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, durationMin: true, price: true },
+        },
+      },
+    }),
+    prisma.service.findMany({
+      where: { active: true, deletedAt: null, categoryId: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, durationMin: true, price: true },
+    }),
+    prisma.professional.findMany({
+      where: { active: true, deletedAt: null, boxId: { not: null } },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        box: { select: { name: true } },
+        services: { where: { active: true, deletedAt: null }, select: { id: true } },
+      },
+    }),
+  ]);
+
+  const groups = categories
+    .filter((c) => c.services.length > 0)
+    .map((c) => ({ id: c.id, name: c.name, services: c.services }));
+  if (uncategorized.length > 0) {
+    groups.push({ id: "otros", name: "Otros servicios", services: uncategorized });
+  }
+
+  return {
+    groups,
+    professionals: professionals.map((p) => ({
+      id: p.id,
+      name: p.name,
+      boxName: p.box?.name ?? null,
+      serviceIds: p.services.map((s) => s.id),
+    })),
+  };
+}
+
+// Crea el turno desde el modal y DEVUELVE el turno (no redirige, a diferencia de
+// createAppointment). El modal muestra la confirmación en el paso 5.
+export async function createBookingFromModal(input: {
+  professionalId: string;
+  serviceId: string;
+  startsAtIso: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+}): Promise<{ id: string; startsAt: string }> {
+  const clientName = input.clientName.trim();
+  const clientPhone = input.clientPhone.trim();
+  if (!clientName || !clientPhone) {
+    throw new Error("Nombre y teléfono son obligatorios.");
+  }
+
+  let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
+  if (!client) {
+    client = await prisma.client.create({
+      data: {
+        tenantId: await getCurrentTenantId(),
+        name: clientName,
+        phone: clientPhone,
+        email: input.clientEmail?.trim() || undefined,
+      },
+    });
+  }
+
+  const appointment = await bookAppointment({
+    professionalId: input.professionalId,
+    serviceId: input.serviceId,
+    startsAtIso: input.startsAtIso,
+    clientId: client.id,
+    status: "PENDING",
+  });
+
+  await auditPublic({
+    action: "create",
+    entity: "Appointment",
+    entityId: appointment.id,
+    clientPhone,
+    changes: {
+      professionalId: input.professionalId,
+      serviceId: input.serviceId,
+      startsAt: appointment.startsAt,
+    },
+  });
+
+  return { id: appointment.id, startsAt: appointment.startsAt.toISOString() };
+}
+
 export async function createManualAppointment(formData: FormData) {
   const professionalId = String(formData.get("professionalId"));
   const serviceId = String(formData.get("serviceId"));
@@ -233,7 +424,9 @@ export async function createManualAppointment(formData: FormData) {
 
   let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
   if (!client) {
-    client = await prisma.client.create({ data: { name: clientName, phone: clientPhone } });
+    client = await prisma.client.create({
+      data: { tenantId: await getCurrentTenantId(), name: clientName, phone: clientPhone },
+    });
   }
 
   const appointment = await bookAppointment({
@@ -280,6 +473,7 @@ export async function confirmPayment(formData: FormData) {
   await prisma.payment.upsert({
     where: { appointmentId },
     create: {
+      tenantId: appointment.tenantId,
       appointmentId,
       amount,
       method,
@@ -310,15 +504,25 @@ export async function confirmPayment(formData: FormData) {
 }
 
 export async function getReportData() {
-  const payments = await prisma.payment.findMany({
-    where: { status: "APPROVED" },
-    include: {
-      appointment: {
-        include: { professional: true, service: true },
+  const [payments, commissionOverrides] = await Promise.all([
+    prisma.payment.findMany({
+      where: { status: "APPROVED" },
+      include: {
+        appointment: {
+          include: { professional: true, service: true },
+        },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+    }),
+    // Overrides de comisión por (profesional, servicio) (G18).
+    prisma.professionalServiceCommission.findMany(),
+  ]);
+
+  // Índice para resolver rápido: "profId:servId" -> commissionPercent override.
+  const overrideMap = new Map<string, number>();
+  for (const o of commissionOverrides) {
+    overrideMap.set(`${o.professionalId}:${o.serviceId}`, o.commissionPercent);
+  }
 
   const totalIngresos = payments.reduce((sum, p) => sum + p.amount, 0);
 
@@ -341,10 +545,15 @@ export async function getReportData() {
     // La comisión solo se devenga sobre turnos efectivamente realizados
     // (COMPLETED), no sobre cualquier pago aprobado — un turno pagado pero
     // que todavía no se hizo no genera comisión.
-    if (p.appointment.status === "COMPLETED" && p.appointment.professional.commissionPercent > 0) {
+    // El porcentaje se resuelve por (profesional, servicio): si hay override
+    // usa ese; si no, cae al porcentaje general del profesional (G18).
+    const pct =
+      overrideMap.get(`${p.appointment.professionalId}:${p.appointment.serviceId}`) ??
+      p.appointment.professional.commissionPercent;
+    if (p.appointment.status === "COMPLETED" && pct > 0) {
       const current = comisionPorProfesional.get(prof) ?? { comision: 0, ingresos: 0 };
       current.ingresos += p.amount;
-      current.comision += (p.amount * p.appointment.professional.commissionPercent) / 100;
+      current.comision += (p.amount * pct) / 100;
       comisionPorProfesional.set(prof, current);
     }
   }
@@ -452,7 +661,7 @@ export async function getAgendaDay(date: string) {
   const dayStart = businessWallTimeToUtc(date, "00:00");
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-  const [professionals, appointments] = await Promise.all([
+  const [professionals, appointments, blocksToday] = await Promise.all([
     prisma.professional.findMany({
       where: { active: true, deletedAt: null },
       orderBy: { name: "asc" },
@@ -463,9 +672,16 @@ export async function getAgendaDay(date: string) {
       include: { client: true, professional: true, service: true, payment: true, box: true },
       orderBy: { startsAt: "asc" },
     }),
+    // Novedades (franco/vacaciones) que caen sobre este día — para mostrarlas
+    // a la vista en la agenda, no solo en Catálogo (G9).
+    prisma.professionalBlock.findMany({
+      where: { startsAt: { lt: dayEnd }, endsAt: { gt: dayStart } },
+      include: { professional: { select: { name: true } } },
+      orderBy: { professional: { name: "asc" } },
+    }),
   ]);
 
-  return { professionals, appointments };
+  return { professionals, appointments, blocksToday };
 }
 
 export async function getDashboardData() {
@@ -474,7 +690,7 @@ export async function getDashboardData() {
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
   const weekStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
 
-  const [todayAppointments, pendingCount, weekPayments, professionalsCount, clientsCount] =
+  const [todayAppointments, pendingCount, weekPayments, professionalsCount, clientsCount, blocksToday] =
     await Promise.all([
       prisma.appointment.findMany({
         where: { startsAt: { gte: todayStart, lt: todayEnd }, status: { not: "CANCELLED" } },
@@ -488,6 +704,13 @@ export async function getDashboardData() {
       }),
       prisma.professional.count({ where: { active: true, deletedAt: null } }),
       prisma.client.count(),
+      // Novedades del día en el dashboard (ADR-011 G9): la recepción lo ve
+      // apenas entra, sin ir a buscarlo a Catálogo.
+      prisma.professionalBlock.findMany({
+        where: { startsAt: { lt: todayEnd }, endsAt: { gt: todayStart } },
+        include: { professional: { select: { name: true } } },
+        orderBy: { professional: { name: "asc" } },
+      }),
     ]);
 
   return {
@@ -496,5 +719,6 @@ export async function getDashboardData() {
     weekRevenue: weekPayments.reduce((sum, p) => sum + p.amount, 0),
     professionalsCount,
     clientsCount,
+    blocksToday,
   };
 }

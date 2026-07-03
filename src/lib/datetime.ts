@@ -102,6 +102,26 @@ export function fmtCalendarDateLabel(dateStr: string): string {
   }).format(new Date(`${dateStr}T12:00:00.000Z`));
 }
 
+// Próximos N días de calendario a partir de hoy (zona del negocio), para el
+// selector de día del modal de reserva. value = "YYYY-MM-DD", label = "jue 3".
+export function nextBusinessDays(count: number): { value: string; label: string }[] {
+  const base = new Date(`${todayInBusinessTz()}T12:00:00.000Z`);
+  const out: { value: string; label: string }[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(base.getTime() + i * 86400000);
+    const value = d.toISOString().slice(0, 10);
+    const label = new Intl.DateTimeFormat("es-AR", {
+      timeZone: "UTC",
+      weekday: "short",
+      day: "numeric",
+    })
+      .format(d)
+      .replace(".", "");
+    out.push({ value, label });
+  }
+  return out;
+}
+
 // Hora y minuto de pared (en la zona del negocio) de un instante UTC.
 export function wallHourMinuteInBusinessTz(instant: Date): { hour: number; minute: number } {
   const parts = new Intl.DateTimeFormat("en-US", {

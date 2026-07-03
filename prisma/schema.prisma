@@ -1,7 +1,8 @@
-// Prisma schema — Estetica ERP (MVP)
-// Mono-cliente por ahora. Los modelos ya incluyen los campos necesarios
-// para migrar a multi-tenant (agregar Business/tenantId), stock y comisiones
-// en etapas posteriores sin romper el esquema actual.
+// Prisma schema — Estetica ERP (Fase 1 del blueprint "Servicios", ADR-010)
+// Multi-tenant a nivel de datos (ADR-001 / G1): toda tabla de negocio lleva
+// `tenantId`. Hoy hay un solo tenant (Beauty & Spa); el aislamiento es a nivel
+// de aplicación vía src/lib/tenant.ts. RLS de Postgres se activa con el 2º
+// tenant (ver nota en el modelo Tenant).
 
 generator client {
   provider = "prisma-client"
@@ -33,8 +34,60 @@ enum PaymentStatus {
   REFUNDED
 }
 
+// Tenant (negocio) — raíz del aislamiento multi-tenant (ADR-001). Cada tabla de
+// negocio referencia un tenant. Por ahora hay uno solo (Beauty & Spa); el
+// modelo nace preparado para muchos sin rediseñar. La zona horaria vive acá
+// (AMD-004: config del tenant, no del servidor).
+// NOTA (ADR-010 G1): la mitad de RLS de ADR-001 (ENABLE ROW LEVEL SECURITY +
+// contexto de tenant por transacción) se difiere hasta el 2º tenant — con uno
+// solo no hay leak cross-tenant posible y RLS+pooling es el punto más riesgoso.
+// El aislamiento hoy es a nivel de aplicación (tenantId en cada create/read).
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  timezone  String   @default("America/Argentina/Buenos_Aires")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  boxes           Box[]
+  boxBlocks       BoxBlock[]
+  professionals   Professional[]
+  workingHours    WorkingHours[]
+  services        Service[]
+  products        Product[]
+  serviceProducts ServiceProduct[]
+  clients         Client[]
+  appointments    Appointment[]
+  reviews         Review[]
+  payments        Payment[]
+  auditLogs       AuditLog[]
+  serviceCategories ServiceCategory[]
+  professionalBlocks ProfessionalBlock[]
+  serviceCommissions ProfessionalServiceCommission[]
+  resources          Resource[]
+  serviceResources   ServiceResource[]
+}
+
+// Categoría de servicios (ADR-011 G16): agrupa el catálogo (Faciales, Masajes,
+// Spa, etc.). Ordenable para controlar cómo se muestra en la web y el admin.
+model ServiceCategory {
+  id       String    @id @default(cuid())
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId String
+  name     String
+  order    Int       @default(0)
+  services Service[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, order])
+}
+
 model Box {
   id            String         @id @default(cuid())
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId      String
   name          String
   active        Boolean        @default(true)
   deletedAt     DateTime?
@@ -43,12 +96,16 @@ model Box {
   professionals Professional[]
   appointments  Appointment[]
   blocks        BoxBlock[]
+
+  @@index([tenantId])
 }
 
 // Bloquea un box durante un rango de fechas (ej. reservado para un servicio
 // especial) sin tener que reasignar el box fijo de cada profesional.
 model BoxBlock {
   id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
   box       Box      @relation(fields: [boxId], references: [id], onDelete: Cascade)
   boxId     String
   startsAt  DateTime
@@ -57,10 +114,13 @@ model BoxBlock {
   createdAt DateTime @default(now())
 
   @@index([boxId, startsAt, endsAt])
+  @@index([tenantId])
 }
 
 model Professional {
   id                String        @id @default(cuid())
+  tenant            Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId          String
   name              String
   email             String?
   phone             String?
@@ -73,8 +133,12 @@ model Professional {
   appointments      Appointment[]
   reviews           Review[]
   workingHours      WorkingHours[]
+  blocks            ProfessionalBlock[]
+  serviceCommissions ProfessionalServiceCommission[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+
+  @@index([tenantId])
 }
 
 // Horario de trabajo de un profesional para un día de la semana
@@ -82,6 +146,8 @@ model Professional {
 // día, se considera que no trabaja ese día.
 model WorkingHours {
   id             String       @id @default(cuid())
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId       String
   professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
   professionalId String
   dayOfWeek      Int
@@ -89,10 +155,15 @@ model WorkingHours {
   endTime        String // "19:00"
 
   @@unique([professionalId, dayOfWeek])
+  @@index([tenantId])
 }
 
 model Service {
   id            String           @id @default(cuid())
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  category      ServiceCategory? @relation(fields: [categoryId], references: [id])
+  categoryId    String?
   name          String
   description   String?
   durationMin   Int
@@ -102,13 +173,20 @@ model Service {
   professionals Professional[]   @relation("ProfessionalServices")
   appointments  Appointment[]
   products      ServiceProduct[]
+  resources     ServiceResource[]
+  serviceCommissions ProfessionalServiceCommission[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
+
+  @@index([tenantId])
+  @@index([categoryId])
 }
 
 // Insumo de stock (ej. cera, crema, guantes).
 model Product {
   id           String           @id @default(cuid())
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId     String
   name         String
   unit         String           @default("unidades")
   stock        Float            @default(0)
@@ -118,12 +196,16 @@ model Product {
   services     ServiceProduct[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+
+  @@index([tenantId])
 }
 
 // Cuánto de un producto consume un servicio cada vez que se realiza.
 // Al completar un turno se descuenta quantity del stock del producto.
 model ServiceProduct {
   id        String  @id @default(cuid())
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  tenantId  String
   service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   serviceId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -131,10 +213,13 @@ model ServiceProduct {
   quantity  Float   @default(1)
 
   @@unique([serviceId, productId])
+  @@index([tenantId])
 }
 
 model Client {
   id           String        @id @default(cuid())
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId     String
   name         String
   phone        String
   email        String?
@@ -143,10 +228,14 @@ model Client {
   appointments Appointment[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
+  @@index([tenantId])
 }
 
 model Appointment {
   id             String            @id @default(cuid())
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId       String
   client         Client            @relation(fields: [clientId], references: [id])
   clientId       String
   professional   Professional      @relation(fields: [professionalId], references: [id])
@@ -172,12 +261,15 @@ model Appointment {
 
   @@index([professionalId, startsAt])
   @@index([boxId, startsAt])
+  @@index([tenantId, startsAt])
 }
 
 // Reseña rápida que el cliente puede dejar una vez que el turno se completó.
 // "published" la controla el dueño del negocio antes de que se vea en la web.
 model Review {
   id             String       @id @default(cuid())
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId       String
   appointment    Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   appointmentId  String       @unique
   professional   Professional @relation(fields: [professionalId], references: [id])
@@ -187,10 +279,14 @@ model Review {
   comment        String?
   published      Boolean      @default(false)
   createdAt      DateTime     @default(now())
+
+  @@index([tenantId])
 }
 
 model Payment {
   id              String        @id @default(cuid())
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId        String
   appointment     Appointment   @relation(fields: [appointmentId], references: [id])
   appointmentId   String        @unique
   amount          Float
@@ -201,6 +297,8 @@ model Payment {
   comprobanteNro  String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+
+  @@index([tenantId])
 }
 
 // Registro append-only de mutaciones de negocio (ADR-009 §4). Se puebla desde
@@ -209,6 +307,8 @@ model Payment {
 // retrofitearlo después dejaría un agujero histórico permanente.
 model AuditLog {
   id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
   actor     String // quién: "admin", "cliente:<telefono>", "system"
   action    String // "create" | "update" | "confirm_payment" | "complete" | "cancel" | "no_show" | "delete" | ...
   entity    String // "Appointment" | "Service" | "Box" | "Product" | "Professional" | "Review" | ...
@@ -218,5 +318,75 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId])
-  @@index([createdAt])
+  @@index([tenantId, createdAt])
+}
+
+// Bloqueo de agenda por profesional (ADR-011 G9): franco, vacaciones, o novedad
+// puntual en la que el profesional no está. Análogo a BoxBlock pero por persona.
+// Recorta la disponibilidad que da WorkingHours para fechas concretas.
+model ProfessionalBlock {
+  id             String       @id @default(cuid())
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  professionalId String
+  startsAt       DateTime // UTC (AMD-004)
+  endsAt         DateTime
+  reason         String
+  createdAt      DateTime     @default(now())
+
+  @@index([professionalId, startsAt, endsAt])
+  @@index([tenantId])
+}
+
+// Override de comisión por (profesional, servicio) (ADR-011 G18). Si existe fila
+// para el par, su commissionPercent gana; si no, se usa Professional.commissionPercent.
+// Tabla separada del M2M profesional↔servicio para no tocar esa relación.
+model ProfessionalServiceCommission {
+  id                String       @id @default(cuid())
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  professional      Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  professionalId    String
+  service           Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId         String
+  commissionPercent Float
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([professionalId, serviceId])
+  @@index([tenantId])
+}
+
+// Recurso con capacidad limitada (ADR-011 G17): máquinas o gabinetes que varios
+// servicios comparten. quantity = cuántas unidades hay (2 radiofrecuencias,
+// 3 gabinetes). Al reservar se controla no superar la capacidad en el rango.
+model Resource {
+  id       String            @id @default(cuid())
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId String
+  name     String
+  quantity Int               @default(1)
+  active   Boolean           @default(true)
+  services ServiceResource[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([tenantId])
+}
+
+// Cuántas unidades de un recurso consume un servicio cada vez que se realiza.
+model ServiceResource {
+  id         String   @id @default(cuid())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId  String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  resourceId String
+  units      Int      @default(1)
+
+  @@unique([serviceId, resourceId])
+  @@index([tenantId])
+  @@index([resourceId])
 }

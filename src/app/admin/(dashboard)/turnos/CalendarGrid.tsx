@@ -68,9 +68,30 @@ export default function CalendarGrid({
     return <p className="text-sm text-neutral-500">No hay profesionales activos.</p>;
   }
 
+  // En pantallas angostas la grilla horizontal no entra (columna por
+  // profesional). Mostramos una agenda vertical del día en su lugar y la
+  // grilla completa recién desde lg — mismo dato, presentación distinta.
+  const sortedAppointments = [...appointments].sort(
+    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+  );
+
   return (
     <div>
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="lg:hidden space-y-3">
+        {sortedAppointments.length === 0 && (
+          <p className="text-sm text-neutral-500">No hay turnos ese día.</p>
+        )}
+        {sortedAppointments.map((appt) => (
+          <div key={appt.id}>
+            <p className="text-xs font-medium text-neutral-400 mb-1">
+              {fmtTime(appt.startsAt)} · {appt.professional.name}
+            </p>
+            <AppointmentRow appointment={appt} statusLabel={statusLabel} />
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden lg:block overflow-x-auto rounded-lg border">
         <div
           className="grid text-sm"
           style={{
@@ -141,7 +162,7 @@ export default function CalendarGrid({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-neutral-500">
+      <div className="hidden lg:flex mt-4 flex-wrap items-center gap-3 text-xs text-neutral-500">
         <span className="inline-flex items-center gap-1">
           <span className="h-3 w-3 rounded bg-amber-100 border border-amber-300" /> Pendiente
         </span>
@@ -154,7 +175,7 @@ export default function CalendarGrid({
       </div>
 
       {selected && (
-        <div className="mt-6">
+        <div className="hidden lg:block mt-6">
           <h2 className="text-sm font-medium mb-2">Turno seleccionado</h2>
           <AppointmentRow appointment={selected} statusLabel={statusLabel} />
         </div>
