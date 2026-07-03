@@ -21,8 +21,8 @@ barre, así queda rastro de una sesión a la otra.
 
 ## Abiertos
 
-- [ ] `/sesion-feature blindar getCurrentTenantId fail-closed (ADR-015)` — reemplazar el `findFirstOrThrow` de `src/lib/tenant.ts` por resolución fail-closed (throw si hay ≠1 tenant) y corregir los comentarios "no hay leak posible" en `tenant.ts` y `schema.prisma`. *(origen: sesión de arquitectura — 2026-07-03)*
+_(vacío)_
 
 ## Hechos (pendientes de poda por `/sesion-consolidacion`)
 
-_(vacío)_
+- [x] `/sesion-feature blindar getCurrentTenantId fail-closed (ADR-015)` — hecho: `src/lib/tenant.ts` ahora resuelve fail-closed (throw si hay ≠1 tenant, sin cache) y los comentarios de `tenant.ts` y `schema.prisma` quedaron corregidos. tsc + build limpios. *(origen: sesión de arquitectura — 2026-07-03 · cerrado 2026-07-03)*

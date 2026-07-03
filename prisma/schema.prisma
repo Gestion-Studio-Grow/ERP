@@ -54,7 +54,9 @@ enum MessageChannel {
 // (AMD-004: config del tenant, no del servidor).
 // NOTA (ADR-010 G1): la mitad de RLS de ADR-001 (ENABLE ROW LEVEL SECURITY +
 // contexto de tenant por transacción) se difiere hasta el 2º tenant — con uno
-// solo no hay leak cross-tenant posible y RLS+pooling es el punto más riesgoso.
+// solo, y con la resolución de tenant fail-closed (ADR-015: getCurrentTenantId()
+// lanza error si hay ≠1 tenant), no hay leak cross-tenant posible; RLS+pooling es
+// el punto más riesgoso de tocar sin necesidad.
 // El aislamiento hoy es a nivel de aplicación (tenantId en cada create/read).
 model Tenant {
   id        String   @id @default(cuid())
