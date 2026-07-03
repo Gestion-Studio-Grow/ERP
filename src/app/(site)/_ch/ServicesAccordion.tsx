@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 // - Tablet/desktop (≥640px): todo expandido y sin interacción — la lista
 //   editorial de siempre.
 
-type Service = { id: string; name: string; durationMin: number; price: number };
+type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null };
 type Group = { id: string; name: string; services: Service[] };
 
 function useIsMobile() {
@@ -47,11 +47,23 @@ function ServiceList({ services }: { services: Service[] }) {
             justifyContent: "space-between",
             alignItems: "baseline",
             gap: 16,
+            flexWrap: "wrap",
           }}
         >
           <span>{it.name}</span>
-          <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)", whiteSpace: "nowrap", textAlign: "right" }}>
             {it.durationMin} min · ${it.price.toLocaleString("es-AR")}
+            {/* Beneficio vecino (ADR-013): visible siempre en la lista de precios,
+                no escondido detrás del paso de reserva — es parte de lo que
+                convence de reservar. */}
+            {it.residentPrice != null && (
+              <>
+                {" · "}
+                <span style={{ color: "var(--ch-petrol)", fontWeight: 600 }}>
+                  Vecino/a ${it.residentPrice.toLocaleString("es-AR")}
+                </span>
+              </>
+            )}
           </span>
         </div>
       ))}

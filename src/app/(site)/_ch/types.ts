@@ -5,6 +5,9 @@ export type BookingService = {
   name: string;
   durationMin: number;
   price: number;
+  // Precio preferencial para vecinos de La Alameda (ADR-013). null = el
+  // servicio no tiene diferencial, cobra `price` para todos.
+  residentPrice: number | null;
 };
 
 export type BookingGroup = {

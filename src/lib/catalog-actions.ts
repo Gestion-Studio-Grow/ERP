@@ -108,6 +108,20 @@ export async function deleteBoxBlock(formData: FormData) {
 
 // --- Services ---
 
+// El precio vecino es opcional: si el campo viene vacío, el servicio no tiene
+// diferencial (cobra `price` para todos). Si viene cargado, debe ser menor al
+// precio general — es un beneficio, no puede terminar siendo más caro.
+function parseResidentPrice(formData: FormData, price: number): number | null {
+  const raw = String(formData.get("residentPrice") || "").trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  if (value >= price) {
+    throw new Error("El precio vecino tiene que ser menor al precio general — es un beneficio, no un recargo.");
+  }
+  return value;
+}
+
 export async function createService(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   const description = String(formData.get("description") || "").trim();
@@ -115,6 +129,7 @@ export async function createService(formData: FormData) {
   const price = Number(formData.get("price"));
   const categoryId = String(formData.get("categoryId") || "") || null;
   if (!name || !durationMin || !price) return;
+  const residentPrice = parseResidentPrice(formData, price);
   await prisma.service.create({
     data: {
       tenantId: await getCurrentTenantId(),
@@ -122,10 +137,12 @@ export async function createService(formData: FormData) {
       description: description || null,
       durationMin,
       price,
+      residentPrice,
       categoryId,
     },
   });
   revalidatePath(CATALOG_PATH);
+  revalidatePath("/");
 }
 
 export async function toggleServiceActive(formData: FormData) {
@@ -143,20 +160,27 @@ export async function updateService(formData: FormData) {
   const price = Number(formData.get("price"));
   const categoryId = String(formData.get("categoryId") || "") || null;
   if (!name || !durationMin || !price) return;
+  const residentPrice = parseResidentPrice(formData, price);
   // Capturar el precio anterior para auditar el cambio (dispute: "ese precio no
   // lo cambié yo", ADR-009 §4).
-  const before = await prisma.service.findUnique({ where: { id }, select: { price: true, name: true } });
+  const before = await prisma.service.findUnique({ where: { id }, select: { price: true, residentPrice: true, name: true } });
   await prisma.service.update({
     where: { id },
-    data: { name, description: description || null, durationMin, price, categoryId },
+    data: { name, description: description || null, durationMin, price, residentPrice, categoryId },
   });
   await auditAdmin({
     action: "update",
     entity: "Service",
     entityId: id,
-    changes: { name, price: { from: before?.price, to: price }, durationMin },
+    changes: {
+      name,
+      price: { from: before?.price, to: price },
+      residentPrice: { from: before?.residentPrice, to: residentPrice },
+      durationMin,
+    },
   });
   revalidatePath(CATALOG_PATH);
+  revalidatePath("/");
 }
 
 export async function deleteService(formData: FormData) {

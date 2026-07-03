@@ -6,7 +6,7 @@ import { getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtTime } from "@/lib/datetime";
 
-type Service = { id: string; name: string; durationMin: number; price: number };
+type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
 
 export default function NewAppointmentForm({ professionals }: { professionals: Professional[] }) {
@@ -117,6 +117,7 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
             {professional?.services.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} ({s.durationMin} min) — ${s.price.toLocaleString("es-AR")}
+                {s.residentPrice != null ? ` · vecino/a $${s.residentPrice.toLocaleString("es-AR")}` : ""}
               </option>
             ))}
           </select>
@@ -177,6 +178,10 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
                 className="rounded-md border px-3 py-2 text-sm"
               />
             </div>
+            <label className="flex items-center gap-2 text-sm text-neutral-600">
+              <input type="checkbox" name="isResident" />
+              Vecino/a de La Alameda
+            </label>
             <select name="status" defaultValue="CONFIRMED" className="w-full rounded-md border px-3 py-2 text-sm">
               <option value="CONFIRMED">Confirmado (ya pagó o pactado en persona)</option>
               <option value="PENDING">Pendiente de pago</option>

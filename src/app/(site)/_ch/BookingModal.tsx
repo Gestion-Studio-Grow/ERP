@@ -19,6 +19,10 @@ export default function BookingModal({
   const [step, setStep] = useState(1);
   const [svc, setSvc] = useState<SelectedService | null>(null);
   const [pro, setPro] = useState<BookingProfessional | null>(null);
+  // Vecino/a de La Alameda (ADR-013): se pregunta en el primer paso porque
+  // cambia el precio que se ve de cada servicio — antes de que el cliente
+  // elija, no después.
+  const [isResident, setIsResident] = useState(false);
   const [day, setDay] = useState<string | null>(null);
   const [slot, setSlot] = useState<string | null>(null); // ISO UTC
   const [slots, setSlots] = useState<string[]>([]);
@@ -76,6 +80,7 @@ export default function BookingModal({
         clientName: name,
         clientPhone: tel,
         clientEmail: mail,
+        isResident,
       });
       setCode(res.id.slice(-6).toUpperCase());
       setConfirmedStartsAt(res.startsAt);
@@ -212,7 +217,14 @@ export default function BookingModal({
         {/* Cuerpo */}
         <div style={{ padding: 24, minHeight: 300 }}>
           {step === 1 && (
-            <Step1 groups={data.groups} svc={svc} onPick={setSvc} rowSelected={rowSelected} />
+            <Step1
+              groups={data.groups}
+              svc={svc}
+              onPick={setSvc}
+              rowSelected={rowSelected}
+              isResident={isResident}
+              onResidentChange={setIsResident}
+            />
           )}
 
           {step === 2 && (
@@ -365,25 +377,87 @@ function StepTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Toggle "¿Sos vecino/a?" — se muestra arriba de todo el listado de
+// servicios porque cambia qué precio ve el cliente en cada uno. Encuadrado
+// como beneficio ("tenés precio especial"), nunca como pregunta de control.
+function ResidentToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "10px 12px",
+        marginBottom: 16,
+        background: "var(--ch-linen)",
+        borderRadius: 2,
+      }}
+    >
+      <span style={{ fontSize: 13, color: "var(--ch-ink)" }}>
+        ¿Sos vecino/a de <strong>La Alameda</strong>? Tenés precio especial en algunos servicios.
+      </span>
+      <div style={{ display: "flex", border: "1px solid var(--ch-clay)", borderRadius: 2, flexShrink: 0 }}>
+        {[
+          { label: "No", val: false },
+          { label: "Sí", val: true },
+        ].map((opt) => {
+          const on = value === opt.val;
+          return (
+            <button
+              key={opt.label}
+              type="button"
+              onClick={() => onChange(opt.val)}
+              style={{
+                border: 0,
+                padding: "6px 14px",
+                fontSize: 13,
+                cursor: "pointer",
+                background: on ? "var(--ch-petrol)" : "transparent",
+                color: on ? "var(--ch-ivory)" : "var(--ch-ink)",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Step1({
   groups,
   svc,
   onPick,
   rowSelected,
+  isResident,
+  onResidentChange,
 }: {
   groups: BookingGroup[];
   svc: SelectedService | null;
   onPick: (s: SelectedService) => void;
   rowSelected: (on: boolean) => React.CSSProperties;
+  isResident: boolean;
+  onResidentChange: (v: boolean) => void;
 }) {
   return (
     <>
       <StepTitle>Elegí el servicio</StepTitle>
+      <ResidentToggle value={isResident} onChange={onResidentChange} />
       {groups.map((g) => (
         <div key={g.id} style={{ marginBottom: 12 }}>
           <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--ch-mocha)", margin: "0 0 4px" }}>{g.name}</p>
           {g.services.map((it) => {
             const on = svc?.id === it.id;
+            const hasResidentPrice = it.residentPrice != null;
+            const shownPrice = isResident && hasResidentPrice ? it.residentPrice! : it.price;
             return (
               <button
                 key={it.id}
@@ -405,7 +479,14 @@ function Step1({
                 }}
               >
                 <span>{it.name}</span>
-                <span style={{ fontSize: 12, opacity: 0.75 }}>{it.durationMin} min · ${it.price.toLocaleString("es-AR")}</span>
+                <span style={{ fontSize: 12, opacity: 0.75, textAlign: "right" }}>
+                  {it.durationMin} min · ${shownPrice.toLocaleString("es-AR")}
+                  {hasResidentPrice && !isResident && (
+                    <span style={{ display: "block", opacity: 0.85 }}>
+                      Vecino/a ${it.residentPrice!.toLocaleString("es-AR")}
+                    </span>
+                  )}
+                </span>
               </button>
             );
           })}

@@ -146,6 +146,7 @@ async function bookAppointment({
   clientId,
   status,
   notes,
+  isResident,
 }: {
   professionalId: string;
   serviceId: string;
@@ -153,6 +154,9 @@ async function bookAppointment({
   clientId: string;
   status: BookingStatus;
   notes?: string;
+  // Vecino/a de La Alameda (ADR-013): si el servicio tiene precio preferencial
+  // y el cliente contestó que sí, se congela ese precio en vez del general.
+  isResident?: boolean;
 }) {
   const [service, professional] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
@@ -251,6 +255,8 @@ async function bookAppointment({
       }
     }
 
+    const appliesResidentPrice = !!isResident && service.residentPrice != null;
+
     return tx.appointment.create({
       data: {
         tenantId: await getCurrentTenantId(),
@@ -261,7 +267,8 @@ async function bookAppointment({
         startsAt,
         endsAt,
         status,
-        priceAtBooking: service.price,
+        priceAtBooking: appliesResidentPrice ? service.residentPrice! : service.price,
+        isResidentBooking: appliesResidentPrice,
         notes: notes?.trim() || null,
       },
     });
@@ -275,6 +282,7 @@ export async function createAppointment(formData: FormData) {
   const clientName = String(formData.get("clientName"));
   const clientPhone = String(formData.get("clientPhone"));
   const clientEmail = String(formData.get("clientEmail") || "");
+  const isResident = formData.get("isResident") === "on";
 
   let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
   if (!client) {
@@ -284,8 +292,11 @@ export async function createAppointment(formData: FormData) {
         name: clientName,
         phone: clientPhone,
         email: clientEmail || undefined,
+        isResident,
       },
     });
+  } else if (client.isResident !== isResident) {
+    client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
   }
 
   const appointment = await bookAppointment({
@@ -294,6 +305,7 @@ export async function createAppointment(formData: FormData) {
     startsAtIso,
     clientId: client.id,
     status: "PENDING",
+    isResident,
   });
 
   await auditPublic({
@@ -318,14 +330,14 @@ export async function getPublicBookingData() {
         services: {
           where: { active: true, deletedAt: null },
           orderBy: { name: "asc" },
-          select: { id: true, name: true, durationMin: true, price: true },
+          select: { id: true, name: true, durationMin: true, price: true, residentPrice: true },
         },
       },
     }),
     prisma.service.findMany({
       where: { active: true, deletedAt: null, categoryId: null },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, durationMin: true, price: true },
+      select: { id: true, name: true, durationMin: true, price: true, residentPrice: true },
     }),
     prisma.professional.findMany({
       where: { active: true, deletedAt: null, boxId: { not: null } },
@@ -379,9 +391,11 @@ export async function createBookingFromModal(input: {
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
+  isResident?: boolean;
 }): Promise<{ id: string; startsAt: string }> {
   const clientName = input.clientName.trim();
   const clientPhone = input.clientPhone.trim();
+  const isResident = !!input.isResident;
   if (!clientName || !clientPhone) {
     throw new Error("Nombre y teléfono son obligatorios.");
   }
@@ -394,8 +408,11 @@ export async function createBookingFromModal(input: {
         name: clientName,
         phone: clientPhone,
         email: input.clientEmail?.trim() || undefined,
+        isResident,
       },
     });
+  } else if (client.isResident !== isResident) {
+    client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
   }
 
   const appointment = await bookAppointment({
@@ -404,6 +421,7 @@ export async function createBookingFromModal(input: {
     startsAtIso: input.startsAtIso,
     clientId: client.id,
     status: "PENDING",
+    isResident,
   });
 
   await auditPublic({
@@ -430,6 +448,7 @@ export async function createManualAppointment(formData: FormData) {
   const statusInput = String(formData.get("status"));
   const status: BookingStatus = statusInput === "CONFIRMED" ? "CONFIRMED" : "PENDING";
   const notes = String(formData.get("notes") || "");
+  const isResident = formData.get("isResident") === "on";
 
   if (!clientName.trim() || !clientPhone.trim()) {
     throw new Error("Nombre y teléfono del cliente son obligatorios.");
@@ -438,8 +457,10 @@ export async function createManualAppointment(formData: FormData) {
   let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
   if (!client) {
     client = await prisma.client.create({
-      data: { tenantId: await getCurrentTenantId(), name: clientName, phone: clientPhone },
+      data: { tenantId: await getCurrentTenantId(), name: clientName, phone: clientPhone, isResident },
     });
+  } else if (client.isResident !== isResident) {
+    client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
   }
 
   const appointment = await bookAppointment({
@@ -449,6 +470,7 @@ export async function createManualAppointment(formData: FormData) {
     clientId: client.id,
     status,
     notes,
+    isResident,
   });
 
   await auditAdmin({

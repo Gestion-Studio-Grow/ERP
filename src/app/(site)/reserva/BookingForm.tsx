@@ -5,7 +5,7 @@ import { createAppointment, getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 
-type Service = { id: string; name: string; durationMin: number; price: number };
+type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null };
 type Professional = {
   id: string;
   name: string;
@@ -39,6 +39,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState("");
+  const [isResident, setIsResident] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const professional = useMemo(
@@ -75,7 +76,10 @@ export default function BookingForm({ professionals }: { professionals: Professi
           {service && (
             <p>
               <span style={{ color: "var(--spa-mocha)" }}>Servicio</span> — {service.name} · $
-              {service.price.toLocaleString("es-AR")}
+              {(isResident && service.residentPrice != null ? service.residentPrice : service.price).toLocaleString("es-AR")}
+              {isResident && service.residentPrice != null && (
+                <span style={{ color: "var(--spa-mocha)" }}> (precio vecino/a)</span>
+              )}
             </p>
           )}
           {selectedSlot && (
@@ -129,6 +133,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
               {professional.services.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.durationMin} min) — ${s.price.toLocaleString("es-AR")}
+                  {s.residentPrice != null ? ` · vecino/a $${s.residentPrice.toLocaleString("es-AR")}` : ""}
                 </option>
               ))}
             </select>
@@ -214,6 +219,15 @@ export default function BookingForm({ professionals }: { professionals: Professi
               className={inputClass}
               style={inputStyle}
             />
+            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--spa-ink)" }}>
+              <input
+                type="checkbox"
+                name="isResident"
+                checked={isResident}
+                onChange={(e) => setIsResident(e.target.checked)}
+              />
+              Soy vecino/a de La Alameda
+            </label>
             <SubmitButton
               pendingText="Confirmando…"
               className="btn-editorial-solid w-full justify-center text-xs uppercase tracking-[0.1em] mt-2"

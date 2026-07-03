@@ -185,6 +185,11 @@ model Service {
   description   String?
   durationMin   Int
   price         Float
+  // Precio preferencial para vecinos de La Alameda (ADR-013). Opcional a
+  // propósito: no todos los servicios tienen diferencial — si es null, el
+  // servicio cobra `price` para todos. Nunca se muestra como "recargo" al
+  // resto, siempre como beneficio vecino.
+  residentPrice Float?
   active        Boolean          @default(true)
   deletedAt     DateTime?
   professionals Professional[]   @relation("ProfessionalServices")
@@ -249,6 +254,9 @@ model Client {
   email        String?
   notes        String?
   birthDate    DateTime?
+  // Vecino/a de La Alameda (ADR-013): lo responde el cliente al reservar.
+  // Null = todavía no se le preguntó (clientes previos a esta feature).
+  isResident   Boolean?
   appointments Appointment[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -275,6 +283,10 @@ model Appointment {
   // del servicio puede cambiar entre la reserva y el cobro; esto evita la
   // discusión con el cliente. Nullable para los turnos previos a esta feature.
   priceAtBooking Float?
+  // Si el precio congelado arriba fue el preferencial de vecino (ADR-013) —
+  // separado de Client.isResident porque el cliente puede cambiar de
+  // respuesta entre turnos; esto es historial, no estado actual.
+  isResidentBooking Boolean @default(false)
   // Nota libre de la recepción (AMD-003): "quiere el mismo tono de la vez pasada".
   notes          String?
   payment        Payment?

@@ -143,3 +143,8 @@ supuesto por el nombre del commit.
   profesionales
 - [x] Botones de acción táctiles unificados (`.chip-btn`) en todo el
   backoffice; acordeón de servicios corregido en Safari/iOS
+- [x] Precio diferencial "vecino/a de La Alameda" por servicio (opcional,
+  configurable en `/admin/catalogo`), visible siempre como beneficio en la
+  web pública y en el modal de reserva (nunca como recargo), congelado
+  correctamente en `priceAtBooking` según lo que responda el cliente al
+  reservar — ADR-013

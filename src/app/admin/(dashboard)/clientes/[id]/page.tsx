@@ -30,8 +30,19 @@ export default async function ClienteDetailPage({
         ← Clientes
       </Link>
       <h1 className="text-2xl font-semibold mt-2 mb-1">{client.name}</h1>
-      <p className="text-neutral-500 mb-6">
-        {client.phone} {client.email ? `· ${client.email}` : ""}
+      <p className="text-neutral-500 mb-6 flex flex-wrap items-center gap-2">
+        <span>
+          {client.phone} {client.email ? `· ${client.email}` : ""}
+        </span>
+        {client.isResident != null && (
+          <span
+            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              client.isResident ? "bg-teal-50 text-teal-700" : "bg-neutral-100 text-neutral-500"
+            }`}
+          >
+            {client.isResident ? "Vecino/a de La Alameda" : "No es vecino/a de La Alameda"}
+          </span>
+        )}
       </p>
 
       <div className="grid grid-cols-2 gap-4 mb-8">

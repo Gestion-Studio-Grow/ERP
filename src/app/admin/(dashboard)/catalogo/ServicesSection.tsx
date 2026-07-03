@@ -22,6 +22,7 @@ type Service = {
   description: string | null;
   durationMin: number;
   price: number;
+  residentPrice: number | null;
   active: boolean;
   categoryId: string | null;
   category: Category | null;
@@ -164,8 +165,12 @@ function ServiceRow({
         <td colSpan={6} className="block sm:table-cell p-0">
           <form
             action={async (fd) => {
-              await updateService(fd);
-              setEditing(false);
+              try {
+                await updateService(fd);
+                setEditing(false);
+              } catch (err) {
+                showError(err instanceof Error ? err.message : "No se pudo guardar el servicio.");
+              }
             }}
             className="grid grid-cols-1 sm:grid-cols-[1fr_110px_110px_auto] items-start gap-2 px-4 py-2.5"
           >
@@ -204,6 +209,18 @@ function ServiceRow({
                 </button>
               </div>
             </div>
+            <label className="sm:col-span-4 flex items-center gap-2 text-xs text-neutral-500">
+              Precio vecino/a de La Alameda (opcional — dejalo vacío si este servicio no tiene diferencial):
+              <input
+                name="residentPrice"
+                type="number"
+                min={0}
+                step={100}
+                defaultValue={service.residentPrice ?? ""}
+                placeholder="Sin diferencial"
+                className="w-32 rounded-md border px-2 py-1.5 text-sm text-neutral-900"
+              />
+            </label>
             <select
               name="categoryId"
               defaultValue={service.categoryId ?? ""}
@@ -252,9 +269,19 @@ function ServiceRow({
         </td>
         <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm text-neutral-600">
           {service.durationMin} min · ${service.price.toLocaleString("es-AR")}
+          {service.residentPrice != null && (
+            <span className="ml-1.5 rounded-full bg-teal-50 text-teal-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+              Vecino ${service.residentPrice.toLocaleString("es-AR")}
+            </span>
+          )}
         </td>
         <td className="hidden sm:table-cell px-4 py-2.5 text-sm text-neutral-600">
           ${service.price.toLocaleString("es-AR")}
+          {service.residentPrice != null && (
+            <span className="ml-1.5 rounded-full bg-teal-50 text-teal-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+              Vecino ${service.residentPrice.toLocaleString("es-AR")}
+            </span>
+          )}
         </td>
         <td className="block sm:table-cell px-0 sm:px-4 py-1.5 sm:py-2.5">
           <form action={toggleServiceActive}>
@@ -369,6 +396,7 @@ export default function ServicesSection({
   categories: Category[];
   resources: Resource[];
 }) {
+  const { showError } = useToast();
   const sinCategoria = services.filter((s) => !s.categoryId);
   const byCategory = [...categories]
     .sort((a, b) => a.order - b.order)
@@ -381,7 +409,8 @@ export default function ServicesSection({
       <p className="text-sm text-neutral-500 mb-3">
         Duración y precio determinan los horarios disponibles y el monto a cobrar. "Insumos" define
         qué productos de stock consume cada vez que se realiza. La categoría agrupa el servicio en la
-        web pública.
+        web pública. El precio vecino/a es opcional: se lo ves solo a los servicios donde lo cargues,
+        y se muestra siempre en la web como beneficio, nunca como recargo al resto.
       </p>
       <p className="text-xs text-neutral-400 mb-3">
         Tip: tocá el nombre de una categoría para desplegar sus servicios — no hace falta scrollear
@@ -429,7 +458,16 @@ export default function ServicesSection({
         )}
       </div>
 
-      <form action={createService} className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <form
+        action={async (fd) => {
+          try {
+            await createService(fd);
+          } catch (err) {
+            showError(err instanceof Error ? err.message : "No se pudo crear el servicio.");
+          }
+        }}
+        className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+      >
         <input
           name="name"
           required
@@ -453,6 +491,14 @@ export default function ServicesSection({
           required
           placeholder="Precio $"
           className="rounded-md border px-3 py-2 text-sm"
+        />
+        <input
+          name="residentPrice"
+          type="number"
+          min={0}
+          step={100}
+          placeholder="Precio vecino/a (opcional)"
+          className="col-span-2 sm:col-span-4 rounded-md border px-3 py-2 text-sm"
         />
         <select
           name="categoryId"
