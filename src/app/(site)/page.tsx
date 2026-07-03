@@ -80,18 +80,41 @@ export default async function Home() {
           {groups.length === 0 && (
             <p style={{ color: "var(--ch-mocha)" }}>Próximamente publicamos el menú de servicios.</p>
           )}
+          {/* En mobile cada categoría es un desplegable cerrado (<details> nativo,
+              sin JS) para no obligar a scrollear las ~80 líneas del menú completo.
+              En sm+ el contenido queda forzado visible (sm:!block) y el summary
+              se desactiva como toggle — en desktop/tablet se ve igual que antes. */}
           {groups.map((g) => (
-            <div key={g.id} style={{ marginBottom: 32 }}>
-              <h3 style={display({ fontSize: "1.5rem", fontWeight: 560, margin: "0 0 8px" })}>{g.name}</h3>
-              {g.services.map((it) => (
-                <div key={it.id} style={{ borderBottom: "1px solid rgba(199,180,156,.6)", padding: "12px 8px", margin: "0 -8px", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16 }}>
-                  <span>{it.name}</span>
-                  <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)", whiteSpace: "nowrap" }}>
-                    {it.durationMin} min · ${it.price.toLocaleString("es-AR")}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <details key={g.id} className="ch-services-group" style={{ marginBottom: 8 }}>
+              <summary
+                className="ch-services-summary"
+                style={{
+                  ...display({ fontSize: "1.5rem", fontWeight: 560 }),
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "8px 0",
+                  cursor: "pointer",
+                  listStyle: "none",
+                }}
+              >
+                <span>{g.name}</span>
+                <span className="ch-services-chevron" style={{ color: "var(--ch-mocha)", fontSize: "1.1rem" }}>
+                  ›
+                </span>
+              </summary>
+              <div className="ch-services-items">
+                {g.services.map((it) => (
+                  <div key={it.id} style={{ borderBottom: "1px solid rgba(199,180,156,.6)", padding: "12px 8px", margin: "0 -8px", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16 }}>
+                    <span>{it.name}</span>
+                    <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)", whiteSpace: "nowrap" }}>
+                      {it.durationMin} min · ${it.price.toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
           ))}
         </div>
         <div style={{ marginTop: 48 }}>

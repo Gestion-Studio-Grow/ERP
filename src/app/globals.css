@@ -114,6 +114,28 @@ select:focus-visible {
   border-color: #fecaca;
 }
 
+/* Servicios de la landing: desplegable solo en mobile. En sm+ (tablet y
+   desktop) se fuerza visible con !important, ignorando el atributo `open`
+   nativo — se ve igual que la lista plana de antes. */
+.ch-services-chevron {
+  transition: transform 0.2s ease;
+}
+.ch-services-group[open] .ch-services-chevron {
+  transform: rotate(90deg);
+}
+@media (min-width: 640px) {
+  .ch-services-summary {
+    cursor: default !important;
+    pointer-events: none;
+  }
+  .ch-services-chevron {
+    display: none;
+  }
+  .ch-services-items {
+    display: block !important;
+  }
+}
+
 @keyframes toast-enter {
   from {
     opacity: 0;

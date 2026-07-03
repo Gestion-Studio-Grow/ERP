@@ -63,13 +63,10 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
 
   return (
     <div
-      className="rounded-lg p-5 mb-6"
+      className="rounded-lg p-3 sm:p-5 mb-6"
       style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
     >
-      <p className="font-serif text-lg mb-1">¿Cómo estuvo tu experiencia?</p>
-      <p className="text-sm mb-4" style={{ color: "var(--spa-mocha)" }}>
-        Dejanos tu reseña, nos ayuda a seguir mejorando.
-      </p>
+      <p className="font-serif text-base sm:text-lg mb-2 sm:mb-1">¿Cómo estuvo tu experiencia?</p>
 
       <form
         action={async (fd) => {
@@ -85,26 +82,28 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
         <input type="hidden" name="appointmentId" value={appointmentId} />
         <input type="hidden" name="rating" value={rating} />
 
-        <div className="flex gap-1 mb-4" onMouseLeave={() => setHover(0)}>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <Star
-              key={n}
-              filled={n <= (hover || rating)}
-              onClick={() => setRating(n)}
-              onHover={() => setHover(n)}
-            />
-          ))}
+        <div className="flex items-center gap-2 mb-2 sm:mb-4">
+          <div className="flex gap-0.5" onMouseLeave={() => setHover(0)}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Star
+                key={n}
+                filled={n <= (hover || rating)}
+                onClick={() => setRating(n)}
+                onHover={() => setHover(n)}
+              />
+            ))}
+          </div>
         </div>
 
         <textarea
           name="comment"
           placeholder="Contanos qué te pareció (opcional)"
-          rows={3}
-          className="w-full rounded-md border px-3 py-2 text-sm mb-3"
+          rows={2}
+          className="w-full rounded-md border px-3 py-1.5 text-sm mb-2"
           style={{ borderColor: "var(--spa-mocha)", background: "var(--spa-ivory)" }}
         />
 
-        {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+        {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
 
         <SendButton disabled={rating === 0} />
       </form>
