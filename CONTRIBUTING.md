@@ -1,0 +1,40 @@
+# Contribuir a este proyecto
+
+Guía corta para arrancar rápido y trabajar de forma consistente con el resto del equipo.
+
+## Levantar el proyecto local
+
+Requisitos: Node.js, acceso al `DATABASE_URL` de Neon (pedirlo a quien administre los secretos del equipo — nunca por chat/email en texto plano).
+
+```bash
+npm install                 # corre `prisma generate` solo (postinstall)
+cp .env.example .env        # si no existe .env.example, pedir las claves y crearlo a mano
+npm run dev                 # http://localhost:3000
+```
+
+Variables de entorno necesarias en `.env` (ver `DEPLOY.md` para el detalle de cada una):
+`DATABASE_URL`, `ADMIN_PASSWORD`, `AUTH_SECRET`, y opcionalmente `RESEND_API_KEY` / `RESEND_FROM_EMAIL` / `CRON_SECRET` para que los recordatorios salgan por email real en vez de quedar simulados.
+
+## Antes de escribir código de arquitectura
+
+1. Leé `docs/adr/INDEX.md` completo — es liviano a propósito, es el punto de entrada único.
+2. Si tu cambio toca una decisión ya tomada, decilo explícitamente ("esto ya se decidió en ADR-00X") en vez de redecidirlo.
+3. Si tu cambio *es* una decisión nueva de arquitectura (no una feature de negocio suelta), se documenta como ADR nuevo antes de que se pierda el razonamiento — no alcanza con un comentario en el código que diga "ADR-0XX" si ese ADR no existe todavía.
+
+Para features de negocio (no arquitectura), el punto de entrada es `BACKLOG.md`, no `docs/adr/`.
+
+## Convención de commits
+
+- Un commit = un cambio completo y verificado (build + type-check pasan), no un checkpoint intermedio.
+- El mensaje explica el *por qué*, no repite el diff — quien lea `git log` dentro de 6 meses tiene que entender el motivo sin abrir el código.
+- `git push --force` a `main` solo en emergencia explícitamente acordada con el resto del equipo.
+
+## Flujo de trabajo (mientras seamos pocas personas)
+
+Hoy el proyecto trabaja con push directo a `main` (deploy automático en Netlify). Funciona bien con una persona; con dos o más trabajando en simultáneo sobre el mismo área, avisar activamente qué se está tocando para no pisarse. Si el equipo crece, este punto pasa a decidirse explícitamente (PRs con revisión) — no asumir que el flujo actual escala solo.
+
+## Seguridad
+
+- Nunca commitear secretos. `.env` está gitignored — si accidentalmente se commitea algo sensible, no alcanza con borrarlo en el commit siguiente: hay que rotar el secreto.
+- El panel `/admin` hoy usa una sola contraseña compartida (sin roles todavía — ver `BACKLOG.md`). Tratá cualquier acceso a esa contraseña como acceso total e indistinguible de cualquier otra persona que la tenga.
+- Reportar una vulnerabilidad: ver `SECURITY.md`.
