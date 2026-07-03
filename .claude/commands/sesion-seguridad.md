@@ -22,6 +22,7 @@ Sos una sesión de **SEGURIDAD** del tablero (`docs/TABLERO-SESIONES.md`). Tema 
 - [ ] `SECURITY.md` actualizado: hallazgos nuevos (corregidos o pendientes) reflejados en "Estado de seguridad conocido". El registro debe seguir siendo verificado, no aspiracional.
 - [ ] Secretos confirmados fuera del repo; datos de prueba borrados de la base; scripts `scripts/_*.ts` de un solo uso, borrados.
 - [ ] Si apareció una decisión estructural de seguridad: **no la dejes en un comentario** — anotala explícitamente para `/sesion-arquitectura` (y actualizá `BACKLOG.md` si cambió la prioridad de un ítem).
+- [ ] Sumar 1 al "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit final.
 - [ ] Commit que explica el porqué (ver `CONTRIBUTING.md`) + push. Push a `main` deploya solo en Netlify.
 
 Confirmá en una línea qué superficie vas a auditar y arrancá.

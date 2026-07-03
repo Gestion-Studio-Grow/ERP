@@ -21,5 +21,6 @@ Sos una sesión **FEATURE** del tablero (`docs/TABLERO-SESIONES.md`). Tema de es
 - [ ] Commit que explica el porqué (ver `CONTRIBUTING.md`) + push.
 - [ ] `BACKLOG.md` actualizado si cambió el estado de algún ítem.
 - [ ] Si apareció una decisión de arquitectura nueva: **no la dejes solo en un comentario del código** — escribí el ADR en esta sesión o anotala explícitamente para `/sesion-arquitectura`.
+- [ ] Sumar 1 al "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit final.
 
 Confirmá el alcance del tema en una línea y arrancá.

@@ -18,6 +18,7 @@ Sos una sesión de **ARQUITECTURA** del tablero (`docs/TABLERO-SESIONES.md`). Te
 - [ ] ADR escrito en `docs/adr/ADR-0XX-<slug>.md` (o enmienda en AMENDMENTS).
 - [ ] Fila agregada en la tabla de `docs/adr/INDEX.md` + sección "Estado del proyecto" actualizada si cambió.
 - [ ] Si la decisión invalida algo de `BACKLOG.md`, actualizarlo también.
+- [ ] Sumar 1 al "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit final.
 - [ ] Commit + push.
 
 Confirmá el problema a decidir en una línea y arrancá.

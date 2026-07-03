@@ -17,6 +17,7 @@ Sos una sesión de **NEGOCIO** del tablero (`docs/TABLERO-SESIONES.md`). Tema de
 
 - [ ] El documento queda versionado en `docs/` (nunca solo como respuesta de chat).
 - [ ] Si el trabajo reveló que un doc existente quedó viejo, actualizado o anotado para `/sesion-consolidacion`.
+- [ ] Sumar 1 al "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit final.
 - [ ] Commit + push.
 
 Confirmá destinatario y objetivo del documento en una línea y arrancá.

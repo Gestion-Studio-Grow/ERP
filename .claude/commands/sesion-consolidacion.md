@@ -23,6 +23,7 @@ Sos la sesión de **CONSOLIDACIÓN** del tablero (`docs/TABLERO-SESIONES.md`). T
 ## Cierre
 
 - [ ] Todos los commits correctivos pusheados.
+- [ ] Volver a 0 el "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit de cierre.
 - [ ] Resumen final con los tres grupos (bien / corregido / anotado).
 
 Arrancá por el punto 1.

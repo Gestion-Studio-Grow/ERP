@@ -77,7 +77,10 @@ commiteado y pusheado, o no terminó.
   conocido") al día, secretos confirmados fuera del repo, commit+push.
 
 ### `/sesion-consolidacion` — mantener el repo honesto
-- **Cuándo:** cada ~5 sesiones de trabajo, o al cerrar un bloque.
+- **Cuándo:** cada ~5 sesiones de trabajo, o al cerrar un bloque. No es
+  automática — se abre a criterio. El disparador visible es el contador
+  "Sesiones sin consolidar" al principio de `docs/TABLERO-SESIONES.md`: sube
+  solo al cerrar cada sesión de los otros tipos, y esta sesión lo vuelve a 0.
 - **Alcance (sí):** auditar que docs y código sigan coincidiendo y cerrar los
   huecos con commits. Tiene checklist propio en su comando.
 - **No hace:** implementar features nuevas. Lo que excede se anota como sesión
