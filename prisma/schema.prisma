@@ -34,6 +34,20 @@ enum PaymentStatus {
   REFUNDED
 }
 
+// Tipo de mensaje que arma el panel de recordatorios (ADR-012). Cada tipo
+// tiene su propia plantilla editable por tenant; el canal (email/whatsapp)
+// es un atributo de la plantilla, no del tipo, porque el mismo aviso puede
+// mandarse por ambos canales con textos distintos.
+enum MessageTemplateType {
+  APPOINTMENT_REMINDER
+  PROFESSIONAL_NEWS_BROADCAST
+}
+
+enum MessageChannel {
+  EMAIL
+  WHATSAPP
+}
+
 // Tenant (negocio) — raíz del aislamiento multi-tenant (ADR-001). Cada tabla de
 // negocio referencia un tenant. Por ahora hay uno solo (Beauty & Spa); el
 // modelo nace preparado para muchos sin rediseñar. La zona horaria vive acá
@@ -67,6 +81,8 @@ model Tenant {
   serviceCommissions ProfessionalServiceCommission[]
   resources          Resource[]
   serviceResources   ServiceResource[]
+  messageTemplates   MessageTemplate[]
+  professionalNews   ProfessionalNews[]
 }
 
 // Categoría de servicios (ADR-011 G16): agrupa el catálogo (Faciales, Masajes,
@@ -135,6 +151,7 @@ model Professional {
   workingHours      WorkingHours[]
   blocks            ProfessionalBlock[]
   serviceCommissions ProfessionalServiceCommission[]
+  news              ProfessionalNews[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -177,6 +194,13 @@ model Service {
   serviceCommissions ProfessionalServiceCommission[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
+
+  // Config de recordatorio por servicio (ADR-012 / panel de recordatorios).
+  // Si reminderEnabled es false, el job de recordatorios se lo salta aunque
+  // el turno esté confirmado. reminderHoursBefore reemplaza la ventana fija
+  // de 24hs que tenía el job original.
+  reminderEnabled     Boolean @default(true)
+  reminderHoursBefore Int     @default(24)
 
   @@index([tenantId])
   @@index([categoryId])
@@ -389,4 +413,43 @@ model ServiceResource {
   @@unique([serviceId, resourceId])
   @@index([tenantId])
   @@index([resourceId])
+}
+
+// Plantilla editable de mensaje para el panel central de recordatorios
+// (ADR-012). Una fila por (tenant, tipo, canal): p.ej. recordatorio de turno
+// por email, recordatorio de turno por WhatsApp, difusión de novedad por
+// WhatsApp. El body admite variables tipo {{clientName}} que el job
+// interpola antes de enviar.
+model MessageTemplate {
+  id        String              @id @default(cuid())
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  type      MessageTemplateType
+  channel   MessageChannel
+  subject   String?
+  body      String
+  active    Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@unique([tenantId, type, channel])
+  @@index([tenantId])
+}
+
+// Novedad de un profesional (evento, promo, nueva técnica, etc.) pensada
+// para difundir a clientes — distinto de ProfessionalBlock (franco/vacaciones,
+// que es operativo). broadcastAt queda null hasta que se dispara el envío;
+// una vez enviada no se reenvía.
+model ProfessionalNews {
+  id             String       @id @default(cuid())
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  professionalId String
+  message        String
+  broadcastAt    DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([tenantId])
+  @@index([professionalId])
 }
