@@ -271,24 +271,17 @@ function ServiceRow({
           </form>
         </td>
         <td className="block sm:table-cell px-0 sm:px-4 py-2 sm:py-2.5 sm:text-right whitespace-nowrap">
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5 sm:block sm:gap-0">
-            <button
-              onClick={() => setEditingInsumos((v) => !v)}
-              className="text-sm text-neutral-500 hover:underline sm:mr-3"
-            >
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <button onClick={() => setEditingInsumos((v) => !v)} className="chip-btn">
               Insumos
             </button>
-            <button
-              onClick={() => setEditingRecursos((v) => !v)}
-              className="text-sm text-neutral-500 hover:underline sm:mr-3"
-            >
+            <button onClick={() => setEditingRecursos((v) => !v)} className="chip-btn">
               Recursos
             </button>
-            <button onClick={() => setEditing(true)} className="text-sm text-neutral-500 hover:underline sm:mr-3">
+            <button onClick={() => setEditing(true)} className="chip-btn">
               Editar
             </button>
             <form
-              className="inline"
               action={async (fd) => {
                 if (!confirm(`¿Eliminar "${service.name}"? Esta acción no se puede deshacer.`)) return;
                 try {
@@ -300,7 +293,7 @@ function ServiceRow({
               }}
             >
               <input type="hidden" name="id" value={service.id} />
-              <button type="submit" className="text-sm text-red-600 hover:underline">
+              <button type="submit" className="chip-btn chip-btn-danger">
                 Eliminar
               </button>
             </form>

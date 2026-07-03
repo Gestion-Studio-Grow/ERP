@@ -91,6 +91,29 @@ select:focus-visible {
   opacity: 0.82;
 }
 
+/* Botón chip para acciones de fila en el backoffice (admin). Reemplaza los
+   links de texto pegados que en mobile eran difíciles de tocar sin errar:
+   ahora tiene cuerpo (borde + padding) y una altura mínima de 40px (~10
+   tailwind), el mínimo recomendado de área táctil. */
+.chip-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e5e5;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  color: #404040;
+  background: #fff;
+}
+.chip-btn:active {
+  background: #f5f5f5;
+}
+.chip-btn-danger {
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
 @keyframes toast-enter {
   from {
     opacity: 0;

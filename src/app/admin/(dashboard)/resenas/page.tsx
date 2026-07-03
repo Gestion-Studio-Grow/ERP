@@ -38,13 +38,13 @@ export default async function ResenasPage() {
                   {fmtShortDate(r.createdAt)}
                 </p>
               </div>
-              <div className="flex flex-col gap-2 items-end whitespace-nowrap">
+              <div className="flex flex-col gap-2 items-stretch sm:items-end whitespace-nowrap">
                 <form action={togglePublished}>
                   <input type="hidden" name="id" value={r.id} />
                   <input type="hidden" name="published" value={String(r.published)} />
                   <button
                     type="submit"
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    className={`w-full sm:w-auto rounded-full px-3 py-1.5 text-xs font-medium ${
                       r.published ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-600"
                     }`}
                   >
@@ -53,7 +53,7 @@ export default async function ResenasPage() {
                 </form>
                 <form action={deleteReview}>
                   <input type="hidden" name="id" value={r.id} />
-                  <button type="submit" className="text-xs text-red-600 hover:underline">
+                  <button type="submit" className="chip-btn chip-btn-danger w-full sm:w-auto text-xs min-h-8">
                     Eliminar
                   </button>
                 </form>

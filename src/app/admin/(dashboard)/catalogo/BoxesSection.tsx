@@ -49,22 +49,21 @@ function BoxRow({ box }: { box: Box }) {
           </button>
         </form>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-          <span className={box.active ? "" : "text-neutral-400 line-through"}>{box.name}</span>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <button
-              onClick={() => setBlocking((v) => !v)}
-              className="text-sm text-neutral-500 hover:underline"
-            >
+        <div className="flex flex-col gap-2">
+          <span className={box.active ? "font-medium" : "font-medium text-neutral-400 line-through"}>
+            {box.name}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setBlocking((v) => !v)} className="chip-btn">
               Bloquear fechas
             </button>
-            <button onClick={() => setEditing(true)} className="text-sm text-neutral-500 hover:underline">
+            <button onClick={() => setEditing(true)} className="chip-btn">
               Editar
             </button>
             <form action={toggleBoxActive}>
               <input type="hidden" name="id" value={box.id} />
               <input type="hidden" name="active" value={String(box.active)} />
-              <button type="submit" className="text-sm text-neutral-500 hover:underline">
+              <button type="submit" className="chip-btn">
                 {box.active ? "Desactivar" : "Activar"}
               </button>
             </form>
@@ -80,7 +79,7 @@ function BoxRow({ box }: { box: Box }) {
               }}
             >
               <input type="hidden" name="id" value={box.id} />
-              <button type="submit" className="text-sm text-red-600 hover:underline">
+              <button type="submit" className="chip-btn chip-btn-danger">
                 Eliminar
               </button>
             </form>

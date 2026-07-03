@@ -56,8 +56,8 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
           {r.services.length !== 1 ? "s" : ""}
         </span>
       </div>
-      <div className="flex items-center gap-3">
-        <button onClick={() => setEditing(true)} className="text-sm text-neutral-500 hover:underline">
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => setEditing(true)} className="chip-btn">
           Editar
         </button>
         <form
@@ -72,7 +72,7 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
           }}
         >
           <input type="hidden" name="id" value={r.id} />
-          <button type="submit" className="text-sm text-red-600 hover:underline">
+          <button type="submit" className="chip-btn chip-btn-danger">
             Eliminar
           </button>
         </form>
