@@ -14,6 +14,7 @@
 | `/sesion-arquitectura <tema>` | Decidir algo estructural (datos, seguridad, plataforma) | `docs/adr/INDEX.md` (+ el ADR puntual solo si hace falta) | ADR nuevo/enmendado + fila en INDEX. **No implementa código** |
 | `/sesion-negocio <tema>` | Status PMO, docs para el cliente, comparativas, marketing | `BACKLOG.md` + `git log` + docs relevantes | Documento versionado en `docs/`, en el lenguaje del destinatario |
 | `/sesion-consolidacion` | Cada ~5 sesiones de trabajo, o al cerrar un bloque | Todo lo de abajo (tiene checklist propio) | Docs y código vuelven a coincidir; huecos cerrados con commits |
+| `/sesion-seguridad <tema>` | Auditar la postura de seguridad o endurecer una superficie (auth, secretos, aislamiento, validación) | `SECURITY.md` + `docs/adr/INDEX.md` (001/005/AMD-005) + código | Fixes de endurecimiento commiteados + `SECURITY.md` al día. Decisiones estructurales (RLS, roles) se derivan a `/sesion-arquitectura` |
 
 **Regla de oro del tablero:** si una sesión empieza a derivar hacia otro tipo (una feature descubre una decisión de arquitectura, una consolidación descubre un bug), **no se resuelve ahí** — se anota y se abre la sesión del tipo correcto. Es lo que mantiene los threads baratos y encontrables.
 
