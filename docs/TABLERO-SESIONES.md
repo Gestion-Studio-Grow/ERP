@@ -18,6 +18,8 @@
 
 **Regla de oro del tablero:** si una sesión empieza a derivar hacia otro tipo (una feature descubre una decisión de arquitectura, una consolidación descubre un bug), **no se resuelve ahí** — se anota y se abre la sesión del tipo correcto. Es lo que mantiene los threads baratos y encontrables.
 
+> **Guía de lectura para el equipo:** el libro de usuario amigable de este sistema es `docs/MANUAL-SESIONES.md`, y el comando `/manual` muestra la versión corta al instante. No son tipos de sesión (no abren trabajo), son la puerta de entrada; este tablero sigue siendo la spec canónica.
+
 ## La sesión de consolidación (la que mantiene el sistema honesto)
 
 Su trabajo es que el repo no mienta. Casos reales que ya pasaron y que existe para atrapar:
