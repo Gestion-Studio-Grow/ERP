@@ -33,10 +33,10 @@ export default async function Home() {
   return (
     <>
       {/* HERO */}
-      <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(32px,8vw,48px) 24px clamp(40px,8vw,64px)", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
+      <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(24px,6vw,40px) 24px clamp(28px,6vw,48px)", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
         <div style={{ flex: "1 1 440px", minWidth: 300 }}>
           <p style={{ ...eyebrow, margin: "0 0 16px" }}>La Alameda · Canning</p>
-          <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 340, margin: 0 })}>
+          <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 480, margin: 0 })}>
             Tu tiempo, cuidado a metros de casa.
           </h1>
           <p style={{ margin: "20px 0 0", fontSize: "1.0625rem", color: "rgba(32,31,27,.8)", maxWidth: "28rem", lineHeight: 1.65 }}>
@@ -58,14 +58,14 @@ export default async function Home() {
 
       {/* PROPUESTA DE VALOR */}
       <section style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
-        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(56px,10vw,96px) 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 40 }}>
+        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 40 }}>
           {[
             ["Tiempo", "Entrás, te atienden, seguís tu día."],
             ["Cercanía", "Dentro del barrio. Sin salir, sin tránsito."],
             ["Cuidado", "Protocolos serios, piel que ya conocemos."],
           ].map(([t, d]) => (
             <Reveal key={t}>
-              <h3 style={display({ fontSize: "1.25rem", fontWeight: 420, margin: "0 0 8px" })}>{t}</h3>
+              <h3 style={display({ fontSize: "1.25rem", fontWeight: 560, margin: "0 0 8px" })}>{t}</h3>
               <p style={{ fontSize: ".875rem", color: "rgba(32,31,27,.7)", lineHeight: 1.7, margin: 0 }}>{d}</p>
             </Reveal>
           ))}
@@ -75,14 +75,14 @@ export default async function Home() {
       {/* SERVICIOS */}
       <section id="servicios" style={{ maxWidth: 1152, margin: "0 auto", padding: "64px 24px" }}>
         <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que hacemos</p>
-        <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 380, margin: "0 0 40px" })}>Servicios</h2>
+        <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 520, margin: "0 0 40px" })}>Servicios</h2>
         <div style={{ maxWidth: 768 }}>
           {groups.length === 0 && (
             <p style={{ color: "var(--ch-mocha)" }}>Próximamente publicamos el menú de servicios.</p>
           )}
           {groups.map((g) => (
             <div key={g.id} style={{ marginBottom: 32 }}>
-              <h3 style={display({ fontSize: "1.5rem", fontWeight: 420, margin: "0 0 8px" })}>{g.name}</h3>
+              <h3 style={display({ fontSize: "1.5rem", fontWeight: 560, margin: "0 0 8px" })}>{g.name}</h3>
               {g.services.map((it) => (
                 <div key={it.id} style={{ borderBottom: "1px solid rgba(199,180,156,.6)", padding: "12px 8px", margin: "0 -8px", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16 }}>
                   <span>{it.name}</span>
@@ -105,16 +105,16 @@ export default async function Home() {
 
       {/* EQUIPO */}
       <section id="equipo" style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
-        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(56px,10vw,96px) 24px" }}>
+        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
           <p style={{ ...eyebrow, margin: "0 0 12px" }}>Quién te atiende</p>
-          <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 380, margin: "0 0 48px" })}>Equipo</h2>
+          <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 48px" })}>Equipo</h2>
           {activeProfessionals.map((p) => (
             <Reveal key={p.id} style={{ padding: "32px 0", display: "flex", gap: 24, alignItems: "flex-start", borderTop: "1px solid rgba(199,180,156,.3)" }}>
               <div style={{ position: "relative", width: 64, height: 64, borderRadius: 9999, flexShrink: 0, overflow: "hidden" }}>
                 <PhotoPlaceholder ratio="1 / 1" rounded={false} gradient="linear-gradient(150deg,#E6DDCE 0%,#C7B49C 60%,#856B52 120%)" caption="Retrato cálido, luz lateral" />
               </div>
               <div style={{ flex: 1 }}>
-                <p style={display({ fontSize: "clamp(1.15rem,2vw,1.5rem)", lineHeight: 1.4, fontWeight: 380, color: "var(--ch-ink)", margin: 0 })}>
+                <p style={display({ fontSize: "clamp(1.15rem,2vw,1.5rem)", lineHeight: 1.4, fontWeight: 520, color: "var(--ch-ink)", margin: 0 })}>
                   {p.name}
                 </p>
                 <p style={{ margin: "12px 0 0", fontSize: ".875rem", color: "var(--ch-mocha)" }}>
@@ -131,8 +131,8 @@ export default async function Home() {
 
       {/* CÓMO RESERVAR */}
       <section style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
-        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(56px,10vw,96px) 24px" }}>
-          <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 380, margin: "0 0 48px" })}>Cómo reservar</h2>
+        <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
+          <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 48px" })}>Cómo reservar</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 40, fontSize: ".875rem" }}>
             {[
               ["01", "Elegí el servicio."],
@@ -153,10 +153,10 @@ export default async function Home() {
 
       {/* CONFIANZA */}
       <section style={{ background: "var(--ch-sage-deep)", color: "var(--ch-ivory)" }}>
-        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(48px,9vw,80px) 24px", display: "flex", flexWrap: "wrap", gap: 40, alignItems: "center" }}>
+        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(36px,7vw,64px) 24px", display: "flex", flexWrap: "wrap", gap: 40, alignItems: "center" }}>
           <Reveal style={{ flex: "1 1 380px", minWidth: 280 }}>
             <p style={{ ...eyebrow, color: "var(--ch-clay)", margin: "0 0 16px" }}>Seriedad, sin ruido</p>
-            <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", lineHeight: 1.2, fontWeight: 380, margin: 0 })}>
+            <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", lineHeight: 1.2, fontWeight: 520, margin: 0 })}>
               Un espacio dentro del barrio, pensado para pocos.
             </h2>
             <p style={{ margin: "20px 0 0", color: "rgba(243,238,229,.85)", maxWidth: "28rem", lineHeight: 1.7 }}>
@@ -177,8 +177,8 @@ export default async function Home() {
       </section>
 
       {/* CTA CIERRE */}
-      <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(64px,14vw,128px) 24px", borderTop: "1px solid rgba(199,180,156,.3)" }}>
-        <h2 style={display({ fontSize: "clamp(2.4rem,5vw,3.9rem)", fontWeight: 340, margin: 0 })}>Tu tiempo, cerca.</h2>
+      <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(48px,9vw,88px) 24px", borderTop: "1px solid rgba(199,180,156,.3)" }}>
+        <h2 style={display({ fontSize: "clamp(2.4rem,5vw,3.9rem)", fontWeight: 480, margin: 0 })}>Tu tiempo, cerca.</h2>
         <p style={{ margin: "16px 0 0", fontSize: "1.125rem", color: "rgba(32,31,27,.8)", maxWidth: "28rem" }}>
           Reservá tu turno en menos de un minuto.
         </p>
@@ -189,10 +189,10 @@ export default async function Home() {
 
       {/* CONTACTO / CÓMO LLEGAR */}
       <section id="contacto" style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
-        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(56px,10vw,96px) 24px", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
+        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
           <Reveal style={{ flex: "1 1 380px", minWidth: 280 }}>
             <p style={{ ...eyebrow, margin: "0 0 12px" }}>Dónde estamos</p>
-            <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", fontWeight: 380, margin: "0 0 32px" })}>Cómo llegar</h2>
+            <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", fontWeight: 520, margin: "0 0 32px" })}>Cómo llegar</h2>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {[
                 ["Dirección", "Barrio La Alameda, Canning"],

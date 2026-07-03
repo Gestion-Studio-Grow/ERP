@@ -313,6 +313,58 @@ function ServiceRow({
   );
 }
 
+// Un grupo colapsable por categoría — abre/cierra con <details>, sin JS
+// extra. En mobile esto reemplaza el scroll infinito de la tabla plana por
+// un árbol: tocás la categoría que te interesa y solo esa se despliega.
+function CategoryGroup({
+  title,
+  count,
+  defaultOpen,
+  warn,
+  children,
+}: {
+  title: string;
+  count: number;
+  defaultOpen?: boolean;
+  warn?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details
+      open={defaultOpen}
+      className="group rounded-lg border overflow-hidden mb-2 sm:mb-3 last:mb-0"
+    >
+      <summary
+        className={`flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none list-none ${
+          warn ? "bg-amber-50" : "bg-neutral-50"
+        }`}
+      >
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <span className="text-neutral-400 transition-transform group-open:rotate-90">›</span>
+          {title}
+          {warn && <span className="text-amber-600 text-xs font-normal">(revisar)</span>}
+        </span>
+        <span className="text-xs text-neutral-500 rounded-full bg-white border px-2 py-0.5">
+          {count}
+        </span>
+      </summary>
+      <table className="block sm:table w-full text-left">
+        <thead className="hidden sm:table-header-group">
+          <tr className="border-b border-t bg-neutral-50/60 text-xs uppercase tracking-wide text-neutral-500">
+            <th className="px-4 py-2 font-medium">Nombre</th>
+            <th className="px-4 py-2 font-medium">Categoría</th>
+            <th className="px-4 py-2 font-medium">Duración</th>
+            <th className="px-4 py-2 font-medium">Precio</th>
+            <th className="px-4 py-2 font-medium">Estado</th>
+            <th className="px-4 py-2 font-medium text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody className="block sm:table-row-group divide-y sm:divide-y-0">{children}</tbody>
+      </table>
+    </details>
+  );
+}
+
 export default function ServicesSection({
   services,
   products,
@@ -324,7 +376,12 @@ export default function ServicesSection({
   categories: Category[];
   resources: Resource[];
 }) {
-  const sinCategoria = services.filter((s) => !s.categoryId).length;
+  const sinCategoria = services.filter((s) => !s.categoryId);
+  const byCategory = [...categories]
+    .sort((a, b) => a.order - b.order)
+    .map((c) => ({ category: c, items: services.filter((s) => s.categoryId === c.id) }))
+    .filter((g) => g.items.length > 0);
+
   return (
     <section>
       <h2 className="text-lg font-medium mb-1">Servicios</h2>
@@ -333,27 +390,22 @@ export default function ServicesSection({
         qué productos de stock consume cada vez que se realiza. La categoría agrupa el servicio en la
         web pública.
       </p>
-      {sinCategoria > 0 && (
+      <p className="text-xs text-neutral-400 mb-3">
+        Tip: tocá el nombre de una categoría para desplegar sus servicios — no hace falta scrollear
+        todo el listado para encontrar uno.
+      </p>
+      {sinCategoria.length > 0 && (
         <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3">
-          {sinCategoria} servicio{sinCategoria !== 1 ? "s" : ""} sin categoría. Editá cada uno y
-          asignale su categoría (Faciales, Masajes, Spa, etc.) para que se agrupe bien en la web.
+          {sinCategoria.length} servicio{sinCategoria.length !== 1 ? "s" : ""} sin categoría. Editá
+          cada uno y asignale su categoría (Faciales, Masajes, Spa, etc.) para que se agrupe bien en
+          la web.
         </p>
       )}
 
-      <div className="sm:overflow-x-auto sm:rounded-lg sm:border mb-4">
-        <table className="block sm:table w-full text-left">
-          <thead className="hidden sm:table-header-group">
-            <tr className="border-b bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-              <th className="px-4 py-2 font-medium">Nombre</th>
-              <th className="px-4 py-2 font-medium">Categoría</th>
-              <th className="px-4 py-2 font-medium">Duración</th>
-              <th className="px-4 py-2 font-medium">Precio</th>
-              <th className="px-4 py-2 font-medium">Estado</th>
-              <th className="px-4 py-2 font-medium text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="block sm:table-row-group">
-            {services.map((s) => (
+      <div className="mb-4">
+        {byCategory.map(({ category, items }) => (
+          <CategoryGroup key={category.id} title={category.name} count={items.length}>
+            {items.map((s) => (
               <ServiceRow
                 key={s.id}
                 service={s}
@@ -362,15 +414,26 @@ export default function ServicesSection({
                 resources={resources}
               />
             ))}
-            {services.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-4 text-sm text-neutral-500">
-                  No hay servicios cargados todavía.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          </CategoryGroup>
+        ))}
+        {sinCategoria.length > 0 && (
+          <CategoryGroup title="Sin categoría" count={sinCategoria.length} defaultOpen warn>
+            {sinCategoria.map((s) => (
+              <ServiceRow
+                key={s.id}
+                service={s}
+                products={products}
+                categories={categories}
+                resources={resources}
+              />
+            ))}
+          </CategoryGroup>
+        )}
+        {services.length === 0 && (
+          <p className="text-sm text-neutral-500 border rounded-lg px-4 py-4">
+            No hay servicios cargados todavía.
+          </p>
+        )}
       </div>
 
       <form action={createService} className="grid grid-cols-2 sm:grid-cols-4 gap-2">

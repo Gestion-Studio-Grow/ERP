@@ -15,7 +15,13 @@ import { fmtShortDate } from "@/lib/datetime";
 import { useToast } from "../ToastProvider";
 
 type Box = { id: string; name: string; active: boolean };
-type Service = { id: string; name: string; active: boolean };
+type Service = {
+  id: string;
+  name: string;
+  active: boolean;
+  categoryId?: string | null;
+  category?: { id: string; name: string } | null;
+};
 type WorkingHour = { dayOfWeek: number; startTime: string; endTime: string };
 type Block = { id: string; startsAt: Date; endsAt: Date; reason: string };
 type ServiceCommission = { serviceId: string; commissionPercent: number };
@@ -215,6 +221,71 @@ function CommissionsEditor({ professional: p }: { professional: Professional }) 
   );
 }
 
+// Selector de servicios agrupado por categoría, colapsable. Reemplaza la
+// pared de checkboxes sueltos (79 servicios en una sola bolsa) por un árbol
+// que se puede recorrer por categoría — clave en mobile, donde tocar un
+// checkbox de 1 línea entre decenas de otros lleva a error de tap.
+function ServiceTreePicker({
+  services,
+  selectedIds,
+  name,
+}: {
+  services: Service[];
+  selectedIds: Set<string>;
+  name: string;
+}) {
+  const groups = new Map<string, { label: string; items: Service[] }>();
+  for (const s of services) {
+    const key = s.category?.id ?? "sin-categoria";
+    const label = s.category?.name ?? "Sin categoría";
+    if (!groups.has(key)) groups.set(key, { label, items: [] });
+    groups.get(key)!.items.push(s);
+  }
+  const selectedCountIn = (items: Service[]) => items.filter((s) => selectedIds.has(s.id)).length;
+
+  return (
+    <div className="rounded-md border divide-y">
+      {[...groups.values()].map((g) => {
+        const selectedCount = selectedCountIn(g.items);
+        return (
+          <details key={g.label} className="group" open={selectedCount > 0}>
+            <summary className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer select-none list-none text-sm">
+              <span className="flex items-center gap-2">
+                <span className="text-neutral-400 transition-transform group-open:rotate-90">›</span>
+                {g.label}
+              </span>
+              <span
+                className={`text-xs rounded-full px-2 py-0.5 ${
+                  selectedCount > 0 ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-500"
+                }`}
+              >
+                {selectedCount > 0 ? `${selectedCount}/${g.items.length}` : g.items.length}
+              </span>
+            </summary>
+            <div className="px-3 pb-3 pt-1 flex flex-wrap gap-2">
+              {g.items.map((s) => (
+                <label
+                  key={s.id}
+                  className="flex items-center gap-2 rounded-md border px-3 py-2.5 text-sm min-h-11 has-[:checked]:border-neutral-900 has-[:checked]:bg-neutral-50"
+                >
+                  <input
+                    type="checkbox"
+                    name={name}
+                    value={s.id}
+                    defaultChecked={selectedIds.has(s.id)}
+                    className="h-4 w-4 shrink-0"
+                  />
+                  {s.name}
+                </label>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProfessionalRow({
   professional: p,
   boxes,
@@ -285,30 +356,24 @@ function ProfessionalRow({
         </div>
         <div>
           <p className="text-sm text-neutral-500 mb-1">Servicios que realiza</p>
-          <div className="flex flex-wrap gap-2">
-            {services
-              .filter((s) => s.active || p.services.some((ps) => ps.id === s.id))
-              .map((s) => (
-                <label
-                  key={s.id}
-                  className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    name="serviceIds"
-                    value={s.id}
-                    defaultChecked={p.services.some((ps) => ps.id === s.id)}
-                  />
-                  {s.name}
-                </label>
-              ))}
-          </div>
+          <ServiceTreePicker
+            services={services.filter((s) => s.active || p.services.some((ps) => ps.id === s.id))}
+            selectedIds={new Set(p.services.map((ps) => ps.id))}
+            name="serviceIds"
+          />
         </div>
-        <div className="flex gap-3">
-          <button type="submit" className="text-sm font-medium">
+        <div className="flex gap-4 pt-1">
+          <button
+            type="submit"
+            className="min-h-11 rounded-md bg-black text-white px-4 text-sm font-medium"
+          >
             Guardar
           </button>
-          <button type="button" onClick={() => setEditing(false)} className="text-sm text-neutral-500">
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="min-h-11 rounded-md border px-4 text-sm text-neutral-600"
+          >
             Cancelar
           </button>
         </div>
@@ -316,69 +381,79 @@ function ProfessionalRow({
     );
   }
 
+  const chipBtn =
+    "min-h-10 flex items-center rounded-md border px-3 text-sm text-neutral-700 active:bg-neutral-100";
+  const chipBtnActive = "min-h-10 flex items-center rounded-md border border-neutral-900 bg-neutral-900 px-3 text-sm text-white";
+
   return (
     <div className="rounded-lg border px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="flex items-center justify-between gap-3 mb-1">
         <span className={p.active ? "font-medium" : "font-medium text-neutral-400 line-through"}>
           {p.name}
         </span>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <button
-            onClick={() => setEditingHours((v) => !v)}
-            className="text-sm text-neutral-500 hover:underline"
-          >
-            Horario
-          </button>
-          <button
-            onClick={() => setEditingNovedades((v) => !v)}
-            className="text-sm text-neutral-500 hover:underline"
-          >
-            Novedades
-          </button>
-          <button
-            onClick={() => setEditingComisiones((v) => !v)}
-            className="text-sm text-neutral-500 hover:underline"
-          >
-            Comisiones
-          </button>
-          <button onClick={() => setEditing(true)} className="text-sm text-neutral-500 hover:underline">
-            Editar
-          </button>
-          <form action={toggleProfessionalActive}>
-            <input type="hidden" name="id" value={p.id} />
-            <input type="hidden" name="active" value={String(p.active)} />
-            <button type="submit" className="text-sm text-neutral-500 hover:underline">
-              {p.active ? "Desactivar" : "Activar"}
-            </button>
-          </form>
-          <form
-            action={async (fd) => {
-              if (!confirm(`¿Eliminar a "${p.name}"? Esta acción no se puede deshacer.`)) return;
-              try {
-                await deleteProfessional(fd);
-                showSuccess(`"${p.name}" eliminado.`);
-              } catch (err) {
-                showError(err instanceof Error ? err.message : "No se pudo eliminar.");
-              }
-            }}
-          >
-            <input type="hidden" name="id" value={p.id} />
-            <button type="submit" className="text-sm text-red-600 hover:underline">
-              Eliminar
-            </button>
-          </form>
-        </div>
+        <button onClick={() => setEditing(true)} className="text-sm text-neutral-500 hover:underline shrink-0">
+          Editar
+        </button>
       </div>
       <p className="text-sm text-neutral-500">
         {p.box ? p.box.name : "Sin box asignado"} · {p.phone || "sin teléfono"} ·{" "}
-        {p.commissionPercent}% comisión
+        <strong className="text-neutral-700">{p.commissionPercent}% comisión</strong>
       </p>
       <p className="text-sm text-neutral-500">
         {p.services.length > 0
           ? p.services.map((s) => s.name).join(", ")
           : "Sin servicios asignados"}
       </p>
-      <p className="text-xs text-neutral-400 mt-1">{scheduleSummary(p.workingHours)}</p>
+      <p className="text-xs text-neutral-400 mt-1 mb-3">{scheduleSummary(p.workingHours)}</p>
+
+      {/* Grupo de acciones frecuentes — botones con cuerpo real, min 40px de
+          alto para el dedo, separados en dos filas para no amontonarse en
+          mobile (antes eran links de texto pegados uno al lado del otro). */}
+      <div className="flex flex-wrap gap-2 mb-2">
+        <button
+          onClick={() => setEditingComisiones((v) => !v)}
+          className={editingComisiones ? chipBtnActive : chipBtn}
+        >
+          Comisión
+        </button>
+        <button
+          onClick={() => setEditingHours((v) => !v)}
+          className={editingHours ? chipBtnActive : chipBtn}
+        >
+          Horario
+        </button>
+        <button
+          onClick={() => setEditingNovedades((v) => !v)}
+          className={editingNovedades ? chipBtnActive : chipBtn}
+        >
+          Novedades
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <form action={toggleProfessionalActive}>
+          <input type="hidden" name="id" value={p.id} />
+          <input type="hidden" name="active" value={String(p.active)} />
+          <button type="submit" className={chipBtn}>
+            {p.active ? "Desactivar" : "Activar"}
+          </button>
+        </form>
+        <form
+          action={async (fd) => {
+            if (!confirm(`¿Eliminar a "${p.name}"? Esta acción no se puede deshacer.`)) return;
+            try {
+              await deleteProfessional(fd);
+              showSuccess(`"${p.name}" eliminado.`);
+            } catch (err) {
+              showError(err instanceof Error ? err.message : "No se pudo eliminar.");
+            }
+          }}
+        >
+          <input type="hidden" name="id" value={p.id} />
+          <button type="submit" className={`${chipBtn} text-red-600 border-red-200`}>
+            Eliminar
+          </button>
+        </form>
+      </div>
 
       {editingHours && (
         <div className="mt-3">
@@ -466,22 +541,15 @@ export default function ProfessionalsSection({
         </div>
         <div>
           <p className="text-sm text-neutral-500 mb-1">Servicios que realiza</p>
-          <div className="flex flex-wrap gap-2">
-            {services
-              .filter((s) => s.active)
-              .map((s) => (
-                <label
-                  key={s.id}
-                  className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm"
-                >
-                  <input type="checkbox" name="serviceIds" value={s.id} />
-                  {s.name}
-                </label>
-              ))}
-            {services.length === 0 && (
-              <p className="text-sm text-neutral-500">Cargá servicios primero.</p>
-            )}
-          </div>
+          {services.length === 0 ? (
+            <p className="text-sm text-neutral-500">Cargá servicios primero.</p>
+          ) : (
+            <ServiceTreePicker
+              services={services.filter((s) => s.active)}
+              selectedIds={new Set()}
+              name="serviceIds"
+            />
+          )}
         </div>
         <p className="text-xs text-neutral-400">
           El horario semanal se configura después de crear el profesional, con el botón "Horario".
