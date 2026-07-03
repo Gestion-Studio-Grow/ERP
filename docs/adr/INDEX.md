@@ -15,15 +15,23 @@ Punto de entrada para cualquier sesión nueva con Claude. Pegá este índice pri
 | 009 | UX, UI metadata-driven, RBAC, onboarding | Diseño para la recepcionista, no para el ERP: agenda como home, turno en <30 seg, mobile-first operativo. DynamicForm renderiza campos de extensión. RBAC de 3 roles por Blueprint. Audit trail desde Fase 1. Onboarding con wizard + importador CSV. |
 | AMD | Enmiendas a 001-008 | Restore por tenant probado, soft-delete, versionado+idempotencia de eventos, notas y precio congelado en Turno, horarios/ausencias de profesional, MFA+rate limit en login, costo de email transaccional. |
 | 010 | Convergencia piloto → plataforma | El piloto Beauty & Spa (Next.js, mono-tenant) se declara Fase 1 y debe evolucionar hacia los ADR. **Camino A confirmado** (evolucionar Next.js). Ola 1 (cimientos de datos) casi cerrada: G5/G3/G6/G4 ✅, G1 (tenant_id) en curso. |
-| 011 | Relevamiento con el cliente | Cinco capacidades relevadas con Carolina: G16 categorías de servicios (+ Ducha escocesa/Pileta), G9 novedades/disponibilidad por profesional, G17 recursos con capacidad (máquinas/gabinetes, atado a G2), G18 comisión por (profesional, servicio). Se implementan como Ola 2, después de G1. Toda tabla nueva nace con `tenant_id`. |
+| 011 | Relevamiento con el cliente | Cinco capacidades relevadas con Carolina: G16 categorías de servicios (+ Ducha escocesa/Pileta), G9 novedades/disponibilidad por profesional, G17 recursos con capacidad (máquinas/gabinetes, atado a G2), G18 comisión por (profesional, servicio). Ola 2 — **completa** (ver 5.b del ADR). |
+| 013 | Precio diferencial vecino/a | G19: `Service.residentPrice` opcional, siempre menor al precio general, visible como beneficio (nunca recargo). Implementado y deployado. |
+| 014 | Seña obligatoria + cupones | G20 (seña visible en los 3 puntos de reserva; cobro sigue manual, sin Mercado Pago todavía) y G21 (cupones, validados y consumidos server-side dentro de la transacción de reserva). Implementado y deployado. |
 
-## Estado del proyecto
-- **Piloto vivo:** `estetica-erp` (este repo) — Beauty & Spa de Carolina Haponiuk, desplegado en Netlify + Postgres (Neon). Es la Fase 1 del blueprint "Servicios".
-- **Decisión de convergencia:** ver ADR-010. Bloqueada esperando confirmación de Camino A vs. B.
+## Estado del proyecto (actualizado 2026-07-03)
+- **Piloto vivo:** `estetica-erp` (este repo) — Beauty & Spa "CH Estética" de Carolina Haponiuk, desplegado en Netlify + Postgres (Neon), deploy automático en cada push a `main`.
+- **Decisión de convergencia:** ADR-010, **Camino A confirmado** (evolucionar el piloto Next.js, no reescribir) — ya no está bloqueada, esto quedó viejo en una versión anterior de este índice.
+- **G1 (tenant_id + RLS), estado real verificado en `prisma/schema.prisma`:** la columna `tenantId` ya está en toda tabla de negocio y toda query pasa por `getCurrentTenantId()` (aislamiento a nivel de aplicación, funcionando). La mitad que falta es **RLS de Postgres** — diferida a propósito (ver comentario en el modelo `Tenant` del schema) hasta que exista un segundo tenant real, porque con uno solo no hay fuga posible y activar RLS+pooling antes es el tramo más riesgoso de tocar sin necesidad. **No asumir que esto ya está cerrado** — es el primer punto a verificar en cualquier sesión nueva.
+- **Ola 2 (ADR-011):** completa — G16/G9/G17/G18 implementados y deployados.
+- **Brechas nuevas del relevamiento contra la competencia (2026-07-03):** ADR-013 (G19) y ADR-014 (G20 parcial, G21 completo) — ver arriba.
+- **Backlog operativo vivo (features de negocio, no arquitectura):** `BACKLOG.md` en la raíz del repo — auditado contra el código, no contra supuestos. Roles de usuario y reprogramar turno del cliente son los ítems críticos abiertos ahí.
 
 ## Próximos pasos sugeridos (no son ADRs todavía, son candidatos para la próxima sesión)
-- **Confirmar Camino A vs. B de ADR-010** (gatea todo lo demás).
+- Cerrar G1 con RLS real cuando exista el segundo tenant (o antes, si se decide adelantarlo — ver riesgo de "activar RLS bajo presión" en vez de con tiempo).
 - Diseño detallado del Plugin ARCA (contrato de eventos/comandos concreto).
 - Contrato de API pública del Core (qué comandos expone cada Business Capability).
-- Diseño de onboarding/alta de tenant nuevo (provisioning).
+- Diseño de onboarding/alta de tenant nuevo (provisioning) — hoy no existe, cada tenant se crea a mano.
 - Definición de planes/pricing y cómo se mapean a Feature Flags (ADR-006).
+- Integración real de Mercado Pago para la seña (ADR-014, G20) — requiere credenciales del negocio.
+- Roles de usuario (`BACKLOG.md`) — bloqueante para que el audit trail de ADR-009 sirva para algo con más de un operador.
