@@ -20,6 +20,7 @@ Punto de entrada para cualquier sesión nueva con Claude. Pegá este índice pri
 | 014 | Seña obligatoria + cupones | G20 (seña visible en los 3 puntos de reserva; cobro sigue manual, sin Mercado Pago todavía) y G21 (cupones, validados y consumidos server-side dentro de la transacción de reserva). Implementado y deployado. |
 | 015 | Resolución de tenant fail-closed | Blinda G1 antes del 2º tenant: `getCurrentTenantId()` lanza error si hay ≠1 tenant en vez de agarrar "el más viejo" en silencio. No toca el diferimiento de RLS (lo refuerza). Implementado (sin cache, en `src/lib/tenant.ts`). |
 | 016 | Handoff persistido (cola de próximos pasos) | Enmienda operativa de ADR-008: el "qué sigue" deja de vivir en el chat y se persiste en `docs/PROXIMOS-PASOS.md`. Cada comando la lee al abrir y la escribe al cerrar; consolidación la poda. Implementado. |
+| 017 | Usuarios, roles y RBAC | Concretiza ADR-009 §3/§4 para Camino A: tabla `User` propia (no reusar `Professional`) + enum de 3 roles (OWNER/RECEPTION/PROFESSIONAL) + evolución de la cookie HMAC para cargar `userId` + hashing scrypt + autorización en Server Actions + `actor` real en el audit trail. Diverge a propósito de JWT/argon2 de ADR-005 (escala-plataforma). Pendiente de implementación. |
 
 ## Estado del proyecto (actualizado 2026-07-03)
 - **Piloto vivo:** `estetica-erp` (este repo) — Beauty & Spa "CH Estética" de Carolina Haponiuk, desplegado en Netlify + Postgres (Neon), deploy automático en cada push a `main`.
@@ -36,4 +37,4 @@ Punto de entrada para cualquier sesión nueva con Claude. Pegá este índice pri
 - Diseño de onboarding/alta de tenant nuevo (provisioning) — hoy no existe, cada tenant se crea a mano.
 - Definición de planes/pricing y cómo se mapean a Feature Flags (ADR-006).
 - Integración real de Mercado Pago para la seña (ADR-014, G20) — requiere credenciales del negocio.
-- Roles de usuario (`BACKLOG.md`) — bloqueante para que el audit trail de ADR-009 sirva para algo con más de un operador.
+- ~~Roles de usuario — bloqueante para que el audit trail sirva con más de un operador.~~ **Decidido en ADR-017**; queda pendiente su implementación (`/sesion-feature`, ver cola en `docs/PROXIMOS-PASOS.md`).

@@ -7,12 +7,14 @@ supuesto por el nombre del commit.
 
 ## Crítico — bloqueante para operar en serio
 
-- [ ] **Roles y permisos** (dueño / recepcionista / profesional). Hoy
-  `/admin` es una sola contraseña compartida (`src/lib/auth.ts` —
-  `ADMIN_PASSWORD` global, sin concepto de usuario). Esto tiene un costo
-  oculto: ya existe un `AuditLog` completo (ADR-010 G4) que registra cada
-  mutación, pero el campo `actor` va a decir siempre `"admin"` — el audit
-  trail no sirve para saber *quién* hizo qué en cuanto haya más de una
+- [ ] **Roles y permisos** (dueño / recepcionista / profesional). **Decidido
+  en ADR-017** — implementar según ese ADR (tabla `User` propia, enum de 3
+  roles, cookie HMAC evolucionada a `userId`, hashing scrypt, autorización en
+  Server Actions, `actor` real en el audit). Hoy `/admin` es una sola
+  contraseña compartida (`src/lib/auth.ts` — `ADMIN_PASSWORD` global, sin
+  concepto de usuario): ya existe un `AuditLog` completo (ADR-010 G4) que
+  registra cada mutación, pero el campo `actor` dice siempre `"admin"` — el
+  audit trail no sirve para saber *quién* hizo qué en cuanto haya más de una
   persona usando el panel. Cuanto más se usa el sistema en serio, más caro
   sale retrofitear esto después.
 - [ ] **Cliente reprograma su turno** (no solo cancela). Verificado en

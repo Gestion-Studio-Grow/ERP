@@ -21,7 +21,7 @@ barre, así queda rastro de una sesión a la otra.
 
 ## Abiertos
 
-_(vacío)_
+- [ ] `/sesion-feature implementar RBAC/usuarios (ADR-017)` — tabla `User` + enum `UserRole` + migración que siembra el OWNER de Carolina; `auth.ts` (token con `userId`, hashing scrypt), login por email+password, `getCurrentUser()`/`requireRole()`, `actor` real en `audit.ts`, `requireRole(...)` en cada Server Action de `/admin`, UI de gestión de usuarios. Sin romper el acceso actual. *(origen: sesión de arquitectura — 2026-07-03)*
 
 ## Hechos (pendientes de poda por `/sesion-consolidacion`)
 
