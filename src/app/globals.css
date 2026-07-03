@@ -106,34 +106,42 @@ select:focus-visible {
   color: #404040;
   background: #fff;
 }
-.chip-btn:active {
-  background: #f5f5f5;
-}
 .chip-btn-danger {
   color: #dc2626;
   border-color: #fecaca;
 }
 
-/* Servicios de la landing: desplegable solo en mobile. En sm+ (tablet y
-   desktop) se fuerza visible con !important, ignorando el atributo `open`
-   nativo — se ve igual que la lista plana de antes. */
-.ch-services-chevron {
-  transition: transform 0.2s ease;
+/* Feedback táctil del acordeón de servicios (mobile): al presionar la
+   categoría se tiñe apenas para confirmar el toque. Ver ServicesAccordion. */
+.ch-acc-trigger {
+  transition: background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.ch-services-group[open] .ch-services-chevron {
-  transform: rotate(90deg);
+.ch-acc-trigger:active {
+  background-color: rgba(199, 180, 156, 0.18);
 }
-@media (min-width: 640px) {
-  .ch-services-summary {
-    cursor: default !important;
-    pointer-events: none;
-  }
-  .ch-services-chevron {
-    display: none;
-  }
-  .ch-services-items {
-    display: block !important;
-  }
+
+/* CTA "Reservar": hover atenúa, click hunde apenas — feedback distinto para
+   cada estado (antes hover y click se veían idénticos). */
+.ch-reserve-btn:hover {
+  opacity: 0.88;
+}
+.ch-reserve-btn:active {
+  transform: translateY(1px);
+}
+
+/* Chips de acción del backoffice: hover marca el borde, active lo hunde —
+   así en desktop se distingue "estoy encima" de "hice click". */
+.chip-btn {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.chip-btn:hover {
+  border-color: #a3a3a3;
+  background: #fafafa;
+}
+.chip-btn:active {
+  background: #f0f0f0;
+  transform: translateY(1px);
 }
 
 @keyframes toast-enter {

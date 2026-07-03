@@ -3,6 +3,7 @@ import { getCatalog } from "@/lib/catalog-actions";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
+import ServicesAccordion from "./_ch/ServicesAccordion";
 
 export const dynamic = "force-dynamic";
 
@@ -76,47 +77,11 @@ export default async function Home() {
       <section id="servicios" style={{ maxWidth: 1152, margin: "0 auto", padding: "64px 24px" }}>
         <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que hacemos</p>
         <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 520, margin: "0 0 40px" })}>Servicios</h2>
-        <div style={{ maxWidth: 768 }}>
-          {groups.length === 0 && (
-            <p style={{ color: "var(--ch-mocha)" }}>Próximamente publicamos el menú de servicios.</p>
-          )}
-          {/* En mobile cada categoría es un desplegable cerrado (<details> nativo,
-              sin JS) para no obligar a scrollear las ~80 líneas del menú completo.
-              En sm+ el contenido queda forzado visible (sm:!block) y el summary
-              se desactiva como toggle — en desktop/tablet se ve igual que antes. */}
-          {groups.map((g) => (
-            <details key={g.id} className="ch-services-group" style={{ marginBottom: 8 }}>
-              <summary
-                className="ch-services-summary"
-                style={{
-                  ...display({ fontSize: "1.5rem", fontWeight: 560 }),
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "8px 0",
-                  cursor: "pointer",
-                  listStyle: "none",
-                }}
-              >
-                <span>{g.name}</span>
-                <span className="ch-services-chevron" style={{ color: "var(--ch-mocha)", fontSize: "1.1rem" }}>
-                  ›
-                </span>
-              </summary>
-              <div className="ch-services-items">
-                {g.services.map((it) => (
-                  <div key={it.id} style={{ borderBottom: "1px solid rgba(199,180,156,.6)", padding: "12px 8px", margin: "0 -8px", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16 }}>
-                    <span>{it.name}</span>
-                    <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)", whiteSpace: "nowrap" }}>
-                      {it.durationMin} min · ${it.price.toLocaleString("es-AR")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </details>
-          ))}
-        </div>
+        {groups.length === 0 ? (
+          <p style={{ color: "var(--ch-mocha)" }}>Próximamente publicamos el menú de servicios.</p>
+        ) : (
+          <ServicesAccordion groups={groups} />
+        )}
         <div style={{ marginTop: 48 }}>
           <PhotoPlaceholder
             ratio="16 / 9"

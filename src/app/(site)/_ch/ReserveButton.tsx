@@ -21,12 +21,13 @@ export default function ReserveButton({
     <button
       type="button"
       onClick={open}
+      className="ch-reserve-btn"
       style={{
         background: "var(--ch-ink)",
         color: "var(--ch-ivory)",
         border: 0,
         cursor: "pointer",
-        transition: "background .2s",
+        transition: "opacity .2s ease, transform .1s ease",
         ...base,
         ...style,
       }}
