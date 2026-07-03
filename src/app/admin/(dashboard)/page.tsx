@@ -19,11 +19,23 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-2xl font-semibold mb-1">Dashboard</h1>
-      <p className="text-neutral-500 mb-8">Resumen del día.</p>
+      <div className="flex items-start justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-semibold mb-1">Dashboard</h1>
+          <p className="text-neutral-500">Resumen del día.</p>
+        </div>
+        {/* Acceso directo a la tarea más frecuente (llamada / walk-in) sin
+            tener que navegar primero a la Agenda. */}
+        <Link
+          href="/admin/turnos"
+          className="rounded-md bg-black text-white px-4 py-2 text-sm font-medium whitespace-nowrap"
+        >
+          + Nuevo turno
+        </Link>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-10">
-        <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} />
+        <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" />
         <Kpi label="Pendientes" value={String(data.pendingCount)} href="/admin/turnos" />
         <Kpi
           label="Ingresos 7 días"
@@ -52,13 +64,17 @@ export default async function DashboardPage() {
         )}
         <div className="space-y-2">
           {data.todayAppointments.map((a) => (
-            <div key={a.id} className="rounded-lg border p-3 flex items-center justify-between text-sm">
+            <Link
+              key={a.id}
+              href="/admin/turnos"
+              className="rounded-lg border p-3 flex items-center justify-between text-sm hover:border-neutral-400 transition-colors"
+            >
               <span className="font-medium">{fmtTime(a.startsAt)}</span>
               <span className="text-neutral-600 flex-1 px-4">
                 {a.client.name} — {a.service.name}
               </span>
               <span className="text-neutral-500">{a.professional.name}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </section>

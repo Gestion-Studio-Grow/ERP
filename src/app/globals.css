@@ -157,3 +157,34 @@ select:focus-visible {
 .toast-enter {
   animation: toast-enter 0.2s ease-out;
 }
+
+/* Overlay de carga global del backoffice (GlobalLoadingProvider). Rotación
+   simple estilo busy indicator; en prefers-reduced-motion se reemplaza por
+   un pulso de opacidad para no forzar movimiento a quien lo desactivó. */
+.global-loading-spinner {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: global-loading-spin 0.7s linear infinite;
+}
+
+@keyframes global-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-loading-spinner {
+    animation: global-loading-pulse 1.2s ease-in-out infinite;
+    border-top-color: rgba(255, 255, 255, 0.25);
+  }
+}
+
+@keyframes global-loading-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}

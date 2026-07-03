@@ -33,6 +33,7 @@ export default function Header() {
           <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--ch-mocha)" }}>Estética</span>
         </Link>
         <nav style={{ display: "flex", alignItems: "center", gap: 24 }} aria-label="Principal">
+          <Link href="/#novedades" style={navLink} className="hidden sm:inline">Novedades</Link>
           <Link href="/#servicios" style={navLink} className="hidden sm:inline">Servicios</Link>
           <Link href="/#equipo" style={navLink} className="hidden sm:inline">Equipo</Link>
           <Link href="/#contacto" style={navLink} className="hidden sm:inline">Cómo llegar</Link>

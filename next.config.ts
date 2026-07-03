@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "images.unsplash.com",
       },
+      {
+        // Avatares ilustrados del equipo (placeholder hasta tener fotos reales).
+        protocol: "https",
+        hostname: "api.dicebear.com",
+      },
     ],
   },
 };

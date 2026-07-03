@@ -14,8 +14,14 @@ export async function getReminderPanelData() {
   const [services, templates, professionals, news] = await Promise.all([
     prisma.service.findMany({
       where: { tenantId, deletedAt: null, active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, reminderEnabled: true, reminderHoursBefore: true },
+      orderBy: [{ category: { order: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        reminderEnabled: true,
+        reminderHoursBefore: true,
+        category: { select: { id: true, name: true } },
+      },
     }),
     prisma.messageTemplate.findMany({ where: { tenantId }, orderBy: [{ type: "asc" }, { channel: "asc" }] }),
     prisma.professional.findMany({

@@ -1,4 +1,5 @@
-import { getPublicBookingData } from "@/lib/actions";
+import Image from "next/image";
+import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { getCatalog } from "@/lib/catalog-actions";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
@@ -27,8 +28,14 @@ const linkAccent: React.CSSProperties = {
   textDecorationThickness: 1,
 };
 
+const newsDate = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long" });
+
 export default async function Home() {
-  const [{ groups }, { professionals }] = await Promise.all([getPublicBookingData(), getCatalog()]);
+  const [{ groups }, { professionals }, news] = await Promise.all([
+    getPublicBookingData(),
+    getCatalog(),
+    getPublicNews(),
+  ]);
   const activeProfessionals = professionals.filter((p) => p.active);
 
   return (
@@ -73,6 +80,40 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* NOVEDADES — lo que el cliente habitual viene a chequear: horarios
+          nuevos, promos, técnicas. Se cargan desde /admin/recordatorios y se
+          publican acá automáticamente (últimos 30 días). */}
+      {news.length > 0 && (
+        <section id="novedades" style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+          <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
+            <p style={{ ...eyebrow, margin: "0 0 12px" }}>Novedades</p>
+            <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 32px" })}>
+              Lo nuevo en CH
+            </h2>
+            <div>
+              {news.map((n) => (
+                <Reveal
+                  key={n.id}
+                  style={{
+                    borderTop: "1px solid rgba(199,180,156,.4)",
+                    padding: "20px 0 20px 16px",
+                    borderLeft: "2px solid var(--ch-petrol)",
+                    marginBottom: 4,
+                  }}
+                >
+                  <p style={{ margin: 0, fontSize: ".75rem", textTransform: "uppercase", letterSpacing: ".14em", color: "var(--ch-mocha)" }}>
+                    {newsDate.format(n.createdAt)} · {n.professional.name}
+                  </p>
+                  <p style={{ margin: "8px 0 0", fontSize: "1.0625rem", lineHeight: 1.6, color: "rgba(32,31,27,.85)", maxWidth: "36rem" }}>
+                    {n.message}
+                  </p>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* SERVICIOS */}
       <section id="servicios" style={{ maxWidth: 1152, margin: "0 auto", padding: "64px 24px" }}>
         <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que hacemos</p>
@@ -98,8 +139,16 @@ export default async function Home() {
           <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 48px" })}>Equipo</h2>
           {activeProfessionals.map((p) => (
             <Reveal key={p.id} style={{ padding: "32px 0", display: "flex", gap: 24, alignItems: "flex-start", borderTop: "1px solid rgba(199,180,156,.3)" }}>
-              <div style={{ position: "relative", width: 64, height: 64, borderRadius: 9999, flexShrink: 0, overflow: "hidden" }}>
-                <PhotoPlaceholder ratio="1 / 1" rounded={false} gradient="linear-gradient(150deg,#E6DDCE 0%,#C7B49C 60%,#856B52 120%)" caption="Retrato cálido, luz lateral" />
+              {/* Retrato ilustrado (línea sobre lino, a tono con la paleta),
+                  generado por nombre — placeholder hasta tener fotos reales. */}
+              <div style={{ position: "relative", width: 64, height: 64, borderRadius: 9999, flexShrink: 0, overflow: "hidden", background: "var(--ch-linen)" }}>
+                <Image
+                  src={`https://api.dicebear.com/9.x/lorelei/png?seed=${encodeURIComponent(p.name)}&size=128&backgroundColor=e6ddce`}
+                  alt={`Ilustración de ${p.name}`}
+                  width={64}
+                  height={64}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               </div>
               <div style={{ flex: 1 }}>
                 <p style={display({ fontSize: "clamp(1.15rem,2vw,1.5rem)", lineHeight: 1.4, fontWeight: 520, color: "var(--ch-ink)", margin: 0 })}>

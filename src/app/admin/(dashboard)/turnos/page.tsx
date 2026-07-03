@@ -75,6 +75,20 @@ export default async function TurnosCalendarPage({
         >
           Siguiente →
         </Link>
+        {/* Salto directo a cualquier fecha, sin ir de a un día. Form GET
+            nativo: funciona server-side sin componente client. */}
+        <form action="/admin/turnos" className="flex items-center gap-2">
+          <input
+            type="date"
+            name="date"
+            defaultValue={date}
+            aria-label="Ir a una fecha"
+            className="rounded-md border px-2 py-1.5 text-sm"
+          />
+          <button type="submit" className="rounded-md border px-3 py-1.5 text-sm hover:bg-neutral-50">
+            Ir
+          </button>
+        </form>
         <span className="font-medium capitalize w-full sm:w-auto order-first sm:order-none">
           {label}
         </span>

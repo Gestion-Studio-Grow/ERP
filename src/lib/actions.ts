@@ -357,6 +357,19 @@ export async function getPublicBookingData() {
   };
 }
 
+// Novedades para la sección pública de la landing: las últimas cargadas en el
+// panel (últimos 30 días), de profesionales activos. Cargar la novedad ya la
+// publica acá; "Difundir" es solo el envío por WhatsApp (ver reminders-actions).
+export async function getPublicNews() {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  return prisma.professionalNews.findMany({
+    where: { createdAt: { gte: since }, professional: { active: true, deletedAt: null } },
+    orderBy: { createdAt: "desc" },
+    take: 4,
+    include: { professional: { select: { name: true } } },
+  });
+}
+
 // Crea el turno desde el modal y DEVUELVE el turno (no redirige, a diferencia de
 // createAppointment). El modal muestra la confirmación en el paso 5.
 export async function createBookingFromModal(input: {
