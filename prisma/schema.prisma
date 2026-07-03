@@ -83,6 +83,7 @@ model Tenant {
   serviceResources   ServiceResource[]
   messageTemplates   MessageTemplate[]
   professionalNews   ProfessionalNews[]
+  coupons            Coupon[]
 }
 
 // Categoría de servicios (ADR-011 G16): agrupa el catálogo (Faciales, Masajes,
@@ -190,6 +191,12 @@ model Service {
   // servicio cobra `price` para todos. Nunca se muestra como "recargo" al
   // resto, siempre como beneficio vecino.
   residentPrice Float?
+  // Seña obligatoria (ADR-014): monto fijo que hay que abonar para confirmar
+  // el turno. Opcional por servicio, igual que residentPrice — null = no
+  // exige seña. El cobro en sí sigue siendo manual (confirmPayment) hasta
+  // que se conecte Mercado Pago Checkout; esto solo hace visible la
+  // condición al cliente antes de reservar, como ya hace el negocio hoy.
+  depositAmount Float?
   active        Boolean          @default(true)
   deletedAt     DateTime?
   professionals Professional[]   @relation("ProfessionalServices")
@@ -287,6 +294,10 @@ model Appointment {
   // separado de Client.isResident porque el cliente puede cambiar de
   // respuesta entre turnos; esto es historial, no estado actual.
   isResidentBooking Boolean @default(false)
+  // Cupón aplicado al reservar (ADR-014), si lo hubo — historial, no relación
+  // fuerte a Coupon para que el turno no se rompa si el cupón se borra.
+  couponCode     String?
+  discountAmount Float             @default(0)
   // Nota libre de la recepción (AMD-003): "quiere el mismo tono de la vez pasada".
   notes          String?
   payment        Payment?
@@ -334,6 +345,32 @@ model Payment {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  @@index([tenantId])
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+// Cupón de descuento (ADR-014). Se valida y aplica al reservar (createAppointment
+// / createBookingFromModal / createManualAppointment), nunca confiando en el
+// descuento que calculó el cliente — el server vuelve a calcularlo.
+model Coupon {
+  id        String     @id @default(cuid())
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  code      String
+  type      CouponType
+  value     Float // % (0-100) si type=PERCENT, monto fijo si type=FIXED
+  active    Boolean    @default(true)
+  expiresAt DateTime?
+  maxUses   Int? // null = sin límite
+  usedCount Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([tenantId, code])
   @@index([tenantId])
 }
 

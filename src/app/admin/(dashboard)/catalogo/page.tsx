@@ -1,14 +1,19 @@
 import { getCatalog } from "@/lib/catalog-actions";
+import { getCoupons } from "@/lib/coupon-actions";
 import BoxesSection from "./BoxesSection";
 import ServicesSection from "./ServicesSection";
 import ProfessionalsSection from "./ProfessionalsSection";
 import ProductsSection from "./ProductsSection";
 import ResourcesSection from "./ResourcesSection";
+import CouponsSection from "./CouponsSection";
 
 export const dynamic = "force-dynamic";
 
 export default async function CatalogoPage() {
-  const { boxes, services, professionals, products, categories, resources } = await getCatalog();
+  const [{ boxes, services, professionals, products, categories, resources }, coupons] = await Promise.all([
+    getCatalog(),
+    getCoupons(),
+  ]);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
@@ -28,6 +33,7 @@ export default async function CatalogoPage() {
         <ResourcesSection resources={resources} />
         <ProductsSection products={products} />
         <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} />
+        <CouponsSection coupons={coupons} />
       </div>
     </main>
   );

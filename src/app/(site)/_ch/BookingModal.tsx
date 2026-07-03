@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { getAvailableSlots, createBookingFromModal } from "@/lib/actions";
-import { fmtTime } from "@/lib/datetime";
+import { checkCoupon } from "@/lib/coupon-actions";
+import { fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
 
 const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Confirmación"];
@@ -35,6 +36,21 @@ export default function BookingModal({
   const [submitting, setSubmitting] = useState(false);
   const [slotsPending, startSlots] = useTransition();
 
+  // Disponibilidad por día, precalculada para todo el rango visible apenas
+  // hay profesional+servicio elegidos — así el calendario ya llega "pintado"
+  // (verde/gris) al paso 3, en vez de que el cliente tenga que ir tocando
+  // día por día para descubrir cuál tiene lugar (patrón tomado de TuTurno).
+  const [dayAvailability, setDayAvailability] = useState<Record<string, string[]>>({});
+  const [availabilityKey, setAvailabilityKey] = useState<string | null>(null);
+  const [prefetchingAvailability, setPrefetchingAvailability] = useState(false);
+
+  // Cupón de descuento (ADR-014). El descuento que se ve acá es solo preview
+  // — el que realmente se cobra se vuelve a calcular server-side al confirmar.
+  const [couponInput, setCouponInput] = useState("");
+  const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponChecking, setCouponChecking] = useState(false);
+
   // Cerrar con Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -51,13 +67,67 @@ export default function BookingModal({
   function selectDay(value: string) {
     setDay(value);
     setSlot(null);
+    const cached = dayAvailability[value];
+    if (cached) {
+      setSlots(cached);
+      return;
+    }
     setSlots([]);
     if (!pro || !svc) return;
     startSlots(async () => {
       const result = await getAvailableSlots(pro.id, svc.id, value);
       setSlots(result);
+      setDayAvailability((prev) => ({ ...prev, [value]: result }));
     });
   }
+
+  // Precalienta la disponibilidad de todos los días visibles apenas hay
+  // profesional+servicio — así el calendario del paso 3 llega listo.
+  useEffect(() => {
+    if (!pro || !svc) return;
+    const key = `${pro.id}:${svc.id}`;
+    if (availabilityKey === key) return;
+    setAvailabilityKey(key);
+    setDayAvailability({});
+    setPrefetchingAvailability(true);
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        data.days.map(async (d) => [d.value, await getAvailableSlots(pro.id, svc.id, d.value)] as const)
+      );
+      if (cancelled) return;
+      const map: Record<string, string[]> = {};
+      for (const [k, v] of entries) map[k] = v;
+      setDayAvailability(map);
+      setPrefetchingAvailability(false);
+      // Si todavía no eligió día, saltar directo al primero con lugar.
+      setDay((currentDay) => {
+        if (currentDay) return currentDay;
+        const firstFree = data.days.find((d) => (map[d.value]?.length ?? 0) > 0);
+        if (firstFree) {
+          setSlots(map[firstFree.value]);
+          return firstFree.value;
+        }
+        return currentDay;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pro, svc]);
+
+  // Horarios agrupados como en TuTurno: mañana / tarde, en vez de una sola
+  // grilla plana — se escanea más rápido con la vista partida.
+  const slotsGrouped = useMemo(() => {
+    const mañana: string[] = [];
+    const tarde: string[] = [];
+    for (const s of slots) {
+      const { hour } = wallHourMinuteInBusinessTz(new Date(s));
+      (hour < 13 ? mañana : tarde).push(s);
+    }
+    return { mañana, tarde };
+  }, [slots]);
 
   const canNext = [
     false,
@@ -67,6 +137,26 @@ export default function BookingModal({
     !!(name.trim() && tel.trim()),
     true,
   ][step];
+
+  // Precio base (ya con el beneficio vecino aplicado si corresponde) y precio
+  // final con el cupón — el que se muestra acá es preview, el real se
+  // recalcula server-side al confirmar (nunca se confía en el del cliente).
+  const basePrice = svc ? (isResident && svc.residentPrice != null ? svc.residentPrice : svc.price) : 0;
+  const finalPrice = Math.max(0, basePrice - (couponApplied?.discount ?? 0));
+
+  async function applyCoupon() {
+    if (!svc || !couponInput.trim()) return;
+    setCouponChecking(true);
+    setCouponError(null);
+    const res = await checkCoupon(couponInput, basePrice);
+    setCouponChecking(false);
+    if (res.ok) {
+      setCouponApplied({ code: res.coupon.code, discount: res.discount });
+    } else {
+      setCouponApplied(null);
+      setCouponError(res.reason);
+    }
+  }
 
   async function confirmBooking() {
     if (!pro || !svc || !slot) return;
@@ -81,6 +171,7 @@ export default function BookingModal({
         clientPhone: tel,
         clientEmail: mail,
         isResident,
+        couponCode: couponApplied?.code,
       });
       setCode(res.id.slice(-6).toUpperCase());
       setConfirmedStartsAt(res.startsAt);
@@ -257,41 +348,89 @@ export default function BookingModal({
           {step === 3 && (
             <>
               <StepTitle>Día y hora</StepTitle>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 8 }}>
                 {data.days.map((d) => {
                   const on = day === d.value;
+                  const known = dayAvailability[d.value];
+                  const hasSlots = known ? known.length > 0 : null; // null = todavía no se sabe
+                  // Verde = hay lugar, rojo apagado = sin lugar ese día, gris = cargando.
+                  // El color no reemplaza el estado de selección (ring), solo adelanta
+                  // información — igual que el calendario de TuTurno.
+                  const bg = on ? accent : hasSlots === true ? "rgba(124,138,114,.18)" : hasSlots === false ? "rgba(168,94,60,.12)" : "transparent";
+                  const border = on ? accent : hasSlots === true ? "var(--ch-sage)" : hasSlots === false ? "var(--ch-terracotta)" : "var(--ch-clay)";
                   return (
                     <button
                       key={d.value}
                       type="button"
                       onClick={() => selectDay(d.value)}
-                      style={{ border: "1px solid", padding: "8px 4px", borderRadius: 2, fontSize: 12, cursor: "pointer", textTransform: "capitalize", ...rowSelected(on) }}
+                      style={{
+                        border: "1px solid",
+                        borderColor: border,
+                        background: bg,
+                        color: on ? "var(--ch-ivory)" : "var(--ch-ink)",
+                        padding: "8px 4px",
+                        borderRadius: 2,
+                        fontSize: 12,
+                        cursor: "pointer",
+                        textTransform: "capitalize",
+                        opacity: hasSlots === false && !on ? 0.6 : 1,
+                      }}
                     >
                       {d.label}
                     </button>
                   );
                 })}
               </div>
+              {prefetchingAvailability && (
+                <p style={{ fontSize: 12, color: "var(--ch-mocha)", margin: "0 0 16px" }}>Buscando los próximos días con lugar…</p>
+              )}
+              {!prefetchingAvailability && <div style={{ marginBottom: 16 }} />}
+
               {!day && <p style={{ fontSize: 13, color: "var(--ch-mocha)", margin: 0 }}>Elegí un día para ver los horarios disponibles.</p>}
               {day && slotsPending && <p style={{ fontSize: 13, color: "var(--ch-mocha)", margin: 0 }}>Buscando horarios…</p>}
               {day && !slotsPending && slots.length === 0 && (
                 <p style={{ fontSize: 13, color: "var(--ch-mocha)", margin: 0 }}>No hay horarios disponibles ese día.</p>
               )}
               {day && !slotsPending && slots.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {slots.map((s) => {
-                    const on = slot === s;
-                    return (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSlot(s)}
-                        style={{ border: "1px solid", padding: "8px 14px", borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(on) }}
-                      >
-                        {fmtTime(s)}
-                      </button>
-                    );
-                  })}
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {slotsGrouped.mañana.length > 0 && (
+                    <div>
+                      <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--ch-mocha)", margin: "0 0 8px" }}>
+                        Por la mañana
+                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {slotsGrouped.mañana.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setSlot(s)}
+                            style={{ border: "1px solid", padding: "8px 14px", borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(slot === s) }}
+                          >
+                            {fmtTime(s)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {slotsGrouped.tarde.length > 0 && (
+                    <div>
+                      <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--ch-mocha)", margin: "0 0 8px" }}>
+                        Por la tarde
+                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {slotsGrouped.tarde.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setSlot(s)}
+                            style={{ border: "1px solid", padding: "8px 14px", borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(slot === s) }}
+                          >
+                            {fmtTime(s)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -306,6 +445,84 @@ export default function BookingModal({
                 <Field label="Teléfono" value={tel} onChange={setTel} type="tel" />
                 <Field label="Email (opcional)" value={mail} onChange={setMail} type="email" />
               </div>
+
+              {/* Cupón de descuento (ADR-014) */}
+              <div style={{ marginTop: 20 }}>
+                <label style={{ fontSize: 13, color: "var(--ch-mocha)", display: "block", marginBottom: 6 }}>
+                  ¿Tenés un cupón?
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => {
+                      setCouponInput(e.target.value);
+                      setCouponApplied(null);
+                      setCouponError(null);
+                    }}
+                    placeholder="Código"
+                    style={{
+                      flex: 1,
+                      boxSizing: "border-box",
+                      background: "rgba(230,221,206,.6)",
+                      border: "1px solid var(--ch-clay)",
+                      padding: "8px 12px",
+                      borderRadius: 0,
+                      fontSize: 14,
+                      textTransform: "uppercase",
+                      color: "var(--ch-ink)",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={!couponInput.trim() || couponChecking}
+                    style={{
+                      border: "1px solid var(--ch-ink)",
+                      background: "transparent",
+                      padding: "0 16px",
+                      fontSize: 13,
+                      cursor: couponInput.trim() ? "pointer" : "default",
+                      opacity: couponInput.trim() ? 1 : 0.5,
+                    }}
+                  >
+                    {couponChecking ? "…" : "Aplicar"}
+                  </button>
+                </div>
+                {couponApplied && (
+                  <p style={{ marginTop: 6, fontSize: 12, color: "var(--ch-sage)" }}>
+                    Cupón {couponApplied.code} aplicado: −${couponApplied.discount.toLocaleString("es-AR")}
+                  </p>
+                )}
+                {couponError && <p style={{ marginTop: 6, fontSize: 12, color: "var(--ch-terracotta)" }}>{couponError}</p>}
+              </div>
+
+              {/* Resumen de precio */}
+              {svc && (
+                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--ch-hairline)", fontSize: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--ch-mocha)" }}>{svc.name}</span>
+                    <span>${basePrice.toLocaleString("es-AR")}</span>
+                  </div>
+                  {couponApplied && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ch-sage)" }}>
+                      <span>Cupón {couponApplied.code}</span>
+                      <span>−${couponApplied.discount.toLocaleString("es-AR")}</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, marginTop: 4 }}>
+                    <span>Total</span>
+                    <span>${finalPrice.toLocaleString("es-AR")}</span>
+                  </div>
+                  {svc.depositAmount != null && (
+                    <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--ch-terracotta)", lineHeight: 1.5 }}>
+                      Seña obligatoria para confirmar: ${svc.depositAmount.toLocaleString("es-AR")}. Te
+                      contactamos por WhatsApp para coordinar el pago.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {error && <p style={{ marginTop: 14, fontSize: 13, color: "var(--ch-terracotta)" }}>{error}</p>}
             </>
           )}
@@ -321,6 +538,9 @@ export default function BookingModal({
               </div>
               <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--ch-mocha)", lineHeight: 1.6 }}>
                 Te confirmamos por WhatsApp o email. Podés reprogramar o cancelar hasta 24 hs antes.
+                {svc?.depositAmount != null && (
+                  <> Recordá que para confirmar el turno hay una seña de ${svc.depositAmount.toLocaleString("es-AR")} — te escribimos para coordinarla.</>
+                )}
               </p>
               <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
                 {icsHref && (
@@ -485,6 +705,9 @@ function Step1({
                     <span style={{ display: "block", opacity: 0.85 }}>
                       Vecino/a ${it.residentPrice!.toLocaleString("es-AR")}
                     </span>
+                  )}
+                  {it.depositAmount != null && (
+                    <span style={{ display: "block", opacity: 0.7, fontSize: 11 }}>Requiere seña</span>
                   )}
                 </span>
               </button>

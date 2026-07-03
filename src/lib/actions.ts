@@ -147,6 +147,7 @@ async function bookAppointment({
   status,
   notes,
   isResident,
+  couponCode,
 }: {
   professionalId: string;
   serviceId: string;
@@ -157,6 +158,9 @@ async function bookAppointment({
   // Vecino/a de La Alameda (ADR-013): si el servicio tiene precio preferencial
   // y el cliente contestó que sí, se congela ese precio en vez del general.
   isResident?: boolean;
+  // Cupón de descuento (ADR-014) — se revalida contra la base DENTRO de la
+  // transacción, nunca se confía en el descuento que mandó el cliente.
+  couponCode?: string;
 }) {
   const [service, professional] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
@@ -256,6 +260,33 @@ async function bookAppointment({
     }
 
     const appliesResidentPrice = !!isResident && service.residentPrice != null;
+    const basePrice = appliesResidentPrice ? service.residentPrice! : service.price;
+
+    // Cupón (ADR-014): se busca y consume DENTRO de esta misma transacción —
+    // si dos reservas llegan a la vez con el último uso del mismo cupón, la
+    // segunda que intente incrementar usedCount por encima de maxUses falla
+    // acá y no cobra el descuento.
+    let discountAmount = 0;
+    let appliedCouponCode: string | null = null;
+    const normalizedCode = couponCode?.trim().toUpperCase();
+    if (normalizedCode) {
+      const tenantId = await getCurrentTenantId();
+      const coupon = await tx.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalizedCode } } });
+      const valid =
+        coupon &&
+        coupon.active &&
+        (!coupon.expiresAt || coupon.expiresAt >= new Date()) &&
+        (coupon.maxUses == null || coupon.usedCount < coupon.maxUses);
+      if (valid) {
+        discountAmount =
+          coupon.type === "PERCENT" ? Math.round(basePrice * (coupon.value / 100)) : Math.min(coupon.value, basePrice);
+        appliedCouponCode = coupon.code;
+        await tx.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } });
+      }
+      // Si el cupón ya no es válido (alguien lo agotó justo antes, venció,
+      // etc.) simplemente no se aplica — no se bloquea la reserva por esto,
+      // el cliente ya llegó hasta acá con la expectativa de reservar.
+    }
 
     return tx.appointment.create({
       data: {
@@ -267,8 +298,10 @@ async function bookAppointment({
         startsAt,
         endsAt,
         status,
-        priceAtBooking: appliesResidentPrice ? service.residentPrice! : service.price,
+        priceAtBooking: Math.max(0, basePrice - discountAmount),
         isResidentBooking: appliesResidentPrice,
+        couponCode: appliedCouponCode,
+        discountAmount,
         notes: notes?.trim() || null,
       },
     });
@@ -283,6 +316,7 @@ export async function createAppointment(formData: FormData) {
   const clientPhone = String(formData.get("clientPhone"));
   const clientEmail = String(formData.get("clientEmail") || "");
   const isResident = formData.get("isResident") === "on";
+  const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
 
   let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
   if (!client) {
@@ -306,6 +340,7 @@ export async function createAppointment(formData: FormData) {
     clientId: client.id,
     status: "PENDING",
     isResident,
+    couponCode,
   });
 
   await auditPublic({
@@ -330,14 +365,14 @@ export async function getPublicBookingData() {
         services: {
           where: { active: true, deletedAt: null },
           orderBy: { name: "asc" },
-          select: { id: true, name: true, durationMin: true, price: true, residentPrice: true },
+          select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
         },
       },
     }),
     prisma.service.findMany({
       where: { active: true, deletedAt: null, categoryId: null },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, durationMin: true, price: true, residentPrice: true },
+      select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
     }),
     prisma.professional.findMany({
       where: { active: true, deletedAt: null, boxId: { not: null } },
@@ -392,6 +427,7 @@ export async function createBookingFromModal(input: {
   clientPhone: string;
   clientEmail?: string;
   isResident?: boolean;
+  couponCode?: string;
 }): Promise<{ id: string; startsAt: string }> {
   const clientName = input.clientName.trim();
   const clientPhone = input.clientPhone.trim();
@@ -422,6 +458,7 @@ export async function createBookingFromModal(input: {
     clientId: client.id,
     status: "PENDING",
     isResident,
+    couponCode: input.couponCode,
   });
 
   await auditPublic({
@@ -449,6 +486,7 @@ export async function createManualAppointment(formData: FormData) {
   const status: BookingStatus = statusInput === "CONFIRMED" ? "CONFIRMED" : "PENDING";
   const notes = String(formData.get("notes") || "");
   const isResident = formData.get("isResident") === "on";
+  const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
 
   if (!clientName.trim() || !clientPhone.trim()) {
     throw new Error("Nombre y teléfono del cliente son obligatorios.");
@@ -471,6 +509,7 @@ export async function createManualAppointment(formData: FormData) {
     status,
     notes,
     isResident,
+    couponCode,
   });
 
   await auditAdmin({

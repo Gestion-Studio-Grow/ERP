@@ -122,6 +122,20 @@ function parseResidentPrice(formData: FormData, price: number): number | null {
   return value;
 }
 
+// La seña también es opcional y del mismo estilo: vacío = no exige seña.
+// Tiene que ser menor al precio (no tiene sentido pedir de seña más de lo
+// que cuesta el servicio).
+function parseDepositAmount(formData: FormData, price: number): number | null {
+  const raw = String(formData.get("depositAmount") || "").trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  if (value >= price) {
+    throw new Error("La seña tiene que ser menor al precio del servicio.");
+  }
+  return value;
+}
+
 export async function createService(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   const description = String(formData.get("description") || "").trim();
@@ -130,6 +144,7 @@ export async function createService(formData: FormData) {
   const categoryId = String(formData.get("categoryId") || "") || null;
   if (!name || !durationMin || !price) return;
   const residentPrice = parseResidentPrice(formData, price);
+  const depositAmount = parseDepositAmount(formData, price);
   await prisma.service.create({
     data: {
       tenantId: await getCurrentTenantId(),
@@ -138,6 +153,7 @@ export async function createService(formData: FormData) {
       durationMin,
       price,
       residentPrice,
+      depositAmount,
       categoryId,
     },
   });
@@ -161,12 +177,13 @@ export async function updateService(formData: FormData) {
   const categoryId = String(formData.get("categoryId") || "") || null;
   if (!name || !durationMin || !price) return;
   const residentPrice = parseResidentPrice(formData, price);
+  const depositAmount = parseDepositAmount(formData, price);
   // Capturar el precio anterior para auditar el cambio (dispute: "ese precio no
   // lo cambié yo", ADR-009 §4).
-  const before = await prisma.service.findUnique({ where: { id }, select: { price: true, residentPrice: true, name: true } });
+  const before = await prisma.service.findUnique({ where: { id }, select: { price: true, residentPrice: true, depositAmount: true, name: true } });
   await prisma.service.update({
     where: { id },
-    data: { name, description: description || null, durationMin, price, residentPrice, categoryId },
+    data: { name, description: description || null, durationMin, price, residentPrice, depositAmount, categoryId },
   });
   await auditAdmin({
     action: "update",
@@ -176,6 +193,7 @@ export async function updateService(formData: FormData) {
       name,
       price: { from: before?.price, to: price },
       residentPrice: { from: before?.residentPrice, to: residentPrice },
+      depositAmount: { from: before?.depositAmount, to: depositAmount },
       durationMin,
     },
   });

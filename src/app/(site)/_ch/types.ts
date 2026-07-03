@@ -8,6 +8,8 @@ export type BookingService = {
   // Precio preferencial para vecinos de La Alameda (ADR-013). null = el
   // servicio no tiene diferencial, cobra `price` para todos.
   residentPrice: number | null;
+  // Seña obligatoria (ADR-014) para confirmar el turno. null = no exige.
+  depositAmount: number | null;
 };
 
 export type BookingGroup = {

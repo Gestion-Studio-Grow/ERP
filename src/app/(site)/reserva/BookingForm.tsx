@@ -5,7 +5,7 @@ import { createAppointment, getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 
-type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null };
+type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = {
   id: string;
   name: string;
@@ -80,6 +80,11 @@ export default function BookingForm({ professionals }: { professionals: Professi
               {isResident && service.residentPrice != null && (
                 <span style={{ color: "var(--spa-mocha)" }}> (precio vecino/a)</span>
               )}
+            </p>
+          )}
+          {service?.depositAmount != null && (
+            <p style={{ color: "var(--spa-gold)" }}>
+              Seña obligatoria: ${service.depositAmount.toLocaleString("es-AR")} — te contactamos por WhatsApp para coordinarla.
             </p>
           )}
           {selectedSlot && (
@@ -228,6 +233,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
               />
               Soy vecino/a de La Alameda
             </label>
+            <input
+              name="couponCode"
+              placeholder="Cupón de descuento (opcional)"
+              className={inputClass}
+              style={{ ...inputStyle, textTransform: "uppercase" }}
+            />
             <SubmitButton
               pendingText="Confirmando…"
               className="btn-editorial-solid w-full justify-center text-xs uppercase tracking-[0.1em] mt-2"

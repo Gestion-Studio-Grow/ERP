@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { getCatalog } from "@/lib/catalog-actions";
+import { getPublishedReviews } from "@/lib/reviews-actions";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
@@ -30,11 +31,21 @@ const linkAccent: React.CSSProperties = {
 
 const newsDate = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long" });
 
+// Fotos reales del equipo (reemplazan el placeholder ilustrado apenas están
+// disponibles). Mapeadas por nombre porque no todavía no hay un campo de foto
+// en el modelo Professional — si el nombre no matchea, cae al ilustrado.
+const TEAM_PHOTOS: Record<string, { src: string; rotate?: number }> = {
+  "Carolina Haponiuk": { src: "/team/carolina.png" },
+  "Macarena Arias": { src: "/team/macarena.png" },
+  "Romina Delpardo": { src: "/team/romina.png", rotate: 90 },
+};
+
 export default async function Home() {
-  const [{ groups }, { professionals }, news] = await Promise.all([
+  const [{ groups }, { professionals }, news, reviews] = await Promise.all([
     getPublicBookingData(),
     getCatalog(),
     getPublicNews(),
+    getPublishedReviews(),
   ]);
   const activeProfessionals = professionals.filter((p) => p.active);
 
@@ -137,18 +148,35 @@ export default async function Home() {
         <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
           <p style={{ ...eyebrow, margin: "0 0 12px" }}>Quién te atiende</p>
           <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 48px" })}>Equipo</h2>
-          {activeProfessionals.map((p) => (
+          {activeProfessionals.map((p) => {
+            const photo = TEAM_PHOTOS[p.name];
+            return (
             <Reveal key={p.id} style={{ padding: "32px 0", display: "flex", gap: 24, alignItems: "flex-start", borderTop: "1px solid rgba(199,180,156,.3)" }}>
-              {/* Retrato ilustrado (línea sobre lino, a tono con la paleta),
-                  generado por nombre — placeholder hasta tener fotos reales. */}
               <div style={{ position: "relative", width: 64, height: 64, borderRadius: 9999, flexShrink: 0, overflow: "hidden", background: "var(--ch-linen)" }}>
-                <Image
-                  src={`https://api.dicebear.com/9.x/lorelei/png?seed=${encodeURIComponent(p.name)}&size=128&backgroundColor=e6ddce`}
-                  alt={`Ilustración de ${p.name}`}
-                  width={64}
-                  height={64}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
+                {photo ? (
+                  <Image
+                    src={photo.src}
+                    alt={p.name}
+                    width={64}
+                    height={64}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      transform: photo.rotate ? `rotate(${photo.rotate}deg) scale(1.5)` : undefined,
+                    }}
+                  />
+                ) : (
+                  // Retrato ilustrado (línea sobre lino, a tono con la paleta),
+                  // generado por nombre — placeholder hasta tener la foto real.
+                  <Image
+                    src={`https://api.dicebear.com/9.x/lorelei/png?seed=${encodeURIComponent(p.name)}&size=128&backgroundColor=e6ddce`}
+                    alt={`Ilustración de ${p.name}`}
+                    width={64}
+                    height={64}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                )}
               </div>
               <div style={{ flex: 1 }}>
                 <p style={display({ fontSize: "clamp(1.15rem,2vw,1.5rem)", lineHeight: 1.4, fontWeight: 520, color: "var(--ch-ink)", margin: 0 })}>
@@ -159,7 +187,8 @@ export default async function Home() {
                 </p>
               </div>
             </Reveal>
-          ))}
+            );
+          })}
           {activeProfessionals.length === 0 && (
             <p style={{ color: "var(--ch-mocha)" }}>Próximamente presentamos al equipo.</p>
           )}
@@ -212,6 +241,29 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {/* RESEÑAS — sobrio a propósito: sin carrusel, sin estrellas gigantes,
+          solo lo que dicen las clientas. La prueba social pesa más cuando no
+          grita. */}
+      {reviews.length > 0 && (
+        <section style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+          <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,64px) 24px" }}>
+            <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que dicen</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 32 }}>
+              {reviews.map((r) => (
+                <Reveal key={r.id}>
+                  <p style={{ margin: "0 0 10px", fontSize: ".9375rem", lineHeight: 1.6, color: "rgba(32,31,27,.8)", fontStyle: "italic" }}>
+                    &ldquo;{r.comment}&rdquo;
+                  </p>
+                  <p style={{ margin: 0, fontSize: ".8125rem", color: "var(--ch-mocha)" }}>
+                    {r.clientName} · {r.professional.name}
+                  </p>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* CTA CIERRE */}
       <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(48px,9vw,88px) 24px", borderTop: "1px solid rgba(199,180,156,.3)" }}>

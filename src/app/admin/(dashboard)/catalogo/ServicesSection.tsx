@@ -23,6 +23,7 @@ type Service = {
   durationMin: number;
   price: number;
   residentPrice: number | null;
+  depositAmount: number | null;
   active: boolean;
   categoryId: string | null;
   category: Category | null;
@@ -221,6 +222,18 @@ function ServiceRow({
                 className="w-32 rounded-md border px-2 py-1.5 text-sm text-neutral-900"
               />
             </label>
+            <label className="sm:col-span-4 flex items-center gap-2 text-xs text-neutral-500">
+              Seña obligatoria (opcional — dejalo vacío si no exige seña):
+              <input
+                name="depositAmount"
+                type="number"
+                min={0}
+                step={100}
+                defaultValue={service.depositAmount ?? ""}
+                placeholder="Sin seña"
+                className="w-32 rounded-md border px-2 py-1.5 text-sm text-neutral-900"
+              />
+            </label>
             <select
               name="categoryId"
               defaultValue={service.categoryId ?? ""}
@@ -274,12 +287,22 @@ function ServiceRow({
               Vecino ${service.residentPrice.toLocaleString("es-AR")}
             </span>
           )}
+          {service.depositAmount != null && (
+            <span className="ml-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+              Seña ${service.depositAmount.toLocaleString("es-AR")}
+            </span>
+          )}
         </td>
         <td className="hidden sm:table-cell px-4 py-2.5 text-sm text-neutral-600">
           ${service.price.toLocaleString("es-AR")}
           {service.residentPrice != null && (
             <span className="ml-1.5 rounded-full bg-teal-50 text-teal-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
               Vecino ${service.residentPrice.toLocaleString("es-AR")}
+            </span>
+          )}
+          {service.depositAmount != null && (
+            <span className="ml-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+              Seña ${service.depositAmount.toLocaleString("es-AR")}
             </span>
           )}
         </td>
@@ -498,7 +521,15 @@ export default function ServicesSection({
           min={0}
           step={100}
           placeholder="Precio vecino/a (opcional)"
-          className="col-span-2 sm:col-span-4 rounded-md border px-3 py-2 text-sm"
+          className="rounded-md border px-3 py-2 text-sm"
+        />
+        <input
+          name="depositAmount"
+          type="number"
+          min={0}
+          step={100}
+          placeholder="Seña obligatoria (opcional)"
+          className="rounded-md border px-3 py-2 text-sm"
         />
         <select
           name="categoryId"
