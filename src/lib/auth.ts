@@ -1,3 +1,12 @@
+// Firma y verificación del token de sesión del panel (ADR-017 §2.c).
+//
+// EDGE-SAFE A PROPÓSITO: este módulo lo importa `src/proxy.ts` (middleware, corre
+// en edge), así que usa SOLO Web Crypto (crypto.subtle) — nada de node:crypto ni
+// Prisma. El payload firmado es el `userId` (antes era el string fijo "admin").
+// El hashing de contraseñas (node:crypto scrypt) vive en `auth-password.ts` y la
+// carga del usuario desde la base (Prisma) en `session.ts` — ninguno de los dos
+// entra al bundle edge por esta vía.
+
 const COOKIE_NAME = "admin_session";
 
 function toHex(buffer: ArrayBuffer) {
@@ -32,21 +41,24 @@ export function getSessionCookieName() {
   return COOKIE_NAME;
 }
 
-export async function createSessionToken() {
-  const payload = "admin";
-  return `${payload}.${await sign(payload)}`;
+export async function createSessionToken(userId: string) {
+  return `${userId}.${await sign(userId)}`;
 }
 
-export async function isValidSessionToken(token: string | undefined | null) {
-  if (!token) return false;
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature) return false;
+// Verifica la firma del token y devuelve el `userId` firmado, o null si el token
+// falta / está mal formado / la firma no valida. NO carga el usuario de la base
+// (eso es `getCurrentUser()` en session.ts, runtime Node): esto es el portón
+// grueso que puede correr en edge.
+export async function readSessionToken(
+  token: string | undefined | null
+): Promise<string | null> {
+  if (!token) return null;
+  const sepIndex = token.lastIndexOf(".");
+  if (sepIndex <= 0) return null;
+  const payload = token.slice(0, sepIndex);
+  const signature = token.slice(sepIndex + 1);
+  if (!payload || !signature) return null;
   const expected = await sign(payload);
-  return timingSafeStringEqual(signature, expected);
-}
-
-export function checkPassword(password: string) {
-  const expected = process.env.ADMIN_PASSWORD ?? "";
-  if (!expected) return false;
-  return timingSafeStringEqual(password, expected);
+  if (!timingSafeStringEqual(signature, expected)) return null;
+  return payload;
 }

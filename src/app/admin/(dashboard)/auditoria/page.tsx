@@ -1,7 +1,21 @@
 import { getAuditLog } from "@/lib/audit";
+import { prisma } from "@/lib/prisma";
 import { fmtDateTime } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
+
+// Traduce el `actor` guardado a algo legible. Los registros nuevos guardan
+// `user:<id>` (ADR-017 §2.f); los históricos previos al modelo de usuarios dicen
+// "admin"; los del sitio público, `cliente:<tel>`.
+function formatActor(actor: string, userNames: Map<string, string>): string {
+  if (actor.startsWith("user:")) {
+    return userNames.get(actor.slice(5)) ?? "Usuario eliminado";
+  }
+  if (actor === "admin") return "admin (histórico)";
+  if (actor.startsWith("cliente:")) return `Cliente ${actor.slice(8)}`;
+  if (actor === "cliente") return "Cliente";
+  return actor;
+}
 
 const actionLabel: Record<string, string> = {
   create: "Creó",
@@ -25,6 +39,8 @@ const entityLabel: Record<string, string> = {
 
 export default async function AuditoriaPage() {
   const entries = await getAuditLog();
+  const users = await prisma.user.findMany({ select: { id: true, name: true } });
+  const userNames = new Map(users.map((u) => [u.id, u.name]));
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
@@ -55,7 +71,7 @@ export default async function AuditoriaPage() {
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-neutral-600">
                   <span className="sm:hidden text-xs uppercase tracking-wide text-neutral-400 mr-1.5">Quién:</span>
-                  {e.actor}
+                  {formatActor(e.actor, userNames)}
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5">
                   {actionLabel[e.action] ?? e.action}{" "}

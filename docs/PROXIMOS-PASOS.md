@@ -21,9 +21,10 @@ barre, así queda rastro de una sesión a la otra.
 
 ## Abiertos
 
-- [ ] `/sesion-feature implementar RBAC/usuarios (ADR-017)` — tabla `User` + enum `UserRole` + migración que siembra el OWNER de Carolina; `auth.ts` (token con `userId`, hashing scrypt), login por email+password, `getCurrentUser()`/`requireRole()`, `actor` real en `audit.ts`, `requireRole(...)` en cada Server Action de `/admin`, UI de gestión de usuarios. Sin romper el acceso actual. *(origen: sesión de arquitectura — 2026-07-03)*
+- [ ] `/sesion-feature RBAC Fase 2 (ADR-017)` — autorización fina sobre la identidad ya construida en Fase 1: `requireUser()`/`requireRole(...)` al tope de cada Server Action y loader de `/admin` (mapa rol→permisos en código), ocultar en el front lo que RECEPTION/PROFESSIONAL no ven (UX, no seguridad), pantalla de gestión de usuarios para el OWNER (alta/baja, rol, reset password), y retirar `ADMIN_PASSWORD` (ya no es puerta sin dueño). *(origen: sesión de feature — 2026-07-03)*
+- [ ] Cambiar el email **provisional** del OWNER (`macarenaarias21@gmail.com`) por el real de Carolina cuando lo tengamos — hoy es solo el identificador de login; se edita desde la gestión de usuarios (Fase 2) o con un update directo. *(origen: sesión de feature — 2026-07-03)*
 - [ ] `/sesion-feature activar RLS de Postgres (ADR-018)` — **disparo: cuando se provisione el 2º tenant, no antes.** Migración con `ENABLE ROW LEVEL SECURITY` + policies `USING (tenant_id = current_setting('app.current_tenant_id'))` en cada tabla de negocio; rol de app sin `BYPASSRLS`; extensión de Prisma (`$allOperations`) que envuelve cada operación en `$transaction` con `SET LOCAL app.current_tenant_id`; resolución de tenant por request (subdominio/sesión) en `tenant.ts` conservando el assert fail-closed como red. **Ensayo obligatorio en branch de Neon con tenant sintético antes de tocar producción.** *(origen: sesión de arquitectura — 2026-07-03)*
 
 ## Hechos (pendientes de poda por `/sesion-consolidacion`)
 
-_(vacío — podado en la consolidación del 2026-07-03: el ítem de fail-closed ADR-015 se verificó hecho en `src/lib/tenant.ts` y se retiró de la cola.)_
+- [x] `/sesion-feature RBAC Fase 1 (ADR-017)` — hecho y deployado: `User`+`UserRole` (migración `20260703170000_add_users_rbac` aplicada a Neon), login por email+password (cookie con `userId`, scrypt), `getCurrentUser()`, `actor` real en el audit. OWNER de Carolina sembrado (email provisional). tsc+build limpios, login verificado en preview. Falta Fase 2 (ver Abiertos). *(origen: sesión de feature — 2026-07-03 · cerrado 2026-07-03)*

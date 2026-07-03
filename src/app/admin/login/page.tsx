@@ -15,17 +15,26 @@ export default async function LoginPage({
 
         {error && (
           <p className="mb-4 rounded-md bg-red-50 text-red-700 text-sm px-3 py-2">
-            Contraseña incorrecta. Probá de nuevo.
+            Email o contraseña incorrectos. Probá de nuevo.
           </p>
         )}
 
         <form action={login} className="space-y-3">
           <input type="hidden" name="next" value={next ?? "/admin"} />
           <input
+            type="email"
+            name="email"
+            required
+            autoFocus
+            autoComplete="username"
+            placeholder="Email"
+            className="w-full rounded-md border px-3 py-2"
+          />
+          <input
             type="password"
             name="password"
             required
-            autoFocus
+            autoComplete="current-password"
             placeholder="Contraseña"
             className="w-full rounded-md border px-3 py-2"
           />

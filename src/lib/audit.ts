@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { getCurrentUser } from "@/lib/session";
 
 // Punto único de auditoría (ADR-009 §4). Toda mutación de negocio pasa por acá.
 // Nunca lanza: una falla al auditar no debe tumbar la operación de negocio, pero
@@ -32,14 +33,19 @@ export async function audit(entry: {
   }
 }
 
-// Mutación disparada desde el panel admin (sesión con cookie firmada).
+// Mutación disparada desde el panel admin (sesión con cookie firmada). El actor
+// es el usuario real de la sesión (ADR-017 §2.f): `user:<id>`, que la pantalla de
+// auditoría resuelve a nombre. Fallback a "admin" solo si no hay usuario resuelto
+// (no debería pasar en /admin, pero no dejamos la auditoría sin registrar por eso).
 export async function auditAdmin(entry: {
   action: string;
   entity: string;
   entityId?: string | null;
   changes?: unknown;
 }) {
-  return audit({ ...entry, actor: "admin", channel: "admin" });
+  const user = await getCurrentUser();
+  const actor = user ? `user:${user.id}` : "admin";
+  return audit({ ...entry, actor, channel: "admin" });
 }
 
 // Mutación disparada desde el sitio público por un cliente final.

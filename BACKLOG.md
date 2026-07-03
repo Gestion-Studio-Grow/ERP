@@ -7,16 +7,17 @@ supuesto por el nombre del commit.
 
 ## Crítico — bloqueante para operar en serio
 
-- [ ] **Roles y permisos** (dueño / recepcionista / profesional). **Decidido
-  en ADR-017** — implementar según ese ADR (tabla `User` propia, enum de 3
-  roles, cookie HMAC evolucionada a `userId`, hashing scrypt, autorización en
-  Server Actions, `actor` real en el audit). Hoy `/admin` es una sola
-  contraseña compartida (`src/lib/auth.ts` — `ADMIN_PASSWORD` global, sin
-  concepto de usuario): ya existe un `AuditLog` completo (ADR-010 G4) que
-  registra cada mutación, pero el campo `actor` dice siempre `"admin"` — el
-  audit trail no sirve para saber *quién* hizo qué en cuanto haya más de una
-  persona usando el panel. Cuanto más se usa el sistema en serio, más caro
-  sale retrofitear esto después.
+- [~] **Roles y permisos** (dueño / recepcionista / profesional). **Decidido
+  en ADR-017**, implementación en dos fases. **Fase 1 — HECHA** (deployada):
+  tabla `User` + enum `UserRole`, login por email+password (cookie HMAC con
+  `userId`, hashing scrypt en `src/lib/auth-password.ts`), `getCurrentUser()`
+  (`src/lib/session.ts`), y `actor` real en el audit trail (`user:<id>`,
+  resuelto a nombre en `/admin/auditoria`) — el `AuditLog` (ADR-010 G4) ya no
+  miente diciendo `"admin"` para todo. OWNER de Carolina sembrado, entra con su
+  email + la contraseña de antes. **Fase 2 — PENDIENTE:** `requireRole(...)` al
+  tope de cada Server Action y loader de `/admin`, ocultar en el front lo que
+  RECEPTION/PROFESSIONAL no ven, pantalla de gestión de usuarios para el OWNER,
+  y retirar `ADMIN_PASSWORD`. Ver cola en `docs/PROXIMOS-PASOS.md`.
 - [ ] **Cliente reprograma su turno** (no solo cancela). Verificado en
   `src/app/(site)/reserva/turno/[id]/page.tsx`: solo hay botón de cancelar
   (`CancelButton`) y reseña; no existe acción de reprogramar ni en

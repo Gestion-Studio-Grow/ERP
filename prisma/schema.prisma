@@ -48,6 +48,15 @@ enum MessageChannel {
   WHATSAPP
 }
 
+// Rol de un usuario del panel (ADR-017 §2.b / ADR-009 §3). Enum fijo de 3, sin
+// editor granular a propósito: negocios chicos quieren roles con nombres que
+// entienden, no una matriz de permisos. OWNER absorbe el "admin" de hoy.
+enum UserRole {
+  OWNER
+  RECEPTION
+  PROFESSIONAL
+}
+
 // Tenant (negocio) — raíz del aislamiento multi-tenant (ADR-001). Cada tabla de
 // negocio referencia un tenant. Por ahora hay uno solo (Beauty & Spa); el
 // modelo nace preparado para muchos sin rediseñar. La zona horaria vive acá
@@ -86,6 +95,32 @@ model Tenant {
   messageTemplates   MessageTemplate[]
   professionalNews   ProfessionalNews[]
   coupons            Coupon[]
+  users              User[]
+}
+
+// Usuario del panel admin (ADR-017). Identidad propia, NO se reusa Professional:
+// el dueño y la recepción no son profesionales, y no todo profesional tiene login.
+// email es el identificador de login, único por tenant. passwordHash con scrypt
+// (formato scrypt$<salt>$<hash>, ver src/lib/auth-password.ts). professionalId
+// enlaza opcionalmente a un Professional cuando el usuario además opera su agenda.
+model User {
+  id             String        @id @default(cuid())
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  name           String
+  email          String
+  passwordHash   String
+  role           UserRole
+  active         Boolean       @default(true)
+  professional   Professional? @relation(fields: [professionalId], references: [id])
+  professionalId String?       @unique
+  lastLoginAt    DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
 }
 
 // Categoría de servicios (ADR-011 G16): agrupa el catálogo (Faciales, Masajes,
@@ -155,6 +190,7 @@ model Professional {
   blocks            ProfessionalBlock[]
   serviceCommissions ProfessionalServiceCommission[]
   news              ProfessionalNews[]
+  user              User?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
