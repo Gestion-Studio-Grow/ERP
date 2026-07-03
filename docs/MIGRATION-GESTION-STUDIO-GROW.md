@@ -1,6 +1,6 @@
 # Plan de migración — a "Gestión Studio Grow" (Claude Max x20)
 
-**Fecha:** 2026-07-03 · **Estado:** Listo para ejecutar · **Dueño:** a definir (founders de Gestión Studio Grow)
+**Fecha:** 2026-07-03 · **Estado:** Listo para ejecutar · **Owner de la org:** gestionstudiogrow@gmail.com · **Equipo:** Maxi (maxilloveras23-collab) + Facundo
 
 Este documento es el checklist ejecutable de la migración. Se guarda en el repo porque, siguiendo ADR-008 regla 6, la documentación técnica generada vive versionada acá, no en un chat que se pierde.
 
@@ -23,11 +23,11 @@ Este documento es el checklist ejecutable de la migración. Se guarda en el repo
 | Seguridad — estado real | Auth con **contraseña única compartida** (`ADMIN_PASSWORD`), sin roles ni usuarios individuales. RLS de Postgres **diferida a propósito** (un solo tenant activo, ver nota en `prisma/schema.prisma`). MFA y rate-limiting de login (AMD-005) **no implementados**. Audit trail (ADR-009 §4) **sí implementado** (`AuditLog`), pero con un único actor posible ("admin") — su valor real depende de que se resuelvan los roles. |
 | Lo que NO existe todavía | Ningún archivo `CONTRIBUTING.md`, `SECURITY.md` ni `CODEOWNERS` en el repo (se agregan en este plan, sección 4). |
 
-**Lo que no sé y no voy a inventar** (confirmar antes de ejecutar los pasos que dependen de esto):
-- Si `GestionStudioGrow` ya existe como organización en GitHub, o hay que crearla.
-- Quién de los founders queda como Owner de la org (permiso necesario para aceptar la transferencia).
-- Si el Netlify actual está bajo una cuenta personal o un team, y quién es el dueño de esa cuenta Netlify.
-- Si hay más colaboradores además de vos que necesiten acceso día 1.
+**Confirmado por el founder (2026-07-03), reemplaza la sección anterior de incógnitas:**
+- Org `GestionStudioGrow` **no existe todavía** en GitHub — hay que crearla.
+- Owner de la org: **gestionstudiogrow@gmail.com**.
+- Netlify sigue, por ahora, bajo **maxi.lloveras.23@gmail.com** — su migración a la org queda para una fase posterior, **no es parte de este movimiento**. Esto no elimina el riesgo R1 (el link GitHub↔Netlify puede cortarse igual, porque lo que cambia es el dueño del *repo*, no todavía el de Netlify) — sigue siendo un paso a verificar.
+- Equipo: **2 personas** — vos (maxilloveras23-collab) y **Facundo**. Falta su usuario de GitHub para poder invitarlo (paso B3 de abajo).
 
 ---
 
@@ -36,21 +36,33 @@ Este documento es el checklist ejecutable de la migración. Se guarda en el repo
 Orden pensado para que en ningún momento el sitio en producción deje de andar, y para que nadie quede con acceso a secretos más tiempo del necesario.
 
 ### Fase A — Preparación (antes de tocar nada del lado de GitHub/Netlify)
-- [x] **A1.** Documentar toda decisión de arquitectura pendiente de persistir. *(Hecho en este mismo turno: ADR-013, ADR-014, INDEX.md corregido — ver commit `366996c`.)*
-- [ ] **A2.** Confirmar que `GestionStudioGrow` existe en GitHub como organización, con vos (o el founder designado) como Owner. Si no existe: crearla primero (github.com → New organization).
-- [ ] **A3.** Confirmar en Netlify quién es el dueño actual del team/cuenta donde vive el sitio `ch-estetica`, y si ese team se va a usar tal cual o hay que crear uno nuevo para Gestión Studio Grow.
-- [ ] **A4.** Hacer un backup lógico de la base antes de cualquier cambio de acceso — no porque la migración de repo la toque, sino porque es la primera vez que más de una persona va a tener potencial acceso a producción. `pg_dump` completo de Neon a un archivo fuera del repo.
+- [x] **A1.** Documentar toda decisión de arquitectura pendiente de persistir. *(Hecho: ADR-013, ADR-014, INDEX.md corregido — commit `366996c`.)*
+- [ ] **A2.** Crear la organización en GitHub — **no existe todavía**:
+  1. Ir a **github.com/account/organizations/new** (logueado con la cuenta que va a administrarla — puede ser tu cuenta personal o directo con `gestionstudiogrow@gmail.com`, ver nota abajo).
+  2. Nombre de la org: `GestionStudioGrow` (o el slug que prefieran — confirmar antes de crear, cambiar el nombre de una org después es posible pero rompe cualquier link ya compartido).
+  3. Plan: Free alcanza para 2 personas y un repo privado/público sin límite de colaboradores relevante acá.
+  4. Email de contacto de la org: `gestionstudiogrow@gmail.com`.
+  5. **Nota sobre "owner":** GitHub no permite que una org sea "dueña" de otra cuenta — el owner de la org es una cuenta de usuario de GitHub (la tuya, o una cuenta nueva creada con `gestionstudiogrow@gmail.com` como email). Si `gestionstudiogrow@gmail.com` todavía no tiene una cuenta de GitHub propia, dos caminos: (a) crear la org con tu cuenta personal como owner inicial y agregar esa cuenta después como segundo owner, o (b) crear primero una cuenta de GitHub con ese email y usarla para crear la org directamente. (a) es más simple si el que va a operar el día a día sos vos.
+- [ ] **A3.** Netlify **no se toca en este movimiento** (confirmado: sigue en `maxi.lloveras.23@gmail.com`, migra después). Igual, anotar ahora el link directo al site (`app.netlify.com/sites/ch-estetica`) para el chequeo de la Fase B5 — se va a necesitar apenas se transfiera el repo, aunque la cuenta Netlify no cambie todavía.
+- [ ] **A4.** Hacer un backup lógico de la base antes de cualquier cambio de acceso — primera vez que una segunda persona (Facundo) va a tener potencial acceso a producción. `pg_dump` completo de Neon a un archivo fuera del repo.
+- [ ] **A5.** Conseguir el usuario de GitHub de Facundo (necesario para B3).
 
 ### Fase B — Transferencia del repositorio (GitHub como source of truth)
-- [ ] **B1.** Desde `github.com/maxilloveras23-collab/ERP` → Settings → General → Danger Zone → **Transfer ownership** → destino `GestionStudioGrow`.
+- [ ] **B1.** Desde `github.com/maxilloveras23-collab/ERP` → Settings → General → Danger Zone → **Transfer ownership** → destino `GestionStudioGrow`. Requiere que la org ya exista (A2) y que tengas permiso para crear repos en ella.
 - [ ] **B2.** GitHub preserva issues, PRs, stars y **todo el historial de commits** — no hay pérdida de información acá. La URL vieja queda como redirect automático.
-- [ ] **B3.** En la org, agregar a `maxilloveras23-collab` (vos) como colaborador con permiso admin o write, según el rol real que vayas a tener.
-- [ ] **B4.** Actualizar el remote local en cada máquina que tenga el repo clonado:
+- [ ] **B3.** En la org (`GestionStudioGrow` → `ERP` → Settings → Collaborators and teams):
+  - Agregar a `maxilloveras23-collab` (vos) con permiso **Admin** (ya sos el owner original, esto es solo para que quede explícito en la org).
+  - Agregar a **Facundo** por su usuario de GitHub (pendiente de A5) — permiso **Write** alcanza para trabajar sobre el código; **Admin** solo si también va a administrar settings del repo/org.
+- [ ] **B4.** Actualizar el remote local en cada máquina que tenga el repo clonado (la tuya y la de Facundo):
   ```bash
   git remote set-url origin https://github.com/GestionStudioGrow/ERP.git
   git remote -v   # confirmar
   ```
-- [ ] **B5.** **Riesgo concreto a chequear ahora, no después:** la integración de Netlify con GitHub suele estar atada a la instalación de la app de GitHub en la cuenta/org original. Después de B1, entrar a Netlify → Site settings → Build & deploy → Repository, y confirmar que el link al repo sigue activo. Si Netlify perdió el link (síntoma: el próximo push no dispara build), reconectar manualmente el repo desde la org nueva.
+- [ ] **B5.** **Riesgo concreto a chequear ahora, no después — más relevante todavía porque Netlify sigue en la cuenta de Maxi mientras el repo ya se movió a la org.** La integración GitHub↔Netlify está atada a la instalación de la app de GitHub en la cuenta/org de origen. Después de B1:
+  1. Entrar a `app.netlify.com/sites/ch-estetica` → Site configuration → Build & deploy → Repository.
+  2. Confirmar que sigue mostrando el repo conectado (ahora en `GestionStudioGrow/ERP`).
+  3. Si perdió el link (síntoma: el próximo push no dispara build automático) → Site configuration → Build & deploy → **Link to a different repository**, volver a autorizar la GitHub App de Netlify dando acceso al repo dentro de la org nueva (puede pedir que un Owner de la org apruebe la instalación de la app).
+  4. Hacer un commit de prueba chico después de esto y confirmar en Netlify que el deploy se disparó solo — no dar la migración por terminada sin ver ese deploy verde.
 
 ### Fase C — Accesos y secretos (seguridad, no como afterthought)
 - [ ] **C1.** Dar acceso a Neon (la base de datos) solo a quien realmente necesite tocar producción — no es lo mismo que acceso al repo.
