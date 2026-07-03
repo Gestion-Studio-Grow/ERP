@@ -158,6 +158,19 @@ select:focus-visible {
   animation: toast-enter 0.2s ease-out;
 }
 
+/* Punto de "hay novedad": franja anunciadora (AnnouncementBar) y badge del
+   nav en Header. Pulso sutil, no parpadeo — llama la atención sin molestar. */
+@keyframes ch-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .45; transform: scale(.75); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*="ch-pulse"] {
+    animation: none !important;
+  }
+}
+
 /* Overlay de carga global del backoffice (GlobalLoadingProvider). Rotación
    simple estilo busy indicator; en prefers-reduced-motion se reemplaza por
    un pulso de opacidad para no forzar movimiento a quien lo desactivó. */

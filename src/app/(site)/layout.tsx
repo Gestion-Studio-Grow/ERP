@@ -1,21 +1,27 @@
 import Link from "next/link";
-import { getPublicBookingData } from "@/lib/actions";
+import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { nextBusinessDays } from "@/lib/datetime";
 import { BUSINESS_WHATSAPP } from "@/lib/business-config";
 import BookingProvider from "./_ch/BookingProvider";
 import Header from "./_ch/Header";
+import AnnouncementBar from "./_ch/AnnouncementBar";
 
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const { groups, professionals } = await getPublicBookingData();
+  const [{ groups, professionals }, news] = await Promise.all([getPublicBookingData(), getPublicNews()]);
   const days = nextBusinessDays(14);
   const whatsapp = BUSINESS_WHATSAPP.replace(/\D/g, "");
+  const latestNews = news[0] ?? null;
 
   return (
     <BookingProvider data={{ groups, professionals, days, whatsapp }}>
       <div style={{ background: "var(--ch-ivory)", color: "var(--ch-ink)", fontFamily: "var(--font-body), system-ui, sans-serif" }}>
-        <Header />
+        {/* Franja arriba de todo el sitio (no solo home): la novedad se
+            "adopta" con menos fricción que esperando que el cliente llegue
+            a la sección más abajo en la página. */}
+        {latestNews && <AnnouncementBar id={latestNews.id} message={latestNews.message} />}
+        <Header hasNews={!!latestNews} />
         <main id="top">{children}</main>
 
         <footer style={{ background: "var(--ch-sage-deep)", color: "rgba(243,238,229,.8)" }}>

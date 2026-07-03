@@ -6,7 +6,7 @@ import ReserveButton from "./ReserveButton";
 
 const navLink: React.CSSProperties = { color: "var(--ch-ink)", textDecoration: "none", transition: "color .2s", fontSize: 14 };
 
-export default function Header() {
+export default function Header({ hasNews }: { hasNews?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -33,7 +33,24 @@ export default function Header() {
           <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--ch-mocha)" }}>Estética</span>
         </Link>
         <nav style={{ display: "flex", alignItems: "center", gap: 24 }} aria-label="Principal">
-          <Link href="/#novedades" style={navLink} className="hidden sm:inline">Novedades</Link>
+          <Link href="/#novedades" style={{ ...navLink, position: "relative" }} className="hidden sm:inline">
+            Novedades
+            {hasNews && (
+              <span
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  top: -2,
+                  right: -8,
+                  width: 6,
+                  height: 6,
+                  borderRadius: 9999,
+                  background: "var(--ch-teal-logo)",
+                  animation: "ch-pulse 2s ease-in-out infinite",
+                }}
+              />
+            )}
+          </Link>
           <Link href="/#servicios" style={navLink} className="hidden sm:inline">Servicios</Link>
           <Link href="/#equipo" style={navLink} className="hidden sm:inline">Equipo</Link>
           <Link href="/#contacto" style={navLink} className="hidden sm:inline">Cómo llegar</Link>
