@@ -1,98 +1,86 @@
-# CH Estética vs. TuTurno.io — Resumen ejecutivo
+# CH Estética vs. TuTurno.io — Resumen para Carolina
 
-Comparativa contra los planes públicos de TuTurno.io (Básico/Profesional/Empresa,
-relevados en tuturno.io/suscripciones/planes) frente a lo que **ya está en
-producción** en CH Estética. Para uso de Carolina — sin detalle técnico.
+Comparamos tu sistema con los planes que vende TuTurno.io (los relevamos en su
+propia página). Esto es lo que ya tenés funcionando hoy, sin vueltas técnicas.
 
-## En igualdad de condiciones
+## Lo que tenemos igual que TuTurno
 
-Lo que TuTurno ofrece y nosotros también, ya funcionando:
-
-- Reserva online ilimitada, sin límite de turnos ni de clientes.
+- Reservas online sin límite de turnos ni de clientes.
 - Recordatorio automático por email antes del turno.
-- Bloqueo de agenda (por profesional, por franco, por fecha puntual).
-- Comentarios/notas en cada turno.
-- Registro de cobros por turno.
-- Gestión de stock de productos con descuento automático al completar un servicio
-  (esto en TuTurno solo está en su plan más caro, "Empresa").
-- Comisión calculada por profesional sobre lo facturado.
+- Podés bloquear la agenda cuando alguien no trabaja (franco, vacaciones, un día
+  puntual).
+- Podés dejar una nota en cada turno (ej: "quiere el mismo tono de la vez pasada").
+- Queda registrado cuánto cobró cada turno.
+- Control de stock de productos: se descuenta solo cuando se completa el servicio.
+  Esto en TuTurno solo lo tenés si pagás el plan más caro.
+- El sistema calcula cuánto le corresponde a cada profesional según lo que
+  facturó.
 
-## Dónde le ganamos
+## Lo que tenemos mejor que TuTurno
 
-Cosas que TuTurno no ofrece (no figuran en ninguno de sus 3 planes) y nosotros sí:
-
-- **Precio congelado al reservar.** Si suben una tarifa, el cliente que ya reservó
-  paga lo que vio al reservar. Evita discusiones en el mostrador.
-- **Auditoría real de quién hizo qué.** Cada cambio en el sistema queda registrado
-  con autor y fecha — TuTurno no tiene esto en ningún plan.
-- **Control automático de máquinas/gabinetes compartidos.** Si dos servicios usan el
-  mismo equipo, el sistema evita que se pisen los turnos sin que nadie lo controle a
-  mano.
-- **"Novedades" con visibilidad forzada.** Un aviso del negocio (nuevo horario,
-  promoción, técnica) aparece arriba de todo el sitio apenas entra cualquier
-  visitante — no es una sección perdida que hay que ir a buscar.
-- **Identidad visual del equipo ya resuelta**, con retratos ilustrados propios en
-  vez de placeholders genéricos, mientras se consiguen fotos reales.
-- **Comisión ajustable por combinación profesional + servicio**, no solo un
-  porcentaje fijo por persona.
-
-## Dónde TuTurno todavía nos saca ventaja
-
-Para que la comparación sea honesta — esto lo tiene TuTurno y nosotros no, aunque
-está identificado y priorizado en el plan de trabajo: **seña obligatoria con
-Mercado Pago**, **roles de usuario** (administrador/cajero, hoy es una sola
-contraseña compartida), **cupones de descuento**, **multi-sucursal**, **liquidación
-de sueldos con histórico de pagos** (hoy se calcula pero no queda un registro de
-"ya pagado").
+- **El precio queda fijo cuando el cliente reserva.** Si después subís una tarifa,
+  el que ya reservó paga lo que vio ese día, no el precio nuevo. Menos discusiones
+  en el mostrador.
+- **Se guarda quién hizo cada cosa en el sistema y cuándo.** Si algo se borró o se
+  cambió, lo podés rastrear. TuTurno no ofrece esto.
+- **Si dos servicios usan la misma máquina, el sistema evita que se pisen los
+  turnos** sin que nadie tenga que estar controlando eso a mano.
+- **Un aviso tuyo (nuevo horario, promo, técnica nueva) se ve apenas alguien entra
+  a la web**, no queda escondido en una sección que hay que buscar.
+- **Cada profesional ya tiene su imagen propia en la web** (un dibujo con estilo
+  prolijo) mientras juntás las fotos reales, en vez de dejar el espacio vacío o con
+  una imagen genérica.
+- **Podés poner una comisión distinta según el profesional y el servicio**, no solo
+  un porcentaje fijo por persona para todo lo que hace.
 
 ---
 
-## Mapa de funcionalidades por área
+## Todo lo que tenés hoy, resumido por área
 
-| Área | Qué incluye hoy |
+| Área | Qué podés hacer |
 |---|---|
-| **Reserva online** | Catálogo por categoría · disponibilidad en tiempo real · cancelación por el cliente · reseñas |
-| **Agenda / operación diaria** | Calendario por profesional · vista lista · turno manual (teléfono/walk-in) · horarios por profesional y día · francos puntuales |
-| **Catálogo** | Servicios con insumos y recursos compartidos · boxes · productos/stock · profesionales |
-| **Comunicación con el cliente** | Recordatorio de turno (email real, WhatsApp listo para conectar) · Novedades públicas · difusión a clientes |
-| **Clientes** | Ficha con historial y gasto total · buscador |
-| **Plata** | Registro de cobro por turno · comisión por profesional/servicio · reportes de ingresos |
-| **Control interno** | Auditoría de cambios · reseñas moderadas |
+| **Reservas** | El cliente elige servicio, profesional y horario libre solo · puede cancelar · puede dejar una reseña |
+| **Agenda del día a día** | Ver el calendario por profesional o en lista · cargar un turno por teléfono o de alguien que vino sin reservar · cada profesional tiene su propio horario y sus días libres |
+| **Tu catálogo** | Servicios, con qué productos gasta cada uno, boxes, stock, tu equipo |
+| **Avisar a tus clientes** | Recordatorio de turno (por email ya funciona; por WhatsApp está armado, falta conectar el número) · avisos que se ven apenas entran a la web |
+| **Tus clientes** | Ficha de cada uno con su historial y cuánto gastó · buscador |
+| **La plata** | Qué cobró cada turno · comisión de cada profesional · reportes de ingresos |
 
 ---
 
-## Para completar — cómo querés ver tus números
+## Un espacio para vos: ¿cómo querés ver tus números?
 
-Esta sección es tuya. Los reportes que existen hoy (ingresos por día, por
-profesional, por servicio, y comisiones) son un punto de partida genérico. Para
-construir la reportería a tu medida necesitamos que pienses y nos cuentes:
+Hoy los reportes muestran ingresos por día, por profesional y por servicio, y las
+comisiones. Es un punto de partida general. Para armarte reportes que de verdad te
+sirvan, necesitamos que pienses estas preguntas y nos las respondas:
 
-**1. ¿Qué pregunta te gustaría poder responder mirando una pantalla, que hoy no podés?**
-_(ej: "¿qué día de la semana tengo más cancelaciones?", "¿qué servicio deja más
-plata por hora de silla ocupada?")_
-
-> _(completar)_
-
-**2. ¿Con qué frecuencia mirás números del negocio, y para qué decisión?**
-_(ej: cada domingo para armar la semana, fin de mes para pagar comisiones, etc.)_
+**1. ¿Qué te gustaría poder ver de un vistazo, que hoy no podés?**
+_(por ejemplo: "qué día de la semana se cancelan más turnos", o "qué servicio me
+deja más plata por el tiempo que ocupa")_
 
 > _(completar)_
 
-**3. ¿Qué comparación te importa?**
-_(ej: este mes vs. el anterior, un profesional vs. otro, un servicio vs. otro)_
+**2. ¿Cada cuánto mirás los números del negocio, y para qué los usás?**
+_(por ejemplo: los domingos para armar la semana, a fin de mes para pagar
+comisiones)_
 
 > _(completar)_
 
-**4. ¿Hay algo que hoy calculás a mano (Excel, cuaderno, cabeza) que te gustaría que
-el sistema te resuelva solo?**
+**3. ¿Qué te gusta comparar?**
+_(por ejemplo: este mes contra el anterior, un profesional contra otro, un
+servicio contra otro)_
 
 > _(completar)_
 
-**5. ¿Preferís ver todo en una pantalla resumen, o te sirve más recibirlo
-(WhatsApp/email) sin tener que entrar al panel?**
+**4. ¿Hay algo que hoy calculás a mano (Excel, cuaderno, cabeza) y te gustaría que
+el sistema te lo resuelva solo?**
 
 > _(completar)_
 
-Con estas respuestas armamos la reportería como una herramienta de decisión, no
-como una lista de números — que es la diferencia real entre "tener datos" y "usar
-datos".
+**5. ¿Preferís entrar al panel a mirar un resumen, o te sirve más que te llegue
+por WhatsApp o email sin tener que entrar?**
+
+> _(completar)_
+
+Con lo que respondas armamos algo pensado para que decidas más rápido, no una
+pantalla más con números sueltos.
