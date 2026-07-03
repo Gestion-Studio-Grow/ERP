@@ -24,10 +24,10 @@ Este documento es el checklist ejecutable de la migración. Se guarda en el repo
 | Lo que NO existe todavía | Ningún archivo `CONTRIBUTING.md`, `SECURITY.md` ni `CODEOWNERS` en el repo (se agregan en este plan, sección 4). |
 
 **Confirmado por el founder (2026-07-03), reemplaza la sección anterior de incógnitas:**
-- Org `GestionStudioGrow` **no existe todavía** en GitHub — hay que crearla.
-- Owner de la org: **gestionstudiogrow@gmail.com**.
+- Org `GestionStudioGrow` **ya existe** en GitHub, owner `gestionstudiogrow@gmail.com`. *(A2 completado.)*
 - Netlify sigue, por ahora, bajo **maxi.lloveras.23@gmail.com** — su migración a la org queda para una fase posterior, **no es parte de este movimiento**. Esto no elimina el riesgo R1 (el link GitHub↔Netlify puede cortarse igual, porque lo que cambia es el dueño del *repo*, no todavía el de Netlify) — sigue siendo un paso a verificar.
-- Equipo: **2 personas** — vos (maxilloveras23-collab) y **Facundo**. Falta su usuario de GitHub para poder invitarlo (paso B3 de abajo).
+- Equipo: **2 personas** — vos (maxilloveras23-collab) y **Facundo** (`efelloveras@gmail.com`), ya invitado a la org. *(A5 completado.)* Falta confirmar que la invitación a la org por sí sola alcance para que vea el repo `ERP` una vez transferido, o si además hay que agregarlo puntualmente al repo/a un team con acceso — se verifica en B3.
+- **Base de datos: cuenta Neon en plan trial**, sin fecha de vencimiento conocida. No es solo un dato de facturación — en esta misma sesión de trabajo ya se vieron errores reales de *"Failed to acquire permit to connect to the database. Too many database connection attempts"*, típico de los límites de conexión de un plan free/trial. Esto sube la prioridad de A4 (backup) y agrega un ítem nuevo: **decidir cuándo pasar Neon a un plan pago antes de sumar más carga real** (más usuarios del admin, más tráfico del sitio) — no es parte de la migración de GitHub, pero es un riesgo que esta migración expone al sumar gente al proyecto. Ver R8 en la sección de riesgos.
 
 ---
 
@@ -37,22 +37,19 @@ Orden pensado para que en ningún momento el sitio en producción deje de andar,
 
 ### Fase A — Preparación (antes de tocar nada del lado de GitHub/Netlify)
 - [x] **A1.** Documentar toda decisión de arquitectura pendiente de persistir. *(Hecho: ADR-013, ADR-014, INDEX.md corregido — commit `366996c`.)*
-- [ ] **A2.** Crear la organización en GitHub — **no existe todavía**:
-  1. Ir a **github.com/account/organizations/new** (logueado con la cuenta que va a administrarla — puede ser tu cuenta personal o directo con `gestionstudiogrow@gmail.com`, ver nota abajo).
-  2. Nombre de la org: `GestionStudioGrow` (o el slug que prefieran — confirmar antes de crear, cambiar el nombre de una org después es posible pero rompe cualquier link ya compartido).
-  3. Plan: Free alcanza para 2 personas y un repo privado/público sin límite de colaboradores relevante acá.
-  4. Email de contacto de la org: `gestionstudiogrow@gmail.com`.
-  5. **Nota sobre "owner":** GitHub no permite que una org sea "dueña" de otra cuenta — el owner de la org es una cuenta de usuario de GitHub (la tuya, o una cuenta nueva creada con `gestionstudiogrow@gmail.com` como email). Si `gestionstudiogrow@gmail.com` todavía no tiene una cuenta de GitHub propia, dos caminos: (a) crear la org con tu cuenta personal como owner inicial y agregar esa cuenta después como segundo owner, o (b) crear primero una cuenta de GitHub con ese email y usarla para crear la org directamente. (a) es más simple si el que va a operar el día a día sos vos.
+- [x] **A2.** Crear la organización en GitHub. *(Hecho — `GestionStudioGrow` existe, owner `gestionstudiogrow@gmail.com`.)*
 - [ ] **A3.** Netlify **no se toca en este movimiento** (confirmado: sigue en `maxi.lloveras.23@gmail.com`, migra después). Igual, anotar ahora el link directo al site (`app.netlify.com/sites/ch-estetica`) para el chequeo de la Fase B5 — se va a necesitar apenas se transfiera el repo, aunque la cuenta Netlify no cambie todavía.
-- [ ] **A4.** Hacer un backup lógico de la base antes de cualquier cambio de acceso — primera vez que una segunda persona (Facundo) va a tener potencial acceso a producción. `pg_dump` completo de Neon a un archivo fuera del repo.
-- [ ] **A5.** Conseguir el usuario de GitHub de Facundo (necesario para B3).
+- [ ] **A4. (subida de prioridad — ver Neon trial arriba).** Backup lógico de la base antes de cualquier cambio de acceso. Con Neon en trial y límites de conexión ya vistos en esta sesión, no es solo higiene: es la red de seguridad si el plan trial tiene algún límite no documentado que aparezca de sorpresa. `pg_dump` completo a un archivo fuera del repo, antes de que Facundo tenga cualquier acceso a producción.
+- [x] **A5.** Usuario/contacto de Facundo. *(Hecho — `efelloveras@gmail.com`, ya invitado a la org.)*
+- [ ] **A6. (nuevo).** Confirmar el plan de Neon (trial → free/pro) y si hay que migrarlo antes de sumar más carga real al sistema. No bloquea la transferencia del repo, pero sí debería resolverse antes de que el equipo crezca de nuevo o el tráfico del sitio aumente.
 
 ### Fase B — Transferencia del repositorio (GitHub como source of truth)
-- [ ] **B1.** Desde `github.com/maxilloveras23-collab/ERP` → Settings → General → Danger Zone → **Transfer ownership** → destino `GestionStudioGrow`. Requiere que la org ya exista (A2) y que tengas permiso para crear repos en ella.
+- [ ] **B1.** Desde `github.com/maxilloveras23-collab/ERP` → Settings → General → Danger Zone → **Transfer ownership** → destino `GestionStudioGrow`. La org ya existe (A2 ✅) — este es el próximo paso ejecutable ahora. **Esto lo tenés que hacer vos desde tu sesión de GitHub logueada** — no es algo que se pueda automatizar por vos.
 - [ ] **B2.** GitHub preserva issues, PRs, stars y **todo el historial de commits** — no hay pérdida de información acá. La URL vieja queda como redirect automático.
-- [ ] **B3.** En la org (`GestionStudioGrow` → `ERP` → Settings → Collaborators and teams):
-  - Agregar a `maxilloveras23-collab` (vos) con permiso **Admin** (ya sos el owner original, esto es solo para que quede explícito en la org).
-  - Agregar a **Facundo** por su usuario de GitHub (pendiente de A5) — permiso **Write** alcanza para trabajar sobre el código; **Admin** solo si también va a administrar settings del repo/org.
+- [ ] **B3.** Confirmar el acceso de Facundo al repo específico (no alcanza con estar invitado a la org si la org no le da acceso por default a todos los repos):
+  - `GestionStudioGrow` → `ERP` → Settings → Collaborators and teams.
+  - Si Facundo no aparece con acceso ahí todavía, agregarlo explícitamente con permiso **Write** (alcanza para trabajar sobre el código; **Admin** solo si también va a administrar settings del repo/org).
+  - Confirmar tu propio acceso (`maxilloveras23-collab`) con permiso **Admin** — ya sos el owner original, esto es solo para que quede explícito en la org.
 - [ ] **B4.** Actualizar el remote local en cada máquina que tenga el repo clonado (la tuya y la de Facundo):
   ```bash
   git remote set-url origin https://github.com/GestionStudioGrow/ERP.git
@@ -195,3 +192,4 @@ Hoy la seguridad del sistema depende de una sola contraseña compartida. Eso era
 | R5 | Alguien nuevo con acceso al panel admin, sin roles todavía, y sin saber que el audit trail no lo distingue | La seguridad real (roles) está en el backlog, no implementada | Ver sección 5 — no dar la contraseña de admin a nadie nuevo sin haber leído ese punto |
 | R6 | RLS se activa "corriendo" el día que aparece el segundo tenant, bajo presión de un cliente nuevo esperando | Quedó deliberadamente diferido, pero diferido no es lo mismo que olvidado | Tratar "aparece un segundo tenant" como un trigger explícito para retomar G1 con tiempo, no como una sorpresa — dejarlo anotado en el checklist de onboarding de un tenant nuevo cuando ese flujo se diseñe (ADR-009 §5) |
 | R7 | Se pierde el hilo de qué se transfirió y qué no (Netlify, Neon, dominio si lo hay) | La migración de este plan cubre GitHub + Claude explícitamente, pero Netlify/Neon tienen sus propias cuentas separadas | Fase A2/A3 de este mismo checklist — confirmarlas antes de dar la migración por terminada |
+| R8 | La base se queda sin conexiones disponibles justo cuando más gente empieza a trabajar sobre el sistema | Neon está en plan **trial** — ya se vieron errores reales de "too many database connection attempts" en esta misma sesión, antes de sumar a nadie más | A4 (backup ya) + A6 (decidir upgrade de plan de Neon) antes de que Facundo empiece a correr el proyecto local contra la misma base de producción en simultáneo con vos |
