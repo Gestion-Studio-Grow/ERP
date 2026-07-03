@@ -26,4 +26,4 @@ barre, así queda rastro de una sesión a la otra.
 
 ## Hechos (pendientes de poda por `/sesion-consolidacion`)
 
-- [x] `/sesion-feature blindar getCurrentTenantId fail-closed (ADR-015)` — hecho: `src/lib/tenant.ts` ahora resuelve fail-closed (throw si hay ≠1 tenant, sin cache) y los comentarios de `tenant.ts` y `schema.prisma` quedaron corregidos. tsc + build limpios. *(origen: sesión de arquitectura — 2026-07-03 · cerrado 2026-07-03)*
+_(vacío — podado en la consolidación del 2026-07-03: el ítem de fail-closed ADR-015 se verificó hecho en `src/lib/tenant.ts` y se retiró de la cola.)_
