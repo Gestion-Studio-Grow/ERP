@@ -5,7 +5,7 @@
 Este documento es el checklist ejecutable de la migración. Se guarda en el repo porque, siguiendo ADR-008 regla 6, la documentación técnica generada vive versionada acá, no en un chat que se pierde.
 
 **Decisiones ya tomadas** (confirmadas antes de escribir este plan, no asumidas):
-1. El repo se **transfiere** de `maxilloveras23-collab/ERP` a la org `GestionStudioGrow` (ownership transfer real de GitHub, no fork ni solo acceso).
+1. El repo se **transfiere** de `maxilloveras23-collab/ERP` a la org `Gestion-Studio-Grow` (ownership transfer real de GitHub, no fork ni solo acceso). *(Ejecutado — ver Fase B.)*
 2. El alcance multi-tenant **sigue como está** — esta migración no arranca RLS ni aislamiento real entre tenants. Eso queda como trabajo futuro ya documentado (ver ADR-001 y el estado de G1 en `docs/adr/INDEX.md`).
 
 ---
@@ -24,7 +24,7 @@ Este documento es el checklist ejecutable de la migración. Se guarda en el repo
 | Lo que NO existe todavía | Ningún archivo `CONTRIBUTING.md`, `SECURITY.md` ni `CODEOWNERS` en el repo (se agregan en este plan, sección 4). |
 
 **Confirmado por el founder (2026-07-03), reemplaza la sección anterior de incógnitas:**
-- Org `GestionStudioGrow` **ya existe** en GitHub, owner `gestionstudiogrow@gmail.com`. *(A2 completado.)*
+- Org `Gestion-Studio-Grow` **ya existe** en GitHub, owner `gestionstudiogrow@gmail.com`. *(A2 completado.)*
 - Netlify sigue, por ahora, bajo **maxi.lloveras.23@gmail.com** — su migración a la org queda para una fase posterior, **no es parte de este movimiento**. Esto no elimina el riesgo R1 (el link GitHub↔Netlify puede cortarse igual, porque lo que cambia es el dueño del *repo*, no todavía el de Netlify) — sigue siendo un paso a verificar.
 - Equipo: **2 personas** — vos (maxilloveras23-collab) y **Facundo** (`efelloveras@gmail.com`), ya invitado a la org. *(A5 completado.)* Falta confirmar que la invitación a la org por sí sola alcance para que vea el repo `ERP` una vez transferido, o si además hay que agregarlo puntualmente al repo/a un team con acceso — se verifica en B3.
 - **Base de datos: cuenta Neon en plan trial.** En esta sesión de trabajo se vieron errores puntuales de conexión ("too many database connection attempts") — se los señalé, pero **decisión del equipo (2026-07-03): no es un riesgo real todavía, operación bastante local, no bloquea nada de esta migración.** Queda anotado en R8 como observación a monitorear, no como acción pendiente.
@@ -37,27 +37,25 @@ Orden pensado para que en ningún momento el sitio en producción deje de andar,
 
 ### Fase A — Preparación (antes de tocar nada del lado de GitHub/Netlify)
 - [x] **A1.** Documentar toda decisión de arquitectura pendiente de persistir. *(Hecho: ADR-013, ADR-014, INDEX.md corregido — commit `366996c`.)*
-- [x] **A2.** Crear la organización en GitHub. *(Hecho — `GestionStudioGrow` existe, owner `gestionstudiogrow@gmail.com`.)*
-- [ ] **A3.** Netlify **no se toca en este movimiento** (confirmado: sigue en `maxi.lloveras.23@gmail.com`, migra después). Igual, anotar ahora el link directo al site (`app.netlify.com/sites/ch-estetica`) para el chequeo de la Fase B5 — se va a necesitar apenas se transfiera el repo, aunque la cuenta Netlify no cambie todavía.
+- [x] **A2.** Crear la organización en GitHub. *(Hecho — `Gestion-Studio-Grow` existe, owner `gestionstudiogrow@gmail.com`.)*
+- [x] **A3 (actualizado).** La *cuenta* Netlify sigue en `maxi.lloveras.23@gmail.com` como estaba previsto — pero el *link al repo* sí hubo que tocarlo (ver B5.5): el plan free no soporta repos privados de organización, así que el repo se hizo público para poder reconectar sin pagar Netlify Pro.
 - [ ] **A4. Diferido por decisión del equipo (2026-07-03) — no bloquea la migración.** Backup lógico de la base (`pg_dump`). Se retoma cuando el equipo lo considere necesario; no es parte del camino crítico de esta migración de GitHub/Claude.
 - [x] **A5.** Usuario/contacto de Facundo. *(Hecho — `efelloveras@gmail.com`, ya invitado a la org.)*
 - [ ] **A6. Baja prioridad, sin fecha — a criterio del equipo.** Si en algún momento aparecen errores de conexión reales y no puntuales, revisar el plan de Neon. Hoy no hace falta.
 
 ### Fase B — Transferencia del repositorio (GitHub como source of truth)
-- [ ] **B1.** Desde `github.com/maxilloveras23-collab/ERP` → Settings → General → Danger Zone → **Transfer ownership** → destino `GestionStudioGrow`. La org ya existe (A2 ✅) — este es el próximo paso ejecutable ahora. **Esto lo tenés que hacer vos desde tu sesión de GitHub logueada** — no es algo que se pueda automatizar por vos.
-- [ ] **B2.** GitHub preserva issues, PRs, stars y **todo el historial de commits** — no hay pérdida de información acá. La URL vieja queda como redirect automático.
+- [x] **B1.** Transferido. Slug real de la org: **`Gestion-Studio-Grow`** (con guiones — no `GestionStudioGrow` como se supuso al principio del plan).
+- [x] **B2.** Historial de commits y todo lo demás preservado — verificado (`git log` local coincide commit a commit con `origin/main` del repo nuevo).
 - [ ] **B3.** Confirmar el acceso de Facundo al repo específico (no alcanza con estar invitado a la org si la org no le da acceso por default a todos los repos):
-  - `GestionStudioGrow` → `ERP` → Settings → Collaborators and teams.
-  - Si Facundo no aparece con acceso ahí todavía, agregarlo explícitamente con permiso **Write** (alcanza para trabajar sobre el código; **Admin** solo si también va a administrar settings del repo/org).
-  - Confirmar tu propio acceso (`maxilloveras23-collab`) con permiso **Admin** — ya sos el owner original, esto es solo para que quede explícito en la org.
-- [ ] **B4.** Actualizar el remote local en cada máquina que tenga el repo clonado (la tuya y la de Facundo):
+  - `Gestion-Studio-Grow` → `ERP` → Settings → Collaborators and teams.
+  - Si Facundo no aparece con acceso ahí todavía, agregarlo explícitamente con permiso **Write**.
+- [x] **B4.** Remote local actualizado en esta máquina:
   ```bash
-  git remote set-url origin https://github.com/GestionStudioGrow/ERP.git
-  git remote -v   # confirmar
+  git remote set-url origin https://github.com/Gestion-Studio-Grow/ERP.git
   ```
-- [ ] **B5.** **Riesgo concreto a chequear ahora, no después — más relevante todavía porque Netlify sigue en la cuenta de Maxi mientras el repo ya se movió a la org.** La integración GitHub↔Netlify está atada a la instalación de la app de GitHub en la cuenta/org de origen. Después de B1:
-  1. Entrar a `app.netlify.com/sites/ch-estetica` → Site configuration → Build & deploy → Repository.
-  2. Confirmar que sigue mostrando el repo conectado (ahora en `GestionStudioGrow/ERP`).
+  Pendiente en la máquina de Facundo (el mismo comando, cuando clone o actualice su copia local).
+- [x] **B5.5 (no estaba en el plan original — apareció en la ejecución).** Netlify free no deploya repos **privados** de organización — pide upgrade a Pro ($20/mes). Decisión del equipo: **repo pasado a público** en vez de pagar. Verificado antes de hacerlo: `.env` nunca se commiteó, cero secretos en todo el historial de git (`DATABASE_URL`/`ADMIN_PASSWORD`/`AUTH_SECRET` nunca aparecieron en un commit). Lo que sí queda público: código completo + `docs/adr/` (incluye estrategia de negocio y datos del cliente real). Asumido conscientemente, no es reversible del todo aunque se vuelva a privado después (algo público pudo haber sido clonado/indexado mientras estuvo así).
+- [x] **B5.** Repo reconectado en Netlify tras el cambio a público — confirmado vía API: `repo_url: github.com/Gestion-Studio-Grow/ERP`, `repo_branch: main`. Verificación final (deploy automático end-to-end) en curso con este mismo commit.
   3. Si perdió el link (síntoma: el próximo push no dispara build automático) → Site configuration → Build & deploy → **Link to a different repository**, volver a autorizar la GitHub App de Netlify dando acceso al repo dentro de la org nueva (puede pedir que un Owner de la org apruebe la instalación de la app).
   4. Hacer un commit de prueba chico después de esto y confirmar en Netlify que el deploy se disparó solo — no dar la migración por terminada sin ver ese deploy verde.
 
@@ -109,7 +107,7 @@ Orden pensado para que en ningún momento el sitio en producción deje de andar,
 
 Ya lo es hoy (todo el trabajo pasa por commits reales, no por archivos sueltos) — lo que cambia es *dónde* vive:
 
-1. Después de la transferencia (Fase B), el remote de trabajo pasa a ser `github.com/GestionStudioGrow/ERP`.
+1. Después de la transferencia (Fase B), el remote de trabajo pasa a ser `github.com/Gestion-Studio-Grow/ERP`.
 2. **Regla operativa, no técnica:** ningún cambio de código, arquitectura o negocio se considera "hecho" hasta que está commiteado y pusheado. Esto ya es la práctica de este repo (ver el historial de commits — cada sesión de trabajo termina en push, no en "avisar por chat que se hizo algo").
 3. Deploy automático (Netlify) es la verificación externa de que GitHub es efectivamente la fuente de verdad: si el estado de producción alguna vez no coincide con `main`, GitHub es quien tiene razón, no el estado de un servidor tocado a mano.
 4. Nunca se hace `git push --force` a `main` salvo emergencia explícitamente acordada — con más de una persona trabajando, reescribir historia rompe el trabajo de otros silenciosamente.
