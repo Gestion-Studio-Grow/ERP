@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prolijo — Panel del contador (demo)</title>
+</head>
+<body>
+<style>
+  :root {
+    --paper:#F4F2EC; --surface:#FFFFFF; --surface-2:#FBFAF6;
+    --ink:#1A231F; --ink-soft:#5C655F; --ink-faint:#8A928C;
+    --line:#E5E1D8; --line-strong:#D6D1C5;
+    --accent:#0E6E5C; --accent-soft:#E2EFEA; --accent-line:#B9D8CF;
+    --good:#2E8B57; --good-bg:#E7F2EA; --warn:#A9741A; --warn-bg:#F6EEDC; --crit:#BE463B; --crit-bg:#F7E6E3;
+    --shadow:0 1px 2px rgba(26,35,31,.05), 0 8px 24px -12px rgba(26,35,31,.18);
+    --font-ui:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --font-display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#0F1210; --surface:#171B18; --surface-2:#1C211D;
+      --ink:#ECEBE3; --ink-soft:#9BA49D; --ink-faint:#6E766F;
+      --line:#282E29; --line-strong:#333A34;
+      --accent:#41C2A4; --accent-soft:#12312A; --accent-line:#1E463D;
+      --good:#54B37E; --good-bg:#122A1D; --warn:#D6A44B; --warn-bg:#2E2513; --crit:#E0685C; --crit-bg:#331B18;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#F4F2EC; --surface:#FFFFFF; --surface-2:#FBFAF6;
+    --ink:#1A231F; --ink-soft:#5C655F; --ink-faint:#8A928C;
+    --line:#E5E1D8; --line-strong:#D6D1C5;
+    --accent:#0E6E5C; --accent-soft:#E2EFEA; --accent-line:#B9D8CF;
+    --good:#2E8B57; --good-bg:#E7F2EA; --warn:#A9741A; --warn-bg:#F6EEDC; --crit:#BE463B; --crit-bg:#F7E6E3;
+    --shadow:0 1px 2px rgba(26,35,31,.05), 0 8px 24px -12px rgba(26,35,31,.18);
+  }
+  :root[data-theme="dark"]{
+    --paper:#0F1210; --surface:#171B18; --surface-2:#1C211D;
+    --ink:#ECEBE3; --ink-soft:#9BA49D; --ink-faint:#6E766F;
+    --line:#282E29; --line-strong:#333A34;
+    --accent:#41C2A4; --accent-soft:#12312A; --accent-line:#1E463D;
+    --good:#54B37E; --good-bg:#122A1D; --warn:#D6A44B; --warn-bg:#2E2513; --crit:#E0685C; --crit-bg:#331B18;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-ui);
+    -webkit-font-smoothing:antialiased;line-height:1.45;font-size:15px}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 64px}
+
+  /* ---------- top bar ---------- */
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .brand .mark{font-family:var(--font-display);font-size:30px;font-weight:600;letter-spacing:-.5px;color:var(--ink)}
+  .brand .mark b{color:var(--accent);font-weight:600}
+  .brand .tag{font-size:12.5px;color:var(--ink-soft);letter-spacing:.02em}
+  .demo-chip{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-faint);
+    border:1px solid var(--line-strong);border-radius:999px;padding:4px 10px}
+
+  /* ---------- studio summary ---------- */
+  .summary{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    padding:18px 20px;margin:14px 0 22px;display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+  .summary .who{display:flex;flex-direction:column;gap:2px;min-width:200px}
+  .summary .who .est{font-family:var(--font-display);font-size:20px;font-weight:600}
+  .summary .who .per{font-size:13px;color:var(--ink-soft)}
+  .summary .stats{display:flex;gap:24px;flex-wrap:wrap;margin-left:auto}
+  .stat{display:flex;flex-direction:column;gap:1px}
+  .stat .n{font-family:var(--font-display);font-size:26px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+  .stat .l{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-top:5px}
+  .stat.good .n{color:var(--good)} .stat.warn .n{color:var(--warn)}
+
+  .valueline{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink-soft);margin:-8px 2px 20px}
+  .valueline svg{flex:none;color:var(--accent)}
+
+  /* ---------- layout ---------- */
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+  @media (max-width:860px){.grid{grid-template-columns:1fr}}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .panel-h{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .panel-h .t{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);font-weight:600}
+
+  /* ---------- client list ---------- */
+  .clients{display:flex;flex-direction:column}
+  .client{display:flex;flex-direction:column;gap:7px;padding:14px 16px;border-bottom:1px solid var(--line);
+    cursor:pointer;text-align:left;background:none;border-left:3px solid transparent;font:inherit;color:inherit;width:100%}
+  .client:last-child{border-bottom:none}
+  .client:hover{background:var(--surface-2)}
+  .client.active{background:var(--accent-soft);border-left-color:var(--accent)}
+  .client:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  .client .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .client .name{font-weight:600;font-size:15px}
+  .client .rubro{font-size:12.5px;color:var(--ink-soft)}
+  .client .cuit{font-family:var(--font-mono);font-size:12px;color:var(--ink-faint);letter-spacing:-.02em}
+  .client .row2{display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+  .pill{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.9}
+  .pill.good{color:var(--good);background:var(--good-bg)}
+  .pill.warn{color:var(--warn);background:var(--warn-bg)}
+  .pill.crit{color:var(--crit);background:var(--crit-bg)}
+  .count{font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+
+  /* ---------- detail ---------- */
+  .detail-h{padding:18px 20px;border-bottom:1px solid var(--line)}
+  .detail-h .top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .detail-h .cn{font-family:var(--font-display);font-size:23px;font-weight:600;letter-spacing:-.3px}
+  .detail-h .meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:13px;color:var(--ink-soft)}
+  .detail-h .meta .m{display:flex;align-items:center;gap:6px}
+  .detail-h .meta .mono{font-family:var(--font-mono);font-size:12.5px}
+
+  .btn{font:inherit;font-size:14px;font-weight:600;border-radius:10px;padding:10px 16px;cursor:pointer;border:1px solid transparent;
+    display:inline-flex;align-items:center;gap:8px;transition:transform .06s ease,background .15s ease}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn-primary:hover{filter:brightness(1.06)}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .exp-wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .exp-sys{font-size:12.5px;color:var(--ink-soft)}
+  .exp-sys b{color:var(--ink);font-weight:600}
+
+  /* totals strip */
+  .totals{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+  @media (max-width:640px){.totals{grid-template-columns:repeat(2,1fr)}}
+  .tcell{background:var(--surface);padding:13px 16px}
+  .tcell .l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)}
+  .tcell .v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:3px;letter-spacing:-.2px}
+  .tcell.hl{background:var(--accent-soft)} .tcell.hl .v{color:var(--accent)}
+
+  /* comprobantes table */
+  .tbl-scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:720px}
+  thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);
+    font-weight:600;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--surface)}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--surface-2)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mono{font-family:var(--font-mono);font-size:12.5px;letter-spacing:-.02em}
+  .letra{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;
+    font-family:var(--font-mono);font-weight:700;font-size:12px;margin-right:8px;border:1px solid var(--line-strong);color:var(--ink-soft)}
+  .op-venta{color:var(--good)} .op-compra{color:var(--ink-soft)}
+  .origen{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;padding:3px 8px;border-radius:7px;white-space:nowrap}
+  .origen.arca{color:var(--accent);background:var(--accent-soft)}
+  .origen.foto{color:var(--warn);background:var(--warn-bg)}
+  .estado-dot{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft)}
+  .estado-dot::before{content:"";width:7px;height:7px;border-radius:50%;flex:none}
+  .estado-dot.validado::before{background:var(--good)}
+  .estado-dot.pendiente::before{background:var(--warn)}
+  .estado-dot.observado::before{background:var(--crit)}
+  tr.flag-observado{background:color-mix(in srgb,var(--crit-bg) 55%,transparent)}
+  tr.flag-pendiente{background:color-mix(in srgb,var(--warn-bg) 45%,transparent)}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;padding:13px 20px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--ink-soft);align-items:center}
+  .legend .li{display:flex;align-items:center;gap:7px}
+
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(140%);
+    background:var(--ink);color:var(--paper);padding:14px 20px;border-radius:12px;box-shadow:0 12px 34px -10px rgba(0,0,0,.5);
+    display:flex;align-items:center;gap:13px;max-width:520px;z-index:50;transition:transform .34s cubic-bezier(.2,.8,.2,1)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast .ok{flex:none;width:26px;height:26px;border-radius:50%;background:var(--good);display:flex;align-items:center;justify-content:center;color:#fff}
+  .toast .tt{font-weight:600;font-size:14px} .toast .ts{font-size:12.5px;opacity:.8;margin-top:1px}
+  @media (prefers-reduced-motion:reduce){.toast{transition:none}}
+
+  .foot{margin-top:26px;font-size:12.5px;color:var(--ink-faint);text-align:center;line-height:1.6}
+</style>
+
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark">Pro<b>lijo</b></span>
+      <span class="tag">· panel para estudios contables</span>
+    </div>
+    <span class="demo-chip">Demo · datos de ejemplo</span>
+  </div>
+
+  <div class="summary">
+    <div class="who">
+      <span class="est">Estudio Grimaldi &amp; Asociados</span>
+      <span class="per">Período · Junio 2026</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="n" id="s-total">6</span><span class="l">Clientes</span></div>
+      <div class="stat good"><span class="n" id="s-ok">4</span><span class="l">Al día</span></div>
+      <div class="stat warn"><span class="n" id="s-pend">2</span><span class="l">Requieren atención</span></div>
+      <div class="stat"><span class="n" id="s-comp">—</span><span class="l">Comprobantes</span></div>
+    </div>
+  </div>
+
+  <div class="valueline">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    <span>Nadie cargó nada a mano: cada comprobante se trajo de ARCA y se ordenó solo. Vos revisás y exportás a tu sistema.</span>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-h"><span class="t">Cartera de clientes</span><span class="t" id="list-count"></span></div>
+      <div class="clients" id="clients"></div>
+    </div>
+
+    <div class="panel" id="detail"></div>
+  </div>
+
+  <div class="foot">
+    Demo de producto · <b>Prolijo</b> (nombre provisorio). Datos ficticios con formato fiscal argentino.<br>
+    Objetivo de esta pantalla: validar con el contador si <i>“recibir la info de mis clientes ya ordenada y en mi sistema”</i> es lo que necesita.
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <span class="ok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+  <div><div class="tt" id="toast-t"></div><div class="ts" id="toast-s"></div></div>
+</div>
+
+<script>
+const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(n);
+const F = (letra,pdv,nro,fecha,parte,cuit,neto,iva,op,origen,estado,cat)=>({letra,pdv,nro,fecha,parte,cuit,neto,iva,total:neto+iva,op,origen,estado,cat});
+
+const clients = [
+  { id:'ch', nombre:'CH Estética', rubro:'Servicios de estética y spa', cuit:'30-71549823-4',
+    cond:'Responsable Inscripto', sistema:'Xubio', estado:'good', pill:'Al día', comprobantes:[
+      F('B','0003','00001234','15/06','Consumidor Final','—',45000,9450,'venta','arca','validado','Ventas · Servicios'),
+      F('A','0003','00001240','18/06','Beauty Supply SA','30-70991234-5',120000,25200,'venta','arca','validado','Ventas · Servicios'),
+      F('B','0003','00001251','24/06','Consumidor Final','—',38500,8085,'venta','arca','validado','Ventas · Servicios'),
+      F('A','0001','00008842','09/06','Insumos Dermo SRL','30-71220984-3',32000,6720,'compra','arca','validado','Compras · Insumos'),
+      F('A','0004','00002310','21/06','Edenor SA','30-65511620-2',18400,3864,'compra','arca','validado','Gastos · Energía'),
+      F('C','0002','00000455','27/06','Estación Shell (ticket)','—',8500,0,'compra','foto','pendiente','Gastos · Combustible'),
+    ]},
+  { id:'norma', nombre:'Distribuidora La Norma SA', rubro:'Venta mayorista de alimentos', cuit:'30-70988456-1',
+    cond:'Responsable Inscripto', sistema:'Xubio', estado:'good', pill:'Al día', comprobantes:[
+      F('A','0005','00012877','03/06','Supermercados Vea','30-5201... ','30-52016548-1',480000,100800,'venta','arca','validado','Ventas · Mercadería'),
+      F('A','0005','00012901','12/06','Autoservicio El Sol','30-71455213-9',256000,53760,'venta','arca','validado','Ventas · Mercadería'),
+      F('A','0005','00012944','25/06','Mayorista Diarco','30-54661277-0',612000,128520,'venta','arca','validado','Ventas · Mercadería'),
+      F('A','0002','00004521','07/06','Molinos Río SA','30-50012340-1',390000,81900,'compra','arca','validado','Compras · Mercadería'),
+      F('A','0003','00001180','19/06','Transporte Andreani','30-51947012-7',74000,15540,'compra','arca','validado','Gastos · Fletes'),
+    ]},
+  { id:'mendez', nombre:'Consultorio Odont. Méndez', rubro:'Odontología', cuit:'27-31245678-3',
+    cond:'Monotributo', sistema:'SOS-Contador', estado:'good', pill:'Al día', comprobantes:[
+      F('C','0001','00000612','06/06','Consumidor Final','—',22000,0,'venta','arca','validado','Ventas · Honorarios'),
+      F('C','0001','00000618','14/06','Consumidor Final','—',35000,0,'venta','arca','validado','Ventas · Honorarios'),
+      F('C','0001','00000625','28/06','OSDE (reintegro)','30-54614484-9',48000,0,'venta','arca','validado','Ventas · Honorarios'),
+      F('C','0002','00000091','11/06','Dental Depot','30-70112233-8',16500,0,'compra','arca','validado','Compras · Insumos'),
+    ]},
+  { id:'kiosco', nombre:'Kiosco Don Pedro', rubro:'Comercio minorista', cuit:'20-28456712-9',
+    cond:'Monotributo', sistema:'SOS-Contador', estado:'warn', pill:'Faltan datos', comprobantes:[
+      F('C','0001','00003420','05/06','Consumidor Final','—',12800,0,'venta','arca','validado','Ventas · Mercadería'),
+      F('C','0001','00003455','17/06','Consumidor Final','—',9600,0,'venta','arca','validado','Ventas · Mercadería'),
+      F('C','0002','00000233','20/06','Golosinas Arcor','30-50327369-9',54000,0,'compra','foto','pendiente','Sin categorizar'),
+      F('C','0002','00000234','23/06','Proveedor sin identificar','—',7300,0,'compra','foto','pendiente','Sin categorizar'),
+    ]},
+  { id:'rossi', nombre:'Taller Mecánico Rossi', rubro:'Reparación de automotores', cuit:'20-25987341-6',
+    cond:'Responsable Inscripto', sistema:'Bejerman', estado:'crit', pill:'Observado', comprobantes:[
+      F('A','0002','00006712','08/06','Flota Rent a Car SA','30-68812440-5',210000,44100,'venta','arca','validado','Ventas · Servicios'),
+      F('B','0002','00006733','16/06','Consumidor Final','—',56000,11760,'venta','arca','validado','Ventas · Servicios'),
+      F('A','0002','00006740','22/06','Cliente s/ CAE válido','30-99999999-9',88000,18480,'venta','arca','observado','Ventas · Servicios'),
+      F('A','0001','00000902','13/06','Repuestos del Sur','30-70551188-2',63000,13230,'compra','arca','validado','Compras · Repuestos'),
+    ]},
+  { id:'pan', nombre:'Panadería La Esquina', rubro:'Elaboración de pan', cuit:'20-30122344-5',
+    cond:'Monotributo', sistema:'SOS-Contador', estado:'warn', pill:'Faltan datos', comprobantes:[
+      F('C','0001','00001102','04/06','Consumidor Final','—',18400,0,'venta','arca','validado','Ventas · Mercadería'),
+      F('C','0001','00001140','21/06','Consumidor Final','—',21200,0,'venta','arca','validado','Ventas · Mercadería'),
+      F('C','0002','00000078','15/06','Harinas Molino Sur','30-61225487-4',33000,0,'compra','foto','pendiente','Sin categorizar'),
+    ]},
+];
+
+let activeId = clients[0].id;
+
+function totals(c){
+  let vn=0,vd=0,cn=0,cc=0;
+  c.comprobantes.forEach(x=>{ if(x.op==='venta'){vn+=x.neto;vd+=x.iva;} else {cn+=x.neto;cc+=x.iva;} });
+  return {vn,vd,cn,cc,saldo:vd-cc};
+}
+const totalComp = clients.reduce((a,c)=>a+c.comprobantes.length,0);
+document.getElementById('s-comp').textContent = totalComp;
+document.getElementById('list-count').textContent = clients.length + ' clientes';
+
+function renderList(){
+  const el = document.getElementById('clients'); el.innerHTML='';
+  clients.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='client'+(c.id===activeId?' active':''); b.type='button';
+    b.setAttribute('aria-pressed', c.id===activeId);
+    b.innerHTML=`
+      <div class="row1"><span class="name">${c.nombre}</span><span class="pill ${c.estado}">${c.pill}</span></div>
+      <div class="rubro">${c.rubro}</div>
+      <div class="row2"><span class="cuit">${c.cuit}</span><span class="count">${c.comprobantes.length} comprob.</span></div>`;
+    b.onclick=()=>{activeId=c.id;renderList();renderDetail();};
+    el.appendChild(b);
+  });
+}
+
+function renderDetail(){
+  const c = clients.find(x=>x.id===activeId); const t=totals(c);
+  const rows = c.comprobantes.map(x=>{
+    const flag = x.estado==='observado'?'flag-observado':(x.estado==='pendiente'?'flag-pendiente':'');
+    const parte = x.parte + (x.cuit && x.cuit!=='—' ? `<div class="mono" style="color:var(--ink-faint)">${x.cuit}</div>`:'');
+    return `<tr class="${flag}">
+      <td><span class="letra">${x.letra}</span><span class="${x.op==='venta'?'op-venta':'op-compra'}">${x.op==='venta'?'Venta':'Compra'}</span></td>
+      <td class="mono">${x.pdv}-${x.nro}</td>
+      <td>${x.fecha}</td>
+      <td>${parte}</td>
+      <td class="num">${money(x.neto)}</td>
+      <td class="num">${x.iva? money(x.iva):'<span style="color:var(--ink-faint)">—</span>'}</td>
+      <td class="num"><b>${money(x.total)}</b></td>
+      <td><span class="origen ${x.origen}">${x.origen==='arca'
+        ?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>ARCA · auto'
+        :'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/></svg>Foto del cliente'}</span></td>
+      <td><span class="estado-dot ${x.estado}">${x.estado.charAt(0).toUpperCase()+x.estado.slice(1)}</span>
+        <div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px">${x.cat}</div></td>
+    </tr>`;
+  }).join('');
+
+  const nArca = c.comprobantes.filter(x=>x.origen==='arca').length;
+  const nFoto = c.comprobantes.length - nArca;
+
+  document.getElementById('detail').innerHTML=`
+    <div class="detail-h">
+      <div class="top">
+        <div>
+          <div class="cn">${c.nombre}</div>
+          <div class="meta">
+            <span class="m"><span class="mono">${c.cuit}</span></span>
+            <span class="m">${c.cond}</span>
+            <span class="m"><span class="pill ${c.estado}">${c.pill}</span></span>
+          </div>
+        </div>
+        <div class="exp-wrap">
+          <span class="exp-sys">Exportar a <b>${c.sistema}</b></span>
+          <button class="btn btn-primary" id="expbtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            Exportar libro IVA
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="totals">
+      <div class="tcell"><div class="l">Ventas netas</div><div class="v">${money(t.vn)}</div></div>
+      <div class="tcell"><div class="l">IVA débito</div><div class="v">${money(t.vd)}</div></div>
+      <div class="tcell"><div class="l">Compras netas</div><div class="v">${money(t.cn)}</div></div>
+      <div class="tcell"><div class="l">IVA crédito</div><div class="v">${money(t.cc)}</div></div>
+      <div class="tcell hl"><div class="l">Saldo IVA</div><div class="v">${money(t.saldo)}</div></div>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr>
+          <th>Tipo</th><th>Comprobante</th><th>Fecha</th><th>Contraparte</th>
+          <th style="text-align:right">Neto</th><th style="text-align:right">IVA</th><th style="text-align:right">Total</th>
+          <th>Cómo entró</th><th>Estado / Categoría</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="legend">
+      <span class="li"><span class="origen arca" style="pointer-events:none"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>ARCA · auto</span> ${nArca} de ${c.comprobantes.length} vinieron solos de ARCA</span>
+      <span class="li"><span class="origen foto" style="pointer-events:none"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/></svg>Foto</span> ${nFoto} los cargó el cliente por app</span>
+    </div>`;
+
+  document.getElementById('expbtn').onclick=()=>exportar(c);
+}
+
+let toastTimer=null;
+function exportar(c){
+  const t=totals(c); const el=document.getElementById('toast');
+  const pend = c.comprobantes.filter(x=>x.estado!=='validado').length;
+  document.getElementById('toast-t').textContent=`Libro IVA de ${c.nombre} → exportado a ${c.sistema}`;
+  document.getElementById('toast-s').textContent =
+    `Junio 2026 · ${c.comprobantes.length} comprobantes · Saldo IVA ${money(t.saldo)}`
+    + (pend? ` · ${pend} quedaron para revisar` : ' · sin cargar nada a mano');
+  el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),4200);
+}
+
+renderList(); renderDetail();
+</script>
+
+</body>
+</html>

@@ -121,9 +121,25 @@ read-model fiscal encima — no una base de datos nueva (ver §6).
 - **Normativa cambiante:** por eso alquilamos el conector (el proveedor mantiene los
   cambios), no lo construimos al inicio.
 
-## 9. Pendiente de completar (próximas iteraciones de este doc)
+## 9. Demo (prototipo visual para validar alineación)
 
-- [ ] Bosquejo del panel del contador (qué ve en la primera pantalla).
+Prototipo clickeable del panel del contador — **datos ficticios con formato fiscal
+argentino**, sin backend ni ARCA real. Objetivo: mostrárselo al contador y ver si
+"recibir la info de mis clientes ordenada y en mi sistema" es lo que necesita.
+
+- **Fuente versionada:** `docs/demo/panel-contador-demo.html` (abre local, sin internet).
+- **Publicado (abrir en notebook/celular):** https://claude.ai/code/artifact/d1f13e31-5a5d-4d1b-ad0a-fd39c4f48ce2
+- **Qué muestra:** cartera de clientes con estado (al día / faltan datos / observado);
+  al abrir un cliente, su libro fiscal ya armado (ventas y compras normalizadas, IVA
+  discriminado, totales, saldo IVA); cada comprobante marcado según **cómo entró**
+  (ARCA automático vs foto del cliente); botón **Exportar libro IVA** al sistema del
+  estudio (Xubio / SOS-Contador / Bejerman según el cliente).
+- **Mensaje central que transmite:** *nadie cargó nada a mano — vino de ARCA y se
+  ordenó solo.*
+
+## 10. Pendiente de completar (próximas iteraciones de este doc)
+
+- [x] Bosquejo del panel del contador → hecho como demo clickeable (§9).
 - [ ] Formato exacto del libro IVA de exportación (tras saber el sistema del contador).
 - [ ] Flujo de la captura por WhatsApp/foto (cuando se active esa capa).
 - [ ] Modelo de precios / cómo se cobra (al cliente, al estudio, comisión).
