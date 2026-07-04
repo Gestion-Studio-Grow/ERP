@@ -607,32 +607,25 @@ export async function confirmPayment(formData: FormData) {
 
 export async function getReportData() {
   await requireCapability("reports:read");
-  const [payments, commissionOverrides] = await Promise.all([
-    prisma.payment.findMany({
-      where: { status: "APPROVED" },
-      include: {
-        appointment: {
-          include: { professional: true, service: true },
-        },
+  // Ingresos (pagos aprobados). Las comisiones ya NO se calculan acá: viven en
+  // `commission-actions.ts` (getCommissionsOverview), única fuente de verdad
+  // ahora que hay liquidación con histórico — así el "pendiente de pago" y lo
+  // que muestra Reportes no pueden divergir.
+  const payments = await prisma.payment.findMany({
+    where: { status: "APPROVED" },
+    include: {
+      appointment: {
+        include: { professional: true, service: true },
       },
-      orderBy: { createdAt: "desc" },
-    }),
-    // Overrides de comisión por (profesional, servicio) (G18).
-    prisma.professionalServiceCommission.findMany(),
-  ]);
-
-  // Índice para resolver rápido: "profId:servId" -> commissionPercent override.
-  const overrideMap = new Map<string, number>();
-  for (const o of commissionOverrides) {
-    overrideMap.set(`${o.professionalId}:${o.serviceId}`, o.commissionPercent);
-  }
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   const totalIngresos = payments.reduce((sum, p) => sum + p.amount, 0);
 
   const porDia = new Map<string, number>();
   const porProfesional = new Map<string, number>();
   const porServicio = new Map<string, number>();
-  const comisionPorProfesional = new Map<string, { comision: number; ingresos: number }>();
 
   for (const p of payments) {
     // Agrupar por día calendario del negocio, no por día UTC.
@@ -644,21 +637,6 @@ export async function getReportData() {
 
     const serv = p.appointment.service.name;
     porServicio.set(serv, (porServicio.get(serv) ?? 0) + p.amount);
-
-    // La comisión solo se devenga sobre turnos efectivamente realizados
-    // (COMPLETED), no sobre cualquier pago aprobado — un turno pagado pero
-    // que todavía no se hizo no genera comisión.
-    // El porcentaje se resuelve por (profesional, servicio): si hay override
-    // usa ese; si no, cae al porcentaje general del profesional (G18).
-    const pct =
-      overrideMap.get(`${p.appointment.professionalId}:${p.appointment.serviceId}`) ??
-      p.appointment.professional.commissionPercent;
-    if (p.appointment.status === "COMPLETED" && pct > 0) {
-      const current = comisionPorProfesional.get(prof) ?? { comision: 0, ingresos: 0 };
-      current.ingresos += p.amount;
-      current.comision += (p.amount * pct) / 100;
-      comisionPorProfesional.set(prof, current);
-    }
   }
 
   const toSortedArray = (m: Map<string, number>) =>
@@ -674,9 +652,6 @@ export async function getReportData() {
       .sort((a, b) => (a.label < b.label ? 1 : -1)),
     porProfesional: toSortedArray(porProfesional),
     porServicio: toSortedArray(porServicio),
-    comisiones: Array.from(comisionPorProfesional.entries())
-      .map(([label, v]) => ({ label, ...v }))
-      .sort((a, b) => b.comision - a.comision),
   };
 }
 

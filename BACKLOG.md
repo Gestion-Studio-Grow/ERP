@@ -46,12 +46,18 @@ supuesto por el nombre del commit.
   forma de exigir seña, y sin seña obligatoria el no-show sigue siendo un
   problema de plata para el negocio. Es la mejora de mayor impacto en
   ingresos reales de todo el backlog.
-- [ ] **Liquidación de comisiones por período.** Verificado en
-  `reportes/page.tsx` / `getReportData`: las comisiones se calculan al
-  vuelo sobre turnos completados, pero no hay ningún botón "marcar como
-  pagada" ni tabla de histórico (no hay campo de estado de pago de comisión
-  en el schema). Hoy Carolina no tiene forma de saber si ya le pagó a un
-  profesional un período o no sin llevarlo aparte.
+- [x] **Liquidación de comisiones por período.** HECHO (tsc + build en verde),
+  **en rama `feature/liquidacion-comisiones`, sin deployar** (falta aplicar la
+  migración a Neon + merge/push). Modelo `CommissionPayout` (congela monto,
+  período y cantidad de turnos por liquidación) + `Appointment.commissionPayoutId`
+  que estampa los turnos cubiertos: "pendiente de pago" = COMPLETED + pago
+  APPROVED + sin estampar, así liquidar es idempotente y no puede doble-pagar.
+  Acción `settleCommissions` (capacidad nueva `commissions:manage`, solo OWNER,
+  transaccional + audit `settle`), overview `getCommissionsOverview`, y UI en
+  `/admin/reportes`: sección "Comisiones pendientes de pago" con botón "Marcar
+  pagada" por profesional + "Historial de liquidaciones". `getReportData` dejó de
+  calcular comisiones (fuente única ahora en `commission-actions.ts`, sin
+  divergencia). *(sesión de feature — 2026-07-04)*
 - [ ] **WhatsApp real para recordatorios y difusión de novedades.**
   Reclasificado desde "media" — la infraestructura ya está completa y en
   producción (`src/lib/notifications.ts`, panel `/admin/recordatorios`,
