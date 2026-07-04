@@ -1,6 +1,8 @@
 import { getDashboardData } from "@/lib/actions";
 import Link from "next/link";
 import { fmtTime } from "@/lib/datetime";
+import { requireCapability } from "@/lib/authz";
+import { roleHasCapability } from "@/lib/capabilities";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,10 @@ function Kpi({ label, value, href }: { label: string; value: string; href?: stri
 }
 
 export default async function DashboardPage() {
+  const user = await requireCapability("dashboard:read");
+  // Ingresos = dato financiero: solo quien puede ver reportes (OWNER). La
+  // recepción ve el resto del dashboard sin la cifra de facturación.
+  const canSeeRevenue = roleHasCapability(user.role, "reports:read");
   const data = await getDashboardData();
 
   return (
@@ -37,11 +43,13 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-10">
         <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" />
         <Kpi label="Pendientes" value={String(data.pendingCount)} href="/admin/turnos" />
-        <Kpi
-          label="Ingresos 7 días"
-          value={`$${data.weekRevenue.toLocaleString("es-AR")}`}
-          href="/admin/reportes"
-        />
+        {canSeeRevenue && (
+          <Kpi
+            label="Ingresos 7 días"
+            value={`$${data.weekRevenue.toLocaleString("es-AR")}`}
+            href="/admin/reportes"
+          />
+        )}
         <Kpi label="Clientes" value={String(data.clientsCount)} href="/admin/clientes" />
       </div>
 

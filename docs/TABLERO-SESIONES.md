@@ -8,7 +8,7 @@
 
 ## Contador de consolidación
 
-**Sesiones sin consolidar: 2**
+**Sesiones sin consolidar: 3**
 
 Sube en 1 cada vez que cierra una sesión de feature/arquitectura/negocio/seguridad (paso final de su checklist de cierre, en el mismo commit). Vuelve a 0 cuando cierra `/sesion-consolidacion`. No dispara nada solo — es una marca de texto para que se vea a simple vista, apenas se lee este archivo, cuántas sesiones pasaron sin el repaso general. Referencia informal: en ~5 conviene abrir `/sesion-consolidacion`.
 
@@ -68,7 +68,7 @@ Este documento es vivo: si el tablero cambió y este archivo no, eso es un halla
 Pegar esto tal cual (es lo único que se pega a mano; todo lo demás se carga solo):
 
 > Cloná `github.com/Gestion-Studio-Grow/ERP` (o abrí la carpeta si ya existe) y prepará el entorno:
-> 1. `npm install` (corre `prisma generate` solo). Si falta `.env`, pedímelo — las claves (`DATABASE_URL`, `ADMIN_PASSWORD`, `AUTH_SECRET`) no están en el repo a propósito.
+> 1. `npm install` (corre `prisma generate` solo). Si falta `.env`, pedímelo — las claves (`DATABASE_URL`, `AUTH_SECRET`) no están en el repo a propósito.
 > 2. Leé `docs/TABLERO-SESIONES.md`, `docs/adr/INDEX.md` y `BACKLOG.md`.
 > 3. Confirmame en 5 líneas: estado del repo, último deploy en Netlify, y qué comandos `/sesion-*` quedaron disponibles.
 >

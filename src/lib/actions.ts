@@ -12,6 +12,7 @@ import {
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { requireCapability } from "@/lib/authz";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -477,6 +478,7 @@ export async function createBookingFromModal(input: {
 }
 
 export async function createManualAppointment(formData: FormData) {
+  await requireCapability("agenda:manage");
   const professionalId = String(formData.get("professionalId"));
   const serviceId = String(formData.get("serviceId"));
   const startsAtIso = String(formData.get("startsAt"));
@@ -525,6 +527,9 @@ export async function createManualAppointment(formData: FormData) {
 }
 
 export async function getAppointments() {
+  // Devuelve TODOS los turnos sin scoping por profesional (historial completo,
+  // pantalla /admin/turnos/lista) → gestión, no lectura de agenda propia.
+  await requireCapability("agenda:manage");
   return prisma.appointment.findMany({
     orderBy: { startsAt: "asc" },
     include: { client: true, professional: true, service: true, box: true, payment: true },
@@ -532,6 +537,7 @@ export async function getAppointments() {
 }
 
 export async function confirmPayment(formData: FormData) {
+  await requireCapability("agenda:manage");
   const appointmentId = String(formData.get("appointmentId"));
   const method = String(formData.get("method")) as "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
 
@@ -578,6 +584,7 @@ export async function confirmPayment(formData: FormData) {
 }
 
 export async function getReportData() {
+  await requireCapability("reports:read");
   const [payments, commissionOverrides] = await Promise.all([
     prisma.payment.findMany({
       where: { status: "APPROVED" },
@@ -652,6 +659,7 @@ export async function getReportData() {
 }
 
 export async function cancelAppointment(formData: FormData) {
+  await requireCapability("agenda:manage");
   const appointmentId = String(formData.get("appointmentId"));
   await prisma.appointment.update({
     where: { id: appointmentId },
@@ -663,8 +671,13 @@ export async function cancelAppointment(formData: FormData) {
 }
 
 export async function markNoShow(formData: FormData) {
+  const user = await requireCapability("agenda:complete");
   const appointmentId = String(formData.get("appointmentId"));
   const appointment = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+  // Un PROFESSIONAL solo puede operar sobre su propia agenda (ADR-017 §2.b).
+  if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+    throw new Error("No autorizado: solo podés operar sobre tu propia agenda.");
+  }
   if (appointment.status !== "CONFIRMED") {
     throw new Error('Solo se puede marcar "no se presentó" un turno confirmado.');
   }
@@ -678,6 +691,7 @@ export async function markNoShow(formData: FormData) {
 }
 
 export async function completeAppointment(formData: FormData) {
+  const user = await requireCapability("agenda:complete");
   const appointmentId = String(formData.get("appointmentId"));
 
   await prisma.$transaction(async (tx) => {
@@ -685,6 +699,11 @@ export async function completeAppointment(formData: FormData) {
       where: { id: appointmentId },
       include: { service: { include: { products: { include: { product: true } } } } },
     });
+
+    // Un PROFESSIONAL solo puede cerrar turnos de su propia agenda (ADR-017 §2.b).
+    if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+      throw new Error("No autorizado: solo podés operar sobre tu propia agenda.");
+    }
 
     if (appointment.status !== "CONFIRMED") {
       throw new Error("Solo se puede completar un turno que esté confirmado.");
@@ -712,6 +731,7 @@ export async function completeAppointment(formData: FormData) {
 }
 
 export async function getClients() {
+  await requireCapability("clients:read");
   return prisma.client.findMany({
     orderBy: { name: "asc" },
     include: { appointments: { select: { id: true } } },
@@ -719,6 +739,7 @@ export async function getClients() {
 }
 
 export async function getClient(id: string) {
+  await requireCapability("clients:read");
   return prisma.client.findUnique({
     where: { id },
     include: {
@@ -731,25 +752,45 @@ export async function getClient(id: string) {
 }
 
 export async function getAgendaDay(date: string) {
+  const user = await requireCapability("agenda:read");
+
+  // Scoping por rol (ADR-017 §2.b): el PROFESSIONAL ve SOLO su propia agenda.
+  // Si por configuración quedara sin `professionalId`, se scopea a un id que no
+  // existe → agenda vacía (fail-closed), nunca la de todos.
+  const onlyProfessionalId =
+    user.role === "PROFESSIONAL" ? user.professionalId ?? "__no_professional__" : null;
+
   // Límites del día calendario del negocio, convertidos a UTC.
   const dayStart = businessWallTimeToUtc(date, "00:00");
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
   const [professionals, appointments, blocksToday] = await Promise.all([
     prisma.professional.findMany({
-      where: { active: true, deletedAt: null },
+      where: {
+        active: true,
+        deletedAt: null,
+        ...(onlyProfessionalId ? { id: onlyProfessionalId } : {}),
+      },
       orderBy: { name: "asc" },
       include: { box: true },
     }),
     prisma.appointment.findMany({
-      where: { startsAt: { gte: dayStart, lt: dayEnd }, status: { not: "CANCELLED" } },
+      where: {
+        startsAt: { gte: dayStart, lt: dayEnd },
+        status: { not: "CANCELLED" },
+        ...(onlyProfessionalId ? { professionalId: onlyProfessionalId } : {}),
+      },
       include: { client: true, professional: true, service: true, payment: true, box: true },
       orderBy: { startsAt: "asc" },
     }),
     // Novedades (franco/vacaciones) que caen sobre este día — para mostrarlas
     // a la vista en la agenda, no solo en Catálogo (G9).
     prisma.professionalBlock.findMany({
-      where: { startsAt: { lt: dayEnd }, endsAt: { gt: dayStart } },
+      where: {
+        startsAt: { lt: dayEnd },
+        endsAt: { gt: dayStart },
+        ...(onlyProfessionalId ? { professionalId: onlyProfessionalId } : {}),
+      },
       include: { professional: { select: { name: true } } },
       orderBy: { professional: { name: "asc" } },
     }),
@@ -759,6 +800,7 @@ export async function getAgendaDay(date: string) {
 }
 
 export async function getDashboardData() {
+  await requireCapability("dashboard:read");
   // "Hoy" es el día calendario del negocio, no el del servidor (UTC).
   const todayStart = businessWallTimeToUtc(todayInBusinessTz(), "00:00");
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);

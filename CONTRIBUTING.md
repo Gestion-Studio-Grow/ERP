@@ -13,7 +13,7 @@ npm run dev                 # http://localhost:3000
 ```
 
 Variables de entorno necesarias en `.env` (ver `DEPLOY.md` para el detalle de cada una):
-`DATABASE_URL`, `ADMIN_PASSWORD`, `AUTH_SECRET`, y opcionalmente `RESEND_API_KEY` / `RESEND_FROM_EMAIL` / `CRON_SECRET` para que los recordatorios salgan por email real en vez de quedar simulados.
+`DATABASE_URL`, `AUTH_SECRET`, y opcionalmente `RESEND_API_KEY` / `RESEND_FROM_EMAIL` / `CRON_SECRET` para que los recordatorios salgan por email real en vez de quedar simulados. (`ADMIN_PASSWORD` fue retirada en ADR-017 Fase 2: el login es email + contraseña contra la tabla `User`, administrado desde `/admin/usuarios`.)
 
 ## Antes de escribir código de arquitectura
 

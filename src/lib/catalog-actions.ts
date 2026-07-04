@@ -5,10 +5,12 @@ import { revalidatePath } from "next/cache";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { requireCapability } from "@/lib/authz";
 
 const CATALOG_PATH = "/admin/catalogo";
 
 export async function getCatalog() {
+  await requireCapability("catalog:read");
   const [boxes, services, professionals, products, categories, resources] = await Promise.all([
     prisma.box.findMany({
       where: { deletedAt: null },
@@ -45,6 +47,7 @@ export async function getCatalog() {
 // --- Boxes ---
 
 export async function createBox(formData: FormData) {
+  await requireCapability("catalog:manage");
   const name = String(formData.get("name") || "").trim();
   if (!name) return;
   await prisma.box.create({ data: { tenantId: await getCurrentTenantId(), name } });
@@ -52,6 +55,7 @@ export async function createBox(formData: FormData) {
 }
 
 export async function toggleBoxActive(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const active = String(formData.get("active")) === "true";
   await prisma.box.update({ where: { id }, data: { active: !active } });
@@ -59,6 +63,7 @@ export async function toggleBoxActive(formData: FormData) {
 }
 
 export async function updateBox(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const name = String(formData.get("name") || "").trim();
   if (!name) return;
@@ -67,6 +72,7 @@ export async function updateBox(formData: FormData) {
 }
 
 export async function deleteBox(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const appointmentCount = await prisma.appointment.count({ where: { boxId: id } });
   if (appointmentCount > 0) {
@@ -81,6 +87,7 @@ export async function deleteBox(formData: FormData) {
 }
 
 export async function createBoxBlock(formData: FormData) {
+  await requireCapability("catalog:manage");
   const boxId = String(formData.get("boxId"));
   const startDate = String(formData.get("startDate") || "");
   const endDate = String(formData.get("endDate") || "");
@@ -101,6 +108,7 @@ export async function createBoxBlock(formData: FormData) {
 }
 
 export async function deleteBoxBlock(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   await prisma.boxBlock.delete({ where: { id } });
   revalidatePath(CATALOG_PATH);
@@ -137,6 +145,7 @@ function parseDepositAmount(formData: FormData, price: number): number | null {
 }
 
 export async function createService(formData: FormData) {
+  await requireCapability("catalog:manage");
   const name = String(formData.get("name") || "").trim();
   const description = String(formData.get("description") || "").trim();
   const durationMin = Number(formData.get("durationMin"));
@@ -162,6 +171,7 @@ export async function createService(formData: FormData) {
 }
 
 export async function toggleServiceActive(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const active = String(formData.get("active")) === "true";
   await prisma.service.update({ where: { id }, data: { active: !active } });
@@ -169,6 +179,7 @@ export async function toggleServiceActive(formData: FormData) {
 }
 
 export async function updateService(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const name = String(formData.get("name") || "").trim();
   const description = String(formData.get("description") || "").trim();
@@ -202,6 +213,7 @@ export async function updateService(formData: FormData) {
 }
 
 export async function deleteService(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const appointmentCount = await prisma.appointment.count({ where: { serviceId: id } });
   if (appointmentCount > 0) {
@@ -213,6 +225,7 @@ export async function deleteService(formData: FormData) {
 }
 
 export async function setServiceProducts(formData: FormData) {
+  await requireCapability("catalog:manage");
   const serviceId = String(formData.get("serviceId"));
   const productIds = formData.getAll("productId").map(String);
   const quantities = formData.getAll("quantity").map(Number);
@@ -233,6 +246,7 @@ export async function setServiceProducts(formData: FormData) {
 // --- Products (stock) ---
 
 export async function createProduct(formData: FormData) {
+  await requireCapability("catalog:manage");
   const name = String(formData.get("name") || "").trim();
   const unit = String(formData.get("unit") || "unidades").trim();
   const stock = Number(formData.get("stock"));
@@ -251,6 +265,7 @@ export async function createProduct(formData: FormData) {
 }
 
 export async function updateProduct(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const name = String(formData.get("name") || "").trim();
   const unit = String(formData.get("unit") || "unidades").trim();
@@ -265,6 +280,7 @@ export async function updateProduct(formData: FormData) {
 }
 
 export async function toggleProductActive(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const active = String(formData.get("active")) === "true";
   await prisma.product.update({ where: { id }, data: { active: !active } });
@@ -272,6 +288,7 @@ export async function toggleProductActive(formData: FormData) {
 }
 
 export async function deleteProduct(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   // Soft-delete + desvincular de los servicios que lo consumían (para que no
   // se siga descontando stock de un producto eliminado).
@@ -286,6 +303,7 @@ export async function deleteProduct(formData: FormData) {
 // --- Professionals ---
 
 export async function createProfessional(formData: FormData) {
+  await requireCapability("catalog:manage");
   const name = String(formData.get("name") || "").trim();
   const phone = String(formData.get("phone") || "").trim();
   const boxId = String(formData.get("boxId") || "") || undefined;
@@ -307,6 +325,7 @@ export async function createProfessional(formData: FormData) {
 }
 
 export async function toggleProfessionalActive(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const active = String(formData.get("active")) === "true";
   await prisma.professional.update({ where: { id }, data: { active: !active } });
@@ -314,6 +333,7 @@ export async function toggleProfessionalActive(formData: FormData) {
 }
 
 export async function updateProfessional(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const name = String(formData.get("name") || "").trim();
   const phone = String(formData.get("phone") || "").trim();
@@ -336,6 +356,7 @@ export async function updateProfessional(formData: FormData) {
 }
 
 export async function deleteProfessional(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const appointmentCount = await prisma.appointment.count({ where: { professionalId: id } });
   if (appointmentCount > 0) {
@@ -351,6 +372,7 @@ export async function deleteProfessional(formData: FormData) {
 // --- Working hours ---
 
 export async function setWorkingHours(formData: FormData) {
+  await requireCapability("catalog:manage");
   const professionalId = String(formData.get("professionalId"));
   const days = formData.getAll("day").map(Number);
   const starts = formData.getAll("startTime").map(String);
@@ -376,6 +398,7 @@ export async function setWorkingHours(formData: FormData) {
 // --- Novedades / bloqueos de agenda por profesional (G9) ---
 
 export async function createProfessionalBlock(formData: FormData) {
+  await requireCapability("catalog:manage");
   const professionalId = String(formData.get("professionalId"));
   const startDate = String(formData.get("startDate") || "");
   const endDate = String(formData.get("endDate") || "");
@@ -402,6 +425,7 @@ export async function createProfessionalBlock(formData: FormData) {
 }
 
 export async function deleteProfessionalBlock(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   await prisma.professionalBlock.delete({ where: { id } });
   await auditAdmin({ action: "delete", entity: "ProfessionalBlock", entityId: id });
@@ -413,6 +437,7 @@ export async function deleteProfessionalBlock(formData: FormData) {
 // Guarda o borra el override de comisión de un servicio para un profesional.
 // Un valor vacío borra el override (vuelve a usar la comisión general).
 export async function setProfessionalServiceCommission(formData: FormData) {
+  await requireCapability("catalog:manage");
   const professionalId = String(formData.get("professionalId"));
   const serviceId = String(formData.get("serviceId"));
   const raw = String(formData.get("commissionPercent") || "").trim();
@@ -451,6 +476,7 @@ export async function setProfessionalServiceCommission(formData: FormData) {
 // --- Recursos con capacidad: máquinas / gabinetes (G17) ---
 
 export async function createResource(formData: FormData) {
+  await requireCapability("catalog:manage");
   const name = String(formData.get("name") || "").trim();
   const quantity = Number(formData.get("quantity"));
   if (!name || Number.isNaN(quantity) || quantity < 1) return;
@@ -461,6 +487,7 @@ export async function createResource(formData: FormData) {
 }
 
 export async function updateResource(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   const name = String(formData.get("name") || "").trim();
   const quantity = Number(formData.get("quantity"));
@@ -470,6 +497,7 @@ export async function updateResource(formData: FormData) {
 }
 
 export async function deleteResource(formData: FormData) {
+  await requireCapability("catalog:manage");
   const id = String(formData.get("id"));
   // ServiceResource cae por onDelete: Cascade.
   await prisma.resource.delete({ where: { id } });
@@ -478,6 +506,7 @@ export async function deleteResource(formData: FormData) {
 
 // Asigna qué recursos (y cuántas unidades) consume un servicio.
 export async function setServiceResources(formData: FormData) {
+  await requireCapability("catalog:manage");
   const serviceId = String(formData.get("serviceId"));
   const resourceIds = formData.getAll("resourceId").map(String);
   const units = formData.getAll("units").map(Number);

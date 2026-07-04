@@ -7,17 +7,22 @@ supuesto por el nombre del commit.
 
 ## Crítico — bloqueante para operar en serio
 
-- [~] **Roles y permisos** (dueño / recepcionista / profesional). **Decidido
-  en ADR-017**, implementación en dos fases. **Fase 1 — HECHA** (deployada):
-  tabla `User` + enum `UserRole`, login por email+password (cookie HMAC con
-  `userId`, hashing scrypt en `src/lib/auth-password.ts`), `getCurrentUser()`
-  (`src/lib/session.ts`), y `actor` real en el audit trail (`user:<id>`,
-  resuelto a nombre en `/admin/auditoria`) — el `AuditLog` (ADR-010 G4) ya no
-  miente diciendo `"admin"` para todo. OWNER de Carolina sembrado, entra con su
-  email + la contraseña de antes. **Fase 2 — PENDIENTE:** `requireRole(...)` al
-  tope de cada Server Action y loader de `/admin`, ocultar en el front lo que
-  RECEPTION/PROFESSIONAL no ven, pantalla de gestión de usuarios para el OWNER,
-  y retirar `ADMIN_PASSWORD`. Ver cola en `docs/PROXIMOS-PASOS.md`.
+- [x] **Roles y permisos** (dueño / recepcionista / profesional). **Decidido
+  en ADR-017**, implementación en dos fases, **ambas HECHAS y deployadas**.
+  **Fase 1:** tabla `User` + enum `UserRole`, login por email+password (cookie
+  HMAC con `userId`, hashing scrypt en `src/lib/auth-password.ts`),
+  `getCurrentUser()` (`src/lib/session.ts`), y `actor` real en el audit trail
+  (`user:<id>`, resuelto a nombre en `/admin/auditoria`) — el `AuditLog`
+  (ADR-010 G4) ya no miente diciendo `"admin"` para todo. OWNER de Carolina
+  sembrado, entra con su email + la contraseña de antes. **Fase 2:** mapa
+  rol→capacidades como dato en código (`src/lib/capabilities.ts`, 3 roles),
+  `requireCapability(...)` server-side (`src/lib/authz.ts`) al tope de cada
+  Server Action y loader de `/admin` (PROFESSIONAL scopeado a su propia agenda
+  en `getAgendaDay`/`completeAppointment`/`markNoShow`), navegación y KPIs
+  ocultos por rol en el front (UX, no seguridad), pantalla de gestión de
+  usuarios del OWNER (`/admin/usuarios`: alta, baja/reactivación con guarda de
+  "último OWNER" y auto-baja, reset de contraseña), y `ADMIN_PASSWORD`
+  **retirada** (ya no hay contraseña compartida).
 - [ ] **Cliente reprograma su turno** (no solo cancela). Verificado en
   `src/app/(site)/reserva/turno/[id]/page.tsx`: solo hay botón de cancelar
   (`CancelButton`) y reseña; no existe acción de reprogramar ni en

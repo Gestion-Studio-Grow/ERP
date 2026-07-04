@@ -3,9 +3,10 @@
 //
 // RUNTIME NODE (usa Prisma + cookies): NO lo importa `src/proxy.ts` (edge) — el
 // proxy hace solo el portón grueso con `readSessionToken` de auth.ts. La
-// autorización fina (requireRole) llega en la Fase 2 de ADR-017; por ahora esto
-// existe para dar el `actor` real al audit trail y el login por usuario.
+// autorización fina (requireCapability) vive en `authz.ts` (ADR-017 Fase 2) y se
+// apoya en este `getCurrentUser`. También da el `actor` real al audit trail.
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getSessionCookieName, readSessionToken } from "@/lib/auth";
@@ -20,7 +21,10 @@ export type SessionUser = {
   tenantId: string;
 };
 
-export async function getCurrentUser(): Promise<SessionUser | null> {
+// Envuelto en `cache()` de React: se dedupe por request, así los múltiples
+// llamadores dentro del mismo render (guard de página + guard del loader +
+// auditAdmin) comparten un solo lookup a la base en vez de repetirlo.
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const cookieStore = await cookies();
   const userId = await readSessionToken(cookieStore.get(getSessionCookieName())?.value);
   if (!userId) return null;
@@ -39,4 +43,4 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       tenantId: true,
     },
   });
-}
+});

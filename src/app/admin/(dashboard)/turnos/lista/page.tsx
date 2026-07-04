@@ -3,6 +3,7 @@ import AppointmentRow from "../AppointmentRow";
 import AppointmentsHistoryList from "./AppointmentsHistoryList";
 import NewAppointmentForm from "../NewAppointmentForm";
 import Link from "next/link";
+import { requireCapability } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,9 @@ export const statusLabel: Record<string, string> = {
 };
 
 export default async function TurnosListaPage() {
+  // La lista (historial completo + alta manual) es gestión de agenda: solo
+  // OWNER/RECEPTION. El PROFESSIONAL cae acá a su calendario propio.
+  await requireCapability("agenda:manage");
   const [appointments, professionals] = await Promise.all([
     getAppointments(),
     getProfessionalsWithServices(),

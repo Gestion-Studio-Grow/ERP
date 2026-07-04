@@ -19,11 +19,14 @@ Configurar en el proyecto de Vercel → Settings → Environment Variables:
 | Variable | Obligatoria | Descripción |
 |---|---|---|
 | `DATABASE_URL` | Sí | Connection string de Postgres (Neon) |
-| `ADMIN_PASSWORD` | Sí | Contraseña real del panel — **cambiar la de desarrollo** |
 | `AUTH_SECRET` | Sí | Secreto random para firmar la sesión (generar uno nuevo para producción, no reusar el de dev) |
 | `RESEND_API_KEY` | No | Para que los recordatorios por email salgan de verdad |
 | `RESEND_FROM_EMAIL` | No | Remitente de esos emails |
 | `CRON_SECRET` | Recomendada | Protege `/api/cron/reminders` de llamadas externas |
+
+> **`ADMIN_PASSWORD` fue retirada** (ADR-017 Fase 2). El login ya no usa una
+> contraseña compartida: cada persona entra con su email + contraseña contra la
+> tabla `User`. El acceso se administra desde `/admin/usuarios` (rol OWNER).
 
 ## 3. Deploy
 

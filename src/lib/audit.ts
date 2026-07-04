@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/session";
+import { requireCapability } from "@/lib/authz";
 
 // Punto único de auditoría (ADR-009 §4). Toda mutación de negocio pasa por acá.
 // Nunca lanza: una falla al auditar no debe tumbar la operación de negocio, pero
@@ -82,6 +83,7 @@ export async function requestIp(): Promise<string | undefined> {
 }
 
 export async function getAuditLog(limit = 100) {
+  await requireCapability("audit:read");
   return prisma.auditLog.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,

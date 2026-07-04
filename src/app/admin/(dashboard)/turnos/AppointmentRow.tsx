@@ -40,9 +40,14 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 export default function AppointmentRow({
   appointment,
   statusLabel,
+  canManage = true,
 }: {
   appointment: Appointment;
   statusLabel: Record<string, string>;
+  // Gestión de agenda (confirmar pago / cancelar) — solo OWNER/RECEPTION. El
+  // PROFESSIONAL solo cierra sus turnos (completar / no-show). Es UX: el server
+  // igual bloquea las acciones que su rol no puede (ADR-017 §2.e).
+  canManage?: boolean;
 }) {
   const isPending = appointment.status === "PENDING";
   const isConfirmed = appointment.status === "CONFIRMED";
@@ -78,7 +83,7 @@ export default function AppointmentRow({
           )}
         </div>
 
-        {isPending && (
+        {isPending && canManage && (
           <div className="flex flex-col gap-2 min-w-[220px]">
             <form action={confirmPayment} className="flex gap-2">
               <input type="hidden" name="appointmentId" value={appointment.id} />
@@ -114,12 +119,14 @@ export default function AppointmentRow({
                 Marcar como completado
               </SubmitButton>
             </form>
-            <form action={cancelAppointment}>
-              <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Cancelando…" className="text-sm text-neutral-500 hover:text-red-600">
-                Cancelar turno
-              </SubmitButton>
-            </form>
+            {canManage && (
+              <form action={cancelAppointment}>
+                <input type="hidden" name="appointmentId" value={appointment.id} />
+                <SubmitButton pendingText="Cancelando…" className="text-sm text-neutral-500 hover:text-red-600">
+                  Cancelar turno
+                </SubmitButton>
+              </form>
+            )}
             <form action={markNoShow}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
               <SubmitButton pendingText="Guardando…" className="text-sm text-neutral-500 hover:text-red-600">

@@ -4,15 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { requireCapability } from "@/lib/authz";
 
 const CATALOG_PATH = "/admin/catalogo";
 
 export async function getCoupons() {
+  // Los cupones se listan dentro de la página de Catálogo (solo OWNER).
+  await requireCapability("catalog:read");
   const tenantId = await getCurrentTenantId();
   return prisma.coupon.findMany({ where: { tenantId }, orderBy: { createdAt: "desc" } });
 }
 
 export async function createCoupon(formData: FormData) {
+  await requireCapability("coupons:manage");
   const tenantId = await getCurrentTenantId();
   const code = String(formData.get("code") || "").trim().toUpperCase();
   const type = String(formData.get("type")) === "FIXED" ? "FIXED" : "PERCENT";
@@ -39,6 +43,7 @@ export async function createCoupon(formData: FormData) {
 }
 
 export async function toggleCouponActive(formData: FormData) {
+  await requireCapability("coupons:manage");
   const id = String(formData.get("id"));
   const active = String(formData.get("active")) === "true";
   await prisma.coupon.update({ where: { id }, data: { active: !active } });
@@ -46,6 +51,7 @@ export async function toggleCouponActive(formData: FormData) {
 }
 
 export async function deleteCoupon(formData: FormData) {
+  await requireCapability("coupons:manage");
   const id = String(formData.get("id"));
   await prisma.coupon.delete({ where: { id } });
   await auditAdmin({ action: "delete", entity: "Coupon", entityId: id });

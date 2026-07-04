@@ -5,10 +5,12 @@ import { revalidatePath } from "next/cache";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { broadcastProfessionalNews } from "@/lib/notifications";
+import { requireCapability } from "@/lib/authz";
 
 const PATH = "/admin/recordatorios";
 
 export async function getReminderPanelData() {
+  await requireCapability("reminders:manage");
   const tenantId = await getCurrentTenantId();
 
   const [services, templates, professionals, news] = await Promise.all([
@@ -42,6 +44,7 @@ export async function getReminderPanelData() {
 
 // Config de recordatorio por servicio (habilitado + horas de anticipación).
 export async function updateServiceReminderConfig(formData: FormData) {
+  await requireCapability("reminders:manage");
   const id = String(formData.get("id"));
   const reminderEnabled = formData.get("reminderEnabled") === "on";
   const reminderHoursBefore = Number(formData.get("reminderHoursBefore"));
@@ -67,6 +70,7 @@ export async function updateServiceReminderConfig(formData: FormData) {
 
 // Alta/edición de una plantilla de mensaje (recordatorio o difusión de novedad).
 export async function upsertMessageTemplate(formData: FormData) {
+  await requireCapability("reminders:manage");
   const tenantId = await getCurrentTenantId();
   const type = String(formData.get("type")) as "APPOINTMENT_REMINDER" | "PROFESSIONAL_NEWS_BROADCAST";
   const channel = String(formData.get("channel")) as "EMAIL" | "WHATSAPP";
@@ -94,6 +98,7 @@ export async function upsertMessageTemplate(formData: FormData) {
 
 // Carga una novedad de un profesional (queda pendiente de difundir).
 export async function createProfessionalNews(formData: FormData) {
+  await requireCapability("reminders:manage");
   const tenantId = await getCurrentTenantId();
   const professionalId = String(formData.get("professionalId"));
   const message = String(formData.get("message") || "").trim();
@@ -112,6 +117,7 @@ export async function createProfessionalNews(formData: FormData) {
 // Dispara la difusión de una novedad ya cargada (hoy simulada hasta conectar
 // un proveedor real de WhatsApp — ver src/lib/notifications.ts).
 export async function broadcastProfessionalNewsAction(formData: FormData) {
+  await requireCapability("reminders:manage");
   const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id"));
 

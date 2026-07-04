@@ -2,6 +2,8 @@ import { getAgendaDay } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
+import { requireCapability } from "@/lib/authz";
+import { roleHasCapability } from "@/lib/capabilities";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -37,6 +39,12 @@ export default async function TurnosCalendarPage({
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
+  // El PROFESSIONAL ve el calendario de su propia agenda (getAgendaDay lo
+  // scopea) pero sin las acciones de gestión (confirmar pago / cancelar), que
+  // son de OWNER/RECEPTION. Sí puede cerrar sus turnos (completar / no-show).
+  const user = await requireCapability("agenda:read");
+  const canManage = roleHasCapability(user.role, "agenda:manage");
+
   const { date: dateParam } = await searchParams;
   const today = todayInBusinessTz();
   const date = dateParam ?? today;
@@ -96,7 +104,7 @@ export default async function TurnosCalendarPage({
 
       <NovedadesDelDia blocks={blocksToday} />
 
-      <CalendarGrid professionals={professionals} appointments={appointments} />
+      <CalendarGrid professionals={professionals} appointments={appointments} canManage={canManage} />
     </main>
   );
 }

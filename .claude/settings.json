@@ -1,6 +1,6 @@
 {
-  "defaultMode": "acceptEdits",
   "permissions": {
+    "defaultMode": "acceptEdits",
     "allow": [
       "Read",
       "Edit",

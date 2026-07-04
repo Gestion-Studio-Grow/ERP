@@ -60,9 +60,9 @@ Orden pensado para que en ningún momento el sitio en producción deje de andar,
 ### Fase C — Accesos y secretos (seguridad, no como afterthought)
 - [ ] **C1.** Dar acceso a Neon (la base de datos) solo a quien realmente necesite tocar producción — no es lo mismo que acceso al repo.
 - [ ] **C2.** Dar acceso al team/site de Netlify a quien necesite ver deploys/logs.
-- [ ] **C3.** Rotar `AUTH_SECRET` y `ADMIN_PASSWORD` **una vez que el equipo final de Gestión Studio Grow esté definido** — no antes (rotar antes de saber quién necesita el valor nuevo es trabajo doble). Esto invalida sesiones activas del admin, es esperable.
+- [ ] **C3.** Rotar `AUTH_SECRET` **una vez que el equipo final de Gestión Studio Grow esté definido** — no antes (rotar antes de saber quién necesita el valor nuevo es trabajo doble). Esto invalida sesiones activas, es esperable.
   - `AUTH_SECRET`: generar un valor random nuevo, actualizar en Netlify (Environment variables) y en el `.env` local de cada colaborador — nunca por chat/email, usar el manejo de secretos que ya use el equipo (1Password, Netlify env vars, etc.).
-  - `ADMIN_PASSWORD`: cambiarla y comunicarla por un canal que no sea texto plano permanente.
+  - `ADMIN_PASSWORD`: **retirada** (ADR-017 Fase 2) — ya no existe contraseña compartida. Cada persona entra con su usuario; el acceso se gestiona desde `/admin/usuarios`. No hay nada que rotar acá.
 - [ ] **C4. No rotar `DATABASE_URL` como parte de este movimiento** salvo que haya evidencia de exposición — es la connection string de producción con datos reales de Carolina; rotarla sin necesidad agrega riesgo (coordinar Neon + Netlify + todos los `.env` locales) sin beneficio de seguridad claro en este paso.
 - [ ] **C5.** Confirmar que ningún secreto quedó pegado en este chat, en un README, o en un mensaje de Slack/WhatsApp del equipo — los secretos viven en Netlify env vars y en `.env` locales gitignored, en ningún otro lado.
 

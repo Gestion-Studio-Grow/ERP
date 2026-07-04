@@ -4,17 +4,30 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
+import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
 
-const items = [
-  { href: "/admin", label: "Dashboard", exact: true },
-  { href: "/admin/turnos", label: "Agenda" },
-  { href: "/admin/clientes", label: "Clientes" },
-  { href: "/admin/catalogo", label: "Catálogo" },
-  { href: "/admin/resenas", label: "Reseñas" },
-  { href: "/admin/recordatorios", label: "Recordatorios" },
-  { href: "/admin/reportes", label: "Reportes" },
-  { href: "/admin/auditoria", label: "Auditoría" },
+// Cada ítem declara la capacidad que lo habilita; se filtra por el rol del
+// usuario. Ocultar acá es UX (ADR-017 §2.e) — la seguridad real la aplican los
+// guardas server-side (`requireCapability`) en cada loader/acción.
+const ALL_ITEMS: { href: string; label: string; exact?: boolean; cap: Capability }[] = [
+  { href: "/admin", label: "Dashboard", exact: true, cap: "dashboard:read" },
+  { href: "/admin/turnos", label: "Agenda", cap: "agenda:read" },
+  { href: "/admin/clientes", label: "Clientes", cap: "clients:read" },
+  { href: "/admin/catalogo", label: "Catálogo", cap: "catalog:manage" },
+  { href: "/admin/resenas", label: "Reseñas", cap: "reviews:manage" },
+  { href: "/admin/recordatorios", label: "Recordatorios", cap: "reminders:manage" },
+  { href: "/admin/reportes", label: "Reportes", cap: "reports:read" },
+  { href: "/admin/auditoria", label: "Auditoría", cap: "audit:read" },
+  { href: "/admin/usuarios", label: "Usuarios", cap: "users:manage" },
 ];
+
+const ROLE_LABEL: Record<Role, string> = {
+  OWNER: "Dueña",
+  RECEPTION: "Recepción",
+  PROFESSIONAL: "Profesional",
+};
+
+type NavItem = { href: string; label: string; exact?: boolean };
 
 function useActive() {
   const pathname = usePathname();
@@ -22,14 +35,14 @@ function useActive() {
     exact ? pathname === href : pathname.startsWith(href);
 }
 
-function currentLabel(pathname: string) {
+function currentLabel(pathname: string, items: NavItem[]) {
   const match = [...items]
     .sort((a, b) => b.href.length - a.href.length)
     .find((i) => (i.exact ? pathname === i.href : pathname.startsWith(i.href)));
   return match?.label ?? "Panel";
 }
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const isActive = useActive();
   return (
     <div className="space-y-1">
@@ -52,9 +65,21 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function NavFooter({ onNavigate }: { onNavigate?: () => void }) {
+function NavFooter({
+  userName,
+  roleLabel,
+  onNavigate,
+}: {
+  userName: string;
+  roleLabel: string;
+  onNavigate?: () => void;
+}) {
   return (
     <div className="mt-8 px-3 space-y-3">
+      <div className="border-t pt-3">
+        <p className="text-sm font-medium text-neutral-700 truncate">{userName}</p>
+        <p className="text-xs text-neutral-400">{roleLabel}</p>
+      </div>
       <Link
         href="/"
         onClick={onNavigate}
@@ -71,9 +96,20 @@ function NavFooter({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export default function AdminShell({ children }: { children: React.ReactNode }) {
+export default function AdminShell({
+  children,
+  role,
+  userName,
+}: {
+  children: React.ReactNode;
+  role: Role;
+  userName: string;
+}) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const items = ALL_ITEMS.filter((item) => roleHasCapability(role, item.cap));
+  const roleLabel = ROLE_LABEL[role];
 
   // Cerrar el cajón al navegar (cambia el pathname) y con Escape.
   useEffect(() => {
@@ -90,8 +126,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       {/* Sidebar fijo — solo desktop (lg+) */}
       <nav className="hidden lg:flex w-56 shrink-0 flex-col border-r px-3 py-5">
         <div className="px-3 mb-6 font-semibold text-lg text-neutral-800">CH Estética</div>
-        <NavLinks />
-        <NavFooter />
+        <NavLinks items={items} />
+        <NavFooter userName={userName} roleLabel={roleLabel} />
       </nav>
 
       {/* Cajón móvil */}
@@ -113,8 +149,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 ×
               </button>
             </div>
-            <NavLinks onNavigate={() => setDrawerOpen(false)} />
-            <NavFooter onNavigate={() => setDrawerOpen(false)} />
+            <NavLinks items={items} onNavigate={() => setDrawerOpen(false)} />
+            <NavFooter
+              userName={userName}
+              roleLabel={roleLabel}
+              onNavigate={() => setDrawerOpen(false)}
+            />
           </nav>
         </div>
       )}
@@ -131,7 +171,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             <span className="block h-0.5 w-5 bg-neutral-800" />
             <span className="block h-0.5 w-5 bg-neutral-800" />
           </button>
-          <span className="font-medium text-neutral-800">{currentLabel(pathname)}</span>
+          <span className="font-medium text-neutral-800">{currentLabel(pathname, items)}</span>
           <span className="ml-auto font-semibold text-neutral-700">CH Estética</span>
         </header>
 
