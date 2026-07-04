@@ -94,9 +94,12 @@ supuesto por el nombre del commit.
   (diferido a propósito hasta que exista un 2º tenant, ver nota en
   `schema.prisma`; su mecanismo y momento de activación ya quedaron
   decididos en ADR-018, falta solo implementarlo el día del gate) ni
-  UI/auth para operar más de un negocio a la vez
-  (`checkPassword` es un único secreto global, no hay selector de tenant).
-  Sigue sin ser necesario hasta que haya un segundo cliente pagando.
+  UI/auth para operar más de un negocio a la vez (no hay selector de tenant
+  en el login). El **alta de tenant ya está resuelta**: `scripts/provision-tenant.ts`
+  (ADR-019) idempotente/transaccional, con guard que exige RLS antes de crear el
+  2º tenant. Lo que falta para el alta real es activar RLS (ADR-018).
+  **Disparo activo (2026-07-04): ya hay un 2º cliente firmado** — ver
+  `docs/PROXIMOS-PASOS.md` (RLS + correr el alta real).
 - [ ] **Fotos reales de profesionales y ambiente** — siguen siendo
   placeholders "tu foto" en la landing (verificado en `PhotoPlaceholder.tsx`
   y `page.tsx`). Tarea de contenido, no de código.
