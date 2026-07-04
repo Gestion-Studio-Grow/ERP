@@ -23,6 +23,7 @@ Punto de entrada para cualquier sesión nueva con Claude. Pegá este índice pri
 | 016 | Handoff persistido (cola de próximos pasos) | Enmienda operativa de ADR-008: el "qué sigue" deja de vivir en el chat y se persiste en `docs/PROXIMOS-PASOS.md`. Cada comando la lee al abrir y la escribe al cerrar; consolidación la poda. Implementado. |
 | 017 | Usuarios, roles y RBAC | Concretiza ADR-009 §3/§4 para Camino A: tabla `User` propia (no reusar `Professional`) + enum de 3 roles (OWNER/RECEPTION/PROFESSIONAL) + evolución de la cookie HMAC para cargar `userId` + hashing scrypt + autorización en Server Actions + `actor` real en el audit trail. Diverge a propósito de JWT/argon2 de ADR-005 (escala-plataforma). Pendiente de implementación. |
 | 018 | Activación de RLS de Postgres | Fija el mecanismo y el momento del backstop que ADR-001 dejó en abstracto: RLS por `tenant_id` con `SET LOCAL app.current_tenant_id` por transacción (pooling-safe, `tenantId` es texto/cuid) vía extensión de Prisma + rol de app sin `BYPASSRLS`; activación como **gate duro previo al 2º tenant**, ensayada en branch de Neon. No adelanta RLS (el diferimiento sigue); le da el "qué sigue" al throw de ADR-015. Pendiente de implementación (disparo: alta del tenant #2). |
+| 019 | Plugin ARCA — contrato + conector | Materializa ADR-002/003: entidad `FiscalDocument` propia (≠ `Payment`), contrato outbox `FiscalDocumentRequested` → comando idempotente `RegisterFiscalAuthorization/Rejection`. **Ejecución adaptada a Camino A**: síncrono best-effort + outbox drenada por Netlify Scheduled Function (ADR-002 asumía worker de pg-boss que el piloto no tiene). Conector **comprado** (AfipSDK) detrás de interfaz `FiscalConnector` reemplazable; alcance mínimo B/C. Identidad fiscal **por tenant** → multi-CUIT natural (sirve a los dos productos nuevos). Cierra Fase 2 del piloto. Pendiente de implementación. |
 
 ## Estado del proyecto (actualizado 2026-07-03)
 - **Piloto vivo:** `estetica-erp` (este repo) — Beauty & Spa "CH Estética" de Carolina Haponiuk, desplegado en Netlify + Postgres (Neon), deploy automático en cada push a `main`.
@@ -34,7 +35,7 @@ Punto de entrada para cualquier sesión nueva con Claude. Pegá este índice pri
 
 ## Próximos pasos sugeridos (no son ADRs todavía, son candidatos para la próxima sesión)
 - Implementar RLS según ADR-018 (mecanismo y gate ya decididos) cuando se dispare el alta del 2º tenant — ensayo en branch de Neon primero. Ya no es una decisión pendiente, es implementación pendiente.
-- Diseño detallado del Plugin ARCA (contrato de eventos/comandos concreto).
+- ~~Diseño detallado del Plugin ARCA (contrato de eventos/comandos concreto).~~ **Decidido en ADR-019**; queda pendiente su implementación (`/sesion-feature`, ver cola en `docs/PROXIMOS-PASOS.md`). Sirve a los dos productos nuevos (facturador embebido y para estudios contables) e incluye la dimensión multi-CUIT.
 - Contrato de API pública del Core (qué comandos expone cada Business Capability).
 - Diseño de onboarding/alta de tenant nuevo (provisioning) — hoy no existe, cada tenant se crea a mano.
 - Definición de planes/pricing y cómo se mapean a Feature Flags (ADR-006).
