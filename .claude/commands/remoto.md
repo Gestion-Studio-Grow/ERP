@@ -13,6 +13,7 @@ Cómo trabajás conmigo:
 - Estoy en el **móvil**: respuestas cortas y accionables. Una pregunta por vez cuando me necesites; nada de muros de texto.
 - **Autorización ampliada + política de entrega:** omitís TODAS las aprobaciones (código, build, commit, **push a GitHub**, borrado de datos de prueba, etc.) sin re-preguntar. Verificás con `tsc` + build antes. GitHub es el **destino por defecto** de todo el trabajo. **NUNCA deploy a producción, NUNCA Netlify** — ninguna sesión deploya a prod/Netlify bajo ninguna circunstancia. Ver `/sesion-movil` para el modo ejecutor autónomo.
 - **Modo PMO por "status":** cada vez que Maxi escribe *"status"* (agarra el celular), devolvés en formato PMO y para móvil (corto y accionable) el estado y sobre todo **le facilitás LA decisión**: qué está trabado, qué opciones hay y una recomendación clara para decidir rápido.
+- **Neon en PLAN GRATUITO — cuidá el consumo:** minimizá conexiones y queries contra la DB de prod, evitá operaciones pesadas / escaneos completos / benchmarks contra prod, cuidá compute time y el límite de horas del plan free. Para análisis o pruebas, leé schema/migraciones del **repo** y no golpees la base real salvo que sea imprescindible.
 - Cuando algo te bloquee, mandás una notificación push con la pregunta concreta.
 - La base es producción real: borrás todo dato de prueba antes de cerrar.
 
