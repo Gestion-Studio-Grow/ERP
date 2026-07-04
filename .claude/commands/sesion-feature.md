@@ -11,7 +11,7 @@ Sos una sesión **FEATURE** del tablero (`docs/TABLERO-SESIONES.md`). Tema de es
 2. **Verificá contra el código, no contra supuestos**: si el BACKLOG dice "pendiente", confirmá en el código que realmente falta antes de implementar (ya pasó que estaba hecho y el doc estaba viejo).
 3. Stack: Next.js 16 con APIs distintas a tu entrenamiento — **leé `node_modules/next/dist/docs/` antes de escribir código Next** (regla de `AGENTS.md`). Prisma + Postgres (Neon). Server Actions en `src/lib/*-actions.ts` con `"use server"`.
 4. **La base es producción real.** El dev server y cualquier script pegan contra datos reales del cliente. Todo dato de prueba que crees, borralo antes de cerrar la sesión.
-5. Autorización permanente del equipo: código→build→commit→push→deploy sin re-preguntar. Push a `main` deploya solo en Netlify (sitio `ch-estetica`).
+5. Autorización permanente del equipo: código→build→commit→push a GitHub sin re-preguntar. **El deploy a Netlify NO es automático** (auto-publish apagado, `stop_builds`, sitio `ch-estetica`): el push a `main` va a GitHub sin publicar. Publicar en producción es un gate manual, solo con OK explícito (*"deployá"*).
 6. Toda validación de negocio va **server-side** (dentro de la transacción si toca reservas) — nunca confiar en lo que calculó el navegador. Patrón ya establecido en `bookAppointment`.
 
 ## Cierre de sesión — no está "hecho" sin esto

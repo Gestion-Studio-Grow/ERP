@@ -113,8 +113,10 @@ cola cada tanto (saca lo hecho, revalida lo abierto).
 
 ## Reglas que valen en toda sesión
 
-- **Autorización permanente** para el ciclo código→build→commit→push→deploy sin
-  re-preguntar en cada paso. Push a `main` deploya solo en Netlify.
+- **Autorización permanente** para el ciclo código→build→commit→push a GitHub sin
+  re-preguntar en cada paso. **El deploy a Netlify NO es automático** (auto-publish
+  apagado, `stop_builds`): el push a `main` va a GitHub sin publicar. Publicar en
+  producción es un gate manual, solo con el OK explícito de Maxi (*"deployá"*).
 - **La base de datos es producción real** (Neon). Todo dato de prueba creado
   durante una sesión se borra antes de cerrarla. Nada destructivo contra prod.
 - **Los secretos no viven en el repo** (`DATABASE_URL`, `ADMIN_PASSWORD`,

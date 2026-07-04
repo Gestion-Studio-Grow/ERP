@@ -32,6 +32,19 @@ El "qué sigue después de cerrar esto" **no se dice en el chat** (que la sesió
 
 > **Guía de lectura para el equipo:** el libro de usuario amigable de este sistema es `docs/MANUAL-SESIONES.md`, y el comando `/manual` muestra la versión corta al instante. No son tipos de sesión (no abren trabajo), son la puerta de entrada; este tablero sigue siendo la spec canónica.
 
+## El otro eje: roles autónomos (`docs/METODO-ROLES.md`)
+
+Los tipos de sesión de arriba definen **un tema por thread**. En paralelo existe un segundo eje —los **roles autónomos**— para trabajo despachado (típicamente desde el móvil): definen **quién** ejecuta, mientras `docs/METODO-ROLES.md` define **cómo** (bucle entender→plan→hacer→verificar→reportar, definición de terminado, seguridad, formato de reporte). Comandos:
+
+| Comando | Qué es |
+|---|---|
+| `/sesion-movil` | Ejecutor autónomo en rol **PMO**: Maxi despacha tareas y recibe status al terminar cada una. Si la tarea encaja en un tipo del tablero, sigue sus normas. |
+| `/rol <rol>` | Adoptás el rol que indique Maxi (PMO, QA, diseñador, redactor…). Autónomo, commit local. |
+| `/rol-fullstack` | Developer fullstack + arquitecto senior: implementa features y, si toca una decisión estructural, deja el ADR. |
+| `/remoto` | Asistente conversacional + ingeniero de prompts para **retomar desde el móvil** (no abre trabajo de fondo, como `/manual`). |
+
+Todos comparten la política de entrega: **push a GitHub sí, deploy a Netlify no** (gate manual). Si se agrega/cambia un rol o su método, esta tabla y `docs/METODO-ROLES.md` se actualizan en el mismo commit — si divergen, es un hallazgo para `/sesion-consolidacion`.
+
 ## La sesión de consolidación (la que mantiene el sistema honesto)
 
 Su trabajo es que el repo no mienta. Casos reales que ya pasaron y que existe para atrapar:
@@ -49,7 +62,7 @@ Su trabajo es que el repo no mienta. Casos reales que ya pasaron y que existe pa
 
 ## Convenciones operativas del equipo (decididas 2026-07-03)
 
-- **Autorización permanente** para el ciclo código→build→commit→push→deploy sin re-preguntar en cada paso (el push a `main` deploya solo en Netlify).
+- **Autorización permanente** para el ciclo código→build→commit→**push a GitHub** sin re-preguntar en cada paso. **El deploy a Netlify NO es automático:** el auto-publish está apagado (`stop_builds`), así que el push a `main` va a GitHub sin publicar ni gastar créditos. Publicar en producción es un **gate manual** — solo con el OK explícito de Maxi (*"deployá"*). Detalle en `docs/METODO-ROLES.md` §4.
 - **La base de datos es producción real** (Neon) — todo dato de prueba creado durante una sesión se borra antes de cerrarla.
 - Commits explican el *porqué* (ver `CONTRIBUTING.md`).
 - Scripts de un solo uso (`scripts/_*.ts`) se borran en la misma sesión que los creó.

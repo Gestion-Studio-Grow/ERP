@@ -25,6 +25,6 @@ Sos una sesión de **SEGURIDAD** del tablero (`docs/TABLERO-SESIONES.md`). Tema 
 - [ ] Si apareció una decisión estructural de seguridad: **no la dejes en un comentario** — anotala explícitamente para `/sesion-arquitectura` (y actualizá `BACKLOG.md` si cambió la prioridad de un ítem).
 - [ ] `docs/PROXIMOS-PASOS.md` actualizado (ADR-016): si cerraste un ítem de la cola, marcalo hecho; si disparaste un follow-up concreto (incluida una decisión que va a `/sesion-arquitectura`), agregalo con el comando sugerido. En el mismo commit final.
 - [ ] Sumar 1 al "Sesiones sin consolidar" de `docs/TABLERO-SESIONES.md`, en el mismo commit final.
-- [ ] Commit que explica el porqué (ver `CONTRIBUTING.md`) + push. Push a `main` deploya solo en Netlify.
+- [ ] Commit que explica el porqué (ver `CONTRIBUTING.md`) + push a GitHub. El deploy a Netlify NO es automático (auto-publish apagado): publicar en producción es un gate manual, solo con OK explícito.
 
 Confirmá en una línea qué superficie vas a auditar y arrancá.

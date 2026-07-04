@@ -27,8 +27,8 @@ que sube solo al cerrar cada sesión de trabajo.
 anota y se abre la sesión correcta.
 
 **Vale en toda sesión:** la base es producción real (borrar datos de prueba);
-secretos fuera del repo (`.env`); commit+push cierra la sesión (push a `main`
-deploya solo en Netlify); español rioplatense.
+secretos fuera del repo (`.env`); commit+push a GitHub cierra la sesión (el deploy
+a Netlify NO es automático — es un gate manual, solo con OK explícito); español rioplatense.
 
 **¿Feature o arquitectura?** Si ya sabés *qué* construir → feature. Si primero hay
 que decidir *cómo* → arquitectura, y la feature viene después.
