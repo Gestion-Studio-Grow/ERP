@@ -71,6 +71,20 @@
   .stat .l{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-top:5px}
   .stat.good .n{color:var(--good)} .stat.warn .n{color:var(--warn)}
 
+  /* ---------- cierre del mes ---------- */
+  .cierre{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px}
+  .cierre-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .cierre-t{font-family:var(--font-display);font-size:19px;font-weight:600}
+  .cierre-s{font-size:13px;color:var(--ink-soft);margin-top:2px}
+  .cierre-s b{color:var(--good)} .cierre-s .w{color:var(--warn)}
+  .bar{height:9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--good),color-mix(in srgb,var(--good) 70%,var(--accent)));border-radius:999px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  @media (prefers-reduced-motion:reduce){.bar-fill{transition:none}}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+  .chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface-2);cursor:pointer;color:var(--ink);font-family:inherit}
+  .chip:hover{border-color:var(--accent-line)}
+  .chip::before{content:"";width:7px;height:7px;border-radius:50%}
+  .chip.warn::before{background:var(--warn)} .chip.crit::before{background:var(--crit)}
   .valueline{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink-soft);margin:-8px 2px 20px}
   .valueline svg{flex:none;color:var(--accent)}
 
@@ -261,6 +275,21 @@
   <div class="valueline">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
     <span>Nadie cargó nada a mano: cada comprobante se trajo de ARCA y se ordenó solo. Vos revisás y exportás a tu sistema.</span>
+  </div>
+
+  <div class="cierre">
+    <div class="cierre-top">
+      <div>
+        <div class="cierre-t">Cierre de Junio 2026</div>
+        <div class="cierre-s" id="cierre-sub"></div>
+      </div>
+      <button class="btn btn-warn" id="nudge-all">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        Recordar a los pendientes
+      </button>
+    </div>
+    <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+    <div class="chips" id="cierre-chips"></div>
   </div>
 
   <div class="grid">
@@ -540,7 +569,30 @@ function exportar(c){
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),4200);
 }
 
-renderList(); renderDetail();
+function renderCierre(){
+  const listos = clients.filter(c=>c.estado==='good');
+  const pend = clients.filter(c=>c.estado!=='good');
+  const pct = Math.round(listos.length/clients.length*100);
+  document.getElementById('bar-fill').style.width = pct+'%';
+  document.getElementById('cierre-sub').innerHTML =
+    `<b>${listos.length} listos para cerrar</b> · <span class="w">${pend.length} requieren atención</span> · ${pct}% del mes cerrado`;
+  const chips=document.getElementById('cierre-chips'); chips.innerHTML='';
+  pend.forEach(c=>{
+    const b=document.createElement('button'); b.className='chip '+c.estado; b.type='button';
+    b.textContent=`${c.nombre} · ${c.pill.toLowerCase()}`;
+    b.onclick=()=>{activeId=c.id;renderList();renderDetail();document.getElementById('detail').scrollIntoView({behavior:'smooth',block:'start'});};
+    chips.appendChild(b);
+  });
+  const na=document.getElementById('nudge-all');
+  na.onclick=()=>{
+    const el=document.getElementById('toast');
+    document.getElementById('toast-t').textContent=`Aviso enviado a ${pend.length} clientes por WhatsApp`;
+    document.getElementById('toast-s').textContent=`Les pedimos lo que falta para cerrar junio. Vas a verlos pasar a "listo" a medida que suban.`;
+    el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),4200);
+  };
+}
+
+renderList(); renderDetail(); renderCierre();
 
 // ---- tabs ----
 const tabs=[['tab-panel','view-panel'],['tab-cliente','view-cliente']];

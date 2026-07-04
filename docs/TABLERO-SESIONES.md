@@ -8,7 +8,7 @@
 
 ## Contador de consolidación
 
-**Sesiones sin consolidar: 3**
+**Sesiones sin consolidar: 4**
 
 Sube en 1 cada vez que cierra una sesión de feature/arquitectura/negocio/seguridad (paso final de su checklist de cierre, en el mismo commit). Vuelve a 0 cuando cierra `/sesion-consolidacion`. No dispara nada solo — es una marca de texto para que se vea a simple vista, apenas se lee este archivo, cuántas sesiones pasaron sin el repaso general. Referencia informal: en ~5 conviene abrir `/sesion-consolidacion`.
 
