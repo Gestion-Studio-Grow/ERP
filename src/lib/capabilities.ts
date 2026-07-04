@@ -24,7 +24,8 @@ export type Capability =
   | "reviews:manage"
   | "reports:read"
   | "audit:read"
-  | "users:manage";
+  | "users:manage"
+  | "location:manage"; // editar ubicación/contacto del negocio (módulo Localización)
 
 // Todas las capacidades — OWNER las tiene todas (absorbe el "admin" de hoy,
 // ADR-017 §2.b). Mantener esta lista sincronizada con el union `Capability`.
@@ -43,6 +44,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "reports:read",
   "audit:read",
   "users:manage",
+  "location:manage",
 ];
 
 // Mapa rol → capacidades (ADR-017 §2.b, tabla de roles).
@@ -50,8 +52,8 @@ export const ALL_CAPABILITIES: Capability[] = [
 // - RECEPTION: día a día operativo — agenda (ver/gestionar/cerrar), alta de
 //   clientes y cobrar. NO ve reportes financieros ni edita catálogo/precios/
 //   config (ADR-017: "No ve reportes financieros ni edita precios/config").
-//   Supuesto de esta fase: catálogo, cupones, recordatorios, reseñas, auditoría
-//   y usuarios quedan solo-OWNER — el ADR solo garantiza a RECEPTION agenda +
+//   Supuesto de esta fase: catálogo, cupones, recordatorios, reseñas, auditoría,
+//   usuarios y localización quedan solo-OWNER — el ADR solo garantiza a RECEPTION agenda +
 //   clientes + cobrar; el resto se mantiene en OWNER por ser lo más simple y
 //   defendible. Si más adelante la recepción necesita alguna de esas, se agrega
 //   la capability al arreglo (un renglón), sin tocar los guardas.

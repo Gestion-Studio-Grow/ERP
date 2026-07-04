@@ -19,6 +19,7 @@ const ALL_ITEMS: { href: string; label: string; exact?: boolean; cap: Capability
   { href: "/admin/reportes", label: "Reportes", cap: "reports:read" },
   { href: "/admin/auditoria", label: "Auditoría", cap: "audit:read" },
   { href: "/admin/usuarios", label: "Usuarios", cap: "users:manage" },
+  { href: "/admin/localizacion", label: "Localización", cap: "location:manage" },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {

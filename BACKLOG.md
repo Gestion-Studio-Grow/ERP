@@ -124,6 +124,19 @@ supuesto por el nombre del commit.
   admin y sección de testimonios
 - [x] Buscador de clientes (con acentos), WhatsApp real en footer, buffer de
   limpieza entre turnos
+- [x] **Módulo Localización** — ficha de ubicación/contacto del negocio editable
+  por el OWNER desde `/admin/localizacion` (capacidad `location:manage`), en vez
+  de estar hardcodeada en el sitio y en `business-config.ts`. Modelo
+  `BusinessSettings` (singleton por tenant, todos los campos opcionales →
+  `LOCATION_DEFAULTS` si están vacíos, así la web nunca queda rota), lector
+  público cacheado (`getLocation` en `src/lib/settings.ts`) que alimenta hero,
+  footer y sección "Dónde estamos / Cómo llegar", y Server Action con upsert +
+  audit (`settings-actions.ts`). El `mapsUrl` se deriva de dirección+ciudad si no
+  se carga uno; Instagram/email se muestran solo si están cargados. Migración
+  `20260704120000_add_business_settings` (aditiva: tabla nueva) escrita y con el
+  client regenerado — **pendiente de aplicar a Neon** (`prisma migrate deploy`),
+  bloqueada por `DATABASE_URL` vacío en el entorno de esta sesión. tsc + build en
+  verde. *(sesión de feature — 2026-07-04)*
 
 ### Corregido en esta auditoría — figuraba pendiente y ya está hecho
 - [x] **Turno manual desde el admin** (llamada / walk-in). Confirmado en
