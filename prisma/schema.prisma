@@ -667,9 +667,11 @@ model FiscalDocument {
   receptorTipoDoc      TipoDocReceptor
   receptorNroDoc       String?
 
-  neto  Float
-  iva   Float
-  total Float
+  neto      Float // ImpNeto (base gravada)
+  exento    Float @default(0) // ImpOpEx (operaciones exentas)
+  noGravado Float @default(0) // ImpTotConc (conceptos no gravados)
+  iva       Float // ImpIVA
+  total     Float // ImpTotal = neto + exento + noGravado + iva
   // Desglose de IVA por alícuota (array Iva de WSFEv1: Id + BaseImp + Importe),
   // calculado por el motor del Core. Se persiste para auditoría y para que el
   // conector lo mande sin recalcular. Vacío/null en Factura C.

@@ -71,6 +71,8 @@ export async function procesarEvento(eventId: string): Promise<void> {
       receptorTipoDoc: doc.receptorTipoDoc,
       receptorNroDoc: doc.receptorNroDoc,
       neto: doc.neto,
+      exento: doc.exento,
+      noGravado: doc.noGravado,
       iva: doc.iva,
       total: doc.total,
       ivaDetalle: (doc.ivaDetalle as unknown as IvaDetalleItem[] | null) ?? [],

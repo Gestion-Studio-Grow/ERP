@@ -46,6 +46,8 @@ CREATE TABLE "FiscalDocument" (
     "neto" DOUBLE PRECISION NOT NULL,
     "iva" DOUBLE PRECISION NOT NULL,
     "total" DOUBLE PRECISION NOT NULL,
+    "exento" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "noGravado" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "ivaDetalle" JSONB,
     "estado" "EstadoFiscal" NOT NULL DEFAULT 'PENDIENTE',
     "cae" TEXT,

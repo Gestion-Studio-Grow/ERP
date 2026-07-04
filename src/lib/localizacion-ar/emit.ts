@@ -52,6 +52,8 @@ export async function requestFiscalComprobante(
         receptorTipoDoc: imp.receptorTipoDoc,
         receptorNroDoc: null,
         neto: imp.neto,
+        exento: imp.exento,
+        noGravado: imp.noGravado,
         iva: imp.iva,
         total: imp.total,
         ivaDetalle: imp.ivaDetalle as unknown as Prisma.InputJsonValue,

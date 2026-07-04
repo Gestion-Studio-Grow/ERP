@@ -1,8 +1,9 @@
 // Motor de cálculo fiscal (ADR-006: el cálculo vive en el Core, NUNCA en el
-// conector). Produce tipo de comprobante, totales y el DESGLOSE DE IVA POR
-// ALÍCUOTA que exige WSFEv1 (array Iva: Id + BaseImp + Importe), con aritmética
-// en centavos enteros para no arrastrar error de float — regla número uno de un
-// motor de cálculo de plata.
+// conector). Produce tipo de comprobante, el juego completo de importes de
+// WSFEv1 (neto gravado + exento + no gravado + IVA + total) y el DESGLOSE DE IVA
+// POR ALÍCUOTA (array Iva: Id + BaseImp + Importe), con aritmética en centavos
+// enteros para no arrastrar error de float, y validación fail-closed: ante
+// entrada inválida lanza, nunca devuelve un número silenciosamente mal.
 import type {
   CondicionIva,
   TipoComprobante,
@@ -26,13 +27,18 @@ export type AlicuotaCodigo = keyof typeof ALICUOTAS_IVA;
 
 export const IVA_GENERAL: AlicuotaCodigo = "21";
 
-// Una línea del comprobante: un importe a una alícuota. `incluyeIva` = true si el
-// importe ya trae el IVA adentro (precio final, típico en B a consumidor final);
-// false si es neto (base sin IVA).
+// Concepto de una línea frente al IVA. GRAVADO usa la alícuota; EXENTO (op.
+// exentas, ImpOpEx) y NO_GRAVADO (conceptos no gravados, ImpTotConc) no llevan IVA.
+export type ConceptoIva = "GRAVADO" | "EXENTO" | "NO_GRAVADO";
+
+// Una línea del comprobante: un importe con su concepto/alícuota. `incluyeIva` =
+// true si el importe ya trae el IVA adentro (precio final, típico en B a
+// consumidor final); false si es neto. Irrelevante para exento/no gravado.
 export interface LineaComprobante {
   importe: number;
   alicuota: AlicuotaCodigo;
   incluyeIva: boolean;
+  concepto?: ConceptoIva; // default GRAVADO
 }
 
 // Ítem del desglose por alícuota — mapea 1:1 al array Iva de WSFEv1.
@@ -45,9 +51,11 @@ export interface IvaDetalleItem {
 
 export interface ResultadoCalculo {
   tipo: TipoComprobante;
-  neto: number;
-  iva: number;
-  total: number;
+  neto: number; // ImpNeto — base gravada
+  exento: number; // ImpOpEx — operaciones exentas
+  noGravado: number; // ImpTotConc — conceptos no gravados
+  iva: number; // ImpIVA
+  total: number; // ImpTotal = neto + exento + noGravado + iva
   ivaDetalle: IvaDetalleItem[];
   receptorCondicionIva: CondicionIva;
   receptorTipoDoc: TipoDocReceptor;
@@ -57,25 +65,50 @@ export interface ResultadoCalculo {
 const aCent = (n: number) => Math.round(n * 100);
 const deCent = (c: number) => c / 100;
 
+// Validación fail-closed. Un motor de plata que acepta basura produce
+// comprobantes que ARCA rechaza o, peor, mal emitidos: mejor lanzar temprano.
+function validarLineas(lineas: LineaComprobante[]): void {
+  if (lineas.length === 0) {
+    throw new Error("calculo-fiscal: el comprobante no tiene líneas.");
+  }
+  for (const [i, l] of lineas.entries()) {
+    if (!Number.isFinite(l.importe)) {
+      throw new Error(`calculo-fiscal: importe no numérico en la línea ${i}.`);
+    }
+    if (l.importe < 0) {
+      throw new Error(`calculo-fiscal: importe negativo (${l.importe}) en la línea ${i}.`);
+    }
+    if (!(l.alicuota in ALICUOTAS_IVA)) {
+      throw new Error(`calculo-fiscal: alícuota desconocida "${l.alicuota}" en la línea ${i}.`);
+    }
+  }
+}
+
 // Núcleo del motor. Toma la condición IVA del EMISOR y las líneas, y devuelve el
-// comprobante calculado con la invariante: neto + iva = total exactos, y por
-// alícuota base + iva consistentes (el remanente del redondeo se absorbe en el
-// IVA de cada línea para que gross = base + iva sea exacto).
+// comprobante calculado con la invariante: neto + exento + noGravado + iva =
+// total exactos, y por alícuota base + iva consistentes (el remanente del
+// redondeo se absorbe en el IVA de cada línea para que gross = base + iva sea exacto).
 export function calcularComprobante(
   condicionEmisor: CondicionIva,
   lineas: LineaComprobante[],
 ): ResultadoCalculo {
+  validarLineas(lineas);
+
   const receptor = {
     receptorCondicionIva: "CONSUMIDOR_FINAL" as CondicionIva,
     receptorTipoDoc: "CONSUMIDOR_FINAL" as TipoDocReceptor,
   };
 
-  // Monotributo / Exento / otros -> Factura C: sin IVA discriminado.
+  // Monotributo / Exento / otros -> Factura C: sin IVA discriminado. ARCA no
+  // separa conceptos en C, va todo como neto.
   if (condicionEmisor !== "RESPONSABLE_INSCRIPTO") {
     const totalCent = lineas.reduce((a, l) => a + aCent(l.importe), 0);
+    if (totalCent <= 0) throw new Error("calculo-fiscal: total del comprobante <= 0.");
     return {
       tipo: "FACTURA_C",
       neto: deCent(totalCent),
+      exento: 0,
+      noGravado: 0,
       iva: 0,
       total: deCent(totalCent),
       ivaDetalle: [],
@@ -83,19 +116,33 @@ export function calcularComprobante(
     };
   }
 
-  // Responsable Inscripto -> Factura B, con desglose por alícuota.
+  // Responsable Inscripto -> Factura B, con desglose por alícuota + exento/no gravado.
   const porAlicuota = new Map<AlicuotaCodigo, { baseCent: number; ivaCent: number }>();
+  let exentoCent = 0;
+  let noGravadoCent = 0;
+
   for (const l of lineas) {
+    const concepto = l.concepto ?? "GRAVADO";
+    const importeCent = aCent(l.importe);
+
+    if (concepto === "EXENTO") {
+      exentoCent += importeCent;
+      continue;
+    }
+    if (concepto === "NO_GRAVADO") {
+      noGravadoCent += importeCent;
+      continue;
+    }
+
     const { pct } = ALICUOTAS_IVA[l.alicuota];
-    const grossCent = aCent(l.importe);
     let baseCent: number;
     let ivaCent: number;
     if (l.incluyeIva) {
-      baseCent = Math.round(grossCent / (1 + pct / 100));
-      ivaCent = grossCent - baseCent; // remanente -> base + iva = gross exacto
+      baseCent = Math.round(importeCent / (1 + pct / 100));
+      ivaCent = importeCent - baseCent; // remanente -> base + iva = gross exacto
     } else {
-      baseCent = grossCent;
-      ivaCent = Math.round(grossCent * (pct / 100));
+      baseCent = importeCent;
+      ivaCent = Math.round(importeCent * (pct / 100));
     }
     const acc = porAlicuota.get(l.alicuota) ?? { baseCent: 0, ivaCent: 0 };
     acc.baseCent += baseCent;
@@ -118,11 +165,16 @@ export function calcularComprobante(
     ivaTotalCent += ivaCent;
   }
 
+  const totalCent = netoCent + ivaTotalCent + exentoCent + noGravadoCent;
+  if (totalCent <= 0) throw new Error("calculo-fiscal: total del comprobante <= 0.");
+
   return {
     tipo: "FACTURA_B",
     neto: deCent(netoCent),
+    exento: deCent(exentoCent),
+    noGravado: deCent(noGravadoCent),
     iva: deCent(ivaTotalCent),
-    total: deCent(netoCent + ivaTotalCent),
+    total: deCent(totalCent),
     ivaDetalle,
     ...receptor,
   };

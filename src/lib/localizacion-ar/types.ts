@@ -29,9 +29,11 @@ export interface EmisionInput {
   receptorCondicionIva: CondicionIva;
   receptorTipoDoc: TipoDocReceptor;
   receptorNroDoc: string | null;
-  neto: number;
-  iva: number;
-  total: number;
+  neto: number; // ImpNeto (base gravada)
+  exento: number; // ImpOpEx
+  noGravado: number; // ImpTotConc
+  iva: number; // ImpIVA
+  total: number; // ImpTotal
   // Desglose de IVA por alícuota — lo que WSFEv1 exige en su array Iva. Vacío
   // para Factura C (monotributo/exento no discrimina).
   ivaDetalle: IvaDetalleItem[];
