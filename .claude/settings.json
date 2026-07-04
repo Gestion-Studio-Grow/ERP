@@ -1,10 +1,11 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
+    "defaultMode": "auto",
     "allow": [
       "Read",
       "Edit",
       "Write",
+      "Bash(git push:*)",
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
       "Bash(npm test:*)",
