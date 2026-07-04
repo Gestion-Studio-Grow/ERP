@@ -8,6 +8,7 @@ import { connectorPara } from "./connector";
 import { registerFiscalAuthorization, registerFiscalRejection } from "./commands";
 import type { EmisionInput } from "./types";
 import type { IvaDetalleItem } from "./calculo-fiscal";
+import { codigoCondicionIvaReceptor, esCuitValido } from "./identidad-fiscal";
 
 const MAX_INTENTOS = 5;
 
@@ -58,6 +59,19 @@ export async function procesarEvento(eventId: string): Promise<void> {
     });
     return;
   }
+  // Fail-closed: no intentar emitir con un CUIT mal formado (evita un rechazo
+  // seguro de ARCA y deja el motivo claro en la outbox).
+  if (!esCuitValido(config.cuit)) {
+    await prisma.outboxEvent.update({
+      where: { id: ev.id },
+      data: {
+        estado: "ERROR",
+        ultimoError: `CUIT del tenant inválido: ${config.cuit}`,
+        intentos: { increment: 1 },
+      },
+    });
+    return;
+  }
 
   try {
     const connector = connectorPara("emitir-comprobante", "ar.nacional");
@@ -68,6 +82,7 @@ export async function procesarEvento(eventId: string): Promise<void> {
       puntoVenta: doc.puntoVenta,
       fechaEmision: doc.fechaEmision,
       receptorCondicionIva: doc.receptorCondicionIva,
+      receptorCondicionIvaId: codigoCondicionIvaReceptor(doc.receptorCondicionIva),
       receptorTipoDoc: doc.receptorTipoDoc,
       receptorNroDoc: doc.receptorNroDoc,
       neto: doc.neto,

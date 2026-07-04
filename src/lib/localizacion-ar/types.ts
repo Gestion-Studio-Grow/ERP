@@ -27,6 +27,7 @@ export interface EmisionInput {
   puntoVenta: number;
   fechaEmision: Date;
   receptorCondicionIva: CondicionIva;
+  receptorCondicionIvaId: number; // código ARCA (RG 5616), derivado por el Core
   receptorTipoDoc: TipoDocReceptor;
   receptorNroDoc: string | null;
   neto: number; // ImpNeto (base gravada)
