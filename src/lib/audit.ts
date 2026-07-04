@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/session";
@@ -65,20 +64,6 @@ export async function auditPublic(entry: {
     changes: entry.changes,
     channel: "public",
   });
-}
-
-// Best-effort: obtener IP del request para adjuntar al changes cuando aplique.
-export async function requestIp(): Promise<string | undefined> {
-  try {
-    const h = await headers();
-    return (
-      h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      h.get("x-real-ip") ||
-      undefined
-    );
-  } catch {
-    return undefined;
-  }
 }
 
 export async function getAuditLog(limit = 100) {

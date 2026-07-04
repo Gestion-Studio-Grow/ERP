@@ -16,7 +16,3 @@ export const BUFFER_MIN = 10;
 // pared ("09:00") se interpreta en esta zona y se persiste en UTC.
 // TODO (G1): pasar a columna por-tenant cuando llegue multi-tenant.
 export const BUSINESS_TIMEZONE = "America/Argentina/Buenos_Aires";
-
-export function whatsappLink(message: string) {
-  return `https://wa.me/${BUSINESS_WHATSAPP}?text=${encodeURIComponent(message)}`;
-}

@@ -30,44 +30,37 @@ el método a mano). No hay SDK de Mercado Pago ni webhook.
 
 ---
 
-## 2. Roles de usuario (administrador / cajero)
+## 2. Roles de usuario — 🟡 FASE 1 HECHA, falta FASE 2 (ADR-017)
 
-**Por qué importa:** hoy `/admin` es una sola contraseña compartida
-(`src/lib/auth.ts`). Ya existe un `AuditLog` completo, pero el campo `actor`
-siempre va a decir "admin" — sin roles, la auditoría no sirve para saber quién
-hizo qué. Es el ítem crítico de más impacto en accountability.
+**Por qué importa:** era una sola contraseña compartida y el `actor` del audit
+siempre decía "admin". **Fase 1 ya está implementada y deployada:** modelo
+`User` + enum `UserRole` (OWNER/RECEPTION/PROFESSIONAL), login por email +
+password (cookie HMAC con `userId`, hashing scrypt en `auth-password.ts`),
+`getCurrentUser()` (`session.ts`) y `actor` real en el audit (`user:<id>`,
+resuelto a nombre en `/admin/auditoria`). El audit ya no miente.
 
-**Prompt:**
-> Quiero agregar roles de usuario al panel admin de este ERP (Next.js 16, Server
-> Actions, Prisma + Postgres, un solo tenant activo). Hoy la autenticación es una
-> sola contraseña compartida (`src/lib/auth.ts`, `ADMIN_PASSWORD` global) y el
-> `AuditLog` (prisma/schema.prisma) registra `actor` pero siempre es "admin".
-> Necesito: (1) un modelo `User` con email/password/rol (dueño, recepcionista,
-> profesional), (2) login por usuario en vez de contraseña única, (3) que
-> `auditAdmin` (`src/lib/audit.ts`) registre el usuario real, (4) restringir
-> secciones del panel según rol (ej: un profesional no debería ver Reportes ni
-> Catálogo completo). Explorá primero `src/lib/auth.ts`, `auth-actions.ts` y
-> `src/app/admin/(dashboard)/layout.tsx`, y proponeme el plan (incluyendo
-> migración para no romper el login actual) antes de tocar código.
+**Lo que falta (Fase 2)** — es la autorización fina sobre la identidad ya
+construida:
+> Sobre la Fase 1 de RBAC ya implementada (ADR-017: modelo `User`, login por
+> email/password, `getCurrentUser()`), necesito la Fase 2: (1) `requireUser()`/
+> `requireRole(...)` al tope de cada Server Action y loader de `/admin` (mapa
+> rol→permisos en código), (2) ocultar en el front lo que RECEPTION/
+> PROFESSIONAL no ven (UX, no seguridad), (3) una pantalla de gestión de
+> usuarios para el OWNER (alta/baja, rol, reset password), y (4) retirar
+> `ADMIN_PASSWORD` (ya no es puerta sin dueño). Explorá primero `session.ts`,
+> `auth.ts`, `auth-actions.ts` y `src/app/admin/(dashboard)/layout.tsx`, y
+> proponeme el plan antes de tocar código.
 
 ---
 
-## 3. Cupones de descuento
+## 3. Cupones de descuento — ✅ RESUELTO (ADR-014 G21)
 
-**Por qué importa:** TuTurno lo tiene desde el plan Básico. Es una herramienta
-de marketing directa (fidelización, primera visita, temporada baja).
-
-**Prompt:**
-> Quiero agregar cupones de descuento a este ERP de estética (Next.js 16, Server
-> Actions, Prisma + Postgres). Necesito: (1) un modelo `Coupon` (código, tipo
-> fijo/porcentaje, vigencia, uso único o múltiple, tope de usos, servicio(s) a
-> los que aplica o todos), (2) un campo para ingresar el código en el flujo de
-> reserva pública (`src/app/(site)/reserva` o el modal `BookingModal.tsx`) que
-> recalcule el precio antes de confirmar, (3) que el descuento quede guardado en
-> el `Appointment` o `Payment` para que se refleje en Reportes, (4) un ABM simple
-> en `/admin/catalogo` o una sección nueva. Explorá primero cómo se calcula
-> `priceAtBooking` en `src/lib/actions.ts` y proponeme el plan antes de tocar
-> código.
+**Ya no es un pendiente.** Implementado de punta a punta y deployado: modelo
+`Coupon` + enum `CouponType` (PERCENT/FIXED, con vigencia, tope de usos y
+contador), campo de código en el flujo de reserva pública, descuento guardado
+en `Appointment` (`couponCode`/`discountAmount`) y ABM en `/admin/catalogo`.
+La validación y el consumo son server-side dentro de la transacción de reserva
+(anti-race). Detectado como falso pendiente en la consolidación 2026-07-04.
 
 ---
 

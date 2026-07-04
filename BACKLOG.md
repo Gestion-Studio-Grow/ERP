@@ -32,7 +32,10 @@ supuesto por el nombre del commit.
   se usan — no hay SDK de MercadoPago, ni ruta de creación de preferencia, ni
   webhook (`src/app/api` solo tiene `cron/reminders`). `confirmPayment` en
   `actions.ts` es 100% manual (la recepción tipea el método y confirma a
-  mano). Esto es un solo bloque de trabajo: sin checkout automático no hay
+  mano). El **monto** de seña ya existe y se muestra al cliente antes de
+  reservar (`Service.depositAmount`, ADR-014 G20), pero es solo informativo:
+  no se cobra ni se retiene el turno si no se paga. Esto es un solo bloque de
+  trabajo: sin checkout automático no hay
   forma de exigir seña, y sin seña obligatoria el no-show sigue siendo un
   problema de plata para el negocio. Es la mejora de mayor impacto en
   ingresos reales de todo el backlog.
@@ -70,7 +73,6 @@ supuesto por el nombre del commit.
 
 - [ ] **Paquetes/bonos de sesiones y membresías** (ej. "6 masajes
   prepagos"). Sin modelo en el schema — no empezado.
-- [ ] **Cupones y descuentos**. Sin modelo en el schema — no empezado.
 - [ ] **Sincronización con Google Calendar** del profesional. No empezado.
 - [ ] **Multi-sucursal / multi-tenant real.** El modelo de datos ya está
   preparado (`Tenant` + `tenantId` en toda tabla de negocio, ADR-001), pero
@@ -153,3 +155,15 @@ supuesto por el nombre del commit.
   web pública y en el modal de reserva (nunca como recargo), congelado
   correctamente en `priceAtBooking` según lo que responda el cliente al
   reservar — ADR-013
+
+### Corregido en la consolidación 2026-07-04 — figuraba pendiente y ya está hecho
+- [x] **Cupones y descuentos** — ADR-014 (G21). Estaba listado en "Baja
+  prioridad" como "sin modelo en el schema — no empezado", pero está
+  implementado de punta a punta: modelo `Coupon` + enum `CouponType`
+  (PERCENT/FIXED) con `code`/`value`/`expiresAt`/`maxUses`/`usedCount`
+  (`prisma/schema.prisma`), columnas `couponCode`/`discountAmount` en
+  `Appointment`, ABM en `/admin/catalogo` (`CouponsSection.tsx`), acciones en
+  `src/lib/coupon-actions.ts`, y validación + consumo server-side DENTRO de la
+  transacción de reserva (`src/lib/actions.ts`, anti-race, revalida contra la
+  base). Ya estaba deployado y documentado en INDEX/ADR-014; el error era solo
+  del backlog.
