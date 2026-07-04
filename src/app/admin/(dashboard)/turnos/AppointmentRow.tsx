@@ -2,12 +2,15 @@
 
 import { confirmPayment, cancelAppointment, completeAppointment, markNoShow } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
+import RescheduleForm from "./RescheduleForm";
 import { fmtDateTime } from "@/lib/datetime";
 
 type Appointment = {
   id: string;
   startsAt: Date;
   status: string;
+  professionalId: string;
+  serviceId: string;
   priceAtBooking: number | null;
   notes: string | null;
   client: { name: string; phone: string };
@@ -105,6 +108,11 @@ export default function AppointmentRow({
                 Cancelar turno
               </SubmitButton>
             </form>
+            <RescheduleForm
+              appointmentId={appointment.id}
+              serviceId={appointment.serviceId}
+              currentProfessionalId={appointment.professionalId}
+            />
           </div>
         )}
 
@@ -133,6 +141,13 @@ export default function AppointmentRow({
                 No se presentó
               </SubmitButton>
             </form>
+            {canManage && (
+              <RescheduleForm
+                appointmentId={appointment.id}
+                serviceId={appointment.serviceId}
+                currentProfessionalId={appointment.professionalId}
+              />
+            )}
           </div>
         )}
       </div>

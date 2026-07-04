@@ -36,7 +36,15 @@ async function getWorkingWindow(professionalId: string, date: string) {
   };
 }
 
-export async function getAvailableSlots(professionalId: string, serviceId: string, date: string) {
+export async function getAvailableSlots(
+  professionalId: string,
+  serviceId: string,
+  date: string,
+  // Al reprogramar un turno hay que ignorar ese mismo turno al calcular las
+  // franjas libres: su horario actual (y el buffer alrededor) no debe contar
+  // como ocupado contra sí mismo. Vacío en el alta normal.
+  excludeAppointmentId?: string
+) {
   const [service, professional, window] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
     prisma.professional.findUniqueOrThrow({ where: { id: professionalId } }),
@@ -52,9 +60,13 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
   });
   const resourceIds = serviceResources.map((sr) => sr.resourceId);
 
+  // Turno a ignorar (el que se está reprogramando), si lo hay.
+  const notSelf = excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {};
+
   const [existing, boxBlocks, professionalBlocks, resourceUsage] = await Promise.all([
     prisma.appointment.findMany({
       where: {
+        ...notSelf,
         status: { in: ["PENDING", "CONFIRMED"] },
         startsAt: { gte: dayStart, lt: dayEnd },
         OR: [{ professionalId }, ...(professional.boxId ? [{ boxId: professional.boxId }] : [])],
@@ -81,6 +93,7 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
     resourceIds.length > 0
       ? prisma.appointment.findMany({
           where: {
+            ...notSelf,
             status: { in: ["PENDING", "CONFIRMED"] },
             startsAt: { gte: dayStart, lt: dayEnd },
             service: { resources: { some: { resourceId: { in: resourceIds } } } },
@@ -138,6 +151,97 @@ export async function getAvailableSlots(professionalId: string, serviceId: strin
   return slots;
 }
 
+// Cliente de transacción de Prisma (el `tx` que recibe $transaction). Se deriva
+// del tipo de prisma para no importar el namespace generado.
+type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+// Valida, DENTRO de una transacción, que la franja (profesional + box + recursos)
+// esté libre para el rango [startsAt, endsAt]. Único lugar donde vive la regla de
+// choques: la usan tanto el alta (bookAppointment) como la reprogramación
+// (rescheduleAppointment). `excludeAppointmentId` deja fuera al propio turno que se
+// está moviendo, para que no choque consigo mismo. Lanza con un mensaje claro ante
+// el primer conflicto; no devuelve nada si la franja está libre.
+async function assertSlotAvailable(
+  tx: TxClient,
+  params: {
+    professionalId: string;
+    boxId: string;
+    serviceId: string;
+    startsAt: Date;
+    endsAt: Date;
+    excludeAppointmentId?: string;
+  }
+) {
+  const { professionalId, boxId, serviceId, startsAt, endsAt, excludeAppointmentId } = params;
+  const notSelf = excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {};
+
+  // Solape de profesional/box con el margen de limpieza/preparación (BUFFER_MIN).
+  const bufferedStart = new Date(startsAt.getTime() - BUFFER_MIN * 60000);
+  const bufferedEnd = new Date(endsAt.getTime() + BUFFER_MIN * 60000);
+  const conflicts = await tx.appointment.findMany({
+    where: {
+      ...notSelf,
+      status: { in: ["PENDING", "CONFIRMED"] },
+      startsAt: { lt: bufferedEnd },
+      endsAt: { gt: bufferedStart },
+      OR: [{ professionalId }, { boxId }],
+    },
+    select: { professionalId: true, boxId: true },
+  });
+
+  if (conflicts.some((c) => c.professionalId === professionalId)) {
+    throw new Error("Ese horario ya no está disponible para este profesional. Elegí otro horario.");
+  }
+  if (conflicts.some((c) => c.boxId === boxId)) {
+    throw new Error("El box de este profesional ya está ocupado en ese horario. Elegí otro horario.");
+  }
+
+  const boxBlocked = await tx.boxBlock.findFirst({
+    where: { boxId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
+  });
+  if (boxBlocked) {
+    throw new Error(
+      `El box de este profesional no está disponible en ese horario (${boxBlocked.reason}). Elegí otro horario.`
+    );
+  }
+
+  // Bloqueo del profesional (G9): franco / vacaciones / novedad.
+  const professionalBlocked = await tx.professionalBlock.findFirst({
+    where: { professionalId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
+  });
+  if (professionalBlocked) {
+    throw new Error(
+      `El profesional no está disponible en ese horario (${professionalBlocked.reason}). Elegí otro horario.`
+    );
+  }
+
+  // Capacidad de recursos (G17): máquinas/gabinetes compartidos. No usa buffer.
+  const serviceResources = await tx.serviceResource.findMany({
+    where: { serviceId },
+    include: { resource: true },
+  });
+  for (const sr of serviceResources) {
+    const overlapping = await tx.appointment.findMany({
+      where: {
+        ...notSelf,
+        status: { in: ["PENDING", "CONFIRMED"] },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+        service: { resources: { some: { resourceId: sr.resourceId } } },
+      },
+      select: {
+        service: { select: { resources: { where: { resourceId: sr.resourceId }, select: { units: true } } } },
+      },
+    });
+    const used = overlapping.reduce((sum, a) => sum + (a.service.resources[0]?.units ?? 0), 0);
+    if (used + sr.units > sr.resource.quantity) {
+      throw new Error(
+        `No hay "${sr.resource.name}" disponible en ese horario (capacidad completa). Elegí otro horario.`
+      );
+    }
+  }
+}
+
 type BookingStatus = "PENDING" | "CONFIRMED";
 
 async function bookAppointment({
@@ -191,74 +295,10 @@ async function bookAppointment({
   }
 
   return prisma.$transaction(async (tx) => {
-    // Re-check availability inside the transaction to close the race window
-    // between "show free slots" and "write the booking" — two requests
-    // landing on the same slot must not both succeed.
-    const bufferedStart = new Date(startsAt.getTime() - BUFFER_MIN * 60000);
-    const bufferedEnd = new Date(endsAt.getTime() + BUFFER_MIN * 60000);
-    const conflicts = await tx.appointment.findMany({
-      where: {
-        status: { in: ["PENDING", "CONFIRMED"] },
-        startsAt: { lt: bufferedEnd },
-        endsAt: { gt: bufferedStart },
-        OR: [{ professionalId }, { boxId }],
-      },
-      select: { professionalId: true, boxId: true },
-    });
-
-    const professionalTaken = conflicts.some((c) => c.professionalId === professionalId);
-    const boxTaken = conflicts.some((c) => c.boxId === boxId);
-
-    if (professionalTaken) {
-      throw new Error("Ese horario ya no está disponible para este profesional. Elegí otro horario.");
-    }
-    if (boxTaken) {
-      throw new Error("El box de este profesional ya está ocupado en ese horario. Elegí otro horario.");
-    }
-
-    const boxBlocked = await tx.boxBlock.findFirst({
-      where: { boxId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
-    });
-    if (boxBlocked) {
-      throw new Error(
-        `El box de este profesional no está disponible en ese horario (${boxBlocked.reason}). Elegí otro horario.`
-      );
-    }
-
-    // Bloqueo del profesional (G9): franco / vacaciones / novedad.
-    const professionalBlocked = await tx.professionalBlock.findFirst({
-      where: { professionalId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
-    });
-    if (professionalBlocked) {
-      throw new Error(
-        `El profesional no está disponible en ese horario (${professionalBlocked.reason}). Elegí otro horario.`
-      );
-    }
-
-    // Capacidad de recursos (G17): máquinas/gabinetes compartidos. No usa buffer.
-    const serviceResources = await tx.serviceResource.findMany({
-      where: { serviceId },
-      include: { resource: true },
-    });
-    for (const sr of serviceResources) {
-      const overlapping = await tx.appointment.findMany({
-        where: {
-          status: { in: ["PENDING", "CONFIRMED"] },
-          startsAt: { lt: endsAt },
-          endsAt: { gt: startsAt },
-          service: { resources: { some: { resourceId: sr.resourceId } } },
-        },
-        select: {
-          service: { select: { resources: { where: { resourceId: sr.resourceId }, select: { units: true } } } },
-        },
-      });
-      const used = overlapping.reduce((sum, a) => sum + (a.service.resources[0]?.units ?? 0), 0);
-      if (used + sr.units > sr.resource.quantity) {
-        throw new Error(
-          `No hay "${sr.resource.name}" disponible en ese horario (capacidad completa). Elegí otro horario.`
-        );
-      }
-    }
+    // Re-chequea la disponibilidad DENTRO de la transacción para cerrar la
+    // ventana de carrera entre "mostrar franjas libres" y "escribir la reserva":
+    // dos requests sobre la misma franja no pueden triunfar las dos.
+    await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });
 
     const appliesResidentPrice = !!isResident && service.residentPrice != null;
     const basePrice = appliesResidentPrice ? service.residentPrice! : service.price;
@@ -519,6 +559,94 @@ export async function createManualAppointment(formData: FormData) {
     entity: "Appointment",
     entityId: appointment.id,
     changes: { professionalId, serviceId, startsAt: appointment.startsAt, status },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/lista");
+}
+
+// Reprograma un turno existente a otra fecha/hora (y opcionalmente otro
+// profesional) — "el cliente pidió mover su turno". Reusa la misma capacidad
+// que crear/cancelar (agenda:manage: "crear/mover/cancelar turnos") y la misma
+// validación de choques (assertSlotAvailable), excluyendo el propio turno para
+// que no colisione consigo mismo. Conserva servicio, precio congelado, cupón,
+// estado, pago y notas: solo cambia cuándo (y con quién, si aplica).
+export async function rescheduleAppointment(formData: FormData) {
+  await requireCapability("agenda:manage");
+  const appointmentId = String(formData.get("appointmentId"));
+  const startsAtIso = String(formData.get("startsAt"));
+  // Profesional destino: vacío o igual → se mantiene el actual.
+  const newProfessionalId = String(formData.get("professionalId") || "").trim();
+
+  if (!appointmentId || !startsAtIso) {
+    throw new Error("Faltan datos para reprogramar el turno.");
+  }
+
+  const appointment = await prisma.appointment.findUniqueOrThrow({
+    where: { id: appointmentId },
+    include: { service: true },
+  });
+
+  // Solo turnos vivos se pueden mover; los terminales (cancelado, completado,
+  // no se presentó) no.
+  if (appointment.status !== "PENDING" && appointment.status !== "CONFIRMED") {
+    throw new Error("Solo se puede reprogramar un turno pendiente o confirmado.");
+  }
+
+  const targetProfessionalId = newProfessionalId || appointment.professionalId;
+  const professional = await prisma.professional.findUniqueOrThrow({
+    where: { id: targetProfessionalId },
+    include: { box: true },
+  });
+  if (!professional.active || professional.deletedAt) {
+    throw new Error("Ese profesional ya no está disponible.");
+  }
+  if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
+    throw new Error("Ese profesional no tiene un box activo asignado.");
+  }
+
+  // La duración la fija el servicio (no cambia al reprogramar): el fin se deriva
+  // del nuevo inicio. El box sigue al profesional destino.
+  const startsAt = new Date(startsAtIso);
+  const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
+  const boxId = professional.boxId;
+
+  // El profesional debe trabajar en ese horario (misma regla que el alta).
+  const dateStr = dateStrInBusinessTz(startsAt);
+  const window = await getWorkingWindow(targetProfessionalId, dateStr);
+  if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
+    throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await assertSlotAvailable(tx, {
+      professionalId: targetProfessionalId,
+      boxId,
+      serviceId: appointment.serviceId,
+      startsAt,
+      endsAt,
+      excludeAppointmentId: appointmentId,
+    });
+
+    await tx.appointment.update({
+      where: { id: appointmentId },
+      data: { startsAt, endsAt, professionalId: targetProfessionalId, boxId },
+    });
+  });
+
+  await auditAdmin({
+    action: "reschedule",
+    entity: "Appointment",
+    entityId: appointmentId,
+    changes: {
+      from: {
+        startsAt: appointment.startsAt,
+        professionalId: appointment.professionalId,
+        boxId: appointment.boxId,
+      },
+      to: { startsAt, professionalId: targetProfessionalId, boxId },
+    },
   });
 
   revalidatePath("/admin");

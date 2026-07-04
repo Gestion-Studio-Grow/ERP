@@ -11,6 +11,7 @@ type Appointment = {
   endsAt: Date;
   status: string;
   professionalId: string;
+  serviceId: string;
   priceAtBooking: number | null;
   notes: string | null;
   client: { name: string; phone: string };
