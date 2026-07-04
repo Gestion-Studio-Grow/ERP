@@ -3,7 +3,7 @@
 CREATE TYPE "CondicionIva" AS ENUM ('RESPONSABLE_INSCRIPTO', 'MONOTRIBUTO', 'EXENTO', 'CONSUMIDOR_FINAL', 'NO_CATEGORIZADO');
 CREATE TYPE "FiscalAmbiente" AS ENUM ('HOMOLOGACION', 'PRODUCCION');
 CREATE TYPE "RegimenIibb" AS ENUM ('LOCAL', 'CONVENIO_MULTILATERAL', 'EXENTO', 'NO_INSCRIPTO');
-CREATE TYPE "TipoComprobante" AS ENUM ('FACTURA_A', 'FACTURA_B', 'FACTURA_C', 'NOTA_CREDITO_B', 'NOTA_CREDITO_C');
+CREATE TYPE "TipoComprobante" AS ENUM ('FACTURA_A', 'FACTURA_B', 'FACTURA_C', 'NOTA_CREDITO_A', 'NOTA_CREDITO_B', 'NOTA_CREDITO_C');
 CREATE TYPE "TipoDocReceptor" AS ENUM ('CUIT', 'CUIL', 'DNI', 'CONSUMIDOR_FINAL');
 CREATE TYPE "EstadoFiscal" AS ENUM ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO', 'ERROR');
 CREATE TYPE "OutboxEstado" AS ENUM ('PENDIENTE', 'PROCESADO', 'ERROR');
@@ -55,6 +55,7 @@ CREATE TABLE "FiscalDocument" (
     "motivoRechazo" TEXT,
     "origenTipo" TEXT NOT NULL,
     "origenId" TEXT,
+    "comprobanteAsociadoId" TEXT,
     "idempotencyKey" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -90,4 +91,5 @@ ALTER TABLE "TenantFiscalConfig" ADD CONSTRAINT "TenantFiscalConfig_tenantId_fke
 ALTER TABLE "TenantJurisdiccion" ADD CONSTRAINT "TenantJurisdiccion_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "TenantJurisdiccion" ADD CONSTRAINT "TenantJurisdiccion_configId_fkey" FOREIGN KEY ("configId") REFERENCES "TenantFiscalConfig"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "FiscalDocument" ADD CONSTRAINT "FiscalDocument_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "FiscalDocument" ADD CONSTRAINT "FiscalDocument_comprobanteAsociadoId_fkey" FOREIGN KEY ("comprobanteAsociadoId") REFERENCES "FiscalDocument"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "OutboxEvent" ADD CONSTRAINT "OutboxEvent_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

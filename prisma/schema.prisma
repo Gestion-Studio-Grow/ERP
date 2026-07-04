@@ -583,6 +583,7 @@ enum TipoComprobante {
   FACTURA_A
   FACTURA_B
   FACTURA_C
+  NOTA_CREDITO_A
   NOTA_CREDITO_B
   NOTA_CREDITO_C
 }
@@ -685,6 +686,12 @@ model FiscalDocument {
   // Origen que disparó la emisión (ej. "payment" + id del Payment/Appointment).
   origenTipo String
   origenId   String?
+
+  // Auto-relación para notas de crédito/débito: una NC referencia el comprobante
+  // original (CbtesAsoc de WSFEv1). null en una factura.
+  comprobanteAsociado   FiscalDocument?  @relation("NotaCredito", fields: [comprobanteAsociadoId], references: [id])
+  comprobanteAsociadoId String?
+  notasCredito          FiscalDocument[] @relation("NotaCredito")
 
   // Idempotencia de dominio: un mismo origen no genera dos comprobantes.
   idempotencyKey String   @unique

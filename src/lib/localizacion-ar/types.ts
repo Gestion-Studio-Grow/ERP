@@ -40,6 +40,13 @@ export interface EmisionInput {
   // Desglose de IVA por alícuota — lo que WSFEv1 exige en su array Iva. Vacío
   // para Factura C (monotributo/exento no discrimina).
   ivaDetalle: IvaDetalleItem[];
+  // Comprobante asociado (CbtesAsoc de WSFEv1) — presente solo en notas de
+  // crédito/débito, que referencian el comprobante original.
+  comprobanteAsociado?: {
+    cbteTipo: number;
+    puntoVenta: number;
+    nroComprobante: number;
+  };
 }
 
 // Identidad fiscal con la que el conector habla con ARCA. `connectorRef` es una

@@ -6,7 +6,14 @@
 import { prisma } from "@/lib/prisma";
 import type { CondicionIva } from "@/generated/prisma/client";
 import type { Prisma } from "@/generated/prisma/client";
-import { calcularComprobante, IVA_GENERAL, type AlicuotaCodigo } from "./calculo-fiscal";
+import {
+  calcularComprobante,
+  calcularNotaCredito,
+  IVA_GENERAL,
+  type AlicuotaCodigo,
+  type ResultadoCalculo,
+  type IvaDetalleItem,
+} from "./calculo-fiscal";
 import { procesarEvento } from "./outbox";
 
 export interface RequestComprobanteInput {
@@ -73,6 +80,77 @@ export async function requestFiscalComprobante(
   });
 
   // Intento síncrono best-effort (B3). El error no se propaga: la outbox es la red.
+  await procesarEvento(eventId).catch(() => {
+    /* la Scheduled Function lo reintentará */
+  });
+
+  return docId;
+}
+
+// Emite una nota de crédito TOTAL de un comprobante ya autorizado (anulación /
+// devolución). Referencia el original (CbtesAsoc). Idempotente por `nc:<id>`.
+// Devuelve el id de la NC, o null si el original no existe.
+export async function requestNotaCredito(
+  fiscalDocumentIdOriginal: string,
+): Promise<string | null> {
+  const original = await prisma.fiscalDocument.findUnique({
+    where: { id: fiscalDocumentIdOriginal },
+  });
+  if (!original) return null;
+  if (original.estado !== "AUTORIZADO") {
+    throw new Error("Solo se puede emitir nota de crédito de un comprobante autorizado.");
+  }
+
+  const idempotencyKey = `nc:${original.id}`;
+  const existente = await prisma.fiscalDocument.findUnique({ where: { idempotencyKey } });
+  if (existente) return existente.id;
+
+  const originalCalc: ResultadoCalculo = {
+    tipo: original.tipo,
+    neto: original.neto,
+    exento: original.exento,
+    noGravado: original.noGravado,
+    iva: original.iva,
+    total: original.total,
+    ivaDetalle: (original.ivaDetalle as unknown as IvaDetalleItem[] | null) ?? [],
+    receptorCondicionIva: original.receptorCondicionIva,
+    receptorTipoDoc: original.receptorTipoDoc,
+    receptorNroDoc: original.receptorNroDoc,
+  };
+  const nc = calcularNotaCredito(originalCalc);
+
+  const { docId, eventId } = await prisma.$transaction(async (tx) => {
+    const doc = await tx.fiscalDocument.create({
+      data: {
+        tenantId: original.tenantId,
+        tipo: nc.tipo,
+        puntoVenta: original.puntoVenta,
+        fechaEmision: new Date(),
+        receptorCondicionIva: nc.receptorCondicionIva,
+        receptorTipoDoc: nc.receptorTipoDoc,
+        receptorNroDoc: nc.receptorNroDoc,
+        neto: nc.neto,
+        exento: nc.exento,
+        noGravado: nc.noGravado,
+        iva: nc.iva,
+        total: nc.total,
+        ivaDetalle: nc.ivaDetalle as unknown as Prisma.InputJsonValue,
+        origenTipo: "nota_credito",
+        origenId: original.id,
+        comprobanteAsociadoId: original.id,
+        idempotencyKey,
+      },
+    });
+    const ev = await tx.outboxEvent.create({
+      data: {
+        tenantId: original.tenantId,
+        tipo: "FiscalDocumentRequested",
+        payload: { fiscalDocumentId: doc.id },
+      },
+    });
+    return { docId: doc.id, eventId: ev.id };
+  });
+
   await procesarEvento(eventId).catch(() => {
     /* la Scheduled Function lo reintentará */
   });

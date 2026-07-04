@@ -74,6 +74,21 @@ export async function procesarEvento(eventId: string): Promise<void> {
     return;
   }
 
+  // Comprobante asociado (CbtesAsoc) si es una nota de crédito/débito.
+  let comprobanteAsociado: EmisionInput["comprobanteAsociado"];
+  if (doc.comprobanteAsociadoId) {
+    const asoc = await prisma.fiscalDocument.findUnique({
+      where: { id: doc.comprobanteAsociadoId },
+    });
+    if (asoc && asoc.nroComprobante != null) {
+      comprobanteAsociado = {
+        cbteTipo: codigoCbteTipo(asoc.tipo),
+        puntoVenta: asoc.puntoVenta,
+        nroComprobante: asoc.nroComprobante,
+      };
+    }
+  }
+
   try {
     const connector = connectorPara("emitir-comprobante", "ar.nacional");
     if (!connector.emitir) throw new Error("El conector no soporta emisión");
@@ -94,6 +109,7 @@ export async function procesarEvento(eventId: string): Promise<void> {
       iva: doc.iva,
       total: doc.total,
       ivaDetalle: (doc.ivaDetalle as unknown as IvaDetalleItem[] | null) ?? [],
+      comprobanteAsociado,
     };
     const res = await connector.emitir(emisionInput, {
       cuit: config.cuit,

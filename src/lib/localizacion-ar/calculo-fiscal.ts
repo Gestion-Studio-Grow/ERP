@@ -96,6 +96,24 @@ function validarLineas(lineas: LineaComprobante[]): void {
 
 const centsEq = (a: number, b: number) => Math.round(a * 100) === Math.round(b * 100);
 
+// Nota de crédito TOTAL de un comprobante ya calculado: mismos importes y
+// desglose, con la letra de NC correspondiente (A->NC_A, B->NC_B, C->NC_C). Es
+// la anulación/devolución total; la NC parcial (recalcular IVA proporcional) se
+// difiere hasta que un caso real lo pida.
+export function calcularNotaCredito(original: ResultadoCalculo): ResultadoCalculo {
+  const mapa: Record<TipoComprobante, TipoComprobante> = {
+    FACTURA_A: "NOTA_CREDITO_A",
+    FACTURA_B: "NOTA_CREDITO_B",
+    FACTURA_C: "NOTA_CREDITO_C",
+    NOTA_CREDITO_A: "NOTA_CREDITO_A",
+    NOTA_CREDITO_B: "NOTA_CREDITO_B",
+    NOTA_CREDITO_C: "NOTA_CREDITO_C",
+  };
+  const nc: ResultadoCalculo = { ...original, tipo: mapa[original.tipo] };
+  assertConsistente(nc);
+  return nc;
+}
+
 // Auto-chequeo de invariantes del resultado (defensa en profundidad). Verifica
 // lo mismo que ARCA valida aritméticamente: total = suma de partes, y el
 // desglose de IVA suma al neto y al IVA totales. Si un cambio futuro rompe una
