@@ -133,10 +133,9 @@ supuesto por el nombre del commit.
   footer y sección "Dónde estamos / Cómo llegar", y Server Action con upsert +
   audit (`settings-actions.ts`). El `mapsUrl` se deriva de dirección+ciudad si no
   se carga uno; Instagram/email se muestran solo si están cargados. Migración
-  `20260704120000_add_business_settings` (aditiva: tabla nueva) escrita y con el
-  client regenerado — **pendiente de aplicar a Neon** (`prisma migrate deploy`),
-  bloqueada por `DATABASE_URL` vacío en el entorno de esta sesión. tsc + build en
-  verde. *(sesión de feature — 2026-07-04)*
+  `20260704120000_add_business_settings` (aditiva: tabla nueva) aplicada a Neon
+  (`prisma migrate deploy`). tsc + build en verde, mergeado a `main` y deployado.
+  *(sesión de feature — 2026-07-04)*
 
 ### Corregido en esta auditoría — figuraba pendiente y ya está hecho
 - [x] **Turno manual desde el admin** (llamada / walk-in). Confirmado en
