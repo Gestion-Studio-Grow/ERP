@@ -29,6 +29,65 @@
   --ch-ink: #201f1b; /* texto principal, botones sólidos */
   --ch-brass: #9a8350; /* subrayado de links */
   --ch-hairline: rgba(199, 180, 156, 0.5);
+
+  /* ————————————————————————————————————————————————————————————————
+     CAPA SEMÁNTICA (design tokens) — 2026 UX/UI upgrade
+     Nombres por ROL, no por color. Los componentes deben consumir estos,
+     no los hex de marca directamente: así un cambio de marca no obliga a
+     tocar componentes. Se mapean a utilidades Tailwind en @theme (abajo),
+     ej. bg-surface, text-muted, border-line, text-accent, bg-danger.
+     Referencia de marca: CH Estética (petróleo + hueso cálido + salvia).
+     ———————————————————————————————————————————————————————————————— */
+
+  /* Superficies (de más al fondo a más elevado) */
+  --surface-sunken: #ece5d8;   /* fondos hundidos, tracks, zebra oscura */
+  --surface: #f3eee5;          /* fondo base de página (= ch-ivory) */
+  --surface-raised: #faf7f2;   /* tarjetas, popovers, inputs sobre el fondo */
+  --surface-inverted: #201f1b; /* bloques oscuros (footer, confianza) */
+
+  /* Texto (jerarquía) */
+  --text-strong: #201f1b;      /* títulos, texto principal (= ch-ink) */
+  --text: #3a352e;             /* cuerpo — un punto más suave que strong */
+  --text-muted: #6f6455;       /* secundario, labels, metadatos */
+  --text-faint: #9a8f7e;       /* placeholders, deshabilitado, timestamps */
+  --text-on-accent: #f7f3ec;   /* texto sobre acento/superficie invertida */
+
+  /* Líneas y bordes */
+  --line: rgba(199, 180, 156, 0.5); /* hairline por defecto (= ch-hairline) */
+  --line-strong: #c7b49c;      /* borde marcado (= ch-clay) */
+
+  /* Acento de marca (interacción principal) */
+  --accent: #2c6e77;           /* petróleo — links, foco, CTA principal */
+  --accent-hover: #245b63;     /* estado hover del acento */
+  --accent-soft: #e3ece9;      /* relleno tenue del acento (chips, selección) */
+
+  /* Estados semánticos — matizados a la paleta cálida, no los rojos/verdes
+     crudos de Tailwind. Cada uno con superficie tenue + borde + texto legible
+     (contraste AA sobre su superficie). */
+  --success: #4b6b4a;
+  --success-soft: #e7eee2;
+  --warning: #9a6a1f;
+  --warning-soft: #f6ecd7;
+  --danger: #a83b2b;
+  --danger-soft: #f6e2dc;
+  --info: #2c6e77;
+  --info-soft: #e3ece9;
+
+  /* Foco accesible — anillo de marca visible sobre hueso e invertido */
+  --focus-ring: #2c6e77;
+
+  /* Radios (escala) */
+  --radius-sm: 0.375rem;
+  --radius: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Sombras — suaves y cálidas (tono tinta, no negro puro) para no ensuciar
+     el hueso. Elevación creciente. */
+  --shadow-xs: 0 1px 2px rgba(32, 27, 22, 0.06);
+  --shadow-sm: 0 1px 3px rgba(32, 27, 22, 0.08), 0 1px 2px rgba(32, 27, 22, 0.05);
+  --shadow-md: 0 4px 12px rgba(32, 27, 22, 0.08), 0 2px 4px rgba(32, 27, 22, 0.05);
+  --shadow-lg: 0 12px 32px rgba(32, 27, 22, 0.12), 0 4px 8px rgba(32, 27, 22, 0.06);
 }
 
 @theme inline {
@@ -39,21 +98,91 @@
   --font-serif: var(--font-spa-serif);
   --font-display: var(--font-fraunces);
   --font-body: var(--font-hanken);
+
+  /* Paleta de marca CH expuesta como utilidades: bg-ch-petrol, text-ch-mocha,
+     border-ch-clay, etc. Fin de los estilos inline con var(--ch-*). */
+  --color-ch-ivory: var(--ch-ivory);
+  --color-ch-linen: var(--ch-linen);
+  --color-ch-clay: var(--ch-clay);
+  --color-ch-mocha: var(--ch-mocha);
+  --color-ch-terracotta: var(--ch-terracotta);
+  --color-ch-sage: var(--ch-sage);
+  --color-ch-sage-deep: var(--ch-sage-deep);
+  --color-ch-petrol: var(--ch-petrol);
+  --color-ch-teal: var(--ch-teal-logo);
+  --color-ch-ink: var(--ch-ink);
+  --color-ch-brass: var(--ch-brass);
+
+  /* Tokens SEMÁNTICOS → utilidades por rol: bg-surface, text-muted,
+     border-line, text-accent, bg-danger-soft, ring-focus… */
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-inverted: var(--surface-inverted);
+
+  --color-strong: var(--text-strong);
+  --color-body: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-on-accent: var(--text-on-accent);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --color-focus: var(--focus-ring);
+
+  /* Escala de radios y sombras como utilidades (rounded-md/lg, shadow-card…) */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-card: var(--shadow-sm);
+  --shadow-raised: var(--shadow-md);
+  --shadow-overlay: var(--shadow-lg);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Fix: antes forzaba Arial y pisaba las fuentes de marca cargadas en el
+     layout (Hanken de cuerpo, Geist de respaldo). Todo lo que no re-declaraba
+     fontFamily inline —notablemente todo /admin— salía en Arial. Ahora el
+     cuerpo hereda la tipografía de marca globalmente. */
+  font-family: var(--font-body), var(--font-geist-sans), system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   min-height: 100%;
 }
 
+/* Foco visible en color de marca (petróleo), no negro genérico. Doble anillo:
+   un halo claro + el trazo de acento, para que se lea igual sobre hueso y
+   sobre bloques oscuros. Cumple WCAG 2.4.7 (foco visible) y 1.4.11. */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
-  outline: 2px solid #171717;
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+  border-radius: 3px;
 }
 
 /* Botón editorial: rectángulo con borde de tinta, sin relleno gomoso ni
