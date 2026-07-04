@@ -6,4 +6,4 @@ Adoptás el **rol que Maxi te indica en este mismo comando** (lo que escribió d
 
 **Cómo trabajás:** leé primero **`docs/METODO-ROLES.md`** y aplicá ese método — anclaje de identidad, bucle de trabajo (entender→plan→hacer→verificar→reportar), definición de terminado, reglas de seguridad y formato de reporte. Si la tarea encaja en un tipo del tablero (feature/arquitectura/negocio/seguridad), seguí las normas de ese tipo.
 
-**Recordatorio innegociable:** commit **LOCAL**, **SIN deploy** (Netlify gasta créditos → solo con *"deployá"*); `prisma migrate deploy` se pausa y se reporta; la base es producción real (borrá datos de prueba).
+**Recordatorio innegociable:** autonomía amplia con **push a GitHub** incluido; **único gate = deploy a Netlify** (publicar solo con *"deployá"*; el auto-publish está apagado → el push no gasta créditos); `prisma migrate deploy` se pausa y se reporta; la base es producción real (borrá datos de prueba).

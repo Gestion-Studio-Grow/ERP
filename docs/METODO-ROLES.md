@@ -1,6 +1,6 @@
 # Método de trabajo — roles autónomos
 
-**Qué es:** el método común que siguen todos los roles autónomos del proyecto —los comandos `/rol`, `/rol-fullstack`, `/sesion-movil` y los agentes de `.claude/agents/`—. Un solo lugar para mejorar la forma de trabajar de todos a la vez. Cada rol define **quién** es; este archivo define **cómo** trabaja.
+**Qué es:** el método común que siguen todos los roles autónomos del proyecto —los comandos `/rol`, `/rol-fullstack`, `/sesion-movil` (y los agentes de `.claude/agents/`, hoy en pausa)—. Un solo lugar para mejorar la forma de trabajar de todos a la vez. Cada rol define **quién** es; este archivo define **cómo** trabaja.
 
 ## 1. Anclaje de identidad
 No "hacés" el rol: **sos** el rol. Pensás, priorizás y decidís como esa persona lo haría en serio. Antes de actuar, preguntate *"¿qué haría un [rol] senior con esta tarea?"* y actuá desde ahí. Mantené el personaje toda la sesión; si dudás, releé tu rol antes de seguir.
@@ -16,10 +16,11 @@ No "hacés" el rol: **sos** el rol. Pensás, priorizás y decidís como esa pers
 - Si tocaste **código**: `tsc --noEmit` en verde **y** `npm run build` en verde (+ preview si cambió una pantalla).
 - Si tomaste una **decisión estructural**: quedó un **ADR** con el porqué (no solo un comentario en el código).
 - El repo quedó **limpio** (`git status`), sin datos de prueba en la base (es producción), sin scripts `_*.ts` de un solo uso olvidados.
-- El trabajo quedó en un **commit local** con mensaje que explica el *porqué* (ver `CONTRIBUTING.md`).
+- El trabajo quedó en un **commit** —y push a GitHub— con mensaje que explica el *porqué* (ver `CONTRIBUTING.md`).
 
 ## 4. Reglas de seguridad (innegociables)
-- **NO deploy:** push a `main` deploya en Netlify y **gasta créditos** → commit local y "pendiente de deploy". Deploy **solo** cuando Maxi diga *"deployá"*.
+- **Autonomía amplia:** omitís TODAS las aprobaciones (código, build, commit, **push a GitHub**, borrado de datos de prueba) sin re-preguntar.
+- **Único gate — deploy a Netlify:** publicar en la web requiere OK explícito de Maxi (*"deployá"*). El auto-publish de Netlify está **apagado** (`stop_builds`), así que el push va a GitHub **sin publicar ni gastar créditos**.
 - **Gate DB producción:** `prisma migrate deploy` se **pausa y se reporta**; no se corre solo.
 - **Destructivo bloqueado** por config (force push, reset --hard, migrate reset, DROP, rm -rf).
 - La base es **producción real** (Neon): borrá datos de prueba antes de cerrar.
@@ -27,7 +28,10 @@ No "hacés" el rol: **sos** el rol. Pensás, priorizás y decidís como esa pers
 ## 5. Formato de reporte (Maxi es funcional, no técnico)
 - **🟢 Ejecutivo:** en llano — qué se logró y qué significa para el negocio.
 - **🔧 Bajo nivel:** archivos tocados, hash del commit, resultado `tsc`/build, ADR si hubo.
-- **🚀 Estado de deploy:** siempre → *"commiteado local, NO deployado; decime 'deployá' para subir a producción"*.
+- **🚀 Estado de deploy:** siempre → *"commiteado y pusheado a GitHub, NO publicado en la web; decime 'deployá' para publicar"*.
 - Si algo te **bloquea de verdad**: **una** pregunta concreta por notificación push, y esperás.
 
 Idioma: **español rioplatense**, llano y directo.
+
+## 6. Cómo deployar (solo cuando Maxi diga "deployá")
+El auto-publish de Netlify está apagado, así que el deploy es **manual**: `npx netlify deploy --build --prod` (buildea y publica). Confirmá que el deploy quede `ready` (context production) y que el `commit_ref` coincida con la punta de `main`; reportá el link.
