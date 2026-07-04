@@ -96,6 +96,32 @@ model Tenant {
   professionalNews   ProfessionalNews[]
   coupons            Coupon[]
   users              User[]
+  businessSettings   BusinessSettings?
+}
+
+// Configuración de localización y contacto del negocio (módulo Localización).
+// Singleton por tenant (un negocio = una ficha; `tenantId` es único). Alimenta el
+// bloque público "Dónde estamos / Cómo llegar", el footer y el hero del sitio,
+// que antes tenían estos datos hardcodeados en el código y en business-config.ts.
+// Todos los campos son opcionales A PROPÓSITO: si están vacíos, el sitio cae a los
+// valores por defecto (src/lib/settings.ts), así la web nunca queda rota por falta
+// de configuración. Los horarios acá son una LEYENDA pública (texto libre); los
+// horarios operativos reales siguen viviendo por profesional en WorkingHours.
+model BusinessSettings {
+  id          String   @id @default(cuid())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId    String   @unique
+  shortLabel  String? // "eyebrow" del hero: "La Alameda · Canning"
+  addressLine String? // "Barrio La Alameda, Canning"
+  city        String? // "Buenos Aires"
+  hoursLabel  String? // "Lun a sáb · 9 a 19 h"
+  whatsapp    String? // solo dígitos (formato wa.me); reemplaza el número de business-config.ts
+  email       String?
+  instagram   String? // handle o URL
+  mapsUrl     String? // URL de mapa; si es null, se arma desde addressLine + city
+  contactNote String? // leyenda de contacto del footer
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // Usuario del panel admin (ADR-017). Identidad propia, NO se reusa Professional:

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { nextBusinessDays } from "@/lib/datetime";
-import { BUSINESS_WHATSAPP } from "@/lib/business-config";
+import { getLocation } from "@/lib/settings";
 import BookingProvider from "./_ch/BookingProvider";
 import Header from "./_ch/Header";
 import AnnouncementBar from "./_ch/AnnouncementBar";
@@ -9,9 +9,14 @@ import AnnouncementBar from "./_ch/AnnouncementBar";
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [{ groups, professionals }, news] = await Promise.all([getPublicBookingData(), getPublicNews()]);
+  const [{ groups, professionals }, news, location] = await Promise.all([
+    getPublicBookingData(),
+    getPublicNews(),
+    getLocation(),
+  ]);
   const days = nextBusinessDays(14);
-  const whatsapp = BUSINESS_WHATSAPP.replace(/\D/g, "");
+  // WhatsApp del negocio (módulo Localización): ya viene normalizado a dígitos.
+  const whatsapp = location.whatsapp;
   const latestNews = news[0] ?? null;
 
   return (
@@ -31,16 +36,30 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
                 <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--ch-teal-logo)" }}>CH</span>
                 <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--ch-clay)" }}>Estética</span>
               </div>
-              <p style={{ margin: 0 }}>Barrio La Alameda, Canning · Buenos Aires</p>
+              <p style={{ margin: 0 }}>{location.addressLine} · {location.city}</p>
             </div>
             <div>
               <p style={{ color: "var(--ch-ivory)", margin: "0 0 4px" }}>Horarios</p>
-              <p style={{ margin: 0 }}>Lun a sáb · 9 a 19 h</p>
+              <p style={{ margin: 0 }}>{location.hoursLabel}</p>
             </div>
             <div>
               <p style={{ color: "var(--ch-ivory)", margin: "0 0 4px" }}>Contacto</p>
-              <p style={{ margin: 0 }}>Reservas por la web · WhatsApp con turno confirmado</p>
-              <Link href="/admin" style={{ color: "rgba(243,238,229,.55)", textDecoration: "underline", textUnderlineOffset: 4, fontSize: ".8125rem" }}>
+              <p style={{ margin: 0 }}>{location.contactNote}</p>
+              {location.instagramUrl && (
+                <p style={{ margin: "4px 0 0" }}>
+                  <a href={location.instagramUrl} target="_blank" rel="noopener noreferrer" style={{ color: "rgba(243,238,229,.8)", textDecoration: "underline", textUnderlineOffset: 4 }}>
+                    {location.instagramLabel}
+                  </a>
+                </p>
+              )}
+              {location.email && (
+                <p style={{ margin: "4px 0 0" }}>
+                  <a href={`mailto:${location.email}`} style={{ color: "rgba(243,238,229,.8)", textDecoration: "underline", textUnderlineOffset: 4 }}>
+                    {location.email}
+                  </a>
+                </p>
+              )}
+              <Link href="/admin" style={{ display: "inline-block", marginTop: 8, color: "rgba(243,238,229,.55)", textDecoration: "underline", textUnderlineOffset: 4, fontSize: ".8125rem" }}>
                 Acceso administrador
               </Link>
             </div>

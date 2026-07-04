@@ -2,6 +2,7 @@ import Image from "next/image";
 import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { getCatalog } from "@/lib/catalog-actions";
 import { getPublishedReviews } from "@/lib/reviews-actions";
+import { getLocation } from "@/lib/settings";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
@@ -41,20 +42,32 @@ const TEAM_PHOTOS: Record<string, { src: string; rotate?: number }> = {
 };
 
 export default async function Home() {
-  const [{ groups }, { professionals }, news, reviews] = await Promise.all([
+  const [{ groups }, { professionals }, news, reviews, location] = await Promise.all([
     getPublicBookingData(),
     getCatalog(),
     getPublicNews(),
     getPublishedReviews(),
+    getLocation(),
   ]);
   const activeProfessionals = professionals.filter((p) => p.active);
+
+  // Localización (módulo Localización): datos del negocio ya resueltos (defaults
+  // aplicados, mapsUrl derivado). Si la dueña no cargó nada, caen a los textos de
+  // siempre — la sección nunca queda vacía. Se agrega el email como fila solo si
+  // está cargado.
+  const contactRows: [string, string][] = [
+    ["Dirección", location.addressLine],
+    ["Horarios", location.hoursLabel],
+    ["Reservas", "Online, en un minuto"],
+  ];
+  if (location.email) contactRows.push(["Email", location.email]);
 
   return (
     <>
       {/* HERO */}
       <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(24px,6vw,40px) 24px clamp(28px,6vw,48px)", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
         <div style={{ flex: "1 1 440px", minWidth: 300 }}>
-          <p style={{ ...eyebrow, margin: "0 0 16px" }}>La Alameda · Canning</p>
+          <p style={{ ...eyebrow, margin: "0 0 16px" }}>{location.shortLabel}</p>
           <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 480, margin: 0 })}>
             Tu tiempo, cuidado a metros de casa.
           </h1>
@@ -283,12 +296,8 @@ export default async function Home() {
             <p style={{ ...eyebrow, margin: "0 0 12px" }}>Dónde estamos</p>
             <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", fontWeight: 520, margin: "0 0 32px" })}>Cómo llegar</h2>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              {[
-                ["Dirección", "Barrio La Alameda, Canning"],
-                ["Horarios", "Lun a sáb · 9 a 19 h"],
-                ["Reservas", "Online, en un minuto"],
-              ].map(([k, v], i) => (
-                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "14px 0", borderTop: "1px solid rgba(199,180,156,.4)", borderBottom: i === 2 ? "1px solid rgba(199,180,156,.4)" : undefined }}>
+              {contactRows.map(([k, v], i) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "14px 0", borderTop: "1px solid rgba(199,180,156,.4)", borderBottom: i === contactRows.length - 1 ? "1px solid rgba(199,180,156,.4)" : undefined }}>
                   <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)" }}>{k}</span>
                   <span style={{ fontSize: ".9375rem", textAlign: "right" }}>{v}</span>
                 </div>
@@ -296,7 +305,7 @@ export default async function Home() {
             </div>
             <div style={{ marginTop: 32 }}>
               <a
-                href={"https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Barrio La Alameda, Canning, Buenos Aires")}
+                href={location.mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ background: "var(--ch-ink)", color: "var(--ch-ivory)", padding: "12px 24px", textDecoration: "none", fontSize: 15 }}
