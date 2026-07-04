@@ -24,11 +24,13 @@ export type FiscalNamespace = "ar.nacional" | "ar.provincial";
 // importes (ADR-006): el conector solo hace I/O con ARCA, nunca calcula un impuesto.
 export interface EmisionInput {
   tipo: TipoComprobante;
+  cbteTipo: number; // código CbteTipo de ARCA, derivado por el Core
   puntoVenta: number;
   fechaEmision: Date;
   receptorCondicionIva: CondicionIva;
   receptorCondicionIvaId: number; // código ARCA (RG 5616), derivado por el Core
   receptorTipoDoc: TipoDocReceptor;
+  receptorDocTipoId: number; // código DocTipo de ARCA, derivado por el Core
   receptorNroDoc: string | null;
   neto: number; // ImpNeto (base gravada)
   exento: number; // ImpOpEx

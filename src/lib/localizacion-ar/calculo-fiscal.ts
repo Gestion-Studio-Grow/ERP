@@ -9,6 +9,7 @@ import type {
   TipoComprobante,
   TipoDocReceptor,
 } from "@/generated/prisma/client";
+import { esCuitValido } from "./identidad-fiscal";
 
 // Catálogo de alícuotas de IVA de ARCA (WSFEv1, campo Iva[].Id). La fuente
 // autoritativa en runtime es el método FEParamGetTiposIva; estos son los códigos
@@ -59,6 +60,15 @@ export interface ResultadoCalculo {
   ivaDetalle: IvaDetalleItem[];
   receptorCondicionIva: CondicionIva;
   receptorTipoDoc: TipoDocReceptor;
+  receptorNroDoc: string | null;
+}
+
+// Datos del receptor para elegir la letra del comprobante. Por defecto,
+// consumidor final (el caso del mostrador).
+export interface ReceptorInput {
+  condicionIva: CondicionIva;
+  tipoDoc?: TipoDocReceptor;
+  nroDoc?: string | null;
 }
 
 // Aritmética en centavos: se opera en enteros y se vuelve a pesos solo al final.
@@ -117,16 +127,18 @@ export function assertConsistente(r: ResultadoCalculo): void {
 export function calcularComprobante(
   condicionEmisor: CondicionIva,
   lineas: LineaComprobante[],
+  receptor: ReceptorInput = { condicionIva: "CONSUMIDOR_FINAL" },
 ): ResultadoCalculo {
   validarLineas(lineas);
 
-  const receptor = {
-    receptorCondicionIva: "CONSUMIDOR_FINAL" as CondicionIva,
-    receptorTipoDoc: "CONSUMIDOR_FINAL" as TipoDocReceptor,
+  const receptorEchoBase = {
+    receptorCondicionIva: receptor.condicionIva,
+    receptorTipoDoc: (receptor.tipoDoc ?? "CONSUMIDOR_FINAL") as TipoDocReceptor,
+    receptorNroDoc: receptor.nroDoc ?? null,
   };
 
-  // Monotributo / Exento / otros -> Factura C: sin IVA discriminado. ARCA no
-  // separa conceptos en C, va todo como neto.
+  // Emisor Monotributo / Exento / otros -> Factura C: sin IVA discriminado. ARCA
+  // no separa conceptos en C, va todo como neto.
   if (condicionEmisor !== "RESPONSABLE_INSCRIPTO") {
     const totalCent = lineas.reduce((a, l) => a + aCent(l.importe), 0);
     if (totalCent <= 0) throw new Error("calculo-fiscal: total del comprobante <= 0.");
@@ -138,10 +150,23 @@ export function calcularComprobante(
       iva: 0,
       total: deCent(totalCent),
       ivaDetalle: [],
-      ...receptor,
+      ...receptorEchoBase,
     };
     assertConsistente(resultadoC);
     return resultadoC;
+  }
+
+  // Emisor RI -> letra según el receptor: a otro RI (con CUIT válido) Factura A;
+  // a cualquier otro, Factura B. La variante "Factura A a monotributista" de la
+  // reforma se difiere hasta que un caso real lo pida (no se especula).
+  let tipoRI: TipoComprobante = "FACTURA_B";
+  let receptorEcho = receptorEchoBase;
+  if (receptor.condicionIva === "RESPONSABLE_INSCRIPTO") {
+    if (!esCuitValido(receptorEchoBase.receptorNroDoc)) {
+      throw new Error("calculo-fiscal: Factura A requiere un CUIT de receptor válido.");
+    }
+    tipoRI = "FACTURA_A";
+    receptorEcho = { ...receptorEchoBase, receptorTipoDoc: "CUIT" };
   }
 
   // Responsable Inscripto -> Factura B, con desglose por alícuota + exento/no gravado.
@@ -197,14 +222,14 @@ export function calcularComprobante(
   if (totalCent <= 0) throw new Error("calculo-fiscal: total del comprobante <= 0.");
 
   const resultadoB: ResultadoCalculo = {
-    tipo: "FACTURA_B",
+    tipo: tipoRI,
     neto: deCent(netoCent),
     exento: deCent(exentoCent),
     noGravado: deCent(noGravadoCent),
     iva: deCent(ivaTotalCent),
     total: deCent(totalCent),
     ivaDetalle,
-    ...receptor,
+    ...receptorEcho,
   };
   assertConsistente(resultadoB);
   return resultadoB;

@@ -9,4 +9,11 @@ export {
   codigoCondicionIvaReceptor,
 } from "./identidad-fiscal";
 export { calcularComprobante, assertConsistente } from "./calculo-fiscal";
+export {
+  codigoCbteTipo,
+  codigoDocTipoReceptor,
+  formatearNumeroComprobante,
+  MONEDA_PES,
+  CONCEPTO,
+} from "./comprobante-arca";
 export type { Capability, FiscalNamespace } from "./types";
