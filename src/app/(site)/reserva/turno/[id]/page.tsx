@@ -2,6 +2,7 @@ import { getMyAppointment } from "@/lib/client-actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import CancelButton from "./CancelButton";
+import RescheduleButton from "./RescheduleButton";
 import ReviewForm from "./ReviewForm";
 import { fmtDateTime } from "@/lib/datetime";
 
@@ -30,7 +31,8 @@ export default async function MyAppointmentPage({
   const appointment = await getMyAppointment(id);
   if (!appointment) notFound();
 
-  const canCancel =
+  // Un turno vivo y futuro se puede tanto cancelar como reprogramar.
+  const canModify =
     (appointment.status === "PENDING" || appointment.status === "CONFIRMED") &&
     appointment.startsAt.getTime() > Date.now();
 
@@ -61,7 +63,16 @@ export default async function MyAppointmentPage({
         </p>
       </div>
 
-      {canCancel && <CancelButton appointmentId={appointment.id} />}
+      {canModify && (
+        <div className="flex flex-wrap items-center">
+          <RescheduleButton
+            appointmentId={appointment.id}
+            professionalId={appointment.professionalId}
+            serviceId={appointment.serviceId}
+          />
+          <CancelButton appointmentId={appointment.id} />
+        </div>
+      )}
 
       {appointment.status === "COMPLETED" && !appointment.review && (
         <ReviewForm appointmentId={appointment.id} />
@@ -76,7 +87,7 @@ export default async function MyAppointmentPage({
         </div>
       )}
 
-      {!canCancel && appointment.status === "CANCELLED" && (
+      {!canModify && appointment.status === "CANCELLED" && (
         <p className="text-sm mb-6" style={{ color: "var(--spa-mocha)" }}>
           Este turno fue cancelado.
         </p>

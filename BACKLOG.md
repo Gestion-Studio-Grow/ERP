@@ -23,12 +23,17 @@ supuesto por el nombre del commit.
   usuarios del OWNER (`/admin/usuarios`: alta, baja/reactivación con guarda de
   "último OWNER" y auto-baja, reset de contraseña), y `ADMIN_PASSWORD`
   **retirada** (ya no hay contraseña compartida).
-- [ ] **Cliente reprograma su turno** (no solo cancela). Verificado en
-  `src/app/(site)/reserva/turno/[id]/page.tsx`: solo hay botón de cancelar
-  (`CancelButton`) y reseña; no existe acción de reprogramar ni en
-  `client-actions.ts`. Hoy el único camino es cancelar + volver a reservar
-  desde cero, lo que infla la tasa de cancelación real y le hace perder el
-  horario al cliente si alguien más lo toma en el medio.
+- [x] **Cliente reprograma su turno** (no solo cancela). Hecho en dos frentes:
+  (1) público — el cliente mueve su propio turno desde `/reserva/turno/[id]`
+  (`RescheduleButton` + `rescheduleMyAppointment` en `client-actions.ts`), mismo
+  profesional/servicio, sin cancelar+rebook (ya no pierde el horario); (2) panel
+  — recepción/dueño reprograma a pedido del cliente desde la agenda
+  (`RescheduleForm` + `rescheduleAppointment` en `actions.ts`, capacidad
+  `agenda:manage`), pudiendo además cambiar de profesional. La validación de
+  choques (solape prof/box + buffer, bloqueos, recursos G17) se comparte en
+  `src/lib/booking-core.ts` (`assertSlotAvailable`), excluyendo el propio turno;
+  `getAvailableSlots` acepta `excludeAppointmentId`. Auditado como `reschedule`.
+  Sin cambio de esquema. *(sesión de feature — 2026-07-04)*
 
 ## Alta prioridad
 
