@@ -97,6 +97,7 @@ model Tenant {
   coupons            Coupon[]
   users              User[]
   businessSettings   BusinessSettings?
+  commissionPayouts  CommissionPayout[]
 }
 
 // Configuración de localización y contacto del negocio (módulo Localización).
@@ -217,6 +218,7 @@ model Professional {
   serviceCommissions ProfessionalServiceCommission[]
   news              ProfessionalNews[]
   user              User?
+  commissionPayouts CommissionPayout[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -367,12 +369,48 @@ model Appointment {
   payment        Payment?
   review         Review?
   reminderSentAt DateTime?
+  // Liquidación de comisiones (BACKLOG "Alta prioridad"). La comisión de un turno
+  // se devenga cuando está COMPLETED con pago APPROVED; queda "pendiente de pago"
+  // mientras este campo es null. Al liquidar un período, el turno se estampa con
+  // el payout que lo cubrió — así "pendiente" = COMPLETED + pago APPROVED +
+  // commissionPayoutId null, y volver a liquidar no puede doble-pagar (structural).
+  commissionPayout   CommissionPayout? @relation(fields: [commissionPayoutId], references: [id])
+  commissionPayoutId String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
   @@index([professionalId, startsAt])
   @@index([boxId, startsAt])
   @@index([tenantId, startsAt])
+  @@index([commissionPayoutId])
+}
+
+// Liquidación de comisiones a un profesional por un período (BACKLOG "Alta
+// prioridad"). Antes las comisiones se calculaban al vuelo en Reportes pero no
+// había forma de marcar un período como pagado ni histórico — la dueña no podía
+// saber si ya le había pagado a un profesional. Cada payout congela el monto
+// liquidado y agrupa los turnos que cubrió (Appointment.commissionPayoutId), de
+// modo que el pago es idempotente: los turnos ya estampados salen del pendiente
+// y no se pueden liquidar dos veces. periodStart/End son el rango real de turnos
+// cubiertos (min/max de startsAt), no un rango elegido a mano, para que el
+// comprobante refleje exactamente lo que se pagó.
+model CommissionPayout {
+  id               String        @id @default(cuid())
+  tenant           Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  professional     Professional  @relation(fields: [professionalId], references: [id])
+  professionalId   String
+  amount           Float // comisión total liquidada (congelada)
+  appointmentCount Int // cuántos turnos completados cubrió
+  periodStart      DateTime // startsAt más temprano cubierto (UTC)
+  periodEnd        DateTime // startsAt más tardío cubierto (UTC)
+  note             String? // nota libre del comprobante (ej. "pagado por transferencia")
+  settledBy        String // actor que liquidó ("user:<id>"), para el audit
+  appointments     Appointment[]
+  createdAt        DateTime      @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([professionalId])
 }
 
 // Reseña rápida que el cliente puede dejar una vez que el turno se completó.
