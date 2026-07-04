@@ -46,9 +46,9 @@ supuesto por el nombre del commit.
   forma de exigir seña, y sin seña obligatoria el no-show sigue siendo un
   problema de plata para el negocio. Es la mejora de mayor impacto en
   ingresos reales de todo el backlog.
-- [x] **Liquidación de comisiones por período.** HECHO (tsc + build en verde),
-  **en rama `feature/liquidacion-comisiones`, sin deployar** (falta aplicar la
-  migración a Neon + merge/push). Modelo `CommissionPayout` (congela monto,
+- [x] **Liquidación de comisiones por período.** HECHO y **deployado** (migración
+  `20260704130000_add_commission_payouts` aplicada a Neon, merge a `main` + push;
+  tsc + build en verde). Modelo `CommissionPayout` (congela monto,
   período y cantidad de turnos por liquidación) + `Appointment.commissionPayoutId`
   que estampa los turnos cubiertos: "pendiente de pago" = COMPLETED + pago
   APPROVED + sin estampar, así liquidar es idempotente y no puede doble-pagar.
