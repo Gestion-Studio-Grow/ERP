@@ -137,9 +137,107 @@ argentino**, sin backend ni ARCA real. Objetivo: mostrárselo al contador y ver 
 - **Mensaje central que transmite:** *nadie cargó nada a mano — vino de ARCA y se
   ordenó solo.*
 
-## 10. Pendiente de completar (próximas iteraciones de este doc)
+## 10. El producto es de dos lados (y por eso es defendible)
+
+La trampa es pensarlo como "software para contadores". El producto real tiene **dos
+usuarios, cada uno con su propia razón para quedarse**, y una rueda que los conecta:
+
+- **El negocio** (cliente del contador): factura sin fricción y carga gastos con una
+  foto. Su motivo para quedarse: *deja de pelearse con el contador y no vuelve a
+  cargar nada dos veces.*
+- **El contador**: recibe todo limpio y cierra el mes en horas, no en semanas. Su
+  motivo para quedarse: *atiende más clientes con la misma gente.*
+- **La rueda (flywheel):** el contador nos **trae** clientes (distribución que un
+  facturador suelto no tiene) → cada cliente que carga bien hace al contador más
+  dependiente → cada vertical nuevo que soportamos (estética, y los que sigan) trae
+  más negocios que necesitan contador. Cuantos más de un lado, más valioso el otro.
+
+**Consecuencia de diseño:** la experiencia del negocio **no** es un accesorio del
+panel del contador. Es la mitad del producto. Si el negocio no ama cargar por foto,
+el contador no recibe nada y la rueda no gira.
+
+## 11. El foso (por qué no nos comen los que ya hacen captura con IA)
+
+PortalContador, Onvio y Alegra ya leen comprobantes con IA. La IA **no es** el foso —
+es commodity. Lo que nos defiende es otra cosa:
+
+1. **Somos el sistema donde nace la operación, no un lector pegado al final.**
+   Ellos *digitalizan lo que ya pasó* (un PDF, un extracto). En nosotros, la factura
+   y muchas veces el gasto **nacen estructurados** dentro del sistema con el que el
+   negocio trabaja (agenda → orden → cobro → factura). Menos "adivinar con OCR", más
+   dato de origen. Eso es **confianza** — que es justo el riesgo que mata a los
+   lectores puros (§8): si el número no es confiable, el contador no lo usa.
+2. **Lock-in de dos lados.** Sacarnos implica que *el negocio* cambie cómo opera **y**
+   que *el contador* cambie de dónde recibe. Doble costo de cambio.
+3. **Profundidad vertical.** Arrancamos desde un rubro donde ya ganamos operativamente
+   (estética). Un horizontal no puede bajar a esa profundidad en cada rubro; nosotros
+   subimos de lo vertical a lo fiscal, no al revés.
+
+## 12. Funciones que nos diferencian (el "wow", no la paridad)
+
+Paridad = leer comprobantes y exportar. Eso hay que tenerlo, pero no gana. Lo que
+gana ataca el dolor #1 del contador —**perseguir a los clientes que mandan la info
+tarde e incompleta**— algo que los lectores puros no resuelven:
+
+- **Semáforo de cierre + recordatorio de un toque.** El contador ve por cliente qué
+  falta para cerrar el mes y, con un toque, el negocio recibe por WhatsApp *"te falta
+  subir el extracto de junio"*. Convierte la persecución mensual en auto-servicio.
+  **Este es el diferenciador más fuerte y es demo-able.**
+- **Trazabilidad total.** Cada número del libro linkea a su origen (el comprobante de
+  ARCA o la foto). El contador confía porque puede auditar en un clic.
+- **Nacido estructurado.** Lo que se factura en nuestro sistema entra al libro sin
+  OCR ni revisión — cero margen de error en la mitad del volumen.
+- **Cierre en un lugar.** "Cerrar junio de los 40 clientes" como una sola acción con
+  su checklist, no 40 procesos sueltos.
+
+## 13. Modelo de negocio y precios (hipótesis a validar)
+
+Todavía es hipótesis — la reunión con el contador ayuda a fijarlo. La lógica:
+
+- **Quién paga:** el **estudio**, por cada cliente activo (lo bundlea en su honorario
+  o lo traslada). El facturador básico del negocio queda **barato o gratis** para
+  empujar adopción del lado del cliente — que es lo que alimenta al contador.
+- **Estructura sugerida:** abono por estudio + precio por cliente activo, en escalones
+  por volumen. Margen de socio para el estudio que **trae** al cliente (alinea el
+  canal: le conviene traernos su cartera).
+- **Por qué no cobrar por comprobante:** nos ataría al costo del conector ARCA
+  (TusFacturas/AfipSDK cobran por comprobante) y castigaría el volumen, que es
+  justamente el valor. Cobrar por cliente activo desacopla precio de costo.
+- **Referencia de mercado:** el segmento cloud contable ronda $3.500–$13.200/mes por
+  empresa (ver `facturador-electronico-arca-mercado-y-vision.md`); nuestro precio por
+  cliente vive **debajo** de eso porque no somos la suite completa, somos la capa que
+  la alimenta.
+
+## 14. Roadmap por fases (de lo que ya hay a la rueda completa)
+
+- **Fase 0 — hoy:** Core multi-tenant + vertical estética + factura interna sin CAE.
+- **Fase 1 — MVP contador (sin OCR):** conectar ARCA de N clientes de **un** estudio,
+  bajar Mis Comprobantes, normalizar, panel del contador, export a su sistema
+  (Excel/Xubio). Prueba el valor con el menor esfuerzo. *(gate: validación con el
+  estudio real).*
+- **Fase 2 — emisión + captura:** Plugin ARCA con CAE real (facturación propia del
+  negocio) + captura de gastos por foto/WhatsApp con IA + semáforo de cierre.
+- **Fase 3 — la rueda:** más verticales, conciliación bancaria, más adaptadores de
+  export, y matching contador↔negocio como canal de dos vías.
+
+## 15. Onboarding real de un estudio (y su fricción honesta)
+
+El alta de un estudio es **provisioning en lote** (ADR pendiente, ver §6): el estudio
+nos pasa su lista de CUITs (o la importamos de su sistema), y por cada uno hay un
+paso **una sola vez**: la **delegación de servicios en ARCA** (el cliente autoriza al
+estudio/a nosotros a leer sus comprobantes con clave fiscal).
+
+- **Esta es la fricción real del onboarding**, no la tecnología. Bajar Mis
+  Comprobantes es trivial; conseguir la delegación de 40 clientes es trabajo humano.
+- **Mitigación:** el estudio ya suele tener esa delegación para su trabajo actual →
+  en muchos casos es reutilizable. Confirmarlo en la reunión es clave (pregunta para
+  agregar: *"¿ya tenés delegación de servicios de tus clientes en ARCA?"*).
+
+## 16. Pendiente de completar (próximas iteraciones de este doc)
 
 - [x] Bosquejo del panel del contador → hecho como demo clickeable (§9).
+- [x] Flujo de la captura por foto → hecho en la demo v2 (vista "Del lado del cliente").
+- [x] Modelo de precios / cómo se cobra → hipótesis en §13 (a validar con el estudio).
+- [ ] Semáforo de cierre + recordatorio: llevarlo a la demo (§12) — el diferenciador fuerte.
 - [ ] Formato exacto del libro IVA de exportación (tras saber el sistema del contador).
-- [ ] Flujo de la captura por WhatsApp/foto (cuando se active esa capa).
-- [ ] Modelo de precios / cómo se cobra (al cliente, al estudio, comisión).
+- [ ] Confirmar en la reunión: ¿el estudio ya tiene delegación de servicios en ARCA? (§15)
