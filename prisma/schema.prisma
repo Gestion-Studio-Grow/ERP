@@ -96,6 +96,10 @@ model Tenant {
   professionalNews   ProfessionalNews[]
   coupons            Coupon[]
   users              User[]
+  fiscalConfig       TenantFiscalConfig?
+  fiscalJurisdictions TenantJurisdiccion[]
+  fiscalDocuments    FiscalDocument[]
+  outboxEvents       OutboxEvent[]
 }
 
 // Usuario del panel admin (ADR-017). Identidad propia, NO se reusa Professional:
@@ -539,4 +543,168 @@ model ProfessionalNews {
 
   @@index([tenantId])
   @@index([professionalId])
+}
+
+// ============================================================================
+// Localización fiscal argentina (ADR-019 + ADR-020)
+// ----------------------------------------------------------------------------
+// Subsistema extensible, NO "el plugin ARCA". Nace con la forma de ADR-020
+// aunque la Fase 1 implemente solo emisión B/C: identidad fiscal por tenant
+// (multi-CUIT natural) + N jurisdicciones provinciales (multi-jurisdicción),
+// entidad FiscalDocument separada de Payment (cobro ≠ comprobante), y outbox
+// como fuente de verdad de "qué falta autorizar". El cálculo de importes vive
+// en el Core (ADR-006); el conector solo hace I/O con ARCA.
+// ============================================================================
+
+enum CondicionIva {
+  RESPONSABLE_INSCRIPTO
+  MONOTRIBUTO
+  EXENTO
+  CONSUMIDOR_FINAL
+  NO_CATEGORIZADO
+}
+
+enum FiscalAmbiente {
+  HOMOLOGACION
+  PRODUCCION
+}
+
+// Régimen de IIBB de una jurisdicción provincial (ADR-020, eje ar.provincial).
+// El cálculo (alícuota, coeficiente unificado de Convenio Multilateral) es del
+// Core; acá solo vive la inscripción del tenant en esa jurisdicción.
+enum RegimenIibb {
+  LOCAL
+  CONVENIO_MULTILATERAL
+  EXENTO
+  NO_INSCRIPTO
+}
+
+enum TipoComprobante {
+  FACTURA_A
+  FACTURA_B
+  FACTURA_C
+  NOTA_CREDITO_B
+  NOTA_CREDITO_C
+}
+
+enum TipoDocReceptor {
+  CUIT
+  CUIL
+  DNI
+  CONSUMIDOR_FINAL
+}
+
+enum EstadoFiscal {
+  PENDIENTE
+  AUTORIZADO
+  RECHAZADO
+  ERROR
+}
+
+enum OutboxEstado {
+  PENDIENTE
+  PROCESADO
+  ERROR
+}
+
+// Identidad fiscal del tenant (ADR-019 D5). El secreto del conector (certificado
+// / API key) NO vive acá en claro: `connectorRef` es una referencia a la
+// credencial en el proveedor o gestor de secretos (regla viva: secretos fuera
+// del repo/DB). Un tenant = un CUIT; la config es 1:1 con el tenant, y lo que
+// hace el diseño multi-CUIT es que cada tenant tiene la suya.
+model TenantFiscalConfig {
+  id           String         @id @default(cuid())
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId     String         @unique
+  cuit         String
+  condicionIva CondicionIva
+  puntoVenta   Int            @default(1)
+  ambiente     FiscalAmbiente @default(HOMOLOGACION)
+  connectorRef String? // referencia a la credencial ARCA, nunca el secreto
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  jurisdicciones TenantJurisdiccion[]
+
+  @@index([tenantId])
+}
+
+// Inscripción del tenant en una jurisdicción provincial de IIBB (ADR-020).
+// Modelado como relación 0..N (no columnas fijas) para que un tenant sume
+// provincias con el tiempo sin migrar el schema. Fase 1 no lo usa; nace para
+// que el eje ar.provincial sea aditivo.
+model TenantJurisdiccion {
+  id             String             @id @default(cuid())
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  config         TenantFiscalConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  configId       String
+  jurisdiccion   String // código de jurisdicción (ej. "AR-B" ARBA, "AR-C" AGIP)
+  regimen        RegimenIibb
+  nroInscripcion String?
+  createdAt      DateTime           @default(now())
+
+  @@unique([configId, jurisdiccion])
+  @@index([tenantId])
+  @@index([configId])
+}
+
+// Comprobante fiscal (ADR-019 D1). Separado de Payment a propósito: el cobro es
+// plata que entra; el comprobante es un documento legal con numeración y CAE.
+// El Core lo crea en PENDIENTE dentro de la transacción de la venta y lo pasa a
+// AUTORIZADO/RECHAZADO vía comando idempotente cuando ARCA responde. Los
+// importes los calcula el Core; el CAE y el nº de comprobante los asigna ARCA.
+model FiscalDocument {
+  id             String          @id @default(cuid())
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  tipo           TipoComprobante
+  puntoVenta     Int
+  nroComprobante Int? // lo asigna ARCA al autorizar
+  fechaEmision   DateTime
+
+  receptorCondicionIva CondicionIva
+  receptorTipoDoc      TipoDocReceptor
+  receptorNroDoc       String?
+
+  neto  Float
+  iva   Float
+  total Float
+
+  estado         EstadoFiscal @default(PENDIENTE)
+  cae            String?
+  caeVencimiento DateTime?
+  motivoRechazo  String?
+
+  // Origen que disparó la emisión (ej. "payment" + id del Payment/Appointment).
+  origenTipo String
+  origenId   String?
+
+  // Idempotencia de dominio: un mismo origen no genera dos comprobantes.
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, estado])
+}
+
+// Outbox (ADR-019 D2/D3). Fuente de verdad de "qué falta autorizar". Se crea en
+// la MISMA transacción que el FiscalDocument (nunca uno sin el otro). Un intento
+// síncrono best-effort lo procesa al toque; el drenado por Scheduled Function es
+// la red que garantiza que ningún comprobante quede sin CAE si el síncrono falla.
+model OutboxEvent {
+  id          String       @id @default(cuid())
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  tipo        String // "FiscalDocumentRequested"
+  payload     Json
+  estado      OutboxEstado @default(PENDIENTE)
+  intentos    Int          @default(0)
+  ultimoError String?
+  createdAt   DateTime     @default(now())
+  procesadoAt DateTime?
+
+  @@index([tenantId])
+  @@index([estado])
 }

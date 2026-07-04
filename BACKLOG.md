@@ -87,8 +87,15 @@ supuesto por el nombre del commit.
 
 ## Fuera de alcance (decisión ya tomada)
 
-- **Facturación fiscal ARCA** — certificado digital + homologación, excluido
-  del MVP por decisión explícita (ver `AMENDMENTS-revision-critica.md`).
+- ~~**Facturación fiscal ARCA** — excluido del MVP.~~ **Reactivado como línea de
+  producto propia** (facturador con ARCA + producto para estudios contables). Marco
+  decidido en **ADR-019** (contrato de emisión + conector) y **ADR-020** (Localización
+  AR como subsistema extensible). **Fase 1 (Core-side) implementada** este ciclo:
+  modelos `FiscalDocument`/`TenantFiscalConfig`/`TenantJurisdiccion`/`OutboxEvent`,
+  `FiscalConnector` por capacidades, pipeline outbox + comandos idempotentes, drenado
+  en `/api/localizacion-ar/drain`. **Gated por `LOCALIZACION_AR_ENABLED` (inerte en
+  prod)**; falta cablear AfipSDK con credenciales + aplicar migración en Neon +
+  homologar contra ARCA antes de emitir real (ver cola en `docs/PROXIMOS-PASOS.md`).
 
 ## Hecho (verificado en código, no solo por nombre de commit)
 

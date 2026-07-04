@@ -12,6 +12,7 @@ import {
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { requestFiscalComprobante } from "@/lib/localizacion-ar";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -564,6 +565,23 @@ export async function confirmPayment(formData: FormData) {
     where: { id: appointmentId },
     data: { status: "CONFIRMED" },
   });
+
+  // Emisión de comprobante fiscal (ADR-019/020). Detrás de flag e inerte hasta
+  // configurar ARCA por tenant: si no hay TenantFiscalConfig, es un no-op. La
+  // outbox garantiza el reintento si el intento síncrono falla, por eso un error
+  // acá no rompe el cobro.
+  if (process.env.LOCALIZACION_AR_ENABLED === "true") {
+    try {
+      await requestFiscalComprobante({
+        tenantId: appointment.tenantId,
+        origenTipo: "payment",
+        origenId: appointmentId,
+        totalFinal: amount,
+      });
+    } catch (err) {
+      console.error("[localizacion-ar] emisión falló; la outbox reintentará", err);
+    }
+  }
 
   await auditAdmin({
     action: "confirm_payment",
