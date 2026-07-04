@@ -7,6 +7,7 @@ CREATE TYPE "TipoComprobante" AS ENUM ('FACTURA_A', 'FACTURA_B', 'FACTURA_C', 'N
 CREATE TYPE "TipoDocReceptor" AS ENUM ('CUIT', 'CUIL', 'DNI', 'CONSUMIDOR_FINAL');
 CREATE TYPE "EstadoFiscal" AS ENUM ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO', 'ERROR');
 CREATE TYPE "OutboxEstado" AS ENUM ('PENDIENTE', 'PROCESADO', 'ERROR');
+CREATE TYPE "ConceptoComprobante" AS ENUM ('PRODUCTOS', 'SERVICIOS', 'AMBOS');
 CREATE TABLE "TenantFiscalConfig" (
     "id" TEXT NOT NULL,
     "tenantId" TEXT NOT NULL,
@@ -40,6 +41,10 @@ CREATE TABLE "FiscalDocument" (
     "puntoVenta" INTEGER NOT NULL,
     "nroComprobante" INTEGER,
     "fechaEmision" TIMESTAMP(3) NOT NULL,
+    "concepto" "ConceptoComprobante" NOT NULL DEFAULT 'SERVICIOS',
+    "servicioDesde" TIMESTAMP(3),
+    "servicioHasta" TIMESTAMP(3),
+    "vencimientoPago" TIMESTAMP(3),
     "receptorCondicionIva" "CondicionIva" NOT NULL,
     "receptorTipoDoc" "TipoDocReceptor" NOT NULL,
     "receptorNroDoc" TEXT,

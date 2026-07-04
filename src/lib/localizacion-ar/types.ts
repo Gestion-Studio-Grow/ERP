@@ -27,6 +27,12 @@ export interface EmisionInput {
   cbteTipo: number; // código CbteTipo de ARCA, derivado por el Core
   puntoVenta: number;
   fechaEmision: Date;
+  conceptoId: number; // código Concepto de ARCA (1/2/3), derivado por el Core
+  // Fechas de servicio en formato ARCA (YYYYMMDD). Presentes solo para
+  // concepto servicios/ambos; null para productos.
+  servicioDesde: string | null;
+  servicioHasta: string | null;
+  vencimientoPago: string | null;
   receptorCondicionIva: CondicionIva;
   receptorCondicionIvaId: number; // código ARCA (RG 5616), derivado por el Core
   receptorTipoDoc: TipoDocReceptor;

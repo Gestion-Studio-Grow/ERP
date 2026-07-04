@@ -12,8 +12,10 @@ export { calcularComprobante, calcularNotaCredito, assertConsistente } from "./c
 export {
   codigoCbteTipo,
   codigoDocTipoReceptor,
+  codigoConcepto,
+  conceptoRequiereFechas,
   formatearNumeroComprobante,
+  formatearFechaArca,
   MONEDA_PES,
-  CONCEPTO,
 } from "./comprobante-arca";
 export type { Capability, FiscalNamespace } from "./types";

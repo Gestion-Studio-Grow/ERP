@@ -9,7 +9,12 @@ import { registerFiscalAuthorization, registerFiscalRejection } from "./commands
 import type { EmisionInput } from "./types";
 import type { IvaDetalleItem } from "./calculo-fiscal";
 import { codigoCondicionIvaReceptor, esCuitValido } from "./identidad-fiscal";
-import { codigoCbteTipo, codigoDocTipoReceptor } from "./comprobante-arca";
+import {
+  codigoCbteTipo,
+  codigoDocTipoReceptor,
+  codigoConcepto,
+  formatearFechaArca,
+} from "./comprobante-arca";
 
 const MAX_INTENTOS = 5;
 
@@ -98,6 +103,10 @@ export async function procesarEvento(eventId: string): Promise<void> {
       cbteTipo: codigoCbteTipo(doc.tipo),
       puntoVenta: doc.puntoVenta,
       fechaEmision: doc.fechaEmision,
+      conceptoId: codigoConcepto(doc.concepto),
+      servicioDesde: doc.servicioDesde ? formatearFechaArca(doc.servicioDesde) : null,
+      servicioHasta: doc.servicioHasta ? formatearFechaArca(doc.servicioHasta) : null,
+      vencimientoPago: doc.vencimientoPago ? formatearFechaArca(doc.vencimientoPago) : null,
       receptorCondicionIva: doc.receptorCondicionIva,
       receptorCondicionIvaId: codigoCondicionIvaReceptor(doc.receptorCondicionIva),
       receptorTipoDoc: doc.receptorTipoDoc,

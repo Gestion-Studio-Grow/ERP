@@ -3,6 +3,7 @@
 import type {
   TipoComprobante,
   TipoDocReceptor,
+  ConceptoComprobante,
 } from "@/generated/prisma/client";
 
 // CbteTipo de WSFEv1 (tabla FEParamGetTiposCbte).
@@ -35,8 +36,21 @@ export function codigoDocTipoReceptor(tipoDoc: TipoDocReceptor): number {
 // Moneda: peso argentino con cotización 1 (WSFEv1 MonId / MonCotiz).
 export const MONEDA_PES = { monId: "PES", monCotiz: 1 } as const;
 
-// Concepto de WSFEv1: 1 productos, 2 servicios, 3 ambos. Estética = servicios.
-export const CONCEPTO = { PRODUCTOS: 1, SERVICIOS: 2, AMBOS: 3 } as const;
+// Concepto de WSFEv1: 1 productos, 2 servicios, 3 ambos.
+const CONCEPTO_ID: Record<ConceptoComprobante, number> = {
+  PRODUCTOS: 1,
+  SERVICIOS: 2,
+  AMBOS: 3,
+};
+
+export function codigoConcepto(concepto: ConceptoComprobante): number {
+  return CONCEPTO_ID[concepto];
+}
+
+// El concepto requiere fechas de servicio (SERVICIOS o AMBOS).
+export function conceptoRequiereFechas(concepto: ConceptoComprobante): boolean {
+  return concepto === "SERVICIOS" || concepto === "AMBOS";
+}
 
 // Formatea el identificador impreso del comprobante: "0001-00000123".
 export function formatearNumeroComprobante(
@@ -44,4 +58,16 @@ export function formatearNumeroComprobante(
   nroComprobante: number,
 ): string {
   return `${String(puntoVenta).padStart(4, "0")}-${String(nroComprobante).padStart(8, "0")}`;
+}
+
+// Fecha en el formato de WSFEv1 (YYYYMMDD), en hora de Argentina — así una
+// emisión cerca de medianoche no cae en el día calendario equivocado.
+export function formatearFechaArca(fecha: Date): string {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(fecha);
+  return partes.replace(/-/g, "");
 }

@@ -595,6 +595,14 @@ enum TipoDocReceptor {
   CONSUMIDOR_FINAL
 }
 
+// Concepto de WSFEv1: qué se factura. Para SERVICIOS/AMBOS ARCA exige las fechas
+// de servicio y de vencimiento de pago. Estética = SERVICIOS.
+enum ConceptoComprobante {
+  PRODUCTOS
+  SERVICIOS
+  AMBOS
+}
+
 enum EstadoFiscal {
   PENDIENTE
   AUTORIZADO
@@ -663,6 +671,12 @@ model FiscalDocument {
   puntoVenta     Int
   nroComprobante Int? // lo asigna ARCA al autorizar
   fechaEmision   DateTime
+
+  // Concepto (WSFEv1). Para SERVICIOS/AMBOS las tres fechas son obligatorias.
+  concepto        ConceptoComprobante @default(SERVICIOS)
+  servicioDesde   DateTime?
+  servicioHasta   DateTime?
+  vencimientoPago DateTime?
 
   receptorCondicionIva CondicionIva
   receptorTipoDoc      TipoDocReceptor

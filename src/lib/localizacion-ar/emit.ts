@@ -4,8 +4,11 @@
 // (B3) para tener el CAE al toque. Si el síncrono falla, la outbox queda
 // PENDIENTE y el drenado la reintenta — por eso un error acá no rompe el cobro.
 import { prisma } from "@/lib/prisma";
-import type { CondicionIva } from "@/generated/prisma/client";
-import type { Prisma } from "@/generated/prisma/client";
+import type {
+  CondicionIva,
+  ConceptoComprobante,
+  Prisma,
+} from "@/generated/prisma/client";
 import {
   calcularComprobante,
   calcularNotaCredito,
@@ -14,6 +17,7 @@ import {
   type ResultadoCalculo,
   type IvaDetalleItem,
 } from "./calculo-fiscal";
+import { conceptoRequiereFechas } from "./comprobante-arca";
 import { procesarEvento } from "./outbox";
 
 export interface RequestComprobanteInput {
@@ -25,6 +29,12 @@ export interface RequestComprobanteInput {
   // alícuota; por defecto la general (21%). El motor soporta multi-alícuota
   // cuando el origen tenga varias líneas.
   alicuota?: AlicuotaCodigo;
+  // Concepto (WSFEv1). Por defecto SERVICIOS (el caso de la estética). Para
+  // servicios/ambos, las fechas por defecto son la fecha de emisión.
+  concepto?: ConceptoComprobante;
+  servicioDesde?: Date;
+  servicioHasta?: Date;
+  vencimientoPago?: Date;
 }
 
 // Devuelve el id del FiscalDocument, o null si el tenant no tiene identidad
@@ -48,13 +58,24 @@ export async function requestFiscalComprobante(
     { importe: input.totalFinal, alicuota: input.alicuota ?? IVA_GENERAL, incluyeIva: true },
   ]);
 
+  const fechaEmision = new Date();
+  const concepto: ConceptoComprobante = input.concepto ?? "SERVICIOS";
+  const requiereFechas = conceptoRequiereFechas(concepto);
+  const servicioDesde = requiereFechas ? (input.servicioDesde ?? fechaEmision) : null;
+  const servicioHasta = requiereFechas ? (input.servicioHasta ?? fechaEmision) : null;
+  const vencimientoPago = requiereFechas ? (input.vencimientoPago ?? fechaEmision) : null;
+
   const { docId, eventId } = await prisma.$transaction(async (tx) => {
     const doc = await tx.fiscalDocument.create({
       data: {
         tenantId: input.tenantId,
         tipo: imp.tipo,
         puntoVenta: config.puntoVenta,
-        fechaEmision: new Date(),
+        fechaEmision,
+        concepto,
+        servicioDesde,
+        servicioHasta,
+        vencimientoPago,
         receptorCondicionIva: imp.receptorCondicionIva,
         receptorTipoDoc: imp.receptorTipoDoc,
         receptorNroDoc: null,
@@ -126,6 +147,10 @@ export async function requestNotaCredito(
         tipo: nc.tipo,
         puntoVenta: original.puntoVenta,
         fechaEmision: new Date(),
+        concepto: original.concepto,
+        servicioDesde: original.servicioDesde,
+        servicioHasta: original.servicioHasta,
+        vencimientoPago: original.vencimientoPago,
         receptorCondicionIva: nc.receptorCondicionIva,
         receptorTipoDoc: nc.receptorTipoDoc,
         receptorNroDoc: nc.receptorNroDoc,
