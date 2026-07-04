@@ -96,6 +96,7 @@ model Tenant {
   professionalNews   ProfessionalNews[]
   coupons            Coupon[]
   users              User[]
+  commissionPayouts  CommissionPayout[]
 }
 
 // Usuario del panel admin (ADR-017). Identidad propia, NO se reusa Professional:
@@ -191,6 +192,7 @@ model Professional {
   serviceCommissions ProfessionalServiceCommission[]
   news              ProfessionalNews[]
   user              User?
+  commissionPayouts CommissionPayout[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -539,4 +541,37 @@ model ProfessionalNews {
 
   @@index([tenantId])
   @@index([professionalId])
+}
+
+// Liquidación de comisiones de un profesional para un período (BACKLOG: "Liquidación
+// de comisiones por período"). Hasta ahora las comisiones se calculaban al vuelo en
+// Reportes (getReportData) pero no había forma de registrar que un período YA se le
+// pagó a un profesional: sin este modelo el dueño lo llevaba aparte. Una fila = un
+// período liquidado para un profesional.
+//
+// El cálculo NO se persiste como fuente de verdad de la comisión (esa sigue siendo el
+// % vigente sobre los turnos COMPLETED del rango); se persiste como snapshot histórico
+// de lo que se pagó, para que un cambio posterior de % o de precios no reescriba lo ya
+// liquidado. periodStart/periodEnd son los instantes UTC de los límites del día-negocio
+// del rango (periodStart = 00:00 del día "desde"; periodEnd = 00:00 del día "hasta",
+// inclusivo como día): el par (professionalId, periodStart, periodEnd) identifica el
+// período y permite saber si ya está liquidado.
+model CommissionPayout {
+  id               String       @id @default(cuid())
+  tenant           Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  professional     Professional @relation(fields: [professionalId], references: [id])
+  professionalId   String
+  periodStart      DateTime // 00:00 (día-negocio) del "desde", en UTC
+  periodEnd        DateTime // 00:00 (día-negocio) del "hasta", en UTC (día inclusivo)
+  amount           Float // comisión total liquidada (snapshot)
+  baseAmount       Float // ingresos base sobre los que se calculó (snapshot)
+  appointmentCount Int // cantidad de turnos incluidos (snapshot)
+  notes            String?
+  paidAt           DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+
+  @@unique([professionalId, periodStart, periodEnd])
+  @@index([tenantId, professionalId])
+  @@index([tenantId, periodStart])
 }
