@@ -2,6 +2,8 @@
 
 **Qué es:** la operacionalización de ADR-008 ("un thread = un tema, toda decisión persiste en el repo") como un tablero de tipos de sesión con comandos de arranque. Es la estructura con la que escala el equipo: una persona nueva (o una cuenta nueva de Claude) no necesita que nadie le explique el proyecto — abre una sesión con el comando correcto y los preconceptos se cargan solos desde el repo.
 
+**Antes de cualquier sesión, el marco:** [`docs/FUNDAMENTOS-Y-VISION.md`](FUNDAMENTOS-Y-VISION.md) fija la visión y el criterio rector del producto (multi-tenant estilo SAP Public Cloud, un Core compartido, cada cliente un tenant, restricciones de plataforma). Toda sesión decide **dentro** de ese marco; incluye un checklist de encuadre para abrir cualquier sesión.
+
 **Por qué comandos y no prompts pegados:** los comandos viven en `.claude/commands/` versionados en git. Viajan con el repo a cualquier cuenta/máquina, se corrigen con un commit, y cuestan tokens solo cuando se invocan. Un prompt pegado a mano se degrada con cada copia; un comando versionado mejora con cada corrección.
 
 ---

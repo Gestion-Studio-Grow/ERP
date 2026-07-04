@@ -1,5 +1,7 @@
 # INDEX — ADRs del ERP SaaS Multi-Tenant
 
+> **Criterio rector del producto:** [`docs/FUNDAMENTOS-Y-VISION.md`](../FUNDAMENTOS-Y-VISION.md) — visión (multi-tenant estilo SAP Public Cloud, un Core, cada cliente un tenant), modelo de tenants, plugins y restricciones de plataforma. Marco dentro del cual estos ADR son válidos; leer **antes** de decidir.
+
 Punto de entrada para cualquier sesión nueva con Claude. Pegá este índice primero; el detalle completo de cada ADR se carga solo si hace falta.
 
 | ADR | Decisión | Resumen en una línea |
