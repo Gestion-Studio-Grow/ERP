@@ -1,0 +1,42 @@
+{
+  "defaultMode": "acceptEdits",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:*)",
+      "Bash(npx tsc --noEmit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(prisma generate:*)",
+      "Bash(prisma migrate dev:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(rm -fr:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(npx prisma migrate reset:*)",
+      "Bash(prisma migrate reset:*)",
+      "Bash(npx prisma db push --force-reset:*)",
+      "Bash(DROP DATABASE:*)",
+      "Bash(DROP TABLE:*)",
+      "Bash(dropdb:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(nc:*)",
+      "Bash(scp:*)"
+    ]
+  }
+}
