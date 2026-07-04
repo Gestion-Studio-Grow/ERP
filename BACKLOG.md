@@ -69,9 +69,19 @@ supuesto por el nombre del commit.
 
 ## Media prioridad
 
-- [ ] **Lista de espera** — cuando no hay horarios, anotar al cliente y
-  avisarle si se libera un lugar. No existe ni modelo ni UI (verificado, sin
-  matches en el código).
+- [x] **Lista de espera** — HECHA y **deployada** (reclasificada a P0 por ROI en
+  `docs/ANALISIS-BRECHAS.md`: recupera ingresos de cancelaciones/no-shows).
+  Modelo `WaitlistEntry` + enum `WaitlistStatus`
+  (WAITING/NOTIFIED/BOOKED/CANCELLED), capability nueva `waitlist:manage` (va a
+  RECEPTION — trabajo de mostrador), pantalla `/admin/espera` (anotar, avisar,
+  dar de baja, y **convertir en turno** buscando huecos reales). La conversión
+  reusa el núcleo de `booking-core.ts` (`assertSlotAvailable` en transacción,
+  re-valida la disponibilidad para cerrar la carrera "vi el hueco → reservo") y
+  hace el upsert de `Client` por teléfono, sin tocar `actions.ts` a propósito
+  (para no chocar con la rama de comisiones). Migración
+  `20260704140000_add_waitlist` (aditiva) aplicada a Neon. tsc + build en verde,
+  mergeada a `main`. *(sesión de feature — 2026-07-04 · mergeada en la
+  consolidación 2026-07-04)*
 - [ ] **Ficha de cliente más rica** — tags, historial de fotos
   antes/después, profesional preferido. Verificado en `Client` (schema) y
   `clientes/[id]/page.tsx`: hoy solo hay nombre, contacto, notas de texto

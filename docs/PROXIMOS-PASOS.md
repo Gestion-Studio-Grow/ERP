@@ -29,3 +29,5 @@ barre, así queda rastro de una sesión a la otra.
 ## Hechos (podados por `/sesion-consolidacion` 2026-07-04)
 
 _Barridos en la consolidación del 2026-07-04 tras verificar contra `git log` de `main` y el BACKLOG que están hechos y deployados: Liquidación de comisiones (+ migración `20260704130000`), Módulo Localización (+ migración `20260704120000`), Cliente reprograma su turno, RBAC Fase 1 y Fase 2. Rastro completo en el historial de git y en `BACKLOG.md`._
+
+_Mergeado en esta misma consolidación (2026-07-04): **Lista de espera** (`feature/lista-de-espera`, feature P0 de `docs/ANALISIS-BRECHAS.md`) — merge a `main`, migración `20260704140000_add_waitlist` aplicada a Neon, build en verde; y **upgrade UX/UI base** (`feature/ux-ui-upgrade`) — capa de design tokens semánticos + primitivos `src/components/ui/`, aditiva y aún sin consumir en pantallas. Queda fuera de main a propósito: el **script de provisioning** (`feature/performance`, ADR-019) — ver Abiertos._
