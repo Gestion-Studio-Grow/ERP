@@ -7,6 +7,7 @@ import { ensureConnectors } from "./connectors";
 import { connectorPara } from "./connector";
 import { registerFiscalAuthorization, registerFiscalRejection } from "./commands";
 import type { EmisionInput } from "./types";
+import type { IvaDetalleItem } from "./calculo-fiscal";
 
 const MAX_INTENTOS = 5;
 
@@ -72,6 +73,7 @@ export async function procesarEvento(eventId: string): Promise<void> {
       neto: doc.neto,
       iva: doc.iva,
       total: doc.total,
+      ivaDetalle: (doc.ivaDetalle as unknown as IvaDetalleItem[] | null) ?? [],
     };
     const res = await connector.emitir(emisionInput, {
       cuit: config.cuit,

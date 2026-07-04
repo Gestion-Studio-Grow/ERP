@@ -670,6 +670,10 @@ model FiscalDocument {
   neto  Float
   iva   Float
   total Float
+  // Desglose de IVA por alícuota (array Iva de WSFEv1: Id + BaseImp + Importe),
+  // calculado por el motor del Core. Se persiste para auditoría y para que el
+  // conector lo mande sin recalcular. Vacío/null en Factura C.
+  ivaDetalle Json?
 
   estado         EstadoFiscal @default(PENDIENTE)
   cae            String?

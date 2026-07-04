@@ -5,7 +5,8 @@
 // PENDIENTE y el drenado la reintenta — por eso un error acá no rompe el cobro.
 import { prisma } from "@/lib/prisma";
 import type { CondicionIva } from "@/generated/prisma/client";
-import { calcularImportes } from "./importes";
+import type { Prisma } from "@/generated/prisma/client";
+import { calcularComprobante, IVA_GENERAL, type AlicuotaCodigo } from "./calculo-fiscal";
 import { procesarEvento } from "./outbox";
 
 export interface RequestComprobanteInput {
@@ -13,6 +14,10 @@ export interface RequestComprobanteInput {
   origenTipo: string; // ej. "payment"
   origenId: string; // id del origen — base de la idempotencia
   totalFinal: number; // total cobrado, IVA incluido
+  // Alícuota de IVA de la operación. Un cobro de estética es una línea a una
+  // alícuota; por defecto la general (21%). El motor soporta multi-alícuota
+  // cuando el origen tenga varias líneas.
+  alicuota?: AlicuotaCodigo;
 }
 
 // Devuelve el id del FiscalDocument, o null si el tenant no tiene identidad
@@ -32,10 +37,9 @@ export async function requestFiscalComprobante(
   });
   if (existente) return existente.id;
 
-  const imp = calcularImportes(
-    config.condicionIva as CondicionIva,
-    input.totalFinal,
-  );
+  const imp = calcularComprobante(config.condicionIva as CondicionIva, [
+    { importe: input.totalFinal, alicuota: input.alicuota ?? IVA_GENERAL, incluyeIva: true },
+  ]);
 
   const { docId, eventId } = await prisma.$transaction(async (tx) => {
     const doc = await tx.fiscalDocument.create({
@@ -50,6 +54,7 @@ export async function requestFiscalComprobante(
         neto: imp.neto,
         iva: imp.iva,
         total: imp.total,
+        ivaDetalle: imp.ivaDetalle as unknown as Prisma.InputJsonValue,
         origenTipo: input.origenTipo,
         origenId: input.origenId,
         idempotencyKey,

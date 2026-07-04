@@ -8,6 +8,7 @@ import type {
   TipoDocReceptor,
   FiscalAmbiente,
 } from "@/generated/prisma/client";
+import type { IvaDetalleItem } from "./calculo-fiscal";
 
 export type Capability =
   | "emitir-comprobante"
@@ -31,6 +32,9 @@ export interface EmisionInput {
   neto: number;
   iva: number;
   total: number;
+  // Desglose de IVA por alícuota — lo que WSFEv1 exige en su array Iva. Vacío
+  // para Factura C (monotributo/exento no discrimina).
+  ivaDetalle: IvaDetalleItem[];
 }
 
 // Identidad fiscal con la que el conector habla con ARCA. `connectorRef` es una
