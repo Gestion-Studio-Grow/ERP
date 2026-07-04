@@ -48,6 +48,17 @@ enum MessageChannel {
   WHATSAPP
 }
 
+// Estado de un anotado en la lista de espera. WAITING = esperando un hueco;
+// NOTIFIED = recepción ya le avisó que se liberó algo (aún sin reservar);
+// BOOKED = se convirtió en turno real (queda el histórico + bookedAppointmentId);
+// CANCELLED = se dio de baja (ya no quiere o se resolvió por otro lado).
+enum WaitlistStatus {
+  WAITING
+  NOTIFIED
+  BOOKED
+  CANCELLED
+}
+
 // Rol de un usuario del panel (ADR-017 §2.b / ADR-009 §3). Enum fijo de 3, sin
 // editor granular a propósito: negocios chicos quieren roles con nombres que
 // entienden, no una matriz de permisos. OWNER absorbe el "admin" de hoy.
@@ -98,6 +109,7 @@ model Tenant {
   users              User[]
   businessSettings   BusinessSettings?
   commissionPayouts  CommissionPayout[]
+  waitlistEntries    WaitlistEntry[]
 }
 
 // Configuración de localización y contacto del negocio (módulo Localización).
@@ -219,6 +231,7 @@ model Professional {
   news              ProfessionalNews[]
   user              User?
   commissionPayouts CommissionPayout[]
+  waitlistEntries   WaitlistEntry[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -270,6 +283,7 @@ model Service {
   products      ServiceProduct[]
   resources     ServiceResource[]
   serviceCommissions ProfessionalServiceCommission[]
+  waitlistEntries WaitlistEntry[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -602,5 +616,42 @@ model ProfessionalNews {
   createdAt      DateTime     @default(now())
 
   @@index([tenantId])
+  @@index([professionalId])
+}
+
+// Lista de espera (BACKLOG "Media" → priorizada por ROI en docs/ANALISIS-BRECHAS.md).
+// Un anotado que quiere un turno de un servicio (opcionalmente con un profesional
+// preferido) cuando no había horario disponible, o que llamó/vino sin reservar. No
+// se enlaza a `Client` a propósito: muchos anotados son gente que recién llama y
+// todavía no es cliente; los datos de contacto se guardan sueltos y, si se convierte
+// en turno, ahí sí se hace el upsert del Client por teléfono (mismo criterio que el
+// turno manual). `professionalId` null = "cualquier profesional que preste el
+// servicio". Cuando se resuelve como turno real, queda BOOKED con
+// `bookedAppointmentId` de rastro (no es FK fuerte para que borrar el turno no
+// rompa el histórico de la lista). Idempotencia del alta: no hay unique — la misma
+// persona puede anotarse dos veces a propósito (dos servicios distintos); el
+// duplicado exacto lo evita la UI, no el schema.
+model WaitlistEntry {
+  id             String         @id @default(cuid())
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  clientName     String
+  clientPhone    String
+  clientEmail    String?
+  service        Service        @relation(fields: [serviceId], references: [id])
+  serviceId      String
+  professional   Professional?  @relation(fields: [professionalId], references: [id])
+  professionalId String? // null = cualquier profesional
+  preferenceNote String? // "martes o jueves por la tarde", texto libre
+  notes          String? // nota interna de recepción
+  status         WaitlistStatus @default(WAITING)
+  notifiedAt     DateTime? // cuándo se le avisó que se liberó un hueco
+  resolvedAt     DateTime? // cuándo pasó a BOOKED o CANCELLED
+  bookedAppointmentId String? // turno con el que se resolvió (rastro, no FK)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([tenantId, status, createdAt])
+  @@index([serviceId])
   @@index([professionalId])
 }

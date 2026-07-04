@@ -17,6 +17,7 @@ export type Capability =
   | "agenda:complete" // marcar completado / no-show
   | "clients:read"
   | "clients:manage"
+  | "waitlist:manage" // anotar/gestionar la lista de espera y convertir en turno
   | "catalog:read"
   | "catalog:manage"
   | "coupons:manage"
@@ -37,6 +38,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "agenda:complete",
   "clients:read",
   "clients:manage",
+  "waitlist:manage",
   "catalog:read",
   "catalog:manage",
   "coupons:manage",
@@ -60,6 +62,9 @@ export const ALL_CAPABILITIES: Capability[] = [
 //   clientes + cobrar; el resto se mantiene en OWNER por ser lo más simple y
 //   defendible. Si más adelante la recepción necesita alguna de esas, se agrega
 //   la capability al arreglo (un renglón), sin tocar los guardas.
+//   EXCEPCIÓN: la lista de espera (`waitlist:manage`) SÍ va a RECEPTION — es
+//   trabajo de mostrador puro (anota a quien llama cuando está lleno y ofrece el
+//   hueco cuando se libera), del mismo tenor operativo que agenda + clientes.
 // - PROFESSIONAL: solo su propia agenda — leer y marcar completado/no-show. El
 //   scoping a su `professionalId` se hace en el loader (getAgendaDay) y en las
 //   acciones de cierre; la capability solo habilita la clase de acción.
@@ -72,6 +77,7 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "agenda:complete",
     "clients:read",
     "clients:manage",
+    "waitlist:manage",
   ],
   PROFESSIONAL: ["agenda:read", "agenda:complete"],
 };
