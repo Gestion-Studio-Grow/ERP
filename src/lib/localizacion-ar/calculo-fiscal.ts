@@ -84,6 +84,32 @@ function validarLineas(lineas: LineaComprobante[]): void {
   }
 }
 
+const centsEq = (a: number, b: number) => Math.round(a * 100) === Math.round(b * 100);
+
+// Auto-chequeo de invariantes del resultado (defensa en profundidad). Verifica
+// lo mismo que ARCA valida aritméticamente: total = suma de partes, y el
+// desglose de IVA suma al neto y al IVA totales. Si un cambio futuro rompe una
+// cuenta, esto lanza en vez de dejar emitir un comprobante mal.
+export function assertConsistente(r: ResultadoCalculo): void {
+  const suma = r.neto + r.exento + r.noGravado + r.iva;
+  if (!centsEq(suma, r.total)) {
+    throw new Error(`calculo-fiscal: total inconsistente (${r.total} != ${suma}).`);
+  }
+  for (const v of [r.neto, r.exento, r.noGravado, r.iva, r.total]) {
+    if (v < 0) throw new Error("calculo-fiscal: importe negativo en el resultado.");
+  }
+  if (r.ivaDetalle.length > 0) {
+    const baseSum = r.ivaDetalle.reduce((a, i) => a + i.baseImp, 0);
+    const ivaSum = r.ivaDetalle.reduce((a, i) => a + i.importe, 0);
+    if (!centsEq(baseSum, r.neto)) {
+      throw new Error("calculo-fiscal: las bases del desglose no suman el neto.");
+    }
+    if (!centsEq(ivaSum, r.iva)) {
+      throw new Error("calculo-fiscal: el IVA del desglose no suma el IVA total.");
+    }
+  }
+}
+
 // Núcleo del motor. Toma la condición IVA del EMISOR y las líneas, y devuelve el
 // comprobante calculado con la invariante: neto + exento + noGravado + iva =
 // total exactos, y por alícuota base + iva consistentes (el remanente del
@@ -104,7 +130,7 @@ export function calcularComprobante(
   if (condicionEmisor !== "RESPONSABLE_INSCRIPTO") {
     const totalCent = lineas.reduce((a, l) => a + aCent(l.importe), 0);
     if (totalCent <= 0) throw new Error("calculo-fiscal: total del comprobante <= 0.");
-    return {
+    const resultadoC: ResultadoCalculo = {
       tipo: "FACTURA_C",
       neto: deCent(totalCent),
       exento: 0,
@@ -114,6 +140,8 @@ export function calcularComprobante(
       ivaDetalle: [],
       ...receptor,
     };
+    assertConsistente(resultadoC);
+    return resultadoC;
   }
 
   // Responsable Inscripto -> Factura B, con desglose por alícuota + exento/no gravado.
@@ -168,7 +196,7 @@ export function calcularComprobante(
   const totalCent = netoCent + ivaTotalCent + exentoCent + noGravadoCent;
   if (totalCent <= 0) throw new Error("calculo-fiscal: total del comprobante <= 0.");
 
-  return {
+  const resultadoB: ResultadoCalculo = {
     tipo: "FACTURA_B",
     neto: deCent(netoCent),
     exento: deCent(exentoCent),
@@ -178,4 +206,6 @@ export function calcularComprobante(
     ivaDetalle,
     ...receptor,
   };
+  assertConsistente(resultadoB);
+  return resultadoB;
 }
