@@ -35,11 +35,17 @@ Con esto la vidriera `/tienda` muestra: el **acento de marca de magra** (oxblood
 
 ## 2. Copy y catálogo (fieles a su web)
 
-- **Voz firma de magra** (`src/tenants/storefront.ts`, resuelta por slug): frase madre
-  *"Esto no es una carnicería."*, bajada, **about** (*"Probadas por nosotros, elegidas para vos."*),
-  3 **destacados** (envasado al vacío / envío gratis a las 5 zonas / atención por WhatsApp) y datos de
-  **footer** (zonas, medios de pago). Todo textual de su comunicación. Un tenant sin copy propio cae al
-  wording genérico del rubro.
+- **Voz firma + estructura de magra** (`src/tenants/storefront.ts`, resuelta por slug): la vidriera
+  `/tienda` ESPEJA su web — frase madre *"Esto no es una carnicería."*, 4 **propuestas de valor**
+  (envío gratis · calidad premium garantizada · todos los medios de pago · atención WhatsApp), sección
+  **"Envasados al vacío"** (vaca Don Ramón / cerdo magro / pollo orgánico, cada una con CTA de pedido por
+  WhatsApp), **"Productos gourmet"**, tira de **proveedores** (Don Ramón, Tinos, Breaders, Paladini,
+  Lamberti, Formagge, PizzaZen, Maderasa), **reviews** reales (Matías R., Jesica F., Macarena A. — 5★),
+  **about** (*"Probadas por nosotros, elegidas para vos."*) y **footer** completo (dirección, horarios,
+  contacto, zonas, pagos). Premium-minimalista con contraste (secciones claras adelante, about+footer
+  oscuros). El salto de valor sobre su web actual: **catálogo + carrito + toma de pedidos + POS de
+  mostrador** integrados (deja de depender de Bistrosoft y del WhatsApp manual). Un tenant sin copy
+  propio cae al wording genérico del rubro.
 - **Catálogo del rubro `carniceria`** ya carga las **líneas reales**: vaca (Estancia Don Ramón, al
   vacío), cerdo magro, pollo orgánico, preparados y una **línea gourmet** (pasta italiana, conserva
   importada, ensalada envasada, pescado congelado). Precios **provisionales** hasta la lista real (§3).
