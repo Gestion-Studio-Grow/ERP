@@ -23,24 +23,68 @@ import {
   procesarInvoiceCreated,
   ArcaRechazoError,
   ComprobanteInvalidoError,
-  StubAfipClient,
+  crearAfipClient,
   CondicionIva,
   type AfipClient,
+  type EmisorConfig,
   type InvoiceCreatedEvent,
 } from "@/plugins/arca";
 
 /**
- * Resuelve el cliente de ARCA de un tenant (sus credenciales/CUIT).
- *
- * TODO(lado-Core, ADR-022 §5): hoy devuelve el STUB en memoria. La versión real
- * lee la config del tenant (certificado X.509 + CUIT + punto de venta, ver
- * `configSchema` del manifiesto) y devuelve el adapter SOAP real
- * (`src/plugins/arca/afip/soap.ts`, todavía sin construir). El plugin es
- * tenant-agnóstico: acá es donde entra el tenant.
+ * Config fiscal no sensible del tenant (lo que la DB SÍ guarda). El cert/clave
+ * NO están acá: los resuelve la factory desde env/secret (ADR-022 §5).
  */
-export function clientePara(_tenantId: string): AfipClient {
-  return new StubAfipClient({ cuit: 0, homologacion: true });
+export interface ConfigFiscalTenant {
+  cuit: number;
+  homologacion: boolean;
 }
+
+/** Lee la config fiscal de un tenant. Seam inyectable (default: Prisma). */
+export type LeerConfigFiscal = (
+  tenantId: string,
+) => Promise<ConfigFiscalTenant | null>;
+
+/** Lector real: toma la metadata fiscal del `Tenant` (ADR-022 §5, opción B). */
+const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
+  const t = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { arcaCuit: true, arcaHomologacion: true },
+  });
+  if (!t) return null;
+  // `arcaCuit` es texto en DB (no entra en Int32); el emisor lo maneja como número.
+  return {
+    cuit: t.arcaCuit ? Number(t.arcaCuit) : 0,
+    homologacion: t.arcaHomologacion,
+  };
+};
+
+/**
+ * Construye el resolvedor `clientePara(tenantId)` a partir de un lector de
+ * config y el entorno. Testeable offline sin DB (se le inyecta un lector fake).
+ *
+ * "Encender, no construir" (ADR-022): arma el `EmisorConfig` del tenant desde su
+ * metadata y delega en `crearAfipClient`, que elige STUB vs SOAP real según
+ * `ARCA_MODO`. Con `ARCA_MODO` sin setear (default), SIEMPRE devuelve el stub —
+ * ARCA queda apagado aunque el enganche esté completo. Un tenant sin config
+ * fiscal cargada cae a un stub `cuit:0` (inofensivo en modo stub).
+ */
+export function crearClientePara(
+  leer: LeerConfigFiscal = leerConfigFiscalPrisma,
+  env: Record<string, string | undefined> = process.env,
+): (tenantId: string) => Promise<AfipClient> {
+  return async (tenantId) => {
+    const cfg = await leer(tenantId);
+    const config: EmisorConfig = cfg ?? { cuit: 0, homologacion: true };
+    return crearAfipClient(config, env);
+  };
+}
+
+/**
+ * Resuelve el cliente de ARCA de un tenant (su config fiscal). Default de
+ * producción: lee del `Tenant` y respeta `ARCA_MODO` (stub mientras no se
+ * encienda). El plugin es tenant-agnóstico: acá es donde entra el tenant.
+ */
+export const clientePara = crearClientePara();
 
 /** Convierte el payload guardado (condicionIva como texto) al evento del plugin. */
 function aEventoPlugin(p: InvoiceCreatedPayload): InvoiceCreatedEvent {

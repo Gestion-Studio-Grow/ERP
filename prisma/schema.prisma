@@ -196,6 +196,17 @@ model Tenant {
   modules      String[]     @default([]) // módulos/pantallas activos por tenant
   accentPreset String? // preset de acento del branding (src/lib/branding.ts)
   frontTheme   String? // "light" | "dark" — tema de la vidriera del tenant
+
+  // --- Config fiscal / ARCA por tenant (ADR-022 §5, CORE-SCHEMA-SPEC opción B) ---
+  // SOLO metadata no sensible. El certificado X.509 + clave del emisor NO viven en
+  // la DB: entran por env/secret store (`ARCA_CERT_PEM`/`ARCA_KEY_PEM`, `credencialDesdeEnv`).
+  // `clientePara(tenantId)` (src/lib/arca-dispatch.ts) arma el `EmisorConfig` desde acá.
+  // Aditivo/nullable — sin backfill. Migración ESCRITA y SIN aplicar a Neon (Gate 2).
+  // `arcaCuit` es String (no Int como sugería el spec): un CUIT de 11 dígitos no entra
+  // en Int32 de Postgres — mismo criterio que `Invoice.docNro`.
+  arcaCuit         String? // CUIT del emisor (11 dígitos, sin guiones)
+  arcaPuntoVenta   Int? // punto de venta habilitado en ARCA
+  arcaHomologacion Boolean @default(true) // true = testing ARCA (seguro por default); false = producción
 }
 
 // Estado de un tenant en la plataforma (control-plane, ADR-021). TRIAL = en
