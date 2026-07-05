@@ -6,18 +6,20 @@ import { placeOnlineOrder } from "@/lib/order-actions";
 import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
 
-// Paleta cálida-minimalista (premium/boutique). El COLOR de marca es el acento del
-// tenant (var(--accent), inyectado por la página): se usa con moderación —eyebrow,
-// filetes, precios, CTAs—. Regla de contraste: secciones de contenido CLARAS; about y
-// footer OSCUROS (el "back oscuro").
+// Paleta cálida-minimalista (premium/boutique) — ahora sobre los DESIGN TOKENS del
+// ERP (Nocturne, ver globals.css), no colores sueltos: así la vidriera comparte
+// sistema con /admin y /operador y responde al tema. El COLOR de marca sigue siendo
+// el acento del tenant (var(--accent), inyectado por la página): se usa con moderación
+// —eyebrow, filetes, precios, CTAs—. Regla de contraste: secciones de contenido CLARAS
+// (surface); about y footer OSCUROS (surface-inverted, el "back oscuro").
 const T = {
-  bg: "#faf7f2", // crema cálido
-  surface: "#ffffff",
-  line: "#ece4d8",
-  ink: "#221c19", // casi negro cálido
-  inkDeep: "#17110f",
-  muted: "#7a6c60",
-  faint: "#a89a8c",
+  bg: "var(--surface)",
+  surface: "var(--surface-raised)",
+  line: "var(--line)",
+  ink: "var(--text-strong)",
+  inkDeep: "var(--surface-inverted)",
+  muted: "var(--text-muted)",
+  faint: "var(--text-faint)",
 } as const;
 
 type Product = {
@@ -111,7 +113,7 @@ export default function Storefront({
     background: T.bg,
     color: T.ink,
     minHeight: "100vh",
-    fontFamily: "system-ui, -apple-system, sans-serif",
+    fontFamily: "var(--font-body), system-ui, -apple-system, sans-serif",
     ["--accent" as string]: accent,
   } as CSSProperties;
 
@@ -132,7 +134,7 @@ export default function Storefront({
           <div style={{ width: 48, height: 3, background: "var(--accent)", margin: "24px 0 22px" }} />
           {intro && <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 620 }}>{intro}</p>}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
-            <a href="#seleccion" style={cta("var(--accent)", "#fff")}>{wording.orderCta}</a>
+            <a href="#seleccion" style={cta("var(--accent)", "var(--text-on-accent)")}>{wording.orderCta}</a>
             {wa && (
               <a href={waLink(wa, `¡Hola ${name}! Quiero hacer un pedido.`)!} target="_blank" rel="noopener noreferrer" style={cta("#fff", "#128C4B", "1px solid #25D366")}>
                 Pedir por WhatsApp
@@ -182,7 +184,17 @@ export default function Storefront({
         <section id="seleccion" style={{ scrollMarginTop: 20 }}>
           <SectionHead kicker="Comprá online" title={wording.catalogHeading} />
           {products.length === 0 ? (
-            <p style={{ color: T.muted }}>Todavía no hay productos con precio cargado (se cargan al provisionar el tenant o en el catálogo del backoffice).</p>
+            <div style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 16, padding: "28px 22px", textAlign: "center" }}>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>Estamos preparando la selección</p>
+              <p style={{ margin: "6px 0 0", color: T.muted, fontSize: 14 }}>
+                En un rato vas a poder comprar online.{wa ? " Mientras tanto, escribinos por WhatsApp y te tomamos el pedido." : ""}
+              </p>
+              {wa && (
+                <a href={waLink(wa, `¡Hola ${name}! Quiero hacer un pedido.`)!} target="_blank" rel="noopener noreferrer" style={{ ...cta("#fff", "#128C4B", "1px solid #25D366"), display: "inline-flex", marginTop: 16 }}>
+                  Pedir por WhatsApp
+                </a>
+              )}
+            </div>
           ) : (
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(230px,1fr))" }}>
               {products.map((p) => {
@@ -198,7 +210,7 @@ export default function Storefront({
                     <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 8 }}>
                       <button type="button" onClick={() => bump(p, -1)} aria-label="Quitar" style={qtyBtn(T.line, T.ink)}>−</button>
                       <span style={{ minWidth: 60, textAlign: "center", fontVariantNumeric: "tabular-nums", fontSize: 14 }}>{qty > 0 ? `${qty} ${isWeight ? "kg" : "u"}` : "—"}</span>
-                      <button type="button" onClick={() => bump(p, 1)} aria-label="Agregar" style={qtyBtn("var(--accent)", "#fff")}>+</button>
+                      <button type="button" onClick={() => bump(p, 1)} aria-label="Agregar" style={qtyBtn("var(--accent)", "var(--text-on-accent)")}>+</button>
                     </div>
                   </div>
                 );
@@ -241,7 +253,7 @@ export default function Storefront({
                 {fulfillment === "DELIVERY" && (<label style={lbl}><span style={lblT}>Dirección *</span><input name="address" required style={inp} placeholder="Calle, número, barrio" /></label>)}
                 <label style={{ ...lbl, gridColumn: "1 / -1" }}><span style={lblT}>Nota</span><input name="notes" style={inp} placeholder="ej: cómo lo querés preparado / aclaraciones" /></label>
               </div>
-              <button type="submit" style={{ ...cta("var(--accent)", "#fff"), height: 48 }}>{wording.orderCta}</button>
+              <button type="submit" style={{ ...cta("var(--accent)", "var(--text-on-accent)"), height: 48 }}>{wording.orderCta}</button>
               {cartWaHref && (<a href={cartWaHref} target="_blank" rel="noopener noreferrer" style={{ ...cta("#fff", "#128C4B", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</a>)}
               <p style={{ fontSize: 11, color: T.faint, textAlign: "center" }}>Te contactamos para confirmar. El pago se coordina al recibirlo.</p>
             </form>
@@ -345,8 +357,8 @@ function qtyBtn(bg: string, color: string): CSSProperties {
   return { height: 34, minWidth: 34, borderRadius: 10, border: "none", background: bg, color, fontWeight: 700, fontSize: 16, cursor: "pointer" };
 }
 const lbl: CSSProperties = { display: "grid", gap: 4, fontSize: 13 };
-const lblT: CSSProperties = { color: "#7a6c60" };
-const inp: CSSProperties = { border: "1px solid #ece4d8", borderRadius: 10, padding: "10px 12px", fontSize: 14, background: "#fff", color: "#221c19" };
+const lblT: CSSProperties = { color: "var(--text-muted)" };
+const inp: CSSProperties = { border: "1px solid var(--line-strong)", borderRadius: 10, padding: "10px 12px", fontSize: 14, background: "var(--surface-raised)", color: "var(--text-strong)" };
 const foothead: CSSProperties = { fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.55, marginBottom: 8, fontWeight: 600 };
 const footlink: CSSProperties = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 };
 

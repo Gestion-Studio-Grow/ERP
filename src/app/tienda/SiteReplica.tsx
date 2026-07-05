@@ -10,7 +10,16 @@ import type { SiteReplicaData } from "@/tenants/site-replica";
 // usa el acento de marca del tenant. La sección "Comprá online" conecta el carrito a
 // placeOnlineOrder → bandeja/POS/stock/facturación.
 
-const T = { bg: "#ffffff", soft: "#f6f2ec", line: "#e7ddd0", ink: "#1c1614", muted: "#6f6157", faint: "#a08f80" } as const;
+// Sobre los DESIGN TOKENS del ERP (Nocturne) — la vidriera comparte sistema con el
+// resto del producto y responde al tema; el acento sigue siendo el del tenant.
+const T = {
+  bg: "var(--surface-raised)",
+  soft: "var(--surface)",
+  line: "var(--line)",
+  ink: "var(--text-strong)",
+  muted: "var(--text-muted)",
+  faint: "var(--text-faint)",
+} as const;
 
 type Product = { id: string; name: string; saleUnit: "UNIT" | "WEIGHT"; price: number | null; pricePerKg: number | null; unit: string };
 type Branding = { whatsapp: string | null; instagram: string | null; email: string | null; addressLine: string | null; city: string | null; hoursLabel: string | null; contactNote: string | null } | null;
@@ -50,31 +59,31 @@ export default function SiteReplica({
   const lines = Object.entries(cart).map(([id, q]) => { const p = byId.get(id); return p ? { p, q, t: q * price(p) } : null; }).filter((l): l is { p: Product; q: number; t: number } => !!l);
   const total = lines.reduce((s, l) => s + l.t, 0);
 
-  const root = { background: T.bg, color: T.ink, fontFamily: "system-ui, -apple-system, sans-serif", ["--accent" as string]: accent } as CSSProperties;
+  const root = { background: T.bg, color: T.ink, fontFamily: "var(--font-body), system-ui, -apple-system, sans-serif", ["--accent" as string]: accent } as CSSProperties;
 
   return (
     <div style={root}>
       {/* Header */}
-      <header style={{ borderBottom: `1px solid ${T.line}`, position: "sticky", top: 0, background: "rgba(255,255,255,.92)", backdropFilter: "blur(6px)", zIndex: 10 }}>
+      <header style={{ borderBottom: `1px solid ${T.line}`, position: "sticky", top: 0, background: "color-mix(in srgb, var(--surface-raised) 92%, transparent)", backdropFilter: "blur(6px)", zIndex: 10 }}>
         <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={site.logo} alt={name} style={{ height: 40, width: "auto" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 13 }}>
             {branding?.instagram && <a href={`https://instagram.com/${branding.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" style={navlink}>Instagram</a>}
-            <a href="#comprar" style={{ ...btn(accent, "#fff"), height: 38 }}>{site.ctaSecondary}</a>
+            <a href="#comprar" style={{ ...btn(accent, "var(--text-on-accent)"), height: 38 }}>{site.ctaSecondary}</a>
           </div>
         </div>
       </header>
 
       {/* Hero */}
       <section style={{ background: T.soft, borderBottom: `1px solid ${T.line}` }}>
-        <div style={{ ...wrap, display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 32, alignItems: "center", padding: "56px 24px" }}>
+        <div style={{ ...wrap, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32, alignItems: "center", padding: "56px 24px" }}>
           <div>
             <div style={kicker}>{site.heroKicker}</div>
             <h1 style={{ fontSize: "clamp(34px, 5vw, 56px)", lineHeight: 1.02, letterSpacing: -1.4, fontWeight: 800, margin: "14px 0 0" }}>{site.heroTitle}</h1>
             <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 520, marginTop: 16 }}>{site.heroText}</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
-              <a href="#comprar" style={btn(accent, "#fff")}>{site.ctaPrimary}</a>
+              <a href="#comprar" style={btn(accent, "var(--text-on-accent)")}>{site.ctaPrimary}</a>
               <a href={wa(w, `¡Hola ${name}! Quiero hacer un pedido.`)} target="_blank" rel="noopener noreferrer" style={btn("#fff", "#128C4B", "1px solid #25D366")}>{site.ctaSecondary}</a>
             </div>
           </div>
@@ -130,8 +139,8 @@ export default function SiteReplica({
           {products.length === 0 ? (
             <p style={{ color: T.muted }}>Catálogo en preparación.</p>
           ) : (
-            <div style={{ display: "grid", gap: 20, gridTemplateColumns: "2fr 1fr", alignItems: "start" }}>
-              <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-start" }}>
+              <div style={{ flex: "3 1 320px", display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))" }}>
                 {products.map((p) => {
                   const q = cart[p.id] ?? 0; const kg = p.saleUnit === "WEIGHT";
                   return (
@@ -141,14 +150,14 @@ export default function SiteReplica({
                       <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 8 }}>
                         <button type="button" onClick={() => bump(p, -1)} aria-label="Quitar" style={qbtn(T.line, T.ink)}>−</button>
                         <span style={{ minWidth: 56, textAlign: "center", fontSize: 13.5 }}>{q > 0 ? `${q} ${kg ? "kg" : "u"}` : "—"}</span>
-                        <button type="button" onClick={() => bump(p, 1)} aria-label="Agregar" style={qbtn(accent, "#fff")}>+</button>
+                        <button type="button" onClick={() => bump(p, 1)} aria-label="Agregar" style={qbtn(accent, "var(--text-on-accent)")}>+</button>
                       </div>
                     </div>
                   );
                 })}
               </div>
               {/* Carrito → placeOnlineOrder (nuestro back) */}
-              <form action={placeOnlineOrder} style={{ ...card, position: "sticky", top: 82, display: "grid", gap: 12 }}>
+              <form action={placeOnlineOrder} style={{ ...card, flex: "1 1 280px", position: "sticky", top: 82, display: "grid", gap: 12 }}>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Tu pedido</div>
                 {lines.length === 0 && <div style={{ color: T.muted, fontSize: 13.5 }}>Sumá productos con +.</div>}
                 {lines.map((l) => (
@@ -171,7 +180,7 @@ export default function SiteReplica({
                       <option value="DELIVERY">Envío a domicilio</option>
                     </select>
                     {fulfillment === "DELIVERY" && <input name="address" required placeholder="Dirección *" style={inp} />}
-                    <button type="submit" style={{ ...btn(accent, "#fff"), height: 44 }}>Enviar pedido</button>
+                    <button type="submit" style={{ ...btn(accent, "var(--text-on-accent)"), height: 44 }}>Enviar pedido</button>
                     <div style={{ fontSize: 10.5, color: T.faint, textAlign: "center" }}>El pedido entra a nuestro sistema (bandeja + stock + facturación).</div>
                   </>
                 )}
@@ -213,7 +222,7 @@ export default function SiteReplica({
       </div>
 
       {/* Footer */}
-      <footer style={{ background: T.ink, color: "#f6f2ec" }}>
+      <footer style={{ background: T.ink, color: "var(--surface)" }}>
         <div style={{ ...wrap, display: "grid", gap: 32, gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", padding: "44px 24px" }}>
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -233,21 +242,21 @@ function Head({ title, sub }: { title: string; sub?: string }) {
   return (
     <div style={{ marginBottom: 18 }}>
       <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5 }}>{title}</h2>
-      {sub && <p style={{ color: "#6f6157", fontSize: 14, marginTop: 6 }}>{sub}</p>}
+      {sub && <p style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 6 }}>{sub}</p>}
     </div>
   );
 }
 const wrap: CSSProperties = { maxWidth: 1120, margin: "0 auto" };
 const kicker: CSSProperties = { fontSize: 12, letterSpacing: 3, textTransform: "uppercase", color: "var(--accent)", fontWeight: 600 };
-const card: CSSProperties = { background: "#fff", border: "1px solid #e7ddd0", borderRadius: 16, padding: 18 };
+const card: CSSProperties = { background: "var(--surface-raised)", border: "1px solid var(--line)", borderRadius: 16, padding: 18 };
 function btn(bg: string, color: string, border?: string): CSSProperties {
   return { display: "grid", placeItems: "center", padding: "0 20px", height: 46, borderRadius: 11, border: border ?? "none", background: bg, color, fontWeight: 700, fontSize: 14.5, textDecoration: "none", cursor: "pointer" };
 }
 function qbtn(bg: string, color: string): CSSProperties {
   return { height: 32, minWidth: 32, borderRadius: 9, border: "none", background: bg, color, fontWeight: 700, fontSize: 15, cursor: "pointer" };
 }
-const inp: CSSProperties = { border: "1px solid #e7ddd0", borderRadius: 9, padding: "9px 11px", fontSize: 13.5, background: "#fff", color: "#1c1614" };
-const navlink: CSSProperties = { color: "#1c1614", textDecoration: "none", fontWeight: 600 };
+const inp: CSSProperties = { border: "1px solid var(--line-strong)", borderRadius: 9, padding: "9px 11px", fontSize: 13.5, background: "var(--surface-raised)", color: "var(--text-strong)" };
+const navlink: CSSProperties = { color: "var(--text-strong)", textDecoration: "none", fontWeight: 600 };
 const foot: CSSProperties = { fontSize: 13, lineHeight: 1.9, opacity: 0.82 };
 const foothead: CSSProperties = { fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.55, marginBottom: 8, fontWeight: 600 };
 const flink: CSSProperties = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 };
