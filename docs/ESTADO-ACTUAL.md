@@ -90,13 +90,19 @@ Pago (OAuth por comercio) — infra/adapters listos, esperan credencial.
 - `20260705130000_add_product_track_stock` — `trackStock`.
 - `20260705140000_add_stock_purchases` — compras/reposición.
 - `20260705150000_add_stock_ledger` — ledger `StockMovement`.
-- `20260705150000_add_tenant_fiscal_config` — config fiscal por tenant.
+- `20260705150001_add_tenant_fiscal_config` — config fiscal por tenant (**renombrada** desde `150000`).
+- `20260705150002_fiscal_invoice_align` — Invoice alineado al spec: `ivaDesglose` (Json), `authorizedAt`, unique `(tenantId, puntoVenta, tipoComprobante, numero)`.
 
-**🛑 RIESGO DE ORDEN — colisión de timestamp (SIGUE ABIERTO):** **dos** migraciones comparten prefijo
-`20260705150000` (`add_stock_ledger` y `add_tenant_fiscal_config`). Prisma ordena por nombre completo
-(`ledger` < `tenant_fiscal_config`), pero es frágil. **Resolver ANTES del próximo `migrate deploy`**:
-renombrar una a `20260705150001_…` para orden explícito. Es justo el error de migración que la
-FASE 0/BACKUP busca prevenir.
+**✅ COLISIÓN DE TIMESTAMP — RESUELTA (2026-07-05, frente Fiscal):** la doble `20260705150000`
+(`add_stock_ledger` vs `add_tenant_fiscal_config`) se cerró renombrando la fiscal a
+`20260705150001_…`; orden explícito `ledger(150000) < tenant_fiscal_config(150001) < fiscal_invoice_align(150002)`.
+Sin colisiones. RLS de Plataforma vive en `prisma/rls/` (fuera de `migrations/`) → no cruza con esto.
+
+**⚠️ DECISIÓN PENDIENTE (PMO/ADR) — dinero `Float` vs `Decimal`:** el spec fiscal pide `Decimal(14,2)`
+para `neto/iva/total` de `Invoice`; hoy son `Float`, coherente con que todo el sistema mueve importes
+como `number` (contrato del plugin ARCA). Migrar cruza ese contrato de punta a punta y solo impacta con
+ARCA en real (hoy stub/gateado). **No se tocó unilateralmente**: requiere decisión de arquitectura antes
+de integrar el cambio de representación de dinero.
 
 **RLS:** los SQL viven **fuera** de `prisma/migrations/` a propósito (`prisma/rls/`) — ningún
 `migrate deploy` los aplica solo (ver `prisma/rls/README.md`).
@@ -159,7 +165,8 @@ SEPARADOS** del ERP. Visión: **la Agencia es el go-to-market del propio ERP** (
 2. **Palanca #1 — prender Magra (secuencia del §4):** RLS a prod (ensayo en branch de Neon → cablear
    app → rotar `DATABASE_URL` → aplicar) → alta de Magra (`provision-tenant.ts`) → deploy sitio
    `magra-erp` (`FORCE_TENANT_SLUG=magra`). Todo con OK explícito por gate.
-3. **⚠️ Antes de cualquier `migrate deploy`:** resolvé la colisión de timestamp `20260705150000` (§5).
+3. **✅ Colisión de timestamp `20260705150000` — RESUELTA** (frente Fiscal, §5). Antes de `migrate deploy`,
+   verificá que no aparezcan colisiones NUEVAS de otros frentes.
 4. **Higiene:** cerrar el refactor sin commitear en el tree de `main` (§6) y el wiring `completeAppointment`.
 5. **Sector Agencia:** el PMO de Agencia baja la visión (§7) a backlog de productos vendibles.
 6. **Estado:** no hay nada rojo en `main` (`35603bd`); prod estable en `f0a13f0`. El delta sin deployar

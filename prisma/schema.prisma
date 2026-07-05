@@ -812,9 +812,19 @@ model Invoice {
   fecha    String // AAAAMMDD
 
   // Montos calculados por el Core (ADR-006).
+  // NOTA (divergencia consciente con CORE-SCHEMA-SPEC §1): el spec pide `Decimal(14,2)`
+  // para exactitud fiscal, pero hoy TODO el sistema mueve importes como `number` (el
+  // contrato del plugin ARCA —core-contract/port/comprobante— y el cálculo de IVA del
+  // Core son `number`). Migrar a Decimal cruza ese contrato de punta a punta y solo
+  // impacta con ARCA en real (hoy stub/gateado). Queda como decisión de arquitectura
+  // (ADR) a coordinar con el PMO antes de tocar la representación de dinero.
   neto  Float
-  iva   Float
+  iva   Float // total de IVA (suma de alícuotas); el desglose va en `ivaDesglose`.
   total Float
+
+  // Desglose de IVA por alícuota (spec §1: `iva` como `SubtotalIvaCore[]`). Se persiste
+  // acá para auditoría/reimpresión; antes vivía solo en el payload (efímero) del outbox.
+  ivaDesglose Json? // SubtotalIva[] = { alicuotaId, base, importe }[]
 
   status InvoiceStatus @default(PENDING)
 
@@ -824,9 +834,11 @@ model Invoice {
   numero         Int? // correlativo asignado por ARCA
   rechazoMotivo  String? // detalle si status=REJECTED
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  authorizedAt DateTime? // cuándo ARCA devolvió el CAE (audit; spec §1)
 
+  @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
   @@index([tenantId, status])
 }
 
