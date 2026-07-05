@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magra · Magra BACK (admin, oscuro)</title>
+<style>
+  :root{
+    /* Neutros — oscuro cálido (subtono tierra) */
+    --bg:#15140F;
+    --sidebar:#1B1A14;
+    --raised:#201E17;
+    --sunken:#100F0B;
+
+    /* Texto hueso */
+    --t-strong:#F0EBDE;
+    --t-body:#C9C3B4;
+    --t-muted:#928B7B;
+    --t-faint:#6A6558;
+
+    /* Líneas */
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(255,255,255,.14);
+
+    /* Acento por tenant — ámbar/manteca desaturado */
+    --accent:#d26a7d;
+    --accent-soft:rgba(210,106,125,.14);
+
+    /* Estados matizados a la paleta cálida */
+    --ok:#86A97F;            /* salvia */
+    --ok-soft:rgba(134,169,127,.14);
+    --warn:#C2724A;          /* cobre */
+    --warn-soft:rgba(194,114,74,.15);
+
+    /* Elevación: sombra oscura muy suave, cero glow */
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+
+    --radius:12px;
+    --radius-sm:9px;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--t-body);
+    font-family:system-ui,"Helvetica Neue",Arial,sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    font-feature-settings:"cv11","ss01";
+  }
+  .tnum{font-variant-numeric:tabular-nums}
+
+  .app{display:grid;grid-template-columns:256px 1fr;min-height:100vh}
+
+  /* ————— SIDEBAR ————— */
+  .sidebar{
+    background:var(--sidebar);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    padding:24px 16px 16px;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{padding:4px 8px 20px;border-bottom:1px solid var(--line)}
+  .brand h1{
+    font-size:20px;font-weight:600;color:var(--t-strong);
+    letter-spacing:-.01em;line-height:1.1;
+  }
+  .brand .sub{
+    font-size:12px;color:var(--t-muted);margin-top:4px;
+    letter-spacing:.02em;
+  }
+
+  nav{margin-top:16px;display:flex;flex-direction:column;gap:2px;flex:1}
+  .nav-item{
+    display:flex;align-items:center;gap:12px;
+    padding:9px 12px 9px 11px;border-radius:var(--radius-sm);
+    color:var(--t-muted);text-decoration:none;font-size:13.5px;
+    position:relative;transition:color .12s ease, background .12s ease;
+    border-left:2px solid transparent;
+  }
+  .nav-item svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.6;
+    fill:none;stroke-linecap:round;stroke-linejoin:round;color:var(--t-faint);
+    flex:none;transition:color .12s ease}
+  .nav-item:hover{color:var(--t-body);background:rgba(255,255,255,.03)}
+  .nav-item:hover svg{color:var(--t-muted)}
+  .nav-item.active{
+    color:var(--accent);
+    background:var(--accent-soft);
+    border-left-color:var(--accent);
+    font-weight:500;
+  }
+  .nav-item.active svg{color:var(--accent)}
+
+  /* Leyenda tenant */
+  .tenant{
+    margin-top:12px;padding:14px 12px 4px;border-top:1px solid var(--line);
+  }
+  .tenant .cap-title{
+    font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--t-faint);font-weight:600;margin-bottom:10px;
+  }
+  .swatch{display:flex;align-items:center;gap:9px;padding:3px 0;font-size:12px;color:var(--t-muted)}
+  .swatch .dot{width:11px;height:11px;border-radius:50%;flex:none;
+    box-shadow:0 0 0 1px rgba(255,255,255,.1) inset}
+  .swatch code{font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+    font-size:11px;color:var(--t-faint);margin-left:auto}
+  .swatch b{color:var(--t-body);font-weight:500}
+  .tenant .caption{
+    font-size:10.5px;color:var(--t-faint);margin-top:10px;line-height:1.45;
+  }
+  .tenant .caption code{font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    color:var(--t-muted);font-size:10.5px}
+
+  /* Footer usuario */
+  .user{
+    margin-top:14px;padding-top:16px;border-top:1px solid var(--line);
+    display:flex;align-items:center;gap:11px;
+  }
+  .avatar{
+    width:36px;height:36px;border-radius:50%;flex:none;
+    background:var(--accent-soft);color:var(--accent);
+    display:grid;place-items:center;font-weight:600;font-size:15px;
+    box-shadow:0 0 0 1px var(--line-strong) inset;
+  }
+  .user .who .name{color:var(--t-strong);font-size:13px;font-weight:600;line-height:1.2}
+  .user .who .role{color:var(--t-muted);font-size:11.5px}
+  .user-links{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+  .user-links a{color:var(--t-muted);font-size:12px;text-decoration:none;transition:color .12s}
+  .user-links a:first-child{color:var(--t-body)}
+  .user-links a:hover{color:var(--accent)}
+
+  /* ————— MAIN ————— */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    height:64px;flex:none;
+    border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 32px;background:rgba(21,20,15,.7);backdrop-filter:blur(6px);
+    position:sticky;top:0;z-index:5;
+  }
+  .topbar .mark{font-size:13px;color:var(--t-muted);letter-spacing:.02em}
+  .topbar .mark b{color:var(--t-body);font-weight:600}
+  .topbar .right{font-size:12px;color:var(--t-faint);letter-spacing:.05em;
+    text-transform:uppercase;font-weight:600}
+
+  .page{padding:32px 32px 48px;max-width:1120px;width:100%}
+
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:28px}
+  .page-head h2{
+    font-size:28px;font-weight:600;color:var(--t-strong);
+    letter-spacing:-.02em;line-height:1.05;
+    font-family:"Helvetica Neue",system-ui,sans-serif;
+  }
+  .page-head .sub{font-size:13.5px;color:var(--t-muted);margin-top:6px}
+  .btn-primary{
+    flex:none;
+    background:var(--accent);color:#2a0d13;
+    border:none;border-radius:var(--radius-sm);
+    padding:11px 18px;font-size:13.5px;font-weight:600;
+    cursor:pointer;letter-spacing:.01em;
+    box-shadow:0 1px 2px rgba(0,0,0,.3);
+    transition:filter .12s ease, transform .06s ease;
+  }
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-primary:active{transform:translateY(1px)}
+
+  /* KPIs */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+  .kpi{
+    background:var(--raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;gap:14px;
+  }
+  .kpi .top{display:flex;align-items:center;justify-content:space-between}
+  .kpi .label{font-size:12px;color:var(--t-muted);letter-spacing:.04em;
+    text-transform:uppercase;font-weight:600}
+  .kpi .chip{
+    width:32px;height:32px;border-radius:9px;flex:none;
+    background:var(--accent-soft);display:grid;place-items:center;
+  }
+  .kpi .chip svg{width:17px;height:17px;stroke:var(--accent);stroke-width:1.6;
+    fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .kpi .value{font-size:34px;font-weight:600;color:var(--t-strong);
+    letter-spacing:-.02em;line-height:1}
+  .kpi .foot{font-size:12.5px;color:var(--t-muted);min-height:1em}
+  .kpi .foot .accent{color:var(--ok)}
+
+  /* Banner novedad */
+  .banner{
+    display:flex;align-items:center;gap:12px;
+    background:var(--raised);
+    border:1px solid var(--line);
+    border-left:2px solid var(--warn);
+    border-radius:var(--radius-sm);
+    padding:14px 18px;margin-bottom:28px;
+    box-shadow:var(--shadow);
+  }
+  .banner .ico{width:18px;height:18px;flex:none}
+  .banner .ico svg{width:18px;height:18px;stroke:var(--warn);stroke-width:1.6;
+    fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .banner .txt{font-size:13.5px;color:var(--t-body)}
+  .banner .txt b{color:var(--t-strong);font-weight:600}
+  .banner .tag{margin-left:auto;font-size:11px;color:var(--t-faint);
+    letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+
+  /* Agenda */
+  .agenda{
+    background:var(--raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .agenda-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 20px;border-bottom:1px solid var(--line);
+  }
+  .agenda-head h3{font-size:15px;font-weight:600;color:var(--t-strong);letter-spacing:-.01em}
+  .agenda-head a{font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:500}
+  .agenda-head a:hover{text-decoration:underline;text-underline-offset:3px}
+
+  .row{
+    display:grid;grid-template-columns:76px 1fr auto auto;
+    align-items:center;gap:20px;
+    padding:16px 20px;border-bottom:1px solid var(--line);
+    transition:background .12s ease;
+  }
+  .row:last-child{border-bottom:none}
+  .row:hover{background:rgba(255,255,255,.025)}
+  .row .time{font-size:15px;font-weight:600;color:var(--t-strong);letter-spacing:-.01em}
+  .row .who .name{font-size:14px;color:var(--t-strong);font-weight:500;line-height:1.3}
+  .row .who .svc{font-size:12.5px;color:var(--t-muted)}
+  .row .staff{font-size:12.5px;color:var(--t-muted);text-align:right;min-width:74px}
+
+  .status{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:5px 11px;border-radius:20px;
+    font-size:12px;font-weight:600;letter-spacing:.01em;white-space:nowrap;
+  }
+  .status .d{width:6px;height:6px;border-radius:50%;flex:none}
+  .status.ok{background:var(--ok-soft);color:var(--ok)}
+  .status.ok .d{background:var(--ok)}
+  .status.warn{background:var(--warn-soft);color:var(--warn)}
+  .status.warn .d{background:var(--warn)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>Magra</h1>
+      <div class="sub">Carnicería de barrio</div>
+    </div>
+
+    <nav>
+      <a class="nav-item active" href="#">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+        Agenda
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
+        Clientes
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Lista de espera
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 01-8 0"/></svg>
+        Pedidos
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        Catálogo
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 17l-5.3 2.8 1-5.8L3.5 9.2l5.9-.9z"/></svg>
+        Reseñas
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+        Recordatorios
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+        Reportes
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        Auditoría
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 11l2 2 3-3.5"/></svg>
+        Usuarios
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        Localización
+      </a>
+    </nav>
+
+    <!-- Leyenda marca por tenant -->
+    <div class="tenant">
+      <div class="cap-title">Marca por tenant</div>
+      <div class="swatch"><span class="dot" style="background:#2c6e77"></span><b>Salón</b><code>#2c6e77</code></div>
+      <div class="swatch"><span class="dot" style="background:#7b2d3b"></span><b>Magra</b><code>#7b2d3b</code></div>
+      <div class="swatch"><span class="dot" style="background:var(--accent)"></span><b>Genérico</b><code>#d26a7d</code></div>
+      <div class="caption">El acento se define por tenant · UI = <code>--accent</code></div>
+    </div>
+
+    <!-- Usuario -->
+    <div class="user">
+      <div class="avatar">D</div>
+      <div class="who">
+        <div class="name">Dev Admin</div>
+        <div class="role">Dueña</div>
+      </div>
+    </div>
+    <div class="user-links">
+      <a href="#">Ver sitio público →</a>
+      <a href="#">Cerrar sesión</a>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <div class="mark"><b>Magra</b> · Carnicería de barrio</div>
+      <div class="right">Panel de administración</div>
+    </header>
+
+    <div class="page">
+      <div class="page-head">
+        <div>
+          <h2>Dashboard</h2>
+          <div class="sub">Resumen del día · viernes 4 de julio</div>
+        </div>
+        <button class="btn-primary">+ Nuevo turno</button>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="top">
+            <span class="label">Turnos hoy</span>
+            <span class="chip"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span>
+          </div>
+          <div class="value tnum">3</div>
+          <div class="foot">2 confirmados · 1 pendiente</div>
+        </div>
+
+        <div class="kpi">
+          <div class="top">
+            <span class="label">Pendientes</span>
+            <span class="chip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          </div>
+          <div class="value tnum">2</div>
+          <div class="foot">a confirmar pago</div>
+        </div>
+
+        <div class="kpi">
+          <div class="top">
+            <span class="label">Ingresos 7 días</span>
+            <span class="chip"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span>
+          </div>
+          <div class="value tnum">$184.500</div>
+          <div class="foot">últimos 7 días</div>
+        </div>
+
+        <div class="kpi">
+          <div class="top">
+            <span class="label">Clientes</span>
+            <span class="chip"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span>
+          </div>
+          <div class="value tnum">213</div>
+          <div class="foot"><span class="accent">+8</span> este mes</div>
+        </div>
+      </div>
+
+      <!-- Banner novedad -->
+      <div class="banner">
+        <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 12v4"/></svg></span>
+        <span class="txt"><b>Hoy no está:</b> Martina (franco)</span>
+        <span class="tag">Novedad</span>
+      </div>
+
+      <!-- Agenda -->
+      <section class="agenda">
+        <div class="agenda-head">
+          <h3>Agenda de hoy</h3>
+          <a href="#">Ver agenda completa →</a>
+        </div>
+
+        <div class="row">
+          <div class="time tnum">10:00</div>
+          <div class="who">
+            <div class="name">María González</div>
+            <div class="svc">Corte y brushing</div>
+          </div>
+          <div class="status ok"><span class="d"></span>Confirmado</div>
+          <div class="staff">Sofía</div>
+        </div>
+
+        <div class="row">
+          <div class="time tnum">11:30</div>
+          <div class="who">
+            <div class="name">Lucía Fernández</div>
+            <div class="svc">Color + nutrición</div>
+          </div>
+          <div class="status ok"><span class="d"></span>Confirmado</div>
+          <div class="staff">Valentina</div>
+        </div>
+
+        <div class="row">
+          <div class="time tnum">16:00</div>
+          <div class="who">
+            <div class="name">Carla Ruiz</div>
+            <div class="svc">Manicura semipermanente</div>
+          </div>
+          <div class="status warn"><span class="d"></span>Pendiente</div>
+          <div class="staff">Sofía</div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

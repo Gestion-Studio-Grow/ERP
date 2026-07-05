@@ -1,11 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  /* LOOK BASE = "B / Studio SaaS" (aprobado 2026-07-05): superficies claras y
-     frías, texto slate, un único acento de MARCA POR TENANT (no hardcodeado).
-     El canvas por defecto es el gris frío de B; las tarjetas van en blanco. */
-  --background: #f6f7f9;
-  --foreground: #0f172a;
+  /* LOOK BASE = "Nocturne" DUAL-THEME (2026-07-05). Hay tema CLARO (default,
+     acá) y OSCURO (`[data-theme="dark"]`, más abajo), ambos de la familia
+     Nocturne (cálida). REGLA DEL SISTEMA: el FRONT (vidriera) y el BACK (admin)
+     de cada tenant van en luminosidades OPUESTAS — la resuelve src/lib/branding.ts
+     y la aplica cada layout con `data-theme`. El acento de marca es POR TENANT:
+     se inyecta `--accent` (+ `--text-on-accent`) ya afinado al tema. */
+  --background: #f6f3ec;
+  --foreground: #1f1b14;
 
   /* Paleta editorial — hueso cálido, tinta casi negra, un solo acento
      (arcilla/brass) usado con moderación. Referencia: Aesop, Aman, COS. */
@@ -42,39 +45,39 @@
      Referencia de marca: CH Estética (petróleo + hueso cálido + salvia).
      ———————————————————————————————————————————————————————————————— */
 
-  /* Superficies (de más al fondo a más elevado) — gris frío + blanco (B) */
-  --surface-sunken: #eef0f3;   /* tracks, zebra, headers de tabla */
-  --surface: #f6f7f9;          /* canvas de página */
+  /* ————— TEMA CLARO (default) — Nocturne en luz cálida ————— */
+  /* Superficies (de más al fondo a más elevado) */
+  --surface-sunken: #ece7db;   /* tracks, zebra, headers de tabla */
+  --surface: #f6f3ec;          /* canvas de página */
   --surface-raised: #ffffff;   /* tarjetas, popovers, inputs, sidebar */
-  --surface-inverted: #0f172a; /* bloques oscuros (slate-900) */
+  --surface-inverted: #1b1a14; /* bloques oscuros */
 
-  /* Texto (jerarquía) — slate */
-  --text-strong: #0f172a;      /* títulos, texto principal */
-  --text: #1f2937;             /* cuerpo */
-  --text-muted: #64748b;       /* secundario, labels, metadatos */
-  --text-faint: #94a3b8;       /* placeholders, deshabilitado, timestamps */
-  --text-on-accent: #ffffff;   /* texto sobre acento/superficie invertida */
+  /* Texto (jerarquía) — tinta cálida */
+  --text-strong: #1f1b14;      /* títulos, texto principal */
+  --text: #413b31;             /* cuerpo */
+  --text-muted: #736a58;       /* secundario, labels, metadatos */
+  --text-faint: #a79c87;       /* placeholders, deshabilitado, timestamps */
+  --text-on-accent: #ffffff;   /* FALLBACK; los layouts inyectan el real por tema+acento */
 
-  /* Líneas y bordes — grises fríos */
-  --line: #e6e8ec;             /* hairline por defecto */
-  --line-strong: #cbd2da;      /* borde marcado / controles */
+  /* Líneas y bordes — cálidos */
+  --line: #e6dfd0;             /* hairline por defecto */
+  --line-strong: #d2c9b5;      /* borde marcado / controles */
 
-  /* Acento de MARCA — POR TENANT (FUNDAMENTOS-Y-VISION: un core, marca por
-     tenant). Este es el DEFAULT neutro del ERP (índigo). NO se hardcodea en
-     componentes: se sobreescribe inyectando `--accent` en un contenedor por
-     tenant (ver src/lib/branding.ts + los layouts). hover/soft se DERIVAN del
-     acento con color-mix, así basta inyectar un solo color por tenant. */
-  --accent: #4f46e5;
-  --accent-hover: color-mix(in srgb, var(--accent) 84%, #000);
-  --accent-soft: color-mix(in srgb, var(--accent) 10%, #ffffff);
+  /* Acento de MARCA — POR TENANT. FALLBACK petróleo (tono claro). Los layouts
+     sobreescriben `--accent` y `--text-on-accent` con el valor afinado al tema
+     (ver src/lib/branding.ts). hover/soft se DERIVAN del acento con color-mix
+     mezclando con el fondo del tema (blanco/negro en claro). */
+  --accent: #2c6e77;
+  --accent-hover: color-mix(in srgb, var(--accent) 86%, #000);
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, #ffffff);
 
-  /* Estados semánticos — paleta B (contraste AA sobre su superficie). */
-  --success: #059669;
-  --success-soft: #ecfdf5;
-  --warning: #b45309;
-  --warning-soft: #fffbeb;
-  --danger: #dc2626;
-  --danger-soft: #fef2f2;
+  /* Estados semánticos (contraste AA sobre superficie clara). */
+  --success: #4e6b4a;
+  --success-soft: #e7eee4;
+  --warning: #8a6a1f;
+  --warning-soft: #f5ebd7;
+  --danger: #b23b2b;
+  --danger-soft: #f6e3de;
   --info: var(--accent);
   --info-soft: var(--accent-soft);
 
@@ -87,12 +90,56 @@
   --radius-lg: 1rem;
   --radius-xl: 1.5rem;
 
-  /* Sombras — suaves y cálidas (tono tinta, no negro puro) para no ensuciar
-     el hueso. Elevación creciente. */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.05);
-  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14), 0 4px 8px rgba(15, 23, 42, 0.06);
+  /* Sombras claras — cálidas y suaves. */
+  --shadow-xs: 0 1px 2px rgba(32, 27, 22, 0.05);
+  --shadow-sm: 0 1px 3px rgba(32, 27, 22, 0.08), 0 1px 2px rgba(32, 27, 22, 0.05);
+  --shadow-md: 0 4px 14px rgba(32, 27, 22, 0.08), 0 2px 4px rgba(32, 27, 22, 0.05);
+  --shadow-lg: 0 12px 32px rgba(32, 27, 22, 0.14), 0 4px 8px rgba(32, 27, 22, 0.06);
+}
+
+/* ═════════ TEMA OSCURO — Nocturne ═════════
+   Se activa con `data-theme="dark"` en un contenedor (el layout lo pone según
+   la REGLA front/back de branding.ts). Solo redefine los tokens semánticos;
+   marca (--ch-*, --spa-*) y radios se heredan de :root. El acento real lo
+   inyecta el layout; acá va el fallback (petróleo en tono claro para oscuro). */
+[data-theme="dark"] {
+  --background: #15140f;
+  --foreground: #f0ebde;
+
+  --surface-sunken: #100f0b;
+  --surface: #15140f;
+  --surface-raised: #201e17;
+  --surface-inverted: #f0ebde;
+
+  --text-strong: #f0ebde;
+  --text: #c9c3b4;
+  --text-muted: #928b7b;
+  --text-faint: #6a6558;
+  --text-on-accent: #15140f;
+
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+
+  /* hover aclara (mezcla con blanco), soft mezcla con el fondo oscuro. */
+  --accent: #5fb0bc;
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, #fff);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, #15140f);
+
+  --success: #86a97f;
+  --success-soft: rgba(134, 169, 127, 0.15);
+  --warning: #c2724a;
+  --warning-soft: rgba(194, 114, 74, 0.15);
+  --danger: #e08472;
+  --danger-soft: rgba(224, 132, 114, 0.15);
+  --info: var(--accent);
+  --info-soft: var(--accent-soft);
+
+  --focus-ring: var(--accent);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.35);
 }
 
 @theme inline {

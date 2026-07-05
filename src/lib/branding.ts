@@ -2,60 +2,100 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 
 // ============================================================================
-// Acento de MARCA por TENANT — catálogo de PRESETS sobre la base "Nocturne".
+// BRANDING POR TENANT + REGLA DE TEMAS FRONT/BACK (design system)
 // (FUNDAMENTOS-Y-VISION: un core, marca por tenant.)
 //
-// El look base del ERP (Nocturne: oscuro cálido premium) es IGUAL para todos los
-// tenants. Lo único que cambia por tenant es el COLOR DE ACENTO: CTAs, foco,
-// estado activo del nav, chips, links. En globals.css `--accent-soft` /
-// `--accent-hover` se derivan de `--accent`, así que basta definir UN color por
-// tenant y se inyecta como la CSS var `--accent` en los layouts (admin y site).
-// El acento NO se hardcodea en tokens ni en componentes.
+// REGLA DEL SISTEMA (vale para CUALQUIER tenant, no hardcode):
+//   El FRONT (vidriera / sitio público) y el BACK (backoffice / admin) usan
+//   temas de luminosidad OPUESTA. Del branding del tenant sale el tema del
+//   FRONT; el BACK toma automáticamente el inverso (claro↔oscuro). Ambos temas
+//   son de la familia base (Nocturne, cálida): comparten paleta y acento del
+//   tenant; solo cambia la luminosidad. Ver globals.css ([data-theme]).
 //
-// PRESETS: paleta curada de acentos seleccionables, cada uno con contraste AA
-// sobre el fondo oscuro cálido de Nocturne (#15140F). Agregar un preset = una
-// línea. Los mockups viven en `ch-estetica-mockups/` (nocturne-rosa, -celeste,
-// -verde, + el ámbar original).
+// El acento NO se hardcodea en componentes: se resuelve acá y se inyecta como
+// las CSS vars `--accent` y `--text-on-accent` en el contenedor de cada layout,
+// junto con `data-theme`. `--accent-soft`/`--accent-hover` se derivan en
+// globals.css según el tema.
+
+export type Theme = "light" | "dark";
+
+// Inversión de luminosidad — el corazón de la regla front/back.
+export const invertTheme = (t: Theme): Theme => (t === "light" ? "dark" : "light");
+
+// PRESETS de acento. Por cada hue del tenant, un tono afinado para fondo CLARO y
+// otro para fondo OSCURO (mismo hue, distinta luminosidad) + el texto sobre el
+// acento (AA). Así el acento del tenant conserva identidad y contraste AA tanto
+// en el front como en el back, que van en luminosidades opuestas.
+type PresetTones = { light: string; dark: string; onLight: string; onDark: string };
 export const ACCENT_PRESETS = {
-  petroleo: "#2c6e77", // marca CH Estética (salón)
-  oxblood: "#7b2d3b", // marca Magra (carnicería)
-  rosa: "#E27BA0", // frambuesa empolvado
-  celeste: "#74C0DA", // celeste glaciar
-  verde: "#4FBE9B", // jade / esmeralda
-  ambar: "#E0A83E", // ámbar (acento original de Nocturne)
-} as const;
+  petroleo: { light: "#2c6e77", dark: "#5fb0bc", onLight: "#ffffff", onDark: "#0b2226" }, // salón CH
+  oxblood: { light: "#7b2d3b", dark: "#d26a7d", onLight: "#ffffff", onDark: "#2a0d13" }, // Magra
+  rosa: { light: "#b14a6b", dark: "#e27ba0", onLight: "#ffffff", onDark: "#20101a" },
+  celeste: { light: "#2e7c97", dark: "#74c0da", onLight: "#ffffff", onDark: "#08181d" },
+  verde: { light: "#2f7d66", dark: "#4fbe9b", onLight: "#ffffff", onDark: "#06201a" },
+  ambar: { light: "#9a6a1f", dark: "#e0a83e", onLight: "#ffffff", onDark: "#1b1508" },
+} satisfies Record<string, PresetTones>;
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
 
-// ASIGNACIÓN DE PRESET POR TENANT (por slug). Para cambiar el acento de un
-// tenant, cambiá su preset acá — UNA sola línea, sin tocar componentes ni
-// tokens. Un tenant sin entrada usa DEFAULT_PRESET.
-//   ej. para que el salón use rosa:  "beauty-spa": "rosa"
-const TENANT_PRESET: Record<string, AccentPreset> = {
-  "beauty-spa": "petroleo",
-  "magra": "oxblood",
+// Branding declarado por tenant. `frontTheme` es el tema de su vidriera; el back
+// se deriva con la regla. `monogram` es el logo (reemplazable por un SVG/asset
+// real más adelante; hoy monograma sobre el acento, con contraste AA garantizado
+// por el par accent/onAccent del preset).
+export type TenantBrand = {
+  name: string;
+  monogram: string;
+  preset: AccentPreset;
+  frontTheme: Theme;
 };
 
-// Preset por defecto para cualquier tenant sin asignación explícita.
-export const DEFAULT_PRESET: AccentPreset = "petroleo";
+// Asignación por tenant (por slug). Cambiar el acento o el tema de un tenant es
+// una línea acá — sin tocar componentes ni tokens.
+const TENANTS: Record<string, TenantBrand> = {
+  // Salón: vidriera clara → admin oscuro (Nocturne). Acento petróleo de marca.
+  "beauty-spa": { name: "CH Estética", monogram: "CH", preset: "petroleo", frontTheme: "light" },
+  // Magra (carnicería): vidriera clara → admin oscuro. Acento oxblood de marca.
+  "magra": { name: "Magra", monogram: "M", preset: "oxblood", frontTheme: "light" },
+};
 
-// Back-compat: hex del acento por defecto (algún import legacy podría usarlo).
-export const DEFAULT_ACCENT = ACCENT_PRESETS[DEFAULT_PRESET];
+const DEFAULT_BRAND: TenantBrand = {
+  name: "ERP",
+  monogram: "◆",
+  preset: "petroleo",
+  frontTheme: "light",
+};
 
-// Resuelve el HEX del acento del tenant actual. Cacheado por request
-// (React.cache): varios layouts lo piden sin duplicar el lookup. Fail-open a
-// propósito: el acento es cosmético, nunca debe tumbar el render; sin DB (build
-// / entorno sin base) cae al preset por defecto.
+// Acento resuelto (hex + texto-sobre-acento) para una superficie según SU tema.
+export function resolveAccent(preset: AccentPreset, theme: Theme) {
+  const p = ACCENT_PRESETS[preset] ?? ACCENT_PRESETS[DEFAULT_BRAND.preset];
+  return theme === "dark"
+    ? { accent: p.dark, onAccent: p.onDark }
+    : { accent: p.light, onAccent: p.onLight };
+}
+
+// Branding del tenant actual. Cacheado por request (React.cache); fail-open a
+// propósito (el branding es cosmético, nunca debe tumbar el render). Sin DB
+// (build / entorno sin base) cae al brand por defecto.
 //
-// TODO (cuando se despliegue la migración de Neon): persistir el preset elegido
-// en BusinessSettings (ej. `accentPreset: AccentPreset`) y leerlo acá con
-// fallback a TENANT_PRESET → DEFAULT_PRESET. Un único punto de cambio.
-export const getTenantAccent = cache(async (): Promise<string> => {
+// TODO (cuando se despliegue la migración de Neon): persistir por tenant en
+// BusinessSettings (accentPreset, frontTheme, logo) y leerlo acá con fallback a
+// este mapa. Un único punto de cambio.
+export const getTenantBrand = cache(async (): Promise<TenantBrand> => {
   try {
     const tenant = await prisma.tenant.findFirst({ select: { slug: true } });
-    const preset = (tenant && TENANT_PRESET[tenant.slug]) || DEFAULT_PRESET;
-    return ACCENT_PRESETS[preset];
+    return (tenant && TENANTS[tenant.slug]) || DEFAULT_BRAND;
   } catch {
-    return ACCENT_PRESETS[DEFAULT_PRESET];
+    return DEFAULT_BRAND;
   }
 });
+
+// Helpers de tema por superficie (aplican la regla).
+export const getFrontTheme = async (): Promise<Theme> => (await getTenantBrand()).frontTheme;
+export const getBackTheme = async (): Promise<Theme> => invertTheme((await getTenantBrand()).frontTheme);
+
+// Back-compat: hex del acento en el tema del front (algún import legacy).
+export const getTenantAccent = cache(async (): Promise<string> => {
+  const b = await getTenantBrand();
+  return resolveAccent(b.preset, b.frontTheme).accent;
+});
+export const DEFAULT_ACCENT = ACCENT_PRESETS[DEFAULT_BRAND.preset].light;

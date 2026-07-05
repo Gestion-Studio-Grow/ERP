@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { nextBusinessDays } from "@/lib/datetime";
 import { getLocation } from "@/lib/settings";
-import { getTenantAccent } from "@/lib/branding";
+import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import BookingProvider from "./_ch/BookingProvider";
 import Header from "./_ch/Header";
 import AnnouncementBar from "./_ch/AnnouncementBar";
@@ -11,12 +11,16 @@ import AnnouncementBar from "./_ch/AnnouncementBar";
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [{ groups, professionals }, news, location, accent] = await Promise.all([
+  const [{ groups, professionals }, news, location, brand] = await Promise.all([
     getPublicBookingData(),
     getPublicNews(),
     getLocation(),
-    getTenantAccent(),
+    getTenantBrand(),
   ]);
+  // REGLA front/back: el FRONT (vidriera) usa el tema declarado del tenant; el
+  // acento va afinado a ese tema (--accent + on-accent). `data-theme` deja los
+  // tokens listos para cuando estas pantallas migren a la base Nocturne.
+  const { accent, onAccent } = resolveAccent(brand.preset, brand.frontTheme);
   const days = nextBusinessDays(14);
   // WhatsApp del negocio (módulo Localización): ya viene normalizado a dígitos.
   const whatsapp = location.whatsapp;
@@ -24,9 +28,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
 
   return (
     <BookingProvider data={{ groups, professionals, days, whatsapp }}>
-      {/* Acento de marca por tenant (`--accent`) disponible también en el sitio,
-          para cuando sus pantallas migren a los tokens de la base B. */}
-      <div style={{ background: "var(--ch-ivory)", color: "var(--ch-ink)", fontFamily: "var(--font-body), system-ui, sans-serif", "--accent": accent } as CSSProperties}>
+      {/* Acento + tema del front por tenant, disponibles también en el sitio para
+          cuando sus pantallas migren a los tokens de la base Nocturne. */}
+      <div data-theme={brand.frontTheme} style={{ background: "var(--ch-ivory)", color: "var(--ch-ink)", fontFamily: "var(--font-body), system-ui, sans-serif", "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}>
         {/* Franja arriba de todo el sitio (no solo home): la novedad se
             "adopta" con menos fricción que esperando que el cliente llegue
             a la sección más abajo en la página. */}

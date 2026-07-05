@@ -70,11 +70,13 @@ function currentLabel(pathname: string, items: NavItem[]) {
   return match?.label ?? "Panel";
 }
 
-function Brand() {
+// Logo del tenant: monograma sobre el acento (contraste AA garantizado por el
+// par accent/on-accent del preset) + nombre. Reemplazable por un asset SVG real.
+function Brand({ monogram, name }: { monogram: string; name: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="grid place-items-center w-8 h-8 rounded-lg bg-accent text-on-accent text-[13px] font-bold shadow-xs">CH</span>
-      <span className="text-[15px] font-bold tracking-tight text-strong">CH <span className="text-muted font-medium">Estética</span></span>
+      <span className="grid place-items-center w-8 h-8 rounded-lg bg-accent text-on-accent text-[13px] font-bold shadow-xs">{monogram}</span>
+      <span className="text-[15px] font-bold tracking-tight text-strong">{name}</span>
     </div>
   );
 }
@@ -144,10 +146,14 @@ export default function AdminShell({
   children,
   role,
   userName,
+  brandName,
+  monogram,
 }: {
   children: React.ReactNode;
   role: Role;
   userName: string;
+  brandName: string;
+  monogram: string;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -169,7 +175,7 @@ export default function AdminShell({
     <div className="min-h-screen flex bg-surface text-body">
       {/* Sidebar fijo — solo desktop (lg+) */}
       <nav className="hidden lg:flex w-60 shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5">
-        <div className="px-2 mb-6"><Brand /></div>
+        <div className="px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
         <NavLinks items={items} />
         <div className="mt-auto"><NavFooter userName={userName} roleLabel={roleLabel} /></div>
       </nav>
@@ -184,7 +190,7 @@ export default function AdminShell({
           />
           <nav className="relative w-64 max-w-[80%] bg-surface-raised h-full px-3 py-5 flex flex-col shadow-overlay">
             <div className="px-2 mb-6 flex items-center justify-between">
-              <Brand />
+              <Brand monogram={monogram} name={brandName} />
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Cerrar menú"
@@ -218,12 +224,12 @@ export default function AdminShell({
             <span className="block h-0.5 w-5 bg-strong" />
           </button>
           <span className="font-medium text-strong">{currentLabel(pathname, items)}</span>
-          <span className="ml-auto font-semibold text-muted">CH Estética</span>
+          <span className="ml-auto font-semibold text-muted">{brandName}</span>
         </header>
 
         {/* Header desktop */}
         <header className="hidden lg:flex bg-surface-raised border-b border-line px-8 h-[58px] items-center justify-between gap-4">
-          <span className="font-semibold text-strong whitespace-nowrap">CH Estética</span>
+          <span className="font-semibold text-strong whitespace-nowrap">{brandName}</span>
           <span className="text-sm text-muted whitespace-nowrap">Panel de administración</span>
         </header>
 
