@@ -13,6 +13,7 @@
     "demo:factura": "tsx scripts/demo-factura.mts",
     "predeploy-check": "tsx scripts/predeploy-check.mts",
     "purge-audit": "tsx scripts/purge-audit-logs.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "postinstall": "prisma generate"
   },
   "dependencies": {

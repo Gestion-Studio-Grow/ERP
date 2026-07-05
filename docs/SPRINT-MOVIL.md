@@ -106,7 +106,7 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
 **Sprint:** Sesión única en serie — Tests → POS/stock → UX/UI
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (protocolo de sesión única escrito)
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (Tests/QA cerrado)
 **Estado del bloque:** 🟢 en curso · **modo SESIÓN ÚNICA en serie** (owner sin laptop, no se abren
 sesiones nuevas — ver "Modo de operación" arriba). Los frentes A/B/C, antes en paralelo, se
 ejecutan ahora **uno por uno en esta sesión**, un tema por commit.
@@ -127,13 +127,15 @@ el porqué, pusheado a `origin/main` · handoff (`## Sprint activo`) al día tra
 
 **Checklist vivo**
 - [x] **Protocolo de sesión única en serie** — escrito en este doc ("Modo de operación") + puntero en el tablero. *(este sprint, 2026-07-05)*
-- [ ] **(a) Tests/QA** — elegir harness (ADR corto), configurarlo, primeras pruebas de lógica pura ya shippeada (`auditRetentionCutoff`/`purgeAuditLogs`, reglas de `booking-core`, parseo de args).
+- [x] **(a) Tests/QA** — harness `node:test`+`tsx` (ADR-026, cero dep), `npm test` acotado a `src/**/*.test.ts`; 7 pruebas verdes de `audit-retention` + `report-config`. *(2026-07-05)*
 - [ ] **(b) POS/stock** — descontar stock al vender transaccional (sin oversell); migración nueva SIN aplicar si hace falta (pendiente acción humana).
 - [ ] **(c) UX/UI** — completar adopción del design system en las pantallas que falten.
 
-**Próximo bocado (lo que ejecuta "seguimos"):** frente (a) **Tests/QA** — arrancar por el ADR
-corto que elige el harness (candidato: `node:test` built-in + `tsx`, cero dependencia nueva),
-configurarlo con un script `test`, y escribir las primeras pruebas de la lógica pura ya lista.
+**Próximo bocado (lo que ejecuta "seguimos"):** frente (b) **POS/stock** — `createOrder`
+(`order-core.ts`) hoy NO toca `Product.stock`. Descontar stock **dentro de la transacción de la
+orden** para ítems con producto asociado, con guarda anti-oversell (no permitir vender por debajo
+de 0). Si el modelo lo necesita (ej. vincular ítem→producto o un ledger de movimientos), dejar la
+**migración como carpeta nueva SIN aplicar** a prod (pendiente acción humana). tsc+build+test verdes.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
