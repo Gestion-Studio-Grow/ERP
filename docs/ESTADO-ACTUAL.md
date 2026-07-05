@@ -60,7 +60,7 @@ Orden lógico para dar de alta Magra end-to-end:
 
 | # | Gate | Qué destraba | Estado |
 |---|---|---|---|
-| 1 | **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → **prerrequisito duro del 2º tenant** | 🔒 SQL verificados offline (`prisma/rls/`, 28/28). **Ensayo offline del gate+aislamiento PASADO** (`prisma/rls/verify-provision-gate.mts`, PGlite): bloqueo sin RLS → gate abierto con RLS → aislamiento + fail-closed, verde. **Bug hallado y corregido:** el sentinel del gate incluía `Tenant` (que `0001` excluye) → el gate NUNCA habría abierto en prod (fix `8b9d989` en `scripts/provision-tenant.ts`). Falta: ensayo en **branch de Neon real** + cablear app a `rlsPrisma` + rotar `DATABASE_URL` a `app_user` + aplicar. Runbook: `docs/runbooks/alta-magra.md` |
+| 1 | **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → **prerrequisito duro del 2º tenant** | 🔒 **⚠️ Prod NO está "de cero" (auditado 2026-07-05, solo lectura vía `check-rls-live.mjs`):** RLS ya aplicado en **24/33 tablas**; **DRIFT — 9 tablas sin proteger** (`Order, OrderItem, Invoice, OutboxEvent, CashMovement, CashSession, StockMovement, StockPurchase, StockPurchaseItem`) → filtrarían entre tenants; y **`app_user` con `BYPASSRLS=true`** → rotar a él daría CERO aislamiento (hoy prod no se rompe: conecta como `neondb_owner`, RLS dormido). **Ensayo offline PASADO** (`verify-provision-gate.mts`): gate bloquea sin RLS → abre con RLS → aislamiento + fail-closed. **Bugs hallados y corregidos (repo):** el sentinel del gate incluía `Tenant` → nunca abría (`8b9d989`); `0002` no forzaba `NOBYPASSRLS` en rol existente (fix 2026-07-05). **Secuencia corregida:** re-correr `0001` (cierra drift, 33/33) + `0002` patcheado + auditar con `check-rls-live.mjs`. Falta (bloqueado): **`NEON_API_KEY`/branch** para el ensayo en Neon real → aplicar + rotar `DATABASE_URL` a `app_user` (secrets los carga el dueño). Runbook: `docs/runbooks/alta-magra.md` |
 | 2 | **Alta de Magra (2º tenant)** | Magra existe en la DB de prod | 🔒 depende de #1. `scripts/provision-tenant.ts` ya siembra tenant+OWNER+blueprint `carniceria`; correr con OK explícito tras RLS |
 | 3 | **Deploy del sitio `magra-erp`** | Magra accesible por URL propia | 🔑 **2º sitio Netlify** apuntando a la misma app con **`FORCE_TENANT_SLUG=magra`** (Opción A, URL gratis por tenant; ver `docs/runbooks/alta-magra.md`). Sin dominio propio el `.netlify.app` no separa por subdominio → un sitio por tenant, o pasar a Opción B (dominio + wildcard) |
 | 4 | **Certificado + homologación ARCA** | facturación electrónica viva (firma CMS del `TraSigner`) | 🔑 adapter SOAP escrito; falta cert del emisor + homologación + flag `ARCA_INVOICING_ENABLED` |
@@ -105,6 +105,12 @@ FASE 0/BACKUP busca prevenir.
 
 ## 6. Bugs / deuda conocida
 
+- **🔥 RLS de prod con DRIFT + `app_user` con BYPASSRLS (auditado 2026-07-05).** RLS aplicado en
+  24/33 tablas; 9 de-tenant sin proteger (`Order/OrderItem/Invoice/OutboxEvent/Cash*/Stock*`);
+  `app_user` evade RLS. **NO dar de alta el 2º tenant ni rotar `DATABASE_URL` a `app_user` sin
+  antes** re-correr `0001` (33/33) y `0002` patcheado (fuerza NOBYPASSRLS). Detalle y secuencia en
+  §4 y en `docs/runbooks/alta-magra.md`. Guardas: `prisma/rls/check-rls-live.mjs` (auditoría en vivo)
+  + `verify-provision-gate.mts` (offline). *(fixes de repo en main; falta ejecutar en Neon con OK.)*
 - **🐞 Redirect / home `/`:** el root (`src/app/(site)/page.tsx`) sirve la **landing de CH
   hardcodeada** (`_ch/*`, `force-dynamic`), sin resolución por dominio/tenant nativa. **Mitigación ya
   en repo:** `FORCE_TENANT_SLUG` (`685b5c9`) permite pinnear el tenant por sitio (Opción A) → cada

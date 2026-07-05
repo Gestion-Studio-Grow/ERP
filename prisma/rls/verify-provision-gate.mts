@@ -8,14 +8,18 @@
 // real, y el `0001_enable_rls.sql` real. Prueba, en orden:
 //   1. Alta del tenant #1 (sin gate, primer tenant).
 //   2. Alta del tenant #2 SIN RLS → el GATE ADR-018 la BLOQUEA (throw esperado).
-//   3. Aplica RLS (0001) + rol app_user sin BYPASSRLS.
+//   3. Aplica RLS (0001) y verifica: (a) COBERTURA — toda tabla con `tenantId`
+//      queda con RLS + policy (drift guard); (b) Tenant excluida (raíz sin
+//      tenantId); (c) un app_user PREEXISTENTE con BYPASSRLS queda NOBYPASSRLS.
 //   4. Alta del tenant #2 CON RLS → PASA (el gate se abre).
 //   5. Aislamiento como app_user: cada tenant ve SOLO lo suyo; sin contexto, nada.
 //
-// Regresión que cubre: el sentinel del gate NO debe incluir "Tenant" (0001 la
-// excluye por ser la raíz sin `tenantId`); si lo incluyera, `isRlsActive` daría
-// false para siempre y el gate nunca abriría aun con RLS aplicado (bug detectado
-// en el ensayo del 2026-07-05).
+// Regresiones que cubre (bugs detectados en el ensayo del 2026-07-05):
+//   - El sentinel del gate NO debe incluir "Tenant" (0001 la excluye por ser raíz
+//     sin `tenantId`); si lo incluyera, `isRlsActive` daría false para siempre y el
+//     gate nunca abriría aun con RLS aplicado.
+//   - Drift de cobertura: una tabla de-tenant sin RLS/policy filtra entre tenants.
+//   - Footgun del app_user con BYPASSRLS: evadiría todas las policies en silencio.
 
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
@@ -90,29 +94,50 @@ try {
   if (countAfterBlock === 1) ok("tras el bloqueo, sigue habiendo 1 solo tenant");
   else bad("conteo tras bloqueo", `hay ${countAfterBlock} tenants (debía ser 1)`);
 
-  // ── 3. Aplicar RLS (0001 real) + rol app_user ───────────────────────────────
+  // ── 3. Aplicar RLS (0001 real) ──────────────────────────────────────────────
   await db.exec(readFileSync(path.join(REPO, "prisma", "rls", "0001_enable_rls.sql"), "utf8"));
+
+  // 3a. COBERTURA (drift guard offline): TODA tabla con columna `tenantId` debe
+  // quedar con RLS habilitado + policy tenant_isolation. Si una migración futura
+  // agrega una tabla de-tenant y 0001 no la cubriera, esto falla acá — no en prod.
+  const withTenant = (await db.query<{ table_name: string }>(
+    `SELECT table_name FROM information_schema.columns
+     WHERE table_schema='public' AND column_name='tenantId'`,
+  )).rows.map((r) => r.table_name);
+  const rlsOn = new Set((await db.query<{ relname: string }>(
+    `SELECT relname FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r' AND relrowsecurity=true`,
+  )).rows.map((r) => r.relname));
+  const polOn = new Set((await db.query<{ tablename: string }>(
+    `SELECT tablename FROM pg_policies WHERE schemaname='public' AND policyname='tenant_isolation'`,
+  )).rows.map((r) => r.tablename));
+  const noRls = withTenant.filter((t) => !rlsOn.has(t));
+  const noPol = withTenant.filter((t) => !polOn.has(t));
+  if (withTenant.length > 0 && noRls.length === 0 && noPol.length === 0)
+    ok(`cobertura RLS completa: ${withTenant.length}/${withTenant.length} tablas de-tenant con RLS + policy`);
+  else bad("cobertura RLS", `sin RLS: [${noRls.join(",")}] · sin policy: [${noPol.join(",")}]`);
+  // Tenant (raíz, sin tenantId) queda EXCLUIDA a propósito (regresión del bug del sentinel).
+  const tenantRls = (await db.query<{ relrowsecurity: boolean }>(
+    `SELECT relrowsecurity FROM pg_class WHERE relnamespace='public'::regnamespace AND relname='Tenant'`,
+  )).rows[0]?.relrowsecurity;
+  if (tenantRls === false) ok("Tenant excluida de RLS a propósito (raíz sin tenantId)");
+  else bad("Tenant RLS", `relrowsecurity=${tenantRls} (debía ser false)`);
+
+  // 3b. app_user + REGRESIÓN del footgun: se simula el estado hallado en prod
+  // (rol PREEXISTENTE con BYPASSRLS) y se aplica el ALTER incondicional del 0002
+  // patcheado; debe quedar NOBYPASSRLS. Sin ese ALTER, un app_user con bypass
+  // evadiría TODAS las policies → cero aislamiento (2026-07-05).
+  await db.exec(`CREATE ROLE app_user LOGIN BYPASSRLS`); // estado "malo" preexistente
+  await db.exec(`ALTER ROLE app_user WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`); // 0002 (fix)
   await db.exec(`
-    DO $$ BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_user') THEN
-        CREATE ROLE app_user NOSUPERUSER NOBYPASSRLS;
-      END IF;
-    END $$;
     GRANT USAGE ON SCHEMA public TO app_user;
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
   `);
-  // Semántica correcta: Appointment/Client (de-tenant) → RLS ON; Tenant (raíz, sin
-  // tenantId) → OFF a propósito (0001 la excluye). Es justo lo que el sentinel del
-  // gate NO debe exigir en true.
-  const s = await db.query<{ relname: string; relrowsecurity: boolean }>(
-    `SELECT relname, relrowsecurity FROM pg_class
-     WHERE relnamespace='public'::regnamespace AND relname = ANY($1)`,
-    [["Tenant", "Appointment", "Client"]],
-  );
-  const by = Object.fromEntries(s.rows.map((r) => [r.relname, r.relrowsecurity]));
-  if (by.Appointment === true && by.Client === true && by.Tenant === false)
-    ok("RLS ON en Appointment/Client; Tenant excluida a propósito (raíz sin tenantId)");
-  else bad("RLS activo (semántica)", JSON.stringify(s.rows));
+  const appRole = (await db.query<{ rolbypassrls: boolean }>(
+    `SELECT rolbypassrls FROM pg_roles WHERE rolname='app_user'`,
+  )).rows[0];
+  if (appRole && appRole.rolbypassrls === false)
+    ok("app_user preexistente con BYPASSRLS → 0002 lo fuerza a NOBYPASSRLS (fix del footgun)");
+  else bad("app_user NOBYPASSRLS", `rolbypassrls=${appRole?.rolbypassrls}`);
 
   // ── 4. Tenant #2 CON RLS → ahora PASA (gate abierto) ────────────────────────
   let magraId = "";

@@ -27,6 +27,13 @@ BEGIN
 END
 $$;
 
+-- CRÍTICO — forzar los atributos aunque el rol YA exista (el CREATE de arriba se
+-- saltea con IF NOT EXISTS). En prod se encontró un `app_user` PREEXISTENTE con
+-- BYPASSRLS=true (2026-07-05): un rol así EVADE todas las policies → cero
+-- aislamiento, en silencio. Este ALTER es idempotente y deja el rol correcto sí o
+-- sí antes de rotarle DATABASE_URL. NUNCA quitar esta línea.
+ALTER ROLE app_user WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+
 -- Contraseña provista fuera del repo vía -v app_pw=...
 ALTER ROLE app_user WITH PASSWORD :'app_pw';
 

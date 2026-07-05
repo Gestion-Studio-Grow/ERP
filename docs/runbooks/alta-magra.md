@@ -11,6 +11,20 @@
 > **bloqueada a propósito** por el gate ADR-018 (`scripts/provision-tenant.ts:191-202`)
 > hasta que RLS de Postgres esté activo. Por eso este runbook activa RLS **primero**.
 
+> ### 🔥 ESTADO REAL DE PROD (auditado 2026-07-05, solo lectura) — LEER ANTES DE EJECUTAR
+> Prod **NO** está "de cero" en RLS. Auditoría (`check-rls-live.mjs`) encontró:
+> 1. **RLS ya aplicado parcialmente:** `ENABLE RLS` + policy en **24/33 tablas** de-tenant.
+> 2. **DRIFT — 9 tablas sin proteger:** `Order, OrderItem, Invoice, OutboxEvent, CashMovement,
+>    CashSession, StockMovement, StockPurchase, StockPurchaseItem` (POS/facturación/caja/stock).
+>    Filtrarían entre tenants si se activa el enforcement sin cerrarlas.
+> 3. **`app_user` existe con `BYPASSRLS=true`** → rotar `DATABASE_URL` a él daría **CERO
+>    aislamiento**, en silencio.
+>
+> **Secuencia CORREGIDA (reemplaza el "aplicar de cero"):** re-correr `0001` **cierra el drift**
+> (es data-driven → cubre 33/33, verificado offline); `0002` **patcheado** ahora fuerza
+> `ALTER ROLE app_user … NOBYPASSRLS` aunque el rol ya exista (antes lo saltaba con IF NOT EXISTS).
+> Correr `check-rls-live.mjs` **antes y después** para confirmar 33/33 y `app_user` sin bypass.
+
 ## Leyenda de riesgo
 
 - 🟢 **Verificable sin riesgo** — corre local o contra un branch desechable de Neon; no toca prod. Se puede hacer sin OK.
@@ -19,8 +33,8 @@
 
 ## Lo que YA está listo (no hay que construirlo)
 
-- SQL de RLS data-driven: `prisma/rls/0001_enable_rls.sql` (ENABLE + policy `tenant_isolation` en las 28 tablas con `tenantId`), `0002_app_role.sql` (rol `app_user` sin `BYPASSRLS`), `0003_force_rls_optional.sql` (hardening opcional), `0001_rollback.sql`.
-- Redes de verificación: `check-coverage.mjs` (estática), `verify-rls.mjs` (funcional contra branch), `verify-wiring.mts` + `verify-tenant-resolution.mts` (integración del código real con PGlite). Procedimiento canónico: `prisma/rls/README.md`.
+- SQL de RLS data-driven: `prisma/rls/0001_enable_rls.sql` (ENABLE + policy `tenant_isolation` en **toda** tabla con `tenantId` → cubre 33/33 hoy), `0002_app_role.sql` (crea `app_user` sin `BYPASSRLS` **y lo fuerza a NOBYPASSRLS aunque ya exista** — fix 2026-07-05), `0003_force_rls_optional.sql` (hardening opcional), `0001_rollback.sql`.
+- Redes de verificación: `check-coverage.mjs` (estática), **`check-rls-live.mjs` (auditoría del drift en vivo, solo lectura — branch o prod)**, `verify-rls.mjs` (funcional contra branch), **`verify-provision-gate.mts` (offline: gate + cobertura 33/33 + footgun app_user)**, `verify-wiring.mts` + `verify-tenant-resolution.mts` (integración del código real con PGlite). Procedimiento canónico: `prisma/rls/README.md`.
 - Cableado app-level **escrito y apagado** tras el flag `RLS_ENFORCEMENT` (`src/lib/prisma-base.ts`, `rls.ts`, `tenant-context.ts`) → hoy cero cambio en prod.
 - Control-plane con alta por UI: `/operador/alta` → `provisionFromConsole` → `provisionTenant` (`src/lib/operator-actions.ts:51`).
 
@@ -51,15 +65,29 @@ Objetivo: probar la activación **sobre una copia** de la base viva, no sobre la
    Neon: *Branches → New branch* a partir de `main`/`production`. Anotá su connection
    string → lo llamamos `$BRANCH_URL`. 🔴 *(requiere acceso a la consola de Neon — acción humana, pero el branch NO es prod: es descartable.)*
 
-2. **Aplicar RLS sobre el branch** (por `psql`, **no** `prisma migrate deploy` — estos
-   SQL viven fuera de `prisma/migrations/` a propósito):
+2. **Auditar el estado ANTES** (solo lectura — el branch copia el drift de prod):
+
+   ```bash
+   RLS_AUDIT_DATABASE_URL="$BRANCH_URL" node prisma/rls/check-rls-live.mjs
+   ```
+   Se espera que reporte el drift (9 tablas sin proteger + `app_user` con bypass), igual que prod.
+
+3. **Aplicar RLS sobre el branch** (por `psql`, **no** `prisma migrate deploy` — estos
+   SQL viven fuera de `prisma/migrations/` a propósito). Re-correr `0001` **cierra el drift**;
+   el `0002` patcheado deja `app_user` en `NOBYPASSRLS`:
 
    ```bash
    psql "$BRANCH_URL" -f prisma/rls/0001_enable_rls.sql
    psql "$BRANCH_URL" -v app_pw="<pw-de-ensayo>" -f prisma/rls/0002_app_role.sql
    ```
 
-3. **Verificar el aislamiento funcional** (el script se **niega** a correr si la URL
+4. **Auditar el estado DESPUÉS** — debe dar **33/33 y `app_user` sin bypass**:
+
+   ```bash
+   RLS_AUDIT_DATABASE_URL="$BRANCH_URL" node prisma/rls/check-rls-live.mjs   # RESULTADO: SIN DRIFT ✅
+   ```
+
+5. **Verificar el aislamiento funcional** (el script se **niega** a correr si la URL
    coincide con la `DATABASE_URL` de prod del `.env` — red anti-accidente):
 
    ```bash
@@ -94,13 +122,17 @@ Objetivo: probar la activación **sobre una copia** de la base viva, no sobre la
 - [ ] 🔴 Backup / snapshot de la base viva (branch de respaldo en Neon antes de tocar).
 
 **Ejecución (cada uno requiere OK):**
-1. 🔴 Aplicar a prod los mismos SQL, con `psql` contra la `DATABASE_URL` de prod:
+1. 🔴 Aplicar a prod los mismos SQL, con `psql` contra la `DATABASE_URL` de prod. **`0001`
+   cierra el drift de las 9 tablas** (data-driven → 33/33); **`0002` fuerza `app_user` a
+   `NOBYPASSRLS`** (arregla el rol preexistente con bypass):
    ```bash
+   RLS_AUDIT_DATABASE_URL="$PROD_URL" node prisma/rls/check-rls-live.mjs   # ANTES: muestra el drift
    psql "$PROD_URL" -f prisma/rls/0001_enable_rls.sql
    psql "$PROD_URL" -v app_pw="<pw-real-de-app_user>" -f prisma/rls/0002_app_role.sql
+   RLS_AUDIT_DATABASE_URL="$PROD_URL" node prisma/rls/check-rls-live.mjs   # DESPUÉS: SIN DRIFT ✅ (33/33, sin bypass)
    ```
-2. 🔴 **Rotar variables de entorno en Netlify** (sin esto, encender el flag solo agrega overhead sin enforcement — ver `src/lib/prisma-base.ts`):
-   - `DATABASE_URL` → connection string con el rol **`app_user`** (el que NO tiene `BYPASSRLS`).
+2. 🔴 **Rotar variables de entorno en Netlify** (sin esto, encender el flag solo agrega overhead sin enforcement — ver `src/lib/prisma-base.ts`). ⚠️ **NO rotar `DATABASE_URL` a `app_user` hasta que el audit DESPUÉS confirme `app_user` sin bypass** — si no, no habría aislamiento:
+   - `DATABASE_URL` → connection string con el rol **`app_user`** (ya forzado a `NOBYPASSRLS` por `0002`). **El valor lo carga el dueño** (contiene el password nuevo; no se tipea desde acá).
    - `OPERATOR_DATABASE_URL` → connection string con el rol **dueño** (`neondb_owner`, con bypass) — es el único proceso que ve cross-tenant, para el `/operador` (`src/lib/operator-db.ts`).
    - `RLS_ENFORCEMENT` = `on`.
 3. 🔴 **Deploy** (Gate 1 — "deployá") para que tome las variables.
