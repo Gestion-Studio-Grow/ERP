@@ -1,8 +1,17 @@
-# Cómo crear el repo `agencia-grow` (pendiente de permiso del GitHub App)
+# Cómo crear el repo `agencia-grow` (OPCIONAL / diferido — no hace falta ahora)
 
-**Estado:** el dueño dio OK para crear el espacio (2026-07-05). El intento automático de crear
-`Gestion-Studio-Grow/agencia-grow` **falló con `403 Resource not accessible by integration`**: el
-GitHub App conectado a esta sesión **no tiene permiso de "crear repos" en la organización**.
+## ¿Hace falta abrir el repo ahora? **No.**
+Seguimos **segmentando por carpeta dentro del ERP** (`docs/sectores/agencia-grow/…`), igual que venimos.
+El ADR-028 lo habilita explícito: *hasta que exista el repo, el material del sector vive
+transitoriamente en `estetica-erp`*. Hoy el sector es **docs + decisiones + prototipos** → viven bien
+acá. El repo aparte se dispara **solo cuando aparezca material de operación de servicios real** (assets
+de campañas, entregables por cliente) que no deba ensuciar el Core (guardrail anti-consultora,
+`FUNDAMENTOS §2`). Los **productos de software** siguen su propia regla: plugin del Core **o** su repo
+(ej. `arca` ya existe, ADR-025). Este documento queda listo para el día que convenga separar.
+
+**Estado del intento:** el dueño dio OK (2026-07-05). Crear `Gestion-Studio-Grow/agencia-grow` desde la
+sesión **falló con `403 Resource not accessible by integration`**: el GitHub App conectado **no tiene
+permiso de "crear repos" en la organización**. No es urgente resolverlo — no bloquea el trabajo.
 
 ## Opción A — habilitar el permiso y que la sesión lo cree (recomendado)
 Un **admin de la organización** habilita el acceso del GitHub App de Claude:
