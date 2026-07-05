@@ -1,9 +1,10 @@
 # ROADMAP — estetica-erp (plataforma ERP multi-tenant)
 
-**Qué es este documento:** mapa de producto a nivel plataforma. Responde tres
+**Qué es este documento:** mapa de producto a nivel plataforma. Responde cuatro
 preguntas: (1) qué tiene HOY el core del ERP —verificado contra código, no de
 memoria—, (2) qué le falta para ser una solución completa de mid-market y de sus
-verticales, y (3) en qué orden conviene construirlo. Complementa —no reemplaza—
+verticales, (3) **a qué mercado le vendemos y con qué arquetipos de blueprint lo
+cubrimos**, y (4) en qué orden conviene construirlo. Complementa —no reemplaza—
 a `docs/ANALISIS-BRECHAS.md` (brechas del vertical estética vs. Fresha/Zenoti/…)
 y `BACKLOG.md` (lista operativa). Este doc sube la altura: mira la **plataforma**
 y **todos los verticales** (estética, carnicería/retail, fiscal/contador).
@@ -142,7 +143,97 @@ reportes fiscales / libro IVA.
 
 ---
 
-## 3. Roadmap priorizado
+## 3. Capa estratégica: segmentación por arquetipos de blueprint
+
+La táctica (features del §4) sirve a una estrategia de mercado: **no vendemos un
+software por rubro, vendemos una plataforma que absorbe rubros por configuración**.
+Cada negocio nuevo debería resolverse eligiendo un **arquetipo de blueprint** y
+ajustando config —catálogo, unidades, flujo, branding—, **no** escribiendo código
+de base (FUNDAMENTOS §2, ADR-002/003). Un arquetipo es la "forma" de operar;
+un rubro es un preset sobre esa forma.
+
+> **Estado en código (verificado):** el registro de blueprints
+> (`src/blueprints/index.ts`) tiene hoy **2**: `servicios` (default) y `carniceria`.
+> El resto de los arquetipos de abajo son **📐 estrategia/diseño**, todavía sin
+> preset propio. El valor del enfoque es que sumarlos es *config*, no un producto nuevo.
+
+### 3.1 Arquetipos y el mercado local argentino
+
+| Arquetipo | Cómo opera | Rubros AR que absorbe | Reusa del Core | Estado |
+|---|---|---|---|---|
+| **Agenda & Servicios** | turno con profesional/recurso en el tiempo | estética/salón, salud/consultorios, veterinaria, gimnasios/estudios, spa | agenda, boxes/recursos, profesionales, reservas, recordatorios, comisiones | ✅ (vía `servicios` / CH Estética) |
+| **Retail / Mostrador** | venta de producto por unidad o peso, POS + vidriera | carnicería, verdulería, dietética, kiosco, indumentaria, ferretería | POS/órdenes, catálogo producto, canales COUNTER/ONLINE, fulfillment | 🟡 (vía `carniceria` / magra — falta stock+caja, ver §2) |
+| **Servicios profesionales & Oficios** | trabajo/visita presupuestado, sin stock ni turnera rígida | contadores, plomeros, técnicos, electricistas, freelancers | clientes, órdenes/presupuesto, cobro, facturación | 📐 diseño |
+| **Gastronomía** | comanda/mesa/delivery, alta rotación | bar, resto, cafetería, rotisería | POS/órdenes, fulfillment, catálogo | 📐 diseño — **entra tarde** (incumbentes fuertes: Fudo, Bistrosoft, Maxirest) |
+| **Solo-facturación / digital** | no vende por el ERP, solo factura/concilia ingresos | monotributista, vendedor de ML/MP, servicios digitales | Plugin arca + ingesta MP (ADR-025) | 🟡 (código de arca/MP presente, apagado) |
+| **Genérico / comodín** | mínimo común (clientes + ítems + cobro + factura) | cualquier rubro que aún no tiene preset propio | clientes, catálogo, órdenes, arca | 📐 diseño — **red de contención** |
+
+**Por qué el genérico importa:** es la **red de contención comercial**. Permite dar
+de alta a un cliente cuyo rubro todavía no tiene arquetipo fino, sin decirle que no
+y sin forkear: entra con lo mínimo (clientes + ítems + cobro + factura) y después se
+lo "asciende" a un preset cuando exista. Convierte "no tenemos tu rubro" en "arrancá
+hoy y lo afinamos".
+
+**Por qué gastronomía va tarde:** el arquetipo Retail/Órdenes lo cubre técnicamente,
+pero el rubro tiene **incumbentes locales fuertes y features caras** (comanda a
+cocina, mesas, control de mozos, delivery integrado). Es entrada de bajo ROI hasta
+tener la plataforma madura; se mira después de los tres arquetipos con menos fricción.
+
+### 3.2 Segmento y encuadre
+
+- **Segmento:** PyME argentina —mono/multi-tenant chico a mid-market—, no enterprise.
+  El diferencial es **cobertura de rubro por configuración + fiscalidad AR nativa
+  (arca)**, no profundidad vertical de nicho.
+- **La fiscalidad es horizontal, no un rubro:** todo negocio AR factura. Por eso
+  **arca no es un arquetipo más sino una capa transversal** que sirve a todos —y de
+  paso es un producto vendible standalone al monotributista/contador (ADR-022/025).
+
+### 3.3 Orden de construcción de blueprints
+
+El orden sigue "menor esfuerzo incremental × mayor mercado desbloqueado", y explota
+que cada arquetipo nuevo es **preset sobre el Core**, no desarrollo:
+
+1. **arca (horizontal) — primero y transversal.** Encender la fiscalidad sirve a
+   *todos* los arquetipos a la vez y abre el segmento solo-facturación ya. Máxima
+   palanca por ser común denominador.
+2. **Agenda & Servicios — casi listo.** El arquetipo ya opera vía CH Estética;
+   falta empaquetarlo como preset reusable y sumar presets de rubro (veterinaria,
+   salud, gym) que son casi solo catálogo + branding.
+3. **Retail / Mostrador — en curso.** magra prueba el arquetipo; el trabajo es
+   volverlo blueprint reusable y cerrar los gaps de ERP-retail (stock al vender,
+   caja, compras — §2). Desbloquea la familia carnicería/verdulería/dietética/kiosco.
+4. **Servicios profesionales & Oficios.** Preset liviano sobre clientes + órdenes/
+   presupuesto + arca; poco código nuevo una vez que Retail dejó el flujo de orden
+   pulido. Gran mercado de baja competencia de software.
+5. **Gastronomía — al final.** Solo cuando la plataforma esté madura y con apetito
+   de pelear un rubro con incumbentes.
+
+> **Regla operativa:** rubro nuevo dentro de un arquetipo existente = **una sesión de
+> config** (catálogo + unidades + branding + flags), no una sesión de desarrollo. El
+> desarrollo se gasta en *arquetipos* y en *capabilities del Core*, no en *rubros*.
+
+### 3.4 Sprint en curso (2026-07)
+
+Foco actual —construcción en paralelo de la base que habilita el orden de arriba—:
+
+- **Retail → blueprint reusable:** generalizar `magra`/`carniceria` de tenant puntual
+  a arquetipo Retail/Mostrador parametrizable (cierra §2: stock al vender, caja).
+- **Blueprint Genérico / comodín:** la red de contención para altas de cualquier rubro.
+- **Onboarding-experiencia:** el alta hoy es un script operado (`provision-tenant.ts`);
+  el sprint la lleva hacia una experiencia de alta guiada (elegir arquetipo → sembrar
+  → primeros pasos). Base del futuro portal/consola (ADR-019/021).
+- **Capa fiscal arca:** encender la fiscalidad horizontal (Gate 2 — lado Core del
+  Plugin, §4-#9) que sirve a todos los arquetipos.
+- **Sistema de diseño:** primitivos UI + tokens con branding por tenant, para que
+  cada arquetipo/tenant se vea propio sin forkear front (hoy `src/components/ui` +
+  `branding.ts`, con theming por tenant aún parcial).
+
+Estos cinco frentes son *habilitadores de plataforma*: no agregan un rubro, agrandan
+la superficie sobre la que después cada rubro entra como config.
+
+---
+
+## 4. Roadmap priorizado
 
 Orden por **palanca ÷ esfuerzo ÷ riesgo**, agrupado por horizonte. 🔑 = bloqueado
 por credencial/decisión del dueño. Esfuerzo: S≤1 · M=2–3 · L=4–6 · XL>6 jornadas.
@@ -195,7 +286,7 @@ por credencial/decisión del dueño. Esfuerzo: S≤1 · M=2–3 · L=4–6 · XL
 
 ---
 
-## 4. Resumen para el dueño
+## 5. Resumen para el dueño
 
 - **¿El core está "terminado"?** El **núcleo de servicios/estética sí** (agenda,
   clientes, catálogo, cobro manual, comisiones, reseñas, recordatorios, RBAC,
@@ -213,6 +304,12 @@ por credencial/decisión del dueño. Esfuerzo: S≤1 · M=2–3 · L=4–6 · XL
   seña** (ataca el no-show, mayor impacto en ingresos); (3) **WhatsApp real**
   (casi gratis, la infra ya existe); (4) **inventario+caja para retail** (convierte
   a carnicería de "demo que vende" en "ERP que gestiona").
+- **La estrategia de mercado (§3):** no vendemos por rubro, cubrimos rubros por
+  configuración sobre **arquetipos de blueprint** (Agenda&Servicios ✅, Retail 🟡,
+  Oficios/Gastronomía/Genérico 📐), con **arca (fiscalidad) como capa horizontal**.
+  El **sprint en curso** construye justo los habilitadores de eso: Retail reusable +
+  blueprint Genérico + onboarding-experiencia + capa fiscal arca + sistema de diseño.
+  Rubro nuevo dentro de un arquetipo = una sesión de config, no de desarrollo.
 
 ---
 
