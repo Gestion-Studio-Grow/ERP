@@ -106,10 +106,11 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
 **Sprint:** Sesión única en serie — Tests → POS/stock → UX/UI
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (POS/stock cerrado)
-**Estado del bloque:** 🟢 en curso · **modo SESIÓN ÚNICA en serie** (owner sin laptop, no se abren
-sesiones nuevas — ver "Modo de operación" arriba). Los frentes A/B/C, antes en paralelo, se
-ejecutan ahora **uno por uno en esta sesión**, un tema por commit.
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (3 frentes A/B/C ejecutados; C avanza por slices)
+**Estado del bloque:** ✅ **primera pasada completa** · **modo SESIÓN ÚNICA en serie** (owner sin
+laptop). A (Tests) y B (POS/stock) cerrados y verificados; C (UX/UI) avanzado con un slice
+verificado (acciones públicas del turno → tokens) — el barrido admin restante sigue **por slices**
+(necesita verificación visual con preview, no disponible en este modo).
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
@@ -129,11 +130,13 @@ el porqué, pusheado a `origin/main` · handoff (`## Sprint activo`) al día tra
 - [x] **Protocolo de sesión única en serie** — escrito en este doc ("Modo de operación") + puntero en el tablero. *(este sprint, 2026-07-05)*
 - [x] **(a) Tests/QA** — harness `node:test`+`tsx` (ADR-026, cero dep), `npm test` acotado a `src/**/*.test.ts`; 7 pruebas verdes de `audit-retention` + `report-config`. *(2026-07-05)*
 - [x] **(b) POS/stock** — `insertOrder` (`order-core.ts`) descuenta stock **dentro de la transacción**, solo para productos con flag `trackStock`, con guarda anti-oversell (`updateMany where stock>=qty`; 0 filas → aborta la orden). Flag nuevo en schema + **migración `20260705130000_add_product_track_stock` SIN aplicar** (pendiente acción humana). Blueprint Retail lo siembra en true. *(2026-07-05)*
-- [ ] **(c) UX/UI** — completar adopción del design system en las pantallas que falten.
+- [~] **(c) UX/UI** — **slice hecho:** acciones públicas del turno (`CancelButton`/`ReviewForm`/`RescheduleButton`) migradas de color crudo de Tailwind (`red-*`, `bg-white`, `neutral-*`) a **tokens semánticos** (`danger`, `surface-raised`, `on-accent`) + `buttonClasses`. Falta el barrido de ~11 pantallas admin + storefront, **por slices con verificación visual**. *(2026-07-05)*
 
-**Próximo bocado (lo que ejecuta "seguimos"):** frente (c) **UX/UI** — completar la adopción del
-design system (`@/components/ui` + tokens) en las pantallas del admin que todavía usan clases sueltas.
-Barrer las que falten (23 archivos ya lo importan), sin cambiar comportamiento. tsc+build+test verdes.
+**Próximo bocado (lo que ejecuta "seguimos"):** seguir el barrido UX **por slices** (próximo
+candidato: `resenas`/`auditoria`/`turnos-lista` → `Card` + `Button`), o —si preferís valor con
+verificación— retomar cuando haya **preview con auth** para confirmar visualmente los cambios de
+admin. Alternativas del backlog (`docs/ESTADO-FRENTES.md`): POS caja/compras, reportes v2, adapters
+sin credencial (ARCA `soap.ts` / MP). En modo sesión única: un frente por vez, un tema por commit.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.

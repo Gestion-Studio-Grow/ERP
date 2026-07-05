@@ -103,7 +103,7 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
           style={{ borderColor: "var(--line-strong)", background: "var(--surface-raised)" }}
         />
 
-        {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+        {error && <p className="text-sm text-danger mb-2">{error}</p>}
 
         <SendButton disabled={rating === 0} />
       </form>

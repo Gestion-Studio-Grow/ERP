@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cancelMyAppointment } from "@/lib/client-actions";
 import SubmitButton from "@/components/SubmitButton";
+import { buttonClasses } from "@/components/ui";
 
 export default function CancelButton({ appointmentId }: { appointmentId: string }) {
   const [confirming, setConfirming] = useState(false);
@@ -12,7 +13,7 @@ export default function CancelButton({ appointmentId }: { appointmentId: string 
     return (
       <button
         onClick={() => setConfirming(true)}
-        className="mb-6 rounded-md border border-red-200 text-red-600 px-4 py-2 text-sm font-medium hover:bg-red-50"
+        className="mb-6 rounded-md border border-danger/40 text-danger px-4 py-2 text-sm font-medium hover:bg-danger-soft"
       >
         Cancelar turno
       </button>
@@ -20,9 +21,9 @@ export default function CancelButton({ appointmentId }: { appointmentId: string 
   }
 
   return (
-    <div className="mb-6 rounded-md border border-red-200 bg-red-50 p-4">
-      <p className="text-sm text-red-800 mb-3">¿Confirmás que querés cancelar este turno?</p>
-      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+    <div className="mb-6 rounded-md border border-danger/30 bg-danger-soft p-4">
+      <p className="text-sm text-danger mb-3">¿Confirmás que querés cancelar este turno?</p>
+      {error && <p className="text-sm text-danger mb-2">{error}</p>}
       <div className="flex gap-3">
         <form
           action={async (fd) => {
@@ -36,14 +37,14 @@ export default function CancelButton({ appointmentId }: { appointmentId: string 
           <input type="hidden" name="id" value={appointmentId} />
           <SubmitButton
             pendingText="Cancelando…"
-            className="rounded-md bg-red-600 text-white px-4 py-2 text-sm font-medium"
+            className={buttonClasses("danger", "md")}
           >
             Sí, cancelar
           </SubmitButton>
         </form>
         <button
           onClick={() => setConfirming(false)}
-          className="rounded-md px-4 py-2 text-sm text-neutral-600"
+          className={buttonClasses("ghost", "md")}
         >
           No, mantener
         </button>

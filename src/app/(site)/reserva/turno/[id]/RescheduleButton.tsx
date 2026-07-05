@@ -112,7 +112,7 @@ export default function RescheduleButton({
                     key={slot}
                     type="button"
                     onClick={() => setSelectedSlot(slot)}
-                    className={`rounded-md border px-2 py-1.5 text-sm ${isSelected ? "text-white" : "bg-white"}`}
+                    className={`rounded-md border px-2 py-1.5 text-sm ${isSelected ? "text-on-accent" : "bg-surface-raised"}`}
                     style={
                       isSelected
                         ? { background: "var(--text-strong)", borderColor: "var(--text-strong)" }
@@ -128,7 +128,7 @@ export default function RescheduleButton({
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         {selectedSlot && (
           <SubmitButton
