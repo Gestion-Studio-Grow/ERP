@@ -231,7 +231,7 @@ function OpenSession({
             </CardDescription>
           </div>
         </CardHeader>
-        <CloseCajaForm expectedLabel={expectedLabel} />
+        <CloseCajaForm expected={expected} />
       </Card>
     </div>
   );
