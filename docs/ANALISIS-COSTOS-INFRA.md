@@ -1,8 +1,10 @@
 # Análisis de costos e infraestructura (FinOps)
 
-> **Alcance:** este documento analiza **LÍMITES de plan** y **PROYECCIÓN de capacidad**, no consumo medido. Los límites son valores oficiales (con fuente y fecha abajo); todo número de *consumo* es un **envelope ilustrativo con supuestos explícitos**, no una medición. **El consumo REAL se completa cuando accedamos a los paneles de Netlify y Neon** (§6). No se inventan cifras reales.
+> **Alcance:** este documento analiza **LÍMITES de plan** + **CONSUMO REAL de Netlify** (relevado en vivo del panel el 2026-07-05) + **PROYECCIÓN**. Los límites son valores oficiales (fuente abajo). El consumo de **Netlify ya es dato real medido** (§2.a); el de **Neon sigue pendiente** de relevar su panel (§6) — ahí los números son envelope con supuestos marcados. No se inventan cifras reales.
 >
-> **Fecha del relevamiento de límites:** 2026-07-05. **Verificar contra el plan vigente** antes de decidir un upgrade — Netlify y Neon revisan planes seguido (Netlify pasó a modelo de créditos; la tarifa de bandwidth se duplicó el 2026-04-14).
+> **Corrección importante (2026-07-05):** una versión previa asumía que estábamos en **Netlify Free**. **Falso:** el equipo `erp` está en **Personal ($9/mes, 1.000 créditos)** desde el 3-jul. Todo el headroom de Netlify se recalculó con eso y con el consumo real.
+>
+> **Fecha del relevamiento:** 2026-07-05. **Verificar contra el plan vigente** antes de decidir un upgrade — Netlify y Neon revisan planes seguido (Netlify pasó a modelo de créditos; la tarifa de bandwidth se duplicó el 2026-04-14).
 
 ---
 
@@ -23,21 +25,32 @@
 
 ## 2. Límites del plan gratuito (valores oficiales)
 
-### 2.a Netlify — Free (modelo de **créditos**, 2026)
+### 2.a Netlify — estamos en **Personal ($9/mes · 1.000 créditos)**
 
-Netlify **ya no cobra build minutes**. Todo sale de un **pool único de 300 créditos/mes**, con **límite duro**: cuando se agotan, el sitio **deja de servir tráfico** (no hay auto-recharge; hay que subir de plan). Deploy previews, branch deploys y builds fallidos **no** consumen créditos.
+**Dato real (panel, 2026-07-05):** el equipo `erp` está en **plan Personal, $9/mes**, efectivo desde el **3-jul**, con **1.000 créditos/mes** y **auto-recarga de créditos DESACTIVADA**. Al agotarse el pool, el sitio **deja de servir tráfico hasta el próximo ciclo** (sin cargo sorpresa, pero con **corte** de servicio). Netlify **ya no cobra build minutes**: todo sale de ese pool único. Deploy previews, branch deploys y builds fallidos **no** consumen créditos. *(Free serían 300 cr; queda como referencia, pero nuestro presupuesto real es 1.000.)*
 
-| Recurso | Tarifa | 300 créditos equivalen a… |
+| Recurso | Tarifa | 1.000 créditos (Personal) equivalen a… |
 |---|---|---|
-| **Web Bandwidth** | 20 créditos / GB | ~15 GB |
-| **Web Requests** | 2 créditos / 10.000 requests | ~1,5 M requests |
-| **Functions & Agents Compute** | 10 créditos / GB-hora | ~30 GB-hora |
-| **Production Deployments** | **15 créditos / deploy** | ~20 deploys |
+| **Web Bandwidth** | 20 créditos / GB | ~50 GB |
+| **Web Requests** | 2 créditos / 10.000 requests | ~5 M requests |
+| **Functions & Agents Compute** | 10 créditos / GB-hora | ~100 GB-hora |
+| **Production Deployments** | **15 créditos / deploy** | ~66 deploys |
 | **Database Bandwidth / Compute** | 20 cr/GB · 10 cr/GB-h | *N/A para nosotros* (es la DB propia de Netlify; **nosotros usamos Neon** — nuestro costo de DB está del lado de Neon, no en estos créditos) |
 | **Form Submissions** | gratis | — |
-| Timeout de función (Free) | ~10 s síncrono | *verificar contra plan vigente* |
+| Timeout de función | ~10 s síncrono | *verificar contra plan vigente* |
 
-> Los recursos **comparten** el mismo pool de 300: 1 deploy (15 cr) = 5% del mes; 1 GB de tráfico = 6,7%.
+> Los recursos **comparten** el mismo pool de 1.000: 1 deploy (15 cr) = 1,5% del mes; 1 GB de tráfico = 2%.
+
+#### Consumo REAL de Netlify (medido, no estimado)
+
+| Período | Consumido | Restante | Nota |
+|---|---|---|---|
+| **Actual** (3-jul → 2-ago) | **~575 / 1.000** | **425** | mes en curso |
+| **Anterior** (3-jun → 2-jul) | **743 / 1.000** | 257 | **pico de ~500 créditos en un solo día (2-jul)** — probable ráfaga de builds/deploys |
+
+- **Utilización real ~57-74% del pool pago.** El margen **no es holgado**: quedan **~26-43%** (§4).
+- **`ch-estetica`: "Builds are stopped"** — auto-publish off, coherente con la política de deploy manual.
+- El **desglose por recurso** (cuántos de esos ~575 son deploys vs compute de funciones vs bandwidth) **hay que sacarlo del panel** (§6) — es lo que dice cuánto pesa el `force-dynamic`.
 
 ### 2.b Neon — Free (por proyecto)
 
@@ -81,16 +94,16 @@ Compartimos **un solo proyecto Neon** para todos los tenants (multi-tenant share
 2. Al tocarlo, Neon **suspende el compute** → **la app se cae**, no se degrada.
 3. Su driver (`AuditLog`) crece **aunque el tráfico sea bajo**, y **se acelera con cada tenant nuevo** (proyecto Neon compartido).
 
-**Descartado como "primero":** *build minutes de Netlify* — **ya no existen** en el modelo de créditos. El equivalente (deploys a 15 cr) está **controlado** porque el auto-publish está apagado.
+**Pero atención — Netlify subió de prioridad con los datos reales.** *Build minutes* ya no existen, pero el **pool de 1.000 créditos se está consumiendo al 57-74%/mes** (dato real §2.a), y con **auto-recarga apagada** agotarlo también **corta el servicio**. No es el "primero" por calendario (eso es Neon storage), pero **ya no es el margen holgado** que sugería el envelope de Free: es un riesgo operativo **mensual y real**, sobre todo por picos (el del 2-jul se comió ~50% del pool en un día).
 
-**Orden probable de saturación** (piloto → crecimiento):
-1. 🥇 **Neon storage 0,5 GB** (calendario, ratchet, corta la app).
-2. 🥈 **Neon compute 100 CU-h** y **Netlify 300 créditos** (suben con tenants + tráfico + frecuencia de deploys/cron).
-3. 🥉 **Neon egress 5 GB** / **Netlify bandwidth ~15 GB** (improbable primero, salvo reportes que traen datasets enteros — ADR-023 F3).
+**Orden probable de saturación** (con datos reales):
+1. 🥇 **Neon storage 0,5 GB** (calendario, ratchet, corta la app — sigue siendo el primero por fecha).
+2. 🥈 **Netlify 1.000 créditos** (consumo real 57-74%/mes; un pico como el del 2-jul amenaza el corte antes de fin de ciclo) **y Neon compute 100 CU-h**.
+3. 🥉 **Neon egress 5 GB** / **Netlify bandwidth (~50 GB)** (improbable primero, salvo reportes que traen datasets enteros — ADR-023 F3).
 
 ### Cuántos tenants/tráfico entran antes de pagar (envelope)
 
-- **Netlify 300 créditos:** con deploys gateados (~4/mes = 60 cr) quedan ~240 cr para tráfico. A ~0,005 cr por page view *(supuesto: página ~200-300 KB, función ~300 ms @ 1 GB)* → **~40-50k page views/mes**. Para 1 salón de bajo tráfico, **sobra**; entran **varios tenants** antes de que Netlify sea el problema.
+- **Netlify 1.000 créditos (dato REAL, no envelope):** consumo medido **~575-743 créditos/mes = 57-74% del pool**. Quedan **~257-425 créditos** de margen (26-43%). Es **ajustado, no holgado**: un solo día como el pico del 2-jul (~500 cr) equivale a **casi medio mes** de presupuesto. Con **1 tenant** ya estamos a más de la mitad del pool; **cada tenant y cada ráfaga de deploys lo aprieta**. Corrige el envelope anterior (que, asumiendo Free, decía "sobra"): **no sobra**. *(Cuánto de ese consumo es `force-dynamic` vs deploys vs bandwidth sale del desglose del panel, §6.)*
 - **Neon compute 100 CU-h:** a 0,25-0,5 CU activos, son **200-400 horas activas/mes** *(supuesto)*. El cron + tráfico de horario comercial de **1 tenant** cabe con holgura; el margen se come al **sumar tenants**.
 - **Neon storage 0,5 GB:** *(supuesto: fila de audit ~1-2 KB con el `changes` JSON + overhead de índices)* → orden de **cientos de miles de filas**. Un salón que genera unos miles de mutaciones/mes tiene, en teoría, **~1-3 años** de headroom **como tenant único** — pero **esto DEBE calibrarse con el tamaño real de la DB del panel de Neon**, que todavía no medimos. Con más tenants, el horizonte se **acorta proporcionalmente**.
 
@@ -98,13 +111,13 @@ Compartimos **un solo proyecto Neon** para todos los tenants (multi-tenant share
 
 ### Costo del primer upgrade
 
-| Plataforma | Salto | Costo | Qué destraba |
+| Plataforma | Estado / Salto | Costo | Qué destraba |
 |---|---|---|---|
-| **Neon** | Free → **Launch** (pay-as-you-go, sin mínimo mensual*) | **$0,35/GB-mes** storage · **$0,106/CU-hora** compute · 500 GB egress incluidos | Saca el techo de 0,5 GB y de 100 CU-h. A escala de piloto (1-2 GB, compute bajo) la primera factura sería de **pocos dólares/mes** *(estimación, ~$5-15)*. *(*verificar si aplica algún fee base) |
-| **Netlify** | Free (300 cr) → **Personal** | **$9/mes** = 1.000 créditos (3,3× headroom) | Más tráfico/deploys; sube el timeout de función |
-| **Netlify** | → **Pro** | **$20/mes** = 3.000 créditos | Escala mayor / equipo |
+| **Netlify** | **Ya estamos en Personal** (Free 300 → Personal 1.000, desde 3-jul) | **$9/mes** (gasto actual) | 3,3× el pool de Free; sube el timeout de función |
+| **Netlify** | Personal → **Pro** (próximo salto) | **$20/mes** = 3.000 créditos | Si el consumo real sostenido pasa de ~800-900/mes, o los picos amenazan el corte con auto-recarga apagada |
+| **Neon** | Free → **Launch** (pay-as-you-go, sin mínimo mensual*) | **$0,35/GB-mes** storage · **$0,106/CU-hora** compute · 500 GB egress incluidos | Saca el techo de 0,5 GB y de 100 CU-h. A escala de piloto (1-2 GB, compute bajo): **~$5-15/mes** *(estimación)*. *(*verificar si aplica algún fee base) |
 
-**Lectura FinOps:** el **primer gasto real** va a ser **Neon** (por storage), y es **barato de cruzar** (pay-as-you-go, centavos por GB). Netlify probablemente aguante en Free bastante más. Ninguno de los dos "explota" en costo: el salto inicial combinado es del orden de **$10-25/mes**.
+**Lectura FinOps (corregida):** hoy ya pagamos **$9/mes de Netlify** (no estábamos en Free). El **próximo gasto real** será **Neon** (por storage, barato de cruzar), pero **Netlify Pro podría llegar antes de lo pensado**: con el consumo real en 57-74% del pool y creciendo con cada tenant, el salto a **$20/mes** es plausible en el mediano plazo — y **bajar el `force-dynamic` (§7) es lo que puede posponerlo**. Escalones de costo: **hoy $9/mes** → +Neon Launch (~$5-15) → eventualmente Netlify Pro (+$11). Nada "explota", pero el margen de Netlify es **más chico** de lo que creíamos.
 
 ---
 
@@ -121,7 +134,7 @@ Compartimos **un solo proyecto Neon** para todos los tenants (multi-tenant share
 
 ### Netlify (el modelo cambió a créditos — mirar por crédito, no por minutos)
 
-1. **Team → Billing → Usage** (o "Usage & credits"): **consumo del mes en curso sobre los 300 créditos**, con **desglose por recurso** (Bandwidth, Web Requests, Functions Compute, Production Deployments). Es la métrica madre.
+1. **Team → Billing → Usage** (o "Usage & credits"): **consumo del mes en curso sobre los 1.000 créditos** (ya sabemos el total ~575; falta el **desglose por recurso** — Bandwidth, Web Requests, Functions Compute, Production Deployments). Ese desglose es lo que confirma cuánto pesa el `force-dynamic` y cuánto los deploys. Es la métrica madre.
 2. **El desglose de créditos por recurso** en esa misma vista: cuántos créditos se van en **deploys** vs **compute de funciones** vs **bandwidth**. Confirma si el driver real es lo que predice §3.
 3. **Deploys → lista de Production deploys** del mes: **cantidad de deploys** (× 15 cr). Cruzar con la política de "deploy solo a pedido".
 4. **Functions** (pestaña de la app): **invocaciones y duración** de las funciones SSR — insumo del compute.
@@ -141,12 +154,13 @@ Compartimos **un solo proyecto Neon** para todos los tenants (multi-tenant share
 ## 7. Recomendaciones de ahorro (alineadas a "cuidar costos")
 
 **Alto impacto:**
-1. **Sacar `force-dynamic` de las páginas PÚBLICAS que no lo necesitan** (home/marketing `(site)/page.tsx` + layout, y el listado de la vidriera `/tienda` con `revalidate` corto). Hoy cada visita anónima despierta Neon y corre una función. Es el ahorro más grande y toca las tres métricas (funciones Netlify, compute Neon, wakes). La reserva (disponibilidad en vivo) y el `/admin` **sí** siguen dinámicos.
+1. **Sacar `force-dynamic` de las páginas PÚBLICAS que no lo necesitan** (home/marketing `(site)/page.tsx` + layout, y el listado de la vidriera `/tienda` con `revalidate` corto). Hoy cada visita anónima despierta Neon y corre una función. **Con el dato real, esto ya no es hipotético: el compute de funciones se paga del pool de 1.000 créditos que YA gastamos $9/mes** (10 cr/GB-hora) — cada page view pública dinámica consume crédito real. Es el ahorro más grande y toca las tres métricas (funciones Netlify, compute Neon, wakes), y es la palanca directa para **posponer el salto a Netlify Pro**. La reserva (disponibilidad en vivo) y el `/admin` **sí** siguen dinámicos.
 2. **Retención de `AuditLog`** (ADR-023 F8): ventana holgada (~12-18 meses) + archivado futuro a R2. Ataca directo el límite que se toca primero.
 3. **Revisar la frecuencia del cron de recordatorios:** cada wake mantiene Neon despierto ≥5 min. Correrlo con cadencia sensata (p.ej. cada 15-30 min u horario, no cada minuto) y en lo posible en **horario comercial**, para dejar que Neon caiga a scale-to-zero de noche → ahorra CU-horas.
 
 **Sostenido:**
 4. **Mantener el auto-publish apagado y batchear deploys** (ya es política): cada deploy son 15 créditos; agrupar cambios de una sesión en **un** deploy en vez de varios.
+   - **Sobre el pico del 2-jul (~500 créditos en un día):** el patrón más probable es una **ráfaga de builds/deploys** — con auto-publish todavía **encendido** en ese momento, cada push a `main` disparaba un deploy (15 cr c/u; ~33 deploys ≈ 500 cr), o un rebuild en loop. **Cómo se evita (y ya está mitigado):** el auto-publish quedó **apagado** (`ch-estetica`: "Builds are stopped") justo el 3-jul, así que los pushes de trabajo ya **no** deployan solos; se publica solo a pedido y batcheado. Si vuelve a aparecer un pico, revisar en el panel si fue deploys (→ política de deploy) o compute/tráfico (→ `force-dynamic`, punto 1). *Causa exacta a confirmar con el desglose del panel (§6).*
 5. **Reportes con agregación en DB y rango de fecha** (ADR-023 F3): baja egress y compute de Neon.
 6. **Vigilar el % de storage de Neon como métrica de gate** (§6): es la señal anticipada del primer upgrade; permite planificar el salto a Launch sin sorpresa de corte.
 7. **Cuidar el peso de imágenes** (`next/image`, remotePatterns): imágenes livianas = menos bandwidth (20 cr/GB en Netlify).
