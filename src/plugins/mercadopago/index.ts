@@ -22,6 +22,7 @@ export { StubMercadoPagoClient } from "./stub";
 export {
   sincronizarPagos,
   facturarPagoSiCorresponde,
+  ErrorFacturacion,
   type IngestaDeps,
   type ResumenIngesta,
   type FacturarPagoMP,
