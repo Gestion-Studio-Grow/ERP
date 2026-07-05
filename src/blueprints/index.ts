@@ -4,16 +4,23 @@
 import type { Blueprint } from "./types";
 import { serviciosBlueprint } from "./servicios";
 import { carniceriaBlueprint } from "./carniceria";
+import { genericoBlueprint } from "./generico";
 
 export type { Blueprint, PrismaTx, TenantBrandingDefaults } from "./types";
 
 // Vertical por defecto: el ERP nació como "servicios" (spa), así que un alta sin
-// --blueprint mantiene el comportamiento histórico.
+// --blueprint ni --rubro mantiene el comportamiento histórico.
 export const DEFAULT_BLUEPRINT_ID = "servicios";
+
+// Vertical COMODÍN: cuando el rubro del cliente no matchea ningún blueprint modelado,
+// el selector cae acá en vez de fallar. Es el guardrail de negocio: "si tu negocio no
+// está acá, lo acomodamos sobre lo existente (genérico + config)", NO un fork a medida.
+export const FALLBACK_BLUEPRINT_ID = "generico";
 
 const REGISTRY: Record<string, Blueprint> = {
   [serviciosBlueprint.id]: serviciosBlueprint,
   [carniceriaBlueprint.id]: carniceriaBlueprint,
+  [genericoBlueprint.id]: genericoBlueprint,
 };
 
 export const BLUEPRINT_IDS = Object.keys(REGISTRY);
@@ -31,4 +38,67 @@ export function getBlueprint(id: string): Blueprint {
 
 export function listBlueprints(): Blueprint[] {
   return Object.values(REGISTRY);
+}
+
+// Pistas de rubro → blueprint. Datos, no código: sumar un vertical nuevo es agregar
+// su fila acá (o un blueprint nuevo al REGISTRY), sin tocar el selector. Las claves se
+// comparan normalizadas (minúsculas, sin acentos) contra el texto de rubro que trae el
+// descubrimiento (ONBOARDING-TENANT §3.2).
+const RUBRO_HINTS: { id: string; keywords: string[] }[] = [
+  {
+    id: "servicios",
+    keywords: [
+      "estetica", "spa", "salon", "peluqueria", "belleza", "unas", "barberia",
+      "masajes", "cosmetologia", "turnos", "manicura", "depilacion",
+    ],
+  },
+  {
+    id: "carniceria",
+    keywords: [
+      "carniceria", "carne", "carnes", "pollo", "cerdo", "fiambre", "fiambreria",
+      "frigorifico", "achuras", "granja",
+    ],
+  },
+];
+
+export interface BlueprintMatch {
+  blueprint: Blueprint;
+  blueprintId: string;
+  /** true si el rubro matcheó un vertical modelado; false si cayó al comodín. */
+  matched: boolean;
+  /** El texto de rubro normalizado que se evaluó (para mensajes/telemetría). */
+  normalizedHint: string;
+}
+
+// Normaliza para el match: minúsculas + saca acentos, así "carnicería" == "carniceria".
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[^a-z0-9 ]/g, "") // saca acentos (marcas combinantes) y simbolos
+    .trim();
+}
+
+/**
+ * Selector de blueprint a partir del rubro libre que capta el descubrimiento.
+ * Núcleo del onboarding hiper-personalizado: si el rubro matchea un vertical modelado,
+ * el tenant nace con ESE blueprint (se siente hecho para su negocio); si no matchea
+ * nada, cae al COMODÍN genérico — nunca falla, nunca fuerza un desarrollo a medida.
+ * `provisionTenant` sigue recibiendo el id resuelto; esto solo decide cuál.
+ */
+export function resolveBlueprint(rubro?: string): BlueprintMatch {
+  const normalizedHint = rubro ? normalize(rubro) : "";
+  if (normalizedHint) {
+    for (const entry of RUBRO_HINTS) {
+      if (entry.keywords.some((k) => normalizedHint.includes(k))) {
+        return { blueprint: REGISTRY[entry.id], blueprintId: entry.id, matched: true, normalizedHint };
+      }
+    }
+  }
+  return {
+    blueprint: REGISTRY[FALLBACK_BLUEPRINT_ID],
+    blueprintId: FALLBACK_BLUEPRINT_ID,
+    matched: false,
+    normalizedHint,
+  };
 }

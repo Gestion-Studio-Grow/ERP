@@ -38,7 +38,13 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/auth-password";
-import { getBlueprint, DEFAULT_BLUEPRINT_ID, BLUEPRINT_IDS } from "../src/blueprints";
+import {
+  getBlueprint,
+  resolveBlueprint,
+  listBlueprints,
+  DEFAULT_BLUEPRINT_ID,
+  BLUEPRINT_IDS,
+} from "../src/blueprints";
 
 const DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -281,6 +287,9 @@ type Args = {
   timezone?: string;
   password?: string;
   blueprint?: string;
+  /** Rubro libre del descubrimiento; si no hay --blueprint, el selector lo resuelve. */
+  rubro?: string;
+  listBlueprints: boolean;
   skipCatalog: boolean;
   dryRun: boolean;
   branding: TenantBranding;
@@ -319,6 +328,8 @@ function parseArgs(argv: string[]): Args {
     timezone: str("timezone", "PROVISION_TENANT_TIMEZONE"),
     password: str("password", "PROVISION_OWNER_PASSWORD"),
     blueprint: str("blueprint", "PROVISION_BLUEPRINT"),
+    rubro: str("rubro", "PROVISION_RUBRO"),
+    listBlueprints: flags["list-blueprints"] === true || flags["list-blueprints"] === "true",
     skipCatalog: flags["skip-catalog"] === true || flags["skip-catalog"] === "true",
     dryRun: flags["dry-run"] === true || flags["dry-run"] === "true",
     branding: {
@@ -335,8 +346,43 @@ function parseArgs(argv: string[]): Args {
   };
 }
 
+// Resuelve el blueprint efectivo del alta según la precedencia del onboarding:
+//   1. --blueprint explícito (el operador manda) → se valida y se usa tal cual.
+//   2. --rubro libre (del descubrimiento) → el selector matchea un vertical o cae al
+//      COMODÍN genérico (guardrail: nunca falla ni fuerza desarrollo a medida).
+//   3. nada → DEFAULT histórico (servicios), para no romper el comportamiento previo.
+// Devuelve el id + una nota legible de cómo se decidió, para logs y dry-run.
+function resolveEffectiveBlueprint(args: Args): { id: string; note: string } {
+  if (args.blueprint) {
+    getBlueprint(args.blueprint); // valida (lanza si el id no existe)
+    return { id: args.blueprint, note: `explícito (--blueprint=${args.blueprint})` };
+  }
+  if (args.rubro) {
+    const m = resolveBlueprint(args.rubro);
+    return {
+      id: m.blueprintId,
+      note: m.matched
+        ? `rubro "${args.rubro}" → vertical "${m.blueprintId}"`
+        : `rubro "${args.rubro}" sin vertical propio → COMODÍN "${m.blueprintId}" (se acomoda sobre lo existente)`,
+    };
+  }
+  return { id: DEFAULT_BLUEPRINT_ID, note: `default histórico (${DEFAULT_BLUEPRINT_ID})` };
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+
+  // --list-blueprints: lista los verticales disponibles y sale (útil para el
+  // configurador/descubrimiento y para el operador). No requiere otros parámetros.
+  if (args.listBlueprints) {
+    console.log("Blueprints disponibles:\n");
+    for (const bp of listBlueprints()) {
+      console.log(`  • ${bp.id}${bp.id === DEFAULT_BLUEPRINT_ID ? " (default)" : ""} — ${bp.label}`);
+      console.log(`      ${bp.description}`);
+    }
+    console.log("\nRubro no modelado → cae al comodín \"generico\" (--rubro \"...\").");
+    return;
+  }
 
   const missing: string[] = [];
   if (!args.name) missing.push("--name (o PROVISION_TENANT_NAME)");
@@ -348,20 +394,23 @@ async function main(): Promise<void> {
         missing.join("\n  - ") +
         "\n\nUso: npm run provision -- --name \"Negocio SA\" --slug negocio-sa " +
         "--owner-email owner@negocio.com [--owner-name \"Nombre\"] " +
-        `[--blueprint ${BLUEPRINT_IDS.join("|")}] ` +
+        `[--blueprint ${BLUEPRINT_IDS.join("|")}] [--rubro \"texto libre del rubro\"] ` +
         "[--timezone America/...] [--password ...] [--skip-catalog] [--dry-run]\n" +
+        "  Ver verticales: --list-blueprints · rubro no modelado → comodín \"generico\".\n" +
         "  Branding opcional: [--city ...] [--address ...] [--whatsapp ...] " +
         "[--instagram ...] [--maps-url ...] [--hours-label ...] [--short-label ...] " +
         "[--contact-email ...] [--contact-note ...]",
     );
   }
 
+  const effectiveBlueprint = resolveEffectiveBlueprint(args);
+
   console.log("── Provisioning de tenant (ADR-019) ──");
   console.log(`  Negocio:   ${args.name}`);
   console.log(`  Slug:      ${args.slug}`);
   console.log(`  OWNER:     ${args.ownerName ?? "Dueño/a"} <${args.ownerEmail}>`);
   console.log(`  Timezone:  ${args.timezone ?? DEFAULT_TIMEZONE}`);
-  console.log(`  Blueprint: ${args.blueprint ?? DEFAULT_BLUEPRINT_ID}`);
+  console.log(`  Blueprint: ${effectiveBlueprint.id}  [${effectiveBlueprint.note}]`);
   console.log(`  Catálogo:  ${args.skipCatalog ? "omitido (--skip-catalog)" : "catálogo del blueprint si el tenant está vacío"}`);
 
   if (args.dryRun) {
@@ -369,7 +418,6 @@ async function main(): Promise<void> {
     // dentro de la transacción y no se ejecutan en dry-run).
     assertValidSlug(args.slug!.trim());
     assertValidEmail(args.ownerEmail!.trim().toLowerCase());
-    getBlueprint(args.blueprint ?? DEFAULT_BLUEPRINT_ID); // valida el vertical
     console.log("\n[dry-run] Validaciones de parámetros OK. No se escribió nada en la base.");
     return;
   }
@@ -382,7 +430,7 @@ async function main(): Promise<void> {
       slug: args.slug!,
       timezone: args.timezone,
       owner: { name: args.ownerName, email: args.ownerEmail!, password: args.password },
-      blueprint: args.blueprint,
+      blueprint: effectiveBlueprint.id,
       skipCatalog: args.skipCatalog,
       branding: args.branding,
     });

@@ -127,25 +127,28 @@ se improvisan.
 Un **Blueprint** es **configuración pura sobre el Core** (ADR-002): define qué rubro
 se está dando de alta, su catálogo mínimo, su branding por defecto y qué capacidades
 usa — **sin schema propio ni código duplicado**. Vive en `src/blueprints/`
-(`servicios.ts`, `carniceria.ts`, registro en `index.ts`). Hoy hay **dos**.
+(`servicios.ts`, `carniceria.ts`, `generico.ts`, registro en `index.ts`). Hoy hay
+**tres**: dos verticales modelados (servicios, carnicería) y **uno comodín**
+(`generico`) para todo lo demás.
 
-### 2.1 Comparación estética/salón vs carnicería/retail
+### 2.1 Comparación: servicios vs carnicería vs genérico (comodín)
 
-| Dimensión | `servicios` (estética / spa / salón) ✅ | `carniceria` (carnicería / retail) ✅ |
-|---|---|---|
-| **Flujo de negocio núcleo** | Agenda de **turnos** por profesional | **Mostrador / POS**: venta y pedidos, sin turnos |
-| **Catálogo base sembrado** | 1 box, 1 categoría "General", 2 **servicios** de ejemplo (con duración y precio), 1 **profesional** de ejemplo | ~14 **cortes** de ejemplo (lomo, asado, picada, pollo, cerdo…) |
-| **Unidad de venta** | Servicio con `durationMin` + `price` | **Por kg** (`saleUnit=WEIGHT`, `pricePerKg`) y **por unidad** (`saleUnit=UNIT`, `price`) — venta por peso es el diferencial del rubro |
-| **Horarios** | WorkingHours **Lun–Sáb 9–19** por profesional + leyenda pública | Sin horario por profesional; leyenda pública **Mar–Dom 9–20** |
-| **Stock** | No central (se descuenta al completar turno) | `stock` + `lowStockAt` por corte (aviso de bajo stock) |
-| **Capabilities centrales** (declaradas) | `agenda:manage`, `clients:manage`, `catalog:manage`, `reports:read` | `catalog:manage`, `orders:manage`, `clients:manage`, `reports:read` |
-| **Branding por defecto** | Genérico (horarios spa); se completa desde el panel | Marca **magra** premium: `shortLabel "magra · Canning"`, horarios, nota "cortes seleccionados, retiro y envío" *(dirección/WhatsApp/IG son placeholders provisionales)* |
-| **Roles** | OWNER / RECEPTION / **PROFESSIONAL** (la agenda por profesional tiene sentido) | OWNER / RECEPTION (mostrador); PROFESSIONAL casi no aplica *(Supuesto: a futuro convendría un rol "Cajero", §2.3)* |
+| Dimensión | `servicios` (estética / spa / salón) ✅ | `carniceria` (carnicería / retail) ✅ | `generico` (comodín, cualquier rubro) ✅ |
+|---|---|---|---|
+| **Flujo de negocio núcleo** | Agenda de **turnos** por profesional | **Mostrador / POS**: venta y pedidos, sin turnos | **Flexible**: catálogo + caja; agenda disponible si la usa |
+| **Catálogo base sembrado** | 1 box, 1 categoría "General", 2 **servicios** de ejemplo, 1 **profesional** de ejemplo | ~14 **cortes** de ejemplo (lomo, asado, picada, pollo, cerdo…) | 1 categoría "General" + 2 **servicios** + 2 **productos** de ejemplo (editables) |
+| **Unidad de venta** | Servicio con `durationMin` + `price` | **Por kg** (`saleUnit=WEIGHT`, `pricePerKg`) y por unidad | Por unidad; el negocio ajusta lo que venda |
+| **Horarios** | WorkingHours **Lun–Sáb 9–19** por profesional + leyenda pública | Sin horario por profesional; leyenda **Mar–Dom 9–20** | Leyenda pública **Lun–Vie 9–18** (editable); sin profesionales pre-sembrados |
+| **Stock** | No central (se descuenta al completar turno) | `stock` + `lowStockAt` por corte | Disponible en los productos de ejemplo |
+| **Capabilities centrales** (declaradas) | `agenda:manage`, `clients:manage`, `catalog:manage`, `reports:read` | `catalog:manage`, `orders:manage`, `clients:manage`, `reports:read` | **Superset sensato**: catálogo, clientes, **caja (orders)**, agenda, reportes |
+| **Branding por defecto** | Genérico (horarios spa); se completa desde el panel | Marca **magra** premium *(datos de contacto provisionales)* | Neutro editable (`shortLabel "Tu negocio"`); el descubrimiento lo pisa con lo real |
+| **Roles** | OWNER / RECEPTION / **PROFESSIONAL** | OWNER / RECEPTION (mostrador) | OWNER / RECEPTION; PROFESSIONAL si trabaja por turnos |
+| **Cuándo se usa** | Rubro matchea estética/spa/salón | Rubro matchea carnicería/retail | **Fallback**: cualquier rubro no modelado (guardrail, §2.4) |
 
-> Los precios, stock y datos de contacto del blueprint de carnicería son
-> **provisionales a confirmar** (valores de referencia AR mediados-2026 para que la
-> vidriera y el POS se vean poblados en la demo). No son la lista real de magra: el
-> negocio los edita en su catálogo.
+> Los precios, stock y datos de contacto de los blueprints son **provisionales a
+> confirmar** / **de ejemplo editable** (para que catálogo, vidriera y POS se vean
+> poblados desde el día uno). No son la lista real de nadie: el negocio los edita en
+> su catálogo. En `generico` los precios arrancan en 0 a propósito ("poné tu precio").
 
 ### 2.2 Qué comparten los dos (es el mismo Core)
 
@@ -168,6 +171,29 @@ además del rol. Así la carnicería no ve "Agenda" y el salón no ve "Pedidos".
 cambio chico y de alto impacto en la primera impresión; queda como próximo paso
 (candidato a `/sesion-feature`, atado a formalizar el ADR-024 del blueprint retail).
 
+### 2.4 El blueprint comodín (`generico`) y el guardrail de negocio ✅
+
+**Regla de negocio (guardrail):** *"si tu negocio no está acá, lo solucionamos"*
+significa **acomodarlo sobre lo que ya existe** (el blueprint `generico` + config +
+módulos + branding), **nunca** un desarrollo a medida para un solo cliente. Un fork
+por cliente está prohibido por FUNDAMENTOS §1 y ADR-002: multiplica el mantenimiento y
+mata la economía del SaaS. El comodín es la materialización de esa regla.
+
+- **Qué es:** un vertical universal (`src/blueprints/generico.ts`) que arranca con un
+  catálogo flexible (servicios **y** productos de ejemplo), clientes, caja y
+  facturación — usable desde el día uno, nunca una pantalla vacía, sin asumir un flujo
+  puntual (no siembra profesionales; si el negocio trabaja por turnos, los agrega).
+- **Cuándo cae acá:** cuando el rubro del cliente no matchea ningún vertical modelado.
+  Lo decide el **selector** (§3.2.1), que nunca falla: matchea un vertical o cae al
+  comodín.
+- **Cómo deja de ser genérico:** el descubrimiento (§3) pisa el branding neutro con la
+  marca real, activa/desactiva módulos y carga el catálogo del cliente → el tenant
+  genérico se **siente hecho para ese negocio** sin haber tocado una línea de código.
+- **Cuándo se "gradúa" a vertical propio (Supuesto):** si un rubro repite (varios
+  clientes de ferretería, kiosco, etc.) y acumula reglas propias que la config no
+  cubre, recién ahí se modela un blueprint nuevo — una fila en el registro, no un fork.
+  Hasta entonces, el comodín los cubre a todos.
+
 ---
 
 ## 3. Cómo sería la VENTA / onboarding comercial (propuesta de producto)
@@ -177,13 +203,20 @@ cambio chico y de alto impacto en la primera impresión; queda como próximo pas
 > (Feature Flags, ADR-006). Todo lo de esta sección es criterio propio para discutir,
 > marcado **(Supuesto)** donde corresponde.
 
-### 3.1 El principio: el alta genérica es el piso, la implementación personalizada es el producto
+### 3.1 El principio: en todo momento el cliente siente que el producto es para SU negocio
 
 Hoy el alta toma 3 datos y siembra un catálogo de ejemplo. Eso alcanza para un caso
 estándar, pero **vender "personalizado" empieza antes del alta**: una **fase de
 descubrimiento** captura qué necesita cada cliente y produce una **ficha de tenant
 (Tenant Spec)** que provisiona un tenant **ya customizado**, no genérico. Esa misma
 fase es, a la vez, la herramienta de venta.
+
+**Principio rector (UX):** de la primera pregunta al primer login, el cliente nunca ve
+un producto genérico — ve **su** negocio. En concreto eso significa: el descubrimiento
+usa el vocabulario de su rubro; el sistema abre con **su** catálogo, **su** marca y
+**sus** módulos; y **si su rubro no está modelado, igual entra a algo hecho a su
+medida** vía el comodín + branding (nunca "tu rubro no existe, esperá"). El comodín
+(§2.4) es lo que hace que ese principio **no tenga excepciones**.
 
 ### 3.2 Fase de descubrimiento + customización PRE-alta (el configurador guiado)
 
@@ -193,7 +226,7 @@ canal— releva:
 
 | Bloque | Qué se pregunta | Cómo mapea al tenant |
 |---|---|---|
-| **Rubro** | ¿Qué tipo de negocio? | `blueprint` (servicios / carniceria / …) → catálogo, flujo y marca base |
+| **Rubro** | ¿Qué tipo de negocio? | **Selector** rubro→blueprint (§3.2.1): vertical modelado **o comodín genérico** |
 | **Tamaño** | ¿Cuántos profesionales / cajas / usuarios? | Tier + límites del plan |
 | **Sucursales** | ¿Una o varias? | 1 = estándar; varias = Enterprise (multi-sucursal, hoy no soportado ⚠️) |
 | **Módulos** | ¿Qué necesita usar? (agenda, POS, reservas online, lista de espera, reportes, comisiones, recordatorios) | Capacidades/pantallas activas del tenant |
@@ -213,6 +246,34 @@ canal— releva:
 
 *(Supuesto: el cuestionario y la Tenant Spec son propuesta; hoy el alta toma un
 subconjunto —rubro + marca—. El resto se habilita parametrizando el script, §4.)*
+
+#### 3.2.1 El selector de blueprint (esqueleto ya funcional) ✅
+
+La pieza que traduce el rubro del descubrimiento en un blueprint **ya existe y está
+probada**: `resolveBlueprint(rubro)` (`src/blueprints/index.ts`). Es el corazón del
+onboarding hiper-personalizado y del guardrail (§2.4):
+
+- Normaliza el texto del rubro (minúsculas, sin acentos) y lo matchea contra pistas por
+  vertical (`estética/spa/salón/peluquería…` → `servicios`; `carnicería/carne/pollo…` →
+  `carniceria`).
+- **Si matchea**, el tenant nace con ese vertical (se siente hecho para su negocio).
+- **Si no matchea nada, cae al comodín `generico`** — nunca falla, nunca fuerza un
+  desarrollo a medida. Sumar pistas o un vertical nuevo es **una fila de datos**, no
+  tocar el selector.
+
+Ya está **cableado al provisioning**: el alta acepta `--rubro "texto libre"` y resuelve
+el blueprint sola (o `--blueprint` explícito para forzarlo); `--list-blueprints` lista
+los verticales disponibles para el configurador. Ejemplos verificados en local:
+
+```
+provision --rubro "spa y estética"   → blueprint servicios   (vertical modelado)
+provision --rubro "ferretería"       → blueprint generico    (comodín: se acomoda)
+provision --blueprint carniceria     → blueprint carniceria  (explícito)
+```
+
+Precedencia: `--blueprint` explícito › `--rubro` (selector) › default histórico
+(`servicios`). Lo que falta para el flujo completo es sólo la **UI del configurador**
+que recopile las respuestas y arme la Tenant Spec; la resolución rubro→tenant ya corre.
 
 ### 3.3 Tipos de implementación (tiers)
 
@@ -281,7 +342,7 @@ SaaS). El motor son **cuatro palancas** sobre el mismo Core:
 
 | Palanca | Qué customiza | Dónde vive | Estado |
 |---|---|---|---|
-| **1. Blueprint (rubro)** | Catálogo, flujo (turnos/POS), branding y capabilities base | `src/blueprints/*` + `--blueprint` | ✅ Existe (servicios, carniceria) |
+| **1. Blueprint (rubro)** | Catálogo, flujo (turnos/POS), branding y capabilities base | `src/blueprints/*` + `--blueprint`/`--rubro` + `resolveBlueprint()` | ✅ Existe (servicios, carniceria, **generico** comodín + selector) |
 | **2. Branding por tenant** | Nombre público, contacto, horarios / logo, colores | `BusinessSettings` / theming | ✅ datos · ⚠️ logo+colores por tenant (🔜) |
 | **3. Módulos activables por tenant** | Qué capacidades/pantallas ve ese tenant | (propuesto) `Tenant.blueprintId` + `TenantModule` | 🔜 No persiste hoy: `Tenant` no tiene el campo y el nav filtra por rol, no por tenant (§2.3) |
 | **4. Plugins** | Integraciones externas (ARCA, MercadoPago) | Contrato evento/comando (ADR-002/020) | ⚠️ ARCA en curso · MP 🔜 |
@@ -348,6 +409,11 @@ Enterprise, **multi-sucursal** · **portal de descubrimiento** self-service (Exp
   (tipo `magra` o requerimientos propios: descubrimiento + catálogo real + módulos +
   integraciones cargados por nosotros) · **Enterprise** (multi-sucursal / a medida, con
   acompañamiento). Lo define la matriz sucursales + customización + integraciones.
+- **Ningún rubro queda afuera (guardrail):** hay un **blueprint comodín (`generico`)**
+  ya construido que cubre cualquier negocio no modelado —arranca con catálogo, clientes,
+  caja y facturación usables— y un **selector** (también hecho y probado) que, del rubro
+  que dice el cliente, elige su vertical o cae al comodín. "Si tu negocio no está acá, lo
+  acomodamos sobre lo existente + config", **nunca** un desarrollo a medida para uno solo.
 - **Cómo se cobra:** **setup/implementación** (one-time, más alto cuanto más se
   customiza) + **suscripción** (recurrente). Express ~$0 de setup; Asistida cobra la
   implementación; Enterprise es proyecto. El **contador-socio** es canal: revende a su
