@@ -118,7 +118,8 @@ docs/sectores/
 └── agencia-digital/
     ├── FUNDAMENTO.md                        ← ESTE doc — leer primero (quién sos / qué hacés / método / objetivo)
     └── analisis-mercado/
-        └── 2026-07-05-panorama-inicial.md   ← 1er análisis de mercado (Meta/Google Ads, stack, oportunidades, diferencial)
+        ├── 2026-07-05-panorama-inicial.md               ← #1: Meta/Google Ads, stack, diferencial de loop cerrado
+        └── 2026-07-05-servicios-automatizables-y-analytics.md  ← #2: servicios vendibles/automatizables + analytics-producto + palancas
 ```
 
 **Orden de lectura al abrir sesión en el sector:** (1) este `FUNDAMENTO.md` → (2) el charter → (3) el
