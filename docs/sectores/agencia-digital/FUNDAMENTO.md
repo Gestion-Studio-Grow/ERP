@@ -157,13 +157,19 @@ docs/sectores/
 ├── agencia-digital.md                      ← charter estratégico del sector (§ frentes, productos, convivencia)
 └── agencia-digital/
     ├── FUNDAMENTO.md                        ← ESTE doc — leer primero (quién sos / qué hacés / método / objetivo)
+    ├── 2026-07-05-AVANCE-consolidado.md     ← reporte ejecutivo para el dueño (productos+estado, plata, próximos pasos)
     ├── 2026-07-05-pmo-propuesta-producto-1.md  ← PMO: 1er producto a construir (Panel del Dueño) + handoff a Devs
     └── analisis-mercado/
         ├── 2026-07-05-panorama-inicial.md               ← #1: Meta/Google Ads, stack, diferencial de loop cerrado
         ├── 2026-07-05-servicios-automatizables-y-analytics.md  ← #2: servicios automatizables + analytics-producto + palancas
-        └── 2026-07-05-segmento-local-canning.md          ← #3: dimensionamiento corredor Canning (SEO local = canal de tenants)
+        ├── 2026-07-05-segmento-local-canning.md          ← #3: dimensionamiento corredor Canning (SEO local = canal de tenants)
+        └── 2026-07-05-geografia-caba-local-online.md     ← #4: CABA + local + online (tamaño/competencia/pricing/foco)
 
 docs/adr/ADR-027-analytics-cross-tenant-benchmarking.md  ← 1er ADR nacido del sector (benchmarking anónimo por rubro vs RLS)
+
+Software del sector (prototipos, en el Core del ERP):
+  src/lib/owner-insights.ts (+ .test.ts)       ← motor del Panel del Dueño (producto #1)
+  src/lib/benchmark-aggregate.ts (+ .test.ts)  ← anonimización k-anonymity del benchmarking (ADR-027)
 ```
 
 **Orden de lectura al abrir sesión en el sector:** (1) este `FUNDAMENTO.md` → (2) el charter → (3) el
