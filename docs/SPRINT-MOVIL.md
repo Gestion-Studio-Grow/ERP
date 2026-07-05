@@ -14,32 +14,44 @@ verdad), los roles autónomos (`/sesion-movil`, `docs/METODO-ROLES.md`) y la col
 
 ---
 
-## Modo de operación: SESIÓN ÚNICA en serie (owner sin laptop)
+## Modo de operación: PARALELO por git worktrees (2026-07-05, vigente)
 
-**Regla vigente (2026-07-05):** cuando el owner **no tiene acceso a la laptop** y por lo tanto
-**no puede aprobar sesiones nuevas**, se trabaja **todo en una sola sesión reutilizada**, con los
-frentes **ejecutados en serie** (uno después del otro, no en paralelo). Esto **no rompe** ADR-008
-("un tema por thread"): la unidad de atomicidad baja del *thread* al *commit* — **un tema por
-commit**, secuencial, cada uno con su `tsc`+build en verde y su push.
+**Diagnóstico que lo motivó:** las sesiones paralelas se pisaban porque el repo git
+(`estetica-erp`) es un **subfolder** del workspace, no la raíz — todas las sesiones abrían sobre el
+**mismo working tree** y se sobrescribían los archivos sin commitear. **No era un problema de
+aprobación** (las sesiones nuevas corren sobre el workspace ya confiado): era falta de aislamiento.
 
-Por qué: abrir un frente nuevo en su propia sesión requiere que el owner la apruebe/lance; sin
-laptop eso no pasa. Reutilizar esta sesión evita el bloqueo y, de paso, elimina el riesgo de
-colisión del *working tree compartido* (dos sesiones editando el mismo archivo) — acá hay un solo
-escritor.
+**Solución — un git worktree por frente.** Cada frente trabaja en **su propio directorio + su
+propia rama**, aislado; el merge a `main` lo hace el coordinador de forma ordenada. Así el paralelo
+es real y no hay colisión de working tree.
 
-**Cómo se opera en este modo:**
-- **En serie, por palanca:** se toma el frente de mayor palanca del backlog (`docs/ESTADO-FRENTES.md`),
-  se lleva hasta commit+push, y recién ahí se arranca el siguiente. Nunca dos a la vez.
-- **Un tema por commit:** cada commit es un solo tema, atómico, con el porqué. `tsc`+build en verde
-  antes de cada uno; push al terminarlo.
-- **Handoff vivo entre ítems:** al cerrar cada tema se actualiza `## Sprint activo` (tildado +
-  próximo bocado + timestamp), así "status"/"seguimos" desde el móvil retoman exacto aunque se
-  corte la sesión.
-- **Sin paralelo hasta nuevo aviso:** no se abren frentes A/B/C simultáneos. Se vuelve al modo
-  paralelo (una sesión por frente) solo cuando el owner recupere acceso y lo habilite.
+### Worktrees activos (rutas absolutas)
+| Frente | Rama | Ruta (worktree) |
+|---|---|---|
+| **Coordinador / merge-master** | `main` | `C:/Users/mlloveras2/Documents/Claude/estetica-erp` |
+| Frente Tests | `frente/tests` | `C:/Users/mlloveras2/Documents/Claude/estetica-erp-tests` |
+| Frente Blueprints | `frente/blueprints` | `C:/Users/mlloveras2/Documents/Claude/estetica-erp-blueprints` |
+
+*(worktrees viejos `estetica-erp-uxui` y `estetica-erp-waitlist` = features ya mergeadas, no se usan.)*
+
+### Reglas del modo paralelo
+- **Cada frente en SU worktree/rama.** Nadie edita `main` salvo el coordinador. Un tema por commit,
+  `tsc`+build (+`npm test`) en verde antes de cada commit, en su propia rama.
+- **⚠️ `node_modules` no viaja al worktree** (es gitignore; `git worktree add` solo saca lo
+  versionado). Cada worktree necesita **`npm install`** (corre `prisma generate`) una vez antes de
+  poder correr tsc/build/test. No copiar `node_modules` a mano — instalar limpio.
+- **Merge-master (coordinador, en `main`):** cuando un frente termina su rama y la pushea, el
+  coordinador la integra a `main` (merge o rebase) **de a una, en orden**, resolviendo conflictos,
+  y pushea. Los frentes **no** mergean a main solos.
+- **Handoff vivo:** el coordinador mantiene `## Sprint activo` + `docs/ESTADO-FRENTES.md` al día
+  para "status"/"seguimos" desde el móvil.
 - **Gates intactos:** deploy a prod/Netlify y `prisma migrate deploy` siguen siendo acción humana
-  del owner; en este modo, cualquier migración se deja como **carpeta nueva SIN aplicar**, marcada
-  "pendiente acción humana" (`docs/METODOLOGIA-REPORTE-AVANCE.md`).
+  del owner; cualquier migración se deja como **carpeta nueva SIN aplicar**, marcada "pendiente
+  acción humana" (`docs/METODOLOGIA-REPORTE-AVANCE.md`).
+
+> **Fallback — sesión única en serie:** si por algún motivo no se usan worktrees, se vuelve a
+> trabajar **todo en una sola sesión reutilizada, en serie** (un tema por commit), que era el modo
+> interino mientras el working tree era compartido. Con worktrees ese fallback ya no hace falta.
 
 ---
 
@@ -105,12 +117,13 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > **Este bloque es la fuente de verdad del sprint en curso.** "status" lo lee; "seguimos"
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
-**Sprint:** Sesión única en serie — Tests → POS/stock → UX/UI
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (3 frentes A/B/C ejecutados; C avanza por slices)
-**Estado del bloque:** ✅ **primera pasada completa** · **modo SESIÓN ÚNICA en serie** (owner sin
-laptop). A (Tests) y B (POS/stock) cerrados y verificados; C (UX/UI) avanzado con un slice
-verificado (acciones públicas del turno → tokens) — el barrido admin restante sigue **por slices**
-(necesita verificación visual con preview, no disponible en este modo).
+**Sprint:** Paralelo por worktrees — coordinación (frente D)
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (worktrees preparados; rol coordinador)
+**Estado del bloque:** 🟢 **modo PARALELO por worktrees** (ver "Modo de operación"). Terreno listo:
+2 worktrees aislados creados (`frente/tests`, `frente/blueprints`), ambos desde main @ `1fa7e6a`.
+Esta sesión = **coordinador / merge-master en `main`**: no ejecuta trabajo de frentes, integra sus
+ramas en orden. **Ya cerrado y en main:** Tests (harness ADR-026), POS/stock (trackStock), UX slice
+(tokens del turno). ⚠️ los worktrees nuevos necesitan `npm install` antes de correr tsc/build/test.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
@@ -126,17 +139,21 @@ cada uno con `tsc`+build en verde, un tema por commit, pusheado.
 **Criterios de "hecho":** `tsc` + build en verde antes de cada commit · un tema por commit con
 el porqué, pusheado a `origin/main` · handoff (`## Sprint activo`) al día tras cada ítem.
 
-**Checklist vivo**
-- [x] **Protocolo de sesión única en serie** — escrito en este doc ("Modo de operación") + puntero en el tablero. *(este sprint, 2026-07-05)*
-- [x] **(a) Tests/QA** — harness `node:test`+`tsx` (ADR-026, cero dep), `npm test` acotado a `src/**/*.test.ts`; 7 pruebas verdes de `audit-retention` + `report-config`. *(2026-07-05)*
-- [x] **(b) POS/stock** — `insertOrder` (`order-core.ts`) descuenta stock **dentro de la transacción**, solo para productos con flag `trackStock`, con guarda anti-oversell (`updateMany where stock>=qty`; 0 filas → aborta la orden). Flag nuevo en schema + **migración `20260705130000_add_product_track_stock` SIN aplicar** (pendiente acción humana). Blueprint Retail lo siembra en true. *(2026-07-05)*
-- [~] **(c) UX/UI** — **slice hecho:** acciones públicas del turno (`CancelButton`/`ReviewForm`/`RescheduleButton`) migradas de color crudo de Tailwind (`red-*`, `bg-white`, `neutral-*`) a **tokens semánticos** (`danger`, `surface-raised`, `on-accent`) + `buttonClasses`. Falta el barrido de ~11 pantallas admin + storefront, **por slices con verificación visual**. *(2026-07-05)*
+**Checklist vivo (coordinación)**
+- [x] **main limpio y pusheado** — nada sin commitear; `origin/main` @ `1fa7e6a`. *(2026-07-05)*
+- [x] **Worktrees preparados** — `frente/tests` → `../estetica-erp-tests`, `frente/blueprints` → `../estetica-erp-blueprints`, ambos desde main. *(2026-07-05)*
+- [ ] **Integrar `frente/tests`** a main cuando la sesión de Tests termine y pushee su rama (merge/rebase ordenado, resolver conflictos, push).
+- [ ] **Integrar `frente/blueprints`** a main ídem.
+- [ ] **UX/UI restante** — barrido admin por slices (queda para un frente propio o para cuando haya preview con auth). Ya hecho: slice de tokens del turno público.
 
-**Próximo bocado (lo que ejecuta "seguimos"):** seguir el barrido UX **por slices** (próximo
-candidato: `resenas`/`auditoria`/`turnos-lista` → `Card` + `Button`), o —si preferís valor con
-verificación— retomar cuando haya **preview con auth** para confirmar visualmente los cambios de
-admin. Alternativas del backlog (`docs/ESTADO-FRENTES.md`): POS caja/compras, reportes v2, adapters
-sin credencial (ARCA `soap.ts` / MP). En modo sesión única: un frente por vez, un tema por commit.
+**Ya cerrado y en main (pases previos):** Tests (harness ADR-026), POS/stock (`trackStock`), UX slice
+(tokens del turno), protocolo de estados/metodología, protocolo de modo de operación.
+
+**Próximo bocado (lo que ejecuta "seguimos"):** como coordinador — **esperar a que los frentes
+pusheen sus ramas e integrarlas a `main` en orden** (una por vez, tsc+build+test verde tras cada
+merge, push). Si no hay ramas listas aún: mantener el tablero al día y/o tomar yo mismo un frente
+del backlog (`docs/ESTADO-FRENTES.md`) en un worktree. Los merges no los hacen los frentes: los hago
+yo en `main`.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
