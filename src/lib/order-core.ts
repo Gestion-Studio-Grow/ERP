@@ -15,6 +15,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { recordMovement } from "@/lib/stock/ledger";
 import type { ProductSaleUnit } from "@/generated/prisma/client";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
@@ -200,21 +201,21 @@ export async function insertOrder(
     });
 
     // Descuento de stock al vender (POS/stock), SOLO para productos con `trackStock`.
-    // La guarda anti-oversell vive en el WHERE: `updateMany` con `stock: { gte: quantity }`
-    // es una baja condicional atómica — si el stock ya no alcanza (otra venta se adelantó),
-    // afecta 0 filas y lanzamos, abortando toda la orden (nada de ventas parciales ni
-    // stock negativo). Como corre DENTRO de la transacción de la orden, o se vende y se
-    // descuenta, o no pasa nada.
+    // Pasa por el ledger (`recordMovement`): baja condicional atómica con la MISMA
+    // guarda anti-oversell (si el stock ya no alcanza porque otra venta se adelantó,
+    // afecta 0 filas y lanza, abortando toda la orden — nada de ventas parciales ni
+    // stock negativo) Y registra el StockMovement (VENTA) en la misma transacción.
+    // Corre DENTRO de la tx de la orden: o se vende, se descuenta y se asienta, o nada.
     for (const l of stockDecrementLines(lines)) {
-      const res = await tx.product.updateMany({
-        where: { id: l.productId, tenantId, stock: { gte: l.quantity } },
-        data: { stock: { decrement: l.quantity } },
+      await recordMovement(tx, {
+        tenantId,
+        productId: l.productId,
+        type: "VENTA",
+        qty: l.quantity,
+        orderId: created.id,
+        createdBy: "system",
+        label: l.name,
       });
-      if (res.count === 0) {
-        throw new Error(
-          `Sin stock suficiente de "${l.name}" para vender ${l.quantity}. Revisá el stock disponible.`,
-        );
-      }
     }
 
     return created;
