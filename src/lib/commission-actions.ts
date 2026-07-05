@@ -19,6 +19,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 
 const REPORTES_PATH = "/admin/reportes";
@@ -154,7 +155,7 @@ export async function settleCommissions(formData: FormData) {
   if (!professionalId) backWith("error_prof");
   const note = String(formData.get("note") ?? "").trim() || null;
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await tenantTransaction(async (tx) => {
     const professional = await tx.professional.findFirst({
       where: { id: professionalId, tenantId },
     });

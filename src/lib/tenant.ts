@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import { cache } from "react";
+import { basePrisma } from "@/lib/prisma-base";
 
 // Resolución del tenant actual — G1 (ADR-010 / ADR-001), blindada fail-closed (ADR-015).
 //
@@ -12,21 +13,24 @@ import { prisma } from "@/lib/prisma";
 // throw visible es infinitamente preferible a un cross-tenant mudo en
 // producción (ADR-015).
 //
-// SIN CACHE a propósito (ADR-015): cachear el id enmascararía la aparición de un
-// 2º tenant en caliente — justo lo que este assert existe para atrapar. La tabla
-// tiene una fila y se lee por PK; el costo por request es despreciable.
+// USA cliente BASE (no `@/lib/prisma`): cuando el flag RLS está ON, `prisma` es
+// la extensión que LLAMA a esta función para resolver el tenant → usar el cliente
+// extendido acá sería recursión infinita. La tabla Tenant está fuera de RLS.
 //
-// MAÑANA (2º tenant): este es el único punto que cambia. El día que se cree
-// deliberadamente un 2º tenant, este throw es la señal de diseño de que PRIMERO
-// hay que activar RLS de Postgres + resolución por request: leer el tenant de la
-// sesión/subdominio y envolver cada operación en una transacción con
-// `SET LOCAL app.current_tenant_id = ...` (seguro con pooling). El resto del
-// código ya pasa por getCurrentTenantId(), así que no se toca.
+// cache() de React = dedupe POR REQUEST, no persistente: la extensión RLS llama
+// a esta función por operación, así que sin dedupe serían N lecturas de Tenant
+// por request; con cache() es una sola. NO contradice el "sin cache" original
+// (ADR-015): al ser por-request, un 2º tenant que aparezca se detecta igual en el
+// request siguiente — el assert fail-closed sigue vivo.
+//
+// MAÑANA (2º tenant): la resolución pasa a ser por request (subdominio/sesión) y
+// setea el store de tenant-context; la extensión usa ese store en vez de este
+// findMany. Este throw es la señal de que ese trabajo (ADR-018 §4) todavía falta.
 
-export async function getCurrentTenantId(): Promise<string> {
+export const getCurrentTenantId = cache(async (): Promise<string> => {
   // `take: 2` alcanza para distinguir "cero" / "uno" / "más de uno" sin escanear
   // toda la tabla.
-  const tenants = await prisma.tenant.findMany({
+  const tenants = await basePrisma.tenant.findMany({
     take: 2,
     orderBy: { createdAt: "asc" },
     select: { id: true },
@@ -47,4 +51,4 @@ export async function getCurrentTenantId(): Promise<string> {
   }
 
   return tenants[0].id;
-}
+});

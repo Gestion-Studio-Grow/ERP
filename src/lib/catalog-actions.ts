@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 
 const CATALOG_PATH = "/admin/catalogo";
@@ -231,7 +232,7 @@ export async function setServiceProducts(formData: FormData) {
   const quantities = formData.getAll("quantity").map(Number);
   const tenantId = await getCurrentTenantId();
 
-  await prisma.$transaction(async (tx) => {
+  await tenantTransaction(async (tx) => {
     await tx.serviceProduct.deleteMany({ where: { serviceId } });
     for (let i = 0; i < productIds.length; i++) {
       if (!productIds[i] || !quantities[i]) continue;
@@ -312,10 +313,10 @@ export async function deleteProduct(formData: FormData) {
   const id = String(formData.get("id"));
   // Soft-delete + desvincular de los servicios que lo consumían (para que no
   // se siga descontando stock de un producto eliminado).
-  await prisma.$transaction([
-    prisma.serviceProduct.deleteMany({ where: { productId: id } }),
-    prisma.product.update({ where: { id }, data: { deletedAt: new Date() } }),
-  ]);
+  await tenantTransaction(async (tx) => {
+    await tx.serviceProduct.deleteMany({ where: { productId: id } });
+    await tx.product.update({ where: { id }, data: { deletedAt: new Date() } });
+  });
   await auditAdmin({ action: "delete", entity: "Product", entityId: id });
   revalidatePath(CATALOG_PATH);
 }
@@ -400,7 +401,7 @@ export async function setWorkingHours(formData: FormData) {
   const enabled = new Set(formData.getAll("enabledDay").map(Number));
   const tenantId = await getCurrentTenantId();
 
-  await prisma.$transaction(async (tx) => {
+  await tenantTransaction(async (tx) => {
     await tx.workingHours.deleteMany({ where: { professionalId } });
     for (let i = 0; i < days.length; i++) {
       const day = days[i];
@@ -532,7 +533,7 @@ export async function setServiceResources(formData: FormData) {
   const units = formData.getAll("units").map(Number);
   const tenantId = await getCurrentTenantId();
 
-  await prisma.$transaction(async (tx) => {
+  await tenantTransaction(async (tx) => {
     await tx.serviceResource.deleteMany({ where: { serviceId } });
     for (let i = 0; i < resourceIds.length; i++) {
       if (!resourceIds[i]) continue;

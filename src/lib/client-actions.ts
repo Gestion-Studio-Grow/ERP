@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 import { revalidatePath } from "next/cache";
 import { auditPublic } from "@/lib/audit";
 import { dateStrInBusinessTz } from "@/lib/datetime";
@@ -125,7 +126,7 @@ export async function rescheduleMyAppointment(formData: FormData) {
     throw new Error("Ese horario no está disponible. Elegí otro.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await tenantTransaction(async (tx) => {
     await assertSlotAvailable(tx, {
       professionalId: professional.id,
       boxId,

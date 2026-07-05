@@ -19,6 +19,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 
 /** Desglose de IVA por alícuota (calculado por el Core, ADR-006). */
 export interface SubtotalIva {
@@ -69,7 +70,7 @@ export const OUTBOX_INVOICE_CREATED = "InvoiceCreated";
  * ARCA, ADR-022) y lo escribe `registerFiscalDocument`.
  */
 export async function createInvoice(input: CreateInvoiceInput): Promise<string> {
-  return prisma.$transaction(async (tx) => {
+  return tenantTransaction(async (tx) => {
     const invoice = await tx.invoice.create({
       data: {
         tenantId: input.tenantId,
@@ -110,7 +111,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
     });
 
     return invoice.id;
-  });
+  }, { tenantId: input.tenantId });
 }
 
 /**

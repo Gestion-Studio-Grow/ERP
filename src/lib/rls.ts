@@ -1,70 +1,91 @@
 // Extensión de Prisma que inyecta el contexto de tenant para RLS (ADR-018, B).
 //
-// ⚠ APAGADO POR DEFECTO / NO CABLEADO. src/lib/prisma.ts exporta el cliente
-// plano; este módulo NO se importa desde el runtime todavía. Se enciende el día
-// del gate T2 (2º tenant, ADR-018) — junto con aplicar prisma/rls/0001+0002 y
-// rotar DATABASE_URL a `app_user`. Hasta entonces existe escrito y revisado,
-// no activo. Ver prisma/rls/README.md §"Adopción en la app".
+// Cómo encaja (ver src/lib/prisma-base.ts): `@/lib/prisma` exporta el cliente
+// CONMUTADO por el flag RLS_ENFORCEMENT. Con el flag OFF (hoy) el cliente es el
+// crudo y esta extensión NO se usa → comportamiento idéntico al de siempre. Con
+// el flag ON, `prisma` pasa a ser `rlsPrisma` y cada operación queda envuelta en
+// una transacción que primero setea `app.current_tenant_id` con
+// set_config(..., true) (== SET LOCAL, pero parametrizable → pooling-safe).
 //
-// Mecanismo: cada operación de Prisma se envuelve en una transacción que primero
-// setea `app.current_tenant_id` con set_config(..., true) (== SET LOCAL, pero
-// parametrizable → pooling-safe). Las policies de 0001_enable_rls.sql filtran
-// por ese GUC.
-//
-// PENDIENTE DE ADOPCIÓN (a hacer y verificar en la branch de Neon en el gate):
-//   * Cablear runInTenantContext() en el borde del request (middleware/proxy o
-//     wrapper de server actions), con el tenantId resuelto por subdominio/sesión.
-//   * Reemplazar los ~12 `prisma.$transaction(async tx => …)` de src/lib/*.ts por
-//     `tenantTransaction(tenantId, tx => …)` para que el GUC se setee como primer
-//     statement de la transacción y NO se anide (ver `insideTx`).
-//   * Ensayar TODO en branch con prisma/rls/verify-rls.mjs antes de tocar prod.
+// Resolución del tenant: primero el store de AsyncLocalStorage (si un request lo
+// seteó con runInTenantContext); si no, cae a getCurrentTenantId() — la
+// resolución universal que ya usa toda la app (hoy un solo tenant; fail-closed
+// ADR-015). getCurrentTenantId usa el cliente BASE (no esta extensión) → sin
+// recursión. El día del 2º tenant, el request setea el store y este fallback deja
+// de usarse (ADR-018 §4).
 
-import { prisma } from "@/lib/prisma";
-import { getTenantStore, runInTenantContext, type TenantStore } from "@/lib/tenant-context";
+import { basePrisma, RLS_ENFORCEMENT } from "@/lib/prisma-base";
+import { getTenantStore, runInTenantContext } from "@/lib/tenant-context";
+import { getCurrentTenantId } from "@/lib/tenant";
 
-// Cliente extendido: úsalo en lugar de `prisma` una vez encendido el gate.
-export const rlsPrisma = prisma.$extends({
+async function resolveTenantId(): Promise<string> {
+  return getTenantStore()?.tenantId ?? (await getCurrentTenantId());
+}
+
+// Cliente extendido. NO se usa directo: `@/lib/db` lo elige cuando el flag está ON.
+export const rlsPrisma = basePrisma.$extends({
   query: {
-    async $allOperations({ args, query }) {
+    async $allOperations({ args, query, model, operation }) {
+      // Ops crudas ($executeRaw/$queryRaw, model === undefined): no se envuelven.
+      // Es inocuo porque la app no tiene queries crudas sobre tablas de tenant.
+      if (model === undefined) return query(args);
+
       const store = getTenantStore();
-      if (!store) {
-        // Fail-closed: nunca correr una query sin saber de qué tenant es.
-        throw new Error(
-          "RLS: operación de Prisma fuera de un contexto de tenant. " +
-            "Envolvé el request con runInTenantContext(tenantId, …).",
-        );
-      }
-      if (store.insideTx) {
-        // Ya estamos dentro de una transacción que seteó el GUC (tenantTransaction):
-        // correr directo, sin abrir otra transacción (no se puede anidar).
-        return query(args);
-      }
-      // Op suelta: una transacción de 2 pasos — setear el GUC y correr la query.
-      // set_config(..., true) es transaction-scoped ⇒ seguro con el pooler.
-      const [, result] = await prisma.$transaction([
-        prisma.$executeRaw`SELECT set_config('app.current_tenant_id', ${store.tenantId}, true)`,
-        query(args),
-      ]);
-      return result;
+      // Ya dentro de una transacción que seteó el GUC (tenantTransaction): correr
+      // directo, sin abrir otra transacción (no se puede anidar).
+      if (store?.insideTx) return query(args);
+
+      const tenantId = store?.tenantId ?? (await getCurrentTenantId());
+
+      // Op suelta → transacción interactiva sobre el cliente BASE: setear el GUC
+      // como primer statement y re-despachar la MISMA operación sobre `tx` (mismo
+      // cliente, sin auto-referencia ni recursión del extension). set_config(...,
+      // true) es transaction-scoped ⇒ pooling-safe.
+      const delegate = model.charAt(0).toLowerCase() + model.slice(1);
+      return basePrisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (tx as any)[delegate][operation](args);
+      });
     },
   },
 });
 
-// Transacción interactiva consciente de RLS: setea el GUC como primer statement
-// y marca insideTx para que la extensión no anide. Usar en lugar de
-// prisma.$transaction(async tx => …) en las server actions.
+// Tipo del cliente de transacción interactiva del cliente base.
+type TxClient = Parameters<Parameters<typeof basePrisma.$transaction>[0]>[0];
+
+/**
+ * Transacción interactiva consciente de RLS. Reemplaza a
+ * `prisma.$transaction(async tx => …)` en las server actions.
+ *
+ * - Flag OFF: es exactamente `basePrisma.$transaction(fn)` → cero cambio vs hoy.
+ * - Flag ON: resuelve el tenant, abre la transacción y setea el GUC como PRIMER
+ *   statement, marcando insideTx para que la extensión no anide.
+ *
+ * Regla dentro del callback: usar SIEMPRE `tx` (no el `prisma` externo), como ya
+ * hace el código — así todas las ops caen en la misma conexión con el GUC seteado.
+ *
+ * `opts.tenantId` fuerza el tenant (para paths sin request donde el tenant se
+ * conoce explícito, ej. el worker de facturación). Si se omite, se resuelve del
+ * store o de getCurrentTenantId().
+ */
 export async function tenantTransaction<T>(
-  tenantId: string,
-  fn: (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => Promise<T>,
+  fn: (tx: TxClient) => Promise<T>,
+  opts?: { tenantId?: string },
 ): Promise<T> {
-  const store: TenantStore = { tenantId, insideTx: true };
-  return runInTenantContext(tenantId, () =>
-    // Reusamos el store con insideTx=true sobrescribiendo el que crea runInTenantContext.
-    // (runInTenantContext arranca insideTx=false; acá lo forzamos vía el objeto local.)
-    prisma.$transaction(async (tx) => {
-      Object.assign(getTenantStore() ?? store, { insideTx: true });
-      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
-      return fn(tx);
-    }),
+  if (!RLS_ENFORCEMENT) return basePrisma.$transaction(fn);
+
+  const tenantId = opts?.tenantId ?? (await resolveTenantId());
+  // Callback async que await-ea DENTRO del scope: así el contexto ALS (insideTx)
+  // sobrevive a la parte asíncrona (las promesas de Prisma son lazy; un callback
+  // no-async devolvería la promesa y perdería el contexto antes de ejecutarla).
+  return runInTenantContext(
+    tenantId,
+    async () =>
+      basePrisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+        return fn(tx);
+      }),
+    { insideTx: true },
   );
 }

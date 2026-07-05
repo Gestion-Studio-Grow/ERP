@@ -1,19 +1,15 @@
 // Contexto de tenant por request — soporte para RLS (ADR-018, mecanismo B).
 //
-// ⚠ APAGADO POR DEFECTO. Este módulo es la mitad de app-level del backstop de
-// RLS. Hoy NO está cableado al cliente vivo (src/lib/prisma.ts sigue exportando
-// el cliente plano) porque RLS todavía no está aplicado a la DB (gate T2 =
-// alta del 2º tenant, ver ADR-018 y prisma/rls/README.md). Existe escrito para
-// que el día del gate la activación sea revisar-y-encender, no diseñar bajo
-// presión.
+// Guarda el tenant del request en un AsyncLocalStorage para que la extensión de
+// Prisma (src/lib/rls.ts) sepa qué inyectar en `app.current_tenant_id` sin pasarlo
+// por parámetro por toda la app.
 //
-// Qué hace: guarda el `tenantId` del request en un AsyncLocalStorage, para que
-// la extensión de Prisma (src/lib/rls.ts) sepa qué valor inyectar en
-// `app.current_tenant_id` sin pasarlo por parámetro por toda la app.
-//
-// De dónde sale el tenantId: de la resolución por request (subdominio/sesión)
-// que reemplaza el `findMany take:2` de getCurrentTenantId() el día del gate
-// (ADR-018 §4). Hasta entonces, con un solo tenant, sigue mandando tenant.ts.
+// USO: hoy el tenant lo resuelve la extensión sola vía getCurrentTenantId() (hay
+// un solo tenant), así que envolver cada request con runInTenantContext NO es
+// obligatorio — es un fast-path/preparación. El día del 2º tenant, la resolución
+// por request (subdominio/sesión) setea el store acá y la extensión lo usa en vez
+// de getCurrentTenantId (ADR-018 §4). `insideTx` lo usa tenantTransaction para que
+// la extensión no intente anidar transacciones.
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
@@ -27,9 +23,22 @@ export type TenantStore = {
 
 const storage = new AsyncLocalStorage<TenantStore>();
 
-/** Corre `fn` con el tenant `tenantId` en contexto. Envolvé cada request acá. */
-export function runInTenantContext<T>(tenantId: string, fn: () => T): T {
-  return storage.run({ tenantId, insideTx: false }, fn);
+/**
+ * Corre `fn` con el tenant `tenantId` en contexto. `insideTx` marca que ya
+ * estamos dentro de una transacción que seteó el GUC (lo usa tenantTransaction).
+ *
+ * IMPORTANTE: `fn` debe ser ASYNC y AWAIT-ear su trabajo dentro del scope. Las
+ * promesas de Prisma son lazy: un callback no-async que devuelve la promesa sin
+ * await-earla la ejecuta DESPUÉS de que el contexto ALS ya salió → el store se
+ * pierde. `async () => await prisma.x.op()` lo mantiene vivo. (Verificado en
+ * prisma/rls/verify-wiring.mts.)
+ */
+export function runInTenantContext<T>(
+  tenantId: string,
+  fn: () => T,
+  opts?: { insideTx?: boolean },
+): T {
+  return storage.run({ tenantId, insideTx: opts?.insideTx ?? false }, fn);
 }
 
 /** Store actual, o undefined si se llamó a Prisma fuera de un contexto de tenant. */
