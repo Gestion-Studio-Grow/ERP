@@ -14,5 +14,20 @@ export {
   type MercadoPagoConfig,
   type PagoMP,
   type EstadoPagoMP,
+  type CriterioBusqueda,
+  type PaginaPagos,
 } from "./port";
 export { StubMercadoPagoClient } from "./stub";
+export {
+  sincronizarPagos,
+  facturarPagoSiCorresponde,
+  type IngestaDeps,
+  type ResumenIngesta,
+  type FacturarPagoMP,
+} from "./ingest";
+export {
+  ReconciliacionEnMemoria,
+  type ReconciliacionPort,
+  type RegistroConciliacion,
+  type EstadoConciliacion,
+} from "./reconciliation";
