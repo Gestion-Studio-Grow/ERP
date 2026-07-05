@@ -15,6 +15,14 @@ gestión correcta del proyecto.** Es obligatorio siempre, en Claude Code (deskto
 Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `sprint`, esto es su
 **FASE 0 Exploración** (Paso 0 no salteable en `.claude/commands/sprint.md`); cuando no, igual aplica.
 
+**Sesiones del sector AGENCIA DIGITAL — Fase 0 adicional (obligatoria):** si la sesión trabaja en el
+sector Agencia Digital (2º sector de la compañía), **antes de nada leé
+`docs/sectores/agencia-digital/FUNDAMENTO.md`** — define quién sos (Consultor Experto / Desarrollador /
+PMO del sector), qué tenés que hacer, con qué método y con qué objetivo (innovación + productos que
+generen ganancias). Después seguí con el charter (`docs/sectores/agencia-digital.md`) y el último
+análisis de mercado (`docs/sectores/agencia-digital/analisis-mercado/`). Es el equivalente sectorial de
+esta exploración de arranque.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.

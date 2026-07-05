@@ -7,6 +7,13 @@ del repo y cómo convive con el sector ya existente (el ERP SaaS multi-tenant). 
 no de implementación: nada de lo de acá toca prod, Neon ni deploys. La ratificación estructural queda
 como **ADR-027** (ver §7).
 
+> **Entrada del sector:** si abrís una sesión para trabajar acá, **leé primero
+> `docs/sectores/agencia-digital/FUNDAMENTO.md`** (quién sos, qué hacés, método, objetivo — enganchado
+> desde `CLAUDE.md` como Fase 0 del sector). Este charter es la **estrategia**; el sector se organiza en
+> **dos equipos** —**Consultores Expertos** (inteligencia de mercado + diferencial) y **Desarrolladores**
+> (construyen lo validado)— con un **PMO proactivo** por encima. El primer análisis de mercado ya está
+> en `docs/sectores/agencia-digital/analisis-mercado/`.
+
 > **Regla de una línea:** misma **metodología** y mismo **PMO** para los dos sectores; **repos y
 > deploys separados por sector**; el software de la agencia que apalanca el ERP se trata como
 > **PRODUCTO** (capability/Blueprint/Plugin o standalone con su ADR), **nunca** como trabajo a medida
