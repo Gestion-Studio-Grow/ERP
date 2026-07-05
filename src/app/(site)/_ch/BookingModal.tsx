@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getAvailableSlots, createBookingFromModal } from "@/lib/actions";
 import { checkCoupon } from "@/lib/coupon-actions";
 import { fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
@@ -51,11 +51,45 @@ export default function BookingModal({
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponChecking, setCouponChecking] = useState(false);
 
-  // Cerrar con Escape.
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Accesibilidad del modal (funnel de reserva): Escape cierra; el foco queda
+  // ATRAPADO dentro del modal (Tab/Shift+Tab no se escapan al fondo); al abrir se
+  // enfoca el diálogo y al cerrar se devuelve el foco al disparador; y se bloquea
+  // el scroll del fondo mientras está abierto.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog?.focus();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !dialog) return;
+      const focusables = dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      previouslyFocused?.focus?.();
+    };
   }, [onClose]);
 
   // Profesionales que hacen el servicio elegido.
@@ -265,9 +299,12 @@ export default function BookingModal({
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="booking-modal-title"
         style={{
           width: "100%",
           maxWidth: 512,
@@ -282,7 +319,7 @@ export default function BookingModal({
       >
         {/* Header del modal */}
         <div style={{ padding: "24px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <div id="booking-modal-title" style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
             <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 18, color: "var(--accent)" }}>
               CH
             </span>
@@ -333,6 +370,7 @@ export default function BookingModal({
                       <button
                         key={p.id}
                         type="button"
+                        aria-pressed={on}
                         onClick={() => setPro(p)}
                         style={{ border: "1px solid", padding: 12, borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(on) }}
                       >
@@ -362,6 +400,8 @@ export default function BookingModal({
                     <button
                       key={d.value}
                       type="button"
+                      aria-pressed={on}
+                      aria-label={`${d.label}${hasSlots === true ? ", con horarios disponibles" : hasSlots === false ? ", sin horarios ese día" : ""}`}
                       onClick={() => selectDay(d.value)}
                       style={{
                         border: "1px solid",
@@ -403,6 +443,7 @@ export default function BookingModal({
                           <button
                             key={s}
                             type="button"
+                            aria-pressed={slot === s}
                             onClick={() => setSlot(s)}
                             style={{ border: "1px solid", padding: "8px 14px", borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(slot === s) }}
                           >
@@ -422,6 +463,7 @@ export default function BookingModal({
                           <button
                             key={s}
                             type="button"
+                            aria-pressed={slot === s}
                             onClick={() => setSlot(s)}
                             style={{ border: "1px solid", padding: "8px 14px", borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(slot === s) }}
                           >
@@ -633,6 +675,7 @@ function ResidentToggle({
             <button
               key={opt.label}
               type="button"
+              aria-pressed={on}
               onClick={() => onChange(opt.val)}
               style={{
                 border: 0,
@@ -682,6 +725,7 @@ function Step1({
               <button
                 key={it.id}
                 type="button"
+                aria-pressed={on}
                 onClick={() => onPick({ ...it, categoria: g.name })}
                 style={{
                   display: "flex",
