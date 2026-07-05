@@ -11,7 +11,7 @@ function SendButton({ disabled }: { disabled: boolean }) {
       type="submit"
       disabled={disabled || pending}
       className="rounded-full px-6 py-2.5 text-sm font-medium disabled:opacity-40"
-      style={{ background: "var(--spa-mocha-dark)", color: "var(--spa-ivory)" }}
+      style={{ background: "var(--text-strong)", color: "var(--text-on-accent)" }}
     >
       {pending ? "Enviando…" : "Enviar reseña"}
     </button>
@@ -30,8 +30,8 @@ function Star({ filled, onClick, onHover }: { filled: boolean; onClick: () => vo
         width="32"
         height="32"
         viewBox="0 0 24 24"
-        fill={filled ? "var(--spa-gold)" : "none"}
-        stroke="var(--spa-gold)"
+        fill={filled ? "var(--accent)" : "none"}
+        stroke="var(--accent)"
         strokeWidth="1.5"
       >
         <path
@@ -54,7 +54,7 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
     return (
       <div
         className="rounded-lg p-5 text-sm text-center mb-6"
-        style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+        style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
       >
         ¡Gracias por tu reseña! Nos ayuda muchísimo. 🌿
       </div>
@@ -64,7 +64,7 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
   return (
     <div
       className="rounded-lg p-3 sm:p-5 mb-6"
-      style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+      style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
     >
       <p className="font-serif text-base sm:text-lg mb-2 sm:mb-1">¿Cómo estuvo tu experiencia?</p>
 
@@ -100,7 +100,7 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
           placeholder="Contanos qué te pareció (opcional)"
           rows={2}
           className="w-full rounded-md border px-3 py-1.5 text-sm mb-2"
-          style={{ borderColor: "var(--spa-mocha)", background: "var(--spa-ivory)" }}
+          style={{ borderColor: "var(--line-strong)", background: "var(--surface-raised)" }}
         />
 
         {error && <p className="text-sm text-red-600 mb-2">{error}</p>}

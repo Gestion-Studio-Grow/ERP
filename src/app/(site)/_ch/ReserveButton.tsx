@@ -23,8 +23,8 @@ export default function ReserveButton({
       onClick={open}
       className="ch-reserve-btn"
       style={{
-        background: "var(--ch-ink)",
-        color: "var(--ch-ivory)",
+        background: "var(--text-strong)",
+        color: "var(--text-on-accent)",
         border: 0,
         cursor: "pointer",
         transition: "opacity .2s ease, transform .1s ease",

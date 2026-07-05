@@ -200,11 +200,11 @@ export default function BookingModal({
 
   const nextLabel = step >= 4 ? (step === 5 ? "Cerrar" : submitting ? "Confirmando…" : "Confirmar") : "Continuar";
 
-  const accent = "var(--ch-petrol)";
+  const accent = "var(--accent)";
   const rowSelected = (on: boolean) =>
     on
-      ? { background: accent, color: "var(--ch-ivory)", borderColor: accent }
-      : { background: "transparent", color: "var(--ch-ink)", borderColor: "var(--ch-clay)" };
+      ? { background: accent, color: "var(--text-on-accent)", borderColor: accent }
+      : { background: "transparent", color: "var(--text-strong)", borderColor: "var(--line-strong)" };
 
   const whenLabel =
     confirmedStartsAt &&
@@ -271,8 +271,8 @@ export default function BookingModal({
         style={{
           width: "100%",
           maxWidth: 512,
-          background: "var(--ch-ivory)",
-          color: "var(--ch-ink)",
+          background: "var(--surface-raised)",
+          color: "var(--text-strong)",
           borderRadius: 2,
           boxShadow: "0 25px 50px -12px rgba(0,0,0,.35)",
           maxHeight: "92vh",
@@ -283,24 +283,24 @@ export default function BookingModal({
         {/* Header del modal */}
         <div style={{ padding: "24px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 18, color: "var(--ch-teal-logo)" }}>
+            <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 18, color: "var(--accent)" }}>
               CH
             </span>
-            <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--ch-mocha)" }}>
+            <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--text-muted)" }}>
               Reservar
             </span>
           </div>
-          <button type="button" onClick={onClose} aria-label="Cerrar" style={{ background: "none", border: 0, color: "var(--ch-mocha)", fontSize: 22, lineHeight: 1, cursor: "pointer" }}>
+          <button type="button" onClick={onClose} aria-label="Cerrar" style={{ background: "none", border: 0, color: "var(--text-muted)", fontSize: 22, lineHeight: 1, cursor: "pointer" }}>
             ×
           </button>
         </div>
 
         {/* Progreso */}
         <div style={{ padding: "16px 24px 0" }}>
-          <div style={{ height: 1, background: "var(--ch-hairline)" }}>
+          <div style={{ height: 1, background: "var(--line)" }}>
             <div style={{ height: 1, background: accent, width: `${step * 20}%`, transition: "width .3s" }} />
           </div>
-          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--ch-mocha)" }}>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
             Paso {step} de 5 · {STEP_LABELS[step]}
           </p>
         </div>
@@ -322,7 +322,7 @@ export default function BookingModal({
             <>
               <StepTitle>Elegí profesional</StepTitle>
               {prosForService.length === 0 ? (
-                <p style={{ fontSize: 14, color: "var(--ch-mocha)" }}>
+                <p style={{ fontSize: 14, color: "var(--text-muted)" }}>
                   No hay profesionales disponibles para este servicio. Probá con otro.
                 </p>
               ) : (
@@ -356,8 +356,8 @@ export default function BookingModal({
                   // Verde = hay lugar, rojo apagado = sin lugar ese día, gris = cargando.
                   // El color no reemplaza el estado de selección (ring), solo adelanta
                   // información — igual que el calendario de TuTurno.
-                  const bg = on ? accent : hasSlots === true ? "rgba(124,138,114,.18)" : hasSlots === false ? "rgba(168,94,60,.12)" : "transparent";
-                  const border = on ? accent : hasSlots === true ? "var(--ch-sage)" : hasSlots === false ? "var(--ch-terracotta)" : "var(--ch-clay)";
+                  const bg = on ? accent : hasSlots === true ? "var(--success-soft)" : hasSlots === false ? "var(--danger-soft)" : "transparent";
+                  const border = on ? accent : hasSlots === true ? "var(--success)" : hasSlots === false ? "var(--danger)" : "var(--line-strong)";
                   return (
                     <button
                       key={d.value}
@@ -367,7 +367,7 @@ export default function BookingModal({
                         border: "1px solid",
                         borderColor: border,
                         background: bg,
-                        color: on ? "var(--ch-ivory)" : "var(--ch-ink)",
+                        color: on ? "var(--text-on-accent)" : "var(--text-strong)",
                         padding: "8px 4px",
                         borderRadius: 2,
                         fontSize: 12,
@@ -382,20 +382,20 @@ export default function BookingModal({
                 })}
               </div>
               {prefetchingAvailability && (
-                <p style={{ fontSize: 12, color: "var(--ch-mocha)", margin: "0 0 16px" }}>Buscando los próximos días con lugar…</p>
+                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 16px" }}>Buscando los próximos días con lugar…</p>
               )}
               {!prefetchingAvailability && <div style={{ marginBottom: 16 }} />}
 
-              {!day && <p style={{ fontSize: 13, color: "var(--ch-mocha)", margin: 0 }}>Elegí un día para ver los horarios disponibles.</p>}
-              {day && slotsPending && <p style={{ fontSize: 13, color: "var(--ch-mocha)", margin: 0 }}>Buscando horarios…</p>}
+              {!day && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Elegí un día para ver los horarios disponibles.</p>}
+              {day && slotsPending && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Buscando horarios…</p>}
               {day && !slotsPending && slots.length === 0 && (
-                <p style={{ fontSize: 13, color: "var(--ch-mocha)", margin: 0 }}>No hay horarios disponibles ese día.</p>
+                <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No hay horarios disponibles ese día.</p>
               )}
               {day && !slotsPending && slots.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {slotsGrouped.mañana.length > 0 && (
                     <div>
-                      <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--ch-mocha)", margin: "0 0 8px" }}>
+                      <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-muted)", margin: "0 0 8px" }}>
                         Por la mañana
                       </p>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -414,7 +414,7 @@ export default function BookingModal({
                   )}
                   {slotsGrouped.tarde.length > 0 && (
                     <div>
-                      <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--ch-mocha)", margin: "0 0 8px" }}>
+                      <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-muted)", margin: "0 0 8px" }}>
                         Por la tarde
                       </p>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -439,7 +439,7 @@ export default function BookingModal({
           {step === 4 && (
             <>
               <StepTitle>Tus datos</StepTitle>
-              <p style={{ fontSize: 12, color: "var(--ch-mocha)", margin: "0 0 16px" }}>Solo lo necesario para confirmarte.</p>
+              <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 16px" }}>Solo lo necesario para confirmarte.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <Field label="Nombre" value={name} onChange={setName} type="text" />
                 <Field label="Teléfono" value={tel} onChange={setTel} type="tel" />
@@ -448,7 +448,7 @@ export default function BookingModal({
 
               {/* Cupón de descuento (ADR-014) */}
               <div style={{ marginTop: 20 }}>
-                <label style={{ fontSize: 13, color: "var(--ch-mocha)", display: "block", marginBottom: 6 }}>
+                <label style={{ fontSize: 13, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>
                   ¿Tenés un cupón?
                 </label>
                 <div style={{ display: "flex", gap: 8 }}>
@@ -464,13 +464,13 @@ export default function BookingModal({
                     style={{
                       flex: 1,
                       boxSizing: "border-box",
-                      background: "rgba(230,221,206,.6)",
-                      border: "1px solid var(--ch-clay)",
+                      background: "var(--surface-sunken)",
+                      border: "1px solid var(--line-strong)",
                       padding: "8px 12px",
                       borderRadius: 0,
                       fontSize: 14,
                       textTransform: "uppercase",
-                      color: "var(--ch-ink)",
+                      color: "var(--text-strong)",
                     }}
                   />
                   <button
@@ -478,7 +478,7 @@ export default function BookingModal({
                     onClick={applyCoupon}
                     disabled={!couponInput.trim() || couponChecking}
                     style={{
-                      border: "1px solid var(--ch-ink)",
+                      border: "1px solid var(--text-strong)",
                       background: "transparent",
                       padding: "0 16px",
                       fontSize: 13,
@@ -490,22 +490,22 @@ export default function BookingModal({
                   </button>
                 </div>
                 {couponApplied && (
-                  <p style={{ marginTop: 6, fontSize: 12, color: "var(--ch-sage)" }}>
+                  <p style={{ marginTop: 6, fontSize: 12, color: "var(--success)" }}>
                     Cupón {couponApplied.code} aplicado: −${couponApplied.discount.toLocaleString("es-AR")}
                   </p>
                 )}
-                {couponError && <p style={{ marginTop: 6, fontSize: 12, color: "var(--ch-terracotta)" }}>{couponError}</p>}
+                {couponError && <p style={{ marginTop: 6, fontSize: 12, color: "var(--danger)" }}>{couponError}</p>}
               </div>
 
               {/* Resumen de precio */}
               {svc && (
-                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--ch-hairline)", fontSize: 14 }}>
+                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)", fontSize: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--ch-mocha)" }}>{svc.name}</span>
+                    <span style={{ color: "var(--text-muted)" }}>{svc.name}</span>
                     <span>${basePrice.toLocaleString("es-AR")}</span>
                   </div>
                   {couponApplied && (
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ch-sage)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--success)" }}>
                       <span>Cupón {couponApplied.code}</span>
                       <span>−${couponApplied.discount.toLocaleString("es-AR")}</span>
                     </div>
@@ -515,7 +515,7 @@ export default function BookingModal({
                     <span>${finalPrice.toLocaleString("es-AR")}</span>
                   </div>
                   {svc.depositAmount != null && (
-                    <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--ch-terracotta)", lineHeight: 1.5 }}>
+                    <p style={{ marginTop: 10, fontSize: 12.5, color: "var(--warning)", lineHeight: 1.5 }}>
                       Seña obligatoria para confirmar: ${svc.depositAmount.toLocaleString("es-AR")}. Te
                       contactamos por WhatsApp para coordinar el pago.
                     </p>
@@ -523,20 +523,20 @@ export default function BookingModal({
                 </div>
               )}
 
-              {error && <p style={{ marginTop: 14, fontSize: 13, color: "var(--ch-terracotta)" }}>{error}</p>}
+              {error && <p style={{ marginTop: 14, fontSize: 13, color: "var(--danger)" }}>{error}</p>}
             </>
           )}
 
           {step === 5 && (
             <>
               <StepTitle>Listo. Te esperamos en La Alameda.</StepTitle>
-              <div style={{ marginTop: 16, background: "var(--ch-linen)", padding: 20, borderRadius: 2, fontSize: 14, display: "flex", flexDirection: "column", gap: 4 }}>
-                <p style={{ margin: 0 }}><span style={{ color: "var(--ch-mocha)" }}>Reserva</span> · Nº {code}</p>
-                <p style={{ margin: 0 }}><span style={{ color: "var(--ch-mocha)" }}>Servicio</span> · {svc?.name} · {svc?.categoria}, {svc?.durationMin} min</p>
-                <p style={{ margin: 0 }}><span style={{ color: "var(--ch-mocha)" }}>Profesional</span> · {pro?.name}</p>
-                <p style={{ margin: 0, textTransform: "capitalize" }}><span style={{ color: "var(--ch-mocha)", textTransform: "none" }}>Cuándo</span> · {whenLabel} h</p>
+              <div style={{ marginTop: 16, background: "var(--surface-sunken)", padding: 20, borderRadius: 2, fontSize: 14, display: "flex", flexDirection: "column", gap: 4 }}>
+                <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Reserva</span> · Nº {code}</p>
+                <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Servicio</span> · {svc?.name} · {svc?.categoria}, {svc?.durationMin} min</p>
+                <p style={{ margin: 0 }}><span style={{ color: "var(--text-muted)" }}>Profesional</span> · {pro?.name}</p>
+                <p style={{ margin: 0, textTransform: "capitalize" }}><span style={{ color: "var(--text-muted)", textTransform: "none" }}>Cuándo</span> · {whenLabel} h</p>
               </div>
-              <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--ch-mocha)", lineHeight: 1.6 }}>
+              <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
                 Te confirmamos por WhatsApp o email. Podés reprogramar o cancelar hasta 24 hs antes.
                 {svc?.depositAmount != null && (
                   <> Recordá que para confirmar el turno hay una seña de ${svc.depositAmount.toLocaleString("es-AR")} — te escribimos para coordinarla.</>
@@ -559,12 +559,12 @@ export default function BookingModal({
         </div>
 
         {/* Footer del modal */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--ch-hairline)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--ch-ivory)" }}>
+        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface-raised)" }}>
           <button
             type="button"
             onClick={back}
             disabled={step === 1 || step === 5}
-            style={{ background: "none", border: 0, fontSize: 14, color: "var(--ch-mocha)", cursor: step === 1 || step === 5 ? "default" : "pointer", opacity: step === 1 || step === 5 ? 0.4 : 1 }}
+            style={{ background: "none", border: 0, fontSize: 14, color: "var(--text-muted)", cursor: step === 1 || step === 5 ? "default" : "pointer", opacity: step === 1 || step === 5 ? 0.4 : 1 }}
           >
             Volver
           </button>
@@ -576,9 +576,9 @@ export default function BookingModal({
               padding: "8px 20px",
               border: 0,
               fontSize: 15,
-              color: "var(--ch-ivory)",
+              color: "var(--text-on-accent)",
               cursor: !canNext || submitting ? "not-allowed" : "pointer",
-              background: !canNext || submitting ? "var(--ch-clay)" : "var(--ch-ink)",
+              background: !canNext || submitting ? "var(--line-strong)" : "var(--text-strong)",
             }}
           >
             {nextLabel}
@@ -616,14 +616,14 @@ function ResidentToggle({
         gap: 12,
         padding: "10px 12px",
         marginBottom: 16,
-        background: "var(--ch-linen)",
+        background: "var(--surface-sunken)",
         borderRadius: 2,
       }}
     >
-      <span style={{ fontSize: 13, color: "var(--ch-ink)" }}>
+      <span style={{ fontSize: 13, color: "var(--text-strong)" }}>
         ¿Sos vecino/a de <strong>La Alameda</strong>? Tenés precio especial en algunos servicios.
       </span>
-      <div style={{ display: "flex", border: "1px solid var(--ch-clay)", borderRadius: 2, flexShrink: 0 }}>
+      <div style={{ display: "flex", border: "1px solid var(--line-strong)", borderRadius: 2, flexShrink: 0 }}>
         {[
           { label: "No", val: false },
           { label: "Sí", val: true },
@@ -639,8 +639,8 @@ function ResidentToggle({
                 padding: "6px 14px",
                 fontSize: 13,
                 cursor: "pointer",
-                background: on ? "var(--ch-petrol)" : "transparent",
-                color: on ? "var(--ch-ivory)" : "var(--ch-ink)",
+                background: on ? "var(--accent)" : "transparent",
+                color: on ? "var(--text-on-accent)" : "var(--text-strong)",
               }}
             >
               {opt.label}
@@ -673,7 +673,7 @@ function Step1({
       <ResidentToggle value={isResident} onChange={onResidentChange} />
       {groups.map((g) => (
         <div key={g.id} style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--ch-mocha)", margin: "0 0 4px" }}>{g.name}</p>
+          <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-muted)", margin: "0 0 4px" }}>{g.name}</p>
           {g.services.map((it) => {
             const on = svc?.id === it.id;
             const hasResidentPrice = it.residentPrice != null;
@@ -691,7 +691,7 @@ function Step1({
                   textAlign: "left",
                   padding: "10px 8px",
                   border: 0,
-                  borderBottom: "1px solid var(--ch-hairline)",
+                  borderBottom: "1px solid var(--line)",
                   cursor: "pointer",
                   fontSize: 15,
                   fontFamily: "var(--font-body), system-ui, sans-serif",
@@ -732,7 +732,7 @@ function Field({
 }) {
   return (
     <label style={{ display: "block" }}>
-      <span style={{ fontSize: 14, color: "var(--ch-mocha)" }}>{label}</span>
+      <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{label}</span>
       <input
         type={type}
         value={value}
@@ -741,13 +741,13 @@ function Field({
           marginTop: 4,
           width: "100%",
           boxSizing: "border-box",
-          background: "rgba(230,221,206,.6)",
-          border: "1px solid var(--ch-clay)",
+          background: "var(--surface-sunken)",
+          border: "1px solid var(--line-strong)",
           padding: "8px 12px",
           borderRadius: 0,
           fontSize: 15,
           fontFamily: "var(--font-body), system-ui, sans-serif",
-          color: "var(--ch-ink)",
+          color: "var(--text-strong)",
         }}
       />
     </label>

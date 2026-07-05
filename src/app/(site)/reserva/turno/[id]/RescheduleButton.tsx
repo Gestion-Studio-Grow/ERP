@@ -41,7 +41,7 @@ export default function RescheduleButton({
       <button
         onClick={() => setOpen(true)}
         className="mb-3 mr-3 rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-        style={{ borderColor: "var(--spa-sage)", color: "var(--spa-mocha-dark)" }}
+        style={{ borderColor: "var(--line-strong)", color: "var(--text-strong)" }}
       >
         Reprogramar turno
       </button>
@@ -51,7 +51,7 @@ export default function RescheduleButton({
   return (
     <div
       className="mb-6 rounded-lg p-4"
-      style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+      style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
     >
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm font-medium">Elegí un nuevo horario</p>
@@ -64,7 +64,7 @@ export default function RescheduleButton({
             setError("");
           }}
           className="text-sm"
-          style={{ color: "var(--spa-mocha)" }}
+          style={{ color: "var(--text-muted)" }}
         >
           Cerrar
         </button>
@@ -93,14 +93,14 @@ export default function RescheduleButton({
             loadSlots(e.target.value);
           }}
           className="w-full rounded-md border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--spa-sage)" }}
+          style={{ borderColor: "var(--line-strong)" }}
         />
 
         {date && (
           <div>
-            {isPending && <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>Buscando horarios…</p>}
+            {isPending && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Buscando horarios…</p>}
             {!isPending && slots.length === 0 && (
-              <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 No hay horarios disponibles ese día.
               </p>
             )}
@@ -115,8 +115,8 @@ export default function RescheduleButton({
                     className={`rounded-md border px-2 py-1.5 text-sm ${isSelected ? "text-white" : "bg-white"}`}
                     style={
                       isSelected
-                        ? { background: "var(--spa-mocha-dark)", borderColor: "var(--spa-mocha-dark)" }
-                        : { borderColor: "var(--spa-sage)" }
+                        ? { background: "var(--text-strong)", borderColor: "var(--text-strong)" }
+                        : { borderColor: "var(--line-strong)" }
                     }
                   >
                     {fmtTime(slot)}
@@ -133,7 +133,7 @@ export default function RescheduleButton({
         {selectedSlot && (
           <SubmitButton
             pendingText="Reprogramando…"
-            className="w-full rounded-md py-2 text-sm font-medium text-white bg-[color:var(--spa-mocha-dark)]"
+            className="w-full rounded-md py-2 text-sm font-medium text-white bg-[color:var(--text-strong)]"
           >
             Confirmar nuevo horario
           </SubmitButton>

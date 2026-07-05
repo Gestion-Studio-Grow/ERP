@@ -16,17 +16,17 @@ const eyebrow: React.CSSProperties = {
   letterSpacing: ".22em",
   fontWeight: 600,
   fontSize: ".75rem",
-  color: "var(--ch-mocha)",
+  color: "var(--text-muted)",
 };
 const display = (extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-display), Georgia, serif",
   ...extra,
 });
 const linkAccent: React.CSSProperties = {
-  color: "var(--ch-petrol)",
+  color: "var(--accent)",
   textDecoration: "underline",
   textUnderlineOffset: 4,
-  textDecorationColor: "rgba(154,131,80,.5)",
+  textDecorationColor: "var(--accent)",
   textDecorationThickness: 1,
 };
 
@@ -71,7 +71,7 @@ export default async function Home() {
           <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 480, margin: 0 })}>
             Tu tiempo, cuidado a metros de casa.
           </h1>
-          <p style={{ margin: "20px 0 0", fontSize: "1.0625rem", color: "rgba(32,31,27,.8)", maxWidth: "28rem", lineHeight: 1.65 }}>
+          <p style={{ margin: "20px 0 0", fontSize: "1.0625rem", color: "var(--text-muted)", maxWidth: "28rem", lineHeight: 1.65 }}>
             Estética y spa dentro del barrio, con Carolina. Reservás en un minuto.
           </p>
           <div style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
@@ -89,7 +89,7 @@ export default async function Home() {
       </section>
 
       {/* PROPUESTA DE VALOR */}
-      <section style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+      <section style={{ borderTop: "1px solid var(--line)" }}>
         <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 40 }}>
           {[
             ["Tiempo", "Entrás, te atienden, seguís tu día."],
@@ -98,7 +98,7 @@ export default async function Home() {
           ].map(([t, d]) => (
             <Reveal key={t}>
               <h3 style={display({ fontSize: "1.25rem", fontWeight: 560, margin: "0 0 8px" })}>{t}</h3>
-              <p style={{ fontSize: ".875rem", color: "rgba(32,31,27,.7)", lineHeight: 1.7, margin: 0 }}>{d}</p>
+              <p style={{ fontSize: ".875rem", color: "var(--text-muted)", lineHeight: 1.7, margin: 0 }}>{d}</p>
             </Reveal>
           ))}
         </div>
@@ -108,7 +108,7 @@ export default async function Home() {
           nuevos, promos, técnicas. Se cargan desde /admin/recordatorios y se
           publican acá automáticamente (últimos 30 días). */}
       {news.length > 0 && (
-        <section id="novedades" style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+        <section id="novedades" style={{ borderTop: "1px solid var(--line)" }}>
           <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
             <p style={{ ...eyebrow, margin: "0 0 12px" }}>Novedades</p>
             <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 32px" })}>
@@ -119,16 +119,16 @@ export default async function Home() {
                 <Reveal
                   key={n.id}
                   style={{
-                    borderTop: "1px solid rgba(199,180,156,.4)",
+                    borderTop: "1px solid var(--line)",
                     padding: "20px 0 20px 16px",
-                    borderLeft: "2px solid var(--ch-petrol)",
+                    borderLeft: "2px solid var(--accent)",
                     marginBottom: 4,
                   }}
                 >
-                  <p style={{ margin: 0, fontSize: ".75rem", textTransform: "uppercase", letterSpacing: ".14em", color: "var(--ch-mocha)" }}>
+                  <p style={{ margin: 0, fontSize: ".75rem", textTransform: "uppercase", letterSpacing: ".14em", color: "var(--text-muted)" }}>
                     {newsDate.format(n.createdAt)} · {n.professional.name}
                   </p>
-                  <p style={{ margin: "8px 0 0", fontSize: "1.0625rem", lineHeight: 1.6, color: "rgba(32,31,27,.85)", maxWidth: "36rem" }}>
+                  <p style={{ margin: "8px 0 0", fontSize: "1.0625rem", lineHeight: 1.6, color: "var(--text-muted)", maxWidth: "36rem" }}>
                     {n.message}
                   </p>
                 </Reveal>
@@ -143,7 +143,7 @@ export default async function Home() {
         <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que hacemos</p>
         <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 520, margin: "0 0 40px" })}>Servicios</h2>
         {groups.length === 0 ? (
-          <p style={{ color: "var(--ch-mocha)" }}>Próximamente publicamos el menú de servicios.</p>
+          <p style={{ color: "var(--text-muted)" }}>Próximamente publicamos el menú de servicios.</p>
         ) : (
           <ServicesAccordion groups={groups} />
         )}
@@ -157,15 +157,15 @@ export default async function Home() {
       </section>
 
       {/* EQUIPO */}
-      <section id="equipo" style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+      <section id="equipo" style={{ borderTop: "1px solid var(--line)" }}>
         <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
           <p style={{ ...eyebrow, margin: "0 0 12px" }}>Quién te atiende</p>
           <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 48px" })}>Equipo</h2>
           {activeProfessionals.map((p) => {
             const photo = TEAM_PHOTOS[p.name];
             return (
-            <Reveal key={p.id} style={{ padding: "32px 0", display: "flex", gap: 24, alignItems: "flex-start", borderTop: "1px solid rgba(199,180,156,.3)" }}>
-              <div style={{ position: "relative", width: 64, height: 64, borderRadius: 9999, flexShrink: 0, overflow: "hidden", background: "var(--ch-linen)" }}>
+            <Reveal key={p.id} style={{ padding: "32px 0", display: "flex", gap: 24, alignItems: "flex-start", borderTop: "1px solid var(--line)" }}>
+              <div style={{ position: "relative", width: 64, height: 64, borderRadius: 9999, flexShrink: 0, overflow: "hidden", background: "var(--surface-sunken)" }}>
                 {photo ? (
                   <Image
                     src={photo.src}
@@ -192,10 +192,10 @@ export default async function Home() {
                 )}
               </div>
               <div style={{ flex: 1 }}>
-                <p style={display({ fontSize: "clamp(1.15rem,2vw,1.5rem)", lineHeight: 1.4, fontWeight: 520, color: "var(--ch-ink)", margin: 0 })}>
+                <p style={display({ fontSize: "clamp(1.15rem,2vw,1.5rem)", lineHeight: 1.4, fontWeight: 520, color: "var(--text-strong)", margin: 0 })}>
                   {p.name}
                 </p>
-                <p style={{ margin: "12px 0 0", fontSize: ".875rem", color: "var(--ch-mocha)" }}>
+                <p style={{ margin: "12px 0 0", fontSize: ".875rem", color: "var(--text-muted)" }}>
                   {p.services.length > 0 ? p.services.map((s) => s.name).slice(0, 4).join(" · ") : "Estética integral"}
                 </p>
               </div>
@@ -203,13 +203,13 @@ export default async function Home() {
             );
           })}
           {activeProfessionals.length === 0 && (
-            <p style={{ color: "var(--ch-mocha)" }}>Próximamente presentamos al equipo.</p>
+            <p style={{ color: "var(--text-muted)" }}>Próximamente presentamos al equipo.</p>
           )}
         </div>
       </section>
 
       {/* CÓMO RESERVAR */}
-      <section style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+      <section style={{ borderTop: "1px solid var(--line)" }}>
         <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
           <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 48px" })}>Cómo reservar</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 40, fontSize: ".875rem" }}>
@@ -219,8 +219,8 @@ export default async function Home() {
               ["03", "Confirmás y listo."],
             ].map(([n, t]) => (
               <div key={n}>
-                <p style={{ color: "var(--ch-mocha)", margin: "0 0 4px" }}>{n}</p>
-                <p style={{ color: "rgba(32,31,27,.8)", margin: 0 }}>{t}</p>
+                <p style={{ color: "var(--text-muted)", margin: "0 0 4px" }}>{n}</p>
+                <p style={{ color: "var(--text-muted)", margin: 0 }}>{t}</p>
               </div>
             ))}
           </div>
@@ -231,17 +231,17 @@ export default async function Home() {
       </section>
 
       {/* CONFIANZA */}
-      <section style={{ background: "var(--ch-sage-deep)", color: "var(--ch-ivory)" }}>
+      <section style={{ background: "var(--surface-inverted)", color: "var(--text-on-accent)" }}>
         <div style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(36px,7vw,64px) 24px", display: "flex", flexWrap: "wrap", gap: 40, alignItems: "center" }}>
           <Reveal style={{ flex: "1 1 380px", minWidth: 280 }}>
-            <p style={{ ...eyebrow, color: "var(--ch-clay)", margin: "0 0 16px" }}>Seriedad, sin ruido</p>
+            <p style={{ ...eyebrow, color: "var(--text-on-accent)", margin: "0 0 16px" }}>Seriedad, sin ruido</p>
             <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", lineHeight: 1.2, fontWeight: 520, margin: 0 })}>
               Un espacio dentro del barrio, pensado para pocos.
             </h2>
-            <p style={{ margin: "20px 0 0", color: "rgba(243,238,229,.85)", maxWidth: "28rem", lineHeight: 1.7 }}>
+            <p style={{ margin: "20px 0 0", color: "var(--text-on-accent)", maxWidth: "28rem", lineHeight: 1.7 }}>
               Turnos que no se pisan. Alguien que ya te conoce.
             </p>
-            <p style={{ margin: "24px 0 0", paddingLeft: 16, borderLeft: "2px solid var(--ch-petrol)", fontSize: ".875rem", color: "rgba(243,238,229,.8)" }}>
+            <p style={{ margin: "24px 0 0", paddingLeft: 16, borderLeft: "2px solid var(--accent)", fontSize: ".875rem", color: "var(--text-on-accent)" }}>
               Material esterilizado · Turnos espaciados · Productos con trazabilidad
             </p>
           </Reveal>
@@ -259,16 +259,16 @@ export default async function Home() {
           solo lo que dicen las clientas. La prueba social pesa más cuando no
           grita. */}
       {reviews.length > 0 && (
-        <section style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+        <section style={{ borderTop: "1px solid var(--line)" }}>
           <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,64px) 24px" }}>
             <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que dicen</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 32 }}>
               {reviews.map((r) => (
                 <Reveal key={r.id}>
-                  <p style={{ margin: "0 0 10px", fontSize: ".9375rem", lineHeight: 1.6, color: "rgba(32,31,27,.8)", fontStyle: "italic" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: ".9375rem", lineHeight: 1.6, color: "var(--text-muted)", fontStyle: "italic" }}>
                     &ldquo;{r.comment}&rdquo;
                   </p>
-                  <p style={{ margin: 0, fontSize: ".8125rem", color: "var(--ch-mocha)" }}>
+                  <p style={{ margin: 0, fontSize: ".8125rem", color: "var(--text-muted)" }}>
                     {r.clientName} · {r.professional.name}
                   </p>
                 </Reveal>
@@ -279,9 +279,9 @@ export default async function Home() {
       )}
 
       {/* CTA CIERRE */}
-      <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(48px,9vw,88px) 24px", borderTop: "1px solid rgba(199,180,156,.3)" }}>
+      <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(48px,9vw,88px) 24px", borderTop: "1px solid var(--line)" }}>
         <h2 style={display({ fontSize: "clamp(2.4rem,5vw,3.9rem)", fontWeight: 480, margin: 0 })}>Tu tiempo, cerca.</h2>
-        <p style={{ margin: "16px 0 0", fontSize: "1.125rem", color: "rgba(32,31,27,.8)", maxWidth: "28rem" }}>
+        <p style={{ margin: "16px 0 0", fontSize: "1.125rem", color: "var(--text-muted)", maxWidth: "28rem" }}>
           Reservá tu turno en menos de un minuto.
         </p>
         <div style={{ marginTop: 32 }}>
@@ -290,15 +290,15 @@ export default async function Home() {
       </section>
 
       {/* CONTACTO / CÓMO LLEGAR */}
-      <section id="contacto" style={{ borderTop: "1px solid rgba(199,180,156,.3)" }}>
+      <section id="contacto" style={{ borderTop: "1px solid var(--line)" }}>
         <div style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
           <Reveal style={{ flex: "1 1 380px", minWidth: 280 }}>
             <p style={{ ...eyebrow, margin: "0 0 12px" }}>Dónde estamos</p>
             <h2 style={display({ fontSize: "clamp(1.9rem,4vw,2.5rem)", fontWeight: 520, margin: "0 0 32px" })}>Cómo llegar</h2>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {contactRows.map(([k, v], i) => (
-                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "14px 0", borderTop: "1px solid rgba(199,180,156,.4)", borderBottom: i === contactRows.length - 1 ? "1px solid rgba(199,180,156,.4)" : undefined }}>
-                  <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)" }}>{k}</span>
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "14px 0", borderTop: "1px solid var(--line)", borderBottom: i === contactRows.length - 1 ? "1px solid var(--line)" : undefined }}>
+                  <span style={{ fontSize: ".875rem", color: "var(--text-muted)" }}>{k}</span>
                   <span style={{ fontSize: ".9375rem", textAlign: "right" }}>{v}</span>
                 </div>
               ))}
@@ -308,7 +308,7 @@ export default async function Home() {
                 href={location.mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ background: "var(--ch-ink)", color: "var(--ch-ivory)", padding: "12px 24px", textDecoration: "none", fontSize: 15 }}
+                style={{ background: "var(--surface-inverted)", color: "var(--text-on-accent)", padding: "12px 24px", textDecoration: "none", fontSize: 15 }}
               >
                 Cómo llegar
               </a>

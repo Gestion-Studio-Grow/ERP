@@ -245,25 +245,25 @@ summary:focus-visible {
   align-items: center;
   gap: 0.5rem;
   padding: 0.85rem 1.75rem;
-  border: 1px solid var(--spa-ink);
-  color: var(--spa-ink);
+  border: 1px solid var(--accent);
+  color: var(--accent);
   background: transparent;
   font-size: 0.875rem;
   letter-spacing: 0.04em;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 .btn-editorial:hover {
-  background: var(--spa-ink);
-  color: var(--spa-ivory);
+  background: var(--accent);
+  color: var(--text-on-accent);
 }
 .btn-editorial-solid {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.85rem 1.75rem;
-  border: 1px solid var(--spa-ink);
-  background: var(--spa-ink);
-  color: var(--spa-ivory);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
   font-size: 0.875rem;
   letter-spacing: 0.04em;
   transition: background-color 0.25s ease, opacity 0.25s ease;

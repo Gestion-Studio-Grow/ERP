@@ -17,11 +17,11 @@ function StepLabel({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <label
       className="flex items-center gap-3 text-xs uppercase tracking-[0.15em] mb-3"
-      style={{ color: "var(--spa-ink)" }}
+      style={{ color: "var(--text-strong)" }}
     >
       <span
         className="flex h-6 w-6 items-center justify-center text-xs font-serif"
-        style={{ border: "1px solid var(--spa-ink)" }}
+        style={{ border: "1px solid var(--text-strong)" }}
       >
         {n}
       </span>
@@ -31,7 +31,7 @@ function StepLabel({ n, children }: { n: number; children: React.ReactNode }) {
 }
 
 const inputClass = "w-full px-3 py-2.5 text-sm bg-transparent";
-const inputStyle = { border: "1px solid var(--spa-hairline)", color: "var(--spa-ink)" };
+const inputStyle = { border: "1px solid var(--line)", color: "var(--text-strong)" };
 
 export default function BookingForm({ professionals }: { professionals: Professional[] }) {
   const [professionalId, setProfessionalId] = useState("");
@@ -66,30 +66,30 @@ export default function BookingForm({ professionals }: { professionals: Professi
       {(professional || service || selectedSlot) && (
         <div
           className="p-5 text-sm space-y-1.5"
-          style={{ background: "var(--spa-sage-light)", color: "var(--spa-ink)" }}
+          style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
         >
           {professional && (
             <p>
-              <span style={{ color: "var(--spa-mocha)" }}>Profesional</span> — {professional.name}
+              <span style={{ color: "var(--text-muted)" }}>Profesional</span> — {professional.name}
             </p>
           )}
           {service && (
             <p>
-              <span style={{ color: "var(--spa-mocha)" }}>Servicio</span> — {service.name} · $
+              <span style={{ color: "var(--text-muted)" }}>Servicio</span> — {service.name} · $
               {(isResident && service.residentPrice != null ? service.residentPrice : service.price).toLocaleString("es-AR")}
               {isResident && service.residentPrice != null && (
-                <span style={{ color: "var(--spa-mocha)" }}> (precio vecino/a)</span>
+                <span style={{ color: "var(--text-muted)" }}> (precio vecino/a)</span>
               )}
             </p>
           )}
           {service?.depositAmount != null && (
-            <p style={{ color: "var(--spa-gold)" }}>
+            <p style={{ color: "var(--warning)" }}>
               Seña obligatoria: ${service.depositAmount.toLocaleString("es-AR")} — te contactamos por WhatsApp para coordinarla.
             </p>
           )}
           {selectedSlot && (
             <p>
-              <span style={{ color: "var(--spa-mocha)" }}>Horario</span> —{" "}
+              <span style={{ color: "var(--text-muted)" }}>Horario</span> —{" "}
               {fmtDateTime(selectedSlot)}
             </p>
           )}
@@ -166,12 +166,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
           <div>
             <StepLabel n={4}>Horario disponible</StepLabel>
             {isPending && (
-              <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 Buscando horarios…
               </p>
             )}
             {!isPending && slots.length === 0 && (
-              <p className="text-sm" style={{ color: "var(--spa-mocha)" }}>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 No hay horarios disponibles ese día.
               </p>
             )}
@@ -187,8 +187,8 @@ export default function BookingForm({ professionals }: { professionals: Professi
                     className="px-3 py-2 text-sm transition-colors"
                     style={
                       isSelected
-                        ? { background: "var(--spa-ink)", border: "1px solid var(--spa-ink)", color: "var(--spa-ivory)" }
-                        : { border: "1px solid var(--spa-hairline)", color: "var(--spa-ink)" }
+                        ? { background: "var(--surface-inverted)", border: "1px solid var(--surface-inverted)", color: "var(--text-on-accent)" }
+                        : { border: "1px solid var(--line)", color: "var(--text-strong)" }
                     }
                   >
                     {label}
@@ -201,7 +201,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
         )}
 
         {selectedSlot && (
-          <div className="space-y-3 pt-8" style={{ borderTop: "1px solid var(--spa-hairline)" }}>
+          <div className="space-y-3 pt-8" style={{ borderTop: "1px solid var(--line)" }}>
             <StepLabel n={5}>Tus datos</StepLabel>
             <input
               name="clientName"
@@ -224,7 +224,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
               className={inputClass}
               style={inputStyle}
             />
-            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--spa-ink)" }}>
+            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text-strong)" }}>
               <input
                 type="checkbox"
                 name="isResident"
@@ -245,7 +245,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
             >
               Confirmar turno
             </SubmitButton>
-            <p className="text-xs text-center" style={{ color: "var(--spa-mocha)" }}>
+            <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
               Te vamos a contactar por WhatsApp para coordinar el pago y confirmar el turno.
             </p>
           </div>

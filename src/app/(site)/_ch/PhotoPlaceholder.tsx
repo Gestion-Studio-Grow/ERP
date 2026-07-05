@@ -49,8 +49,8 @@ export default function PhotoPlaceholder({
             width: 14,
             height: 14,
             borderRadius: 9999,
-            background: "var(--ch-petrol)",
-            boxShadow: "0 0 0 6px rgba(243,238,229,.35), 0 2px 6px rgba(0,0,0,.3)",
+            background: "var(--accent)",
+            boxShadow: "0 0 0 6px color-mix(in srgb, var(--text-on-accent) 35%, transparent), 0 2px 6px rgba(0,0,0,.3)",
           }}
         />
       )}
@@ -62,7 +62,7 @@ export default function PhotoPlaceholder({
           display: "flex",
           alignItems: "flex-end",
           padding: 14,
-          color: "#F3EEE5",
+          color: "var(--text-on-accent)",
           fontSize: ".6rem",
           letterSpacing: ".05em",
           lineHeight: 1.4,

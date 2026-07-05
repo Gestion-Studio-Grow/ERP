@@ -38,22 +38,22 @@ export default async function MyAppointmentPage({
 
   return (
     <div className="mx-auto max-w-lg px-6 py-16">
-      <h1 className="font-serif text-3xl mb-1" style={{ color: "var(--spa-mocha-dark)" }}>
+      <h1 className="font-serif text-3xl mb-1" style={{ color: "var(--text-strong)" }}>
         Tu turno
       </h1>
-      <p className="mb-8" style={{ color: "var(--spa-mocha)" }}>
+      <p className="mb-8" style={{ color: "var(--text-muted)" }}>
         Hola {appointment.client.name}, acá está el detalle.
       </p>
 
       <div
         className="rounded-lg p-5 space-y-2 mb-6"
-        style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+        style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
       >
-        <p><span style={{ color: "var(--spa-mocha)" }}>Servicio:</span> {appointment.service.name}</p>
-        <p><span style={{ color: "var(--spa-mocha)" }}>Profesional:</span> {appointment.professional.name}</p>
-        <p><span style={{ color: "var(--spa-mocha)" }}>Box:</span> {appointment.box.name}</p>
+        <p><span style={{ color: "var(--text-muted)" }}>Servicio:</span> {appointment.service.name}</p>
+        <p><span style={{ color: "var(--text-muted)" }}>Profesional:</span> {appointment.professional.name}</p>
+        <p><span style={{ color: "var(--text-muted)" }}>Box:</span> {appointment.box.name}</p>
         <p>
-          <span style={{ color: "var(--spa-mocha)" }}>Fecha y hora:</span>{" "}
+          <span style={{ color: "var(--text-muted)" }}>Fecha y hora:</span>{" "}
           {fmtDateTime(appointment.startsAt)}
         </p>
         <p className="pt-1">
@@ -81,23 +81,23 @@ export default async function MyAppointmentPage({
       {appointment.status === "COMPLETED" && appointment.review && (
         <div
           className="rounded-lg p-5 text-sm mb-6"
-          style={{ background: "var(--spa-sage-light)", color: "var(--spa-mocha-dark)" }}
+          style={{ background: "var(--surface-sunken)", color: "var(--text-strong)" }}
         >
           Ya dejaste tu reseña ({appointment.review.rating}/5). ¡Gracias!
         </div>
       )}
 
       {!canModify && appointment.status === "CANCELLED" && (
-        <p className="text-sm mb-6" style={{ color: "var(--spa-mocha)" }}>
+        <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
           Este turno fue cancelado.
         </p>
       )}
 
       <div className="flex gap-4 text-sm">
-        <Link href="/reserva" className="underline" style={{ color: "var(--spa-mocha-dark)" }}>
+        <Link href="/reserva" className="underline" style={{ color: "var(--text-strong)" }}>
           Reservar otro turno
         </Link>
-        <Link href="/" className="underline" style={{ color: "var(--spa-mocha)" }}>
+        <Link href="/" className="underline" style={{ color: "var(--text-muted)" }}>
           Volver al inicio
         </Link>
       </div>

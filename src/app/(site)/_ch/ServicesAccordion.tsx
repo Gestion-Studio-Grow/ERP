@@ -40,7 +40,7 @@ function ServiceList({ services }: { services: Service[] }) {
         <div
           key={it.id}
           style={{
-            borderBottom: "1px solid rgba(199,180,156,.6)",
+            borderBottom: "1px solid var(--line-strong)",
             padding: "12px 8px",
             margin: "0 -8px",
             display: "flex",
@@ -51,7 +51,7 @@ function ServiceList({ services }: { services: Service[] }) {
           }}
         >
           <span>{it.name}</span>
-          <span style={{ fontSize: ".875rem", color: "var(--ch-mocha)", whiteSpace: "nowrap", textAlign: "right" }}>
+          <span style={{ fontSize: ".875rem", color: "var(--text-muted)", whiteSpace: "nowrap", textAlign: "right" }}>
             {it.durationMin} min · ${it.price.toLocaleString("es-AR")}
             {/* Beneficio vecino (ADR-013): visible siempre en la lista de precios,
                 no escondido detrás del paso de reserva — es parte de lo que
@@ -59,7 +59,7 @@ function ServiceList({ services }: { services: Service[] }) {
             {it.residentPrice != null && (
               <>
                 {" · "}
-                <span style={{ color: "var(--ch-petrol)", fontWeight: 600 }}>
+                <span style={{ color: "var(--accent)", fontWeight: 600 }}>
                   Vecino/a ${it.residentPrice.toLocaleString("es-AR")}
                 </span>
               </>
@@ -105,7 +105,7 @@ export default function ServicesAccordion({ groups }: { groups: Group[] }) {
         return (
           <div
             key={g.id}
-            style={{ borderBottom: "1px solid rgba(199,180,156,.4)" }}
+            style={{ borderBottom: "1px solid var(--line)" }}
           >
             <button
               type="button"
@@ -124,19 +124,19 @@ export default function ServicesAccordion({ groups }: { groups: Group[] }) {
                 gap: 12,
                 padding: "16px 0",
                 textAlign: "left",
-                color: "var(--ch-ink)",
+                color: "var(--text-strong)",
               }}
             >
               <span style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                 {g.name}
-                <span style={{ fontSize: ".8rem", fontFamily: "var(--font-body)", fontWeight: 400, color: "var(--ch-mocha)" }}>
+                <span style={{ fontSize: ".8rem", fontFamily: "var(--font-body)", fontWeight: 400, color: "var(--text-muted)" }}>
                   {g.services.length}
                 </span>
               </span>
               <span
                 aria-hidden
                 style={{
-                  color: "var(--ch-mocha)",
+                  color: "var(--text-muted)",
                   fontSize: "1.4rem",
                   lineHeight: 1,
                   transition: "transform .25s ease",

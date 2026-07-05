@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ReserveButton from "./ReserveButton";
 
-const navLink: React.CSSProperties = { color: "var(--ch-ink)", textDecoration: "none", transition: "color .2s", fontSize: 14 };
+const navLink: React.CSSProperties = { color: "var(--text-strong)", textDecoration: "none", transition: "color .2s", fontSize: 14 };
 
 export default function Header({ hasNews }: { hasNews?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
@@ -21,16 +21,16 @@ export default function Header({ hasNews }: { hasNews?: boolean }) {
         position: "sticky",
         top: 0,
         zIndex: 40,
-        background: "rgba(243,238,229,.9)",
+        background: "color-mix(in srgb, var(--surface) 90%, transparent)",
         backdropFilter: "blur(8px)",
-        borderBottom: `1px solid ${scrolled ? "var(--ch-hairline)" : "transparent"}`,
+        borderBottom: `1px solid ${scrolled ? "var(--line)" : "transparent"}`,
         transition: "border-color .3s",
       }}
     >
       <div style={{ maxWidth: 1152, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Link href="/#top" aria-label="CH Estética — inicio" style={{ display: "flex", alignItems: "baseline", gap: 8, textDecoration: "none" }}>
-          <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--ch-teal-logo)", lineHeight: 1 }}>CH</span>
-          <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--ch-mocha)" }}>Estética</span>
+          <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)", lineHeight: 1 }}>CH</span>
+          <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--text-muted)" }}>Estética</span>
         </Link>
         <nav style={{ display: "flex", alignItems: "center", gap: 24 }} aria-label="Principal">
           <Link href="/#novedades" style={{ ...navLink, position: "relative" }} className="hidden sm:inline">
@@ -45,7 +45,7 @@ export default function Header({ hasNews }: { hasNews?: boolean }) {
                   width: 6,
                   height: 6,
                   borderRadius: 9999,
-                  background: "var(--ch-teal-logo)",
+                  background: "var(--accent)",
                   animation: "ch-pulse 2s ease-in-out infinite",
                 }}
               />
