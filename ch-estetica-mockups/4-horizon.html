@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CH Estética — Dashboard · Horizon</title>
+<style>
+  :root{
+    /* Neutros — avena / greige cálido */
+    --canvas:#F3F1EC;
+    --raised:#FBFAF7;
+    --sunken:#E9E6DE;
+    --inverted:#23241E;
+
+    /* Texto */
+    --text-strong:#23241E;
+    --text-body:#45463E;
+    --text-muted:#767567;
+    --text-faint:#A2A192;
+
+    /* Líneas */
+    --line:#E4E1D8;
+    --line-strong:#CFCBBE;
+
+    /* Acento — musgo / oliva apagado (por tenant → --accent) */
+    --accent:#6B7248;
+    --accent-soft:#EAEDDD;
+
+    /* Estados */
+    --ok:#5B7A4E;
+    --ok-soft:#E7EFE1;
+    --warn:#9A7A2E;
+    --warn-soft:#F4ECD7;
+
+    /* Elevación — una sola escala tenue */
+    --shadow-card:0 1px 2px rgba(35,36,30,.03), 0 6px 20px rgba(35,36,30,.05);
+    --shadow-pop:0 2px 4px rgba(35,36,30,.04), 0 10px 30px rgba(35,36,30,.07);
+
+    --radius-sm:10px;
+    --radius-md:14px;
+    --radius-lg:16px;
+
+    --font:system-ui,"Helvetica Neue",Arial,sans-serif;
+    --font-serif:"Iowan Old Style",Georgia,"Times New Roman",serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--canvas);
+    color:var(--text-body);
+    font-family:var(--font);
+    font-size:15px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns:264px 1fr;
+    min-height:100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    background:var(--raised);
+    border-right:1px solid var(--line);
+    padding:28px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:28px;
+  }
+  .brand{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    padding:4px 8px 0;
+  }
+  .brand-name{
+    font-size:19px;
+    font-weight:600;
+    letter-spacing:-.01em;
+    color:var(--text-strong);
+  }
+  .brand-sub{
+    font-size:12.5px;
+    color:var(--text-muted);
+  }
+
+  .nav{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:11px 12px;
+    border-radius:12px;
+    color:var(--text-muted);
+    text-decoration:none;
+    font-size:14.5px;
+    font-weight:450;
+    transition:background .15s ease, color .15s ease;
+  }
+  .nav-item svg{
+    width:19px;height:19px;
+    flex:none;
+    stroke:currentColor;
+    stroke-width:1.6;
+    fill:none;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    opacity:.9;
+  }
+  .nav-item:hover{
+    background:var(--sunken);
+    color:var(--text-body);
+  }
+  .nav-item.active{
+    background:var(--accent-soft);
+    color:var(--accent);
+    font-weight:550;
+  }
+  .nav-item.active svg{opacity:1;}
+
+  .nav-group-gap{height:12px;}
+
+  .sidebar-foot{
+    margin-top:auto;
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+  }
+  .user{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px;
+    border-radius:12px;
+    background:var(--canvas);
+  }
+  .avatar{
+    width:38px;height:38px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:15px;
+    flex:none;
+  }
+  .user-meta{display:flex;flex-direction:column;line-height:1.3;min-width:0;}
+  .user-name{font-size:14px;font-weight:550;color:var(--text-strong);}
+  .user-role{font-size:12px;color:var(--text-muted);}
+  .user-links{display:flex;flex-direction:column;gap:6px;padding:0 4px;}
+  .user-links a{
+    font-size:12.5px;
+    color:var(--text-muted);
+    text-decoration:none;
+  }
+  .user-links a:hover{color:var(--accent);}
+
+  /* Leyenda tenant */
+  .tenant{
+    border-top:1px solid var(--line);
+    padding-top:16px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .tenant-title{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--text-faint);
+    font-weight:600;
+  }
+  .swatches{display:flex;flex-direction:column;gap:7px;}
+  .swatch{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--text-muted);}
+  .dot{width:12px;height:12px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.06);}
+  .swatch code{font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;font-size:11.5px;color:var(--text-faint);}
+  .tenant-caption{font-size:11px;color:var(--text-faint);line-height:1.45;}
+  .tenant-caption code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0;}
+  .topbar{
+    height:64px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 40px;
+    background:var(--raised);
+  }
+  .topbar-brand{font-size:14px;font-weight:550;color:var(--text-body);}
+  .topbar-right{font-size:13.5px;color:var(--text-muted);}
+
+  .page{
+    padding:40px;
+    max-width:1200px;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:32px;
+  }
+
+  .page-head{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:24px;
+  }
+  h1{
+    margin:0;
+    font-family:var(--font-serif);
+    font-size:34px;
+    font-weight:600;
+    letter-spacing:-.015em;
+    color:var(--text-strong);
+    line-height:1.1;
+  }
+  .page-sub{margin-top:8px;font-size:15px;color:var(--text-muted);}
+  .btn-primary{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:12px;
+    padding:12px 20px;
+    font-size:14.5px;
+    font-weight:550;
+    font-family:inherit;
+    cursor:pointer;
+    box-shadow:var(--shadow-card);
+    transition:transform .12s ease, filter .15s ease;
+    white-space:nowrap;
+  }
+  .btn-primary:hover{filter:brightness(1.06);}
+  .btn-primary:active{transform:translateY(1px);}
+
+  /* ---------- KPIs ---------- */
+  .kpis{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:20px;
+  }
+  .kpi{
+    background:var(--raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius-lg);
+    padding:28px;
+    box-shadow:var(--shadow-card);
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .kpi-label{
+    font-size:12.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--text-muted);
+    font-weight:600;
+  }
+  .kpi-value{
+    font-size:40px;
+    font-weight:600;
+    letter-spacing:-.02em;
+    color:var(--text-strong);
+    line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .kpi-sub{font-size:13px;color:var(--text-muted);min-height:1.4em;}
+
+  /* ---------- Banner ---------- */
+  .banner{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    background:var(--warn-soft);
+    border:1px solid #E7D9B4;
+    border-radius:var(--radius-md);
+    padding:18px 24px;
+    color:#6E5A24;
+    font-size:14.5px;
+  }
+  .banner svg{width:20px;height:20px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none;}
+  .banner b{font-weight:600;color:#5A491E;}
+
+  /* ---------- Agenda ---------- */
+  .agenda{
+    background:var(--raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-card);
+    overflow:hidden;
+  }
+  .agenda-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:24px 28px 20px;
+  }
+  .agenda-head h2{
+    margin:0;
+    font-size:18px;
+    font-weight:600;
+    letter-spacing:-.01em;
+    color:var(--text-strong);
+  }
+  .link{
+    font-size:13.5px;
+    color:var(--accent);
+    text-decoration:none;
+    font-weight:550;
+  }
+  .link:hover{text-decoration:underline;}
+
+  .agenda-row{
+    display:grid;
+    grid-template-columns:96px 1fr auto auto;
+    align-items:center;
+    gap:20px;
+    padding:20px 28px;
+    border-top:1px solid var(--line);
+    transition:background .15s ease;
+  }
+  .agenda-row:hover{background:var(--canvas);}
+  .time-chip{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--accent-soft);
+    color:var(--accent);
+    border-radius:9px;
+    padding:7px 10px;
+    font-size:13.5px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:.01em;
+  }
+  .appt{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .appt-name{font-size:15px;font-weight:550;color:var(--text-strong);}
+  .appt-svc{font-size:13.5px;color:var(--text-muted);}
+  .status{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    font-size:12.5px;
+    font-weight:600;
+    padding:6px 12px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  .status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;}
+  .status.ok{background:var(--ok-soft);color:var(--ok);}
+  .status.warn{background:var(--warn-soft);color:var(--warn);}
+  .staff{font-size:13.5px;color:var(--text-muted);text-align:right;min-width:78px;}
+
+  @media (max-width:1100px){
+    .kpis{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-name">CH Estética</span>
+      <span class="brand-sub">La Alameda · Canning</span>
+    </div>
+
+    <nav class="nav">
+      <a class="nav-item active" href="#">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+        Agenda
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
+        Clientes
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Lista de espera
+      </a>
+
+      <div class="nav-group-gap"></div>
+
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 01-8 0"/></svg>
+        Pedidos
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        Catálogo
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 17l-5.3 2.8 1-5.8L3.5 9.2l5.9-.9z"/></svg>
+        Reseñas
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+        Recordatorios
+      </a>
+
+      <div class="nav-group-gap"></div>
+
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+        Reportes
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        Auditoría
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 11l2 2 3-3.5"/></svg>
+        Usuarios
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        Localización
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user">
+        <div class="avatar">D</div>
+        <div class="user-meta">
+          <span class="user-name">Dev Admin</span>
+          <span class="user-role">Dueña</span>
+        </div>
+      </div>
+      <div class="user-links">
+        <a href="#">Ver sitio público →</a>
+        <a href="#">Cerrar sesión</a>
+      </div>
+
+      <div class="tenant">
+        <div class="tenant-title">Marca por tenant</div>
+        <div class="swatches">
+          <div class="swatch"><span class="dot" style="background:#2c6e77"></span>Salón <code>#2c6e77</code></div>
+          <div class="swatch"><span class="dot" style="background:#7b2d3b"></span>Magra <code>#7b2d3b</code></div>
+          <div class="swatch"><span class="dot" style="background:#6B7248"></span>Genérico <code>#6B7248</code></div>
+        </div>
+        <div class="tenant-caption">El acento se define por tenant · UI = <code>--accent</code></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <span class="topbar-brand">CH Estética</span>
+      <span class="topbar-right">Panel de administración</span>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <div class="page-sub">Resumen del día · viernes 4 de julio</div>
+        </div>
+        <button class="btn-primary">+ Nuevo turno</button>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <span class="kpi-label">Turnos hoy</span>
+          <span class="kpi-value">3</span>
+          <span class="kpi-sub">2 confirmados · 1 pendiente</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Pendientes</span>
+          <span class="kpi-value">2</span>
+          <span class="kpi-sub">a confirmar pago</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Ingresos 7 días</span>
+          <span class="kpi-value">$184.500</span>
+          <span class="kpi-sub">últimos 7 días</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Clientes</span>
+          <span class="kpi-value">213</span>
+          <span class="kpi-sub"></span>
+        </div>
+      </div>
+
+      <div class="banner">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+        <span>Hoy no está: <b>Martina</b> (franco)</span>
+      </div>
+
+      <section class="agenda">
+        <div class="agenda-head">
+          <h2>Agenda de hoy</h2>
+          <a class="link" href="#">Ver agenda completa →</a>
+        </div>
+
+        <div class="agenda-row">
+          <span class="time-chip">10:00</span>
+          <div class="appt">
+            <span class="appt-name">María González</span>
+            <span class="appt-svc">Corte y brushing</span>
+          </div>
+          <span class="status ok">Confirmado</span>
+          <span class="staff">Sofía</span>
+        </div>
+
+        <div class="agenda-row">
+          <span class="time-chip">11:30</span>
+          <div class="appt">
+            <span class="appt-name">Lucía Fernández</span>
+            <span class="appt-svc">Color + nutrición</span>
+          </div>
+          <span class="status ok">Confirmado</span>
+          <span class="staff">Valentina</span>
+        </div>
+
+        <div class="agenda-row">
+          <span class="time-chip">16:00</span>
+          <div class="appt">
+            <span class="appt-name">Carla Ruiz</span>
+            <span class="appt-svc">Manicura semipermanente</span>
+          </div>
+          <span class="status warn">Pendiente</span>
+          <span class="staff">Sofía</span>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

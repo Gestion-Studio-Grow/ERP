@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CH Estética — 5 direcciones visuales v2</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--ink:#17181c;--muted:#5b606b;--faint:#8b909b;--line:#e4e6ea;--paper:#f4f5f7;--card:#fff}
+  body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  header{max-width:1180px;margin:0 auto;padding:48px 40px 8px}
+  .kick{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:700}
+  h1{font-size:30px;letter-spacing:-.02em;margin:10px 0 10px}
+  .lead{color:var(--muted);font-size:15.5px;max-width:820px}
+  .lead b{color:var(--ink)}
+  main{max-width:1180px;margin:0 auto;padding:24px 40px 70px;display:flex;flex-direction:column;gap:34px}
+  .opt{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 4px 18px rgba(20,25,35,.05)}
+  .head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:20px 26px 16px}
+  .num{font-variant-numeric:tabular-nums;font-weight:800;font-size:15px;color:var(--faint);width:26px}
+  .swatch{width:13px;height:13px;border-radius:4px;display:inline-block;vertical-align:middle;margin-right:2px}
+  h2{font-size:21px;letter-spacing:-.01em}
+  .one{color:var(--muted);font-size:14px;flex:1;min-width:220px}
+  .why{padding:0 26px 14px;color:#3b4049;font-size:14.5px;max-width:900px}
+  .why b{color:var(--ink)}
+  .meta{padding:0 26px 18px;display:flex;gap:10px 26px;flex-wrap:wrap;color:#6b7280;font-size:12.5px}
+  .meta span b{color:#374151}
+  figure{margin:0;border-top:1px solid var(--line);background:#eceef1}
+  img{display:block;width:100%;height:auto}
+  .links{padding:14px 26px;font-size:13.5px}
+  .links a{color:var(--ink);text-decoration:none;font-weight:600;border-bottom:2px solid var(--line);padding-bottom:1px}
+  .note{max-width:1180px;margin:0 auto;padding:0 40px 60px;color:var(--muted);font-size:13.5px}
+  .note b{color:var(--ink)}
+</style>
+</head>
+<body>
+<header>
+  <div class="kick">CH Estética · ERP · Exploración de diseño v2</div>
+  <h1>5 direcciones visuales para el admin</h1>
+  <p class="lead">Cinco sistemas de diseño distintos, cada uno con una <b>personalidad y un posicionamiento propios</b>, aplicados al mismo dashboard para comparar en igualdad. Todos siguen fundamentos rigurosos (escala 4/8, jerarquía tipográfica, contraste AA/AAA, elevación coherente) y evitan los clichés del diseño autogenerado. El <b>acento es por tenant</b> (`--accent`): cada mockup lo muestra con su color característico y una leyenda de cómo el salón (petróleo), Magra (oxblood) u otro tenant lo intercambian sobre la misma base. Elegí una (o una mezcla) y la implementamos.</p>
+</header>
+<main>
+
+  <section class="opt">
+    <div class="head"><span class="num">01</span><span class="swatch" style="background:#cc3a1b"></span><h2>Ledger</h2><span class="one">Instrumento de precisión · técnico-suizo · dato primero</span></div>
+    <div class="why"><b>Por qué:</b> posiciona el ERP como una herramienta seria y exacta, donde la legibilidad del dato manda. Sidebar como índice numerado 01–12, numerales monoespaciados tabulares, agenda como tabla real, elevación 100% por hairlines (sin sombras). Para quien valora rigor y densidad ordenada.</div>
+    <div class="meta"><span><b>Neutros:</b> papel frío</span><span><b>Acento:</b> bermellón</span><span><b>Tipografía:</b> mono tabular + grotesca</span><span><b>Personalidad:</b> preciso, técnico</span></div>
+    <figure><img src="1-ledger.png" alt="Dirección Ledger"></figure>
+    <div class="links"><a href="1-ledger.html">Abrir versión interactiva →</a></div>
+  </section>
+
+  <section class="opt">
+    <div class="head"><span class="num">02</span><span class="swatch" style="background:#8a3341"></span><h2>Atelier</h2><span class="one">Editorial de autor · serif con carácter · boutique</span></div>
+    <div class="why"><b>Por qué:</b> sensibilidad de revista/print. La personalidad sale de la tipografía (serif de display, versalitas) y la composición (KPIs como stat-block con hairlines verticales), no del color. Cálido y humano, con restraint cromático. Para una marca que quiere sentirse crafted y premium sin gritar.</div>
+    <div class="meta"><span><b>Neutros:</b> papel cálido luminoso</span><span><b>Acento:</b> clarete</span><span><b>Tipografía:</b> serif display + grotesca</span><span><b>Personalidad:</b> editorial, boutique</span></div>
+    <figure><img src="2-atelier.png" alt="Dirección Atelier"></figure>
+    <div class="links"><a href="2-atelier.html">Abrir versión interactiva →</a></div>
+  </section>
+
+  <section class="opt">
+    <div class="head"><span class="num">03</span><span class="swatch" style="background:#e0a83e"></span><h2>Nocturne</h2><span class="one">Oscuro cálido premium · sereno, no neón</span></div>
+    <div class="why"><b>Por qué:</b> un workspace nocturno calmo y de alta gama. Oscuro con subtono tierra (no el azul frío del dark-SaaS), texto hueso y un ámbar desaturado como único acento. Elevación por bordes sutiles, sin glows. Para posicionamiento premium y menos fatiga visual en jornadas largas.</div>
+    <div class="meta"><span><b>Neutros:</b> negro cálido</span><span><b>Acento:</b> ámbar desaturado</span><span><b>Tipografía:</b> grotesca cálida</span><span><b>Personalidad:</b> premium, calmo</span></div>
+    <figure><img src="3-nocturne.png" alt="Dirección Nocturne"></figure>
+    <div class="links"><a href="3-nocturne.html">Abrir versión interactiva →</a></div>
+  </section>
+
+  <section class="opt">
+    <div class="head"><span class="num">04</span><span class="swatch" style="background:#6b7248"></span><h2>Horizon</h2><span class="one">Aireado y sereno · paleta avena/greige no obvia</span></div>
+    <div class="why"><b>Por qué:</b> claridad y calma con mucho aire y escala grande. Paleta greige/avena cálida con acento musgo — una elección adulta que esquiva tanto el gris-azulado genérico como el pastel. Encaja con el mundo bienestar/estética sin caer en el cliché. Para quien prioriza respirabilidad y cercanía.</div>
+    <div class="meta"><span><b>Neutros:</b> avena / greige</span><span><b>Acento:</b> musgo</span><span><b>Tipografía:</b> humanista, escala grande</span><span><b>Personalidad:</b> sereno, cálido</span></div>
+    <figure><img src="4-horizon.png" alt="Dirección Horizon"></figure>
+    <div class="links"><a href="4-horizon.html">Abrir versión interactiva →</a></div>
+  </section>
+
+  <section class="opt">
+    <div class="head"><span class="num">05</span><span class="swatch" style="background:#f5c518"></span><h2>Grid</h2><span class="one">Suizo/internacional · bold, alto contraste, estructura</span></div>
+    <div class="why"><b>Por qué:</b> diseño asertivo y memorable. Grotesca en negrita, numerales enormes, reglas tinta gruesas y un amarillo señal usado con moderación (bloques y marcadores, nunca como texto). Plano, confiado, con fuerte identidad. Para una marca que quiere destacarse y comunicar solidez.</div>
+    <div class="meta"><span><b>Neutros:</b> blanco / tinta</span><span><b>Acento:</b> amarillo señal</span><span><b>Tipografía:</b> grotesca bold</span><span><b>Personalidad:</b> asertivo, estructurado</span></div>
+    <figure><img src="5-grid.png" alt="Dirección Grid"></figure>
+    <div class="links"><a href="5-grid.html">Abrir versión interactiva →</a></div>
+  </section>
+
+</main>
+<p class="note"><b>Nota:</b> mockups exploratorios (no es código de producción). Cuando elijas una dirección, se implementa sobre el design system existente (tokens semánticos + acento por tenant ya cableado). Nada de esto está pusheado a la app ni toca la base de datos.</p>
+</body>
+</html>

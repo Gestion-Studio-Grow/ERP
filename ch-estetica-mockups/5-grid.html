@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CH Estética — Panel (GRID)</title>
+<style>
+  :root{
+    /* ---- Multi-tenant accent (this direction = Signal Yellow) ---- */
+    --accent:#F5C518;
+    --accent-soft:#FEF6D6;
+    --on-accent:#111110;
+
+    /* ---- Neutrals ---- */
+    --canvas:#FFFFFF;
+    --raised:#FFFFFF;
+    --sunken:#F2F2F0;
+    --ink:#111110;
+
+    /* ---- Text ---- */
+    --t-strong:#111110;
+    --t-body:#33332F;
+    --t-muted:#6A6A64;
+    --t-faint:#9A9A92;
+
+    /* ---- Lines ---- */
+    --line:#E4E4E0;
+    --line-ink:#111110;
+
+    /* ---- Status ---- */
+    --success:#2E7D46;
+
+    /* ---- Type scale ---- */
+    --fs-micro:11px;
+    --fs-12:12px;
+    --fs-13:13px;
+    --fs-14:14px;
+    --fs-16:16px;
+    --fs-20:20px;
+    --fs-28:28px;
+    --fs-kpi:52px;
+
+    --sans: system-ui, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html,body{ height:100%; }
+  body{
+    font-family:var(--sans);
+    background:var(--canvas);
+    color:var(--t-body);
+    font-size:var(--fs-14);
+    line-height:1.4;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns:256px 1fr;
+    min-height:100vh;
+  }
+
+  /* ================= SIDEBAR ================= */
+  .sidebar{
+    background:var(--raised);
+    border-right:2px solid var(--line-ink);
+    display:flex;
+    flex-direction:column;
+  }
+
+  .brand{
+    padding:28px 24px 24px;
+    border-bottom:2px solid var(--line-ink);
+  }
+  .brand__mark{
+    font-size:22px;
+    font-weight:800;
+    letter-spacing:-0.03em;
+    color:var(--t-strong);
+    text-transform:uppercase;
+    line-height:1;
+  }
+  .brand__mark .dot{
+    display:inline-block;
+    width:14px; height:14px;
+    background:var(--accent);
+    margin-left:2px;
+    vertical-align:baseline;
+  }
+  .brand__sub{
+    margin-top:10px;
+    font-size:var(--fs-micro);
+    font-weight:700;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--t-muted);
+  }
+
+  .nav{
+    padding:20px 16px 8px;
+    flex:1;
+  }
+  .nav__label{
+    font-size:var(--fs-micro);
+    font-weight:800;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--t-faint);
+    padding:0 8px 12px;
+  }
+  .nav__item{
+    display:block;
+    position:relative;
+    padding:9px 8px 9px 12px;
+    font-size:var(--fs-13);
+    font-weight:700;
+    letter-spacing:-0.005em;
+    color:var(--t-body);
+    text-decoration:none;
+    border-radius:0;
+  }
+  .nav__item:hover{
+    background:var(--sunken);
+    color:var(--t-strong);
+  }
+  .nav__item--active{
+    color:var(--t-strong);
+    font-weight:800;
+  }
+  /* active = solid yellow block behind label + thick ink left rule */
+  .nav__item--active::before{
+    content:"";
+    position:absolute;
+    left:0; top:3px; bottom:3px;
+    width:3px;
+    background:var(--line-ink);
+  }
+  .nav__item--active .nav__hl{
+    background:var(--accent);
+    padding:2px 6px;
+    margin:-2px -6px;
+    box-decoration-break:clone;
+    -webkit-box-decoration-break:clone;
+  }
+
+  /* ---- Sidebar footer: user + tenant legend ---- */
+  .side-foot{
+    border-top:2px solid var(--line-ink);
+    padding:18px 20px 20px;
+  }
+  .user{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .user__avatar{
+    width:38px; height:38px;
+    background:var(--ink);
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800;
+    font-size:16px;
+    letter-spacing:-0.02em;
+  }
+  .user__name{
+    font-size:var(--fs-13);
+    font-weight:800;
+    color:var(--t-strong);
+    line-height:1.2;
+  }
+  .user__role{
+    font-size:var(--fs-micro);
+    font-weight:700;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--t-muted);
+    margin-top:2px;
+  }
+  .user__links{
+    margin-top:14px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .user__links a{
+    font-size:var(--fs-12);
+    font-weight:700;
+    color:var(--t-body);
+    text-decoration:none;
+  }
+  .user__links a:hover{ color:var(--t-strong); text-decoration:underline; text-underline-offset:3px; }
+
+  .tenant{
+    margin-top:20px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+  }
+  .tenant__title{
+    font-size:var(--fs-micro);
+    font-weight:800;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--t-faint);
+    margin-bottom:12px;
+  }
+  .tenant__row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .tenant__sw{
+    width:12px; height:12px;
+    border-radius:50%;
+    flex:none;
+    border:1px solid rgba(0,0,0,.12);
+  }
+  .tenant__name{
+    font-size:var(--fs-12);
+    font-weight:700;
+    color:var(--t-body);
+  }
+  .tenant__hex{
+    font-size:var(--fs-micro);
+    font-weight:700;
+    color:var(--t-faint);
+    margin-left:auto;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:0.02em;
+  }
+  .tenant__cap{
+    margin-top:10px;
+    font-size:var(--fs-micro);
+    line-height:1.5;
+    color:var(--t-muted);
+  }
+  .tenant__cap code{
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    font-size:10px;
+    background:var(--sunken);
+    padding:1px 4px;
+    color:var(--t-body);
+  }
+
+  /* ================= MAIN ================= */
+  .main{
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+
+  .topbar{
+    height:60px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 40px;
+  }
+  .topbar__brand{
+    font-size:var(--fs-12);
+    font-weight:800;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--t-strong);
+  }
+  .topbar__ctx{
+    font-size:var(--fs-12);
+    font-weight:700;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--t-muted);
+  }
+
+  .page{
+    padding:40px 40px 56px;
+    max-width:1160px;
+    width:100%;
+  }
+
+  /* ---- Page head ---- */
+  .page-head{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    padding-bottom:24px;
+    border-bottom:2px solid var(--line-ink);
+    margin-bottom:0;
+  }
+  .page-head__title{
+    font-size:var(--fs-28);
+    font-weight:800;
+    letter-spacing:-0.03em;
+    color:var(--t-strong);
+    line-height:1;
+    text-transform:uppercase;
+  }
+  .page-head__sub{
+    margin-top:12px;
+    font-size:var(--fs-13);
+    font-weight:600;
+    color:var(--t-muted);
+  }
+  .btn-primary{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:var(--ink);
+    color:#fff;
+    border:none;
+    padding:13px 20px;
+    font-family:inherit;
+    font-size:var(--fs-13);
+    font-weight:800;
+    letter-spacing:0.02em;
+    cursor:pointer;
+    text-transform:uppercase;
+  }
+  .btn-primary:hover{ background:#000; }
+  .btn-primary .plus{
+    color:var(--accent);
+    font-size:16px;
+    line-height:1;
+    font-weight:800;
+  }
+
+  /* ---- KPIs ---- */
+  .kpis{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    border-bottom:2px solid var(--line-ink);
+  }
+  .kpi{
+    padding:28px 24px 26px;
+    border-right:1px solid var(--line);
+  }
+  .kpi:first-child{ padding-left:0; }
+  .kpi:last-child{ border-right:none; padding-right:0; }
+  .kpi__label{
+    font-size:var(--fs-micro);
+    font-weight:800;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--t-muted);
+  }
+  .kpi__value{
+    font-size:var(--fs-kpi);
+    font-weight:800;
+    letter-spacing:-0.04em;
+    color:var(--t-strong);
+    line-height:0.95;
+    margin-top:18px;
+    font-variant-numeric:tabular-nums;
+  }
+  .kpi__sub{
+    margin-top:14px;
+    font-size:var(--fs-12);
+    font-weight:600;
+    color:var(--t-muted);
+    line-height:1.4;
+  }
+  .kpi__sub b{
+    color:var(--t-strong);
+    font-weight:800;
+  }
+  /* one KPI carries a yellow marker underline on its label (used with restraint) */
+  .kpi--marked .kpi__label{
+    display:inline-block;
+    background:linear-gradient(var(--accent),var(--accent)) 0 100%/100% 6px no-repeat;
+    padding-bottom:2px;
+  }
+
+  /* ---- Banner (informational, not error) ---- */
+  .banner{
+    margin-top:32px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    background:var(--accent-soft);
+    border-left:4px solid var(--ink);
+    padding:16px 20px;
+  }
+  .banner__tag{
+    font-size:var(--fs-micro);
+    font-weight:800;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--on-accent);
+    background:var(--accent);
+    padding:4px 8px;
+    flex:none;
+  }
+  .banner__text{
+    font-size:var(--fs-13);
+    font-weight:700;
+    color:var(--t-strong);
+  }
+  .banner__text span{
+    font-weight:600;
+    color:var(--t-body);
+  }
+
+  /* ---- Agenda ---- */
+  .agenda{
+    margin-top:40px;
+  }
+  .agenda__head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:0;
+    padding-bottom:14px;
+    border-bottom:2px solid var(--line-ink);
+  }
+  .agenda__title{
+    font-size:var(--fs-16);
+    font-weight:800;
+    letter-spacing:-0.01em;
+    text-transform:uppercase;
+    color:var(--t-strong);
+  }
+  .agenda__link{
+    font-size:var(--fs-12);
+    font-weight:800;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color:var(--t-strong);
+    text-decoration:none;
+  }
+  .agenda__link:hover{
+    background:var(--accent);
+    box-shadow:0 0 0 2px var(--accent);
+  }
+
+  .row{
+    display:grid;
+    grid-template-columns:96px 1fr 148px 120px;
+    align-items:center;
+    padding:20px 0;
+    border-bottom:1px solid var(--line);
+    column-gap:20px;
+  }
+  .row:hover{ background:var(--sunken); }
+  .row__time{
+    font-size:var(--fs-20);
+    font-weight:800;
+    letter-spacing:-0.02em;
+    color:var(--t-strong);
+    font-variant-numeric:tabular-nums;
+  }
+  .row__client{
+    font-size:var(--fs-14);
+    font-weight:800;
+    color:var(--t-strong);
+    line-height:1.2;
+  }
+  .row__service{
+    margin-top:4px;
+    font-size:var(--fs-12);
+    font-weight:600;
+    color:var(--t-muted);
+  }
+  .row__staff{
+    font-size:var(--fs-12);
+    font-weight:700;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--t-body);
+    text-align:right;
+  }
+
+  /* status tags: boxed, ink-bordered */
+  .tag{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    font-size:var(--fs-micro);
+    font-weight:800;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:6px 10px;
+    border:1.5px solid var(--line-ink);
+  }
+  .tag__dot{
+    width:8px; height:8px;
+    flex:none;
+  }
+  .tag--ok .tag__dot{ background:var(--success); }
+  .tag--ok{ color:var(--t-strong); background:#fff; }
+  .tag--pend{ color:var(--on-accent); background:var(--accent-soft); }
+  .tag--pend .tag__dot{ background:var(--accent); border:1px solid var(--ink); }
+
+  .agenda__foot{
+    padding-top:16px;
+    font-size:var(--fs-12);
+    font-weight:600;
+    color:var(--t-faint);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand__mark">CH Estética<span class="dot"></span></div>
+      <div class="brand__sub">La Alameda · Canning</div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav__label">Menú</div>
+      <a class="nav__item nav__item--active" href="#"><span class="nav__hl">Dashboard</span></a>
+      <a class="nav__item" href="#">Agenda</a>
+      <a class="nav__item" href="#">Clientes</a>
+      <a class="nav__item" href="#">Lista de espera</a>
+      <a class="nav__item" href="#">Pedidos</a>
+      <a class="nav__item" href="#">Catálogo</a>
+      <a class="nav__item" href="#">Reseñas</a>
+      <a class="nav__item" href="#">Recordatorios</a>
+      <a class="nav__item" href="#">Reportes</a>
+      <a class="nav__item" href="#">Auditoría</a>
+      <a class="nav__item" href="#">Usuarios</a>
+      <a class="nav__item" href="#">Localización</a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="user">
+        <div class="user__avatar">D</div>
+        <div>
+          <div class="user__name">Dev Admin</div>
+          <div class="user__role">Dueña</div>
+        </div>
+      </div>
+      <div class="user__links">
+        <a href="#">Ver sitio público →</a>
+        <a href="#">Cerrar sesión</a>
+      </div>
+
+      <div class="tenant">
+        <div class="tenant__title">Marca por tenant</div>
+        <div class="tenant__row">
+          <span class="tenant__sw" style="background:#2c6e77"></span>
+          <span class="tenant__name">Salón</span>
+          <span class="tenant__hex">#2c6e77</span>
+        </div>
+        <div class="tenant__row">
+          <span class="tenant__sw" style="background:#7b2d3b"></span>
+          <span class="tenant__name">Magra</span>
+          <span class="tenant__hex">#7b2d3b</span>
+        </div>
+        <div class="tenant__row">
+          <span class="tenant__sw" style="background:#F5C518"></span>
+          <span class="tenant__name">Genérico</span>
+          <span class="tenant__hex">#F5C518</span>
+        </div>
+        <div class="tenant__cap">El acento se define por tenant · UI = <code>--accent</code></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar__brand">CH Estética</div>
+      <div class="topbar__ctx">Panel de administración</div>
+    </header>
+
+    <div class="page">
+      <!-- Page head -->
+      <div class="page-head">
+        <div>
+          <h1 class="page-head__title">Dashboard</h1>
+          <div class="page-head__sub">Resumen del día · viernes 4 de julio</div>
+        </div>
+        <button class="btn-primary"><span class="plus">+</span> Nuevo turno</button>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi kpi--marked">
+          <div class="kpi__label">Turnos hoy</div>
+          <div class="kpi__value">3</div>
+          <div class="kpi__sub"><b>2 confirmados</b> · 1 pendiente</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">Pendientes</div>
+          <div class="kpi__value">2</div>
+          <div class="kpi__sub">a confirmar pago</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">Ingresos 7 días</div>
+          <div class="kpi__value">$184.500</div>
+          <div class="kpi__sub">últimos 7 días</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">Clientes</div>
+          <div class="kpi__value">213</div>
+          <div class="kpi__sub">total activos</div>
+        </div>
+      </div>
+
+      <!-- Banner -->
+      <div class="banner">
+        <span class="banner__tag">Novedad</span>
+        <div class="banner__text">Hoy no está: <span>Martina (franco)</span></div>
+      </div>
+
+      <!-- Agenda -->
+      <section class="agenda">
+        <div class="agenda__head">
+          <h2 class="agenda__title">Agenda de hoy</h2>
+          <a class="agenda__link" href="#">Ver agenda completa →</a>
+        </div>
+
+        <div class="row">
+          <div class="row__time">10:00</div>
+          <div>
+            <div class="row__client">María González</div>
+            <div class="row__service">Corte y brushing</div>
+          </div>
+          <div><span class="tag tag--ok"><span class="tag__dot"></span>Confirmado</span></div>
+          <div class="row__staff">Sofía</div>
+        </div>
+
+        <div class="row">
+          <div class="row__time">11:30</div>
+          <div>
+            <div class="row__client">Lucía Fernández</div>
+            <div class="row__service">Color + nutrición</div>
+          </div>
+          <div><span class="tag tag--ok"><span class="tag__dot"></span>Confirmado</span></div>
+          <div class="row__staff">Valentina</div>
+        </div>
+
+        <div class="row">
+          <div class="row__time">16:00</div>
+          <div>
+            <div class="row__client">Carla Ruiz</div>
+            <div class="row__service">Manicura semipermanente</div>
+          </div>
+          <div><span class="tag tag--pend"><span class="tag__dot"></span>Pendiente</span></div>
+          <div class="row__staff">Sofía</div>
+        </div>
+
+        <div class="agenda__foot">3 turnos · 2 profesionales en sala</div>
+      </section>
+    </div>
+  </div>
+</div>
+</body>
+</html>
