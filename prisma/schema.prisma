@@ -181,6 +181,8 @@ model Tenant {
   orderItems         OrderItem[]
   cashSessions       CashSession[]
   cashMovements      CashMovement[]
+  stockPurchases     StockPurchase[]
+  stockPurchaseItems StockPurchaseItem[]
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -418,6 +420,7 @@ model Product {
   // Retail lo siembra en true. (POS/stock — 2026-07-05)
   trackStock   Boolean          @default(false)
   orderItems   OrderItem[]
+  purchaseItems StockPurchaseItem[] // entradas de stock (compras/reposiciones) que lo repusieron
 
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -978,4 +981,76 @@ model CashMovement {
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])
+}
+
+// --- Capability COMPRAS / REPOSICIÓN de stock del POS ---
+// Contracara de la venta: la venta (order-core.ts) DESCUENTA stock; la
+// compra/reposición lo REPONE. Un documento StockPurchase agrupa las líneas de una
+// entrada de mercadería (compra a proveedor o reposición interna) y, al registrarse,
+// INCREMENTA de forma atómica el `stock` de cada producto (ver
+// src/lib/stock/purchase-core.ts). No hay guarda anti-oversell: reponer nunca falla
+// por falta de stock (sumar siempre puede), a diferencia de la venta.
+//
+// Alcance mínimo (gobierno calidad-vs-costo): sin maestro de Proveedores (el
+// proveedor es un snapshot de texto opcional) y sin estados/aprobación — la entrada
+// se aplica en el acto y es un histórico inmutable. Si más adelante hace falta un
+// maestro de proveedores o remitos pendientes de recepción, se agrega en su propio
+// ADR sin tocar este núcleo.
+
+// Tipo de entrada de stock. COMPRA = ingreso con costo, típicamente contra un
+// proveedor (alimenta análisis de margen a futuro). REPOSICION = reposición/ajuste
+// de existencias hacia arriba sin costo obligatorio (recuento, devolución, traspaso).
+enum StockPurchaseKind {
+  COMPRA
+  REPOSICION
+}
+
+// Documento de entrada de stock (compra/reposición). El `code` es un correlativo
+// legible por tenant (igual criterio que Order). `totalCost` es un snapshot del
+// costo total al momento de registrar (ADR-006/-009): el costo de cada línea se
+// congela aunque después cambie el precio de compra del producto.
+model StockPurchase {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  code     Int
+  kind     StockPurchaseKind @default(COMPRA)
+  supplier String? // snapshot del proveedor (texto libre; no hay maestro de proveedores)
+  notes    String?
+
+  totalCost Float @default(0)
+
+  createdBy String // actor "user:<id>"
+  items     StockPurchaseItem[]
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, code])
+  @@index([tenantId, createdAt])
+}
+
+// Línea de una entrada de stock: qué producto y cuánto ingresó. Snapshotea
+// nombre/unidad/costo como OrderItem congela lo vendido (ADR-009 §4), así el remito
+// conserva lo efectivamente ingresado aunque el producto cambie o se borre después.
+// `productId` es una referencia débil (SetNull): borrar el producto no rompe el
+// histórico de compras.
+model StockPurchaseItem {
+  id         String @id @default(cuid())
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  purchase   StockPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  purchaseId String
+
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productId String?
+
+  // Snapshot del producto al momento de la entrada.
+  name      String
+  unit      String @default("unidades")
+  quantity  Float // cantidad que ingresó al stock (en `unit`)
+  unitCost  Float  @default(0) // costo unitario de compra (0 en reposiciones sin costo)
+  lineTotal Float  @default(0) // quantity × unitCost, redondeado
+
+  @@index([tenantId])
+  @@index([purchaseId])
 }
