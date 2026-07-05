@@ -14,44 +14,30 @@ verdad), los roles autónomos (`/sesion-movil`, `docs/METODO-ROLES.md`) y la col
 
 ---
 
-## Modo de operación: PARALELO por git worktrees (2026-07-05, vigente)
+## Modo de operación: SESIÓN ÚNICA en serie (2026-07-05, vigente)
 
-**Diagnóstico que lo motivó:** las sesiones paralelas se pisaban porque el repo git
-(`estetica-erp`) es un **subfolder** del workspace, no la raíz — todas las sesiones abrían sobre el
-**mismo working tree** y se sobrescribían los archivos sin commitear. **No era un problema de
-aprobación** (las sesiones nuevas corren sobre el workspace ya confiado): era falta de aislamiento.
+**Regla vigente:** el owner **no quiere abrir sesiones nuevas ni frentes paralelos**. Se trabaja
+**todo en una sola sesión reutilizada**, con los frentes **ejecutados en serie** (uno después del
+otro). Esto **no rompe** ADR-008 ("un tema por thread"): la atomicidad baja del *thread* al
+*commit* — **un tema por commit**, secuencial, cada uno con su `tsc`+build (+`npm test`) en verde y
+su push.
 
-**Solución — un git worktree por frente.** Cada frente trabaja en **su propio directorio + su
-propia rama**, aislado; el merge a `main` lo hace el coordinador de forma ordenada. Así el paralelo
-es real y no hay colisión de working tree.
-
-### Worktrees activos (rutas absolutas)
-| Frente | Rama | Ruta (worktree) |
-|---|---|---|
-| **Coordinador / merge-master** | `main` | `C:/Users/mlloveras2/Documents/Claude/estetica-erp` |
-| Frente Tests | `frente/tests` | `C:/Users/mlloveras2/Documents/Claude/estetica-erp-tests` |
-| Frente Blueprints | `frente/blueprints` | `C:/Users/mlloveras2/Documents/Claude/estetica-erp-blueprints` |
-
-*(worktrees viejos `estetica-erp-uxui` y `estetica-erp-waitlist` = features ya mergeadas, no se usan.)*
-
-### Reglas del modo paralelo
-- **Cada frente en SU worktree/rama.** Nadie edita `main` salvo el coordinador. Un tema por commit,
-  `tsc`+build (+`npm test`) en verde antes de cada commit, en su propia rama.
-- **⚠️ `node_modules` no viaja al worktree** (es gitignore; `git worktree add` solo saca lo
-  versionado). Cada worktree necesita **`npm install`** (corre `prisma generate`) una vez antes de
-  poder correr tsc/build/test. No copiar `node_modules` a mano — instalar limpio.
-- **Merge-master (coordinador, en `main`):** cuando un frente termina su rama y la pushea, el
-  coordinador la integra a `main` (merge o rebase) **de a una, en orden**, resolviendo conflictos,
-  y pushea. Los frentes **no** mergean a main solos.
-- **Handoff vivo:** el coordinador mantiene `## Sprint activo` + `docs/ESTADO-FRENTES.md` al día
-  para "status"/"seguimos" desde el móvil.
+**Cómo se opera:**
+- **En serie, por palanca:** se toma el frente de mayor palanca del backlog (`docs/ESTADO-FRENTES.md`),
+  se lleva hasta commit+push, y recién ahí se arranca el siguiente. Nunca dos a la vez.
+- **Un tema por commit**, atómico, con el porqué; verde antes de cada uno; push al terminarlo.
+- **Handoff vivo:** al cerrar cada tema se actualiza `## Sprint activo` (tildado + próximo bocado +
+  timestamp), así "status"/"seguimos" desde el móvil retoman exacto aunque se corte la sesión.
 - **Gates intactos:** deploy a prod/Netlify y `prisma migrate deploy` siguen siendo acción humana
   del owner; cualquier migración se deja como **carpeta nueva SIN aplicar**, marcada "pendiente
   acción humana" (`docs/METODOLOGIA-REPORTE-AVANCE.md`).
 
-> **Fallback — sesión única en serie:** si por algún motivo no se usan worktrees, se vuelve a
-> trabajar **todo en una sola sesión reutilizada, en serie** (un tema por commit), que era el modo
-> interino mientras el working tree era compartido. Con worktrees ese fallback ya no hace falta.
+> **Nota (worktrees, descartado):** se evaluó y preparó paralelismo real por **git worktrees** (el
+> repo es un subfolder del workspace → las sesiones paralelas compartían el mismo working tree y se
+> pisaban). El terreno se creó y se **revirtió limpio** a pedido del owner (no quiere sesiones
+> nuevas): worktrees removidos, ramas `frente/*` borradas, `main` intacto. Si algún día se retoma el
+> paralelo, la vía correcta es un worktree por frente + merge-master en `main` — no abrir varias
+> sesiones sobre el mismo subfolder.
 
 ---
 
@@ -117,43 +103,36 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > **Este bloque es la fuente de verdad del sprint en curso.** "status" lo lee; "seguimos"
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
-**Sprint:** Paralelo por worktrees — coordinación (frente D)
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (worktrees preparados; rol coordinador)
-**Estado del bloque:** 🟢 **modo PARALELO por worktrees** (ver "Modo de operación"). Terreno listo:
-2 worktrees aislados creados (`frente/tests`, `frente/blueprints`), ambos desde main @ `1fa7e6a`.
-Esta sesión = **coordinador / merge-master en `main`**: no ejecuta trabajo de frentes, integra sus
-ramas en orden. **Ya cerrado y en main:** Tests (harness ADR-026), POS/stock (trackStock), UX slice
-(tokens del turno). ⚠️ los worktrees nuevos necesitan `npm install` antes de correr tsc/build/test.
+**Sprint:** Sesión única en serie — frentes sin gate por palanca
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (worktrees revertidos; sesión única)
+**Estado del bloque:** 🟢 en curso · **modo SESIÓN ÚNICA en serie** (el owner no quiere sesiones
+nuevas). Los worktrees preparados para paralelo se **revirtieron limpio** (removidos, ramas
+`frente/*` borradas, main intacto). Esta única sesión ejecuta los frentes en serie.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
-**Objetivo:** ejecutar en serie los 3 frentes avanzables sin gate, de mayor a menor palanca,
-cada uno con `tsc`+build en verde, un tema por commit, pusheado.
+**Objetivo:** seguir cerrando frentes avanzables sin gate, de mayor a menor palanca, en serie,
+cada uno con `tsc`+build (+`npm test`) en verde, un tema por commit, pusheado.
 
 **Alcance**
-- **In:** (a) Tests/QA — harness + ADR corto + pruebas de lógica pura ya shippeada; (b) POS/stock —
-  descuento de stock al vender transaccional (sin oversell), migración como carpeta SIN aplicar;
-  (c) UX/UI — completar adopción del design system en pantallas que falten.
-- **Out:** RLS/2º tenant (Gate 2), WhatsApp/MP/ARCA vivo (credenciales), deploy a prod.
+- **In:** UX/UI (barrido de adopción restante, por slices), POS caja/compras, reportes v2, adapters sin credencial (ARCA `soap.ts` / MP), nuevos presets de rubro.
+- **Out:** RLS/2º tenant (Gate 2), WhatsApp/MP/ARCA vivo (credenciales), deploy a prod, abrir sesiones/frentes nuevos.
 
 **Criterios de "hecho":** `tsc` + build en verde antes de cada commit · un tema por commit con
 el porqué, pusheado a `origin/main` · handoff (`## Sprint activo`) al día tras cada ítem.
 
-**Checklist vivo (coordinación)**
-- [x] **main limpio y pusheado** — nada sin commitear; `origin/main` @ `1fa7e6a`. *(2026-07-05)*
-- [x] **Worktrees preparados** — `frente/tests` → `../estetica-erp-tests`, `frente/blueprints` → `../estetica-erp-blueprints`, ambos desde main. *(2026-07-05)*
-- [ ] **Integrar `frente/tests`** a main cuando la sesión de Tests termine y pushee su rama (merge/rebase ordenado, resolver conflictos, push).
-- [ ] **Integrar `frente/blueprints`** a main ídem.
-- [ ] **UX/UI restante** — barrido admin por slices (queda para un frente propio o para cuando haya preview con auth). Ya hecho: slice de tokens del turno público.
+**Ya cerrado y en `main`:** Tests (harness ADR-026), POS/stock (`trackStock`, migración sin aplicar),
+UX slice (tokens del turno público), protocolo de estados/metodología, protocolo de modo de operación.
 
-**Ya cerrado y en main (pases previos):** Tests (harness ADR-026), POS/stock (`trackStock`), UX slice
-(tokens del turno), protocolo de estados/metodología, protocolo de modo de operación.
+**Checklist vivo (pendiente, por palanca)**
+- [ ] **UX/UI restante** — barrido de adopción del design system por slices (público verificable primero; admin queda para cuando haya preview con auth).
+- [ ] **POS — caja/compras** — profundidad de ERP retail (feature sizable).
+- [ ] **Reportes v2** — no-show, retención, export (sobre `getReportData` ya acotado).
+- [ ] **Adapters sin credencial** — ARCA `soap.ts` / adapter MP contra homologación (dev, no credencial).
 
-**Próximo bocado (lo que ejecuta "seguimos"):** como coordinador — **esperar a que los frentes
-pusheen sus ramas e integrarlas a `main` en orden** (una por vez, tsc+build+test verde tras cada
-merge, push). Si no hay ramas listas aún: mantener el tablero al día y/o tomar yo mismo un frente
-del backlog (`docs/ESTADO-FRENTES.md`) en un worktree. Los merges no los hacen los frentes: los hago
-yo en `main`.
+**Próximo bocado (lo que ejecuta "seguimos"):** seguir el **barrido UX por slices** en pantallas
+verificables por estructura (tokens semánticos), o —por palanca— **POS caja/compras**. Un frente
+por vez, un tema por commit, en esta única sesión. Alternativas en `docs/ESTADO-FRENTES.md`.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
