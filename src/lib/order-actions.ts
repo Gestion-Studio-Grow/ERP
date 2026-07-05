@@ -13,6 +13,7 @@ import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { retailWordingForSlug } from "@/blueprints/retail";
+import { getStorefrontCopy } from "@/tenants/storefront";
 import type { $Enums } from "@/generated/prisma/client";
 
 type OrderStatus = $Enums.OrderStatus;
@@ -332,7 +333,16 @@ export async function getStorefront() {
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
     prisma.businessSettings.findUnique({
       where: { tenantId },
-      select: { shortLabel: true, city: true, whatsapp: true, instagram: true, contactNote: true },
+      select: {
+        shortLabel: true,
+        city: true,
+        addressLine: true,
+        hoursLabel: true,
+        whatsapp: true,
+        instagram: true,
+        email: true,
+        contactNote: true,
+      },
     }),
     prisma.product.findMany({
       where: {
@@ -345,12 +355,15 @@ export async function getStorefront() {
       select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true },
     }),
   ]);
-  // Wording del rubro resuelto por slug (blueprint retail). Genérico si no matchea.
+  // Wording GENÉRICO del rubro (blueprint retail) + copy PROPIO del tenant (voz firma),
+  // ambos resueltos por slug. `copy` es null para tenants sin copy → cae al wording.
   const wording = retailWordingForSlug(tenant?.slug);
+  const copy = getStorefrontCopy(tenant?.slug);
   return {
     name: tenant?.name ?? "Tienda",
     branding: settings ?? null,
     wording,
+    copy,
     products,
   };
 }

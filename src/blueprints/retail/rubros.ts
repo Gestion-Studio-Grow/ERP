@@ -64,42 +64,48 @@ const carniceria: RetailRubro = {
   // envasadas al vacío, delivery-first): ver docs/preventa/analisis-redes-magra.md.
   // El branding y catálogo REALES de magra viven en su recipe de tenant
   // (docs/tenants/magra/provisioning-magra.md), no acá — esto es el template reusable.
-  label: "Carnicería premium",
+  label: "Carnicería boutique",
   wording: {
-    catalogHeading: "Nuestros cortes",
+    catalogHeading: "La selección",
     itemNoun: "corte",
-    heroTagline: "Cortes premium seleccionados, envasados al vacío. Pedí online y te lo llevamos.",
+    heroTagline: "Carnes premium envasadas al vacío, elegidas una por una. Pedí online y te llega a casa.",
     orderCta: "Hacé tu pedido",
     weightNote: "El total puede ajustarse al peso real de cada pieza envasada.",
   },
   modules: ["pos", "stock", "venta-peso", "venta-unidad", "proveedores", "cuenta-corriente"],
   brandingDefaults: {
-    shortLabel: "Carnicería premium",
-    hoursLabel: "Lun a sáb · 9 a 20 h",
-    contactNote: "Carnes premium seleccionadas, envasadas al vacío. Retiro y delivery.",
+    shortLabel: "Carnes premium",
+    hoursLabel: "Lun a Sáb 10–20h · Dom 9–13h",
+    contactNote: "Carnes premium envasadas al vacío, más una línea gourmet elegida con el mismo criterio.",
   },
+  // Líneas REALES de magra (de su web): vaca Angus de Estancia Don Ramón, cerdo magro,
+  // pollo orgánico, más una línea gourmet. Precios PROVISIONALES (ARS, mediados 2026)
+  // hasta que el dueño confirme su lista real (hoy vive en Bistrosoft).
   catalog: [
-    // Vacuno premium (Angus) — precios provisionales ARS/kg, gama boutique
-    { name: "Lomo Angus", sale: "kg", pricePerKg: 18900, stock: 14 },
-    { name: "Ojo de bife Angus", sale: "kg", pricePerKg: 16900, stock: 18 },
-    { name: "Bife de chorizo Angus", sale: "kg", pricePerKg: 15900, stock: 20 },
+    // Vaca — Estancia Don Ramón (Angus), envasada al vacío
+    { name: "Lomo", sale: "kg", pricePerKg: 18900, stock: 14 },
+    { name: "Ojo de bife", sale: "kg", pricePerKg: 16900, stock: 18 },
+    { name: "Bife de chorizo", sale: "kg", pricePerKg: 15900, stock: 20 },
     { name: "Entraña", sale: "kg", pricePerKg: 17500, stock: 12 },
     { name: "Cuadril", sale: "kg", pricePerKg: 12900, stock: 22 },
     { name: "Colita de cuadril", sale: "kg", pricePerKg: 13500, stock: 16 },
-    { name: "Vacío", sale: "kg", pricePerKg: 12500, stock: 20 },
     { name: "Asado de tira", sale: "kg", pricePerKg: 11500, stock: 30 },
-    { name: "Tapa de asado", sale: "kg", pricePerKg: 10900, stock: 18 },
+    { name: "Vacío", sale: "kg", pricePerKg: 12500, stock: 20 },
     { name: "Milanesas de nalga", sale: "kg", pricePerKg: 12900, stock: 25 },
     { name: "Carne picada especial", sale: "kg", pricePerKg: 9500, stock: 30 },
-    // Cerdo (cortes magros)
+    // Cerdo — cortes magros, bajos en grasa
     { name: "Bondiola de cerdo", sale: "kg", pricePerKg: 10500, stock: 16 },
     { name: "Solomillo de cerdo", sale: "kg", pricePerKg: 11500, stock: 12 },
     // Pollo orgánico
     { name: "Pechuga de pollo orgánico", sale: "kg", pricePerKg: 8900, stock: 24 },
     { name: "Pollo entero orgánico (~2 kg)", sale: "u", price: 12900, stock: 15 },
-    // Preparados premium (por pack)
+    // Preparados
     { name: "Hamburguesas caseras (x4)", sale: "u", price: 6900, stock: 30 },
-    { name: "Chorizo parrillero (x6)", sale: "u", price: 5900, stock: 28 },
+    // Gourmet — línea premium elegida con el mismo criterio
+    { name: "Sorrentinos italianos (Lamberti)", sale: "u", price: 6500, stock: 24 },
+    { name: "Salsa artesanal importada", sale: "u", price: 5200, stock: 20 },
+    { name: "Ensalada premium envasada", sale: "u", price: 3900, stock: 18 },
+    { name: "Filet de merluza congelado", sale: "u", price: 8900, stock: 16 },
   ],
 };
 

@@ -33,12 +33,18 @@ Con esto la vidriera `/tienda` muestra: el **acento de marca de magra** (oxblood
 `src/lib/branding.ts`), su **tagline real** en el hero (contactNote), su WhatsApp real en el CTA
 "Pedir por WhatsApp", y el **catálogo premium** del rubro carnicería.
 
-## 2. Catálogo real de magra (más allá del rubro genérico)
+## 2. Copy y catálogo (fieles a su web)
 
-El rubro `carniceria` siembra los **cortes premium** (vacuno Angus, cerdo magro, pollo orgánico,
-preparados). magra además vende **gourmet/almacén** — esto es **específico del tenant**, se carga
-en su Catálogo (o se agrega a un seed de magra). Productos reales verificados (precios **provisionales**
-hasta recibir su lista real — §3):
+- **Voz firma de magra** (`src/tenants/storefront.ts`, resuelta por slug): frase madre
+  *"Esto no es una carnicería."*, bajada, **about** (*"Probadas por nosotros, elegidas para vos."*),
+  3 **destacados** (envasado al vacío / envío gratis a las 5 zonas / atención por WhatsApp) y datos de
+  **footer** (zonas, medios de pago). Todo textual de su comunicación. Un tenant sin copy propio cae al
+  wording genérico del rubro.
+- **Catálogo del rubro `carniceria`** ya carga las **líneas reales**: vaca (Estancia Don Ramón, al
+  vacío), cerdo magro, pollo orgánico, preparados y una **línea gourmet** (pasta italiana, conserva
+  importada, ensalada envasada, pescado congelado). Precios **provisionales** hasta la lista real (§3).
+
+Productos reales verificados (referencia; precios **provisionales**):
 
 | Categoría | Productos reales (de sus redes) | Venta | Estado precio |
 |---|---|---|---|
