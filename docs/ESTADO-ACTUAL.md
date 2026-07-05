@@ -19,16 +19,25 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 ## 🚨 HANDOFF URGENTE (2026-07-05 — laptop se desconecta, sesiones se frenan)
 
 **Prod intacto y estable:** deploy `f0a13f0`, **CH Estética vivo (1 tenant)**. **Cero riesgo por la
-desconexión:** el **ensayo de RLS estaba corriendo en un BRANCH de Neon** (no prod) al cortarse → no
-tocó producción; la **secuencia corregida quedó validada offline** y lista para reintentar. Nada
-quedó a medias en prod. Todo pusheado a GitHub (tag de retorno abajo).
+desconexión:** el **ensayo de RLS se completó en un BRANCH de Neon** (no prod) y quedó **🟢 VERDE
+8/8**; el branch **se borró** (solo queda `main`). Prod NUNCA se tocó. Todo pusheado.
+
+> **🔑 HALLAZGO DEL ENSAYO EN BRANCH (2026-07-05) — cambia el plan:** el `app_user` de prod con
+> `BYPASSRLS` es **INARREGLABLE** por `neondb_owner` (`ALTER ROLE … NOBYPASSRLS` → *"permission denied"*;
+> quitar BYPASSRLS necesita superuser, que Neon no da). El `0002` "patcheado" **fallaría en prod**. La
+> solución **probada en verde**: NO tocar `app_user`; **crear un rol NUEVO `app_rls`** con `CREATE ROLE
+> app_rls LOGIN PASSWORD '<secret>' NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE` + grants, y rotar
+> `DATABASE_URL` a ESE rol. `app_rls` autentica por el proxy de Neon y aísla correctamente
+> (ctx=A→A, ctx=B→B, WITH CHECK bloquea cross-tenant, fail-closed sin ctx). Diff mínimo de prod en el
+> runbook. **Pendiente de repo:** actualizar `0002`/`check-rls-live`/`verify-rls` al rol nuevo (hoy
+> apuntan a `app_user`). **Falta para prod:** OK final del dueño + password de `app_rls` (secret).
 
 ### ✅ PASOS DEL DUEÑO para el go-live de Magra (en orden, al retomar)
-1. **`app_user`** → definir/guardar su **contraseña en Neon** (secret; nunca al repo).
-2. **RLS a prod** → re-correr `0001` (cierra el DRIFT de 9 tablas → 33/33) + `0002` **patcheado**
-   (fuerza `NOBYPASSRLS` en `app_user`) y auditar con `prisma/rls/check-rls-live.mjs`. El ensayo iba
-   en **branch de Neon** — reintentar ahí primero, recién después prod.
-3. **Env vars en Netlify** (+ redeploy): `DATABASE_URL=<app_user>` · `OPERATOR_DATABASE_URL=<neondb_owner>`
+1. **`app_rls`** (rol NUEVO, no `app_user`) → definir su **contraseña en Neon** (secret; nunca al repo).
+2. **RLS a prod** → re-correr `0001` (cierra el DRIFT de 9 tablas → 33/33) + **crear `app_rls`** (ver
+   hallazgo arriba) + auditar con `prisma/rls/check-rls-live.mjs`. **Ensayar SIEMPRE en branch primero**
+   (ya salió verde una vez); recién después prod.
+3. **Env vars en Netlify** (+ redeploy): `DATABASE_URL=<app_rls>` · `OPERATOR_DATABASE_URL=<neondb_owner>`
    · `RLS_ENFORCEMENT=on`.
 4. **Alta de Magra** → `/operador/alta` (2º tenant, blueprint `carniceria`).
 5. **Deploy `magra-erp`** → 2º sitio Netlify con `FORCE_TENANT_SLUG=magra`.
@@ -85,7 +94,7 @@ Orden lógico para dar de alta Magra end-to-end:
 
 | # | Gate | Qué destraba | Estado |
 |---|---|---|---|
-| 1 | **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → **prerrequisito duro del 2º tenant** | 🔒 **⚠️ Prod NO está "de cero" (auditado 2026-07-05, solo lectura vía `check-rls-live.mjs`):** RLS ya aplicado en **24/33 tablas**; **DRIFT — 9 tablas sin proteger** (`Order, OrderItem, Invoice, OutboxEvent, CashMovement, CashSession, StockMovement, StockPurchase, StockPurchaseItem`) → filtrarían entre tenants; y **`app_user` con `BYPASSRLS=true`** → rotar a él daría CERO aislamiento (hoy prod no se rompe: conecta como `neondb_owner`, RLS dormido). **Ensayo offline PASADO** (`verify-provision-gate.mts`): gate bloquea sin RLS → abre con RLS → aislamiento + fail-closed. **Bugs hallados y corregidos (repo):** el sentinel del gate incluía `Tenant` → nunca abría (`8b9d989`); `0002` no forzaba `NOBYPASSRLS` en rol existente (fix 2026-07-05). **Secuencia corregida:** re-correr `0001` (cierra drift, 33/33) + `0002` patcheado + auditar con `check-rls-live.mjs`. Falta (bloqueado): **`NEON_API_KEY`/branch** para el ensayo en Neon real → aplicar + rotar `DATABASE_URL` a `app_user` (secrets los carga el dueño). Runbook: `docs/runbooks/alta-magra.md` |
+| 1 | **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → **prerrequisito duro del 2º tenant** | 🔒 **⚠️ Prod NO está "de cero" (auditado 2026-07-05, solo lectura vía `check-rls-live.mjs`):** RLS ya aplicado en **24/33 tablas**; **DRIFT — 9 tablas sin proteger** (`Order, OrderItem, Invoice, OutboxEvent, CashMovement, CashSession, StockMovement, StockPurchase, StockPurchaseItem`) → filtrarían entre tenants; y **`app_user` con `BYPASSRLS=true`** → rotar a él daría CERO aislamiento (hoy prod no se rompe: conecta como `neondb_owner`, RLS dormido). **Ensayo offline PASADO** (`verify-provision-gate.mts`): gate bloquea sin RLS → abre con RLS → aislamiento + fail-closed. **Bugs hallados y corregidos (repo):** el sentinel del gate incluía `Tenant` → nunca abría (`8b9d989`); `0002` no forzaba `NOBYPASSRLS` en rol existente (fix 2026-07-05). **ENSAYO EN BRANCH DE NEON REAL: 🟢 VERDE 8/8 (2026-07-05, branch borrado):** el branch replicó el drift (24/33) → `0001` cerró a 33/33 → aislamiento OK conectando como rol de app → fail-closed. **Hallazgo que cambia el plan:** `app_user` con BYPASSRLS es INARREGLABLE por `neondb_owner` (necesita superuser) → **usar rol NUEVO `app_rls`** (`CREATE ROLE … NOBYPASSRLS`, probado). Falta: OK final + password de `app_rls` (secret) + actualizar repo (`0002`/guards) al rol nuevo. Runbook: `docs/runbooks/alta-magra.md` |
 | 2 | **Alta de Magra (2º tenant)** | Magra existe en la DB de prod | 🔒 depende de #1. `scripts/provision-tenant.ts` ya siembra tenant+OWNER+blueprint `carniceria`; correr con OK explícito tras RLS |
 | 3 | **Deploy del sitio `magra-erp`** | Magra accesible por URL propia | 🔑 **2º sitio Netlify** apuntando a la misma app con **`FORCE_TENANT_SLUG=magra`** (Opción A, URL gratis por tenant; ver `docs/runbooks/alta-magra.md`). Sin dominio propio el `.netlify.app` no separa por subdominio → un sitio por tenant, o pasar a Opción B (dominio + wildcard) |
 | 4 | **Certificado + homologación ARCA** | facturación electrónica viva (firma CMS del `TraSigner`) | 🔑 adapter SOAP escrito; falta cert del emisor + homologación + flag `ARCA_INVOICING_ENABLED` |
