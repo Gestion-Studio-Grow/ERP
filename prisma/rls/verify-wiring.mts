@@ -67,10 +67,10 @@ try {
   process.env.DATABASE_URL = `postgresql://postgres@127.0.0.1:${PORT}/postgres`;
   process.env.RLS_ENFORCEMENT = "on";
 
-  const { prisma } = await import("../../src/lib/db.ts");
-  const { tenantTransaction } = await import("../../src/lib/rls.ts");
-  const { runInTenantContext } = await import("../../src/lib/tenant-context.ts");
-  const { basePrisma } = await import("../../src/lib/prisma-base.ts");
+  const { prisma } = await import("@/lib/db");
+  const { tenantTransaction } = await import("@/lib/rls");
+  const { runInTenantContext } = await import("@/lib/tenant-context");
+  const { basePrisma } = await import("@/lib/prisma-base");
 
   // ── 1. AISLAMIENTO: cliente real + policies + rol app_user (shim de rol) ──────
   // (con 2 tenants) ctx=Caro conectando como app_user → solo se ve a Caro.
