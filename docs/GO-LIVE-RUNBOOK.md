@@ -4,10 +4,10 @@
 datos de otro. Hoy la protección es solo a nivel de la app; esto agrega el candado
 a nivel de base.
 
-**Estado al terminar:** RLS activo y enforced para **Carolina** (el único negocio
-en producción hoy). Cero downtime si se sigue el orden.
-
-**Tiempo estimado:** ~10 minutos de clics.
+**Estructura:** **PARTE 1** activa RLS para **Carolina** (obligatoria, ~10 min).
+**PARTE 2** provisiona **magra** como 2º negocio (opcional, cuando quieras sumarla) —
+ya es posible porque se construyó la resolución de tenant por request (cada negocio
+por su subdominio). Cero downtime si se sigue el orden.
 
 ---
 
@@ -18,10 +18,10 @@ en producción hoy). Cero downtime si se sigue el orden.
    todavía no sabe abrirlo → la app de Carolina se queda sin ver nada. El orden de
    abajo respeta esto.
 
-2. **NO provisionar magra todavía.** El código de hoy sabe manejar **un solo
-   negocio por base**. Meter magra como 2º negocio en la misma base rompería la app
-   (para Carolina también). Ver la sección **"Sobre magra"** al final. Este runbook
-   activa RLS **solo para Carolina**.
+2. **magra se suma en la PARTE 2, con su subdominio.** Desde que existe un 2º
+   negocio, cada uno se accede por SU subdominio (`carolina.<dominio>`,
+   `magra.<dominio>`) — no por el dominio pelado. Si sumás magra sin configurar los
+   subdominios primero, la app no sabe de quién es cada visita. La Parte 2 lo ordena.
 
 ---
 
@@ -33,6 +33,8 @@ en producción hoy). Cero downtime si se sigue el orden.
   a mano el rollback. El SQL ya está escrito en el repo (`prisma/rls/`).
 
 ---
+
+# 🔒 PARTE 1 — Activar RLS para Carolina (obligatoria, ~10 min)
 
 ## PASO 0 — Prep (🤖 ya hecho)
 
@@ -151,38 +153,73 @@ Si algo sale mal en el Paso 4, **revertir es inmediato**:
 
 ---
 
-## Sobre magra (⚠️ importante — NO provisionar todavía)
+# 🏪 PARTE 2 — Sumar magra como 2º negocio (opcional, cuando quieras)
 
-El pedido incluía "que Carolina **y magra** anden". Estado real del código hoy:
+Ya es posible: se construyó la **resolución de tenant por request** — cada negocio
+se sirve por su **subdominio** y RLS lo aísla del otro. Verificado en local con 2
+negocios sintéticos (cada uno resuelve y ve solo lo suyo; si no resuelve, se cierra).
 
-- La app resuelve "de qué negocio es este request" con un método que sirve para **un
-  solo negocio por base de datos**. Meter magra como 2º negocio en la **misma base**
-  haría que la app no sepa distinguir los requests y se caiga — **para Carolina también**.
-- Falta construir la pieza **"resolución de tenant por request"** (que la app sepa por
-  el dominio/sesión si el request es de Carolina o de magra). No está hecha (ADR-018 §4).
+> **Hacer la Parte 1 (RLS para Carolina) ANTES que esto.** Y `app_user` ya tiene
+> permiso sobre las tablas futuras, así que las tablas que cree magra quedan cubiertas.
 
-**Por eso este runbook activa RLS solo para Carolina.** Opciones para magra, a decidir:
+**Cómo va a quedar:** `carolina.<dominio>` = negocio de Carolina · `magra.<dominio>` =
+negocio de magra. El dominio pelado conviene redirigirlo a `carolina.<dominio>` para no
+romper el link actual de Carolina.
 
-- **(A)** Magra como 2º negocio en la MISMA base (shared multi-tenant, el modelo de
-  ADR-001): necesita que yo construya primero la resolución por request. Te lo armo
-  en la próxima sesión; recién ahí se provisiona magra y se verifica el aislamiento
-  entre los dos.
-- **(B)** Magra como deploy + base SEPARADA (un negocio por base): anda con este mismo
-  cableado tal cual (1 tenant por base). Si es este el plan, decímelo y ajusto.
+### PASO 5 — Preparar los subdominios (🔑 Maxi)
 
-Hasta resolver esto: **no corras el script de provisioning de magra contra la base de
-Carolina.** (El propio script tiene un guard que lo rechaza sin RLS, pero el bloqueo
-real es la resolución por request, no el candado.)
+**5a. Dominio base (Netlify → Environment variables):** agregá `APP_BASE_DOMAIN` con tu
+dominio raíz (ej. `midominio.com`). Sin esto, con 2 negocios la app no sabe resolver.
+
+**5b. DNS + Netlify Domains:** que `carolina.<dominio>` y `magra.<dominio>` apunten al
+sitio. Lo más simple: un DNS **wildcard** `*.<dominio>` → el sitio, y agregar ambos
+dominios en Netlify → **Domain management**. (Si querés, redirigí el dominio pelado a
+`carolina.<dominio>` con una regla de redirect de Netlify.)
+
+**5c. Subdominio de Carolina:** entrá a la **consola de operador** (`/operador`) →
+editá el tenant **Carolina** → campo **subdomain** = `carolina` → guardar.
+(Así su subdominio resuelve; hacelo ANTES de crear magra.)
+
+**5d. Deploy** para que tome `APP_BASE_DOMAIN`. Verificá que `carolina.<dominio>` abre
+el negocio de Carolina normal.
+
+### PASO 6 — Provisionar magra (🔑 Maxi por la consola, 🤖 coordino — es Gate 2)
+
+- Consola de operador → **`/operador` → Alta de tenant** (`/operador/alta`).
+- Completá: **nombre** = Magra · **slug** = `magra` · **subdomain** = `magra` ·
+  **email del dueño** de magra · **rubro** = carnicería (elige el blueprint). Crear.
+- Esto crea el negocio de magra **con sus datos iniciales**, usando la conexión de
+  operador (que por el `OPERATOR_DATABASE_URL` del Paso 3a tiene acceso pleno —
+  necesario para sembrar el negocio nuevo).
+
+### PASO 7 — (si magra usa la API de pedidos externos) su api-key (🔑 Maxi)
+
+- Netlify → Environment variables → `EXTERNAL_ORDERS_API_KEYS` (JSON):
+  `{"carolina":"<key-caro>","magra":"<key-magra>"}` → deploy.
+  (La API resuelve el negocio por el `X-Tenant-Slug` que declara el front, y valida con
+  su clave.)
+
+### PASO 8 — Verificación de aislamiento (🤖 te guío)
+
+- Abrí **`carolina.<dominio>`**: ves SOLO datos de Carolina (agenda, catálogo, clientes).
+- Abrí **`magra.<dominio>`**: ves SOLO datos de magra (su catálogo/pedidos).
+- Confirmá que desde la de una no aparece nada de la otra. Ese es el candado funcionando.
 
 ---
 
 ## Resumen de lo que te toca (🔑 Maxi), en orden
 
-1. **Neon:** crear rol `app_user` (UI → Roles) y copiar su contraseña.
-2. **Neon SQL Editor:** correr `0001_enable_rls.sql` + el bloque de GRANTs (Paso 1c).
+**PARTE 1 — Activar RLS (Carolina):**
+1. **Neon → Roles:** crear rol `app_user`, copiar su contraseña.
+2. **Neon → SQL Editor:** correr `prisma/rls/0001_enable_rls.sql` + el bloque de GRANTs (Paso 1c).
 3. **Netlify:** deploy del código nuevo (flag apagado) → verificar Carolina.
 4. **Netlify env vars:** `OPERATOR_DATABASE_URL` = DATABASE_URL actual · `RLS_ENFORCEMENT` = `on`
-   · `DATABASE_URL` → cambiar `neondb_owner:...` por `app_user:<tu-password>`.
-5. **Netlify:** deploy → verificar Carolina (Paso 4).
+   · `DATABASE_URL` → cambiar `neondb_owner:...` por `app_user:<tu-password>` → deploy → verificar Carolina.
+
+**PARTE 2 — Sumar magra (cuando quieras):**
+5. **Netlify:** `APP_BASE_DOMAIN` = tu dominio · DNS `*.<dominio>` + dominios en Netlify · en `/operador` poné subdomain `carolina` a Carolina → deploy.
+6. **`/operador/alta`:** crear magra (slug `magra`, subdomain `magra`, rubro carnicería).
+7. (si usa API) `EXTERNAL_ORDERS_API_KEYS` con la clave de magra.
+8. Verificar aislamiento en `carolina.<dominio>` y `magra.<dominio>`.
 
 Yo (🤖) te acompaño clic por clic cuando vuelvas y confirmo cada verificación.
