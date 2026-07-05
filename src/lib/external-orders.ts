@@ -17,6 +17,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarOrden } from "@/lib/invoice-from-order";
@@ -180,14 +181,14 @@ async function decrementStock(
   lines: { productId: string; qty: number }[],
 ): Promise<void> {
   try {
-    await prisma.$transaction(
-      lines.map((l) =>
-        prisma.product.update({
+    await tenantTransaction(async (tx) => {
+      for (const l of lines) {
+        await tx.product.update({
           where: { id: l.productId },
           data: { stock: { decrement: l.qty } },
-        }),
-      ),
-    );
+        });
+      }
+    }, { tenantId });
   } catch (err) {
     console.error(`[external-orders] descuento de stock best-effort falló (tenant ${tenantId}):`, err);
   }

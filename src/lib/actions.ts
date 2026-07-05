@@ -11,8 +11,11 @@ import {
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
+import { isInvoicingEnabled } from "@/lib/fiscal";
+import { facturarAppointment } from "@/lib/invoice-from-appointment";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -188,7 +191,7 @@ async function bookAppointment({
     throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
 
-  return prisma.$transaction(async (tx) => {
+  return tenantTransaction(async (tx) => {
     // Re-chequea la disponibilidad DENTRO de la transacción para cerrar la
     // ventana de carrera entre "mostrar franjas libres" y "escribir la reserva":
     // dos requests sobre la misma franja no pueden triunfar las dos.
@@ -513,7 +516,7 @@ export async function rescheduleAppointment(formData: FormData) {
     throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
 
-  await prisma.$transaction(async (tx) => {
+  await tenantTransaction(async (tx) => {
     await assertSlotAvailable(tx, {
       professionalId: targetProfessionalId,
       boxId,
@@ -690,8 +693,11 @@ export async function markNoShow(formData: FormData) {
 export async function completeAppointment(formData: FormData) {
   const user = await requireCapability("agenda:complete");
   const appointmentId = String(formData.get("appointmentId"));
+  // Toggle "facturar sí/no" (ADR-024 §2.c): true por default; solo se saltea si
+  // la UI manda explícitamente `facturar="false"` (checkbox "No facturar").
+  const facturar = formData.get("facturar") !== "false";
 
-  await prisma.$transaction(async (tx) => {
+  const tenantId = await tenantTransaction(async (tx) => {
     const appointment = await tx.appointment.findUniqueOrThrow({
       where: { id: appointmentId },
       include: { service: { include: { products: { include: { product: true } } } } },
@@ -717,9 +723,23 @@ export async function completeAppointment(formData: FormData) {
       where: { id: appointmentId },
       data: { status: "COMPLETED" },
     });
+
+    return appointment.tenantId;
   });
 
   await auditAdmin({ action: "complete", entity: "Appointment", entityId: appointmentId });
+
+  // Disparo de facturación al cerrar el servicio (ADR-024 §2.a). Best-effort y
+  // detrás del flag maestro (§2.b): si el flag está OFF o el operador eligió no
+  // facturar, no pasa nada; si falla, el turno igual quedó COMPLETED. Nunca
+  // rompe el cierre de la recepción.
+  if (facturar && isInvoicingEnabled()) {
+    try {
+      await facturarAppointment(appointmentId, tenantId);
+    } catch (err) {
+      console.error(`[arca] facturación best-effort falló para ${appointmentId}:`, err);
+    }
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");

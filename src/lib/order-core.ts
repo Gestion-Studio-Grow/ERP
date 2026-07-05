@@ -14,6 +14,7 @@
 // ADR-015) y lo escribe en cada fila; cada read filtra por él.
 
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
 
@@ -102,7 +103,7 @@ export async function insertOrder(
   const subtotal = round2(lines.reduce((s, l) => s + l.lineTotal, 0));
   const status = input.channel === "ONLINE" ? "PENDING" : "CONFIRMED";
 
-  const order = await prisma.$transaction(async (tx) => {
+  const order = await tenantTransaction(async (tx) => {
     // Correlativo legible por tenant: max(code)+1. Suficiente para el volumen del
     // MVP; el @@unique([tenantId, code]) protege contra choques (una colisión
     // rarísima lanzaría y se reintenta el alta). Secuencia por tenant = futuro.
@@ -144,7 +145,7 @@ export async function insertOrder(
       },
       select: { id: true, code: true },
     });
-  });
+  }, { tenantId });
 
   return { id: order.id, code: order.code, subtotal, lines: lines.length };
 }
