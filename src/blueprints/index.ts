@@ -5,7 +5,8 @@ import type { Blueprint } from "./types";
 import { serviciosBlueprint } from "./servicios";
 import { carniceriaBlueprint } from "./carniceria";
 import { genericoBlueprint } from "./generico";
-import { RETAIL_BLUEPRINTS } from "./retail";
+import { RETAIL_BLUEPRINTS, RETAIL_RUBRO_HINTS } from "./retail";
+import { FAMILY_BLUEPRINTS, FAMILY_RUBRO_HINTS } from "./families";
 
 export type { Blueprint, PrismaTx, TenantBrandingDefaults } from "./types";
 
@@ -24,6 +25,9 @@ const REGISTRY: Record<string, Blueprint> = {
   // Va primero para que los ids de abajo (incl. la carnicería standalone) tengan
   // precedencia y no cambie el comportamiento ya existente.
   ...RETAIL_BLUEPRINTS,
+  // Familias de presets por rubro (Agenda&Servicios, Servicios&Oficios, Gastronomía)
+  // — config pura, ver src/blueprints/{agenda,oficios,gastronomia} y families.ts.
+  ...FAMILY_BLUEPRINTS,
   [serviciosBlueprint.id]: serviciosBlueprint,
   [carniceriaBlueprint.id]: carniceriaBlueprint,
   [genericoBlueprint.id]: genericoBlueprint,
@@ -92,10 +96,18 @@ function normalize(s: string): string {
  * nada, cae al COMODÍN genérico — nunca falla, nunca fuerza un desarrollo a medida.
  * `provisionTenant` sigue recibiendo el id resuelto; esto solo decide cuál.
  */
+// Orden de evaluación: primero los rubros ESPECÍFICOS (retail + familias), después las
+// pistas genéricas de abajo — así "peluquería" cae en su preset y no en "servicios".
+const ALL_RUBRO_HINTS: { id: string; keywords: string[] }[] = [
+  ...RETAIL_RUBRO_HINTS,
+  ...FAMILY_RUBRO_HINTS,
+  ...RUBRO_HINTS,
+];
+
 export function resolveBlueprint(rubro?: string): BlueprintMatch {
   const normalizedHint = rubro ? normalize(rubro) : "";
   if (normalizedHint) {
-    for (const entry of RUBRO_HINTS) {
+    for (const entry of ALL_RUBRO_HINTS) {
       if (entry.keywords.some((k) => normalizedHint.includes(k))) {
         return { blueprint: REGISTRY[entry.id], blueprintId: entry.id, matched: true, normalizedHint };
       }

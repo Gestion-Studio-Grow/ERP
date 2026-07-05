@@ -19,7 +19,7 @@ import {
 } from "@/lib/operator-auth";
 import { provisionTenant } from "../../scripts/provision-tenant";
 import { resolveBlueprint, getBlueprint } from "@/blueprints";
-import { defaultModulesForBlueprint, isModuleId } from "@/lib/operator-config";
+import { defaultModulesForBlueprint, suggestedAccentForBlueprint, isModuleId } from "@/lib/operator-config";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -78,6 +78,11 @@ export async function provisionFromConsole(formData: FormData) {
   const picked = formData.getAll("modules").map(String).filter(isModuleId);
   const modules = picked.length > 0 ? picked : defaultModulesForBlueprint(blueprintId);
 
+  // Acento/tema: si el operador no eligió, cae al sugerido por el preset del rubro.
+  const suggested = suggestedAccentForBlueprint(blueprintId);
+  const effectiveAccent = accentPreset ?? suggested?.accent;
+  const effectiveTheme = frontTheme ?? suggested?.theme;
+
   const back = (q: string) => redirect(`/operador/alta?${q}`);
 
   if (!name || !slug || !ownerEmail) {
@@ -91,8 +96,7 @@ export async function provisionFromConsole(formData: FormData) {
       slug,
       owner: { name: ownerName || undefined, email: ownerEmail },
       blueprint: blueprintId,
-      branding: accentPreset ? { shortLabel: name } : undefined,
-      platform: { status, plan, subdomain, modules, accentPreset, frontTheme },
+      platform: { status, plan, subdomain, modules, accentPreset: effectiveAccent, frontTheme: effectiveTheme },
     });
   } catch (e) {
     // Acá cae, entre otros, el GATE de RLS (ADR-018): crear el 2º tenant sin RLS

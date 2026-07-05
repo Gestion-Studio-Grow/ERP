@@ -7,6 +7,8 @@
 // nav del backoffice los respete además del rol. La consola de operador es donde se
 // encienden/apagan.
 
+import { presetMetaFor } from "@/blueprints/presets-meta";
+
 // Un módulo del producto que se puede activar por tenant. `capability` lo ata al
 // RBAC del backoffice (capabilities.ts); `plugin` marca los que son integraciones.
 export interface ModuleDef {
@@ -47,7 +49,18 @@ export const BLUEPRINT_DEFAULT_MODULES: Record<string, string[]> = {
 
 export function defaultModulesForBlueprint(blueprintId: string | null | undefined): string[] {
   if (blueprintId && BLUEPRINT_DEFAULT_MODULES[blueprintId]) return BLUEPRINT_DEFAULT_MODULES[blueprintId];
+  // Presets por rubro de las familias (agenda/oficios/gastronomía) traen su propio set.
+  const meta = presetMetaFor(blueprintId);
+  if (meta) return meta.modules;
   return DEFAULT_MODULES;
+}
+
+// Acento sugerido por el preset del rubro (si el operador no elige uno en el alta).
+export function suggestedAccentForBlueprint(
+  blueprintId: string | null | undefined,
+): { accent: string; theme: "light" | "dark" } | null {
+  const meta = presetMetaFor(blueprintId);
+  return meta ? { accent: meta.accent, theme: meta.theme } : null;
 }
 
 // Planes comerciales (free-form por ahora; los planes reales / feature-flags son
