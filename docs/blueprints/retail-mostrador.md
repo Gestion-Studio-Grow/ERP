@@ -71,23 +71,18 @@ del mapa por slug; y el theming genérico por tokens reemplaza los estilos inlin
 
 ## 5. Provisioning — integración (coordinación con la sesión de blueprints)
 
-El registro central de blueprints (`src/blueprints/index.ts`) y el CLI de provisioning los está
-editando **en paralelo la sesión de onboarding** (agregó `resolveBlueprint(rubro)` + comodín
-`generico`). Para **no pisar** ese trabajo (pathspec), este sprint NO commitea esos dos archivos.
-La integración es **aditiva y trivial** (2 puntos), lista para mergear:
+**HECHO (registro):** `src/blueprints/index.ts` ya registra los rubros retail en el REGISTRY
+(`...RETAIL_BLUEPRINTS`, con la carnicería standalone teniendo precedencia sobre el id
+`carniceria` para no cambiar el comportamiento existente). Verificado: `--blueprint verduleria`
+/ `dietetica` / `kiosco` / `fiambreria` / `indumentaria` provisionan (dry-run OK), sin tocar el
+`resolveBlueprint()`/hints ni el comportamiento de servicios/carnicería/genérico.
 
-```ts
-// en src/blueprints/index.ts
-import { RETAIL_BLUEPRINTS, RETAIL_RUBRO_HINTS } from "./retail";
-const REGISTRY = { ...serviciosBlueprint..., ...RETAIL_BLUEPRINTS };   // (1) registrar rubros
-const RUBRO_HINTS = [ ...hints_existentes, ...RETAIL_RUBRO_HINTS ];     // (2) hints de descubrimiento
-```
-
-Con eso, `--blueprint verduleria` (atajo) y el `resolveBlueprint("verdulería…")` del onboarding
-caen al rubro correcto. `--blueprint retail --rubro <x>` se soporta agregando el par
-`retail`+`--rubro` en el CLI (o resolviendo `retail` → `makeRetailBlueprint(rubro)`).
-**Nota:** el rubro `carniceria` de retail supersede al `carniceria.ts` standalone — son lo mismo,
-este es la versión generalizada; consolidar en el merge.
+**Pendiente de coordinar con la sesión de onboarding** (para no cambiar la semántica de su
+selector): (1) sumar `RETAIL_RUBRO_HINTS` a sus `RUBRO_HINTS` para que el descubrimiento por
+texto libre ("verdulería…") rutee al rubro retail (hoy cae al comodín `generico`); (2) forma
+`--blueprint retail --rubro <x>` en el CLI si se prefiere sobre el atajo `--blueprint <rubro>`;
+(3) decidir si la carnicería retail supersede al `carniceria.ts` standalone (son lo mismo — este
+es la versión generalizada). El registro ya deja funcional el alta directa por rubro.
 
 ## 6. Verificación (costo 0, sin tocar Neon)
 
