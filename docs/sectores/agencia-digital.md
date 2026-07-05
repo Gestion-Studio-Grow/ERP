@@ -5,7 +5,8 @@ creativa de publicidad digital** con un frente propio de **software que genera g
 qué es el sector, cómo se organiza como *core/sector*, qué frentes tiene, cómo aplica la metodología
 del repo y cómo convive con el sector ya existente (el ERP SaaS multi-tenant). Es un doc de encuadre,
 no de implementación: nada de lo de acá toca prod, Neon ni deploys. La ratificación estructural queda
-como **ADR-027** (ver §7).
+como **un ADR de ratificación del sector** (número a asignar al integrar — ADR-027 ya se usó para
+*Analytics cross-tenant*; ver §7).
 
 > **Entrada del sector:** si abrís una sesión para trabajar acá, **leé primero
 > `docs/sectores/agencia-digital/FUNDAMENTO.md`** (quién sos, qué hacés, método, objetivo — enganchado
@@ -97,7 +98,8 @@ nuevo—:
    estado en el tablero del sector). El repo es la memoria compartida (ADR-008).
 4. **Decisión estructural → ADR.** Lo estructural del sector (elegir un producto, su modelo de datos,
    su pricing) se persiste como ADR con su porqué, no como comentario suelto. Este charter se ratifica
-   como **ADR-027**.
+   como **un ADR de ratificación del sector** (número a asignar al integrar). El primer ADR nacido del
+   sector ya está: **ADR-027 — Analytics cross-tenant**.
 5. **Definición de terminado + verificación.** Si es código: `tsc`/build en verde (+ preview si hay
    pantalla). Si es entregable de servicio: revisado contra el brief. No se entrega lo que no se
    verificó (`METODO-ROLES.md` §3).
@@ -196,8 +198,10 @@ coordinación-por-repo que ya funciona.
 Esta sesión es **documentación/planificación**; no toca prod, Neon ni deploys. Follow-ups sugeridos,
 para que el owner los dispare cuando quiera:
 
-1. **Ratificar como ADR-027** — "Sector Agencia Digital: gobierno único, repos separados, puente
-   productizado" (formaliza §6 como decisión estructural, `METODO-ROLES.md` §3).
+1. **Ratificar el sector como ADR** (número a asignar al integrar, ADR-028+) — "Sector Agencia Digital:
+   gobierno único, repos separados, puente productizado" (formaliza §6 como decisión estructural,
+   `METODO-ROLES.md` §3). *(Nota: ADR-027 ya se usó para el primer ADR nacido del sector, Analytics
+   cross-tenant.)*
 2. **Crear el espacio del sector** — repo/carpeta `agencia-digital` + su tablero (análogo a
    `ESTADO-FRENTES.md`/`TABLERO-SESIONES.md`).
 3. **Kickoff del frente de Producto** — abrir la `/sesion-feature` de **P3 (Storefront producto)** para
