@@ -13,20 +13,26 @@ type Professional = {
   box: { name: string } | null;
 };
 
-function StepLabel({ n, children }: { n: number; children: React.ReactNode }) {
+// Encabezado de paso. Era un <label> sin `htmlFor` (no se asociaba a ningún
+// control → los lectores de pantalla no le daban nombre al campo). Ahora es un
+// heading con `id`, y cada control lo referencia por aria-labelledby — sirve
+// igual para un control único (select/fecha) que para un grupo (horarios/datos).
+function StepLabel({ n, id, children }: { n: number; id?: string; children: React.ReactNode }) {
   return (
-    <label
+    <div
+      id={id}
       className="flex items-center gap-3 text-xs uppercase tracking-[0.15em] mb-3"
       style={{ color: "var(--text-strong)" }}
     >
       <span
+        aria-hidden
         className="flex h-6 w-6 items-center justify-center text-xs font-serif"
         style={{ border: "1px solid var(--text-strong)" }}
       >
         {n}
       </span>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -98,10 +104,11 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
       <form action={createAppointment} className="space-y-8">
         <div>
-          <StepLabel n={1}>Profesional</StepLabel>
+          <StepLabel n={1} id="reserva-step-profesional">Profesional</StepLabel>
           <select
             name="professionalId"
             required
+            aria-labelledby="reserva-step-profesional"
             className={inputClass}
             style={inputStyle}
             value={professionalId}
@@ -122,10 +129,11 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
         {professional && (
           <div>
-            <StepLabel n={2}>Servicio</StepLabel>
+            <StepLabel n={2} id="reserva-step-servicio">Servicio</StepLabel>
             <select
               name="serviceId"
               required
+              aria-labelledby="reserva-step-servicio"
               className={inputClass}
               style={inputStyle}
               value={serviceId}
@@ -147,10 +155,11 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
         {serviceId && (
           <div>
-            <StepLabel n={3}>Fecha</StepLabel>
+            <StepLabel n={3} id="reserva-step-fecha">Fecha</StepLabel>
             <input
               type="date"
               required
+              aria-labelledby="reserva-step-fecha"
               className={inputClass}
               style={inputStyle}
               value={date}
@@ -164,18 +173,20 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
         {date && (
           <div>
-            <StepLabel n={4}>Horario disponible</StepLabel>
-            {isPending && (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Buscando horarios…
-              </p>
-            )}
-            {!isPending && slots.length === 0 && (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                No hay horarios disponibles ese día.
-              </p>
-            )}
-            <div className="grid grid-cols-3 gap-2">
+            <StepLabel n={4} id="reserva-step-horario">Horario disponible</StepLabel>
+            <div aria-live="polite">
+              {isPending && (
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Buscando horarios…
+                </p>
+              )}
+              {!isPending && slots.length === 0 && (
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  No hay horarios disponibles ese día.
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby="reserva-step-horario">
               {slots.map((slot) => {
                 const label = fmtTime(slot);
                 const isSelected = slot === selectedSlot;
@@ -183,6 +194,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
                   <button
                     key={slot}
                     type="button"
+                    aria-pressed={isSelected}
                     onClick={() => setSelectedSlot(slot)}
                     className="px-3 py-2 text-sm transition-colors"
                     style={
@@ -201,11 +213,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
         )}
 
         {selectedSlot && (
-          <div className="space-y-3 pt-8" style={{ borderTop: "1px solid var(--line)" }}>
-            <StepLabel n={5}>Tus datos</StepLabel>
+          <div className="space-y-3 pt-8" role="group" aria-labelledby="reserva-step-datos" style={{ borderTop: "1px solid var(--line)" }}>
+            <StepLabel n={5} id="reserva-step-datos">Tus datos</StepLabel>
             <input
               name="clientName"
               required
+              aria-label="Nombre y apellido"
               placeholder="Nombre y apellido"
               className={inputClass}
               style={inputStyle}
@@ -213,6 +226,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
             <input
               name="clientPhone"
               required
+              aria-label="Teléfono"
               placeholder="Teléfono"
               className={inputClass}
               style={inputStyle}
@@ -220,6 +234,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
             <input
               name="clientEmail"
               type="email"
+              aria-label="Email (opcional)"
               placeholder="Email (opcional)"
               className={inputClass}
               style={inputStyle}
@@ -235,6 +250,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
             </label>
             <input
               name="couponCode"
+              aria-label="Cupón de descuento (opcional)"
               placeholder="Cupón de descuento (opcional)"
               className={inputClass}
               style={{ ...inputStyle, textTransform: "uppercase" }}

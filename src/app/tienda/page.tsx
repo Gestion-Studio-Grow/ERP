@@ -22,16 +22,37 @@ import SiteReplica from "./SiteReplica";
 
 export const dynamic = "force-dynamic";
 
-// Una sola lectura del storefront por request, compartida entre generateMetadata
-// y el componente: React.cache dedupe la llamada en el mismo render (evita un 2º
-// golpe a la DB — Neon plan free).
+// Una sola lectura del storefront/acento por request, compartida entre
+// generateMetadata y el componente: React.cache dedupe la llamada en el mismo
+// render (evita un 2º golpe a la DB — Neon plan free).
 const loadStorefront = cache(getStorefront);
+const loadAccent = cache(getTenantAccent);
+
+// Iniciales del tenant para el monograma del favicon (1 palabra → 2 primeras
+// letras; varias → iniciales). "Magra" → "MA", "Carne Feliz" → "CF".
+function tenantInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const raw = words.length > 1 ? words.map((w) => w[0]).join("") : (words[0] ?? "");
+  return raw.slice(0, 2).toUpperCase() || "•";
+}
+
+// Favicon POR TENANT: monograma (iniciales) en el acento del tenant sobre hueso,
+// como data-URI SVG. Antes la vidriera de cualquier tenant mostraba el ícono "CH"
+// del layout raíz (p. ej. Magra, una carnicería, con el favicon del spa).
+function tenantFavicon(initials: string, accent: string): string {
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>` +
+    `<rect width='64' height='64' rx='12' fill='#faf7f2'/>` +
+    `<text x='32' y='44' font-family='Georgia,serif' font-size='30' font-weight='500' fill='${accent}' text-anchor='middle'>${initials}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
 
 // Metadata POR TENANT. Antes la vidriera heredaba el <title> del layout raíz
 // ("CH Estética…"), así que el storefront de Magra decía "CH Estética" en la
 // pestaña, al compartir en redes y en buscadores. Ahora sale del tenant.
 export async function generateMetadata(): Promise<Metadata> {
-  const data = await loadStorefront();
+  const [data, accent] = await Promise.all([loadStorefront(), loadAccent()]);
   const name = data.name;
   const suffix = data.copy?.tagline ?? data.branding?.city ?? null;
   const title = suffix ? `${name} · ${suffix}` : name;
@@ -45,6 +66,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     openGraph: { title, description, type: "website" },
+    icons: { icon: tenantFavicon(tenantInitials(name), accent) },
   };
 }
 
@@ -55,7 +77,7 @@ export async function generateMetadata(): Promise<Metadata> {
 // - Si no, cae a la vidriera genérica del rubro (para clientes sin web).
 // En ambos casos, el backoffice (pedidos/POS/stock/facturación) es el mismo, detrás.
 export default async function TiendaPage() {
-  const [data, accent, slug] = await Promise.all([loadStorefront(), getTenantAccent(), getCurrentTenantSlug()]);
+  const [data, accent, slug] = await Promise.all([loadStorefront(), loadAccent(), getCurrentTenantSlug()]);
   const replica = getSiteReplica(slug);
   if (replica) {
     return <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={accent} />;
