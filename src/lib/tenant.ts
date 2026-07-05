@@ -1,54 +1,99 @@
 import { cache } from "react";
 import { basePrisma } from "@/lib/prisma-base";
 
-// Resolución del tenant actual — G1 (ADR-010 / ADR-001), blindada fail-closed (ADR-015).
+// Resolución del tenant actual — G1 (ADR-010 / ADR-001), blindada fail-closed (ADR-015),
+// AHORA por request (ADR-018 §4).
 //
-// HOY: hay un único tenant (Beauty & Spa). El aislamiento es a nivel de
-// aplicación: cada create escribe `tenantId` y cada read filtra por él. Con un
-// solo tenant no hay leak cross-tenant posible **siempre que la resolución sea
-// fail-closed** — de eso se ocupa esta función. Si la tabla `Tenant` tuviera ≠1
-// fila (un seed de prueba, una migración mal corrida, el alta de un 2º tenant
-// sin haber hecho antes el trabajo de RLS), lanza un error explícito en vez de
-// agarrar "el más viejo" en silencio y servir datos del tenant equivocado. Un
-// throw visible es infinitamente preferible a un cross-tenant mudo en
-// producción (ADR-015).
+// CÓMO RESUELVE (en orden):
+//   1. Por SUBDOMINIO del host del request (`carolina.<base>` → tenant con
+//      subdomain="carolina"). Cada tenant tiene su URL (Tenant.subdomain, agregado
+//      por el control-plane, ADR-021). Aplica al sitio público y al backoffice del
+//      tenant (ambos se sirven bajo el subdominio del tenant).
+//   2. Si NO hay subdominio (apex, dev, o sin APP_BASE_DOMAIN configurado) y hay
+//      EXACTAMENTE un tenant → ese (compatibilidad single-tenant: Carolina hoy).
+//   3. Si no se puede resolver → THROW (fail-closed, ADR-015): nunca servir el
+//      tenant equivocado en silencio. Con RLS activo, además, sin contexto no se ve
+//      nada.
 //
-// USA cliente BASE (no `@/lib/prisma`): cuando el flag RLS está ON, `prisma` es
-// la extensión que LLAMA a esta función para resolver el tenant → usar el cliente
-// extendido acá sería recursión infinita. La tabla Tenant está fuera de RLS.
+// USA cliente BASE (no `@/lib/prisma`): cuando RLS está ON, `prisma` es la extensión
+// que LLAMA a esta función → usar el cliente extendido acá sería recursión. La tabla
+// Tenant está fuera de RLS (se lee pre-contexto).
 //
-// cache() de React = dedupe POR REQUEST, no persistente: la extensión RLS llama
-// a esta función por operación, así que sin dedupe serían N lecturas de Tenant
-// por request; con cache() es una sola. NO contradice el "sin cache" original
-// (ADR-015): al ser por-request, un 2º tenant que aparezca se detecta igual en el
-// request siguiente — el assert fail-closed sigue vivo.
+// cache() de React = dedupe POR REQUEST (no persistente): la extensión RLS llama a
+// esto por operación; con cache() es una sola resolución por request.
 //
-// MAÑANA (2º tenant): la resolución pasa a ser por request (subdominio/sesión) y
-// setea el store de tenant-context; la extensión usa ese store en vez de este
-// findMany. Este throw es la señal de que ese trabajo (ADR-018 §4) todavía falta.
+// PATHS SIN HOST (jobs/cron/worker, API por slug): no pasan por acá con host →
+// caen al fallback single-tenant (paso 2). Multi-tenant en esos paths se resuelve
+// con contexto explícito (runInTenantContext) — ver la API pública (public-api-auth).
 
-export const getCurrentTenantId = cache(async (): Promise<string> => {
-  // `take: 2` alcanza para distinguir "cero" / "uno" / "más de uno" sin escanear
-  // toda la tabla.
+/**
+ * Extrae el subdominio del host respecto de `APP_BASE_DOMAIN`. PURO y testeable.
+ * - Sin APP_BASE_DOMAIN, sin host, apex (`base`/`www.base`), o host no relacionado
+ *   (localhost, previews de Netlify) → `null` (→ fallback single-tenant).
+ * - `caro.base.com` → `"caro"`.
+ */
+export function extractSubdomain(host: string | null | undefined): string | null {
+  const base = process.env.APP_BASE_DOMAIN?.trim().toLowerCase();
+  if (!base || !host) return null;
+  let h = host.split(",")[0].trim().toLowerCase();
+  h = h.split(":")[0]; // sacar puerto
+  if (!h || h === base || h === `www.${base}`) return null;
+  if (h.endsWith(`.${base}`)) {
+    const sub = h.slice(0, h.length - base.length - 1).split(".")[0];
+    return sub || null;
+  }
+  return null; // host ajeno al dominio base → single-tenant fallback
+}
+
+/** Host del request (headers), o null fuera de un request (job/script). */
+async function hostFromRequest(): Promise<string | null> {
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    return h.get("x-forwarded-host") ?? h.get("host");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resuelve el tenantId a partir de un host. PURO respecto de Next (recibe el host),
+ * así es testeable sin request. Fail-closed (ADR-015).
+ */
+export async function resolveTenantId(host: string | null | undefined): Promise<string> {
+  const sub = extractSubdomain(host);
+  if (sub) {
+    const t = await basePrisma.tenant.findUnique({
+      where: { subdomain: sub },
+      select: { id: true },
+    });
+    if (t) return t.id;
+    throw new Error(
+      `getCurrentTenantId: no hay tenant para el subdominio "${sub}" (fail-closed, ADR-015). ` +
+        "Revisá que el tenant tenga ese subdomain o que la URL sea correcta.",
+    );
+  }
+
+  // Sin subdominio: fallback single-tenant (compatibilidad Carolina).
   const tenants = await basePrisma.tenant.findMany({
     take: 2,
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });
-
+  if (tenants.length === 1) return tenants[0].id;
   if (tenants.length === 0) {
     throw new Error(
       "getCurrentTenantId: no hay ningún tenant en la base. Se esperaba exactamente uno (ADR-015).",
     );
   }
-  if (tenants.length > 1) {
-    throw new Error(
-      "getCurrentTenantId: hay más de un tenant en la base y el sistema todavía no tiene RLS " +
-        "ni resolución de tenant por request (ADR-015). Resolver el tenant 'más viejo' en " +
-        "silencio serviría datos del tenant equivocado. Antes de dar de alta un 2º tenant hay " +
-        "que hacer el trabajo de RLS + resolución por request (ADR-001 / ADR-010).",
-    );
-  }
+  throw new Error(
+    "getCurrentTenantId: hay más de un tenant y el request no trae subdominio para resolver " +
+      "(ADR-015 / ADR-018 §4). Cada tenant debe accederse por su subdominio; los paths sin host " +
+      "(jobs/API) deben resolver el tenant con contexto explícito (runInTenantContext).",
+  );
+}
 
-  return tenants[0].id;
+/** Tenant del request actual. Fail-closed. Dedupe por request. */
+export const getCurrentTenantId = cache(async (): Promise<string> => {
+  return resolveTenantId(await hostFromRequest());
 });

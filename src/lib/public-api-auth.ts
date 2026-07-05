@@ -8,12 +8,11 @@
  * `Authorization: Bearer <key>` y declara a qué tenant escribe con
  * `X-Tenant-Slug`.
  *
- * Resolución de tenant fail-closed (ADR-015): NO resolvemos el tenant "por el
- * slug que mande el cliente" (eso sería confiar en el input para elegir a quién
- * le escribimos). Resolvemos el tenant real con el guard único
- * `getCurrentTenantId()` y exigimos que el slug declarado COINCIDA. Hoy hay un
- * solo tenant; el día del 2º, este punto se cambia junto con RLS + resolución
- * por request (ADR-001/010), igual que el resto del Core.
+ * Resolución de tenant (multi-tenant, ADR-018 §4): el tenant se resuelve por el
+ * slug DECLARADO (`X-Tenant-Slug`). El slug es solo el SELECTOR — la seguridad
+ * está en la **api-key por slug**: un slug sin su clave correcta se rechaza (401),
+ * y un slug sin clave configurada se rechaza cerrado (503). El caller envuelve el
+ * trabajo en `runInTenantContext(tenantId)` para que RLS aísle por ese tenant.
  *
  * La api-key esperada vive en env (no en la DB): así el contrato no depende de
  * una migración en Neon y prod queda seguro por default (sin env → 503, cerrado).
@@ -22,8 +21,7 @@
  */
 
 import { timingSafeEqual } from "node:crypto";
-import { prisma } from "@/lib/prisma";
-import { getCurrentTenantId } from "@/lib/tenant";
+import { basePrisma } from "@/lib/prisma-base";
 
 /** Error con status HTTP para responder JSON uniforme desde las rutas. */
 export class ApiError extends Error {
@@ -94,14 +92,17 @@ export async function authenticatePublicApi(
     throw new ApiError(400, "missing_tenant", "Falta el tenant (header X-Tenant-Slug o campo `tenant`).");
   }
 
-  // Tenant real por el guard fail-closed (ADR-015), no por el slug del cliente.
-  const tenantId = await getCurrentTenantId();
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { slug: true },
+  // Multi-tenant (ADR-018 §4): el tenant se resuelve por el slug DECLARADO. La
+  // seguridad NO está en el slug (es solo el selector) sino en la api-key por
+  // slug (expectedKeyForSlug) — un slug sin la clave correcta se rechaza. Se usa
+  // basePrisma: leer Tenant no debe pasar por la extensión RLS (no hay contexto
+  // de tenant todavía; es justamente lo que estamos resolviendo).
+  const tenant = await basePrisma.tenant.findUnique({
+    where: { slug: declaredSlug },
+    select: { id: true, slug: true },
   });
-  if (!tenant || tenant.slug.toLowerCase() !== declaredSlug) {
-    throw new ApiError(403, "tenant_mismatch", "El tenant declarado no coincide o no está habilitado.");
+  if (!tenant) {
+    throw new ApiError(403, "tenant_mismatch", "El tenant declarado no existe o no está habilitado.");
   }
 
   const expected = expectedKeyForSlug(tenant.slug);
@@ -112,5 +113,5 @@ export async function authenticatePublicApi(
     throw new ApiError(401, "invalid_api_key", "La api-key es inválida.");
   }
 
-  return { tenantId, slug: tenant.slug };
+  return { tenantId: tenant.id, slug: tenant.slug };
 }

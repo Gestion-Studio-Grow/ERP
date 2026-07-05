@@ -14,6 +14,7 @@
  */
 
 import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
+import { runInTenantContext } from "@/lib/tenant-context";
 import { auditPublic } from "@/lib/audit";
 import {
   parseExternalOrder,
@@ -50,22 +51,27 @@ export async function POST(request: Request) {
     const input = parseExternalOrder(body);
     const { tenantId, slug } = await authenticatePublicApi(request, input.tenant ?? null);
 
-    const result = await createExternalOrder(tenantId, input);
-
-    await auditPublic({
-      action: "create",
-      entity: "Order",
-      entityId: result.id,
-      clientPhone: input.customer.phone,
-      changes: {
-        code: result.code,
-        channel: "ONLINE",
-        source: "external-api",
-        slug,
-        total: result.total,
-        externalRef: input.externalRef ?? null,
-        invoiced: result.invoiced,
-      },
+    // Contexto de tenant para RLS (ADR-018 §4): este path no tiene subdominio, el
+    // tenant lo resolvió la api-key por slug. Envolvemos el trabajo para que la
+    // extensión RLS use ESTE tenant (setea app.current_tenant_id) en cada op.
+    const result = await runInTenantContext(tenantId, async () => {
+      const r = await createExternalOrder(tenantId, input);
+      await auditPublic({
+        action: "create",
+        entity: "Order",
+        entityId: r.id,
+        clientPhone: input.customer.phone,
+        changes: {
+          code: r.code,
+          channel: "ONLINE",
+          source: "external-api",
+          slug,
+          total: r.total,
+          externalRef: input.externalRef ?? null,
+          invoiced: r.invoiced,
+        },
+      });
+      return r;
     });
 
     return Response.json({ ok: true, order: result }, { status: 201 });
