@@ -26,8 +26,42 @@ El barrido de la FASE 0 cubre, como mínimo:
 - **Salida:** `docs/ESTADO-ACTUAL.md` creado/actualizado con esa foto. **Si no quedó al día, la FASE 0
   no terminó y el sprint NO arranca.**
 
+## ⚙️ PASO 1 — Creación AUTOMÁTICA de las sesiones (ejecutable, inmediatamente después de la FASE 0)
+Con `docs/ESTADO-ACTUAL.md` al día, el PMO **crea las sesiones solo, sin pedir permiso y sin abrir nada
+a mano**. Secuencia exacta:
+
+1. **Relevá los frentes activos** de la foto: `docs/ESTADO-ACTUAL.md` (§estado por frente/core) +
+   `docs/ESTADO-FRENTES.md` + la cola `docs/PROXIMOS-PASOS.md` (ítems 🟢 avanzables). Un frente por core
+   con trabajo real, en **ambos sectores** (ERP + Agencia Grow). Está OK abrir de más.
+2. **Por cada frente, creá su sesión aislada (1 frente = 1 worktree = 1 sesión):**
+   - **Worktree + rama** desde `main`: `git worktree add ../estetica-erp-<core> -b frente/<core>` (código)
+     · `git worktree add ../estetica-erp-<slug> -b tenant/<slug>` (delivery). `npm install` una vez en
+     cada worktree nuevo (no copiar `node_modules`).
+   - **Spawn de la sesión — elegí la vía DISPONIBLE en el entorno, en este orden:**
+     - **Nativo (desktop / esta sesión):** despachá **un subagente por frente** con el **Agent tool / `Task`**
+       — cada subagente ES la sesión aislada (contexto propio, sobre su worktree, entrega en su rama).
+       Mandá todos los subagentes independientes **en un mismo mensaje** para que corran en paralelo.
+     - **Remoto / web (Claude Code on the web):** creá una **sesión fresca por frente** con el MCP
+       **Claude Code Remote → `create_trigger` con `create_new_session_on_fire: true`** (una por frente, el
+       brief del frente como `prompt`), o abrí **N sesiones `claude`** apuntadas a cada worktree.
+     - **Móvil / Dispatch:** abrí **N sesiones `claude`** separadas, una por worktree (mismo contrato).
+   - **Brief de arranque de cada sesión (obligatorio):** *"leé la FASE 0 (`docs/ESTADO-ACTUAL.md`) + tu
+     bocado; **las de Agencia Grow leen ADEMÁS `docs/sectores/agencia-grow/FUNDAMENTO.md`**; `tsc`+build
+     (+`npm test`) en verde; entregá en tu rama; NO mergees — lo hace el PMO."*
+3. **Registrá cada sesión creada en el tablero** — frente + worktree + rama + bocado en `## Sprint activo`
+   de `docs/SPRINT-MOVIL.md` y en `docs/ESTADO-FRENTES.md`. **El repo es la memoria: si no quedó anotada,
+   la sesión no existe para el sprint.**
+4. **Lo compartido NO se despacha en paralelo (regla 5):** `prisma/schema.prisma`, migraciones y
+   auth/tenancy (`tenant.ts`/`rls.ts`) los **secuencia el PMO en serie**, no se reparten a dos sesiones.
+5. **Fallback (única excepción):** si el entorno **no puede spawnear sesiones nuevas**, degradá a **una
+   sola sesión reutilizada en serie**, un tema por commit (`docs/SPRINT-MOVIL.md`).
+
+> **Definición de "sesión creada":** un frente está despachado cuando existen sus **tres**: (a) worktree +
+> rama, (b) **sesión corriendo** (subagente / sesión remota / `claude`), y (c) **fila en el tablero**. Los
+> tres, o el frente no está creado.
+
 ## Reglas de creación automática + eje de paralelización (CANÓNICO)
-1. **`sprint` crea las sesiones solo** — las sesiones aisladas (**1 frente = 1 worktree = 1 sesión**) se despachan **automáticamente** al invocar `sprint`; **no se abren a mano**.
+1. **`sprint` crea las sesiones solo** — las sesiones aisladas (**1 frente = 1 worktree = 1 sesión**) se despachan **automáticamente** al invocar `sprint` (mecanismo ejecutable en el **⚙️ PASO 1**, arriba); **no se abren a mano**.
 2. **Paralelizar POR CORE/DOMINIO, NUNCA por tenant** — cada frente de desarrollo toma un dominio (pagos, inventario/POS, caja, fiscal, plataforma), no un cliente. **Razón:** dominios distintos tocan archivos distintos → **mínimo solape y mínimos conflictos de merge**.
 3. **El tenant NO es eje de paralelización de código** — el multi-tenant se resuelve **una sola vez** en la capa **plataforma/RLS** (aislamiento por fila). No hay una sesión de código por cliente.
 4. **EXCEPCIÓN — delivery por cliente** — el trabajo de **entrega/operación** de un cliente (onboarding, config, datos, deliverables) **sí** puede tener su sesión por cliente, porque **no toca el core compartido**. Regla mnemotécnica: **core = por dominio; delivery = puede ser por cliente**.
@@ -101,7 +135,7 @@ que quedarse corto.
 - **Orden de integración:** (1) contrato de tenancy de Plataforma → (2) gate de schema de a uno (Fiscal→Inventario→Pagos→feature_flag) → (3) lógica de cada core en paralelo → (4) migraciones+RLS a prod = **Gate 2** (owner), al final.
 
 ## Protocolo móvil (4 palabras)
-- **`sprint`** → **primero FASE 0 (foto en `docs/ESTADO-ACTUAL.md`) — nadie despacha sin la foto.** Después **creás automáticamente** una sesión aislada por frente (1 frente = 1 worktree = 1 sesión; capas fijas PMO/Diseño/Ejecutivo + N Desarrollo **por dominio**, reglas 1–6; nunca a mano ni compartida) y asignás a cada uno su bocado de mayor palanca; **lo compartido lo secuenciás vos**.
+- **`sprint`** → **primero FASE 0 (foto en `docs/ESTADO-ACTUAL.md`) — nadie despacha sin la foto.** Después corrés el **⚙️ PASO 1 — creación automática de sesiones** (worktree + rama + spawn de la sesión + fila en el tablero, por cada frente de ambos sectores; capas fijas PMO/Diseño/Ejecutivo + N Desarrollo **por dominio**, reglas 1–6; nunca a mano ni compartida) y asignás a cada uno su bocado de mayor palanca; **lo compartido lo secuenciás vos**.
 - **`status`** → estado REAL del repo (leé `docs/ESTADO-FRENTES.md` + `## Sprint activo` de `docs/SPRINT-MOVIL.md` + `git log`), en lenguaje de dueño, con estados canónicos (`docs/METODOLOGIA-REPORTE-AVANCE.md`).
 - **`seguimos`** → retomás desde el handoff vivo sin re-preguntar el plan.
 - **`pausa`** → frenás, consolidás (main limpio y pusheado, ramas integradas/anotadas, handoff al día), corrés la **FASE FINAL (Backup): git tag anotado `snapshot/AAAA-MM-DD` a origin + `docs/ESTADO-ACTUAL.md` actualizado**, y esperás.
