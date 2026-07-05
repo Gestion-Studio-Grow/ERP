@@ -71,8 +71,11 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
 **Sprint:** Avanzamos todo — deuda técnica + equipo de élite (sin gates)
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (F3 + F8 + onboarding cerrados)
-**Estado del bloque:** 🟢 en curso.
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (F3 + F8 + onboarding cerrados; ítem 4 evaluado)
+**Estado del bloque:** ✅ **cerrado** — 3 de 3 ítems planificados hechos. Ítem 4 (mejora extra sin
+gate) evaluado: **sin candidato que pase el filtro** calidad-vs-especulación (whereForTenant solo
+paga post-RLS; test harness es decisión estructural → ADR aparte). Ambos anotados en
+`PROXIMOS-PASOS.md`. Working tree limpio, todo en `origin/main`.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
@@ -90,14 +93,14 @@ el porqué, pusheados a `origin/main` · docs y código coinciden · working tre
 - [x] **F3 — reportes con agregación acotada** — rango obligatorio (default 90d, selector 30/90/180/365) + `tenantId` + `select` acotado; se acabó el escaneo de todo el histórico. *(este sprint, 2026-07-05)*
 - [x] **F8 — retención de `AuditLog`** — política (18m) + purga (`purge-audit`, dry-run por default) listas; ADR-009/007 enmendados. Sin ejecutar contra prod. *(este sprint, 2026-07-05)*
 - [x] **Onboarding equipo/agentes** — `docs/ONBOARDING-EQUIPO.md` (modelo mental, ruta de ramp, estándar de élite, cómo se entrena/mejora a los agentes); registrado en tablero + manual. *(este sprint, 2026-07-05)*
-- [ ] **Extra alta palanca sin gate** — a decidir en la ejecución.
+- [x] **Extra alta palanca sin gate** — evaluado, sin candidato válido (no se fabricó trabajo especulativo); dos follow-ups de arquitectura anotados (tests, whereByTenant). *(este sprint, 2026-07-05)*
 
-**Próximo bocado (lo que ejecuta "seguimos"):** ítem 4 — una mejora de arquitectura/performance
-sin gate de alta palanca. Candidato principal: la **convención `whereForTenant()`** como puente
-pre-RLS (ADR-023 F1/nota) — un helper que asegura el predicado `tenantId` en cada query de
-actions nuevas, para no olvidarlo antes de que RLS lo imponga (hoy el aislamiento es app-level y
-depende de disciplina). Es defensa en profundidad, barata y sin tocar la DB. Evaluar alcance
-real antes de meterle mano; si resulta más grande de lo que parece, anotarlo y elegir otro.
+**Próximo bocado (lo que ejecuta "seguimos"):** el pozo de deuda técnica *sin gate* quedó
+drenado. Las siguientes palancas requieren una decisión o un gate tuyo, así que "seguimos"
+arranca por lo de mayor valor que NO dependa de credenciales: **`/sesion-arquitectura adoptar un
+harness de tests`** (el repo no tiene tests — gap real para un equipo de élite; empezar por la
+lógica pura ya lista). Alternativas si preferís: retomar un frente de producto (POS: descontar
+stock al vender) o esperar tu OK para los gates (RLS/2º tenant) y credenciales.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
