@@ -150,6 +150,28 @@ model Tenant {
   outboxEvents       OutboxEvent[]
   orders             Order[]
   orderItems         OrderItem[]
+
+  // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
+  // La gestiona el plano de operador (superficie separada, cross-tenant), no el
+  // backoffice del tenant. Todo aditivo/nullable: los tenants existentes siguen
+  // válidos sin backfill. La migración que agrega estas columnas queda ESCRITA y
+  // SIN aplicar a Neon (Gate 2).
+  status       TenantStatus @default(TRIAL) // activo / en pruebas / suspendido
+  plan         String? // id de plan comercial (free-form; planes reales → ADR-006)
+  blueprintId  String? // vertical sembrado en el alta (servicios/carniceria/generico)
+  subdomain    String?      @unique // link/routing propio del tenant (cada uno su URL)
+  modules      String[]     @default([]) // módulos/pantallas activos por tenant
+  accentPreset String? // preset de acento del branding (src/lib/branding.ts)
+  frontTheme   String? // "light" | "dark" — tema de la vidriera del tenant
+}
+
+// Estado de un tenant en la plataforma (control-plane, ADR-021). TRIAL = en
+// pruebas (default del alta), ACTIVE = operando/pagando, SUSPENDED = pausado sin
+// borrar datos.
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
 }
 
 // Configuración de localización y contacto del negocio (módulo Localización).

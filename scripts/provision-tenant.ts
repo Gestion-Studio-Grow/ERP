@@ -83,6 +83,19 @@ export interface ProvisionParams {
   /** Omitir el catálogo blueprint de ejemplo (default: sembrarlo). */
   skipCatalog?: boolean;
   branding?: TenantBranding;
+  /**
+   * Metadata de plataforma (control-plane, ADR-021). La setea el alta desde la
+   * consola de operador. Solo se persiste al CREAR el tenant; en re-provisioning
+   * no se pisa (la config existente se cambia desde la consola, no re-corriendo el alta).
+   */
+  platform?: {
+    status?: "TRIAL" | "ACTIVE" | "SUSPENDED";
+    plan?: string;
+    subdomain?: string;
+    modules?: string[];
+    accentPreset?: string;
+    frontTheme?: string;
+  };
 }
 
 export interface ProvisionResult {
@@ -194,11 +207,25 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
 
     // --- Tenant: idempotente por slug ---
     // En re-provisioning respetamos lo que el negocio ya editó: update vacío, solo
-    // se fija en el alta nueva.
+    // se fija en el alta nueva. Se persiste el blueprint (vertical) y la metadata de
+    // plataforma (control-plane, ADR-021) solo al crear — la config existente se
+    // cambia desde la consola de operador, no re-corriendo el alta.
+    const plat = params.platform ?? {};
     const tenant = await tx.tenant.upsert({
       where: { slug },
       update: {},
-      create: { name, slug, timezone },
+      create: {
+        name,
+        slug,
+        timezone,
+        blueprintId: blueprint.id,
+        ...(plat.status ? { status: plat.status } : {}),
+        ...(plat.plan !== undefined ? { plan: plat.plan } : {}),
+        ...(plat.subdomain !== undefined ? { subdomain: plat.subdomain } : {}),
+        ...(plat.modules ? { modules: plat.modules } : {}),
+        ...(plat.accentPreset !== undefined ? { accentPreset: plat.accentPreset } : {}),
+        ...(plat.frontTheme !== undefined ? { frontTheme: plat.frontTheme } : {}),
+      },
     });
     const tenantId = tenant.id;
 
