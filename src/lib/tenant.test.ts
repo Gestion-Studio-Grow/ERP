@@ -5,7 +5,7 @@
 
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { extractSubdomain } from "./tenant";
+import { extractSubdomain, forcedTenantSlug, resolveForcedTenantId } from "./tenant";
 
 before(() => {
   process.env.APP_BASE_DOMAIN = "miapp.com";
@@ -50,4 +50,33 @@ test("sin APP_BASE_DOMAIN configurado, siempre null (single-tenant)", () => {
   } finally {
     process.env.APP_BASE_DOMAIN = prev;
   }
+});
+
+// --- Opción A: pin de tenant por env (FORCE_TENANT_SLUG) -----------------------
+
+test("forcedTenantSlug: null si la env var no está o está vacía", () => {
+  assert.equal(forcedTenantSlug({}), null);
+  assert.equal(forcedTenantSlug({ FORCE_TENANT_SLUG: "" }), null);
+  assert.equal(forcedTenantSlug({ FORCE_TENANT_SLUG: "   " }), null);
+});
+
+test("forcedTenantSlug: normaliza trim + lowercase", () => {
+  assert.equal(forcedTenantSlug({ FORCE_TENANT_SLUG: "magra" }), "magra");
+  assert.equal(forcedTenantSlug({ FORCE_TENANT_SLUG: "  Magra  " }), "magra");
+  assert.equal(forcedTenantSlug({ FORCE_TENANT_SLUG: "BEAUTY-SPA" }), "beauty-spa");
+});
+
+test("resolveForcedTenantId: devuelve el id cuando el slug matchea", async () => {
+  const id = await resolveForcedTenantId("magra", async (slug) => {
+    assert.equal(slug, "magra"); // el slug forzado llega al lookup tal cual
+    return { id: "t_magra" };
+  });
+  assert.equal(id, "t_magra");
+});
+
+test("resolveForcedTenantId: THROW fail-closed si el slug no existe", async () => {
+  await assert.rejects(
+    () => resolveForcedTenantId("noexiste", async () => null),
+    /FORCE_TENANT_SLUG="noexiste" no matchea.*fail-closed/,
+  );
 });

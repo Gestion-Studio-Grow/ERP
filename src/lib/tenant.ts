@@ -5,6 +5,12 @@ import { basePrisma } from "@/lib/prisma-base";
 // AHORA por request (ADR-018 §4).
 //
 // CÓMO RESUELVE (en orden):
+//   0. Si `FORCE_TENANT_SLUG` está seteado → ese tenant, fijo, ignorando el host
+//      (Opción A — "URLs gratis por tenant": un sitio Netlify por tenant, mismo
+//      repo, cada sitio pineado a su slug; ver docs/runbooks/alta-magra.md).
+//      Fail-closed: si el slug no matchea, THROW. NO reemplaza RLS — el aislamiento
+//      entre sitios que pegan a la misma DB lo sigue dando RLS (el id resuelto acá
+//      alimenta el GUC de la policy).
 //   1. Por SUBDOMINIO del host del request (`carolina.<base>` → tenant con
 //      subdomain="carolina"). Cada tenant tiene su URL (Tenant.subdomain, agregado
 //      por el control-plane, ADR-021). Aplica al sitio público y al backoffice del
@@ -93,7 +99,44 @@ export async function resolveTenantId(host: string | null | undefined): Promise<
   );
 }
 
+/**
+ * Slug de tenant forzado por env (`FORCE_TENANT_SLUG`), normalizado, o null si no
+ * está. PURA y testeable. Es la pieza de la Opción A ("URLs gratis por tenant"):
+ * cada sitio Netlify fija su tenant con esta var. Se normaliza (trim + lowercase)
+ * para matchear los slugs, que son kebab en minúscula.
+ */
+export function forcedTenantSlug(
+  env: Record<string, string | undefined> = process.env,
+): string | null {
+  const v = env.FORCE_TENANT_SLUG?.trim().toLowerCase();
+  return v ? v : null;
+}
+
+/**
+ * Resuelve el tenantId del slug forzado, o THROW fail-closed (ADR-015) si no existe.
+ * `lookup` está inyectado para testear sin DB; en runtime es `basePrisma.tenant`.
+ */
+export async function resolveForcedTenantId(
+  slug: string,
+  lookup: (slug: string) => Promise<{ id: string } | null>,
+): Promise<string> {
+  const t = await lookup(slug);
+  if (t) return t.id;
+  throw new Error(
+    `getCurrentTenantId: FORCE_TENANT_SLUG="${slug}" no matchea ningún tenant ` +
+      "(fail-closed, ADR-015). Revisá el slug o que ese tenant exista.",
+  );
+}
+
 /** Tenant del request actual. Fail-closed. Dedupe por request. */
 export const getCurrentTenantId = cache(async (): Promise<string> => {
+  // Paso 0: pin por env (Opción A). Domina sobre el host; si está seteado, el sitio
+  // queda fijado a ese tenant. Usa el cliente BASE (sin RLS), como el resto de acá.
+  const forced = forcedTenantSlug();
+  if (forced) {
+    return resolveForcedTenantId(forced, (slug) =>
+      basePrisma.tenant.findUnique({ where: { slug }, select: { id: true } }),
+    );
+  }
   return resolveTenantId(await hostFromRequest());
 });
