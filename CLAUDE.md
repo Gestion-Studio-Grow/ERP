@@ -1,5 +1,20 @@
 @AGENTS.md
 
+## Arranque de sesión — OBLIGATORIO SIEMPRE (regla de alto nivel)
+
+**Toda sesión de trabajo sobre este proyecto debe EMPEZAR por revisar el estado del repo para una
+gestión correcta del proyecto.** Es obligatorio siempre, en Claude Code (desktop) y en Dispatch
+(móvil), se use o no el comando `sprint`. Antes de tocar nada, revisá como mínimo:
+
+- **`docs/ESTADO-ACTUAL.md`** — la foto viva del sistema (main/prod, tenants, gates, migraciones,
+  bugs conocidos, core→sesión). Si no existe o está desactualizada, **actualizala primero**.
+- **`git status`** + tip de `main` y ramas/worktrees — WIP sin commitear y en qué estado está el árbol.
+- **Migraciones pendientes** — `prisma/migrations/` vs lo aplicado (según docs; no golpear Neon),
+  incluidas **colisiones de timestamp**.
+
+Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `sprint`, esto es su
+**FASE 0 Exploración** (Paso 0 no salteable en `.claude/commands/sprint.md`); cuando no, igual aplica.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
