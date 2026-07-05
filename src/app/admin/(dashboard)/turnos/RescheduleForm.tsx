@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { getAvailableSlots, getProfessionalsWithServices, rescheduleAppointment } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtTime } from "@/lib/datetime";
+import { Input, Select, buttonClasses, cn } from "@/components/ui";
 
 type Professional = { id: string; name: string; box: { name: string } | null; services: { id: string }[] };
 
@@ -61,7 +62,7 @@ export default function RescheduleForm({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="text-sm text-neutral-500 hover:text-black text-left"
+        className="text-sm text-muted hover:text-strong text-left transition-colors"
       >
         Reprogramar
       </button>
@@ -69,15 +70,15 @@ export default function RescheduleForm({
   }
 
   return (
-    <div className="rounded-md border bg-neutral-50 p-3 mt-1">
+    <div className="rounded-md border border-line bg-surface-raised p-3 mt-1">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-medium">Reprogramar turno</p>
+        <p className="text-sm font-medium text-strong">Reprogramar turno</p>
         <button
           onClick={() => {
             setOpen(false);
             reset();
           }}
-          className="text-sm text-neutral-500"
+          className="text-sm text-muted hover:text-strong transition-colors"
         >
           Cerrar
         </button>
@@ -98,9 +99,8 @@ export default function RescheduleForm({
       >
         <input type="hidden" name="appointmentId" value={appointmentId} />
 
-        <select
+        <Select
           name="professionalId"
-          className="w-full rounded-md border px-3 py-2 text-sm"
           value={professionalId}
           onChange={(e) => {
             setProfessionalId(e.target.value);
@@ -114,12 +114,11 @@ export default function RescheduleForm({
               {p.id === currentProfessionalId ? " (actual)" : ""}
             </option>
           ))}
-        </select>
+        </Select>
 
-        <input
+        <Input
           type="date"
           required
-          className="w-full rounded-md border px-3 py-2 text-sm"
           value={date}
           onChange={(e) => {
             setDate(e.target.value);
@@ -129,9 +128,9 @@ export default function RescheduleForm({
 
         {date && (
           <div>
-            {isPending && <p className="text-sm text-neutral-500">Buscando horarios…</p>}
+            {isPending && <p className="text-sm text-muted">Buscando horarios…</p>}
             {!isPending && slots.length === 0 && (
-              <p className="text-sm text-neutral-500">No hay horarios disponibles ese día.</p>
+              <p className="text-sm text-muted">No hay horarios disponibles ese día.</p>
             )}
             <div className="grid grid-cols-4 gap-2">
               {slots.map((slot) => {
@@ -141,9 +140,12 @@ export default function RescheduleForm({
                     key={slot}
                     type="button"
                     onClick={() => setSelectedSlot(slot)}
-                    className={`rounded-md border px-2 py-1.5 text-sm ${
-                      isSelected ? "bg-black text-white border-black" : "bg-white"
-                    }`}
+                    className={cn(
+                      "rounded-md border px-2 py-1.5 text-sm transition-colors",
+                      isSelected
+                        ? "bg-accent text-on-accent border-accent"
+                        : "bg-surface-raised border-line-strong text-body hover:bg-accent-soft"
+                    )}
                   >
                     {fmtTime(slot)}
                   </button>
@@ -154,12 +156,12 @@ export default function RescheduleForm({
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         {selectedSlot && (
           <SubmitButton
             pendingText="Reprogramando…"
-            className="w-full rounded-md bg-black text-white py-2 text-sm font-medium"
+            className={buttonClasses("solid", "md", "w-full")}
           >
             Confirmar nuevo horario
           </SubmitButton>

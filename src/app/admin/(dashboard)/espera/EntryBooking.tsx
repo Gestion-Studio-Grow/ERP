@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { findSlotsForWaitlistEntry, bookFromWaitlist } from "@/lib/waitlist-actions";
 import { fmtTime } from "@/lib/datetime";
+import { Select, buttonClasses } from "@/components/ui";
 
 type SlotGroup = { professionalId: string; professionalName: string; slots: string[] };
 
@@ -51,22 +52,22 @@ export default function EntryBooking({
   }
 
   return (
-    <div className="mt-3 w-full rounded-md border bg-neutral-50 p-3">
+    <div className="mt-3 w-full rounded-md border border-line bg-surface-sunken p-3">
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-xs font-medium text-neutral-600">Buscar un hueco y reservar</span>
+        <span className="text-xs font-medium text-body">Buscar un hueco y reservar</span>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-xs text-neutral-400 hover:underline"
+          className="text-xs text-faint hover:underline"
         >
           Cerrar
         </button>
       </div>
 
-      <select
+      <Select
         value={date}
         onChange={(e) => search(e.target.value)}
-        className="w-full rounded-md border px-2 py-1.5 text-sm mb-2"
+        className="mb-2"
       >
         <option value="">Elegí un día…</option>
         {dates.map((d) => (
@@ -74,13 +75,13 @@ export default function EntryBooking({
             {d.label}
           </option>
         ))}
-      </select>
+      </Select>
 
-      {isPending && <p className="text-xs text-neutral-500">Buscando horarios…</p>}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {isPending && <p className="text-xs text-muted">Buscando horarios…</p>}
+      {error && <p className="text-xs text-danger">{error}</p>}
 
       {!isPending && groups !== null && groups.length === 0 && (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted">
           No hay horarios libres ese día para este servicio. Probá otro día.
         </p>
       )}
@@ -88,7 +89,7 @@ export default function EntryBooking({
       {!isPending &&
         groups?.map((g) => (
           <div key={g.professionalId} className="mb-2 last:mb-0">
-            <p className="text-xs text-neutral-500 mb-1">{g.professionalName}</p>
+            <p className="text-xs text-muted mb-1">{g.professionalName}</p>
             <div className="flex flex-wrap gap-1.5">
               {g.slots.map((slot) => (
                 <form key={slot} action={bookFromWaitlist}>
@@ -97,7 +98,7 @@ export default function EntryBooking({
                   <input type="hidden" name="startsAt" value={slot} />
                   <button
                     type="submit"
-                    className="rounded-md border bg-white px-2 py-1 text-xs hover:bg-black hover:text-white"
+                    className={buttonClasses("outline", "sm")}
                     title="Reservar este horario para el anotado"
                   >
                     {fmtTime(slot)}

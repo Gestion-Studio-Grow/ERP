@@ -11,6 +11,7 @@ import {
 } from "@/lib/catalog-actions";
 import { useToast } from "../ToastProvider";
 import { fmtShortDate } from "@/lib/datetime";
+import { buttonClasses } from "@/components/ui";
 
 type BoxBlock = { id: string; startsAt: Date; endsAt: Date; reason: string };
 type Box = { id: string; name: string; active: boolean; blocks: BoxBlock[] };
@@ -25,7 +26,7 @@ function BoxRow({ box }: { box: Box }) {
   const { showError, showSuccess } = useToast();
 
   return (
-    <div className="rounded-lg border px-4 py-2.5">
+    <div className="rounded-lg border border-line px-4 py-2.5">
       {editing ? (
         <form
           action={async (fd) => {
@@ -39,18 +40,18 @@ function BoxRow({ box }: { box: Box }) {
             name="name"
             defaultValue={box.name}
             required
-            className="flex-1 rounded-md border px-2 py-1 text-sm"
+            className="flex-1 rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-sm text-strong focus:border-accent"
           />
           <button type="submit" className="text-sm font-medium">
             Guardar
           </button>
-          <button type="button" onClick={() => setEditing(false)} className="text-sm text-neutral-500">
+          <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted">
             Cancelar
           </button>
         </form>
       ) : (
         <div className="flex flex-col gap-2">
-          <span className={box.active ? "font-medium" : "font-medium text-neutral-400 line-through"}>
+          <span className={box.active ? "font-medium" : "font-medium text-faint line-through"}>
             {box.name}
           </span>
           <div className="flex flex-wrap gap-2">
@@ -92,7 +93,7 @@ function BoxRow({ box }: { box: Box }) {
           {box.blocks.map((b) => (
             <div
               key={b.id}
-              className="flex items-center gap-2 rounded-full bg-amber-50 text-amber-800 px-2.5 py-1 text-xs"
+              className="flex items-center gap-2 rounded-full bg-warning-soft text-warning px-2.5 py-1 text-xs"
             >
               <span>
                 {fmt(b.startsAt)} – {fmt(b.endsAt)} · {b.reason}
@@ -124,31 +125,31 @@ function BoxRow({ box }: { box: Box }) {
               showError(err instanceof Error ? err.message : "No se pudo crear el bloqueo.");
             }
           }}
-          className="mt-3 grid grid-cols-2 gap-2 rounded-md bg-neutral-50 p-3"
+          className="mt-3 grid grid-cols-2 gap-2 rounded-md bg-surface-sunken p-3"
         >
           <input type="hidden" name="boxId" value={box.id} />
           <div>
-            <label className="block text-xs text-neutral-500 mb-1">Desde</label>
-            <input type="date" name="startDate" required className="w-full rounded-md border px-2 py-1.5 text-sm" />
+            <label className="block text-xs text-muted mb-1">Desde</label>
+            <input type="date" name="startDate" required className="w-full rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent" />
           </div>
           <div>
-            <label className="block text-xs text-neutral-500 mb-1">Hasta</label>
-            <input type="date" name="endDate" required className="w-full rounded-md border px-2 py-1.5 text-sm" />
+            <label className="block text-xs text-muted mb-1">Hasta</label>
+            <input type="date" name="endDate" required className="w-full rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent" />
           </div>
           <div className="col-span-2">
-            <label className="block text-xs text-neutral-500 mb-1">Motivo</label>
+            <label className="block text-xs text-muted mb-1">Motivo</label>
             <input
               name="reason"
               required
               placeholder="Ej: reservado para depilación láser"
-              className="w-full rounded-md border px-2 py-1.5 text-sm"
+              className="w-full rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
             />
           </div>
           <div className="col-span-2 flex gap-3">
             <button type="submit" className="text-sm font-medium">
               Bloquear box
             </button>
-            <button type="button" onClick={() => setBlocking(false)} className="text-sm text-neutral-500">
+            <button type="button" onClick={() => setBlocking(false)} className="text-sm text-muted">
               Cancelar
             </button>
           </div>
@@ -162,7 +163,7 @@ export default function BoxesSection({ boxes }: { boxes: Box[] }) {
   return (
     <section>
       <h2 className="text-lg font-medium mb-1">Boxes</h2>
-      <p className="text-sm text-neutral-500 mb-3">
+      <p className="text-sm text-muted mb-3">
         Cantidad de espacios físicos de atención. Podés agregar, editar, desactivar o bloquear
         fechas puntuales (ej. reservado para un servicio especial) sin reasignar profesionales.
       </p>
@@ -171,7 +172,7 @@ export default function BoxesSection({ boxes }: { boxes: Box[] }) {
           <BoxRow key={b.id} box={b} />
         ))}
         {boxes.length === 0 && (
-          <p className="text-sm text-neutral-500">No hay boxes cargados todavía.</p>
+          <p className="text-sm text-muted">No hay boxes cargados todavía.</p>
         )}
       </div>
       <form action={createBox} className="flex gap-2">
@@ -179,9 +180,9 @@ export default function BoxesSection({ boxes }: { boxes: Box[] }) {
           name="name"
           required
           placeholder="Ej: Box 4"
-          className="flex-1 rounded-md border px-3 py-2 text-sm"
+          className="flex-1 rounded-md border border-line-strong bg-surface-raised px-3 py-2 text-sm text-strong focus:border-accent"
         />
-        <button type="submit" className="rounded-md bg-black text-white px-4 py-2 text-sm font-medium">
+        <button type="submit" className={buttonClasses("solid", "md")}>
           Agregar box
         </button>
       </form>

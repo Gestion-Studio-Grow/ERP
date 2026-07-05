@@ -6,6 +6,7 @@ import {
   cancelWaitlistEntry,
 } from "@/lib/waitlist-actions";
 import { fmtShortDate, nextBusinessDays } from "@/lib/datetime";
+import { Input, Select, buttonClasses } from "@/components/ui";
 import EntryBooking from "./EntryBooking";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export default async function EsperaPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1">Lista de espera</h1>
-      <p className="text-neutral-500 mb-8">
+      <p className="text-muted mb-8">
         Anotá a quien quiere un turno cuando no hay horario. Cuando se libere un lugar (una
         cancelación o una reprogramación), buscá un hueco y reservalo con un clic.
       </p>
@@ -29,64 +30,63 @@ export default async function EsperaPage() {
       {/* Alta */}
       <form
         action={addToWaitlist}
-        className="rounded-lg border p-4 mb-8 grid gap-3 sm:grid-cols-2"
+        className="rounded-lg border border-line p-4 mb-8 grid gap-3 sm:grid-cols-2"
       >
-        <div className="sm:col-span-2 text-sm font-medium text-neutral-700">Anotar a alguien</div>
+        <div className="sm:col-span-2 text-sm font-medium text-strong">Anotar a alguien</div>
 
         <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Nombre *</span>
-          <input name="clientName" required className="w-full rounded-md border px-2 py-1.5" />
+          <span className="block text-muted mb-1">Nombre *</span>
+          <Input name="clientName" required />
         </label>
         <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Teléfono *</span>
-          <input name="clientPhone" required className="w-full rounded-md border px-2 py-1.5" />
+          <span className="block text-muted mb-1">Teléfono *</span>
+          <Input name="clientPhone" required />
         </label>
 
         <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Email (opcional)</span>
-          <input name="clientEmail" type="email" className="w-full rounded-md border px-2 py-1.5" />
+          <span className="block text-muted mb-1">Email (opcional)</span>
+          <Input name="clientEmail" type="email" />
         </label>
         <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Servicio *</span>
-          <select name="serviceId" required className="w-full rounded-md border px-2 py-1.5">
+          <span className="block text-muted mb-1">Servicio *</span>
+          <Select name="serviceId" required>
             <option value="">Elegí un servicio…</option>
             {services.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Profesional preferido</span>
-          <select name="professionalId" className="w-full rounded-md border px-2 py-1.5">
+          <span className="block text-muted mb-1">Profesional preferido</span>
+          <Select name="professionalId">
             <option value="">Cualquiera</option>
             {professionals.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Preferencia de día/horario</span>
-          <input
+          <span className="block text-muted mb-1">Preferencia de día/horario</span>
+          <Input
             name="preferenceNote"
             placeholder="ej: martes o jueves por la tarde"
-            className="w-full rounded-md border px-2 py-1.5"
           />
         </label>
 
         <label className="text-sm sm:col-span-2">
-          <span className="block text-neutral-500 mb-1">Nota interna (opcional)</span>
-          <input name="notes" className="w-full rounded-md border px-2 py-1.5" />
+          <span className="block text-muted mb-1">Nota interna (opcional)</span>
+          <Input name="notes" />
         </label>
 
         <div className="sm:col-span-2">
           <button
             type="submit"
-            className="rounded-md bg-black text-white px-4 py-2 text-sm font-medium"
+            className={buttonClasses("solid", "md")}
           >
             Anotar en la lista
           </button>
@@ -96,28 +96,28 @@ export default async function EsperaPage() {
       {/* Listado */}
       <div className="space-y-3">
         {entries.map((e) => (
-          <div key={e.id} className="rounded-lg border p-4">
+          <div key={e.id} className="rounded-lg border border-line p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-sm">{e.clientName}</span>
-                  <span className="text-xs text-neutral-400">· {e.clientPhone}</span>
+                  <span className="text-xs text-faint">· {e.clientPhone}</span>
                   {e.status === "NOTIFIED" && (
-                    <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[11px] font-medium">
+                    <span className="rounded-full bg-warning-soft text-warning px-2 py-0.5 text-[11px] font-medium">
                       Avisado
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-neutral-600 mt-1">
+                <p className="text-sm text-body mt-1">
                   {e.service.name}
                   {" · "}
                   {e.professional ? e.professional.name : "cualquier profesional"}
                 </p>
                 {e.preferenceNote && (
-                  <p className="text-xs text-neutral-500 mt-0.5">Prefiere: {e.preferenceNote}</p>
+                  <p className="text-xs text-muted mt-0.5">Prefiere: {e.preferenceNote}</p>
                 )}
-                {e.notes && <p className="text-xs text-neutral-400 mt-0.5">{e.notes}</p>}
-                <p className="text-xs text-neutral-400 mt-1">Anotado el {fmtShortDate(e.createdAt)}</p>
+                {e.notes && <p className="text-xs text-faint mt-0.5">{e.notes}</p>}
+                <p className="text-xs text-faint mt-1">Anotado el {fmtShortDate(e.createdAt)}</p>
               </div>
 
               <div className="flex flex-col gap-2 items-stretch sm:items-end whitespace-nowrap">
@@ -146,7 +146,7 @@ export default async function EsperaPage() {
         ))}
 
         {entries.length === 0 && (
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-muted">
             La lista de espera está vacía. Anotá a alguien arriba cuando no tengas horario para
             ofrecerle.
           </p>

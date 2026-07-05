@@ -5,6 +5,7 @@ import { createManualAppointment } from "@/lib/actions";
 import { getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtTime } from "@/lib/datetime";
+import { Input, Select, Textarea, buttonClasses, cn } from "@/components/ui";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
@@ -47,7 +48,7 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded-md bg-black text-white px-4 py-2 text-sm font-medium mb-6"
+        className={buttonClasses("solid", "md", "mb-6")}
       >
         + Nuevo turno
       </button>
@@ -55,15 +56,15 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
   }
 
   return (
-    <div className="rounded-lg border p-4 mb-8 bg-neutral-50">
+    <div className="rounded-lg border border-line bg-surface-raised shadow-xs p-4 mb-8">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-medium">Nuevo turno (llamada / walk-in)</p>
+        <p className="text-sm font-medium text-strong">Nuevo turno (llamada / walk-in)</p>
         <button
           onClick={() => {
             setOpen(false);
             reset();
           }}
-          className="text-sm text-neutral-500"
+          className="text-sm text-muted hover:text-strong transition-colors"
         >
           Cancelar
         </button>
@@ -83,10 +84,9 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
         className="space-y-3"
       >
         <div className="grid grid-cols-2 gap-3">
-          <select
+          <Select
             name="professionalId"
             required
-            className="rounded-md border px-3 py-2 text-sm"
             value={professionalId}
             onChange={(e) => {
               setProfessionalId(e.target.value);
@@ -100,12 +100,11 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
                 {p.name} {p.box ? `— ${p.box.name}` : ""}
               </option>
             ))}
-          </select>
+          </Select>
 
-          <select
+          <Select
             name="serviceId"
             required
-            className="rounded-md border px-3 py-2 text-sm"
             value={serviceId}
             disabled={!professional}
             onChange={(e) => {
@@ -120,13 +119,12 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
                 {s.residentPrice != null ? ` · vecino/a $${s.residentPrice.toLocaleString("es-AR")}` : ""}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
-        <input
+        <Input
           type="date"
           required
-          className="w-full rounded-md border px-3 py-2 text-sm"
           value={date}
           onChange={(e) => {
             setDate(e.target.value);
@@ -136,9 +134,9 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
 
         {date && (
           <div>
-            {isPending && <p className="text-sm text-neutral-500">Buscando horarios…</p>}
+            {isPending && <p className="text-sm text-muted">Buscando horarios…</p>}
             {!isPending && slots.length === 0 && (
-              <p className="text-sm text-neutral-500">No hay horarios disponibles ese día.</p>
+              <p className="text-sm text-muted">No hay horarios disponibles ese día.</p>
             )}
             <div className="grid grid-cols-4 gap-2">
               {slots.map((slot) => {
@@ -149,9 +147,12 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
                     key={slot}
                     type="button"
                     onClick={() => setSelectedSlot(slot)}
-                    className={`rounded-md border px-2 py-1.5 text-sm ${
-                      isSelected ? "bg-black text-white border-black" : "bg-white"
-                    }`}
+                    className={cn(
+                      "rounded-md border px-2 py-1.5 text-sm transition-colors",
+                      isSelected
+                        ? "bg-accent text-on-accent border-accent"
+                        : "bg-surface-raised border-line-strong text-body hover:bg-accent-soft"
+                    )}
                   >
                     {label}
                   </button>
@@ -163,44 +164,33 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
         )}
 
         {selectedSlot && (
-          <div className="space-y-2 border-t pt-3">
+          <div className="space-y-2 border-t border-line pt-3">
             <div className="grid grid-cols-2 gap-3">
-              <input
-                name="clientName"
-                required
-                placeholder="Nombre del cliente"
-                className="rounded-md border px-3 py-2 text-sm"
-              />
-              <input
-                name="clientPhone"
-                required
-                placeholder="Teléfono"
-                className="rounded-md border px-3 py-2 text-sm"
-              />
+              <Input name="clientName" required placeholder="Nombre del cliente" />
+              <Input name="clientPhone" required placeholder="Teléfono" />
             </div>
-            <label className="flex items-center gap-2 text-sm text-neutral-600">
-              <input type="checkbox" name="isResident" />
+            <label className="flex items-center gap-2 text-sm text-body">
+              <input type="checkbox" name="isResident" className="accent-accent" />
               Vecino/a de La Alameda
             </label>
-            <input
+            <Input
               name="couponCode"
               placeholder="Cupón (opcional)"
-              className="w-full rounded-md border px-3 py-2 text-sm uppercase placeholder:normal-case"
+              className="uppercase placeholder:normal-case"
             />
-            <select name="status" defaultValue="CONFIRMED" className="w-full rounded-md border px-3 py-2 text-sm">
+            <Select name="status" defaultValue="CONFIRMED">
               <option value="CONFIRMED">Confirmado (ya pagó o pactado en persona)</option>
               <option value="PENDING">Pendiente de pago</option>
-            </select>
-            <textarea
+            </Select>
+            <Textarea
               name="notes"
               rows={2}
               placeholder="Notas (opcional): preferencias, tono, alergias…"
-              className="w-full rounded-md border px-3 py-2 text-sm"
             />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-danger">{error}</p>}
             <SubmitButton
               pendingText="Creando turno…"
-              className="w-full rounded-md bg-black text-white py-2 text-sm font-medium"
+              className={buttonClasses("solid", "md", "w-full")}
             >
               Crear turno
             </SubmitButton>

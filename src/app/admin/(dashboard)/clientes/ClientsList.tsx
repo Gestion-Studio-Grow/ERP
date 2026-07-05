@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Input } from "@/components/ui";
 
 type Client = {
   id: string;
@@ -30,12 +31,12 @@ export default function ClientsList({ clients }: { clients: Client[] }) {
 
   return (
     <>
-      <input
+      <Input
         type="text"
         placeholder="Buscar por nombre o teléfono..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="w-full rounded-md border px-3 py-2 text-sm mb-4"
+        className="mb-4"
       />
 
       <div className="space-y-2">
@@ -43,22 +44,22 @@ export default function ClientsList({ clients }: { clients: Client[] }) {
           <Link
             key={c.id}
             href={`/admin/clientes/${c.id}`}
-            className="flex items-center justify-between rounded-lg border px-4 py-3 hover:border-neutral-400 transition-colors"
+            className="flex items-center justify-between rounded-lg border border-line bg-surface-raised px-4 py-3 hover:border-line-strong transition-colors"
           >
             <div>
-              <p className="font-medium">{c.name}</p>
-              <p className="text-sm text-neutral-500">{c.phone}</p>
+              <p className="font-medium text-strong">{c.name}</p>
+              <p className="text-sm text-muted">{c.phone}</p>
             </div>
-            <span className="text-sm text-neutral-500">
+            <span className="text-sm text-muted">
               {c.appointments.length} turno{c.appointments.length !== 1 ? "s" : ""}
             </span>
           </Link>
         ))}
         {filtered.length === 0 && clients.length > 0 && (
-          <p className="text-sm text-neutral-500">No encontramos clientes con ese criterio.</p>
+          <p className="text-sm text-muted">No encontramos clientes con ese criterio.</p>
         )}
         {clients.length === 0 && (
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-muted">
             Todavía no hay clientes. Se cargan automáticamente cuando reservan un turno.
           </p>
         )}

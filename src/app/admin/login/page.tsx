@@ -1,4 +1,5 @@
 import { login } from "@/lib/auth-actions";
+import { Input, buttonClasses } from "@/components/ui";
 
 export default async function LoginPage({
   searchParams,
@@ -8,39 +9,37 @@ export default async function LoginPage({
   const { next, error } = await searchParams;
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white px-6">
+    <main className="min-h-screen flex items-center justify-center bg-surface px-6">
       <div className="w-full max-w-sm">
-        <p className="text-sm text-neutral-400 mb-1">Beauty &amp; Spa</p>
+        <p className="text-sm text-faint mb-1">Beauty &amp; Spa</p>
         <h1 className="text-2xl font-semibold mb-6">Ingresar al panel</h1>
 
         {error && (
-          <p className="mb-4 rounded-md bg-red-50 text-red-700 text-sm px-3 py-2">
+          <p className="mb-4 rounded-md bg-danger-soft text-danger text-sm px-3 py-2">
             Email o contraseña incorrectos. Probá de nuevo.
           </p>
         )}
 
         <form action={login} className="space-y-3">
           <input type="hidden" name="next" value={next ?? "/admin"} />
-          <input
+          <Input
             type="email"
             name="email"
             required
             autoFocus
             autoComplete="username"
             placeholder="Email"
-            className="w-full rounded-md border px-3 py-2"
           />
-          <input
+          <Input
             type="password"
             name="password"
             required
             autoComplete="current-password"
             placeholder="Contraseña"
-            className="w-full rounded-md border px-3 py-2"
           />
           <button
             type="submit"
-            className="w-full rounded-md bg-black text-white py-2.5 font-medium"
+            className={buttonClasses("solid", "md", "w-full")}
           >
             Ingresar
           </button>

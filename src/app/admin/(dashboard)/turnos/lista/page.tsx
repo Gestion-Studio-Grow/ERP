@@ -29,28 +29,28 @@ export default async function TurnosListaPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <div className="flex items-center gap-4 mb-1">
-        <h1 className="text-2xl font-semibold">Agenda</h1>
+        <h1 className="text-2xl font-semibold text-strong">Agenda</h1>
       </div>
-      <div className="flex gap-4 text-sm mb-6 border-b">
-        <Link href="/admin/turnos" className="px-1 pb-2 text-neutral-500 hover:text-black">
+      <div className="flex gap-4 text-sm mb-6 border-b border-line">
+        <Link href="/admin/turnos" className="px-1 pb-2 text-muted hover:text-strong">
           Calendario
         </Link>
-        <Link href="/admin/turnos/lista" className="px-1 pb-2 border-b-2 border-black font-medium">
+        <Link href="/admin/turnos/lista" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium">
           Lista
         </Link>
       </div>
-      <p className="text-neutral-500 mb-6">
+      <p className="text-muted mb-6">
         Confirmá el turno manualmente cuando recibas el comprobante por WhatsApp.
       </p>
 
       <NewAppointmentForm professionals={professionals} />
 
       <section className="mb-10">
-        <h2 className="text-lg font-medium mb-3">
+        <h2 className="text-lg font-medium text-strong mb-3">
           Pendientes de confirmar ({pending.length})
         </h2>
         {pending.length === 0 && (
-          <p className="text-sm text-neutral-500">No hay solicitudes pendientes.</p>
+          <p className="text-sm text-muted">No hay solicitudes pendientes.</p>
         )}
         <div className="space-y-3">
           {pending.map((a) => (
@@ -60,7 +60,7 @@ export default async function TurnosListaPage() {
       </section>
 
       <section>
-        <h2 className="text-lg font-medium mb-3">Historial</h2>
+        <h2 className="text-lg font-medium text-strong mb-3">Historial</h2>
         <AppointmentsHistoryList appointments={rest} statusLabel={statusLabel} />
       </section>
     </main>

@@ -10,6 +10,7 @@ import {
   setServiceResources,
 } from "@/lib/catalog-actions";
 import { useToast } from "../ToastProvider";
+import { Input, Select, Textarea, buttonClasses } from "@/components/ui";
 
 type Product = { id: string; name: string; unit: string; active: boolean };
 type ServiceProductLink = { productId: string; quantity: number; product: Product };
@@ -33,16 +34,16 @@ type Service = {
 
 function InsumosEditor({ service, products }: { service: Service; products: Product[] }) {
   return (
-    <tr className="block sm:table-row border-b bg-neutral-50">
+    <tr className="block sm:table-row border-b border-line bg-surface-sunken">
       <td colSpan={6} className="block sm:table-cell px-4 py-3">
         <form
           action={setServiceProducts}
           className="space-y-2"
         >
           <input type="hidden" name="serviceId" value={service.id} />
-          <p className="text-sm font-medium mb-1">Insumos consumidos por turno</p>
+          <p className="text-sm font-medium mb-1 text-strong">Insumos consumidos por turno</p>
           {products.filter((p) => p.active).length === 0 && (
-            <p className="text-sm text-neutral-500">Cargá productos en la sección de abajo primero.</p>
+            <p className="text-sm text-muted">Cargá productos en la sección de abajo primero.</p>
           )}
           <div className="space-y-1.5">
             {products
@@ -56,6 +57,7 @@ function InsumosEditor({ service, products }: { service: Service; products: Prod
                       name="productId"
                       value={p.id}
                       defaultChecked={!!existing}
+                      className="accent-accent"
                       onChange={(e) => {
                         const qtyInput = e.currentTarget.parentElement?.querySelector<HTMLInputElement>(
                           'input[name="quantity"]'
@@ -71,9 +73,9 @@ function InsumosEditor({ service, products }: { service: Service; products: Prod
                       min="0.1"
                       defaultValue={existing?.quantity ?? 1}
                       disabled={!existing}
-                      className="w-20 rounded-md border px-2 py-1 text-sm disabled:bg-neutral-100"
+                      className="w-20 rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-sm text-strong focus:border-accent disabled:bg-surface-sunken"
                     />
-                    <span className="text-neutral-500">{p.unit} por turno</span>
+                    <span className="text-muted">{p.unit} por turno</span>
                   </label>
                 );
               })}
@@ -90,13 +92,13 @@ function InsumosEditor({ service, products }: { service: Service; products: Prod
 // Recursos (máquinas/gabinetes) que consume el servicio (G17).
 function RecursosEditor({ service, resources }: { service: Service; resources: Resource[] }) {
   return (
-    <tr className="block sm:table-row border-b bg-neutral-50">
+    <tr className="block sm:table-row border-b border-line bg-surface-sunken">
       <td colSpan={6} className="block sm:table-cell px-4 py-3">
         <form action={setServiceResources} className="space-y-2">
           <input type="hidden" name="serviceId" value={service.id} />
-          <p className="text-sm font-medium mb-1">Recursos que ocupa este servicio</p>
+          <p className="text-sm font-medium mb-1 text-strong">Recursos que ocupa este servicio</p>
           {resources.length === 0 && (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-muted">
               Cargá recursos en la sección "Recursos" primero.
             </p>
           )}
@@ -110,6 +112,7 @@ function RecursosEditor({ service, resources }: { service: Service; resources: R
                     name="resourceId"
                     value={res.id}
                     defaultChecked={!!existing}
+                    className="accent-accent"
                     onChange={(e) => {
                       const unitsInput = e.currentTarget.parentElement?.querySelector<HTMLInputElement>(
                         'input[name="units"]'
@@ -119,7 +122,7 @@ function RecursosEditor({ service, resources }: { service: Service; resources: R
                   />
                   <span className="w-44">
                     {res.name}{" "}
-                    <span className="text-xs text-neutral-400">({res.quantity} disp.)</span>
+                    <span className="text-xs text-faint">({res.quantity} disp.)</span>
                   </span>
                   <input
                     type="number"
@@ -128,9 +131,9 @@ function RecursosEditor({ service, resources }: { service: Service; resources: R
                     step={1}
                     defaultValue={existing?.units ?? 1}
                     disabled={!existing}
-                    className="w-20 rounded-md border px-2 py-1 text-sm disabled:bg-neutral-100"
+                    className="w-20 rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-sm text-strong focus:border-accent disabled:bg-surface-sunken"
                   />
-                  <span className="text-neutral-500">unidad(es) por turno</span>
+                  <span className="text-muted">unidad(es) por turno</span>
                 </label>
               );
             })}
@@ -162,7 +165,7 @@ function ServiceRow({
 
   if (editing) {
     return (
-      <tr className="block sm:table-row border-b bg-neutral-50">
+      <tr className="block sm:table-row border-b border-line bg-surface-sunken">
         <td colSpan={6} className="block sm:table-cell p-0">
           <form
             action={async (fd) => {
@@ -181,7 +184,7 @@ function ServiceRow({
                 name="name"
                 defaultValue={service.name}
                 required
-                className="rounded-md border px-2 py-1.5 text-sm"
+                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
               <input
                 name="durationMin"
@@ -190,7 +193,7 @@ function ServiceRow({
                 step={5}
                 defaultValue={service.durationMin}
                 required
-                className="rounded-md border px-2 py-1.5 text-sm"
+                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
               <input
                 name="price"
@@ -199,18 +202,18 @@ function ServiceRow({
                 step={100}
                 defaultValue={service.price}
                 required
-                className="rounded-md border px-2 py-1.5 text-sm"
+                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
               <div className="flex gap-4 sm:gap-3 justify-start sm:justify-end whitespace-nowrap py-1 sm:py-0">
                 <button type="submit" className="text-sm font-medium">
                   Guardar
                 </button>
-                <button type="button" onClick={() => setEditing(false)} className="text-sm text-neutral-500">
+                <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted">
                   Cancelar
                 </button>
               </div>
             </div>
-            <label className="sm:col-span-4 flex items-center gap-2 text-xs text-neutral-500">
+            <label className="sm:col-span-4 flex items-center gap-2 text-xs text-muted">
               Precio vecino/a de La Alameda (opcional — dejalo vacío si este servicio no tiene diferencial):
               <input
                 name="residentPrice"
@@ -219,10 +222,10 @@ function ServiceRow({
                 step={100}
                 defaultValue={service.residentPrice ?? ""}
                 placeholder="Sin diferencial"
-                className="w-32 rounded-md border px-2 py-1.5 text-sm text-neutral-900"
+                className="w-32 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
             </label>
-            <label className="sm:col-span-4 flex items-center gap-2 text-xs text-neutral-500">
+            <label className="sm:col-span-4 flex items-center gap-2 text-xs text-muted">
               Seña obligatoria (opcional — dejalo vacío si no exige seña):
               <input
                 name="depositAmount"
@@ -231,13 +234,13 @@ function ServiceRow({
                 step={100}
                 defaultValue={service.depositAmount ?? ""}
                 placeholder="Sin seña"
-                className="w-32 rounded-md border px-2 py-1.5 text-sm text-neutral-900"
+                className="w-32 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
             </label>
             <select
               name="categoryId"
               defaultValue={service.categoryId ?? ""}
-              className="sm:col-span-4 rounded-md border px-2 py-1.5 text-sm bg-white"
+              className="sm:col-span-4 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
             >
               <option value="">Sin categoría</option>
               {categories.map((c) => (
@@ -251,7 +254,7 @@ function ServiceRow({
               defaultValue={service.description ?? ""}
               placeholder="Descripción para la web: qué incluye, beneficios, para quién es..."
               rows={3}
-              className="sm:col-span-4 rounded-md border px-2 py-1.5 text-sm"
+              className="sm:col-span-4 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
             />
           </form>
         </td>
@@ -262,46 +265,46 @@ function ServiceRow({
   return (
     <>
       <tr className="block sm:table-row rounded-lg border sm:border-0 sm:border-b sm:rounded-none sm:last:border-b-0 mb-3 sm:mb-0 px-3 py-2.5 sm:px-0 sm:py-0">
-        <td className={`block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm ${service.active ? "" : "text-neutral-400 line-through"}`}>
+        <td className={`block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm ${service.active ? "" : "text-faint line-through"}`}>
           {service.name}
           {service.products.length > 0 && (
-            <span className="ml-2 text-xs text-neutral-400">
+            <span className="ml-2 text-xs text-faint">
               ({service.products.length} insumo{service.products.length !== 1 ? "s" : ""})
             </span>
           )}
         </td>
         <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm">
-          <span className="sm:hidden text-xs uppercase tracking-wide text-neutral-400 mr-1.5">Categoría:</span>
+          <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Categoría:</span>
           {service.category ? (
-            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+            <span className="rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-body">
               {service.category.name}
             </span>
           ) : (
-            <span className="text-xs text-amber-600">Sin categoría</span>
+            <span className="text-xs text-warning">Sin categoría</span>
           )}
         </td>
-        <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm text-neutral-600">
+        <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm text-body">
           {service.durationMin} min · ${service.price.toLocaleString("es-AR")}
           {service.residentPrice != null && (
-            <span className="ml-1.5 rounded-full bg-teal-50 text-teal-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+            <span className="ml-1.5 rounded-full bg-accent-soft text-accent px-2 py-0.5 text-xs font-medium whitespace-nowrap">
               Vecino ${service.residentPrice.toLocaleString("es-AR")}
             </span>
           )}
           {service.depositAmount != null && (
-            <span className="ml-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+            <span className="ml-1.5 rounded-full bg-warning-soft text-warning px-2 py-0.5 text-xs font-medium whitespace-nowrap">
               Seña ${service.depositAmount.toLocaleString("es-AR")}
             </span>
           )}
         </td>
-        <td className="hidden sm:table-cell px-4 py-2.5 text-sm text-neutral-600">
+        <td className="hidden sm:table-cell px-4 py-2.5 text-sm text-body">
           ${service.price.toLocaleString("es-AR")}
           {service.residentPrice != null && (
-            <span className="ml-1.5 rounded-full bg-teal-50 text-teal-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+            <span className="ml-1.5 rounded-full bg-accent-soft text-accent px-2 py-0.5 text-xs font-medium whitespace-nowrap">
               Vecino ${service.residentPrice.toLocaleString("es-AR")}
             </span>
           )}
           {service.depositAmount != null && (
-            <span className="ml-1.5 rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+            <span className="ml-1.5 rounded-full bg-warning-soft text-warning px-2 py-0.5 text-xs font-medium whitespace-nowrap">
               Seña ${service.depositAmount.toLocaleString("es-AR")}
             </span>
           )}
@@ -313,7 +316,7 @@ function ServiceRow({
             <button
               type="submit"
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                service.active ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-600"
+                service.active ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
               }`}
             >
               {service.active ? "Activo" : "Inactivo"}
@@ -375,25 +378,25 @@ function CategoryGroup({
   return (
     <details
       open={defaultOpen}
-      className="group rounded-lg border overflow-hidden mb-2 sm:mb-3 last:mb-0"
+      className="group rounded-lg border border-line overflow-hidden mb-2 sm:mb-3 last:mb-0"
     >
       <summary
         className={`flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none list-none ${
-          warn ? "bg-amber-50" : "bg-neutral-50"
+          warn ? "bg-warning-soft" : "bg-surface-sunken"
         }`}
       >
         <span className="flex items-center gap-2 text-sm font-medium">
-          <span className="text-neutral-400 transition-transform group-open:rotate-90">›</span>
+          <span className="text-faint transition-transform group-open:rotate-90">›</span>
           {title}
-          {warn && <span className="text-amber-600 text-xs font-normal">(revisar)</span>}
+          {warn && <span className="text-warning text-xs font-normal">(revisar)</span>}
         </span>
-        <span className="text-xs text-neutral-500 rounded-full bg-white border px-2 py-0.5">
+        <span className="text-xs text-muted rounded-full bg-surface-raised border border-line px-2 py-0.5">
           {count}
         </span>
       </summary>
       <table className="block sm:table w-full text-left">
         <thead className="hidden sm:table-header-group">
-          <tr className="border-b border-t bg-neutral-50/60 text-xs uppercase tracking-wide text-neutral-500">
+          <tr className="border-b border-t border-line bg-surface-sunken/60 text-xs uppercase tracking-wide text-muted">
             <th className="px-4 py-2 font-medium">Nombre</th>
             <th className="px-4 py-2 font-medium">Categoría</th>
             <th className="px-4 py-2 font-medium">Duración</th>
@@ -428,19 +431,19 @@ export default function ServicesSection({
 
   return (
     <section>
-      <h2 className="text-lg font-medium mb-1">Servicios</h2>
-      <p className="text-sm text-neutral-500 mb-3">
+      <h2 className="text-lg font-medium mb-1 text-strong">Servicios</h2>
+      <p className="text-sm text-muted mb-3">
         Duración y precio determinan los horarios disponibles y el monto a cobrar. "Insumos" define
         qué productos de stock consume cada vez que se realiza. La categoría agrupa el servicio en la
         web pública. El precio vecino/a es opcional: se lo ves solo a los servicios donde lo cargues,
         y se muestra siempre en la web como beneficio, nunca como recargo al resto.
       </p>
-      <p className="text-xs text-neutral-400 mb-3">
+      <p className="text-xs text-faint mb-3">
         Tip: tocá el nombre de una categoría para desplegar sus servicios — no hace falta scrollear
         todo el listado para encontrar uno.
       </p>
       {sinCategoria.length > 0 && (
-        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3">
+        <p className="text-sm text-warning bg-warning-soft border border-warning/40 rounded-md px-3 py-2 mb-3">
           {sinCategoria.length} servicio{sinCategoria.length !== 1 ? "s" : ""} sin categoría. Editá
           cada uno y asignale su categoría (Faciales, Masajes, Spa, etc.) para que se agrupe bien en
           la web.
@@ -475,7 +478,7 @@ export default function ServicesSection({
           </CategoryGroup>
         )}
         {services.length === 0 && (
-          <p className="text-sm text-neutral-500 border rounded-lg px-4 py-4">
+          <p className="text-sm text-muted border border-line rounded-lg px-4 py-4">
             No hay servicios cargados todavía.
           </p>
         )}
@@ -491,50 +494,46 @@ export default function ServicesSection({
         }}
         className="grid grid-cols-2 sm:grid-cols-4 gap-2"
       >
-        <input
+        <Input
           name="name"
           required
           placeholder="Nombre del servicio"
-          className="col-span-2 rounded-md border px-3 py-2 text-sm"
+          className="col-span-2"
         />
-        <input
+        <Input
           name="durationMin"
           type="number"
           min={5}
           step={5}
           required
           placeholder="Minutos"
-          className="rounded-md border px-3 py-2 text-sm"
         />
-        <input
+        <Input
           name="price"
           type="number"
           min={0}
           step={100}
           required
           placeholder="Precio $"
-          className="rounded-md border px-3 py-2 text-sm"
         />
-        <input
+        <Input
           name="residentPrice"
           type="number"
           min={0}
           step={100}
           placeholder="Precio vecino/a (opcional)"
-          className="rounded-md border px-3 py-2 text-sm"
         />
-        <input
+        <Input
           name="depositAmount"
           type="number"
           min={0}
           step={100}
           placeholder="Seña obligatoria (opcional)"
-          className="rounded-md border px-3 py-2 text-sm"
         />
-        <select
+        <Select
           name="categoryId"
           defaultValue=""
-          className="col-span-2 sm:col-span-4 rounded-md border px-3 py-2 text-sm bg-white"
+          className="col-span-2 sm:col-span-4"
         >
           <option value="">Sin categoría</option>
           {categories.map((c) => (
@@ -542,16 +541,16 @@ export default function ServicesSection({
               {c.name}
             </option>
           ))}
-        </select>
-        <textarea
+        </Select>
+        <Textarea
           name="description"
           placeholder="Descripción para la web (opcional): qué incluye, beneficios, para quién es..."
           rows={2}
-          className="col-span-2 sm:col-span-4 rounded-md border px-3 py-2 text-sm"
+          className="col-span-2 sm:col-span-4"
         />
         <button
           type="submit"
-          className="col-span-2 sm:col-span-4 rounded-md bg-black text-white px-4 py-2 text-sm font-medium"
+          className={buttonClasses("solid", "md", "col-span-2 sm:col-span-4")}
         >
           Agregar servicio
         </button>

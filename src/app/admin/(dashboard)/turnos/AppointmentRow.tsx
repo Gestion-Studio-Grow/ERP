@@ -4,6 +4,7 @@ import { confirmPayment, cancelAppointment, completeAppointment, markNoShow } fr
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import { fmtDateTime } from "@/lib/datetime";
+import { buttonClasses } from "@/components/ui";
 
 type Appointment = {
   id: string;
@@ -20,19 +21,20 @@ type Appointment = {
   payment: { method: string; comprobanteNro: string | null } | null;
 };
 
+// Estados mapeados a la capa semántica, no a colores crudos de Tailwind.
 const statusStyles: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  CONFIRMED: "bg-emerald-100 text-emerald-800",
-  CANCELLED: "bg-neutral-200 text-neutral-600",
-  COMPLETED: "bg-blue-100 text-blue-800",
-  NO_SHOW: "bg-red-100 text-red-800",
+  PENDING: "bg-warning-soft text-warning",
+  CONFIRMED: "bg-success-soft text-success",
+  CANCELLED: "bg-surface-sunken text-muted",
+  COMPLETED: "bg-info-soft text-info",
+  NO_SHOW: "bg-danger-soft text-danger",
 };
 
 function StatusBadge({ status, label }: { status: string; label: string }) {
   return (
     <span
       className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        statusStyles[status] ?? "bg-neutral-100 text-neutral-700"
+        statusStyles[status] ?? "bg-surface-sunken text-muted"
       }`}
     >
       {label}
@@ -56,31 +58,31 @@ export default function AppointmentRow({
   const isConfirmed = appointment.status === "CONFIRMED";
 
   return (
-    <div className="rounded-lg border p-4">
+    <div className="rounded-lg border border-line bg-surface-raised p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-medium">
+          <p className="font-medium text-strong">
             {appointment.client.name}{" "}
-            <span className="text-neutral-500 font-normal">
+            <span className="text-muted font-normal">
               — {appointment.client.phone}
             </span>
           </p>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-muted">
             {appointment.service.name} · {appointment.professional.name} ·{" "}
             {appointment.box.name}
           </p>
-          <p className="text-sm text-neutral-500">{fmtDateTime(appointment.startsAt)}</p>
+          <p className="text-sm text-muted">{fmtDateTime(appointment.startsAt)}</p>
           <div className="flex items-center gap-2 mt-2">
             <StatusBadge
               status={appointment.status}
               label={statusLabel[appointment.status] ?? appointment.status}
             />
-            <span className="text-sm font-medium">
+            <span className="text-sm font-medium text-strong">
               ${(appointment.priceAtBooking ?? appointment.service.price).toLocaleString("es-AR")}
             </span>
           </div>
           {appointment.notes && (
-            <p className="text-sm text-neutral-600 mt-2 rounded-md bg-amber-50 px-2 py-1">
+            <p className="text-sm text-body mt-2 rounded-md bg-warning-soft px-2 py-1">
               📝 {appointment.notes}
             </p>
           )}
@@ -90,21 +92,25 @@ export default function AppointmentRow({
           <div className="flex flex-col gap-2 min-w-[220px]">
             <form action={confirmPayment} className="flex gap-2">
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <select name="method" className="rounded-md border px-2 py-1.5 text-sm" required>
+              <select
+                name="method"
+                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+                required
+              >
                 <option value="MERCADOPAGO">MercadoPago</option>
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="TRANSFERENCIA">Transferencia</option>
               </select>
               <SubmitButton
                 pendingText="Confirmando…"
-                className="rounded-md bg-black text-white px-3 py-1.5 text-sm font-medium whitespace-nowrap"
+                className={buttonClasses("solid", "sm", "whitespace-nowrap")}
               >
                 Confirmar pago
               </SubmitButton>
             </form>
             <form action={cancelAppointment}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Cancelando…" className="text-sm text-neutral-500 hover:text-red-600">
+              <SubmitButton pendingText="Cancelando…" className="text-sm text-muted hover:text-danger transition-colors">
                 Cancelar turno
               </SubmitButton>
             </form>
@@ -122,7 +128,7 @@ export default function AppointmentRow({
               <input type="hidden" name="appointmentId" value={appointment.id} />
               <SubmitButton
                 pendingText="Guardando…"
-                className="rounded-md bg-black text-white px-3 py-1.5 text-sm font-medium whitespace-nowrap"
+                className={buttonClasses("solid", "sm", "whitespace-nowrap")}
               >
                 Marcar como completado
               </SubmitButton>
@@ -130,14 +136,14 @@ export default function AppointmentRow({
             {canManage && (
               <form action={cancelAppointment}>
                 <input type="hidden" name="appointmentId" value={appointment.id} />
-                <SubmitButton pendingText="Cancelando…" className="text-sm text-neutral-500 hover:text-red-600">
+                <SubmitButton pendingText="Cancelando…" className="text-sm text-muted hover:text-danger transition-colors">
                   Cancelar turno
                 </SubmitButton>
               </form>
             )}
             <form action={markNoShow}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Guardando…" className="text-sm text-neutral-500 hover:text-red-600">
+              <SubmitButton pendingText="Guardando…" className="text-sm text-muted hover:text-danger transition-colors">
                 No se presentó
               </SubmitButton>
             </form>

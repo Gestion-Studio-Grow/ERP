@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { fmtShortDate } from "@/lib/datetime";
 import SubmitButton from "@/components/SubmitButton";
+import { buttonClasses } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +17,13 @@ const STATUS_MESSAGES: Record<string, { text: string; ok: boolean }> = {
 
 function Table({ title, rows }: { title: string; rows: { label: string; total: number }[] }) {
   return (
-    <div className="rounded-lg border p-4">
+    <div className="rounded-lg border border-line p-4">
       <h3 className="font-medium mb-3">{title}</h3>
-      {rows.length === 0 && <p className="text-sm text-neutral-500">Sin datos aún.</p>}
+      {rows.length === 0 && <p className="text-sm text-muted">Sin datos aún.</p>}
       <div className="space-y-1.5">
         {rows.map((r) => (
           <div key={r.label} className="flex justify-between text-sm">
-            <span className="text-neutral-500">{r.label}</span>
+            <span className="text-muted">{r.label}</span>
             <span className="font-medium">${r.total.toLocaleString("es-AR")}</span>
           </div>
         ))}
@@ -52,14 +53,14 @@ export default async function ReportesPage({
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Reportes</h1>
-      <p className="text-neutral-500 mb-8">
+      <p className="text-muted mb-8">
         Ingresos confirmados (turnos con pago recibido).
       </p>
 
       {banner && (
         <p
           className={`mb-6 rounded-md px-3 py-2 text-sm ${
-            banner.ok ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"
+            banner.ok ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
           }`}
         >
           {banner.text}
@@ -67,14 +68,14 @@ export default async function ReportesPage({
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-neutral-500">Ingresos totales</p>
+        <div className="rounded-lg border border-line p-4">
+          <p className="text-sm text-muted">Ingresos totales</p>
           <p className="text-2xl font-semibold">
             ${data.totalIngresos.toLocaleString("es-AR")}
           </p>
         </div>
-        <div className="rounded-lg border p-4">
-          <p className="text-sm text-neutral-500">Turnos pagados</p>
+        <div className="rounded-lg border border-line p-4">
+          <p className="text-sm text-muted">Turnos pagados</p>
           <p className="text-2xl font-semibold">{data.cantidadPagos}</p>
         </div>
       </div>
@@ -86,27 +87,27 @@ export default async function ReportesPage({
       </div>
 
       {/* Comisiones pendientes de pago (liquidación por período) */}
-      <div className="rounded-lg border p-4 mb-4">
+      <div className="rounded-lg border border-line p-4 mb-4">
         <h3 className="font-medium mb-1">Comisiones pendientes de pago</h3>
-        <p className="text-xs text-neutral-500 mb-4">
+        <p className="text-xs text-muted mb-4">
           Sobre turnos completados y cobrados que todavía no se liquidaron, según el % configurado
           por profesional. Al liquidar, el monto queda congelado y esos turnos dejan de figurar acá.
         </p>
         {overview.pending.length === 0 && (
-          <p className="text-sm text-neutral-500">No hay comisiones pendientes de liquidar.</p>
+          <p className="text-sm text-muted">No hay comisiones pendientes de liquidar.</p>
         )}
         <div className="space-y-3">
           {overview.pending.map((c) => (
             <div
               key={c.professionalId}
-              className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t pt-3 first:border-t-0 first:pt-0"
+              className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line pt-3 first:border-t-0 first:pt-0"
             >
               <div className="text-sm">
                 <p className="font-medium">
                   {c.professionalName} —{" "}
-                  <span className="text-neutral-900">{money(c.amount)}</span>
+                  <span className="text-strong">{money(c.amount)}</span>
                 </p>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-muted">
                   {c.appointmentCount} {c.appointmentCount === 1 ? "turno" : "turnos"} · sobre{" "}
                   {money(c.ingresos)}
                   {c.periodStart && c.periodEnd && (
@@ -120,11 +121,11 @@ export default async function ReportesPage({
                   <input
                     name="note"
                     placeholder="Nota (opcional)"
-                    className="w-40 rounded-md border px-2 py-1.5 text-sm"
+                    className="w-40 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
                   />
                   <SubmitButton
                     pendingText="Liquidando…"
-                    className="rounded-md bg-black text-white px-3 py-1.5 text-sm font-medium whitespace-nowrap"
+                    className={buttonClasses("solid", "sm", "whitespace-nowrap")}
                   >
                     Marcar pagada
                   </SubmitButton>
@@ -136,20 +137,20 @@ export default async function ReportesPage({
       </div>
 
       {/* Historial de liquidaciones */}
-      <div className="rounded-lg border p-4">
+      <div className="rounded-lg border border-line p-4">
         <h3 className="font-medium mb-1">Historial de liquidaciones</h3>
-        <p className="text-xs text-neutral-500 mb-4">
+        <p className="text-xs text-muted mb-4">
           Comprobantes de comisiones ya pagadas. El monto es el que se liquidó en ese momento.
         </p>
         {overview.history.length === 0 && (
-          <p className="text-sm text-neutral-500">Todavía no se liquidó ninguna comisión.</p>
+          <p className="text-sm text-muted">Todavía no se liquidó ninguna comisión.</p>
         )}
         <div className="space-y-2">
           {overview.history.map((h) => (
-            <div key={h.id} className="flex justify-between gap-4 text-sm border-t pt-2 first:border-t-0 first:pt-0">
+            <div key={h.id} className="flex justify-between gap-4 text-sm border-t border-line pt-2 first:border-t-0 first:pt-0">
               <div>
                 <p className="font-medium">{h.professionalName}</p>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-muted">
                   {fmtShortDate(h.periodStart)} a {fmtShortDate(h.periodEnd)} · {h.appointmentCount}{" "}
                   {h.appointmentCount === 1 ? "turno" : "turnos"} · pagada {fmtShortDate(h.createdAt)}
                   {h.note && <> · {h.note}</>}

@@ -2,6 +2,7 @@
 
 import { createCoupon, toggleCouponActive, deleteCoupon } from "@/lib/coupon-actions";
 import { useToast } from "../ToastProvider";
+import { Input, Select, buttonClasses } from "@/components/ui";
 
 type Coupon = {
   id: string;
@@ -19,10 +20,10 @@ function CouponRow({ c }: { c: Coupon }) {
   const label = c.type === "PERCENT" ? `${c.value}%` : `$${c.value.toLocaleString("es-AR")}`;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded-lg border px-4 py-2.5">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded-lg border border-line px-4 py-2.5">
       <div>
         <span className="font-medium font-mono">{c.code}</span>
-        <span className="ml-2 text-sm text-neutral-500">
+        <span className="ml-2 text-sm text-muted">
           {label} de descuento
           {c.maxUses != null && ` · ${c.usedCount}/${c.maxUses} usos`}
           {c.maxUses == null && c.usedCount > 0 && ` · usado ${c.usedCount} veces`}
@@ -36,7 +37,7 @@ function CouponRow({ c }: { c: Coupon }) {
           <button
             type="submit"
             className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              c.active ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-600"
+              c.active ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
             }`}
           >
             {c.active ? "Activo" : "Inactivo"}
@@ -69,7 +70,7 @@ export default function CouponsSection({ coupons }: { coupons: Coupon[] }) {
   return (
     <section>
       <h2 className="text-lg font-medium mb-1">Cupones de descuento</h2>
-      <p className="text-sm text-neutral-500 mb-3">
+      <p className="text-sm text-muted mb-3">
         El cliente lo ingresa al reservar (web o modal). Se valida contra esta lista al confirmar
         el turno — nunca se confía en el descuento que calculó el navegador.
       </p>
@@ -78,7 +79,7 @@ export default function CouponsSection({ coupons }: { coupons: Coupon[] }) {
         {coupons.map((c) => (
           <CouponRow key={c.id} c={c} />
         ))}
-        {coupons.length === 0 && <p className="text-sm text-neutral-500">No hay cupones cargados todavía.</p>}
+        {coupons.length === 0 && <p className="text-sm text-muted">No hay cupones cargados todavía.</p>}
       </div>
 
       <form
@@ -89,22 +90,22 @@ export default function CouponsSection({ coupons }: { coupons: Coupon[] }) {
             showError(err instanceof Error ? err.message : "No se pudo crear el cupón.");
           }
         }}
-        className="grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-lg border p-4"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-lg border border-line p-4"
       >
-        <input
+        <Input
           name="code"
           required
           placeholder="Código (ej. VERANO10)"
-          className="col-span-2 rounded-md border px-3 py-2 text-sm uppercase placeholder:normal-case"
+          className="col-span-2 uppercase placeholder:normal-case"
         />
-        <select name="type" defaultValue="PERCENT" className="rounded-md border px-3 py-2 text-sm bg-white">
+        <Select name="type" defaultValue="PERCENT">
           <option value="PERCENT">% descuento</option>
           <option value="FIXED">$ fijo</option>
-        </select>
-        <input name="value" type="number" min={1} step="any" required placeholder="Valor" className="rounded-md border px-3 py-2 text-sm" />
-        <input name="expiresAt" type="date" className="rounded-md border px-3 py-2 text-sm" />
-        <input name="maxUses" type="number" min={1} step={1} placeholder="Usos máx. (opcional)" className="col-span-2 sm:col-span-1 rounded-md border px-3 py-2 text-sm" />
-        <button type="submit" className="col-span-2 sm:col-span-4 rounded-md bg-black text-white px-4 py-2 text-sm font-medium">
+        </Select>
+        <Input name="value" type="number" min={1} step="any" required placeholder="Valor" />
+        <Input name="expiresAt" type="date" />
+        <Input name="maxUses" type="number" min={1} step={1} placeholder="Usos máx. (opcional)" className="col-span-2 sm:col-span-1" />
+        <button type="submit" className={buttonClasses("solid", "md", "col-span-2 sm:col-span-4")}>
           Crear cupón
         </button>
       </form>

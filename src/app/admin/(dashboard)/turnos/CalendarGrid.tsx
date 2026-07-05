@@ -29,11 +29,13 @@ const statusLabel: Record<string, string> = {
   NO_SHOW: "No se presentó",
 };
 
+// Estados de turno mapeados a la capa semántica (warning/success/info/danger),
+// no a los colores crudos de Tailwind. Un cambio de paleta se hace en tokens.
 const statusStyles: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-900 border-amber-300",
-  CONFIRMED: "bg-emerald-100 text-emerald-900 border-emerald-300",
-  COMPLETED: "bg-blue-100 text-blue-900 border-blue-300",
-  NO_SHOW: "bg-red-100 text-red-900 border-red-300",
+  PENDING: "bg-warning-soft text-warning border-warning/40",
+  CONFIRMED: "bg-success-soft text-success border-success/40",
+  COMPLETED: "bg-info-soft text-info border-info/40",
+  NO_SHOW: "bg-danger-soft text-danger border-danger/40",
 };
 
 const DAY_START_HOUR = 9;
@@ -68,7 +70,7 @@ export default function CalendarGrid({
   });
 
   if (professionals.length === 0) {
-    return <p className="text-sm text-neutral-500">No hay profesionales activos.</p>;
+    return <p className="text-sm text-muted">No hay profesionales activos.</p>;
   }
 
   // En pantallas angostas la grilla horizontal no entra (columna por
@@ -82,11 +84,11 @@ export default function CalendarGrid({
     <div>
       <div className="lg:hidden space-y-3">
         {sortedAppointments.length === 0 && (
-          <p className="text-sm text-neutral-500">No hay turnos ese día.</p>
+          <p className="text-sm text-muted">No hay turnos ese día.</p>
         )}
         {sortedAppointments.map((appt) => (
           <div key={appt.id}>
-            <p className="text-xs font-medium text-neutral-400 mb-1">
+            <p className="text-xs font-medium text-faint mb-1">
               {fmtTime(appt.startsAt)} · {appt.professional.name}
             </p>
             <AppointmentRow appointment={appt} statusLabel={statusLabel} canManage={canManage} />
@@ -94,21 +96,21 @@ export default function CalendarGrid({
         ))}
       </div>
 
-      <div className="hidden lg:block overflow-x-auto rounded-lg border">
+      <div className="hidden lg:block overflow-x-auto rounded-lg border border-line">
         <div
           className="grid text-sm"
           style={{
             gridTemplateColumns: `56px repeat(${professionals.length}, minmax(140px, 1fr))`,
           }}
         >
-          <div className="border-b border-r bg-neutral-50" />
+          <div className="border-b border-r border-line bg-surface-sunken" />
           {professionals.map((p) => (
             <div
               key={p.id}
-              className="border-b border-r last:border-r-0 bg-neutral-50 px-2 py-2 text-center font-medium"
+              className="border-b border-r last:border-r-0 border-line bg-surface-sunken px-2 py-2 text-center font-medium text-strong"
             >
               {p.name}
-              <div className="text-xs font-normal text-neutral-500">{p.box?.name}</div>
+              <div className="text-xs font-normal text-muted">{p.box?.name}</div>
             </div>
           ))}
 
@@ -117,7 +119,7 @@ export default function CalendarGrid({
               key={`row-${label}`}
               className="contents"
             >
-              <div className="border-r border-b px-2 py-1 text-xs text-neutral-400 text-right">
+              <div className="border-r border-b border-line px-2 py-1 text-xs text-faint text-right">
                 {label}
               </div>
               {professionals.map((p) => {
@@ -134,8 +136,8 @@ export default function CalendarGrid({
                       onClick={() => setSelectedId(appt.id)}
                       style={{ gridRow: `span ${span}` }}
                       className={`border-r last:border-r-0 border-b m-0.5 rounded-md border px-2 py-1 text-left text-xs leading-tight ${
-                        statusStyles[appt.status] ?? "bg-neutral-100 border-neutral-300"
-                      } ${selectedId === appt.id ? "ring-2 ring-black" : ""}`}
+                        statusStyles[appt.status] ?? "bg-surface-sunken border-line-strong text-body"
+                      } ${selectedId === appt.id ? "ring-2 ring-accent" : ""}`}
                     >
                       <div className="font-medium truncate">{appt.client.name}</div>
                       <div className="truncate opacity-80">{appt.service.name}</div>
@@ -156,7 +158,7 @@ export default function CalendarGrid({
                 return (
                   <div
                     key={p.id}
-                    className="border-r last:border-r-0 border-b h-8"
+                    className="border-r last:border-r-0 border-b border-line h-8"
                   />
                 );
               })}
@@ -165,21 +167,21 @@ export default function CalendarGrid({
         </div>
       </div>
 
-      <div className="hidden lg:flex mt-4 flex-wrap items-center gap-3 text-xs text-neutral-500">
+      <div className="hidden lg:flex mt-4 flex-wrap items-center gap-3 text-xs text-muted">
         <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-amber-100 border border-amber-300" /> Pendiente
+          <span className="h-3 w-3 rounded bg-warning-soft border border-warning/40" /> Pendiente
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-emerald-100 border border-emerald-300" /> Confirmado
+          <span className="h-3 w-3 rounded bg-success-soft border border-success/40" /> Confirmado
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-blue-100 border border-blue-300" /> Completado
+          <span className="h-3 w-3 rounded bg-info-soft border border-info/40" /> Completado
         </span>
       </div>
 
       {selected && (
         <div className="hidden lg:block mt-6">
-          <h2 className="text-sm font-medium mb-2">Turno seleccionado</h2>
+          <h2 className="text-sm font-medium text-strong mb-2">Turno seleccionado</h2>
           <AppointmentRow appointment={selected} statusLabel={statusLabel} canManage={canManage} />
         </div>
       )}

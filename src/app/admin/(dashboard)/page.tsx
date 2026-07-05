@@ -3,17 +3,46 @@ import Link from "next/link";
 import { fmtTime } from "@/lib/datetime";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
+import { buttonClasses } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-function Kpi({ label, value, href }: { label: string; value: string; href?: string }) {
+// Set chico de íconos de línea para los KPI (dirección B). currentColor → toman
+// el acento del tenant dentro del chip.
+const KPI_ICONS: Record<string, React.ReactNode> = {
+  agenda: (<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18" /></>),
+  reloj: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
+  barras: (<path d="M5 20V10M12 20V4M19 20v-7" />),
+  cliente: (<><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" /></>),
+};
+
+function Kpi({ label, value, href, icon, sub }: { label: string; value: string; href?: string; icon: string; sub?: string }) {
   const content = (
-    <div className="rounded-lg border p-3 sm:p-4 hover:border-neutral-400 transition-colors">
-      <p className="text-xs sm:text-sm text-neutral-500 leading-tight">{label}</p>
-      <p className="text-xl sm:text-2xl font-semibold mt-1">{value}</p>
+    <div className="h-full rounded-xl border border-line bg-surface-raised shadow-xs p-4 hover:border-line-strong transition-colors">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted leading-tight">{label}</p>
+        <span className="grid place-items-center w-8 h-8 rounded-lg bg-accent-soft text-accent shrink-0">
+          <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{KPI_ICONS[icon]}</svg>
+        </span>
+      </div>
+      <p className="text-2xl font-bold text-strong mt-3 tracking-tight">{value}</p>
+      {sub && <p className="text-xs text-muted mt-1.5">{sub}</p>}
     </div>
   );
-  return href ? <Link href={href}>{content}</Link> : content;
+  return href ? <Link href={href} className="block h-full">{content}</Link> : content;
+}
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  PENDING: { label: "Pendiente", cls: "bg-warning-soft text-warning" },
+  CONFIRMED: { label: "Confirmado", cls: "bg-success-soft text-success" },
+  COMPLETED: { label: "Completado", cls: "bg-info-soft text-info" },
+  NO_SHOW: { label: "No vino", cls: "bg-danger-soft text-danger" },
+};
+
+function StatusBadge({ status }: { status?: string }) {
+  const b = (status && STATUS_BADGE[status]) || null;
+  if (!b) return null;
+  return <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${b.cls}`}>{b.label}</span>;
 }
 
 export default async function DashboardPage() {
@@ -23,68 +52,79 @@ export default async function DashboardPage() {
   const canSeeRevenue = roleHasCapability(user.role, "reports:read");
   const data = await getDashboardData();
 
+  const confirmedToday = data.todayAppointments.filter((a) => a.status === "CONFIRMED").length;
+
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-      <div className="flex items-start justify-between gap-4 mb-8">
+    <main className="mx-auto max-w-5xl px-6 py-8">
+      <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold mb-1">Dashboard</h1>
-          <p className="text-neutral-500">Resumen del día.</p>
+          <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Dashboard</h1>
+          <p className="text-muted text-sm">Resumen del día.</p>
         </div>
         {/* Acceso directo a la tarea más frecuente (llamada / walk-in) sin
             tener que navegar primero a la Agenda. */}
         <Link
           href="/admin/turnos"
-          className="rounded-md bg-black text-white px-4 py-2 text-sm font-medium whitespace-nowrap"
+          className={buttonClasses("solid", "sm", "whitespace-nowrap")}
         >
           + Nuevo turno
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-10">
-        <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" />
-        <Kpi label="Pendientes" value={String(data.pendingCount)} href="/admin/turnos" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" icon="agenda"
+          sub={data.todayAppointments.length > 0 ? `${confirmedToday} confirmados` : undefined} />
+        <Kpi label="Pendientes" value={String(data.pendingCount)} href="/admin/turnos" icon="reloj"
+          sub={data.pendingCount > 0 ? "a confirmar pago" : undefined} />
         {canSeeRevenue && (
           <Kpi
             label="Ingresos 7 días"
             value={`$${data.weekRevenue.toLocaleString("es-AR")}`}
             href="/admin/reportes"
+            icon="barras"
           />
         )}
-        <Kpi label="Clientes" value={String(data.clientsCount)} href="/admin/clientes" />
+        <Kpi label="Clientes" value={String(data.clientsCount)} href="/admin/clientes" icon="cliente" />
       </div>
 
       {data.blocksToday.length > 0 && (
-        <div className="mb-6 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
-          <span className="font-medium">Hoy no está: </span>
-          {data.blocksToday.map((b, i) => (
-            <span key={i}>
-              {b.professional.name} ({b.reason})
-              {i < data.blocksToday.length - 1 ? " · " : ""}
-            </span>
-          ))}
+        <div className="mb-6 flex items-center gap-2.5 rounded-lg bg-warning-soft border border-warning/25 px-4 py-2.5 text-sm text-warning">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 9v4M12 16h.01" /></svg>
+          <span>
+            <span className="font-semibold">Hoy no está: </span>
+            {data.blocksToday.map((b, i) => (
+              <span key={i}>
+                {b.professional.name} ({b.reason})
+                {i < data.blocksToday.length - 1 ? " · " : ""}
+              </span>
+            ))}
+          </span>
         </div>
       )}
 
-      <section>
-        <h2 className="text-lg font-medium mb-3">Agenda de hoy</h2>
-        {data.todayAppointments.length === 0 && (
-          <p className="text-sm text-neutral-500">No hay turnos programados para hoy.</p>
-        )}
-        <div className="space-y-2">
-          {data.todayAppointments.map((a) => (
-            <Link
-              key={a.id}
-              href="/admin/turnos"
-              className="rounded-lg border p-3 flex items-center justify-between text-sm hover:border-neutral-400 transition-colors"
-            >
-              <span className="font-medium">{fmtTime(a.startsAt)}</span>
-              <span className="text-neutral-600 flex-1 px-4">
-                {a.client.name} — {a.service.name}
-              </span>
-              <span className="text-neutral-500">{a.professional.name}</span>
-            </Link>
-          ))}
+      <section className="rounded-xl border border-line bg-surface-raised shadow-xs overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
+          <h2 className="text-[15px] font-semibold text-strong">Agenda de hoy</h2>
+          <Link href="/admin/turnos" className="text-[13px] font-medium text-accent hover:underline">Ver agenda completa →</Link>
         </div>
+        {data.todayAppointments.length === 0 && (
+          <p className="text-sm text-muted px-5 py-6">No hay turnos programados para hoy.</p>
+        )}
+        {data.todayAppointments.map((a, i) => (
+          <Link
+            key={a.id}
+            href="/admin/turnos"
+            className={`flex items-center gap-4 px-5 py-3.5 text-sm hover:bg-surface-sunken transition-colors ${i > 0 ? "border-t border-line" : ""}`}
+          >
+            <span className="font-semibold text-accent text-xs bg-accent-soft rounded-md px-2 py-1 min-w-[62px] text-center">{fmtTime(a.startsAt)}</span>
+            <span className="flex-1 min-w-0">
+              <span className="font-semibold text-strong">{a.client.name}</span>
+              <span className="text-muted"> — {a.service.name}</span>
+            </span>
+            <StatusBadge status={(a as { status?: string }).status} />
+            <span className="text-muted text-[13px] whitespace-nowrap">{a.professional.name}</span>
+          </Link>
+        ))}
       </section>
     </main>
   );

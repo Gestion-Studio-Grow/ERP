@@ -20,11 +20,11 @@ const variants: Record<Variant, string> = {
   // Acción secundaria — borde de línea, se rellena tenue en hover.
   outline: "border border-line-strong text-strong bg-surface-raised hover:bg-accent-soft",
   // Terciaria — sin caja hasta el hover.
-  ghost: "text-body hover:bg-ch-linen/60",
+  ghost: "text-body hover:bg-surface-sunken",
   // Destructiva.
   danger: "bg-danger text-on-accent hover:opacity-90 active:translate-y-px shadow-xs",
   // Chip suave sobre superficies claras (filtros, toggles).
-  subtle: "bg-ch-linen/70 text-strong hover:bg-ch-linen",
+  subtle: "bg-surface-sunken text-strong hover:bg-line-strong/50",
 };
 
 const sizes: Record<Size, string> = {

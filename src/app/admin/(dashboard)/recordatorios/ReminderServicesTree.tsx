@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { updateServiceReminderConfig } from "@/lib/reminders-actions";
 import SubmitButton from "@/components/SubmitButton";
+import { buttonClasses } from "@/components/ui";
 
 // Árbol de configuración de recordatorios por servicio. Reemplaza el listado
 // plano de un formulario abierto por servicio (con 20+ servicios era un muro):
@@ -20,13 +21,13 @@ type Service = {
 function StatusChip({ service }: { service: Service }) {
   if (!service.reminderEnabled) {
     return (
-      <span className="inline-block rounded-full bg-neutral-100 text-neutral-500 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap">
+      <span className="inline-block rounded-full bg-surface-sunken text-muted px-2.5 py-0.5 text-xs font-medium whitespace-nowrap">
         Desactivado
       </span>
     );
   }
   return (
-    <span className="inline-block rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap">
+    <span className="inline-block rounded-full bg-success-soft text-success px-2.5 py-0.5 text-xs font-medium whitespace-nowrap">
       {service.reminderHoursBefore} hs antes
     </span>
   );
@@ -36,27 +37,27 @@ function ServiceConfigForm({ service }: { service: Service }) {
   return (
     <form
       action={updateServiceReminderConfig}
-      className="flex flex-wrap items-center gap-3 border-t bg-neutral-50 px-3 py-3"
+      className="flex flex-wrap items-center gap-3 border-t border-line bg-surface-sunken px-3 py-3"
     >
       <input type="hidden" name="id" value={service.id} />
-      <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-        <input type="checkbox" name="reminderEnabled" defaultChecked={service.reminderEnabled} />
+      <label className="flex items-center gap-1.5 text-sm text-body">
+        <input type="checkbox" name="reminderEnabled" defaultChecked={service.reminderEnabled} className="accent-accent" />
         Recordatorio activado
       </label>
-      <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+      <label className="flex items-center gap-1.5 text-sm text-body">
         Avisar
         <input
           type="number"
           name="reminderHoursBefore"
           defaultValue={service.reminderHoursBefore}
           min={1}
-          className="w-16 rounded border px-2 py-1"
+          className="w-16 rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-strong focus:border-accent"
         />
         hs antes
       </label>
       <SubmitButton
         pendingText="Guardando…"
-        className="text-sm rounded-md bg-black text-white px-3 py-1.5"
+        className={buttonClasses("solid", "sm")}
       >
         Guardar
       </SubmitButton>
@@ -84,7 +85,7 @@ export default function ReminderServicesTree({ services }: { services: Service[]
   }, [services]);
 
   if (services.length === 0) {
-    return <p className="text-sm text-neutral-500">Sin servicios activos.</p>;
+    return <p className="text-sm text-muted">Sin servicios activos.</p>;
   }
 
   return (
@@ -93,7 +94,7 @@ export default function ReminderServicesTree({ services }: { services: Service[]
         const open = openCategory === g.id;
         const offCount = g.services.filter((s) => !s.reminderEnabled).length;
         return (
-          <div key={g.id} className="rounded-lg border overflow-hidden">
+          <div key={g.id} className="rounded-lg border border-line overflow-hidden">
             <button
               type="button"
               onClick={() => {
@@ -101,25 +102,25 @@ export default function ReminderServicesTree({ services }: { services: Service[]
                 setOpenService(null);
               }}
               aria-expanded={open}
-              className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-neutral-50"
+              className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-accent-soft"
             >
               <span className="flex items-baseline gap-2 min-w-0">
                 <span className="font-medium text-sm truncate">{g.name}</span>
-                <span className="text-xs text-neutral-400 whitespace-nowrap">
+                <span className="text-xs text-faint whitespace-nowrap">
                   {g.services.length} servicio{g.services.length !== 1 ? "s" : ""}
                   {offCount > 0 && ` · ${offCount} sin recordatorio`}
                 </span>
               </span>
               <span
                 aria-hidden
-                className={`text-neutral-400 transition-transform ${open ? "rotate-90" : ""}`}
+                className={`text-faint transition-transform ${open ? "rotate-90" : ""}`}
               >
                 ›
               </span>
             </button>
 
             {open && (
-              <div className="border-t divide-y">
+              <div className="border-t border-line divide-y divide-line">
                 {g.services.map((s) => {
                   const openConfig = openService === s.id;
                   return (
@@ -128,7 +129,7 @@ export default function ReminderServicesTree({ services }: { services: Service[]
                         type="button"
                         onClick={() => setOpenService(openConfig ? null : s.id)}
                         aria-expanded={openConfig}
-                        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-neutral-50"
+                        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-accent-soft"
                       >
                         <span className="text-sm truncate">{s.name}</span>
                         <StatusChip service={s} />

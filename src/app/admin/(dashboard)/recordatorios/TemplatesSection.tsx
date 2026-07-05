@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { upsertMessageTemplate } from "@/lib/reminders-actions";
 import SubmitButton from "@/components/SubmitButton";
+import { Input, Textarea, buttonClasses } from "@/components/ui";
 
 // Plantillas de mensaje, una tarjeta colapsada por (tipo, canal). El listado
 // anterior mostraba los 3 formularios abiertos y un párrafo críptico de
@@ -63,56 +64,54 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
   const isActive = template?.active ?? true;
 
   return (
-    <div className="rounded-lg border overflow-hidden">
+    <div className="rounded-lg border border-line overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-neutral-50"
+        className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-accent-soft"
       >
         <span className="text-sm font-medium truncate">{title}</span>
         <span className="flex items-center gap-2">
           <span
             className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
-              isActive ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-500"
+              isActive ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
             }`}
           >
             {isActive ? "Activa" : "Inactiva"}
           </span>
-          <span aria-hidden className={`text-neutral-400 transition-transform ${open ? "rotate-90" : ""}`}>
+          <span aria-hidden className={`text-faint transition-transform ${open ? "rotate-90" : ""}`}>
             ›
           </span>
         </span>
       </button>
 
       {open && (
-        <form action={upsertMessageTemplate} className="border-t bg-neutral-50 p-3 space-y-3">
+        <form action={upsertMessageTemplate} className="border-t border-line bg-surface-sunken p-3 space-y-3">
           <input type="hidden" name="type" value={slot.type} />
           <input type="hidden" name="channel" value={slot.channel} />
 
-          <p className="text-xs text-neutral-500">{TYPE_HELP[slot.type]}</p>
+          <p className="text-xs text-muted">{TYPE_HELP[slot.type]}</p>
 
           {slot.channel === "EMAIL" && (
-            <input
+            <Input
               type="text"
               name="subject"
               defaultValue={template?.subject ?? ""}
               placeholder="Asunto del email"
-              className="w-full rounded border px-2 py-1.5 text-sm bg-white"
             />
           )}
 
-          <textarea
+          <Textarea
             name="body"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={3}
             placeholder="Texto del mensaje…"
-            className="w-full rounded border px-2 py-1.5 text-sm bg-white"
           />
 
           <div>
-            <p className="text-xs text-neutral-500 mb-1.5">
+            <p className="text-xs text-muted mb-1.5">
               Tocá para insertar — al enviar se reemplaza por el dato real:
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -121,23 +120,23 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
                   key={v.token}
                   type="button"
                   onClick={() => setBody((b) => (b ? `${b.replace(/\s+$/, "")} ${v.token}` : v.token))}
-                  className="rounded-full border bg-white px-2.5 py-1 text-xs text-neutral-700 hover:border-neutral-400"
+                  className="rounded-full border border-line bg-surface-raised px-2.5 py-1 text-xs text-strong hover:border-line-strong"
                 >
                   <code className="font-mono">{v.token}</code>
-                  <span className="text-neutral-400"> → {v.label}</span>
+                  <span className="text-faint"> → {v.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-neutral-500">
-              <input type="checkbox" name="active" defaultChecked={isActive} />
+            <label className="flex items-center gap-1.5 text-xs text-muted">
+              <input type="checkbox" name="active" defaultChecked={isActive} className="accent-accent" />
               Plantilla activa
             </label>
             <SubmitButton
               pendingText="Guardando…"
-              className="text-sm rounded-md bg-black text-white px-3 py-1.5"
+              className={buttonClasses("solid", "sm")}
             >
               Guardar plantilla
             </SubmitButton>

@@ -18,7 +18,7 @@ export default async function CatalogoPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1">Catálogo</h1>
-      <p className="text-neutral-500 mb-8">
+      <p className="text-muted mb-8">
         Profesionales, servicios, boxes y stock disponibles para la operación.
       </p>
 

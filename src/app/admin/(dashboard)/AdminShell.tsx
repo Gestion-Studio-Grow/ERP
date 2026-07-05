@@ -6,22 +6,47 @@ import { usePathname } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
 import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
 
+// Íconos de línea (dirección B): un set chico inline, sin dependencias. Se
+// eligen por href. `currentColor` para que hereden el color del ítem (activo =
+// acento del tenant, inactivo = muted).
+function Icon({ name }: { name: string }) {
+  const p: Record<string, React.ReactNode> = {
+    dashboard: (<><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>),
+    agenda: (<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></>),
+    clientes: (<><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" /></>),
+    espera: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
+    pedidos: (<><path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><path d="M3 6h18M16 10a4 4 0 01-8 0" /></>),
+    catalogo: (<><path d="M4 6h16M4 12h16M4 18h10" /></>),
+    resenas: (<path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 17l-5.3 2.8 1-5.8L3.5 9.2l5.9-.9z" />),
+    recordatorios: (<path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0" />),
+    reportes: (<path d="M5 20V10M12 20V4M19 20v-7" />),
+    auditoria: (<><path d="M9 12l2 2 4-4" /><rect x="4" y="4" width="16" height="16" rx="2" /></>),
+    usuarios: (<><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 11l2 2 3-3.5" /></>),
+    localizacion: (<><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></>),
+  };
+  return (
+    <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {p[name] ?? p.dashboard}
+    </svg>
+  );
+}
+
 // Cada ítem declara la capacidad que lo habilita; se filtra por el rol del
 // usuario. Ocultar acá es UX (ADR-017 §2.e) — la seguridad real la aplican los
 // guardas server-side (`requireCapability`) en cada loader/acción.
-const ALL_ITEMS: { href: string; label: string; exact?: boolean; cap: Capability }[] = [
-  { href: "/admin", label: "Dashboard", exact: true, cap: "dashboard:read" },
-  { href: "/admin/turnos", label: "Agenda", cap: "agenda:read" },
-  { href: "/admin/clientes", label: "Clientes", cap: "clients:read" },
-  { href: "/admin/espera", label: "Lista de espera", cap: "waitlist:manage" },
-  { href: "/admin/pedidos", label: "Pedidos", cap: "orders:read" },
-  { href: "/admin/catalogo", label: "Catálogo", cap: "catalog:manage" },
-  { href: "/admin/resenas", label: "Reseñas", cap: "reviews:manage" },
-  { href: "/admin/recordatorios", label: "Recordatorios", cap: "reminders:manage" },
-  { href: "/admin/reportes", label: "Reportes", cap: "reports:read" },
-  { href: "/admin/auditoria", label: "Auditoría", cap: "audit:read" },
-  { href: "/admin/usuarios", label: "Usuarios", cap: "users:manage" },
-  { href: "/admin/localizacion", label: "Localización", cap: "location:manage" },
+const ALL_ITEMS: { href: string; label: string; icon: string; exact?: boolean; cap: Capability }[] = [
+  { href: "/admin", label: "Dashboard", icon: "dashboard", exact: true, cap: "dashboard:read" },
+  { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read" },
+  { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read" },
+  { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage" },
+  { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read" },
+  { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage" },
+  { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage" },
+  { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage" },
+  { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read" },
+  { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read" },
+  { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage" },
+  { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage" },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -30,7 +55,7 @@ const ROLE_LABEL: Record<Role, string> = {
   PROFESSIONAL: "Profesional",
 };
 
-type NavItem = { href: string; label: string; exact?: boolean };
+type NavItem = { href: string; label: string; icon: string; exact?: boolean };
 
 function useActive() {
   const pathname = usePathname();
@@ -45,10 +70,19 @@ function currentLabel(pathname: string, items: NavItem[]) {
   return match?.label ?? "Panel";
 }
 
+function Brand() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="grid place-items-center w-8 h-8 rounded-lg bg-accent text-on-accent text-[13px] font-bold shadow-xs">CH</span>
+      <span className="text-[15px] font-bold tracking-tight text-strong">CH <span className="text-muted font-medium">Estética</span></span>
+    </div>
+  );
+}
+
 function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const isActive = useActive();
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {items.map((item) => {
         const active = isActive(item.href, item.exact);
         return (
@@ -56,10 +90,13 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
             key={item.href}
             href={item.href}
             onClick={onNavigate}
-            className={`block rounded-md px-3 py-3 text-sm ${
-              active ? "bg-black text-white" : "text-neutral-600 hover:bg-neutral-100"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+              active
+                ? "bg-accent-soft text-accent font-semibold"
+                : "text-body font-medium hover:bg-surface-sunken"
             }`}
           >
+            <span className={active ? "text-accent" : "text-faint"}><Icon name={item.icon} /></span>
             {item.label}
           </Link>
         );
@@ -77,21 +114,25 @@ function NavFooter({
   roleLabel: string;
   onNavigate?: () => void;
 }) {
+  const initial = userName.trim().charAt(0).toUpperCase() || "U";
   return (
-    <div className="mt-8 px-3 space-y-3">
-      <div className="border-t pt-3">
-        <p className="text-sm font-medium text-neutral-700 truncate">{userName}</p>
-        <p className="text-xs text-neutral-400">{roleLabel}</p>
+    <div className="mt-6 pt-4 border-t border-line space-y-1">
+      <div className="flex items-center gap-2.5 px-2 py-1.5">
+        <span className="grid place-items-center w-9 h-9 rounded-lg bg-accent-soft text-accent text-sm font-bold shrink-0">{initial}</span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-strong truncate">{userName}</p>
+          <p className="text-xs text-faint">{roleLabel}</p>
+        </div>
       </div>
       <Link
         href="/"
         onClick={onNavigate}
-        className="block text-xs text-neutral-500 hover:underline"
+        className="block rounded-md px-2 py-1.5 text-xs text-muted hover:text-accent hover:bg-surface-sunken"
       >
         Ver sitio público →
       </Link>
       <form action={logout}>
-        <button type="submit" className="text-xs text-neutral-500 hover:underline">
+        <button type="submit" className="w-full text-left rounded-md px-2 py-1.5 text-xs text-muted hover:text-accent hover:bg-surface-sunken">
           Cerrar sesión
         </button>
       </form>
@@ -125,63 +166,65 @@ export default function AdminShell({
   }, []);
 
   return (
-    <div className="min-h-screen flex bg-white text-neutral-900">
+    <div className="min-h-screen flex bg-surface text-body">
       {/* Sidebar fijo — solo desktop (lg+) */}
-      <nav className="hidden lg:flex w-56 shrink-0 flex-col border-r px-3 py-5">
-        <div className="px-3 mb-6 font-semibold text-lg text-neutral-800">CH Estética</div>
+      <nav className="hidden lg:flex w-60 shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5">
+        <div className="px-2 mb-6"><Brand /></div>
         <NavLinks items={items} />
-        <NavFooter userName={userName} roleLabel={roleLabel} />
+        <div className="mt-auto"><NavFooter userName={userName} roleLabel={roleLabel} /></div>
       </nav>
 
       {/* Cajón móvil */}
       {drawerOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-strong/40"
             onClick={() => setDrawerOpen(false)}
             aria-hidden
           />
-          <nav className="relative w-64 max-w-[80%] bg-white h-full px-3 py-5 flex flex-col shadow-xl">
-            <div className="px-3 mb-6 flex items-center justify-between">
-              <span className="font-semibold text-lg text-neutral-800">CH Estética</span>
+          <nav className="relative w-64 max-w-[80%] bg-surface-raised h-full px-3 py-5 flex flex-col shadow-overlay">
+            <div className="px-2 mb-6 flex items-center justify-between">
+              <Brand />
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Cerrar menú"
-                className="text-2xl leading-none text-neutral-500 px-2"
+                className="text-2xl leading-none text-muted px-2"
               >
                 ×
               </button>
             </div>
             <NavLinks items={items} onNavigate={() => setDrawerOpen(false)} />
-            <NavFooter
-              userName={userName}
-              roleLabel={roleLabel}
-              onNavigate={() => setDrawerOpen(false)}
-            />
+            <div className="mt-auto">
+              <NavFooter
+                userName={userName}
+                roleLabel={roleLabel}
+                onNavigate={() => setDrawerOpen(false)}
+              />
+            </div>
           </nav>
         </div>
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar móvil con hamburguesa */}
-        <header className="lg:hidden sticky top-0 z-30 bg-white/90 backdrop-blur border-b px-4 h-14 flex items-center gap-3">
+        <header className="lg:hidden sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Abrir menú"
-            className="flex flex-col justify-center gap-1.5 w-9 h-9 -ml-1 items-center rounded-md hover:bg-neutral-100"
+            className="flex flex-col justify-center gap-1.5 w-9 h-9 -ml-1 items-center rounded-md hover:bg-surface-sunken"
           >
-            <span className="block h-0.5 w-5 bg-neutral-800" />
-            <span className="block h-0.5 w-5 bg-neutral-800" />
-            <span className="block h-0.5 w-5 bg-neutral-800" />
+            <span className="block h-0.5 w-5 bg-strong" />
+            <span className="block h-0.5 w-5 bg-strong" />
+            <span className="block h-0.5 w-5 bg-strong" />
           </button>
-          <span className="font-medium text-neutral-800">{currentLabel(pathname, items)}</span>
-          <span className="ml-auto font-semibold text-neutral-700">CH Estética</span>
+          <span className="font-medium text-strong">{currentLabel(pathname, items)}</span>
+          <span className="ml-auto font-semibold text-muted">CH Estética</span>
         </header>
 
         {/* Header desktop */}
-        <header className="hidden lg:flex border-b px-6 py-4 items-center justify-between gap-4">
-          <span className="font-medium text-neutral-700 whitespace-nowrap">CH Estética</span>
-          <span className="text-sm text-neutral-500 whitespace-nowrap">Panel de administración</span>
+        <header className="hidden lg:flex bg-surface-raised border-b border-line px-8 h-[58px] items-center justify-between gap-4">
+          <span className="font-semibold text-strong whitespace-nowrap">CH Estética</span>
+          <span className="text-sm text-muted whitespace-nowrap">Panel de administración</span>
         </header>
 
         <div className="flex-1">{children}</div>

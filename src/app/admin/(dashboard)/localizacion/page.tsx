@@ -1,6 +1,7 @@
 import { getBusinessSettingsForAdmin, updateBusinessSettings } from "@/lib/settings-actions";
 import { requireCapability } from "@/lib/authz";
 import SubmitButton from "@/components/SubmitButton";
+import { Input, buttonClasses } from "@/components/ui";
 import type { BusinessSettingsRow } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ export default async function LocalizacionPage({
   return (
     <main className="mx-auto max-w-2xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1">Localización</h1>
-      <p className="text-neutral-500 mb-6">
+      <p className="text-muted mb-6">
         Dónde está el negocio y cómo contactarlo. Estos datos se muestran en el sitio público
         (portada, sección <span className="font-medium">“Dónde estamos”</span> y pie). Dejá un
         campo vacío para usar el valor por defecto.
@@ -63,7 +64,7 @@ export default async function LocalizacionPage({
       {banner && (
         <p
           className={`mb-6 rounded-md px-3 py-2 text-sm ${
-            banner.ok ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"
+            banner.ok ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
           }`}
         >
           {banner.text}
@@ -75,15 +76,14 @@ export default async function LocalizacionPage({
           const placeholder = d[f.key] ?? "";
           return (
             <div key={f.key} className={f.wide ? "sm:col-span-2" : ""}>
-              <label className="block text-sm text-neutral-600 mb-1">{f.label}</label>
-              <input
+              <label className="block text-sm text-body mb-1">{f.label}</label>
+              <Input
                 name={f.key}
                 type={f.type ?? "text"}
                 defaultValue={row?.[f.key] ?? ""}
                 placeholder={placeholder}
-                className="w-full rounded-md border px-3 py-2"
               />
-              {f.hint && <p className="mt-1 text-xs text-neutral-400">{f.hint}</p>}
+              {f.hint && <p className="mt-1 text-xs text-faint">{f.hint}</p>}
             </div>
           );
         })}
@@ -91,7 +91,7 @@ export default async function LocalizacionPage({
         <div className="sm:col-span-2">
           <SubmitButton
             pendingText="Guardando…"
-            className="rounded-md bg-black text-white px-4 py-2 text-sm font-medium"
+            className={buttonClasses("solid", "md")}
           >
             Guardar cambios
           </SubmitButton>

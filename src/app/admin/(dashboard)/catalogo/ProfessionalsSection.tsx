@@ -13,6 +13,7 @@ import {
 } from "@/lib/catalog-actions";
 import { fmtShortDate } from "@/lib/datetime";
 import { useToast } from "../ToastProvider";
+import { Input, Select, buttonClasses } from "@/components/ui";
 
 type Box = { id: string; name: string; active: boolean };
 type Service = {
@@ -69,7 +70,7 @@ function WorkingHoursEditor({ professional: p }: { professional: Professional })
   const byDay = new Map(p.workingHours.map((h) => [h.dayOfWeek, h]));
 
   return (
-    <div className="rounded-lg border p-4 bg-neutral-50">
+    <div className="rounded-lg border border-line p-4 bg-surface-raised">
       <p className="text-sm font-medium mb-3">Horario semanal</p>
       <form action={setWorkingHours} className="space-y-2">
         <input type="hidden" name="professionalId" value={p.id} />
@@ -83,6 +84,7 @@ function WorkingHoursEditor({ professional: p }: { professional: Professional })
                   name="enabledDay"
                   value={d.n}
                   defaultChecked={!!existing}
+                  className="accent-accent"
                 />
                 {d.label}
               </label>
@@ -91,14 +93,14 @@ function WorkingHoursEditor({ professional: p }: { professional: Professional })
                 type="time"
                 name="startTime"
                 defaultValue={existing?.startTime ?? "09:00"}
-                className="rounded-md border px-2 py-1"
+                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
-              <span className="text-neutral-400">a</span>
+              <span className="text-faint">a</span>
               <input
                 type="time"
                 name="endTime"
                 defaultValue={existing?.endTime ?? "19:00"}
-                className="rounded-md border px-2 py-1"
+                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
             </div>
           );
@@ -115,9 +117,9 @@ function WorkingHoursEditor({ professional: p }: { professional: Professional })
 function NovedadesEditor({ professional: p }: { professional: Professional }) {
   const { showError } = useToast();
   return (
-    <div className="rounded-lg border p-4 bg-neutral-50">
+    <div className="rounded-lg border border-line p-4 bg-surface-raised">
       <p className="text-sm font-medium mb-1">Novedades / ausencias</p>
-      <p className="text-xs text-neutral-500 mb-3">
+      <p className="text-xs text-muted mb-3">
         Bloqueá los días que este profesional no está (franco, vacaciones, no viene). La agenda no
         va a ofrecer turnos con él en ese rango.
       </p>
@@ -127,11 +129,11 @@ function NovedadesEditor({ professional: p }: { professional: Professional }) {
             <li key={b.id} className="flex items-center justify-between text-sm">
               <span>
                 {fmtShortDate(b.startsAt)} – {fmtShortDate(b.endsAt)} ·{" "}
-                <span className="text-neutral-500">{b.reason}</span>
+                <span className="text-muted">{b.reason}</span>
               </span>
               <form action={deleteProfessionalBlock}>
                 <input type="hidden" name="id" value={b.id} />
-                <button type="submit" className="text-xs text-red-600 hover:underline">
+                <button type="submit" className="text-xs text-danger hover:underline">
                   Quitar
                 </button>
               </form>
@@ -150,23 +152,23 @@ function NovedadesEditor({ professional: p }: { professional: Professional }) {
         className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1.5fr_auto] items-end gap-2"
       >
         <input type="hidden" name="professionalId" value={p.id} />
-        <label className="text-xs text-neutral-500">
+        <label className="text-xs text-muted">
           Desde
-          <input type="date" name="startDate" required className="mt-1 w-full rounded-md border px-2 py-1 text-sm" />
+          <input type="date" name="startDate" required className="mt-1 w-full rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent" />
         </label>
-        <label className="text-xs text-neutral-500">
+        <label className="text-xs text-muted">
           Hasta
-          <input type="date" name="endDate" required className="mt-1 w-full rounded-md border px-2 py-1 text-sm" />
+          <input type="date" name="endDate" required className="mt-1 w-full rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent" />
         </label>
         <input
           name="reason"
           required
           placeholder="Motivo (vacaciones, franco...)"
-          className="col-span-2 sm:col-span-1 rounded-md border px-2 py-1.5 text-sm"
+          className="col-span-2 sm:col-span-1 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
         />
         <button
           type="submit"
-          className="col-span-2 sm:col-span-1 rounded-md bg-black text-white px-3 py-2 sm:py-1.5 text-sm font-medium"
+          className={buttonClasses("solid", "sm", "col-span-2 sm:col-span-1 sm:py-1.5")}
         >
           Agregar
         </button>
@@ -180,14 +182,14 @@ function CommissionsEditor({ professional: p }: { professional: Professional }) 
   const overrideFor = (serviceId: string) =>
     p.serviceCommissions.find((c) => c.serviceId === serviceId)?.commissionPercent;
   return (
-    <div className="rounded-lg border p-4 bg-neutral-50">
+    <div className="rounded-lg border border-line p-4 bg-surface-raised">
       <p className="text-sm font-medium mb-1">Comisión por servicio</p>
-      <p className="text-xs text-neutral-500 mb-3">
+      <p className="text-xs text-muted mb-3">
         Comisión general: <strong>{p.commissionPercent}%</strong>. Si un servicio paga distinto,
         poné el porcentaje acá. Dejalo vacío para usar el general.
       </p>
       {p.services.length === 0 ? (
-        <p className="text-sm text-neutral-500">Este profesional no tiene servicios asignados.</p>
+        <p className="text-sm text-muted">Este profesional no tiene servicios asignados.</p>
       ) : (
         <div className="space-y-1.5">
           {p.services.map((s) => (
@@ -207,10 +209,10 @@ function CommissionsEditor({ professional: p }: { professional: Professional }) 
                 step={1}
                 defaultValue={overrideFor(s.id) ?? ""}
                 placeholder={`${p.commissionPercent}`}
-                className="w-20 rounded-md border px-2 py-1 text-sm"
+                className="w-20 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
-              <span className="text-neutral-400">%</span>
-              <button type="submit" className="text-xs font-medium text-neutral-600 hover:underline">
+              <span className="text-faint">%</span>
+              <button type="submit" className="text-xs font-medium text-body hover:underline">
                 Guardar
               </button>
             </form>
@@ -244,19 +246,19 @@ function ServiceTreePicker({
   const selectedCountIn = (items: Service[]) => items.filter((s) => selectedIds.has(s.id)).length;
 
   return (
-    <div className="rounded-md border divide-y">
+    <div className="rounded-md border border-line divide-y">
       {[...groups.values()].map((g) => {
         const selectedCount = selectedCountIn(g.items);
         return (
           <details key={g.label} className="group" open={selectedCount > 0}>
             <summary className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer select-none list-none text-sm">
               <span className="flex items-center gap-2">
-                <span className="text-neutral-400 transition-transform group-open:rotate-90">›</span>
+                <span className="text-faint transition-transform group-open:rotate-90">›</span>
                 {g.label}
               </span>
               <span
                 className={`text-xs rounded-full px-2 py-0.5 ${
-                  selectedCount > 0 ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-500"
+                  selectedCount > 0 ? "bg-accent text-white" : "bg-surface-sunken text-muted"
                 }`}
               >
                 {selectedCount > 0 ? `${selectedCount}/${g.items.length}` : g.items.length}
@@ -266,14 +268,14 @@ function ServiceTreePicker({
               {g.items.map((s) => (
                 <label
                   key={s.id}
-                  className="flex items-center gap-2 rounded-md border px-3 py-2.5 text-sm min-h-11 has-[:checked]:border-neutral-900 has-[:checked]:bg-neutral-50"
+                  className="flex items-center gap-2 rounded-md border border-line px-3 py-2.5 text-sm min-h-11 has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
                 >
                   <input
                     type="checkbox"
                     name={name}
                     value={s.id}
                     defaultChecked={selectedIds.has(s.id)}
-                    className="h-4 w-4 shrink-0"
+                    className="h-4 w-4 shrink-0 accent-accent"
                   />
                   {s.name}
                 </label>
@@ -308,29 +310,26 @@ function ProfessionalRow({
           await updateProfessional(fd);
           setEditing(false);
         }}
-        className="space-y-2 rounded-lg border p-4"
+        className="space-y-2 rounded-lg border border-line p-4"
       >
         <input type="hidden" name="id" value={p.id} />
         <div className="grid grid-cols-2 gap-2">
-          <input
+          <Input
             name="name"
             defaultValue={p.name}
             required
-            className="rounded-md border px-3 py-2 text-sm"
           />
-          <input
+          <Input
             name="phone"
             defaultValue={p.phone ?? ""}
             placeholder="Teléfono"
-            className="rounded-md border px-3 py-2 text-sm"
           />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <select
+          <Select
             name="boxId"
             defaultValue={p.box?.id ?? ""}
             required
-            className="w-full rounded-md border px-3 py-2 text-sm"
           >
             <option value="">Seleccioná un box</option>
             {boxes
@@ -340,22 +339,21 @@ function ProfessionalRow({
                   {b.name}
                 </option>
               ))}
-          </select>
+          </Select>
           <div className="flex items-center gap-2">
-            <input
+            <Input
               name="commissionPercent"
               type="number"
               min={0}
               max={100}
               step={1}
               defaultValue={p.commissionPercent}
-              className="w-full rounded-md border px-3 py-2 text-sm"
             />
-            <span className="text-sm text-neutral-500 whitespace-nowrap">% comisión</span>
+            <span className="text-sm text-muted whitespace-nowrap">% comisión</span>
           </div>
         </div>
         <div>
-          <p className="text-sm text-neutral-500 mb-1">Servicios que realiza</p>
+          <p className="text-sm text-muted mb-1">Servicios que realiza</p>
           <ServiceTreePicker
             services={services.filter((s) => s.active || p.services.some((ps) => ps.id === s.id))}
             selectedIds={new Set(p.services.map((ps) => ps.id))}
@@ -365,14 +363,14 @@ function ProfessionalRow({
         <div className="flex gap-4 pt-1">
           <button
             type="submit"
-            className="min-h-11 rounded-md bg-black text-white px-4 text-sm font-medium"
+            className={buttonClasses("solid", "md", "min-h-11")}
           >
             Guardar
           </button>
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="min-h-11 rounded-md border px-4 text-sm text-neutral-600"
+            className={buttonClasses("outline", "md", "min-h-11")}
           >
             Cancelar
           </button>
@@ -382,29 +380,29 @@ function ProfessionalRow({
   }
 
   const chipBtn =
-    "min-h-10 flex items-center rounded-md border px-3 text-sm text-neutral-700 active:bg-neutral-100";
-  const chipBtnActive = "min-h-10 flex items-center rounded-md border border-neutral-900 bg-neutral-900 px-3 text-sm text-white";
+    "min-h-10 flex items-center rounded-md border border-line px-3 text-sm text-body active:bg-surface-sunken";
+  const chipBtnActive = "min-h-10 flex items-center rounded-md border border-accent bg-accent px-3 text-sm text-white";
 
   return (
-    <div className="rounded-lg border px-4 py-3">
+    <div className="rounded-lg border border-line px-4 py-3">
       <div className="flex items-center justify-between gap-3 mb-1">
-        <span className={p.active ? "font-medium" : "font-medium text-neutral-400 line-through"}>
+        <span className={p.active ? "font-medium" : "font-medium text-faint line-through"}>
           {p.name}
         </span>
-        <button onClick={() => setEditing(true)} className="text-sm text-neutral-500 hover:underline shrink-0">
+        <button onClick={() => setEditing(true)} className="text-sm text-muted hover:underline shrink-0">
           Editar
         </button>
       </div>
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-muted">
         {p.box ? p.box.name : "Sin box asignado"} · {p.phone || "sin teléfono"} ·{" "}
-        <strong className="text-neutral-700">{p.commissionPercent}% comisión</strong>
+        <strong className="text-body">{p.commissionPercent}% comisión</strong>
       </p>
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-muted">
         {p.services.length > 0
           ? p.services.map((s) => s.name).join(", ")
           : "Sin servicios asignados"}
       </p>
-      <p className="text-xs text-neutral-400 mt-1 mb-3">{scheduleSummary(p.workingHours)}</p>
+      <p className="text-xs text-faint mt-1 mb-3">{scheduleSummary(p.workingHours)}</p>
 
       {/* Grupo de acciones frecuentes — botones con cuerpo real, min 40px de
           alto para el dedo, separados en dos filas para no amontonarse en
@@ -449,7 +447,7 @@ function ProfessionalRow({
           }}
         >
           <input type="hidden" name="id" value={p.id} />
-          <button type="submit" className={`${chipBtn} text-red-600 border-red-200`}>
+          <button type="submit" className={`${chipBtn} text-danger border-danger/40`}>
             Eliminar
           </button>
         </form>
@@ -486,7 +484,7 @@ export default function ProfessionalsSection({
   return (
     <section>
       <h2 className="text-lg font-medium mb-1">Profesionales</h2>
-      <p className="text-sm text-neutral-500 mb-3">
+      <p className="text-sm text-muted mb-3">
         Cada profesional tiene un box fijo, los servicios que puede realizar y su propio horario
         semanal — los días sin horario configurado no se ofrecen para reservar.
       </p>
@@ -495,27 +493,25 @@ export default function ProfessionalsSection({
           <ProfessionalRow key={p.id} professional={p} boxes={boxes} services={services} />
         ))}
         {professionals.length === 0 && (
-          <p className="text-sm text-neutral-500">No hay profesionales cargados todavía.</p>
+          <p className="text-sm text-muted">No hay profesionales cargados todavía.</p>
         )}
       </div>
 
-      <form action={createProfessional} className="space-y-2 rounded-lg border p-4">
+      <form action={createProfessional} className="space-y-2 rounded-lg border border-line p-4">
         <p className="text-sm font-medium">Agregar profesional</p>
         <div className="grid grid-cols-2 gap-2">
-          <input
+          <Input
             name="name"
             required
             placeholder="Nombre y apellido"
-            className="rounded-md border px-3 py-2 text-sm"
           />
-          <input
+          <Input
             name="phone"
             placeholder="Teléfono (opcional)"
-            className="rounded-md border px-3 py-2 text-sm"
           />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <select name="boxId" required className="w-full rounded-md border px-3 py-2 text-sm">
+          <Select name="boxId" required>
             <option value="">Seleccioná un box</option>
             {boxes
               .filter((b) => b.active)
@@ -524,9 +520,9 @@ export default function ProfessionalsSection({
                   {b.name}
                 </option>
               ))}
-          </select>
+          </Select>
           <div className="flex items-center gap-2">
-            <input
+            <Input
               name="commissionPercent"
               type="number"
               min={0}
@@ -534,15 +530,14 @@ export default function ProfessionalsSection({
               step={1}
               defaultValue={0}
               placeholder="0"
-              className="w-full rounded-md border px-3 py-2 text-sm"
             />
-            <span className="text-sm text-neutral-500 whitespace-nowrap">% comisión</span>
+            <span className="text-sm text-muted whitespace-nowrap">% comisión</span>
           </div>
         </div>
         <div>
-          <p className="text-sm text-neutral-500 mb-1">Servicios que realiza</p>
+          <p className="text-sm text-muted mb-1">Servicios que realiza</p>
           {services.length === 0 ? (
-            <p className="text-sm text-neutral-500">Cargá servicios primero.</p>
+            <p className="text-sm text-muted">Cargá servicios primero.</p>
           ) : (
             <ServiceTreePicker
               services={services.filter((s) => s.active)}
@@ -551,12 +546,12 @@ export default function ProfessionalsSection({
             />
           )}
         </div>
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-faint">
           El horario semanal se configura después de crear el profesional, con el botón "Horario".
         </p>
         <button
           type="submit"
-          className="w-full rounded-md bg-black text-white px-4 py-2 text-sm font-medium"
+          className={buttonClasses("solid", "md", "w-full")}
         >
           Agregar profesional
         </button>

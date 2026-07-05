@@ -45,15 +45,15 @@ export default async function AuditoriaPage() {
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Auditoría</h1>
-      <p className="text-neutral-500 mb-8">
+      <p className="text-muted mb-8">
         Registro de las últimas acciones sobre turnos, catálogo y reseñas. Quién, cuándo y qué
         cambió — útil ante cualquier duda o disputa.
       </p>
 
-      <div className="sm:overflow-x-auto sm:rounded-lg sm:border">
+      <div className="sm:overflow-x-auto sm:rounded-lg sm:border sm:border-line">
         <table className="block sm:table w-full text-left text-sm">
           <thead className="hidden sm:table-header-group">
-            <tr className="border-b bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
+            <tr className="border-b border-line bg-surface-sunken text-xs uppercase tracking-wide text-muted">
               <th className="px-4 py-2 font-medium">Cuándo</th>
               <th className="px-4 py-2 font-medium">Quién</th>
               <th className="px-4 py-2 font-medium">Acción</th>
@@ -64,31 +64,31 @@ export default async function AuditoriaPage() {
             {entries.map((e) => (
               <tr
                 key={e.id}
-                className="block sm:table-row rounded-lg border sm:border-0 sm:border-b sm:rounded-none sm:last:border-b-0 mb-3 sm:mb-0 px-3 py-2.5 sm:px-0 sm:py-0"
+                className="block sm:table-row rounded-lg border border-line sm:border-0 sm:border-b sm:border-line sm:rounded-none sm:last:border-b-0 mb-3 sm:mb-0 px-3 py-2.5 sm:px-0 sm:py-0"
               >
-                <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-neutral-600 whitespace-nowrap">
+                <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-body whitespace-nowrap">
                   {fmtDateTime(e.createdAt)}
                 </td>
-                <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-neutral-600">
-                  <span className="sm:hidden text-xs uppercase tracking-wide text-neutral-400 mr-1.5">Quién:</span>
+                <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-body">
+                  <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Quién:</span>
                   {formatActor(e.actor, userNames)}
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5">
                   {actionLabel[e.action] ?? e.action}{" "}
-                  <span className="text-neutral-500">{entityLabel[e.entity] ?? e.entity}</span>
+                  <span className="text-muted">{entityLabel[e.entity] ?? e.entity}</span>
                 </td>
-                <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-neutral-500">
+                <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-muted">
                   {e.changes ? (
                     <code className="text-xs break-all">{JSON.stringify(e.changes)}</code>
                   ) : (
-                    <span className="text-neutral-300">—</span>
+                    <span className="text-faint">—</span>
                   )}
                 </td>
               </tr>
             ))}
             {entries.length === 0 && (
               <tr className="block sm:table-row">
-                <td colSpan={4} className="block sm:table-cell px-0 sm:px-4 py-4 text-neutral-500">
+                <td colSpan={4} className="block sm:table-cell px-0 sm:px-4 py-4 text-muted">
                   Todavía no hay actividad registrada.
                 </td>
               </tr>
