@@ -14,6 +14,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { retailWordingForSlug } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
+import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
 import type { $Enums } from "@/generated/prisma/client";
 
 type OrderStatus = $Enums.OrderStatus;
@@ -31,19 +32,6 @@ const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
   DELIVERED: null,
   CANCELLED: null,
 };
-
-// Redondeo a 2 decimales (pesos). La venta por kg da importes con fracción
-// (0.750 kg × $8900/kg): se snapshotea el total ya redondeado en la línea.
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-// Precio de venta vigente de un producto según cómo se vende. WEIGHT → precio/kg;
-// UNIT → precio unitario. Devuelve null si el producto no tiene precio cargado
-// (no se puede vender suelto todavía) para que la acción lo descarte.
-function sellPrice(p: { saleUnit: string; price: number | null; pricePerKg: number | null }): number | null {
-  return p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price;
-}
 
 // --- Loader de la pantalla POS / bandeja de pedidos ---
 
@@ -69,118 +57,14 @@ export async function getPosData() {
   return { orders, products };
 }
 
-// --- Core de creación de orden (compartido por mostrador y vidriera) ---
+// --- Creación de orden: el Core compartido vive en `order-core.ts` ---
+//
+// `insertOrder` (importado arriba) es el único lugar donde se arma una orden: lo
+// reusan el POS del backoffice (`createOrder`, con auth), la vidriera pública
+// (`placeOnlineOrder`, sin auth) y la API de ingesta externa (ADR-020 §II). Acá
+// solo quedan los adaptadores de FormData → OrderInput de las Server Actions.
 
-type PaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
-
-type OrderInput = {
-  channel: "COUNTER" | "ONLINE";
-  fulfillment: "PICKUP" | "DELIVERY";
-  customerName: string;
-  customerPhone: string;
-  address: string | null;
-  notes: string | null;
-  scheduledFor: Date | null;
-  paid: boolean;
-  paymentMethod: PaymentMethod | null;
-  items: { productId: string; qty: number }[];
-};
-
-// Valida, snapshotea precios y crea la orden + sus líneas en una transacción.
-// Es el único lugar donde se arma una orden: lo llaman tanto el POS del backoffice
-// (`createOrder`, con auth) como la vidriera pública (`placeOnlineOrder`, sin auth).
-// No audita ni revalida — de eso se ocupa cada acción llamadora según su contexto.
-async function insertOrder(
-  tenantId: string,
-  input: OrderInput,
-): Promise<{ id: string; code: number; subtotal: number; lines: number }> {
-  if (input.fulfillment === "DELIVERY" && !input.address) {
-    throw new Error("Para envío a domicilio hace falta la dirección.");
-  }
-
-  const wanted = input.items.filter((l) => l.productId && Number.isFinite(l.qty) && l.qty > 0);
-  if (wanted.length === 0) {
-    throw new Error("Agregá al menos un producto con cantidad al pedido.");
-  }
-
-  // Snapshot de precio/nombre al momento de la venta (ADR-009 §4): se trae el
-  // producto real del tenant y se congela lo cobrado, no se confía en el form.
-  const products = await prisma.product.findMany({
-    where: { id: { in: wanted.map((l) => l.productId) }, tenantId, deletedAt: null, active: true },
-    select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true },
-  });
-  const byId = new Map(products.map((p) => [p.id, p]));
-
-  const lines = wanted
-    .map((l) => {
-      const p = byId.get(l.productId);
-      if (!p) return null;
-      const unitPrice = sellPrice(p);
-      if (unitPrice == null || unitPrice <= 0) return null;
-      return {
-        productId: p.id,
-        name: p.name,
-        saleUnit: p.saleUnit,
-        quantity: l.qty,
-        unitPrice,
-        lineTotal: round2(l.qty * unitPrice),
-      };
-    })
-    .filter((l): l is NonNullable<typeof l> => l !== null);
-
-  if (lines.length === 0) {
-    throw new Error("Ninguno de los productos elegidos tiene precio de venta cargado.");
-  }
-
-  const subtotal = round2(lines.reduce((s, l) => s + l.lineTotal, 0));
-  const status = input.channel === "ONLINE" ? "PENDING" : "CONFIRMED";
-
-  const order = await prisma.$transaction(async (tx) => {
-    // Correlativo legible por tenant: max(code)+1. Suficiente para el volumen del
-    // MVP; el @@unique([tenantId, code]) protege contra choques (una colisión
-    // rarísima lanzaría y se reintenta el alta). Secuencia por tenant = futuro.
-    const last = await tx.order.findFirst({
-      where: { tenantId },
-      orderBy: { code: "desc" },
-      select: { code: true },
-    });
-    const code = (last?.code ?? 0) + 1;
-
-    return tx.order.create({
-      data: {
-        tenantId,
-        code,
-        status,
-        channel: input.channel,
-        fulfillment: input.fulfillment,
-        customerName: input.customerName,
-        customerPhone: input.customerPhone,
-        address: input.address,
-        notes: input.notes,
-        scheduledFor: input.scheduledFor,
-        subtotal,
-        discount: 0,
-        total: subtotal,
-        paymentMethod: input.paid ? input.paymentMethod : null,
-        paid: input.paid && input.paymentMethod != null,
-        items: {
-          create: lines.map((l) => ({
-            tenantId,
-            productId: l.productId,
-            name: l.name,
-            saleUnit: l.saleUnit,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            lineTotal: l.lineTotal,
-          })),
-        },
-      },
-      select: { id: true, code: true },
-    });
-  });
-
-  return { id: order.id, code: order.code, subtotal, lines: lines.length };
-}
+type PaymentMethod = OrderPaymentMethod;
 
 // Parsea las líneas (arrays paralelos productId[]/quantity[], patrón getAll del
 // Core) de un FormData a la forma que espera insertOrder.
@@ -361,6 +245,7 @@ export async function getStorefront() {
   const copy = getStorefrontCopy(tenant?.slug);
   return {
     name: tenant?.name ?? "Tienda",
+    slug: tenant?.slug ?? null,
     branding: settings ?? null,
     wording,
     copy,
