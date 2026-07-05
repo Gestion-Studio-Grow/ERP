@@ -47,6 +47,8 @@ Los tipos de sesión de arriba definen **un tema por thread**. En paralelo exist
 
 Todos comparten la política de entrega: **push a GitHub sí, deploy a Netlify no** (gate manual). Si se agrega/cambia un rol o su método, esta tabla y `docs/METODO-ROLES.md` se actualizan en el mismo commit — si divergen, es un hallazgo para `/sesion-consolidacion`.
 
+> **Modo SESIÓN ÚNICA en serie (owner sin laptop):** cuando el owner no puede aprobar/abrir sesiones nuevas, se trabaja **todo en una sola sesión reutilizada**, con los frentes **en serie** (uno por vez). Esto no rompe "un tema por thread": la atomicidad baja del thread al **commit** — **un tema por commit**, secuencial, cada uno con `tsc`+build en verde y push. Protocolo completo en `docs/SPRINT-MOVIL.md → "Modo de operación"`. Se vuelve al modo paralelo (una sesión por frente) cuando el owner recupere acceso.
+
 ## La sesión de consolidación (la que mantiene el sistema honesto)
 
 Su trabajo es que el repo no mienta. Casos reales que ya pasaron y que existe para atrapar:

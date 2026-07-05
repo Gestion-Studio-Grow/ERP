@@ -14,6 +14,35 @@ verdad), los roles autónomos (`/sesion-movil`, `docs/METODO-ROLES.md`) y la col
 
 ---
 
+## Modo de operación: SESIÓN ÚNICA en serie (owner sin laptop)
+
+**Regla vigente (2026-07-05):** cuando el owner **no tiene acceso a la laptop** y por lo tanto
+**no puede aprobar sesiones nuevas**, se trabaja **todo en una sola sesión reutilizada**, con los
+frentes **ejecutados en serie** (uno después del otro, no en paralelo). Esto **no rompe** ADR-008
+("un tema por thread"): la unidad de atomicidad baja del *thread* al *commit* — **un tema por
+commit**, secuencial, cada uno con su `tsc`+build en verde y su push.
+
+Por qué: abrir un frente nuevo en su propia sesión requiere que el owner la apruebe/lance; sin
+laptop eso no pasa. Reutilizar esta sesión evita el bloqueo y, de paso, elimina el riesgo de
+colisión del *working tree compartido* (dos sesiones editando el mismo archivo) — acá hay un solo
+escritor.
+
+**Cómo se opera en este modo:**
+- **En serie, por palanca:** se toma el frente de mayor palanca del backlog (`docs/ESTADO-FRENTES.md`),
+  se lleva hasta commit+push, y recién ahí se arranca el siguiente. Nunca dos a la vez.
+- **Un tema por commit:** cada commit es un solo tema, atómico, con el porqué. `tsc`+build en verde
+  antes de cada uno; push al terminarlo.
+- **Handoff vivo entre ítems:** al cerrar cada tema se actualiza `## Sprint activo` (tildado +
+  próximo bocado + timestamp), así "status"/"seguimos" desde el móvil retoman exacto aunque se
+  corte la sesión.
+- **Sin paralelo hasta nuevo aviso:** no se abren frentes A/B/C simultáneos. Se vuelve al modo
+  paralelo (una sesión por frente) solo cuando el owner recupere acceso y lo habilite.
+- **Gates intactos:** deploy a prod/Netlify y `prisma migrate deploy` siguen siendo acción humana
+  del owner; en este modo, cualquier migración se deja como **carpeta nueva SIN aplicar**, marcada
+  "pendiente acción humana" (`docs/METODOLOGIA-REPORTE-AVANCE.md`).
+
+---
+
 ## Dónde vive cada cosa (mapa de una mirada)
 
 | Necesito… | Vive en | Quién lo escribe |
@@ -76,37 +105,35 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > **Este bloque es la fuente de verdad del sprint en curso.** "status" lo lee; "seguimos"
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
-**Sprint:** Avanzamos todo — deuda técnica + equipo de élite (sin gates)
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (F3 + F8 + onboarding cerrados; ítem 4 evaluado)
-**Estado del bloque:** ✅ **cerrado** — 3 de 3 ítems planificados hechos. Ítem 4 (mejora extra sin
-gate) evaluado: **sin candidato que pase el filtro** calidad-vs-especulación (whereForTenant solo
-paga post-RLS; test harness es decisión estructural → ADR aparte). Ambos anotados en
-`PROXIMOS-PASOS.md`. Working tree limpio, todo en `origin/main`.
+**Sprint:** Sesión única en serie — Tests → POS/stock → UX/UI
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (protocolo de sesión única escrito)
+**Estado del bloque:** 🟢 en curso · **modo SESIÓN ÚNICA en serie** (owner sin laptop, no se abren
+sesiones nuevas — ver "Modo de operación" arriba). Los frentes A/B/C, antes en paralelo, se
+ejecutan ahora **uno por uno en esta sesión**, un tema por commit.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
-**Objetivo:** cerrar la deuda de performance/arquitectura restante sin gates y **abrir el 5º
-mandato** (equipo técnico de élite), todo verificado y pusheado.
+**Objetivo:** ejecutar en serie los 3 frentes avanzables sin gate, de mayor a menor palanca,
+cada uno con `tsc`+build en verde, un tema por commit, pusheado.
 
 **Alcance**
-- **In:** F3 (reportes en DB), F8 (retención AuditLog), doc de onboarding del equipo/agentes, y mejoras de arq/perf sin gate de alta palanca.
+- **In:** (a) Tests/QA — harness + ADR corto + pruebas de lógica pura ya shippeada; (b) POS/stock —
+  descuento de stock al vender transaccional (sin oversell), migración como carpeta SIN aplicar;
+  (c) UX/UI — completar adopción del design system en pantallas que falten.
 - **Out:** RLS/2º tenant (Gate 2), WhatsApp/MP/ARCA vivo (credenciales), deploy a prod.
 
-**Criterios de "hecho":** `tsc` + build en verde antes de cada commit · commits atómicos con
-el porqué, pusheados a `origin/main` · docs y código coinciden · working tree limpio.
+**Criterios de "hecho":** `tsc` + build en verde antes de cada commit · un tema por commit con
+el porqué, pusheado a `origin/main` · handoff (`## Sprint activo`) al día tras cada ítem.
 
 **Checklist vivo**
-- [x] **F3 — reportes con agregación acotada** — rango obligatorio (default 90d, selector 30/90/180/365) + `tenantId` + `select` acotado; se acabó el escaneo de todo el histórico. *(este sprint, 2026-07-05)*
-- [x] **F8 — retención de `AuditLog`** — política (18m) + purga (`purge-audit`, dry-run por default) listas; ADR-009/007 enmendados. Sin ejecutar contra prod. *(este sprint, 2026-07-05)*
-- [x] **Onboarding equipo/agentes** — `docs/ONBOARDING-EQUIPO.md` (modelo mental, ruta de ramp, estándar de élite, cómo se entrena/mejora a los agentes); registrado en tablero + manual. *(este sprint, 2026-07-05)*
-- [x] **Extra alta palanca sin gate** — evaluado, sin candidato válido (no se fabricó trabajo especulativo); dos follow-ups de arquitectura anotados (tests, whereByTenant). *(este sprint, 2026-07-05)*
+- [x] **Protocolo de sesión única en serie** — escrito en este doc ("Modo de operación") + puntero en el tablero. *(este sprint, 2026-07-05)*
+- [ ] **(a) Tests/QA** — elegir harness (ADR corto), configurarlo, primeras pruebas de lógica pura ya shippeada (`auditRetentionCutoff`/`purgeAuditLogs`, reglas de `booking-core`, parseo de args).
+- [ ] **(b) POS/stock** — descontar stock al vender transaccional (sin oversell); migración nueva SIN aplicar si hace falta (pendiente acción humana).
+- [ ] **(c) UX/UI** — completar adopción del design system en las pantallas que falten.
 
-**Próximo bocado (lo que ejecuta "seguimos"):** el pozo de deuda técnica *sin gate* quedó
-drenado. Las siguientes palancas requieren una decisión o un gate tuyo, así que "seguimos"
-arranca por lo de mayor valor que NO dependa de credenciales: **`/sesion-arquitectura adoptar un
-harness de tests`** (el repo no tiene tests — gap real para un equipo de élite; empezar por la
-lógica pura ya lista). Alternativas si preferís: retomar un frente de producto (POS: descontar
-stock al vender) o esperar tu OK para los gates (RLS/2º tenant) y credenciales.
+**Próximo bocado (lo que ejecuta "seguimos"):** frente (a) **Tests/QA** — arrancar por el ADR
+corto que elige el harness (candidato: `node:test` built-in + `tsx`, cero dependencia nueva),
+configurarlo con un script `test`, y escribir las primeras pruebas de la lógica pura ya lista.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
