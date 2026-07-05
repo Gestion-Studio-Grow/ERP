@@ -110,6 +110,8 @@ model Tenant {
   businessSettings   BusinessSettings?
   commissionPayouts  CommissionPayout[]
   waitlistEntries    WaitlistEntry[]
+  invoices           Invoice[]
+  outboxEvents       OutboxEvent[]
 }
 
 // Configuración de localización y contacto del negocio (módulo Localización).
@@ -654,4 +656,75 @@ model WaitlistEntry {
   @@index([tenantId, status, createdAt])
   @@index([serviceId])
   @@index([professionalId])
+}
+
+// ─── Capability Factura + borde del Plugin ARCA (ADR-020 §6.a, ADR-022) ───
+// El modelo Factura de ADR-003 "nace con el Plugin ARCA": acá es donde nace.
+// Alcance mínimo a propósito (ADR-020: no materializar de forma especulativa):
+// guarda lo necesario para pedir el CAE y registrar el resultado fiscal.
+// El CÁLCULO de IVA vive en el Core, no en el plugin (ADR-006): los montos se
+// guardan ya calculados. `docNro` es texto (un CUIT de 11 dígitos no entra en
+// un Int de 32 bits). Los campos de CAE son nulos hasta que ARCA autoriza.
+
+enum InvoiceStatus {
+  PENDING // creada; esperando autorización de ARCA
+  AUTHORIZED // CAE obtenido
+  REJECTED // ARCA la rechazó
+}
+
+model Invoice {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  // Identidad fiscal del comprobante (códigos de catálogo de ARCA).
+  puntoVenta      Int
+  tipoComprobante Int? // TipoComprobante de WSFEv1 (1=A, 6=B, 11=C). Nulo hasta
+  //                      la autorización: lo deriva el plugin ARCA (ADR-022) y
+  //                      lo escribe `registerFiscalDocument`.
+  concepto Int // 1=Productos, 2=Servicios, 3=ambos
+  docTipo  Int // 80=CUIT, 96=DNI, 99=Consumidor Final
+  docNro   String
+  fecha    String // AAAAMMDD
+
+  // Montos calculados por el Core (ADR-006).
+  neto  Float
+  iva   Float
+  total Float
+
+  status InvoiceStatus @default(PENDING)
+
+  // Resultado fiscal de ARCA — nulo hasta autorización.
+  cae            String?
+  caeVencimiento String? // AAAAMMDD
+  numero         Int? // correlativo asignado por ARCA
+  rechazoMotivo  String? // detalle si status=REJECTED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, status])
+}
+
+// Outbox transaccional (ADR-002): el Core escribe el evento de dominio en la
+// MISMA transacción que la operación de negocio; un worker lo lee y lo despacha
+// al plugin. Garantiza que una factura creada siempre termine enviada a ARCA
+// aunque el proceso muera entre "guardar" y "despachar". `processedAt` nulo =
+// pendiente. Genérico (no solo ARCA): `type` discrimina el evento.
+model OutboxEvent {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  type    String // ej. "InvoiceCreated"
+  payload Json
+
+  processedAt DateTime? // null = pendiente de despacho
+  attempts    Int       @default(0)
+  lastError   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([processedAt])
 }

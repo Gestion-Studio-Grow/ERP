@@ -84,6 +84,18 @@ El plugin declara ambas en su **manifiesto** (`manifest.ts`, formato ADR-006). E
 - **Código:** scaffold del plugin en `src/plugins/arca/` (no toca Core existente, no toca DB). El lado Core queda en la cola de handoff.
 - **Cuándo se vuelve a tocar:** `/sesion-feature Plugin ARCA — lado Core` (modelo Invoice + outbox + worker + `RegisterFiscalDocument` + provisioning de credenciales), atada a la disponibilidad de un certificado de homologación de ARCA.
 
+## 8-bis. Estado de implementación (2026-07-04)
+
+Se avanzó más allá del scaffold del plugin, manteniendo el gate de DB:
+
+- **Plugin** (`src/plugins/arca/`): completo contra stub. ✅
+- **Lado Core**: **escrito y verificado offline (tsc 0 errores + `next build` OK), migración SIN aplicar.**
+  - Modelos `Invoice` + `OutboxEvent` + enum `InvoiceStatus` en `prisma/schema.prisma`.
+  - Migración `prisma/migrations/20260704160000_add_invoice_outbox/` **escrita a mano, NO corrida** contra Neon (Gate 2 — `migrate deploy` requiere OK explícito).
+  - `src/lib/invoice-core.ts`: `createInvoice` (factura + `InvoiceCreated` en la misma transacción, outbox), `registerFiscalDocument` (superficie II), `markInvoiceRejected`, `getInvoice`.
+  - `src/lib/arca-dispatch.ts`: `processArcaOutbox()` drena el outbox y corre el handler del plugin (glue del Integration Engine; único módulo que importa ambos lados — el Core no importa el plugin).
+- **Pendiente** (en `docs/PROXIMOS-PASOS.md`): aplicar la migración; enganchar `createInvoice` a un flujo de negocio real (decisión de producto, no cableada a propósito); worker periódico; `clientePara` real (creds por tenant + adapter SOAP); modelo de auth del path worker (hoy sin `requireCapability` porque no hay sesión de usuario).
+
 ## 8. Decisión final
 
 El Plugin ARCA es el **primer Plugin** del ERP, vive en `src/plugins/arca/`, hace **solo autorización fiscal** (CAE) y habla con el Core **únicamente** por el evento `InvoiceCreated` (entra) y el comando `RegisterFiscalDocument` (sale), ambos con `tenantId` explícito y declarados en su manifiesto. El cálculo de IVA y la persistencia quedan en el Core. Se entrega el plugin funcional contra un stub en memoria y con el contrato hacia el Core escrito; el lado Core (Invoice, outbox, worker, comando, credenciales por tenant) —que toca DB— se difiere a una `/sesion-feature` con su propia migración y gate. Cero riesgo sobre producción y sobre la DB hoy; lo que se gana es que arca queda encarrilado como plugin dentro de la arquitectura en vez de forkeado como producto aparte.
