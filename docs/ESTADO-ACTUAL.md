@@ -7,8 +7,9 @@ este documento es la fuente de verdad para continuar exactamente desde acá.** S
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
 - **Actualizado:** 2026-07-05 (FASE FINAL / backup de fin de jornada) · **Autor:** PMO (sesión autónoma)
-- **Snapshot / punto de retorno:** tag **`snapshot/2026-07-05-eod`** → `main` `35603bd` (+ el previo
-  `snapshot/2026-07-05-postdeploy` → `f0a13f0`).
+- **Snapshot / punto de retorno:** tag **`snapshot/2026-07-05-eod`** → el commit de este backup
+  (incluye esta foto; código en `35603bd`) (+ el previo `snapshot/2026-07-05-postdeploy` → `f0a13f0`).
+  Para retomar: `git checkout snapshot/2026-07-05-eod` o simplemente leer este doc en `main`.
 - **Método:** barrido del repo (`git log`, `prisma/migrations/`, `src/blueprints/`, docs). **NO se
   consultó Neon prod** (política: diagnóstico, no tocar prod/DB) → el estado de migraciones *aplicadas*
   se deriva de docs y se marca "a confirmar" donde no hay evidencia dura.
@@ -22,7 +23,7 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 | **main HEAD (origin)** | **`35603bd`** — `docs(sector): visión estratégica en FUNDAMENTO — la Agencia es el go-to-market del propio ERP` |
 | **Último deploy conocido a prod** | **`f0a13f0`** (merge `land-inventario-f1b`) — *confirmar si se redeployó tras esto* |
 | **Delta main → prod (sin deployar)** | fixes + docs post-`f0a13f0`: `8b9d989` fix del gate RLS, `685b5c9` override `FORCE_TENANT_SLUG`, y el sector Agencia Digital (charter + FUNDAMENTO + 2 análisis de mercado). **Nada de esto rompe prod; son fixes/docs.** |
-| **Snapshot tags** | `snapshot/2026-07-05-eod` → `35603bd` (este backup) · `snapshot/2026-07-05-postdeploy` → `f0a13f0` |
+| **Snapshot tags** | `snapshot/2026-07-05-eod` → commit de este backup (código `35603bd`) · `snapshot/2026-07-05-postdeploy` → `f0a13f0` |
 
 **Cores con trabajo en main (ERP):** Pagos (gateway de cobros por tenant), Caja (arqueo en vivo +
 rediseño `/admin/caja`), Inventario/POS (ledger `StockMovement` cableado a venta/compra/consumo),
