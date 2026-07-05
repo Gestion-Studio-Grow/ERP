@@ -40,6 +40,7 @@ Los tipos de sesión de arriba definen **un tema por thread**. En paralelo exist
 
 | Comando | Qué es |
 |---|---|
+| `/sprint` | **Sprint de 5 equipos** disparado desde el móvil: el orquestador toma el rol de **socio gerente ejecutivo** y abre 5 frentes (Plataforma · Producto · Fiscal · Calidad · Ejecutivo/PMO), cada uno en su **git worktree aislado** (el 5º sobre `main`, merge-master). Protocolo de 4 palabras (`sprint`/`status`/`seguimos`/`pausa`). Metodología: `docs/METODOLOGIA-SPRINT.md`. |
 | `/sesion-movil` | Ejecutor autónomo en rol **PMO**: Maxi despacha tareas y recibe status al terminar cada una. Si la tarea encaja en un tipo del tablero, sigue sus normas. |
 | `/rol <rol>` | Adoptás el rol que indique Maxi (PMO, QA, diseñador, redactor…). Autónomo, commit local. |
 | `/rol-fullstack` | Developer fullstack + arquitecto senior: implementa features y, si toca una decisión estructural, deja el ADR. |

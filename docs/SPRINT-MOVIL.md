@@ -14,30 +14,26 @@ verdad), los roles autónomos (`/sesion-movil`, `docs/METODO-ROLES.md`) y la col
 
 ---
 
-## Modo de operación: SESIÓN ÚNICA en serie (2026-07-05, vigente)
+## Modo de operación: SPRINT de 5 equipos (2026-07-05, vigente)
 
-**Regla vigente:** el owner **no quiere abrir sesiones nuevas ni frentes paralelos**. Se trabaja
-**todo en una sola sesión reutilizada**, con los frentes **ejecutados en serie** (uno después del
-otro). Esto **no rompe** ADR-008 ("un tema por thread"): la atomicidad baja del *thread* al
-*commit* — **un tema por commit**, secuencial, cada uno con su `tsc`+build (+`npm test`) en verde y
-su push.
+**Modelo vigente:** el owner dispara un **sprint** desde el móvil y el frente de IA lo ejecuta como
+**5 equipos en paralelo, cada uno en su git worktree aislado** (el 5º = Ejecutivo/PMO trabaja sobre
+`main` y es el merge-master). La **metodología canónica completa** —los 5 roles, las reglas, el
+protocolo de las 4 palabras (`sprint`/`status`/`seguimos`/`pausa`)— está en
+**`docs/METODOLOGIA-SPRINT.md`** y en el comando **`/sprint`**. Resumen operativo:
 
-**Cómo se opera:**
-- **En serie, por palanca:** se toma el frente de mayor palanca del backlog (`docs/ESTADO-FRENTES.md`),
-  se lleva hasta commit+push, y recién ahí se arranca el siguiente. Nunca dos a la vez.
-- **Un tema por commit**, atómico, con el porqué; verde antes de cada uno; push al terminarlo.
-- **Handoff vivo:** al cerrar cada tema se actualiza `## Sprint activo` (tildado + próximo bocado +
-  timestamp), así "status"/"seguimos" desde el móvil retoman exacto aunque se corte la sesión.
-- **Gates intactos:** deploy a prod/Netlify y `prisma migrate deploy` siguen siendo acción humana
-  del owner; cualquier migración se deja como **carpeta nueva SIN aplicar**, marcada "pendiente
-  acción humana" (`docs/METODOLOGIA-REPORTE-AVANCE.md`).
+- **Un worktree por equipo** (aislamiento real; el repo es subfolder → sin worktree las sesiones se
+  pisan el working tree). Rutas y ramas en `docs/METODOLOGIA-SPRINT.md`.
+- **Un tema por commit**, `tsc`+build (+`npm test`) en verde antes de cada uno.
+- **`git pull --rebase` antes de integrar; solo el PMO mergea a `main`**, de a una rama, en orden.
+- **⚠️ cada worktree necesita `npm install`** una vez (no viaja `node_modules`).
+- **Gates = acción humana del owner** (deploy/Netlify, `migrate deploy`); migraciones como carpeta
+  SIN aplicar, marcadas "pendiente acción humana".
 
-> **Nota (worktrees, descartado):** se evaluó y preparó paralelismo real por **git worktrees** (el
-> repo es un subfolder del workspace → las sesiones paralelas compartían el mismo working tree y se
-> pisaban). El terreno se creó y se **revirtió limpio** a pedido del owner (no quiere sesiones
-> nuevas): worktrees removidos, ramas `frente/*` borradas, `main` intacto. Si algún día se retoma el
-> paralelo, la vía correcta es un worktree por frente + merge-master en `main` — no abrir varias
-> sesiones sobre el mismo subfolder.
+> **Fallback — SESIÓN ÚNICA en serie:** cuando el owner **no puede abrir sesiones nuevas** (sin
+> laptop), se degrada a **una sola sesión reutilizada, en serie** (un tema por commit, mismos
+> criterios de verde y push). Es el modo con el que ya se cerró Tests, POS/stock y el barrido UX
+> público. El repo es la memoria en ambos modos.
 
 ---
 
@@ -50,7 +46,8 @@ su push.
 | **El ESTADO VIVO del sprint** (qué se hizo, qué falta, próximo bocado) | **este archivo → `## Sprint activo`** | **cada sesión, al cerrar** |
 | **El handoff concreto** (ítems accionables entre sesiones) | `docs/PROXIMOS-PASOS.md` | cada sesión |
 | **Cómo se ejecuta** (bucle, definición de terminado, seguridad, reporte) | `docs/METODO-ROLES.md` | — (spec estable) |
-| **Quién ejecuta** desde el móvil | `/sesion-movil` (rol PMO autónomo) | — (comando) |
+| **El modelo de SPRINT** (5 equipos, worktrees, protocolo de 4 palabras) | `docs/METODOLOGIA-SPRINT.md` + `/sprint` | — (spec estable) |
+| **Quién ejecuta** desde el móvil | `/sprint` (5 equipos) · `/sesion-movil` (PMO autónomo) | — (comando) |
 
 **Para el móvil, la respuesta corta:** *el estado vivo del sprint está en `docs/SPRINT-MOVIL.md`,
 sección `## Sprint activo`.* Ahí se lee "status" y desde ahí se retoma "seguimos".
@@ -103,36 +100,30 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > **Este bloque es la fuente de verdad del sprint en curso.** "status" lo lee; "seguimos"
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
-**Sprint:** Sesión única en serie — frentes sin gate por palanca
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (worktrees revertidos; sesión única)
-**Estado del bloque:** 🟢 en curso · **modo SESIÓN ÚNICA en serie** (el owner no quiere sesiones
-nuevas). Los worktrees preparados para paralelo se **revirtieron limpio** (removidos, ramas
-`frente/*` borradas, main intacto). Esta única sesión ejecuta los frentes en serie.
+**Sprint:** Setup del modelo de 5 equipos — EN PAUSA, esperando `sprint`
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (metodología + 4 worktrees listos; PAUSA)
+**Estado del bloque:** ⏸️ **PAUSA / consolidado.** Terreno listo para el modelo de sprint de 5
+equipos (`docs/METODOLOGIA-SPRINT.md` + `/sprint`): 4 worktrees aislados creados + el 5º (PMO) sobre
+`main`. `main` limpio y pusheado. **No hay trabajo de frentes en curso** — se espera que el owner
+tipee **`sprint`** para arrancar.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
-**Objetivo:** seguir cerrando frentes avanzables sin gate, de mayor a menor palanca, en serie,
-cada uno con `tsc`+build (+`npm test`) en verde, un tema por commit, pusheado.
-
-**Alcance**
-- **In:** UX/UI (barrido de adopción restante, por slices), POS caja/compras, reportes v2, adapters sin credencial (ARCA `soap.ts` / MP), nuevos presets de rubro.
-- **Out:** RLS/2º tenant (Gate 2), WhatsApp/MP/ARCA vivo (credenciales), deploy a prod, abrir sesiones/frentes nuevos.
-
-**Criterios de "hecho":** `tsc` + build en verde antes de cada commit · un tema por commit con
-el porqué, pusheado a `origin/main` · handoff (`## Sprint activo`) al día tras cada ítem.
+**Worktrees listos (asignación de equipos):**
+- Equipo 1 Plataforma → `../estetica-erp-plataforma` [`frente/plataforma`]
+- Equipo 2 Producto → `../estetica-erp-producto` [`frente/producto`]
+- Equipo 3 Fiscal → `../estetica-erp-fiscal` [`frente/fiscal`]
+- Equipo 4 Calidad → `../estetica-erp-calidad` [`frente/calidad`]
+- Equipo 5 Ejecutivo/PMO → `main` (esta sesión, merge-master)
 
 **Ya cerrado y en `main`:** Tests (harness ADR-026), POS/stock (`trackStock`, migración sin aplicar),
-UX slice (tokens del turno público), protocolo de estados/metodología, protocolo de modo de operación.
+UX (sitio público 100% en tokens), protocolos de estados/metodología/modo, metodología de sprint.
 
-**Checklist vivo (pendiente, por palanca)**
-- [ ] **UX/UI restante** — barrido de adopción del design system por slices (público verificable primero; admin queda para cuando haya preview con auth).
-- [ ] **POS — caja/compras** — profundidad de ERP retail (feature sizable).
-- [ ] **Reportes v2** — no-show, retención, export (sobre `getReportData` ya acotado).
-- [ ] **Adapters sin credencial** — ARCA `soap.ts` / adapter MP contra homologación (dev, no credencial).
-
-**Próximo bocado (lo que ejecuta "seguimos"):** seguir el **barrido UX por slices** en pantallas
-verificables por estructura (tokens semánticos), o —por palanca— **POS caja/compras**. Un frente
-por vez, un tema por commit, en esta única sesión. Alternativas en `docs/ESTADO-FRENTES.md`.
+**Próximo bocado (lo que ejecuta `sprint`/`seguimos`):** al recibir **`sprint`**, tomar el rol de
+socio gerente ejecutivo y asignar a cada equipo su bocado de mayor palanca (candidatos por frente en
+`docs/ESTADO-FRENTES.md`): Plataforma→RLS/perf pre-gate; Producto→POS caja/compras + UX admin;
+Fiscal→adapters sin credencial (ARCA `soap.ts`/MP); Calidad→cobertura de tests + seguridad. Cada
+equipo en su worktree (recordar `npm install`), PMO integra en orden.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
