@@ -135,8 +135,10 @@ reportes fiscales / libro IVA.
 
 ### 2.3 Riesgos técnicos abiertos (de ADR-023, priorizados)
 
-- 🔴 **F2 — Overbooking TOCTOU:** check-then-insert sin nivel Serializable; bug
-  latente de doble-reserva bajo concurrencia. Fix barato (nivel de transacción).
+- ✅ **F2 — Overbooking TOCTOU:** ~~check-then-insert sin nivel Serializable~~
+  **RESUELTO 2026-07-05** — las 4 rutas de reserva corren en Serializable con retry
+  vía `bookingTransaction` (`src/lib/rls.ts`); ADR-004 enmendado. GIST queda como
+  objetivo de plan pago (ADR-023 F2).
 - 🔴 **F1 — Índices sin `tenantId` en el WHERE:** se activan de la mano de RLS.
 - 🟠 **F3 — Reportes agregan histórico en JS** en vez de en la DB; degrada al crecer.
 - 🟡 **F8 — `AuditLog` append-only vs. storage 0.5 GB** de Neon free: definir retención.
@@ -152,21 +154,29 @@ ajustando config —catálogo, unidades, flujo, branding—, **no** escribiendo 
 de base (FUNDAMENTOS §2, ADR-002/003). Un arquetipo es la "forma" de operar;
 un rubro es un preset sobre esa forma.
 
-> **Estado en código (verificado):** el registro de blueprints
-> (`src/blueprints/index.ts`) tiene hoy **2**: `servicios` (default) y `carniceria`.
-> El resto de los arquetipos de abajo son **📐 estrategia/diseño**, todavía sin
-> preset propio. El valor del enfoque es que sumarlos es *config*, no un producto nuevo.
+> **Estado en código (verificado 2026-07-05):** el registro de blueprints
+> (`src/blueprints/index.ts`) tiene hoy **~24 presets de rubro sobre 4 arquetipos** +
+> el comodín. Por familia: **Agenda&Servicios** (`estetica`, `peluqueria`, `consultorio`,
+> `veterinaria` + `servicios` default), **Servicios&Oficios** (`cerrajeria`, `electricista`,
+> `fletes`, `plomeria`, `refrigeracion`), **Gastronomía** (`cafeteria`, `heladeria`,
+> `panaderia`, `pizzeria`, `restaurante`, `rotiseria`), **Retail/Mostrador**
+> (`carniceria`, `dietetica`, `fiambreria`, `indumentaria`, `kiosco`, `verduleria`), más
+> `generico` (fallback/red de contención). Todo es **config pura sobre el Core** (sin schema
+> ni fork), con pistas rubro→blueprint data-driven para el onboarding. Lo que sigue
+> "📐 diseño" NO es el preset sino la **profundidad de ERP** de cada arquetipo (§2): Retail
+> factura/vende pero aún no descuenta stock ni tiene caja; Oficios/Gastronomía tienen el
+> preset pero no el flujo pulido de orden/presupuesto/comanda.
 
 ### 3.1 Arquetipos y el mercado local argentino
 
 | Arquetipo | Cómo opera | Rubros AR que absorbe | Reusa del Core | Estado |
 |---|---|---|---|---|
-| **Agenda & Servicios** | turno con profesional/recurso en el tiempo | estética/salón, salud/consultorios, veterinaria, gimnasios/estudios, spa | agenda, boxes/recursos, profesionales, reservas, recordatorios, comisiones | ✅ (vía `servicios` / CH Estética) |
-| **Retail / Mostrador** | venta de producto por unidad o peso, POS + vidriera | carnicería, verdulería, dietética, kiosco, indumentaria, ferretería | POS/órdenes, catálogo producto, canales COUNTER/ONLINE, fulfillment | 🟡 (vía `carniceria` / magra — falta stock+caja, ver §2) |
-| **Servicios profesionales & Oficios** | trabajo/visita presupuestado, sin stock ni turnera rígida | contadores, plomeros, técnicos, electricistas, freelancers | clientes, órdenes/presupuesto, cobro, facturación | 📐 diseño |
-| **Gastronomía** | comanda/mesa/delivery, alta rotación | bar, resto, cafetería, rotisería | POS/órdenes, fulfillment, catálogo | 📐 diseño — **entra tarde** (incumbentes fuertes: Fudo, Bistrosoft, Maxirest) |
+| **Agenda & Servicios** | turno con profesional/recurso en el tiempo | estética/salón, salud/consultorios, veterinaria, gimnasios/estudios, spa | agenda, boxes/recursos, profesionales, reservas, recordatorios, comisiones | ✅ presets `estetica`/`peluqueria`/`consultorio`/`veterinaria` (+ CH Estética en prod) |
+| **Retail / Mostrador** | venta de producto por unidad o peso, POS + vidriera | carnicería, verdulería, dietética, kiosco, indumentaria, ferretería | POS/órdenes, catálogo producto, canales COUNTER/ONLINE, fulfillment | 🟡 presets `carniceria`/`verduleria`/`dietetica`/`fiambreria`/`kiosco`/`indumentaria` — **falta profundidad ERP** (stock al vender + caja, §2), no el preset |
+| **Servicios profesionales & Oficios** | trabajo/visita presupuestado, sin stock ni turnera rígida | contadores, plomeros, técnicos, electricistas, freelancers | clientes, órdenes/presupuesto, cobro, facturación | 🟡 presets `plomeria`/`electricista`/`cerrajeria`/`refrigeracion`/`fletes` — falta pulir flujo orden/presupuesto |
+| **Gastronomía** | comanda/mesa/delivery, alta rotación | bar, resto, cafetería, rotisería | POS/órdenes, fulfillment, catálogo | 🟡 presets `restaurante`/`pizzeria`/`rotiseria`/`cafeteria`/`panaderia`/`heladeria` — **prioridad comercial baja** (incumbentes fuertes: Fudo, Bistrosoft, Maxirest) |
 | **Solo-facturación / digital** | no vende por el ERP, solo factura/concilia ingresos | monotributista, vendedor de ML/MP, servicios digitales | Plugin arca + ingesta MP (ADR-025) | 🟡 (código de arca/MP presente, apagado) |
-| **Genérico / comodín** | mínimo común (clientes + ítems + cobro + factura) | cualquier rubro que aún no tiene preset propio | clientes, catálogo, órdenes, arca | 📐 diseño — **red de contención** |
+| **Genérico / comodín** | mínimo común (clientes + ítems + cobro + factura) | cualquier rubro que aún no tiene preset propio | clientes, catálogo, órdenes, arca | ✅ `generico` como `FALLBACK_BLUEPRINT_ID` — **red de contención** |
 
 **Por qué el genérico importa:** es la **red de contención comercial**. Permite dar
 de alta a un cliente cuyo rubro todavía no tiene arquetipo fino, sin decirle que no
@@ -214,11 +224,13 @@ que cada arquetipo nuevo es **preset sobre el Core**, no desarrollo:
 
 ### 3.4 Sprint en curso (2026-07)
 
-Foco actual —construcción en paralelo de la base que habilita el orden de arriba—:
+Foco de los *habilitadores de plataforma* —construcción en paralelo de la base que
+habilita el orden de arriba—:
 
 - **Retail → blueprint reusable:** generalizar `magra`/`carniceria` de tenant puntual
   a arquetipo Retail/Mostrador parametrizable (cierra §2: stock al vender, caja).
-- **Blueprint Genérico / comodín:** la red de contención para altas de cualquier rubro.
+- ✅ **Blueprint Genérico / comodín:** **HECHO** — `generico` es `FALLBACK_BLUEPRINT_ID`
+  en el registro; toda alta cuyo rubro no matchea un preset cae ahí sin fallar.
 - **Onboarding-experiencia:** el alta hoy es un script operado (`provision-tenant.ts`);
   el sprint la lleva hacia una experiencia de alta guiada (elegir arquetipo → sembrar
   → primeros pasos). Base del futuro portal/consola (ADR-019/021).
@@ -228,8 +240,18 @@ Foco actual —construcción en paralelo de la base que habilita el orden de arr
   cada arquetipo/tenant se vea propio sin forkear front (hoy `src/components/ui` +
   `branding.ts`, con theming por tenant aún parcial).
 
-Estos cinco frentes son *habilitadores de plataforma*: no agregan un rubro, agrandan
+Estos frentes son *habilitadores de plataforma*: no agregan un rubro, agrandan
 la superficie sobre la que después cada rubro entra como config.
+
+**Sprint táctico paralelo — "Tablero honesto + deuda técnica sin gates" (2026-07-05).**
+Frente de higiene/correctitud que NO depende de credenciales ni de gates de DB/deploy,
+para dejar el repo sin mentiras mientras los habilitadores avanzan:
+- ✅ **Consolidación del roadmap:** §3.1 sincronizado con el registro real de blueprints
+  (~24 presets sobre 4 arquetipos + comodín, ya no "2"); BACKLOG con el estado de RLS al día.
+- ✅ **Fix F2 — overbooking TOCTOU (ADR-023):** las 4 rutas de reserva en Serializable con
+  retry (`bookingTransaction`); ADR-004 enmendado (mecanismo real, GIST a futuro).
+- ⏭️ **Anotado (no en este sprint):** F3 (reportes agregando en DB), F4/F5 (N+1/over-fetch),
+  F8 (retención AuditLog) — en la cola de `docs/PROXIMOS-PASOS.md`.
 
 ---
 

@@ -100,11 +100,13 @@ supuesto por el nombre del commit.
 - [ ] **Sincronización con Google Calendar** del profesional. No empezado.
 - [ ] **Multi-sucursal / multi-tenant real.** El modelo de datos ya está
   preparado (`Tenant` + `tenantId` en toda tabla de negocio, ADR-001), pero
-  es aislamiento a nivel de aplicación nada más — no hay RLS de Postgres
-  (diferido a propósito hasta que exista un 2º tenant, ver nota en
-  `schema.prisma`; su mecanismo y momento de activación ya quedaron
-  decididos en ADR-018, falta solo implementarlo el día del gate) ni
-  UI/auth para operar más de un negocio a la vez
+  es aislamiento a nivel de aplicación nada más — el RLS de Postgres
+  (backstop a nivel DB) está **escrito y verificado offline pero SIN aplicar**
+  a prod (`prisma/rls/`, ADR-018 mecanismo B: policies data-driven + rol
+  `app_user` sin `BYPASSRLS` + extensión de Prisma apagada; ver
+  `prisma/rls/README.md`). Aplicarlo es Gate 2 (OK explícito) y va junto con
+  el alta del 2º tenant — ensayo obligatorio en branch de Neon primero. Falta
+  también UI/auth para operar más de un negocio a la vez
   (`checkPassword` es un único secreto global, no hay selector de tenant).
   Sigue sin ser necesario hasta que haya un segundo cliente pagando.
 - [ ] **Fotos reales de profesionales y ambiente** — siguen siendo
