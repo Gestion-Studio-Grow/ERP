@@ -66,6 +66,45 @@ la fuente de señales de mercado; el motor de **producto** es donde está la gan
 dos se retroalimentan: la operación de clientes le da a los Consultores datos reales del mercado, y
 los productos le dan a la agencia un diferencial que otras agencias no tienen.
 
+### 🚀 Visión estratégica — la Agencia es el GO-TO-MARKET del propio producto
+
+> **Objetivo central del sector (visión del dueño):** a futuro, la Agencia **le brinda su servicio al
+> propio producto multi-tenant de la compañía (el ERP/SaaS) para VENDERLO ONLINE.** No solo vende
+> servicios a clientes externos: es también el **motor de go-to-market de la plataforma**.
+
+Esto significa que la Agencia usa **sus propias capacidades** —ads (Meta/Google), SEO local + GEO,
+contenido, analytics, storefronts brandeables— para **captar y vender el ERP/SaaS a nuevos negocios
+online**. El ERP es, además de un producto para terceros, el **cliente #1 de la Agencia**.
+
+**Por qué esto es el corazón del sector (la sinergia entre los dos sectores de la compañía):**
+- La compañía tiene **las dos mitades que casi nadie tiene juntas**: un **producto SaaS** que vender y
+  una **agencia** que sabe vender online. La mayoría de los SaaS tienen que **comprar** distribución
+  (agencias, ads, afiliados); nosotros la tenemos **adentro**, a costo marginal.
+- Cada capacidad de la Agencia se apunta al ERP como si fuera un cliente premium: **ads** para captar
+  negocios que buscan digitalizarse, **SEO local/GEO** para aparecer cuando un comercio busca "sistema
+  de gestión / facturación / turnos", **contenido** para educar y nutrir, **storefront** como demo viva,
+  **analytics** para optimizar el embudo de alta de tenants.
+- Se cierra un **volante de crecimiento (flywheel):** la Agencia vende el ERP → entran tenants → el ERP
+  genera más dato operativo → ese dato mejora el analytics-producto y el benchmarking por rubro → la
+  Agencia vende mejor (y capta clientes de servicios que también se vuelven tenants). Los dos sectores
+  se empujan mutuamente.
+
+**Qué implica para vos, según tu equipo:**
+- **Consultores:** parte del "mercado" a analizar es **el embudo de venta online del propio ERP** —
+  a qué rubros/segmentos venderlo, con qué mensaje, por qué canal, contra qué competidores de SaaS de
+  gestión. El diferencial de go-to-market es un entregable tan válido como el de un cliente externo.
+- **Desarrolladores:** priorizar lo que **habilita vender el ERP online** (landing/onboarding self-serve,
+  demo/storefront de muestra, señales de conversión del alta) tiene el mismo peso que un producto para
+  terceros — porque acelera al cliente #1.
+- **PMO (proactivo):** una de las oportunidades que siempre hay que estar buscando es **cómo la Agencia
+  vende más ERP** — no esperar el pedido; proponer campañas, contenido y experimentos de go-to-market
+  para la plataforma.
+
+> **Encaje con el resto:** esto **no** rompe la separación de sectores del charter (repos/deploys
+> separados, `docs/sectores/agencia-digital.md` §6). El ERP sigue siendo el producto del otro sector;
+> la Agencia es su **canal**. La venta online del SaaS se apoya en cerrar el gate del 2º tenant
+> (onboarding self-serve, RLS ADR-018/019) — ver charter §5 (P2) y los análisis de mercado.
+
 ---
 
 ## 3. Con qué método (el del repo, sin inventar uno nuevo)
