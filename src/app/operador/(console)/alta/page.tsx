@@ -17,6 +17,17 @@ export default async function AltaPage({
   const { error } = await searchParams;
   const blueprints = listBlueprints();
 
+  // Agrupa por familia usando el prefijo del label ("Agenda · Estética" → "Agenda").
+  // Los blueprints base (servicios/carniceria/generico) no tienen prefijo → "Base".
+  const groups = new Map<string, { id: string; label: string }[]>();
+  for (const b of blueprints) {
+    const [maybeFamily, ...rest] = b.label.split(" · ");
+    const family = rest.length > 0 ? maybeFamily : "Base / Genérico";
+    const label = rest.length > 0 ? rest.join(" · ") : b.label;
+    if (!groups.has(family)) groups.set(family, []);
+    groups.get(family)!.push({ id: b.id, label });
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -61,8 +72,12 @@ export default async function AltaPage({
             <Field label="…o blueprint explícito" hint="Si lo elegís, tiene prioridad sobre el rubro.">
               <Select name="blueprint" defaultValue="">
                 <option value="">(según rubro / default)</option>
-                {blueprints.map((b) => (
-                  <option key={b.id} value={b.id}>{b.label}</option>
+                {[...groups.entries()].map(([family, items]) => (
+                  <optgroup key={family} label={family}>
+                    {items.map((b) => (
+                      <option key={b.id} value={b.id}>{b.label}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
             </Field>
