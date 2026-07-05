@@ -48,3 +48,10 @@ export {
   ArcaRechazoError,
 } from './afip/port';
 export { StubAfipClient } from './afip/stub';
+export { SoapAfipClient, type SoapAfipClientDeps, type TraSigner } from './afip/soap';
+export {
+  Pkcs7TraSigner,
+  credencialDesdeEnv,
+  type CredencialEmisor,
+} from './afip/signer';
+export { crearAfipClient, modoDesdeEnv, type ModoArca } from './afip/factory';
