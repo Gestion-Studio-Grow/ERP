@@ -52,6 +52,18 @@ Dos capas de decisión: **Capa 1 — fixes scale-ready (F1–F5)**, independient
 
 ### F3 — ALTO · `getReportData` trae todo el histórico de pagos y agrega en JS
 
+> **✅ RESUELTO 2026-07-05** (sprint "Avanzamos todo"). Se aplicó lo sustancial de la opción 1:
+> `getReportData(rangeDays=90)` ahora filtra por **`{ tenantId, status: APPROVED, createdAt:
+> {gte,lte} }`** con **rango obligatorio** (default 90d, selector 30/90/180/365 en la UI vía
+> `?dias=`), y trae un `select` acotado (no `include` completo). Eso elimina el escaneo
+> O(toda-la-historia) — el bug real. Las agregaciones por **día/profesional/servicio** siguen en
+> app (no en `groupBy`) porque dependen de lógica que Prisma no expresa en una pasada (día
+> calendario en zona del negocio + nombres de relaciones anidadas), pero ahora corren sobre el
+> set **acotado por el rango**, no sobre todo. `groupBy`/SQL-crudo puro para esos breakdowns
+> quedó **deferido** (requeriría denormalizar FKs en `Payment` o `date_trunc` tz-aware; no paga
+> al volumen de un salón). El índice `[tenantId, status, createdAt]` (§Impacto) se evalúa recién
+> con RLS/F1. `tsc` + build en verde. El resto de esta ficha queda como registro histórico.
+
 **Problema:** `actions.ts:614` hace `payment.findMany({status: APPROVED})` **sin rango de fecha ni `tenantId`**, con `include` de appointment→professional→service, y agrupa por día/prof/servicio con `Map` en Node. Carga en memoria *todos los pagos aprobados de la historia* en cada visita a Reportes. Sin réplica de lectura (free plan), se paga en el mismo compute chico.
 
 **Alternativas:** (1) `prisma.payment.groupBy` con `_sum` y `where: { tenantId, status, createdAt: {gte,lte} }` + rango obligatorio (default 30/90 días); (2) SQL crudo con `date_trunc` en la zona del negocio; (3) vista materializada (prematuro).
@@ -106,7 +118,7 @@ Dos capas de decisión: **Capa 1 — fixes scale-ready (F1–F5)**, independient
 |---|---|---|---|---|---|
 | F2 | Overbooking TOCTOU (ADR-004 incumplido) | ✅ **RESUELTO 2026-07-05** (Serializable + retry, `bookingTransaction`) | — | hecho | — |
 | F1 | Índices multi-tenant muertos sin `tenantId` | 🔴 escala | medio | acoplado a RLS (ADR-018) | `/sesion-feature` (RLS) |
-| F3 | Reportes agrega todo el histórico en JS | 🟠 | bajo-medio | antes de crecer datos | `/sesion-feature` |
+| F3 | Reportes agrega todo el histórico en JS | ✅ **RESUELTO 2026-07-05** (rango obligatorio 90d + `tenantId` + `select` acotado) | — | hecho | — |
 | F4/F5 | N+1 recursos / over-fetch clientes | ✅ **RESUELTO 2026-07-05** (query única `resourceId in`, `_count` en `getClients`) | — | hecho | — |
 | F6 | Pooling sin límite explícito | 🟡 | bajo | checklist de RLS | con ADR-018 |
 | F8 | `AuditLog` vs storage 0.5 GB | 🟡 | bajo | vigilar % storage | `/sesion-feature` |

@@ -70,38 +70,33 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > **Este bloque es la fuente de verdad del sprint en curso.** "status" lo lee; "seguimos"
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
-**Sprint:** Tablero honesto + deuda técnica sin gates
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05
-**Estado del bloque:** ⏸️ **cerrado a pedido del dueño** con 3 de 3 ítems + F4/F5 hechos. Punto
-de entrada limpio para retomar ("seguimos"): el **Próximo bocado** de abajo (F3). Ningún
-trabajo quedó a medias; working tree limpio y todo en `origin/main`.
+**Sprint:** Avanzamos todo — deuda técnica + equipo de élite (sin gates)
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (F3 cerrado)
+**Estado del bloque:** 🟢 en curso.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
-**Objetivo:** dejar el repo sin mentiras y cerrar deuda técnica de correctitud/performance
-que **no depende de credenciales ni de gates** (avanzable con el dueño dormido).
+**Objetivo:** cerrar la deuda de performance/arquitectura restante sin gates y **abrir el 5º
+mandato** (equipo técnico de élite), todo verificado y pusheado.
 
 **Alcance**
-- **In:** consolidación del roadmap; fixes de ADR-023 sin gate (F2 ✅, F4/F5, F3); higiene del tablero.
+- **In:** F3 (reportes en DB), F8 (retención AuditLog), doc de onboarding del equipo/agentes, y mejoras de arq/perf sin gate de alta palanca.
 - **Out:** RLS/2º tenant (Gate 2), WhatsApp/MP/ARCA vivo (credenciales), deploy a prod.
 
 **Criterios de "hecho":** `tsc` + build en verde antes de cada commit · commits atómicos con
 el porqué, pusheados a `origin/main` · docs y código coinciden · working tree limpio.
 
 **Checklist vivo**
-- [x] **Consolidación roadmap §3.1** — sincronizado con el registro real de blueprints (~24 presets / 4 arquetipos + comodín). *(commit `2755c72`)*
-- [x] **Fix F2 — overbooking TOCTOU** — Serializable + retry (`bookingTransaction`) en las 4 rutas de reserva; ADR-004 enmendado, ADR-023 F2 resuelto. *(commit `5c63d6e`)*
-- [x] **Protocolo de continuidad móvil** — este documento. *(commit `a358e1d`)*
-- [x] **F4/F5 — limpiezas de queries** — N+1 de recursos colapsado a query única; `getClients` con `_count`. *(este sprint, 2026-07-05)*
-- [ ] **F3 — reportes con agregación en DB** (`getReportData` → `groupBy` con rango + `tenantId`).
-- [ ] **F8 — retención de `AuditLog`** + vigilar % storage de Neon (más política que código).
+- [x] **F3 — reportes con agregación acotada** — rango obligatorio (default 90d, selector 30/90/180/365) + `tenantId` + `select` acotado; se acabó el escaneo de todo el histórico. *(este sprint, 2026-07-05)*
+- [ ] **F8 — retención de `AuditLog`** — política (~12–18m) + función de purga; sin ejecutar contra prod (dato productivo, queda lista).
+- [ ] **Onboarding equipo/agentes** — doc: cómo un dev nuevo opera con `/sesion-*`, `rol.md`, ADR-008; registrado en tablero/manual.
+- [ ] **Extra alta palanca sin gate** — a decidir en la ejecución.
 
-**Próximo bocado (lo que ejecuta "seguimos"):** F3 — `getReportData` (`actions.ts`) trae hoy
-todo el histórico de pagos sin rango ni `tenantId` y agrega en JS. Pasarlo a `payment.groupBy`
-con `where: { tenantId, status, createdAt: { gte, lte } }` y rango obligatorio (default 30/90
-días). Ojo: `groupBy` de Prisma quizá no agrupe por `professional.name` anidado en una pasada
-→ agrupar por id y resolver nombres aparte. Es el último ítem de ADR-023 sin gate (F8 es más
-política que código).
+**Próximo bocado (lo que ejecuta "seguimos"):** F8 — retención de `AuditLog`. Definir ventana
+(~12–18 meses) y escribir una función/script de purga por antigüedad (`createdAt <` corte),
+por tenant, idempotente y segura (borra solo fuera de ventana). **No ejecutarla contra prod**
+(es dato productivo y Neon free): queda lista + documentada. Enmendar ADR-009 (retención,
+hoy ausente) y ADR-007 (sumar el eje storage al gate de migración).
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.

@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { getReportData } from "@/lib/actions";
+import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
 import { getCommissionsOverview, settleCommissions } from "@/lib/commission-actions";
 import { requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -37,13 +39,19 @@ const money = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; dias?: string }>;
 }) {
-  const [data, overview, user, { status }] = await Promise.all([
-    getReportData(),
+  const { status, dias } = await searchParams;
+  // Rango del reporte desde la URL (?dias=), validado contra la lista permitida; si no
+  // es válido, cae al default (90d). El rango es obligatorio a nivel de datos (ADR-023 F3).
+  const parsedDias = Number(dias);
+  const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsedDias)
+    ? parsedDias
+    : DEFAULT_REPORT_RANGE_DAYS;
+  const [data, overview, user] = await Promise.all([
+    getReportData(rangeDays),
     getCommissionsOverview(),
     requireUser(),
-    searchParams,
   ]);
   // Solo el OWNER puede liquidar (marcar pagado); los demás con reports:read
   // ven los montos pero no el botón.
@@ -53,9 +61,31 @@ export default async function ReportesPage({
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Reportes</h1>
-      <p className="text-muted mb-8">
-        Ingresos confirmados (turnos con pago recibido).
+      <p className="text-muted mb-4">
+        Ingresos confirmados (turnos con pago recibido) · período{" "}
+        {fmtShortDate(data.desde)} a {fmtShortDate(data.hasta)}.
       </p>
+
+      {/* Selector de rango (ADR-023 F3): el reporte se acota a un período, no al histórico. */}
+      <div className="mb-8 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted">Período:</span>
+        {REPORT_RANGE_DAYS.map((d) => {
+          const active = d === data.rangeDays;
+          return (
+            <Link
+              key={d}
+              href={`/admin/reportes?dias=${d}`}
+              className={`rounded-md border px-3 py-1 text-sm transition-colors ${
+                active
+                  ? "border-line-strong bg-surface-raised font-medium text-strong"
+                  : "border-line text-muted hover:border-line-strong"
+              }`}
+            >
+              {d === 365 ? "1 año" : `${d} días`}
+            </Link>
+          );
+        })}
+      </div>
 
       {banner && (
         <p

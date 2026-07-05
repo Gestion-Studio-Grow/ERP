@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { BUFFER_MIN } from "@/lib/business-config";
+import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
 import {
   businessWallTimeToUtc,
   todayInBusinessTz,
@@ -610,17 +611,34 @@ export async function confirmPayment(formData: FormData) {
   revalidatePath("/admin/reportes");
 }
 
-export async function getReportData() {
+export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
+  const tenantId = await getCurrentTenantId();
   // Ingresos (pagos aprobados). Las comisiones ya NO se calculan acá: viven en
   // `commission-actions.ts` (getCommissionsOverview), única fuente de verdad
   // ahora que hay liquidación con histórico — así el "pendiente de pago" y lo
   // que muestra Reportes no pueden divergir.
+  //
+  // ADR-023 F3: antes esta query traía TODO el histórico de pagos sin filtro de fecha
+  // ni `tenantId` y agregaba en JS — O(todo lo que existió), degradaba al crecer. Ahora
+  // el rango es OBLIGATORIO (default 90 días) y se filtra por tenant; además usa `select`
+  // acotado (no `include` completo) para no traer columnas de más. Las agregaciones
+  // por día/profesional/servicio siguen en app porque dependen de lógica que `groupBy`
+  // de Prisma no expresa en una pasada (día calendario en zona del negocio y nombres de
+  // relaciones anidadas) — pero ahora corren sobre un set acotado por el rango, no sobre
+  // toda la historia. Ver enmienda ADR-023 F3.
+  const hasta = new Date();
+  const desde = new Date(hasta.getTime() - rangeDays * 24 * 60 * 60 * 1000);
   const payments = await prisma.payment.findMany({
-    where: { status: "APPROVED" },
-    include: {
+    where: { tenantId, status: "APPROVED", createdAt: { gte: desde, lte: hasta } },
+    select: {
+      amount: true,
       appointment: {
-        include: { professional: true, service: true },
+        select: {
+          startsAt: true,
+          professional: { select: { name: true } },
+          service: { select: { name: true } },
+        },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -650,6 +668,9 @@ export async function getReportData() {
       .sort((a, b) => b.total - a.total);
 
   return {
+    rangeDays,
+    desde,
+    hasta,
     totalIngresos,
     cantidadPagos: payments.length,
     porDia: Array.from(porDia.entries())
