@@ -104,6 +104,15 @@ Dos capas de decisión: **Capa 1 — fixes scale-ready (F1–F5)**, independient
 
 ### F8 — MEDIO (free plan) · `AuditLog` append-only vs. 0.5 GB de storage
 
+> **✅ RESUELTO (mecanismo + política) 2026-07-05** (sprint "Avanzamos todo"). Retención decidida
+> en **~12–18 meses** (default 18) y mecanismo listo: `src/lib/audit-retention.ts`
+> (`purgeAuditLogs`, idempotente, platform-wide, usa el índice `[tenantId, createdAt]` → sin
+> migración) + `scripts/purge-audit-logs.ts` (`npm run purge-audit`, **default dry-run**, borra
+> real solo con `--apply`). Enmiendas: **ADR-009** (fija la retención, antes ausente) y **ADR-007**
+> (storage como eje del gate, no solo compute). **Pendiente operativo (no de código):** activar la
+> corrida periódica (cron o manual) y vigilar el % de storage de Neon — no se ejecutó la purga
+> contra prod (dato productivo, decisión operativa). `tsc` + build en verde.
+
 **Problema:** `AuditLog` (`schema.prisma:497`, ADR-009 §4) es append-only y **sin retención**. Junto con `Payment`, es el candidato #1 a agotar los ~0.5 GB del free plan. Cuando el storage se llena, la DB deja de aceptar escrituras → se cae la operación, no solo los reportes. En un ERP con audit desde Fase 1, el **storage cap llega antes** que cualquier problema de performance de query.
 
 **Alternativas:** (1) retención por ventana (agregar/borrar audit > N meses); (2) archivado a R2 (ADR-005 ya lo contempla) por job periódico, dejando en Postgres solo lo caliente; (3) nada hasta migrar a plan pago.
@@ -121,7 +130,7 @@ Dos capas de decisión: **Capa 1 — fixes scale-ready (F1–F5)**, independient
 | F3 | Reportes agrega todo el histórico en JS | ✅ **RESUELTO 2026-07-05** (rango obligatorio 90d + `tenantId` + `select` acotado) | — | hecho | — |
 | F4/F5 | N+1 recursos / over-fetch clientes | ✅ **RESUELTO 2026-07-05** (query única `resourceId in`, `_count` en `getClients`) | — | hecho | — |
 | F6 | Pooling sin límite explícito | 🟡 | bajo | checklist de RLS | con ADR-018 |
-| F8 | `AuditLog` vs storage 0.5 GB | 🟡 | bajo | vigilar % storage | `/sesion-feature` |
+| F8 | `AuditLog` vs storage 0.5 GB | ✅ **mecanismo+política 2026-07-05** (retención 18m, `purge-audit`); queda activar cron + vigilar % storage | bajo | operativo | — |
 | F7 | tenant sin cache | 🟢 | — | se autoliquida | no-acción |
 
 ## Conclusión de arquitecto

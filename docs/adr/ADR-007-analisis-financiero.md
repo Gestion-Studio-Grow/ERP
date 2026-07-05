@@ -34,3 +34,18 @@
 
 ## Punto de decisión clave
 El salto de costo más importante no es gradual — es el paso de "instancia única de Postgres" a "necesito réplicas de lectura o particionado", que típicamente ocurre en algún punto entre 500 y 2.000 tenants activos dependiendo del volumen de transacciones por tenant (un ERP transacciona mucho más por tenant que una app B2C típica). Ese es el momento de revisar este ADR, no antes.
+
+---
+
+## Enmienda 2026-07-05 — el **storage** es un eje del gate, no solo el compute (ADR-023 F8)
+
+El análisis de arriba razona el gate a plan pago por **compute/escala de tenants**. La auditoría
+ADR-023 (F8) agregó un segundo eje que se satura antes en el plan free: el **storage** (~0.5 GB
+en Neon free). Importa porque **cuando el storage se llena, Postgres deja de aceptar escrituras**
+— es un incidente de disponibilidad, no de performance, y llega por acumulación (tablas
+append-only como `AuditLog`) aunque el tráfico sea chico. 
+
+**Decisión operativa:** vigilar el **% de storage del dashboard de Neon** como métrica de gate
+(junto al compute); mitigar por retención antes de escalar de plan (la retención de `AuditLog`
+quedó definida en la enmienda de ADR-009, mecanismo en `src/lib/audit-retention.ts`). El gate a
+plan pago se dispara por **el primero de los dos ejes** que se sature, no solo por cantidad de tenants.

@@ -12,6 +12,7 @@
     "demo": "tsx scripts/demo.mts",
     "demo:factura": "tsx scripts/demo-factura.mts",
     "predeploy-check": "tsx scripts/predeploy-check.mts",
+    "purge-audit": "tsx scripts/purge-audit-logs.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

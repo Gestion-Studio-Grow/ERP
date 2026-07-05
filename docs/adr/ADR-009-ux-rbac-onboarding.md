@@ -74,3 +74,22 @@ El flujo de provisioning estaba relegado a "próximos pasos" — error: para un 
 ## 6. Métrica de éxito UX del piloto
 
 No es "cuántas features tiene": es **(a)** tiempo desde registro hasta primer turno real cargado < 15 minutos sin ayuda, y **(b)** la recepcionista elige usar el sistema en vez del cuaderno a la segunda semana. Si (b) falla, ninguna decisión de los ADRs 001-008 importa.
+
+---
+
+## Enmienda 2026-07-05 — Retención de `AuditLog` (ADR-023 F8)
+
+El audit trail (§4, `src/lib/audit.ts`) es **append-only**: cada mutación agrega una fila y
+nada la borra. La versión original de este ADR no fijó **retención**, y la auditoría ADR-023
+(F8) lo marcó como el candidato #1 a agotar los ~0.5 GB del plan free de Neon — con el
+agravante de que **cuando el storage se llena se cae la escritura** (deja de ser un problema
+de auditoría y pasa a ser de disponibilidad).
+
+**Decisión:** el `AuditLog` tiene una **ventana de retención de ~12–18 meses** (default **18**,
+holgado para comparaciones interanuales y auditorías tardías; `AUDIT_RETENTION_MONTHS` en
+`src/lib/audit-retention.ts`). La purga (`purgeAuditLogs`) borra lo anterior al corte,
+platform-wide, idempotente, aprovechando `@@index([tenantId, createdAt])` (sin migración). Se
+opera con `npm run purge-audit` (**default dry-run**; borra real solo con `--apply`) — **no** se
+dispara desde el runtime. El día que el storage sea la restricción real (gate a plan pago,
+ADR-007), se acorta la ventana. La activación (cron o corrida manual periódica) queda como
+tarea operativa; el mecanismo ya está listo.
