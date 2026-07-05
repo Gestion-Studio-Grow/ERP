@@ -187,13 +187,116 @@ Se verifica con `tsc`+build y visualmente en preview. **Marcarlo como pendiente 
 
 ---
 
+---
+
+## URLs GRATIS por tenant (costo cero — sin comprar dominio)
+
+El dueño quiere costo cero: cada negocio con su URL real y gratis, sin dominio propio ni
+wildcard. Evaluadas dos opciones **contra el código real**.
+
+> **Aclaración que aplica a A y B:** ninguna de las dos elimina la necesidad de **activar
+> RLS** (Pasos 1-3). Ambos sitios/rutas pegan a la **misma** base de Neon; el aislamiento
+> real entre CH y Magra lo da RLS a nivel DB. Lo que estas opciones reemplazan es **solo el
+> Paso 4** (dominio + DNS wildcard + `APP_BASE_DOMAIN`) — eso es lo que pasa a costar $0.
+
+### OPCIÓN A — un sitio Netlify por tenant, mismo repo, tenant fijado por env var ✅ recomendada
+
+Cada negocio = un sitio Netlify con su `*.netlify.app` gratis (`chestetica.netlify.app` ya
+existe; `magra-erp.netlify.app` nuevo), **todos deployando el mismo repo/branch**, y cada
+sitio **fija su tenant** con una env var.
+
+**¿El código lo soporta hoy?** Casi. **Todo** resuelve el tenant por una sola función,
+`getCurrentTenantId()` (`src/lib/tenant.ts:97`), y la extensión de RLS también cae ahí
+(`src/lib/rls.ts:39`). Falta un **override mínimo** al frente de esa cadena. Hoy `tenant.ts`
+resuelve: subdominio → fallback single-tenant → throw. **No** lee ninguna env var de "tenant
+forzado". El truco de `APP_BASE_DOMAIN` **no sirve** en `netlify.app` (habría que llamar al
+sitio exactamente `magra.netlify.app`, que no está libre), así que la vía limpia es una var
+propia.
+
+**Cambio de código mínimo (🟡 ~10 líneas + 1 test, verificable, NO toca prod):** en
+`getCurrentTenantId` (el wrapper cacheado, para no ensuciar `resolveTenantId` que es puro y
+testeable), anteponer:
+
+```ts
+// Pin de tenant por sitio (Opción A — URLs gratis por tenant). Si está seteado,
+// domina sobre el subdominio. Fail-closed: si el slug no existe, THROW (no cae al
+// tenant equivocado). Resuelve por `slug` (misma clave que branding/vidriera).
+const forced = process.env.FORCE_TENANT_SLUG?.trim().toLowerCase();
+if (forced) {
+  const t = await basePrisma.tenant.findUnique({ where: { slug: forced }, select: { id: true } });
+  if (t) return t.id;
+  throw new Error(`FORCE_TENANT_SLUG="${forced}" no matchea ningún tenant (fail-closed, ADR-015).`);
+}
+```
+
+**¿Rompe el modelo de subdominio o el gate RLS? No.**
+- **Subdominio:** intacto. El override se chequea *primero*; si `FORCE_TENANT_SLUG` no está,
+  la resolución cae al subdominio y al fallback single-tenant como hoy. Es aditivo.
+- **Gate RLS (ADR-018):** intacto. El gate mira `pg_class.relrowsecurity` (¿RLS activo sobre
+  las tablas?), independiente de *cómo* se resuelve el tenant. `FORCE_TENANT_SLUG` no lo toca
+  → sigue siendo imposible crear el 2º tenant sin RLS.
+- **Aislamiento:** con RLS on + `DATABASE_URL` en `app_user`, el pin fija el `tenantId` que la
+  extensión mete en el GUC → cada sitio ve **solo** su tenant, respaldado por la policy de DB.
+- **`/operador`:** no lo afecta — usa `operatorPrisma` (cross-tenant, bypass), no
+  `getCurrentTenantId`. La consola sigue viendo todos los tenants desde cualquier sitio. Se
+  puede dejar en `chestetica.netlify.app/operador` sin sitio dedicado.
+- **Cookies/sesión:** a favor. Cada `*.netlify.app` es un **origen distinto** → jar de cookies
+  separado. La sesión de admin de CH no cruza a `magra-erp.netlify.app`. Aislamiento extra gratis.
+
+**Sigue aplicando el fix del `/`** (blueprint-aware, ver Paso 4): con `FORCE_TENANT_SLUG=magra`,
+`/tienda` muestra bien la vidriera de Magra, pero `/` todavía renderiza la landing de estética.
+
+### OPCIÓN B — ruteo por path en un sitio único (`/t/magra/...`)
+
+Un solo sitio; el tenant sale del path. **Más código, menos prolijo, peor aislamiento:**
+- Requiere reescribir el árbol de rutas bajo `/t/[slug]/…` **o** un rewrite en `proxy.ts` que
+  inyecte el slug en un header y que `getCurrentTenantId` lo lea. Superficie grande (storefront
+  `/`, links, redirects, API pública, webhooks, `/operador`).
+- **Riesgo de seguridad real:** todos los tenants comparten **un mismo origen → un solo jar de
+  cookies**. La cookie de sesión es host-wide (`getSessionCookieName`, `src/proxy.ts`): un admin
+  logueado de CH podría pegarle a `/t/magra/admin` con la misma cookie salvo que se scopeen las
+  cookies por path y se endurezcan los guards. Es fácil de equivocar.
+- No hay ganancia de costo sobre A (los `*.netlify.app` de A también son gratis).
+
+### A vs B — comparación
+
+| Criterio | A (sitio por tenant) | B (path `/t/slug`) |
+|---|---|---|
+| **Costo** | $0 (`*.netlify.app` gratis por sitio) | $0 |
+| **Esfuerzo de código** | ~10 líneas + 1 test (🟡) | Alto: rutas/rewrite/cookies/guards |
+| **Prolijidad** | URLs reales y limpias por negocio | prefijo `/t/slug` en todo |
+| **Aislamiento** | Fuerte: RLS + pin + **origen separado** (cookies aparte) | Débil: **origen y cookies compartidos** → hay que endurecer |
+| **Toca el modelo actual** | Aditivo, no rompe subdominio/gate | Reestructura ruteo y sesión |
+| **Recomendación** | ✅ **Sí** | ❌ solo si algún día se quiere un único host |
+
+**Veredicto técnico:** **Opción A es viable y es la recomendada.** Cambio de código mínimo,
+no rompe subdominio ni el gate RLS, y el aislamiento queda más fuerte que en B (orígenes
+separados + RLS). Es la forma costo-cero de reemplazar el Paso 4.
+
+### Qué es costo cero y qué necesita acción del dueño (Opción A)
+
+- 🟡 **Override `FORCE_TENANT_SLUG`** en `tenant.ts` + test — cambio de código, verificable con `tsc`+build+tests, no toca prod hasta deploy. (Se puede preparar ya.)
+- 🟢 **Sigue dependiendo de activar RLS** (Pasos 1-3) — sin eso, dos sitios sobre la misma DB no están aislados.
+- 🔴 **Crear el nuevo sitio Netlify** (`magra-erp.netlify.app` u otro nombre libre) apuntando al **mismo repo/branch** — acción humana en Netlify.
+- 🔴 **Setear las env vars por sitio:** en el sitio de Magra `FORCE_TENANT_SLUG=magra` (y en el de CH, opcional, `FORCE_TENANT_SLUG=beauty-spa`); en **ambos** las vars de RLS del Paso 2 (`DATABASE_URL`→`app_user`, `OPERATOR_DATABASE_URL`→rol dueño, `RLS_ENFORCEMENT=on`).
+- ⚠️ **Nota de plan free:** cada sitio consume sus propios build-minutes/funciones/bandwidth del free tier de Netlify. Para 2-3 tenants es holgado; a escala grande se revisa. El auto-publish sigue apagado (Gate 1) por sitio.
+
+> **Con Opción A, el Paso 4 (dominio propio + wildcard + `APP_BASE_DOMAIN`) queda OPCIONAL** —
+> se puede saltar entero y quedarse en `*.netlify.app` gratis. El día que se quiera una URL de
+> marca (`magra.tudominio.com`), el Paso 4 sigue disponible sin deshacer nada de A.
+
+---
+
 ## Resumen de OKs del dueño (lo único que no se hace solo)
 
 1. 🔴 Acceso a Neon para crear el **branch de ensayo** (Paso 1) — *sin riesgo, es desechable*.
 2. 🔴 **Gate 2:** aplicar RLS a prod + rotar `DATABASE_URL` a `app_user` + `RLS_ENFORCEMENT=on` + deploy (Paso 2) — **irreversible**.
 3. 🔴 Password de `app_user` y confirmación del **email real** del dueño de Magra (secrets/dato).
 4. 🔴 Crear el tenant Magra en prod desde `/operador/alta` (Paso 3).
-5. 🔴 Dominio + DNS wildcard + `APP_BASE_DOMAIN` (Paso 4).
+5. **Para las URLs — elegir UNA vía** (excluyentes):
+   - **5a. Costo cero (recomendada):** 🔴 crear el sitio Netlify `magra-erp.netlify.app` (mismo repo) + setear `FORCE_TENANT_SLUG` y las vars de RLS por sitio (Opción A). Requiere antes el 🟡 override en `tenant.ts`.
+   - **5b. Marca propia:** 🔴 Dominio + DNS wildcard + `APP_BASE_DOMAIN` (Paso 4). Cuesta plata; opcional, se puede hacer después de 5a sin deshacer nada.
 
-Todo lo 🟢/🟡 (pre-flight, ensayo en branch, fix del `/`) se puede preparar y verificar
-**antes**, sin tocar prod, para que el día del go-live sea *revisar y aplicar*.
+Todo lo 🟢/🟡 (pre-flight, ensayo en branch, fix del `/`, override `FORCE_TENANT_SLUG`) se
+puede preparar y verificar **antes**, sin tocar prod, para que el día del go-live sea
+*revisar y aplicar*.
