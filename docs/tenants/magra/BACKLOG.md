@@ -52,9 +52,10 @@ a Bistrosoft sin esperar features pesadas.
 - [x] `[MVP][capability]` **POS/Orden** — `Order`/`OrderItem` genéricos del Core
   (ADR-003 Fase 2) con estados y fulfillment (retiro/delivery). Reusable por retail futuro.
   **HECHO 2026-07-04**: schema + actions + backoffice (POS + toma de pedidos + bandeja).
-- [x] `[MVP][vidriera]` **Vidriera premium por tenant** — catálogo de cortes con
-  precio/kg, marca magra. **HECHO 2026-07-05**: `/carniceria` (marca oxblood/hueso/latón
-  inline). Falta servirla por tenant (ADR-018) y theming genérico por tokens.
+- [x] `[MVP][vidriera]` **Vidriera premium por tenant** — catálogo con precio/kg, marca
+  magra. **HECHO 2026-07-05** (ciclo 3) y **GENERALIZADA ciclo 4**: `/tienda` rubro-aware
+  (acento del tenant + wording del rubro), parte del blueprint reutilizable Retail/Mostrador
+  (`docs/blueprints/retail-mostrador.md`). Falta servirla por tenant (ADR-018) + theming por tokens.
 - [x] `[MVP][vidriera]` **Toma de pedidos** desde la vidriera → cae al backoffice.
   **HECHO 2026-07-05**: `placeOnlineOrder` (público) crea pedido ONLINE/PENDING → bandeja.
 - [~] `[MVP][backoffice]` **Catálogo + precios** (ABM) y **bandeja de pedidos** con estados.

@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { retailWordingForSlug } from "@/blueprints/retail";
 import type { $Enums } from "@/generated/prisma/client";
 
 type OrderStatus = $Enums.OrderStatus;
@@ -271,7 +272,7 @@ export async function placeOnlineOrder(formData: FormData) {
   });
   // El backoffice ve el pedido nuevo en su bandeja al revalidar.
   revalidatePath(ORDERS_PATH);
-  redirect(`/carniceria/gracias?pedido=${result.code}`);
+  redirect(`/tienda/gracias?pedido=${result.code}`);
 }
 
 // --- Avanzar estado del pedido ---
@@ -320,14 +321,15 @@ export async function cancelOrder(formData: FormData) {
 
 // --- Loader público de la vidriera (sin auth) ---
 //
-// Lo consume la vidriera pública por tenant (`/carniceria`). Devuelve el nombre
-// del negocio, su branding (BusinessSettings) y el catálogo vendible del tenant
+// Lo consume la vidriera pública por tenant (`/tienda`). Devuelve el nombre del
+// negocio, su branding (BusinessSettings), el **wording del rubro** (para que la
+// vidriera se sienta hecha para ese negocio) y el catálogo vendible del tenant
 // actual. Sin capability: es una página pública. El aislamiento lo da
 // getCurrentTenantId (fail-closed) + el filtro por tenantId en cada query.
 export async function getStorefront() {
   const tenantId = await getCurrentTenantId();
   const [tenant, settings, products] = await Promise.all([
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
     prisma.businessSettings.findUnique({
       where: { tenantId },
       select: { shortLabel: true, city: true, whatsapp: true, instagram: true, contactNote: true },
@@ -343,9 +345,12 @@ export async function getStorefront() {
       select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true },
     }),
   ]);
+  // Wording del rubro resuelto por slug (blueprint retail). Genérico si no matchea.
+  const wording = retailWordingForSlug(tenant?.slug);
   return {
-    name: tenant?.name ?? "Carnicería",
+    name: tenant?.name ?? "Tienda",
     branding: settings ?? null,
+    wording,
     products,
   };
 }

@@ -1,5 +1,11 @@
 # Blueprint Carnicería + Vidriera — lo implementado (ciclo 3, 2026-07-05)
 
+> **Actualización ciclo 4:** este blueprint `carniceria` se generalizó a la familia
+> reutilizable **Retail/Mostrador** (`src/blueprints/retail/`, ver
+> `docs/blueprints/retail-mostrador.md`) y la vidriera pasó de `/carniceria` a `/tienda`
+> (rubro-aware). Las rutas/archivos `src/app/carniceria/` de abajo describen el estado del
+> ciclo 3; hoy son `src/app/tienda/`.
+
 **Tipo:** registro de implementación · **Rol:** Fullstack + Arquitecto
 **Ancla:** ADR-002 (Core/Blueprint/Plugin), ADR-019 (provisioning), ADR-003 (Orden),
 FUNDAMENTOS §2 y §4. Continúa `pos-orden-capability.md` (capability POS del ciclo 2).

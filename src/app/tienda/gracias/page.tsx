@@ -1,8 +1,9 @@
 // Confirmación de pedido de la vidriera. Muestra el nº de pedido (correlativo por
 // tenant) que devolvió `placeOnlineOrder`. Server component; en Next 16
-// `searchParams` es una Promise.
+// `searchParams` es una Promise. Usa el acento del tenant para la marca.
 
 import Link from "next/link";
+import { getTenantAccent } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export default async function GraciasPage({
 }: {
   searchParams: Promise<{ pedido?: string }>;
 }) {
-  const { pedido } = await searchParams;
+  const [{ pedido }, accent] = await Promise.all([searchParams, getTenantAccent()]);
 
   return (
     <div
@@ -35,26 +36,25 @@ export default async function GraciasPage({
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: 40 }}>🥩</div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, margin: "10px 0 6px", color: "#5a1216" }}>
+        <div style={{ fontSize: 40 }}>🛍️</div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, margin: "10px 0 6px", color: accent }}>
           ¡Pedido recibido!
         </h1>
         {pedido && (
           <p style={{ fontSize: 15 }}>
-            Tu número de pedido es{" "}
-            <strong style={{ color: "#5a1216" }}>#{pedido}</strong>.
+            Tu número de pedido es <strong style={{ color: accent }}>#{pedido}</strong>.
           </p>
         )}
         <p style={{ color: "#6b5d52", marginTop: 10, lineHeight: 1.5 }}>
-          Te vamos a contactar por WhatsApp para confirmar los cortes y coordinar el retiro o
-          envío. El pago se coordina al recibirlo.
+          Te vamos a contactar para confirmar el pedido y coordinar el retiro o envío. El pago se
+          coordina al recibirlo.
         </p>
         <Link
-          href="/carniceria"
+          href="/tienda"
           style={{
             display: "inline-block",
             marginTop: 20,
-            background: "#5a1216",
+            background: accent,
             color: "#fff",
             textDecoration: "none",
             padding: "11px 20px",
@@ -63,7 +63,7 @@ export default async function GraciasPage({
             fontSize: 14,
           }}
         >
-          Volver a la vidriera
+          Volver a la tienda
         </Link>
       </div>
     </div>
