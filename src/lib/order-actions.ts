@@ -8,7 +8,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { auditAdmin } from "@/lib/audit";
+import { redirect } from "next/navigation";
+import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import type { $Enums } from "@/generated/prisma/client";
@@ -66,59 +67,51 @@ export async function getPosData() {
   return { orders, products };
 }
 
-// --- Crear pedido / venta de mostrador (el "checkout") ---
-//
-// Una sola acción cubre los dos caminos del MVP: venta de mostrador (channel
-// COUNTER, se cobra en el acto → nace CONFIRMED) y toma de pedido con retiro/
-// delivery (channel ONLINE → nace PENDING a la espera de confirmación). La misma
-// acción la reusará la vidriera pública cuando exista.
-export async function createOrder(formData: FormData) {
-  await requireCapability("orders:manage");
-  const tenantId = await getCurrentTenantId();
+// --- Core de creación de orden (compartido por mostrador y vidriera) ---
 
-  const channel = String(formData.get("channel") || "COUNTER") === "ONLINE" ? "ONLINE" : "COUNTER";
-  const fulfillment =
-    String(formData.get("fulfillment") || "PICKUP") === "DELIVERY" ? "DELIVERY" : "PICKUP";
-  const customerName = String(formData.get("customerName") || "").trim() || "Mostrador";
-  const customerPhone = String(formData.get("customerPhone") || "").trim();
-  const address = String(formData.get("address") || "").trim();
-  const notes = String(formData.get("notes") || "").trim();
-  const scheduledRaw = String(formData.get("scheduledFor") || "").trim();
-  const paid = String(formData.get("paid")) === "on" || String(formData.get("paid")) === "true";
-  const paymentMethodRaw = String(formData.get("paymentMethod") || "").trim();
-  const paymentMethod =
-    paymentMethodRaw === "MERCADOPAGO" || paymentMethodRaw === "EFECTIVO" || paymentMethodRaw === "TRANSFERENCIA"
-      ? paymentMethodRaw
-      : null;
+type PaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
 
-  if (fulfillment === "DELIVERY" && !address) {
+type OrderInput = {
+  channel: "COUNTER" | "ONLINE";
+  fulfillment: "PICKUP" | "DELIVERY";
+  customerName: string;
+  customerPhone: string;
+  address: string | null;
+  notes: string | null;
+  scheduledFor: Date | null;
+  paid: boolean;
+  paymentMethod: PaymentMethod | null;
+  items: { productId: string; qty: number }[];
+};
+
+// Valida, snapshotea precios y crea la orden + sus líneas en una transacción.
+// Es el único lugar donde se arma una orden: lo llaman tanto el POS del backoffice
+// (`createOrder`, con auth) como la vidriera pública (`placeOnlineOrder`, sin auth).
+// No audita ni revalida — de eso se ocupa cada acción llamadora según su contexto.
+async function insertOrder(
+  tenantId: string,
+  input: OrderInput,
+): Promise<{ id: string; code: number; subtotal: number; lines: number }> {
+  if (input.fulfillment === "DELIVERY" && !input.address) {
     throw new Error("Para envío a domicilio hace falta la dirección.");
   }
 
-  // Líneas: arrays paralelos productId[] / quantity[] (mismo patrón que el resto
-  // del Core — formData.getAll). quantity son unidades (UNIT) o kilos (WEIGHT).
-  const productIds = formData.getAll("productId").map(String);
-  const quantities = formData.getAll("quantity").map((q) => Number(q));
-
-  const wanted = productIds
-    .map((id, i) => ({ id, qty: quantities[i] }))
-    .filter((l) => l.id && Number.isFinite(l.qty) && l.qty > 0);
-
+  const wanted = input.items.filter((l) => l.productId && Number.isFinite(l.qty) && l.qty > 0);
   if (wanted.length === 0) {
     throw new Error("Agregá al menos un producto con cantidad al pedido.");
   }
 
   // Snapshot de precio/nombre al momento de la venta (ADR-009 §4): se trae el
-  // producto real y se congela lo cobrado, no se confía en lo que mandó el form.
+  // producto real del tenant y se congela lo cobrado, no se confía en el form.
   const products = await prisma.product.findMany({
-    where: { id: { in: wanted.map((l) => l.id) }, tenantId, deletedAt: null },
+    where: { id: { in: wanted.map((l) => l.productId) }, tenantId, deletedAt: null, active: true },
     select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
   const lines = wanted
     .map((l) => {
-      const p = byId.get(l.id);
+      const p = byId.get(l.productId);
       if (!p) return null;
       const unitPrice = sellPrice(p);
       if (unitPrice == null || unitPrice <= 0) return null;
@@ -138,17 +131,12 @@ export async function createOrder(formData: FormData) {
   }
 
   const subtotal = round2(lines.reduce((s, l) => s + l.lineTotal, 0));
-  const status = channel === "ONLINE" ? "PENDING" : "CONFIRMED";
-  // scheduledFor es una preferencia blanda (horario de retiro/entrega); para el
-  // MVP se interpreta en hora local del server. Provisional: unificar con la TZ
-  // del tenant (AMD-004) cuando la vidriera pública lo use en serio.
-  const scheduledFor = scheduledRaw ? new Date(scheduledRaw) : null;
+  const status = input.channel === "ONLINE" ? "PENDING" : "CONFIRMED";
 
   const order = await prisma.$transaction(async (tx) => {
     // Correlativo legible por tenant: max(code)+1. Suficiente para el volumen del
     // MVP; el @@unique([tenantId, code]) protege contra choques (una colisión
-    // rarísima lanzaría y se reintenta el alta). Una secuencia por tenant es
-    // trabajo futuro si el volumen lo pide.
+    // rarísima lanzaría y se reintenta el alta). Secuencia por tenant = futuro.
     const last = await tx.order.findFirst({
       where: { tenantId },
       orderBy: { code: "desc" },
@@ -161,18 +149,18 @@ export async function createOrder(formData: FormData) {
         tenantId,
         code,
         status,
-        channel,
-        fulfillment,
-        customerName,
-        customerPhone,
-        address: address || null,
-        notes: notes || null,
-        scheduledFor,
+        channel: input.channel,
+        fulfillment: input.fulfillment,
+        customerName: input.customerName,
+        customerPhone: input.customerPhone,
+        address: input.address,
+        notes: input.notes,
+        scheduledFor: input.scheduledFor,
         subtotal,
         discount: 0,
         total: subtotal,
-        paymentMethod: paid ? paymentMethod : null,
-        paid: paid && paymentMethod != null,
+        paymentMethod: input.paid ? input.paymentMethod : null,
+        paid: input.paid && input.paymentMethod != null,
         items: {
           create: lines.map((l) => ({
             tenantId,
@@ -189,13 +177,101 @@ export async function createOrder(formData: FormData) {
     });
   });
 
+  return { id: order.id, code: order.code, subtotal, lines: lines.length };
+}
+
+// Parsea las líneas (arrays paralelos productId[]/quantity[], patrón getAll del
+// Core) de un FormData a la forma que espera insertOrder.
+function parseItems(formData: FormData): { productId: string; qty: number }[] {
+  const productIds = formData.getAll("productId").map(String);
+  const quantities = formData.getAll("quantity").map((q) => Number(q));
+  return productIds.map((id, i) => ({ productId: id, qty: quantities[i] }));
+}
+
+// --- Crear pedido / venta de mostrador (el "checkout" del backoffice) ---
+//
+// Cubre los dos caminos operados por el mostrador: venta presencial (channel
+// COUNTER, se cobra en el acto → CONFIRMED) y toma de pedido con retiro/delivery
+// (channel ONLINE → PENDING). Requiere capability de mostrador.
+export async function createOrder(formData: FormData) {
+  await requireCapability("orders:manage");
+  const tenantId = await getCurrentTenantId();
+
+  const channel = String(formData.get("channel") || "COUNTER") === "ONLINE" ? "ONLINE" : "COUNTER";
+  const fulfillment =
+    String(formData.get("fulfillment") || "PICKUP") === "DELIVERY" ? "DELIVERY" : "PICKUP";
+  const scheduledRaw = String(formData.get("scheduledFor") || "").trim();
+  const paid = String(formData.get("paid")) === "on" || String(formData.get("paid")) === "true";
+  const paymentMethodRaw = String(formData.get("paymentMethod") || "").trim();
+  const paymentMethod: PaymentMethod | null =
+    paymentMethodRaw === "MERCADOPAGO" || paymentMethodRaw === "EFECTIVO" || paymentMethodRaw === "TRANSFERENCIA"
+      ? paymentMethodRaw
+      : null;
+
+  const result = await insertOrder(tenantId, {
+    channel,
+    fulfillment,
+    customerName: String(formData.get("customerName") || "").trim() || "Mostrador",
+    customerPhone: String(formData.get("customerPhone") || "").trim(),
+    address: String(formData.get("address") || "").trim() || null,
+    notes: String(formData.get("notes") || "").trim() || null,
+    // scheduledFor es una preferencia blanda (horario de retiro/entrega); MVP la
+    // interpreta en hora local del server (provisional; unificar con TZ del tenant).
+    scheduledFor: scheduledRaw ? new Date(scheduledRaw) : null,
+    paid,
+    paymentMethod,
+    items: parseItems(formData),
+  });
+
   await auditAdmin({
     action: "create",
     entity: "Order",
-    entityId: order.id,
-    changes: { code: order.code, channel, fulfillment, total: subtotal, lines: lines.length },
+    entityId: result.id,
+    changes: { code: result.code, channel, fulfillment, total: result.subtotal, lines: result.lines },
   });
   revalidatePath(ORDERS_PATH);
+}
+
+// --- Tomar pedido desde la vidriera pública (sin auth) ---
+//
+// La misma capability POS del Core, pero disparada por un cliente final en la
+// vidriera: siempre ONLINE, siempre PENDING y SIN cobrar (el mostrador confirma y
+// cobra al preparar). Escribe con el tenant actual (fail-closed ADR-015) y audita
+// como acción pública. Al terminar redirige a la página de gracias con el nº.
+export async function placeOnlineOrder(formData: FormData) {
+  const tenantId = await getCurrentTenantId();
+
+  const fulfillment =
+    String(formData.get("fulfillment") || "PICKUP") === "DELIVERY" ? "DELIVERY" : "PICKUP";
+  const customerName = String(formData.get("customerName") || "").trim();
+  const customerPhone = String(formData.get("customerPhone") || "").trim();
+  if (!customerName || !customerPhone) {
+    throw new Error("Necesitamos tu nombre y un teléfono de contacto para tomar el pedido.");
+  }
+
+  const result = await insertOrder(tenantId, {
+    channel: "ONLINE",
+    fulfillment,
+    customerName,
+    customerPhone,
+    address: String(formData.get("address") || "").trim() || null,
+    notes: String(formData.get("notes") || "").trim() || null,
+    scheduledFor: null,
+    paid: false,
+    paymentMethod: null,
+    items: parseItems(formData),
+  });
+
+  await auditPublic({
+    action: "create",
+    entity: "Order",
+    entityId: result.id,
+    clientPhone: customerPhone,
+    changes: { code: result.code, channel: "ONLINE", fulfillment, total: result.subtotal },
+  });
+  // El backoffice ve el pedido nuevo en su bandeja al revalidar.
+  revalidatePath(ORDERS_PATH);
+  redirect(`/carniceria/gracias?pedido=${result.code}`);
 }
 
 // --- Avanzar estado del pedido ---
@@ -240,4 +316,36 @@ export async function cancelOrder(formData: FormData) {
   await prisma.order.update({ where: { id }, data: { status: "CANCELLED" } });
   await auditAdmin({ action: "update", entity: "Order", entityId: id, changes: { status: "CANCELLED" } });
   revalidatePath(ORDERS_PATH);
+}
+
+// --- Loader público de la vidriera (sin auth) ---
+//
+// Lo consume la vidriera pública por tenant (`/carniceria`). Devuelve el nombre
+// del negocio, su branding (BusinessSettings) y el catálogo vendible del tenant
+// actual. Sin capability: es una página pública. El aislamiento lo da
+// getCurrentTenantId (fail-closed) + el filtro por tenantId en cada query.
+export async function getStorefront() {
+  const tenantId = await getCurrentTenantId();
+  const [tenant, settings, products] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    prisma.businessSettings.findUnique({
+      where: { tenantId },
+      select: { shortLabel: true, city: true, whatsapp: true, instagram: true, contactNote: true },
+    }),
+    prisma.product.findMany({
+      where: {
+        tenantId,
+        deletedAt: null,
+        active: true,
+        OR: [{ price: { not: null } }, { pricePerKg: { not: null } }],
+      },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true },
+    }),
+  ]);
+  return {
+    name: tenant?.name ?? "Carnicería",
+    branding: settings ?? null,
+    products,
+  };
 }

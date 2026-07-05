@@ -38,6 +38,7 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/auth-password";
+import { getBlueprint, DEFAULT_BLUEPRINT_ID, BLUEPRINT_IDS } from "../src/blueprints";
 
 const DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -71,6 +72,8 @@ export interface ProvisionParams {
   slug: string;
   timezone?: string;
   owner: { name?: string; email: string; password?: string };
+  /** Vertical de negocio a sembrar (ADR-002). Default: "servicios" (comportamiento histórico). */
+  blueprint?: string;
   /** Omitir el catálogo blueprint de ejemplo (default: sembrarlo). */
   skipCatalog?: boolean;
   branding?: TenantBranding;
@@ -84,6 +87,8 @@ export interface ProvisionResult {
   ownerEmail: string;
   ownerCreated: boolean;
   settingsCreated: boolean;
+  /** Id del blueprint aplicado (vertical del tenant). */
+  blueprintId: string;
   catalogSeeded: boolean;
   /** Contraseña generada por el script, SOLO si creó el OWNER sin recibir una. Mostrar una vez. */
   generatedPassword?: string;
@@ -148,6 +153,10 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
   assertValidSlug(slug);
   assertValidEmail(ownerEmail);
 
+  // Resuelve el vertical (falla explícito si el id no existe) ANTES de abrir la
+  // transacción, así un blueprint inválido no llega a tocar la base.
+  const blueprint = getBlueprint(params.blueprint ?? DEFAULT_BLUEPRINT_ID);
+
   const generatedPassword = params.owner.password ? undefined : generatePassword();
   const ownerPassword = params.owner.password ?? generatedPassword!;
 
@@ -207,7 +216,14 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
     // Singleton por tenant (tenantId único). Se crea con la leyenda de horarios por
     // defecto + lo que se haya pasado por branding. En re-provisioning NO se pisa lo
     // que el negocio ya editó (upsert con update vacío).
-    const b = params.branding ?? {};
+    // Branding efectivo: defaults del blueprint como base, pisados por lo que el
+    // operador haya pasado explícito (los flags no provistos vienen undefined y NO
+    // deben borrar el default del vertical).
+    const b: TenantBranding = { ...(blueprint.brandingDefaults ?? {}) };
+    const provided = params.branding ?? {};
+    for (const k of Object.keys(provided) as (keyof TenantBranding)[]) {
+      if (provided[k] !== undefined) b[k] = provided[k];
+    }
     const existingSettings = await tx.businessSettings.findUnique({
       where: { tenantId },
       select: { id: true },
@@ -232,55 +248,13 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
     }
 
     // --- Catálogo blueprint mínimo editable (ADR-019 §2.b) ---
-    // "Nunca vacío" sin ser los datos de nadie. Se siembra SOLO si el tenant
-    // todavía no tiene ningún servicio → re-provisionar jamás pisa lo cargado.
+    // "Nunca vacío" sin ser los datos de nadie. Cada vertical siembra su propio
+    // catálogo (servicios → box/servicios/profesional; carnicería → cortes por kg).
+    // El seed es idempotente: sólo siembra si el tenant está vacío, así
+    // re-provisionar jamás pisa lo que el negocio ya cargó.
     let catalogSeeded = false;
     if (!params.skipCatalog) {
-      const serviceCount = await tx.service.count({ where: { tenantId } });
-      if (serviceCount === 0) {
-        const box = await tx.box.create({
-          data: { tenantId, name: "Box de ejemplo (editable)" },
-        });
-        const category = await tx.serviceCategory.create({
-          data: { tenantId, name: "General", order: 0 },
-        });
-        const serviceA = await tx.service.create({
-          data: {
-            tenantId,
-            categoryId: category.id,
-            name: "Servicio de ejemplo A (editable)",
-            durationMin: 60,
-            price: 0,
-          },
-        });
-        const serviceB = await tx.service.create({
-          data: {
-            tenantId,
-            categoryId: category.id,
-            name: "Servicio de ejemplo B (editable)",
-            durationMin: 30,
-            price: 0,
-          },
-        });
-        // Horarios de atención por defecto Lun–Sáb 9–19 (como el seed), colgados
-        // de un profesional de ejemplo enlazado al box y a los servicios.
-        const mondayToSaturday = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
-          tenantId,
-          dayOfWeek,
-          startTime: "09:00",
-          endTime: "19:00",
-        }));
-        await tx.professional.create({
-          data: {
-            tenantId,
-            name: "Profesional de ejemplo (editable)",
-            boxId: box.id,
-            services: { connect: [{ id: serviceA.id }, { id: serviceB.id }] },
-            workingHours: { create: mondayToSaturday },
-          },
-        });
-        catalogSeeded = true;
-      }
+      catalogSeeded = await blueprint.seedCatalog(tx, tenantId);
     }
 
     return {
@@ -290,6 +264,7 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
       ownerEmail,
       ownerCreated,
       settingsCreated,
+      blueprintId: blueprint.id,
       catalogSeeded,
       generatedPassword: ownerCreated ? generatedPassword : undefined,
     };
@@ -305,6 +280,7 @@ type Args = {
   ownerName?: string;
   timezone?: string;
   password?: string;
+  blueprint?: string;
   skipCatalog: boolean;
   dryRun: boolean;
   branding: TenantBranding;
@@ -342,6 +318,7 @@ function parseArgs(argv: string[]): Args {
     ownerName: str("owner-name", "PROVISION_OWNER_NAME"),
     timezone: str("timezone", "PROVISION_TENANT_TIMEZONE"),
     password: str("password", "PROVISION_OWNER_PASSWORD"),
+    blueprint: str("blueprint", "PROVISION_BLUEPRINT"),
     skipCatalog: flags["skip-catalog"] === true || flags["skip-catalog"] === "true",
     dryRun: flags["dry-run"] === true || flags["dry-run"] === "true",
     branding: {
@@ -371,6 +348,7 @@ async function main(): Promise<void> {
         missing.join("\n  - ") +
         "\n\nUso: npm run provision -- --name \"Negocio SA\" --slug negocio-sa " +
         "--owner-email owner@negocio.com [--owner-name \"Nombre\"] " +
+        `[--blueprint ${BLUEPRINT_IDS.join("|")}] ` +
         "[--timezone America/...] [--password ...] [--skip-catalog] [--dry-run]\n" +
         "  Branding opcional: [--city ...] [--address ...] [--whatsapp ...] " +
         "[--instagram ...] [--maps-url ...] [--hours-label ...] [--short-label ...] " +
@@ -383,13 +361,15 @@ async function main(): Promise<void> {
   console.log(`  Slug:      ${args.slug}`);
   console.log(`  OWNER:     ${args.ownerName ?? "Dueño/a"} <${args.ownerEmail}>`);
   console.log(`  Timezone:  ${args.timezone ?? DEFAULT_TIMEZONE}`);
-  console.log(`  Catálogo:  ${args.skipCatalog ? "omitido (--skip-catalog)" : "blueprint mínimo si el tenant no tiene servicios"}`);
+  console.log(`  Blueprint: ${args.blueprint ?? DEFAULT_BLUEPRINT_ID}`);
+  console.log(`  Catálogo:  ${args.skipCatalog ? "omitido (--skip-catalog)" : "catálogo del blueprint si el tenant está vacío"}`);
 
   if (args.dryRun) {
     // Validaciones que no tocan la base (las de DB —gate RLS, idempotencia— corren
     // dentro de la transacción y no se ejecutan en dry-run).
     assertValidSlug(args.slug!.trim());
     assertValidEmail(args.ownerEmail!.trim().toLowerCase());
+    getBlueprint(args.blueprint ?? DEFAULT_BLUEPRINT_ID); // valida el vertical
     console.log("\n[dry-run] Validaciones de parámetros OK. No se escribió nada en la base.");
     return;
   }
@@ -402,6 +382,7 @@ async function main(): Promise<void> {
       slug: args.slug!,
       timezone: args.timezone,
       owner: { name: args.ownerName, email: args.ownerEmail!, password: args.password },
+      blueprint: args.blueprint,
       skipCatalog: args.skipCatalog,
       branding: args.branding,
     });
@@ -411,7 +392,8 @@ async function main(): Promise<void> {
     console.log(`  Tenant:          ${result.tenantCreated ? "creado" : "ya existía (re-provisioning)"}`);
     console.log(`  OWNER creado:    ${result.ownerCreated ? "sí" : "no (ya existía)"}`);
     console.log(`  BusinessSettings:${result.settingsCreated ? " creado" : " ya existía"}`);
-    console.log(`  Catálogo demo:   ${result.catalogSeeded ? "sembrado" : "no (el tenant ya tenía servicios o --skip-catalog)"}`);
+    console.log(`  Blueprint:       ${result.blueprintId}`);
+    console.log(`  Catálogo demo:   ${result.catalogSeeded ? "sembrado" : "no (el tenant ya tenía catálogo o --skip-catalog)"}`);
 
     if (result.generatedPassword) {
       console.log(

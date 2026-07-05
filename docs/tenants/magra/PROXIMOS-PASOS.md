@@ -30,23 +30,34 @@ cerrar sesión. Ver `blueprint-carniceria-brief.md` (encuadre técnico) y `BACKL
    esto, crear el tenant #2 rompe la app de Carolina (ADR-015 fail-closed). *En
    construcción en paralelo* (aparecieron `src/lib/rls.ts`, `tenant-context.ts`,
    `prisma/rls/` en el working tree). Confirmar que quede terminado antes del alta.
-3. **ADR-019** — `scripts/provision-tenant.ts` **ya existe**; falta parametrizarlo
-   por `--blueprint=carniceria` y sembrar cortes con precio/kg.
-4. **Sistema de Blueprints en código** — `src/blueprints/carniceria/{manifest,seed-template}.ts`
-   + registro de capabilities activas por tenant.
-5. ~~Capabilities del Core: venta por kg + POS/Orden~~ **HECHO** este ciclo
-   (`pos-orden-capability.md`). Falta aplicar la migración `20260704180000_add_pos_orders`
-   con `migrate deploy` (Gate 2) cuando se dé el OK.
-6. **Vidriera por tenant + theming** — generalizar `src/app/(site)/` para leer el
-   catálogo del tenant y su marca (magra: oxblood/hueso/latón). La vidriera consume
-   la misma `createOrder` de la capability POS ya hecha.
+3. ~~ADR-019 — parametrizar `provision-tenant.ts` por `--blueprint`~~ **HECHO ciclo 3**:
+   `npm run provision -- --blueprint carniceria` siembra cortes con precio/kg. Ver
+   `blueprint-y-vidriera.md`. Falta correrlo contra una DB real (tras RLS).
+4. ~~Sistema de Blueprints en código~~ **HECHO ciclo 3**: `src/blueprints/`
+   (`types.ts` + registry `index.ts` + `servicios.ts` + `carniceria.ts`). El seed de
+   servicios se extrajo del provisioning (comportamiento idéntico).
+5. ~~Capabilities del Core: venta por kg + POS/Orden~~ **HECHO** (`pos-orden-capability.md`).
+   Falta aplicar la migración `20260704180000_add_pos_orders` con `migrate deploy`
+   (Gate 2) cuando se dé el OK.
+6. **Vidriera por tenant + theming** — **VIDRIERA HECHA ciclo 3**: `/carniceria`
+   (`src/app/carniceria/`) consume `getStorefront` + `placeOnlineOrder` (toma de
+   pedido público → bandeja del backoffice), marca magra oxblood/hueso/latón inline.
+   *Falta:* resolución de tenant por request (ADR-018) para servirla por subdominio y
+   el theming por tenant genérico (hoy la marca está inline en la vidriera).
 7. **Plugin `arca`** (ADR-022) — en paralelo.
 
 ## Demo a costo 0 (vigente)
 
-Hasta que exista la vidriera del tenant, la carnicería se le muestra al cliente con
-el **prototipo standalone** (`npm install && npm run dev` en la carpeta `/magra`,
-corre sin DB). Es demo visual, no la arquitectura. Se borra al converger.
+**La arquitectura real ya tiene demo end-to-end en el ERP** (no depende más del
+prototipo standalone): con una DB local (branch de Neon o Postgres local, NUNCA
+prod) donde se aplique la migración POS y se corra
+`npm run provision -- --name "magra" --slug magra --owner-email ... --blueprint carniceria`,
+el flujo completo es **vidriera `/carniceria` → pedido → bandeja `/admin/pedidos`**,
+más el POS de mostrador con venta por kg. Ver `blueprint-y-vidriera.md` §"Cómo verlo".
+
+Mientras no haya DB local con la migración aplicada, el prototipo standalone
+(`/magra`, corre sin DB) sigue sirviendo como demo puramente visual, pero ya es
+reemplazable: la vidriera del tenant existe.
 
 ## Preguntas abiertas (negocio / PO)
 

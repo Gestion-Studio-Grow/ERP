@@ -40,22 +40,29 @@ a Bistrosoft sin esperar features pesadas.
 
 - [ ] `[MVP][plataforma]` **RLS + resolución de tenant por request** (ADR-018) —
   **gate #0**: sin esto no puede existir el tenant #2. Bloquea todo lo demás.
-- [ ] `[MVP][plataforma]` **Provisioning** `scripts/provision-tenant.ts` (ADR-019)
-  parametrizado por `--blueprint=carniceria`.
-- [ ] `[MVP][plataforma]` **Sistema de Blueprints en código** (`src/blueprints/carniceria/`)
-  + registro de capabilities activas por tenant.
+- [x] `[MVP][plataforma]` **Provisioning** `scripts/provision-tenant.ts` (ADR-019)
+  parametrizado por `--blueprint=carniceria`. **HECHO 2026-07-05**: siembra cortes con
+  precio/kg + branding magra. Falta correrlo contra DB real (tras RLS).
+- [x] `[MVP][plataforma]` **Sistema de Blueprints en código** (`src/blueprints/`)
+  + registro por vertical. **HECHO 2026-07-05**: registry + blueprints `servicios` y
+  `carniceria` (config pura sobre el Core, cero schema propio).
 - [x] `[MVP][capability]` **Venta por kg** — campo de extensión sobre `Product`
   (`saleUnit`, `price`, `pricePerKg`) + cálculo de línea por gramos. Diferencial #1,
   versión software. **HECHO 2026-07-04** (migración sin aplicar; ver `pos-orden-capability.md`).
 - [x] `[MVP][capability]` **POS/Orden** — `Order`/`OrderItem` genéricos del Core
   (ADR-003 Fase 2) con estados y fulfillment (retiro/delivery). Reusable por retail futuro.
   **HECHO 2026-07-04**: schema + actions + backoffice (POS + toma de pedidos + bandeja).
-- [ ] `[MVP][vidriera]` **Vidriera premium por tenant** — catálogo de cortes con
-  precio/kg, marca magra, generalizando `src/app/(site)/`. Supera la tienda gastro.
-- [ ] `[MVP][vidriera]` **Toma de pedidos** desde la vidriera → cae al backoffice.
-- [ ] `[MVP][backoffice]` **Catálogo + precios** (ABM) y **bandeja de pedidos** con estados.
+- [x] `[MVP][vidriera]` **Vidriera premium por tenant** — catálogo de cortes con
+  precio/kg, marca magra. **HECHO 2026-07-05**: `/carniceria` (marca oxblood/hueso/latón
+  inline). Falta servirla por tenant (ADR-018) y theming genérico por tokens.
+- [x] `[MVP][vidriera]` **Toma de pedidos** desde la vidriera → cae al backoffice.
+  **HECHO 2026-07-05**: `placeOnlineOrder` (público) crea pedido ONLINE/PENDING → bandeja.
+- [~] `[MVP][backoffice]` **Catálogo + precios** (ABM) y **bandeja de pedidos** con estados.
+  Bandeja **HECHA** (ciclo 2). ABM de precios retail: las acciones aceptan los campos, falta
+  el form retail en el catálogo (hoy los precios se cargan por el seed del blueprint).
 - [ ] `[MVP][plugin]` **`arca`** facturación electrónica (paridad; ADR-022). Puede ir en paralelo.
-- [ ] `[MVP][marca]` **Theming por tenant** — resolución de marca (tokens) por tenant.
+- [ ] `[MVP][marca]` **Theming por tenant** — resolución de marca (tokens) por tenant
+  (la vidriera ya tiene la marca magra, pero inline; falta la capa genérica por tenant).
 
 ## 3. Alcance v1+ (donde rematamos la ventaja)
 
