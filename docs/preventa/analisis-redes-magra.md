@@ -66,8 +66,16 @@ actual. (El menú carga por JavaScript, así que los precios exactos no se pudie
 Para cerrar el tenant a nivel producción necesito del dueño:
 1. **Lista de precios real + SKUs** (su tienda Bistrosoft carga por JS; no la pude transcribir).
    Ideal: export/planilla, o capturas de la lista. Hoy uso **precios estimados provisionales**.
-2. **Acceso al contenido de Instagram/TikTok** (@tiendamagra) — está tras login. Necesito **capturas
-   o descripción de los videos clave** (proceso, cortes, envasado) para reflejar su narrativa.
+2. **Acceso al contenido de Instagram** (@tiendamagra) — el dueño pasó el link
+   (`instagram.com/tiendamagra`, 2026-07-05). **Intenté extraerlo con todas mis herramientas:**
+   (a) fetch del perfil → sólo devuelve el nombre "MAGRA Meat Market · Canning", sin bio/posts/meta
+   (login-gated, render por JS); (b) endpoint JSON público `?__a=1` → ya no responde sin auth;
+   (c) navegador (Chrome MCP) → **no hay navegador conectado** (extensión no instalada). Conclusión:
+   el link **confirma el handle real** (@tiendamagra, coincide con su web), pero **bio, posts y
+   especialmente los reels del proceso NO son accesibles** por herramientas. **Necesito del dueño
+   capturas o una descripción de 2-3 videos clave:** (i) el **proceso/envasado al vacío**, (ii) un
+   recorrido de **cortes/catálogo**, (iii) el **local/experiencia de compra**. (Opcional: si conecta
+   la extensión de Chrome e inicia sesión en IG, podría leer más — pero IG igual limita el scraping.)
 3. **Paleta de marca exacta** (hex de su oxblood/negro/crema) y logo/tipografía, para el theming.
 4. **Fotos de producto** con permiso de uso para la vidriera.
 5. Confirmar el **modelo de venta**: ¿packs a precio fijo por unidad, o por kg pesado? (asumo mix:

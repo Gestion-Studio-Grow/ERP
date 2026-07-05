@@ -111,10 +111,18 @@ export default function Storefront({
           <p style={{ opacity: 0.9, maxWidth: 580, lineHeight: 1.5 }}>
             {branding?.contactNote ?? wording.heroTagline}
           </p>
-          <div style={{ marginTop: 14, display: "flex", gap: 16, fontSize: 13, opacity: 0.9, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 14, display: "flex", gap: 16, fontSize: 13, opacity: 0.92, flexWrap: "wrap" }}>
             {branding?.city && <span>📍 {branding.city}</span>}
-            {branding?.whatsapp && <span>📱 {branding.whatsapp}</span>}
-            {branding?.instagram && <span>◎ {branding.instagram}</span>}
+            {branding?.whatsapp && (
+              <a href={`https://wa.me/${branding.whatsapp}`} target="_blank" rel="noopener noreferrer" style={heroLink}>
+                📱 WhatsApp
+              </a>
+            )}
+            {branding?.instagram && (
+              <a href={igUrl(branding.instagram)} target="_blank" rel="noopener noreferrer" style={heroLink}>
+                ◎ {igHandle(branding.instagram)}
+              </a>
+            )}
           </div>
         </div>
       </header>
@@ -253,3 +261,15 @@ function btn(bg: string, color: string): CSSProperties {
 const lbl: CSSProperties = { display: "grid", gap: 4, fontSize: 13 };
 const lblT: CSSProperties = { color: "#6b5d52" };
 const inp: CSSProperties = { border: "1px solid #e9e1d3", borderRadius: 9, padding: "9px 11px", fontSize: 14, background: "#fff", color: "#2a211c" };
+
+// Links del hero (sobre el acento del tenant): heredan el color claro, subrayado sutil.
+const heroLink: CSSProperties = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 };
+
+// Normaliza el instagram guardado ("@handle" o URL) a handle y a URL de perfil.
+function igHandle(ig: string): string {
+  const h = ig.trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/+$/, "").replace(/^@/, "");
+  return `@${h}`;
+}
+function igUrl(ig: string): string {
+  return `https://www.instagram.com/${igHandle(ig).slice(1)}`;
+}
