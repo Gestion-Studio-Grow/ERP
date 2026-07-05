@@ -1,36 +1,31 @@
 /**
- * Glue del Core para el plugin Mercado Pago (ADR-024). Es el único módulo que
- * conoce ambos lados: inyecta el cliente MP del tenant y el comando del Core
- * (`facturarAppointment`) al handler del plugin. El plugin no importa el Core.
+ * Glue del Core para el plugin Mercado Pago (ADR-024). Ata el handler del plugin
+ * a dos cosas del Core: el gateway de cobros del tenant —resuelto por el registro
+ * provider-agnóstico (`gatewayCobrosPara`, fase 3), no instanciado a mano— y el
+ * comando `facturarAppointment`. El plugin no importa el Core.
  */
 
 import {
   procesarNotificacionPago,
-  StubMercadoPagoClient,
-  type MercadoPagoClient,
   type NotificacionPagoMP,
   type ResultadoNotificacion,
 } from "@/plugins/mercadopago";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
+import { gatewayCobrosPara } from "@/lib/pagos-dispatch";
 
 /**
- * Resuelve el cliente MP del tenant.
+ * Procesa una notificación de MP: resuelve el gateway de cobros del tenant vía el
+ * registro provider-agnóstico (`gatewayCobrosPara`, fase 3) — ya no instancia el
+ * proveedor a mano — verifica el pago y, si se acreditó, factura.
  *
- * TODO(ADR-024): hoy devuelve el STUB (sin pagos sembrados → prod nunca llega
- * acá porque el flag de facturación está OFF). La versión real lee el
- * `accessToken` del tenant (config del manifiesto) y devuelve el adapter contra
- * la API de MP.
+ * El handler del plugin habla `GatewayPagos` (su `MercadoPagoClient` es un alias
+ * del mismo contrato), así que `gatewayCobrosPara` encaja directo como `clientePara`.
  */
-export function clienteMpPara(_tenantId: string): MercadoPagoClient {
-  return new StubMercadoPagoClient();
-}
-
-/** Procesa una notificación de MP: verifica el pago y, si se acreditó, factura. */
 export function manejarNotificacionMP(
   notif: NotificacionPagoMP,
 ): Promise<ResultadoNotificacion> {
   return procesarNotificacionPago(notif, {
-    clientePara: clienteMpPara,
+    clientePara: (tenantId) => gatewayCobrosPara(tenantId),
     facturar: facturarAppointment,
   });
 }
