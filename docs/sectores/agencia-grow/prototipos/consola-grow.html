@@ -3,363 +3,435 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Consola Grow — concepto (Agencia Grow)</title>
+<title>Consola Grow — concepto 3D (Agencia Grow)</title>
 <style>
   *{margin:0;padding:0}
-  html,body{background:#F1F4F0}
-  @media (prefers-color-scheme: dark){ html,body{background:#0B1310} }
+  html,body{background:#EEF2EC}
+  @media (prefers-color-scheme: dark){ html,body{background:#080F0C} }
 </style>
 </head>
 <body>
 <style>
   :root{
     color-scheme: light dark;
-    --ground:#F1F4F0; --surface:#FFFFFF; --surface-2:#F7F9F6;
-    --ink:#132019; --muted:#586961; --faint:#8A968E; --line:#E3E9E2;
-    --brand:#0F9E62; --brand-strong:#0A7C4B; --brand-soft:#E4F3EC;
-    --capital:#B0842F; --capital-soft:#F3ECDA;
+    --ground:#EEF2EC; --ground-2:#E6EDE4;
+    --glass:rgba(255,255,255,.72); --glass-brd:rgba(19,32,25,.09); --glass-hi:rgba(255,255,255,.9);
+    --surface:#FFFFFF; --surface-2:#F6F9F4;
+    --ink:#132019; --ink-2:#33463C; --muted:#5B6B62; --faint:#8A968E; --line:#E2E8E0;
+    --brand:#0FA267; --brand-2:#0B7C4E; --brand-3:#8FE3BE; --brand-soft:#E6F4EC;
+    --capital:#B0842F; --capital-2:#D9B15C;
     --good:#159A5C; --warn:#B7791F; --gated:#7C8A82;
-    --shadow:0 1px 2px rgba(19,32,25,.05), 0 8px 30px rgba(19,32,25,.06);
-    --r:16px;
+    --sh-key:0 18px 44px -18px rgba(16,40,28,.34);
+    --sh-amb:0 2px 10px rgba(16,40,28,.06);
+    --r:20px;
   }
   @media (prefers-color-scheme: dark){
     :root{
-      --ground:#0B1310; --surface:#111C17; --surface-2:#0E1813;
-      --ink:#E9F1EB; --muted:#95A79D; --faint:#6C7D74; --line:#20302A;
-      --brand:#2BD08A; --brand-strong:#28B579; --brand-soft:#12241B;
-      --capital:#D9B15C; --capital-soft:#221D10;
+      --ground:#080F0C; --ground-2:#0A130F;
+      --glass:rgba(20,32,26,.62); --glass-brd:rgba(255,255,255,.08); --glass-hi:rgba(255,255,255,.06);
+      --surface:#111C17; --surface-2:#0E1712;
+      --ink:#EAF2EC; --ink-2:#C3D2C9; --muted:#93A79C; --faint:#6B7C73; --line:#1E2E27;
+      --brand:#33D493; --brand-2:#2BC084; --brand-3:#1C5B41; --brand-soft:#10231A;
+      --capital:#D9B15C; --capital-2:#E7C880;
       --good:#33C486; --warn:#E0A94A; --gated:#6E7E76;
-      --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 34px rgba(0,0,0,.28);
+      --sh-key:0 26px 60px -22px rgba(0,0,0,.66);
+      --sh-amb:0 2px 12px rgba(0,0,0,.4);
     }
   }
   :root[data-theme="light"]{
-    --ground:#F1F4F0; --surface:#FFFFFF; --surface-2:#F7F9F6;
-    --ink:#132019; --muted:#586961; --faint:#8A968E; --line:#E3E9E2;
-    --brand:#0F9E62; --brand-strong:#0A7C4B; --brand-soft:#E4F3EC;
-    --capital:#B0842F; --capital-soft:#F3ECDA;
+    --ground:#EEF2EC; --ground-2:#E6EDE4;
+    --glass:rgba(255,255,255,.72); --glass-brd:rgba(19,32,25,.09); --glass-hi:rgba(255,255,255,.9);
+    --surface:#FFFFFF; --surface-2:#F6F9F4;
+    --ink:#132019; --ink-2:#33463C; --muted:#5B6B62; --faint:#8A968E; --line:#E2E8E0;
+    --brand:#0FA267; --brand-2:#0B7C4E; --brand-3:#8FE3BE; --brand-soft:#E6F4EC;
+    --capital:#B0842F; --capital-2:#D9B15C;
     --good:#159A5C; --warn:#B7791F; --gated:#7C8A82;
-    --shadow:0 1px 2px rgba(19,32,25,.05), 0 8px 30px rgba(19,32,25,.06);
+    --sh-key:0 18px 44px -18px rgba(16,40,28,.34);
+    --sh-amb:0 2px 10px rgba(16,40,28,.06);
   }
   :root[data-theme="dark"]{
-    --ground:#0B1310; --surface:#111C17; --surface-2:#0E1813;
-    --ink:#E9F1EB; --muted:#95A79D; --faint:#6C7D74; --line:#20302A;
-    --brand:#2BD08A; --brand-strong:#28B579; --brand-soft:#12241B;
-    --capital:#D9B15C; --capital-soft:#221D10;
+    --ground:#080F0C; --ground-2:#0A130F;
+    --glass:rgba(20,32,26,.62); --glass-brd:rgba(255,255,255,.08); --glass-hi:rgba(255,255,255,.06);
+    --surface:#111C17; --surface-2:#0E1712;
+    --ink:#EAF2EC; --ink-2:#C3D2C9; --muted:#93A79C; --faint:#6B7C73; --line:#1E2E27;
+    --brand:#33D493; --brand-2:#2BC084; --brand-3:#1C5B41; --brand-soft:#10231A;
+    --capital:#D9B15C; --capital-2:#E7C880;
     --good:#33C486; --warn:#E0A94A; --gated:#6E7E76;
-    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 34px rgba(0,0,0,.28);
+    --sh-key:0 26px 60px -22px rgba(0,0,0,.66);
+    --sh-amb:0 2px 12px rgba(0,0,0,.4);
   }
 
   *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  @media (prefers-reduced-motion: reduce){ html{ scroll-behavior:auto; } }
   body{ margin:0; }
+
   .grow{
-    --serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,ui-serif,serif;
     --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-    background:
-      radial-gradient(1200px 500px at 12% -10%, color-mix(in srgb, var(--brand) 12%, transparent), transparent 60%),
-      var(--ground);
-    color:var(--ink);
-    font-family:var(--sans);
-    line-height:1.5;
-    -webkit-font-smoothing:antialiased;
-    min-height:100vh;
-    padding:clamp(16px,3.5vw,40px);
+    --serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,ui-serif,serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    position:relative; min-height:100vh; color:var(--ink); font-family:var(--sans); line-height:1.5;
+    -webkit-font-smoothing:antialiased; background:var(--ground); overflow-x:hidden;
   }
-  .wrap{ max-width:1120px; margin:0 auto; display:flex; flex-direction:column; gap:clamp(20px,3vw,34px); }
+  #mesh{ position:fixed; inset:0; width:100%; height:100%; z-index:0; display:block; }
+  .grain{ position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.5; mix-blend-mode:soft-light;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>"); }
+  .shell{ position:relative; z-index:2; max-width:1180px; margin:0 auto; padding:0 clamp(14px,3vw,34px) clamp(30px,5vw,60px); }
 
-  /* ---- top bar ---- */
-  .bar{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-  .brand{ display:flex; align-items:center; gap:12px; }
-  .mark{ width:38px; height:38px; flex:none; }
-  .brand h1{ font-family:var(--sans); font-size:19px; letter-spacing:-.01em; margin:0; font-weight:650; }
-  .brand h1 span{ color:var(--brand); }
-  .brand .sub{ font-size:12.5px; color:var(--muted); margin-top:1px; }
-  .bar-right{ display:flex; align-items:center; gap:10px; }
-  .pill{ font-size:11.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted);
-    border:1px solid var(--line); border-radius:999px; padding:6px 11px; background:var(--surface); font-weight:600; }
-  .themebtn{ font:inherit; font-size:13px; cursor:pointer; border:1px solid var(--line); background:var(--surface);
-    color:var(--ink); border-radius:999px; padding:7px 13px; display:inline-flex; gap:7px; align-items:center; }
-  .themebtn:hover{ border-color:var(--brand); }
-  .themebtn:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+  /* ---------- sticky nav ---------- */
+  .nav{ position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:14px;
+    margin:0 calc(-1*clamp(14px,3vw,34px)); padding:12px clamp(14px,3vw,34px); flex-wrap:wrap;
+    background:color-mix(in srgb,var(--ground) 78%,transparent); backdrop-filter:blur(14px) saturate(1.3);
+    -webkit-backdrop-filter:blur(14px) saturate(1.3); border-bottom:1px solid var(--glass-brd); }
+  .brand{ display:flex; align-items:center; gap:11px; }
+  .mark{ width:34px; height:34px; flex:none; color:var(--brand); filter:drop-shadow(0 4px 10px color-mix(in srgb,var(--brand) 40%,transparent)); }
+  .brand b{ font-size:17px; font-weight:660; letter-spacing:-.015em; }
+  .brand b span{ color:var(--brand); }
+  .brand small{ display:block; font-size:11px; color:var(--muted); margin-top:-2px; }
+  .navlinks{ display:flex; gap:2px; background:var(--glass); border:1px solid var(--glass-brd); border-radius:999px; padding:4px;
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .navlinks a{ font-size:12.5px; color:var(--muted); text-decoration:none; padding:6px 12px; border-radius:999px; font-weight:560; transition:.18s; white-space:nowrap; }
+  .navlinks a:hover{ color:var(--ink); }
+  .navlinks a.on{ color:var(--brand-2); background:var(--surface); box-shadow:var(--sh-amb); }
+  .navlinks a:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+  .navr{ display:flex; align-items:center; gap:9px; }
+  .tag{ font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; font-weight:700; color:var(--capital);
+    border:1px solid color-mix(in srgb,var(--capital) 34%,transparent); border-radius:999px; padding:5px 10px; }
+  .tbtn{ display:grid; place-items:center; width:34px; height:34px; border-radius:50%; cursor:pointer; color:var(--ink);
+    border:1px solid var(--glass-brd); background:var(--glass); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .tbtn:hover{ border-color:var(--brand); color:var(--brand-2); }
+  .tbtn:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+  @media (max-width:640px){ .navlinks{ display:none; } }
 
-  /* ---- hero patrimony ---- */
-  .hero{ background:var(--surface); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow);
-    padding:clamp(20px,3vw,32px); display:grid; grid-template-columns:1.05fr 1.35fr; gap:clamp(20px,3vw,36px); align-items:center; }
-  .eyebrow{ font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--capital); font-weight:700; margin:0 0 12px; }
-  .capfig{ font-family:var(--serif); font-weight:600; letter-spacing:-.02em; line-height:.98;
-    font-size:clamp(44px,7vw,72px); font-variant-numeric:tabular-nums; }
-  .capfig .cur{ font-size:.42em; vertical-align:.42em; color:var(--muted); font-weight:500; margin-right:.12em; }
-  .delta{ display:inline-flex; align-items:center; gap:7px; margin-top:12px; font-weight:650; color:var(--good);
-    background:color-mix(in srgb,var(--good) 12%,transparent); padding:5px 11px; border-radius:999px; font-size:14px; font-variant-numeric:tabular-nums; }
-  .herolede{ font-family:var(--serif); font-size:clamp(17px,2vw,20px); color:var(--ink); margin:16px 0 0; line-height:1.4; max-width:34ch; }
-  .herolede b{ color:var(--brand-strong); font-weight:650; }
-  .chartcard{ position:relative; }
-  .chartcard .cap{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
-  .chartcard .cap .t{ font-size:12.5px; color:var(--muted); font-weight:600; letter-spacing:.02em; }
-  .chartcard .cap .n{ font-size:12.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
-  canvas#spark{ width:100%; height:190px; display:block; }
-  .axis{ display:flex; justify-content:space-between; margin-top:6px; font-size:11px; color:var(--faint); letter-spacing:.02em; }
+  /* ---------- panels / glass ---------- */
+  .panel{ position:relative; background:var(--glass); border:1px solid var(--glass-brd); border-radius:var(--r);
+    box-shadow:var(--sh-key),var(--sh-amb); backdrop-filter:blur(18px) saturate(1.25); -webkit-backdrop-filter:blur(18px) saturate(1.25);
+    overflow:hidden; }
+  .panel::before{ content:""; position:absolute; inset:0 0 auto 0; height:1px; background:linear-gradient(90deg,transparent,var(--glass-hi),transparent); }
+  .lift{ transition:transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s cubic-bezier(.2,.8,.2,1); }
+  @media (hover:hover){ .lift:hover{ transform:translateY(-4px); box-shadow:0 30px 60px -20px rgba(16,40,28,.4),var(--sh-amb); } }
 
-  /* ---- section ---- */
-  .sec > h2{ font-family:var(--sans); font-size:13px; letter-spacing:.02em; text-transform:none; margin:0 0 3px;
-    font-weight:680; display:flex; align-items:center; gap:9px; }
-  .sec > .lede{ font-size:13.5px; color:var(--muted); margin:0 0 16px; max-width:70ch; }
-  .tick{ width:7px; height:7px; border-radius:2px; background:var(--brand); flex:none; transform:rotate(45deg); }
+  .eyebrow{ display:flex; align-items:center; gap:9px; font-size:11px; letter-spacing:.16em; text-transform:uppercase; font-weight:700; color:var(--brand-2); margin:0 0 10px; }
+  .eyebrow.gold{ color:var(--capital); }
+  .tick{ width:6px; height:6px; border-radius:2px; background:currentColor; transform:rotate(45deg); }
+  h2.sec{ font-size:clamp(17px,2.4vw,22px); letter-spacing:-.02em; font-weight:680; margin:0 0 4px; text-wrap:balance; }
+  p.lede{ font-size:13.5px; color:var(--muted); margin:0 0 18px; max-width:66ch; }
 
-  /* ---- business cards ---- */
-  .biz{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; }
-  .card{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px 17px; box-shadow:var(--shadow);
-    display:flex; flex-direction:column; gap:11px; }
-  .card .top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-  .card .name{ font-weight:660; font-size:15.5px; letter-spacing:-.01em; }
-  .card .kind{ font-size:11.5px; color:var(--faint); margin-top:2px; letter-spacing:.02em; }
-  .state{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:4px 9px; border-radius:999px; white-space:nowrap; }
-  .s-live{ color:var(--good); background:color-mix(in srgb,var(--good) 14%,transparent); }
-  .s-obra{ color:var(--warn); background:color-mix(in srgb,var(--warn) 15%,transparent); }
-  .s-gate{ color:var(--gated); background:color-mix(in srgb,var(--gated) 16%,transparent); }
-  .autorow{ display:flex; flex-wrap:wrap; gap:6px; }
-  .chip{ font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:7px; padding:3px 8px; background:var(--surface-2); }
-  .card .foot{ font-size:12px; color:var(--muted); margin-top:auto; }
+  .stack{ display:flex; flex-direction:column; }
+  .grid-gap{ display:flex; flex-direction:column; gap:clamp(14px,2.2vw,22px); margin-top:clamp(16px,2.5vw,26px); }
 
-  /* ---- machine strip ---- */
-  .machine{ background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow);
-    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); overflow:hidden; }
-  .mcell{ padding:15px 16px; border-right:1px solid var(--line); display:flex; flex-direction:column; gap:6px; }
-  .mcell:last-child{ border-right:none; }
-  .mcell .mh{ display:flex; align-items:center; gap:8px; font-weight:620; font-size:13.5px; }
-  .dot{ width:8px; height:8px; border-radius:50%; flex:none; }
-  .dot.live{ background:var(--good); box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent); }
+  /* ---------- hero ---------- */
+  .hero{ display:grid; grid-template-columns:1fr 1.15fr; gap:clamp(18px,3vw,40px); align-items:center; padding:clamp(22px,3.4vw,40px); margin-top:clamp(18px,3vw,30px); }
+  .capfig{ font-family:var(--serif); font-weight:600; letter-spacing:-.025em; line-height:.9; font-size:clamp(52px,9vw,96px); font-variant-numeric:tabular-nums;
+    background:linear-gradient(180deg,var(--ink),color-mix(in srgb,var(--ink) 62%,var(--capital))); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .capfig .cur{ -webkit-text-fill-color:var(--capital); color:var(--capital); font-size:.34em; vertical-align:.5em; font-weight:600; margin-right:.1em; }
+  .delta{ display:inline-flex; align-items:center; gap:7px; margin-top:14px; font-weight:660; color:var(--good); font-variant-numeric:tabular-nums; font-size:14px;
+    background:color-mix(in srgb,var(--good) 13%,transparent); padding:6px 12px; border-radius:999px; }
+  .delta svg{ width:14px; height:14px; }
+  .herolede{ font-family:var(--serif); font-size:clamp(17px,2vw,21px); line-height:1.38; color:var(--ink-2); margin:18px 0 0; max-width:32ch; }
+  .herolede b{ color:var(--brand-2); font-weight:600; }
+  .stagewrap{ position:relative; }
+  .stagewrap .cap{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+  .stagewrap .cap .t{ font-size:12px; color:var(--muted); font-weight:600; }
+  .stagewrap .cap .n{ font-size:11.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  canvas#iso{ width:100%; height:clamp(230px,32vw,320px); display:block; cursor:grab; }
+  .axis{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--faint); letter-spacing:.04em; margin-top:2px; }
+  @media (max-width:860px){ .hero{ grid-template-columns:1fr; } }
+
+  /* ---------- bento ---------- */
+  .bento{ display:grid; grid-template-columns:1.55fr 1fr; gap:clamp(14px,2.2vw,22px); }
+  @media (max-width:860px){ .bento{ grid-template-columns:1fr; } }
+  .pad{ padding:clamp(18px,2.6vw,26px); }
+
+  .biz{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:520px){ .biz{ grid-template-columns:1fr; } }
+  .card{ position:relative; background:var(--surface); border:1px solid var(--line); border-radius:15px; padding:15px 16px; display:flex; flex-direction:column; gap:11px;
+    box-shadow:var(--sh-amb); transition:transform .4s cubic-bezier(.2,.8,.2,1),border-color .3s; }
+  @media (hover:hover){ .card:hover{ transform:translateY(-3px); border-color:color-mix(in srgb,var(--brand) 40%,var(--line)); } }
+  .card .top{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .card .name{ font-weight:640; font-size:15px; letter-spacing:-.01em; }
+  .card .kind{ font-size:11px; color:var(--faint); margin-top:2px; }
+  .state{ font-size:10px; font-weight:750; letter-spacing:.05em; text-transform:uppercase; padding:4px 9px; border-radius:999px; white-space:nowrap; }
+  .s-live{ color:var(--good); background:color-mix(in srgb,var(--good) 15%,transparent); }
+  .s-obra{ color:var(--warn); background:color-mix(in srgb,var(--warn) 16%,transparent); }
+  .s-gate{ color:var(--gated); background:color-mix(in srgb,var(--gated) 17%,transparent); }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ font-size:10.5px; color:var(--muted); border:1px solid var(--line); border-radius:7px; padding:3px 8px; background:var(--surface-2); }
+  .card .foot{ font-size:11.5px; color:var(--muted); margin-top:auto; }
+
+  /* machine vertical */
+  .mstack{ display:flex; flex-direction:column; gap:2px; }
+  .mrow{ display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line); }
+  .mrow:last-child{ border-bottom:none; }
+  .mrow .dot{ width:9px; height:9px; border-radius:50%; flex:none; position:relative; }
+  .dot.live{ background:var(--good); }
+  .dot.live::after{ content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid var(--good); opacity:.5; }
   .dot.soon{ background:var(--gated); }
-  .mcell .md{ font-size:11.5px; color:var(--muted); }
-  .mcell .mt{ font-size:11px; color:var(--faint); letter-spacing:.03em; text-transform:uppercase; font-weight:600; }
+  .mrow .mi{ flex:1; }
+  .mrow .mh{ font-weight:600; font-size:13.5px; }
+  .mrow .md{ font-size:11.5px; color:var(--muted); }
+  .mrow .mt{ font-size:10px; letter-spacing:.05em; text-transform:uppercase; font-weight:700; color:var(--faint); }
 
-  /* ---- agents fleet ---- */
-  .fleet{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
-  .agent{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:15px 16px; box-shadow:var(--shadow);
-    display:flex; flex-direction:column; gap:8px; position:relative; }
-  .agent .arow{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .agent .role{ font-weight:640; font-size:14.5px; }
-  .agent .disc{ font-size:11px; color:var(--faint); letter-spacing:.03em; text-transform:uppercase; font-weight:600; }
-  .agent .task{ font-size:12.5px; color:var(--muted); line-height:1.45; }
-  .work{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:650; color:var(--brand-strong); }
-  .work .bd{ width:6px; height:6px; border-radius:50%; background:var(--brand); }
-  .idle{ color:var(--gated); }
-  .idle .bd{ background:var(--gated); }
+  /* agents */
+  .fleet{ display:grid; grid-template-columns:repeat(auto-fill,minmax(236px,1fr)); gap:12px; }
+  .agent{ position:relative; background:var(--surface); border:1px solid var(--line); border-radius:15px; padding:15px 16px; display:flex; flex-direction:column; gap:9px;
+    box-shadow:var(--sh-amb); transition:transform .4s cubic-bezier(.2,.8,.2,1); overflow:hidden; }
+  .agent::after{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(var(--brand),var(--brand-3)); opacity:.0; transition:.3s; }
+  @media (hover:hover){ .agent:hover{ transform:translateY(-3px); } .agent:hover::after{ opacity:1; } }
+  .agent .arow{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .agent .role{ font-weight:640; font-size:14px; }
+  .agent .disc{ font-size:10px; letter-spacing:.05em; text-transform:uppercase; font-weight:700; color:var(--faint); }
+  .agent .task{ font-size:12px; color:var(--muted); line-height:1.45; }
+  .work{ display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:.03em; color:var(--brand-2); text-transform:uppercase; }
+  .work .bd{ width:6px; height:6px; border-radius:50%; background:var(--brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 22%,transparent); }
+  .work.idle{ color:var(--gated); } .work.idle .bd{ background:var(--gated); box-shadow:none; }
 
-  /* ---- insights ---- */
-  .two{ display:grid; grid-template-columns:1.4fr 1fr; gap:14px; align-items:start; }
-  .insights{ background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); overflow:hidden; }
-  .ins{ display:flex; gap:12px; padding:14px 17px; border-bottom:1px solid var(--line); align-items:flex-start; }
+  /* insights + teaser */
+  .ins{ display:flex; gap:13px; padding:13px 4px; border-bottom:1px solid var(--line); align-items:flex-start; }
   .ins:last-child{ border-bottom:none; }
-  .ins .ic{ font-family:var(--serif); font-weight:600; font-size:17px; font-variant-numeric:tabular-nums; min-width:52px; }
-  .ic.up{ color:var(--good); } .ic.down{ color:var(--good); } .ic.flat{ color:var(--muted); }
-  .ins .txt{ font-size:13.5px; color:var(--ink); } .ins .txt b{ font-weight:640; }
-  .teaser{ background:linear-gradient(160deg,var(--brand-soft),var(--surface)); border:1px dashed color-mix(in srgb,var(--brand) 40%,var(--line));
-    border-radius:14px; padding:17px; display:flex; flex-direction:column; gap:9px; }
-  .teaser .lock{ font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--brand-strong); font-weight:700; }
-  .teaser h3{ margin:0; font-family:var(--serif); font-size:19px; font-weight:600; letter-spacing:-.01em; }
+  .ins .ic{ font-family:var(--serif); font-weight:600; font-size:18px; font-variant-numeric:tabular-nums; min-width:54px; }
+  .ic.up,.ic.down{ color:var(--good); } .ic.flat{ color:var(--muted); }
+  .ins .txt{ font-size:13px; color:var(--ink-2); } .ins .txt b{ color:var(--ink); font-weight:640; }
+  .teaser{ display:flex; flex-direction:column; gap:10px; justify-content:center; background:
+      radial-gradient(120% 100% at 100% 0%, color-mix(in srgb,var(--brand) 20%,transparent), transparent 60%), var(--surface);
+    border:1px dashed color-mix(in srgb,var(--brand) 42%,var(--line)); }
+  .teaser .lock{ font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; font-weight:750; color:var(--brand-2); }
+  .teaser h3{ margin:0; font-family:var(--serif); font-size:21px; font-weight:600; letter-spacing:-.015em; }
   .teaser p{ margin:0; font-size:12.5px; color:var(--muted); }
-  .progress{ height:6px; border-radius:999px; background:color-mix(in srgb,var(--brand) 18%,transparent); overflow:hidden; }
-  .progress > i{ display:block; height:100%; width:40%; background:var(--brand); border-radius:999px; }
+  .prog{ height:7px; border-radius:999px; background:color-mix(in srgb,var(--brand) 16%,transparent); overflow:hidden; }
+  .prog i{ display:block; height:100%; width:40%; border-radius:999px; background:linear-gradient(90deg,var(--brand),var(--brand-2)); }
 
-  footer{ display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; align-items:center;
-    border-top:1px solid var(--line); padding-top:18px; font-size:12px; color:var(--faint); }
-  footer .refs{ display:flex; gap:8px; flex-wrap:wrap; }
-  footer code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; color:var(--muted);
-    background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:2px 6px; }
+  footer{ display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; align-items:center; margin-top:clamp(22px,3vw,34px);
+    padding-top:18px; border-top:1px solid var(--glass-brd); font-size:11.5px; color:var(--faint); }
+  footer .refs{ display:flex; gap:7px; flex-wrap:wrap; }
+  footer code{ font-family:var(--mono); font-size:10.5px; color:var(--muted); background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:2px 7px; }
 
-  @media (max-width:820px){
-    .hero{ grid-template-columns:1fr; } .two{ grid-template-columns:1fr; }
-  }
-
-  @keyframes pulse{ 0%{ box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 55%,transparent); } 70%{ box-shadow:0 0 0 7px transparent; } 100%{ box-shadow:0 0 0 0 transparent; } }
-  @media (prefers-reduced-motion: no-preference){ .dot.live{ animation:pulse 2.4s ease-out infinite; } }
+  .reveal{ opacity:0; transform:translateY(16px); transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1); }
+  .reveal.in{ opacity:1; transform:none; }
+  @media (prefers-reduced-motion: reduce){ .reveal{ opacity:1; transform:none; transition:none; } .lift,.card,.agent{ transition:none; } }
 </style>
 
 <div class="grow">
- <div class="wrap">
+  <canvas id="mesh" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
 
-  <div class="bar">
-    <div class="brand">
-      <svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-        <rect x="1" y="1" width="38" height="38" rx="11" fill="var(--brand-soft)" stroke="var(--brand)" stroke-opacity=".5"/>
-        <path d="M11 27c0-7 5-12 12-13-4 4-4 8-9 10 6 1 10-2 12-8 1 8-4 14-11 14-2 0-4-1-4-3z" fill="var(--brand)"/>
-        <path d="M20 30v-9" stroke="var(--brand-strong)" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
+  <div class="shell">
+
+    <nav class="nav">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="37" height="37" rx="12" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-opacity=".45"/>
+          <path d="M11 27.5c0-7.5 5.2-12.7 12.6-13.7-4.4 4.2-4.4 8.4-9.4 10.5 6.3 1.1 10.6-2.1 12.7-8.4 1 8.4-4.3 14.8-11.6 14.8-2.2 0-4.3-1.1-4.3-3.2z" fill="currentColor"/>
+          <path d="M20.5 31v-9.5" stroke="currentColor" stroke-opacity=".55" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <div><b>Consola <span>Grow</span></b><small>El patrimonio del dueño, en automático</small></div>
+      </div>
+      <div class="navlinks" id="navlinks">
+        <a href="#patrimonio" class="on">Patrimonio</a>
+        <a href="#negocios">Negocios</a>
+        <a href="#maquina">Máquina</a>
+        <a href="#agentes">Agentes</a>
+        <a href="#insights">Insights</a>
+      </div>
+      <div class="navr">
+        <span class="tag">Concepto</span>
+        <button class="tbtn" id="tbtn" type="button" aria-label="Cambiar tema">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.3"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19"/></svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- HERO -->
+    <section id="patrimonio" class="panel hero lift reveal">
       <div>
-        <h1>Consola <span>Grow</span></h1>
-        <div class="sub">El patrimonio del dueño, creciendo en automático</div>
+        <p class="eyebrow gold"><span class="tick"></span>Patrimonio proyectado · 12 meses</p>
+        <div class="capfig"><span class="cur">US$</span><span id="cap">0</span></div>
+        <span class="delta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15l6-6 4 4 6-7"/><path d="M16 6h4v4"/></svg><span id="capd">0</span>% vs. hoy · recurrente</span>
+        <p class="herolede">La Agencia no vende piezas: monta <b>negocios automatizados</b> que facturan solos y hacen <b>escalar el patrimonio</b> del dueño.</p>
       </div>
+      <div class="stagewrap">
+        <div class="cap"><span class="t">Ingreso recurrente (MRR) en construcción</span><span class="n">2 vivos · 1 en obra · +online</span></div>
+        <canvas id="iso" aria-label="Gráfico isométrico 3D del crecimiento del ingreso recurrente proyectado"></canvas>
+        <div class="axis"><span>ago</span><span>oct</span><span>dic</span><span>feb</span><span>abr</span><span>jun</span></div>
+      </div>
+    </section>
+
+    <div class="grid-gap">
+
+      <!-- BENTO: negocios + maquina -->
+      <div class="bento">
+        <section id="negocios" class="panel pad lift reveal">
+          <p class="eyebrow"><span class="tick"></span>Negocios automatizados</p>
+          <h2 class="sec">Online o físico, corriendo solos</h2>
+          <p class="lede">Cada negocio automatiza su operación apalancando el stack que la compañía ya tiene.</p>
+          <div class="biz">
+            <div class="card"><div class="top"><div><div class="name">CH Estética</div><div class="kind">Físico · estética</div></div><span class="state s-live">Vivo</span></div><div class="chips"><span class="chip">Agenda</span><span class="chip">Cobros</span><span class="chip">Recordatorios</span><span class="chip">Insights</span></div><div class="foot">Único tenant en producción.</div></div>
+            <div class="card"><div class="top"><div><div class="name">Magra</div><div class="kind">Físico · carnicería</div></div><span class="state s-obra">En obra</span></div><div class="chips"><span class="chip">POS</span><span class="chip">Stock</span><span class="chip">Tienda</span><span class="chip">Factura</span></div><div class="foot">Listo; alta gateada por RLS.</div></div>
+            <div class="card"><div class="top"><div><div class="name">arca Facturador</div><div class="kind">Online · monotributistas</div></div><span class="state s-gate">Diseño</span></div><div class="chips"><span class="chip">Ingesta MP</span><span class="chip">Factura sola</span><span class="chip">Panel contador</span></div><div class="foot">Recurrente; canal = Agencia (ADR-025).</div></div>
+            <div class="card"><div class="top"><div><div class="name">ERP self-serve</div><div class="kind">Online · go-to-market</div></div><span class="state s-gate">Meta</span></div><div class="chips"><span class="chip">Alta self-serve</span><span class="chip">Demo viva</span><span class="chip">Suscripción</span></div><div class="foot">La Agencia vende el propio ERP.</div></div>
+          </div>
+        </section>
+
+        <section id="maquina" class="panel pad lift reveal">
+          <p class="eyebrow"><span class="tick"></span>La máquina</p>
+          <h2 class="sec">El stack propio</h2>
+          <p class="lede">Lo que las agencias genéricas no tienen: genera el dato real.</p>
+          <div class="mstack">
+            <div class="mrow"><span class="dot live"></span><div class="mi"><div class="mh">Mercado Pago</div><div class="md">Cobro → dispara factura</div></div><span class="mt">Cobros</span></div>
+            <div class="mrow"><span class="dot live"></span><div class="mi"><div class="mh">ARCA</div><div class="md">Factura electrónica (CAE)</div></div><span class="mt">Fiscal</span></div>
+            <div class="mrow"><span class="dot live"></span><div class="mi"><div class="mh">Agenda · POS · Stock</div><div class="md">El negocio corre en el ERP</div></div><span class="mt">Operación</span></div>
+            <div class="mrow"><span class="dot live"></span><div class="mi"><div class="mh">Panel del Dueño</div><div class="md">El negocio te habla en llano</div></div><span class="mt">Datos</span></div>
+            <div class="mrow"><span class="dot soon"></span><div class="mi"><div class="mh">WhatsApp</div><div class="md">Reservar y pagar en el chat · pronto</div></div><span class="mt">Atención</span></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- AGENTES -->
+      <section id="agentes" class="panel pad lift reveal">
+        <p class="eyebrow"><span class="tick"></span>Tus agentes expertos</p>
+        <h2 class="sec">Un experto por área, operando como agente</h2>
+        <p class="lede">1 disciplina = 1 sesión aislada. Se paralelizan a costo marginal — por eso se montan negocios completos, no piezas tercerizadas.</p>
+        <div class="fleet">
+          <div class="agent"><div class="arow"><span class="role">Consultor de mercado</span><span class="disc">Inteligencia</span></div><div class="task">Dimensiona Canning y arma la short-list de prospectos para el piloto de SEO local.</div><span class="work"><span class="bd"></span>Trabajando</span></div>
+          <div class="agent"><div class="arow"><span class="role">Performance / Ads</span><span class="disc">Captación</span></div><div class="task">Campañas Meta/Google para captar comercios que buscan digitalizarse.</div><span class="work"><span class="bd"></span>Trabajando</span></div>
+          <div class="agent"><div class="arow"><span class="role">Contenido</span><span class="disc">Nutrición</span></div><div class="task">Calendario editorial que educa y convierte hacia el ERP.</div><span class="work idle"><span class="bd"></span>En cola</span></div>
+          <div class="agent"><div class="arow"><span class="role">Producto / Software</span><span class="disc">Construcción</span></div><div class="task">Cablea el Panel del Dueño a la pantalla — motor ya testeado.</div><span class="work"><span class="bd"></span>Trabajando</span></div>
+          <div class="agent"><div class="arow"><span class="role">Delivery / Cuentas</span><span class="disc">Entrega</span></div><div class="task">Onboarding del próximo tenant y config del blueprint por rubro.</div><span class="work idle"><span class="bd"></span>En cola</span></div>
+          <div class="agent"><div class="arow"><span class="role">PMO</span><span class="disc">Orquesta</span></div><div class="task">Secuencia lo compartido, integra a main y busca la próxima oportunidad.</div><span class="work"><span class="bd"></span>Trabajando</span></div>
+        </div>
+      </section>
+
+      <!-- INSIGHTS -->
+      <div id="insights" class="bento">
+        <section class="panel pad lift reveal">
+          <p class="eyebrow"><span class="tick"></span>El negocio te habla</p>
+          <h2 class="sec">Insights en lenguaje llano</h2>
+          <p class="lede">Sobre el dato que el ERP ya genera (Panel del Dueño, single-tenant).</p>
+          <div class="stack">
+            <div class="ins"><span class="ic down">−12%</span><span class="txt">Tu <b>no-show</b> bajó vs. el mes pasado — los recordatorios automáticos rinden.</span></div>
+            <div class="ins"><span class="ic up">+8%</span><span class="txt">Tu <b>hora-silla de la tarde</b> es la más rentable; conviene empujar turnos ahí.</span></div>
+            <div class="ins"><span class="ic flat">=</span><span class="txt">Tu <b>ticket promedio</b> viene plano hace 3 meses — oportunidad de upsell.</span></div>
+          </div>
+        </section>
+        <section class="panel pad teaser lift reveal">
+          <span class="lock">🔒 Se activa con escala</span>
+          <h3>Vos vs. tu rubro</h3>
+          <p>Benchmarking anónimo por rubro y zona. Se enciende con ≥5 negocios por cohorte — la propia Agencia trae esa masa (ADR-027).</p>
+          <div class="prog"><i></i></div>
+          <p style="font-variant-numeric:tabular-nums">2 de 5 negocios en la cohorte</p>
+        </section>
+      </div>
+
     </div>
-    <div class="bar-right">
-      <span class="pill">Concepto · sandbox</span>
-      <button class="themebtn" id="tbtn" type="button" aria-label="Cambiar tema">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
-        <span id="tlabel">Tema</span>
-      </button>
-    </div>
+
+    <footer>
+      <span>Prototipo de concepto — datos de muestra. No es producto en producción; no toca prod, Neon ni deploys.</span>
+      <span class="refs"><code>ADR-028</code><code>ADR-029</code><code>ADR-030</code><code>Agencia Grow</code></span>
+    </footer>
   </div>
-
-  <!-- HERO: patrimonio -->
-  <section class="hero">
-    <div>
-      <p class="eyebrow">Patrimonio proyectado · 12 meses</p>
-      <div class="capfig"><span class="cur">US$</span><span id="cap">0</span></div>
-      <span class="delta">▲ <span id="capd">0</span>% vs. hoy · recurrente</span>
-      <p class="herolede">La Agencia no vende piezas: monta <b>negocios automatizados</b> que facturan solos y hacen <b>escalar el patrimonio</b> del dueño.</p>
-    </div>
-    <div class="chartcard">
-      <div class="cap">
-        <span class="t">Ingreso recurrente (MRR) en construcción</span>
-        <span class="n">2 vivos · 1 en obra · +online</span>
-      </div>
-      <canvas id="spark" aria-label="Curva de crecimiento del ingreso recurrente proyectado"></canvas>
-      <div class="axis"><span>ago</span><span>oct</span><span>dic</span><span>feb</span><span>abr</span><span>jun</span></div>
-    </div>
-  </section>
-
-  <!-- NEGOCIOS AUTOMATIZADOS -->
-  <section class="sec">
-    <h2><span class="tick"></span>Negocios automatizados</h2>
-    <p class="lede">Cada negocio corre su operación lo más sola posible —online o físico— apalancando el stack que la compañía ya tiene.</p>
-    <div class="biz">
-      <div class="card">
-        <div class="top"><div><div class="name">CH Estética</div><div class="kind">Físico · estética</div></div><span class="state s-live">Vivo</span></div>
-        <div class="autorow"><span class="chip">Agenda</span><span class="chip">Cobros</span><span class="chip">Recordatorios</span><span class="chip">Insights</span></div>
-        <div class="foot">Único tenant operando en producción.</div>
-      </div>
-      <div class="card">
-        <div class="top"><div><div class="name">Magra</div><div class="kind">Físico · carnicería boutique</div></div><span class="state s-obra">En obra</span></div>
-        <div class="autorow"><span class="chip">POS</span><span class="chip">Stock</span><span class="chip">Tienda</span><span class="chip">Facturación</span></div>
-        <div class="foot">Listo; alta gateada por RLS (2º tenant).</div>
-      </div>
-      <div class="card">
-        <div class="top"><div><div class="name">arca Facturador</div><div class="kind">Online · monotributistas</div></div><span class="state s-gate">Diseño</span></div>
-        <div class="autorow"><span class="chip">Ingesta MP</span><span class="chip">Factura sola</span><span class="chip">Panel contador</span></div>
-        <div class="foot">Producto recurrente; canal = Agencia (ADR-025).</div>
-      </div>
-      <div class="card">
-        <div class="top"><div><div class="name">ERP SaaS self-serve</div><div class="kind">Online · go-to-market</div></div><span class="state s-gate">Meta</span></div>
-        <div class="autorow"><span class="chip">Alta self-serve</span><span class="chip">Demo viva</span><span class="chip">Suscripción</span></div>
-        <div class="foot">La Agencia vende el propio ERP. Cliente #1.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- LA MÁQUINA -->
-  <section class="sec">
-    <h2><span class="tick"></span>La máquina que automatiza</h2>
-    <p class="lede">El stack operativo propio: lo que las agencias genéricas no tienen. Genera el dato real (venta, factura, cobro) que alimenta todo lo demás.</p>
-    <div class="machine">
-      <div class="mcell"><span class="mt">Cobros</span><span class="mh"><span class="dot live"></span>Mercado Pago</span><span class="md">Cobro acreditado → dispara factura</span></div>
-      <div class="mcell"><span class="mt">Fiscal</span><span class="mh"><span class="dot live"></span>ARCA</span><span class="md">Factura electrónica (CAE) automática</span></div>
-      <div class="mcell"><span class="mt">Operación</span><span class="mh"><span class="dot live"></span>Agenda · POS · Stock</span><span class="md">El negocio corre en el ERP</span></div>
-      <div class="mcell"><span class="mt">Inteligencia</span><span class="mh"><span class="dot live"></span>Panel del Dueño</span><span class="md">El negocio te habla en llano</span></div>
-      <div class="mcell"><span class="mt">Atención</span><span class="mh"><span class="dot soon"></span>WhatsApp</span><span class="md">Reservar y pagar en el chat · próximo</span></div>
-    </div>
-  </section>
-
-  <!-- AGENTES EXPERTOS -->
-  <section class="sec">
-    <h2><span class="tick"></span>Tus agentes expertos</h2>
-    <p class="lede">Un experto por área, operando como agente: 1 disciplina = 1 sesión aislada. Se paralelizan a costo marginal — por eso se montan negocios completos, no piezas tercerizadas.</p>
-    <div class="fleet">
-      <div class="agent"><div class="arow"><span class="role">Consultor de mercado</span><span class="disc">Inteligencia</span></div><div class="task">Dimensiona el corredor Canning y arma la short-list de 10 prospectos para el piloto de SEO local.</div><span class="work"><span class="bd"></span>Trabajando</span></div>
-      <div class="agent"><div class="arow"><span class="role">Performance / Ads</span><span class="disc">Captación</span></div><div class="task">Prepara campañas Meta/Google para captar comercios que buscan digitalizarse.</div><span class="work"><span class="bd"></span>Trabajando</span></div>
-      <div class="agent"><div class="arow"><span class="role">Contenido</span><span class="disc">Nutrición</span></div><div class="task">Calendario editorial que educa y convierte hacia el ERP y el storefront.</div><span class="work idle"><span class="bd"></span>En cola</span></div>
-      <div class="agent"><div class="arow"><span class="role">Producto / Software</span><span class="disc">Construcción</span></div><div class="task">Cablea el Panel del Dueño a la pantalla — motor ya construido y testeado.</div><span class="work"><span class="bd"></span>Trabajando</span></div>
-      <div class="agent"><div class="arow"><span class="role">Delivery / Cuentas</span><span class="disc">Entrega</span></div><div class="task">Onboarding del próximo tenant y configuración del blueprint por rubro.</div><span class="work idle"><span class="bd"></span>En cola</span></div>
-      <div class="agent"><div class="arow"><span class="role">PMO</span><span class="disc">Orquesta</span></div><div class="task">Secuencia lo compartido, integra a main y busca la próxima oportunidad de forma proactiva.</div><span class="work"><span class="bd"></span>Trabajando</span></div>
-    </div>
-  </section>
-
-  <!-- INSIGHTS + TEASER -->
-  <section class="sec">
-    <h2><span class="tick"></span>El negocio te habla</h2>
-    <p class="lede">Insights automáticos en lenguaje llano sobre el dato que el ERP ya genera (Panel del Dueño, single-tenant).</p>
-    <div class="two">
-      <div class="insights">
-        <div class="ins"><span class="ic down">−12%</span><span class="txt">Tu <b>no-show</b> bajó respecto del mes pasado — los recordatorios automáticos están rindiendo.</span></div>
-        <div class="ins"><span class="ic up">+8%</span><span class="txt">Tu <b>hora-silla de la tarde</b> es la más rentable; conviene empujar turnos ahí.</span></div>
-        <div class="ins"><span class="ic flat">=</span><span class="txt">Tu <b>ticket promedio</b> viene plano hace 3 meses — oportunidad de upsell o combos.</span></div>
-      </div>
-      <div class="teaser">
-        <span class="lock">🔒 Se activa con escala</span>
-        <h3>Vos vs. tu rubro</h3>
-        <p>Benchmarking anónimo por rubro y zona. Se enciende con ≥5 negocios por cohorte — la propia Agencia trae esa masa (ADR-027).</p>
-        <div class="progress"><i></i></div>
-        <p style="font-variant-numeric:tabular-nums">2 de 5 negocios en la cohorte</p>
-      </div>
-    </div>
-  </section>
-
-  <footer>
-    <span>Prototipo de concepto — no es producto en producción. No toca prod, Neon ni deploys.</span>
-    <span class="refs"><code>ADR-028</code><code>ADR-029</code><code>ADR-030</code><code>Agencia Grow</code></span>
-  </footer>
-
- </div>
 </div>
 
 <script>
 (function(){
-  // ---- theme toggle ----
-  var root=document.documentElement, btn=document.getElementById('tbtn'), lbl=document.getElementById('tlabel');
-  function cur(){ var a=root.getAttribute('data-theme'); if(a) return a;
-    return matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'; }
-  function sync(){ lbl.textContent = cur()==='dark'?'Claro':'Oscuro'; }
-  btn.addEventListener('click',function(){ root.setAttribute('data-theme', cur()==='dark'?'light':'dark'); sync(); draw(1); });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', sync); sync();
-
-  // ---- count up ----
-  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function countUp(el,to,dur,fmt){ var t0=null;
-    function step(ts){ if(!t0)t0=ts; var p=Math.min(1,(ts-t0)/dur); var e=1-Math.pow(1-p,3);
-      el.textContent=fmt(to*e); if(p<1) requestAnimationFrame(step); }
-    if(reduce){ el.textContent=fmt(to); } else requestAnimationFrame(step); }
-  var nf=new Intl.NumberFormat('es-AR');
-  countUp(document.getElementById('cap'), 214000, 1400, function(v){ return nf.format(Math.round(v/1000)*1000); });
-  countUp(document.getElementById('capd'), 240, 1400, function(v){ return Math.round(v); });
-
-  // ---- growth area chart ----
-  var data=[18,22,27,31,40,52,63,79,96,120,158,214]; // proyección MRRx1000
-  var cv=document.getElementById('spark'), ctx=cv.getContext('2d');
+  var root=document.documentElement, reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
   function css(n){ return getComputedStyle(root).getPropertyValue(n).trim(); }
-  var progress=0, raf=null;
-  function draw(p){
-    var dpr=Math.max(1,window.devicePixelRatio||1);
-    var w=cv.clientWidth, h=cv.clientHeight;
-    cv.width=w*dpr; cv.height=h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
-    var pad=6, min=Math.min.apply(null,data), max=Math.max.apply(null,data);
-    var n=data.length, shown=Math.max(2,Math.round(n*p));
-    function X(i){ return pad+(w-2*pad)*(i/(n-1)); }
-    function Y(v){ return (h-pad) - (h-2*pad)*((v-min)/(max-min)); }
-    // faint grid
-    ctx.strokeStyle=css('--line'); ctx.lineWidth=1;
-    for(var g=0; g<3; g++){ var yy=pad+(h-2*pad)*g/2; ctx.beginPath(); ctx.moveTo(pad,yy); ctx.lineTo(w-pad,yy); ctx.stroke(); }
-    // area
-    var brand=css('--brand');
-    var grad=ctx.createLinearGradient(0,pad,0,h);
-    grad.addColorStop(0, hexa(brand,.32)); grad.addColorStop(1, hexa(brand,0));
-    ctx.beginPath(); ctx.moveTo(X(0),Y(data[0]));
-    for(var i=1;i<shown;i++){ var xc=(X(i-1)+X(i))/2; ctx.quadraticCurveTo(X(i-1),Y(data[i-1]),xc,(Y(data[i-1])+Y(data[i]))/2); ctx.lineTo(X(i),Y(data[i])); }
-    ctx.lineTo(X(shown-1),h-pad); ctx.lineTo(X(0),h-pad); ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
-    // line
-    ctx.beginPath(); ctx.moveTo(X(0),Y(data[0]));
-    for(i=1;i<shown;i++){ ctx.lineTo(X(i),Y(data[i])); }
-    ctx.strokeStyle=brand; ctx.lineWidth=2.4; ctx.lineJoin='round'; ctx.stroke();
-    // endpoint
-    var ex=X(shown-1), ey=Y(data[shown-1]);
-    ctx.beginPath(); ctx.arc(ex,ey,4.5,0,7); ctx.fillStyle=css('--surface'); ctx.fill();
-    ctx.lineWidth=2.6; ctx.strokeStyle=brand; ctx.stroke();
-  }
-  function hexa(hex,a){ hex=hex.replace('#',''); if(hex.length===3){hex=hex.split('').map(function(c){return c+c;}).join('');}
+  function cur(){ return root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'); }
+
+  // theme toggle
+  document.getElementById('tbtn').addEventListener('click',function(){ root.setAttribute('data-theme', cur()==='dark'?'light':'dark'); drawIso(1); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){ drawIso(1); });
+
+  // count up
+  function up(el,to,fmt){ if(reduce){ el.textContent=fmt(to); return; } var t0=null;
+    function s(ts){ if(!t0)t0=ts; var p=Math.min(1,(ts-t0)/1500), e=1-Math.pow(1-p,3); el.textContent=fmt(to*e); if(p<1)requestAnimationFrame(s); } requestAnimationFrame(s); }
+  var nf=new Intl.NumberFormat('es-AR');
+  up(document.getElementById('cap'),214000,function(v){ return nf.format(Math.round(v/1000)*1000); });
+  up(document.getElementById('capd'),240,function(v){ return Math.round(v); });
+
+  // scroll reveal + active nav
+  var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting) e.target.classList.add('in'); }); },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+  var links=[].slice.call(document.querySelectorAll('#navlinks a'));
+  var secs=links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  var sio=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ var i=secs.indexOf(e.target);
+    links.forEach(function(l){ l.classList.remove('on'); }); if(links[i]) links[i].classList.add('on'); } }); },{rootMargin:'-45% 0px -50% 0px'});
+  secs.forEach(function(s){ if(s) sio.observe(s); });
+
+  // ---------- ambient mesh background ----------
+  var mc=document.getElementById('mesh'), mx=mc.getContext('2d'), blobs=[];
+  function rgba(hex,a){ hex=hex.replace('#',''); if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');
+    return 'rgba('+parseInt(hex.substr(0,2),16)+','+parseInt(hex.substr(2,2),16)+','+parseInt(hex.substr(4,2),16)+','+a+')'; }
+  function seedBlobs(){ blobs=[
+    {x:.15,y:.0,r:.55,c:'--brand',a:cur()==='dark'?.20:.16,px:.018,py:.01},
+    {x:.9,y:.15,r:.5,c:'--capital',a:cur()==='dark'?.12:.10,px:-.013,py:.016},
+    {x:.7,y:.9,r:.6,c:'--brand-2',a:cur()==='dark'?.16:.12,px:.011,py:-.012}
+  ]; }
+  var mw,mh,dpr;
+  function sizeMesh(){ dpr=Math.max(1,window.devicePixelRatio||1); mw=mc.clientWidth; mh=mc.clientHeight; mc.width=mw*dpr; mc.height=mh*dpr; mx.setTransform(dpr,0,0,dpr,0,0); }
+  function drawMesh(t){ mx.clearRect(0,0,mw,mh);
+    for(var i=0;i<blobs.length;i++){ var b=blobs[i];
+      var cxp=(b.x+Math.sin(t*b.px)* .06)*mw, cyp=(b.y+Math.cos(t*b.py)* .06)*mh, rr=b.r*Math.max(mw,mh);
+      var g=mx.createRadialGradient(cxp,cyp,0,cxp,cyp,rr); g.addColorStop(0,rgba(css(b.c),b.a)); g.addColorStop(1,rgba(css(b.c),0));
+      mx.fillStyle=g; mx.fillRect(0,0,mw,mh); } }
+  seedBlobs(); sizeMesh();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',seedBlobs);
+  document.getElementById('tbtn').addEventListener('click',function(){ setTimeout(seedBlobs,0); });
+  var mt=0;
+  function meshLoop(){ mt+=1; drawMesh(mt); if(!reduce) requestAnimationFrame(meshLoop); }
+  if(reduce) drawMesh(0); else meshLoop();
+
+  // ---------- 3D isometric growth chart ----------
+  var cv=document.getElementById('iso'), cx2=cv.getContext('2d');
+  var data=[16,20,25,30,38,49,60,75,92,118,155,214];
+  var yaw=0, targetYaw=0, W,H,cxo,cyo,scale,IX,IY;
+  function sizeIso(){ dpr=Math.max(1,window.devicePixelRatio||1); W=cv.clientWidth; H=cv.clientHeight; cv.width=W*dpr; cv.height=H*dpr; cx2.setTransform(dpr,0,0,dpr,0,0); }
+  function shade(hex,f){ hex=hex.replace('#',''); if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');
     var r=parseInt(hex.substr(0,2),16),g=parseInt(hex.substr(2,2),16),b=parseInt(hex.substr(4,2),16);
-    return 'rgba('+r+','+g+','+b+','+a+')'; }
-  function animate(){ if(reduce){ draw(1); return; } var t0=null;
-    function step(ts){ if(!t0)t0=ts; var p=Math.min(1,(ts-t0)/1500); draw(1-Math.pow(1-p,3)); if(p<1) raf=requestAnimationFrame(step); }
-    raf=requestAnimationFrame(step); }
-  var ro=new ResizeObserver(function(){ draw(1); }); ro.observe(cv);
-  animate();
+    r=Math.round(Math.min(255,r*f)); g=Math.round(Math.min(255,g*f)); b=Math.round(Math.min(255,b*f)); return 'rgb('+r+','+g+','+b+')'; }
+  function proj(px,py,pz){ var rx=px*Math.cos(yaw)-pz*Math.sin(yaw), rz=px*Math.sin(yaw)+pz*Math.cos(yaw);
+    return [cxo+(rx-rz)*IX, cyo+(rx+rz)*IY - py*scale]; }
+  function face(pts,fill){ cx2.beginPath(); cx2.moveTo(pts[0][0],pts[0][1]); for(var i=1;i<pts.length;i++)cx2.lineTo(pts[i][0],pts[i][1]); cx2.closePath(); cx2.fillStyle=fill; cx2.fill(); }
+  function drawIso(prog){
+    sizeIso(); cx2.clearRect(0,0,W,H);
+    var n=data.length, max=Math.max.apply(null,data);
+    var bw=0.62, gap=0.38, step=bw+gap, span=n*step;
+    scale=Math.min(H*0.62/max, 4.2);
+    IX=Math.min(W,520)/span/2*0.92; IY=IX*0.5;
+    cxo=W/2 + (span*step*0)/1; cyo=H*0.80;
+    // center the row
+    var mid=(n-1)*step/2;
+    var brand=css('--brand'), brand2=css('--brand-2');
+    // ground grid
+    cx2.strokeStyle=rgba(css('--ink'),cur()==='dark'?.10:.08); cx2.lineWidth=1;
+    for(var gx=0; gx<=n; gx++){ var xx=gx*step-mid-gap/2; var a=proj(xx,0,-gap/2), b=proj(xx,0,span*0.14); cx2.beginPath(); cx2.moveTo(a[0],a[1]); cx2.lineTo(b[0],b[1]); cx2.stroke(); }
+    // bars back-to-front (already left-to-right works for this yaw)
+    for(var i=0;i<n;i++){
+      var reveal=Math.max(0,Math.min(1,prog*n-i)); if(reveal<=0) continue;
+      var h=data[i]*reveal;
+      var x0=i*step-mid, x1=x0+bw, z0=0, z1=0.62;
+      var top=[proj(x0,h,z0),proj(x1,h,z0),proj(x1,h,z1),proj(x0,h,z1)];
+      var front=[proj(x0,0,z0),proj(x1,0,z0),proj(x1,h,z0),proj(x0,h,z0)];
+      var side=[proj(x1,0,z0),proj(x1,0,z1),proj(x1,h,z1),proj(x1,h,z0)];
+      var isLast=(i===n-1);
+      var base=isLast?brand:brand2;
+      face(side, shade(base,cur()==='dark'?0.62:0.72));
+      face(front, shade(base,cur()==='dark'?0.82:0.9));
+      face(top, shade(base, isLast?1.18:1.05));
+      if(isLast){ var c=proj(x0+bw/2,h,z1/2);
+        var gg=cx2.createRadialGradient(c[0],c[1]-6,0,c[0],c[1]-6,26); gg.addColorStop(0,rgba(brand,.5)); gg.addColorStop(1,rgba(brand,0)); cx2.fillStyle=gg; cx2.fillRect(c[0]-30,c[1]-36,60,46); }
+    }
+  }
+  var t0=null;
+  function animIso(){ if(reduce){ drawIso(1); return; }
+    function s(ts){ if(!t0)t0=ts; var p=Math.min(1,(ts-t0)/1600); yaw += (targetYaw-yaw)*0.08; drawIso(1-Math.pow(1-p,3)); if(p<1||Math.abs(targetYaw-yaw)>0.001) requestAnimationFrame(s); }
+    requestAnimationFrame(s); }
+  // pointer parallax on the chart
+  if(matchMedia('(hover:hover)').matches && !reduce){
+    cv.addEventListener('pointermove',function(e){ var r=cv.getBoundingClientRect(); targetYaw=((e.clientX-r.left)/r.width-0.5)*0.5; requestAnimationFrame(function(){ yaw+=(targetYaw-yaw)*0.12; drawIso(1); }); });
+    cv.addEventListener('pointerleave',function(){ targetYaw=0; var k=setInterval(function(){ yaw+=(targetYaw-yaw)*0.12; drawIso(1); if(Math.abs(targetYaw-yaw)<0.002){ yaw=0; drawIso(1); clearInterval(k);} },16); });
+  }
+  var ro=new ResizeObserver(function(){ sizeMesh(); seedBlobs(); drawIso(1); }); ro.observe(cv); ro.observe(mc);
+  animIso();
 })();
 </script>
 </body>

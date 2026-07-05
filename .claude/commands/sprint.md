@@ -66,7 +66,7 @@ a mano**. Secuencia exacta:
 3. **El tenant NO es eje de paralelización de código** — el multi-tenant se resuelve **una sola vez** en la capa **plataforma/RLS** (aislamiento por fila). No hay una sesión de código por cliente.
 4. **EXCEPCIÓN — delivery por cliente** — el trabajo de **entrega/operación** de un cliente (onboarding, config, datos, deliverables) **sí** puede tener su sesión por cliente, porque **no toca el core compartido**. Regla mnemotécnica: **core = por dominio; delivery = puede ser por cliente**.
 5. **Lo compartido lo SECUENCIA el PMO en serie** — `prisma/schema.prisma`, migraciones y auth/tenancy (`tenant.ts` / `rls.ts`) **no** se reparten a dos frentes a la vez: entran de a uno para que no peleen los mismos archivos.
-6. **Capas fijas de toda corrida** — **PMO por encima** (lidera + secuencia lo compartido + merge-master + **avance e innovación proactiva en AMBOS sectores**) y **N frentes de Desarrollo por core en los DOS SECTORES**: **Sector ERP** → Pagos · Caja · Inventario/POS · Fiscal · Plataforma · **Diseño** (ahora core); **Sector Agencia Grow** → Consultores/Análisis de mercado · Desarrolladores · PMO proactivo. Calidad/tests no es core (cada dueño entrega en verde).
+6. **Capas fijas de toda corrida** — **PMO por encima** (lidera + secuencia lo compartido + merge-master + **avance e innovación proactiva en AMBOS sectores**) y **N frentes de Desarrollo por core en los DOS SECTORES**: **Sector ERP** → Pagos · Caja · Inventario/POS · Fiscal · Plataforma · **Diseño** (ahora core); **Sector Agencia Grow** → Consultores/Análisis de mercado · Desarrolladores · PMO proactivo · **Front/Consola Grow**. Calidad/tests no es core (cada dueño entrega en verde).
 
 ## Fases OBLIGATORIAS de `sprint`: FASE 0 (Exploración) + FASE FINAL (Backup)
 Objetivo: que **no se repitan errores de migración, cosas dejadas afuera, ni pérdida de contexto** entre sprints.
@@ -116,6 +116,7 @@ Charter: **misma metodología y mismo PMO, pero repos/deploys SEPARADOS** del ER
 7. **Consultores / Análisis de mercado** (inteligencia de mercado, estado del arte, estrategia, diferencial con evidencia) → repo del sector · `frente/agencia-consultores`. Entregables: `docs/sectores/agencia-grow/analisis-mercado/`.
 8. **Desarrolladores** (construir lo que los consultores validan, apalancando ERP/ARCA/storefront) → repo del sector · `frente/agencia-dev`.
 9. **PMO proactivo (Agencia)** (avance + **búsqueda proactiva de innovación/oportunidades** del sector) → repo del sector · `frente/agencia-pmo`.
+10. **Front / Consola Grow** (diseño de producto del sector: la **Consola Grow** —cockpit del dueño— y el design system/estética 3D moderna, la referencia visual del **Panel del Dueño** y los storefronts brandeables) → repo del sector · `frente/agencia-front`. Territorio: `docs/sectores/agencia-grow/prototipos/` (concepto) y, al construir, la pantalla real con **Producto/Software** (frente 8). Arranca leyendo `prototipos/consola-grow.html` + `README.md`.
 
 ### PMO por encima de AMBOS sectores
 **PMO** (esta sesión, sobre `main`): estrategia, tablero, **asigna cores/frentes**, **secuencia lo compartido (regla 5)**, **MERGE-MASTER**, y **da avance + busca proactivamente innovación en los dos sectores** (ERP y Agencia) → **`main`**.
