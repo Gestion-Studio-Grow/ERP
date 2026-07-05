@@ -76,21 +76,29 @@ Estas seis reglas son la ley del sprint. Rigen sobre todo lo demás de este docu
    - **PMO (por encima)** — lidera, asigna cores, **secuencia lo compartido**, integra estrategia/
      roadmap/tablero (absorbe la función ejecutiva) y es **merge-master** a `main` (sobre `main`, sin
      worktree propio).
-   - **N frentes de Desarrollo — uno por core.** Cores canónicos hoy: **Pagos · Caja ·
-     Inventario/POS · Fiscal · Plataforma** (ver "Mapa de cores" abajo).
-   - **Diseño/UX transversal** — capa **cross-cutting on-demand** (tokens, primitivos, branding por
-     tenant), **no** un core: se levanta cuando hay trabajo de UI a lo ancho. **Calidad/tests** tampoco
-     es core: cada dueño entrega su core en verde (regla "verde antes de commitear").
+   - **N frentes de Desarrollo — uno por core, en los DOS SECTORES de la compañía** (ver "Mapa de
+     sectores y cores" abajo). Al invocar `sprint` se abren automáticamente frentes de **ambos**:
+     - **Sector ERP multi-tenant:** **Pagos · Caja · Inventario/POS · Fiscal · Plataforma · Diseño.**
+     - **Sector Agencia Digital:** **Consultores/Análisis de mercado · Desarrolladores · PMO proactivo.**
+   - **Calidad/tests** no es core: cada dueño entrega su core en verde (regla "verde antes de
+     commitear"). (Diseño **dejó de ser cross-cutting** y ahora es **core** del sector ERP.)
 
 ---
 
-## Mapa de CORES: cada sesión es dueña de un core (eje de paralelización)
+## Mapa de SECTORES y CORES: cada sesión es dueña de un core/frente (eje de paralelización)
 
-El código se reparte por **core de negocio** y **cada sesión es dueña de un core** de punta a punta
-(arquitectura + producto + tests de ese core). La especialidad orienta pero no limita; lo que **no**
-se hace es partir por tenant: el eje del código es el **core**, nunca el cliente (reglas 2–3). Un
-tenant completo de punta a punta solo es unidad de sesión para **delivery/operación** (regla 4).
+La compañía tiene **DOS SECTORES**, y al invocar `sprint` la creación automática de sesiones
+(regla 1) abre frentes de **ambos** — 1 frente = 1 worktree = 1 sesión. El trabajo se reparte por
+**core/frente**, nunca por tenant ni por cliente (reglas 2–3); cada sesión es dueña de su core de
+punta a punta. Un tenant completo de punta a punta solo es unidad de sesión para **delivery** (regla 4).
 
+**Lectura de fundamento al abrir (OBLIGATORIA, antes de tocar nada):**
+- **Todas las sesiones:** la **FASE 0 Exploración** del repo (`docs/ESTADO-ACTUAL.md` + `git status` +
+  migraciones pendientes) — su fundamento del estado del proyecto.
+- **Las del sector Agencia Digital, ADEMÁS:** **`docs/sectores/agencia-digital/FUNDAMENTO.md`** — para
+  entender **quiénes son y qué tienen que hacer** (identidad, misión, servicios, forma de trabajo).
+
+### Sector A — ERP multi-tenant (`estetica-erp`)
 | Core (sesión dueña) | Alcance | Territorio de archivos (propio) | Worktree · rama |
 |---|---|---|---|
 | **Pagos** | adapters/gateway de cobros: Mercado Pago, checkout/seña, webhooks de cobro, conciliación | `src/plugins/mercadopago/`, `src/app/api/webhooks/mercadopago/`, `src/lib/mercadopago-*.ts`, preferencia/checkout | `estetica-erp-pagos` · `frente/pagos` |
@@ -98,25 +106,42 @@ tenant completo de punta a punta solo es unidad de sesión para **delivery/opera
 | **Inventario/POS** | stock, productos, compras/reposición, proveedores | `src/lib/order-actions.ts`, `product-*`, POS/`pedidos`, compras (Supplier/PurchaseOrder) UI | `estetica-erp-inventario` · `frente/inventario` |
 | **Fiscal** | ARCA/WSFEv1, facturación, certificados | `src/plugins/arca/`, `src/lib/invoice-core.ts`, `fiscal.ts`, `arca-dispatch.ts` | `estetica-erp-fiscal` · `frente/fiscal` |
 | **Plataforma** | RLS/tenancy, performance, auth, observabilidad **+ reporting** | `src/lib/tenant*.ts`, `rls.ts`, `prisma/rls/`, `session.ts`, `capabilities.ts`, `authz.ts`, `getReportData`/`reportes/`, perf/obs | `estetica-erp-plataforma` · `frente/plataforma` |
-| **PMO** (por encima) | estrategia, roadmap, tablero, **asigna cores**, **secuencia lo compartido (regla 5)** y **MERGE-MASTER** | — (trabaja sobre **`main`**) | **`main`** (esta sesión) |
+| **Diseño** | sistema de diseño/UX: tokens, primitivos, branding por tenant (ahora **core**, ya no cross-cutting) | `src/components/ui/`, `src/lib/branding.ts`, tokens/tema, adopción por pantallas | `estetica-erp-diseno` · `frente/diseno` |
 
-> **Cross-cutting (no son cores):** **Calidad/tests** — cada dueño de core entrega con tests en verde
-> (regla "verde antes de commitear"). **Diseño/UX transversal** (tokens, primitivos, branding por
-> tenant) — se levanta como **sesión cross-cutting puntual** cuando hay UI a lo ancho, **no** es eje
-> de paralelización.
+### Sector B — Agencia Digital
+Identidad, frentes y territorio en el **charter `docs/sectores/agencia-digital.md`** +
+**`docs/sectores/agencia-digital/FUNDAMENTO.md`** (que cada sesión del sector lee al abrir). Por
+decisión del charter: **misma metodología y mismo PMO, pero repos/deploys SEPARADOS** del ERP → los
+worktrees/ramas de la Agencia viven en el **repo propio del sector**.
+| Frente (sesión dueña) | Alcance | Worktree · rama |
+|---|---|---|
+| **Consultores / Análisis de mercado** | inteligencia de mercado, estado del arte, estrategia, diferencial **con evidencia** → `docs/sectores/agencia-digital/analisis-mercado/` | repo del sector · `frente/agencia-consultores` |
+| **Desarrolladores** | construir **lo que los consultores validan**, apalancando ERP/ARCA/storefront antes que de cero | repo del sector · `frente/agencia-dev` |
+| **PMO proactivo (Agencia)** | avance + **búsqueda proactiva de innovación/oportunidades** del sector | repo del sector · `frente/agencia-pmo` |
 
-El PMO no tiene worktree propio: **trabaja sobre `main`**, orquesta, **asigna cada core activo a una
-sesión+worktree**, **secuencia en serie los cimientos compartidos** (schema/migraciones/auth-tenancy,
-regla 5) y es el único que integra.
+### PMO por encima de AMBOS sectores
+El **PMO** (esta sesión, sobre `main`) orquesta los dos sectores: **asigna cores/frentes**,
+**secuencia en serie los cimientos compartidos** (schema/migraciones/auth-tenancy, regla 5),
+integra (merge-master), y **da avance y busca proactivamente innovación en ambos sectores** — ERP y
+Agencia. No tiene worktree propio.
 
-### Worktrees base (un worktree por core)
+> **Cross-cutting (no es core):** **Calidad/tests** — cada dueño de core entrega en verde (regla
+> "verde antes de commitear"). **Diseño** pasó a ser **core** del sector ERP, ya no cross-cutting.
+
+### Worktrees base (un worktree por core/frente)
 ```
-PMO (main)       C:/Users/mlloveras2/Documents/Claude/estetica-erp
-Pagos            C:/Users/mlloveras2/Documents/Claude/estetica-erp-pagos         [frente/pagos]
-Caja             C:/Users/mlloveras2/Documents/Claude/estetica-erp-caja          [frente/caja]
-Inventario/POS   C:/Users/mlloveras2/Documents/Claude/estetica-erp-inventario    [frente/inventario]
-Fiscal           C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal        [frente/fiscal]
-Plataforma       C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataforma    [frente/plataforma]
+PMO (main)              C:/Users/mlloveras2/Documents/Claude/estetica-erp
+— Sector ERP multi-tenant —
+Pagos                   C:/Users/mlloveras2/Documents/Claude/estetica-erp-pagos                 [frente/pagos]
+Caja                    C:/Users/mlloveras2/Documents/Claude/estetica-erp-caja                  [frente/caja]
+Inventario/POS          C:/Users/mlloveras2/Documents/Claude/estetica-erp-inventario            [frente/inventario]
+Fiscal                  C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal                [frente/fiscal]
+Plataforma              C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataforma            [frente/plataforma]
+Diseño                  C:/Users/mlloveras2/Documents/Claude/estetica-erp-diseno                [frente/diseno]
+— Sector Agencia Digital (repo/deploys PROPIOS — ver docs/sectores/agencia-digital.md) —
+Consultores/Mercado     <repo propio del sector>   [frente/agencia-consultores]
+Desarrolladores         <repo propio del sector>   [frente/agencia-dev]
+PMO Agencia             <repo propio del sector>   [frente/agencia-pmo]
 ```
 
 ---
@@ -236,6 +261,10 @@ El PMO, **antes de tocar nada ni abrir frentes**, hace un barrido y deja la foto
   aplicar** (si no se toca Neon, se deriva de docs y se marca "a confirmar"), gates pendientes,
   tenants existentes.
 - **Produce/actualiza `docs/ESTADO-ACTUAL.md`** con esa foto.
+
+**Fundamento por sector (cada sesión lo lee al abrir):** toda sesión arranca por la FASE 0; **las del
+sector Agencia Digital leen además `docs/sectores/agencia-digital/FUNDAMENTO.md`** (quiénes son y qué
+tienen que hacer) antes de ejecutar.
 
 > **Regla dura:** **nadie despacha frentes sin la foto.** Si `docs/ESTADO-ACTUAL.md` no quedó al
 > día, la FASE 0 no terminó y el sprint no arranca.

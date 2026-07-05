@@ -32,7 +32,7 @@ El barrido de la FASE 0 cubre, como mínimo:
 3. **El tenant NO es eje de paralelización de código** — el multi-tenant se resuelve **una sola vez** en la capa **plataforma/RLS** (aislamiento por fila). No hay una sesión de código por cliente.
 4. **EXCEPCIÓN — delivery por cliente** — el trabajo de **entrega/operación** de un cliente (onboarding, config, datos, deliverables) **sí** puede tener su sesión por cliente, porque **no toca el core compartido**. Regla mnemotécnica: **core = por dominio; delivery = puede ser por cliente**.
 5. **Lo compartido lo SECUENCIA el PMO en serie** — `prisma/schema.prisma`, migraciones y auth/tenancy (`tenant.ts` / `rls.ts`) **no** se reparten a dos frentes a la vez: entran de a uno para que no peleen los mismos archivos.
-6. **Capas fijas de toda corrida** — **PMO por encima** (lidera + secuencia lo compartido + merge-master, absorbe la función ejecutiva) y **N frentes de Desarrollo, uno por core**: **Pagos · Caja · Inventario/POS · Fiscal · Plataforma**. Calidad/tests no es core (cada dueño entrega en verde); Diseño/UX es capa cross-cutting on-demand.
+6. **Capas fijas de toda corrida** — **PMO por encima** (lidera + secuencia lo compartido + merge-master + **avance e innovación proactiva en AMBOS sectores**) y **N frentes de Desarrollo por core en los DOS SECTORES**: **Sector ERP** → Pagos · Caja · Inventario/POS · Fiscal · Plataforma · **Diseño** (ahora core); **Sector Agencia Digital** → Consultores/Análisis de mercado · Desarrolladores · PMO proactivo. Calidad/tests no es core (cada dueño entrega en verde).
 
 ## Fases OBLIGATORIAS de `sprint`: FASE 0 (Exploración) + FASE FINAL (Backup)
 Objetivo: que **no se repitan errores de migración, cosas dejadas afuera, ni pérdida de contexto** entre sprints.
@@ -60,15 +60,31 @@ eso rompe el paralelo y mezcla contextos. La correspondencia es **1 frente = 1 w
   (sin laptop / sin capacidad de spawnear), se degrada a **una sola sesión reutilizada en serie**,
   un tema por commit (ver `docs/SPRINT-MOVIL.md`). Es un degradado explícito, no el modo normal.
 
-## Cores: cada sesión es dueña de un core (especialidad-líder, NO jaula)
-Cada sesión toma un **core de punta a punta** (regla 2); la especialidad orienta pero no limita. Un
-**tenant completo** solo es unidad de sesión para **delivery** (regla 4), no para código del Core.
+## DOS SECTORES: cada sesión es dueña de un core/frente (especialidad-líder, NO jaula)
+Al invocar `sprint` se abren automáticamente frentes de **AMBOS sectores** de la compañía (1 frente =
+1 worktree = 1 sesión). Cada sesión toma su core/frente de punta a punta (regla 2). Un **tenant
+completo** solo es unidad de sesión para **delivery** (regla 4), no para código del Core.
+
+**Fundamento al abrir (obligatorio):** toda sesión lee **PRIMERO** la **FASE 0** (foto del repo, arriba);
+**las del sector Agencia Digital leen ADEMÁS `docs/sectores/agencia-digital/FUNDAMENTO.md`** (quiénes
+son y qué tienen que hacer) antes de ejecutar.
+
+### Sector A — ERP multi-tenant
 1. **Pagos** (adapters/gateway de cobros: Mercado Pago, checkout/seña, webhooks de cobro, conciliación) → `../estetica-erp-pagos` · `frente/pagos`. Territorio: `src/plugins/mercadopago/`, `api/webhooks/mercadopago/`, `mercadopago-*.ts`.
 2. **Caja** (caja del POS + UX `/admin/caja`: apertura/cierre/arqueo/movimientos) → `../estetica-erp-caja` · `frente/caja`. Territorio: `src/app/admin/caja/`, `cash-*.ts`.
 3. **Inventario/POS** (stock, productos, compras/reposición, proveedores) → `../estetica-erp-inventario` · `frente/inventario`. Territorio: `order-actions.ts`, `product-*`, compras (Supplier/PO).
 4. **Fiscal** (ARCA/WSFEv1, facturación, certs) → `../estetica-erp-fiscal` · `frente/fiscal`. Territorio: `src/plugins/arca/`, `invoice-core.ts`, `fiscal.ts`, `arca-dispatch.ts`.
 5. **Plataforma** (RLS/tenancy, perf, auth, observabilidad + reporting) → `../estetica-erp-plataforma` · `frente/plataforma`. **Dueño del cimiento auth/tenancy.** Territorio: `tenant*.ts`, `rls.ts`, `prisma/rls/`, `session.ts`, `capabilities.ts`, `authz.ts`, `reportes/`.
-6. **PMO** (por encima): estrategia, roadmap, tablero, **asigna cores**, **secuencia lo compartido (regla 5)** y **MERGE-MASTER** → **`main`** (esta sesión).
+6. **Diseño** (sistema de diseño/UX: tokens, primitivos, branding por tenant — ahora **core**, ya no cross-cutting) → `../estetica-erp-diseno` · `frente/diseno`. Territorio: `src/components/ui/`, `branding.ts`, tokens/tema.
+
+### Sector B — Agencia Digital (charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md`)
+Charter: **misma metodología y mismo PMO, pero repos/deploys SEPARADOS** del ERP → worktrees/ramas en el **repo propio del sector**.
+7. **Consultores / Análisis de mercado** (inteligencia de mercado, estado del arte, estrategia, diferencial con evidencia) → repo del sector · `frente/agencia-consultores`. Entregables: `docs/sectores/agencia-digital/analisis-mercado/`.
+8. **Desarrolladores** (construir lo que los consultores validan, apalancando ERP/ARCA/storefront) → repo del sector · `frente/agencia-dev`.
+9. **PMO proactivo (Agencia)** (avance + **búsqueda proactiva de innovación/oportunidades** del sector) → repo del sector · `frente/agencia-pmo`.
+
+### PMO por encima de AMBOS sectores
+**PMO** (esta sesión, sobre `main`): estrategia, tablero, **asigna cores/frentes**, **secuencia lo compartido (regla 5)**, **MERGE-MASTER**, y **da avance + busca proactivamente innovación en los dos sectores** (ERP y Agencia) → **`main`**.
 
 ## Escala (un worktree por core en código / por cliente en delivery)
 Abrí un worktree por unidad paralela, con el eje de la regla 2: **código → uno por core**,
