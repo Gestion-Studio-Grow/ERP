@@ -15,6 +15,7 @@ import { requireCapability } from "@/lib/authz";
 import { retailWordingForSlug } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
 import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
+import { recordCashSaleMovement } from "@/lib/caja/cash-sale";
 import type { $Enums } from "@/generated/prisma/client";
 
 type OrderStatus = $Enums.OrderStatus;
@@ -74,13 +75,45 @@ function parseItems(formData: FormData): { productId: string; qty: number }[] {
   return productIds.map((id, i) => ({ productId: id, qty: quantities[i] }));
 }
 
+// Imputa (best-effort) la venta en efectivo a la caja abierta. Es best-effort a
+// propósito: una venta YA cobrada no se revierte porque la caja falle o no esté
+// abierta. Si `recordCashSaleMovement` lanza un error real de DB, se audita y se
+// sigue —el mostrador nunca se bloquea; el ingreso puede cargarse a mano—. Los
+// "no corresponde" (no efectivo, sin caja abierta, ya registrado) vuelven como
+// { recorded: false } sin lanzar y no se auditan como error.
+async function imputarVentaEfectivo(
+  tenantId: string,
+  input: {
+    orderId: string;
+    orderCode: number;
+    paid: boolean;
+    paymentMethod: PaymentMethod | null;
+    total: number;
+    actor: string;
+  },
+) {
+  try {
+    await recordCashSaleMovement(tenantId, input);
+  } catch (err) {
+    await auditAdmin({
+      action: "error",
+      entity: "CashMovement",
+      entityId: input.orderId,
+      changes: {
+        reason: "auto-cash-sale-failed",
+        message: err instanceof Error ? err.message : String(err),
+      },
+    }).catch(() => {});
+  }
+}
+
 // --- Crear pedido / venta de mostrador (el "checkout" del backoffice) ---
 //
 // Cubre los dos caminos operados por el mostrador: venta presencial (channel
 // COUNTER, se cobra en el acto → CONFIRMED) y toma de pedido con retiro/delivery
 // (channel ONLINE → PENDING). Requiere capability de mostrador.
 export async function createOrder(formData: FormData) {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
 
   const channel = String(formData.get("channel") || "COUNTER") === "ONLINE" ? "ONLINE" : "COUNTER";
@@ -115,6 +148,18 @@ export async function createOrder(formData: FormData) {
     entityId: result.id,
     changes: { code: result.code, channel, fulfillment, total: result.subtotal, lines: result.lines },
   });
+
+  // Venta de mostrador cobrada en efectivo → mueve la caja del turno abierto.
+  // (result.subtotal == total: insertOrder no aplica descuento todavía.)
+  await imputarVentaEfectivo(tenantId, {
+    orderId: result.id,
+    orderCode: result.code,
+    paid,
+    paymentMethod,
+    total: result.subtotal,
+    actor: `user:${user.id}`,
+  });
+
   revalidatePath(ORDERS_PATH);
 }
 
@@ -182,13 +227,31 @@ export async function advanceOrderStatus(formData: FormData) {
 // --- Marcar cobrado ---
 
 export async function setOrderPaid(formData: FormData) {
-  await requireCapability("orders:manage");
+  const user = await requireCapability("orders:manage");
+  const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id"));
   const methodRaw = String(formData.get("paymentMethod") || "EFECTIVO").trim();
-  const method =
+  const method: PaymentMethod =
     methodRaw === "MERCADOPAGO" || methodRaw === "TRANSFERENCIA" ? methodRaw : "EFECTIVO";
-  await prisma.order.update({ where: { id }, data: { paid: true, paymentMethod: method } });
+  const order = await prisma.order.update({
+    where: { id },
+    data: { paid: true, paymentMethod: method },
+    select: { id: true, code: true, total: true },
+  });
   await auditAdmin({ action: "update", entity: "Order", entityId: id, changes: { paid: true, method } });
+
+  // Marcar cobrado en efectivo (p.ej. un pedido de vidriera que se cobra al
+  // entregar) también mueve la caja. Idempotente por orderId: si ya se imputó al
+  // crear la venta, no duplica.
+  await imputarVentaEfectivo(tenantId, {
+    orderId: order.id,
+    orderCode: order.code,
+    paid: true,
+    paymentMethod: method,
+    total: order.total,
+    actor: `user:${user.id}`,
+  });
+
   revalidatePath(ORDERS_PATH);
 }
 
