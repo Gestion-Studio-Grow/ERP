@@ -25,7 +25,7 @@ mide lo que depende de nosotros** (código/diseño/verificación); la ejecución
 | **Performance (ADR-023)** | **100% de lo no-gated** | ✅ · 🔒 resto | F2/F3/F4/F5/F8 hechos; **F1/F6 🔒 atados a RLS** (se hacen con la activación) | — |
 | **Tests / QA** | **0%** | 🟢 **avanzable (Frente A activo)** | elegir harness (ADR) + primeras pruebas de lógica pura | M |
 | **POS / Retail (profundidad ERP)** | **~55%** | 🟢 dev · ⏳ migración pendiente acción humana | **descuento de stock al vender HECHO** (transaccional, sin oversell, flag `trackStock`; migración SIN aplicar = acción humana). Falta: caja, compras/reposición | M–L |
-| **UX/UI design system** | **~55% adopción** | 🟢 avanzable por slices | acciones públicas del turno migradas a tokens (danger/surface); faltan ~11 pantallas admin + storefront — **barrido por slices, necesita verificación visual (preview con auth)** | M |
+| **UX/UI design system** | **~60% adopción** | 🟢 avanzable por slices | **sitio público 100% en tokens** (0 colores crudos restantes tras `error.tsx`); falta el barrido de ~11 pantallas **admin** — por slices, **necesita verificación visual (preview con auth)** | M |
 | **Onboarding equipo/agentes** | **~100% (doc v1)** | 🟢 avanzable (iteración) | iterar con uso real; mejorar comandos `/sesion-*` | S |
 | **Consola operador (super-admin)** | **~60% construido** | 🟢 build · 🔒 uso en prod | scaffold login/console/alta/tenants; uso real 🔒 RLS/2º tenant | M |
 | **Front Premium (upsell)** | **~90%** | 🟢 avanzable | adopción/branding por tenant | S |
