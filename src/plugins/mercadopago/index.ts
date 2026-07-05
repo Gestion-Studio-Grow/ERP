@@ -47,3 +47,13 @@ export {
   type MensajeEnviado,
 } from "./notification";
 export { type TipoOperacionMP } from "./port";
+export {
+  StubMercadoPagoOAuth,
+  CredencialesStoreEnMemoria,
+  CredencialesConRefresh,
+  vincularCuenta,
+  type MercadoPagoOAuthPort,
+  type CredencialesStore,
+  type TokensOAuth,
+  type ParamsAutorizacion,
+} from "./oauth";
