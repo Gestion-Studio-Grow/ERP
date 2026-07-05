@@ -104,31 +104,32 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > **Este bloque es la fuente de verdad del sprint en curso.** "status" lo lee; "seguimos"
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
-**Sprint:** Setup del modelo de squads cross-funcionales — EN PAUSA, esperando `sprint`
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (metodología squads/escalado + 4 worktrees base; PAUSA)
-**Estado del bloque:** ⏸️ **PAUSA / consolidado.** Terreno base listo para el modelo de sprint
-(`docs/METODOLOGIA-SPRINT.md` + `/sprint`): **squads cross-funcionales** (toman desarrollo/tenant
-completo, especialidad-líder no-jaula) que **escalan a N worktrees** según cuántos desarrollos/
-tenants haya en paralelo. 4 worktrees base creados + el 5º (PMO) sobre `main`. `main` limpio y
-pusheado. **No hay trabajo de frentes en curso** — se espera que el owner tipee **`sprint`**.
+**Sprint:** Sprint #1 de squads — adapters/caja/cobertura sin gate — 🟢 **EN EJECUCIÓN**
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (disparado `sprint`; 3 squads despachados en worktrees)
+**Estado del bloque:** 🟢 **ACTIVO.** El PMO tomó el rol de socio gerente ejecutivo, relevó los
+worktrees y asignó a cada squad su bocado de mayor palanca (todo **avanzable sin gate/credencial**).
+3 squads corriendo en paralelo en su worktree aislado (node_modules + Prisma client ya instalados);
+el PMO (esta sesión, sobre `main`) es merge-master e integra en orden al terminar.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
-**Worktrees base (squads; se suman más por desarrollo/tenant al disparar `sprint`):**
-- Squad 1 Plataforma → `../estetica-erp-plataforma` [`frente/plataforma`]
-- Squad 2 Producto → `../estetica-erp-producto` [`frente/producto`]
-- Squad 3 Fiscal → `../estetica-erp-fiscal` [`frente/fiscal`]
-- Squad 4 Calidad → `../estetica-erp-calidad` [`frente/calidad`]
-- Squad 5 Ejecutivo/PMO → `main` (esta sesión, merge-master, asigna y escala)
+**Asignación del sprint (bocados de mayor palanca):**
+- **Squad Fiscal** → `frente/fiscal`: adapter REAL de ARCA `soap.ts` (WSAA + WSFEv1), funciones puras
+  de armado/parseo XML testeables, sin credenciales. *("el día del cert = encender, no construir".)*
+- **Squad Calidad** → `frente/calidad`: cobertura de lógica pura (descuento de stock POS + dominio
+  ARCA validación/comprobante) + pase de seguridad acotado (scoping por tenant).
+- **Squad Producto** → `frente/producto`: **caja del POS** (apertura/cierre de turno, movimientos,
+  arqueo) — schema + migración SIN aplicar (Gate 2) + lógica de arqueo con tests + wiring mínimo.
+- **Squad Plataforma** → *sin despacho pesado*: su superficie avanzable es fina (RLS 100% dev listo
+  esperando Gate 2; perf F1/F6 encadenadas a RLS). El PMO no quema un agente en trabajo gateado.
 
 **Ya cerrado y en `main`:** Tests (harness ADR-026), POS/stock (`trackStock`, migración sin aplicar),
 UX (sitio público 100% en tokens), protocolos de estados/metodología/modo, metodología de sprint.
 
-**Próximo bocado (lo que ejecuta `sprint`/`seguimos`):** al recibir **`sprint`**, tomar el rol de
-socio gerente ejecutivo y asignar a cada equipo su bocado de mayor palanca (candidatos por frente en
-`docs/ESTADO-FRENTES.md`): Plataforma→RLS/perf pre-gate; Producto→POS caja/compras + UX admin;
-Fiscal→adapters sin credencial (ARCA `soap.ts`/MP); Calidad→cobertura de tests + seguridad. Cada
-equipo en su worktree (recordar `npm install`), PMO integra en orden.
+**Próximo bocado (lo que ejecuta `seguimos`):** el PMO integra las ramas `frente/fiscal`,
+`frente/calidad`, `frente/producto` a `main` de a una (rebase + tsc/build/test + push), actualiza
+`ESTADO-FRENTES.md` con los nuevos estados y cierra el sprint. Tras integrar: siguiente ola candidata
+→ adapter real de Mercado Pago (ADR-025) y compras/reposición del POS.
 
-**Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
-las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
+**Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant, + aplicar
+migración de caja del POS) y las credenciales de WhatsApp/Mercado Pago/ARCA.
