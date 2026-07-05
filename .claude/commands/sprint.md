@@ -18,6 +18,11 @@ en **`docs/METODOLOGIA-SPRINT.md`**: leela y aplicala.
 5. **Lo compartido lo SECUENCIA el PMO en serie** — `prisma/schema.prisma`, migraciones y auth/tenancy (`tenant.ts` / `rls.ts`) **no** se reparten a dos frentes a la vez: entran de a uno para que no peleen los mismos archivos.
 6. **Capas fijas de toda corrida** — **PMO por encima** (lidera + secuencia lo compartido + merge-master, absorbe la función ejecutiva) y **N frentes de Desarrollo, uno por core**: **Pagos · Caja · Inventario/POS · Fiscal · Plataforma**. Calidad/tests no es core (cada dueño entrega en verde); Diseño/UX es capa cross-cutting on-demand.
 
+## Fases OBLIGATORIAS de `sprint`: FASE 0 (Exploración) + FASE FINAL (Backup)
+Objetivo: que **no se repitan errores de migración, cosas dejadas afuera, ni pérdida de contexto** entre sprints.
+- **FASE 0 — Exploración ("la foto completa"), ANTES de despachar nada:** el PMO barre repo (tip de `main`, ramas/worktrees, WIP sin commitear, `prisma/migrations/` **incluidas colisiones de timestamp**, `ESTADO-FRENTES.md`/`PROXIMOS-PASOS.md`) + prod/DB/migraciones (hash deployado, migraciones **aplicadas vs SIN aplicar** —derivado de docs si no se toca Neon—, gates, tenants) y **produce/actualiza `docs/ESTADO-ACTUAL.md`**. **Regla dura: nadie despacha frentes sin la foto.**
+- **FASE FINAL — Backup, AL CERRAR (parte de `pausa`):** **git tag anotado** del estado estable (`snapshot/AAAA-MM-DD[-etiqueta]`) **pusheado a origin** + **`docs/ESTADO-ACTUAL.md` actualizado**. El tag es el **punto de retorno** del sprint.
+
 ## ⚠️ Una sesión de Claude Code AISLADA por frente (regla dura)
 Cada frente corre en **su propia sesión de Claude Code**, con **contexto propio y aislado**, sobre
 **su propio worktree**. **NUNCA una sola sesión compartida** que atienda varios frentes en serie —
@@ -64,10 +69,10 @@ que quedarse corto.
 - **Orden de integración:** (1) contrato de tenancy de Plataforma → (2) gate de schema de a uno (Fiscal→Inventario→Pagos→feature_flag) → (3) lógica de cada core en paralelo → (4) migraciones+RLS a prod = **Gate 2** (owner), al final.
 
 ## Protocolo móvil (4 palabras)
-- **`sprint`** → **creás automáticamente** una sesión aislada por frente (1 frente = 1 worktree = 1 sesión; capas fijas PMO/Diseño/Ejecutivo + N Desarrollo **por dominio**, reglas 1–6; nunca a mano ni compartida) y asignás a cada uno su bocado de mayor palanca; **lo compartido lo secuenciás vos**.
+- **`sprint`** → **primero FASE 0 (foto en `docs/ESTADO-ACTUAL.md`) — nadie despacha sin la foto.** Después **creás automáticamente** una sesión aislada por frente (1 frente = 1 worktree = 1 sesión; capas fijas PMO/Diseño/Ejecutivo + N Desarrollo **por dominio**, reglas 1–6; nunca a mano ni compartida) y asignás a cada uno su bocado de mayor palanca; **lo compartido lo secuenciás vos**.
 - **`status`** → estado REAL del repo (leé `docs/ESTADO-FRENTES.md` + `## Sprint activo` de `docs/SPRINT-MOVIL.md` + `git log`), en lenguaje de dueño, con estados canónicos (`docs/METODOLOGIA-REPORTE-AVANCE.md`).
 - **`seguimos`** → retomás desde el handoff vivo sin re-preguntar el plan.
-- **`pausa`** → frenás, consolidás (main limpio y pusheado, ramas integradas/anotadas, handoff al día) y esperás.
+- **`pausa`** → frenás, consolidás (main limpio y pusheado, ramas integradas/anotadas, handoff al día), corrés la **FASE FINAL (Backup): git tag anotado `snapshot/AAAA-MM-DD` a origin + `docs/ESTADO-ACTUAL.md` actualizado**, y esperás.
 
 ## Reglas (ver `docs/METODOLOGIA-SPRINT.md` para el detalle)
 - Cada equipo en SU worktree/zona; **un tema por commit**; `tsc`+build (+`npm test` si aplica) en verde antes de commitear.

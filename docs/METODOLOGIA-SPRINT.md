@@ -211,10 +211,10 @@ dominio.
 
 | Palabra | Qué hace |
 |---|---|
-| **`sprint`** | El PMO toma el rol de socio gerente ejecutivo, **releva qué dominios/cores hay activos** y **crea automáticamente una sesión de Claude Code aislada por cada frente** (1 frente = 1 worktree = 1 sesión; capas fijas PMO/Diseño/Ejecutivo + N frentes de Desarrollo **por dominio**, regla 6), **nunca a mano ni una sola sesión compartida**. El eje es el **dominio, no el tenant** (reglas 2–4); lo compartido lo **secuencia el PMO** (regla 5). Asigna a cada frente su bocado y arranca. Está OK abrir de más. |
+| **`sprint`** | **Arranca por la FASE 0 (Exploración): el PMO produce/actualiza `docs/ESTADO-ACTUAL.md` — nadie despacha frentes sin la foto.** Luego toma el rol de socio gerente ejecutivo, **releva qué dominios/cores hay activos** y **crea automáticamente una sesión de Claude Code aislada por cada frente** (1 frente = 1 worktree = 1 sesión; capas fijas PMO/Diseño/Ejecutivo + N frentes de Desarrollo **por dominio**, regla 6), **nunca a mano ni una sola sesión compartida**. El eje es el **dominio, no el tenant** (reglas 2–4); lo compartido lo **secuencia el PMO** (regla 5). Asigna a cada frente su bocado y arranca. Está OK abrir de más. |
 | **`status`** | Estado **real del repo** (no de memoria): lee `docs/ESTADO-FRENTES.md` + `## Sprint activo` de `SPRINT-MOVIL.md` + `git log`, y responde en lenguaje de dueño con los estados canónicos. |
 | **`seguimos`** | Retoma desde el handoff vivo (`## Sprint activo → Próximo bocado` de cada frente) sin re-preguntar el plan. |
-| **`pausa`** | Frena, **consolida** (main limpio y pusheado, ramas integradas o anotadas, handoff al día) y queda a la espera. |
+| **`pausa`** | Frena, **consolida** (main limpio y pusheado, ramas integradas o anotadas, handoff al día) y corre la **FASE FINAL (Backup): git tag anotado `snapshot/AAAA-MM-DD` a origin + `docs/ESTADO-ACTUAL.md` actualizado**. Queda a la espera. |
 
 **El repo es la memoria.** Cada equipo deja su estado en el repo (rama + `## Sprint activo` +
 `ESTADO-FRENTES.md`), así "status"/"seguimos" reconstruyen todo sin leer el chat. **Sin laptop /
@@ -223,8 +223,38 @@ tema por commit), que es el fallback documentado en `docs/SPRINT-MOVIL.md`.
 
 ---
 
+## Fases OBLIGATORIAS del sprint: FASE 0 (Exploración) + FASE FINAL (Backup)
+
+Todo `sprint` **abre con Exploración y cierra con Backup**. No son opcionales. **Objetivo declarado:**
+que **no se repitan errores de migración, cosas dejadas afuera, ni pérdida de contexto** entre sprints.
+
+### FASE 0 — Exploración ("la foto completa") · ANTES de despachar nada
+El PMO, **antes de tocar nada ni abrir frentes**, hace un barrido y deja la foto escrita:
+- **Repo:** tip de `main`, ramas y worktrees, WIP sin commitear, `prisma/migrations/` (incluí
+  **colisiones de timestamp**), `docs/ESTADO-FRENTES.md` + `docs/PROXIMOS-PASOS.md`.
+- **Prod / DB / migraciones:** qué hash está deployado, qué migraciones están **aplicadas vs SIN
+  aplicar** (si no se toca Neon, se deriva de docs y se marca "a confirmar"), gates pendientes,
+  tenants existentes.
+- **Produce/actualiza `docs/ESTADO-ACTUAL.md`** con esa foto.
+
+> **Regla dura:** **nadie despacha frentes sin la foto.** Si `docs/ESTADO-ACTUAL.md` no quedó al
+> día, la FASE 0 no terminó y el sprint no arranca.
+
+### FASE FINAL — Backup · AL CERRAR el sprint
+Antes de dar por cerrado el sprint (y como parte de `pausa`), el PMO:
+- **git tag anotado** del estado estable (`snapshot/AAAA-MM-DD[-etiqueta]`) apuntando al `main`
+  verde, y lo **pushea a origin** (`git push origin <tag>`).
+- **Actualiza `docs/ESTADO-ACTUAL.md`** (nuevo hash, migraciones, gates, tenants, bugs conocidos).
+- Deja `main` limpio y pusheado (consolidación de `pausa`).
+
+> El tag es el **punto de retorno** del sprint: si algo se rompe, se vuelve al último snapshot.
+
+---
+
 ## Ciclo de un sprint (de principio a fin)
 
+0. **FASE 0 — Exploración (obligatoria):** el PMO hace el barrido del repo + prod/DB/migraciones y
+   **produce/actualiza `docs/ESTADO-ACTUAL.md`**. **No se despacha ningún frente sin la foto.**
 1. **`sprint`** → PMO releva los **dominios/cores** activos y **crea automáticamente** un
    worktree+sesión por cada frente de desarrollo (por dominio, regla 2) + las capas fijas
    (PMO/Diseño/Ejecutivo, regla 6); los clientes en delivery van en su propio worktree (regla 4).
@@ -235,6 +265,9 @@ tema por commit), que es el fallback documentado en `docs/SPRINT-MOVIL.md`.
 4. **`status`** en cualquier momento → foto real. **`seguimos`** → retoma. **`pausa`** → consolida.
 5. Al cerrar: `main` limpio y pusheado, ramas integradas o su estado anotado, worktrees ociosos
    removidos, `ESTADO-FRENTES.md` y `## Sprint activo` al día. Los gates quedan listos para el "sí".
+6. **FASE FINAL — Backup (obligatoria):** **git tag anotado** del estado estable
+   (`snapshot/AAAA-MM-DD`) pusheado a origin + **`docs/ESTADO-ACTUAL.md` actualizado**. El tag es el
+   punto de retorno del sprint.
 
 ---
 
