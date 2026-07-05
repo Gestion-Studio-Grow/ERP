@@ -11,6 +11,10 @@ dónde llega cada una y cómo se cierra bien.
   persiste en el repo, el índice liviano como entrada. Los comandos viven
   versionados en `.claude/commands/`, así viajan con el repo a cualquier
   máquina/cuenta y mejoran con cada corrección.
+- **¿Sos nuevo en el equipo (persona o agente)?** Empezá por
+  `docs/ONBOARDING-EQUIPO.md`: el modelo mental, la ruta de ramp (día 1 / semana 1),
+  el estándar de operación de élite y cómo se entrena/mejora a los agentes. Este
+  manual es la referencia de la mecánica; ese doc es el entrenamiento por encima.
 
 ---
 

@@ -71,7 +71,7 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
 **Sprint:** Avanzamos todo — deuda técnica + equipo de élite (sin gates)
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (F3 + F8 cerrados)
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (F3 + F8 + onboarding cerrados)
 **Estado del bloque:** 🟢 en curso.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
@@ -89,14 +89,15 @@ el porqué, pusheados a `origin/main` · docs y código coinciden · working tre
 **Checklist vivo**
 - [x] **F3 — reportes con agregación acotada** — rango obligatorio (default 90d, selector 30/90/180/365) + `tenantId` + `select` acotado; se acabó el escaneo de todo el histórico. *(este sprint, 2026-07-05)*
 - [x] **F8 — retención de `AuditLog`** — política (18m) + purga (`purge-audit`, dry-run por default) listas; ADR-009/007 enmendados. Sin ejecutar contra prod. *(este sprint, 2026-07-05)*
-- [ ] **Onboarding equipo/agentes** — doc: cómo un dev nuevo opera con `/sesion-*`, `rol.md`, ADR-008; registrado en tablero/manual.
+- [x] **Onboarding equipo/agentes** — `docs/ONBOARDING-EQUIPO.md` (modelo mental, ruta de ramp, estándar de élite, cómo se entrena/mejora a los agentes); registrado en tablero + manual. *(este sprint, 2026-07-05)*
 - [ ] **Extra alta palanca sin gate** — a decidir en la ejecución.
 
-**Próximo bocado (lo que ejecuta "seguimos"):** Onboarding del equipo/agentes — el 5º mandato,
-que no tiene doc. Diseñar `docs/ONBOARDING-EQUIPO.md`: cómo un dev nuevo se pone a operar con
-esta metodología (los `/sesion-*`, `rol.md`/`rol-fullstack`, ADR-008, el tablero y la cola de
-handoff), el bucle de trabajo y las reglas de seguridad/gates, y cómo escala a "equipo de élite".
-Registrarlo en el tablero/manual.
+**Próximo bocado (lo que ejecuta "seguimos"):** ítem 4 — una mejora de arquitectura/performance
+sin gate de alta palanca. Candidato principal: la **convención `whereForTenant()`** como puente
+pre-RLS (ADR-023 F1/nota) — un helper que asegura el predicado `tenantId` en cada query de
+actions nuevas, para no olvidarlo antes de que RLS lo imponga (hoy el aislamiento es app-level y
+depende de disciplina). Es defensa en profundidad, barata y sin tocar la DB. Evaluar alcance
+real antes de meterle mano; si resulta más grande de lo que parece, anotarlo y elegir otro.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
