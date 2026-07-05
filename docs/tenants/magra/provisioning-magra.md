@@ -65,3 +65,8 @@ agrega como catálogo del tenant magra cuando el dueño confirme SKUs/precios re
 - Tono **descontracturado** ("buen gusto y hambre") → el copy de la vidriera acompaña, no es acartonado.
 - **Delivery gratis** en 5 zonas y **WhatsApp** como canal → reflejado en el contactNote y el CTA de WhatsApp.
 - **Envasado al vacío** → presente en el wording del rubro ("envasados al vacío").
+- **Operación real de mostrador (confirmada por el dueño):** el cliente elige del exhibidor y en la
+  **caja** le pesan (por kg) o le cobran por unidad, y listo. El POS del backoffice (`/admin/pedidos`,
+  "Caja / mostrador") refleja exactamente eso: elegir producto → **auto-foco a pesar/contar** → **Enter
+  encadena** al siguiente → **Cobrar**. Venta por kg y por unidad conviven en el mismo flujo, sin
+  fricción (no es un e-commerce). La vidriera `/tienda` es el canal ONLINE aparte (delivery/WhatsApp).

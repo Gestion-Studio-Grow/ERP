@@ -32,10 +32,11 @@ export default async function PedidosPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-2xl font-semibold mb-1">Pedidos y ventas</h1>
+      <h1 className="text-2xl font-semibold mb-1">Caja y pedidos</h1>
       <p className="text-muted mb-8">
-        Vendé en el mostrador (venta por kg o por unidad) o tomá un pedido para retiro/envío. Los
-        pedidos abiertos caen a la bandeja de abajo para seguir su preparación y cobro.
+        Atendé en el mostrador: elegí el producto, pesalo (por kg) o cargá la cantidad (por unidad),
+        cobrá y listo. O tomá un pedido para retiro/envío — los pedidos abiertos caen a la bandeja de
+        abajo para seguir su preparación y cobro.
       </p>
 
       <PosForm products={products} />

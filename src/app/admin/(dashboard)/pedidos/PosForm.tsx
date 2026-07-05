@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createOrder } from "@/lib/order-actions";
 import { Input, Select, buttonClasses } from "@/components/ui";
 
@@ -14,7 +14,7 @@ type SellableProduct = {
   unit: string;
 };
 
-// Una línea del pedido en construcción. `qty` son kilos (WEIGHT) o unidades (UNIT).
+// Una línea del ticket en construcción. `qty` son kilos (WEIGHT) o unidades (UNIT).
 type Line = { key: number; productId: string; qty: number };
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
@@ -24,20 +24,31 @@ function unitPriceOf(p: SellableProduct): number {
 }
 
 export default function PosForm({ products }: { products: SellableProduct[] }) {
-  // Modo pedido (con cliente / retiro-envío) vs. venta rápida de mostrador.
+  // Caja de mostrador (venta rápida, se cobra en el acto) vs. pedido con retiro/envío.
   const [isOrder, setIsOrder] = useState(false);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qty: 0 }]);
   const [nextKey, setNextKey] = useState(2);
+  // Foco dirigido: al elegir un producto saltamos a pesar/contar; con Enter saltamos
+  // al próximo producto. Es lo que hace fluida la atención en mostrador (sin mouse).
+  const [focusTarget, setFocusTarget] = useState<string | null>(null);
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  useEffect(() => {
+    if (!focusTarget) return;
+    document.getElementById(focusTarget)?.focus();
+    setFocusTarget(null);
+  }, [focusTarget]);
 
   function setLine(key: number, patch: Partial<Line>) {
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
   function addLine() {
-    setLines((ls) => [...ls, { key: nextKey, productId: "", qty: 0 }]);
+    const key = nextKey;
+    setLines((ls) => [...ls, { key, productId: "", qty: 0 }]);
     setNextKey((k) => k + 1);
+    return key;
   }
   function removeLine(key: number) {
     setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : ls));
@@ -54,8 +65,8 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
   if (products.length === 0) {
     return (
       <div className="rounded-lg border border-line bg-surface-sunken p-4 text-sm text-muted">
-        No hay productos con precio de venta cargado todavía. Cargá cortes con precio
-        (por kg o por unidad) en el catálogo para poder venderlos acá.
+        No hay productos con precio cargado todavía. Cargá los cortes con precio (por kg o por
+        unidad) en el catálogo para poder venderlos en la caja.
       </div>
     );
   }
@@ -71,7 +82,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
           onClick={() => setIsOrder(false)}
           className={`chip-btn text-sm ${!isOrder ? "bg-black text-white" : ""}`}
         >
-          Venta de mostrador
+          Caja / mostrador
         </button>
         <button
           type="button"
@@ -80,19 +91,28 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
         >
           Pedido (retiro / envío)
         </button>
+        {!isOrder && (
+          <span className="text-xs text-faint">
+            Elegí el producto, pesá o contá, y cobrá. Enter salta al siguiente.
+          </span>
+        )}
       </div>
 
-      {/* Líneas del pedido */}
+      {/* Ticket: líneas de venta */}
       <div className="space-y-2">
         {lines.map((l) => {
           const p = byId.get(l.productId);
           const isWeight = p?.saleUnit === "WEIGHT";
           const lineTotal = p && l.qty > 0 ? l.qty * unitPriceOf(p) : 0;
           return (
-            <div key={l.key} className="grid grid-cols-[1fr_110px_auto] items-center gap-2">
+            <div key={l.key} className="grid grid-cols-[1fr_128px_auto] items-center gap-2">
               <Select
+                id={`prod-${l.key}`}
                 value={l.productId}
-                onChange={(e) => setLine(l.key, { productId: e.target.value, qty: 0 })}
+                onChange={(e) => {
+                  setLine(l.key, { productId: e.target.value, qty: 0 });
+                  if (e.target.value) setFocusTarget(`qty-${l.key}`); // saltar a pesar/contar
+                }}
               >
                 <option value="">Elegí un producto…</option>
                 {products.map((prod) => (
@@ -106,13 +126,22 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
               </Select>
               <div className="relative">
                 <Input
+                  id={`qty-${l.key}`}
                   type="number"
                   min="0"
                   step={isWeight ? "0.01" : "1"}
                   value={l.qty || ""}
-                  placeholder={isWeight ? "kg" : "cant."}
+                  placeholder={p ? (isWeight ? "Peso" : "Cantidad") : "—"}
                   onChange={(e) => setLine(l.key, { qty: Number(e.target.value) })}
+                  onKeyDown={(e) => {
+                    // Enter = cerrar esta línea y saltar al próximo producto (flujo de caja).
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (l.qty > 0) setFocusTarget(`prod-${addLine()}`);
+                    }
+                  }}
                   disabled={!p}
+                  className="pr-8 text-right tabular-nums"
                 />
                 <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-faint">
                   {p ? (isWeight ? "kg" : "u") : ""}
@@ -141,12 +170,12 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
             </div>
           );
         })}
-        <button type="button" onClick={addLine} className="chip-btn text-sm">
+        <button type="button" onClick={() => setFocusTarget(`prod-${addLine()}`)} className="chip-btn text-sm">
           + Agregar producto
         </button>
       </div>
 
-      {/* Datos del pedido (solo en modo pedido) */}
+      {/* Datos del pedido (solo en modo pedido con retiro/envío) */}
       {isOrder && (
         <div className="grid gap-3 sm:grid-cols-2 border-t border-line pt-4">
           <label className="text-sm">
@@ -180,12 +209,12 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
           )}
           <label className="text-sm sm:col-span-2">
             <span className="block text-muted mb-1">Nota</span>
-            <Input name="notes" placeholder="ej: cortar la carne en milanesas" />
+            <Input name="notes" placeholder="ej: cortar en milanesas, sin grasa" />
           </label>
         </div>
       )}
 
-      {/* Cobro (venta de mostrador se cobra en el acto) */}
+      {/* Cobro (la venta de mostrador se cobra en el acto) */}
       <div className="grid gap-3 sm:grid-cols-2 border-t border-line pt-4">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="paid" defaultChecked={!isOrder} />
@@ -204,12 +233,12 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
       <div className="flex items-center justify-between border-t border-line pt-4">
         <div className="text-sm text-muted">
           Total{" "}
-          <span className="ml-1 text-lg font-semibold tabular-nums text-strong">
+          <span className="ml-1 text-2xl font-semibold tabular-nums text-strong">
             {money.format(subtotal)}
           </span>
         </div>
-        <button type="submit" disabled={!hasValidLine} className={buttonClasses("solid", "md")}>
-          {isOrder ? "Registrar pedido" : "Cobrar venta"}
+        <button type="submit" disabled={!hasValidLine} className={buttonClasses("solid", "lg")}>
+          {isOrder ? "Registrar pedido" : "Cobrar"}
         </button>
       </div>
     </form>
