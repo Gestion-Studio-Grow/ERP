@@ -16,6 +16,7 @@
 import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { auditPublic } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 import {
   parseExternalOrder,
   createExternalOrder,
@@ -32,7 +33,7 @@ function errorResponse(err: unknown): Response {
   if (err instanceof Error && /producto|dirección|item|precio/i.test(err.message)) {
     return Response.json({ ok: false, error: { code: "invalid_order", message: err.message } }, { status: 400 });
   }
-  console.error("[api/public/orders] error inesperado:", err);
+  logger.error("api/public/orders", "error inesperado", err);
   return Response.json({ ok: false, error: { code: "internal", message: "Error interno." } }, { status: 500 });
 }
 

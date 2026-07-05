@@ -121,6 +121,13 @@ export default async function ReportesPage({
             </Link>
           );
         })}
+        {/* Export CSV del período visible (abre en Excel/Sheets). */}
+        <a
+          href={`/admin/reportes/export?dias=${data.rangeDays}`}
+          className="ml-auto rounded-md border border-line px-3 py-1 text-sm text-muted transition-colors hover:border-line-strong hover:text-strong"
+        >
+          ↓ Exportar CSV
+        </a>
       </div>
 
       {banner && (

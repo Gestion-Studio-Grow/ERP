@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getCurrentUser } from "@/lib/session";
 import { requireCapability } from "@/lib/authz";
+import { logger } from "@/lib/logger";
 
 // Punto único de auditoría (ADR-009 §4). Toda mutación de negocio pasa por acá.
 // Nunca lanza: una falla al auditar no debe tumbar la operación de negocio, pero
@@ -30,7 +31,11 @@ export async function audit(entry: {
       },
     });
   } catch (err) {
-    console.error("[audit] no se pudo registrar la entrada:", entry, err);
+    logger.error("audit", "no se pudo registrar la entrada", err, {
+      action: entry.action,
+      entity: entry.entity,
+      entityId: entry.entityId,
+    });
   }
 }
 

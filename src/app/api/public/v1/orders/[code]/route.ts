@@ -9,6 +9,7 @@
 
 import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -66,7 +67,7 @@ export async function GET(
         { status: err.status },
       );
     }
-    console.error("[api/public/orders/:code] error:", err);
+    logger.error("api/public/orders/:code", "error", err);
     return Response.json({ ok: false, error: { code: "internal", message: "Error interno." } }, { status: 500 });
   }
 }

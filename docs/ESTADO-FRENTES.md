@@ -54,7 +54,13 @@ Marcá "hablemos de X" y lo bajamos a plan.
   esporádicos) y rentabilidad hora-silla por profesional. Lógica pura testeada
   (`src/lib/report-kpis.ts` + 8 tests), server action `getDeepReportData` (una query acotada por
   tenant+rango) y tarjetas en `/admin/reportes`. Verde (tsc+build+104 tests). **Falta (avanzable):**
-  export Excel/PDF y verificación visual con auth (acción humana, requiere sesión contra Neon).
+  export **CSV entregado** (`/admin/reportes/export`, `report-csv.ts` puro + tests); falta export
+  PDF y verificación visual con auth (acción humana, requiere sesión contra Neon).
+- **Observabilidad (Core Plataforma)** — ✅ **v1 entregada** (2026-07-05): logger JSON estructurado
+  (`src/lib/logger.ts`, cero deps, serialización pura testeada) reemplazando los `console.error`
+  dispersos con contexto (tenantId/actor/ids), y health endpoint shallow `GET /api/health` (sin DB,
+  respeta Neon free). **Falta (avanzable):** readiness con `SELECT 1` cuando haya presupuesto de DB,
+  y propagar `requestId` por request. Antes: no había capa de observabilidad (hueco de plataforma).
 - **Nuevos presets de rubro** — config sobre arquetipos existentes (una sesión de config c/u).
 - **Portal/app del cliente** — login + "mis turnos/pedidos" (diferenciador, L).
 

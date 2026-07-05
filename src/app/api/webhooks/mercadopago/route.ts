@@ -12,6 +12,7 @@
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { manejarNotificacionMP } from "@/lib/mercadopago-dispatch";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
   if (!isInvoicingEnabled()) {
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, resultado });
   } catch (err) {
     // Error transitorio (MP caído, etc.): 500 para que MP reintente.
-    console.error("[mercadopago] webhook falló:", err);
+    logger.error("mercadopago", "webhook falló", err, { paymentId, tenantId });
     return Response.json({ ok: false }, { status: 500 });
   }
 }

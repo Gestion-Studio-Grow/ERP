@@ -21,6 +21,7 @@ import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarOrden } from "@/lib/invoice-from-order";
 import { ApiError } from "@/lib/public-api-auth";
+import { logger } from "@/lib/logger";
 
 /** Una línea del pedido tal como la manda el front externo. */
 export type ExternalOrderItem = {
@@ -218,7 +219,7 @@ export async function createExternalOrder(
       const invoiceId = await facturarOrden(order.id, tenantId);
       invoiced = invoiceId !== null;
     } catch (err) {
-      console.error(`[external-orders] facturación best-effort falló para orden ${order.id}:`, err);
+      logger.error("external-orders", "facturación best-effort falló", err, { orderId: order.id, tenantId });
     }
   }
 

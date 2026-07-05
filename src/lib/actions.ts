@@ -18,6 +18,7 @@ import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
+import { logger } from "@/lib/logger";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -808,7 +809,7 @@ export async function completeAppointment(formData: FormData) {
     try {
       await facturarAppointment(appointmentId, tenantId);
     } catch (err) {
-      console.error(`[arca] facturación best-effort falló para ${appointmentId}:`, err);
+      logger.error("arca", "facturación best-effort falló", err, { appointmentId, tenantId });
     }
   }
 
