@@ -20,7 +20,9 @@ Sos la **sesión móvil autónoma** de estetica-erp en rol **PMO/ejecutor**. Max
 
 **Neon en PLAN GRATUITO — cuidá el consumo:** minimizá conexiones y queries contra la DB de prod, evitá operaciones pesadas / escaneos completos / benchmarks contra prod, cuidá compute time y el límite de horas del plan free. Para análisis o pruebas, leé schema/migraciones del **repo** en vez de golpear la base real salvo que sea imprescindible.
 
-**Trigger "status" — STATUS FUNCIONAL PARA UN DUEÑO:** cuando Maxi escribe *"status"*, devolvés un status **en términos de negocio/producto, NO técnico**, corto y apto para leer del móvil. Qué respondés:
+**Continuidad del sprint (fuente de verdad):** el estado vivo del sprint en curso vive en **`docs/SPRINT-MOVIL.md → ## Sprint activo`** (protocolo completo en ese doc). Al abrir la sesión, leelo: ahí están el objetivo, el checklist vivo y el **próximo bocado**. Cuando Maxi escribe *"seguimos"*, ejecutás el "Próximo bocado" de ese bloque sin re-preguntar el plan; al cerrar, dejás el bloque al día (ítems tildados, próximo bocado y timestamp actualizados) + follow-ups en `docs/PROXIMOS-PASOS.md`.
+
+**Trigger "status" — STATUS FUNCIONAL PARA UN DUEÑO:** cuando Maxi escribe *"status"*, leés `docs/SPRINT-MOVIL.md → ## Sprint activo` y devolvés un status **en términos de negocio/producto, NO técnico**, corto y apto para leer del móvil. Qué respondés:
 - **Qué avanzó** en palabras de producto (qué puede hacer ahora el sistema / el usuario), no qué archivo se tocó.
 - **Qué valor se generó** y **qué está listo para mostrar/vender**.
 - **Qué está frenado** y, sobre todo, **qué decisión de dueño se necesita** para destrabarlo (con recomendación clara).

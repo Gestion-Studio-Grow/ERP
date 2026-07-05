@@ -36,7 +36,7 @@ El "qué sigue después de cerrar esto" **no se dice en el chat** (que la sesió
 
 ## El otro eje: roles autónomos (`docs/METODO-ROLES.md`)
 
-Los tipos de sesión de arriba definen **un tema por thread**. En paralelo existe un segundo eje —los **roles autónomos**— para trabajo despachado (típicamente desde el móvil): definen **quién** ejecuta, mientras `docs/METODO-ROLES.md` define **cómo** (bucle entender→plan→hacer→verificar→reportar, definición de terminado, seguridad, formato de reporte). Comandos:
+Los tipos de sesión de arriba definen **un tema por thread**. En paralelo existe un segundo eje —los **roles autónomos**— para trabajo despachado (típicamente desde el móvil): definen **quién** ejecuta, mientras `docs/METODO-ROLES.md` define **cómo** (bucle entender→plan→hacer→verificar→reportar, definición de terminado, seguridad, formato de reporte). Cuando el trabajo despachado es un **sprint de varias sesiones**, la continuidad —dónde vive el estado vivo, cómo se pide "status" y se retoma "seguimos" desde el móvil— la fija **`docs/SPRINT-MOVIL.md`**: su sección `## Sprint activo` es la fuente de verdad del sprint en curso. Comandos:
 
 | Comando | Qué es |
 |---|---|
