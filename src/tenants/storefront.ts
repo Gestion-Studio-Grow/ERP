@@ -34,6 +34,8 @@ export interface StorefrontCopy {
   eyebrow: string;
   /** Frase madre / tagline firma. */
   tagline: string;
+  /** Sub-titular punchy debajo de la frase madre (diferencial de marketing). */
+  pitch?: string;
   /** Bajada del hero. */
   intro: string;
   /** Tira de propuestas de valor. */
@@ -59,11 +61,13 @@ export interface StorefrontCopy {
 const magra: StorefrontCopy = {
   eyebrow: "MAGRA · Canning",
   tagline: "Esto no es una carnicería.",
-  intro: "Estilo, practicidad y sabor premium en un solo pack. No hace falta saber de cocina, ni de cortes: solo tener buen gusto (y hambre).",
+  pitch: "Cortes de restaurante. Precio de barrio.",
+  intro: "La calidad de las mejores parrillas de Buenos Aires, envasada al vacío para tu mesa —sin el precio del restaurante. No hace falta saber de cortes: solo tener buen gusto (y hambre).",
   valueProps: [
+    { icon: "◆", title: "Calidad de parrilla top", text: "Los cortes que comés en los mejores restaurantes, envasados al vacío." },
+    { icon: "$", title: "Precio de barrio", text: "Sin el markup del restaurante: pagás como en la carnicería, comés como afuera." },
     { icon: "→", title: "Envío gratis a domicilio", text: "Delivery sin cargo en Canning y alrededores." },
-    { icon: "◆", title: "Calidad premium garantizada", text: "Cortes seleccionados, envasados al vacío en su punto." },
-    { icon: "$", title: "Todos los medios de pago", text: "Efectivo, débito, crédito, transferencia y Mercado Pago." },
+    { icon: "▣", title: "Todos los medios de pago", text: "Efectivo, débito, crédito, transferencia y Mercado Pago." },
     { icon: "✳", title: "Atención personalizada", text: "Te asesoramos y coordinamos tu pedido por WhatsApp." },
   ],
   vacioTitle: "Envasados al vacío",
@@ -89,7 +93,7 @@ const magra: StorefrontCopy = {
   ],
   about: {
     title: "Probadas por nosotros, elegidas para vos.",
-    body: "Somos una boutique de carnes premium envasadas al vacío, seleccionadas de los mejores proveedores, con una línea gourmet elegida con el mismo criterio. Servicio puerta a puerta en Canning y alrededores.",
+    body: "Somos una boutique de carnes premium envasadas al vacío: la misma calidad que buscás en las mejores parrillas, a precio de carnicería de barrio. Seleccionamos cada corte de los mejores proveedores, con una línea gourmet elegida con el mismo criterio. Servicio puerta a puerta en Canning y alrededores.",
   },
   deliveryZones: ["Canning", "San Vicente", "Guernica", "Ezeiza", "Monte Grande"],
   paymentMethods: ["Efectivo", "Débito", "Crédito", "Transferencia", "Mercado Pago"],

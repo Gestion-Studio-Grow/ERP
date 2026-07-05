@@ -124,7 +124,12 @@ export default function Storefront({
           <h1 style={{ fontSize: "clamp(40px, 6.5vw, 68px)", lineHeight: 1.0, letterSpacing: -1.8, fontWeight: 800, margin: "18px 0 0", maxWidth: 760 }}>
             {tagline}
           </h1>
-          <div style={{ width: 48, height: 3, background: "var(--accent)", margin: "26px 0 22px" }} />
+          {copy?.pitch && (
+            <div style={{ fontSize: "clamp(19px, 2.6vw, 26px)", fontWeight: 700, letterSpacing: -0.4, marginTop: 14, color: T.ink }}>
+              {copy.pitch}
+            </div>
+          )}
+          <div style={{ width: 48, height: 3, background: "var(--accent)", margin: "24px 0 22px" }} />
           {intro && <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 620 }}>{intro}</p>}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
             <a href="#seleccion" style={cta("var(--accent)", "#fff")}>{wording.orderCta}</a>

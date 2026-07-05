@@ -43,9 +43,12 @@ Con esto la vidriera `/tienda` muestra: el **acento de marca de magra** (oxblood
   Lamberti, Formagge, PizzaZen, Maderasa), **reviews** reales (Matías R., Jesica F., Macarena A. — 5★),
   **about** (*"Probadas por nosotros, elegidas para vos."*) y **footer** completo (dirección, horarios,
   contacto, zonas, pagos). Premium-minimalista con contraste (secciones claras adelante, about+footer
-  oscuros). El salto de valor sobre su web actual: **catálogo + carrito + toma de pedidos + POS de
-  mostrador** integrados (deja de depender de Bistrosoft y del WhatsApp manual). Un tenant sin copy
-  propio cae al wording genérico del rubro.
+  oscuros). **Ángulo de marketing** (reforzando la frase madre): *"Cortes de restaurante. Precio de
+  barrio."* — calidad de las **mejores parrillas / restaurantes top** a precio de carnicería de barrio.
+  ⚠️ **Legal:** en genérico/evocativo, SIN nombrar restaurantes ni marcas de terceros (nada de
+  publicidad comparativa). El salto de valor sobre su web actual: **catálogo + carrito + toma de pedidos
+  + POS de mostrador** integrados (deja de depender de Bistrosoft y del WhatsApp manual). Un tenant sin
+  copy propio cae al wording genérico del rubro.
 - **Catálogo del rubro `carniceria`** ya carga las **líneas reales**: vaca (Estancia Don Ramón, al
   vacío), cerdo magro, pollo orgánico, preparados y una **línea gourmet** (pasta italiana, conserva
   importada, ensalada envasada, pescado congelado). Precios **provisionales** hasta la lista real (§3).
