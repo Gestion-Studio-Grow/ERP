@@ -17,7 +17,6 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { tenantTransaction } from "@/lib/rls";
 import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarOrden } from "@/lib/invoice-from-order";
@@ -174,26 +173,6 @@ async function resolveItems(
   return resolved;
 }
 
-/** Descuenta stock de las líneas del pedido. Best-effort: loguea y sigue si falla
- *  (el pedido ya está tomado; el mostrador ajusta stock a mano si hace falta). */
-async function decrementStock(
-  tenantId: string,
-  lines: { productId: string; qty: number }[],
-): Promise<void> {
-  try {
-    await tenantTransaction(async (tx) => {
-      for (const l of lines) {
-        await tx.product.update({
-          where: { id: l.productId },
-          data: { stock: { decrement: l.qty } },
-        });
-      }
-    }, { tenantId });
-  } catch (err) {
-    console.error(`[external-orders] descuento de stock best-effort falló (tenant ${tenantId}):`, err);
-  }
-}
-
 /**
  * Crea el pedido externo y dispara el flujo. El `tenantId` viene ya resuelto y
  * autenticado por `public-api-auth`.
@@ -212,6 +191,12 @@ export async function createExternalOrder(
 
   const scheduledFor = input.scheduledFor ? new Date(input.scheduledFor) : null;
 
+  // `insertOrder` YA descuenta el stock de los productos con `trackStock` dentro de
+  // su propia transacción, con la guarda atómica anti-oversell (order-core.ts, d48cc79).
+  // El descuento adicional que vivía acá quedó obsoleto con ese commit: duplicaba la
+  // baja de stock para los pedidos externos y, además, lo hacía sin la guarda `gte`
+  // (podía dejar stock negativo) y sin filtro de `tenantId`. Se eliminó — la ingesta
+  // externa hereda el mismo comportamiento de stock que el POS y la vidriera.
   const order = await insertOrder(tenantId, {
     channel: "ONLINE", // ingesta externa = canal online → cae PENDING en la bandeja
     fulfillment: input.fulfillment ?? "PICKUP",
@@ -225,10 +210,8 @@ export async function createExternalOrder(
     items: lines,
   });
 
-  // Trigger del flujo: stock + facturación. Ambos best-effort para no romper la
-  // toma del pedido (ya persistido) si un paso secundario falla.
-  await decrementStock(tenantId, lines);
-
+  // Trigger del flujo secundario: facturación. Best-effort para no romper la toma
+  // del pedido (ya persistido) si un paso secundario falla.
   let invoiced = false;
   if (input.invoice && isInvoicingEnabled()) {
     try {
