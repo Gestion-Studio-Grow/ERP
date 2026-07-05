@@ -1,15 +1,17 @@
 # ESTADO ACTUAL — la foto completa (para retomar sin perderse)
 
-**Qué es:** la foto viva del sistema para arrancar cualquier sprint/sesión sin re-descubrir el
-contexto. La **produce/actualiza el PMO en la FASE 0 (Exploración)** de cada `sprint` y se
-**re-taggea en la FASE FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). Si algo de acá no
-coincide con el repo/prod, gana el repo y este doc se corrige en el acto.
+**Qué es:** la foto viva del sistema para arrancar cualquier sesión/sprint sin re-descubrir el
+contexto. La **produce/actualiza el PMO en la FASE 0 (Exploración)** y se **re-taggea en la FASE
+FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nueva y pegás tu prompt,
+este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
+el repo/prod, gana el repo y este doc se corrige en el acto.
 
-- **Actualizado:** 2026-07-05 (post-deploy) · **Autor:** PMO (sesión autónoma)
-- **Método:** barrido del repo (`git log`, `prisma/migrations/`, `src/blueprints/`, docs) +
-  datos del dueño. **NO se consultó Neon prod** en esta sesión (política: diagnóstico, no tocar
-  prod/DB) → el estado de migraciones *aplicadas* se deriva de la documentación y se marca
-  "a confirmar" donde no hay evidencia dura.
+- **Actualizado:** 2026-07-05 (FASE FINAL / backup de fin de jornada) · **Autor:** PMO (sesión autónoma)
+- **Snapshot / punto de retorno:** tag **`snapshot/2026-07-05-eod`** → `main` `35603bd` (+ el previo
+  `snapshot/2026-07-05-postdeploy` → `f0a13f0`).
+- **Método:** barrido del repo (`git log`, `prisma/migrations/`, `src/blueprints/`, docs). **NO se
+  consultó Neon prod** (política: diagnóstico, no tocar prod/DB) → el estado de migraciones *aplicadas*
+  se deriva de docs y se marca "a confirmar" donde no hay evidencia dura.
 
 ---
 
@@ -17,28 +19,26 @@ coincide con el repo/prod, gana el repo y este doc se corrige en el acto.
 
 | Ítem | Valor |
 |---|---|
-| **main HEAD (origin)** | `d258579` — `docs(runbook): alta de Magra en prod (2º tenant) + activación de RLS` |
-| **Deployado en prod** | **`f0a13f0`** (merge `land-inventario-f1b`) |
-| **Delta prod → main** | 1 commit **solo-docs** (`d258579`, el runbook) → **prod y main son iguales en código** |
-| **Snapshot tag** | **`snapshot/2026-07-05-postdeploy`** (anotado) → apunta a `f0a13f0`, pusheado a origin |
+| **main HEAD (origin)** | **`35603bd`** — `docs(sector): visión estratégica en FUNDAMENTO — la Agencia es el go-to-market del propio ERP` |
+| **Último deploy conocido a prod** | **`f0a13f0`** (merge `land-inventario-f1b`) — *confirmar si se redeployó tras esto* |
+| **Delta main → prod (sin deployar)** | fixes + docs post-`f0a13f0`: `8b9d989` fix del gate RLS, `685b5c9` override `FORCE_TENANT_SLUG`, y el sector Agencia Digital (charter + FUNDAMENTO + 2 análisis de mercado). **Nada de esto rompe prod; son fixes/docs.** |
+| **Snapshot tags** | `snapshot/2026-07-05-eod` → `35603bd` (este backup) · `snapshot/2026-07-05-postdeploy` → `f0a13f0` |
 
-> El runbook `d258579` **describe** el alta de Magra + activación de RLS; **no los ejecuta**.
-> Ambos siguen pendientes (Gate 2, ver §4).
-
-**Cores activos (últimos commits en main):** Pagos (gateway de cobros por tenant), Caja (arqueo en
-vivo + rediseño `/admin/caja`), Inventario/POS (ledger `StockMovement` cableado a venta/compra/
-consumo), Fiscal (wiring `clientePara` del worker ARCA + config fiscal por tenant), Plataforma
-(observabilidad v2 con `requestId`).
+**Cores con trabajo en main (ERP):** Pagos (gateway de cobros por tenant), Caja (arqueo en vivo +
+rediseño `/admin/caja`), Inventario/POS (ledger `StockMovement` cableado a venta/compra/consumo),
+Fiscal (wiring `clientePara` del worker ARCA + config fiscal por tenant), Plataforma (observabilidad
+v2 con `requestId` + override `FORCE_TENANT_SLUG` + **fix del gate RLS**). **Sector Agencia Digital:**
+charter + FUNDAMENTO + 2 análisis de mercado en `docs/sectores/agencia-digital/`.
 
 ---
 
 ## 2. Prod: qué está vivo
 
-- **App deployada** en Netlify + Neon (Postgres), corriendo `f0a13f0`.
+- **App deployada** en Netlify + Neon (Postgres), corriendo `f0a13f0` (último deploy conocido).
 - **Auto-publish de Netlify APAGADO** (`stop_builds`): push a `main` **no** publica. Deploy = acción
-  del dueño (Gate 1). El deploy de `f0a13f0` ya fue hecho por el dueño.
+  del dueño (Gate 1).
 - **Vertical maduro en prod:** núcleo de servicios/estética (agenda, clientes, catálogo, cobro
-  manual, comisiones, reseñas, recordatorios, RBAC, auditoría).
+  manual, comisiones, reseñas, recordatorios, RBAC, auditoría) — tenant CH operando.
 
 ---
 
@@ -47,20 +47,26 @@ consumo), Fiscal (wiring `clientePara` del worker ARCA + config fiscal por tenan
 | Tenant | Slug | Blueprint | Estado |
 |---|---|---|---|
 | **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `estetica` | ✅ **VIVO en prod** — único tenant real operando |
-| **Magra** (carnicería boutique) | `magra` | `carniceria` | 🚧 **CONSTRUIDO, SIN ALTA en prod** — tenant + playbook de preventa listos; el alta del 2º tenant está **gated por RLS** (el provisioning se niega a crear la 2ª fila `Tenant` sin RLS activo) |
+| **Magra** (carnicería boutique) | `magra` | `carniceria` | 🚧 **CONSTRUIDO, SIN ALTA en prod** — tenant + playbook de preventa listos; el alta del 2º tenant está **bloqueada por el gate RLS** (el provisioning se niega a crear la 2ª fila `Tenant` sin RLS activo). Su sitio **magra-erp tampoco está deployado** (ver §4) |
 
-**Gate de prod de Magra (decisión de dueño, no técnica):** cobro MP online, fotos, precios reales.
+**Gate de negocio de Magra (decisión de dueño, no técnica):** cobro MP online, fotos, precios reales.
 
 ---
 
-## 4. Gates pendientes (acción del dueño)
+## 4. Gates pendientes (acción del dueño) — el camino para prender Magra
 
-| Gate | Qué destraba | Estado |
-|---|---|---|
-| **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → habilita el **2º tenant (Magra)** y todo el negocio multi-tenant | 🔒 diseño+SQL verificados offline (`prisma/rls/`, 28/28). **Ensayo offline del gate+aislamiento PASADO 2026-07-05** (`prisma/rls/verify-provision-gate.mts`, PGlite): bloqueo sin RLS → gate abierto con RLS → aislamiento por tenant + fail-closed, todo verde. **Bug encontrado y corregido en el ensayo:** el sentinel del gate incluía `Tenant` (que `0001` excluye) → `isRlsActive` daba false para siempre y el gate NUNCA habría abierto en prod (fix en `scripts/provision-tenant.ts`). Falta: ensayo en branch de Neon REAL (crea el owner) + cablear app + rotar `DATABASE_URL` a `app_user` + aplicar |
-| **Certificado + homologación ARCA** | facturación electrónica viva (firma CMS del `TraSigner`) | 🔑 adapter SOAP escrito; falta cert del emisor + homologación + flag `ARCA_INVOICING_ENABLED` |
-| **Dominio propio** | servir tenants por dominio/subdominio (hoy el root sirve CH hardcodeado, ver §6) | 🔑 pendiente registrar/apuntar dominio + resolución por request |
-| **Deploy a prod (Gate 1)** | publicar en Netlify | ✅ usado para `f0a13f0`; futuros pushes requieren nuevo OK ("deployá") |
+Orden lógico para dar de alta Magra end-to-end:
+
+| # | Gate | Qué destraba | Estado |
+|---|---|---|---|
+| 1 | **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → **prerrequisito duro del 2º tenant** | 🔒 SQL verificados offline (`prisma/rls/`, 28/28). **Ensayo offline del gate+aislamiento PASADO** (`prisma/rls/verify-provision-gate.mts`, PGlite): bloqueo sin RLS → gate abierto con RLS → aislamiento + fail-closed, verde. **Bug hallado y corregido:** el sentinel del gate incluía `Tenant` (que `0001` excluye) → el gate NUNCA habría abierto en prod (fix `8b9d989` en `scripts/provision-tenant.ts`). Falta: ensayo en **branch de Neon real** + cablear app a `rlsPrisma` + rotar `DATABASE_URL` a `app_user` + aplicar. Runbook: `docs/runbooks/alta-magra.md` |
+| 2 | **Alta de Magra (2º tenant)** | Magra existe en la DB de prod | 🔒 depende de #1. `scripts/provision-tenant.ts` ya siembra tenant+OWNER+blueprint `carniceria`; correr con OK explícito tras RLS |
+| 3 | **Deploy del sitio `magra-erp`** | Magra accesible por URL propia | 🔑 **2º sitio Netlify** apuntando a la misma app con **`FORCE_TENANT_SLUG=magra`** (Opción A, URL gratis por tenant; ver `docs/runbooks/alta-magra.md`). Sin dominio propio el `.netlify.app` no separa por subdominio → un sitio por tenant, o pasar a Opción B (dominio + wildcard) |
+| 4 | **Certificado + homologación ARCA** | facturación electrónica viva (firma CMS del `TraSigner`) | 🔑 adapter SOAP escrito; falta cert del emisor + homologación + flag `ARCA_INVOICING_ENABLED` |
+
+**Dominio propio (Opción B, a futuro):** `APP_BASE_DOMAIN` + DNS wildcard `*.tudominio.com` → un solo
+sitio sirve `chestetica.` y `magra.` por subdominio (ver runbook). Hoy se va por Opción A (un sitio
+por tenant con `FORCE_TENANT_SLUG`).
 
 **Credenciales que encienden features ya construidas:** WhatsApp (proveedor Meta/Twilio), Mercado
 Pago (OAuth por comercio) — infra/adapters listos, esperan credencial.
@@ -69,32 +75,29 @@ Pago (OAuth por comercio) — infra/adapters listos, esperan credencial.
 
 ## 5. Migraciones: aplicadas vs SIN aplicar
 
-> ⚠️ **No verificado contra Neon esta sesión.** "Aplicada" = hay evidencia en docs
-> (`BACKLOG.md` / `ESTADO-FRENTES.md` / `PROXIMOS-PASOS.md`). "SIN aplicar" = Gate 2 pendiente.
+> ⚠️ **No verificado contra Neon esta sesión.** "Aplicada" = evidencia en docs. "SIN aplicar" = Gate 2.
 
 **✅ Aplicadas a Neon (hasta `add_waitlist`):** `init` → … → `20260703170000_add_users_rbac` →
 `20260704120000_add_business_settings` → `20260704130000_add_commission_payouts` →
-`20260704140000_add_waitlist`. *(evidencia explícita: business_settings, commission_payouts,
-waitlist "aplicada a Neon"; el resto sostiene la app en prod).*
+`20260704140000_add_waitlist`.
 
-**🔒 SIN aplicar — Gate 2 (código deployado, DB no migrada):**
-- `20260704160000_add_invoice_outbox` — Invoice/Outbox del Plugin ARCA (doc: "NO aplicada a Neon").
-- `20260704180000_add_pos_orders` — POS/órdenes. **⚠️ a confirmar** contra Neon (POS venta opera; puede estar aplicada).
+**🔒 SIN aplicar — Gate 2 (código en repo, DB no migrada):**
+- `20260704160000_add_invoice_outbox` — Invoice/Outbox del Plugin ARCA.
+- `20260704180000_add_pos_orders` — POS/órdenes. **⚠️ a confirmar** (POS venta opera; puede estar aplicada).
 - `20260705120000_control_plane_tenant` — plano de control / super-admin.
-- `20260705124318_add_cash_register` — caja del POS (doc: SIN aplicar).
-- `20260705130000_add_product_track_stock` — `trackStock` (doc: SIN aplicar).
-- `20260705140000_add_stock_purchases` — compras/reposición (integrada este sprint, SIN aplicar).
+- `20260705124318_add_cash_register` — caja del POS.
+- `20260705130000_add_product_track_stock` — `trackStock`.
+- `20260705140000_add_stock_purchases` — compras/reposición.
 - `20260705150000_add_stock_ledger` — ledger `StockMovement`.
 - `20260705150000_add_tenant_fiscal_config` — config fiscal por tenant.
 
-**🛑 RIESGO DE ORDEN — colisión de timestamp:** **dos** migraciones comparten prefijo
-`20260705150000` (`add_stock_ledger` y `add_tenant_fiscal_config`). Prisma las ordena por el nombre
-completo (alfabético → `ledger` antes que `tenant_fiscal_config`), pero es **frágil y confuso**.
-**Resolver ANTES del próximo `migrate deploy`**: renombrar una a un timestamp posterior (p. ej.
-`20260705150001_add_tenant_fiscal_config`) para dejar el orden explícito. Es justo el tipo de error
-de migración que la FASE 0/BACKUP busca prevenir.
+**🛑 RIESGO DE ORDEN — colisión de timestamp (SIGUE ABIERTO):** **dos** migraciones comparten prefijo
+`20260705150000` (`add_stock_ledger` y `add_tenant_fiscal_config`). Prisma ordena por nombre completo
+(`ledger` < `tenant_fiscal_config`), pero es frágil. **Resolver ANTES del próximo `migrate deploy`**:
+renombrar una a `20260705150001_…` para orden explícito. Es justo el error de migración que la
+FASE 0/BACKUP busca prevenir.
 
-**RLS:** los SQL de RLS viven **fuera** de `prisma/migrations/` a propósito (`prisma/rls/`) — ningún
+**RLS:** los SQL viven **fuera** de `prisma/migrations/` a propósito (`prisma/rls/`) — ningún
 `migrate deploy` los aplica solo (ver `prisma/rls/README.md`).
 
 ---
@@ -102,35 +105,58 @@ de migración que la FASE 0/BACKUP busca prevenir.
 ## 6. Bugs / deuda conocida
 
 - **🐞 Redirect / home `/`:** el root (`src/app/(site)/page.tsx`) sirve la **landing de CH
-  hardcodeada** (componentes `_ch/*`, `force-dynamic`), **sin resolución por dominio/tenant**. Con
-  más de un tenant, `/` no enruta al tenant correcto. *(Detalle exacto del redirect reportado por el
-  dueño: a confirmar/reproducir — queda como bug conocido a atacar junto con RLS + dominio propio.)*
+  hardcodeada** (`_ch/*`, `force-dynamic`), sin resolución por dominio/tenant nativa. **Mitigación ya
+  en repo:** `FORCE_TENANT_SLUG` (`685b5c9`) permite pinnear el tenant por sitio (Opción A) → cada
+  sitio Netlify sirve su tenant. La resolución multi-tenant "de verdad" por dominio (Opción B) queda
+  atada a dominio propio (§4). *(Detalle exacto del redirect reportado por el dueño: reproducir y
+  cerrar junto con dominio propio.)*
 - **Wiring `completeAppointment` (ADR-024)** pendiente de commitear limpio (ver `PROXIMOS-PASOS.md`).
-- **WIP inconcluso fuera de main** (del sprint anterior): ARCA `signer.ts` (falta dep `node-forge`
-  + wiring), y sin-commitear en worktrees viejos (`caja/CajaForms.tsx`, mods de `caja-actions.ts`).
-- Detalle de deuda técnica priorizada: `docs/ROADMAP.md §2.3` (F1/F3/F8) y `PROXIMOS-PASOS.md`.
+- **WIP inconcluso fuera de main:** ARCA `signer.ts` (falta dep `node-forge` + wiring); y un refactor
+  en curso en el checkout de `main` (borra `pagos-dispatch.ts`/`request-context.ts`, folds en
+  `mercadopago-dispatch`/`logger`, toca api routes) **sin commitear** — de otra sesión, pendiente de
+  que su dueño lo cierre.
+- Deuda técnica priorizada: `docs/ROADMAP.md §2.3` (F1/F3/F8) y `PROXIMOS-PASOS.md`.
 
 ---
 
-## 7. Cores y quién está a cargo (modelo por dominio)
+## 7. Estado por frente/core — LOS DOS SECTORES
 
-Cada sesión es dueña de un core; el PMO por encima (ver `docs/METODOLOGIA-SPRINT.md`).
+Modelo: cada sesión es dueña de un core/frente; PMO por encima de ambos sectores (ver
+`docs/METODOLOGIA-SPRINT.md`).
 
-| Core | Alcance | Estado de su frente |
-|---|---|---|
-| **Pagos** | adapters/gateway de cobros (MP, checkout/seña, webhooks, conciliación) | adapter REST MP + dispatch por tenant en main; falta checkout/seña + credenciales |
-| **Caja** | caja del POS + UX `/admin/caja` | arqueo en vivo + rediseño en main; migración `add_cash_register` SIN aplicar |
-| **Inventario/POS** | stock, productos, compras/reposición, proveedores, ledger | compras + ledger cableado en main; migraciones SIN aplicar |
-| **Fiscal** | ARCA/WSFEv1, facturación, certs | soap adapter + worker wiring en main; falta `TraSigner`+cert (Gate) |
-| **Plataforma** | RLS/tenancy, perf, auth, observabilidad, reporting | observabilidad v2 + reporting en main; **RLS es su Gate 2 clave** |
-| **PMO** | estrategia, secuenciación de cimientos, merge-master | esta sesión (sobre `main`) |
+### Sector A — ERP multi-tenant
+| Core | Estado del frente |
+|---|---|
+| **Pagos** | adapter REST MP + dispatch de gateway por tenant en main; falta checkout/seña + credenciales OAuth |
+| **Caja** | arqueo en vivo + rediseño `/admin/caja` en main; `add_cash_register` SIN aplicar |
+| **Inventario/POS** | compras/reposición + ledger `StockMovement` cableado en main; migraciones SIN aplicar |
+| **Fiscal** | soap adapter + worker wiring + config fiscal por tenant en main; falta `TraSigner`+cert (Gate 4) |
+| **Plataforma** | observabilidad v2 + reporting + `FORCE_TENANT_SLUG` + **fix del gate RLS** en main; **RLS a prod es su Gate clave (#1)** |
+| **Diseño** (ahora core) | sistema de diseño/tokens/branding; adopción por pantallas admin pendiente |
+
+### Sector B — Agencia Digital
+Charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md`. **Misma metodología y PMO, repos/deploys
+SEPARADOS** del ERP. Visión: **la Agencia es el go-to-market del propio ERP** (vende ERP/ARCA/storefront).
+| Frente | Estado |
+|---|---|
+| **Consultores / Análisis de mercado** | 2 análisis en `analisis-mercado/` (panorama inicial + servicios automatizables/analytics); base de inteligencia lista para elegir diferencial |
+| **Desarrolladores** | sin proyecto en ejecución todavía; construye lo que Consultores validen |
+| **PMO proactivo (Agencia)** | charter/fundamento/visión definidos; próximo: bajar la visión a backlog de productos-para-ganancias |
 
 ---
 
-## 8. Para retomar (checklist rápido)
+## 8. Para retomar — próximos pasos claros
 
-1. Leé esta foto + `docs/ESTADO-FRENTES.md` (tablero por frente) + `## Sprint activo` de
-   `docs/SPRINT-MOVIL.md`.
-2. **Antes de cualquier `migrate deploy`:** resolvé la colisión de timestamp `20260705150000` (§5).
-3. El desbloqueo de mayor palanca sigue siendo **RLS a prod → alta de Magra** (Gate 2).
-4. No hay nada rojo en main: `f0a13f0` está deployado y estable.
+1. **Leé esta foto** + `docs/ESTADO-FRENTES.md` (tablero) + `## Sprint activo` de `docs/SPRINT-MOVIL.md`.
+   Si abrís con `sprint`, esto ES la FASE 0 (no salteable).
+2. **Palanca #1 — prender Magra (secuencia del §4):** RLS a prod (ensayo en branch de Neon → cablear
+   app → rotar `DATABASE_URL` → aplicar) → alta de Magra (`provision-tenant.ts`) → deploy sitio
+   `magra-erp` (`FORCE_TENANT_SLUG=magra`). Todo con OK explícito por gate.
+3. **⚠️ Antes de cualquier `migrate deploy`:** resolvé la colisión de timestamp `20260705150000` (§5).
+4. **Higiene:** cerrar el refactor sin commitear en el tree de `main` (§6) y el wiring `completeAppointment`.
+5. **Sector Agencia:** el PMO de Agencia baja la visión (§7) a backlog de productos vendibles.
+6. **Estado:** no hay nada rojo en `main` (`35603bd`); prod estable en `f0a13f0`. El delta sin deployar
+   son fixes/docs (no urgen deploy).
+
+> **Gates = acción del dueño.** Nada de RLS/alta/deploy/migraciones se corre solo. Este doc + los
+> runbooks (`docs/runbooks/`) son el guion para ejecutarlos cuando el dueño dé el OK.
