@@ -16,7 +16,7 @@ en **`docs/METODOLOGIA-SPRINT.md`**: leela y aplicala.
 3. **El tenant NO es eje de paralelización de código** — el multi-tenant se resuelve **una sola vez** en la capa **plataforma/RLS** (aislamiento por fila). No hay una sesión de código por cliente.
 4. **EXCEPCIÓN — delivery por cliente** — el trabajo de **entrega/operación** de un cliente (onboarding, config, datos, deliverables) **sí** puede tener su sesión por cliente, porque **no toca el core compartido**. Regla mnemotécnica: **core = por dominio; delivery = puede ser por cliente**.
 5. **Lo compartido lo SECUENCIA el PMO en serie** — `prisma/schema.prisma`, migraciones y auth/tenancy (`tenant.ts` / `rls.ts`) **no** se reparten a dos frentes a la vez: entran de a uno para que no peleen los mismos archivos.
-6. **Capas fijas de toda corrida** — **PMO** (lidera + merge-master), **Diseño** (sistema de diseño/UX transversal), **Ejecutivo** (estrategia/roadmap/tablero) y **N frentes de Desarrollo, uno por core/dominio**.
+6. **Capas fijas de toda corrida** — **PMO por encima** (lidera + secuencia lo compartido + merge-master, absorbe la función ejecutiva) y **N frentes de Desarrollo, uno por core**: **Pagos · Caja · Inventario/POS · Fiscal · Plataforma**. Calidad/tests no es core (cada dueño entrega en verde); Diseño/UX es capa cross-cutting on-demand.
 
 ## ⚠️ Una sesión de Claude Code AISLADA por frente (regla dura)
 Cada frente corre en **su propia sesión de Claude Code**, con **contexto propio y aislado**, sobre
@@ -39,25 +39,29 @@ eso rompe el paralelo y mezcla contextos. La correspondencia es **1 frente = 1 w
   (sin laptop / sin capacidad de spawnear), se degrada a **una sola sesión reutilizada en serie**,
   un tema por commit (ver `docs/SPRINT-MOVIL.md`). Es un degradado explícito, no el modo normal.
 
-## Squads cross-funcionales por DOMINIO (especialidad-líder, NO jaula)
-Cada squad toma un **dominio/core de punta a punta** (regla 2); la especialidad orienta pero no
-limita. Un **tenant completo de punta a punta** solo es unidad de sesión para **delivery** (regla 4),
-no para código del Core compartido.
-1. **Plataforma & Arquitectura** (sesgo: RLS/aislamiento, performance, tenants/blueprints, escalabilidad) → `../estetica-erp-plataforma` · `frente/plataforma`.
-2. **Producto & Verticales** (sesgo: features, profundidad por rubro retail/POS·agenda·oficios·gastronomía, UX de negocio) → `../estetica-erp-producto` · `frente/producto`.
-3. **Fiscal & Pagos** (sesgo: ARCA/AFIP, Mercado Pago, facturación, checkout/seña, conciliación) → `../estetica-erp-fiscal` · `frente/fiscal`.
-4. **Calidad & Confiabilidad** (sesgo: tests, cobertura, CI, observabilidad, seguridad, retención) → `../estetica-erp-calidad` · `frente/calidad`.
-5. **Diseño** (capa fija): sistema de diseño/UX transversal (tokens, primitivos, branding por tenant) → `../estetica-erp-diseno` · `frente/diseno`.
-6. **Ejecutivo / PMO** (capa fija, lidera): estrategia, priorización, roadmap, tablero, **asigna dominios a frentes**, **secuencia lo compartido (regla 5)** y **MERGE-MASTER** → **`main`** (esta sesión).
+## Cores: cada sesión es dueña de un core (especialidad-líder, NO jaula)
+Cada sesión toma un **core de punta a punta** (regla 2); la especialidad orienta pero no limita. Un
+**tenant completo** solo es unidad de sesión para **delivery** (regla 4), no para código del Core.
+1. **Pagos** (adapters/gateway de cobros: Mercado Pago, checkout/seña, webhooks de cobro, conciliación) → `../estetica-erp-pagos` · `frente/pagos`. Territorio: `src/plugins/mercadopago/`, `api/webhooks/mercadopago/`, `mercadopago-*.ts`.
+2. **Caja** (caja del POS + UX `/admin/caja`: apertura/cierre/arqueo/movimientos) → `../estetica-erp-caja` · `frente/caja`. Territorio: `src/app/admin/caja/`, `cash-*.ts`.
+3. **Inventario/POS** (stock, productos, compras/reposición, proveedores) → `../estetica-erp-inventario` · `frente/inventario`. Territorio: `order-actions.ts`, `product-*`, compras (Supplier/PO).
+4. **Fiscal** (ARCA/WSFEv1, facturación, certs) → `../estetica-erp-fiscal` · `frente/fiscal`. Territorio: `src/plugins/arca/`, `invoice-core.ts`, `fiscal.ts`, `arca-dispatch.ts`.
+5. **Plataforma** (RLS/tenancy, perf, auth, observabilidad + reporting) → `../estetica-erp-plataforma` · `frente/plataforma`. **Dueño del cimiento auth/tenancy.** Territorio: `tenant*.ts`, `rls.ts`, `prisma/rls/`, `session.ts`, `capabilities.ts`, `authz.ts`, `reportes/`.
+6. **PMO** (por encima): estrategia, roadmap, tablero, **asigna cores**, **secuencia lo compartido (regla 5)** y **MERGE-MASTER** → **`main`** (esta sesión).
 
-## Escala (varios dominios en código / clientes en delivery)
-Abrí un worktree por unidad paralela, con el eje de la regla 2: **código → uno por dominio**,
+## Escala (un worktree por core en código / por cliente en delivery)
+Abrí un worktree por unidad paralela, con el eje de la regla 2: **código → uno por core**,
 **delivery → uno por cliente** (regla 4). Desde `main`:
-`git worktree add ../estetica-erp-<dominio> -b frente/<dominio>` para **código**;
+`git worktree add ../estetica-erp-<core> -b frente/<core>` para **código**;
 `git worktree add ../estetica-erp-<slug> -b tenant/<slug>` para **delivery** de un cliente
 (ej. `estetica-erp-magra`). `npm install` en cada worktree nuevo. **Dos worktrees de código nunca se
-reparten el mismo dominio.** Los que sobren se remueven en la consolidación — mejor capacidad de
-sobra que quedarse corto.
+reparten el mismo core.** Los que sobren se remueven en la consolidación — mejor capacidad de sobra
+que quedarse corto.
+
+## Secuenciación: cimientos compartidos (SERIE) vs paralelo (regla 5)
+- 🔴 **SERIE (PMO secuencia, un frente por vez):** `prisma/schema.prisma` + migraciones (Inventario Supplier/PO/StockMovement · Fiscal Invoice/Outbox · Pagos conciliación · Plataforma feature_flag) → **un cambio de schema por vez**, el siguiente rebasa; **auth/tenancy** (`tenant.ts`/`rls.ts`/`capabilities.ts`/`authz.ts`, dueño **Plataforma**) → capabilities nuevas se piden a Plataforma y la **activación de RLS** va en **ventana dedicada**; **god-files** co-editados (`actions.ts`) → serializar hunks.
+- 🟢 **PARALELO (territorios disjuntos):** Pagos (`plugins/mercadopago/`) · Caja (`/admin/caja`, schema ya en main) · Inventario/POS (order/product/stock + compras UI) · Fiscal (`plugins/arca/`) · Plataforma (perf/obs/reporting). Cada core corre su lógica sin esperar; **solo su hunk de schema** pasa por la cola serie.
+- **Orden de integración:** (1) contrato de tenancy de Plataforma → (2) gate de schema de a uno (Fiscal→Inventario→Pagos→feature_flag) → (3) lógica de cada core en paralelo → (4) migraciones+RLS a prod = **Gate 2** (owner), al final.
 
 ## Protocolo móvil (4 palabras)
 - **`sprint`** → **creás automáticamente** una sesión aislada por frente (1 frente = 1 worktree = 1 sesión; capas fijas PMO/Diseño/Ejecutivo + N Desarrollo **por dominio**, reglas 1–6; nunca a mano ni compartida) y asignás a cada uno su bocado de mayor palanca; **lo compartido lo secuenciás vos**.

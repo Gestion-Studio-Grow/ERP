@@ -73,48 +73,87 @@ Estas seis reglas son la ley del sprint. Rigen sobre todo lo demás de este docu
    dos frentes en paralelo: el PMO los **secuencia en serie** (uno entra, se integra, entra el
    siguiente) para que dos sesiones no peleen el mismo archivo.
 6. **Capas fijas de toda corrida.** Todo `sprint` tiene estas capas:
-   - **PMO** — lidera, asigna, secuencia lo compartido y es **merge-master** a `main` (sobre `main`,
-     sin worktree propio).
-   - **Diseño** — sistema de diseño/UX transversal (tokens, primitivos, branding por tenant), común a
-     todos los frentes.
-   - **Ejecutivo** — estrategia, roadmap, priorización, tablero.
-   - **N frentes de Desarrollo — uno por core/dominio** (los que haga falta según la demanda).
+   - **PMO (por encima)** — lidera, asigna cores, **secuencia lo compartido**, integra estrategia/
+     roadmap/tablero (absorbe la función ejecutiva) y es **merge-master** a `main` (sobre `main`, sin
+     worktree propio).
+   - **N frentes de Desarrollo — uno por core.** Cores canónicos hoy: **Pagos · Caja ·
+     Inventario/POS · Fiscal · Plataforma** (ver "Mapa de cores" abajo).
+   - **Diseño/UX transversal** — capa **cross-cutting on-demand** (tokens, primitivos, branding por
+     tenant), **no** un core: se levanta cuando hay trabajo de UI a lo ancho. **Calidad/tests** tampoco
+     es core: cada dueño entrega su core en verde (regla "verde antes de commitear").
 
 ---
 
-## Los squads son CROSS-FUNCIONALES por DOMINIO (no lanes por disciplina, no lanes por tenant)
+## Mapa de CORES: cada sesión es dueña de un core (eje de paralelización)
 
-Los squads base **no** son silos de disciplina: cada uno puede tomar un **dominio/core completo de
-punta a punta** (arquitectura + producto + fiscal + tests), con una **especialidad-líder** que
-orienta pero **no lo limita**. La especialidad es el sesgo del squad, no su jaula. Lo que **no**
-hacen es partir el trabajo por tenant: el eje de paralelización del **código** es el **dominio**,
-nunca el cliente (regla 2). Un **tenant completo de punta a punta** solo es unidad de sesión válida
-para **delivery/operación** (regla 4), no para código del Core compartido.
+El código se reparte por **core de negocio** y **cada sesión es dueña de un core** de punta a punta
+(arquitectura + producto + tests de ese core). La especialidad orienta pero no limita; lo que **no**
+se hace es partir por tenant: el eje del código es el **core**, nunca el cliente (reglas 2–3). Un
+tenant completo de punta a punta solo es unidad de sesión para **delivery/operación** (regla 4).
 
-| # | Squad (especialidad-líder) | Sesgo experto | Worktree base / rama |
+| Core (sesión dueña) | Alcance | Territorio de archivos (propio) | Worktree · rama |
 |---|---|---|---|
-| **1** | **Plataforma & Arquitectura** | staff/arquitecto multi-tenant: RLS/aislamiento, performance, tenants/blueprints, escalabilidad | `estetica-erp-plataforma` · `frente/plataforma` |
-| **2** | **Producto & Verticales** | product engineer ERP: features, profundidad por rubro (retail/POS, agenda&servicios, oficios, gastronomía), UX de negocio | `estetica-erp-producto` · `frente/producto` |
-| **3** | **Fiscal & Pagos** | integraciones fiscales/pagos LATAM: ARCA/AFIP, Mercado Pago, facturación, checkout/seña, conciliación | `estetica-erp-fiscal` · `frente/fiscal` |
-| **4** | **Calidad & Confiabilidad** | SDET/reliability: tests, cobertura, CI, observabilidad, seguridad, retención | `estetica-erp-calidad` · `frente/calidad` |
-| **D** | **Diseño** (capa fija) | sistema de diseño/UX transversal: tokens, primitivos, branding por tenant — común a todos los frentes | `estetica-erp-diseno` · `frente/diseno` |
-| **5** | **Ejecutivo / PMO** (capa fija, lidera) | socio gerente ejecutivo: estrategia, priorización, roadmap, tablero, **asigna dominios a frentes**, **secuencia lo compartido (regla 5)** y **MERGE-MASTER a main** | **`main`** (esta sesión) |
+| **Pagos** | adapters/gateway de cobros: Mercado Pago, checkout/seña, webhooks de cobro, conciliación | `src/plugins/mercadopago/`, `src/app/api/webhooks/mercadopago/`, `src/lib/mercadopago-*.ts`, preferencia/checkout | `estetica-erp-pagos` · `frente/pagos` |
+| **Caja** | caja del POS + UX de operación de caja | `src/app/admin/caja/`, `src/lib/cash-*.ts` (apertura/cierre/arqueo/movimientos) | `estetica-erp-caja` · `frente/caja` |
+| **Inventario/POS** | stock, productos, compras/reposición, proveedores | `src/lib/order-actions.ts`, `product-*`, POS/`pedidos`, compras (Supplier/PurchaseOrder) UI | `estetica-erp-inventario` · `frente/inventario` |
+| **Fiscal** | ARCA/WSFEv1, facturación, certificados | `src/plugins/arca/`, `src/lib/invoice-core.ts`, `fiscal.ts`, `arca-dispatch.ts` | `estetica-erp-fiscal` · `frente/fiscal` |
+| **Plataforma** | RLS/tenancy, performance, auth, observabilidad **+ reporting** | `src/lib/tenant*.ts`, `rls.ts`, `prisma/rls/`, `session.ts`, `capabilities.ts`, `authz.ts`, `getReportData`/`reportes/`, perf/obs | `estetica-erp-plataforma` · `frente/plataforma` |
+| **PMO** (por encima) | estrategia, roadmap, tablero, **asigna cores**, **secuencia lo compartido (regla 5)** y **MERGE-MASTER** | — (trabaja sobre **`main`**) | **`main`** (esta sesión) |
 
-Las capas fijas de la regla 6 se mapean así: **PMO/Ejecutivo** = fila 5 (sobre `main`), **Diseño** =
-fila D, y las filas 1–4 son los **frentes de Desarrollo por dominio**. El Equipo 5 (PMO/Ejecutivo)
-no tiene worktree propio: **trabaja sobre `main`**, orquesta, **asigna cada dominio/core activo a un
-frente+worktree** (código por dominio; delivery por cliente, regla 4), **secuencia en serie los
-archivos compartidos** (schema/migraciones/auth-tenancy, regla 5), y es el único que integra.
+> **Cross-cutting (no son cores):** **Calidad/tests** — cada dueño de core entrega con tests en verde
+> (regla "verde antes de commitear"). **Diseño/UX transversal** (tokens, primitivos, branding por
+> tenant) — se levanta como **sesión cross-cutting puntual** cuando hay UI a lo ancho, **no** es eje
+> de paralelización.
 
-### Worktrees base (setup vigente)
+El PMO no tiene worktree propio: **trabaja sobre `main`**, orquesta, **asigna cada core activo a una
+sesión+worktree**, **secuencia en serie los cimientos compartidos** (schema/migraciones/auth-tenancy,
+regla 5) y es el único que integra.
+
+### Worktrees base (un worktree por core)
 ```
-Equipo 5 (PMO/main)  C:/Users/mlloveras2/Documents/Claude/estetica-erp
-Squad 1 Plataforma   C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataforma   [frente/plataforma]
-Squad 2 Producto     C:/Users/mlloveras2/Documents/Claude/estetica-erp-producto     [frente/producto]
-Squad 3 Fiscal       C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal       [frente/fiscal]
-Squad 4 Calidad      C:/Users/mlloveras2/Documents/Claude/estetica-erp-calidad      [frente/calidad]
-Diseño (capa fija)   C:/Users/mlloveras2/Documents/Claude/estetica-erp-diseno       [frente/diseno]
+PMO (main)       C:/Users/mlloveras2/Documents/Claude/estetica-erp
+Pagos            C:/Users/mlloveras2/Documents/Claude/estetica-erp-pagos         [frente/pagos]
+Caja             C:/Users/mlloveras2/Documents/Claude/estetica-erp-caja          [frente/caja]
+Inventario/POS   C:/Users/mlloveras2/Documents/Claude/estetica-erp-inventario    [frente/inventario]
+Fiscal           C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal        [frente/fiscal]
+Plataforma       C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataforma    [frente/plataforma]
 ```
+
+---
+
+## Mapa de secuenciación: cimientos compartidos (SERIE) vs PARALELO
+
+Operacionaliza la regla 5. El paralelismo real depende de que los cores toquen **archivos
+disjuntos**; donde comparten un **cimiento**, el PMO lo pasa a **serie**.
+
+### 🔴 Cimientos compartidos → SERIE (un frente por vez, PMO secuencia)
+
+| Cimiento | Archivos | Cores que lo tocan | Cómo se serializa |
+|---|---|---|---|
+| **Schema + migraciones** | `prisma/schema.prisma`, `prisma/migrations/` | Inventario (Supplier/PurchaseOrder/StockMovement), Fiscal (Invoice/Outbox), Pagos (tabla conciliación), Plataforma (feature_flag) | **un cambio de schema por vez**: el PMO integra uno, el siguiente hace `pull --rebase` antes de tocar el schema. La migración de cada core es una **carpeta nueva aditiva** que queda SIN aplicar (Gate 2). |
+| **Auth / tenancy** | `tenant*.ts`, `rls.ts`, `session.ts`, `capabilities.ts`, `authz.ts` | **dueño: Plataforma**; el resto solo **consume** | capabilities/roles nuevos se **piden al dueño Plataforma** (no los agrega otro core). La **activación de RLS** reescribe cómo corre *toda* query → **ventana dedicada**: se integra sola y los demás cores rebasan sobre ella. |
+| **God-files co-editados** | `src/lib/actions.ts` (histórico: choque ADR-024) | varios | serializar hunks; objetivo: **extraer lógica a módulos por core** para que deje de ser cimiento. |
+
+### 🟢 Territorios disjuntos → PARALELO (corren a la vez sin pisarse)
+
+| Core | Corre en paralelo porque… | Único contacto con un cimiento |
+|---|---|---|
+| **Pagos** | vive en `src/plugins/mercadopago/` + rutas de webhook propias | tabla de conciliación → **gate de schema** |
+| **Caja** | `/admin/caja` + `cash-*.ts` propios; su schema (`add_cash_register`) **ya está en main** | ninguno pendiente |
+| **Inventario/POS** | order/product/stock actions + UI de compras propios | Supplier/PurchaseOrder/StockMovement → **gate de schema** |
+| **Fiscal** | `src/plugins/arca/` + invoice-core/fiscal.ts propios | Invoice/Outbox → **gate de schema** (ya escrito, sin aplicar) |
+| **Plataforma** | perf/observabilidad/reporting sobre archivos propios | **ES dueño** del cimiento auth/tenancy → su activación RLS es, ella misma, un paso serializado |
+
+### Orden sugerido de integración (PMO)
+
+1. **Plataforma primero (contrato de tenancy):** cablear `rlsPrisma`/`tenantTransaction` como contrato
+   que los cores nuevos usan al escribir queries (el cableado **no** cambia prod; la **aplicación** de
+   RLS es Gate 2). Así todo core nuevo nace compatible con RLS.
+2. **Gate de schema, de a uno:** Fiscal (Invoice/Outbox, ya escrito) → Inventario (Supplier/PO) →
+   Pagos (conciliación) → Plataforma (feature_flag). Cada uno rebasa antes de tocar `schema.prisma`.
+3. **Lógica de cada core, en paralelo, todo el tiempo:** adapters, UX y endpoints en su territorio
+   propio no esperan a nadie; **solo el hunk de schema** de cada uno pasa por la cola serie.
+4. **Migraciones a prod y RLS a prod = Gate 2** (acción del owner), al final, en bloque.
 
 ---
 
