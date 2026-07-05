@@ -183,6 +183,7 @@ model Tenant {
   cashMovements      CashMovement[]
   stockPurchases     StockPurchase[]
   stockPurchaseItems StockPurchaseItem[]
+  stockMovements     StockMovement[]
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -432,6 +433,7 @@ model Product {
   trackStock   Boolean          @default(false)
   orderItems   OrderItem[]
   purchaseItems StockPurchaseItem[] // entradas de stock (compras/reposiciones) que lo repusieron
+  stockMovements StockMovement[]   // ledger de movimientos de stock (entradas y salidas)
 
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -1064,4 +1066,53 @@ model StockPurchaseItem {
 
   @@index([tenantId])
   @@index([purchaseId])
+}
+
+// --- Ledger de stock: la única fuente de verdad de cómo se mueve el inventario ---
+// Cada cambio de `Product.stock` (venta, compra/reposición, consumo de insumo al
+// completar un turno, ajuste/merma manual) escribe UNA fila acá, dentro de la misma
+// transacción que muta el stock (ver src/lib/stock/ledger.ts: `recordMovement` es el
+// único mutador). `Product.stock` pasa a ser una proyección cacheada; este ledger es
+// la historia auditable que responde "por qué el stock es X" y "qué se movió".
+//
+// Convención de signo: `qty` es FIRMADA — positiva entra, negativa sale. El signo lo
+// fija el TIPO en un solo lugar (VENTA/CONSUMO restan; COMPRA/REPOSICION suman; AJUSTE
+// lleva el signo del delta declarado). `balanceAfter` congela el stock resultante tras
+// aplicar el movimiento, para reconstruir el timeline sin re-sumar todo el ledger.
+//
+// Las referencias al origen (orderId/purchaseId/appointmentId) son rastros DÉBILES:
+// columnas sueltas sin FK a propósito (audit trail), para no acoplar el ledger a los
+// ciclos de vida de Order/StockPurchase/Appointment ni inflar sus back-relations.
+enum StockMovementType {
+  VENTA      // salida por venta en el POS/vidriera (order-core)
+  COMPRA     // entrada por compra a proveedor
+  REPOSICION // entrada por reposición interna
+  CONSUMO    // salida por consumo de insumo al completar un turno (ServiceProduct)
+  AJUSTE     // ajuste manual: recuento, merma, rotura, vencimiento (signo del delta)
+}
+
+model StockMovement {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productId String?
+
+  type         StockMovementType
+  qty          Float // FIRMADA: + entra / − sale
+  unitCost     Float? // costo unitario snapshot (entradas; null en salidas/ajustes sin costo)
+  balanceAfter Float // stock del producto tras aplicar este movimiento (proyección congelada)
+  reason       String? // motivo (obligatorio en AJUSTE: recuento/merma/rotura)
+
+  // Rastros débiles al origen (sin FK): de dónde salió el movimiento.
+  orderId       String?
+  purchaseId    String?
+  appointmentId String?
+
+  createdBy String // actor "user:<id>" (o "system" para automáticos)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, productId, createdAt])
+  @@index([tenantId, createdAt])
 }

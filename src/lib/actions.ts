@@ -14,6 +14,7 @@ import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
+import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
@@ -784,10 +785,21 @@ export async function completeAppointment(formData: FormData) {
       throw new Error("Solo se puede completar un turno que esté confirmado.");
     }
 
+    // Consumo de insumos al cerrar el turno, vía ledger (`recordMovement`): descuenta
+    // el stock y asienta un StockMovement (CONSUMO) por insumo en la misma transacción.
+    // `allowNegative`: el cierre del turno NO se bloquea por falta de insumo cargado
+    // (a diferencia de la venta) — el servicio ya se prestó; que el stock quede en
+    // rojo es una señal para reponer/ajustar, no un motivo para frenar el cierre.
     for (const usage of appointment.service.products) {
-      await tx.product.update({
-        where: { id: usage.productId },
-        data: { stock: { decrement: usage.quantity } },
+      await recordMovement(tx, {
+        tenantId: appointment.tenantId,
+        productId: usage.productId,
+        type: "CONSUMO",
+        qty: usage.quantity,
+        appointmentId,
+        createdBy: `user:${user.id}`,
+        label: usage.product.name,
+        allowNegative: true,
       });
     }
 

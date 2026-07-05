@@ -12,6 +12,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { recordMovement } from "@/lib/stock/ledger";
 
 export type StockPurchaseKind = "COMPRA" | "REPOSICION";
 
@@ -156,12 +157,20 @@ export async function insertStockPurchase(
       select: { id: true, code: true },
     });
 
-    // Reposición de stock: incremento atómico por producto. No hace falta guarda
-    // (a diferencia de la venta): sumar existencias siempre es válido.
+    // Reposición de stock vía ledger (`recordMovement`): incremento atómico por
+    // producto + fila del StockMovement (COMPRA o REPOSICION, según el documento) en
+    // la misma transacción. No hace falta guarda (a diferencia de la venta): sumar
+    // existencias siempre es válido. Snapshotea el costo unitario en el movimiento.
     for (const l of lines) {
-      await tx.product.updateMany({
-        where: { id: l.productId, tenantId },
-        data: { stock: { increment: l.quantity } },
+      await recordMovement(tx, {
+        tenantId,
+        productId: l.productId,
+        type: input.kind,
+        qty: l.quantity,
+        unitCost: l.unitCost,
+        purchaseId: created.id,
+        createdBy: input.createdBy,
+        label: l.name,
       });
     }
 
