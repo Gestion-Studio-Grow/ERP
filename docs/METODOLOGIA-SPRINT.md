@@ -16,15 +16,37 @@ vivo), `docs/ESTADO-FRENTES.md` (mapa de frentes + %), `docs/METODOLOGIA-REPORTE
 
 Cuando Maxi escribe **`sprint`** (o invoca `/sprint`), el orquestador **toma el rol de SOCIO
 GERENTE EJECUTIVO del frente de IA** —experto en ERPs multi-tenant, background técnico +
-funcional + PMO— y **abre tantas sesiones/worktrees como haga falta** para encarar **varios
-desarrollos y varios tenants EN PARALELO**, todos sobre `estetica-erp`. Cada squad decide con
-criterio experto y entrega en su rama; el Ejecutivo/PMO asigna, coordina e integra.
+funcional + PMO— y **abre una sesión de Claude Code AISLADA por cada frente** (frente/desarrollo/
+tenant) para encarar **varios desarrollos y varios tenants EN PARALELO**, todos sobre
+`estetica-erp`. Cada squad decide con criterio experto **en su propia sesión** y entrega en su
+rama; el Ejecutivo/PMO asigna, coordina e integra desde `main`.
 
 > **Por qué worktrees:** el repo git es un **subfolder** del workspace; varias sesiones sobre la
 > misma carpeta comparten el working tree y se pisan los archivos sin commitear. Un **worktree por
 > squad/desarrollo/tenant** (directorio + rama propios) es el aislamiento real, y es lo que permite
 > correr N cosas a la vez sin colisión. No era problema de aprobación: las sesiones nuevas corren
 > sobre el workspace ya confiado.
+
+### Regla dura: 1 frente = 1 worktree = 1 sesión de Claude Code aislada
+El paralelo NO es "una sesión que atiende varios frentes en serie". Es **una sesión de Claude Code
+por frente, con contexto propio y aislado, sobre su propio worktree**. La correspondencia es
+estricta: **1 frente = 1 worktree = 1 sesión**.
+
+- **Cómo se "abre una sesión por frente":**
+  - **Dentro de una sesión orquestadora** (la del PMO): el Ejecutivo **despacha un subagente por
+    frente** (Agent tool / `Task`); **cada subagente ES la sesión aislada** de ese frente —contexto
+    propio, corriendo en el worktree del frente, entregando en su rama—. Es la forma nativa de
+    "una sesión por frente" dentro de un mismo proceso de Claude Code.
+  - **Desde el móvil / Dispatch:** equivale a **abrir N sesiones `claude` separadas**, una apuntada
+    a cada worktree. Mismo contrato: contexto por frente, sin compartir sesión.
+- **El PMO/Ejecutivo es su propia sesión** (sobre `main`): orquesta, asigna y es el **único** que
+  integra. No toma un frente de punta a punta.
+- **La coordinación entre sesiones viaja por el REPO, no por el chat.** Cada sesión de frente
+  arranca leyendo su bocado del repo (`## Sprint activo`, `ESTADO-FRENTES.md`) y deja su resultado
+  en el repo (rama + estado). El repo es la memoria compartida; la sesión, no.
+- **Única excepción (fallback):** si el entorno **no puede spawnear sesiones nuevas** (sin laptop /
+  sin capacidad de abrir sesiones), se degrada a **una sola sesión reutilizada en serie**, un tema
+  por commit (`docs/SPRINT-MOVIL.md`). Es un degradado explícito, no el modo normal.
 
 ---
 
@@ -107,7 +129,7 @@ squad puede con cualquier cosa).
 
 | Palabra | Qué hace |
 |---|---|
-| **`sprint`** | El PMO toma el rol de socio gerente ejecutivo, **releva cuántos desarrollos/tenants hay activos** y **abre tantos worktrees/sesiones como haga falta** (los 4 base + los que sumen por desarrollo/tenant). Asigna cada unidad de trabajo a un squad y arranca. Está OK abrir de más. |
+| **`sprint`** | El PMO toma el rol de socio gerente ejecutivo, **releva cuántos frentes/desarrollos/tenants hay activos** y **abre una sesión de Claude Code aislada por cada frente** (un worktree + una sesión c/u; los base + los que sumen por desarrollo/tenant), **nunca una sola sesión compartida**. Asigna a cada frente su bocado y arranca. Está OK abrir de más. |
 | **`status`** | Estado **real del repo** (no de memoria): lee `docs/ESTADO-FRENTES.md` + `## Sprint activo` de `SPRINT-MOVIL.md` + `git log`, y responde en lenguaje de dueño con los estados canónicos. |
 | **`seguimos`** | Retoma desde el handoff vivo (`## Sprint activo → Próximo bocado` de cada frente) sin re-preguntar el plan. |
 | **`pausa`** | Frena, **consolida** (main limpio y pusheado, ramas integradas o anotadas, handoff al día) y queda a la espera. |
