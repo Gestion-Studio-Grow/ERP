@@ -85,6 +85,54 @@ backfill ─┘        │                                                      
 
 **Diferido (`docs/PROXIMOS-PASOS.md` / BACKLOG como producto):** tabla de conciliación (`ProcessedMpPayment`/`Reconciliation`) + su migración; adapter real de MP (OAuth de la cuenta del comerciante + API de pagos + firma de webhook); worker de cola con rate-limit hacia ARCA; modo batch de WSFEv1; dashboard de conciliación (pagos vs facturas); opción "agrupado"; onboarding standalone (conectar cuenta MP). Todo gateado por el flag de facturación y por credenciales reales.
 
-## 9. Decisión final
+## 9. Modelo de acceso técnico: OAuth de Mercado Pago (NO scraping)
 
-La capability Mercado Pago de arca es un **producto de facturación automática para monotributistas de alto volumen**: ingesta de **todos** los pagos acreditados de la cuenta MP del comerciante por **dos fuentes convergentes** (backfill histórico + webhook), **idempotentes por `payment_id`** vía un registro de conciliación que también es el estado del producto, **facturación asíncrona por outbox+worker** con rate-limit hacia ARCA, y **una Factura C por operación** por default (agrupado, opcional futuro). Núcleo hexagonal con stubs (simulador de feed de monotributista) ahora; adapters reales, tabla de conciliación y worker de volumen, diferidos. Sirve igual como **arca standalone** y como **plugin del ERP**: mismo motor, misma puerta `facturarPagoMP`.
+**Decisión: acceso por OAuth 2.0 de Mercado Pago (flujo *authorization code*).** El comerciante **autoriza una vez** y arca recibe `access_token` + `refresh_token` para leer sus pagos **por API, en su nombre, sin manejar nunca su contraseña**.
+
+**Flujo de onboarding (por cliente):**
+1. El comerciante —o el contador en su nombre— inicia el vínculo → redirect a MP con `client_id` + `redirect_uri` + `scope` (lectura de pagos).
+2. MP le pide login + consentimiento **al comerciante** (en el sitio de MP, no en arca).
+3. Callback a arca con un `authorization code` de un solo uso.
+4. arca intercambia el code por `access_token` (corto) + `refresh_token` (largo) + `collector_id` (id de la cuenta).
+5. Se guardan **cifrados at-rest, por cliente** (nunca en el repo).
+6. **Refresh automático** con el `refresh_token` antes de que venza el access; si el comerciante revoca, el vínculo cae y se le pide re-autorizar.
+
+**Lectura de datos con el token:** `listPayments` (historial, §2 backfill) + webhooks (MP notifica a nuestro endpoint registrado para la app). Ambas fuentes usan el token del cliente.
+
+**Se descarta explícitamente el scraping del dashboard de MP.** Por qué NO:
+- **Frágil:** se rompe con cada cambio de UI de MP; mantenimiento infinito.
+- **Contra los términos de uso** de MP → riesgo de **baneo de la cuenta del comerciante** (le arruinás el negocio al cliente).
+- **No escala:** login + 2FA + captchas + sesiones; imposible de correr desatendido para N cuentas.
+- **Inseguro:** obligaría a manejar la **contraseña** del comerciante (lo que OAuth existe para evitar).
+- **Sin tiempo real:** no hay webhooks; habría que pollear la web.
+
+OAuth es la vía **oficial, estable, consentida y auditable**; es la única base seria para un producto.
+
+**Impacto en los ports:** `MercadoPagoConfig` pasa a ser el **set de credenciales OAuth por cliente** (`accessToken`/`refreshToken`/`expiresAt`/`collectorId`). Un `CredencialesPort` (diferido) entrega y **refresca** el token de un cliente; el `MercadoPagoClient` se instancia con las credenciales de ese cliente. El stub ignora esto (no hay red).
+
+## 10. Modelo de negocio y datos: "contador socio" (multi-cliente, multi-cuenta)
+
+**Caso de uso central:** un **contador** gestiona arca para **SU CARTERA** de monotributistas. Un operador administra **N cuentas MP de N clientes**, cada una vinculada por OAuth. Multi-tenant/multi-cuenta **desde el diseño**, no un agregado.
+
+**Modelo de entidades (diseño; DB diferida a Gate 2):**
+- **Operador** (contador/gestor): tiene login, ve y opera **su** cartera.
+- **ClienteFiscal** (el monotributista): pertenece a un operador; tiene su **perfil fiscal** (CUIT, condición, punto de venta) + su **vínculo OAuth a MP** (credenciales, §9) + su **registro de conciliación** (§3).
+- Relaciones: `Operador 1—N ClienteFiscal`; `ClienteFiscal 1—1 credencial MP` y `1—1 perfil fiscal`.
+
+**Encaje en el multi-tenant existente (ADR-001/018/021):** se recomienda que **cada ClienteFiscal (monotributista) sea un tenant** — aislamiento fiscal fuerte, RLS por cliente, cada uno con su CUIT, sus pagos y sus facturas separados — y que el **operador/contador sea un plano de operación cross-tenant** (el mismo patrón del super-admin de [ADR-021](./ADR-021-consola-operacion-super-admin.md): otra audiencia, otro plano de autorización, no pegado a la app de un tenant). Así se **reusa** la arquitectura multi-tenant en vez de inventar otra. El alta de un cliente reusa el provisioning de [ADR-019](./ADR-019-onboarding-alta-tenant-provisioning.md) + dispara el OAuth (§9).
+
+**Autorización:** el operador solo ve/opera los clientes de **su** cartera; el aislamiento lo garantiza RLS por tenant (ADR-018). Un operador nunca ve pagos ni facturas de la cartera de otro.
+
+## 11. Panorama competitivo y diferencial de arca
+
+| Herramienta | Qué hace | Límite frente a arca |
+|---|---|---|
+| **Facturitas** | Facturación por WhatsApp/voz, ARCA, monotributistas | Disparo **manual** — vos le decís qué facturar; **no detecta MP solo**. |
+| **Facturante** | Facturación automática | Automatiza desde **Mercado Pago Point / posnet** (cobro presencial), no el **feed completo** de la cuenta MP. |
+| **TusFacturasApp / iFactura** | Integran Mercado Pago | Más para **cobrar facturas** o e-commerce (factura→cobro), no **ingesta del feed de ingresos** para facturarlo. |
+
+**Diferencial de arca (el hueco que nadie cubre de lleno):** **detectar automáticamente TODO el feed de ingresos de Mercado Pago** de un monotributista con **muchas operaciones chicas** y **facturarlo solo** —sin intervención por operación—, **operable por un contador para toda su cartera**. Ese combo —ingesta total automática (no manual, no solo posnet, no solo cobro-de-factura) **+** multi-cliente por contador vía OAuth— es la posición propia.
+
+## 12. Decisión final
+
+La capability Mercado Pago de arca es un **producto de facturación automática para monotributistas de alto volumen**: ingesta de **todos** los pagos acreditados de la cuenta MP del comerciante por **dos fuentes convergentes** (backfill histórico + webhook), **idempotentes por `payment_id`** vía un registro de conciliación que también es el estado del producto, **facturación asíncrona por outbox+worker** con rate-limit hacia ARCA, y **una Factura C por operación** por default (agrupado, opcional futuro). El acceso a cada cuenta es por **OAuth de Mercado Pago** (nunca scraping, §9), y el producto se opera en modo **"contador socio"**: un operador administra por OAuth la **cartera** de monotributistas, cada cliente como un tenant aislado (§10). El **diferencial** frente a Facturitas/Facturante/TusFacturasApp/iFactura (§11) es la **ingesta automática de TODO el feed de ingresos MP + operación multi-cliente por el contador** — hueco que ninguno cubre de lleno. Núcleo hexagonal con stubs (simulador de feed de monotributista) ahora; OAuth real, adapters, tabla de conciliación y worker de volumen, diferidos. Sirve igual como **arca standalone** y como **plugin del ERP**: mismo motor, misma puerta `facturarPagoMP`.

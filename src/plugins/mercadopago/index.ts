@@ -12,6 +12,7 @@ export type { NotificacionPagoMP, FacturarPorPago } from "./core-contract";
 export {
   type MercadoPagoClient,
   type MercadoPagoConfig,
+  type CredencialesPort,
   type PagoMP,
   type EstadoPagoMP,
   type CriterioBusqueda,

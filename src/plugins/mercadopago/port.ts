@@ -51,9 +51,29 @@ export interface PaginaPagos {
   nextCursor?: string;
 }
 
-/** Credenciales de MP por tenant. Secretas: entran por config, no al repo. */
+/**
+ * Credenciales OAuth de MP por cliente (ADR-025 §9). Se obtienen del flujo
+ * *authorization code* (el comerciante autoriza una vez; NUNCA su contraseña ni
+ * scraping). Secretas: cifradas at-rest por cliente, jamás al repo.
+ */
 export interface MercadoPagoConfig {
+  /** Access token (corto). */
   accessToken: string;
+  /** Refresh token (largo): renueva el access antes de vencer. */
+  refreshToken?: string;
+  /** Vencimiento del access token (epoch ms). Dispara el refresh. */
+  expiresAt?: number;
+  /** Id de la cuenta MP del comerciante (collector id). */
+  collectorId?: string;
+}
+
+/**
+ * Provee y refresca las credenciales OAuth de un cliente (ADR-025 §9).
+ * Stub/DB-backed diferido: hoy el simulador no lo necesita (sin red).
+ */
+export interface CredencialesPort {
+  /** Credenciales vigentes del cliente (refresca el token si está por vencer). */
+  credencialesDe(tenantId: string): Promise<MercadoPagoConfig>;
 }
 
 /** Cliente de Mercado Pago. */
