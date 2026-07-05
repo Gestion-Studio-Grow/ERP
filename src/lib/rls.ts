@@ -14,6 +14,7 @@
 // recursión. El día del 2º tenant, el request setea el store y este fallback deja
 // de usarse (ADR-018 §4).
 
+import { Prisma } from "@/generated/prisma/client";
 import { basePrisma, RLS_ENFORCEMENT } from "@/lib/prisma-base";
 import { getTenantStore, runInTenantContext } from "@/lib/tenant-context";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -68,24 +69,87 @@ type TxClient = Parameters<Parameters<typeof basePrisma.$transaction>[0]>[0];
  * `opts.tenantId` fuerza el tenant (para paths sin request donde el tenant se
  * conoce explícito, ej. el worker de facturación). Si se omite, se resuelve del
  * store o de getCurrentTenantId().
+ *
+ * `opts.isolationLevel` fija el nivel de aislamiento de la transacción (default:
+ * el de la conexión, ReadCommitted). `opts.maxRetries` reintenta la transacción
+ * completa ante un conflicto de serialización (ver `isWriteConflict`); por default
+ * reintenta solo si se pidió Serializable. Ambos habilitan `bookingTransaction`
+ * (fix del TOCTOU de overbooking, ADR-004/023 F2).
  */
 export async function tenantTransaction<T>(
   fn: (tx: TxClient) => Promise<T>,
+  opts?: {
+    tenantId?: string;
+    isolationLevel?: Prisma.TransactionIsolationLevel;
+    maxRetries?: number;
+  },
+): Promise<T> {
+  const txOptions = opts?.isolationLevel
+    ? { isolationLevel: opts.isolationLevel }
+    : undefined;
+  // Reintentar solo tiene sentido en un nivel que aborta por conflicto (Serializable).
+  const maxRetries =
+    opts?.maxRetries ??
+    (opts?.isolationLevel === Prisma.TransactionIsolationLevel.Serializable
+      ? DEFAULT_SERIALIZABLE_RETRIES
+      : 0);
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      if (!RLS_ENFORCEMENT) return await basePrisma.$transaction(fn, txOptions);
+
+      const tenantId = opts?.tenantId ?? (await resolveTenantId());
+      // Callback async que await-ea DENTRO del scope: así el contexto ALS (insideTx)
+      // sobrevive a la parte asíncrona (las promesas de Prisma son lazy; un callback
+      // no-async devolvería la promesa y perdería el contexto antes de ejecutarla).
+      return await runInTenantContext(
+        tenantId,
+        async () =>
+          basePrisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+            return fn(tx);
+          }, txOptions),
+        { insideTx: true },
+      );
+    } catch (e) {
+      // Serialization_failure/deadlock (Postgres 40001 → Prisma P2034): la
+      // transacción abortó por una concurrente. Reintentar re-corre `fn` entero.
+      if (attempt < maxRetries && isWriteConflict(e)) continue;
+      throw e;
+    }
+  }
+}
+
+// Reintentos por default de una transacción Serializable antes de propagar el
+// conflicto. 3 alcanza de sobra para la contención real de dos reservas del mismo
+// hueco (a la 2ª pasada una ya está commiteada y `assertSlotAvailable` la ve).
+const DEFAULT_SERIALIZABLE_RETRIES = 3;
+
+/**
+ * Postgres `serialization_failure` (SQLSTATE 40001) o deadlock, que Prisma expone
+ * como P2034 ("Transaction failed due to a write conflict or a deadlock"). Es la
+ * señal de que una transacción Serializable abortó por una concurrente y conviene
+ * reintentarla, no un error de negocio.
+ */
+function isWriteConflict(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034";
+}
+
+/**
+ * Transacción de RESERVA: `tenantTransaction` en nivel Serializable con reintentos.
+ * Cierra el TOCTOU de overbooking (ADR-004 alt. B / ADR-023 F2). El check-then-insert
+ * de `assertSlotAvailable` en ReadCommitted deja pasar dos reservas simultáneas del
+ * mismo hueco (ambas leen "libre" antes de que cualquiera inserte); en Serializable
+ * Postgres aborta una con serialization_failure y el reintento re-corre la
+ * validación, que ahora ve el turno ya commiteado y falla con el error de negocio
+ * "ese horario ya no está disponible". Úsala en todo alta/reprogramación de turno.
+ */
+export function bookingTransaction<T>(
+  fn: (tx: TxClient) => Promise<T>,
   opts?: { tenantId?: string },
 ): Promise<T> {
-  if (!RLS_ENFORCEMENT) return basePrisma.$transaction(fn);
-
-  const tenantId = opts?.tenantId ?? (await resolveTenantId());
-  // Callback async que await-ea DENTRO del scope: así el contexto ALS (insideTx)
-  // sobrevive a la parte asíncrona (las promesas de Prisma son lazy; un callback
-  // no-async devolvería la promesa y perdería el contexto antes de ejecutarla).
-  return runInTenantContext(
-    tenantId,
-    async () =>
-      basePrisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
-        return fn(tx);
-      }),
-    { insideTx: true },
-  );
+  return tenantTransaction(fn, {
+    ...opts,
+    isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+  });
 }

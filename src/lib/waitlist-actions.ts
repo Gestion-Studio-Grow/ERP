@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { tenantTransaction } from "@/lib/rls";
+import { bookingTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { getAvailableSlots } from "@/lib/actions";
@@ -220,7 +220,7 @@ export async function bookFromWaitlist(formData: FormData) {
     throw new Error("Ese profesional no trabaja en ese horario. Elegí otro.");
   }
 
-  const appointment = await tenantTransaction(async (tx) => {
+  const appointment = await bookingTransaction(async (tx) => {
     await assertSlotAvailable(tx, {
       professionalId,
       boxId,

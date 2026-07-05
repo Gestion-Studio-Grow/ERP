@@ -31,6 +31,14 @@ Dos capas de decisión: **Capa 1 — fixes scale-ready (F1–F5)**, independient
 
 ### F2 — CRÍTICO (correctitud) · Overbooking: ADR-004 promete `EXCLUDE USING GIST`, el código usa check-then-insert
 
+> **✅ RESUELTO 2026-07-05** (sprint "Tablero honesto + deuda técnica sin gates"). Se implementó
+> la opción 2: las 4 rutas de reserva (eran 3 en la auditoría; se sumó la reprogramación pública
+> `client-actions.ts`) corren en **Serializable con reintentos** vía `bookingTransaction`
+> (`src/lib/rls.ts`, que agrega `isolationLevel` + retry sobre `tenantTransaction`; reintenta ante
+> `P2034`). ADR-004 **enmendado** (§Enmienda 2026-07-05): describe Serializable como mecanismo
+> Fase 1 y deja `EXCLUDE USING GIST` como objetivo de Fase 2 a plan pago. `tsc` + build en verde.
+> GIST sigue pendiente (opción 1, mediano plazo). El resto de esta ficha queda como registro histórico.
+
 **Problema:** ADR-004 dice "overbooking se previene con `EXCLUDE USING GIST`, no con lógica de aplicación". **Grep sobre todas las migraciones: cero GIST/EXCLUDE.** Se previene en app (`assertSlotAvailable`, `booking-core.ts:53`) leyendo conflictos y luego insertando, en una transacción en **ReadCommitted** (no hay `isolationLevel: Serializable` en el repo). Es una carrera TOCTOU: dos reservas simultáneas del mismo hueco leen ambas "libre" y ambas insertan → doble turno. No requiere escala: pasa hoy, con 1 tenant y 2 operadores concurrentes (o cliente web + recepción).
 
 **Alternativas:**
@@ -96,7 +104,7 @@ Dos capas de decisión: **Capa 1 — fixes scale-ready (F1–F5)**, independient
 
 | # | Hallazgo | Severidad | Costo | Gatillo | Tipo de sesión |
 |---|---|---|---|---|---|
-| F2 | Overbooking TOCTOU (ADR-004 incumplido) | 🔴 correctitud | bajo (Serializable) | **ya** — no espera escala | `/sesion-feature` |
+| F2 | Overbooking TOCTOU (ADR-004 incumplido) | ✅ **RESUELTO 2026-07-05** (Serializable + retry, `bookingTransaction`) | — | hecho | — |
 | F1 | Índices multi-tenant muertos sin `tenantId` | 🔴 escala | medio | acoplado a RLS (ADR-018) | `/sesion-feature` (RLS) |
 | F3 | Reportes agrega todo el histórico en JS | 🟠 | bajo-medio | antes de crecer datos | `/sesion-feature` |
 | F4/F5 | N+1 recursos / over-fetch clientes | 🟡 | bajo | oportunista | `/sesion-feature` |

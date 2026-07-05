@@ -1,7 +1,40 @@
 # ADR-004: Scheduling — Modelo de Datos y Prevención de Overbooking
 
-**Estado:** Propuesto
+**Estado:** Aceptado — **enmendado 2026-07-05** (mecanismo Fase 1 reconciliado con el código, ver Enmienda).
 **Depende de:** ADR-001 (multi-tenant/RLS), ADR-003 (Scheduling como Capability nueva del Core)
+
+---
+
+## Enmienda 2026-07-05 — mecanismo real de Fase 1 (reconciliación con el código, ADR-023 F2)
+
+> **Por qué esta enmienda:** este ADR recomendaba `EXCLUDE USING GIST` (Opción C, §4) como
+> único mecanismo, afirmando que el overbooking se previene "en la base de datos, no en el
+> código". **La auditoría ADR-023 (F2) encontró que ese constraint no existe en ninguna
+> migración** — la prevención vivía solo en `assertSlotAvailable` (`booking-core.ts`), un
+> check-then-insert en **ReadCommitted**, con una carrera TOCTOU real (dos reservas del mismo
+> hueco leen ambas "libre" y ambas insertan). El ADR le mentía al código. Esta enmienda
+> reconcilia: describe el mecanismo **realmente implementado** y deja GIST como objetivo futuro.
+>
+> **Mecanismo Fase 1 (implementado, 2026-07-05):** las transacciones de reserva corren en
+> nivel **`Serializable` con reintentos**, vía `bookingTransaction` (`src/lib/rls.ts`), que
+> envuelve las 4 rutas de alta/reprogramación de turno (`actions.ts` alta + reprogramación,
+> `client-actions.ts` reprogramación pública, `waitlist-actions.ts` conversión de espera).
+> Bajo Serializable, dos reservas concurrentes del mismo hueco hacen que Postgres aborte una
+> con `serialization_failure` (SQLSTATE 40001 → Prisma `P2034`); el reintento re-corre
+> `assertSlotAvailable`, que ahora ve el turno ya commiteado y falla con el error de negocio
+> "ese horario ya no está disponible". La regla de choques (profesional + box + buffer +
+> bloqueos + capacidad de recursos) sigue viviendo, sin duplicar, en `assertSlotAvailable`.
+>
+> **Costo/beneficio:** cierra la carrera hoy, con 1 tenant, **sin consumir storage** (encaja
+> en el free plan de Neon). El único trade-off —degradación bajo alta concurrencia de
+> escritura por reintentos— es irrelevante al volumen de un salón.
+>
+> **GIST sigue siendo el objetivo de Fase 2/mediano plazo** (Opción C, abajo): la garantía a
+> nivel schema es superior porque no depende de que cada nueva ruta de escritura use el wrapper
+> correcto. Se adopta cuando se toque el schema de `Appointment` con plan pago (habilita
+> `btree_gist` + `EXCLUDE`), momento en que este ADR volverá a `Serializable` como red de
+> respaldo y `EXCLUDE` como garantía primaria. Hasta entonces, **la disciplina es: toda ruta
+> que cree o mueva un turno usa `bookingTransaction`, no `tenantTransaction` a secas.**
 
 ---
 

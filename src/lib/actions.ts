@@ -11,7 +11,7 @@ import {
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { tenantTransaction } from "@/lib/rls";
+import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { isInvoicingEnabled } from "@/lib/fiscal";
@@ -191,10 +191,12 @@ async function bookAppointment({
     throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
 
-  return tenantTransaction(async (tx) => {
+  return bookingTransaction(async (tx) => {
     // Re-chequea la disponibilidad DENTRO de la transacción para cerrar la
     // ventana de carrera entre "mostrar franjas libres" y "escribir la reserva":
-    // dos requests sobre la misma franja no pueden triunfar las dos.
+    // dos requests sobre la misma franja no pueden triunfar las dos. En
+    // Serializable (bookingTransaction, ADR-023 F2) el re-chequeo es a prueba de
+    // TOCTOU: si dos entran a la vez, una aborta y reintenta viendo la otra ya escrita.
     await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });
 
     const appliesResidentPrice = !!isResident && service.residentPrice != null;
@@ -516,7 +518,7 @@ export async function rescheduleAppointment(formData: FormData) {
     throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
 
-  await tenantTransaction(async (tx) => {
+  await bookingTransaction(async (tx) => {
     await assertSlotAvailable(tx, {
       professionalId: targetProfessionalId,
       boxId,
