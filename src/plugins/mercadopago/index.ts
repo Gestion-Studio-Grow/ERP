@@ -20,6 +20,22 @@ export {
 } from "./port";
 export { StubMercadoPagoClient } from "./stub";
 export {
+  HttpMercadoPagoClient,
+  FetchHttpTransport,
+  MercadoPagoApiError,
+  MP_API_BASE,
+  tokenFijo,
+  tokenDesdeCredenciales,
+  tokenNoConfigurado,
+  type HttpTransport,
+  type ProveedorAccessToken,
+} from "./http";
+export {
+  fabricaGatewayMP,
+  CLAVE_MERCADOPAGO,
+  type ConfigGatewayMP,
+} from "./gateway";
+export {
   sincronizarPagos,
   facturarPagoSiCorresponde,
   ErrorFacturacion,
