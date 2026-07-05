@@ -1,4 +1,5 @@
-// Sistema de Blueprints en código (ADR-002 / ADR-003 / FUNDAMENTOS §2 y §4).
+// Sistema de Blueprints en código (ADR-002 / ADR-003 / FUNDAMENTOS-Y-VISION.md
+// §"Blueprints: verticales, arquetipos y el genérico comodín").
 //
 // Un Blueprint es CONFIGURACIÓN PURA sobre el Core, no un fork: define qué
 // vertical de negocio se está dando de alta (servicios/spa, carnicería/retail, …),
