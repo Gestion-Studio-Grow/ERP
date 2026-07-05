@@ -5,12 +5,12 @@
 // Textos e imágenes son de SU web (transcripción literal + URLs reales). NO es nuestro
 // copy de marketing — es el contenido de ellos as-is.
 //
-// IMÁGENES: por ahora se referencian por URL (hotlink) a su sitio — no se pudieron
-// DESCARGAR al repo con las herramientas disponibles (la red saliente desde shell está
-// bloqueada y el fetch web devuelve texto, no binarios). Para dejarlas locales hace falta
-// habilitar la descarga o que el dueño pase los archivos. Ver ASSET_MANIFEST abajo.
+// IMÁGENES: descargadas del sitio real (autorizado) y servidas LOCALES desde
+// public/tenants/magra/ (Next las sirve en /tenants/magra/…). El ASSET_MANIFEST deja
+// registrado el origen de cada archivo por si hay que re-bajarlas o actualizarlas.
 
 const BASE = "https://magrameatmarket.com.ar/wp-content/uploads";
+const LOCAL_DIR = "/tenants/magra";
 
 // Manifest de assets a bajar al repo (public/tenants/magra/…) cuando haya cómo.
 export const ASSET_MANIFEST: { local: string; remote: string }[] = [
@@ -34,11 +34,9 @@ export const ASSET_MANIFEST: { local: string; remote: string }[] = [
   { local: "review-macarena.webp", remote: `${BASE}/2025/06/maca.webp` },
 ];
 
-// Resuelve la URL de un asset: local si existe en /public, si no el remoto (hotlink).
-// Para el demo actual devuelve el remoto (no se pudieron bajar los binarios).
+// Ruta pública LOCAL del asset (Next sirve public/tenants/magra/<file> en /tenants/magra/<file>).
 export function asset(local: string): string {
-  const m = ASSET_MANIFEST.find((a) => a.local === local);
-  return m ? m.remote : local;
+  return `${LOCAL_DIR}/${local}`;
 }
 
 export interface Benefit { title: string; text: string }
