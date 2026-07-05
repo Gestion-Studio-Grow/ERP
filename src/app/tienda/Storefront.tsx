@@ -81,6 +81,15 @@ export default function Storefront({
   const total = lines.reduce((s, l) => s + l.total, 0);
   const hasItems = lines.length > 0;
 
+  // Pedido por WhatsApp — canal de venta real de muchos negocios (paridad y
+  // superación vs. la tienda actual): arma un mensaje con el carrito ya cargado.
+  const waText = encodeURIComponent(
+    `¡Hola ${name}! Quiero hacer un pedido:\n` +
+      lines.map((l) => `• ${l.qty} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
+      `\nTotal estimado: ${money2.format(total)}`,
+  );
+  const waHref = branding?.whatsapp ? `https://wa.me/${branding.whatsapp}?text=${waText}` : null;
+
   // Acento de marca del tenant como CSS var, para que CTAs/precios/hero lo tomen.
   const rootStyle = {
     background: T.bone,
@@ -216,6 +225,16 @@ export default function Storefront({
               <button type="submit" style={{ ...btn("var(--accent)", "#fff"), height: 46, borderRadius: 12, fontWeight: 700, fontSize: 15 }}>
                 {wording.orderCta}
               </button>
+              {waHref && (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textAlign: "center", height: 44, lineHeight: "44px", borderRadius: 12, border: "1px solid #25D366", color: "#128C4B", background: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" }}
+                >
+                  Pedir por WhatsApp
+                </a>
+              )}
               <p style={{ fontSize: 11, color: T.muted, textAlign: "center" }}>
                 Te contactamos para confirmar. El pago se coordina al retirar/recibir.
               </p>

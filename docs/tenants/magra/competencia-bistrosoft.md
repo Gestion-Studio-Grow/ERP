@@ -7,6 +7,39 @@ el respaldo investigado (con fuentes) de esas afirmaciones y afina dónde ganamo
 
 ---
 
+## 0. 🎯 Actualización 2026-07-05 — magra HOY corre sobre Bistrosoft
+
+Analizando sus redes (`docs/preventa/analisis-redes-magra.md`) descubrimos que la **tienda online de
+magra está montada sobre Bistrosoft** (su "Lista de precios" redirige a `borders.bistrosoft.com/menu`).
+Esto deja de ser una comparación abstracta: **Bistrosoft es el sistema que magra usa hoy**, y nuestro
+tenant es su **reemplazo directo**. Paridad ya no es "estar a la altura del líder del rubro" sino
+"igualar o superar lo que magra ya tiene funcionando".
+
+### Paridad tenant magra vs. su Bistrosoft actual (checklist de reemplazo)
+
+| Capacidad | Bistrosoft (lo que magra usa hoy) | Tenant magra (nuestro) | Veredicto |
+|---|---|---|---|
+| **Tienda/vidriera online** | Menú web genérico Bistrosoft, branding limitado | Vidriera `/tienda` **con la marca de magra** (acento oxblood + wording del rubro) | 🟢 Superamos (a medida) |
+| **Pedido por WhatsApp** | Link a WhatsApp | CTA "Pedir por WhatsApp" con **carrito pre-cargado** + pedido estructurado que cae al backoffice | 🟢 Superamos |
+| **Toma de pedido → gestión** | Pedido entra, gestión en su backoffice | Pedido ONLINE → **bandeja `/admin/pedidos`** con estados + cobro; misma plataforma | 🟢 Paridad+ |
+| **Venta por peso (kg)** | Débil (Bistrosoft es gastronómico) | Venta por kg de primera clase (POS + vidriera) | 🟢 Superamos |
+| **Facturación ARCA** | Módulo pago | Plugin `arca` (ADR-022) | 🟡 Paridad |
+| **Mercado Pago online** | Sí (integrado) | ⏳ Pago a coordinar; plugin MP en construcción (otra sesión) | 🔴 **Gap MVP** |
+| **Fotos de producto** | Sí, con fotos | ⏳ Vidriera sin fotos (faltan assets del dueño) | 🟠 Gap (necesita fotos) |
+| **Delivery (zonas)** | Muestra delivery | Fulfillment PICKUP/DELIVERY + zonas en el contactNote | 🟡 Paridad (falta selector de zona) |
+| **ERP detrás** (stock, clientes, reportes, multi-sucursal) | Limitado a POS gastronómico | **ERP multi-tenant completo** | 🟢 Superamos |
+
+**Gaps críticos para declarar paridad de reemplazo (MVP):**
+1. 🔴 **Cobro online (Mercado Pago) en la vidriera** — Bistrosoft ya lo tiene; es el gap más duro.
+   Sinergia con el **plugin MercadoPago** que construye otra sesión (conviene engancharlo a `Order`).
+2. 🟠 **Fotos de producto** en la vidriera — necesita assets del dueño (pedido en el análisis §6).
+3. 🟡 **Selector de zona de envío** (las 5 zonas de magra) en el checkout — hoy va como texto.
+
+Cerrado este sprint: vidriera a medida (marca + wording reales), **pedido por WhatsApp con carrito**,
+catálogo premium fiel al negocio real. Lo demás queda listado y priorizado arriba.
+
+---
+
 ## 1. Qué es Bistrosoft (hechos verificados)
 
 - **Software de gestión gastronómica**, no de retail ni carnicería: está diseñado

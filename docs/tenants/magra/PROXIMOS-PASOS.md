@@ -30,6 +30,18 @@ cerrar sesión. Ver `blueprint-carniceria-brief.md` (encuadre técnico) y `BACKL
   blueprints + el CLI de provisioning los edita otra sesión → integración documentada (2 líneas,
   sin commitear sus archivos).
 
+- **CICLO 5 (2026-07-05) — preventa: leer el negocio REAL de magra.** Se analizaron sus
+  redes/web (`docs/preventa/analisis-redes-magra.md`): magra es una **boutique premium de carnes
+  envasadas al vacío, delivery + WhatsApp** ("Esto no es una carnicería"), y **hoy corre su tienda
+  sobre Bistrosoft**. Adaptado: rubro `carniceria` al arquetipo premium real (catálogo Angus/Don
+  Ramón, wording boutique), vidriera con **CTA "Pedir por WhatsApp"** (carrito pre-cargado), recipe
+  de alta con datos reales (`provisioning-magra.md`) y paridad vs Bistrosoft (`competencia-bistrosoft.md §0`).
+  Método reutilizable en `docs/preventa/playbook-lectura-redes-a-tenant.md`.
+  - **⛔ GATE DE PRODUCCIÓN (requisito del dueño):** magra NO va a prod hasta cerrar: (1) 🔴 **cobro
+    online Mercado Pago** en la vidriera (gap duro vs su Bistrosoft; enganchar el plugin MP de la otra
+    sesión a `Order`); (2) 🟠 **fotos de producto**; (3) **precios/SKUs reales** (hoy provisionales);
+    (4) paleta de marca exacta. Pedidos al dueño detallados en `analisis-redes-magra.md §6`.
+
 ## Lo siguiente (en orden — hay orden forzado por el gate del tenant #2)
 
 1. **OK del encuadre** — validar `blueprint-carniceria-brief.md` y formalizarlo como

@@ -60,39 +60,46 @@ export interface RetailRubro {
 // --- Carnicería (rubro de `magra`, primera instancia) ---
 const carniceria: RetailRubro = {
   id: "carniceria",
-  label: "Carnicería",
+  // Arquetipo informado por el negocio real de magra (boutique premium de carnes
+  // envasadas al vacío, delivery-first): ver docs/preventa/analisis-redes-magra.md.
+  // El branding y catálogo REALES de magra viven en su recipe de tenant
+  // (docs/tenants/magra/provisioning-magra.md), no acá — esto es el template reusable.
+  label: "Carnicería premium",
   wording: {
     catalogHeading: "Nuestros cortes",
     itemNoun: "corte",
-    heroTagline: "Carnicería premium — cortes seleccionados. Encargá online y retiralo cortado como quieras.",
-    orderCta: "Enviar pedido",
-    weightNote: "El total final se ajusta al peso real pesado en el mostrador.",
+    heroTagline: "Cortes premium seleccionados, envasados al vacío. Pedí online y te lo llevamos.",
+    orderCta: "Hacé tu pedido",
+    weightNote: "El total puede ajustarse al peso real de cada pieza envasada.",
   },
   modules: ["pos", "stock", "venta-peso", "venta-unidad", "proveedores", "cuenta-corriente"],
   brandingDefaults: {
-    shortLabel: "magra · Canning",
-    addressLine: "Av. Provisional 1234, Canning", // provisional
-    city: "Canning, Buenos Aires",
-    hoursLabel: "Mar a dom · 9 a 20 h",
-    whatsapp: "5491100000000", // provisional
-    instagram: "@magra.carniceria", // provisional
-    contactNote: "Carnicería premium — cortes seleccionados. Retiro y envío en Canning.",
+    shortLabel: "Carnicería premium",
+    hoursLabel: "Lun a sáb · 9 a 20 h",
+    contactNote: "Carnes premium seleccionadas, envasadas al vacío. Retiro y delivery.",
   },
   catalog: [
-    { name: "Lomo", sale: "kg", pricePerKg: 15900, stock: 18 },
-    { name: "Ojo de bife", sale: "kg", pricePerKg: 13800, stock: 22 },
-    { name: "Bife de chorizo", sale: "kg", pricePerKg: 12500, stock: 25 },
-    { name: "Entraña", sale: "kg", pricePerKg: 14500, stock: 12 },
-    { name: "Asado de tira", sale: "kg", pricePerKg: 8900, stock: 40 },
-    { name: "Vacío", sale: "kg", pricePerKg: 9800, stock: 20 },
-    { name: "Matambre", sale: "kg", pricePerKg: 9500, stock: 15 },
-    { name: "Milanesa de nalga", sale: "kg", pricePerKg: 10200, stock: 30 },
-    { name: "Carne picada especial", sale: "kg", pricePerKg: 7800, stock: 35 },
-    { name: "Bondiola de cerdo", sale: "kg", pricePerKg: 8600, stock: 16 },
-    { name: "Pechuga de pollo", sale: "kg", pricePerKg: 6900, stock: 28 },
-    { name: "Chorizo parrillero", sale: "kg", pricePerKg: 7200, stock: 24 },
-    { name: "Pollo entero (~2 kg)", sale: "u", price: 9800, stock: 15 },
-    { name: "Maple de huevos (x30)", sale: "u", price: 8500, stock: 20 },
+    // Vacuno premium (Angus) — precios provisionales ARS/kg, gama boutique
+    { name: "Lomo Angus", sale: "kg", pricePerKg: 18900, stock: 14 },
+    { name: "Ojo de bife Angus", sale: "kg", pricePerKg: 16900, stock: 18 },
+    { name: "Bife de chorizo Angus", sale: "kg", pricePerKg: 15900, stock: 20 },
+    { name: "Entraña", sale: "kg", pricePerKg: 17500, stock: 12 },
+    { name: "Cuadril", sale: "kg", pricePerKg: 12900, stock: 22 },
+    { name: "Colita de cuadril", sale: "kg", pricePerKg: 13500, stock: 16 },
+    { name: "Vacío", sale: "kg", pricePerKg: 12500, stock: 20 },
+    { name: "Asado de tira", sale: "kg", pricePerKg: 11500, stock: 30 },
+    { name: "Tapa de asado", sale: "kg", pricePerKg: 10900, stock: 18 },
+    { name: "Milanesas de nalga", sale: "kg", pricePerKg: 12900, stock: 25 },
+    { name: "Carne picada especial", sale: "kg", pricePerKg: 9500, stock: 30 },
+    // Cerdo (cortes magros)
+    { name: "Bondiola de cerdo", sale: "kg", pricePerKg: 10500, stock: 16 },
+    { name: "Solomillo de cerdo", sale: "kg", pricePerKg: 11500, stock: 12 },
+    // Pollo orgánico
+    { name: "Pechuga de pollo orgánico", sale: "kg", pricePerKg: 8900, stock: 24 },
+    { name: "Pollo entero orgánico (~2 kg)", sale: "u", price: 12900, stock: 15 },
+    // Preparados premium (por pack)
+    { name: "Hamburguesas caseras (x4)", sale: "u", price: 6900, stock: 30 },
+    { name: "Chorizo parrillero (x6)", sale: "u", price: 5900, stock: 28 },
   ],
 };
 
