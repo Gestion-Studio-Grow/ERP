@@ -50,11 +50,46 @@ estricta: **1 frente = 1 worktree = 1 sesión**.
 
 ---
 
-## Los squads son CROSS-FUNCIONALES (no lanes por disciplina)
+## Creación automática de sesiones + eje de paralelización (CANÓNICO)
 
-Los 5 squads base **no** son silos: cada uno puede **tomar un desarrollo o un tenant completo de
-punta a punta** (arquitectura + producto + fiscal + tests + entrega), con una **especialidad-líder**
-que orienta pero **no lo limita**. La especialidad es el sesgo del squad, no su jaula.
+Estas seis reglas son la ley del sprint. Rigen sobre todo lo demás de este documento.
+
+1. **`sprint` crea las sesiones solo.** Al invocar `sprint`, el PMO **crea automáticamente** las
+   sesiones aisladas (**1 frente = 1 worktree = 1 sesión**). **No se abren a mano** — el trigger las
+   despacha.
+2. **Se paraleliza POR CORE/DOMINIO, NUNCA por tenant.** Cada frente de desarrollo toma un **dominio
+   del Core** —pagos, inventario/POS, caja, fiscal, plataforma— no un cliente. **Razón dura:**
+   dominios distintos tocan archivos distintos → **mínimo solape de archivos y mínimos conflictos de
+   merge**. Dos frentes sobre distinto dominio no chocan; dos frentes sobre el mismo dominio sí.
+3. **El tenant NO es eje de paralelización de código.** El multi-tenant se resuelve **una sola vez**
+   en la capa de **plataforma/RLS** (aislamiento por fila: `tenantId` + policies). No se abre una
+   sesión de código por cliente: el código es común a todos los tenants.
+4. **EXCEPCIÓN — delivery/operación por cliente SÍ.** El trabajo de **entrega/operación** de un
+   cliente (onboarding, config, carga de datos, deliverables específicos) **sí puede tener su propia
+   sesión por cliente**, porque **no toca el core compartido**. Distinción explícita:
+   **core = por dominio; delivery = puede ser por cliente.**
+5. **Lo compartido lo SECUENCIA el PMO en serie.** Los archivos transversales
+   —`prisma/schema.prisma`, migraciones, auth/tenancy (`tenant.ts` / `rls.ts`)— **no** se reparten a
+   dos frentes en paralelo: el PMO los **secuencia en serie** (uno entra, se integra, entra el
+   siguiente) para que dos sesiones no peleen el mismo archivo.
+6. **Capas fijas de toda corrida.** Todo `sprint` tiene estas capas:
+   - **PMO** — lidera, asigna, secuencia lo compartido y es **merge-master** a `main` (sobre `main`,
+     sin worktree propio).
+   - **Diseño** — sistema de diseño/UX transversal (tokens, primitivos, branding por tenant), común a
+     todos los frentes.
+   - **Ejecutivo** — estrategia, roadmap, priorización, tablero.
+   - **N frentes de Desarrollo — uno por core/dominio** (los que haga falta según la demanda).
+
+---
+
+## Los squads son CROSS-FUNCIONALES por DOMINIO (no lanes por disciplina, no lanes por tenant)
+
+Los squads base **no** son silos de disciplina: cada uno puede tomar un **dominio/core completo de
+punta a punta** (arquitectura + producto + fiscal + tests), con una **especialidad-líder** que
+orienta pero **no lo limita**. La especialidad es el sesgo del squad, no su jaula. Lo que **no**
+hacen es partir el trabajo por tenant: el eje de paralelización del **código** es el **dominio**,
+nunca el cliente (regla 2). Un **tenant completo de punta a punta** solo es unidad de sesión válida
+para **delivery/operación** (regla 4), no para código del Core compartido.
 
 | # | Squad (especialidad-líder) | Sesgo experto | Worktree base / rama |
 |---|---|---|---|
@@ -62,10 +97,14 @@ que orienta pero **no lo limita**. La especialidad es el sesgo del squad, no su 
 | **2** | **Producto & Verticales** | product engineer ERP: features, profundidad por rubro (retail/POS, agenda&servicios, oficios, gastronomía), UX de negocio | `estetica-erp-producto` · `frente/producto` |
 | **3** | **Fiscal & Pagos** | integraciones fiscales/pagos LATAM: ARCA/AFIP, Mercado Pago, facturación, checkout/seña, conciliación | `estetica-erp-fiscal` · `frente/fiscal` |
 | **4** | **Calidad & Confiabilidad** | SDET/reliability: tests, cobertura, CI, observabilidad, seguridad, retención | `estetica-erp-calidad` · `frente/calidad` |
-| **5** | **Ejecutivo / PMO** (comodín) | socio gerente ejecutivo: estrategia, priorización, roadmap, tablero, **asigna desarrollos/tenants a squads** y **MERGE-MASTER a main** | **`main`** (esta sesión) |
+| **D** | **Diseño** (capa fija) | sistema de diseño/UX transversal: tokens, primitivos, branding por tenant — común a todos los frentes | `estetica-erp-diseno` · `frente/diseno` |
+| **5** | **Ejecutivo / PMO** (capa fija, lidera) | socio gerente ejecutivo: estrategia, priorización, roadmap, tablero, **asigna dominios a frentes**, **secuencia lo compartido (regla 5)** y **MERGE-MASTER a main** | **`main`** (esta sesión) |
 
-El Equipo 5 no tiene worktree propio: **trabaja sobre `main`**, orquesta, **asigna cada desarrollo/
-tenant activo a un squad+worktree**, y es el único que integra.
+Las capas fijas de la regla 6 se mapean así: **PMO/Ejecutivo** = fila 5 (sobre `main`), **Diseño** =
+fila D, y las filas 1–4 son los **frentes de Desarrollo por dominio**. El Equipo 5 (PMO/Ejecutivo)
+no tiene worktree propio: **trabaja sobre `main`**, orquesta, **asigna cada dominio/core activo a un
+frente+worktree** (código por dominio; delivery por cliente, regla 4), **secuencia en serie los
+archivos compartidos** (schema/migraciones/auth-tenancy, regla 5), y es el único que integra.
 
 ### Worktrees base (setup vigente)
 ```
@@ -74,22 +113,26 @@ Squad 1 Plataforma   C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataform
 Squad 2 Producto     C:/Users/mlloveras2/Documents/Claude/estetica-erp-producto     [frente/producto]
 Squad 3 Fiscal       C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal       [frente/fiscal]
 Squad 4 Calidad      C:/Users/mlloveras2/Documents/Claude/estetica-erp-calidad      [frente/calidad]
+Diseño (capa fija)   C:/Users/mlloveras2/Documents/Claude/estetica-erp-diseno       [frente/diseno]
 ```
 
 ---
 
-## Escalado: varios desarrollos / tenants en paralelo
+## Escalado: varios dominios (código) / clientes (delivery) en paralelo
 
-El sprint **escala con la demanda**, no está fijo en 5. Si hay **N desarrollos o N tenants
-activos** a la vez, se abren **tantos worktrees/sesiones como haga falta — uno por desarrollo o por
-tenant** — y el PMO le asigna a cada uno un squad (por afinidad de especialidad, pero cualquier
-squad puede con cualquier cosa).
+El sprint **escala con la demanda**, no está fijo en 5. Se abren **tantos worktrees/sesiones como
+haga falta**, pero el eje es el de la regla 2: **para código, uno por dominio/core** (pagos,
+inventario/POS, caja, fiscal, plataforma…); **para delivery, uno por cliente** (regla 4). El PMO le
+asigna a cada uno un squad por afinidad de especialidad, pero cualquier squad puede con cualquier
+dominio.
 
-- **Un worktree por unidad de trabajo paralela:** un desarrollo grande, o un tenant completo, tiene
-  su propio worktree aislado → corren a la vez sin pisarse.
-- **Nombrado:** `estetica-erp-<frente-o-tenant>`. Ej. por frente: `estetica-erp-fiscal`; por tenant:
-  `estetica-erp-magra`, `estetica-erp-<slug-del-tenant>`. La rama espeja el nombre
-  (`frente/<x>` o `tenant/<slug>`).
+- **Un worktree por unidad de trabajo paralela:** un **dominio del Core** (código), o un **cliente**
+  (solo delivery/operación), tiene su propio worktree aislado → corren a la vez sin pisarse. Dos
+  worktrees de **código nunca** se reparten el mismo dominio (pelearían los mismos archivos).
+- **Nombrado:** código por dominio → `estetica-erp-<dominio>` / `frente/<dominio>` (ej.
+  `estetica-erp-fiscal`, `estetica-erp-plataforma`). Delivery por cliente → `estetica-erp-<slug>` /
+  `tenant/<slug>` (ej. `estetica-erp-magra`), y **solo** para onboarding/config/datos, **no** para
+  tocar el Core compartido.
 - **Está OK abrir de más.** Si se crean más worktrees/sesiones de los que se terminan usando, no
   pasa nada: los que sobran quedan ociosos (no molestan, se remueven en la consolidación). Preferir
   capacidad de sobra a quedarse corto.
@@ -99,7 +142,7 @@ squad puede con cualquier cosa).
 
 > **Regla:** el paralelismo lo habilita el **aislamiento por worktree**, no la cantidad de squads.
 > 5 squads son la base de especialidades; la cantidad de *worktrees activos* la fija cuántos
-> desarrollos/tenants estén corriendo en simultáneo.
+> **dominios (código)** y **clientes (delivery)** estén corriendo en simultáneo (reglas 2 y 4).
 
 ---
 
@@ -129,7 +172,7 @@ squad puede con cualquier cosa).
 
 | Palabra | Qué hace |
 |---|---|
-| **`sprint`** | El PMO toma el rol de socio gerente ejecutivo, **releva cuántos frentes/desarrollos/tenants hay activos** y **abre una sesión de Claude Code aislada por cada frente** (un worktree + una sesión c/u; los base + los que sumen por desarrollo/tenant), **nunca una sola sesión compartida**. Asigna a cada frente su bocado y arranca. Está OK abrir de más. |
+| **`sprint`** | El PMO toma el rol de socio gerente ejecutivo, **releva qué dominios/cores hay activos** y **crea automáticamente una sesión de Claude Code aislada por cada frente** (1 frente = 1 worktree = 1 sesión; capas fijas PMO/Diseño/Ejecutivo + N frentes de Desarrollo **por dominio**, regla 6), **nunca a mano ni una sola sesión compartida**. El eje es el **dominio, no el tenant** (reglas 2–4); lo compartido lo **secuencia el PMO** (regla 5). Asigna a cada frente su bocado y arranca. Está OK abrir de más. |
 | **`status`** | Estado **real del repo** (no de memoria): lee `docs/ESTADO-FRENTES.md` + `## Sprint activo` de `SPRINT-MOVIL.md` + `git log`, y responde en lenguaje de dueño con los estados canónicos. |
 | **`seguimos`** | Retoma desde el handoff vivo (`## Sprint activo → Próximo bocado` de cada frente) sin re-preguntar el plan. |
 | **`pausa`** | Frena, **consolida** (main limpio y pusheado, ramas integradas o anotadas, handoff al día) y queda a la espera. |
@@ -143,8 +186,10 @@ tema por commit), que es el fallback documentado en `docs/SPRINT-MOVIL.md`.
 
 ## Ciclo de un sprint (de principio a fin)
 
-1. **`sprint`** → PMO releva los desarrollos/tenants activos y abre un worktree por cada uno
-   (más los squads base que hagan falta); asigna cada unidad a un squad y arranca.
+1. **`sprint`** → PMO releva los **dominios/cores** activos y **crea automáticamente** un
+   worktree+sesión por cada frente de desarrollo (por dominio, regla 2) + las capas fijas
+   (PMO/Diseño/Ejecutivo, regla 6); los clientes en delivery van en su propio worktree (regla 4).
+   Asigna cada unidad a un squad y arranca.
 2. Cada squad trabaja en su rama, sobre su desarrollo/tenant de punta a punta: un tema por commit,
    verde antes de cada uno, push de su rama.
 3. **PMO integra** las ramas a `main` en orden (rebase + verificación + push), mantiene el tablero.
