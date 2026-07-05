@@ -751,9 +751,12 @@ export async function completeAppointment(formData: FormData) {
 
 export async function getClients() {
   await requireCapability("clients:read");
+  // Solo se necesita la CANTIDAD de turnos por cliente (badge en la lista), no las
+  // filas. `_count` lo resuelve en la DB con un COUNT agrupado en vez de traer todos
+  // los `appointments` de todos los clientes a memoria y contar en JS (ADR-023 F5).
   return prisma.client.findMany({
     orderBy: { name: "asc" },
-    include: { appointments: { select: { id: true } } },
+    include: { _count: { select: { appointments: true } } },
   });
 }
 

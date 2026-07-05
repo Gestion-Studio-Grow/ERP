@@ -8,7 +8,7 @@ type Client = {
   id: string;
   name: string;
   phone: string;
-  appointments: { id: string }[];
+  _count: { appointments: number };
 };
 
 function normalize(s: string) {
@@ -51,7 +51,7 @@ export default function ClientsList({ clients }: { clients: Client[] }) {
               <p className="text-sm text-muted">{c.phone}</p>
             </div>
             <span className="text-sm text-muted">
-              {c.appointments.length} turno{c.appointments.length !== 1 ? "s" : ""}
+              {c._count.appointments} turno{c._count.appointments !== 1 ? "s" : ""}
             </span>
           </Link>
         ))}

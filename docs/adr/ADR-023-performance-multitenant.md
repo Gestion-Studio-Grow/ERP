@@ -107,7 +107,7 @@ Dos capas de decisión: **Capa 1 — fixes scale-ready (F1–F5)**, independient
 | F2 | Overbooking TOCTOU (ADR-004 incumplido) | ✅ **RESUELTO 2026-07-05** (Serializable + retry, `bookingTransaction`) | — | hecho | — |
 | F1 | Índices multi-tenant muertos sin `tenantId` | 🔴 escala | medio | acoplado a RLS (ADR-018) | `/sesion-feature` (RLS) |
 | F3 | Reportes agrega todo el histórico en JS | 🟠 | bajo-medio | antes de crecer datos | `/sesion-feature` |
-| F4/F5 | N+1 recursos / over-fetch clientes | 🟡 | bajo | oportunista | `/sesion-feature` |
+| F4/F5 | N+1 recursos / over-fetch clientes | ✅ **RESUELTO 2026-07-05** (query única `resourceId in`, `_count` en `getClients`) | — | hecho | — |
 | F6 | Pooling sin límite explícito | 🟡 | bajo | checklist de RLS | con ADR-018 |
 | F8 | `AuditLog` vs storage 0.5 GB | 🟡 | bajo | vigilar % storage | `/sesion-feature` |
 | F7 | tenant sin cache | 🟢 | — | se autoliquida | no-acción |

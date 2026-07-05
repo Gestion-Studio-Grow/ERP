@@ -92,24 +92,47 @@ export async function assertSlotAvailable(
     where: { serviceId },
     include: { resource: true },
   });
-  for (const sr of serviceResources) {
+  if (serviceResources.length > 0) {
+    const resourceIds = serviceResources.map((sr) => sr.resourceId);
+    // Una sola query para TODOS los recursos del servicio (antes: N+1, una por
+    // recurso — ADR-023 F4). Trae los turnos solapados que usan cualquiera de estos
+    // recursos, con las unidades por recurso, y se agrega en memoria por recurso.
     const overlapping = await tx.appointment.findMany({
       where: {
         ...notSelf,
         status: { in: ["PENDING", "CONFIRMED"] },
         startsAt: { lt: endsAt },
         endsAt: { gt: startsAt },
-        service: { resources: { some: { resourceId: sr.resourceId } } },
+        service: { resources: { some: { resourceId: { in: resourceIds } } } },
       },
       select: {
-        service: { select: { resources: { where: { resourceId: sr.resourceId }, select: { units: true } } } },
+        service: {
+          select: {
+            resources: {
+              where: { resourceId: { in: resourceIds } },
+              select: { resourceId: true, units: true },
+            },
+          },
+        },
       },
     });
-    const used = overlapping.reduce((sum, a) => sum + (a.service.resources[0]?.units ?? 0), 0);
-    if (used + sr.units > sr.resource.quantity) {
-      throw new Error(
-        `No hay "${sr.resource.name}" disponible en ese horario (capacidad completa). Elegí otro horario.`
-      );
+
+    // Unidades ya ocupadas por recurso, sumando cada turno solapado a cada recurso
+    // suyo que esté en juego (un turno con 2 recursos suma a ambos, como antes).
+    const usedByResource = new Map<string, number>();
+    for (const appt of overlapping) {
+      for (const r of appt.service.resources) {
+        usedByResource.set(r.resourceId, (usedByResource.get(r.resourceId) ?? 0) + r.units);
+      }
+    }
+
+    for (const sr of serviceResources) {
+      const used = usedByResource.get(sr.resourceId) ?? 0;
+      if (used + sr.units > sr.resource.quantity) {
+        throw new Error(
+          `No hay "${sr.resource.name}" disponible en ese horario (capacidad completa). Elegí otro horario.`
+        );
+      }
     }
   }
 }

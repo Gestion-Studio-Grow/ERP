@@ -71,7 +71,7 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
 **Sprint:** Tablero honesto + deuda técnica sin gates
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (F4/F5 cerrados)
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
@@ -88,14 +88,17 @@ el porqué, pusheados a `origin/main` · docs y código coinciden · working tre
 **Checklist vivo**
 - [x] **Consolidación roadmap §3.1** — sincronizado con el registro real de blueprints (~24 presets / 4 arquetipos + comodín). *(commit `2755c72`)*
 - [x] **Fix F2 — overbooking TOCTOU** — Serializable + retry (`bookingTransaction`) en las 4 rutas de reserva; ADR-004 enmendado, ADR-023 F2 resuelto. *(commit `5c63d6e`)*
-- [x] **Protocolo de continuidad móvil** — este documento. *(en curso de commit)*
-- [ ] **F4/F5 — limpiezas de queries** (N+1 de recursos en `assertSlotAvailable`; `_count` en `getClients`) — oportunista, bajo riesgo.
+- [x] **Protocolo de continuidad móvil** — este documento. *(commit `a358e1d`)*
+- [x] **F4/F5 — limpiezas de queries** — N+1 de recursos colapsado a query única; `getClients` con `_count`. *(este sprint, 2026-07-05)*
 - [ ] **F3 — reportes con agregación en DB** (`getReportData` → `groupBy` con rango + `tenantId`).
 - [ ] **F8 — retención de `AuditLog`** + vigilar % storage de Neon (más política que código).
 
-**Próximo bocado (lo que ejecuta "seguimos"):** F4/F5 — colapsar el N+1 del loop de recursos
-en `booking-core.ts` a una query `resourceId: { in: [...] }`, y pasar `getClients` a `_count`
-en vez de traer todos los `appointments`. Cierra casi entera la ficha ADR-023 sin tocar schema.
+**Próximo bocado (lo que ejecuta "seguimos"):** F3 — `getReportData` (`actions.ts`) trae hoy
+todo el histórico de pagos sin rango ni `tenantId` y agrega en JS. Pasarlo a `payment.groupBy`
+con `where: { tenantId, status, createdAt: { gte, lte } }` y rango obligatorio (default 30/90
+días). Ojo: `groupBy` de Prisma quizá no agrupe por `professional.name` anidado en una pasada
+→ agrupar por id y resolver nombres aparte. Es el último ítem de ADR-023 sin gate (F8 es más
+política que código).
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
