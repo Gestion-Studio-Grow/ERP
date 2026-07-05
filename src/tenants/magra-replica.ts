@@ -47,7 +47,30 @@ export interface VacioLine { name: string; text: string }
 export interface Provider { name: string; logo: string }
 export interface Review { name: string; rating: number; text: string; avatar: string }
 
-export const MAGRA_REPLICA = {
+// Datos de una réplica de sitio de un tenant (se sirve como su vidriera, resuelta por
+// slug — ver src/tenants/site-replica.ts). Config por tenant, no un clon suelto.
+export interface SiteReplicaData {
+  logo: string;
+  logoFooter: string;
+  heroImg: string;
+  heroKicker: string;
+  heroTitle: string;
+  heroText: string;
+  ctaPrimary: string;
+  ctaSecondary: string;
+  benefits: Benefit[];
+  gourmetTitle: string;
+  gourmet: GourmetCat[];
+  vacioTitle: string;
+  vacio: VacioLine[];
+  providersTitle: string;
+  providers: Provider[];
+  reviewsTitle: string;
+  reviews: Review[];
+  hoursLabel: string;
+}
+
+export const MAGRA_REPLICA: SiteReplicaData = {
   logo: asset("logo.webp"),
   logoFooter: asset("logo-footer.png"),
   heroImg: asset("hero-carnes.png"),
@@ -93,4 +116,4 @@ export const MAGRA_REPLICA = {
     { name: "Macarena A.", rating: 5, avatar: asset("review-macarena.webp"), text: "La carne es un 10. Súper tierna, sabrosa y viene al vacío impecable. Se nota que es buena de verdad. Además, me atendieron por WhatsApp con toda la onda, me ayudaron a elegir sin apurarme." },
   ] as Review[],
   hoursLabel: "Lunes a sábados de 10 a 20 h · Domingos de 9 a 13 h",
-} as const;
+};

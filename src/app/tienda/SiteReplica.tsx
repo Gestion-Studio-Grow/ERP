@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { placeOnlineOrder } from "@/lib/order-actions";
-import { MAGRA_REPLICA as M } from "@/tenants/magra-replica";
+import type { SiteReplicaData } from "@/tenants/site-replica";
 
-// Réplica fiel de la web de magra (contenido/imágenes reales, autorizado por el cliente)
-// con NUESTRO backoffice detrás. Look premium/minimalista; la sección "Comprá online"
-// reemplaza su "LISTA DE PRECIOS" (que hoy va a Bistrosoft) por nuestro carrito → pedidos.
+// Réplica del sitio de un tenant (config por tenant, resuelta por slug — NO un clon
+// suelto) con NUESTRO backoffice detrás. Contenido/imágenes vienen en `site`; el look
+// usa el acento de marca del tenant. La sección "Comprá online" conecta el carrito a
+// placeOnlineOrder → bandeja/POS/stock/facturación.
 
 const T = { bg: "#ffffff", soft: "#f6f2ec", line: "#e7ddd0", ink: "#1c1614", muted: "#6f6157", faint: "#a08f80" } as const;
 
@@ -19,7 +20,19 @@ const money2 = new Intl.NumberFormat("es-AR", { style: "currency", currency: "AR
 const price = (p: Product) => (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
 const wa = (n: string | null | undefined, t: string) => (n ? `https://wa.me/${n}?text=${encodeURIComponent(t)}` : "#");
 
-export default function MagraReplica({ branding, products, accent }: { branding: Branding; products: Product[]; accent: string }) {
+export default function SiteReplica({
+  site,
+  name,
+  branding,
+  products,
+  accent,
+}: {
+  site: SiteReplicaData;
+  name: string;
+  branding: Branding;
+  products: Product[];
+  accent: string;
+}) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -45,10 +58,10 @@ export default function MagraReplica({ branding, products, accent }: { branding:
       <header style={{ borderBottom: `1px solid ${T.line}`, position: "sticky", top: 0, background: "rgba(255,255,255,.92)", backdropFilter: "blur(6px)", zIndex: 10 }}>
         <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={M.logo} alt="MAGRA Meat Market" style={{ height: 40, width: "auto" }} />
+          <img src={site.logo} alt={name} style={{ height: 40, width: "auto" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 13 }}>
             {branding?.instagram && <a href={`https://instagram.com/${branding.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" style={navlink}>Instagram</a>}
-            <a href="#comprar" style={{ ...btn(accent, "#fff"), height: 38 }}>{M.ctaSecondary}</a>
+            <a href="#comprar" style={{ ...btn(accent, "#fff"), height: 38 }}>{site.ctaSecondary}</a>
           </div>
         </div>
       </header>
@@ -57,23 +70,23 @@ export default function MagraReplica({ branding, products, accent }: { branding:
       <section style={{ background: T.soft, borderBottom: `1px solid ${T.line}` }}>
         <div style={{ ...wrap, display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 32, alignItems: "center", padding: "56px 24px" }}>
           <div>
-            <div style={kicker}>{M.heroKicker}</div>
-            <h1 style={{ fontSize: "clamp(34px, 5vw, 56px)", lineHeight: 1.02, letterSpacing: -1.4, fontWeight: 800, margin: "14px 0 0" }}>{M.heroTitle}</h1>
-            <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 520, marginTop: 16 }}>{M.heroText}</p>
+            <div style={kicker}>{site.heroKicker}</div>
+            <h1 style={{ fontSize: "clamp(34px, 5vw, 56px)", lineHeight: 1.02, letterSpacing: -1.4, fontWeight: 800, margin: "14px 0 0" }}>{site.heroTitle}</h1>
+            <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 520, marginTop: 16 }}>{site.heroText}</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
-              <a href="#comprar" style={btn(accent, "#fff")}>{M.ctaPrimary}</a>
-              <a href={wa(w, "¡Hola MAGRA! Quiero hacer un pedido.")} target="_blank" rel="noopener noreferrer" style={btn("#fff", "#128C4B", "1px solid #25D366")}>{M.ctaSecondary}</a>
+              <a href="#comprar" style={btn(accent, "#fff")}>{site.ctaPrimary}</a>
+              <a href={wa(w, `¡Hola ${name}! Quiero hacer un pedido.`)} target="_blank" rel="noopener noreferrer" style={btn("#fff", "#128C4B", "1px solid #25D366")}>{site.ctaSecondary}</a>
             </div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={M.heroImg} alt="Cortes premium envasados al vacío" style={{ width: "100%", height: "auto", borderRadius: 18, border: `1px solid ${T.line}` }} loading="lazy" />
+          <img src={site.heroImg} alt="Cortes premium envasados al vacío" style={{ width: "100%", height: "auto", borderRadius: 18, border: `1px solid ${T.line}` }} loading="lazy" />
         </div>
       </section>
 
       {/* Beneficios */}
       <section style={{ borderBottom: `1px solid ${T.line}` }}>
         <div style={{ ...wrap, display: "grid", gap: 24, gridTemplateColumns: "repeat(auto-fit, minmax(210px,1fr))", padding: "32px 24px" }}>
-          {M.benefits.map((b, i) => (
+          {site.benefits.map((b, i) => (
             <div key={i}>
               <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color: accent }}>{b.title}</div>
               <div style={{ color: T.muted, fontSize: 13.5, lineHeight: 1.5 }}>{b.text}</div>
@@ -85,9 +98,9 @@ export default function MagraReplica({ branding, products, accent }: { branding:
       <div style={{ ...wrap, padding: 24, display: "grid", gap: 48 }}>
         {/* Productos gourmet */}
         <section>
-          <Head title={M.gourmetTitle} />
+          <Head title={site.gourmetTitle} />
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))" }}>
-            {M.gourmet.map((g, i) => (
+            {site.gourmet.map((g, i) => (
               <div key={i} style={{ borderRadius: 16, overflow: "hidden", border: `1px solid ${T.line}`, background: T.bg }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={g.img} alt={g.name} style={{ width: "100%", height: 170, objectFit: "cover", display: "block" }} loading="lazy" />
@@ -99,19 +112,19 @@ export default function MagraReplica({ branding, products, accent }: { branding:
 
         {/* Envasados al vacío */}
         <section>
-          <Head title={M.vacioTitle} />
+          <Head title={site.vacioTitle} />
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))" }}>
-            {M.vacio.map((v, i) => (
+            {site.vacio.map((v, i) => (
               <div key={i} style={{ ...card, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontWeight: 800, fontSize: 18 }}>{v.name}</div>
                 <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.55, flex: 1 }}>{v.text}</div>
-                <a href={wa(w, `¡Hola MAGRA! Quiero hacer un pedido de ${v.name}.`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, fontWeight: 700, color: accent, textDecoration: "none" }}>Hacer pedido →</a>
+                <a href={wa(w, `¡Hola ${name}! Quiero hacer un pedido de ${v.name}.`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, fontWeight: 700, color: accent, textDecoration: "none" }}>Hacer pedido →</a>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Comprá online — NUESTRO backoffice detrás (reemplaza la lista de Bistrosoft) */}
+        {/* Comprá online — NUESTRO backoffice detrás */}
         <section id="comprar" style={{ scrollMarginTop: 70 }}>
           <Head title="Comprá online" sub="Elegí, sumá al carrito y hacé tu pedido. Cae directo a la cocina/mostrador." />
           {products.length === 0 ? (
@@ -169,9 +182,9 @@ export default function MagraReplica({ branding, products, accent }: { branding:
 
         {/* Proveedores */}
         <section>
-          <Head title={M.providersTitle} />
+          <Head title={site.providersTitle} />
           <div style={{ display: "flex", flexWrap: "wrap", gap: 28, alignItems: "center" }}>
-            {M.providers.map((pr, i) => (
+            {site.providers.map((pr, i) => (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img key={i} src={pr.logo} alt={pr.name} title={pr.name} style={{ height: 46, width: "auto", objectFit: "contain", filter: "grayscale(1)", opacity: 0.8 }} loading="lazy" />
             ))}
@@ -180,9 +193,9 @@ export default function MagraReplica({ branding, products, accent }: { branding:
 
         {/* Reviews */}
         <section>
-          <Head title={M.reviewsTitle} />
+          <Head title={site.reviewsTitle} />
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))" }}>
-            {M.reviews.map((r, i) => (
+            {site.reviews.map((r, i) => (
               <div key={i} style={card}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -204,10 +217,10 @@ export default function MagraReplica({ branding, products, accent }: { branding:
         <div style={{ ...wrap, display: "grid", gap: 32, gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", padding: "44px 24px" }}>
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={M.logoFooter} alt="MAGRA" style={{ height: 44, width: "auto", marginBottom: 10 }} />
+            <img src={site.logoFooter} alt={name} style={{ height: 44, width: "auto", marginBottom: 10 }} />
             {branding?.contactNote && <p style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.66, maxWidth: 280 }}>{branding.contactNote}</p>}
           </div>
-          <div style={foot}><div style={foothead}>Dónde estamos</div>{branding?.addressLine && <div>{branding.addressLine}</div>}{branding?.city && <div>{branding.city}</div>}<div style={{ opacity: 0.7, marginTop: 4 }}>{branding?.hoursLabel ?? M.hoursLabel}</div></div>
+          <div style={foot}><div style={foothead}>Dónde estamos</div>{branding?.addressLine && <div>{branding.addressLine}</div>}{branding?.city && <div>{branding.city}</div>}<div style={{ opacity: 0.7, marginTop: 4 }}>{branding?.hoursLabel ?? site.hoursLabel}</div></div>
           <div style={foot}><div style={foothead}>Contacto</div>{w && <div><a href={`https://wa.me/${w}`} target="_blank" rel="noopener noreferrer" style={flink}>WhatsApp</a></div>}{branding?.instagram && <div><a href={`https://instagram.com/${branding.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" style={flink}>{branding.instagram}</a></div>}{branding?.email && <div><a href={`mailto:${branding.email}`} style={flink}>{branding.email}</a></div>}</div>
           <div style={foot}><div style={foothead}>Sistema</div><div style={{ opacity: 0.7 }}>Vidriera + pedidos + POS integrados.</div></div>
         </div>
