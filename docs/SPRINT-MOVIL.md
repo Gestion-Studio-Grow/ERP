@@ -28,6 +28,12 @@ verdad), los roles autónomos (`/sesion-movil`, `docs/METODO-ROLES.md`) y la col
 **Para el móvil, la respuesta corta:** *el estado vivo del sprint está en `docs/SPRINT-MOVIL.md`,
 sección `## Sprint activo`.* Ahí se lee "status" y desde ahí se retoma "seguimos".
 
+**Cómo se reportan estados y %:** un "status" usa los **estados canónicos** de
+`docs/METODOLOGIA-REPORTE-AVANCE.md` — 🟢 Avanzable ya · ✅ Completado — pendiente acción humana ·
+🔒 Gated. Lo que está terminado del lado dev y solo espera una acción tuya (credenciales, aplicar
+migración, OK de gate) se reporta **"listo, esperando que hagas X"**, NO como "a medias". El mapa
+vivo de todos los frentes bajo esa metodología es `docs/ESTADO-FRENTES.md`.
+
 ---
 
 ## El ritual (3 momentos)

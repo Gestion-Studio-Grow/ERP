@@ -17,6 +17,12 @@ siguiente no lee. Ver **ADR-016**.
 `(origen: <tipo de sesión> — <fecha>)`. Lo hecho se deja tildado hasta que consolidación lo
 barre, así queda rastro de una sesión a la otra.
 
+> **Estados y % de avance:** esta cola lista trabajo **nuestro** pendiente (🟢 Avanzable ya). Lo
+> que del lado dev está terminado y solo espera una **acción humana** (credenciales, aplicar
+> migración, OK de gate) **no va acá como deuda** — se reporta como estado en `docs/ESTADO-FRENTES.md`
+> según `docs/METODOLOGIA-REPORTE-AVANCE.md`. El mapa de "qué más encarar" vive en ese mismo doc
+> (backlog de frentes a conversar).
+
 ---
 
 ## Abiertos
