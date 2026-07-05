@@ -34,11 +34,17 @@ export {
 } from "./reconciliation";
 export {
   ClasificadorPorReglas,
+  AprendizajeEnMemoria,
+  registrarCorreccion,
   REGLAS_DEFAULT,
   type ClasificadorPort,
   type Clasificacion,
   type ResultadoClasificacion,
   type ReglaClasificacion,
+  type ConfigClasificacion,
+  type AprendizajePort,
+  type Correccion,
+  type OpcionesClasificador,
 } from "./classifier";
 export {
   NotificacionWhatsAppStub,

@@ -9,11 +9,12 @@
  * lo FACTURABLE; NO_FACTURABLE se descarta; REVISAR espera decisión humana
  * (panel del contador §12.2 o confirmación por WhatsApp §12.4).
  *
- * Hexagonal: `ClasificadorPort` + un stub por reglas. Las reglas por defecto son
- * el MVP; configurables por comercio (v1+) y con aprendizaje (visión).
+ * v2: además de las reglas por defecto, soporta CONFIG por comercio (cuentas
+ * propias, reglas extra) y APRENDIZAJE (correcciones que el comercio/contador
+ * hace sobre un REVISAR se recuerdan y se aplican solas a operaciones parecidas).
  */
 
-import { PagoMP } from "./port";
+import { PagoMP, TipoOperacionMP } from "./port";
 
 export type Clasificacion = "FACTURABLE" | "NO_FACTURABLE" | "REVISAR";
 
@@ -21,6 +22,8 @@ export interface ResultadoClasificacion {
   clasificacion: Clasificacion;
   motivo: string;
   reglaId?: string;
+  /** true si vino del aprendizaje (corrección previa), no de una regla. */
+  aprendido?: boolean;
 }
 
 export interface ClasificadorPort {
@@ -35,9 +38,17 @@ export interface ReglaClasificacion {
   clasificacion: Clasificacion;
 }
 
+/** Config de clasificación por comercio (v1+: editable por el comercio/contador). */
+export interface ConfigClasificacion {
+  /** Ids de contraparte que son cuentas PROPIAS del comercio → NO_FACTURABLE. */
+  cuentasPropias?: string[];
+  /** Reglas extra del comercio, evaluadas ANTES de las default. */
+  reglasExtra?: ReglaClasificacion[];
+}
+
 /**
  * Reglas por defecto (MVP). Orden importa: la primera que matchea gana.
- * Un comercio puede sumar/pisar reglas (v1+) sin tocar este motor.
+ * Un comercio puede sumar/pisar reglas (config) sin tocar este motor.
  */
 export const REGLAS_DEFAULT: ReglaClasificacion[] = [
   {
@@ -78,14 +89,85 @@ export const REGLAS_DEFAULT: ReglaClasificacion[] = [
   },
 ];
 
+/** Una corrección aprendida: un patrón de pago → cómo clasificarlo. */
+export interface Correccion {
+  /** Empareja por contraparte (prioritario) y/o por tipo de operación. */
+  contraparteId?: string;
+  operacion?: TipoOperacionMP;
+  clasificacion: Clasificacion;
+}
+
 /**
- * Clasificador por reglas. Si ninguna regla matchea (ej. `operacion === "otro"`),
- * devuelve REVISAR: no se factura solo, queda para decisión humana.
+ * Memoria de aprendizaje: recuerda las correcciones del comercio/contador y las
+ * reaplica. Real = tabla por tenant; stub = en memoria. Empareja por
+ * `contraparteId` (lo más confiable) y, si no, por `operacion`.
+ */
+export interface AprendizajePort {
+  buscar(pago: PagoMP): Promise<Clasificacion | null>;
+  registrar(correccion: Correccion): Promise<void>;
+}
+
+export class AprendizajeEnMemoria implements AprendizajePort {
+  private porContraparte = new Map<string, Clasificacion>();
+  private porOperacion = new Map<TipoOperacionMP, Clasificacion>();
+
+  async buscar(pago: PagoMP): Promise<Clasificacion | null> {
+    if (pago.contraparteId && this.porContraparte.has(pago.contraparteId)) {
+      return this.porContraparte.get(pago.contraparteId)!;
+    }
+    if (pago.operacion && this.porOperacion.has(pago.operacion)) {
+      return this.porOperacion.get(pago.operacion)!;
+    }
+    return null;
+  }
+
+  async registrar(c: Correccion): Promise<void> {
+    if (c.contraparteId) this.porContraparte.set(c.contraparteId, c.clasificacion);
+    else if (c.operacion) this.porOperacion.set(c.operacion, c.clasificacion);
+  }
+}
+
+export interface OpcionesClasificador {
+  reglas?: ReglaClasificacion[];
+  config?: ConfigClasificacion;
+  aprendizaje?: AprendizajePort;
+}
+
+/**
+ * Clasificador por reglas (v2). Prioridad:
+ *   1. Aprendizaje (correcciones previas del comercio).
+ *   2. Cuentas propias del comercio (config) → NO_FACTURABLE.
+ *   3. Reglas extra del comercio, luego las default.
+ *   4. Fallback REVISAR (no se factura solo).
  */
 export class ClasificadorPorReglas implements ClasificadorPort {
-  constructor(private readonly reglas: ReglaClasificacion[] = REGLAS_DEFAULT) {}
+  private readonly reglas: ReglaClasificacion[];
+  private readonly config?: ConfigClasificacion;
+  private readonly aprendizaje?: AprendizajePort;
+
+  constructor(opts: OpcionesClasificador | ReglaClasificacion[] = {}) {
+    // Compat: acepta un array de reglas directo o un objeto de opciones.
+    if (Array.isArray(opts)) {
+      this.reglas = opts;
+    } else {
+      this.reglas = [...(opts.config?.reglasExtra ?? []), ...(opts.reglas ?? REGLAS_DEFAULT)];
+      this.config = opts.config;
+      this.aprendizaje = opts.aprendizaje;
+    }
+  }
 
   async clasificar(pago: PagoMP, _tenantId: string): Promise<ResultadoClasificacion> {
+    if (this.aprendizaje) {
+      const aprendido = await this.aprendizaje.buscar(pago);
+      if (aprendido) {
+        return { clasificacion: aprendido, motivo: "Corrección aprendida del comercio.", reglaId: "aprendizaje", aprendido: true };
+      }
+    }
+
+    if (pago.contraparteId && this.config?.cuentasPropias?.includes(pago.contraparteId)) {
+      return { clasificacion: "NO_FACTURABLE", motivo: "Cuenta propia del comercio (config): no es venta.", reglaId: "cuenta-propia" };
+    }
+
     for (const regla of this.reglas) {
       if (regla.cuando(pago)) {
         return { clasificacion: regla.clasificacion, motivo: regla.descripcion, reglaId: regla.id };
@@ -93,4 +175,17 @@ export class ClasificadorPorReglas implements ClasificadorPort {
     }
     return { clasificacion: "REVISAR", motivo: "Ninguna regla aplica: requiere revisión." };
   }
+}
+
+/** Registra una corrección de clasificación para que se aprenda (§12.1). */
+export async function registrarCorreccion(
+  aprendizaje: AprendizajePort,
+  pago: PagoMP,
+  clasificacion: Clasificacion,
+): Promise<void> {
+  await aprendizaje.registrar({
+    contraparteId: pago.contraparteId,
+    operacion: pago.contraparteId ? undefined : pago.operacion,
+    clasificacion,
+  });
 }

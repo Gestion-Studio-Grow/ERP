@@ -45,6 +45,10 @@ export interface PagoMP {
   descripcion?: string;
   /** Tipo de operación (insumo del clasificador, ADR-025 §12.1). Default "pago". */
   operacion?: TipoOperacionMP;
+  /** Id de la contraparte (pagador/receptor). Clave para detectar cuentas propias. */
+  contraparteId?: string;
+  /** Nombre de la contraparte (para el panel y el aprendizaje). */
+  contraparteNombre?: string;
 }
 
 /** Criterio de búsqueda para traer el historial paginado (ADR-025 §2). */
