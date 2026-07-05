@@ -104,6 +104,35 @@ enum FulfillmentType {
   DELIVERY // envío a domicilio
 }
 
+// --- Capability CAJA del POS (turno de mostrador / arqueo) ---
+// Cierra el agujero del vertical retail: apertura/cierre de turno, movimientos de
+// dinero y arqueo (esperado vs contado). Enums del Core: los reusa cualquier
+// vertical que cobre en efectivo por mostrador (carnicería, kiosco, spa).
+
+// Estado del turno de caja. ABIERTA = hay un turno operando (acepta movimientos);
+// CERRADA = arqueada y cerrada (histórico inmutable). A lo sumo UNA ABIERTA por
+// tenant a la vez — lo garantiza la lógica de dominio, no un unique parcial (el
+// schema no lo expresa sin índice parcial, y con un solo mostrador alcanza).
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+// Tipo de movimiento de caja. APERTURA = fondo inicial declarado al abrir el
+// turno (una sola fila por sesión). VENTA = ingreso por una venta en efectivo
+// (referencia opcional a Order). INGRESO/EGRESO = entrada/salida de dinero por
+// otro motivo (pago a proveedor, cambio, etc.). RETIRO = extracción de efectivo
+// del cajón (a la caja fuerte / al dueño). El signo aritmético lo decide la
+// lógica de arqueo (src/lib/caja), no el enum, para que el monto siempre sea
+// positivo y auditable.
+enum CashMovementType {
+  APERTURA
+  VENTA
+  INGRESO
+  EGRESO
+  RETIRO
+}
+
 // Tenant (negocio) — raíz del aislamiento multi-tenant (ADR-001). Cada tabla de
 // negocio referencia un tenant. Por ahora hay uno solo (Beauty & Spa); el
 // modelo nace preparado para muchos sin rediseñar. La zona horaria vive acá
@@ -150,6 +179,8 @@ model Tenant {
   outboxEvents       OutboxEvent[]
   orders             Order[]
   orderItems         OrderItem[]
+  cashSessions       CashSession[]
+  cashMovements      CashMovement[]
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -842,7 +873,8 @@ model Order {
   paymentMethod PaymentMethod?
   paid          Boolean        @default(false)
 
-  items     OrderItem[]
+  items         OrderItem[]
+  cashMovements CashMovement[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
@@ -869,5 +901,81 @@ model OrderItem {
   lineTotal Float
 
   @@index([tenantId])
+  @@index([orderId])
+}
+
+// --- Capability CAJA del POS (turno de mostrador / arqueo) ---
+// Modela el turno de caja del mostrador: se abre declarando un fondo inicial, se
+// le registran movimientos (ventas en efectivo, ingresos, egresos, retiros) y se
+// cierra haciendo un arqueo (efectivo contado vs esperado). El "esperado" NO se
+// guarda como estado mutable: es una función pura del fondo inicial + los
+// movimientos (ver src/lib/caja), y se CONGELA al cerrar (closingExpected) junto
+// con lo contado (closingCounted) y la diferencia — así el cierre es un histórico
+// inmutable, no un cálculo que cambia si después se toca un movimiento.
+//
+// Alcance mínimo (gobierno calidad-vs-costo): un solo mostrador por tenant, sin
+// multi-caja ni multi-terminal — la lógica de "una sola sesión abierta a la vez"
+// vive en el dominio, no en un índice parcial de Postgres.
+model CashSession {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  status CashSessionStatus @default(OPEN)
+
+  // Apertura: quién abrió (actor "user:<id>", igual que el audit trail) y con qué
+  // fondo declarado. `openingFloat` es el efectivo con el que arranca el cajón.
+  openedBy     String
+  openingFloat Float    @default(0)
+  openedAt     DateTime @default(now())
+
+  // Cierre — nulo mientras la sesión está OPEN. Al cerrar se congela el arqueo:
+  //   closingExpected = openingFloat + Σ ingresos − Σ egresos (calculado, ADR-006)
+  //   closingCounted  = efectivo realmente contado en el cajón (lo declara quien cierra)
+  //   closingDiff     = closingCounted − closingExpected (faltante < 0 / sobrante > 0)
+  closedBy        String?
+  closingExpected Float?
+  closingCounted  Float?
+  closingDiff     Float?
+  closingNote     String?
+  closedAt        DateTime?
+
+  movements CashMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, openedAt])
+}
+
+// Movimiento de dinero dentro de un turno de caja. El monto SIEMPRE es positivo;
+// el signo (suma o resta al esperado) lo decide `type` en la lógica de arqueo
+// (src/lib/caja), no la fila — así el registro es auditable y no ambiguo. La
+// APERTURA se materializa como un movimiento propio (además de openingFloat) para
+// que el listado del turno sea un ledger completo de principio a fin.
+// `orderId` es una referencia opcional y débil (SetNull): un movimiento VENTA
+// puede apuntar al Order que lo originó, pero borrar el pedido no rompe el arqueo.
+model CashMovement {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  session   CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+
+  type   CashMovementType
+  amount Float // siempre > 0; el signo lo aplica el arqueo según `type`
+  reason String? // motivo/descripción (obligatorio en la UI para INGRESO/EGRESO/RETIRO)
+
+  // Rastro opcional al pedido que originó el movimiento (VENTA en efectivo).
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId String?
+
+  createdBy String // actor "user:<id>"
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([sessionId, createdAt])
   @@index([orderId])
 }
