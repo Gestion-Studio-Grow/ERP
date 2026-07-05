@@ -16,38 +16,68 @@ vivo), `docs/ESTADO-FRENTES.md` (mapa de frentes + %), `docs/METODOLOGIA-REPORTE
 
 Cuando Maxi escribe **`sprint`** (o invoca `/sprint`), el orquestador **toma el rol de SOCIO
 GERENTE EJECUTIVO del frente de IA** —experto en ERPs multi-tenant, background técnico +
-funcional + PMO— y **abre 5 sesiones = 5 equipos**, todos sobre `estetica-erp`, **cada uno con su
-worktree aislado** (salvo el 5º, que trabaja sobre `main`). Cada equipo es dueño de su dominio,
-decide con criterio experto, y entrega en su rama.
+funcional + PMO— y **abre tantas sesiones/worktrees como haga falta** para encarar **varios
+desarrollos y varios tenants EN PARALELO**, todos sobre `estetica-erp`. Cada squad decide con
+criterio experto y entrega en su rama; el Ejecutivo/PMO asigna, coordina e integra.
 
 > **Por qué worktrees:** el repo git es un **subfolder** del workspace; varias sesiones sobre la
 > misma carpeta comparten el working tree y se pisan los archivos sin commitear. Un **worktree por
-> equipo** (directorio + rama propios) es el aislamiento real. No era problema de aprobación: las
-> sesiones nuevas corren sobre el workspace ya confiado.
+> squad/desarrollo/tenant** (directorio + rama propios) es el aislamiento real, y es lo que permite
+> correr N cosas a la vez sin colisión. No era problema de aprobación: las sesiones nuevas corren
+> sobre el workspace ya confiado.
 
 ---
 
-## Los 5 equipos
+## Los squads son CROSS-FUNCIONALES (no lanes por disciplina)
 
-| # | Equipo | Rol | Dueño de | Worktree / rama |
-|---|---|---|---|---|
-| **1** | **Plataforma & Arquitectura** | Staff engineer / arquitecto multi-tenant | arquitectura, RLS/aislamiento, performance, tenants/blueprints, escalabilidad | `estetica-erp-plataforma` · `frente/plataforma` |
-| **2** | **Producto & Verticales** | Product engineer, verticales ERP (retail/POS, agenda&servicios, oficios, gastronomía) | features de producto, profundidad por rubro, UX de negocio | `estetica-erp-producto` · `frente/producto` |
-| **3** | **Fiscal & Pagos** | Especialista en integraciones fiscales/pagos LATAM | ARCA/AFIP, Mercado Pago, facturación, checkout/seña, conciliación (mucho queda ✅ **completado — pendiente acción humana / credenciales**) | `estetica-erp-fiscal` · `frente/fiscal` |
-| **4** | **Calidad & Confiabilidad** | SDET / reliability engineer | harness de tests, cobertura, CI, observabilidad, seguridad, retención de datos | `estetica-erp-calidad` · `frente/calidad` |
-| **5** | **Ejecutivo / PMO** (comodín — cualquier tema) | Socio gerente ejecutivo | estrategia, priorización, roadmap, tablero de estados, coordinación y **MERGE-MASTER a main** | **`main`** (esta sesión) |
+Los 5 squads base **no** son silos: cada uno puede **tomar un desarrollo o un tenant completo de
+punta a punta** (arquitectura + producto + fiscal + tests + entrega), con una **especialidad-líder**
+que orienta pero **no lo limita**. La especialidad es el sesgo del squad, no su jaula.
 
-El Equipo 5 no tiene worktree propio: **trabaja sobre `main`**, orquesta y es el único que
-integra. Puede además encarar cualquier tema que no tenga dueño claro.
+| # | Squad (especialidad-líder) | Sesgo experto | Worktree base / rama |
+|---|---|---|---|
+| **1** | **Plataforma & Arquitectura** | staff/arquitecto multi-tenant: RLS/aislamiento, performance, tenants/blueprints, escalabilidad | `estetica-erp-plataforma` · `frente/plataforma` |
+| **2** | **Producto & Verticales** | product engineer ERP: features, profundidad por rubro (retail/POS, agenda&servicios, oficios, gastronomía), UX de negocio | `estetica-erp-producto` · `frente/producto` |
+| **3** | **Fiscal & Pagos** | integraciones fiscales/pagos LATAM: ARCA/AFIP, Mercado Pago, facturación, checkout/seña, conciliación | `estetica-erp-fiscal` · `frente/fiscal` |
+| **4** | **Calidad & Confiabilidad** | SDET/reliability: tests, cobertura, CI, observabilidad, seguridad, retención | `estetica-erp-calidad` · `frente/calidad` |
+| **5** | **Ejecutivo / PMO** (comodín) | socio gerente ejecutivo: estrategia, priorización, roadmap, tablero, **asigna desarrollos/tenants a squads** y **MERGE-MASTER a main** | **`main`** (esta sesión) |
 
-### Rutas absolutas de los worktrees (setup vigente)
+El Equipo 5 no tiene worktree propio: **trabaja sobre `main`**, orquesta, **asigna cada desarrollo/
+tenant activo a un squad+worktree**, y es el único que integra.
+
+### Worktrees base (setup vigente)
 ```
 Equipo 5 (PMO/main)  C:/Users/mlloveras2/Documents/Claude/estetica-erp
-Equipo 1 Plataforma  C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataforma   [frente/plataforma]
-Equipo 2 Producto    C:/Users/mlloveras2/Documents/Claude/estetica-erp-producto     [frente/producto]
-Equipo 3 Fiscal      C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal       [frente/fiscal]
-Equipo 4 Calidad     C:/Users/mlloveras2/Documents/Claude/estetica-erp-calidad      [frente/calidad]
+Squad 1 Plataforma   C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataforma   [frente/plataforma]
+Squad 2 Producto     C:/Users/mlloveras2/Documents/Claude/estetica-erp-producto     [frente/producto]
+Squad 3 Fiscal       C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal       [frente/fiscal]
+Squad 4 Calidad      C:/Users/mlloveras2/Documents/Claude/estetica-erp-calidad      [frente/calidad]
 ```
+
+---
+
+## Escalado: varios desarrollos / tenants en paralelo
+
+El sprint **escala con la demanda**, no está fijo en 5. Si hay **N desarrollos o N tenants
+activos** a la vez, se abren **tantos worktrees/sesiones como haga falta — uno por desarrollo o por
+tenant** — y el PMO le asigna a cada uno un squad (por afinidad de especialidad, pero cualquier
+squad puede con cualquier cosa).
+
+- **Un worktree por unidad de trabajo paralela:** un desarrollo grande, o un tenant completo, tiene
+  su propio worktree aislado → corren a la vez sin pisarse.
+- **Nombrado:** `estetica-erp-<frente-o-tenant>`. Ej. por frente: `estetica-erp-fiscal`; por tenant:
+  `estetica-erp-magra`, `estetica-erp-<slug-del-tenant>`. La rama espeja el nombre
+  (`frente/<x>` o `tenant/<slug>`).
+- **Está OK abrir de más.** Si se crean más worktrees/sesiones de los que se terminan usando, no
+  pasa nada: los que sobran quedan ociosos (no molestan, se remueven en la consolidación). Preferir
+  capacidad de sobra a quedarse corto.
+- **Crear un worktree nuevo en caliente:**
+  `git worktree add ../estetica-erp-<nombre> -b <frente/x|tenant/slug>` desde `main` (el PMO lo
+  hace al asignar). Recordá `npm install` en el worktree nuevo antes de correr tsc/build/test.
+
+> **Regla:** el paralelismo lo habilita el **aislamiento por worktree**, no la cantidad de squads.
+> 5 squads son la base de especialidades; la cantidad de *worktrees activos* la fija cuántos
+> desarrollos/tenants estén corriendo en simultáneo.
 
 ---
 
@@ -77,7 +107,7 @@ Equipo 4 Calidad     C:/Users/mlloveras2/Documents/Claude/estetica-erp-calidad  
 
 | Palabra | Qué hace |
 |---|---|
-| **`sprint`** | El PMO toma el rol de socio gerente ejecutivo y **abre los 5 equipos** (worktrees ya creados). Asigna el bocado de mayor palanca a cada uno y arranca. |
+| **`sprint`** | El PMO toma el rol de socio gerente ejecutivo, **releva cuántos desarrollos/tenants hay activos** y **abre tantos worktrees/sesiones como haga falta** (los 4 base + los que sumen por desarrollo/tenant). Asigna cada unidad de trabajo a un squad y arranca. Está OK abrir de más. |
 | **`status`** | Estado **real del repo** (no de memoria): lee `docs/ESTADO-FRENTES.md` + `## Sprint activo` de `SPRINT-MOVIL.md` + `git log`, y responde en lenguaje de dueño con los estados canónicos. |
 | **`seguimos`** | Retoma desde el handoff vivo (`## Sprint activo → Próximo bocado` de cada frente) sin re-preguntar el plan. |
 | **`pausa`** | Frena, **consolida** (main limpio y pusheado, ramas integradas o anotadas, handoff al día) y queda a la espera. |
@@ -91,12 +121,14 @@ tema por commit), que es el fallback documentado en `docs/SPRINT-MOVIL.md`.
 
 ## Ciclo de un sprint (de principio a fin)
 
-1. **`sprint`** → PMO abre los 5 equipos, cada uno arranca su bocado de mayor palanca en su worktree.
-2. Cada equipo trabaja en su rama: un tema por commit, verde antes de cada uno, push de su rama.
+1. **`sprint`** → PMO releva los desarrollos/tenants activos y abre un worktree por cada uno
+   (más los squads base que hagan falta); asigna cada unidad a un squad y arranca.
+2. Cada squad trabaja en su rama, sobre su desarrollo/tenant de punta a punta: un tema por commit,
+   verde antes de cada uno, push de su rama.
 3. **PMO integra** las ramas a `main` en orden (rebase + verificación + push), mantiene el tablero.
 4. **`status`** en cualquier momento → foto real. **`seguimos`** → retoma. **`pausa`** → consolida.
-5. Al cerrar: `main` limpio y pusheado, ramas integradas o su estado anotado, `ESTADO-FRENTES.md`
-   y `## Sprint activo` al día. Los gates quedan listos para el "sí" del owner.
+5. Al cerrar: `main` limpio y pusheado, ramas integradas o su estado anotado, worktrees ociosos
+   removidos, `ESTADO-FRENTES.md` y `## Sprint activo` al día. Los gates quedan listos para el "sí".
 
 ---
 

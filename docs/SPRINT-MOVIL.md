@@ -14,16 +14,20 @@ verdad), los roles autónomos (`/sesion-movil`, `docs/METODO-ROLES.md`) y la col
 
 ---
 
-## Modo de operación: SPRINT de 5 equipos (2026-07-05, vigente)
+## Modo de operación: SPRINT de squads cross-funcionales (2026-07-05, vigente)
 
-**Modelo vigente:** el owner dispara un **sprint** desde el móvil y el frente de IA lo ejecuta como
-**5 equipos en paralelo, cada uno en su git worktree aislado** (el 5º = Ejecutivo/PMO trabaja sobre
-`main` y es el merge-master). La **metodología canónica completa** —los 5 roles, las reglas, el
-protocolo de las 4 palabras (`sprint`/`status`/`seguimos`/`pausa`)— está en
-**`docs/METODOLOGIA-SPRINT.md`** y en el comando **`/sprint`**. Resumen operativo:
+**Modelo vigente:** el owner dispara un **sprint** desde el móvil y el frente de IA lo ejecuta con
+**squads cross-funcionales, cada uno en su git worktree aislado**, para encarar **varios desarrollos
+y varios tenants en paralelo**. Los 5 squads base tienen una **especialidad-líder** (Plataforma,
+Producto, Fiscal, Calidad, Ejecutivo) pero **no se limitan a ella**: cada uno puede tomar un
+desarrollo o un tenant completo de punta a punta. El **Ejecutivo/PMO** (5º, sobre `main`) asigna,
+coordina y es merge-master. La **metodología canónica** —roles, escalado, reglas, protocolo de las 4
+palabras (`sprint`/`status`/`seguimos`/`pausa`)— está en **`docs/METODOLOGIA-SPRINT.md`** y en
+**`/sprint`**. Resumen operativo:
 
-- **Un worktree por equipo** (aislamiento real; el repo es subfolder → sin worktree las sesiones se
-  pisan el working tree). Rutas y ramas en `docs/METODOLOGIA-SPRINT.md`.
+- **Un worktree por unidad de trabajo paralela** (squad/desarrollo/tenant): el repo es subfolder →
+  sin worktree las sesiones se pisan. **Escala a N**: si hay N desarrollos/tenants activos se abren
+  N worktrees (`estetica-erp-<frente-o-tenant>`); está OK abrir de más. Rutas en `docs/METODOLOGIA-SPRINT.md`.
 - **Un tema por commit**, `tsc`+build (+`npm test`) en verde antes de cada uno.
 - **`git pull --rebase` antes de integrar; solo el PMO mergea a `main`**, de a una rama, en orden.
 - **⚠️ cada worktree necesita `npm install`** una vez (no viaja `node_modules`).
@@ -100,21 +104,22 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > **Este bloque es la fuente de verdad del sprint en curso.** "status" lo lee; "seguimos"
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
-**Sprint:** Setup del modelo de 5 equipos — EN PAUSA, esperando `sprint`
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (metodología + 4 worktrees listos; PAUSA)
-**Estado del bloque:** ⏸️ **PAUSA / consolidado.** Terreno listo para el modelo de sprint de 5
-equipos (`docs/METODOLOGIA-SPRINT.md` + `/sprint`): 4 worktrees aislados creados + el 5º (PMO) sobre
-`main`. `main` limpio y pusheado. **No hay trabajo de frentes en curso** — se espera que el owner
-tipee **`sprint`** para arrancar.
+**Sprint:** Setup del modelo de squads cross-funcionales — EN PAUSA, esperando `sprint`
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (metodología squads/escalado + 4 worktrees base; PAUSA)
+**Estado del bloque:** ⏸️ **PAUSA / consolidado.** Terreno base listo para el modelo de sprint
+(`docs/METODOLOGIA-SPRINT.md` + `/sprint`): **squads cross-funcionales** (toman desarrollo/tenant
+completo, especialidad-líder no-jaula) que **escalan a N worktrees** según cuántos desarrollos/
+tenants haya en paralelo. 4 worktrees base creados + el 5º (PMO) sobre `main`. `main` limpio y
+pusheado. **No hay trabajo de frentes en curso** — se espera que el owner tipee **`sprint`**.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
-**Worktrees listos (asignación de equipos):**
-- Equipo 1 Plataforma → `../estetica-erp-plataforma` [`frente/plataforma`]
-- Equipo 2 Producto → `../estetica-erp-producto` [`frente/producto`]
-- Equipo 3 Fiscal → `../estetica-erp-fiscal` [`frente/fiscal`]
-- Equipo 4 Calidad → `../estetica-erp-calidad` [`frente/calidad`]
-- Equipo 5 Ejecutivo/PMO → `main` (esta sesión, merge-master)
+**Worktrees base (squads; se suman más por desarrollo/tenant al disparar `sprint`):**
+- Squad 1 Plataforma → `../estetica-erp-plataforma` [`frente/plataforma`]
+- Squad 2 Producto → `../estetica-erp-producto` [`frente/producto`]
+- Squad 3 Fiscal → `../estetica-erp-fiscal` [`frente/fiscal`]
+- Squad 4 Calidad → `../estetica-erp-calidad` [`frente/calidad`]
+- Squad 5 Ejecutivo/PMO → `main` (esta sesión, merge-master, asigna y escala)
 
 **Ya cerrado y en `main`:** Tests (harness ADR-026), POS/stock (`trackStock`, migración sin aplicar),
 UX (sitio público 100% en tokens), protocolos de estados/metodología/modo, metodología de sprint.
