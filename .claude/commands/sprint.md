@@ -21,10 +21,22 @@ worktrees/sesiones y se asignan frentes.
 El barrido de la FASE 0 cubre, como mínimo:
 - **Repo:** tip de `main`, ramas y worktrees, WIP sin commitear (`git status`), `prisma/migrations/`
   (incluí **colisiones de timestamp**), `docs/ESTADO-FRENTES.md` + `docs/PROXIMOS-PASOS.md`.
+- **Sector Agencia Grow:** `docs/sectores/agencia-grow/FUNDAMENTO.md` + el tablero del sector
+  `docs/sectores/agencia-grow/espacio-propio/TABLERO-AGENCIA.md` + el bloque **SECTOR AGENCIA GROW** de
+  `docs/PROXIMOS-PASOS.md`.
 - **Prod / DB / migraciones:** hash deployado, migraciones **aplicadas vs SIN aplicar** (derivado de
   docs si no se toca Neon; nunca golpear prod salvo imprescindible), gates pendientes, tenants.
 - **Salida:** `docs/ESTADO-ACTUAL.md` creado/actualizado con esa foto. **Si no quedó al día, la FASE 0
   no terminó y el sprint NO arranca.**
+
+**🔗 Acople y continuidad — `sprint` NUNCA arranca en blanco (desde Claude Code o Dispatch).** Como parte
+de la FASE 0, la sesión **se acopla a la info viva y CONTINÚA lo abierto**: lee la cola de handoff
+`docs/PROXIMOS-PASOS.md` (incluido el bloque **SECTOR AGENCIA GROW**), el `## Sprint activo` de
+`docs/SPRINT-MOVIL.md` y el tablero del sector (`.../agencia-grow/espacio-propio/TABLERO-AGENCIA.md`), y
+**toma esos ítems abiertos como el plan por defecto** — los tiene en cuenta y **los avanza** sin
+re-preguntarlos. Solo si no queda nada abierto que aplique se propone trabajo nuevo. Aplica **igual
+abriendo desde acá o desde Dispatch** (el `## Protocolo móvil` de abajo, con su fraseo de Dispatch,
+queda tal cual — este acople es el default de arranque para ambos).
 
 ## ⚙️ PASO 1 — Creación AUTOMÁTICA de las sesiones (ejecutable, inmediatamente después de la FASE 0)
 Con `docs/ESTADO-ACTUAL.md` al día, el PMO **crea las sesiones solo, sin pedir permiso y sin abrir nada
