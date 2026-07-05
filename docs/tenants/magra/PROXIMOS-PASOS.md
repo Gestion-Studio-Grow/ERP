@@ -4,33 +4,42 @@ Para retomar rápido (incluso desde el móvil). Arriba = lo siguiente. Actualiza
 cerrar sesión. Ver `blueprint-carniceria-brief.md` (encuadre técnico) y `BACKLOG.md`
 (alcance vs. Bistrosoft).
 
-## Estado (2026-07-04)
+## Estado (2026-07-04, ciclo 2)
 
 - Rumbo corregido: **magra NO es app/repo aparte**, es **tenant + Blueprint de
   carnicería** dentro del ERP (FUNDAMENTOS §2, ADR-002). El prototipo Next
   standalone (`../../../magra`, fuera del repo) queda **huérfano como demo visual
   desechable** a costo 0; su schema propio **no se migra**.
 - Documentado dentro del erp: este archivo + `blueprint-carniceria-brief.md` +
-  `BACKLOG.md` (mapa comparativo Bistrosoft + alcance superador MVP→v1+).
-- **Sin código nuevo en el Core todavía** — a la espera de OK y de la versión final
-  de `FUNDAMENTOS-Y-VISION.md`.
+  `BACKLOG.md` + `competencia-bistrosoft.md` (investigación con fuentes) +
+  `pos-orden-capability.md` (registro de lo implementado).
+- **AVANZADO este ciclo (código nuevo en el Core, type-clean, migración SIN aplicar):**
+  Capability **POS/Orden** + **venta por kg** — el checkout/toma de pedidos que
+  faltaba del MVP, construido como Capability del Core (no fork). Ver
+  `pos-orden-capability.md`. Verificado con `tsc` sin tocar Neon.
+- **OJO (working tree compartido):** otra línea de trabajo está construyendo en
+  paralelo en el mismo repo (RLS `src/lib/rls.ts`/`tenant-context.ts`/`prisma/rls/`,
+  plugin MercadoPago, `fiscal.ts`, ADR-024). El commit de este ciclo incluye **sólo
+  los archivos de la capability POS/Orden**, para no entangar con ese trabajo a medio hacer.
 
 ## Lo siguiente (en orden — hay orden forzado por el gate del tenant #2)
 
 1. **OK del encuadre** — validar `blueprint-carniceria-brief.md` y formalizarlo como
    **ADR-024 (Blueprint Retail/Carnicería)** en una `/sesion-arquitectura`.
-2. **Gate #0 — ADR-018**: implementar RLS de Postgres + resolución de tenant por
-   request. Sin esto, crear el tenant #2 rompe la app de Carolina (ADR-015 fail-closed).
-   Es una `/sesion-feature` grande y previa a todo.
-3. **ADR-019** — script `scripts/provision-tenant.ts` idempotente/transaccional,
-   parametrizado por `--blueprint`.
+2. **Gate #0 — ADR-018**: RLS de Postgres + resolución de tenant por request. Sin
+   esto, crear el tenant #2 rompe la app de Carolina (ADR-015 fail-closed). *En
+   construcción en paralelo* (aparecieron `src/lib/rls.ts`, `tenant-context.ts`,
+   `prisma/rls/` en el working tree). Confirmar que quede terminado antes del alta.
+3. **ADR-019** — `scripts/provision-tenant.ts` **ya existe**; falta parametrizarlo
+   por `--blueprint=carniceria` y sembrar cortes con precio/kg.
 4. **Sistema de Blueprints en código** — `src/blueprints/carniceria/{manifest,seed-template}.ts`
    + registro de capabilities activas por tenant.
-5. **Capabilities del Core que faltan**:
-   - Venta por kg (campo de extensión sobre `Product`).
-   - POS/Orden (`Order`/`OrderItem` genéricos, ADR-003 Fase 2).
+5. ~~Capabilities del Core: venta por kg + POS/Orden~~ **HECHO** este ciclo
+   (`pos-orden-capability.md`). Falta aplicar la migración `20260704180000_add_pos_orders`
+   con `migrate deploy` (Gate 2) cuando se dé el OK.
 6. **Vidriera por tenant + theming** — generalizar `src/app/(site)/` para leer el
-   catálogo del tenant y su marca (magra: oxblood/hueso/latón).
+   catálogo del tenant y su marca (magra: oxblood/hueso/latón). La vidriera consume
+   la misma `createOrder` de la capability POS ya hecha.
 7. **Plugin `arca`** (ADR-022) — en paralelo.
 
 ## Demo a costo 0 (vigente)

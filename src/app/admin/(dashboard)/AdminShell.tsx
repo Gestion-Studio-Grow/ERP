@@ -14,6 +14,7 @@ const ALL_ITEMS: { href: string; label: string; exact?: boolean; cap: Capability
   { href: "/admin/turnos", label: "Agenda", cap: "agenda:read" },
   { href: "/admin/clientes", label: "Clientes", cap: "clients:read" },
   { href: "/admin/espera", label: "Lista de espera", cap: "waitlist:manage" },
+  { href: "/admin/pedidos", label: "Pedidos", cap: "orders:read" },
   { href: "/admin/catalogo", label: "Catálogo", cap: "catalog:manage" },
   { href: "/admin/resenas", label: "Reseñas", cap: "reviews:manage" },
   { href: "/admin/recordatorios", label: "Recordatorios", cap: "reminders:manage" },

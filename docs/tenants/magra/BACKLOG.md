@@ -44,10 +44,12 @@ a Bistrosoft sin esperar features pesadas.
   parametrizado por `--blueprint=carniceria`.
 - [ ] `[MVP][plataforma]` **Sistema de Blueprints en código** (`src/blueprints/carniceria/`)
   + registro de capabilities activas por tenant.
-- [ ] `[MVP][capability]` **Venta por kg** — campo de extensión sobre `Product`
-  (`saleUnit`, `pricePerKg`) + cálculo de línea por gramos. Diferencial #1, versión software.
-- [ ] `[MVP][capability]` **POS/Orden** — `Order`/`OrderItem` genéricos del Core
+- [x] `[MVP][capability]` **Venta por kg** — campo de extensión sobre `Product`
+  (`saleUnit`, `price`, `pricePerKg`) + cálculo de línea por gramos. Diferencial #1,
+  versión software. **HECHO 2026-07-04** (migración sin aplicar; ver `pos-orden-capability.md`).
+- [x] `[MVP][capability]` **POS/Orden** — `Order`/`OrderItem` genéricos del Core
   (ADR-003 Fase 2) con estados y fulfillment (retiro/delivery). Reusable por retail futuro.
+  **HECHO 2026-07-04**: schema + actions + backoffice (POS + toma de pedidos + bandeja).
 - [ ] `[MVP][vidriera]` **Vidriera premium por tenant** — catálogo de cortes con
   precio/kg, marca magra, generalizando `src/app/(site)/`. Supera la tienda gastro.
 - [ ] `[MVP][vidriera]` **Toma de pedidos** desde la vidriera → cae al backoffice.

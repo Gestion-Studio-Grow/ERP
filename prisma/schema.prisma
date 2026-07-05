@@ -68,6 +68,42 @@ enum UserRole {
   PROFESSIONAL
 }
 
+// --- Capability POS / Orden (ADR-003 "Orden/Venta" + Fase 2 POS) ---
+// Enums del Core, no del blueprint carnicería: los reusa cualquier vertical
+// retail (kiosco, autoservicio), por eso viven en el Core (blueprint-carniceria
+// -brief §6, decisión 2).
+
+// Cómo se vende un producto. UNIT = por unidad (default, no rompe el spa).
+// WEIGHT = por peso/kg (corte de carnicería) — el diferencial #1 vs Bistrosoft.
+enum ProductSaleUnit {
+  UNIT
+  WEIGHT
+}
+
+// Ciclo de vida de un pedido/venta. Un pedido de mostrador nace CONFIRMED
+// (venta inmediata); uno de la vidriera online nace PENDING (falta que el
+// mostrador lo confirme). READY = listo para retiro/despacho.
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+// Canal de origen del pedido.
+enum OrderChannel {
+  COUNTER // mostrador (POS presencial)
+  ONLINE // vidriera / toma de pedido online
+}
+
+// Cómo se entrega el pedido.
+enum FulfillmentType {
+  PICKUP // retira en el local
+  DELIVERY // envío a domicilio
+}
+
 // Tenant (negocio) — raíz del aislamiento multi-tenant (ADR-001). Cada tabla de
 // negocio referencia un tenant. Por ahora hay uno solo (Beauty & Spa); el
 // modelo nace preparado para muchos sin rediseñar. La zona horaria vive acá
@@ -112,6 +148,8 @@ model Tenant {
   waitlistEntries    WaitlistEntry[]
   invoices           Invoice[]
   outboxEvents       OutboxEvent[]
+  orders             Order[]
+  orderItems         OrderItem[]
 }
 
 // Configuración de localización y contacto del negocio (módulo Localización).
@@ -312,6 +350,17 @@ model Product {
   active       Boolean          @default(true)
   deletedAt    DateTime?
   services     ServiceProduct[]
+
+  // --- Extensión "venta al público / retail" (mec. A de ADR-002) ---
+  // Campos aditivos, nullable/defaulted: el blueprint Servicios (spa) los ignora
+  // y sigue igual; el blueprint Carnicería/Retail los usa para vender cortes por
+  // peso. NO hay tabla nueva: es extensión del Producto existente (FUNDAMENTOS §2,
+  // blueprint-carniceria-brief §2 y decisión 1).
+  saleUnit     ProductSaleUnit  @default(UNIT) // UNIT = por unidad, WEIGHT = por kg
+  price        Float? // precio de venta unitario (saleUnit=UNIT). Null = no se vende suelto
+  pricePerKg   Float? // precio por kilo (saleUnit=WEIGHT). Diferencial #1 vs Bistrosoft
+  orderItems   OrderItem[]
+
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -347,6 +396,7 @@ model Client {
   // Null = todavía no se le preguntó (clientes previos a esta feature).
   isResident   Boolean?
   appointments Appointment[]
+  orders       Order[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -727,4 +777,70 @@ model OutboxEvent {
 
   @@index([tenantId])
   @@index([processedAt])
+}
+
+// --- Capability POS / Orden (ADR-003 "Orden/Venta", Fase 2 POS) ---
+// Capability del CORE, no del blueprint carnicería: modela la venta de mostrador
+// y la toma de pedido online para cualquier vertical retail. La carnicería la usa
+// para vender cortes por kg; un kiosco futuro la reusa igual (decisión 2 del brief).
+// El pago es registro simple (ADR-003 Fase 1: `paymentMethod` + `paid`); un ledger
+// de Pago unificado (hoy `Payment` está atado a Appointment) es trabajo futuro.
+// La factura fiscal la resuelve el Plugin `arca` vía outbox (ADR-022), no este modelo.
+model Order {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  code        Int // correlativo legible por tenant (nº de pedido que ve el mostrador)
+  status      OrderStatus     @default(PENDING)
+  channel     OrderChannel    @default(COUNTER)
+  fulfillment FulfillmentType @default(PICKUP)
+
+  // Cliente: snapshot desnormalizado (un pedido de vidriera puede venir de alguien
+  // sin cuenta) + link opcional a Client si es un cliente conocido del backoffice.
+  client        Client?   @relation(fields: [clientId], references: [id])
+  clientId      String?
+  customerName  String
+  customerPhone String
+  address       String? // requerido por la acción si fulfillment=DELIVERY
+  scheduledFor  DateTime? // horario de retiro/entrega deseado
+  notes         String?
+
+  // Totales calculados en el Core (ADR-006), snapshot al momento del pedido.
+  subtotal Float @default(0)
+  discount Float @default(0)
+  total    Float @default(0)
+
+  // Pago simple (ver nota de cabecera).
+  paymentMethod PaymentMethod?
+  paid          Boolean        @default(false)
+
+  items     OrderItem[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+}
+
+model OrderItem {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId  String
+
+  product   Product? @relation(fields: [productId], references: [id])
+  productId String?
+
+  // Snapshot del producto al momento de la venta: el nombre/precio pueden cambiar
+  // después, pero la línea del pedido conserva lo efectivamente cobrado (ADR-009 §4).
+  name      String
+  saleUnit  ProductSaleUnit @default(UNIT)
+  quantity  Float // unidades (UNIT) o kilos (WEIGHT)
+  unitPrice Float // precio unitario (UNIT) o precio/kg (WEIGHT)
+  lineTotal Float
+
+  @@index([tenantId])
+  @@index([orderId])
 }

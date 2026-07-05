@@ -20,6 +20,8 @@ export type Capability =
   | "waitlist:manage" // anotar/gestionar la lista de espera y convertir en turno
   | "catalog:read"
   | "catalog:manage"
+  | "orders:read"
+  | "orders:manage" // tomar pedidos / vender en mostrador (POS), avanzar y cobrar pedidos
   | "coupons:manage"
   | "reminders:manage"
   | "reviews:manage"
@@ -41,6 +43,8 @@ export const ALL_CAPABILITIES: Capability[] = [
   "waitlist:manage",
   "catalog:read",
   "catalog:manage",
+  "orders:read",
+  "orders:manage",
   "coupons:manage",
   "reminders:manage",
   "reviews:manage",
@@ -78,6 +82,11 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "clients:read",
     "clients:manage",
     "waitlist:manage",
+    // POS/pedidos es trabajo de mostrador puro (tomar el pedido, cobrarlo,
+    // marcarlo listo/entregado), del mismo tenor que agenda + clientes, así que
+    // RECEPTION lo tiene. El catálogo/precios sigue solo-OWNER.
+    "orders:read",
+    "orders:manage",
   ],
   PROFESSIONAL: ["agenda:read", "agenda:complete"],
 };

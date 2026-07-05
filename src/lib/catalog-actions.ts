@@ -245,6 +245,25 @@ export async function setServiceProducts(formData: FormData) {
 
 // --- Products (stock) ---
 
+// Campos de venta al público (extensión retail, mec. A ADR-002). Opcionales: el
+// catálogo del spa no los manda y quedan en default/null; el blueprint Carnicería
+// (seed de provisioning / futuro catálogo retail) los usa para vender por kg.
+// Sólo aplica si el form realmente trae los campos: así editar un producto desde
+// un form que no los incluye (el del spa) NO pisa el precio de un corte existente.
+function parseRetailFields(formData: FormData): {
+  saleUnit?: "UNIT" | "WEIGHT";
+  price?: number | null;
+  pricePerKg?: number | null;
+} {
+  if (!formData.has("saleUnit")) return {};
+  const saleUnit = String(formData.get("saleUnit") || "").trim() === "WEIGHT" ? "WEIGHT" : "UNIT";
+  const priceRaw = String(formData.get("price") || "").trim();
+  const pricePerKgRaw = String(formData.get("pricePerKg") || "").trim();
+  const price = priceRaw && Number(priceRaw) > 0 ? Number(priceRaw) : null;
+  const pricePerKg = pricePerKgRaw && Number(pricePerKgRaw) > 0 ? Number(pricePerKgRaw) : null;
+  return { saleUnit, price, pricePerKg };
+}
+
 export async function createProduct(formData: FormData) {
   await requireCapability("catalog:manage");
   const name = String(formData.get("name") || "").trim();
@@ -259,6 +278,7 @@ export async function createProduct(formData: FormData) {
       unit,
       stock,
       lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt,
+      ...parseRetailFields(formData),
     },
   });
   revalidatePath(CATALOG_PATH);
@@ -274,7 +294,7 @@ export async function updateProduct(formData: FormData) {
   if (!name || Number.isNaN(stock)) return;
   await prisma.product.update({
     where: { id },
-    data: { name, unit, stock, lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt },
+    data: { name, unit, stock, lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt, ...parseRetailFields(formData) },
   });
   revalidatePath(CATALOG_PATH);
 }
