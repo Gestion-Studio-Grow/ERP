@@ -15,6 +15,7 @@
 
 import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
 import { runInTenantContext } from "@/lib/tenant-context";
+import { withRequestId, setRequestContext } from "@/lib/request-context";
 import { auditPublic } from "@/lib/audit";
 import { logger } from "@/lib/logger";
 import {
@@ -37,7 +38,7 @@ function errorResponse(err: unknown): Response {
   return Response.json({ ok: false, error: { code: "internal", message: "Error interno." } }, { status: 500 });
 }
 
-export async function POST(request: Request) {
+export const POST = withRequestId(async (request: Request) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
   try {
     const input = parseExternalOrder(body);
     const { tenantId, slug } = await authenticatePublicApi(request, input.tenant ?? null);
+    setRequestContext({ tenantId, slug });
 
     // Contexto de tenant para RLS (ADR-018 §4): este path no tiene subdominio, el
     // tenant lo resolvió la api-key por slug. Envolvemos el trabajo para que la
@@ -79,4 +81,4 @@ export async function POST(request: Request) {
   } catch (err) {
     return errorResponse(err);
   }
-}
+});

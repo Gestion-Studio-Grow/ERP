@@ -10,15 +10,17 @@
 import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { withRequestId, setRequestContext } from "@/lib/request-context";
 
 export const runtime = "nodejs";
 
-export async function GET(
+export const GET = withRequestId(async (
   request: Request,
   { params }: { params: Promise<{ code: string }> },
-) {
+) => {
   try {
     const { tenantId } = await authenticatePublicApi(request);
+    setRequestContext({ tenantId });
     const { code: codeRaw } = await params;
     const code = Number(codeRaw);
     if (!Number.isInteger(code) || code <= 0) {
@@ -70,4 +72,4 @@ export async function GET(
     logger.error("api/public/orders/:code", "error", err);
     return Response.json({ ok: false, error: { code: "internal", message: "Error interno." } }, { status: 500 });
   }
-}
+});

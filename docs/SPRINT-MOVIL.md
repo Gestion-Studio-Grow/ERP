@@ -105,7 +105,7 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
 **Sprint:** Sprint #1 de squads — adapters/caja/cobertura sin gate — ✅ **INTEGRADO en `main`**
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (3 squads integrados; main verde: tsc+build+96 tests)
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (Plataforma: observabilidad v2 — correlación de requests; main verde: tsc+build+189 tests)
 **Estado del bloque:** ✅ **CERRADO / integrado.** El PMO tomó el rol ejecutivo, despachó **una sesión
 aislada por frente** (subagente + worktree) y **integró las 3 ramas a `main` de a una** (cherry-pick,
 re-verificando tsc+build+tests). Entregado este sprint:
@@ -115,6 +115,20 @@ re-verificando tsc+build+tests). Entregado este sprint:
 - **Producto** → **caja del POS** (apertura/cierre/arqueo, `/admin/caja`) + migración `add_cash_register` SIN aplicar.
 
 Plataforma quedó sin despacho (superficie gateada). `main` limpio, verde y pusheado.
+
+**Actualización 2026-07-05 — Squad Plataforma retomó su superficie fina (no-gated):**
+- **Observabilidad v2 — correlación de requests (sobre el logger v1).** ALS por request
+  (`src/lib/request-context.ts`, 0 deps: `AsyncLocalStorage` + `node:crypto`) con `requestId`
+  que el logger **mergea solo** en cada línea (`tenantId`/`actor` se suman al resolverse). Wrapper
+  `withRequestId` en los 4 endpoints máquina-a-máquina (`/api/health`, API pública de pedidos
+  POST + `[code]`, webhook de MP): honra un `x-request-id` entrante (saneado, anti-inyección) o
+  genera uno y lo devuelve en el header → correlación end-to-end para depurar reintentos. +16 tests
+  (ALS + saneo + merge ambiente). `tsc` + build (Turbopack) + 189 tests en verde. Aditivo:
+  fuera de un request el logger se comporta igual que v1. Independiente de RLS (ALS separado del de
+  `tenant-context.ts`, que sigue apagado tras el flag).
+- **RLS listo para el gate:** confirmado que el paquete `prisma/rls/` (SQL data-driven +
+  `check-coverage` 28/28 + integración PGlite `verify-wiring.mts` sobre el código real) deja la
+  activación en "revisar y aplicar". No se tocó prod (Gate 2 + 2º tenant, decisión del dueño).
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 

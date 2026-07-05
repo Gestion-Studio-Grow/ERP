@@ -13,8 +13,9 @@ import { isInvoicingEnabled } from "@/lib/fiscal";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { manejarNotificacionMP } from "@/lib/mercadopago-dispatch";
 import { logger } from "@/lib/logger";
+import { withRequestId, setRequestContext } from "@/lib/request-context";
 
-export async function POST(request: Request) {
+export const POST = withRequestId(async (request: Request) => {
   if (!isInvoicingEnabled()) {
     // Facturación deshabilitada: acusar recibo para que MP no reintente.
     return Response.json({ ok: true, skipped: "invoicing-disabled" });
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
   }
 
   const tenantId = await getCurrentTenantId();
+  setRequestContext({ tenantId, paymentId });
 
   try {
     const resultado = await manejarNotificacionMP({ type, paymentId, tenantId });
@@ -53,4 +55,4 @@ export async function POST(request: Request) {
     logger.error("mercadopago", "webhook falló", err, { paymentId, tenantId });
     return Response.json({ ok: false }, { status: 500 });
   }
-}
+});

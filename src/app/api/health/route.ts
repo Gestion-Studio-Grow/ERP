@@ -8,6 +8,8 @@
  * `SELECT 1` se puede agregar el día que haya presupuesto de DB (queda anotado).
  */
 
+import { withRequestId } from "@/lib/request-context";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -22,8 +24,8 @@ function commitRef(): string {
   );
 }
 
-export function GET() {
-  return Response.json(
+export const GET = withRequestId(() =>
+  Response.json(
     {
       status: "ok",
       commit: commitRef(),
@@ -31,5 +33,5 @@ export function GET() {
       ts: new Date().toISOString(),
     },
     { headers: { "Cache-Control": "no-store" } },
-  );
-}
+  ),
+);

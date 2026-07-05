@@ -10,6 +10,8 @@
 // dominio) se pasa explícito por el caller — el logger no toca la DB ni resuelve
 // tenant (evita acoplarse a los cimientos y golpear Neon).
 
+import { getRequestContext } from "@/lib/request-context";
+
 export type LogLevel = "error" | "warn" | "info";
 
 // Contexto libre que acompaña al evento. Se serializa tal cual dentro de la línea
@@ -65,14 +67,24 @@ function emit(level: LogLevel, line: string): void {
   else console.log(line);
 }
 
+// Mergea el contexto de request vigente (requestId, tenantId…) DEBAJO del ctx
+// explícito del caller: el ambiente da la correlación por defecto, pero si el caller
+// pasa una clave con el mismo nombre, la suya gana. Fuera de un request devuelve el
+// ctx tal cual. Las claves fijas (ts/level/scope/msg) las protege formatLogEntry.
+function withAmbient(ctx?: LogContext): LogContext | undefined {
+  const ambient = getRequestContext();
+  if (!ambient) return ctx;
+  return { ...ambient, ...ctx };
+}
+
 export const logger = {
   error(scope: string, msg: string, err?: unknown, ctx?: LogContext): void {
-    emit("error", formatLogEntry("error", scope, msg, new Date().toISOString(), ctx, err));
+    emit("error", formatLogEntry("error", scope, msg, new Date().toISOString(), withAmbient(ctx), err));
   },
   warn(scope: string, msg: string, ctx?: LogContext): void {
-    emit("warn", formatLogEntry("warn", scope, msg, new Date().toISOString(), ctx));
+    emit("warn", formatLogEntry("warn", scope, msg, new Date().toISOString(), withAmbient(ctx)));
   },
   info(scope: string, msg: string, ctx?: LogContext): void {
-    emit("info", formatLogEntry("info", scope, msg, new Date().toISOString(), ctx));
+    emit("info", formatLogEntry("info", scope, msg, new Date().toISOString(), withAmbient(ctx)));
   },
 };

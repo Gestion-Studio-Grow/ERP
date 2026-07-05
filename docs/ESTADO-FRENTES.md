@@ -56,11 +56,13 @@ Marcá "hablemos de X" y lo bajamos a plan.
   tenant+rango) y tarjetas en `/admin/reportes`. Verde (tsc+build+104 tests). **Falta (avanzable):**
   export **CSV entregado** (`/admin/reportes/export`, `report-csv.ts` puro + tests); falta export
   PDF y verificación visual con auth (acción humana, requiere sesión contra Neon).
-- **Observabilidad (Core Plataforma)** — ✅ **v1 entregada** (2026-07-05): logger JSON estructurado
-  (`src/lib/logger.ts`, cero deps, serialización pura testeada) reemplazando los `console.error`
-  dispersos con contexto (tenantId/actor/ids), y health endpoint shallow `GET /api/health` (sin DB,
-  respeta Neon free). **Falta (avanzable):** readiness con `SELECT 1` cuando haya presupuesto de DB,
-  y propagar `requestId` por request. Antes: no había capa de observabilidad (hueco de plataforma).
+- **Observabilidad (Core Plataforma)** — ✅ **v2 entregada** (2026-07-05): sobre el logger JSON de v1
+  (`src/lib/logger.ts`, cero deps, serialización pura testeada) + health shallow `GET /api/health`,
+  se sumó **correlación por request**: `src/lib/request-context.ts` (ALS `requestId`/`tenantId`/`actor`,
+  cero deps) que el logger mergea solo en cada línea, y `withRequestId` en los 4 endpoints
+  máquina-a-máquina (API pública POST + `[code]`, webhook MP, health) — honra/genera `x-request-id` y
+  lo devuelve en el header. +16 tests; tsc+build+189 tests verde. **Falta (avanzable):** adoptar el
+  contexto en las server actions (`withAction`) y readiness `SELECT 1` cuando haya presupuesto de DB.
 - **Nuevos presets de rubro** — config sobre arquetipos existentes (una sesión de config c/u).
 - **Portal/app del cliente** — login + "mis turnos/pedidos" (diferenciador, L).
 
