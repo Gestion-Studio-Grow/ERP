@@ -71,7 +71,10 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
 **Sprint:** Tablero honesto + deuda técnica sin gates
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (F4/F5 cerrados)
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05
+**Estado del bloque:** ⏸️ **cerrado a pedido del dueño** con 3 de 3 ítems + F4/F5 hechos. Punto
+de entrada limpio para retomar ("seguimos"): el **Próximo bocado** de abajo (F3). Ningún
+trabajo quedó a medias; working tree limpio y todo en `origin/main`.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
