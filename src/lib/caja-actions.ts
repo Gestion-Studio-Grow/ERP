@@ -25,6 +25,21 @@ import { reconcileCash, type CashMovementLike, type CashMovementType } from "@/l
 
 const CAJA_PATH = "/admin/caja";
 
+// Resultado de las acciones de formulario de caja, para `useActionState` en la UI.
+// `null` = estado inicial (ocioso). En vez de lanzar (que rompe el flujo con la
+// pantalla de error de Next), las acciones DEVUELVEN el error de validación/dominio
+// para mostrarlo inline junto al formulario. Los mensajes ya son texto amable en
+// español (van directo a la UI del mostrador).
+export type CajaActionState = { ok: true } | { ok: false; error: string } | null;
+
+// Traduce un error (de validación propia o de dominio lanzado dentro de la
+// transacción) al estado de error de la UI. Un error inesperado no filtra detalles
+// internos: cae a un mensaje genérico.
+function toActionError(err: unknown): { ok: false; error: string } {
+  const msg = err instanceof Error && err.message ? err.message : "No se pudo completar la operación.";
+  return { ok: false, error: msg };
+}
+
 // Tipos de movimiento que el mostrador puede registrar a mano (la APERTURA la crea
 // `openCashSession`; VENTA la crearía el flujo de venta en efectivo, futuro).
 const MANUAL_MOVEMENT_TYPES = ["INGRESO", "EGRESO", "RETIRO"] as const;
@@ -64,42 +79,50 @@ export async function getCajaData() {
 // APERTURA (para que el ledger del turno arranque completo). Falla si ya hay una
 // sesión abierta: un solo mostrador por tenant (invariante de dominio, no de
 // schema). Todo dentro de una transacción tenant-aware.
-export async function openCashSession(formData: FormData) {
+export async function openCashSession(
+  _prev: CajaActionState,
+  formData: FormData,
+): Promise<CajaActionState> {
   const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
   const openingFloat = parseAmount(formData.get("openingFloat"));
   if (!Number.isFinite(openingFloat) || openingFloat < 0) {
-    throw new Error("El fondo inicial tiene que ser un monto válido (0 o más).");
+    return { ok: false, error: "El fondo inicial tiene que ser un monto válido (0 o más)." };
   }
   const actor = `user:${user.id}`;
 
-  const session = await tenantTransaction(async (tx) => {
-    const already = await tx.cashSession.findFirst({
-      where: { tenantId, status: "OPEN" },
-      select: { id: true },
-    });
-    if (already) {
-      throw new Error("Ya hay una caja abierta. Cerrá el turno actual antes de abrir otro.");
-    }
-    return tx.cashSession.create({
-      data: {
-        tenantId,
-        status: "OPEN",
-        openedBy: actor,
-        openingFloat,
-        movements: {
-          create: {
-            tenantId,
-            type: "APERTURA",
-            amount: openingFloat,
-            reason: "Fondo inicial de caja",
-            createdBy: actor,
+  let session: { id: string };
+  try {
+    session = await tenantTransaction(async (tx) => {
+      const already = await tx.cashSession.findFirst({
+        where: { tenantId, status: "OPEN" },
+        select: { id: true },
+      });
+      if (already) {
+        throw new Error("Ya hay una caja abierta. Cerrá el turno actual antes de abrir otro.");
+      }
+      return tx.cashSession.create({
+        data: {
+          tenantId,
+          status: "OPEN",
+          openedBy: actor,
+          openingFloat,
+          movements: {
+            create: {
+              tenantId,
+              type: "APERTURA",
+              amount: openingFloat,
+              reason: "Fondo inicial de caja",
+              createdBy: actor,
+            },
           },
         },
-      },
-      select: { id: true },
-    });
-  }, { tenantId });
+        select: { id: true },
+      });
+    }, { tenantId });
+  } catch (err) {
+    return toActionError(err);
+  }
 
   await auditAdmin({
     action: "open",
@@ -108,6 +131,7 @@ export async function openCashSession(formData: FormData) {
     changes: { openingFloat },
   });
   revalidatePath(CAJA_PATH);
+  return { ok: true };
 }
 
 // --- Registrar un movimiento de caja (ingreso / egreso / retiro) ---
@@ -115,7 +139,10 @@ export async function openCashSession(formData: FormData) {
 // Solo se puede sobre la sesión ABIERTA del tenant. El monto se guarda POSITIVO;
 // el signo lo aplica el arqueo según el tipo. Motivo obligatorio (es plata que
 // entra o sale sin una venta detrás: tiene que quedar justificada).
-export async function addCashMovement(formData: FormData) {
+export async function addCashMovement(
+  _prev: CajaActionState,
+  formData: FormData,
+): Promise<CajaActionState> {
   const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
 
@@ -124,30 +151,34 @@ export async function addCashMovement(formData: FormData) {
     ? (typeRaw as ManualMovementType)
     : null;
   if (!type) {
-    throw new Error("Tipo de movimiento inválido. Elegí ingreso, egreso o retiro.");
+    return { ok: false, error: "Tipo de movimiento inválido. Elegí ingreso, egreso o retiro." };
   }
   const amount = parseAmount(formData.get("amount"));
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("El monto del movimiento tiene que ser mayor a 0.");
+    return { ok: false, error: "El monto del movimiento tiene que ser mayor a 0." };
   }
   const reason = String(formData.get("reason") || "").trim();
   if (!reason) {
-    throw new Error("Poné un motivo para el movimiento (queda registrado en el arqueo).");
+    return { ok: false, error: "Poné un motivo para el movimiento (queda registrado en el arqueo)." };
   }
   const actor = `user:${user.id}`;
 
-  await tenantTransaction(async (tx) => {
-    const session = await tx.cashSession.findFirst({
-      where: { tenantId, status: "OPEN" },
-      select: { id: true },
-    });
-    if (!session) {
-      throw new Error("No hay una caja abierta. Abrí un turno antes de registrar movimientos.");
-    }
-    await tx.cashMovement.create({
-      data: { tenantId, sessionId: session.id, type, amount, reason, createdBy: actor },
-    });
-  }, { tenantId });
+  try {
+    await tenantTransaction(async (tx) => {
+      const session = await tx.cashSession.findFirst({
+        where: { tenantId, status: "OPEN" },
+        select: { id: true },
+      });
+      if (!session) {
+        throw new Error("No hay una caja abierta. Abrí un turno antes de registrar movimientos.");
+      }
+      await tx.cashMovement.create({
+        data: { tenantId, sessionId: session.id, type, amount, reason, createdBy: actor },
+      });
+    }, { tenantId });
+  } catch (err) {
+    return toActionError(err);
+  }
 
   await auditAdmin({
     action: "movement",
@@ -155,6 +186,7 @@ export async function addCashMovement(formData: FormData) {
     changes: { type, amount, reason },
   });
   revalidatePath(CAJA_PATH);
+  return { ok: true };
 }
 
 // --- Cerrar turno de caja (arqueo) ---
@@ -163,44 +195,52 @@ export async function addCashMovement(formData: FormData) {
 // (reconcileCash sobre el fondo inicial + los movimientos del turno) y CONGELA el
 // arqueo en la sesión (closingExpected/closingCounted/closingDiff). El histórico
 // queda inmutable: no recalcula después aunque se toque algo.
-export async function closeCashSession(formData: FormData) {
+export async function closeCashSession(
+  _prev: CajaActionState,
+  formData: FormData,
+): Promise<CajaActionState> {
   const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
   const counted = parseAmount(formData.get("counted"));
   if (!Number.isFinite(counted) || counted < 0) {
-    throw new Error("El efectivo contado tiene que ser un monto válido (0 o más).");
+    return { ok: false, error: "El efectivo contado tiene que ser un monto válido (0 o más)." };
   }
   const note = String(formData.get("note") || "").trim() || null;
   const actor = `user:${user.id}`;
 
-  const result = await tenantTransaction(async (tx) => {
-    const session = await tx.cashSession.findFirst({
-      where: { tenantId, status: "OPEN" },
-      include: { movements: { select: { type: true, amount: true } } },
-    });
-    if (!session) {
-      throw new Error("No hay una caja abierta para cerrar.");
-    }
-    const movements: CashMovementLike[] = session.movements.map((m) => ({
-      type: m.type as CashMovementType,
-      amount: m.amount,
-    }));
-    const arqueo = reconcileCash(session.openingFloat, movements, counted);
+  let result: { id: string } & ReturnType<typeof reconcileCash>;
+  try {
+    result = await tenantTransaction(async (tx) => {
+      const session = await tx.cashSession.findFirst({
+        where: { tenantId, status: "OPEN" },
+        include: { movements: { select: { type: true, amount: true } } },
+      });
+      if (!session) {
+        throw new Error("No hay una caja abierta para cerrar.");
+      }
+      const movements: CashMovementLike[] = session.movements.map((m) => ({
+        type: m.type as CashMovementType,
+        amount: m.amount,
+      }));
+      const arqueo = reconcileCash(session.openingFloat, movements, counted);
 
-    await tx.cashSession.update({
-      where: { id: session.id },
-      data: {
-        status: "CLOSED",
-        closedBy: actor,
-        closingExpected: arqueo.expected,
-        closingCounted: arqueo.counted,
-        closingDiff: arqueo.diff,
-        closingNote: note,
-        closedAt: new Date(),
-      },
-    });
-    return { id: session.id, ...arqueo };
-  }, { tenantId });
+      await tx.cashSession.update({
+        where: { id: session.id },
+        data: {
+          status: "CLOSED",
+          closedBy: actor,
+          closingExpected: arqueo.expected,
+          closingCounted: arqueo.counted,
+          closingDiff: arqueo.diff,
+          closingNote: note,
+          closedAt: new Date(),
+        },
+      });
+      return { id: session.id, ...arqueo };
+    }, { tenantId });
+  } catch (err) {
+    return toActionError(err);
+  }
 
   await auditAdmin({
     action: "close",
@@ -209,4 +249,5 @@ export async function closeCashSession(formData: FormData) {
     changes: { expected: result.expected, counted: result.counted, diff: result.diff },
   });
   revalidatePath(CAJA_PATH);
+  return { ok: true };
 }

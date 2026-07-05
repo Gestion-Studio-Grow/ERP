@@ -1,11 +1,13 @@
-import {
-  getCajaData,
-  openCashSession,
-  addCashMovement,
-  closeCashSession,
-} from "@/lib/caja-actions";
+import { getCajaData } from "@/lib/caja-actions";
 import { fmtShortDate } from "@/lib/datetime";
-import { expectedCash, type CashMovementLike, type CashMovementType } from "@/lib/caja/cash-register";
+import {
+  expectedCash,
+  summarizeMovements,
+  type CashMovementLike,
+  type CashMovementType,
+} from "@/lib/caja/cash-register";
+import { Card, CardHeader, CardTitle, CardDescription, Badge, type BadgeProps } from "@/components/ui";
+import { OpenCajaForm, AddMovementForm, CloseCajaForm } from "./CajaForms";
 
 export const dynamic = "force-dynamic";
 
@@ -19,14 +21,22 @@ const MOVEMENT_LABEL: Record<string, string> = {
   RETIRO: "Retiro",
 };
 
-// Color del signo según el tipo, para que el ledger se lea de un vistazo.
-const MOVEMENT_TONE: Record<string, string> = {
-  APERTURA: "text-muted",
-  VENTA: "text-success",
-  INGRESO: "text-success",
-  EGRESO: "text-danger",
-  RETIRO: "text-danger",
+// Tono del badge + signo del importe según cómo mueve el efectivo esperado:
+// entra (+, success), sale (−, danger), o neutro (apertura).
+const MOVEMENT_TONE: Record<string, BadgeProps["tone"]> = {
+  APERTURA: "neutral",
+  VENTA: "success",
+  INGRESO: "success",
+  EGRESO: "danger",
+  RETIRO: "danger",
 };
+
+// Signo visible del importe en el ledger: la apertura no mueve el esperado.
+function movementSignLabel(type: string): "+" | "−" | "" {
+  if (type === "VENTA" || type === "INGRESO") return "+";
+  if (type === "EGRESO" || type === "RETIRO") return "−";
+  return "";
+}
 
 export default async function CajaPage() {
   // getCajaData aplica requireCapability("orders:read") — guard de la página.
@@ -34,28 +44,25 @@ export default async function CajaPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-2xl font-semibold mb-1">Caja</h1>
-      <p className="text-muted mb-8">
+      <h1 className="text-2xl font-semibold mb-1 text-strong">Caja</h1>
+      <p className="text-muted mb-8 max-w-2xl">
         Abrí el turno con el fondo inicial, registrá ingresos, egresos y retiros durante el día, y
         cerrá haciendo el arqueo: el sistema calcula cuánto efectivo debería haber y lo compara con
-        lo que contás en el cajón.
+        lo que contás en el cajón. Las ventas en efectivo se registran solas.
       </p>
 
       {open ? <OpenSession session={open} /> : <ClosedState />}
 
       {recentClosed.length > 0 && (
-        <>
-          <h2 className="text-lg font-medium mt-10 mb-3">Turnos cerrados recientes</h2>
+        <section className="mt-10">
+          <h2 className="text-lg font-medium mb-3 text-strong">Turnos cerrados recientes</h2>
           <div className="space-y-2">
             {recentClosed.map((s) => {
               const diff = s.closingDiff ?? 0;
-              const diffTone = diff === 0 ? "text-muted" : diff < 0 ? "text-danger" : "text-success";
-              const diffLabel = diff === 0 ? "Cuadra" : diff < 0 ? "Faltante" : "Sobrante";
+              const tone: BadgeProps["tone"] = diff === 0 ? "neutral" : diff < 0 ? "danger" : "success";
+              const label = diff === 0 ? "Cuadra" : diff < 0 ? "Faltante" : "Sobrante";
               return (
-                <div
-                  key={s.id}
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line px-4 py-2 text-sm"
-                >
+                <Card key={s.id} flush className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
                   <span className="text-xs text-faint">
                     {s.closedAt ? fmtShortDate(s.closedAt) : "—"}
                   </span>
@@ -63,49 +70,41 @@ export default async function CajaPage() {
                     Esperado {money.format(s.closingExpected ?? 0)} · Contado{" "}
                     {money.format(s.closingCounted ?? 0)}
                   </span>
-                  <span className={`ml-auto tabular-nums font-medium ${diffTone}`}>
-                    {diffLabel} {diff !== 0 && money.format(Math.abs(diff))}
-                  </span>
-                </div>
+                  <Badge tone={tone} className="ml-auto tabular-nums">
+                    {label}
+                    {diff !== 0 && ` ${money.format(Math.abs(diff))}`}
+                  </Badge>
+                </Card>
               );
             })}
           </div>
-        </>
+        </section>
       )}
     </main>
   );
 }
 
-// --- Estado: no hay caja abierta → formulario de apertura ---
+// --- Estado vacío: no hay caja abierta → apertura ---
 function ClosedState() {
   return (
-    <div className="rounded-lg border border-line p-5">
-      <h2 className="text-lg font-medium mb-1">No hay una caja abierta</h2>
-      <p className="text-sm text-muted mb-4">
-        Abrí el turno declarando el efectivo con el que arranca el cajón.
-      </p>
-      <form action={openCashSession} className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Fondo inicial</span>
-          <input
-            type="number"
-            name="openingFloat"
-            min="0"
-            step="0.01"
-            defaultValue="0"
-            required
-            className="rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm w-40 tabular-nums"
-          />
-        </label>
-        <button type="submit" className="chip-btn text-sm min-h-9">
-          Abrir caja
-        </button>
-      </form>
-    </div>
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>No hay una caja abierta</CardTitle>
+          <CardDescription>
+            Abrí el turno declarando el efectivo con el que arranca el cajón.
+          </CardDescription>
+        </div>
+        <Badge tone="neutral" dot>
+          Caja cerrada
+        </Badge>
+      </CardHeader>
+      <OpenCajaForm />
+    </Card>
   );
 }
 
-// --- Estado: caja abierta → resumen en vivo + movimientos + cierre ---
+// --- Caja abierta → resumen en vivo + ledger + registrar movimiento + cierre ---
 function OpenSession({
   session,
 }: {
@@ -121,123 +120,119 @@ function OpenSession({
     type: m.type as CashMovementType,
     amount: m.amount,
   }));
-  // Esperado EN VIVO (mismo cálculo que usa el cierre): fondo + ingresos − egresos.
+  // Esperado EN VIVO (mismo cálculo que usa el cierre) + desglose por categoría.
   const expected = expectedCash(session.openingFloat, movs);
+  const breakdown = summarizeMovements(movs);
+  const expectedLabel = money.format(expected);
+
+  // Filas del desglose: se muestran solo las categorías con monto (el fondo y el
+  // esperado van siempre).
+  const rows = [
+    { label: "Ventas en efectivo", value: breakdown.sales, sign: "+" as const },
+    { label: "Otros ingresos", value: breakdown.cashIn, sign: "+" as const },
+    { label: "Egresos", value: breakdown.cashOut, sign: "−" as const },
+    { label: "Retiros", value: breakdown.withdrawals, sign: "−" as const },
+  ].filter((r) => r.value > 0);
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-line p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+      {/* Resumen en vivo */}
+      <Card>
+        <CardHeader>
           <div>
-            <span className="rounded-full bg-success-soft text-success px-2 py-0.5 text-[11px] font-medium">
+            <Badge tone="success" dot>
               Caja abierta
-            </span>
-            <p className="text-xs text-faint mt-1">
+            </Badge>
+            <p className="text-xs text-faint mt-2">
               Abierta {fmtShortDate(session.openedAt)} · fondo inicial{" "}
               {money.format(session.openingFloat)}
             </p>
           </div>
-          <div className="text-right">
+          {/* aria-live: al registrar un movimiento, la revalidación re-renderiza
+              este bloque con el nuevo esperado y el lector de pantalla lo anuncia. */}
+          <div className="text-right" aria-live="polite" aria-atomic="true">
             <p className="text-xs text-muted">Efectivo esperado ahora</p>
-            <p className="text-2xl font-semibold tabular-nums">{money.format(expected)}</p>
+            <p className="text-2xl font-semibold tabular-nums text-strong">{expectedLabel}</p>
           </div>
-        </div>
+        </CardHeader>
+
+        {/* Desglose del esperado */}
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-line pt-4 text-sm sm:max-w-md">
+          <div className="flex justify-between">
+            <dt className="text-muted">Fondo inicial</dt>
+            <dd className="tabular-nums text-body">{money.format(session.openingFloat)}</dd>
+          </div>
+          {rows.map((r) => (
+            <div key={r.label} className="flex justify-between">
+              <dt className="text-muted">{r.label}</dt>
+              <dd className={`tabular-nums ${r.sign === "+" ? "text-success" : "text-danger"}`}>
+                {r.sign} {money.format(r.value)}
+              </dd>
+            </div>
+          ))}
+        </dl>
 
         {/* Ledger del turno */}
-        <ul className="mt-4 divide-y divide-line text-sm">
-          {session.movements.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-3 py-1.5">
-              <span className="min-w-0">
-                <span className={`font-medium ${MOVEMENT_TONE[m.type] ?? "text-body"}`}>
-                  {MOVEMENT_LABEL[m.type] ?? m.type}
-                </span>
-                {m.reason && <span className="text-muted"> · {m.reason}</span>}
-                <span className="text-xs text-faint"> · {fmtShortDate(m.createdAt)}</span>
-              </span>
-              <span className={`tabular-nums ${MOVEMENT_TONE[m.type] ?? "text-body"}`}>
-                {money.format(m.amount)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
+        <div className="mt-5 border-t border-line pt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-faint mb-2">
+            Movimientos del turno
+          </p>
+          {session.movements.length === 0 ? (
+            <p className="text-sm text-muted py-2">Todavía no hay movimientos en este turno.</p>
+          ) : (
+            <ul className="divide-y divide-line text-sm">
+              {session.movements.map((m) => {
+                const tone = MOVEMENT_TONE[m.type] ?? "neutral";
+                const sign = movementSignLabel(m.type);
+                return (
+                  <li key={m.id} className="flex items-center justify-between gap-3 py-2">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Badge tone={tone}>{MOVEMENT_LABEL[m.type] ?? m.type}</Badge>
+                      {m.reason && <span className="truncate text-muted">{m.reason}</span>}
+                      <span className="shrink-0 text-xs text-faint">{fmtShortDate(m.createdAt)}</span>
+                    </span>
+                    <span
+                      className={`shrink-0 tabular-nums ${
+                        sign === "+" ? "text-success" : sign === "−" ? "text-danger" : "text-body"
+                      }`}
+                    >
+                      {sign && `${sign} `}
+                      {money.format(m.amount)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </Card>
 
       {/* Registrar movimiento */}
-      <div className="rounded-lg border border-line p-5">
-        <h2 className="text-lg font-medium mb-3">Registrar movimiento</h2>
-        <form action={addCashMovement} className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted">Tipo</span>
-            <select
-              name="type"
-              defaultValue="INGRESO"
-              className="rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm"
-            >
-              <option value="INGRESO">Ingreso</option>
-              <option value="EGRESO">Egreso</option>
-              <option value="RETIRO">Retiro</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted">Monto</span>
-            <input
-              type="number"
-              name="amount"
-              min="0.01"
-              step="0.01"
-              required
-              className="rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm w-36 tabular-nums"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm grow min-w-[12rem]">
-            <span className="text-muted">Motivo</span>
-            <input
-              type="text"
-              name="reason"
-              required
-              placeholder="Pago a proveedor, cambio, retiro a caja fuerte…"
-              className="rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm w-full"
-            />
-          </label>
-          <button type="submit" className="chip-btn text-sm min-h-9">
-            Registrar
-          </button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Registrar movimiento</CardTitle>
+            <CardDescription>
+              Ingreso, egreso o retiro de efectivo. Las ventas en efectivo entran solas.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <AddMovementForm />
+      </Card>
 
       {/* Cierre / arqueo */}
-      <div className="rounded-lg border border-line p-5">
-        <h2 className="text-lg font-medium mb-1">Cerrar turno (arqueo)</h2>
-        <p className="text-sm text-muted mb-4">
-          Contá el efectivo del cajón y cargalo. El sistema lo compara con el esperado (
-          {money.format(expected)}) y registra la diferencia.
-        </p>
-        <form action={closeCashSession} className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted">Efectivo contado</span>
-            <input
-              type="number"
-              name="counted"
-              min="0"
-              step="0.01"
-              required
-              className="rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm w-40 tabular-nums"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm grow min-w-[12rem]">
-            <span className="text-muted">Nota (opcional)</span>
-            <input
-              type="text"
-              name="note"
-              placeholder="Observaciones del cierre…"
-              className="rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm w-full"
-            />
-          </label>
-          <button type="submit" className="chip-btn chip-btn-danger text-sm min-h-9">
-            Cerrar caja
-          </button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Cerrar turno (arqueo)</CardTitle>
+            <CardDescription>
+              Contá el efectivo del cajón y cargalo. El sistema lo compara con el esperado (
+              {expectedLabel}) y registra la diferencia.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CloseCajaForm expectedLabel={expectedLabel} />
+      </Card>
     </div>
   );
 }
