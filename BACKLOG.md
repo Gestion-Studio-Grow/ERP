@@ -110,6 +110,12 @@ supuesto por el nombre del commit.
 - [ ] **Fotos reales de profesionales y ambiente** — siguen siendo
   placeholders "tu foto" en la landing (verificado en `PhotoPlaceholder.tsx`
   y `page.tsx`). Tarea de contenido, no de código.
+- [ ] **Importador CSV de clientes (ADR-019 §2.c — diferido).** Feature de
+  *migración de datos*, separada del alta de tenant: un tenant queda operativo
+  sin ella (el provisioning ya siembra el andamiaje mínimo). Nombre / teléfono /
+  email, con vista previa y tolerancia a datos sucios (ADR-009 §5). Se construye
+  cuando exista un cliente concreto con una lista real que importar, para
+  diseñarla contra sus datos sucios de verdad y no contra supuestos. No empezado.
 
 ## Fuera de alcance (decisión ya tomada)
 
