@@ -5,8 +5,8 @@
 mide lo que depende de nosotros** (código/diseño/verificación); la ejecución con datos reales es
 *acción humana*, no falta. Se lee para dar "status" y para decidir qué frentes abrir.
 
-- **Verificado contra código:** 2026-07-05. **Mantiene:** el frente D (PMO/estratégico).
-- **Frentes en ejecución paralela ahora:** A (Tests) · B (POS/stock) · C (UX/UI) · D (este, PMO).
+- **Verificado contra código:** 2026-07-05 (post Sprint #1 de squads). **Mantiene:** el frente D (PMO/estratégico).
+- **Último sprint integrado:** **Sprint #1** — Fiscal (adapter ARCA `soap.ts`) · Calidad (96 tests + fix de oversell) · Producto (caja del POS). Todo en `main`, verde (tsc+build+96 tests).
 
 > Los % son juicio de ingeniería anclado a evidencia del repo, no de memoria. Donde no se puede
 > verificar sin tocar Neon prod (si una migración escrita ya está *aplicada*), se marca explícito.
@@ -18,13 +18,13 @@ mide lo que depende de nosotros** (código/diseño/verificación); la ejecución
 | **Core servicios/estética** | **~90%** | 🟢 en prod | features nuevas (paquetes, ficha rica) = 🟢 avanzable | M–L |
 | **Tenants por rubro / blueprints** | **~85%** | 🟢 sistema · 🔒 prod multi-tenant | profundidad ERP por arquetipo (🟢); alta 2º tenant (🔒 RLS) | M |
 | **RLS / multi-tenant** | **100% dev** | ✅ **Completado — pendiente acción humana** | nada nuestro: SQL+wiring+verify offline listos. Falta **aplicar a prod (Gate 2, tu OK)** | — |
-| **ARCA / facturación** | **~65%** | ✅ núcleo · 🟢 adapter SOAP · ⏳ activación | núcleo Invoice/Outbox+dominio ✅; **adapter WSAA/WSFEv1 (`soap.ts`) 🟢 avanzable**; activación (cert/homologación/flag/migración a prod) = acción humana | L |
+| **ARCA / facturación** | **~80%** | ✅ núcleo · ✅ adapter SOAP · ⏳ activación | núcleo Invoice/Outbox+dominio ✅; **adapter WSAA/WSFEv1 (`soap.ts`) ✅ escrito** (funciones puras de armado/parseo XML + 21 tests, seams de transporte/firma inyectables, 0 deps nuevas); falta implementar el `TraSigner` (firma CMS con cert) + cert/homologación/flag/migración = acción humana | L |
 | **Ingesta Mercado Pago (ADR-025)** | **~70%** | ✅ pipeline · 🟢 adapter · ⏳ credenciales | pipeline+clasificador+OAuth-stub ✅; **adapter real+firma webhook+tabla conciliación 🟢 avanzable**; OAuth/credenciales = acción humana | L |
 | **WhatsApp** | **~80%** | ✅ infra · 🟢 adapter proveedor · ⏳ credencial | infra+plantillas+punto de entrada ✅; **adapter Meta/Twilio 🟢 avanzable (S)**; número+credenciales = acción humana | S–M |
 | **Checkout / seña** | **~10%** | 🟢 avanzable | flujo MP (preferencia+webhook de cobro) casi todo **por escribir (🟢, L)**; luego credenciales = acción humana | L |
 | **Performance (ADR-023)** | **100% de lo no-gated** | ✅ · 🔒 resto | F2/F3/F4/F5/F8 hechos; **F1/F6 🔒 atados a RLS** (se hacen con la activación) | — |
-| **Tests / QA** | **0%** | 🟢 **avanzable (Frente A activo)** | elegir harness (ADR) + primeras pruebas de lógica pura | M |
-| **POS / Retail (profundidad ERP)** | **~55%** | 🟢 dev · ⏳ migración pendiente acción humana | **descuento de stock al vender HECHO** (transaccional, sin oversell, flag `trackStock`; migración SIN aplicar = acción humana). Falta: caja, compras/reposición | M–L |
+| **Tests / QA** | **~40%** | 🟢 **avanzable — cobertura creciendo** | harness ADR-026 + **96 tests** de lógica pura (descuento de stock/oversell, arqueo de caja, dominio ARCA validación/comprobante+armado, adapter ARCA XML). El pase de seguridad **encontró y arregló un bug ALTA** (doble descuento + oversell en pedidos externos). Falta: cobertura de server actions y bordes de UI | M |
+| **POS / Retail (profundidad ERP)** | **~70%** | 🟢 dev · ⏳ 2 migraciones pendientes acción humana | descuento de stock ✅ (bug de oversell externo **corregido** este sprint); **caja del POS ✅ construida** (apertura/cierre de turno, movimientos, arqueo esperado-vs-contado, scoped por tenant, UI `/admin/caja`, arqueo con 13 tests; migración `add_cash_register` SIN aplicar). Falta: auto-generar movimiento VENTA efectivo al cobrar, compras/reposición | M |
 | **UX/UI design system** | **~60% adopción** | 🟢 avanzable por slices | **sitio público 100% en tokens** (0 colores crudos restantes tras `error.tsx`); falta el barrido de ~11 pantallas **admin** — por slices, **necesita verificación visual (preview con auth)** | M |
 | **Onboarding equipo/agentes** | **~100% (doc v1)** | 🟢 avanzable (iteración) | iterar con uso real; mejorar comandos `/sesion-*` | S |
 | **Consola operador (super-admin)** | **~60% construido** | 🟢 build · 🔒 uso en prod | scaffold login/console/alta/tenants; uso real 🔒 RLS/2º tenant | M |
@@ -56,6 +56,8 @@ Marcá "hablemos de X" y lo bajamos a plan.
 
 **Pendientes de acción humana (listos o casi, esperan al owner):**
 - **Migración `trackStock` a prod (Gate 2)** — código de descuento de stock listo y verificado; falta `prisma migrate deploy` de `20260705130000_add_product_track_stock`.
+- **Migración `add_cash_register` a prod (Gate 2)** — caja del POS lista y verificada (tsc+tests+build); falta `prisma migrate deploy` de `20260705124318_add_cash_register` (aditiva: solo CREATE de enums/tablas+FKs).
+- **ARCA `TraSigner` + cert (acción humana)** — el adapter `soap.ts` está escrito; encender = implementar la firma CMS con el certificado del emisor e inyectarla, validar en homologación, flag + migración.
 - **RLS a prod (Gate 2)** — el que desbloquea todo el negocio multi-tenant.
 - **WhatsApp** — conectar proveedor (máximo valor por esfuerzo, infra lista).
 - **ARCA vivo** — cert + homologación + aplicar migración + flag.

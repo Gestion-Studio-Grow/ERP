@@ -104,12 +104,17 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > **Este bloque es la fuente de verdad del sprint en curso.** "status" lo lee; "seguimos"
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
-**Sprint:** Sprint #1 de squads — adapters/caja/cobertura sin gate — 🟢 **EN EJECUCIÓN**
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (disparado `sprint`; 3 squads despachados en worktrees)
-**Estado del bloque:** 🟢 **ACTIVO.** El PMO tomó el rol de socio gerente ejecutivo, relevó los
-worktrees y asignó a cada squad su bocado de mayor palanca (todo **avanzable sin gate/credencial**).
-3 squads corriendo en paralelo en su worktree aislado (node_modules + Prisma client ya instalados);
-el PMO (esta sesión, sobre `main`) es merge-master e integra en orden al terminar.
+**Sprint:** Sprint #1 de squads — adapters/caja/cobertura sin gate — ✅ **INTEGRADO en `main`**
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (3 squads integrados; main verde: tsc+build+96 tests)
+**Estado del bloque:** ✅ **CERRADO / integrado.** El PMO tomó el rol ejecutivo, despachó **una sesión
+aislada por frente** (subagente + worktree) y **integró las 3 ramas a `main` de a una** (cherry-pick,
+re-verificando tsc+build+tests). Entregado este sprint:
+- **Fiscal** → adapter real ARCA `soap.ts` (WSAA+WSFEv1), funciones puras + 21 tests, 0 deps nuevas.
+- **Calidad** → +56 tests (96 totales) y **fix de un bug ALTA**: doble descuento de stock + oversell
+  en pedidos externos (regresión de `d48cc79`); + pase de seguridad (`docs/seguridad/`).
+- **Producto** → **caja del POS** (apertura/cierre/arqueo, `/admin/caja`) + migración `add_cash_register` SIN aplicar.
+
+Plataforma quedó sin despacho (superficie gateada). `main` limpio, verde y pusheado.
 **Norte (5 frentes del mandato):** tenants preseteados por rubro · mejorar ARCA · mejorar
 arquitecturas · performance basada en expertos · entrenamiento de agentes del equipo técnico.
 
@@ -126,10 +131,12 @@ arquitecturas · performance basada en expertos · entrenamiento de agentes del 
 **Ya cerrado y en `main`:** Tests (harness ADR-026), POS/stock (`trackStock`, migración sin aplicar),
 UX (sitio público 100% en tokens), protocolos de estados/metodología/modo, metodología de sprint.
 
-**Próximo bocado (lo que ejecuta `seguimos`):** el PMO integra las ramas `frente/fiscal`,
-`frente/calidad`, `frente/producto` a `main` de a una (rebase + tsc/build/test + push), actualiza
-`ESTADO-FRENTES.md` con los nuevos estados y cierra el sprint. Tras integrar: siguiente ola candidata
-→ adapter real de Mercado Pago (ADR-025) y compras/reposición del POS.
+**Próximo bocado (lo que ejecuta el próximo `sprint`/`seguimos`):** siguiente ola candidata, todo
+avanzable sin gate → **adapter real de Mercado Pago** (ADR-025, mismo patrón que ARCA: puertos +
+seams + tests sin credencial); **auto-generar el movimiento VENTA en efectivo** al cobrar en el POS
+(enganchar `setOrderPaid`/`insertOrder` → `CashMovement`, ya modelado); **compras/reposición** del
+POS; cobertura de server actions. Despachar una sesión aislada por frente, PMO integra en orden.
 
-**Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant, + aplicar
-migración de caja del POS) y las credenciales de WhatsApp/Mercado Pago/ARCA.
+**Esperando decisión del dueño (owner-level):** Gate 2 — `prisma migrate deploy` de **dos**
+migraciones sin aplicar (`add_product_track_stock` y `add_cash_register`), activar RLS + alta del 2º
+tenant; y las credenciales de WhatsApp/Mercado Pago/ARCA (+ implementar el `TraSigner` con el cert).
