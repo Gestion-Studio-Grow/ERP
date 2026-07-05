@@ -188,7 +188,7 @@ SEPARADOS** del ERP. Visión: **la Agencia es el go-to-market del propio ERP** (
 |---|---|
 | **Consultores / Análisis de mercado** | análisis en `analisis-mercado/`; **alcance definido: CABA + local + online**; **informe nocturno en preparación** |
 | **Desarrolladores** | **construyendo productos** (los que Consultores validan; go-to-market del propio ERP/ARCA/storefront) |
-| **PMO proactivo (Agencia)** | visión y alcance definidos; coordinando la construcción de productos + el informe nocturno |
+| **PMO proactivo (Agencia)** | visión y alcance definidos; coordinando la construcción de productos + el informe nocturno. **Sector ratificado como ADR (2026-07-05):** ADR-028 (gobierno único, repos separados, puente productizado) + ADR-029 (modelo de pricing de los dos motores + planes por Feature Flags; montos = gate de dueño). Trabajo abierto en `PROXIMOS-PASOS.md` → "SECTOR AGENCIA DIGITAL" (crear espacio `agencia-digital`, `/sesion-feature` Panel del Dueño, mapeo plan→flags) |
 
 ---
 
