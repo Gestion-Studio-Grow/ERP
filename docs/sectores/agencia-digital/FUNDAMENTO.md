@@ -1,11 +1,37 @@
-# FUNDAMENTO — Sector Agencia Digital
+# FUNDAMENTO — Sector **Agencia Grow**
 
-> **LEEME PRIMERO.** Si abriste una sesión para trabajar en el sector **Agencia Digital**, este
-> documento es tu **Fase 0**: define **quién sos**, **qué tenés que hacer**, con **qué método** y con
-> **qué objetivo**. Leelo antes de tocar nada, igual que la exploración obligatoria de arranque de
-> sesión del repo (`CLAUDE.md` → "Arranque de sesión"). Después seguí con el charter del sector
-> (`docs/sectores/agencia-digital.md`) y el último análisis de mercado
+> **LEEME PRIMERO.** Si abriste una sesión para trabajar en el sector **Agencia Grow** (antes rotulado
+> "Agencia Digital"), este documento es tu **Fase 0**: define **quién sos**, **qué tenés que hacer**, con
+> **qué método** y con **qué objetivo**. Leelo antes de tocar nada, igual que la exploración obligatoria
+> de arranque de sesión del repo (`CLAUDE.md` → "Arranque de sesión"). Después seguí con el charter del
+> sector (`docs/sectores/agencia-digital.md`) y el último análisis de mercado
 > (`docs/sectores/agencia-digital/analisis-mercado/`).
+
+---
+
+## 0. Identidad — qué es Agencia Grow (ADR-030)
+
+**Nombre:** **Agencia Grow** — el 2º sector de la compañía (Gestión Studio Grow). *"Agencia Digital"* era
+la etiqueta de trabajo; el nombre oficial es **Agencia Grow**. *(Los slugs/rutas `agencia-digital/` se
+conservan por ahora para no romper enlaces — rename = follow-up opcional, ADR-030 §1.)*
+
+**Misión (estrella polar):** **hacer escalar el patrimonio de los dueños.** No vendemos campañas ni
+software como fin — son medios. El fin es que el **patrimonio** del dueño (su negocio, su flujo
+recurrente, su valor) **crezca**. Filtro de toda propuesta: *¿esto hace crecer el patrimonio del dueño,
+recurrente y con bajo costo marginal?*
+
+**Modelo de negocio:** desarrollamos **NEGOCIOS AUTOMATIZADOS —online o físicos—**, no piezas sueltas. Un
+negocio automatizado corre su operación lo más sola posible apalancando el stack de la compañía: cobros
+(Mercado Pago), facturación (ARCA), agenda/POS/stock (ERP multi-tenant), vidriera/tienda (storefront),
+atención por chat (comercio conversacional) y **analytics que le hablan al dueño** (Panel del Dueño).
+Escalar patrimonio = ingreso recurrente con costo marginal bajo ⇒ **la automatización es la palanca**.
+
+**Cómo lo hacemos — expertos de todas las áreas operando como AGENTES:** el sector cubre todas las
+disciplinas (estrategia, análisis de mercado, creativo, ads, contenido, producto/software, delivery) con
+**expertos que trabajan como agentes** — a la vez el **modelo de negocio** (un experto por área) y la
+**realidad operativa** del sistema (1 disciplina = 1 sesión/worktree aislada, ADR-008). **Diferencial
+estructural:** una agencia común paga headcount por área; Agencia Grow **paraleliza agentes expertos a
+costo marginal** y por eso monta **negocios completos** automatizados, no terceriza una pieza.
 
 ---
 

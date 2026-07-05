@@ -1,7 +1,13 @@
-# Sector — Agencia Digital Creativa
+# Sector — **Agencia Grow** (antes "Agencia Digital Creativa")
 
-**Qué es este documento:** el *charter* del segundo sector de la compañía —una **agencia digital
-creativa de publicidad digital** con un frente propio de **software que genera ganancias**—. Fija
+> **Nombre oficial: Agencia Grow** (ADR-030). Misión: **hacer escalar el patrimonio de los dueños**
+> desarrollando **negocios automatizados —online o físicos—** con expertos de todas las áreas operando
+> como agentes. *"Agencia Digital"* era la etiqueta de trabajo; los slugs `agencia-digital/` se conservan
+> por enlaces. Identidad completa en `FUNDAMENTO.md` §0 y ADR-030.
+
+**Qué es este documento:** el *charter* del segundo sector de la compañía —**Agencia Grow**, una agencia
+que hace crecer el patrimonio de los dueños montando **negocios automatizados** (online o físicos), con
+servicios creativos + performance y un frente propio de **software que genera ganancias**—. Fija
 qué es el sector, cómo se organiza como *core/sector*, qué frentes tiene, cómo aplica la metodología
 del repo y cómo convive con el sector ya existente (el ERP SaaS multi-tenant). Es un doc de encuadre,
 no de implementación: nada de lo de acá toca prod, Neon ni deploys. La ratificación estructural queda

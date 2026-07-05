@@ -181,9 +181,12 @@ Modelo: cada sesión es dueña de un core/frente; PMO por encima de ambos sector
 | **Plataforma** | observabilidad v2 + reporting + `FORCE_TENANT_SLUG` + **fix del gate RLS** en main; **RLS a prod es su Gate clave (#1)** |
 | **Diseño** (ahora core) | sistema de diseño/tokens/branding; adopción por pantallas admin pendiente |
 
-### Sector B — Agencia Digital
-Charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md`. **Misma metodología y PMO, repos/deploys
-SEPARADOS** del ERP. Visión: **la Agencia es el go-to-market del propio ERP** (vende ERP/ARCA/storefront).
+### Sector B — Agencia Grow *(antes "Agencia Digital")*
+**Nombre oficial: Agencia Grow** (ADR-030). **Misión:** hacer **escalar el patrimonio de los dueños**
+desarrollando **negocios automatizados —online o físicos—** con expertos de todas las áreas operando como
+agentes. Charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md` §0. **Misma metodología y PMO,
+repos/deploys SEPARADOS** del ERP. Visión: **la Agencia es el go-to-market del propio ERP** (vende
+ERP/ARCA/storefront) — uno de los negocios automatizados que sabe montar.
 | Frente | Estado |
 |---|---|
 | **Consultores / Análisis de mercado** | análisis en `analisis-mercado/`; **alcance definido: CABA + local + online**; **informe nocturno en preparación** |
