@@ -5,7 +5,7 @@
 mide lo que depende de nosotros** (código/diseño/verificación); la ejecución con datos reales es
 *acción humana*, no falta. Se lee para dar "status" y para decidir qué frentes abrir.
 
-- **Verificado contra código:** 2026-07-05 (post Sprint #1 de squads). **Mantiene:** el frente D (PMO/estratégico).
+- **Verificado contra código:** 2026-07-05 (post Sprint #1 + Reportes v2 del frente Ejecutivo). **Mantiene:** el frente D (PMO/estratégico).
 - **Último sprint integrado:** **Sprint #1** — Fiscal (adapter ARCA `soap.ts`) · Calidad (96 tests + fix de oversell) · Producto (caja del POS). Todo en `main`, verde (tsc+build+96 tests).
 
 > Los % son juicio de ingeniería anclado a evidencia del repo, no de memoria. Donde no se puede
@@ -49,8 +49,12 @@ Marcá "hablemos de X" y lo bajamos a plan.
 - **UX/UI adopción** — *(Frente C en curso)*. Cohesión visual + branding por tenant.
 - **Adapters sin credencial** — escribir `soap.ts` (ARCA) y el adapter real de MP contra
   homologación/sandbox, para que el día de las credenciales sea *encender*, no *construir*.
-- **Reportes profundos v2** — no-show, retención, rentabilidad hora-silla, export Excel/PDF
-  (sobre el `getReportData` ya acotado por rango).
+- **Reportes profundos v2** — ✅ **KPIs entregados** (frente Ejecutivo, 2026-07-05): tasa de
+  no-show y cancelación, ticket promedio, mix de método de pago, retención (recurrentes vs
+  esporádicos) y rentabilidad hora-silla por profesional. Lógica pura testeada
+  (`src/lib/report-kpis.ts` + 8 tests), server action `getDeepReportData` (una query acotada por
+  tenant+rango) y tarjetas en `/admin/reportes`. Verde (tsc+build+104 tests). **Falta (avanzable):**
+  export Excel/PDF y verificación visual con auth (acción humana, requiere sesión contra Neon).
 - **Nuevos presets de rubro** — config sobre arquetipos existentes (una sesión de config c/u).
 - **Portal/app del cliente** — login + "mis turnos/pedidos" (diferenciador, L).
 

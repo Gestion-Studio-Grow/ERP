@@ -17,6 +17,7 @@ import { requireCapability } from "@/lib/authz";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
+import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -678,6 +679,53 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
       .sort((a, b) => (a.label < b.label ? 1 : -1)),
     porProfesional: toSortedArray(porProfesional),
     porServicio: toSortedArray(porServicio),
+  };
+}
+
+// Reportes v2 (frente ejecutivo): KPIs profundos para el dueño — fuga operativa
+// (no-show/cancelación), ticket promedio, mix de método de pago, retención y
+// rentabilidad hora-silla. Complementa a `getReportData` (facturación bruta) sin
+// tocarlo. Una sola query de turnos acotada por tenant + rango (índice
+// `[tenantId, startsAt]`); la agregación vive en `report-kpis.ts` (lógica pura,
+// testeada). Read-only y range-bounded — sano para el plan free de Neon.
+export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+  await requireCapability("reports:read");
+  const tenantId = await getCurrentTenantId();
+
+  const hasta = new Date();
+  const desde = new Date(hasta.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+
+  const appointments = await prisma.appointment.findMany({
+    where: { tenantId, startsAt: { gte: desde, lte: hasta } },
+    select: {
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      clientId: true,
+      professional: { select: { name: true } },
+      // Solo el pago aprobado cuenta como ingreso (mismo criterio que getReportData).
+      payment: { select: { amount: true, method: true, status: true } },
+    },
+  });
+
+  const mapped: KpiAppointment[] = appointments.map((a) => ({
+    status: a.status,
+    startsAt: a.startsAt,
+    endsAt: a.endsAt,
+    clientId: a.clientId,
+    professionalName: a.professional.name,
+    payment:
+      a.payment && a.payment.status === "APPROVED"
+        ? { amount: a.payment.amount, method: a.payment.method }
+        : null,
+  }));
+
+  return {
+    rangeDays,
+    desde,
+    hasta,
+    totalTurnos: mapped.length,
+    kpis: computeDeepKpis(mapped),
   };
 }
 

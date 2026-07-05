@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getReportData } from "@/lib/actions";
+import { getReportData, getDeepReportData } from "@/lib/actions";
 import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
 import { getCommissionsOverview, settleCommissions } from "@/lib/commission-actions";
 import { requireUser } from "@/lib/authz";
@@ -35,6 +35,38 @@ function Table({ title, rows }: { title: string; rows: { label: string; total: n
 }
 
 const money = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
+const pct = (n: number) => (n * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "%";
+const hs = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " h";
+
+const METODO_LABEL: Record<string, string> = {
+  EFECTIVO: "Efectivo",
+  MERCADOPAGO: "Mercado Pago",
+  TRANSFERENCIA: "Transferencia",
+};
+
+// Tarjeta de un KPI puntual (número grande + contexto). `tone` tiñe el número
+// cuando la métrica tiene lectura buena/mala (ej. no-show alto = danger).
+function KpiCard({
+  label,
+  value,
+  hint,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: "neutral" | "danger" | "success";
+}) {
+  const toneClass =
+    tone === "danger" ? "text-danger" : tone === "success" ? "text-success" : "text-strong";
+  return (
+    <div className="rounded-lg border border-line p-4">
+      <p className="text-sm text-muted">{label}</p>
+      <p className={`text-2xl font-semibold ${toneClass}`}>{value}</p>
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
+    </div>
+  );
+}
 
 export default async function ReportesPage({
   searchParams,
@@ -48,11 +80,15 @@ export default async function ReportesPage({
   const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsedDias)
     ? parsedDias
     : DEFAULT_REPORT_RANGE_DAYS;
-  const [data, overview, user] = await Promise.all([
+  const [data, deep, overview, user] = await Promise.all([
     getReportData(rangeDays),
+    getDeepReportData(rangeDays),
     getCommissionsOverview(),
     requireUser(),
   ]);
+  const k = deep.kpis;
+  // Umbral de lectura del no-show: >10% del rubro se considera fuga alta.
+  const noShowTone = k.estados.tasaNoShow > 0.1 ? "danger" : "neutral";
   // Solo el OWNER puede liquidar (marcar pagado); los demás con reports:read
   // ven los montos pero no el botón.
   const canSettle = roleHasCapability(user.role, "commissions:manage");
@@ -107,6 +143,84 @@ export default async function ReportesPage({
         <div className="rounded-lg border border-line p-4">
           <p className="text-sm text-muted">Turnos pagados</p>
           <p className="text-2xl font-semibold">{data.cantidadPagos}</p>
+        </div>
+      </div>
+
+      {/* KPIs profundos (Reportes v2): fuga operativa, valor por venta, retención,
+          productividad. Complementan la facturación bruta de arriba. */}
+      <h2 className="text-lg font-semibold mb-1">Indicadores del negocio</h2>
+      <p className="text-muted mb-4 text-sm">
+        Sobre los {deep.totalTurnos} turnos del período (no solo los cobrados).
+      </p>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <KpiCard
+          label="No-show"
+          value={pct(k.estados.tasaNoShow)}
+          hint={`${k.estados.noShow} ausencias sobre ${k.estados.completados + k.estados.noShow} turnos que llegaron a su hora`}
+          tone={noShowTone}
+        />
+        <KpiCard
+          label="Cancelación"
+          value={pct(k.estados.tasaCancelacion)}
+          hint={`${k.estados.cancelados} de ${k.estados.resueltos} turnos resueltos`}
+        />
+        <KpiCard
+          label="Ticket promedio"
+          value={money(k.ticketPromedio)}
+          hint="Por turno cobrado"
+        />
+        <KpiCard
+          label="Clientes que vuelven"
+          value={pct(k.retencion.tasaRecurrencia)}
+          hint={`${k.retencion.recurrentes} recurrentes de ${k.retencion.clientesUnicos} en el período`}
+          tone={k.retencion.tasaRecurrencia >= 0.3 ? "success" : "neutral"}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        {/* Rentabilidad hora-silla: cuánto factura cada profesional por hora ocupada. */}
+        <div className="rounded-lg border border-line p-4">
+          <h3 className="font-medium mb-1">Rentabilidad hora-silla</h3>
+          <p className="text-xs text-muted mb-3">
+            Ingresos por hora ocupada (turnos completados y cobrados).
+          </p>
+          {k.rentabilidadHoraSilla.length === 0 && (
+            <p className="text-sm text-muted">Sin datos aún.</p>
+          )}
+          <div className="space-y-1.5">
+            {k.rentabilidadHoraSilla.map((r) => (
+              <div key={r.label} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-muted">{r.label}</span>
+                <span className="text-right">
+                  <span className="font-medium">{money(r.porHora)}/h</span>
+                  <span className="ml-2 text-xs text-muted">
+                    {money(r.ingresos)} · {hs(r.horas)}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Mix de método de pago. */}
+        <div className="rounded-lg border border-line p-4">
+          <h3 className="font-medium mb-1">Método de pago</h3>
+          <p className="text-xs text-muted mb-3">Cómo se cobró en el período.</p>
+          {k.mixMetodoPago.length === 0 && (
+            <p className="text-sm text-muted">Sin cobros aún.</p>
+          )}
+          <div className="space-y-1.5">
+            {k.mixMetodoPago.map((m) => (
+              <div key={m.method} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-muted">
+                  {METODO_LABEL[m.method] ?? m.method}
+                  <span className="ml-1.5 text-xs">({m.cantidad})</span>
+                </span>
+                <span className="font-medium">{money(m.total)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
