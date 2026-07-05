@@ -12,6 +12,19 @@ export type EstadoPagoMP =
   | "in_process"
   | "refunded";
 
+/**
+ * Tipo de operación de MP (insumo del clasificador de ingresos, ADR-025 §12.1).
+ * No todo ingreso es una venta facturable: transferencias entre cuentas propias,
+ * devoluciones/reintegros y préstamos NO se facturan.
+ */
+export type TipoOperacionMP =
+  | "pago" // regular_payment: cobro a un cliente → típicamente FACTURABLE
+  | "transferencia" // money_transfer entre cuentas propias → NO_FACTURABLE
+  | "devolucion" // refund → NO_FACTURABLE
+  | "reintegro" // reintegro/cashback de MP → NO_FACTURABLE
+  | "prestamo" // adelanto/préstamo de MP → NO_FACTURABLE
+  | "otro"; // desconocido → REVISAR
+
 /** Un pago tal como lo devuelve MP (normalizado a lo que nos importa). */
 export interface PagoMP {
   id: string;
@@ -30,6 +43,8 @@ export interface PagoMP {
   comision?: number;
   /** Descripción de la operación (para el detalle de la factura). */
   descripcion?: string;
+  /** Tipo de operación (insumo del clasificador, ADR-025 §12.1). Default "pago". */
+  operacion?: TipoOperacionMP;
 }
 
 /** Criterio de búsqueda para traer el historial paginado (ADR-025 §2). */

@@ -133,6 +133,52 @@ OAuth es la vía **oficial, estable, consentida y auditable**; es la única base
 
 **Diferencial de arca (el hueco que nadie cubre de lleno):** **detectar automáticamente TODO el feed de ingresos de Mercado Pago** de un monotributista con **muchas operaciones chicas** y **facturarlo solo** —sin intervención por operación—, **operable por un contador para toda su cartera**. Ese combo —ingesta total automática (no manual, no solo posnet, no solo cobro-de-factura) **+** multi-cliente por contador vía OAuth— es la posición propia.
 
-## 12. Decisión final
+## 12. Evolución del producto — solución completa end-to-end
 
-La capability Mercado Pago de arca es un **producto de facturación automática para monotributistas de alto volumen**: ingesta de **todos** los pagos acreditados de la cuenta MP del comerciante por **dos fuentes convergentes** (backfill histórico + webhook), **idempotentes por `payment_id`** vía un registro de conciliación que también es el estado del producto, **facturación asíncrona por outbox+worker** con rate-limit hacia ARCA, y **una Factura C por operación** por default (agrupado, opcional futuro). El acceso a cada cuenta es por **OAuth de Mercado Pago** (nunca scraping, §9), y el producto se opera en modo **"contador socio"**: un operador administra por OAuth la **cartera** de monotributistas, cada cliente como un tenant aislado (§10). El **diferencial** frente a Facturitas/Facturante/TusFacturasApp/iFactura (§11) es la **ingesta automática de TODO el feed de ingresos MP + operación multi-cliente por el contador** — hueco que ninguno cubre de lleno. Núcleo hexagonal con stubs (simulador de feed de monotributista) ahora; OAuth real, adapters, tabla de conciliación y worker de volumen, diferidos. Sirve igual como **arca standalone** y como **plugin del ERP**: mismo motor, misma puerta `facturarPagoMP`.
+arca-MP **no es un feature suelto**: es una **solución completa** de facturación automática para monotributistas/comercios chicos, **operable por contadores para su cartera**. El pipeline end-to-end:
+
+```
+OAuth (el comerciante autoriza, §9)
+  → Ingesta MP (backfill + webhook, §2)
+  → CLASIFICACIÓN de ingresos (facturable / no / revisar)      ← 12.1 · lo más importante
+  → [Confirmación por WhatsApp: "¿facturo $X? sí/no"]           ← 12.4 · control por operación
+  → Facturación ARCA (CAE, ADR-022)
+  → Conciliación pago↔factura (estado, §3)
+  → Panel del contador (cartera, aprobar en lote)               ← 12.2 · canal de distribución
+  → Alerta de recategorización de monotributo                   ← 12.3 · prevención fiscal
+```
+
+**Orden de construcción (roadmap):**
+- **MVP:** OAuth (1 cuenta) → ingesta → **clasificación con reglas default** → facturación Factura C → conciliación → toggle facturar-sí/no. **La clasificación es MVP, no opcional:** sin ella el producto es fiscalmente peligroso (12.1).
+- **v1+:** panel del contador multi-cliente (12.2), confirmación por WhatsApp (12.4), alerta de recategorización (12.3), reglas de clasificación configurables por comercio.
+- **Visión:** aprendizaje de clasificación por comercio, agrupación de comprobantes, modo batch de WSFEv1, otros medios de pago además de MP, otras condiciones fiscales (RI).
+
+### 12.1 — Motor de reglas de clasificación de ingresos (MVP · lo más importante)
+
+**Por qué:** facturar **todo** lo que entra por MP a ciegas es un error fiscal grave. No todo ingreso es una venta: **transferencias entre cuentas propias, devoluciones/reintegros, préstamos, reembolsos** no se facturan. Facturar de más **infla la facturación anual** y fuerza una **recategorización indebida** del monotributista (o su exclusión). El clasificador es **prevención fiscal**, no un adorno.
+
+**Modelo:** una operación se clasifica en `FACTURABLE` / `NO_FACTURABLE` / `REVISAR`. Un **motor de reglas** (condición sobre el pago → clasificación) con **reglas por defecto** (transferencia/devolución/reintegro/préstamo → `NO_FACTURABLE`; pago acreditado normal → `FACTURABLE`; desconocido → `REVISAR`), **configurables por comercio** (v1+) y con **aprendizaje por comercio** (visión: el sistema aprende de las correcciones del comerciante/contador).
+
+**Dónde se aplica (punto del pipeline):** **entre la ingesta y la facturación.** Solo se factura lo `FACTURABLE`; lo `NO_FACTURABLE` se descarta (queda registrado en la conciliación, no genera comprobante); lo `REVISAR` **no se factura solo** — espera decisión humana (panel 12.2 o WhatsApp 12.4). La clasificación de cada pago se guarda en el registro de conciliación (es parte del estado del producto).
+
+### 12.2 — Panel del contador multi-cliente (v1+ · canal de distribución)
+
+**Por qué:** el **contador es quien opera y vende** el producto a su cartera (§10). Necesita **una pantalla** con su cartera completa: cuánto cobró cada cliente por MP, qué está facturado y qué no, qué quedó en `REVISAR`, y **aprobar en lote**. Es el canal de distribución del producto.
+
+**Alineación:** es el **plano de operación cross-tenant** del operador (§10, patrón ADR-021): lee agregados por cada `ClienteFiscal` (tenant) de su cartera, respetando el aislamiento (RLS: un contador solo ve su cartera). Se alimenta del registro de conciliación (§3) + los estados de clasificación (12.1).
+
+### 12.3 — Alerta de recategorización de monotributo (v1+ · prevención fiscal)
+
+**Por qué:** el monotributo tiene **topes anuales de facturación por categoría**; superarlos obliga a recategorizar (o excluye del régimen). El sistema **vigila el acumulado facturado por período por cliente** y **avisa al acercarse al tope** (ej. 80%), para que el comerciante/contador reaccione a tiempo.
+
+**Requiere:** un **acumulador de facturación por `(ClienteFiscal, período)`** (los montos ya facturados vía arca; a futuro, cruzado con lo declarado fuera de arca). Umbrales por categoría configurables. Es una lectura sobre las facturas emitidas (conciliación) + la categoría del perfil fiscal del cliente. Se materializa con la tabla de facturas real (Gate 2).
+
+### 12.4 — Confirmación por WhatsApp (v1+ · automatización con control)
+
+**Por qué:** combinar automatización con **control por operación** sin obligar a abrir la app: "**te entró $X por MP, ¿lo facturo? sí/no**". El comerciante decide desde WhatsApp; arca factura o descarta según la respuesta. Se **conecta con el toggle facturar-sí/no** (ADR-024 §2.c) y con el estado `REVISAR` del clasificador (12.1): los pagos dudosos, o todos si el comercio elige "confirmar cada operación", disparan una confirmación.
+
+**Diseño:** WhatsApp es un **port de notificación** (`NotificacionPort`), con **stub** por ahora (sin proveedor). Flujo **asíncrono**: enviar la consulta → el comerciante responde sí/no → el webhook del proveedor de WhatsApp resuelve la operación (facturar o marcar `NO_FACTURABLE`). Reusa la misma idempotencia por `payment_id` (§3). El canal es reemplazable (WhatsApp hoy; email/push mañana) detrás del mismo port.
+
+## 13. Decisión final
+
+La capability Mercado Pago de arca es un **producto de facturación automática para monotributistas de alto volumen**: ingesta de **todos** los pagos acreditados de la cuenta MP del comerciante por **dos fuentes convergentes** (backfill histórico + webhook), **idempotentes por `payment_id`** vía un registro de conciliación que también es el estado del producto, **facturación asíncrona por outbox+worker** con rate-limit hacia ARCA, y **una Factura C por operación** por default (agrupado, opcional futuro). El acceso a cada cuenta es por **OAuth de Mercado Pago** (nunca scraping, §9), y el producto se opera en modo **"contador socio"**: un operador administra por OAuth la **cartera** de monotributistas, cada cliente como un tenant aislado (§10). El **diferencial** frente a Facturitas/Facturante/TusFacturasApp/iFactura (§11) es la **ingesta automática de TODO el feed de ingresos MP + operación multi-cliente por el contador** — hueco que ninguno cubre de lleno. Y es una **solución completa end-to-end** (§12), no un feature: OAuth → ingesta → **clasificación de ingresos** (facturable/no/revisar — MVP, prevención fiscal) → facturación ARCA → conciliación → **panel del contador** → **alerta de recategorización** → **confirmación por WhatsApp**. Núcleo hexagonal con stubs (simulador de feed + clasificador por reglas + port de notificación) ahora; OAuth real, panel, alertas fiscales, WhatsApp real, tabla de conciliación y worker de volumen, diferidos según el roadmap (MVP / v1+ / visión). Sirve igual como **arca standalone** y como **plugin del ERP**: mismo motor, misma puerta `facturarPagoMP`.

@@ -1,12 +1,16 @@
 /**
  * Ingesta de pagos de Mercado Pago (ADR-025). Algoritmo PURO y testeable: no
- * toca la DB ni la red directo — recibe el cliente MP, el registro de
- * conciliación y el comando de facturación por inyección. Las dos fuentes
- * (backfill histórico y webhook) convergen acá; la idempotencia por `payment_id`
- * garantiza que ver un pago dos veces no genere dos facturas.
+ * toca la DB ni la red directo — recibe el cliente MP, el clasificador, el
+ * registro de conciliación y el comando de facturación por inyección. Las dos
+ * fuentes (backfill histórico y webhook) convergen acá; la idempotencia por
+ * `payment_id` garantiza que ver un pago dos veces no genere dos facturas.
+ *
+ * Pipeline por pago (ADR-025 §12): clasificar → según resultado facturar /
+ * descartar / dejar para revisión humana.
  */
 
 import { CriterioBusqueda, MercadoPagoClient, PagoMP } from "./port";
+import { ClasificadorPort } from "./classifier";
 import { ReconciliacionPort } from "./reconciliation";
 
 /** Factura un pago MP y devuelve el `invoiceId` (o null si no se pudo). */
@@ -15,6 +19,8 @@ export type FacturarPagoMP = (pago: PagoMP, tenantId: string) => Promise<string 
 export interface IngestaDeps {
   tenantId: string;
   client: MercadoPagoClient;
+  /** Clasificador de ingresos (§12.1): decide qué se factura. */
+  clasificador: ClasificadorPort;
   reconciliacion: ReconciliacionPort;
   facturar: FacturarPagoMP;
 }
@@ -22,8 +28,10 @@ export interface IngestaDeps {
 export interface ResumenIngesta {
   leidos: number;
   facturados: number;
-  saltados: number; // ya facturados antes (idempotencia) o no aprobados
-  errores: number;
+  noFacturables: number; // clasificados como NO_FACTURABLE (transferencias, etc.)
+  aRevisar: number; // REVISAR: esperan decisión humana (panel/WhatsApp)
+  saltados: number; // ya procesados antes (idempotencia)
+  errores: number; // fallo transitorio (reintentable)
 }
 
 /** Procesa un único pago (usado por el webhook y por el backfill). Idempotente. */
@@ -32,14 +40,26 @@ export async function facturarPagoSiCorresponde(
   deps: IngestaDeps,
   resumen: ResumenIngesta,
 ): Promise<void> {
-  if (pago.estado !== "approved") {
+  if (await deps.reconciliacion.yaProcesado(pago.id)) {
     resumen.saltados++;
     return;
   }
-  if (await deps.reconciliacion.yaFacturado(pago.id)) {
-    resumen.saltados++;
+
+  // Clasificación (§12.1): entre ingesta y facturación. No se factura a ciegas.
+  const { clasificacion, motivo } = await deps.clasificador.clasificar(pago, deps.tenantId);
+
+  if (clasificacion === "NO_FACTURABLE") {
+    await deps.reconciliacion.marcarNoFacturable(pago.id, motivo);
+    resumen.noFacturables++;
     return;
   }
+  if (clasificacion === "REVISAR") {
+    await deps.reconciliacion.marcarRevisar(pago.id, motivo);
+    resumen.aRevisar++;
+    return;
+  }
+
+  // FACTURABLE → emitir.
   try {
     const invoiceId = await deps.facturar(pago, deps.tenantId);
     if (invoiceId) {
@@ -56,14 +76,21 @@ export async function facturarPagoSiCorresponde(
 }
 
 /**
- * Backfill: pagina TODO el historial de la cuenta (desde/hasta) y factura cada
- * pago acreditado que no esté ya facturado. Re-ejecutarlo no duplica (idempotente).
+ * Backfill: pagina TODO el historial de la cuenta (desde/hasta), clasifica y
+ * factura cada venta. Re-ejecutarlo no duplica (idempotente).
  */
 export async function sincronizarPagos(
   deps: IngestaDeps,
   criterio: CriterioBusqueda = {},
 ): Promise<ResumenIngesta> {
-  const resumen: ResumenIngesta = { leidos: 0, facturados: 0, saltados: 0, errores: 0 };
+  const resumen: ResumenIngesta = {
+    leidos: 0,
+    facturados: 0,
+    noFacturables: 0,
+    aRevisar: 0,
+    saltados: 0,
+    errores: 0,
+  };
 
   let cursor = criterio.cursor;
   do {

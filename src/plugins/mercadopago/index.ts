@@ -32,3 +32,18 @@ export {
   type RegistroConciliacion,
   type EstadoConciliacion,
 } from "./reconciliation";
+export {
+  ClasificadorPorReglas,
+  REGLAS_DEFAULT,
+  type ClasificadorPort,
+  type Clasificacion,
+  type ResultadoClasificacion,
+  type ReglaClasificacion,
+} from "./classifier";
+export {
+  NotificacionWhatsAppStub,
+  type NotificacionPort,
+  type SolicitudConfirmacion,
+  type MensajeEnviado,
+} from "./notification";
+export { type TipoOperacionMP } from "./port";
