@@ -48,3 +48,7 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Material confidencial — NUNCA versionar (repo público)
+_private/
+docs/internal/
