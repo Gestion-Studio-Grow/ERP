@@ -24,7 +24,7 @@ mide lo que depende de nosotros** (código/diseño/verificación); la ejecución
 | **Checkout / seña** | **~10%** | 🟢 avanzable | flujo MP (preferencia+webhook de cobro) casi todo **por escribir (🟢, L)**; luego credenciales = acción humana | L |
 | **Performance (ADR-023)** | **100% de lo no-gated** | ✅ · 🔒 resto | F2/F3/F4/F5/F8 hechos; **F1/F6 🔒 atados a RLS** (se hacen con la activación) | — |
 | **Tests / QA** | **0%** | 🟢 **avanzable (Frente A activo)** | elegir harness (ADR) + primeras pruebas de lógica pura | M |
-| **POS / Retail (profundidad ERP)** | **~35%** | 🟢 **avanzable (Frente B activo)** | descuento de stock al vender (hoy NO baja), caja, compras | M–L |
+| **POS / Retail (profundidad ERP)** | **~55%** | 🟢 dev · ⏳ migración pendiente acción humana | **descuento de stock al vender HECHO** (transaccional, sin oversell, flag `trackStock`; migración SIN aplicar = acción humana). Falta: caja, compras/reposición | M–L |
 | **UX/UI design system** | **~50% adopción** | 🟢 **avanzable (Frente C activo)** | barrer las pantallas que faltan (23 archivos ya lo usan) | M |
 | **Onboarding equipo/agentes** | **~100% (doc v1)** | 🟢 avanzable (iteración) | iterar con uso real; mejorar comandos `/sesion-*` | S |
 | **Consola operador (super-admin)** | **~60% construido** | 🟢 build · 🔒 uso en prod | scaffold login/console/alta/tenants; uso real 🔒 RLS/2º tenant | M |
@@ -55,6 +55,7 @@ Marcá "hablemos de X" y lo bajamos a plan.
 - **Portal/app del cliente** — login + "mis turnos/pedidos" (diferenciador, L).
 
 **Pendientes de acción humana (listos o casi, esperan al owner):**
+- **Migración `trackStock` a prod (Gate 2)** — código de descuento de stock listo y verificado; falta `prisma migrate deploy` de `20260705130000_add_product_track_stock`.
 - **RLS a prod (Gate 2)** — el que desbloquea todo el negocio multi-tenant.
 - **WhatsApp** — conectar proveedor (máximo valor por esfuerzo, infra lista).
 - **ARCA vivo** — cert + homologación + aplicar migración + flag.

@@ -381,6 +381,11 @@ model Product {
   saleUnit     ProductSaleUnit  @default(UNIT) // UNIT = por unidad, WEIGHT = por kg
   price        Float? // precio de venta unitario (saleUnit=UNIT). Null = no se vende suelto
   pricePerKg   Float? // precio por kilo (saleUnit=WEIGHT). Diferencial #1 vs Bistrosoft
+  // trackStock: si true, vender por POS/vidriera DESCUENTA `stock` con guarda anti-oversell
+  // (order-core.ts). Default false → los productos que no controlan existencias (insumos de
+  // spa, o retail sin stock cargado) se siguen vendiendo sin bloqueo, como antes. El blueprint
+  // Retail lo siembra en true. (POS/stock — 2026-07-05)
+  trackStock   Boolean          @default(false)
   orderItems   OrderItem[]
 
   createdAt    DateTime         @default(now())

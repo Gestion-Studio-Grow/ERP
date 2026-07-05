@@ -28,11 +28,11 @@ function seederFor(rubro: RetailRubro) {
     for (const c of rubro.catalog) {
       if (c.sale === "kg") {
         await tx.product.create({
-          data: { tenantId, name: c.name, unit: "kg", saleUnit: "WEIGHT", pricePerKg: c.pricePerKg, stock: c.stock, lowStockAt: 5 },
+          data: { tenantId, name: c.name, unit: "kg", saleUnit: "WEIGHT", pricePerKg: c.pricePerKg, stock: c.stock, lowStockAt: 5, trackStock: true },
         });
       } else {
         await tx.product.create({
-          data: { tenantId, name: c.name, unit: "u", saleUnit: "UNIT", price: c.price, stock: c.stock, lowStockAt: 3 },
+          data: { tenantId, name: c.name, unit: "u", saleUnit: "UNIT", price: c.price, stock: c.stock, lowStockAt: 3, trackStock: true },
         });
       }
     }

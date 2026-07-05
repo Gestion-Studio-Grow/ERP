@@ -75,7 +75,7 @@ export async function insertOrder(
 
   const products = await prisma.product.findMany({
     where: { id: { in: wanted.map((l) => l.productId) }, tenantId, deletedAt: null, active: true },
-    select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true },
+    select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, trackStock: true },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -92,6 +92,7 @@ export async function insertOrder(
         quantity: l.qty,
         unitPrice,
         lineTotal: round2(l.qty * unitPrice),
+        trackStock: p.trackStock,
       };
     })
     .filter((l): l is NonNullable<typeof l> => l !== null);
@@ -114,7 +115,7 @@ export async function insertOrder(
     });
     const code = (last?.code ?? 0) + 1;
 
-    return tx.order.create({
+    const created = await tx.order.create({
       data: {
         tenantId,
         code,
@@ -145,6 +146,27 @@ export async function insertOrder(
       },
       select: { id: true, code: true },
     });
+
+    // Descuento de stock al vender (POS/stock), SOLO para productos con `trackStock`.
+    // La guarda anti-oversell vive en el WHERE: `updateMany` con `stock: { gte: quantity }`
+    // es una baja condicional atómica — si el stock ya no alcanza (otra venta se adelantó),
+    // afecta 0 filas y lanzamos, abortando toda la orden (nada de ventas parciales ni
+    // stock negativo). Como corre DENTRO de la transacción de la orden, o se vende y se
+    // descuenta, o no pasa nada.
+    for (const l of lines) {
+      if (!l.trackStock) continue;
+      const res = await tx.product.updateMany({
+        where: { id: l.productId, tenantId, stock: { gte: l.quantity } },
+        data: { stock: { decrement: l.quantity } },
+      });
+      if (res.count === 0) {
+        throw new Error(
+          `Sin stock suficiente de "${l.name}" para vender ${l.quantity}. Revisá el stock disponible.`,
+        );
+      }
+    }
+
+    return created;
   }, { tenantId });
 
   return { id: order.id, code: order.code, subtotal, lines: lines.length };

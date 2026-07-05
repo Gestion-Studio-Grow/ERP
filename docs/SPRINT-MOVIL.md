@@ -106,7 +106,7 @@ producción/Netlify y `prisma migrate deploy` (Gate 2). Todo lo demás avanza po
 > ejecuta el "Próximo bocado". Cada sesión lo deja al día antes de cerrar.
 
 **Sprint:** Sesión única en serie — Tests → POS/stock → UX/UI
-**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (Tests/QA cerrado)
+**Iniciado:** 2026-07-05 · **Última actualización:** 2026-07-05 (POS/stock cerrado)
 **Estado del bloque:** 🟢 en curso · **modo SESIÓN ÚNICA en serie** (owner sin laptop, no se abren
 sesiones nuevas — ver "Modo de operación" arriba). Los frentes A/B/C, antes en paralelo, se
 ejecutan ahora **uno por uno en esta sesión**, un tema por commit.
@@ -128,14 +128,12 @@ el porqué, pusheado a `origin/main` · handoff (`## Sprint activo`) al día tra
 **Checklist vivo**
 - [x] **Protocolo de sesión única en serie** — escrito en este doc ("Modo de operación") + puntero en el tablero. *(este sprint, 2026-07-05)*
 - [x] **(a) Tests/QA** — harness `node:test`+`tsx` (ADR-026, cero dep), `npm test` acotado a `src/**/*.test.ts`; 7 pruebas verdes de `audit-retention` + `report-config`. *(2026-07-05)*
-- [ ] **(b) POS/stock** — descontar stock al vender transaccional (sin oversell); migración nueva SIN aplicar si hace falta (pendiente acción humana).
+- [x] **(b) POS/stock** — `insertOrder` (`order-core.ts`) descuenta stock **dentro de la transacción**, solo para productos con flag `trackStock`, con guarda anti-oversell (`updateMany where stock>=qty`; 0 filas → aborta la orden). Flag nuevo en schema + **migración `20260705130000_add_product_track_stock` SIN aplicar** (pendiente acción humana). Blueprint Retail lo siembra en true. *(2026-07-05)*
 - [ ] **(c) UX/UI** — completar adopción del design system en las pantallas que falten.
 
-**Próximo bocado (lo que ejecuta "seguimos"):** frente (b) **POS/stock** — `createOrder`
-(`order-core.ts`) hoy NO toca `Product.stock`. Descontar stock **dentro de la transacción de la
-orden** para ítems con producto asociado, con guarda anti-oversell (no permitir vender por debajo
-de 0). Si el modelo lo necesita (ej. vincular ítem→producto o un ledger de movimientos), dejar la
-**migración como carpeta nueva SIN aplicar** a prod (pendiente acción humana). tsc+build+test verdes.
+**Próximo bocado (lo que ejecuta "seguimos"):** frente (c) **UX/UI** — completar la adopción del
+design system (`@/components/ui` + tokens) en las pantallas del admin que todavía usan clases sueltas.
+Barrer las que falten (23 archivos ya lo importan), sin cambiar comportamiento. tsc+build+test verdes.
 
 **Esperando decisión del dueño (owner-level):** Gate 2 (activar RLS + alta del 2º tenant) y
 las credenciales de WhatsApp/Mercado Pago/ARCA. En pausa a pedido de Maxi.
