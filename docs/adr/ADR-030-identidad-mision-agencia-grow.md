@@ -8,7 +8,7 @@ estructural (gobierno/repos/puente).
 > **Marco:** válido dentro de `docs/FUNDAMENTOS-Y-VISION.md` y se apoya en **ADR-028** (ratificación del
 > sector), **ADR-029** (pricing de los dos motores) y **ADR-008** (coordinación-por-repo / sesiones como
 > unidad de trabajo). Si algo choca, gana FUNDAMENTOS. Actualiza el documento fundacional del sector
-> (`docs/sectores/agencia-digital/FUNDAMENTO.md`) y su charter.
+> (`docs/sectores/agencia-grow/FUNDAMENTO.md`) y su charter.
 
 ## Contexto
 
@@ -27,9 +27,11 @@ que "Digital", y encaja con la marca de la compañía (**Gestión Studio Grow**)
 
 ### 1. Nombre — **Agencia Grow**
 El sector se llama **Agencia Grow**. "Agencia Digital" queda como **etiqueta previa** (working label).
-Los slugs/rutas actuales (`docs/sectores/agencia-digital/…`, charter `agencia-digital.md`) **se conservan
-por ahora** para no romper enlaces cruzados; renombrar la carpeta a `agencia-grow` es un follow-up
-opcional de higiene (no bloquea nada). La marca de cara al mercado y en los docs es **Agencia Grow**.
+**Las rutas/slug se renombraron a `agencia-grow`** (carpeta `docs/sectores/agencia-grow/`, charter
+`agencia-grow.md`, este ADR) para que no quede rastro del rótulo viejo. **No existe repo
+`agencia-digital`** — la organización tiene solo `ERP` y `arca` (verificado); el espacio propio del
+sector (charter §7.2) se creará como **`agencia-grow`**. La marca de cara al mercado y en los docs es
+**Agencia Grow**.
 
 ### 2. Misión — hacer escalar el patrimonio de los dueños
 La estrella polar del sector: **hacer crecer el patrimonio de los dueños de negocio**. No es "vender
@@ -76,8 +78,9 @@ contra esto: *¿esto hace crecer el patrimonio del dueño de forma recurrente y 
 - ✅ **Diferencial nombrado:** agentes expertos por disciplina a costo marginal = capacidad de montar
   negocios **completos** automatizados, no vender piezas. Es el "somos dueños del stack operativo" del
   `FUNDAMENTO.md` llevado a "montamos el negocio entero y lo automatizamos".
-- 🚧 **Follow-up opcional (higiene):** renombrar rutas `agencia-digital/` → `agencia-grow/` cuando
-  convenga; hoy se conservan por enlaces. No bloquea trabajo.
+- ✅ **Rutas renombradas a `agencia-grow`** (carpeta, charter y este ADR) — sin rastro del rótulo
+  viejo. No hay repo `agencia-digital` (org: solo `ERP` + `arca`); el espacio del sector (charter §7.2)
+  nacerá como `agencia-grow`.
 - 🚧 **No implementa código, no crea repos, no toca prod/Neon/deploy.** Es identidad/posicionamiento;
   su "bajada" son los productos de ADR-029 y el trabajo abierto en `PROXIMOS-PASOS.md`.
 
@@ -94,5 +97,5 @@ contra esto: *¿esto hace crecer el patrimonio del dueño de forma recurrente y 
 ---
 
 *Decisión de identidad/posicionamiento del sector. No implementa código, no crea repos, no aplica
-migración, no toca prod ni Neon ni deploys. El nombre oficial del 2º sector es **Agencia Grow**; los
-slugs `agencia-digital/` se conservan por enlaces (rename = follow-up opcional).*
+migración, no toca prod ni Neon ni deploys. El nombre oficial del 2º sector es **Agencia Grow**; las
+rutas se renombraron a `agencia-grow` y no existe repo `agencia-digital` (org: solo `ERP` + `arca`).*

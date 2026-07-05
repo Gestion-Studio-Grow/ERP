@@ -1,4 +1,4 @@
-# AVANCE CONSOLIDADO — Sector Agencia Digital (2026-07-05)
+# AVANCE CONSOLIDADO — Sector Agencia Grow (2026-07-05)
 
 > **Para pasarle al dueño esta noche.** Estado del sector Agencia: qué se construyó, qué plata puede
 > generar y por dónde seguimos. Todo commiteado en GitHub (repo `estetica-erp`, rama `main`). Es
@@ -79,8 +79,8 @@ baja la barrera de compra; y la inversión publicitaria digital creció **+113% 
 ## Anexo — mapa de todo lo entregado (repo `estetica-erp`, `main`)
 
 **Fundamento y estrategia del sector**
-- `docs/sectores/agencia-digital.md` — charter (estrategia, frentes, convivencia de sectores)
-- `docs/sectores/agencia-digital/FUNDAMENTO.md` — doc raíz "leer primero" (equipos, método, **visión go-to-market**)
+- `docs/sectores/agencia-grow.md` — charter (estrategia, frentes, convivencia de sectores)
+- `docs/sectores/agencia-grow/FUNDAMENTO.md` — doc raíz "leer primero" (equipos, método, **visión go-to-market**)
 
 **Inteligencia de mercado (Consultores)**
 - `.../analisis-mercado/2026-07-05-panorama-inicial.md` — #1: ads se comoditizan → diferencial de loop cerrado
@@ -89,7 +89,7 @@ baja la barrera de compra; y la inversión publicitaria digital creció **+113% 
 - `.../analisis-mercado/2026-07-05-geografia-caba-local-online.md` — #4: CABA + local + online (tamaño/pricing/foco)
 
 **Producto y arquitectura**
-- `docs/sectores/agencia-digital/2026-07-05-pmo-propuesta-producto-1.md` — PMO: producto #1 (Panel del Dueño)
+- `docs/sectores/agencia-grow/2026-07-05-pmo-propuesta-producto-1.md` — PMO: producto #1 (Panel del Dueño)
 - `docs/adr/ADR-027-analytics-cross-tenant-benchmarking.md` — privacidad del benchmarking vs. RLS
 
 **Software construido (código + tests verdes)**

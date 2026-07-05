@@ -6,7 +6,7 @@
 // palanca #1 (analytics-producto): lógica PURA, single-tenant, sin cruzar tenants
 // (eso es ADR-027), sin LLM (determinista, barato, testeable — ADR-026), sin DB.
 //
-// Referencia de producto: docs/sectores/agencia-digital/2026-07-05-pmo-propuesta-producto-1.md
+// Referencia de producto: docs/sectores/agencia-grow/2026-07-05-pmo-propuesta-producto-1.md
 //
 // Entrada: los DeepKpis del período actual + (opcional) los del período anterior
 // para las comparaciones temporales "contra vos mismo". Salida: insights ordenados

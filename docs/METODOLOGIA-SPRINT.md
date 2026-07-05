@@ -79,7 +79,7 @@ Estas seis reglas son la ley del sprint. Rigen sobre todo lo demás de este docu
    - **N frentes de Desarrollo — uno por core, en los DOS SECTORES de la compañía** (ver "Mapa de
      sectores y cores" abajo). Al invocar `sprint` se abren automáticamente frentes de **ambos**:
      - **Sector ERP multi-tenant:** **Pagos · Caja · Inventario/POS · Fiscal · Plataforma · Diseño.**
-     - **Sector Agencia Digital:** **Consultores/Análisis de mercado · Desarrolladores · PMO proactivo.**
+     - **Sector Agencia Grow:** **Consultores/Análisis de mercado · Desarrolladores · PMO proactivo.**
    - **Calidad/tests** no es core: cada dueño entrega su core en verde (regla "verde antes de
      commitear"). (Diseño **dejó de ser cross-cutting** y ahora es **core** del sector ERP.)
 
@@ -95,7 +95,7 @@ punta a punta. Un tenant completo de punta a punta solo es unidad de sesión par
 **Lectura de fundamento al abrir (OBLIGATORIA, antes de tocar nada):**
 - **Todas las sesiones:** la **FASE 0 Exploración** del repo (`docs/ESTADO-ACTUAL.md` + `git status` +
   migraciones pendientes) — su fundamento del estado del proyecto.
-- **Las del sector Agencia Digital, ADEMÁS:** **`docs/sectores/agencia-digital/FUNDAMENTO.md`** — para
+- **Las del sector Agencia Grow, ADEMÁS:** **`docs/sectores/agencia-grow/FUNDAMENTO.md`** — para
   entender **quiénes son y qué tienen que hacer** (identidad, misión, servicios, forma de trabajo).
 
 ### Sector A — ERP multi-tenant (`estetica-erp`)
@@ -108,14 +108,14 @@ punta a punta. Un tenant completo de punta a punta solo es unidad de sesión par
 | **Plataforma** | RLS/tenancy, performance, auth, observabilidad **+ reporting** | `src/lib/tenant*.ts`, `rls.ts`, `prisma/rls/`, `session.ts`, `capabilities.ts`, `authz.ts`, `getReportData`/`reportes/`, perf/obs | `estetica-erp-plataforma` · `frente/plataforma` |
 | **Diseño** | sistema de diseño/UX: tokens, primitivos, branding por tenant (ahora **core**, ya no cross-cutting) | `src/components/ui/`, `src/lib/branding.ts`, tokens/tema, adopción por pantallas | `estetica-erp-diseno` · `frente/diseno` |
 
-### Sector B — Agencia Digital
-Identidad, frentes y territorio en el **charter `docs/sectores/agencia-digital.md`** +
-**`docs/sectores/agencia-digital/FUNDAMENTO.md`** (que cada sesión del sector lee al abrir). Por
+### Sector B — Agencia Grow
+Identidad, frentes y territorio en el **charter `docs/sectores/agencia-grow.md`** +
+**`docs/sectores/agencia-grow/FUNDAMENTO.md`** (que cada sesión del sector lee al abrir). Por
 decisión del charter: **misma metodología y mismo PMO, pero repos/deploys SEPARADOS** del ERP → los
 worktrees/ramas de la Agencia viven en el **repo propio del sector**.
 | Frente (sesión dueña) | Alcance | Worktree · rama |
 |---|---|---|
-| **Consultores / Análisis de mercado** | inteligencia de mercado, estado del arte, estrategia, diferencial **con evidencia** → `docs/sectores/agencia-digital/analisis-mercado/` | repo del sector · `frente/agencia-consultores` |
+| **Consultores / Análisis de mercado** | inteligencia de mercado, estado del arte, estrategia, diferencial **con evidencia** → `docs/sectores/agencia-grow/analisis-mercado/` | repo del sector · `frente/agencia-consultores` |
 | **Desarrolladores** | construir **lo que los consultores validan**, apalancando ERP/ARCA/storefront antes que de cero | repo del sector · `frente/agencia-dev` |
 | **PMO proactivo (Agencia)** | avance + **búsqueda proactiva de innovación/oportunidades** del sector | repo del sector · `frente/agencia-pmo` |
 
@@ -138,7 +138,7 @@ Inventario/POS          C:/Users/mlloveras2/Documents/Claude/estetica-erp-invent
 Fiscal                  C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal                [frente/fiscal]
 Plataforma              C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataforma            [frente/plataforma]
 Diseño                  C:/Users/mlloveras2/Documents/Claude/estetica-erp-diseno                [frente/diseno]
-— Sector Agencia Digital (repo/deploys PROPIOS — ver docs/sectores/agencia-digital.md) —
+— Sector Agencia Grow (repo/deploys PROPIOS — ver docs/sectores/agencia-grow.md) —
 Consultores/Mercado     <repo propio del sector>   [frente/agencia-consultores]
 Desarrolladores         <repo propio del sector>   [frente/agencia-dev]
 PMO Agencia             <repo propio del sector>   [frente/agencia-pmo]
@@ -263,7 +263,7 @@ El PMO, **antes de tocar nada ni abrir frentes**, hace un barrido y deja la foto
 - **Produce/actualiza `docs/ESTADO-ACTUAL.md`** con esa foto.
 
 **Fundamento por sector (cada sesión lo lee al abrir):** toda sesión arranca por la FASE 0; **las del
-sector Agencia Digital leen además `docs/sectores/agencia-digital/FUNDAMENTO.md`** (quiénes son y qué
+sector Agencia Grow leen además `docs/sectores/agencia-grow/FUNDAMENTO.md`** (quiénes son y qué
 tienen que hacer) antes de ejecutar.
 
 > **Regla dura:** **nadie despacha frentes sin la foto.** Si `docs/ESTADO-ACTUAL.md` no quedó al

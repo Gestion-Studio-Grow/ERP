@@ -4,16 +4,16 @@
 > "Agencia Digital"), este documento es tu **Fase 0**: define **quién sos**, **qué tenés que hacer**, con
 > **qué método** y con **qué objetivo**. Leelo antes de tocar nada, igual que la exploración obligatoria
 > de arranque de sesión del repo (`CLAUDE.md` → "Arranque de sesión"). Después seguí con el charter del
-> sector (`docs/sectores/agencia-digital.md`) y el último análisis de mercado
-> (`docs/sectores/agencia-digital/analisis-mercado/`).
+> sector (`docs/sectores/agencia-grow.md`) y el último análisis de mercado
+> (`docs/sectores/agencia-grow/analisis-mercado/`).
 
 ---
 
 ## 0. Identidad — qué es Agencia Grow (ADR-030)
 
 **Nombre:** **Agencia Grow** — el 2º sector de la compañía (Gestión Studio Grow). *"Agencia Digital"* era
-la etiqueta de trabajo; el nombre oficial es **Agencia Grow**. *(Los slugs/rutas `agencia-digital/` se
-conservan por ahora para no romper enlaces — rename = follow-up opcional, ADR-030 §1.)*
+la etiqueta de trabajo; el nombre oficial es **Agencia Grow**. *(Las rutas ya se renombraron a
+`agencia-grow/`; no existe repo `agencia-digital` — la org tiene solo `ERP` y `arca`. ADR-030 §1.)*
 
 **Misión (estrella polar):** **hacer escalar el patrimonio de los dueños.** No vendemos campañas ni
 software como fin — son medios. El fin es que el **patrimonio** del dueño (su negocio, su flujo
@@ -52,7 +52,7 @@ de anclaje de identidad, `docs/METODO-ROLES.md` §1):
   **capacidad de storefronts**). Descartar con criterio es parte del entregable.
 - **Hipótesis de diferencial:** encontrar el ángulo defendible — igual que se encontró el diferencial
   con el **multi-tenant** en el ERP, pero ahora en **marketing/publicidad digital**.
-- **Entregable:** documentos en `docs/sectores/agencia-digital/analisis-mercado/`, fechados, con
+- **Entregable:** documentos en `docs/sectores/agencia-grow/analisis-mercado/`, fechados, con
   fuentes, con una sección explícita de **conclusiones + qué construir**.
 
 ### 🛠️ Equipo 2 — DESARROLLADORES (construcción de producto)
@@ -127,7 +127,7 @@ online**. El ERP es, además de un producto para terceros, el **cliente #1 de la
   para la plataforma.
 
 > **Encaje con el resto:** esto **no** rompe la separación de sectores del charter (repos/deploys
-> separados, `docs/sectores/agencia-digital.md` §6). El ERP sigue siendo el producto del otro sector;
+> separados, `docs/sectores/agencia-grow.md` §6). El ERP sigue siendo el producto del otro sector;
 > la Agencia es su **canal**. La venta online del SaaS se apoya en cerrar el gate del 2º tenant
 > (onboarding self-serve, RLS ADR-018/019) — ver charter §5 (P2) y los análisis de mercado.
 
@@ -180,8 +180,8 @@ Antes de proponer construir algo nuevo, recordá lo que la compañía **ya pagó
 
 ```
 docs/sectores/
-├── agencia-digital.md                      ← charter estratégico del sector (§ frentes, productos, convivencia)
-└── agencia-digital/
+├── agencia-grow.md                      ← charter estratégico del sector (§ frentes, productos, convivencia)
+└── agencia-grow/
     ├── FUNDAMENTO.md                        ← ESTE doc — leer primero (quién sos / qué hacés / método / objetivo)
     ├── 2026-07-05-AVANCE-consolidado.md     ← reporte ejecutivo para el dueño (productos+estado, plata, próximos pasos)
     ├── 2026-07-05-pmo-propuesta-producto-1.md  ← PMO: 1er producto a construir (Panel del Dueño) + handoff a Devs

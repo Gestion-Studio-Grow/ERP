@@ -2,8 +2,8 @@
 
 > **Nombre oficial: Agencia Grow** (ADR-030). Misión: **hacer escalar el patrimonio de los dueños**
 > desarrollando **negocios automatizados —online o físicos—** con expertos de todas las áreas operando
-> como agentes. *"Agencia Digital"* era la etiqueta de trabajo; los slugs `agencia-digital/` se conservan
-> por enlaces. Identidad completa en `FUNDAMENTO.md` §0 y ADR-030.
+> como agentes. *"Agencia Digital"* era la etiqueta de trabajo; las rutas ya se renombraron a
+> `agencia-grow/` (no existe repo `agencia-digital`). Identidad completa en `FUNDAMENTO.md` §0 y ADR-030.
 
 **Qué es este documento:** el *charter* del segundo sector de la compañía —**Agencia Grow**, una agencia
 que hace crecer el patrimonio de los dueños montando **negocios automatizados** (online o físicos), con
@@ -15,11 +15,11 @@ como **un ADR de ratificación del sector** (número a asignar al integrar — A
 *Analytics cross-tenant*; ver §7).
 
 > **Entrada del sector:** si abrís una sesión para trabajar acá, **leé primero
-> `docs/sectores/agencia-digital/FUNDAMENTO.md`** (quién sos, qué hacés, método, objetivo — enganchado
+> `docs/sectores/agencia-grow/FUNDAMENTO.md`** (quién sos, qué hacés, método, objetivo — enganchado
 > desde `CLAUDE.md` como Fase 0 del sector). Este charter es la **estrategia**; el sector se organiza en
 > **dos equipos** —**Consultores Expertos** (inteligencia de mercado + diferencial) y **Desarrolladores**
 > (construyen lo validado)— con un **PMO proactivo** por encima. El primer análisis de mercado ya está
-> en `docs/sectores/agencia-digital/analisis-mercado/`.
+> en `docs/sectores/agencia-grow/analisis-mercado/`.
 
 > **Regla de una línea:** misma **metodología** y mismo **PMO** para los dos sectores; **repos y
 > deploys separados por sector**; el software de la agencia que apalanca el ERP se trata como
@@ -30,7 +30,7 @@ como **un ADR de ratificación del sector** (número a asignar al integrar — A
 
 ## 1. Qué es el sector
 
-La **Agencia Digital** es una unidad de negocio de **servicios creativos + performance de publicidad
+La **Agencia Grow** es una unidad de negocio de **servicios creativos + performance de publicidad
 digital** que, además, incuba **productos de software propios** con ingresos recurrentes. Dos motores
 en un mismo sector:
 
@@ -55,7 +55,7 @@ La compañía tiene **dos sectores**, un **solo PMO** y una **sola metodología*
 | Sector | Qué produce | Naturaleza del "core" | Repo / deploy |
 |---|---|---|---|
 | **ERP SaaS multi-tenant** (existente) | Un Core único, N tenants | Core de **producto** (código compartido, deploy único, DB prod) | `estetica-erp` (actual) |
-| **Agencia Digital** (nuevo) | Servicios creativos + productos SaaS propios | Sector de **servicios** con frente de **producto** incubado | **repo/espacio propio** (`agencia-digital`) + productos con repo/plugin propio |
+| **Agencia Grow** (nuevo) | Servicios creativos + productos SaaS propios | Sector de **servicios** con frente de **producto** incubado | **repo/espacio propio** (`agencia-grow`) + productos con repo/plugin propio |
 
 El sector Agencia **no** es un tenant del ERP ni un Blueprint: es una **unidad de negocio hermana**.
 Lo que sí puede ser tenant del ERP es **cada cliente de la agencia** que necesite el producto.
@@ -183,7 +183,7 @@ sector; el puente es explícito y productizado.**
      (`FUNDAMENTOS §2`: lo que sirve a un solo cliente es proyecto aparte, se aísla, no entra al Core).
   2. Distintos ejes de cambio, distintos deploys, distinto blast-radius: un push de la agencia no debe
      poder tocar el pipeline del ERP en producción.
-  3. El sector Agencia vive en su **propio repo/espacio** (`agencia-digital`) para su operación de
+  3. El sector Agencia vive en su **propio repo/espacio** (`agencia-grow`) para su operación de
      servicios; los **productos** de software con vida propia (ej. arca standalone) van en **su** repo
      o como plugin del Core, con su ADR.
 - **El puente, explícito y sin forks:**
@@ -204,11 +204,11 @@ coordinación-por-repo que ya funciona.
 Esta sesión es **documentación/planificación**; no toca prod, Neon ni deploys. Follow-ups sugeridos,
 para que el owner los dispare cuando quiera:
 
-1. **Ratificar el sector como ADR** (número a asignar al integrar, ADR-028+) — "Sector Agencia Digital:
-   gobierno único, repos separados, puente productizado" (formaliza §6 como decisión estructural,
-   `METODO-ROLES.md` §3). *(Nota: ADR-027 ya se usó para el primer ADR nacido del sector, Analytics
-   cross-tenant.)*
-2. **Crear el espacio del sector** — repo/carpeta `agencia-digital` + su tablero (análogo a
+1. ✅ **Ratificado como ADR-028** — "Sector Agencia Grow: gobierno único, repos separados, puente
+   productizado" (formaliza §6 como decisión estructural, `METODO-ROLES.md` §3). La **identidad/misión**
+   del sector quedó en **ADR-030** (nombre Agencia Grow, escalar patrimonio, negocios automatizados) y el
+   **pricing** en **ADR-029**. *(ADR-027 fue el primer ADR nacido del sector, Analytics cross-tenant.)*
+2. **Crear el espacio del sector** — repo/carpeta `agencia-grow` + su tablero (análogo a
    `ESTADO-FRENTES.md`/`TABLERO-SESIONES.md`).
 3. **Kickoff del frente de Producto** — abrir la `/sesion-feature` de **P3 (Storefront producto)** para
    caja temprana, y planificar **P1 (arca standalone)** apoyándose en ADR-022/ADR-025.

@@ -56,14 +56,14 @@ El `.env` no se versiona, pero rotá la key igual (asumila comprometida).
 |---|---|
 | **main HEAD (origin)** | **`35603bd`** — `docs(sector): visión estratégica en FUNDAMENTO — la Agencia es el go-to-market del propio ERP` |
 | **Último deploy conocido a prod** | **`f0a13f0`** (merge `land-inventario-f1b`) — *confirmar si se redeployó tras esto* |
-| **Delta main → prod (sin deployar)** | fixes + docs post-`f0a13f0`: `8b9d989` fix del gate RLS, `685b5c9` override `FORCE_TENANT_SLUG`, y el sector Agencia Digital (charter + FUNDAMENTO + 2 análisis de mercado). **Nada de esto rompe prod; son fixes/docs.** |
+| **Delta main → prod (sin deployar)** | fixes + docs post-`f0a13f0`: `8b9d989` fix del gate RLS, `685b5c9` override `FORCE_TENANT_SLUG`, y el sector Agencia Grow (charter + FUNDAMENTO + 2 análisis de mercado). **Nada de esto rompe prod; son fixes/docs.** |
 | **Snapshot tags** | `snapshot/2026-07-05-eod` → commit de este backup (código `35603bd`) · `snapshot/2026-07-05-postdeploy` → `f0a13f0` |
 
 **Cores con trabajo en main (ERP):** Pagos (gateway de cobros por tenant), Caja (arqueo en vivo +
 rediseño `/admin/caja`), Inventario/POS (ledger `StockMovement` cableado a venta/compra/consumo),
 Fiscal (wiring `clientePara` del worker ARCA + config fiscal por tenant), Plataforma (observabilidad
-v2 con `requestId` + override `FORCE_TENANT_SLUG` + **fix del gate RLS**). **Sector Agencia Digital:**
-charter + FUNDAMENTO + 2 análisis de mercado en `docs/sectores/agencia-digital/`.
+v2 con `requestId` + override `FORCE_TENANT_SLUG` + **fix del gate RLS**). **Sector Agencia Grow:**
+charter + FUNDAMENTO + 2 análisis de mercado en `docs/sectores/agencia-grow/`.
 
 ---
 
@@ -184,14 +184,14 @@ Modelo: cada sesión es dueña de un core/frente; PMO por encima de ambos sector
 ### Sector B — Agencia Grow *(antes "Agencia Digital")*
 **Nombre oficial: Agencia Grow** (ADR-030). **Misión:** hacer **escalar el patrimonio de los dueños**
 desarrollando **negocios automatizados —online o físicos—** con expertos de todas las áreas operando como
-agentes. Charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md` §0. **Misma metodología y PMO,
+agentes. Charter `docs/sectores/agencia-grow.md` + `FUNDAMENTO.md` §0. **Misma metodología y PMO,
 repos/deploys SEPARADOS** del ERP. Visión: **la Agencia es el go-to-market del propio ERP** (vende
 ERP/ARCA/storefront) — uno de los negocios automatizados que sabe montar.
 | Frente | Estado |
 |---|---|
 | **Consultores / Análisis de mercado** | análisis en `analisis-mercado/`; **alcance definido: CABA + local + online**; **informe nocturno en preparación** |
 | **Desarrolladores** | **construyendo productos** (los que Consultores validan; go-to-market del propio ERP/ARCA/storefront) |
-| **PMO proactivo (Agencia)** | visión y alcance definidos; coordinando la construcción de productos + el informe nocturno. **Sector ratificado como ADR (2026-07-05):** ADR-028 (gobierno único, repos separados, puente productizado) + ADR-029 (modelo de pricing de los dos motores + planes por Feature Flags; montos = gate de dueño). Trabajo abierto en `PROXIMOS-PASOS.md` → "SECTOR AGENCIA DIGITAL" (crear espacio `agencia-digital`, `/sesion-feature` Panel del Dueño, mapeo plan→flags) |
+| **PMO proactivo (Agencia)** | visión y alcance definidos; coordinando la construcción de productos + el informe nocturno. **Sector ratificado como ADR (2026-07-05):** ADR-028 (gobierno único, repos separados, puente productizado) + ADR-029 (modelo de pricing de los dos motores + planes por Feature Flags; montos = gate de dueño). Trabajo abierto en `PROXIMOS-PASOS.md` → "SECTOR AGENCIA GROW" (crear espacio `agencia-grow`, `/sesion-feature` Panel del Dueño, mapeo plan→flags) |
 
 ---
 

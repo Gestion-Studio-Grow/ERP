@@ -1,8 +1,8 @@
-# ADR-028 — Ratificación del sector Agencia Digital: gobierno único, repos separados, puente productizado
+# ADR-028 — Ratificación del sector Agencia Grow: gobierno único, repos separados, puente productizado
 
 **Estado:** Aceptado (decisión estructural de gobierno; **no implementa código**, no crea repos ni
-toca prod/Neon/deploy) · **Fecha:** 2026-07-05 · **Origen:** sector Agencia Digital — formaliza como
-decisión el charter `docs/sectores/agencia-digital.md` §6 y el `FUNDAMENTO.md` del sector (pendiente
+toca prod/Neon/deploy) · **Fecha:** 2026-07-05 · **Origen:** sector Agencia Grow — formaliza como
+decisión el charter `docs/sectores/agencia-grow.md` §6 y el `FUNDAMENTO.md` del sector (pendiente
 listado en charter §7.1 y en el AVANCE consolidado §c.8).
 
 > **Marco:** este ADR es válido dentro de `docs/FUNDAMENTOS-Y-VISION.md` (aislamiento entre tenants y
@@ -12,9 +12,9 @@ listado en charter §7.1 y en el AVANCE consolidado §c.8).
 
 ## Contexto
 
-La compañía tiene **dos sectores**: el **ERP SaaS multi-tenant** (existente) y la **Agencia Digital
+La compañía tiene **dos sectores**: el **ERP SaaS multi-tenant** (existente) y la **Agencia Grow
 creativa** (nuevo, con un frente propio de software-para-ganancias). El charter del sector
-(`docs/sectores/agencia-digital.md`) y su `FUNDAMENTO.md` bajaron la estrategia, los equipos
+(`docs/sectores/agencia-grow.md`) y su `FUNDAMENTO.md` bajaron la estrategia, los equipos
 (Consultores / Desarrolladores / PMO) y la visión go-to-market (la Agencia como canal de venta del
 propio ERP). Pero esa definición vivía como **documento de encuadre**, no como **decisión estructural
 persistida**: el propio charter §7.1 dejó anotado que faltaba "ratificar el sector como ADR".
@@ -51,7 +51,7 @@ repo. Razones duras:
   anti-consultora** (`FUNDAMENTOS §2`: lo que sirve a un solo cliente es proyecto aparte, se aísla).
 - **Blast-radius:** distintos ejes de cambio y distintos deploys — un push de la Agencia **no debe
   poder** tocar el pipeline del ERP en producción.
-- El sector Agencia vive en su **propio repo/espacio** (`agencia-digital`) para su operación de
+- El sector Agencia vive en su **propio repo/espacio** (`agencia-grow`) para su operación de
   servicios; los **productos** de software con vida propia (ej. arca standalone, ADR-025) van en **su**
   repo o como **plugin del Core**, con su ADR.
 
@@ -59,7 +59,7 @@ repo. Razones duras:
 > análisis de mercado, ADRs 027/028/029 y los prototipos `owner-insights.ts` / `benchmark-aggregate.ts`)
 > convive **transitoriamente** en el repo `estetica-erp`, porque son **documentación + decisiones +
 > prototipos de producto que apalancan el Core**, no la operación de servicios de la Agencia. La
-> creación del espacio propio `agencia-digital` para esa operación es el follow-up del charter §7.2
+> creación del espacio propio `agencia-grow` para esa operación es el follow-up del charter §7.2
 > (no se ejecuta acá). La regla se respeta: lo que NO entra al Core es la **operación por cliente**, y
 > eso todavía no existe.
 
@@ -83,7 +83,7 @@ repo. Razones duras:
   trabajo a medida al Core choca contra este ADR + `FUNDAMENTOS §2`.
 - ✅ **Un solo PMO / un solo método** → cero duplicación de gobierno; la coordinación-por-repo que ya
   funciona en el ERP rige igual para la Agencia.
-- 🚧 **Follow-up (charter §7.2, no se ejecuta acá):** crear el espacio/repo `agencia-digital` para la
+- 🚧 **Follow-up (charter §7.2, no se ejecuta acá):** crear el espacio/repo `agencia-grow` para la
   operación de servicios + su tablero (análogo a `ESTADO-FRENTES.md`/`TABLERO-SESIONES.md`). Hasta que
   exista, el material del sector vive transitoriamente en `estetica-erp` (ver Decisión §2, nota).
 - 🚧 **No crea repos, no toca prod/Neon, no aplica migraciones, no despliega.** Es una decisión de
@@ -107,5 +107,5 @@ repo. Razones duras:
 ---
 
 *Decisión estructural de gobierno. No implementa código, no crea repos, no aplica migración, no toca
-prod ni Neon ni deploys. La creación del espacio propio `agencia-digital` (charter §7.2) es un setup
+prod ni Neon ni deploys. La creación del espacio propio `agencia-grow` (charter §7.2) es un setup
 posterior con OK del dueño.*

@@ -1,8 +1,8 @@
 # ADR-027 — Analytics cross-tenant: benchmarking anónimo por rubro sobre el dato del ERP
 
 **Estado:** Aceptado (decisión de diseño; **no implementa código**, no aplica migración) · **Fecha:**
-2026-07-05 · **Origen:** sector Agencia Digital — palanca #1 del análisis de mercado
-(`docs/sectores/agencia-digital/analisis-mercado/2026-07-05-servicios-automatizables-y-analytics.md` §3).
+2026-07-05 · **Origen:** sector Agencia Grow — palanca #1 del análisis de mercado
+(`docs/sectores/agencia-grow/analisis-mercado/2026-07-05-servicios-automatizables-y-analytics.md` §3).
 
 > **Marco:** este ADR es válido dentro de `docs/FUNDAMENTOS-Y-VISION.md` (aislamiento entre tenants =
 > línea roja) y enmienda/precisa el alcance de **ADR-018** (RLS) y **ADR-021** (plano de plataforma /

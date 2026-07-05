@@ -1,11 +1,11 @@
 # ADR-029 — Modelo de pricing y planes de los dos motores (agencia vs. producto) + mapeo a Feature Flags
 
 **Estado:** Aceptado el **modelo** de pricing; los **números finales son gate de dueño** (los ratifica
-Maxi) · **Fecha:** 2026-07-05 · **Origen:** sector Agencia Digital — charter §7.4 ("definir pricing de
+Maxi) · **Fecha:** 2026-07-05 · **Origen:** sector Agencia Grow — charter §7.4 ("definir pricing de
 cada motor, con su propio ADR"), nota de gobierno de `2026-07-05-pmo-propuesta-producto-1.md` §6
 ("cuánto sale el tier premium es una decisión de pricing → su propio ADR") y el punto abierto del
 `docs/adr/INDEX.md` ("definición de planes/pricing y cómo se mapean a Feature Flags, ADR-006"). Rangos
-de mercado tomados de `docs/sectores/agencia-digital/analisis-mercado/` (fechados 2026-07-05).
+de mercado tomados de `docs/sectores/agencia-grow/analisis-mercado/` (fechados 2026-07-05).
 
 > **Marco:** válido dentro de `docs/FUNDAMENTOS-Y-VISION.md` (economía SaaS: se paga una vez, lo reciben
 > todos) y se apoya en **ADR-006** (Feature Flags como motor de plataforma; Rules como config plana),
@@ -112,11 +112,11 @@ congelan en una tabla de precios operativa (fuera de este ADR, editable sin ADR 
 
 ## Fuentes (rangos de mercado)
 
-- `docs/sectores/agencia-digital/analisis-mercado/2026-07-05-geografia-caba-local-online.md` — tamaño,
+- `docs/sectores/agencia-grow/analisis-mercado/2026-07-05-geografia-caba-local-online.md` — tamaño,
   competencia, pricing y foco por plano (CABA / local / online).
-- `docs/sectores/agencia-digital/analisis-mercado/2026-07-05-segmento-local-canning.md` — retainer local
+- `docs/sectores/agencia-grow/analisis-mercado/2026-07-05-segmento-local-canning.md` — retainer local
   US$300–800/mes, hueco de agencia hiperlocal, SEO local como canal de tenants.
-- `docs/sectores/agencia-digital/2026-07-05-AVANCE-consolidado.md` §b — tabla "dónde está la plata" por
+- `docs/sectores/agencia-grow/2026-07-05-AVANCE-consolidado.md` §b — tabla "dónde está la plata" por
   plano geográfico (pricing/margen) + las 3 fuentes de ingreso de mayor palanca.
 - `docs/adr/ADR-006-motores-plataforma.md` — Feature Flags como motor; Rules/planes como config plana.
 - `docs/adr/ADR-007-analisis-financiero.md` — costos de infraestructura por escala (piso del margen).
