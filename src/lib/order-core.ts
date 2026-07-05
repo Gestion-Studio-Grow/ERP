@@ -15,6 +15,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import type { ProductSaleUnit } from "@/generated/prisma/client";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
 
@@ -55,6 +56,75 @@ export function sellPrice(p: {
   return p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price;
 }
 
+// Producto del tenant tal como lo trae `insertOrder` (snapshot de venta).
+export type OrderProduct = {
+  id: string;
+  name: string;
+  saleUnit: ProductSaleUnit;
+  price: number | null;
+  pricePerKg: number | null;
+  trackStock: boolean;
+};
+
+// Línea de orden ya armada: precio y nombre congelados al momento de la venta.
+export type OrderLine = {
+  productId: string;
+  name: string;
+  saleUnit: ProductSaleUnit;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  trackStock: boolean;
+};
+
+// Arma las líneas de la orden a partir de los ítems pedidos y los productos
+// reales del tenant. Lógica pura (sin DB): snapshotea precio/nombre (ADR-009 §4),
+// descarta los ítems cuyo producto no existe (no es del tenant / borrado / inactivo)
+// o no tiene precio de venta cargado (null o <= 0). El total de línea se redondea
+// a 2 decimales. No confía en el input: precio y nombre salen del producto real.
+export function buildOrderLines(
+  products: OrderProduct[],
+  wanted: { productId: string; qty: number }[],
+): OrderLine[] {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return wanted
+    .map((l) => {
+      const p = byId.get(l.productId);
+      if (!p) return null;
+      const unitPrice = sellPrice(p);
+      if (unitPrice == null || unitPrice <= 0) return null;
+      return {
+        productId: p.id,
+        name: p.name,
+        saleUnit: p.saleUnit,
+        quantity: l.qty,
+        unitPrice,
+        lineTotal: round2(l.qty * unitPrice),
+        trackStock: p.trackStock,
+      };
+    })
+    .filter((l): l is OrderLine => l !== null);
+}
+
+// Subtotal de la orden: suma de los totales de línea, redondeada a 2 decimales.
+export function orderSubtotal(lines: OrderLine[]): number {
+  return round2(lines.reduce((s, l) => s + l.lineTotal, 0));
+}
+
+// Líneas que requieren descontar stock: solo las de productos con `trackStock`.
+// Las demás (insumos de spa, retail sin stock cargado) se venden sin bloqueo.
+export function stockDecrementLines(lines: OrderLine[]): OrderLine[] {
+  return lines.filter((l) => l.trackStock);
+}
+
+// Regla anti-oversell: ¿alcanza el stock disponible para vender `quantity`?
+// Espeja EXACTAMENTE la guarda atómica del WHERE (`stock: { gte: quantity }`):
+// solo se puede descontar si el disponible es >= la cantidad pedida. Nunca deja
+// stock negativo ni permite ventas parciales. Vender 0/negativo no consume stock.
+export function canDecrementStock(available: number, quantity: number): boolean {
+  return quantity > 0 && available >= quantity;
+}
+
 // Valida, snapshotea precios y crea la orden + sus líneas en una transacción.
 // Snapshot de precio/nombre al momento de la venta (ADR-009 §4): trae el producto
 // real del tenant y congela lo cobrado, no confía en el input.
@@ -77,31 +147,13 @@ export async function insertOrder(
     where: { id: { in: wanted.map((l) => l.productId) }, tenantId, deletedAt: null, active: true },
     select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, trackStock: true },
   });
-  const byId = new Map(products.map((p) => [p.id, p]));
-
-  const lines = wanted
-    .map((l) => {
-      const p = byId.get(l.productId);
-      if (!p) return null;
-      const unitPrice = sellPrice(p);
-      if (unitPrice == null || unitPrice <= 0) return null;
-      return {
-        productId: p.id,
-        name: p.name,
-        saleUnit: p.saleUnit,
-        quantity: l.qty,
-        unitPrice,
-        lineTotal: round2(l.qty * unitPrice),
-        trackStock: p.trackStock,
-      };
-    })
-    .filter((l): l is NonNullable<typeof l> => l !== null);
+  const lines = buildOrderLines(products, wanted);
 
   if (lines.length === 0) {
     throw new Error("Ninguno de los productos elegidos tiene precio de venta cargado.");
   }
 
-  const subtotal = round2(lines.reduce((s, l) => s + l.lineTotal, 0));
+  const subtotal = orderSubtotal(lines);
   const status = input.channel === "ONLINE" ? "PENDING" : "CONFIRMED";
 
   const order = await tenantTransaction(async (tx) => {
@@ -153,8 +205,7 @@ export async function insertOrder(
     // afecta 0 filas y lanzamos, abortando toda la orden (nada de ventas parciales ni
     // stock negativo). Como corre DENTRO de la transacción de la orden, o se vende y se
     // descuenta, o no pasa nada.
-    for (const l of lines) {
-      if (!l.trackStock) continue;
+    for (const l of stockDecrementLines(lines)) {
       const res = await tx.product.updateMany({
         where: { id: l.productId, tenantId, stock: { gte: l.quantity } },
         data: { stock: { decrement: l.quantity } },
