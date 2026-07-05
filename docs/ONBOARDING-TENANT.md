@@ -177,93 +177,190 @@ cambio chico y de alto impacto en la primera impresión; queda como próximo pas
 > (Feature Flags, ADR-006). Todo lo de esta sección es criterio propio para discutir,
 > marcado **(Supuesto)** donde corresponde.
 
-### 3.1 Dos formas de vender, no una
+### 3.1 El principio: el alta genérica es el piso, la implementación personalizada es el producto
 
-| Escenario | Quién provisiona | Cuándo conviene | Estado |
+Hoy el alta toma 3 datos y siembra un catálogo de ejemplo. Eso alcanza para un caso
+estándar, pero **vender "personalizado" empieza antes del alta**: una **fase de
+descubrimiento** captura qué necesita cada cliente y produce una **ficha de tenant
+(Tenant Spec)** que provisiona un tenant **ya customizado**, no genérico. Esa misma
+fase es, a la vez, la herramienta de venta.
+
+### 3.2 Fase de descubrimiento + customización PRE-alta (el configurador guiado)
+
+Antes de provisionar, un **cuestionario guiado** —wizard self-service para casos
+simples, o **entrevista asistida** para los complejos: mismo cuestionario, distinto
+canal— releva:
+
+| Bloque | Qué se pregunta | Cómo mapea al tenant |
+|---|---|---|
+| **Rubro** | ¿Qué tipo de negocio? | `blueprint` (servicios / carniceria / …) → catálogo, flujo y marca base |
+| **Tamaño** | ¿Cuántos profesionales / cajas / usuarios? | Tier + límites del plan |
+| **Sucursales** | ¿Una o varias? | 1 = estándar; varias = Enterprise (multi-sucursal, hoy no soportado ⚠️) |
+| **Módulos** | ¿Qué necesita usar? (agenda, POS, reservas online, lista de espera, reportes, comisiones, recordatorios) | Capacidades/pantallas activas del tenant |
+| **Formas de cobro** | ¿Efectivo/manual? ¿Cobro online? | `Payment` manual (hoy) vs plugin **MercadoPago** (🔜) |
+| **Integraciones** | ¿Factura electrónica? | Plugin **ARCA** (ADR-022) activable |
+| **Marca** | Nombre público, logo, colores, contacto | `BusinessSettings` (hoy) + theming logo/colores (🔜) |
+| **Catálogo** | ¿Cargamos su lista real o arranca con ejemplos? | Seed a medida vs blueprint vs import CSV (ADR-019 §2.c) |
+
+**Salida:** una **Tenant Spec** (una ficha, técnicamente un JSON) con **doble función**:
+
+- **Como venta:** es la propuesta/presupuesto y una demo — el cliente ve su sistema
+  pre-armado **antes de pagar**. Muestra valor y **califica** al cliente (tamaño +
+  módulos + integraciones → tier y precio).
+- **Como insumo del provisioning:** es exactamente lo que parametriza el alta (§4). El
+  descubrimiento y el alta dejan de ser dos mundos: **lo que se relevó vendiendo es lo
+  que se siembra**.
+
+*(Supuesto: el cuestionario y la Tenant Spec son propuesta; hoy el alta toma un
+subconjunto —rubro + marca—. El resto se habilita parametrizando el script, §4.)*
+
+### 3.3 Tipos de implementación (tiers)
+
+Un modelo escalonado: **el mismo Core y el mismo script**, distinto grado de
+customización y de acompañamiento.
+
+| Tier | Perfil típico | Descubrimiento | Customización | Quién provisiona | Soporte |
+|---|---|---|---|---|---|
+| **Express / autoservicio** | Caso estándar: monotributista que solo quiere ARCA, salón chico | Wizard self-service (minutos) | Blueprint estándar + marca; catálogo de ejemplo | El sistema solo (🔜), o nosotros en 1 paso | Autoservicio / docs |
+| **Asistida / personalizada** | `magra`, o cliente con requerimientos propios | Entrevista guiada | Catálogo real cargado, módulos elegidos, integraciones (ARCA/MP), marca propia | Nosotros (o socio-canal) desde la Tenant Spec | Onboarding acompañado |
+| **Enterprise / a medida** | Multi-sucursal o necesidades específicas | Relevamiento en profundidad | Todo lo anterior + multi-sucursal, migración de datos, config a medida | Proyecto de implementación | Dedicado |
+
+**Qué determina el tier (Supuesto)** — una matriz simple sobre las respuestas del
+descubrimiento:
+
+- **≥2 sucursales** o config a medida → **Enterprise**.
+- **Catálogo real a cargar / integraciones / módulos no estándar** → **Asistida**.
+- **Caso estándar, 1 sucursal, sin customización** → **Express**.
+
+Cada tier **recibe** lo de su fila; ninguno cambia el Core — cambia cuánto se
+customiza y quién lo opera.
+
+### 3.4 Cómo mapea a la venta (qué se cobra)
+
+Dos componentes de precio, en proporción inversa al tier: **setup/implementación**
+(one-time, paga el trabajo de customización) + **suscripción** (recurrente, paga el
+uso de la plataforma).
+
+| Tier | Setup / implementación | Suscripción | Canal típico | Prueba gratis |
+|---|---|---|---|---|
+| **Express** | $0 o mínimo (self-service) | Plan base mensual | Directo / web | Trial 14–30 días con catálogo de ejemplo |
+| **Asistida** | Fee de implementación (descubrimiento + carga inicial) | Plan según módulos | Directo o **contador-socio** | El descubrimiento **es** el trial guiado (ve su tenant pre-armado) |
+| **Enterprise** | Proyecto cotizado | Plan mayor + por volumen | Directo / socio | Piloto acordado |
+
+- **Rol del contador-socio (canal):** revende a su cartera, cobra su **fee de
+  implementación** y opera las altas; nosotros cobramos la **suscripción** (o
+  revenue-share). El Plugin **ARCA** es el gancho natural ("te lo dejo facturando
+  legal"). Escala con la consola super-admin (ADR-021) para que gestione sus tenants
+  sin ver los de otros.
+- **Ejes de plan/precio (Supuesto):** por rubro/tamaño · por capacidades activas (base
+  vs reportes/WhatsApp/MP) · por plugins (ARCA) · por volumen (turnos/pedidos/
+  usuarios). No decidido — ADR-021 §1 difiere planes/pricing.
+
+### 3.5 El "primer día" del cliente, por tier
+
+Nunca una pantalla vacía (gracias al blueprint); qué tan "listo" arranca depende del tier:
+
+- **Express:** entra a un tenant con el **catálogo de ejemplo de su rubro**; cambia la
+  contraseña y reemplaza los ejemplos por lo suyo (marca, catálogo, equipo, horarios).
+- **Asistida:** entra a un tenant que **ya tiene SU catálogo, SU marca y SUS módulos**
+  cargados desde el descubrimiento → arranca casi listo, solo revisa y ajusta.
+- **Enterprise:** sesión de arranque acompañada, con **datos migrados** y config a
+  medida ya aplicada.
+
+**Meta:** del "compré" al "lo estoy usando con mis datos" en **minutos** (Express) o en
+una **sesión de onboarding** (Asistida/Enterprise), nunca en semanas.
+
+---
+
+## 4. Motor de customización (cómo se refleja técnicamente, sin forkear)
+
+**Regla que no se rompe:** toda customización es **configuración/datos por tenant +
+módulos activables + plugins**, nunca código por cliente. Un fork por cliente está
+prohibido por FUNDAMENTOS §1 y ADR-002 (paga N veces cada fix y mata la economía del
+SaaS). El motor son **cuatro palancas** sobre el mismo Core:
+
+| Palanca | Qué customiza | Dónde vive | Estado |
 |---|---|---|---|
-| **Asistido** | Nosotros (o un socio-canal) corremos el alta | Pocas altas, cliente que quiere "que se lo dejen andando" | ✅ Soportado hoy (el script) |
-| **Auto-servicio** | El sistema solo, tras registro + pago | Altas frecuentes; el self-service pasa a ser ventaja competitiva | 🔜 Diferido (portal + facturación + modelo de planes) |
+| **1. Blueprint (rubro)** | Catálogo, flujo (turnos/POS), branding y capabilities base | `src/blueprints/*` + `--blueprint` | ✅ Existe (servicios, carniceria) |
+| **2. Branding por tenant** | Nombre público, contacto, horarios / logo, colores | `BusinessSettings` / theming | ✅ datos · ⚠️ logo+colores por tenant (🔜) |
+| **3. Módulos activables por tenant** | Qué capacidades/pantallas ve ese tenant | (propuesto) `Tenant.blueprintId` + `TenantModule` | 🔜 No persiste hoy: `Tenant` no tiene el campo y el nav filtra por rol, no por tenant (§2.3) |
+| **4. Plugins** | Integraciones externas (ARCA, MercadoPago) | Contrato evento/comando (ADR-002/020) | ⚠️ ARCA en curso · MP 🔜 |
 
-**(a) Asistido — lo que funciona hoy.** El cliente cierra por venta directa; nosotros
-tomamos 3 datos (nombre, rubro, email del dueño) y corremos el alta. El negocio abre
-el sistema ya poblado con el catálogo de su rubro y solo reemplaza por lo suyo.
+### 4.1 De la Tenant Spec al alta: parametrizar `provision-tenant.ts`
 
-- **Variante socio-canal (Supuesto):** un **contador o consultor** revende la
-  plataforma **a su cartera** de clientes y opera las altas por ellos. Encaja natural
-  con el Plugin **ARCA** de facturación (ADR-022) como gancho ("te lo dejo facturando
-  legal"). Requeriría más adelante la consola super-admin (ADR-021) para que el socio
-  gestione sus tenants sin tocar los de otros.
+`provisionTenant(prisma, params)` **ya es spec-driven en su núcleo**: hoy acepta
+`name, slug, owner, blueprint, branding, skipCatalog`. La customización pre-alta es
+**extender esa ficha**, no reescribir el alta — cada extensión es aditiva y respeta la
+idempotencia/transaccionalidad ya probadas.
 
-**(b) Auto-servicio — el futuro.** Registro público → elige **rubro** (servicios /
-carnicería / …) y **plan** → paga → el sistema corre `provisionTenant()` solo y lo
-manda a su panel ya poblado. Necesita, además del portal: modelo de **planes**,
-**cobro de la suscripción**, y límites por plan. Todo diferido y encuadrado.
+```
+Descubrimiento (wizard / entrevista)          §3.2
+        │
+        ▼
+   Tenant Spec  (JSON: versionable, reproducible, auditable)
+   { name, slug, owner, blueprint,
+     plan, modules[], plugins[],        ← extensiones propuestas (🔜)
+     branding{ logo, colores, … },
+     catalog: "blueprint" | "custom" | "import-csv" }
+        │
+        ▼   (aprobación / venta)
+   provisionTenant(prisma, spec)  →  tenant PRE-CONFIGURADO
+        │
+        ▼
+   Primer día del cliente                       §3.5
+```
 
-### 3.2 Qué definiría el plan / precio (Supuesto)
+**Extensiones propuestas a `ProvisionParams`** (🔜, Supuesto), cada una aditiva:
 
-Ejes candidatos para armar planes (a decidir, no decididos):
+- `plan?: string` y `modules?: string[]` → persistir en `Tenant.blueprintId` + tabla
+  `TenantModule`, y encender/apagar pantallas **por tenant** (cierra el gap §2.3).
+- `plugins?: string[]` (`arca`, `mercadopago`) → activar integraciones por tenant.
+- `catalogSource: "blueprint" | "custom" | "import-csv"` → sembrar el catálogo **real**
+  del cliente en vez de los ejemplos (el import CSV ya está diferido, ADR-019 §2.c).
+- `branding` con logo/colores → theming por tenant.
 
-- **Por rubro/tamaño:** un salón chico y una carnicería con sucursales no valen igual.
-- **Por capacidades activas:** plan base (catálogo + agenda/POS + clientes) vs plan
-  con **reportes avanzados**, **WhatsApp real**, **cobro online (MercadoPago)**.
-- **Por plugins:** **ARCA** (facturación electrónica) como add-on de mayor valor.
-- **Por volumen:** cantidad de turnos/pedidos, usuarios, o profesionales.
+**Propiedad clave:** la Tenant Spec es el **"archivo de implementación"** — versionable
+en git, reproducible (mismo spec → mismo tenant, por la idempotencia del script) y
+auditable. La implementación de un cliente deja de ser un chat perdido: es un artefacto.
 
-**Prueba gratis (Supuesto):** trial de ~14–30 días con el tenant ya provisionado y su
-catálogo de ejemplo — el cliente "juega" con datos realistas de su rubro desde el
-minuto uno; al vencer, paga o se pausa el tenant (nunca se borra dato).
+### 4.2 Qué falta construir (checklist 🔜, en orden)
 
-### 3.3 El "primer día" del cliente
-
-**Qué ve al entrar** (gracias al blueprint, nunca una pantalla vacía):
-
-- Login con su email + la contraseña de bootstrap (que cambia ahí mismo).
-- Un panel con su **catálogo de rubro ya cargado** (servicios de ejemplo o cortes de
-  ejemplo), su **marca por defecto** y sus **horarios** puestos.
-
-**Qué configura, en orden sugerido (Supuesto):**
-
-1. **Su marca y contacto** (módulo Localización): nombre público, WhatsApp, dirección,
-   Instagram, horarios reales.
-2. **Su catálogo real**: reemplaza los ejemplos por sus servicios/cortes y precios.
-3. **Su equipo**: da de alta profesionales (servicios) o cajeros/recepción, con sus
-   roles (ADR-017).
-4. **Sus horarios de atención** por profesional (servicios).
-5. *(Opcional, según plan)* conecta cobro online, WhatsApp, o factura con ARCA.
-
-**Meta de la experiencia:** que del alta al "estoy usándolo con mis datos" pasen
-**minutos, no días** — el catálogo de ejemplo es el andamio para que el negocio no
-arranque frente a un vacío.
-
-### 3.4 Faltantes para habilitar el auto-servicio (checklist 🔜)
-
-Para pasar de asistido a self-service hace falta, en orden: RLS aplicado (ADR-018) ·
-portal de registro + selección de rubro/plan · modelo de **planes** y **cobro de
-suscripción** · consola super-admin para soporte (ADR-021) · filtrado de pantallas
-por vertical (§2.3). Cada uno es su propia `/sesion-feature`; ninguno bloquea seguir
-vendiendo **asistido** mientras tanto.
+Para habilitar los tiers completos: **RLS aplicado** (ADR-018, gate del 2º tenant) ·
+persistencia de módulos por tenant (`Tenant.blueprintId` + `TenantModule`) y **filtrado
+de pantallas por tenant** (§2.3) · **theming** (logo/colores) por tenant · plugin
+**MercadoPago** · **import de catálogo** a medida / CSV (ADR-019 §2.c) · para
+Enterprise, **multi-sucursal** · **portal de descubrimiento** self-service (Express) y
+**consola super-admin** (ADR-021, canal socio). Cada uno es su `/sesion-feature`;
+**ninguno bloquea vender Asistida con la Tenant Spec hecha a mano** mientras tanto.
 
 ---
 
 ## Resumen para el dueño
 
-- **Cómo se da de alta hoy:** un comando (`npm run provision`) crea el negocio
-  completo —tenant + usuario dueño + marca + catálogo de ejemplo— en minutos,
-  idempotente y sin tocar a los demás clientes. Pedimos solo 3 datos: nombre, rubro y
-  email del dueño.
-- **El próximo cliente tiene un gate:** al ser el 2º tenant, primero hay que encender
-  el aislamiento de base de datos (RLS, ya escrito y probado, falta aplicarlo con tu
-  OK) — el alta y el aislamiento son el mismo trabajo, por seguridad.
-- **Qué viene predefinido por rubro:** cada negocio nace usable, nunca vacío. Estética
-  arranca con agenda de turnos, box, servicios y un profesional de ejemplo; carnicería
-  arranca con catálogo de cortes con venta **por kg**, POS/pedidos y marca premium — el
-  mismo sistema, distinta configuración, cero código duplicado.
-- **Cómo venderlo:** hoy ya podemos vender **asistido** (lo damos de alta nosotros, o
-  un contador-socio para su cartera). El **auto-servicio** (se registra, elige plan y
-  se provisiona solo) es el futuro y necesita definir planes/precios —hoy sin decidir—.
-- **Primer día del cliente:** entra, ve su catálogo de rubro ya cargado, cambia la
-  contraseña, reemplaza los ejemplos por lo suyo y configura marca/equipo. De cero a
-  "usándolo con mis datos" en minutos.
-- **Gap a cerrar pronto:** las pantallas todavía se muestran por rol y no por rubro
-  (la carnicería ve "Agenda", el salón ve "Pedidos"). Cambio chico, alta mejora en la
-  primera impresión — próximo paso propuesto.
+- **Modelo de venta recomendado:** que la personalización empiece **antes del alta**.
+  Una **fase de descubrimiento** (wizard o entrevista) releva rubro, tamaño,
+  sucursales, módulos, cobro, marca, catálogo e integraciones, y produce una **ficha
+  de tenant (Tenant Spec)** que sirve para **dos cosas a la vez**: es la propuesta de
+  venta (el cliente ve su sistema pre-armado antes de pagar y nos ayuda a calificarlo)
+  y es el insumo exacto que provisiona su tenant ya customizado.
+- **Tres tipos de implementación:** **Express** (autoservicio, caso estándar tipo
+  monotributista-solo-ARCA o salón chico: blueprint + marca, alta rápida) · **Asistida**
+  (tipo `magra` o requerimientos propios: descubrimiento + catálogo real + módulos +
+  integraciones cargados por nosotros) · **Enterprise** (multi-sucursal / a medida, con
+  acompañamiento). Lo define la matriz sucursales + customización + integraciones.
+- **Cómo se cobra:** **setup/implementación** (one-time, más alto cuanto más se
+  customiza) + **suscripción** (recurrente). Express ~$0 de setup; Asistida cobra la
+  implementación; Enterprise es proyecto. El **contador-socio** es canal: revende a su
+  cartera, cobra la implementación, nosotros la suscripción, con ARCA de gancho.
+  *(Planes/precios concretos: aún sin decidir.)*
+- **Cómo funciona la personalización sin forkear:** todo es **config por tenant +
+  módulos activables + plugins** sobre el mismo Core (nunca código por cliente). El
+  script de alta ya toma rubro y marca; se extiende para tomar también módulos, plugins
+  (ARCA/MP) y catálogo a medida desde la Tenant Spec — la misma alta, más parametrizada.
+- **Primer día, según tier:** Express arranca con catálogo de ejemplo de su rubro y lo
+  reemplaza; Asistida arranca con **su** catálogo/marca/módulos ya cargados; Enterprise
+  con datos migrados. Nunca una pantalla vacía.
+- **Para habilitarlo falta** (ninguno bloquea vender Asistida ya): aplicar RLS (gate del
+  2º cliente, con tu OK), persistir módulos por tenant y filtrar pantallas por rubro
+  (hoy la carnicería ve "Agenda" y el salón "Pedidos"), theming por tenant, plugin
+  MercadoPago e import de catálogo. Cada uno es una sesión de trabajo aparte.
