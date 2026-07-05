@@ -57,7 +57,14 @@ const DEFAULT_HOURS_LABEL = "Lun a sáb · 9 a 19 h";
 // Tablas de negocio sobre las que ADR-018 activaría RLS. Alcanza con verificar
 // una para saber si el gate de aislamiento está puesto; usamos varias por si en
 // una activación parcial quedara alguna sin política.
-const RLS_SENTINEL_TABLES = ["Tenant", "Appointment", "Client"];
+//
+// OJO: NO incluir "Tenant" acá. `0001_enable_rls.sql` es data-driven sobre las
+// tablas con columna `tenantId`, y `Tenant` (la raíz del aislamiento) NO tiene
+// `tenantId` → queda EXCLUIDA a propósito, con `relrowsecurity=false`. Si "Tenant"
+// fuera centinela, `isRlsActive` (que exige que TODAS estén activas) devolvería
+// false aun con RLS correctamente aplicado, y el gate del 2º tenant nunca abriría.
+// Centinelas = tablas de-tenant que SÍ reciben policy (Appointment, Client).
+const RLS_SENTINEL_TABLES = ["Appointment", "Client"];
 
 // Datos de contacto/branding del negocio (BusinessSettings, módulo Localización).
 // Todos opcionales a propósito: si no se pasan, el sitio cae a sus defaults.

@@ -57,7 +57,7 @@ consumo), Fiscal (wiring `clientePara` del worker ARCA + config fiscal por tenan
 
 | Gate | Qué destraba | Estado |
 |---|---|---|
-| **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → habilita el **2º tenant (Magra)** y todo el negocio multi-tenant | 🔒 diseño+SQL escritos y verificados offline (`prisma/rls/`, 28/28); falta ensayo en branch de Neon + cablear app + rotar `DATABASE_URL` a `app_user` + aplicar |
+| **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → habilita el **2º tenant (Magra)** y todo el negocio multi-tenant | 🔒 diseño+SQL verificados offline (`prisma/rls/`, 28/28). **Ensayo offline del gate+aislamiento PASADO 2026-07-05** (`prisma/rls/verify-provision-gate.mts`, PGlite): bloqueo sin RLS → gate abierto con RLS → aislamiento por tenant + fail-closed, todo verde. **Bug encontrado y corregido en el ensayo:** el sentinel del gate incluía `Tenant` (que `0001` excluye) → `isRlsActive` daba false para siempre y el gate NUNCA habría abierto en prod (fix en `scripts/provision-tenant.ts`). Falta: ensayo en branch de Neon REAL (crea el owner) + cablear app + rotar `DATABASE_URL` a `app_user` + aplicar |
 | **Certificado + homologación ARCA** | facturación electrónica viva (firma CMS del `TraSigner`) | 🔑 adapter SOAP escrito; falta cert del emisor + homologación + flag `ARCA_INVOICING_ENABLED` |
 | **Dominio propio** | servir tenants por dominio/subdominio (hoy el root sirve CH hardcodeado, ver §6) | 🔑 pendiente registrar/apuntar dominio + resolución por request |
 | **Deploy a prod (Gate 1)** | publicar en Netlify | ✅ usado para `f0a13f0`; futuros pushes requieren nuevo OK ("deployá") |
