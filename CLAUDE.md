@@ -103,8 +103,8 @@ chicas**. Abrir *worktrees* de más está OK (quedan ociosos); lo que se limita 
 **corren en simultáneo** (≤ 4). Si hay más frentes que cupo, entran por olas según la prioridad de abajo.
 
 **Prioridades (foco: lo que concreta ventas), sobre todo en congestión:**
-- **P1 — SIEMPRE corre (demos y venta):** demo público · previews con link · probador (backoffice sin
-  contraseña) · adaptador self-serve · **publicar los tenants que falten** (Magra, satélites).
+- **P1 — SIEMPRE corre (demos y venta):** demo público (**front+back en URL de cliente**) · probador
+  (backoffice sin contraseña) · adaptador self-serve · **publicar los tenants que falten** (Magra, satélites).
 - **P2 — corre si hay lugar (habilitadores):** verificar/encender la base · generador de preset por IA ·
   seguridad pre-cobros.
 - **P3 — se pausa en congestión (bajo impacto):** investigación de nuevas líneas de negocio (3D / bajo
@@ -155,9 +155,11 @@ Encaja con **demo pública a costo cero** (`docs/metodologia/demo-publica-costo-
 fases de credenciales**:
 
 1. **DEMO — antes de la venta: cero gasto, cero datos reales.** Mientras la venta **NO** está concretada,
-   **todo queda en DEMO**: gratis, en la **URL gratuita** (`erp-ch.vercel.app/previews/…` o el probador
-   sandbox), **sin gastar un peso, sin datos reales, sin passwords, sin persistencia**. **No** se compra
-   dominio ni se activa login/base antes de vender.
+   **todo queda en DEMO**: gratis, en la **URL gratuita con nombre de cliente** (`<cliente>-erp.vercel.app`
+   sirviendo el **front+back del flujo en modo demo**, o el probador sandbox), **sin gastar un peso, sin
+   datos reales, sin passwords, sin persistencia**. **No** se compra dominio ni se activa login/base antes
+   de vender. (El concepto de `/previews` estáticos quedó **deprecado** — ver
+   `docs/PLAN-RECONVERSION-CLIENTES.md`.)
 2. **VENTA — el disparador.** La inversión se habilita **RECIÉN cuando la venta se concreta** (OK
    comercial del cliente). Antes de eso: nada de comprar link ni activar persistencia.
 3. **INVERSIÓN — después de la venta.** Recién ahí se **compra el dominio propio** y/o se **activa el

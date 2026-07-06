@@ -20,6 +20,28 @@ clics en su cuenta. Ver el reparto en el paso 4.
 
 ---
 
+## ⚠️ CONCEPTO CORREGIDO (reemplaza el de `/previews` estáticos)
+
+**El entregable de un negocio es el PRODUCTO REAL (front + backoffice) servido en su URL con nombre de
+cliente — NO una página estática.** Distinción dura, vigente:
+
+- **CLIENTES CONSOLIDADOS** (reales: **A Dos Manos · CH Estética · Magra · Shine**) = **producto REAL**
+  (front + backoffice, multi-tenant + RLS, **datos reales — FASE 2**) servido en `<cliente>-erp.vercel.app`.
+  **NO llevan preview estático.** Son clientes, no maquetas.
+- **DEMO / prospectos** (ej. **Break Point**) = **front + back que SALEN DEL FLUJO** (Generador de Preset /
+  Adaptador), servidos en una **URL con nombre del cliente solo para la demo** (**sin datos reales —
+  FASE 1**). El "demo" es **la app real en modo demo**, no una lámina.
+- **`public/previews/*` estáticos → DEPRECADOS** para los consolidados. Fueron un *stopgap*; se **retiran**
+  a medida que el producto real sirve la URL. Para prospectos pueden sobrevivir como **demo interina**
+  hasta que exista el front+back del flujo. Plan de reconversión y estado por cliente:
+  **`docs/PLAN-RECONVERSION-CLIENTES.md`**.
+
+> **En una línea:** *consolidado = producto real en su URL (sin preview estático); demo = la app del flujo
+> en modo demo, en una URL de cliente.* La lámina estática **deja de ser el entregable**; el resto de este
+> playbook (multi-tenant, `TENANT_HOST_MAP`, dos fases de credenciales) sigue vigente tal cual.
+
+---
+
 ## 🔑 FUNDAMENTO — credenciales en DOS FASES (la regla que ordena todo)
 
 El secreto se introduce **lo más tarde posible**, y **solo cuando hay algo real que proteger**. Por eso
