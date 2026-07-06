@@ -122,6 +122,11 @@
 - **Que resuelvan un problema real de la sociedad** — esos son los que remuneran de verdad y sostienen
   el negocio. El impacto social y la plata van juntos, no separados.
 
+## Memoria de la célula (ADR)
+La experiencia acumulada —motor, equipos, bajadas de línea y **aprendizajes duros**— vive en
+**`adr/ADR-CELULA-001-metodologia-y-aprendizajes.md`**. Es un **doc vivo**: el Reportero lo amplía al
+cierre de cada ciclo con lo aprendido, para no volver a recordar de memoria y mejorar cada vuelta.
+
 ## Reglas permanentes (aprendidas en los ciclos 1-2)
 - **Validar competencia LOCAL antes de puntuar alto** — el "hueco en español" hay que probarlo (así
   murieron 4 negocios en la ronda 2).
