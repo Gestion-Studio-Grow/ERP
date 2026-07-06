@@ -55,6 +55,22 @@
   desactiva el trigger); se reanuda cuando dice "seguí".
 - Cada ciclo **no repite** negocios ya cubiertos: busca ángulos nuevos o profundiza sobrevivientes.
 
+## Bajadas de línea del dueño (foco permanente del equipo creativo + analítico)
+
+> El dueño fija hacia dónde apuntar en cada ciclo de generación. Estas líneas **mandan** sobre el
+> brainstorm: si una idea no encaja con el foco, no se propone.
+
+- **Mercado LOCAL argentino primero** — pensar para acá: comportamiento pyme, informalidad, capacidad
+  real de pago, WhatsApp, estacionalidad, inflación.
+- **Integraciones con entes PÚBLICOS y PRIVADOS como diferencial** — buscar oportunidades que se
+  enchufen a organismos públicos (ARCA/AFIP, ANSES, municipios, registros, organismos provinciales) y a
+  privados (bancos, billeteras, obras sociales, cámaras, MercadoLibre). Esa integración es un moat que no
+  se copia fácil.
+- **Vendibles** — con demanda real y alguien que pueda y quiera pagar. Nada de "lindo pero no lo compra
+  nadie".
+- **Que resuelvan un problema real de la sociedad** — esos son los que remuneran de verdad y sostienen
+  el negocio. El impacto social y la plata van juntos, no separados.
+
 ## Reglas permanentes (aprendidas en los ciclos 1-2)
 - **Validar competencia LOCAL antes de puntuar alto** — el "hueco en español" hay que probarlo (así
   murieron 4 negocios en la ronda 2).
