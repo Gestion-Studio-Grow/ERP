@@ -54,6 +54,13 @@ sistema?* Sí → Opus; no (la mayoría) → Sonnet. Comandos: **`/economia`** (
 (todo en Opus, para sprints críticos) — ver `.claude/commands/economia.md` y `.claude/commands/boost.md`.
 Coherente con la prioridad de **costo sobre velocidad** del dueño.
 
+**🛡️ EXCEPCIÓN DURA, NO NEGOCIABLE:** la **Auditoría GSG** —el **Gate de Excelencia completo** (Auditoría
+SAP Fiori en TODOS sus ángulos + sello/estándar GSG)— corre **SIEMPRE en Opus 4.8**, sin excepción,
+**incluso en modo `economia`**. El resto puede ir en Sonnet 5, pero el control de calidad GSG **nunca se
+degrada de modelo**: al llegar al paso de auditar/aprobar un entregable (incluidos los presets del
+generador por IA), se escala a Opus para la auditoría. Auditar con un modelo degradado sería ahorrar
+justo donde no se debe.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.

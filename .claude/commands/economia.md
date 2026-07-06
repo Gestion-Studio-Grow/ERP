@@ -27,6 +27,23 @@ Reservá Opus para lo de **alto juicio o alto riesgo**, donde un error es caro:
 - **Auditorías de excelencia críticas** — SAP Fiori + sello GSG sobre entregables sensibles.
 - **Decisiones de alto juicio o riesgo** — algo irreversible, ambiguo, o que toca prod/Neon/deploy.
 
+## 🛡️ EXCEPCIÓN DURA, NO NEGOCIABLE — la AUDITORÍA GSG siempre en Opus 4.8
+
+**El control de calidad GSG NUNCA se degrada de modelo.** La **Auditoría GSG** —es decir, el **Gate de
+Excelencia completo**: **Auditoría SAP Fiori en TODOS sus ángulos** (5 principios + accesibilidad +
+consistencia) **+ el sello/estándar de Marca GSG**— corre **SIEMPRE en Opus 4.8** (`claude-opus-4-8`),
+**sin excepción, incluso en modo `economia`**.
+
+- El resto del trabajo puede ir en Sonnet 5 (default); **pero el momento de auditar/aprobar un entregable
+  contra el Gate se hace en Opus 4.8**, sí o sí. Si estás en Sonnet y llegás al paso de auditoría,
+  **escalá a Opus** (`/boost` o `/model opus`) para correr la auditoría, y podés volver a Sonnet después.
+- Aplica a los bloques 1 y 2 del Gate (SAP + GSG) **y** a la decisión de "pasa / no pasa" de todo
+  entregable, incluidos los **presets** del generador por IA (`docs/metodologia/generador-preset-ia.md`,
+  gate de entrega bloqueante).
+- *Por qué:* el Gate es la garantía de que nada sale por debajo del nivel GSG. Auditar con un modelo
+  degradado para ahorrar es ahorrar justo donde NO se debe — el control de calidad es lo último que se
+  economiza. Referencias: `docs/metodologia/auditoria-sap-fiori.md`, `docs/metodologia/estandar-marca-gsg.md`.
+
 ## Criterio para decidir (rápido)
 Preguntate: **¿un error acá es caro o difícil de revertir, o requiere criterio experto de sistema?**
 - **Sí** → Opus 4.8 (`/boost` o `/model opus`).
