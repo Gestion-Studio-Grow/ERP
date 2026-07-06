@@ -1,520 +1,535 @@
-<title>Panel del Dueño — Célula de Negocios Digitales</title>
+<title>Centro de Rendimiento — Célula de Negocios Digitales</title>
 
 <style>
   :root{
-    --bg:#F1F5F5; --surface:#FFFFFF; --surface-2:#E8EEEE; --raised:#FBFDFD;
-    --ink:#12201F; --ink-soft:#425655; --muted:#6E8483; --line:#D6E0DF;
-    --accent:#0E8F89; --accent-bright:#12A79F; --accent-weak:#DCEFEE;
-    --s-dev:#356FE0; --s-ok:#1E9B62; --s-warn:#B4820F; --s-dead:#BC5347; --s-idea:#7C9291;
-    --shadow:0 1px 2px rgba(10,40,38,.05), 0 8px 24px rgba(10,40,38,.06);
-    --font-display:"Helvetica Neue","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    --font-body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    --font-mono:ui-monospace,"SF Mono","SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
+    --bg:#0F1115; --surface:#171A20; --surface-2:#1E222A; --raised:#212630;
+    --ink:#EEF1F5; --ink-soft:#AAB2BD; --muted:#6E7885; --line:#2A2F3A;
+    --accent:#F5D20C; --accent-2:#FFDE3D; --accent-ink:#191703;
+    --ok:#33C36B; --warn:#FF9838; --dead:#E5564B; --idea:#8A94A2;
+    --shadow:0 2px 4px rgba(0,0,0,.3),0 14px 40px rgba(0,0,0,.4);
+    --jumbo-bg:#0C0E12; --jumbo-ink:#F3F5F8;
+    --f-display:"Arial Narrow","Helvetica Neue",Impact,system-ui,sans-serif;
+    --f-body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --f-mono:ui-monospace,"SF Mono","SFMono-Regular",Menlo,Consolas,monospace;
   }
-  @media (prefers-color-scheme:dark){:root{
-    --bg:#0B1211; --surface:#111D1B; --surface-2:#16211F; --raised:#16211F;
-    --ink:#E9F1EF; --ink-soft:#A6BBB9; --muted:#6F8785; --line:#213230;
-    --accent:#25BEB4; --accent-bright:#3ED6CC; --accent-weak:#13312E;
-    --s-dev:#5B8CF0; --s-ok:#35B879; --s-warn:#D6A11F; --s-dead:#D96B5E; --s-idea:#8AA2A0;
-    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
-  }}
   :root[data-theme="light"]{
-    --bg:#F1F5F5; --surface:#FFFFFF; --surface-2:#E8EEEE; --raised:#FBFDFD;
-    --ink:#12201F; --ink-soft:#425655; --muted:#6E8483; --line:#D6E0DF;
-    --accent:#0E8F89; --accent-bright:#12A79F; --accent-weak:#DCEFEE;
-    --s-dev:#356FE0; --s-ok:#1E9B62; --s-warn:#B4820F; --s-dead:#BC5347; --s-idea:#7C9291;
-    --shadow:0 1px 2px rgba(10,40,38,.05), 0 8px 24px rgba(10,40,38,.06);
+    --bg:#EAEDF1; --surface:#FFFFFF; --surface-2:#E6EAEF; --raised:#F3F5F8;
+    --ink:#161A22; --ink-soft:#495260; --muted:#7A8592; --line:#D7DDE4;
+    --accent:#E5B700; --accent-2:#F5CE1E; --accent-ink:#191703;
+    --ok:#1E9E56; --warn:#E67A22; --dead:#CE4438; --idea:#78828F;
+    --shadow:0 2px 4px rgba(20,30,50,.06),0 14px 34px rgba(20,30,50,.09);
   }
-  :root[data-theme="dark"]{
-    --bg:#0B1211; --surface:#111D1B; --surface-2:#16211F; --raised:#16211F;
-    --ink:#E9F1EF; --ink-soft:#A6BBB9; --muted:#6F8785; --line:#213230;
-    --accent:#25BEB4; --accent-bright:#3ED6CC; --accent-weak:#13312E;
-    --s-dev:#5B8CF0; --s-ok:#35B879; --s-warn:#D6A11F; --s-dead:#D96B5E; --s-idea:#8AA2A0;
-    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
-  }
-
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.5;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 72px}
-  .eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
-  h1,h2,h3{margin:0;text-wrap:balance;font-family:var(--font-display);letter-spacing:-.02em}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 18px 72px}
+  h1,h2,h3{margin:0;font-family:var(--f-body);letter-spacing:-.02em;text-wrap:balance}
+  .eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);font-weight:700}
 
-  header.top{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;padding-bottom:22px;border-bottom:1px solid var(--line)}
-  header.top h1{font-size:clamp(26px,4.2vw,38px);font-weight:800;line-height:1.05}
-  header.top p{margin:8px 0 0;color:var(--ink-soft);max-width:46ch;font-size:15px}
-  .badges{display:flex;gap:8px;flex-wrap:wrap}
-  .badge{font-family:var(--font-mono);font-size:11px;letter-spacing:.04em;padding:5px 10px;border-radius:999px;border:1px solid var(--line);color:var(--ink-soft);background:var(--raised);display:inline-flex;gap:6px;align-items:center}
-  .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
-  .badge.live .dot{animation:pulse 2s ease-in-out infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  /* ===== JUMBOTRON HERO ===== */
+  .hero{position:relative;margin:0 -9999px 26px;padding:0 9999px;background:var(--jumbo-bg);overflow:hidden;border-bottom:2px solid var(--accent)}
+  .hero canvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:.6}
+  .hero-inner{position:relative;max-width:1120px;margin:0 auto;padding:30px 18px 26px;z-index:2}
+  .hero-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:14px}
+  .hero h1{color:var(--jumbo-ink);font-size:clamp(30px,6vw,58px);font-weight:900;line-height:.92;letter-spacing:-.03em;text-transform:uppercase;font-style:italic}
+  .hero h1 b{color:var(--accent)}
+  .hero .sub{color:#C4CBD4;font-size:14px;margin-top:8px;max-width:44ch}
+  .hero-badges{display:flex;gap:8px;flex-wrap:wrap}
+  .hb{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;padding:5px 10px;border-radius:4px;border:1px solid #333A46;color:#C4CBD4;display:inline-flex;gap:6px;align-items:center;background:rgba(20,24,30,.6)}
+  .hb .d{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .hb.live .d{animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0 8px}
-  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-  .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
-  .kpi.warn::before{background:var(--s-warn)} .kpi.dead::before{background:var(--s-dead)}
-  .kpi .num{font-family:var(--font-mono);font-size:32px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
-  .kpi .lbl{margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.3}
+  /* scoreboard */
+  .score{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:22px}
+  .sc{background:rgba(25,29,37,.72);border:1px solid #2A303B;border-left:3px solid var(--accent);border-radius:8px;padding:12px 14px}
+  .sc .n{font-family:var(--f-display);font-size:38px;font-weight:800;font-style:italic;color:var(--jumbo-ink);line-height:.9;font-variant-numeric:tabular-nums}
+  .sc.g .n{color:var(--ok)} .sc.y .n{color:var(--warn)} .sc.acc .n{color:var(--accent)}
+  .sc .l{font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8B96A3;margin-top:6px}
 
-  section{margin-top:40px}
-  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-  .sec-head h2{font-size:19px;font-weight:700}
-  .sec-head .count{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+  /* podium */
+  .podium{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;perspective:1000px}
+  .pod{background:linear-gradient(160deg,rgba(38,43,53,.9),rgba(22,26,33,.9));border:1px solid #333A46;border-radius:12px;padding:16px;position:relative;transform-style:preserve-3d;transform:rotateX(7deg);transition:transform .3s ease;cursor:pointer;box-shadow:0 18px 30px rgba(0,0,0,.35)}
+  .pod:hover{transform:rotateX(0deg) translateZ(16px) rotateY(-3deg)}
+  .pod .medal{position:absolute;top:-12px;right:14px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-display);font-weight:900;font-size:17px;font-style:italic;color:var(--accent-ink);transform:translateZ(30px);box-shadow:0 6px 14px rgba(0,0,0,.4)}
+  .pod.p1 .medal{background:linear-gradient(145deg,#FFE45C,#F5D20C)} .pod.p2 .medal{background:linear-gradient(145deg,#D8DEE6,#AEB6C0)} .pod.p3 .medal{background:linear-gradient(145deg,#E0A264,#C07C3C)}
+  .pod .pn{font-weight:800;font-size:18px;color:var(--jumbo-ink)}
+  .pod .pt{font-size:11.5px;color:#98A2AE;margin-top:2px}
+  .pod .pbar{height:7px;background:#2A303B;border-radius:4px;margin-top:12px;overflow:hidden}
+  .pod .pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+  .pod .pv{font-family:var(--f-mono);font-weight:700;font-size:12px;color:var(--accent);margin-top:6px;display:flex;justify-content:space-between}
 
-  /* motor + waves two-col */
-  .two{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
-  .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
-  .owner-bar{display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:10px;background:var(--accent-weak);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);margin-bottom:14px}
-  .owner-bar .who{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:700;white-space:nowrap}
-  .owner-bar .txt{font-size:13px;color:var(--ink-soft)}
-  .cycle{display:flex;gap:8px;flex-wrap:wrap}
-  .step{flex:1 1 120px;background:var(--raised);border:1px solid var(--line);border-radius:11px;padding:11px 12px;min-width:120px}
-  .step .n{font-family:var(--font-mono);font-size:11px;color:var(--accent);font-weight:700}
-  .step .t{font-weight:650;font-size:13.5px;margin-top:3px}
-  .step .d{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.3}
-  .step.dev{border-color:color-mix(in srgb,var(--s-dev) 40%,var(--line))}.step.dev .n{color:var(--s-dev)}
+  /* ===== CONTROLS ===== */
+  .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:6px 0 14px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-family:var(--f-mono);font-size:12px;font-weight:600;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);padding:7px 12px;border-radius:6px;cursor:pointer;transition:.15s;display:inline-flex;gap:6px;align-items:center}
+  .chip:hover{border-color:var(--accent)}
+  .chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .chip .cc{opacity:.7;font-weight:700}
+  .sortnote{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
 
-  /* waves feed */
-  .feed{display:flex;flex-direction:column;gap:0}
-  .wave{display:grid;grid-template-columns:14px 1fr;gap:12px;padding-bottom:14px}
-  .wave .rail{display:flex;flex-direction:column;align-items:center}
-  .wave .rd{width:11px;height:11px;border-radius:50%;background:var(--accent);margin-top:3px;flex-shrink:0}
-  .wave .rl{width:2px;flex:1;background:var(--line);margin-top:4px}
-  .wave:last-child .rl{display:none}
-  .wave.done .rd{background:var(--s-ok)} .wave.curr .rd{background:var(--s-dev);box-shadow:0 0 0 4px color-mix(in srgb,var(--s-dev) 20%,transparent)} .wave.soon .rd{background:var(--muted)}
-  .wave .wt{font-weight:650;font-size:13.5px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
-  .wave .wt .wd{font-family:var(--font-mono);font-size:11px;color:var(--muted);font-weight:500}
-  .wave ul{margin:6px 0 0;padding-left:16px}
-  .wave li{font-size:12.5px;color:var(--ink-soft);margin:2px 0}
-
-  /* products */
-  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow);transition:transform .16s ease,box-shadow .16s ease;display:flex;flex-direction:column;gap:12px;cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
-  .card:hover{transform:translateY(-3px);box-shadow:0 10px 34px rgba(10,40,38,.12)}
-  .card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  .card .chead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-  .card h3{font-size:18px;font-weight:750}
-  .card .tag{font-size:12px;color:var(--muted);margin-top:2px}
-  .card .what{font-size:13.5px;color:var(--ink-soft);line-height:1.5}
-  .stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:10px;overflow:hidden;border:1px solid var(--line)}
-  .stat{background:var(--surface);padding:9px 11px}
-  .stat .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-  .stat .v{font-family:var(--font-mono);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
-  .stat .v.good{color:var(--s-ok)}
-  .seemore{font-family:var(--font-mono);font-size:11.5px;color:var(--accent);font-weight:600;display:flex;align-items:center;gap:4px}
-
-  .pill{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.02em;padding:4px 9px;border-radius:999px;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+  /* ===== LEADERBOARD ===== */
+  .board{display:flex;flex-direction:column;gap:7px}
+  .row{display:grid;grid-template-columns:52px 1fr 190px 118px;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:12px 15px;cursor:pointer;transition:transform .13s,border-color .13s,box-shadow .13s;text-align:left;font:inherit;color:inherit;width:100%}
+  .row:hover{transform:translateX(3px);border-color:var(--accent);box-shadow:var(--shadow)}
+  .row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .rank{font-family:var(--f-display);font-size:34px;font-weight:900;font-style:italic;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;line-height:1}
+  .row.top .rank{color:var(--accent)}
+  .rname{font-weight:750;font-size:16px;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .rtag{font-size:12px;color:var(--muted);margin-top:2px}
+  .fact{display:flex;flex-direction:column;gap:5px}
+  .fact .ft{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .fact .fv{font-weight:700;color:var(--ink)}
+  .fbar{height:8px;background:var(--surface-2);border-radius:5px;overflow:hidden}
+  .fbar i{display:block;height:100%;border-radius:5px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+  .fbar i.ok{background:linear-gradient(90deg,#2AA85C,var(--ok))}
+  .fbar i.warn{background:linear-gradient(90deg,#E07A26,var(--warn))}
+  .fbar i.dead{background:linear-gradient(90deg,#C0463C,var(--dead))}
+  .rstate{display:flex;justify-content:flex-end}
+  .pill{font-family:var(--f-mono);font-size:11px;font-weight:700;letter-spacing:.02em;padding:5px 10px;border-radius:6px;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
   .pill .pd{width:7px;height:7px;border-radius:50%}
-  .pill.dev{background:color-mix(in srgb,var(--s-dev) 14%,transparent);color:var(--s-dev)} .pill.dev .pd{background:var(--s-dev)}
-  .pill.ok{background:color-mix(in srgb,var(--s-ok) 15%,transparent);color:var(--s-ok)} .pill.ok .pd{background:var(--s-ok)}
-  .pill.warn{background:color-mix(in srgb,var(--s-warn) 16%,transparent);color:var(--s-warn)} .pill.warn .pd{background:var(--s-warn)}
-  .pill.dead{background:color-mix(in srgb,var(--s-dead) 15%,transparent);color:var(--s-dead)} .pill.dead .pd{background:var(--s-dead)}
-  .pill.idea{background:color-mix(in srgb,var(--s-idea) 16%,transparent);color:var(--s-idea)} .pill.idea .pd{background:var(--s-idea)}
+  .pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)} .pill.ok .pd{background:var(--ok)}
+  .pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)} .pill.warn .pd{background:var(--warn)}
+  .pill.dead{background:color-mix(in srgb,var(--dead) 16%,transparent);color:var(--dead)} .pill.dead .pd{background:var(--dead)}
 
-  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--line)}
-  .tab{font-family:var(--font-mono);font-size:12.5px;font-weight:600;color:var(--muted);background:none;border:none;padding:9px 12px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
-  .tab:hover{color:var(--ink)} .tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
-  .tab .c{opacity:.65;font-weight:500}
-  .table{width:100%;overflow-x:auto}
-  table{width:100%;border-collapse:collapse;min-width:640px}
-  thead th{text-align:left;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line)}
-  tbody td{padding:12px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:middle}
-  tbody tr{cursor:pointer;transition:background .12s} tbody tr:hover{background:var(--raised)}
-  td.name{font-weight:650;color:var(--ink);white-space:nowrap}
-  td.what{color:var(--ink-soft);max-width:340px}
-  td.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink-soft);white-space:nowrap}
+  /* ===== SECONDARY SECTIONS ===== */
+  section.sec{margin-top:38px}
+  .sh{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .sh h2{font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.01em;font-style:italic}
+  .sh .c{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:16px;box-shadow:var(--shadow)}
+  .feed{display:flex;flex-direction:column}
+  .wv{display:grid;grid-template-columns:13px 1fr;gap:11px;padding-bottom:12px}
+  .wv .rl{display:flex;flex-direction:column;align-items:center}
+  .wv .rd{width:11px;height:11px;border-radius:50%;background:var(--accent);margin-top:3px} .wv .ln{width:2px;flex:1;background:var(--line);margin-top:3px}
+  .wv:last-child .ln{display:none}
+  .wv.done .rd{background:var(--ok)} .wv.curr .rd{background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 25%,transparent)} .wv.soon .rd{background:var(--muted)}
+  .wv .wt{font-weight:700;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+  .wv .wd{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);font-weight:500}
+  .wv ul{margin:5px 0 0;padding-left:15px} .wv li{font-size:12px;color:var(--ink-soft);margin:2px 0}
+  .team{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .role{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .role .rn{font-weight:750;font-size:13.5px} .role .rd2{font-size:12px;color:var(--ink-soft);margin-top:5px}
+  .runbook{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .rb{display:grid;grid-template-columns:30px 1fr;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+  .rb .rbn{font-family:var(--f-display);font-weight:900;font-style:italic;color:var(--accent);font-size:19px;width:28px;height:28px;background:var(--surface-2);border-radius:7px;display:grid;place-items:center}
+  .rb .rbt{font-weight:700;font-size:13.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .rb .own{font-family:var(--f-mono);font-size:10px;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:5px;padding:2px 7px}
+  .rb .gate{font-family:var(--f-mono);font-size:10px;color:var(--warn)}
+  .rb .rbd{font-size:12px;color:var(--ink-soft);margin-top:3px}
 
-  /* execution team */
-  .team{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .role{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:14px;box-shadow:var(--shadow)}
-  .role .rn{font-weight:700;font-size:14px;display:flex;gap:8px;align-items:center}
-  .role .rd{font-size:12.5px;color:var(--ink-soft);margin-top:6px;line-height:1.45}
-  .runbook{counter-reset:rb;display:flex;flex-direction:column;gap:10px;margin-top:16px}
-  .rbstep{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 14px;box-shadow:var(--shadow)}
-  .rbstep .rbn{counter-increment:rb;font-family:var(--font-mono);font-weight:700;color:var(--accent);font-size:15px;width:30px;height:30px;border-radius:8px;background:var(--accent-weak);display:grid;place-items:center}
-  .rbstep .rbt{font-weight:650;font-size:14px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
-  .rbstep .owner{font-family:var(--font-mono);font-size:10.5px;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:999px;padding:2px 8px}
-  .rbstep .rbd{font-size:12.5px;color:var(--ink-soft);margin-top:4px;line-height:1.45}
-  .gate{font-family:var(--font-mono);font-size:11px;color:var(--s-warn)}
+  /* ===== DRAWER ===== */
+  .ov{position:fixed;inset:0;background:rgba(4,6,10,.6);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+  .ov.open{opacity:1;pointer-events:auto}
+  .dw{position:fixed;top:0;right:0;height:100%;width:min(600px,96vw);background:var(--surface);border-left:2px solid var(--accent);box-shadow:-24px 0 60px rgba(0,0,0,.4);transform:translateX(101%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
+  .dw.open{transform:translateX(0)}
+  .dh{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--line);padding:16px 20px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;z-index:2}
+  .dh h3{font-size:20px;font-weight:850;font-style:italic}
+  .dh .tg{font-size:12px;color:var(--muted);margin-top:3px}
+  .dh .rw{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap;align-items:center}
+  .close{border:1px solid var(--line);background:var(--raised);border-radius:7px;width:34px;height:34px;cursor:pointer;color:var(--ink);font-size:17px;flex-shrink:0}
+  .db{overflow-y:auto;padding:16px 20px 34px;display:flex;flex-direction:column;gap:15px}
+  .idxbig{background:var(--jumbo-bg);border:1px solid var(--line);border-radius:12px;padding:14px 16px;color:var(--jumbo-ink)}
+  .idxbig .ib-top{display:flex;justify-content:space-between;align-items:baseline}
+  .idxbig .ib-n{font-family:var(--f-display);font-size:44px;font-weight:900;font-style:italic;color:var(--accent);line-height:.9}
+  .idxbig .ib-l{font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8B96A3}
+  .idxbig .ib-bar{height:9px;background:#252A34;border-radius:5px;margin:11px 0 9px;overflow:hidden}
+  .idxbig .ib-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+  .idxbig .ib-why{font-size:12.5px;color:#C4CBD4}
+  .ds .dl{font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+  .ds p{margin:0;font-size:13.5px;color:var(--ink-soft);line-height:1.55}
+  .dstats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .dstats .s{background:var(--surface);padding:9px 12px}
+  .dstats .s .k{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .dstats .s .v{font-family:var(--f-mono);font-size:13.5px;font-weight:700;margin-top:2px}
+  .dstats .s .v.good{color:var(--ok)}
+  .hero-box{background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:10px;padding:12px 14px}
+  .hero-box .dl{color:var(--accent)}
+  .vrow{display:flex;gap:7px;flex-wrap:wrap}
+  .path{display:flex;flex-direction:column;gap:6px}
+  .path .pi{display:grid;grid-template-columns:20px 1fr;gap:9px;font-size:13px;color:var(--ink-soft)}
+  .path .pi .pn{font-family:var(--f-mono);font-weight:700;color:var(--accent);font-size:12px}
 
-  /* drawer */
-  .overlay{position:fixed;inset:0;background:rgba(6,20,19,.5);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
-  .overlay.open{opacity:1;pointer-events:auto}
-  .drawer{position:fixed;top:0;right:0;height:100%;width:min(580px,95vw);background:var(--surface);border-left:1px solid var(--line);box-shadow:-24px 0 60px rgba(0,0,0,.25);transform:translateX(101%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
-  .drawer.open{transform:translateX(0)}
-  .dh{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--line);padding:18px 20px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;z-index:2}
-  .dh h3{font-size:20px;font-weight:780} .dh .tag{font-size:12.5px;color:var(--muted);margin-top:3px}
-  .dh .row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
-  .close{border:1px solid var(--line);background:var(--raised);border-radius:8px;width:34px;height:34px;cursor:pointer;color:var(--ink);font-size:18px;flex-shrink:0}
-  .close:hover{background:var(--surface-2)}
-  .db{overflow-y:auto;padding:18px 20px 32px;display:flex;flex-direction:column;gap:16px}
-  .dsec .dl{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-  .dsec p{margin:0;font-size:13.5px;color:var(--ink-soft);line-height:1.55}
-  .dstats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:11px;overflow:hidden}
-  .dstats .st{background:var(--surface);padding:10px 12px}
-  .dstats .st .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-  .dstats .st .v{font-family:var(--font-mono);font-size:14px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
-  .dstats .st .v.good{color:var(--s-ok)}
-  .verdicts{display:flex;gap:8px;flex-wrap:wrap}
-  .path{counter-reset:p;display:flex;flex-direction:column;gap:7px}
-  .path .pi{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:13px;color:var(--ink-soft);align-items:start}
-  .path .pi .pn{counter-increment:p;font-family:var(--font-mono);font-weight:700;color:var(--accent);font-size:12px}
-  .path .pi .pn::before{content:counter(p)}
-  .whero{background:var(--accent-weak);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:11px;padding:12px 14px}
-  .whero .dl{color:var(--accent)}
-
-  footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
-  footer code{font-family:var(--font-mono);color:var(--ink-soft)}
-
-  @media (max-width:860px){.two{grid-template-columns:1fr}.team{grid-template-columns:1fr 1fr}}
-  @media (max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.team{grid-template-columns:1fr}}
+  footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+  footer code{font-family:var(--f-mono);color:var(--ink-soft)}
+  @media (max-width:820px){.score{grid-template-columns:repeat(2,1fr)}.podium{grid-template-columns:1fr}.two{grid-template-columns:1fr}.team{grid-template-columns:1fr}
+    .row{grid-template-columns:40px 1fr 96px;grid-template-areas:"r n s" "r f f"}.rank{font-size:26px}.fact{grid-area:f}.rstate{grid-area:s}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
+<div class="hero">
+  <canvas id="gl"></canvas>
+  <div class="hero-inner">
+    <div class="hero-top">
+      <div>
+        <div class="eyebrow">Célula de Negocios Digitales · Scouting</div>
+        <h1>Centro de<br><b>Rendimiento</b></h1>
+        <div class="sub">Todos los negocios en una tabla, ordenados por Índice de Factibilidad Real: qué tan cerca estamos de ejecutarlos por completo.</div>
+      </div>
+      <div class="hero-badges">
+        <span class="hb live"><span class="d"></span>Ciclo activo</span>
+        <span class="hb">🔒 Local</span>
+        <span class="hb">💵 US$1=$1.489</span>
+      </div>
+    </div>
+    <div class="score" id="score"></div>
+    <div class="podium" id="podium"></div>
+  </div>
+</div>
+
 <div class="wrap">
-  <header class="top">
-    <div>
-      <div class="eyebrow">Célula de I+D · Negocios Digitales</div>
-      <h1>Panel del Dueño</h1>
-      <p>Inventa, analiza y desafía negocios digitales — y te trae solo los que sobreviven, con el plan para ejecutarlos. Tocá cualquier negocio para ver el detalle completo.</p>
-    </div>
-    <div class="badges">
-      <span class="badge live"><span class="dot"></span>Ciclo semanal activo</span>
-      <span class="badge">🔒 Local · sin publicar</span>
-      <span class="badge">💵 US$1 = $1.489 (BNA 06·07)</span>
-      <span class="badge" id="upd">Act. 06·07·2026</span>
-    </div>
-  </header>
+  <div class="bar">
+    <div class="chips" id="chips"></div>
+    <div class="sortnote">▼ ordenado por Índice de Factibilidad</div>
+  </div>
+  <div class="board" id="board"></div>
 
-  <div class="kpis" id="kpis"></div>
-
-  <section>
-    <div class="sec-head"><h2>Cómo funciona · y qué cargó cada wave</h2><span class="count">reportería en vivo por ciclo</span></div>
+  <section class="sec">
+    <div class="sh"><h2>Reportería · qué cargó cada wave</h2><span class="c">el ciclo corre hasta que digas frená</span></div>
     <div class="two">
-      <div class="panel">
-        <div class="owner-bar"><span class="who">Vos, dueño</span><span class="txt">En la cúspide: ponés la visión, priorizás y das el GO. El resto se mueve solo.</span></div>
-        <div class="cycle">
-          <div class="step"><div class="n">01</div><div class="t">Generar + Analizar</div><div class="d">Creativos + analistas con datos reales.</div></div>
-          <div class="step"><div class="n">02</div><div class="t">Desafiar</div><div class="d">Red-team de 2 intenta tumbarlo.</div></div>
-          <div class="step"><div class="n">03</div><div class="t">Entregar</div><div class="d">Resumen con números para vos.</div></div>
-          <div class="step dev"><div class="n">04</div><div class="t">Ejecutar</div><div class="d">Al dar el GO, el squad lo pone en marcha.</div></div>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="eyebrow" style="margin-bottom:12px">Reportería · qué cargó cada wave</div>
-        <div class="feed" id="feed"></div>
+      <div class="panel"><div class="feed" id="feed"></div></div>
+      <div class="panel" id="teambox">
+        <div class="eyebrow" style="margin-bottom:10px">Equipo de ejecución · se activa con tu GO</div>
+        <div class="team" id="team"></div>
       </div>
     </div>
-  </section>
-
-  <section>
-    <div class="sec-head"><h2>En desarrollo ahora</h2><span class="count">4 productos · tocá para el detalle</span></div>
-    <div class="grid" id="prodgrid"></div>
-  </section>
-
-  <section>
-    <div class="sec-head"><h2>Cartera completa</h2><span class="count">filtrá por pestaña · tocá una fila</span></div>
-    <div class="tabs" role="tablist">
-      <button class="tab" role="tab" aria-selected="true" data-cat="all">Todos <span class="c" id="c-all"></span></button>
-      <button class="tab" role="tab" aria-selected="false" data-cat="dev">En desarrollo <span class="c" id="c-dev"></span></button>
-      <button class="tab" role="tab" aria-selected="false" data-cat="warn">En cola <span class="c" id="c-warn"></span></button>
-      <button class="tab" role="tab" aria-selected="false" data-cat="dead">Descartados <span class="c" id="c-dead"></span></button>
-      <button class="tab" role="tab" aria-selected="false" data-cat="idea">Ideas (ronda 1) <span class="c" id="c-idea"></span></button>
-    </div>
-    <div class="table"><table><thead><tr><th>Negocio</th><th>Qué es</th><th>Precio ref.</th><th>Estado</th></tr></thead><tbody id="rows"></tbody></table></div>
-  </section>
-
-  <section>
-    <div class="sec-head"><h2>Equipo de ejecución</h2><span class="count">el squad que se activa cuando das el GO</span></div>
-    <div class="team" id="team"></div>
-    <div class="sec-head" style="margin-top:26px"><h2 style="font-size:16px">De tu GO al primer peso — end to end</h2></div>
+    <div class="sh" style="margin-top:24px"><h2>De tu GO al primer peso</h2></div>
     <div class="runbook" id="runbook"></div>
   </section>
 
   <footer>
-    <span>El ciclo corre hasta que digas <code>frená</code> · pedí <code>status</code> cuando quieras · para lanzar un negocio, decí <code>GO [nombre]</code>.</span>
-    <span>Todo local · nada publicado</span>
+    <span>Pedí <code>status</code> · dá el <code>GO [negocio]</code> · el ciclo sigue hasta <code>frená</code></span>
+    <span>Índice = validación + producto construido + camino a cobrar + riesgo. Todo local.</span>
   </footer>
 </div>
 
-<div class="overlay" id="overlay"></div>
-<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dk-name">
-  <div class="dh">
-    <div><h3 id="dk-name"></h3><div class="tag" id="dk-tag"></div><div class="row" id="dk-row"></div></div>
-    <button class="close" id="dk-close" aria-label="Cerrar">✕</button>
-  </div>
-  <div class="db" id="dk-body"></div>
+<div class="ov" id="ov"></div>
+<aside class="dw" id="dw" role="dialog" aria-modal="true" aria-labelledby="dwn">
+  <div class="dh"><div><h3 id="dwn"></h3><div class="tg" id="dwt"></div><div class="rw" id="dwr"></div></div><button class="close" id="dwx" aria-label="Cerrar">✕</button></div>
+  <div class="db" id="dwb"></div>
 </aside>
 
 <script>
 const DATA=[
- {cat:'dev',name:'Kudos',tag:'Reseñas en piloto automático · Activo',st:'dev',label:'En desarrollo',
-  cliente:{primero:'Arrancar por la red caliente: un local conocido (peluqueria o restaurante del barrio) como beta pago. La venta la cierra una demo de 5 minutos mostrando su ranking de hoy contra como quedaria — el before/after de estrellas se vende solo.',mas:'Venta por rubro (todas las peluquerias, despues todas las cafeterias) + referidos entre comercios de la misma zona (los duenos se conocen) + un caso de exito con numeros reales. Canal frio: outreach por WhatsApp/Instagram mostrandole su reputacion actual.'},
-  opera:'Maria tiene una peluqueria. Pega el QR de Kudos en el mostrador; un cliente contento lo escanea y deja 5★ en Google. Otro deja 3★ quejandose de la espera y Kudos le responde en 2 minutos con una disculpa y una solucion. A fin de mes Maria paso de 4,2 a 4,6★ y aparece primera en el mapa de su barrio — sin haber tocado nada.',
-  roi:{arr:'2–3 semanas de trabajo del equipo + ~US$200 en efectivo, desglosado: WhatsApp Business API ~US$50, hosting + dominio ~US$30, setup de Google Business ~US$20 y ~US$100 de credito de IA para las pruebas. El grueso es tiempo, no plata.',real:'A los ~6 meses con 15 locales: US$1.800/mes de ingreso, ~US$75 de costo → ≈ US$1.700/mes de ganancia. A los 12 meses con 40 locales: ≈ US$4.700/mes.',pay:'El cash se recupera con el 2º local; el esfuerzo de build se paga en el primer mes a 15 locales.'},
-  quees:'Un servicio que le consigue reseñas de 5★ a un comercio (QR en el ticket o WhatsApp después de la compra) y responde el 100% de las reseñas con la voz de la marca. Más reseñas buenas = más ventas y mejor ranking en Google.',
-  construir:'Webhook de Google Business Profile + WhatsApp + generador de respuestas con Claude Sonnet (voz de marca cacheada) + tablero de estrellas. El corazón ya está: rutea 1★→revisión humana / 5★→autopublica, escala temas sensibles y cumple la política anti-"gating" de Google.',
-  cobra:'Suscripción US$99–149/mes por local + setup opcional US$100–200. En pesos por Mercado Pago o USD por Merchant of Record.',
+ {cat:'dev',name:'Kudos',tag:'Reseñas en piloto automático · Activo',idx:82,prod:'ok',prodwhy:'Producto con el corazón ya construido, doble-verde en plata (mejor margen del lote) y MVP corto. Solo falta cablear las APIs reales y salir a vender.',
+  quees:'Un servicio que le consigue resenas de 5 estrellas a un comercio (QR en el ticket o WhatsApp post-venta) y responde el 100% de las resenas con la voz de la marca. Mas resenas buenas = mas ventas.',
+  opera:'Maria tiene una peluqueria. Pega el QR en el mostrador; un cliente deja 5 estrellas, otro deja 3 quejandose y Kudos le responde en 2 minutos. A fin de mes paso de 4,2 a 4,6 y aparece primera en el mapa de su barrio.',
   nums:{Build:'2–3 sem',COGS:'US$3–10/mes',Precio:'US$99–149/mes',Margen:'90–95%',['Para US$5k/mes']:'35–50 locales',['1er peso']:'3–5 sem'},
-  mercado:'Reputación online: mercado de US$6,9–8,9 mil M creciendo ~13%/año. Birdeye cobra US$299–449 por local → hay techo de 3× para entrar más barato. El segmento pyme hispano está muy poco servido.',
-  riesgos:'Se vende de a un local por vez (venta atomizada). La política de Google prohíbe pedir reseñas solo a los contentos → ya está el guardarraíl. Moat acumulativo: cuanto más gestionás, más caro le sale irse.',
-  rt:{m:'🟡 Herido (competencia)',p:'🟢 Sobrevive (mejor margen)'},
-  dev:{s:'Kickoff completo · demo offline verificada',n:'conectar Sonnet real + Google y probar 50+ reseñas'},
-  path:['Cablear IA real + Google Business Profile','Probar 50+ reseñas reales y afinar el ruteo','Marca + landing "gestionamos tus reseñas"','Cobro MP US$99–149 + facturación','Conseguir 2–3 locales beta de la red cercana (demo 5 min)','Operar: reporte mensual de estrellas = ROI']},
+  roi:{arr:'2–3 semanas + ~US$200 en efectivo: WhatsApp API ~US$50, hosting+dominio ~US$30, setup Google ~US$20 y ~US$100 de credito de IA.',real:'A los ~6 meses con 15 locales: ~US$1.700/mes de ganancia. A los 12 meses con 40 locales: ~US$4.700/mes.',pay:'El cash se recupera con el 2o local.'},
+  cliente:{primero:'Un local conocido (peluqueria o resto del barrio) como beta pago; la demo de 5 minutos mostrando su ranking de hoy vs como quedaria cierra sola.',mas:'Venta por rubro + referidos entre comercios de la zona (se conocen) + un caso con numeros. Outreach frio por WhatsApp mostrandole su reputacion.'},
+  construir:'GBP + WhatsApp + Claude Sonnet (voz de marca cacheada) + tablero. Corazon listo: rutea 1 estrella a revision / 5 autopublica, escala temas sensibles, cumple politica anti-gating de Google.',
+  cobra:'Suscripcion US$99–149/mes por local + setup US$100–200. MP o USD por MoR.',
+  mercado:'Reputacion online: US$6,9–8,9 mil M, +13%/ano. Birdeye cobra US$299–449 → techo de 3x. Segmento pyme hispano poco servido.',
+  riesgos:'Venta atomizada (de a un local). Moat acumulativo: cuanto mas gestionas, mas caro le sale irse.',
+  rt:{m:'ok',p:'ok'},dev:{s:'Kickoff completo, demo verificada',n:'conectar Sonnet real + Google, probar 50+ resenas'},
+  path:['Cablear IA real + Google Business Profile','Probar 50+ resenas y afinar ruteo','Marca + landing','Cobro MP + facturacion','2–3 locales beta de la red cercana','Operar: reporte mensual de estrellas = ROI']},
 
- {cat:'dev',name:'Fantasma',tag:'El turno noche de WhatsApp · Activo',st:'dev',label:'En desarrollo',
-  cliente:{primero:'Una pyme con dolor obvio de perder consultas de noche (barberia, gomeria, delivery). Demo imbatible: correr Fantasma un fin de semana gratis y mostrarle el reporte de los leads que se le hubieran escapado. El numero real cierra la venta.',mas:'Por rubro (el mismo guion sirve para todas las barberias) + referidos + contenido en redes mostrando conversaciones reales rescatadas. El reporte del lunes es material de marketing solo.'},
-  opera:'Una barberia cierra a las 20h. A las 23h un cliente escribe: "cuanto sale corte + barba y tienen turno el sabado?". Fantasma le contesta al toque, le cotiza, le agenda el sabado 11h y le manda el link de sena por Mercado Pago. El lunes el dueno abre el reporte: "9 turnos agendados de noche que se hubieran perdido".',
-  roi:{arr:'1–2 semanas + ~US$150 en efectivo: WhatsApp Business API ~US$50, hosting ~US$30, cuenta de Mercado Pago gratis y ~US$70 de credito de IA para afinar el agente.',real:'A los ~4 meses con 8 clientes: US$1.600/mes, ~US$160 de costo → ≈ US$1.440/mes. A los ~8 meses con 25 clientes: ≈ US$4.500/mes.',pay:'El cash se recupera con el primer cliente. Es el de caja mas rapida: primer cobro en 2–3 semanas.'},
-  quees:'Un empleado de IA que atiende el WhatsApp del negocio fuera de horario (noche y fin de semana): responde, cotiza, agenda y deja los clientes calientes anotados para la mañana. El lunes entrega un reporte de "la plata que se hubiera escapado".',
-  construir:'Reúsa el stack WhatsApp + agente Claude Sonnet + Mercado Pago. Corazón construido: máquina de estados con dos límites de margen, motor de COGS por conversación y pricing por uso. Typechea limpio y la demo corre (cotiza, agenda, genera link de pago).',
-  cobra:'Suscripción POR USO (tope + excedente), nunca plana: Básica US$120/100 conv · Pro US$249/250 · Full US$399/500. El excedente siempre supera el costo → cada conversación extra es rentable. + fee opcional por lead.',
-  nums:{Build:'1–2 sem',COGS:'US$15–30/mes*',Precio:'US$120–399/mes',Margen:'80–85%',['Para US$5k/mes']:'~25 clientes',['1er peso']:'2–3 sem'},
-  mercado:'El mercado de "recepcionista IA" está validado (decenas de players en inglés). El wedge es: español rioplatense + solo la franja noche/finde (más fácil de vender que reemplazar toda la recepción) + canal WhatsApp. Un contestador humano cuesta US$200–7.000/mes.',
-  riesgos:'La trampa del COGS variable (se dispara con volumen) → blindado con pricing por uso desde el día 1. Dependencia de Meta/WhatsApp (políticas, baneos).',
-  rt:{m:'🟡 Herido (comoditización)',p:'🟢 Sobrevive (con pricing por uso)'},
-  dev:{s:'Kickoff completo · tsc verde + demo real',n:'validar COGS con 20 conversaciones de barbería y cablear Sonnet real'},
-  path:['Cablear Sonnet real + validar COGS con 20 conversaciones','Setear WhatsApp Business API + guion por rubro','Marca + landing "contratá el turno noche"','Cobro por uso (tope+excedente) + MP','Primer piloto: una pyme con mucho WhatsApp nocturno','Reporte del lunes de leads rescatados']},
-
- {cat:'dev',name:'Testigo',tag:'Parte de trabajo por foto+audio · Activo',st:'dev',label:'En desarrollo',
-  cliente:{primero:'Un contratista faro de control de plagas (3-8 operarios): se le arma gratis el primer mes a cambio de ser caso de exito. El parte para bromatologia es un must, no un nice-to-have, asi que el dolor es real.',mas:'Por rubro y por camara/gremio (asociaciones de control de plagas) + boca a boca entre contratistas + el cliente final (el restaurante que recibe el parte) pregunta "quien te lo hace?". Despues, rubros adyacentes: obras, mantenimiento, jardineria.'},
-  opera:'Una empresa de fumigacion termina un trabajo en un restaurante. El operario saca 2 fotos y manda un audio: "apliqué tal producto, foco en cocina y deposito, reingreso en 4 horas". Testigo arma el certificado con las fotos, el detalle y la firma y se lo envia al restaurante, que lo necesita si o si para bromatologia. El contratista entrega algo profesional y cobra mas caro.',
-  roi:{arr:'3–4 semanas + ~US$200 en efectivo: WhatsApp API ~US$50, hosting ~US$30, transcripcion de audio + generacion de PDF ~US$40 y ~US$80 de credito de IA para las pruebas.',real:'A los ~6 meses con 10 contratistas (≈50 operarios): ≈ US$1.000/mes casi todo ganancia. A los 12 meses con 40 cuadrillas: ≈ US$4.000–4.500/mes.',pay:'El cash se recupera con el primer contratista. Retencion altisima → ingreso muy estable una vez instalado.'},
-  quees:'Para plomeros, obras, jardineros, fumigadores. El operario manda una foto + un audio por WhatsApp y recibe un informe de trabajo profesional (foto antes/después, checklist, firma) en PDF para mostrarle al cliente. Hace que el laburo se vea prolijo y se cobre más caro.',
-  construir:'Ingesta WhatsApp (foto+voz) → transcripción + Claude Sonnet estructura el parte → PDF. Corazón construido con salida estructurada y una regla dura: nunca inventa datos regulatorios (los marca pendientes y repregunta). Rubro faro elegido: control de plagas (el parte es obligatorio por bromatología).',
-  cobra:'Suscripción US$15–30 por operario/mes (un contratista de 5 = US$75–150/mes). MP o USD.',
+ {cat:'dev',name:'Testigo',tag:'Parte de trabajo por foto+audio · Activo',idx:78,prod:'ok',prodwhy:'Doble-verde en el red-team, el mas defendible del lote y con el corazon construido. Falta el pipeline real end-to-end y el primer contratista.',
+  quees:'Para plomeros, obras, jardineros, fumigadores. El operario manda foto + audio por WhatsApp y recibe un informe de trabajo profesional en PDF para el cliente. Hace que el laburo se vea prolijo y se cobre mas caro.',
+  opera:'Una fumigadora termina en un restaurante. El operario saca 2 fotos y dice por audio: aplique tal producto, foco en cocina, reingreso 4 horas. Testigo arma el certificado con firma que el restaurante necesita para bromatologia.',
   nums:{Build:'3–4 sem',COGS:'~US$2/operario',Precio:'US$15–30/operario',Margen:'~90%',['Para US$5k/mes']:'35–50 cuadrillas',['1er peso']:'4–6 sem'},
-  mercado:'Los sistemas de campo grandes (Jobber US$39, Housecall US$49–249/técnico) son plataformas completas que el contratista chico no adopta. El hueco: "convertí el caos del WhatsApp en un parte cobrable" — barato y fácil de adoptar.',
-  riesgos:'Onboarding alto-touch al inicio y escala por rubro, no horizontal. Pero una vez que el parte es su estándar de entrega, cambiarse duele → retención altísima.',
-  rt:{m:'🟢 Sobrevive',p:'🟢 Sobrevive (doble verde)'},
-  dev:{s:'Kickoff completo · ejemplo renderizado',n:'webhook WhatsApp + transcripción + PDF real de punta a punta'},
-  path:['Webhook WhatsApp + transcripción + PDF real end-to-end','Pulir la plantilla del parte de control de plagas','Marca + landing del rubro','Cobro US$15–30/operario + MP','Contratista faro de control de plagas (3–8 operarios)','Onboarding por rubro + soporte']},
+  roi:{arr:'3–4 semanas + ~US$200 en efectivo: WhatsApp API ~US$50, hosting ~US$30, transcripcion+PDF ~US$40 y ~US$80 de credito de IA.',real:'A los ~6 meses con 10 contratistas (~50 operarios): ~US$1.000/mes casi todo ganancia. A los 12 meses con 40 cuadrillas: ~US$4.000–4.500/mes.',pay:'El cash se recupera con el primer contratista. Retencion altisima.'},
+  cliente:{primero:'Un contratista faro de control de plagas (3-8 operarios): gratis el primer mes a cambio de ser caso. El parte para bromatologia es un must.',mas:'Por rubro y por camara/gremio + boca a boca + el cliente final pregunta quien te lo hace. Despues, rubros adyacentes: obras, mantenimiento.'},
+  construir:'Ingesta WhatsApp foto+voz → transcripcion + Sonnet estructura el parte → PDF. Corazon con salida estructurada y regla dura: nunca inventa datos regulatorios (los marca pendientes y repregunta).',
+  cobra:'Suscripcion US$15–30 por operario/mes. MP o USD.',
+  mercado:'Los FSM grandes (Jobber US$39, Housecall US$49–249) son plataformas completas que el contratista chico no adopta. Hueco: convertir el caos de WhatsApp en un parte cobrable.',
+  riesgos:'Onboarding alto-touch al inicio y escala por rubro. Pero una vez que es su estandar de entrega, cambiarse duele.',
+  rt:{m:'ok',p:'ok'},dev:{s:'Kickoff completo, ejemplo renderizado',n:'webhook WhatsApp + transcripcion + PDF real'},
+  path:['Webhook WhatsApp + transcripcion + PDF end-to-end','Pulir plantilla de control de plagas','Marca + landing del rubro','Cobro US$15–30/operario + MP','Contratista faro (3–8 operarios)','Onboarding por rubro + soporte']},
 
- {cat:'dev',name:'Plantillería',tag:'Plantillas para Argentina · Pasivo',st:'dev',label:'En desarrollo',
-  cliente:{primero:'SEO long-tail transaccional ("planilla control monotributo excel") + un posteo organico en comunidades (grupos de monotributistas, emprendedores) con la plantilla estrella. La primera venta llega en dias si una pieza de contenido engancha.',mas:'Contenido continuo (Reels/TikTok mostrando la plantilla en uso) + marketplaces (Notion, Hotmart, Mercado Libre) + reviews + sumar SKUs y bundles + creadores que la recomienden. Es 60% distribucion: aca se gana o se pierde el negocio.'},
-  opera:'Un monotributista busca en Google "planilla control monotributo excel". Llega a la tienda, compra la plantilla a US$29 y la descarga al instante. Carga sus ingresos del mes y ve el semaforo que le avisa si esta por pasarse de categoria. Vos no tocaste nada: la misma plantilla se vendio otras 40 veces ese mes.',
-  roi:{arr:'1–2 semanas + ~US$150 en efectivo: dominio + hosting ~US$40, cuenta de Lemon Squeezy gratis (cobra comision por venta) y ~US$110 en plantillas base, diseno y pruebas. Casi todo es diseno, no infra.',real:'Meses 1–2: 10–20 ventas (US$350–700). A los ~5 meses, con catalogo + distribucion: meseta de ~37 ventas/mes ≈ US$1.000/mes. Con mas plantillas y audiencia: US$2.000–3.000/mes.',pay:'El cash se recupera con las primeras ~5 ventas. Al ser pago unico, el ingreso depende del trafico, no de la retencion.'},
-  quees:'Una tienda de plantillas (Excel/Notion/Docs) hechas para la realidad argentina: control de monotributo, sueldos, gastos, presupuestos por oficio. Se hacen una vez y se venden infinitas veces, sin costo de atención.',
-  construir:'Landing + checkout + entrega del archivo. El build técnico es mínimo; el valor está en el diseño (fuerte del estudio) y el know-how normativo AR. Scaffold Next.js listo (landing, producto, checkout con Lemon Squeezy, entrega). 5 plantillas definidas + pack.',
-  cobra:'Pago único US$25–75 por plantilla (pack de las 5 a US$89). Lemon Squeezy (cobra USD desde AR) o Mercado Pago.',
+ {cat:'dev',name:'Fantasma',tag:'El turno noche de WhatsApp · Activo',idx:72,prod:'warn',prodwhy:'Kickoff hecho y la caja mas rapida, PERO condicionado: solo va a produccion con pricing por uso (tope+excedente) y anclado a un vertical concreto.',
+  quees:'Un empleado de IA que atiende el WhatsApp del negocio fuera de horario (noche y finde): responde, cotiza, agenda y deja los clientes calientes para la manana. El lunes entrega un reporte de la plata que se hubiera escapado.',
+  opera:'Una barberia cierra a las 20h. A las 23h un cliente pregunta precio y turno; Fantasma cotiza, agenda el sabado y manda el link de sena por Mercado Pago. El lunes: 9 turnos de noche que se hubieran perdido.',
+  nums:{Build:'1–2 sem',COGS:'US$15–30/mes*',Precio:'US$120–399/mes',Margen:'80–85%',['Para US$5k/mes']:'~25 clientes',['1er peso']:'2–3 sem'},
+  roi:{arr:'1–2 semanas + ~US$150 en efectivo: WhatsApp API ~US$50, hosting ~US$30, MP gratis y ~US$70 de credito de IA.',real:'A los ~4 meses con 8 clientes: ~US$1.440/mes. A los ~8 meses con 25 clientes: ~US$4.500/mes.',pay:'El cash se recupera con el primer cliente. Es el de caja mas rapida.'},
+  cliente:{primero:'Una pyme con dolor obvio de perder consultas de noche (barberia, gomeria, delivery). Demo: correr Fantasma un finde gratis y mostrar el reporte de leads que se hubieran escapado.',mas:'Por rubro (el guion sirve para todas las barberias) + referidos + contenido en redes con conversaciones rescatadas.'},
+  construir:'Reusa stack WhatsApp + Sonnet + MP. Corazon: maquina de estados con dos limites de margen, motor de COGS por conversacion y pricing por uso. tsc verde + demo real.',
+  cobra:'Por uso, nunca plano: Basica US$120/100 conv, Pro US$249/250, Full US$399/500. El excedente siempre supera el COGS.',
+  mercado:'Mercado de recepcionista IA validado. Wedge: espanol rioplatense + solo franja noche + WhatsApp. Un contestador humano cuesta US$200–7.000/mes.',
+  riesgos:'La trampa del COGS variable (blindada con pricing por uso). Dependencia de Meta/WhatsApp.',
+  rt:{m:'warn',p:'ok'},dev:{s:'Kickoff completo, tsc verde + demo',n:'validar COGS con 20 conversaciones de barberia'},
+  path:['Cablear Sonnet real + validar COGS','WhatsApp Business API + guion por rubro','Marca + landing turno noche','Cobro por uso + MP','Primer piloto (pyme con WhatsApp nocturno)','Reporte del lunes de leads rescatados']},
+
+ {cat:'dev',name:'Plantillería',tag:'Plantillas para Argentina · Pasivo',idx:66,prod:'warn',prodwhy:'Tecnicamente listo (scaffold + 5 plantillas), pero todo el resultado depende de resolver la distribucion — sin audiencia, no se vende solo.',
+  quees:'Una tienda de plantillas (Excel/Notion) hechas para la realidad argentina: monotributo, sueldos, gastos, presupuestos por oficio. Se hacen una vez y se venden infinitas, sin costo de atencion.',
+  opera:'Un monotributista busca planilla control monotributo excel, compra la plantilla a US$29 y la descarga al instante. Ve el semaforo que le avisa si esta por pasarse de categoria. La misma plantilla se vendio otras 40 veces ese mes.',
   nums:{Build:'1–2 sem',COGS:'~US$0',Precio:'US$25–75 c/u',Margen:'90–95%',['Para US$1k/mes']:'~37 ventas',['1er peso']:'semanas'},
-  mercado:'El mercado de plantillas está probado pero saturado en inglés/genérico. El hueco defendible es la localización AR (monotributo, ARCA, IVA), que las plantillas globales no cubren. Creadores con 3–5 plantillas facturan US$500–3.000/mes.',
-  riesgos:'El cuello no es el costo, es la DISTRIBUCIÓN — sin audiencia, un catálogo no se vende solo. Riesgo de piratería. Sin riesgo de AI Overviews (no depende de tráfico informativo).',
-  rt:{m:'🟢 Sobrevive',p:'🟢 Sobrevive (doble verde · único 100% pasivo)'},
-  dev:{s:'Kickoff completo · scaffold + 5 plantillas',n:'construir la plantilla de Monotributo y abrir Lemon Squeezy'},
-  path:['Construir la plantilla de Monotributo contra un caso real','Abrir Lemon Squeezy con el producto cargado','Terminar landing + fichas de las 5 plantillas','Distribución: SEO long-tail + redes + comunidades/ML (el cuello)','Sumar SKUs + reviews']},
+  roi:{arr:'1–2 semanas + ~US$150 en efectivo: dominio+hosting ~US$40, Lemon Squeezy gratis y ~US$110 en plantillas base y diseno.',real:'Meses 1–2: 10–20 ventas. A los ~5 meses con catalogo + distribucion: ~US$1.000/mes. Con mas SKUs y audiencia: US$2.000–3.000/mes.',pay:'El cash se recupera con las primeras ~5 ventas.'},
+  cliente:{primero:'SEO long-tail transaccional + un posteo organico en comunidades (grupos de monotributistas) con la plantilla estrella.',mas:'Contenido continuo (Reels/TikTok) + marketplaces (Notion, Hotmart, ML) + reviews + mas SKUs. Es 60% distribucion: aca se gana o se pierde.'},
+  construir:'Landing + checkout + entrega. El valor esta en diseno + know-how normativo AR. Scaffold Next.js listo con 5 plantillas + pack.',
+  cobra:'Pago unico US$25–75 por plantilla (pack US$89). Lemon Squeezy (USD) o MP.',
+  mercado:'Mercado de plantillas probado, saturado en ingles/generico. El hueco: localizacion AR. Creadores con 3–5 plantillas facturan US$500–3.000/mes.',
+  riesgos:'El cuello es la distribucion, no el costo. Pirateria. Sin riesgo de AI Overviews.',
+  rt:{m:'ok',p:'ok'},dev:{s:'Kickoff completo, scaffold + 5 plantillas',n:'construir plantilla de Monotributo + abrir Lemon Squeezy'},
+  path:['Construir la plantilla de Monotributo','Abrir Lemon Squeezy con el producto','Landing + fichas de las 5 plantillas','Distribucion: SEO + redes + comunidades','Sumar SKUs + reviews']},
 
- {cat:'warn',name:'El Data Semanal',tag:'Newsletter de finanzas AR · Semi-pasivo',st:'warn',label:'Herido',
-  cliente:{primero:'Un lead magnet (una calculadora util o un dato exclusivo) + difusion organica en redes propias y grupos. Los primeros 500-1.000 suscriptores salen de ahi.',mas:'Referral (recomenda y gana) + colaboraciones cruzadas con otras newsletters + contenido en redes. Los sponsors llegan solos cuando la lista pasa los 3-5k suscriptores.'},
-  opera:'Cada lunes a la manana sale el email: "El dolar subio 3% esta semana, tu plazo fijo pierde contra la inflacion". 15.000 personas lo abren. Una billetera virtual paga US$400 por aparecer como sponsor esa semana.',
-  roi:{arr:'1 semana + costo de la plataforma de email.',real:'Primeros sponsors chicos (US$100–200/envio) a los 4–8 meses con 3–5k suscriptores. Ingreso serio (US$1.000+/mes) recien a los 12–18 meses con ~20k suscriptores.',pay:'Lento. El costo real es el tiempo de crecer la lista. Mejor como pieza de otro producto.'},
-  quees:'Un boletín por email: 1 dato + 1 gráfico por semana sobre la economía cotidiana argentina (dólar, plazo fijo, inflación). Se monetiza con auspiciantes (fintech, billeteras).',
-  construir:'Agente de redacción sobre fuentes públicas (INDEC/BCRA) + plataforma de email. Build de 1 semana. Lo caro no es construirlo: es crecer la lista.',
-  cobra:'Sponsors por CPM (US$20–45 en audiencia consumer AR). Con 20k suscriptores ≈ US$600 por envío. + afiliados + tier pago.',
-  nums:{Build:'1 sem',['1er sponsor']:'4–8 meses',['Ingreso serio']:'12–18 meses',['A 20k subs']:'~US$600/envío'},
-  mercado:'La demanda de "entender la guita en Argentina" es masiva y perenne. Los sponsors fintech pujan fuerte por audiencia financiera. Competencia AR existe (Cenital) pero el formato "1 dato + gráfico de autor" está poco ocupado.',
-  riesgos:'El crecimiento de la lista es lento = el verdadero costo. Es semi-pasivo (hay producción semanal).',
-  rt:{m:'🟡 Herido',p:'🟡 Herido'},
-  veredicto:'No cierra como negocio suelto (tarda 12–18 meses). Sirve como PIEZA de otro producto: una herramienta capta el email → la newsletter retiene → el sponsor paga.'},
+ {cat:'idea',name:'Recepcionista IA',tag:'Voz + WhatsApp + agenda · Ronda 1',idx:48,prod:'warn',prodwhy:'Demanda real, pero hay jugador local (Mi Agenda Profesional, con MP y plan gratis) y la voz encarece el COGS. Sin construir todavia.',score:'9/10',
+  quees:'Una recepcionista de IA (voz + WhatsApp + agenda) para clinicas, esteticas y consultorios: agenda turnos, responde y baja el ausentismo.',
+  opera:'Un centro de estetica recibe llamadas y WhatsApps todo el dia; la recepcionista IA los atiende, agenda y confirma, sin recepcionista humana 24/7.',
+  nums:{Precio:'setup + US$150–500/mes',Puntaje:'9/10'},cobra:'Setup US$300–1k + US$150–500/mes.',
+  roi:{arr:'3–5 semanas + ~US$200.',real:'A US$300/mes, 20 clientes ~US$6.000/mes; la voz baja el margen a 40–60% → ~US$2.400–3.600 neto.',pay:'Ojo margen por voz. Referencia sin red-team.'},
+  cliente:{primero:'Una clinica o estetica con alto ausentismo; piloto midiendo turnos confirmados.',mas:'Por vertical + partners (proveedores de equipamiento estetico) + referidos.'},
+  mercado:'Fuerte, pero la voz sube el costo y ya hay competidor local con plan gratis. El desafiador la dejo en 🟡 (voz como add-on, entrar por un vertical).'},
 
- {cat:'warn',name:'Mapa del Barrio',tag:'Micro-directorios locales · Semi-pasivo',st:'warn',label:'Herido',
-  cliente:{primero:'Sembrar la guia con datos publicos (aparece completa el dia 1) → captar trafico local por SEO → venderle el listado destacado al comercio que ya aparece gratis (upsell natural).',mas:'Venta por WhatsApp/puerta a puerta a comercios de la zona + clonar la guia a nuevas zonas y rubros. El trafico organico que ya tiene la guia es el argumento de venta.'},
-  opera:'Alguien busca "veterinaria 24h en Lomas". Encuentra tu guia del barrio con resenas reales. La veterinaria de la esquina paga US$20/mes por aparecer primera y destacada.',
-  roi:{arr:'2–3 semanas por zona + infra.',real:'Primeros listados pagos a los 2–4 meses. US$2.000–3.000/mes recien con 100–150 comercios instalados (8–15 meses).',pay:'La venta a comercios es el trabajo real y recurrente; el retorno llega con base instalada.'},
-  quees:'Guías online hiperlocales ("veterinarias 24h en tal barrio", "quién arregla notebooks en tal zona") que se llenan con reseñas de la gente. Se les cobra a los comercios por aparecer destacados.',
-  construir:'Motor de directorio replicable + siembra inicial por agente + moderación de reseñas. MVP de un vertical/zona en 2–3 semanas; después se clona.',
-  cobra:'Listado destacado US$15–25/mes por comercio + banners. Para US$2–3k/mes: 100–150 comercios.',
-  nums:{Build:'2–3 sem',Precio:'US$15–25/comercio',['Para US$2-3k/mes']:'100–150 comercios',['1er peso']:'2–4 meses'},
-  mercado:'Los directorios locales AR son viejos y feos; sembrarlos con IA el día 1 rompe el problema del huevo-gallina. Sobrevive a los AI Overviews (datos estructurados verificados).',
-  riesgos:'La venta a comercios es trabajo activo (no es pasivo). Moderación de spam/reseñas falsas.',
-  rt:{m:'🟡 Herido',p:'🟡 Herido'}},
-
- {cat:'dead',name:'Calculadoras fiscales',tag:'Calculadoras con ads · Descartado',st:'dead',label:'Descartado',
-  opera:'Alguien busca "cuanto me queda del sueldo", usa tu calculadora gratis y ve un aviso publicitario. Problema: Google ahora responde eso sin que la persona entre, y el aviso en AR paga centavos.',
-  quees:'Una red de calculadoras (sueldo en mano, aguinaldo, indemnización) monetizada con publicidad.',
-  mercado:'Ya hay 8 sitios gratis buenos. Los AI Overviews de Google absorben el tráfico informativo y la publicidad en Argentina paga muy poco (US$2–8 por mil visitas).',
-  riesgos:'Solo tenía sentido como "feeder" de la newsletter, no como negocio propio.',
-  rt:{m:'🔴 Muerto',p:'🟡 Herido'}},
-
- {cat:'dead',name:'Cambió el Precio',tag:'Historial de precios · Descartado',st:'dead',label:'Descartado',
-  opera:'Antes de comprar una tele, el usuario revisa tu historial y ve que "la oferta" esta mas cara que hace un mes. Problema: MeliPrice y MercadoTrack ya lo hacen.',
-  quees:'Un bot/extensión que registra precios del e-commerce argentino y muestra el historial ("¿la oferta es oferta o te subieron antes?").',
-  mercado:'MeliPrice y MercadoTrack ya hacen esto. La monetización de un rastreador de precios es notoriamente floja (lección de CamelCamelCamel) y arranca en frío (sin usuarios no hay datos).',
-  riesgos:'Build alto (4–8 sem) + monetización débil + cold-start del contenido.',
-  rt:{m:'🔴 Muerto',p:'🔴 Muerto'}},
-
- {cat:'dead',name:'Mercader',tag:'Gestor de MercadoLibre · Descartado',st:'dead',label:'Descartado',
-  opera:'Un vendedor te da su cuenta de MercadoLibre y el agente responde las 40 preguntas del dia y ajusta precios. Problema: MercadoLibre ya contesta con su propia IA gratis y puede cortarte el acceso.',
-  quees:'Un servicio que toma la cuenta de MercadoLibre de un vendedor y la gestiona con IA (títulos, las ~40 preguntas diarias, precio, stock).',
-  mercado:'MercadoLibre ya responde las preguntas con su propia IA gratis. Además depende 100% de una sola plataforma que puede cambiar las reglas → riesgo existencial.',
-  riesgos:'La supervisión humana baja el margen real a 60–70%. Riesgo de concentración altísimo.',
-  rt:{m:'🔴 Muerto',p:'🟡 Herido'}},
-
- {cat:'dead',name:'Confesionario',tag:'Encuestas por voz · Descartado',st:'dead',label:'Descartado',
-  opera:'Despues de comprar, al cliente lo llama un agente y le hace 2 preguntas; vos ves un tablero de "que aman y que odian". Problema: la llamada de voz cuesta caro y ya hay competidores.',
-  quees:'Después de cada compra, un agente llama o escribe y hace 2 preguntas conversadas; arma un tablero de "qué aman / qué odian los clientes".',
-  mercado:'Ya hay competidores (Vokalis, Burbuxa). La voz cuesta 15–30× más que el texto (US$0,20–0,40 por llamada) y funde el margen si se vende plano; el insight humano no escala.',
-  riesgos:'Fuerte como producto premium dentro de un bundle, flojo como motor de volumen barato.',
-  rt:{m:'🔴 Muerto',p:'🟡 Herido'}},
-
- {cat:'idea',name:'Postora',tag:'Community manager con IA · Ronda 1',cliente:{primero:'Un comercio conocido: mostrarle un mes de contenido ya hecho gratis. Ver los posteos listos con su marca convence solo.',mas:'Por rubro + referidos + el propio feed del cliente es la vidriera que atrae al proximo.'},st:'idea',label:'Idea · sin desafiar',score:'9/10',
-  opera:'Una cafeteria contrata Postora; cada semana recibe listos para publicar los posteos del mes con su identidad, fotos y textos, sin contratar un community manager.',
-  roi:{arr:'4–6 semanas + ~US$150.',real:'A US$45/mes: 40 comercios ≈ US$1.800/mes; 100 comercios ≈ US$4.500/mes.',pay:'Numeros de referencia — todavia sin red-team; validar demanda local antes de invertir.'},
-  quees:'Un community manager de IA para comercios de barrio (gastronomía, estética, gimnasios): les arma y agenda un mes de contenido con la identidad de la marca.',
-  cobra:'Suscripción US$29–59/mes.',nums:{Precio:'US$29–59/mes',Puntaje:'9/10'},
-  mercado:'Categoría ya validada por competidores (Velari, Presly). Aprovecha directamente la ventaja de diseño del estudio. Todavía no pasó por el red-team.'},
- {cat:'idea',name:'Recepcionista IA',tag:'Voz + WhatsApp + agenda · Ronda 1',cliente:{primero:'Una clinica o estetica con alto ausentismo; piloto midiendo turnos confirmados.',mas:'Por vertical + partners (proveedores de equipamiento estetico) + referidos.'},st:'idea',label:'Idea · sin desafiar',score:'9/10',
-  opera:'Un centro de estetica recibe llamadas y WhatsApps todo el dia; la recepcionista IA los atiende, agenda turnos y confirma, bajando el ausentismo, sin recepcionista humana 24/7.',
-  roi:{arr:'3–5 semanas + ~US$200.',real:'A US$300/mes, 20 clientes ≈ US$6.000/mes; pero la voz baja el margen a 40–60% → ≈ US$2.400–3.600 neto.',pay:'Ojo margen por voz. Referencia sin red-team.'},
-  quees:'Una recepcionista de IA (voz + WhatsApp + agenda) para clínicas, estéticas y consultorios: agenda turnos, responde y baja el ausentismo.',
-  cobra:'Setup US$300–1k + US$150–500/mes.',nums:{Precio:'setup + US$150–500/mes',Puntaje:'9/10'},
-  mercado:'Fuerte, pero la voz sube el costo (margen 40–60%). Se cobra por uso. Falta el red-team.'},
- {cat:'idea',name:'Directorio B2B',tag:'Directorio + venta de leads · Ronda 1',cliente:{primero:'Sembrar el directorio con datos + conseguir el primer comprador de leads del rubro.',mas:'SEO + venta a los proveedores que quieren esos leads + clonar a nuevos rubros.'},st:'idea',label:'Idea · sin desafiar',score:'8.5/10',
-  opera:'Una empresa busca "proveedor de packaging"; tu directorio le muestra opciones y te paga por pasarle ese contacto calificado al proveedor.',
-  roi:{arr:'2–4 semanas.',real:'Mix de listados + leads a US$30–50: con 50 leads/mes ≈ US$1.500–2.500/mes.',pay:'Referencia sin red-team.'},
-  quees:'Un directorio de un rubro con datos propios que le vende contactos de clientes (leads) a los proveedores.',
-  cobra:'Leads US$30–50 + listados premium + suscripción.',nums:{Precio:'US$30–50/lead',Puntaje:'8.5/10'},
-  mercado:'El activo más defensible ante los AI Overviews (datos propios + intención transaccional).'},
- {cat:'idea',name:'VetVoz',tag:'Historia clínica por voz · Ronda 1',cliente:{primero:'Una veterinaria faro con prueba gratis de 2 semanas.',mas:'Colegios y asociaciones veterinarias + boca a boca gremial.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
-  opera:'El veterinario termina de revisar un perro y dicta en voz alta lo que hizo; VetVoz arma la historia clinica completa en la ficha, sin tipear.',
-  roi:{arr:'4–6 semanas.',real:'A US$40/mes, 60 veterinarias ≈ US$2.400/mes.',pay:'Demanda creciendo fuerte; referencia sin red-team.'},
-  quees:'Un copiloto que dicta la historia clínica por voz para veterinarias de LATAM (el vet habla, el sistema arma la ficha).',
-  cobra:'Suscripción mensual.',nums:{Precio:'suscripción',Puntaje:'8/10'},
-  mercado:'La búsqueda de "veterinary AI" creció +1.680% interanual; los gestores vet de LATAM aún no tienen esto en español.'},
- {cat:'idea',name:'Vitrina',tag:'Fotos de producto con IA · Ronda 1',cliente:{primero:'Vendedores de Mercado Libre/Instagram via free trial con creditos.',mas:'Freemium viral + integracion con marketplaces.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
-  opera:'Un vendedor saca una foto casera de una zapatilla con el celular; Vitrina la convierte en foto profesional con fondo limpio y le arma el titulo y la descripcion para publicar.',
-  roi:{arr:'3–4 semanas.',real:'Freemium: 300 pagos a US$10 ≈ US$3.000/mes (volumen alto, ticket bajo).',pay:'Riesgo de comoditizacion; referencia sin red-team.'},
-  quees:'Sube una foto casera de un producto y devuelve foto profesional + ficha lista para Mercado Libre / Instagram / WhatsApp.',
-  cobra:'Freemium + créditos.',nums:{Precio:'freemium + créditos',Puntaje:'8/10'},
-  mercado:'Referencia de precio: Photoroom US$7,50/mes. Aprovecha el diseño del estudio.'},
- {cat:'idea',name:'Back-office AFIP',tag:'Conciliación con IA · Ronda 1',cliente:{primero:'Un contador con cartera: le automatizas un cliente gratis como prueba.',mas:'El contador trae su cartera entera (canal) + referidos entre estudios.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
-  opera:'Un contador con 50 clientes recibe facturas por todos lados; el agente las concilia y las cruza con AFIP solo, ahorrandole dias de trabajo manual.',
-  roi:{arr:'4–6 semanas.',real:'A US$800/mes, 10 clientes ≈ US$8.000/mes (mayor ticket).',pay:'Ciclo de venta mas largo; referencia sin red-team.'},
+ {cat:'idea',name:'Back-office AFIP',tag:'Conciliación con IA · Ronda 1',idx:46,prod:'warn',prodwhy:'Ticket alto y canal claro (el contador aliado), pero ya hay locales-IA (Genio Contable, ConciliaBot). Va con condicion: entrar por un contador-canal.',score:'8/10',
   quees:'Un agente que concilia facturas y AFIP para pymes y contadores (el trabajo administrativo tedioso, automatizado).',
-  cobra:'Retainer US$500–2k/mes.',nums:{Precio:'US$500–2k/mes',Puntaje:'8/10'},
-  mercado:'Mayor ticket y stickiness; canal natural: contadores. Falta el red-team.'},
- {cat:'idea',name:'Comparador con afiliados',tag:'Comparador transaccional · Ronda 1',cliente:{primero:'SEO en un nicho con intencion de compra clara.',mas:'Sumar nichos + contenido; el trafico compone solo.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
-  opera:'Alguien compara seguros o servicios en tu sitio, hace clic y contrata; vos cobras una comision recurrente por esa venta.',
-  roi:{arr:'2–3 semanas.',real:'Comisiones recurrentes: escalable a US$1.000–3.000/mes con trafico.',pay:'Cero friccion de cobro; referencia sin red-team.'},
-  quees:'Un comparador de un nicho con intención de compra que cobra comisión de afiliado (recurrente y vitalicia).',
-  cobra:'Comisión de afiliado.',nums:{Precio:'comisión',Puntaje:'8/10'},
-  mercado:'MVP rápido y cero fricción de cobro; intención transaccional que sobrevive a los AI Overviews.'},
- {cat:'idea',name:'Calificación de leads',tag:'Filtro de leads por WhatsApp · Ronda 1',cliente:{primero:'Una inmobiliaria o concesionaria con muchas consultas; el fee por resultado baja el riesgo de probar.',mas:'Por vertical de ticket alto + sinergia con el marketing del estudio.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
-  opera:'Una inmobiliaria recibe 100 consultas por WhatsApp; el agente filtra las serias de las curiosas y le pasa al vendedor solo las que valen la pena.',
-  roi:{arr:'2–3 semanas.',real:'Retainer + fee: 10 clientes de ticket alto ≈ US$2.000–4.000/mes.',pay:'Referencia sin red-team.'},
+  opera:'Un contador con 50 clientes recibe facturas por todos lados; el agente las concilia y las cruza con AFIP solo, ahorrandole dias de trabajo.',
+  nums:{Precio:'US$500–2k/mes',Puntaje:'8/10'},cobra:'Retainer US$500–2k/mes.',
+  roi:{arr:'4–6 semanas.',real:'A US$800/mes, 10 clientes ~US$8.000/mes (mayor ticket).',pay:'Ciclo de venta mas largo; referencia sin red-team.'},
+  cliente:{primero:'Un contador con cartera: le automatizas un cliente gratis como prueba.',mas:'El contador trae su cartera entera (canal) + referidos entre estudios.'},
+  mercado:'Competencia de locales-IA ya establecidos. El desafiador lo deja 🟡 si el canal es el contador aliado, no venta directa a la pyme.'},
+
+ {cat:'idea',name:'Calificación de leads',tag:'Filtro de leads por WhatsApp · Ronda 1',idx:44,prod:'warn',prodwhy:'Buen negocio, pero el desafiador dice que rinde mas como TIER PREMIUM de Fantasma que como producto suelto. Sin construir.',score:'8/10',
   quees:'Filtra y califica clientes entrantes por WhatsApp para rubros de ticket alto (inmobiliarias, autos, salud premium).',
-  cobra:'Retainer + fee por resultado.',nums:{Precio:'retainer + fee',Puntaje:'8/10'},
-  mercado:'Sinergia directa con el marketing del estudio.'},
- {cat:'idea',name:'MediaKit.ar',tag:'Media kit en 60s · Ronda 1',cliente:{primero:'Micro-influencers via redes: el producto se demuestra en un video de 60s.',mas:'Viral organico + freemium.'},st:'idea',label:'Idea · sin desafiar',score:'7/10',
+  opera:'Una inmobiliaria recibe 100 consultas por WhatsApp; el agente filtra las serias de las curiosas y le pasa al vendedor solo las que valen la pena.',
+  nums:{Precio:'retainer + fee',Puntaje:'8/10'},cobra:'Retainer + fee por resultado.',
+  roi:{arr:'2–3 semanas.',real:'Retainer + fee: 10 clientes de ticket alto ~US$2.000–4.000/mes.',pay:'Referencia sin red-team.'},
+  cliente:{primero:'Una inmobiliaria o concesionaria con muchas consultas; el fee por resultado baja el riesgo de probar.',mas:'Por vertical de ticket alto + sinergia con el marketing del estudio.'},
+  mercado:'El desafiador recomienda ofrecerlo como upsell de Fantasma, no como marca aparte.'},
+
+ {cat:'idea',name:'Postora',tag:'Community manager con IA · Ronda 1',idx:40,prod:'warn',prodwhy:'El PMO la puntuo 9, pero el desafiador la BAJA: diferencial de contenido IA erosionable + cliente de baja paga y churn alto. No de punta de lanza.',score:'9/10',
+  quees:'Un community manager de IA para comercios de barrio (gastronomia, estetica, gimnasios): les arma y agenda un mes de contenido con la identidad de la marca.',
+  opera:'Una cafeteria contrata Postora; cada semana recibe listos para publicar los posteos del mes con su identidad, fotos y textos, sin contratar un community manager.',
+  nums:{Precio:'US$29–59/mes',Puntaje:'9/10'},cobra:'Suscripcion US$29–59/mes.',
+  roi:{arr:'4–6 semanas + ~US$150.',real:'A US$45/mes: 40 comercios ~US$1.800/mes; 100 comercios ~US$4.500/mes.',pay:'Contra-recomendacion del desafiador: no largarla de punta de lanza.'},
+  cliente:{primero:'Un comercio conocido: mostrarle un mes de contenido ya hecho gratis.',mas:'Por rubro + referidos + el propio feed del cliente es la vidriera.'},
+  mercado:'Categoria validada (Velari, Presly) pero el contenido IA se comoditiza y el cliente paga poco y se va rapido.'},
+
+ {cat:'idea',name:'Directorio B2B',tag:'Directorio + venta de leads · Ronda 1',idx:34,prod:'dead',prodwhy:'Defendible ante los AI Overviews, pero la venta B2B es lenta y sin construir. El desafiador lo deja fuera del arranque.',score:'8.5/10',
+  quees:'Un directorio de un rubro con datos propios que le vende contactos de clientes (leads) a los proveedores.',
+  opera:'Una empresa busca proveedor de packaging; tu directorio le muestra opciones y te paga por pasarle ese contacto calificado.',
+  nums:{Precio:'US$30–50/lead',Puntaje:'8.5/10'},cobra:'Leads US$30–50 + listados premium.',
+  roi:{arr:'2–4 semanas.',real:'Mix de listados + leads: con 50 leads/mes ~US$1.500–2.500/mes.',pay:'Venta B2B lenta; referencia sin red-team.'},
+  cliente:{primero:'Sembrar el directorio con datos + conseguir el primer comprador de leads del rubro.',mas:'SEO + venta a proveedores que quieren esos leads + clonar a nuevos rubros.'},
+  mercado:'El activo mas defensible ante IA, pero requiere venta activa a proveedores.'},
+
+ {cat:'idea',name:'Comparador con afiliados',tag:'Comparador transaccional · Ronda 1',idx:33,prod:'dead',prodwhy:'Build barato y cero friccion de cobro, pero depende 100% de traffic que hay que ganar. Sin construir; queda fuera del arranque.',score:'8/10',
+  quees:'Un comparador de un nicho con intencion de compra que cobra comision de afiliado (recurrente y vitalicia).',
+  opera:'Alguien compara seguros o servicios en tu sitio, hace clic y contrata; vos cobras una comision recurrente por esa venta.',
+  nums:{Precio:'comision',Puntaje:'8/10'},cobra:'Comision de afiliado recurrente.',
+  roi:{arr:'2–3 semanas.',real:'Comisiones recurrentes: escalable a US$1.000–3.000/mes con trafico.',pay:'Referencia sin red-team.'},
+  cliente:{primero:'SEO en un nicho con intencion de compra clara.',mas:'Sumar nichos + contenido; el trafico compone solo.'},
+  mercado:'Depende de ganar trafico organico, cada vez mas caro con los AI Overviews.'},
+
+ {cat:'warn',name:'Mapa del Barrio',tag:'Micro-directorios locales · Semi-pasivo',idx:30,prod:'dead',prodwhy:'Sobrevive a Google, pero la venta a comercios es trabajo activo disfrazado de pasivo. El red-team lo deja fuera de produccion.',
+  quees:'Guias online hiperlocales (veterinarias 24h en tal barrio) que se llenan con resenas de la gente. Se cobra a los comercios por aparecer destacados.',
+  opera:'Alguien busca veterinaria 24h en Lomas. Encuentra tu guia del barrio con resenas reales. La veterinaria de la esquina paga US$20/mes por aparecer primera.',
+  nums:{Build:'2–3 sem',Precio:'US$15–25/comercio',['Para US$2-3k/mes']:'100–150 comercios',['1er peso']:'2–4 meses'},
+  roi:{arr:'2–3 semanas por zona + infra.',real:'US$2.000–3.000/mes recien con 100–150 comercios instalados (8–15 meses).',pay:'La venta a comercios es el trabajo real y recurrente.'},
+  cliente:{primero:'Sembrar la guia con datos publicos → captar trafico local → venderle el listado destacado al comercio que ya aparece gratis.',mas:'Venta por WhatsApp a comercios de la zona + clonar a nuevas zonas y rubros.'},
+  mercado:'Directorios locales AR viejos y feos; sembrar con IA rompe el huevo-gallina. Pero es negocio local replicable, no pasivo.',
+  riesgos:'Venta B2B recurrente + moderacion de spam.',rt:{m:'warn',p:'warn'}},
+
+ {cat:'warn',name:'El Data Semanal',tag:'Newsletter de finanzas AR · Semi-pasivo',idx:28,prod:'dead',prodwhy:'Tarda 12–18 meses en pagar y no cierra como negocio solo. Sirve como pieza de otro producto, no para produccion propia.',
+  quees:'Un boletin por email: 1 dato + 1 grafico por semana sobre la economia cotidiana argentina (dolar, plazo fijo, inflacion). Se monetiza con auspiciantes.',
+  opera:'Cada lunes sale el email: el dolar subio 3% esta semana, tu plazo fijo pierde contra la inflacion. 15.000 personas lo abren. Una billetera paga US$400 por aparecer como sponsor.',
+  nums:{Build:'1 sem',['1er sponsor']:'4–8 meses',['Ingreso serio']:'12–18 meses',['A 20k subs']:'~US$600/envio'},
+  roi:{arr:'1 semana + costo de plataforma de email.',real:'Ingreso serio (US$1.000+/mes) recien a los 12–18 meses con ~20k suscriptores.',pay:'Lento. El costo real es el tiempo de crecer la lista.'},
+  cliente:{primero:'Un lead magnet (calculadora o dato exclusivo) + difusion organica; los primeros 500–1.000 subs salen de ahi.',mas:'Referral + colaboraciones cruzadas con otras newsletters. Los sponsors llegan cuando la lista pasa 3–5k.'},
+  mercado:'Demanda perenne, sponsors fintech pujan CPM, pero el activo tarda mucho en madurar.',
+  riesgos:'Crecimiento de lista lento = el verdadero costo. Semi-pasivo.',rt:{m:'warn',p:'warn'}},
+
+ {cat:'idea',name:'Vitrina',tag:'Fotos de producto con IA · Ronda 1',idx:26,prod:'dead',prodwhy:'Comoditizado por Canva/Photoroom que lo dan casi gratis. Ticket bajo, techo limitado. Fuera de produccion.',score:'8/10',
+  quees:'Sube una foto casera de un producto y devuelve foto profesional + ficha lista para Mercado Libre / Instagram / WhatsApp.',
+  opera:'Un vendedor saca una foto casera de una zapatilla con el celular; Vitrina la convierte en foto profesional con fondo limpio y le arma el titulo y la descripcion.',
+  nums:{Precio:'freemium + creditos',Puntaje:'8/10'},cobra:'Freemium + creditos.',
+  roi:{arr:'3–4 semanas.',real:'Freemium: 300 pagos a US$10 ~US$3.000/mes (volumen alto, ticket bajo).',pay:'Riesgo de comoditizacion alto.'},
+  cliente:{primero:'Vendedores de ML/Instagram via free trial con creditos.',mas:'Freemium viral + integracion con marketplaces.'},
+  mercado:'Photoroom (US$7,50/mes) y Canva ya lo hacen; el diferencial se erosiona rapido.'},
+
+ {cat:'idea',name:'VetVoz',tag:'Historia clínica por voz · Ronda 1',idx:24,prod:'dead',prodwhy:'Ya existe identico en Argentina (QVET Escriba, SmartVet, VetPraxis). El desafiador lo mato con research: no hay hueco.',score:'8/10',
+  quees:'Un copiloto que dicta la historia clinica por voz para veterinarias de LATAM (el vet habla, el sistema arma la ficha).',
+  opera:'El veterinario termina de revisar un perro y dicta en voz alta lo que hizo; VetVoz arma la historia clinica completa en la ficha, sin tipear.',
+  nums:{Precio:'suscripcion',Puntaje:'8/10'},cobra:'Suscripcion mensual.',
+  roi:{arr:'4–6 semanas.',real:'A US$40/mes, 60 veterinarias ~US$2.400/mes.',pay:'El hueco ya no existe: hay producto igual en AR.'},
+  cliente:{primero:'Una veterinaria faro con prueba gratis de 2 semanas.',mas:'Colegios y asociaciones veterinarias + boca a boca gremial.'},
+  mercado:'QVET Escriba, SmartVet y VetPraxis ya ofrecen exactamente esto en el mercado local.'},
+
+ {cat:'idea',name:'MediaKit.ar',tag:'Media kit en 60s · Ronda 1',idx:22,prod:'dead',prodwhy:'Compite contra herramientas gratis (CreatorsJet, Level Up LATAM). Ticket bajo one-time. Fuera.',score:'7/10',
+  quees:'Arma el media kit (presentacion profesional + tarifario) de micro-influencers en 60 segundos.',
   opera:'Un micro-influencer necesita presentarse a marcas; en 60 segundos arma su media kit profesional con sus numeros y su tarifario.',
-  roi:{arr:'2 semanas.',real:'Ticket bajo/one-time; techo limitado por competidores gratis: US$500–1.500/mes plausible.',pay:'Referencia sin red-team.'},
-  quees:'Arma el "media kit" (presentación profesional + tarifario) de micro-influencers en 60 segundos.',
-  cobra:'Freemium / pago único.',nums:{Precio:'freemium/one-time',Puntaje:'7/10'},
-  mercado:'Diseño puro y barato de construir; techo limitado por competidores gratis.'},
- {cat:'idea',name:'PrevenIA',tag:'Compliance S&H · Ronda 1',cliente:{primero:'Una pyme con un vencimiento inminente (urgencia real).',mas:'Por camaras/ART + referidos.'},st:'idea',label:'Idea · sin desafiar',score:'7/10',
-  opera:'Una pyme tiene que cumplir con Seguridad e Higiene; PrevenIA le arma y mantiene la documentacion y le avisa los vencimientos, sin un consultor caro.',
-  roi:{arr:'4–6 semanas.',real:'Suscripcion: 30 pymes a US$40 ≈ US$1.200/mes.',pay:'Validar competencia local; referencia sin red-team.'},
+  nums:{Precio:'freemium/one-time',Puntaje:'7/10'},cobra:'Freemium / pago unico.',
+  roi:{arr:'2 semanas.',real:'Ticket bajo/one-time; techo limitado: US$500–1.500/mes plausible.',pay:'Compite contra gratis.'},
+  cliente:{primero:'Micro-influencers via redes: se demuestra en un video de 60s.',mas:'Viral organico + freemium.'},
+  mercado:'CreatorsJet y Level Up LATAM ya lo ofrecen gratis.'},
+
+ {cat:'idea',name:'PrevenIA',tag:'Compliance S&H · Ronda 1',idx:22,prod:'dead',prodwhy:'Ya hay Previnnova en el rubro y la venta es lenta/regulada. El desafiador lo deja fuera del arranque.',score:'7/10',
   quees:'Compliance de Seguridad e Higiene laboral (ART/SRT) para pymes argentinas, asistido por IA.',
-  cobra:'Suscripción.',nums:{Precio:'suscripción',Puntaje:'7/10'},
-  mercado:'Dolor regulatorio real; requiere validar competencia local.'},
- {cat:'idea',name:'GremioPro',tag:'Gestión para oficios · Ronda 1',cliente:{primero:'Un plomero o electricista conocido que ya sufre el cuaderno.',mas:'Gremios + boca a boca + adyacencia con Testigo (mismo cliente).'},st:'idea',label:'Idea · sin desafiar',score:'7/10',
+  opera:'Una pyme tiene que cumplir con Seguridad e Higiene; PrevenIA le arma y mantiene la documentacion y le avisa los vencimientos, sin un consultor caro.',
+  nums:{Precio:'suscripcion',Puntaje:'7/10'},cobra:'Suscripcion.',
+  roi:{arr:'4–6 semanas.',real:'Suscripcion: 30 pymes a US$40 ~US$1.200/mes.',pay:'Venta lenta + regulada.'},
+  cliente:{primero:'Una pyme con un vencimiento inminente (urgencia real).',mas:'Por camaras/ART + referidos.'},
+  mercado:'Previnnova ya cubre este espacio; entrar exige diferencial fuerte.'},
+
+ {cat:'idea',name:'GremioPro',tag:'Gestión para oficios · Ronda 1',idx:20,prod:'dead',prodwhy:'El oficio argentino no paga software de gestion, y hay marketplaces gratis (Tutti, Timbrit, TEGU). El desafiador lo mato.',score:'7/10',
+  quees:'Presupuesto + agenda + cobro por IA para oficios (plomeros, electricistas) en espanol, con Mercado Pago.',
   opera:'Un plomero cotiza un trabajo, lo agenda y cobra la sena por Mercado Pago, todo desde el celular, sin planillas ni cuadernos.',
-  roi:{arr:'4–6 semanas.',real:'A US$25/mes, 80 oficios ≈ US$2.000/mes.',pay:'Adyacente a Testigo; referencia sin red-team.'},
-  quees:'Presupuesto + agenda + cobro por IA para oficios (plomeros, electricistas) en español, con Mercado Pago.',
-  cobra:'Suscripción + MP.',nums:{Precio:'suscripción + MP',Puntaje:'7/10'},
-  mercado:'Adyacente a Testigo; comparte perfil de cliente.'}
+  nums:{Precio:'suscripcion + MP',Puntaje:'7/10'},cobra:'Suscripcion + MP.',
+  roi:{arr:'4–6 semanas.',real:'A US$25/mes, 80 oficios ~US$2.000/mes.',pay:'El oficio AR no paga gestion.'},
+  cliente:{primero:'Un plomero o electricista conocido que ya sufre el cuaderno.',mas:'Gremios + boca a boca + adyacencia con Testigo.'},
+  mercado:'Tutti, Timbrit y TEGU ya conectan oficios gratis; la disposicion a pagar por gestion es muy baja.'},
+
+ {cat:'dead',name:'Confesionario',tag:'Encuestas por voz · Descartado',idx:14,prod:'dead',prodwhy:'La voz funde el margen (15–30x el texto) y ya hay competidores (Vokalis, Burbuxa). Muerto en dos rondas.',
+  quees:'Despues de cada compra, un agente llama o escribe y hace 2 preguntas conversadas; arma un tablero de que aman y que odian los clientes.',
+  opera:'Despues de comprar, al cliente lo llama un agente y le hace 2 preguntas; vos ves un tablero. Problema: la voz cuesta caro y ya hay competidores.',
+  mercado:'Vokalis y Burbuxa son el mismo negocio; la voz cuesta US$0,20–0,40 por llamada y hunde el margen si se vende plano.',
+  riesgos:'Fuerte como premium dentro de un bundle, flojo como motor barato.',rt:{m:'dead',p:'warn'}},
+
+ {cat:'dead',name:'Calculadoras fiscales',tag:'Calculadoras con ads · Descartado',idx:12,prod:'dead',prodwhy:'Los AI Overviews de Google absorben el trafico y el RPM en AR es bajisimo. Ya hay 8 sitios gratis buenos. Muerto.',
+  quees:'Una red de calculadoras (sueldo en mano, aguinaldo, indemnizacion) monetizada con publicidad.',
+  opera:'Alguien busca cuanto me queda del sueldo, usa tu calculadora gratis y ve un aviso. Problema: Google ahora responde eso sin que la persona entre.',
+  mercado:'8 sitios gratis buenos + AI Overviews + RPM AR de US$2–8. No cierra.',
+  riesgos:'Solo servia como feeder de la newsletter.',rt:{m:'dead',p:'warn'}},
+
+ {cat:'dead',name:'Mercader',tag:'Gestor de MercadoLibre · Descartado',idx:10,prod:'dead',prodwhy:'MercadoLibre ya responde con su propia IA gratis y puede cortar el acceso cuando quiera. Riesgo de plataforma existencial. Muerto.',
+  quees:'Un servicio que toma la cuenta de MercadoLibre de un vendedor y la gestiona con IA (titulos, las 40 preguntas diarias, precio, stock).',
+  opera:'Un vendedor te da su cuenta de ML y el agente responde las 40 preguntas del dia. Problema: ML ya contesta con su propia IA gratis.',
+  mercado:'Depende 100% de una sola plataforma que compite con su propia IA. La labor humana ademas baja el margen a 60–70%.',
+  riesgos:'Riesgo de concentracion altisimo.',rt:{m:'dead',p:'warn'}},
+
+ {cat:'dead',name:'Cambió el Precio',tag:'Historial de precios · Descartado',idx:8,prod:'dead',prodwhy:'MeliPrice y MercadoTrack ya existen, el build es alto y la monetizacion probadamente floja. Muerto doble.',
+  quees:'Un bot/extension que registra precios del e-commerce argentino y muestra el historial (la oferta es oferta o te subieron antes?).',
+  opera:'Antes de comprar una tele, el usuario revisa tu historial y ve que la oferta esta mas cara que hace un mes. Problema: MeliPrice y MercadoTrack ya lo hacen.',
+  mercado:'Competidores ya instalados + monetizacion floja (leccion CamelCamelCamel) + arranque en frio.',
+  riesgos:'Build alto (4–8 sem) + cold-start del contenido.',rt:{m:'dead',p:'dead'}}
 ];
 
 const WAVES=[
  {t:'Ciclo 1 — Exploración',d:'06·07',cls:'done',items:['4 consultores + experto de cobro','12 negocios con research y fuentes','Portfolio + recomendación (barbell)']},
- {t:'Ciclo 2 — Pasivo vs Activo + Red-team',d:'06·07',cls:'done',items:['2 equipos horizontales (creativo+analítico)','23 ideas → 10 finalistas','Red-team: 2 limpios, 2 comodines, 4 muertos']},
+ {t:'Ciclo 2 — Pasivo vs Activo + Red-team',d:'06·07',cls:'done',items:['2 equipos horizontales','23 ideas → 10 finalistas','Red-team: 2 limpios, 2 comodines, 4 muertos']},
  {t:'Costeo completo',d:'06·07',cls:'done',items:['21 negocios costeados','build · COGS · precio · margen · break-even']},
- {t:'Desarrollo — kickoff',d:'06·07',cls:'curr',items:['4 MVP arrancados','Código del corazón + demos verificadas','Plan hasta el primer peso']},
- {t:'Próximo ciclo (programado)',d:'lun',cls:'soon',items:['Sprint automático','Negocios nuevos → análisis → red-team','El Reportero carga los resultados acá']}
+ {t:'Desarrollo — kickoff',d:'06·07',cls:'done',items:['4 MVP con código del corazón + demos','Plan hasta el primer peso']},
+ {t:'Desafío senior de toda la cartera',d:'06·07',cls:'curr',items:['Operador real, no marketinero','Aptitud para producción: 2 verde, 6 pista, 13 fuera','Índice de factibilidad por negocio']},
+ {t:'Próximo ciclo (programado)',d:'lun',cls:'soon',items:['Sin sesgo de modelo · innovar de verdad','Foco: local + integraciones públicas/privadas','El Reportero carga los resultados acá']}
 ];
-
 const TEAM=[
- {i:'🏗️',n:'Constructor',d:'Termina el MVP: cablea las APIs reales (IA, WhatsApp, Google, pasarela) y deja el producto funcionando y verificado.'},
- {i:'🎨',n:'Diseño & Marca',d:'Naming final, identidad, logo y la landing que convierte. La ventaja del estudio.'},
- {i:'💳',n:'Cobro & Fiscal',d:'Configura la pasarela (MP / Lemon Squeezy), el pricing final y la facturación (exportación de servicios). Prueba un pago real.'},
- {i:'📣',n:'Growth / Lanzamiento',d:'Canal de adquisición, primeros clientes beta pagos, contenido de lanzamiento y medición.'},
- {i:'🧭',n:'Operaciones',d:'Onboarding, soporte y el playbook de lo que hay que mantener. Cuida la retención.'},
- {i:'🎯',n:'PMO',d:'Orquesta el go-live, te reporta y gatea con vos los pasos irreversibles (publicar, cobrar dinero real).'}
+ {i:'🏗️',n:'Constructor',d:'Cablea las APIs reales y deja el producto funcionando y verificado.'},
+ {i:'🎨',n:'Diseño & Marca',d:'Naming, identidad y la landing que convierte.'},
+ {i:'💳',n:'Cobro & Fiscal',d:'Pasarela (MP/Lemon), pricing y facturación. Prueba un pago real.'},
+ {i:'📣',n:'Growth',d:'Canal, primeros clientes beta pagos y medición.'},
+ {i:'🧭',n:'Operaciones',d:'Onboarding, soporte y retención.'},
+ {i:'🎯',n:'PMO',d:'Orquesta el go-live y gatea con vos lo irreversible.'}
 ];
-
 const RUNBOOK=[
- {t:'GO del dueño',o:'Vos',d:'Elegís el negocio y das la orden. Se define el objetivo (primeros N clientes) y el tiempo.'},
- {t:'Producto listo',o:'Constructor',d:'Se cablean las APIs reales y se prueba el flujo de punta a punta. Queda funcionando en un ambiente real.',gate:'Gate: publicar en la web = tu OK'},
- {t:'Marca + Landing',o:'Diseño',d:'Identidad, naming y una landing que convierte, con los textos de venta.'},
- {t:'Cobro activo',o:'Cobro & Fiscal',d:'Pasarela + pricing + facturación, con un pago de prueba real.',gate:'Gate: cobrar dinero real = tu OK'},
- {t:'Lanzamiento',o:'Growth',d:'Se abre el canal y se consiguen los primeros clientes/beta pagos. Se mide todo.'},
- {t:'Operar y escalar',o:'Operaciones',d:'Onboarding, soporte y retención. Reporte al dueño; lo bueno se replica, lo que no, se corrige.'}
+ {t:'GO del dueño',o:'Vos',d:'Elegís el negocio y das la orden.'},
+ {t:'Producto listo',o:'Constructor',d:'Cablear APIs reales + probar el flujo end-to-end.',gate:'publicar = tu OK'},
+ {t:'Marca + Landing',o:'Diseño',d:'Identidad + landing que convierte.'},
+ {t:'Cobro activo',o:'Cobro',d:'Pasarela + pricing + un pago de prueba real.',gate:'cobrar = tu OK'},
+ {t:'Lanzamiento',o:'Growth',d:'Canal + primeros clientes/beta pagos.'},
+ {t:'Operar y escalar',o:'Operaciones',d:'Onboarding, soporte y retención.'}
 ];
-
-/* render */
-const K=DATA;
-document.getElementById('kpis').innerHTML=[
- ['21','Negocios investigados<br>2 ciclos, con números reales',''],
- ['4','En desarrollo<br>MVP arrancado',''],
- ['13','En cola<br>validados, heridos e ideas','warn'],
- ['4','Descartados<br>el red-team los tumbó','dead']
-].map(k=>`<div class="kpi ${k[2]}"><div class="num">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join('');
-
-document.getElementById('feed').innerHTML=WAVES.map(w=>`<div class="wave ${w.cls}"><div class="rail"><div class="rd"></div><div class="rl"></div></div><div><div class="wt"><span>${w.t}</span><span class="wd">${w.d}</span></div><ul>${w.items.map(i=>`<li>${i}</li>`).join('')}</ul></div></div>`).join('');
-
-document.getElementById('team').innerHTML=TEAM.map(r=>`<div class="role"><div class="rn">${r.i} ${r.n}</div><div class="rd">${r.d}</div></div>`).join('');
-
-document.getElementById('runbook').innerHTML=RUNBOOK.map(s=>`<div class="rbstep"><div class="rbn"></div><div><div class="rbt">${s.t} <span class="owner">${s.o}</span> ${s.gate?`<span class="gate">${s.gate}</span>`:''}</div><div class="rbd">${s.d}</div></div></div>`).join('');
 
 const RATE=1488.5;
-function arsOf(u){return Math.round(u*RATE).toLocaleString('es-AR')}
-function withArs(t){return t.replace(/US\$(\d[\d.]*)/g,(m,n)=>`${m} (≈ $${arsOf(parseInt(n.replace(/\./g,'')))} ARS)`)}
-function statPill(d){return `<span class="pill ${d.st}"><span class="pd"></span>${d.label}</span>`}
-function card(d){
- const s=d.nums||{};const keys=Object.keys(s).slice(0,4);
- return `<button class="card" data-id="${d.name}"><div class="chead"><div><h3>${d.name}</h3><div class="tag">${d.tag.split(' · ')[0]}</div></div>${statPill(d)}</div>
- <div class="what">${d.quees}</div>
- <div class="stats">${keys.map(k=>`<div class="stat"><div class="k">${k}</div><div class="v ${k==='Margen'?'good':''}">${s[k]}</div></div>`).join('')}</div>
- <div class="seemore">Ver ejemplo, retorno y ejecución →</div></button>`;
-}
-document.getElementById('prodgrid').innerHTML=K.filter(d=>d.cat==='dev').map(card).join('');
+const arsOf=u=>Math.round(u*RATE).toLocaleString('es-AR');
+const withArs=t=>t.replace(/US\$(\d[\d.]*)/g,(m,n)=>`${m} (≈ $${arsOf(parseInt(n.replace(/\./g,'')))} ARS)`);
+const PRODLABEL={ok:'A producción',warn:'En pista',dead:'Descartado'};
 
-const rowsEl=document.getElementById('rows');
-function renderRows(cat){
- rowsEl.innerHTML=K.filter(d=>cat==='all'||d.cat===cat).map(d=>`<tr data-id="${d.name}"><td class="name">${d.name}</td><td class="what">${d.quees.length>90?d.quees.slice(0,88)+'…':d.quees}</td><td class="mono">${(d.nums&&(d.nums.Precio))||'—'}</td><td>${statPill(d)}</td></tr>`).join('');
-}
-const counts={all:K.length};['dev','warn','dead','idea'].forEach(c=>counts[c]=K.filter(d=>d.cat===c).length);
-Object.keys(counts).forEach(c=>{const e=document.getElementById('c-'+c);if(e)e.textContent='('+counts[c]+')'});
-document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));t.setAttribute('aria-selected','true');renderRows(t.dataset.cat)}));
-renderRows('all');
+// rank all by index
+const RANKED=[...DATA].sort((a,b)=>b.idx-a.idx);
+RANKED.forEach((d,i)=>d._rank=i+1);
 
-/* drawer */
-const overlay=document.getElementById('overlay'),drawer=document.getElementById('drawer');
-function openDetail(name){
- const d=K.find(x=>x.name===name);if(!d)return;
- document.getElementById('dk-name').textContent=d.name;
- document.getElementById('dk-tag').textContent=d.tag;
- document.getElementById('dk-row').innerHTML=statPill(d)+(d.score?` <span class="pill idea"><span class="pd"></span>Puntaje ${d.score}</span>`:'');
- const b=document.getElementById('dk-body');const parts=[];
- parts.push(`<div class="dsec"><div class="dl">Qué es (de cero)</div><p>${d.quees}</p></div>`);
- if(d.opera)parts.push(`<div class="dsec"><div class="dl">Cómo opera · un ejemplo real</div><p>${d.opera}</p></div>`);
- if(d.nums){const keys=Object.keys(d.nums);parts.push(`<div class="dstats">${keys.map(k=>`<div class="st"><div class="k">${k}</div><div class="v ${k==='Margen'?'good':''}">${d.nums[k]}</div></div>`).join('')}</div>`);}
- if(d.roi)parts.push(`<div class="whero"><div class="dl">💰 Retorno estimado (aprox.)</div><p><b>Para arrancar:</b> ${withArs(d.roi.arr)}<br><b>Escenario realista:</b> ${d.roi.real}<br><b>Cuándo funciona:</b> ${d.roi.pay}</p><p style="margin-top:8px;color:var(--muted);font-size:11px">Pesos al cambio oficial BNA (venta) del 06/07/2026: US$1 = $1.488,50.</p></div>`);
- if(d.cliente)parts.push(`<div class="dsec"><div class="dl">🎯 Clientes · el primero y cómo escalar</div><p><b>Primer cliente:</b> ${d.cliente.primero}<br><b>Cómo sumamos más:</b> ${d.cliente.mas}</p></div>`);
- if(d.construir)parts.push(`<div class="dsec"><div class="dl">Cómo se construye</div><p>${d.construir}</p></div>`);
- if(d.cobra)parts.push(`<div class="dsec"><div class="dl">Cómo se cobra</div><p>${d.cobra}</p></div>`);
- if(d.mercado)parts.push(`<div class="dsec"><div class="dl">Mercado y competencia</div><p>${d.mercado}</p></div>`);
- if(d.riesgos)parts.push(`<div class="dsec"><div class="dl">Riesgos</div><p>${d.riesgos}</p></div>`);
- if(d.rt)parts.push(`<div class="dsec"><div class="dl">Veredicto del red-team</div><div class="verdicts"><span class="pill ${d.rt.m.includes('🟢')?'ok':d.rt.m.includes('🟡')?'warn':'dead'}"><span class="pd"></span>Mercado: ${d.rt.m.replace(/🟢|🟡|🔴/g,'').trim()}</span><span class="pill ${d.rt.p.includes('🟢')?'ok':d.rt.p.includes('🟡')?'warn':'dead'}"><span class="pd"></span>Plata: ${d.rt.p.replace(/🟢|🟡|🔴/g,'').trim()}</span></div></div>`);
- if(d.veredicto)parts.push(`<div class="whero"><div class="dl">Lectura del PMO</div><p>${d.veredicto}</p></div>`);
- if(d.dev)parts.push(`<div class="dsec"><div class="dl">Estado de desarrollo</div><p><b>${d.dev.s}.</b> Próximo: ${d.dev.n}.</p></div>`);
- if(d.path)parts.push(`<div class="dsec"><div class="dl">Camino de ejecución · de tu GO al primer peso</div><div class="path">${d.path.map(p=>`<div class="pi"><span class="pn"></span><span>${p}</span></div>`).join('')}</div></div>`);
- b.innerHTML=parts.join('');b.scrollTop=0;
- overlay.classList.add('open');drawer.classList.add('open');document.body.style.overflow='hidden';
- document.getElementById('dk-close').focus();
+// scoreboard
+const nOk=DATA.filter(d=>d.prod==='ok').length, nWarn=DATA.filter(d=>d.prod==='warn').length, nDead=DATA.filter(d=>d.prod==='dead').length;
+document.getElementById('score').innerHTML=[
+ ['acc',DATA.length,'Compiten'],['g',nOk,'A producción'],['y',nWarn,'En pista'],['',RANKED[0].idx,'Líder: '+RANKED[0].name]
+].map(s=>`<div class="sc ${s[0]}"><div class="n">${s[1]}</div><div class="l">${s[2]}</div></div>`).join('');
+
+// podium
+document.getElementById('podium').innerHTML=RANKED.slice(0,3).map((d,i)=>`<button class="pod p${i+1}" data-id="${d.name}"><div class="medal">${i+1}</div><div class="pn">${d.name}</div><div class="pt">${d.tag.split(' · ')[0]}</div><div class="pbar"><i style="width:${d.idx}%"></i></div><div class="pv"><span>Índice</span><span>${d.idx}/100</span></div></button>`).join('');
+
+// chips
+const CHIPS=[['all','Todos',DATA.length],['ok','A producción',nOk],['warn','En pista',nWarn],['dead','Descartados',nDead],['dev','En desarrollo',DATA.filter(d=>d.cat==='dev').length]];
+document.getElementById('chips').innerHTML=CHIPS.map((c,i)=>`<button class="chip" data-f="${c[0]}" aria-pressed="${i===0}">${c[1]} <span class="cc">${c[2]}</span></button>`).join('');
+
+function fbarClass(d){return d.prod}
+function board(f){
+ document.getElementById('board').innerHTML=RANKED.filter(d=>f==='all'||d.prod===f||(f==='dev'&&d.cat==='dev')).map(d=>`
+  <button class="row ${d._rank<=3?'top':''}" data-id="${d.name}">
+    <div class="rank">${d._rank}</div>
+    <div><div class="rname">${d.name}</div><div class="rtag">${d.tag}</div></div>
+    <div class="fact"><div class="ft"><span>Factibilidad</span><span class="fv">${d.idx}/100</span></div><div class="fbar"><i class="${fbarClass(d)}" style="width:${d.idx}%"></i></div></div>
+    <div class="rstate"><span class="pill ${d.prod}"><span class="pd"></span>${PRODLABEL[d.prod]}</span></div>
+  </button>`).join('');
 }
-function closeDetail(){overlay.classList.remove('open');drawer.classList.remove('open');document.body.style.overflow=''}
-document.addEventListener('click',e=>{const el=e.target.closest('[data-id]');if(el)openDetail(el.dataset.id)});
-document.getElementById('dk-close').addEventListener('click',closeDetail);
-overlay.addEventListener('click',closeDetail);
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+ document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed','false'));
+ c.setAttribute('aria-pressed','true');board(c.dataset.f);
+}));
+board('all');
+
+// waves / team / runbook
+document.getElementById('feed').innerHTML=WAVES.map(w=>`<div class="wv ${w.cls}"><div class="rl"><div class="rd"></div><div class="ln"></div></div><div><div class="wt"><span>${w.t}</span><span class="wd">${w.d}</span></div><ul>${w.items.map(i=>`<li>${i}</li>`).join('')}</ul></div></div>`).join('');
+document.getElementById('team').innerHTML=TEAM.map(r=>`<div class="role"><div class="rn">${r.i} ${r.n}</div><div class="rd2">${r.d}</div></div>`).join('');
+document.getElementById('runbook').innerHTML=RUNBOOK.map(s=>`<div class="rb"><div class="rbn">${RUNBOOK.indexOf(s)}</div><div><div class="rbt">${s.t} <span class="own">${s.o}</span> ${s.gate?`<span class="gate">🔒 ${s.gate}</span>`:''}</div><div class="rbd">${s.d}</div></div></div>`).join('');
+
+// drawer
+const ov=document.getElementById('ov'),dw=document.getElementById('dw');
+function open(name){
+ const d=DATA.find(x=>x.name===name);if(!d)return;
+ document.getElementById('dwn').textContent=d.name;
+ document.getElementById('dwt').textContent=d.tag;
+ document.getElementById('dwr').innerHTML=`<span class="pill ${d.prod}"><span class="pd"></span>${PRODLABEL[d.prod]}</span>`+(d.score?` <span class="pill warn"><span class="pd"></span>PMO ${d.score}</span>`:'');
+ const p=[];
+ p.push(`<div class="idxbig"><div class="ib-top"><div class="ib-n">${d.idx}<span style="font-size:16px;color:#8B96A3">/100</span></div><div class="ib-l" style="text-align:right">Índice de<br>Factibilidad Real<br>#${d._rank} de ${DATA.length}</div></div><div class="ib-bar"><i style="width:${d.idx}%"></i></div><div class="ib-why">${d.prodwhy}</div></div>`);
+ p.push(`<div class="ds"><div class="dl">Qué es (de cero)</div><p>${d.quees}</p></div>`);
+ if(d.opera)p.push(`<div class="ds"><div class="dl">Cómo opera · un ejemplo real</div><p>${d.opera}</p></div>`);
+ if(d.nums)p.push(`<div class="dstats">${Object.keys(d.nums).map(k=>`<div class="s"><div class="k">${k}</div><div class="v ${k==='Margen'?'good':''}">${d.nums[k]}</div></div>`).join('')}</div>`);
+ if(d.roi)p.push(`<div class="hero-box"><div class="dl">💰 Retorno estimado (aprox.)</div><p><b>Para arrancar:</b> ${withArs(d.roi.arr)}<br><b>Escenario realista:</b> ${d.roi.real}<br><b>Cuándo funciona:</b> ${d.roi.pay}</p><p style="margin-top:7px;color:var(--muted);font-size:11px">Pesos al dólar oficial BNA (venta) 06/07/2026: US$1 = $1.488,50.</p></div>`);
+ if(d.cliente)p.push(`<div class="ds"><div class="dl">🎯 Clientes · el primero y cómo escalar</div><p><b>Primer cliente:</b> ${d.cliente.primero}<br><b>Cómo sumamos más:</b> ${d.cliente.mas}</p></div>`);
+ if(d.construir)p.push(`<div class="ds"><div class="dl">Cómo se construye</div><p>${d.construir}</p></div>`);
+ if(d.cobra)p.push(`<div class="ds"><div class="dl">Cómo se cobra</div><p>${d.cobra}</p></div>`);
+ if(d.mercado)p.push(`<div class="ds"><div class="dl">Mercado y competencia</div><p>${d.mercado}</p></div>`);
+ if(d.riesgos)p.push(`<div class="ds"><div class="dl">Riesgos</div><p>${d.riesgos}</p></div>`);
+ if(d.rt)p.push(`<div class="ds"><div class="dl">Veredicto del red-team</div><div class="vrow"><span class="pill ${d.rt.m}"><span class="pd"></span>Mercado</span><span class="pill ${d.rt.p}"><span class="pd"></span>Plata</span></div></div>`);
+ if(d.dev)p.push(`<div class="ds"><div class="dl">Estado de desarrollo</div><p><b>${d.dev.s}.</b> Próximo: ${d.dev.n}.</p></div>`);
+ if(d.path)p.push(`<div class="ds"><div class="dl">Camino de ejecución · de tu GO al primer peso</div><div class="path">${d.path.map((x,i)=>`<div class="pi"><span class="pn">${i+1}</span><span>${x}</span></div>`).join('')}</div></div>`);
+ document.getElementById('dwb').innerHTML=p.join('');document.getElementById('dwb').scrollTop=0;
+ ov.classList.add('open');dw.classList.add('open');document.body.style.overflow='hidden';document.getElementById('dwx').focus();
+}
+function close(){ov.classList.remove('open');dw.classList.remove('open');document.body.style.overflow=''}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-id]');if(el)open(el.dataset.id)});
+document.getElementById('dwx').addEventListener('click',close);
+ov.addEventListener('click',close);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+
+// ===== WebGL perspective grid (sports / speed) =====
+(function(){
+ const cv=document.getElementById('gl');let gl;try{gl=cv.getContext('webgl')}catch(e){}
+ if(!gl){cv.style.display='none';return;}
+ const vs=`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`;
+ const fs=`precision highp float;uniform vec2 R;uniform float T;
+ void main(){
+  vec2 uv=(gl_FragCoord.xy-0.5*R)/R.y;
+  vec3 col=vec3(0.047,0.055,0.067);
+  float hz=0.30;
+  if(uv.y<hz){
+   float z=1.0/(hz-uv.y+0.02);
+   float x=uv.x*z;
+   float sp=T*0.9;
+   vec2 g=vec2(x*1.2, z*0.9 - sp);
+   vec2 gr=abs(fract(g)-0.5);
+   float line=smoothstep(0.055,0.0,min(gr.x,gr.y));
+   float fade=exp(-z*0.11);
+   vec3 yellow=vec3(0.96,0.82,0.05);
+   col=mix(col,yellow,line*fade*0.9);
+   col+=yellow*0.10*fade;
+  }
+  col+=vec3(0.96,0.82,0.05)*smoothstep(0.02,0.0,abs(uv.y-hz))*0.25;
+  float vig=1.0-0.5*dot(uv,uv);
+  gl_FragColor=vec4(col*vig,1.0);
+ }`;
+ function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
+ const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);gl.useProgram(pr);
+ const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+ const lp=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,2,gl.FLOAT,false,0,0);
+ const uR=gl.getUniformLocation(pr,'R'),uT=gl.getUniformLocation(pr,'T');
+ const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+ function size(){const dpr=Math.min(devicePixelRatio||1,1.6);cv.width=cv.clientWidth*dpr;cv.height=cv.clientHeight*dpr;gl.viewport(0,0,cv.width,cv.height);}
+ let t0=0;
+ function frame(ms){const t=reduce?6.0:ms*0.001;size();gl.uniform2f(uR,cv.width,cv.height);gl.uniform1f(uT,t);gl.drawArrays(gl.TRIANGLES,0,3);if(!reduce&&!document.hidden)requestAnimationFrame(frame);}
+ requestAnimationFrame(frame);
+ if(reduce){size();gl.uniform2f(uR,cv.width,cv.height);gl.uniform1f(uT,6.0);gl.drawArrays(gl.TRIANGLES,0,3);}
+ addEventListener('resize',()=>{if(reduce){size();gl.uniform2f(uR,cv.width,cv.height);gl.drawArrays(gl.TRIANGLES,0,3);}});
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!reduce)requestAnimationFrame(frame)});
+})();
 </script>
