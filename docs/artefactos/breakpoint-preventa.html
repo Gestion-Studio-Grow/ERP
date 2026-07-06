@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Break Point Pádel · el club, en vivo (demo)</title>
+<!--
+  DEMO DE PREVENTA — Break Point Pádel (Ezeiza, Bs. As.) como TENANT de nuestro ERP.
+  Un solo archivo, sin build: se abre directo en el navegador.
+  Muestra la experiencia pública del club sobre el ERP: reserva de canchas (turnos con
+  buffer y sin doble-reserva), tienda/SHOP con carrito -> WhatsApp, clases y escuelita,
+  horarios, un guiño a Torneos (Circuito Padel Sur) y a Delicias Break (buffet).
+  Identidad de marca relevada de @breakpointpadel_: azul royal + naranja, energía deportiva.
+  Datos de turnos ocupados / stock: de ejemplo. Diseño original para esta marca.
+-->
+<style>
+  :root{
+    --royal:#1f4bff;        /* azul royal marca */
+    --royal-deep:#122a9c;
+    --royal-ink:#0a153f;    /* fondo hero */
+    --navy:#0b1636;
+    --orange:#ff6a1a;       /* naranja marca */
+    --orange-soft:#ff8a3d;
+    --amber:#ffb020;
+    --ink:#0e1428;
+    --text:#12203f;
+    --muted:#5b6b8c;
+    --line:#e3e9f5;
+    --bg:#f4f7ff;
+    --surface:#ffffff;
+    --ok:#12b76a;
+    --radius:18px;
+    --radius-sm:12px;
+    --shadow:0 18px 44px -20px rgba(18,42,156,.35);
+    --shadow-sm:0 8px 22px -12px rgba(18,42,156,.28);
+    --sans:"Segoe UI",ui-sans-serif,system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  html,body{margin:0}
+  body{
+    font-family:var(--sans);
+    color:var(--text);
+    background:var(--bg);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  img{max-width:100%}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 22px}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--royal);
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--orange)}
+  h2.sec{font-size:clamp(26px,4vw,40px);line-height:1.08;margin:12px 0 8px;letter-spacing:-.02em;font-weight:850}
+  .sec-sub{color:var(--muted);max-width:56ch;margin:0 0 30px;font-size:16px}
+
+  /* ---------- Preventa ribbon ---------- */
+  .erp-ribbon{
+    background:linear-gradient(90deg,var(--royal-deep),var(--royal));
+    color:#eaf0ff;font-size:12.5px;font-weight:600;letter-spacing:.02em;
+    text-align:center;padding:7px 16px;
+  }
+  .erp-ribbon b{color:#fff}
+  .erp-ribbon .tag{
+    display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);
+    border-radius:999px;padding:1px 9px;margin-left:8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  }
+
+  /* ---------- Nav ---------- */
+  nav.top{
+    position:sticky;top:0;z-index:40;
+    background:rgba(255,255,255,.82);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-in{display:flex;align-items:center;gap:18px;height:66px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:850;letter-spacing:-.01em}
+  .brand .mk{width:40px;height:40px;flex:none}
+  .brand .bt{line-height:1.05}
+  .brand .bt small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.22em;color:var(--orange);text-transform:uppercase}
+  .brand .bt span{font-size:17px}
+  .nav-links{display:flex;gap:4px;margin-left:auto}
+  .nav-links a{
+    padding:9px 13px;border-radius:10px;font-size:14px;font-weight:600;color:var(--muted);
+    transition:.16s;
+  }
+  .nav-links a:hover{color:var(--royal);background:#eef3ff}
+  .nav-cta{
+    display:inline-flex;align-items:center;gap:7px;margin-left:8px;
+    background:var(--orange);color:#fff;font-weight:750;font-size:14px;
+    padding:10px 16px;border-radius:11px;box-shadow:0 10px 20px -10px rgba(255,106,26,.7);
+    transition:.16s;cursor:pointer;border:0;font-family:inherit;
+  }
+  .nav-cta:hover{background:var(--orange-soft);transform:translateY(-1px)}
+  .cart-btn{position:relative}
+  .cart-btn .count{
+    position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;border-radius:999px;
+    background:var(--royal);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 4px;
+    border:2px solid #fff;
+  }
+  @media(max-width:860px){.nav-links{display:none}}
+
+  /* ---------- Hero ---------- */
+  header.hero{
+    position:relative;overflow:hidden;color:#eaf0ff;
+    background:
+      radial-gradient(900px 500px at 82% -8%, rgba(255,106,26,.35), transparent 60%),
+      radial-gradient(700px 520px at 8% 108%, rgba(31,75,255,.55), transparent 55%),
+      linear-gradient(160deg,#0c1a52 0%, var(--royal-ink) 60%, #07102f 100%);
+  }
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center;padding:56px 0 62px}
+  .hero h1{font-size:clamp(38px,6vw,68px);line-height:.98;margin:16px 0 0;letter-spacing:-.03em;font-weight:880}
+  .hero h1 .hl{
+    background:linear-gradient(100deg,var(--orange),var(--amber));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p.lead{margin:20px 0 0;font-size:18px;color:#c3cdf0;max-width:44ch}
+  .hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+  .btn{
+    display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:0;font-family:inherit;
+    padding:14px 22px;border-radius:13px;font-weight:750;font-size:15.5px;transition:.16s;text-align:left;
+  }
+  .btn-orange{background:var(--orange);color:#fff;box-shadow:0 16px 30px -14px rgba(255,106,26,.8)}
+  .btn-orange:hover{background:var(--orange-soft);transform:translateY(-2px)}
+  .btn-glass{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.25)}
+  .btn-glass:hover{background:rgba(255,255,255,.18)}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:30px;font-size:13.5px;color:#aab6e2}
+  .hero-meta b{color:#fff;font-weight:650}
+  .hero-meta .pin{color:var(--amber)}
+
+  /* court art */
+  .court-card{
+    position:relative;background:linear-gradient(155deg,rgba(255,255,255,.09),rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.16);border-radius:26px;padding:22px;box-shadow:0 30px 60px -30px rgba(0,0,0,.6);
+  }
+  .court-card .live{
+    display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:#9fffd0;margin-bottom:14px;
+  }
+  .court-card .live i{width:8px;height:8px;border-radius:50%;background:#22e08a;box-shadow:0 0 0 0 rgba(34,224,138,.6);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,224,138,.55)}70%{box-shadow:0 0 0 10px rgba(34,224,138,0)}100%{box-shadow:0 0 0 0 rgba(34,224,138,0)}}
+  .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+  .stat{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 12px}
+  .stat .n{font-size:24px;font-weight:850;color:#fff;letter-spacing:-.02em}
+  .stat .l{font-size:11.5px;color:#aab6e2;margin-top:2px}
+  @media(max-width:880px){.hero-grid{grid-template-columns:1fr;padding:40px 0 46px}.court-card{order:-1}}
+
+  /* ---------- generic section ---------- */
+  section{padding:64px 0}
+  .reveal{opacity:0;transform:translateY(18px);transition:.7s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+
+  /* ---------- Booking ---------- */
+  #reservas{background:linear-gradient(180deg,#fff, #eef3ff)}
+  .book{display:grid;grid-template-columns:1fr 340px;gap:26px;align-items:start}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:22px}
+  .field-label{font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--royal);display:flex;align-items:center;gap:9px;margin:0 0 12px}
+  .field-label .step-n{width:22px;height:22px;border-radius:7px;background:var(--royal);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+  .courts{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .court{
+    text-align:left;cursor:pointer;border:1.5px solid var(--line);background:#fff;border-radius:14px;padding:14px;transition:.15s;font-family:inherit;
+  }
+  .court:hover{border-color:#b9c8ff;transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  .court.sel{border-color:var(--royal);background:#f2f5ff;box-shadow:0 0 0 3px rgba(31,75,255,.12)}
+  .court .nm{font-weight:800;font-size:15px;display:flex;align-items:center;gap:8px}
+  .court .tp{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .court .pr{font-size:13px;font-weight:800;color:var(--orange);margin-top:8px}
+  .chip-badge{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:#eef3ff;color:var(--royal)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}
+  .slots{display:flex;flex-wrap:wrap;gap:9px;margin-top:6px}
+  .slot{
+    cursor:pointer;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:9px 13px;font-size:13.5px;font-weight:700;color:var(--text);font-family:inherit;transition:.13s;
+  }
+  .slot:hover:not(:disabled){border-color:var(--royal);color:var(--royal)}
+  .slot.sel{background:var(--royal);border-color:var(--royal);color:#fff}
+  .slot:disabled{opacity:.34;cursor:not-allowed;text-decoration:line-through}
+  input,select{
+    width:100%;font-family:inherit;font-size:14.5px;color:var(--text);
+    padding:11px 13px;border:1.5px solid var(--line);border-radius:11px;background:#fff;transition:.14s;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--royal);box-shadow:0 0 0 3px rgba(31,75,255,.13)}
+  label.inp{display:block;margin-top:14px}
+  label.inp>span{font-size:12.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px}
+  .muted-note{font-size:12px;color:var(--muted);margin-top:10px}
+  /* summary */
+  .summary{position:sticky;top:82px}
+  .summary h4{margin:0 0 4px;font-size:16px}
+  .summary .sub{font-size:12.5px;color:var(--muted);margin:0 0 16px}
+  .sline{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:9px 0;border-bottom:1px dashed var(--line)}
+  .sline span:first-child{color:var(--muted)}
+  .sline b{font-weight:750}
+  .total{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px}
+  .total .big{font-size:26px;font-weight:850;color:var(--royal)}
+  .book-confirm{width:100%;justify-content:center;margin-top:16px}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+  .done-card{text-align:center;padding:30px 22px}
+  .done-card .ok{width:58px;height:58px;border-radius:50%;background:#e7f9f0;color:var(--ok);display:grid;place-items:center;margin:0 auto 14px;font-size:30px}
+  @media(max-width:840px){.book{grid-template-columns:1fr}.summary{position:static}.courts{grid-template-columns:1fr 1fr}}
+
+  /* ---------- Cards grids ---------- */
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  @media(max-width:840px){.cards{grid-template-columns:1fr}}
+  .fcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);transition:.2s;display:flex;flex-direction:column}
+  .fcard:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+  .fcard .top{height:120px;position:relative;display:flex;align-items:flex-end;padding:16px;color:#fff}
+  .fcard .top .ic{position:absolute;top:14px;right:14px;font-size:22px;opacity:.9}
+  .fcard .top h3{margin:0;font-size:19px;font-weight:820;letter-spacing:-.01em}
+  .fcard .body{padding:16px 18px 20px}
+  .fcard .body p{margin:0 0 14px;color:var(--muted);font-size:14px}
+  .fcard ul{margin:0 0 14px;padding-left:0;list-style:none}
+  .fcard ul li{font-size:13.5px;padding:4px 0 4px 22px;position:relative;color:var(--text)}
+  .fcard ul li:before{content:"";position:absolute;left:2px;top:11px;width:8px;height:8px;border-radius:2px;background:var(--orange);transform:rotate(45deg)}
+  .fcard .price{font-weight:850;color:var(--royal);font-size:15px}
+  .g-royal{background:linear-gradient(150deg,var(--royal),var(--royal-deep))}
+  .g-orange{background:linear-gradient(150deg,var(--orange),#e24e00)}
+  .g-mix{background:linear-gradient(150deg,#2a2f8f,var(--royal))}
+
+  /* ---------- Horarios ---------- */
+  #horarios{background:var(--royal-ink);color:#eaf0ff}
+  #horarios .eyebrow{color:var(--orange-soft)}
+  #horarios .sec-sub{color:#aab6e2}
+  .sched{overflow-x:auto;border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);background:rgba(255,255,255,.04)}
+  table.sched-t{width:100%;border-collapse:collapse;min-width:620px}
+  .sched-t th,.sched-t td{padding:12px 10px;text-align:center;font-size:13px;border-bottom:1px solid rgba(255,255,255,.09)}
+  .sched-t thead th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:#aab6e2;font-weight:700}
+  .sched-t tbody th{text-align:left;color:#fff;font-weight:700;white-space:nowrap}
+  .cell{border-radius:8px;padding:6px 4px;font-weight:700;font-size:12px}
+  .c-open{background:rgba(34,224,138,.16);color:#8ff0c1}
+  .c-class{background:rgba(31,75,255,.28);color:#c3d1ff}
+  .c-esc{background:rgba(255,106,26,.24);color:#ffc79c}
+  .c-tor{background:rgba(255,176,32,.22);color:#ffe0a0}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:18px;font-size:12.5px;color:#aab6e2}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .legend i{width:13px;height:13px;border-radius:4px;display:inline-block}
+
+  /* ---------- Tienda ---------- */
+  .shop{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  @media(max-width:980px){.shop{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.shop{grid-template-columns:1fr}}
+  .prod{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;transition:.18s}
+  .prod:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+  .prod .ph{height:150px;display:grid;place-items:center;position:relative}
+  .prod .ph .glyph{font-size:52px;filter:drop-shadow(0 8px 14px rgba(0,0,0,.18))}
+  .prod .tag{position:absolute;top:10px;left:10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;background:#fff;color:var(--royal);padding:3px 9px;border-radius:999px;box-shadow:var(--shadow-sm)}
+  .prod .in{padding:14px 15px 16px;display:flex;flex-direction:column;flex:1}
+  .prod .in h4{margin:0;font-size:15px;font-weight:800}
+  .prod .in .brand-s{font-size:12px;color:var(--muted);margin:2px 0 10px}
+  .prod .in .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .prod .in .pr{font-weight:850;font-size:16px;color:var(--text)}
+  .add{background:var(--royal);color:#fff;border:0;font-family:inherit;font-weight:800;font-size:13px;padding:8px 13px;border-radius:10px;cursor:pointer;transition:.14s}
+  .add:hover{background:var(--royal-deep)}
+  .add.added{background:var(--ok)}
+
+  /* cart drawer */
+  .drawer-bg{position:fixed;inset:0;background:rgba(8,16,40,.5);opacity:0;pointer-events:none;transition:.25s;z-index:60}
+  .drawer-bg.open{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:380px;max-width:92vw;background:#fff;z-index:70;transform:translateX(100%);transition:.28s cubic-bezier(.3,.8,.3,1);display:flex;flex-direction:column;box-shadow:-20px 0 50px -20px rgba(0,0,0,.4)}
+  .drawer.open{transform:none}
+  .drawer .dh{padding:20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .drawer .dh h3{margin:0;font-size:18px}
+  .drawer .x{border:0;background:#eef3ff;color:var(--royal);width:34px;height:34px;border-radius:10px;font-size:18px;cursor:pointer;font-family:inherit}
+  .cart-list{flex:1;overflow:auto;padding:12px 18px}
+  .ci{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+  .ci .g{width:46px;height:46px;border-radius:10px;background:#f2f5ff;display:grid;place-items:center;font-size:24px;flex:none}
+  .ci .nm{font-weight:750;font-size:14px}
+  .ci .pu{font-size:12.5px;color:var(--muted)}
+  .qty{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .qty button{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;font-weight:800;color:var(--royal);font-family:inherit}
+  .qty b{min-width:18px;text-align:center}
+  .cart-empty{color:var(--muted);text-align:center;padding:40px 20px;font-size:14px}
+  .drawer .df{padding:18px;border-top:1px solid var(--line)}
+  .drawer .df .tt{display:flex;justify-content:space-between;font-size:15px;margin-bottom:12px}
+  .drawer .df .tt b{font-size:20px;color:var(--royal)}
+  .wa{width:100%;justify-content:center;background:#25d366;color:#fff;box-shadow:0 12px 24px -12px rgba(37,211,102,.7)}
+  .wa:hover{background:#1fb457}
+  .pay-note{font-size:11.5px;color:var(--muted);text-align:center;margin-top:10px}
+
+  /* ---------- Torneos + Delicias split ---------- */
+  .split{display:grid;grid-template-columns:1.15fr .85fr;gap:22px}
+  @media(max-width:860px){.split{grid-template-columns:1fr}}
+  .torneo{background:linear-gradient(150deg,#12235f,#0b1636);color:#eaf0ff;border-radius:var(--radius);padding:28px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
+  .torneo:before{content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(255,106,26,.4),transparent 70%)}
+  .torneo .badge2{display:inline-block;background:var(--orange);color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 11px;border-radius:999px}
+  .torneo h3{margin:14px 0 4px;font-size:26px;letter-spacing:-.02em}
+  .torneo p{color:#b7c2ea;margin:0 0 18px;font-size:14.5px}
+  .bracket{display:grid;gap:8px;margin-top:8px}
+  .brow{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:10px 14px;font-size:14px}
+  .brow .cat{font-weight:750}
+  .brow .sp{font-size:12.5px;color:#9fffd0}
+  .delicias{background:linear-gradient(150deg,var(--orange),#e24e00);color:#fff;border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .delicias h3{margin:10px 0 6px;font-size:24px}
+  .delicias p{color:#fff;opacity:.92;font-size:14.5px;margin:0 0 16px}
+  .menu-mini{display:grid;gap:8px;margin-top:auto}
+  .mrow{display:flex;justify-content:space-between;font-size:14px;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.35)}
+  .mrow b{font-weight:750}
+
+  /* ---------- ERP value strip ---------- */
+  #erp{background:linear-gradient(180deg,#eef3ff,#fff)}
+  .modmap{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px}
+  @media(max-width:820px){.modmap{grid-template-columns:1fr}}
+  .mod{display:flex;gap:14px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)}
+  .mod .mi{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-size:20px;flex:none;background:#eef3ff;color:var(--royal)}
+  .mod h4{margin:0 0 3px;font-size:15px}
+  .mod p{margin:0;font-size:13px;color:var(--muted)}
+
+  /* ---------- Footer ---------- */
+  footer{background:var(--royal-ink);color:#c3cdf0;padding:52px 0 30px}
+  .foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:30px}
+  @media(max-width:760px){.foot-grid{grid-template-columns:1fr}}
+  footer h5{color:#fff;font-size:13px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 12px}
+  footer a.fl{display:block;color:#aab6e2;font-size:14px;padding:4px 0;transition:.14s}
+  footer a.fl:hover{color:#fff}
+  .foot-brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .foot-brand .bt span{font-size:18px;font-weight:850;color:#fff}
+  .foot-brand .bt small{color:var(--orange-soft);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;font-weight:800;display:block}
+  .foot-note{margin-top:30px;padding-top:18px;border-top:1px solid rgba(255,255,255,.12);font-size:12.5px;color:#8b98c4;display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:space-between}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 16px 40px -12px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.25s;z-index:90}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<!-- preventa framing -->
+<div class="erp-ribbon">
+  Demo de preventa · <b>Break Point Pádel</b> funcionando sobre nuestro ERP
+  <span class="tag">tenant: breakpoint</span>
+</div>
+
+<!-- NAV -->
+<nav class="top">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">
+      <svg class="mk" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="22" cy="22" r="21" fill="#0a153f" stroke="#1f4bff" stroke-width="2"/>
+        <path d="M22 6a16 16 0 0 1 0 32" stroke="#ff6a1a" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="22" cy="22" r="7.5" fill="none" stroke="#ff8a3d" stroke-width="2"/>
+        <path d="M22 14.5v15M14.5 22h15" stroke="#1f4bff" stroke-width="1.6"/>
+      </svg>
+      <span class="bt"><small>Ezeiza · Bs. As.</small><span>Break Point</span></span>
+    </a>
+    <div class="nav-links">
+      <a href="#reservas">Reservá</a>
+      <a href="#clases">Clases</a>
+      <a href="#horarios">Horarios</a>
+      <a href="#tienda">Shop</a>
+      <a href="#club">Torneos</a>
+    </div>
+    <button class="nav-cta cart-btn" onclick="openCart()" aria-label="Ver carrito">
+      🛒 Shop <span class="count" id="cart-count" style="display:none">0</span>
+    </button>
+    <button class="nav-cta" style="background:var(--royal);box-shadow:0 10px 20px -10px rgba(31,75,255,.7)" onclick="scrollToId('reservas')">Reservar cancha</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow"><span class="dot"></span> Club de pádel · reservas · escuela · shop</span>
+      <h1>Tu próximo<br><span class="hl">punto de quiebre</span><br>empieza acá.</h1>
+      <p class="lead">Canchas de primer nivel, escuelita para los más chicos, clases con profes, torneos del Circuito Padel Sur y Delicias Break para el after. Todo en un solo lugar.</p>
+      <div class="hero-cta">
+        <button class="btn btn-orange" onclick="scrollToId('reservas')">⚡ Reservá tu cancha</button>
+        <a class="btn btn-glass" href="https://wa.me/5491161870066?text=Hola%20Break%20Point!%20Quiero%20info" target="_blank" rel="noopener">💬 WhatsApp 11 6187 0066</a>
+      </div>
+      <div class="hero-meta">
+        <span class="pin">📍 <b>Paso de la Patria 55</b>, Ezeiza</span>
+        <span>🎾 <b>4 canchas</b> panorámicas</span>
+        <span>🕗 Abierto <b>8 a 24 h</b></span>
+      </div>
+    </div>
+    <div class="court-card">
+      <div class="live"><i></i> Disponibilidad en vivo</div>
+      <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;border-radius:16px;display:block" aria-label="Cancha de pádel">
+        <rect x="0" y="0" width="320" height="200" rx="12" fill="#0e57c2"/>
+        <rect x="18" y="18" width="284" height="164" rx="6" fill="#1268de" stroke="#fff" stroke-width="2.5"/>
+        <line x1="160" y1="18" x2="160" y2="182" stroke="#fff" stroke-width="2.5"/>
+        <rect x="18" y="60" width="284" height="80" fill="none" stroke="#fff" stroke-width="1.6"/>
+        <line x1="18" y1="100" x2="302" y2="100" stroke="#fff" stroke-width="1.6" opacity="0"/>
+        <line x1="90" y1="60" x2="90" y2="140" stroke="#fff" stroke-width="1.4"/>
+        <line x1="230" y1="60" x2="230" y2="140" stroke="#fff" stroke-width="1.4"/>
+        <circle cx="235" cy="150" r="7" fill="#e6ff3a"/>
+        <path d="M231 147a7 7 0 0 1 8 6" stroke="#1268de" stroke-width="1.2" fill="none"/>
+      </svg>
+      <div class="stat-row">
+        <div class="stat"><div class="n">6</div><div class="l">turnos libres hoy</div></div>
+        <div class="stat"><div class="n">18:30</div><div class="l">próximo disponible</div></div>
+        <div class="stat"><div class="n">4.9★</div><div class="l">valoración jugadores</div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- RESERVAS -->
+<section id="reservas">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow"><span class="dot"></span> Reservá en 30 segundos</span>
+      <h2 class="sec">Elegí cancha, día y horario</h2>
+      <p class="sec-sub">Turnos de 90 minutos con 10' de cortesía entre partidos. Sin llamados, sin esperas: confirmás y listo. Los horarios ocupados se bloquean solos.</p>
+    </div>
+    <div class="book reveal">
+      <div class="panel">
+        <!-- step 1 -->
+        <div class="field-label"><span class="step-n">1</span> Elegí tu cancha</div>
+        <div class="courts" id="courts"></div>
+        <!-- step 2 -->
+        <div class="row2">
+          <div>
+            <div class="field-label"><span class="step-n">2</span> Día</div>
+            <input type="date" id="fecha" />
+          </div>
+          <div>
+            <div class="field-label"><span class="step-n">3</span> Jugadores</div>
+            <select id="players">
+              <option value="4">4 jugadores (dobles)</option>
+              <option value="2">2 jugadores (singles)</option>
+            </select>
+          </div>
+        </div>
+        <!-- step 3 -->
+        <div style="margin-top:20px">
+          <div class="field-label"><span class="step-n">4</span> Horario disponible</div>
+          <div class="slots" id="slots"></div>
+          <div class="muted-note" id="slot-note">Elegí una cancha para ver los turnos.</div>
+        </div>
+        <!-- step 4 -->
+        <div class="row2">
+          <label class="inp"><span>Tu nombre</span><input id="nombre" placeholder="Nombre y apellido" /></label>
+          <label class="inp"><span>WhatsApp</span><input id="telefono" placeholder="11 ..." inputmode="tel" /></label>
+        </div>
+      </div>
+
+      <div class="panel summary">
+        <div id="sum-body">
+          <h4>Tu reserva</h4>
+          <p class="sub">El resumen se completa a medida que elegís.</p>
+          <div class="sline"><span>Cancha</span><b id="s-court">—</b></div>
+          <div class="sline"><span>Día y hora</span><b id="s-when">—</b></div>
+          <div class="sline"><span>Duración</span><b id="s-dur">90 min</b></div>
+          <div class="total"><span style="color:var(--muted);font-size:13px">Total a pagar</span><span class="big" id="s-total">—</span></div>
+          <button class="btn btn-orange book-confirm" id="confirm" disabled onclick="confirmBooking()">Confirmar reserva</button>
+          <div class="muted-note" style="text-align:center">Pago online con Mercado Pago o en el club. Cancelás gratis hasta 6 h antes.</div>
+        </div>
+        <div id="sum-done" style="display:none" class="done-card">
+          <div class="ok">✓</div>
+          <h4 style="font-size:19px;margin:0 0 6px">¡Cancha reservada!</h4>
+          <p class="sub" id="done-txt" style="margin-bottom:16px"></p>
+          <button class="btn btn-glass" style="background:#eef3ff;color:var(--royal);border:0;width:100%;justify-content:center" onclick="resetBooking()">Reservar otro turno</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CLASES / ESCUELITA -->
+<section id="clases">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow"><span class="dot"></span> Aprendé y mejorá</span>
+      <h2 class="sec">Clases &amp; Escuelita Break</h2>
+      <p class="sec-sub">De los primeros globos a la volea ganadora. Grupos reducidos, profes matriculados y seguimiento de tu progreso.</p>
+    </div>
+    <div class="cards reveal">
+      <article class="fcard">
+        <div class="top g-royal"><span class="ic">🧒</span><h3>Escuelita (6-13)</h3></div>
+        <div class="body">
+          <p>Academia para chicos: coordinación, técnica y muchísima diversión en un entorno seguro.</p>
+          <ul><li>2 clases semanales de 60'</li><li>Grupos por edad y nivel</li><li>Torneo interno cada mes</li></ul>
+          <div class="price">$38.000 <span style="font-weight:600;color:var(--muted);font-size:13px">/ mes</span></div>
+        </div>
+      </article>
+      <article class="fcard">
+        <div class="top g-orange"><span class="ic">🎾</span><h3>Clases adultos</h3></div>
+        <div class="body">
+          <p>Iniciación, intermedio y avanzado. Sumás técnica, táctica y físico jugando.</p>
+          <ul><li>Grupos de hasta 4</li><li>Profe + video-análisis</li><li>Alquiler de paleta incluido</li></ul>
+          <div class="price">$14.000 <span style="font-weight:600;color:var(--muted);font-size:13px">/ clase</span></div>
+        </div>
+      </article>
+      <article class="fcard">
+        <div class="top g-mix"><span class="ic">🏆</span><h3>Alto rendimiento</h3></div>
+        <div class="body">
+          <p>Para competir en serio: plan personalizado, sparrings y preparación para el Circuito.</p>
+          <ul><li>Planificación individual</li><li>Prep. física dedicada</li><li>Acompañamiento a torneos</li></ul>
+          <div class="price">Plan a medida</div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- HORARIOS -->
+<section id="horarios">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow"><span class="dot"></span> Organizá tu semana</span>
+      <h2 class="sec">Horarios del club</h2>
+      <p class="sec-sub">Una vista de cómo se reparte la semana entre juego libre, clases, escuelita y torneos. En el ERP, esta grilla se administra sola según las reservas.</p>
+    </div>
+    <div class="sched reveal">
+      <table class="sched-t">
+        <thead><tr><th>Franja</th><th>Lun</th><th>Mar</th><th>Mié</th><th>Jue</th><th>Vie</th><th>Sáb</th><th>Dom</th></tr></thead>
+        <tbody>
+          <tr><th>08–12</th>
+            <td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-tor">Torneo</div></td><td><div class="cell c-tor">Torneo</div></td></tr>
+          <tr><th>12–16</th>
+            <td><div class="cell c-open">Libre</div></td><td><div class="cell c-class">Clases</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-class">Clases</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td></tr>
+          <tr><th>16–19</th>
+            <td><div class="cell c-esc">Escuelita</div></td><td><div class="cell c-esc">Escuelita</div></td><td><div class="cell c-esc">Escuelita</div></td><td><div class="cell c-esc">Escuelita</div></td><td><div class="cell c-esc">Escuelita</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td></tr>
+          <tr><th>19–24</th>
+            <td><div class="cell c-open">Libre</div></td><td><div class="cell c-class">Clases</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-class">Clases</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td><td><div class="cell c-open">Libre</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend reveal">
+      <span><i style="background:rgba(34,224,138,.5)"></i> Juego libre</span>
+      <span><i style="background:rgba(31,75,255,.7)"></i> Clases adultos</span>
+      <span><i style="background:rgba(255,106,26,.7)"></i> Escuelita</span>
+      <span><i style="background:rgba(255,176,32,.7)"></i> Torneos</span>
+    </div>
+  </div>
+</section>
+
+<!-- TIENDA -->
+<section id="tienda">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow"><span class="dot"></span> Break Point Shop</span>
+      <h2 class="sec">Equipate como un pro</h2>
+      <p class="sec-sub">Paletas, pelotas, accesorios e indumentaria del club. Agregá al carrito y cerrás el pedido por WhatsApp o pagás online.</p>
+    </div>
+    <div class="shop reveal" id="shop"></div>
+  </div>
+</section>
+
+<!-- TORNEOS + DELICIAS -->
+<section id="club" style="padding-top:8px">
+  <div class="wrap split">
+    <div class="torneo reveal">
+      <span class="badge2">🏆 Circuito Padel Sur</span>
+      <h3>Torneo de Otoño 2026</h3>
+      <p>La fecha más esperada vuelve a Break Point. Inscribite con tu compañero/a y competí por categoría.</p>
+      <div class="bracket">
+        <div class="brow"><span class="cat">4ta Caballeros</span><span class="sp">14 parejas · quedan 3 lugares</span></div>
+        <div class="brow"><span class="cat">5ta Caballeros</span><span class="sp">16 parejas · completo</span></div>
+        <div class="brow"><span class="cat">4ta Damas</span><span class="sp">10 parejas · quedan 6 lugares</span></div>
+        <div class="brow"><span class="cat">Mixto libre</span><span class="sp">8 parejas · inscripción abierta</span></div>
+      </div>
+      <div style="margin-top:20px">
+        <a class="btn btn-orange" href="https://wa.me/5491161870066?text=Quiero%20inscribirme%20al%20Torneo%20de%20Oto%C3%B1o" target="_blank" rel="noopener">Inscribir mi pareja</a>
+      </div>
+    </div>
+    <div class="delicias reveal">
+      <span class="badge2" style="background:rgba(255,255,255,.22)">☕ Delicias Break</span>
+      <h3>El after también se juega acá</h3>
+      <p>Buffet y cafetería para antes, durante y después del partido. Pedí a la cancha desde tu celu.</p>
+      <div class="menu-mini">
+        <div class="mrow"><span>Café + medialunas (x3)</span><b>$3.500</b></div>
+        <div class="mrow"><span>Tostado &amp; jugo natural</span><b>$5.200</b></div>
+        <div class="mrow"><span>Picada Break (para 2)</span><b>$11.900</b></div>
+        <div class="mrow"><span>Isotónica / agua</span><b>$1.800</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ERP VALUE -->
+<section id="erp">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow"><span class="dot"></span> Detrás de escena</span>
+      <h2 class="sec">Un solo sistema para todo el club</h2>
+      <p class="sec-sub">Lo que ves acá no son pantallas sueltas: es Break Point corriendo sobre nuestro ERP. Cada módulo de la marca ya tiene su motor.</p>
+    </div>
+    <div class="modmap reveal">
+      <div class="mod"><div class="mi">🎾</div><div><h4>Reservas &amp; Agenda</h4><p>Turnos por cancha, buffer anti-solapamiento y ocupación en tiempo real.</p></div></div>
+      <div class="mod"><div class="mi">🛒</div><div><h4>Tienda &amp; POS</h4><p>Shop online + venta en mostrador con stock y precios unificados.</p></div></div>
+      <div class="mod"><div class="mi">🎓</div><div><h4>Clases &amp; Escuelita</h4><p>Cupos, cuotas mensuales y seguimiento de alumnos por nivel.</p></div></div>
+      <div class="mod"><div class="mi">🏆</div><div><h4>Torneos</h4><p>Inscripciones por categoría, fixtures y cobro de la inscripción.</p></div></div>
+      <div class="mod"><div class="mi">💳</div><div><h4>Pagos &amp; Fiscal</h4><p>Cobro con Mercado Pago y facturación electrónica ARCA integrada.</p></div></div>
+      <div class="mod"><div class="mi">📊</div><div><h4>Panel del dueño</h4><p>Ingresos, ocupación y ventas del buffet en un tablero claro.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-brand">
+          <svg class="mk" width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="22" cy="22" r="21" fill="#0a153f" stroke="#1f4bff" stroke-width="2"/>
+            <path d="M22 6a16 16 0 0 1 0 32" stroke="#ff6a1a" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="22" cy="22" r="7.5" fill="none" stroke="#ff8a3d" stroke-width="2"/>
+            <path d="M22 14.5v15M14.5 22h15" stroke="#1f4bff" stroke-width="1.6"/>
+          </svg>
+          <span class="bt"><small>Ezeiza · Bs. As.</small><span>Break Point Pádel</span></span>
+        </div>
+        <p style="max-width:36ch;color:#aab6e2;font-size:14px">El club donde jugás, aprendés, competís y te quedás. Te esperamos en cancha.</p>
+      </div>
+      <div>
+        <h5>El club</h5>
+        <a class="fl" href="#reservas">Reservá tu cancha</a>
+        <a class="fl" href="#clases">Clases &amp; Escuelita</a>
+        <a class="fl" href="#tienda">Break Point Shop</a>
+        <a class="fl" href="#club">Torneos</a>
+      </div>
+      <div>
+        <h5>Contacto</h5>
+        <a class="fl" href="https://wa.me/5491161870066" target="_blank" rel="noopener">💬 WhatsApp 11 6187 0066</a>
+        <a class="fl" href="#top">📍 Paso de la Patria 55, Ezeiza</a>
+        <a class="fl" href="#top">🕗 Todos los días, 8 a 24 h</a>
+        <a class="fl" href="https://instagram.com/breakpointpadel_" target="_blank" rel="noopener">📸 @breakpointpadel_</a>
+      </div>
+    </div>
+    <div class="foot-note">
+      <span>© 2026 Break Point Pádel · demo de preventa</span>
+      <span>Powered by nuestro ERP · tenant <b style="color:#c3cdf0">breakpoint</b> · datos de ejemplo</span>
+    </div>
+  </div>
+</footer>
+
+<!-- CART DRAWER -->
+<div class="drawer-bg" id="drawer-bg" onclick="closeCart()"></div>
+<aside class="drawer" id="drawer" aria-label="Carrito">
+  <div class="dh"><h3>Tu pedido 🛒</h3><button class="x" onclick="closeCart()" aria-label="Cerrar">×</button></div>
+  <div class="cart-list" id="cart-list"></div>
+  <div class="df">
+    <div class="tt"><span>Total</span><b id="cart-total">$0</b></div>
+    <button class="btn wa" id="wa-btn" onclick="checkoutWA()">💬 Finalizar por WhatsApp</button>
+    <div class="pay-note">O pagás online con Mercado Pago al confirmar.</div>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const money = (n) => "$" + n.toLocaleString("es-AR");
+
+/* ================= BOOKING ================= */
+const COURTS = [
+  { id:"c1", name:"Cancha 1", type:"Panorámica · Central", price:16000, badge:"Premium" },
+  { id:"c2", name:"Cancha 2", type:"Panorámica", price:14000, badge:null },
+  { id:"c3", name:"Cancha 3", type:"Muro · Cubierta", price:12000, badge:null },
+  { id:"c4", name:"Cancha 4", type:"Muro · Cubierta", price:12000, badge:"Techada" },
+];
+const OPEN_H = 8, CLOSE_H = 24, TURN_MIN = 90, BUFFER_MIN = 10;
+// deterministic "busy" slots per court/day (no randomness): index-based
+const state = { court:null, date:null, slot:null };
+
+function fmt(mins){ const h=Math.floor(mins/60), m=mins%60; return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0"); }
+function prettyDate(iso){
+  const [y,mo,d] = iso.split("-").map(Number);
+  const dt = new Date(y, mo-1, d);
+  const dias=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  const meses=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  return dias[dt.getDay()]+" "+d+" "+meses[dt.getMonth()];
+}
+function dayKey(iso){ return iso.split("-").reduce((a,b)=>a+Number(b),0); }
+
+function renderCourts(){
+  $("courts").innerHTML = COURTS.map((c)=>`
+    <button class="court" data-id="${c.id}" onclick="pickCourt('${c.id}')">
+      <div class="nm">🎾 ${c.name} ${c.badge?`<span class="chip-badge">${c.badge}</span>`:""}</div>
+      <div class="tp">${c.type}</div>
+      <div class="pr">${money(c.price)} · 90 min</div>
+    </button>`).join("");
+}
+function pickCourt(id){
+  state.court = COURTS.find(c=>c.id===id);
+  state.slot = null;
+  document.querySelectorAll(".court").forEach(el=>el.classList.toggle("sel", el.dataset.id===id));
+  renderSlots();
+  updateSummary();
+}
+function renderSlots(){
+  const box = $("slots");
+  if(!state.court || !state.date){ box.innerHTML=""; $("slot-note").textContent="Elegí una cancha para ver los turnos."; return; }
+  const startMin = OPEN_H*60, lastStart = CLOSE_H*60 - TURN_MIN;
+  const step = TURN_MIN + BUFFER_MIN;
+  // busy set: deterministic pseudo-occupation from court + day
+  const seed = (dayKey(state.date) + state.court.id.charCodeAt(1)) ;
+  let html="", any=false;
+  for(let t=startMin; t<=lastStart; t+=step){
+    const idx = Math.round((t-startMin)/step);
+    const busy = ((idx*7 + seed*3) % 5 === 0) || ((idx + seed) % 7 === 2);
+    if(!busy) any=true;
+    const sel = state.slot===t ? " sel":"";
+    html += `<button class="slot${sel}" ${busy?"disabled":""} onclick="pickSlot(${t})">${fmt(t)}</button>`;
+  }
+  box.innerHTML = html;
+  $("slot-note").textContent = any ? "Los turnos tachados ya están reservados." : "No quedan turnos ese día, probá otra fecha.";
+}
+function pickSlot(t){
+  state.slot = t;
+  document.querySelectorAll(".slot").forEach(el=>el.classList.remove("sel"));
+  [...document.querySelectorAll(".slot")].find(el=>el.textContent===fmt(t))?.classList.add("sel");
+  updateSummary();
+}
+function updateSummary(){
+  $("s-court").textContent = state.court ? state.court.name : "—";
+  if(state.court && state.date && state.slot!=null){
+    $("s-when").textContent = prettyDate(state.date)+" · "+fmt(state.slot)+"–"+fmt(state.slot+TURN_MIN);
+    $("s-total").textContent = money(state.court.price);
+  } else {
+    $("s-when").textContent = state.date ? prettyDate(state.date) : "—";
+    $("s-total").textContent = state.court ? money(state.court.price) : "—";
+  }
+  validate();
+}
+function validate(){
+  const ok = state.court && state.date && state.slot!=null && $("nombre").value.trim() && $("telefono").value.trim();
+  $("confirm").disabled = !ok;
+}
+function confirmBooking(){
+  $("done-txt").innerHTML = `<b>${state.court.name}</b> · ${prettyDate(state.date)}<br>${fmt(state.slot)} a ${fmt(state.slot+TURN_MIN)} · ${money(state.court.price)}<br><span style="color:var(--muted)">Te mandamos la confirmación por WhatsApp, ${$("nombre").value.trim().split(" ")[0]} 🎾</span>`;
+  $("sum-body").style.display="none";
+  $("sum-done").style.display="block";
+  toast("¡Reserva confirmada! 🎾");
+}
+function resetBooking(){
+  state.court=null; state.slot=null;
+  $("nombre").value=""; $("telefono").value="";
+  document.querySelectorAll(".court").forEach(el=>el.classList.remove("sel"));
+  $("slots").innerHTML=""; $("slot-note").textContent="Elegí una cancha para ver los turnos.";
+  $("sum-done").style.display="none";
+  $("sum-body").style.display="block";
+  updateSummary();
+  scrollToId("reservas");
+}
+
+/* ================= SHOP ================= */
+const PRODUCTS = [
+  { id:"p1", name:"Paleta Break Pro", brand:"Break Point Signature", price:189000, glyph:"🏓", tag:"Nuevo", bg:"linear-gradient(150deg,#1f4bff,#122a9c)" },
+  { id:"p2", name:"Tubo x3 pelotas", brand:"Padel Sur Oficial", price:9500, glyph:"🎾", tag:"Top", bg:"linear-gradient(150deg,#ff6a1a,#e24e00)" },
+  { id:"p3", name:"Remera dry-fit", brand:"Indumentaria Break", price:24000, glyph:"👕", tag:null, bg:"linear-gradient(150deg,#2a2f8f,#1f4bff)" },
+  { id:"p4", name:"Grip x3", brand:"Accesorios", price:6800, glyph:"🌀", tag:null, bg:"linear-gradient(150deg,#0e57c2,#1268de)" },
+  { id:"p5", name:"Bolso paletero", brand:"Break Point", price:78000, glyph:"🎒", tag:"Destacado", bg:"linear-gradient(150deg,#122a9c,#0a153f)" },
+  { id:"p6", name:"Muñequera (par)", brand:"Accesorios", price:5400, glyph:"💪", tag:null, bg:"linear-gradient(150deg,#ff8a3d,#ff6a1a)" },
+  { id:"p7", name:"Gorra club", brand:"Indumentaria Break", price:15000, glyph:"🧢", tag:null, bg:"linear-gradient(150deg,#1f4bff,#0e57c2)" },
+  { id:"p8", name:"Botella térmica", brand:"Delicias Break", price:12500, glyph:"🧴", tag:null, bg:"linear-gradient(150deg,#ff6a1a,#ffb020)" },
+];
+const cart = {};
+function renderShop(){
+  $("shop").innerHTML = PRODUCTS.map(p=>`
+    <div class="prod">
+      <div class="ph" style="background:${p.bg}">
+        ${p.tag?`<span class="tag">${p.tag}</span>`:""}
+        <span class="glyph">${p.glyph}</span>
+      </div>
+      <div class="in">
+        <h4>${p.name}</h4>
+        <div class="brand-s">${p.brand}</div>
+        <div class="foot">
+          <span class="pr">${money(p.price)}</span>
+          <button class="add" id="add-${p.id}" onclick="addToCart('${p.id}')">Agregar</button>
+        </div>
+      </div>
+    </div>`).join("");
+}
+function addToCart(id){
+  cart[id] = (cart[id]||0) + 1;
+  const b = $("add-"+id);
+  b.textContent="✓ Sumado"; b.classList.add("added");
+  setTimeout(()=>{ b.textContent="Agregar"; b.classList.remove("added"); }, 1000);
+  refreshCart();
+  toast("Agregado al carrito 🛒");
+}
+function changeQty(id, d){
+  cart[id] = (cart[id]||0) + d;
+  if(cart[id]<=0) delete cart[id];
+  refreshCart();
+}
+function cartTotal(){ return Object.entries(cart).reduce((s,[id,q])=>s + PRODUCTS.find(p=>p.id===id).price*q, 0); }
+function cartCount(){ return Object.values(cart).reduce((a,b)=>a+b,0); }
+function refreshCart(){
+  const n = cartCount();
+  const badge = $("cart-count");
+  badge.style.display = n?"grid":"none"; badge.textContent = n;
+  const list = $("cart-list");
+  const items = Object.entries(cart);
+  if(!items.length){ list.innerHTML = `<div class="cart-empty">Tu carrito está vacío.<br>Sumá productos del Shop 🎾</div>`; }
+  else {
+    list.innerHTML = items.map(([id,q])=>{
+      const p = PRODUCTS.find(x=>x.id===id);
+      return `<div class="ci">
+        <div class="g">${p.glyph}</div>
+        <div><div class="nm">${p.name}</div><div class="pu">${money(p.price)} c/u</div></div>
+        <div class="qty"><button onclick="changeQty('${id}',-1)">−</button><b>${q}</b><button onclick="changeQty('${id}',1)">+</button></div>
+      </div>`;
+    }).join("");
+  }
+  $("cart-total").textContent = money(cartTotal());
+  $("wa-btn").disabled = !items.length;
+}
+function openCart(){ $("drawer").classList.add("open"); $("drawer-bg").classList.add("open"); }
+function closeCart(){ $("drawer").classList.remove("open"); $("drawer-bg").classList.remove("open"); }
+function checkoutWA(){
+  const items = Object.entries(cart);
+  if(!items.length) return;
+  let msg = "Hola Break Point! Quiero este pedido del Shop:%0A";
+  items.forEach(([id,q])=>{ const p=PRODUCTS.find(x=>x.id===id); msg += `- ${q}x ${p.name} (${money(p.price*q)})%0A`; });
+  msg += `Total: ${money(cartTotal())}`;
+  window.open("https://wa.me/5491161870066?text="+msg, "_blank");
+}
+
+/* ================= UX helpers ================= */
+let toastTimer;
+function toast(t){
+  const el=$("toast"); el.textContent=t; el.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove("show"),1900);
+}
+function scrollToId(id){ $(id).scrollIntoView({behavior:"smooth"}); }
+
+/* reveal on scroll */
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+}, { threshold:.12 });
+
+/* ================= INIT ================= */
+renderCourts();
+renderShop();
+refreshCart();
+document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+
+const today = new Date();
+const tomorrow = new Date(today.getTime() + 86400000);
+const toISO = (d)=> d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+$("fecha").min = toISO(today);
+$("fecha").value = toISO(tomorrow);
+state.date = $("fecha").value;
+$("fecha").onchange = (e)=>{ state.date = e.target.value; state.slot=null; renderSlots(); updateSummary(); };
+$("nombre").oninput = validate;
+$("telefono").oninput = validate;
+updateSummary();
+</script>
+</body>
+</html>
