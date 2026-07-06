@@ -151,4 +151,68 @@ nueva célula. Le dejo el **contrato de entrada** + un hallazgo que necesita con
 3. Ninguna de las dos cosas se integra a `main` sin pasar el Gate — no se toca `src/lib/session.ts`,
    `src/proxy.ts` ni `src/lib/db.ts` todavía.
 
+## 6. Estado — v1 CONSTRUIDA (2026-07-06), pendiente Gate GSG antes de exponer
+
+Por prioridad explícita del dueño se pasó de diseño a una **primera versión funcional**, en línea con el
+plan de arriba y con `docs/demo/plan-sandbox-persistencia.md` (Célula Sandbox) — mismo mecanismo,
+implementado con guards por acción en vez de mock genérico de Prisma (ver decisión en §6.2).
+
+### 6.1 Qué existe en código
+
+- **`src/lib/demo-flag.ts`** — `isDemoSandbox()` (lee `DEMO_MODE_ENABLED==="true"`) + `DEMO_TENANT_ID`.
+  Cero imports (edge-safe), lo usa también `src/proxy.ts`.
+- **`src/lib/demo-sandbox.ts`** — identidad ficticia (`DEMO_SESSION_USER`, rol OWNER), fixtures de
+  Agenda&Servicios (agenda del día, caja abierta con ledger, reportes/panel del dueño calculados con el
+  motor real `computeDeepKpis` sobre turnos ficticios) y `DEMO_WRITE_BLOCKED` (respuesta honesta para
+  escrituras).
+- **Guards agregados** (todos: `requireCapability` primero, después el corte — la capacidad se resuelve
+  igual porque `getCurrentUser()` ya devuelve la identidad ficticia):
+  - `src/lib/session.ts` (`getCurrentUser`) y `src/lib/tenant.ts` (`getCurrentTenantId`): devuelven la
+    identidad/tenant fijos sin tocar Prisma/`basePrisma` en absoluto.
+  - `src/proxy.ts`: dejar pasar `/admin/:path*` sin cookie cuando la flag está prendida. `/operador` sin
+    tocar.
+  - `src/lib/actions.ts`: `getAgendaDay`, `getReportData`, `getDeepReportData`, `getOwnerPanelData` (datos
+    ficticios) + `confirmPayment`/`cancelAppointment`/`markNoShow`/`completeAppointment`/
+    `rescheduleAppointment` (no-op, no persisten).
+  - `src/lib/caja-actions.ts`: `getCajaData` (ficticio) + `openCashSession`/`addCashMovement`/
+    `closeCashSession` (bloqueadas, `DEMO_WRITE_BLOCKED`).
+  - `src/lib/commission-actions.ts`: `getCommissionsOverview` (vacío, estado legítimo) + `settleCommissions`
+    (bloqueada).
+- **`src/app/demo/DemoTour.tsx`**: un link "Entrá al backoffice real (demo) →" a `/admin/turnos` — sin
+  import nuevo, no rompe el aislamiento de `/demo`.
+
+### 6.2 Decisión que se apartó del plan original (documentada, no silenciosa)
+
+El plan de la Célula Sandbox proponía interceptar en `src/lib/db.ts` (mockear TODO el cliente Prisma). Se
+optó por **guards en cada acción de lectura/escritura de las 3 pantallas pedidas** (agenda, caja, panel
+del dueño) en su lugar: `getReportData`/`getDeepReportData`/`getOwnerPanelData` hacen agregaciones
+(`groupBy`-like) que un mock genérico de Prisma tendría que reimplementar fielmente — mockear la
+**salida de cada función** es mucho más barato y igual de seguro (cero Prisma tocado en modo demo), a
+costa de tener que declarar el guard en cada acción nueva que se sume a estas 3 pantallas (deuda anotada,
+no bloqueante). Si más pantallas se suman al sandbox y el costo de guardas dispersas supera al de un
+mock centralizado, se reconsidera.
+
+### 6.3 Verificación hecha (sin tocar el árbol/env compartido)
+
+- `tsc --noEmit`: limpio.
+- `npm test`: **417/417** (9 nuevas en `src/lib/demo-sandbox.test.ts`, cubren la flag apagada/prendida,
+  namespacing de la identidad ficticia, y las 4 formas de datos ficticios).
+- Navegador (`/demo`): renderiza con el link nuevo visible; navegación directa a `/admin/turnos` con la
+  flag apagada (default de este entorno) **redirige a `/admin/login`** — cero regresión del portón real.
+- **No verificado en navegador con la flag prendida**: hacerlo requeriría tocar `.env.local` de un
+  worktree compartido con otras sesiones activas (riesgo de disrupción, ver `feedback_working_tree_compartido_commit_race`
+  en memoria) — se prefirió cubrir la ruta ON con tests unitarios aislados (§6.3 arriba) en vez de un
+  servidor compartido. Queda como pendiente correr esto en un deploy/branch de Neon aislado real.
+
+### 6.4 Qué falta (explícito, no bloqueante para este incremento)
+
+- **Gate GSG en Opus**: este commit toca `session.ts`/`tenant.ts`/`proxy.ts` — corresponde auditoría de
+  seguridad antes de exponer esto en un deploy público real (aunque el código es inerte por defecto).
+- Optimismo de UI en `caja`/`agenda` (que un clic en "Cobrar"/"Agendar" se **vea** reflejado en pantalla)
+  no está — hoy las escrituras devuelven honestamente "no se guarda" en vez de fingir. Es la mejora
+  natural del próximo incremento si se pide.
+- Deploy real aislado (`FORCE_TENANT_SLUG=demo-agenda` + `DEMO_MODE_ENABLED=true` en un sitio propio) no
+  se creó — este incremento es el código; el paso de infraestructura (Netlify/Vercel) queda para cuando
+  el dueño lo pida.
+
 — Elaborado por **Gestión Studio Grow (GSG)**.

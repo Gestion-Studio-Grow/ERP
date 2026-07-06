@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookieName, readSessionToken } from "@/lib/auth";
 import { getOperatorCookieName, readOperatorToken } from "@/lib/operator-auth";
+import { isDemoSandbox } from "@/lib/demo-flag";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -15,6 +16,14 @@ export async function proxy(request: NextRequest) {
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
+    return NextResponse.next();
+  }
+
+  // --- Modo SANDBOX de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md).
+  // Solo existe si DEMO_MODE_ENABLED="true", flag exclusiva de un deploy aislado sin
+  // DB real (nunca un tenant real la tiene seteada) — deja pasar /admin sin cookie.
+  // NO toca /operador (consola super-admin, siempre gateada).
+  if (pathname.startsWith("/admin") && isDemoSandbox()) {
     return NextResponse.next();
   }
 

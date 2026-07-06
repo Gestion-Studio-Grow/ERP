@@ -11,6 +11,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getSessionCookieName, readSessionToken } from "@/lib/auth";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { isDemoSandbox, DEMO_SESSION_USER } from "@/lib/demo-sandbox";
 
 export type SessionUser = {
   id: string;
@@ -25,6 +26,10 @@ export type SessionUser = {
 // llamadores dentro del mismo render (guard de página + guard del loader +
 // auditAdmin) comparten un solo lookup a la base en vez de repetirlo.
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+  // Modo SANDBOX de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md):
+  // identidad ficticia fija, SIN leer cookie ni tocar Prisma/User en absoluto.
+  if (isDemoSandbox()) return DEMO_SESSION_USER;
+
   const cookieStore = await cookies();
   const userId = await readSessionToken(cookieStore.get(getSessionCookieName())?.value);
   if (!userId) return null;

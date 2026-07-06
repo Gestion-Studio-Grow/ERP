@@ -21,6 +21,7 @@ import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
+import { isDemoSandbox } from "@/lib/demo-sandbox";
 
 const REPORTES_PATH = "/admin/reportes";
 
@@ -68,6 +69,7 @@ export async function getCommissionsOverview(): Promise<{
   history: PayoutHistoryRow[];
 }> {
   await requireCapability("reports:read");
+  if (isDemoSandbox()) return { pending: [], history: [] };
   const tenantId = await getCurrentTenantId();
 
   const [appointments, overrides, payouts] = await Promise.all([
@@ -150,6 +152,7 @@ export async function getCommissionsOverview(): Promise<{
 // si mañana cambia un precio o un %, el comprobante ya emitido no se altera.
 export async function settleCommissions(formData: FormData) {
   const user = await requireCapability("commissions:manage");
+  if (isDemoSandbox()) backWith("error_nada"); // modo demo: no hay comisiones reales que liquidar
   const tenantId = await getCurrentTenantId();
   const professionalId = String(formData.get("professionalId") ?? "").trim();
   if (!professionalId) backWith("error_prof");

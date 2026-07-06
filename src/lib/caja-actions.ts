@@ -22,6 +22,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
 import { reconcileCash, type CashMovementLike, type CashMovementType } from "@/lib/caja/cash-register";
+import { isDemoSandbox, DEMO_CAJA_DATA, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 
 const CAJA_PATH = "/admin/caja";
 
@@ -57,6 +58,7 @@ function parseAmount(raw: FormDataEntryValue | null): number {
 // últimas sesiones cerradas para el histórico. Guard de lectura por `orders:read`.
 export async function getCajaData() {
   await requireCapability("orders:read");
+  if (isDemoSandbox()) return DEMO_CAJA_DATA;
   const tenantId = await getCurrentTenantId();
   const [open, recentClosed] = await Promise.all([
     prisma.cashSession.findFirst({
@@ -84,6 +86,7 @@ export async function openCashSession(
   formData: FormData,
 ): Promise<CajaActionState> {
   const user = await requireCapability("orders:manage");
+  if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
   const openingFloat = parseAmount(formData.get("openingFloat"));
   if (!Number.isFinite(openingFloat) || openingFloat < 0) {
@@ -144,6 +147,7 @@ export async function addCashMovement(
   formData: FormData,
 ): Promise<CajaActionState> {
   const user = await requireCapability("orders:manage");
+  if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
 
   const typeRaw = String(formData.get("type") || "").trim();
@@ -200,6 +204,7 @@ export async function closeCashSession(
   formData: FormData,
 ): Promise<CajaActionState> {
   const user = await requireCapability("orders:manage");
+  if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
   const counted = parseAmount(formData.get("counted"));
   if (!Number.isFinite(counted) || counted < 0) {

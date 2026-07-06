@@ -250,6 +250,14 @@ export default function DemoTour() {
             Escribinos por mail
           </a>
         </div>
+        {/* Sandbox de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md):
+            enlace plano al backoffice real. Sin cambio de comportamiento si el
+            deploy no tiene DEMO_MODE_ENABLED (el visitante cae al login real). */}
+        <div className="mt-1.5 text-center text-[12px] text-white/60">
+          <a href="/admin/turnos" className="underline-offset-2 hover:underline">
+            Entrá al backoffice real (demo) →
+          </a>
+        </div>
       </div>
 
       {/* Prompt just-in-time del WhatsApp: aparece recién al disparar el CTA,

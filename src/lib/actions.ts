@@ -21,6 +21,13 @@ import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
+import {
+  isDemoSandbox,
+  getDemoAgendaDay,
+  getDemoReportData,
+  getDemoDeepReportData,
+  getDemoOwnerPanelData,
+} from "@/lib/demo-sandbox";
 
 export async function getProfessionalsWithServices() {
   return prisma.professional.findMany({
@@ -470,6 +477,7 @@ export async function createManualAppointment(formData: FormData) {
 // estado, pago y notas: solo cambia cuándo (y con quién, si aplica).
 export async function rescheduleAppointment(formData: FormData) {
   await requireCapability("agenda:manage");
+  if (isDemoSandbox()) return; // modo demo: no persiste (docs/preventa/plan-acceso-sandbox-sin-password.md)
   const appointmentId = String(formData.get("appointmentId"));
   const startsAtIso = String(formData.get("startsAt"));
   // Profesional destino: vacío o igual → se mantiene el actual.
@@ -562,6 +570,7 @@ export async function getAppointments() {
 
 export async function confirmPayment(formData: FormData) {
   await requireCapability("agenda:manage");
+  if (isDemoSandbox()) return; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId"));
   const method = String(formData.get("method")) as "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
 
@@ -609,6 +618,7 @@ export async function confirmPayment(formData: FormData) {
 
 export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
+  if (isDemoSandbox()) return getDemoReportData(rangeDays);
   const tenantId = await getCurrentTenantId();
   // Ingresos (pagos aprobados). Las comisiones ya NO se calculan acá: viven en
   // `commission-actions.ts` (getCommissionsOverview), única fuente de verdad
@@ -685,6 +695,7 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
 // testeada). Read-only y range-bounded — sano para el plan free de Neon.
 export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
+  if (isDemoSandbox()) return getDemoDeepReportData(rangeDays);
   const tenantId = await getCurrentTenantId();
 
   const hasta = new Date();
@@ -734,6 +745,7 @@ export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE
 // en la página (funciones puras owner-insights/owner-trends), acá solo el dato.
 export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
   await requireCapability("reports:read");
+  if (isDemoSandbox()) return getDemoOwnerPanelData(rangeDays);
   const tenantId = await getCurrentTenantId();
 
   const DAY_MS = 24 * 60 * 60 * 1000;
@@ -808,6 +820,7 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
 
 export async function cancelAppointment(formData: FormData) {
   await requireCapability("agenda:manage");
+  if (isDemoSandbox()) return; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId"));
   await prisma.appointment.update({
     where: { id: appointmentId },
@@ -820,6 +833,7 @@ export async function cancelAppointment(formData: FormData) {
 
 export async function markNoShow(formData: FormData) {
   const user = await requireCapability("agenda:complete");
+  if (isDemoSandbox()) return; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId"));
   const appointment = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
   // Un PROFESSIONAL solo puede operar sobre su propia agenda (ADR-017 §2.b).
@@ -840,6 +854,7 @@ export async function markNoShow(formData: FormData) {
 
 export async function completeAppointment(formData: FormData) {
   const user = await requireCapability("agenda:complete");
+  if (isDemoSandbox()) return; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId"));
   // Toggle "facturar sí/no" (ADR-024 §2.c): true por default; solo se saltea si
   // la UI manda explícitamente `facturar="false"` (checkbox "No facturar").
@@ -932,6 +947,7 @@ export async function getClient(id: string) {
 
 export async function getAgendaDay(date: string) {
   const user = await requireCapability("agenda:read");
+  if (isDemoSandbox()) return getDemoAgendaDay(date);
 
   // Scoping por rol (ADR-017 §2.b): el PROFESSIONAL ve SOLO su propia agenda.
   // Si por configuración quedara sin `professionalId`, se scopea a un id que no

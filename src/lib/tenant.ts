@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { basePrisma } from "@/lib/prisma-base";
+import { isDemoSandbox, DEMO_TENANT_ID } from "@/lib/demo-flag";
 
 // Resolución del tenant actual — G1 (ADR-010 / ADR-001), blindada fail-closed (ADR-015),
 // AHORA por request (ADR-018 §4).
@@ -183,6 +184,10 @@ export async function resolveForcedTenantId(
 
 /** Tenant del request actual. Fail-closed. Dedupe por request. */
 export const getCurrentTenantId = cache(async (): Promise<string> => {
+  // Paso -1: modo SANDBOX de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md).
+  // Pseudo-tenant fijo SIN pegarle a basePrisma — el sandbox no tiene DB real.
+  if (isDemoSandbox()) return DEMO_TENANT_ID;
+
   // Paso 0: pin por env (Opción A). Domina sobre el host; si está seteado, el sitio
   // queda fijado a ese tenant. Usa el cliente BASE (sin RLS), como el resto de acá.
   const forced = forcedTenantSlug();
