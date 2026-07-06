@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Shine — velas de soja, difusores, aromas y decoración hechos y elegidos a mano. Envíos CABA y GBA." />
+<meta name="theme-color" content="#9a6a1f" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Shine · Velas, aromas & deco" />
+<meta property="og:description" content="Shine — velas de soja, difusores, aromas y decoración hechos y elegidos a mano. Envíos CABA y GBA." />
+<title>Shine · Velas, aromas & deco — preview de vidriera (tenant shinevelas)</title>
+<style>
+  /* ── Design tokens Nocturne (light) del ERP + acento ámbar del tenant shinevelas ── */
+  :root{
+    --surface:#f6f3ec; --surface-raised:#ffffff; --surface-sunken:#ece7db; --surface-inverted:#1b1a14;
+    --text-strong:#1f1b14; --text-muted:#736a58; --text-faint:#a79c87; --text-on-accent:#ffffff;
+    --line:#e6dfd0; --line-strong:#d2c9b5;
+    --accent:#9a6a1f;               /* ambar.light — el "shine" de una vela */
+    --radius:0.625rem; --radius-lg:1rem; --radius-xl:1.5rem;
+    --shadow-sm:0 1px 3px rgba(32,27,22,.08),0 1px 2px rgba(32,27,22,.05);
+    --shadow-md:0 4px 14px rgba(32,27,22,.08),0 2px 4px rgba(32,27,22,.05);
+    --shadow-lg:0 12px 32px rgba(32,27,22,.14),0 4px 8px rgba(32,27,22,.06);
+    --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-display:"Fraunces",Georgia,"Times New Roman",serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--surface);color:var(--text-strong);font-family:var(--font-body);line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);font-weight:600}
+  h1,h2,h3{margin:0;font-family:var(--font-display)}
+  button{font-family:inherit;cursor:pointer}
+  .banner{background:var(--surface-inverted);color:#f0ebde;font-size:12.5px;text-align:center;padding:7px 16px;letter-spacing:.2px}
+  .banner b{color:#e0a83e}
+
+  /* topbar (sin backdrop-filter, fondo sólido) */
+  .topbar{position:sticky;top:0;z-index:40;background:var(--surface);border-bottom:1px solid var(--line)}
+  .topbar .row{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .brand{display:flex;align-items:center;gap:11px;text-decoration:none}
+  .mono{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--accent);color:var(--text-on-accent);font-family:var(--font-display);font-weight:600;font-size:18px}
+  .brand .nm{font-family:var(--font-display);font-weight:600;font-size:19px;letter-spacing:-.3px}
+  .navlinks{display:flex;gap:18px;align-items:center}
+  .navlinks a{font-size:13.5px;font-weight:600;color:var(--text-muted);text-decoration:none}
+  .navlinks a:hover{color:var(--accent)}
+  @media(max-width:720px){.navlinks .hidesm{display:none}}
+  .cartbtn{position:relative;border:1px solid var(--line-strong);background:var(--surface-raised);border-radius:10px;padding:8px 14px 8px 12px;font-weight:600;font-size:14px;display:flex;gap:8px;align-items:center}
+  .cartbtn .badge{background:var(--accent);color:var(--text-on-accent);border-radius:999px;min-width:20px;height:20px;display:grid;place-items:center;font-size:12px;font-weight:700;padding:0 5px}
+
+  /* hero */
+  header.hero{border-bottom:1px solid var(--line);position:relative;overflow:hidden}
+  header.hero .glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 80% at 82% 20%, color-mix(in srgb,var(--accent) 20%, transparent) 0%, transparent 60%)}
+  header.hero .wrap{padding-top:72px;padding-bottom:54px;position:relative}
+  header.hero h1{font-size:clamp(40px,6.6vw,68px);line-height:1.0;letter-spacing:-1.9px;font-weight:600;margin-top:16px;max-width:800px}
+  .pitch{font-family:var(--font-display);font-size:clamp(19px,2.6vw,26px);font-weight:600;letter-spacing:-.4px;margin-top:14px}
+  .rule{width:48px;height:3px;background:var(--accent);margin:22px 0}
+  .intro{font-size:17px;line-height:1.62;color:var(--text-muted);max-width:640px}
+  .ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+  .btn{display:inline-grid;place-items:center;height:46px;padding:0 22px;border-radius:12px;border:none;font-weight:700;font-size:15px;text-decoration:none}
+  .btn.primary{background:var(--accent);color:var(--text-on-accent)}
+  .btn.wa{background:#fff;color:#128C4B;border:1px solid #25D366}
+  .btn.ghost{background:var(--surface-raised);color:var(--text-strong);border:1px solid var(--line-strong)}
+
+  /* value props */
+  .vp{background:var(--surface-raised);border-bottom:1px solid var(--line)}
+  .vp .grid{display:grid;gap:24px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));padding:34px 24px}
+  .vp .ic{color:var(--accent);font-size:18px;font-weight:700;margin-bottom:7px}
+  .vp .t{font-weight:700;font-size:15px;margin-bottom:3px}
+  .vp .x{color:var(--text-muted);font-size:13.5px;line-height:1.5}
+
+  section.blk{padding:46px 0}
+  .head{margin-bottom:18px}
+  .head h2{font-size:26px;font-weight:600;letter-spacing:-.5px;margin-top:7px}
+  .lead{color:var(--text-muted);font-size:15px;line-height:1.6;max-width:640px;margin:-4px 0 18px}
+
+  /* mundos (líneas) */
+  .worlds{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .worlds .card{background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:20px;text-decoration:none;display:block;transition:box-shadow .15s,transform .15s}
+  .worlds .card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+  .worlds .card .gl{font-family:var(--font-display);font-size:26px;color:var(--accent)}
+  .worlds .card .t{font-family:var(--font-display);font-weight:600;font-size:18px;margin-top:6px}
+  .worlds .card .x{color:var(--text-muted);font-size:13.5px;line-height:1.5;margin-top:6px}
+
+  /* filtros */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+  .chip{border:1px solid var(--line-strong);background:var(--surface-raised);border-radius:999px;padding:8px 15px;font-size:13.5px;font-weight:600;color:var(--text-muted)}
+  .chip.on{background:var(--accent);color:var(--text-on-accent);border-color:var(--accent)}
+
+  /* secciones de catálogo */
+  .catwrap{display:grid;gap:34px}
+  .secthead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .secthead h3{font-size:20px;font-weight:800;letter-spacing:-.4px}
+  .secthead .bl{color:var(--text-muted);font-size:13.5px}
+  .catalog{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+  .prod{background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:9px;transition:box-shadow .15s,transform .15s}
+  .prod:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+  .prod.incart{box-shadow:0 0 0 1.5px var(--accent)}
+  .visual{aspect-ratio:4/3;border-radius:12px;display:grid;place-items:center;box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;position:relative;overflow:hidden}
+  .visual .glyph{font-family:var(--font-display);font-size:34px;color:color-mix(in srgb,var(--accent) 78%,var(--text-strong))}
+  .visual .cat{position:absolute;top:8px;left:8px;background:color-mix(in srgb,var(--surface-raised) 82%,transparent);border:1px solid var(--line);border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text-muted);padding:3px 8px}
+  .prod .nm{font-weight:700;font-size:15.5px;cursor:pointer}
+  .prod .story{font-size:12.5px;color:var(--text-faint);line-height:1.45;font-style:italic}
+  .prod .price{color:var(--accent);font-weight:700;font-size:15px}
+  .prod .price small{color:var(--text-faint);font-weight:500;font-size:13px}
+  .stepper{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:4px}
+  .qb{height:34px;min-width:34px;border-radius:10px;border:none;font-weight:700;font-size:16px}
+  .qb.minus{background:var(--line);color:var(--text-strong)}
+  .qb.minus:disabled{opacity:.4;cursor:not-allowed}
+  .qb.plus{background:var(--accent);color:var(--text-on-accent)}
+  .qcount{min-width:44px;text-align:center;font-variant-numeric:tabular-nums;font-size:14px}
+
+  /* ritual */
+  .ritual{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .ritual .step{background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:20px}
+  .ritual .n{width:34px;height:34px;border-radius:999px;background:var(--accent);color:var(--text-on-accent);display:grid;place-items:center;font-weight:800;font-size:16px;margin-bottom:12px}
+  .ritual .t{font-weight:800;font-size:16px;margin-bottom:6px}
+  .ritual .x{color:var(--text-muted);font-size:14px;line-height:1.55}
+
+  /* gift sets */
+  .gifts{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .gift{background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative}
+  .gift .tag{position:absolute;top:14px;right:14px;background:var(--accent);color:var(--text-on-accent);border-radius:999px;font-size:11px;font-weight:700;padding:3px 9px}
+  .gift .gn{font-weight:800;font-size:17px}
+  .gift .gi{color:var(--text-muted);font-size:14px;line-height:1.55;flex:1}
+  .gift .grow{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+  .gift .gp{color:var(--accent);font-weight:800;font-size:16px}
+  .gift a{font-size:14px;font-weight:700;color:var(--accent);text-decoration:none}
+
+  /* layout catalogo + carrito */
+  .shop{display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start}
+  @media(max-width:880px){.shop{grid-template-columns:1fr}}
+  .cart{position:sticky;top:76px;background:var(--surface-raised);border:1px solid var(--line);border-radius:20px;padding:20px}
+  .cart h2{font-family:var(--font-display);font-size:20px;font-weight:600;margin-bottom:12px}
+  .cart .empty{color:var(--text-muted);font-size:14px}
+  .cline{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;padding:5px 0}
+  .cline .rm{color:var(--text-faint);border:none;background:none;font-size:15px;line-height:1;padding:0 2px}
+  .srow{display:flex;justify-content:space-between;font-size:14px;color:var(--text-muted);padding-top:8px}
+  .srow.total{border-top:1px solid var(--line);margin-top:8px;padding-top:10px;font-weight:800;color:var(--text-strong);font-size:16px}
+  .srow.total b{color:var(--accent);font-variant-numeric:tabular-nums}
+  .toggle{display:flex;gap:6px;background:var(--surface-sunken);border-radius:12px;padding:4px;margin:12px 0}
+  .toggle button{flex:1;border:none;background:none;border-radius:9px;padding:8px;font-size:13px;font-weight:600;color:var(--text-muted)}
+  .toggle button.on{background:var(--surface-raised);color:var(--text-strong);box-shadow:var(--shadow-sm)}
+  .nudge{font-size:12.5px;color:var(--text-muted);margin:10px 0 0}
+  .nudge b{color:var(--accent)}
+  .bar{height:6px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:6px}
+  .bar>span{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .25s ease}
+  .cart .btn{width:100%;margin-top:14px;height:46px}
+  .fineprint{font-size:11px;color:var(--text-faint);text-align:center;margin-top:10px}
+
+  /* about (dark) */
+  .about{background:var(--surface-inverted);color:var(--surface);position:relative;overflow:hidden}
+  .about .glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(50% 70% at 85% 30%, color-mix(in srgb,var(--accent) 26%, transparent) 0%, transparent 60%)}
+  .about .wrap{padding:64px 24px;position:relative}
+  .about h2{font-size:clamp(26px,4.5vw,40px);font-weight:600;letter-spacing:-.8px;max-width:760px;line-height:1.12}
+  .about p{margin-top:16px;font-size:16.5px;line-height:1.75;opacity:.84;max-width:680px}
+
+  /* reviews */
+  .reviews{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .rev{background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:20px}
+  .rev .stars{color:var(--accent);letter-spacing:2px;font-size:14px}
+  .rev p{margin:10px 0 12px;font-size:14.5px;line-height:1.6}
+  .rev .who{font-size:13px;font-weight:700;color:var(--text-muted)}
+
+  /* footer */
+  footer{background:var(--surface-inverted);color:var(--surface);border-top:1px solid rgba(255,255,255,.08)}
+  footer .grid{display:grid;gap:32px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));padding:48px 24px}
+  footer .fh{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;opacity:.55;margin-bottom:8px;font-weight:600}
+  footer .col{font-size:13px;line-height:1.9;opacity:.82}
+  footer a{text-decoration:underline;text-underline-offset:2px}
+  footer .nm{font-family:var(--font-display);font-weight:600;font-size:18px}
+
+  /* modal producto */
+  .backdrop{position:fixed;inset:0;background:rgba(20,16,12,.55);display:none;place-items:center;z-index:60;padding:20px}
+  .backdrop.open{display:grid}
+  .modal{background:var(--surface-raised);border-radius:20px;max-width:640px;width:100%;overflow:hidden;box-shadow:var(--shadow-lg);display:grid;grid-template-columns:1fr 1fr}
+  @media(max-width:560px){.modal{grid-template-columns:1fr}}
+  .modal .mv{aspect-ratio:1/1;display:grid;place-items:center}
+  .modal .mv .glyph{font-family:var(--font-display);font-size:76px;color:color-mix(in srgb,var(--accent) 78%,var(--text-strong))}
+  .modal .body{padding:26px}
+  .modal .cat{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .modal h3{font-family:var(--font-display);font-size:26px;font-weight:600;letter-spacing:-.5px;margin:8px 0}
+  .modal .desc{color:var(--text-muted);font-size:14.5px;line-height:1.6}
+  .modal .mprice{color:var(--accent);font-weight:700;font-size:22px;margin:16px 0}
+  .modal .close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:26px;color:#fff;opacity:.85;line-height:1}
+  /* — GSG · accesibilidad + sello — */
+  :where(a,button,input,select,[tabindex]):focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; } }
+  .gsg{ display:inline-flex; align-items:center; gap:9px; color:var(--text-muted); font-size:12.5px; }
+  .gsg .seal{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line); display:grid; place-items:center; font-size:9px; font-weight:800; letter-spacing:.04em; color:var(--text-muted); }
+  .gsgbar{ margin-top:18px; padding-top:16px; border-top:1px solid var(--line); display:flex; }
+</style>
+</head>
+<body>
+<div class="banner">Preview estático de la vidriera del ERP · ruta <b>/tienda</b> · tenant <b>shinevelas</b> (rubro <b>velas</b>) — VISIÓN experiencial: velas + aromas + <b>decoración</b> + accesorios</div>
+
+<div class="topbar"><div class="wrap row">
+  <a class="brand" href="#top"><span class="mono">S</span><span class="nm">Shine</span></a>
+  <div class="navlinks">
+    <a class="hidesm" href="#velas">Velas</a>
+    <a class="hidesm" href="#decoracion">Decoración</a>
+    <a class="hidesm" href="#ritual">Tu ritual</a>
+    <a class="hidesm" href="#regalo">Regalos</a>
+    <button class="cartbtn" onclick="document.getElementById('seleccion').scrollIntoView({behavior:'smooth'})">Tu pedido <span class="badge" id="navCount">0</span></button>
+  </div>
+</div></div>
+
+<a id="top"></a>
+<header class="hero"><div class="glow"></div><div class="wrap">
+  <div class="eyebrow">SHINE · Velas · aromas · deco</div>
+  <h1>No es una vela. Es un ambiente.</h1>
+  <div class="pitch">Velas, aromas y decoración para vivir tu casa distinto.</div>
+  <div class="rule"></div>
+  <p class="intro">Cera de soja natural, mecha de algodón y fragancias que cambian cómo se siente un espacio —más objetos de decoración elegidos con el mismo criterio. No vendemos productos sueltos: armamos el ambiente de tu casa. Elegí, encendé y habitá el momento.</p>
+  <div class="ctas">
+    <a class="btn primary" href="#seleccion">Explorar la colección</a>
+    <a class="btn ghost" href="#ritual">Armá tu ritual</a>
+    <a class="btn wa" id="heroWa" target="_blank" rel="noopener">Pedir por WhatsApp</a>
+  </div>
+</div></header>
+
+<div class="vp"><div class="wrap" style="padding:0"><div class="grid">
+  <div><div class="ic">✿</div><div class="t">Cera de soja natural</div><div class="x">Vegetal, biodegradable y de combustión limpia: sin humo ni hollín.</div></div>
+  <div><div class="ic">❖</div><div class="t">Velas + deco para el hogar</div><div class="x">Velas, difusores, objetos deco y accesorios que combinan entre sí.</div></div>
+  <div><div class="ic">◈</div><div class="t">Hecho y elegido a mano</div><div class="x">Piezas en lotes chicos y una curaduría de deco con el mismo criterio.</div></div>
+  <div><div class="ic">→</div><div class="t">Envío gratis desde $25.000</div><div class="x">Envío a domicilio en CABA y GBA; gratis a partir de $25.000.</div></div>
+  <div><div class="ic">✳</div><div class="t">Sets de regalo</div><div class="x">Experiencias armadas para regalar —o para regalarte.</div></div>
+</div></div></div>
+
+<section class="blk"><div class="wrap">
+  <div class="head"><div class="eyebrow">Mundos para tu casa</div><h2>Cuatro formas de armar tu ambiente</h2></div>
+  <div class="worlds">
+    <a class="card" href="#velas"><div class="gl">❧</div><div class="t">Velas</div><div class="x">Aromáticas, decorativas y artesanales, en cera de soja con mecha de algodón.</div></a>
+    <a class="card" href="#aromas"><div class="gl">❦</div><div class="t">Aromas</div><div class="x">Difusores, sahumerios y textiles para perfumar cada rincón por semanas.</div></a>
+    <a class="card" href="#decoracion"><div class="gl">❖</div><div class="t">Decoración</div><div class="x">Portavelas, bandejas, floreros y espejos que completan la escena.</div></a>
+    <a class="card" href="#accesorios"><div class="gl">✦</div><div class="t">Accesorios</div><div class="x">Los detalles del ritual: cortamechas, apagadores y fósforos largos.</div></a>
+  </div>
+</div></section>
+
+<section class="blk" id="seleccion" style="scroll-margin-top:66px"><div class="wrap">
+  <div class="head"><div class="eyebrow">Comprá online</div><h2>La colección</h2></div>
+  <div class="filters" id="filters"></div>
+  <div class="shop">
+    <div class="catwrap" id="catalog"></div>
+    <aside class="cart" id="cart"></aside>
+  </div>
+</div></section>
+
+<section class="blk" id="ritual" style="scroll-margin-top:66px"><div class="wrap">
+  <div class="head"><div class="eyebrow">La experiencia</div><h2>Armá tu ritual</h2></div>
+  <p class="lead">Un aroma no se compra, se vive. Tres pasos para convertir un momento cualquiera en algo tuyo.</p>
+  <div class="ritual">
+    <div class="step"><div class="n">1</div><div class="t">Elegí tu aroma</div><div class="x">Cálido para relajar, cítrico para despertar, amaderado para concentrarte. Cada fragancia arma una escena distinta.</div></div>
+    <div class="step"><div class="n">2</div><div class="t">Encendé y respirá</div><div class="x">Sumá un difusor o un textil a juego y dejá que el ambiente cambie. La luz baja, el aroma sube.</div></div>
+    <div class="step"><div class="n">3</div><div class="t">Habitá el momento</div><div class="x">Un portavela lindo, una bandeja, tu música. Tu casa deja de ser un lugar y pasa a ser un estado.</div></div>
+  </div>
+</div></section>
+
+<section class="blk" id="regalo" style="scroll-margin-top:66px"><div class="wrap">
+  <div class="head"><div class="eyebrow">Para regalar</div><h2>Sets de regalo</h2></div>
+  <p class="lead">Experiencias listas para regalar —o para darte un gusto.</p>
+  <div class="gifts" id="gifts"></div>
+</div></section>
+
+<section class="blk"><div class="wrap">
+  <div class="head"><div class="eyebrow">Lo que dicen</div><h2>Clientes que ya probaron</h2></div>
+  <div class="reviews">
+    <div class="rev"><div class="stars">★★★★★</div><p>“Compré una vela y terminé armando toda la deco del living con ellos. El aroma dura muchísimo y queda divino.”</p><div class="who">Carla P.</div></div>
+    <div class="rev"><div class="stars">★★★★★</div><p>“El set de regalo es una experiencia: llega hermoso, se siente desde que abrís la caja. Ya pedí de nuevo.”</p><div class="who">Sofía M.</div></div>
+    <div class="rev"><div class="stars">★★★★★</div><p>“Me asesoraron por WhatsApp para combinar vela, difusor y portavela. Llegó todo perfecto y coordinado.”</p><div class="who">Belén R.</div></div>
+  </div>
+</div></section>
+
+<section class="about"><div class="glow"></div><div class="wrap">
+  <div class="rule"></div>
+  <h2>No vendemos velas. Creamos ambientes.</h2>
+  <p>Shine nació de una obsesión simple: que la luz y el aroma puedan cambiar cómo se siente un espacio. Empezamos con velas de soja hechas a mano y hoy sumamos difusores, objetos de decoración y los accesorios del ritual —todo elegido con el mismo criterio para que combine entre sí. No comprás un producto: armás el ambiente de tu casa. Para que tu luz nunca se apague.</p>
+</div></section>
+
+<footer><div class="wrap" style="padding:0"><div class="grid">
+  <div><div class="nm">Shine</div><p class="col" style="margin-top:8px;max-width:280px">Velas de soja, difusores, decoración y accesorios hechos y elegidos a mano.</p></div>
+  <div class="col"><div class="fh">Dónde estamos</div><div>CABA</div><div style="opacity:.7;margin-top:4px">Lun a vie · 10 a 18 h · pedidos por WhatsApp</div></div>
+  <div class="col"><div class="fh">Contacto</div><div><a id="footWa" target="_blank" rel="noopener">WhatsApp</a></div><div><a href="https://www.instagram.com/shine.velas.store/" target="_blank" rel="noopener">@shine.velas.store</a></div></div>
+  <div class="col"><div class="fh">Envíos</div><div style="opacity:.85">CABA · GBA</div><div class="fh" style="margin-top:14px">Pagos</div><div style="opacity:.85">Efectivo · Transferencia · Débito · Crédito · Mercado Pago</div></div>
+</div><div class="gsgbar"><span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span></div></div></footer>
+
+<div class="backdrop" id="backdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal" style="position:relative"></div>
+</div>
+
+<script>
+// ── Datos reales del catálogo Shine (rubro velas) + storytelling. Precios ARS provisionales. ──
+const WA="5491176213834";
+const SHIP={flatRate:3500,freeThreshold:25000};
+const SECTIONS=[
+  {id:"velas",label:"Velas",blurb:"Aromáticas, decorativas y artesanales — el corazón de tu ambiente."},
+  {id:"aromas",label:"Aromas",blurb:"Difusores, sahumerios y textiles para perfumar cada rincón."},
+  {id:"decoracion",label:"Decoración",blurb:"Objetos para el hogar que acompañan la luz y completan la escena."},
+  {id:"accesorios",label:"Accesorios",blurb:"Los detalles del ritual: mechas, apagadores y fósforos largos."},
+];
+const CATLABEL={velas:"Vela",aromas:"Aroma",decoracion:"Deco",accesorios:"Accesorio"};
+const GLYPH={velas:"❧",aromas:"❦",decoracion:"❖",accesorios:"✦"};
+const products=[
+  {id:"p1",name:"Vela Vainilla y Canela",sec:"velas",price:8500,story:"Un abrazo cálido para las noches tranquilas.",desc:"Vela de soja 100% natural, aroma cálido a vainilla y canela. Combustión limpia y duradera, ideal para crear un ambiente acogedor."},
+  {id:"p2",name:"Vela Flor de Naranjo",sec:"velas",price:8500,story:"Cítrico y floral: despierta la casa.",desc:"Aroma cítrico y floral en cera de soja vegetal. Mecha de algodón, sin humo ni residuos tóxicos."},
+  {id:"p3",name:"Vela Sándalo",sec:"velas",price:9000,story:"Amaderada y profunda, para concentrarte.",desc:"Fragancia amaderada y profunda. Perfecta para espacios de descanso y meditación."},
+  {id:"p4",name:"Vela Lavanda",sec:"velas",price:8500,story:"El apagón suave antes de dormir.",desc:"Aroma relajante de lavanda francesa, ideal para el dormitorio antes de dormir."},
+  {id:"p5",name:"Vela decorativa tallada",sec:"velas",price:11900,story:"Una escultura que además perfuma.",desc:"Vela tallada a mano: pieza decorativa que funciona como objeto de deco encendida o apagada."},
+  {id:"p6",name:"Vela en copa de vidrio ámbar",sec:"velas",price:10500,story:"La luz se vuelve dorada al encenderla.",desc:"Cera de soja en copa de vidrio ámbar: la llama tiñe el ambiente de una luz cálida y dorada."},
+  {id:"p7",name:"Vela artesanal de cera de abeja",sec:"velas",price:9800,story:"Cera de abeja pura, aroma a miel tibia.",desc:"Cera de abeja 100% natural, con su aroma suave y natural a miel. Combustión larga y limpia."},
+  {id:"p8",name:"Vela de masaje humectante",sec:"velas",price:8900,story:"Se derrite en aceite tibio para la piel.",desc:"Vela que se derrite en un aceite tibio humectante para masajes. Doble ritual: aroma y cuidado."},
+  {id:"p9",name:"Difusor Coco y Vainilla",sec:"aromas",price:11000,story:"Semanas de aroma sin encender nada.",desc:"Difusor de varillas con esencia de larga duración. Aromatiza de forma constante durante semanas."},
+  {id:"p10",name:"Difusor Jazmín",sec:"aromas",price:11000,story:"Floral envolvente para el living.",desc:"Notas florales suaves y envolventes. Incluye varillas de ratán y frasco de vidrio."},
+  {id:"p11",name:"Difusor Cedro y Ámbar",sec:"aromas",price:11500,story:"Cálido amaderado para el escritorio.",desc:"Fragancia cálida amaderada con fondo ambarado, perfecta para living y oficina."},
+  {id:"p12",name:"Aromatizante Textil Flores Blancas",sec:"aromas",price:6500,story:"Sábanas que huelen a recién lavadas.",desc:"Perfuma sábanas, cortinas y tapizados con un aroma fresco y delicado. Fórmula libre de alcohol agresivo."},
+  {id:"p13",name:"Sahumerios de sándalo (pack x6)",sec:"aromas",price:3200,story:"El ritual de siempre, en seis varillas.",desc:"Pack de 6 sahumerios de sándalo, para acompañar el momento con su humo aromático clásico."},
+  {id:"p14",name:"Home spray Lavanda",sec:"aromas",price:7200,story:"Un toque de calma en el aire, al instante.",desc:"Spray de ambiente de lavanda: refrescá cualquier espacio en segundos, sin encender nada."},
+  {id:"p15",name:"Portavela de cerámica artesanal",sec:"decoracion",price:6500,story:"Hecho a mano, para que la llama tenga su lugar.",desc:"Portavela de cerámica esmaltada a mano. Cada pieza es única y le da su lugar a la llama."},
+  {id:"p16",name:"Bandeja deco de madera",sec:"decoracion",price:9400,story:"Reúne tus velas y difusores en una escena.",desc:"Bandeja de madera para reunir velas, difusores y objetos en una composición sobre la mesa."},
+  {id:"p17",name:"Florero de vidrio soplado",sec:"decoracion",price:12800,story:"Vidrio soplado, pieza única.",desc:"Florero de vidrio soplado artesanal. Suma volumen y luz a tu escena de deco."},
+  {id:"p18",name:"Espejo decorativo redondo",sec:"decoracion",price:18900,story:"Duplica la luz de tus velas.",desc:"Espejo redondo con marco fino: rebota y duplica la luz cálida de las velas en el ambiente."},
+  {id:"p19",name:"Cortamechas de acero",sec:"accesorios",price:5200,story:"Mecha pareja, llama limpia, más duración.",desc:"Cortamechas de acero inoxidable: mantené la mecha pareja para una combustión limpia y más larga."},
+  {id:"p20",name:"Fósforos largos deco (frasco)",sec:"accesorios",price:3800,story:"Encender también puede ser lindo.",desc:"Frasco de fósforos largos de madera: el objeto que hace del gesto de encender parte del ritual."},
+];
+const GIFTS=[
+  {name:"Set Ritual",items:"Vela de soja + difusor a juego + fósforos largos",price:21900,note:"El más elegido"},
+  {name:"Caja Aromas",items:"3 velas aromáticas en caja de regalo",price:22900,note:null},
+  {name:"Set Deco & Luz",items:"Vela decorativa + portavela de cerámica + bandeja",price:24900,note:"Envío gratis"},
+];
+
+// halo determinístico (réplica de src/lib/storefront-visual.ts)
+function nameHash(n){let h=5381;for(let i=0;i<n.length;i++)h=((h<<5)+h+n.charCodeAt(i))>>>0;return h;}
+function haloShift(n){return nameHash(n)%100;}
+function productGradient(n){const x=haloShift(n),y=(haloShift(n+"·")>>1)%60;
+  return `radial-gradient(120% 120% at ${x}% ${y}%, color-mix(in srgb, var(--accent) 34%, var(--surface-raised)) 0%, color-mix(in srgb, var(--accent) 12%, var(--surface-raised)) 42%, var(--surface-raised) 100%)`;}
+// envío (réplica de src/lib/storefront-shipping.ts)
+function shippingCost(sub,ful){if(ful==="PICKUP")return 0;if(sub<=0)return 0;return sub>=SHIP.freeThreshold?0:SHIP.flatRate;}
+function amountToFreeShipping(sub){if(sub<=0)return 0;const m=SHIP.freeThreshold-sub;return m>0?m:0;}
+
+const money=new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0});
+let cart={}, filter="todos", fulfillment="DELIVERY";
+function byId(id){return products.find(p=>p.id===id);}
+function setQty(id,q){if(q>0)cart[id]=q;else delete cart[id];render();}
+function bump(id,d){setQty(id,Math.max(0,(cart[id]||0)+d));}
+
+function renderFilters(){
+  const opts=[["todos","Todos"],["velas","Velas"],["aromas","Aromas"],["decoracion","Decoración"],["accesorios","Accesorios"]];
+  document.getElementById("filters").innerHTML=opts.map(([id,l])=>
+    `<button class="chip ${filter===id?'on':''}" onclick="filter='${id}';render()">${l}</button>`).join("");
+}
+function card(p){
+  const q=cart[p.id]||0;
+  return `<div class="prod ${q>0?'incart':''}">
+    <div class="visual" style="background:${productGradient(p.name)}" onclick="openModal('${p.id}')">
+      <span class="cat">${CATLABEL[p.sec]}</span><span class="glyph">${GLYPH[p.sec]}</span>
+    </div>
+    <div class="nm" onclick="openModal('${p.id}')">${p.name}</div>
+    <div class="story">${p.story}</div>
+    <div class="price">${money.format(p.price)} <small>/ unidad</small></div>
+    <div class="stepper">
+      <button class="qb minus" ${q===0?'disabled':''} aria-label="Quitar ${p.name}" onclick="bump('${p.id}',-1)">−</button>
+      <span class="qcount" aria-live="polite">${q>0?q+" u":"—"}</span>
+      <button class="qb plus" aria-label="Agregar ${p.name}" onclick="bump('${p.id}',1)">+</button>
+    </div>
+  </div>`;
+}
+function renderCatalog(){
+  const secs=filter==="todos"?SECTIONS:SECTIONS.filter(s=>s.id===filter);
+  document.getElementById("catalog").innerHTML=secs.map(s=>{
+    const items=products.filter(p=>p.sec===s.id);
+    if(!items.length)return "";
+    return `<div id="${s.id}" style="scroll-margin-top:66px">
+      <div class="secthead"><h3>${s.label}</h3><span class="bl">${s.blurb}</span></div>
+      <div class="catalog">${items.map(card).join("")}</div>
+    </div>`;
+  }).join("");
+}
+function renderGifts(){
+  document.getElementById("gifts").innerHTML=GIFTS.map(g=>`<div class="gift">
+    ${g.note?`<span class="tag">${g.note}</span>`:""}
+    <div class="gn">${g.name}</div><div class="gi">${g.items}</div>
+    <div class="grow"><span class="gp">${money.format(g.price)}</span>
+    <a href="${waGift(g)}" target="_blank" rel="noopener">Lo quiero →</a></div>
+  </div>`).join("");
+}
+function waGift(g){return `https://wa.me/${WA}?text=${encodeURIComponent(`¡Hola Shine! Quiero el set "${g.name}" (${money.format(g.price)}).`)}`;}
+function cartLines(){return Object.entries(cart).map(([id,q])=>{const p=byId(id);return{p,q,total:q*p.price};});}
+function renderCart(){
+  const lines=cartLines();
+  const sub=lines.reduce((s,l)=>s+l.total,0);
+  const ship=shippingCost(sub,fulfillment), total=sub+ship, missing=amountToFreeShipping(sub);
+  document.getElementById("navCount").textContent=lines.reduce((s,l)=>s+l.q,0);
+  const el=document.getElementById("cart");
+  if(!lines.length){el.innerHTML=`<h2>Tu pedido</h2><p class="empty">Elegí lo que quieras de la colección con los botones + / −, o encargá por WhatsApp.</p>`;return;}
+  const prog=Math.min(1,sub/SHIP.freeThreshold);
+  el.innerHTML=`<h2>Tu pedido</h2>
+    ${lines.map(l=>`<div class="cline"><span>${l.q} u · ${l.p.name}</span><span style="display:flex;gap:8px;align-items:center"><span style="font-variant-numeric:tabular-nums">${money.format(l.total)}</span><button class="rm" aria-label="Sacar ${l.p.name}" onclick="setQty('${l.p.id}',0)">×</button></span></div>`).join("")}
+    <div class="toggle" role="group" aria-label="Modo de entrega">
+      <button class="${fulfillment==='DELIVERY'?'on':''}" onclick="fulfillment='DELIVERY';render()">Envío a domicilio</button>
+      <button class="${fulfillment==='PICKUP'?'on':''}" onclick="fulfillment='PICKUP';render()">Retiro en el local</button>
+    </div>
+    <div class="srow"><span>Subtotal</span><span style="font-variant-numeric:tabular-nums">${money.format(sub)}</span></div>
+    <div class="srow"><span>Envío · ${fulfillment==='PICKUP'?'retiro':'a domicilio'}</span><span style="font-variant-numeric:tabular-nums;${ship===0?'color:var(--accent);font-weight:700':''}">${ship===0?'Gratis':money.format(ship)}</span></div>
+    <div class="srow total"><span>Total</span><b>${money.format(total)}</b></div>
+    ${fulfillment==='DELIVERY'?(missing>0
+      ? `<p class="nudge">Te faltan <b>${money.format(missing)}</b> para el envío gratis.</p><div class="bar" aria-hidden="true"><span style="width:${Math.round(prog*100)}%"></span></div>`
+      : `<p class="nudge" style="color:var(--accent);font-weight:700">Tu pedido tiene envío gratis.</p>`):''}
+    <a class="btn primary" href="${waHref(lines,sub,ship,total)}" target="_blank" rel="noopener">Hacer pedido</a>
+    <a class="btn wa" href="${waHref(lines,sub,ship,total)}" target="_blank" rel="noopener">Pedir por WhatsApp</a>
+    <p class="fineprint">Te contactamos para confirmar. El pago se coordina al recibirlo.</p>`;
+}
+function waHref(lines,sub,ship,total){
+  const items=lines.map(l=>`• ${l.q}x ${l.p.name} — ${money.format(l.total)}`).join("\n");
+  const shipLine=`Envío (${fulfillment==='PICKUP'?'retiro':'a domicilio'}): ${ship===0?'gratis':money.format(ship)}`;
+  const msg=`¡Hola Shine! Quiero hacer este pedido:\n\n${items}\n\nSubtotal: ${money.format(sub)}\n${shipLine}\nTotal: ${money.format(total)}`;
+  return `https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
+}
+function openModal(id){
+  const p=byId(id),q=cart[id]||0;
+  document.getElementById("modal").innerHTML=`
+    <button class="close" aria-label="Cerrar" onclick="closeModal()">×</button>
+    <div class="mv" style="background:${productGradient(p.name)}"><span class="glyph">${GLYPH[p.sec]}</span></div>
+    <div class="body">
+      <div class="cat">${CATLABEL[p.sec]} · ${SECTIONS.find(s=>s.id===p.sec).label}</div>
+      <h3>${p.name}</h3>
+      <div class="desc">${p.desc}</div>
+      <div class="mprice">${money.format(p.price)}</div>
+      <div class="stepper" style="margin-top:0">
+        <button class="qb minus" ${q===0?'disabled':''} aria-label="Quitar ${p.name}" onclick="bump('${p.id}',-1);openModal('${p.id}')">−</button>
+        <span class="qcount">${q>0?q+" u":"—"}</span>
+        <button class="qb plus" aria-label="Agregar ${p.name}" onclick="bump('${p.id}',1);openModal('${p.id}')">+</button>
+      </div>
+    </div>`;
+  document.getElementById("backdrop").classList.add("open");
+}
+function closeModal(){document.getElementById("backdrop").classList.remove("open");}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
+function render(){renderFilters();renderCatalog();renderCart();}
+const hi=`https://wa.me/${WA}?text=${encodeURIComponent("¡Hola Shine! Quiero hacer un pedido.")}`;
+document.getElementById("heroWa").href=hi;
+document.getElementById("footWa").href=hi;
+renderGifts();render();
+</script>
+</body>
+</html>
