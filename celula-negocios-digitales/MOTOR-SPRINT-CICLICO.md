@@ -60,6 +60,19 @@
 > El dueño fija hacia dónde apuntar en cada ciclo de generación. Estas líneas **mandan** sobre el
 > brainstorm: si una idea no encaja con el foco, no se propone.
 
+### Para TODOS los agentes — salir del sesgo del modelo
+- **Salir del sesgo clásico de los LLM.** No proponer lo primero/obvio que cualquier modelo tiraría
+  (otro chatbot, otro wrapper de IA, otro dashboard, otra "agencia de automatización"). Si suena a idea
+  genérica de demo, **descartarla**.
+- **Ser genuinamente innovador y creativo.** Buscar el ángulo no obvio: combinaciones inusuales,
+  pensamiento de segundo orden, contrarian ("qué cree todo el mundo que es verdad y no lo es"),
+  arbitrajes locales, integraciones que nadie enchufó todavía.
+- **Novedad con sustancia, no rareza por la rareza.** La idea rara tiene que resolver algo real y poder
+  cobrarse. Innovar en el ángulo/modelo, no solo en el nombre.
+- Aplica a **todos los roles**: creativos (generan distinto), analíticos (no castigan lo nuevo por ser
+  desconocido; lo miden bien), red-team (desafían sin matar lo innovador por prejuicio), reporte (lo
+  explican simple).
+
 - **Mercado LOCAL argentino primero** — pensar para acá: comportamiento pyme, informalidad, capacidad
   real de pago, WhatsApp, estacionalidad, inflación.
 - **Integraciones con entes PÚBLICOS y PRIVADOS como diferencial** — buscar oportunidades que se
