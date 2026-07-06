@@ -5,6 +5,7 @@ del Core multi-tenant sin romper nada, con vallas (tsc/tests/build) antes de int
 con el PMO todo lo que toque cimientos.
 
 ## Documentos
+- **[VISION-EXCELENCIA.md](./VISION-EXCELENCIA.md)** — 🧭 **entrada del frente**: visión atada al negocio, scorecard consolidado (arq+UX+confiabilidad), principios Fiori operativos y roadmap único en olas. Empezá por acá.
 - **[MAPA.md](./MAPA.md)** — foto estructural: capas, acoplamientos (hubs/hojas), god-files, límites de
   dominio y riesgos vivos con evidencia. La foto de **diseño** (complementa `ESTADO-ACTUAL.md`, que es la de **operación**).
 - **[UX-FIORI-AUDIT.md](./UX-FIORI-AUDIT.md)** — auditoría de la UX contra los 5 principios SAP Fiori: score por principio + top hallazgos con evidencia.
@@ -35,5 +36,8 @@ adaptable, robusto enterprise. La visión rectora es `docs/FUNDAMENTOS-Y-VISION.
   tocar el WIP sin commitear de `main`.
 - **2026-07-06 — Iteración 2 (UX Fiori):** auditoría de la UX contra los 5 principios (score 6.2/10) →
   `UX-FIORI-AUDIT.md` + sección UX en el backlog (U1–U10). Quick-win test-covered aplicado: **H1**
-  (`METODO_LABEL` unificado en `report-config.ts`). Los quick-wins de UI (Field/labels/`role="alert"`/
-  tokens) quedan listos para aplicar **con OK del dueño** (no test-covered → no unilaterales).
+  (`METODO_LABEL` unificado en `report-config.ts`).
+- **2026-07-06 — Iteración 3 (Consolidación + refuerzo):** creada la **VISION-EXCELENCIA** unificada
+  (norte del frente). Refuerzo aplicado: **U3** (5 toggles → `bg-accent text-on-accent`, coherentes con el
+  design system y el branding por tenant). Corregido el hallazgo obsoleto: **`npm run gates` ya existe**
+  (lo trajo Confiabilidad: tsc+tests+cobertura RLS). Gate verde con `npm run gates` + build.

@@ -107,7 +107,7 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
             key={m}
             type="button"
             onClick={() => setMotivo(m)}
-            className={`chip-btn text-sm ${m === motivo ? "bg-black text-white" : ""}`}
+            className={`chip-btn text-sm ${m === motivo ? "bg-accent text-on-accent" : ""}`}
           >
             {motivoLabel(m)}
           </button>

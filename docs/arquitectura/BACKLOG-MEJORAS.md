@@ -97,7 +97,7 @@ integran unilateralmente → los **secuencia el PMO** (METODOLOGIA-SPRINT regla 
 **Quick-wins de accesibilidad/coherencia (bajos, listos para aplicar con OK):**
 - **U1 · `<Field>` en forms admin** — envolver inputs sueltos (turnos/usuarios/pedidos/recordatorios/ajustes) para label+`htmlFor` (WCAG 1.3.1). 🔴 alto valor a11y, riesgo bajo.
 - **U2 · Labels reales, no placeholders** — WCAG 3.3.2 (BookingForm, recordatorios, usuarios). 🔴 alto valor, riesgo bajo. Se hace junto con U1.
-- **U3 · Toggles `bg-black`→token semántico** (`bg-accent`/`bg-surface-sunken`) — respetan tenant/tema (pedidos/ajustes/compras). 🟠 medio, riesgo bajo. *(decisión visual — confirmar el token con el dueño).*
+- **U3 · Toggles `bg-black`→token de marca** ✅ **hecho 2026-07-06**: los 5 toggles de pedidos/ajustes/compras pasaron a `bg-accent text-on-accent` (mismo combo que el `Button` solid → coherente y respeta el tenant). El scrim `bg-black/50` del overlay se dejó a propósito (un dimming de modal debe ser neutro).
 - **U7 · `role="alert"` en mensajes de error** — el lector los anuncia (NewAppointmentForm, BookingForm…). 🟠 medio, riesgo mínimo (aditivo).
 - **U4 · `SubmitButton`/`pendingText` en forms sin feedback** (PosForm/AjustesForm/ComprasForm). 🟠 medio, riesgo bajo.
 - **U8 · `BookingForm` usa el primitivo `Input`** (o un `SiteInput`) en vez de redeclarar estilos. 🟡 bajo.
@@ -112,7 +112,7 @@ integran unilateralmente → los **secuencia el PMO** (METODOLOGIA-SPRINT regla 
 ## P3 — Higiene (bajo impacto, hacer al pasar)
 
 - **H1 · Deduplicar `METODO_LABEL`** → movido a `report-config.ts` (fuente única), consumido por `report-csv.ts` y `reportes/page.tsx`. ✅ **hecho 2026-07-06** (test-covered, conducta idéntica).
-- **H4 · Definir `npm run gates`** — el checklist de CLAUDE.md y las consignas citan `npm run gates`, pero **no existe** como script en `package.json` (solo `lint`/`test`; `build` vía Next). Añadir `"gates": "tsc --noEmit && npm test && next build"` (o el set que fije Plataforma). 🟢 bajo — se solapa con **M2** (formalizar el gate de predeploy); **secuencia PMO** (toca `package.json`).
+- **H4 · `npm run gates` ✅ ya existe** — lo trajo el frente Confiabilidad (`scripts/verify-gates.mjs`): corre **tsc + tests + cobertura RLS** (`gate:rls`) y falla con exit 1 si alguna valla es roja. **Pendiente (→ M2):** no corre `next build`; sumarlo (o dejarlo explícito como valla aparte) cierra el Gate de Excelencia de CLAUDE.md (tsc+build+test). Toca `verify-gates.mjs`/`package.json` → **secuencia Confiabilidad/PMO**.
 - **H2 · Barrer TODOs/provisional de transición** (branding presets, business-config, demo/blueprint placeholders) a medida que sus migraciones/gates se resuelven. 🟢 bajo.
 - **H3 · Adoptar `withAction(name, fn)`** para contexto de request en server actions (observabilidad v2, ya en PROXIMOS-PASOS) — encaja con M4. 🟢 bajo-medio.
 

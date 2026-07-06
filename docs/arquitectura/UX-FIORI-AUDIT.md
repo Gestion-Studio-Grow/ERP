@@ -37,7 +37,7 @@
 |---|---|---|---|
 | U1 | 🔴 Alto | Forms admin sin `<Field>` → inputs sin `htmlFor`/label (WCAG 1.3.1) | `turnos/NewAppointmentForm.tsx`, `usuarios/page.tsx`, `pedidos/PosForm.tsx`, `recordatorios/page.tsx`, `ajustes/AjustesForm.tsx` |
 | U2 | 🔴 Alto | Placeholder usado como label (WCAG 3.3.2) | `(site)/reserva/BookingForm.tsx:39`, `recordatorios/page.tsx:66`, `usuarios/page.tsx:165` |
-| U3 | 🔴 Alto | Toggles con `bg-black text-white` hardcodeado (no respetan tenant/tema) | `pedidos/PosForm.tsx`, `ajustes/AjustesForm.tsx`, `compras/ComprasForm.tsx` |
+| U3 | ✅ hecho | ~~Toggles `bg-black text-white` hardcodeado~~ → `bg-accent text-on-accent` (respeta tenant/tema) | `pedidos/PosForm.tsx`, `ajustes/AjustesForm.tsx`, `compras/ComprasForm.tsx` |
 | U4 | 🟠 Medio | ~60% de forms chicos sin pending feedback (existe `SubmitButton`, no se usa) | `PosForm.tsx`, `AjustesForm.tsx`, `ComprasForm.tsx` |
 | U5 | 🟠 Medio | `catalogo/page.tsx` sobrecargado (6 secciones en una) + ficha profesional densa | `catalogo/page.tsx`, `catalogo/ProfessionalsSection.tsx` |
 | U6 | 🟠 Medio | POS/Caja no optimizados para mobile (ADR-009) | `pedidos/PosForm.tsx`, tablas sin scroll-x en SM |

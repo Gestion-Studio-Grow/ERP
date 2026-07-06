@@ -80,14 +80,14 @@ export default function ComprasForm({ products }: { products: ReplenishableProdu
         <button
           type="button"
           onClick={() => setKind("COMPRA")}
-          className={`chip-btn text-sm ${isCompra ? "bg-black text-white" : ""}`}
+          className={`chip-btn text-sm ${isCompra ? "bg-accent text-on-accent" : ""}`}
         >
           Compra a proveedor
         </button>
         <button
           type="button"
           onClick={() => setKind("REPOSICION")}
-          className={`chip-btn text-sm ${!isCompra ? "bg-black text-white" : ""}`}
+          className={`chip-btn text-sm ${!isCompra ? "bg-accent text-on-accent" : ""}`}
         >
           Reposición / ajuste
         </button>

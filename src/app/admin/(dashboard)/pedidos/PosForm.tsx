@@ -80,14 +80,14 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
         <button
           type="button"
           onClick={() => setIsOrder(false)}
-          className={`chip-btn text-sm ${!isOrder ? "bg-black text-white" : ""}`}
+          className={`chip-btn text-sm ${!isOrder ? "bg-accent text-on-accent" : ""}`}
         >
           Caja / mostrador
         </button>
         <button
           type="button"
           onClick={() => setIsOrder(true)}
-          className={`chip-btn text-sm ${isOrder ? "bg-black text-white" : ""}`}
+          className={`chip-btn text-sm ${isOrder ? "bg-accent text-on-accent" : ""}`}
         >
           Pedido (retiro / envío)
         </button>
