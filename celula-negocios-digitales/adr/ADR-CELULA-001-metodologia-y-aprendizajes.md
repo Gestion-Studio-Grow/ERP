@@ -97,6 +97,33 @@ gates). Todo local hasta su OK explícito.
   riesgo de que el ADR quede desactualizado (mitigación: **es un doc vivo, se actualiza al cierre de cada
   ciclo** con los aprendizajes nuevos).
 
+## 7.b Aprendizajes del ciclo de reingeniería (06/07/2026 — waves 13-14 + revisión experta)
+
+- **Verificar la SEÑAL en la fuente primaria antes de puntuar.** El red-team v3 encontró pitches con
+  escalas vencidas (Cuidador en Regla), normas mal leídas que decían lo CONTRARIO (Geriátrico Legal: la
+  resolución abarataba el trámite), programas mezclados (Conocimiento Vivo confundía Kit 4.0 con EDC) y
+  regímenes transitorios sobre organismos zombis (Brote Legal/ARICCAME). **Regla nueva:** todo negocio
+  regulatorio exige leer la norma en el BO, chequear vigencia/prórrogas y quién la administra.
+- **El ESTADO como competidor.** Dos productos murieron porque el propio organismo lo regala: ARCA lanzó
+  el recibo digital gratuito obligatorio (mató Cuidador en Regla) y el SIGIM trae gratis expedientes/
+  plazos/actas (hirió a Mediación Viva). **Regla nueva:** preguntar siempre "¿el organismo puede/suele
+  dar esto gratis?" — si la norma digitaliza, el Estado suele incluir la herramienta.
+- **No vender cálculo cuando el cuello es cobranza/enforcement** (Autor Directo/SADAIC): si nadie obliga
+  al que debe pagar, el software de cálculo no monetiza.
+- **Los 95 negocios son 7 chasis** (vigilante regulatorio 28, gestor de alta 17, recuperador 12, agente
+  conversacional 11, producto digital 8, radar/datos 7, verificador 6). **Motor interno compartido: sí**,
+  pero factorizado del segundo vertical real y **ningún vertical sin canal firmado** (el motor amortiza
+  código, no CAC). Detalle: `REINGENIERIA-PORTFOLIO.md`.
+- **Riesgo sistémico de cartera:** monocultivo regulatorio (~70 negocios long-compliance en ciclo
+  desregulador). Preferir drivers de plata (devuelvo/recupero dinero) sobre drivers de multa. Y el gap
+  operativo #1: **0 canales construidos — firmar 2 estudios contables y 1 federación antes que código nuevo**.
+- **Rueda inventada (método validado en Wave 14):** clonar negocios probados afuera con revenue real +
+  verificación de hueco local + anclaje local como moat. 5 candidatos se descartaron ANTES de proponerse
+  por competidor local hallado — la disciplina funciona.
+- **Higiene de datos del panel:** nada entra al leaderboard sin doc de respaldo (8 huérfanos re-tagueados
+  "Carga directa"); numeración de rondas única; los nombres se chequean contra marcas existentes antes de
+  usarse (Escriba colisiona con QVET Escriba — renombrar antes de lanzar).
+
 ## 8. Seguimiento
 - Este ADR se **revisa y amplía al cierre de cada ciclo** (el Reportero suma los aprendizajes nuevos).
 - Cuando el dueño lo decida ("luego vemos"), se evalúa **ratificar la célula y esta metodología como ADR
