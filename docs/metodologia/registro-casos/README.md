@@ -25,7 +25,7 @@ evidencia en vez de con opiniones.
 
 | Caso | Fecha | Rubro | Muros encontrados | Estado |
 |---|---|---|---|---|
-| [magra](magra.md) | 2026-07-05 | boutique de carnes | IG login-wall · tienda por JS (Bistrosoft) · sin hex | demo OK, prod pendiente del dueño |
+| [magra](magra.md) | 2026-07-05 · **07-06 copia exacta** | boutique de carnes | IG login-wall · tienda por JS (Bistrosoft) · sin hex · **fotos = bg Elementor** | **réplica fiel** en `public/previews/magra/` (método `copiar-exacto-vidriera.md`); prod pendiente del dueño |
 | [breakpoint](breakpoint.md) | 2026-07-06 | club de pádel | sólo Instagram · sin logo descargable | demo OK (logo recreado en CSS) |
 
 ## Reglas

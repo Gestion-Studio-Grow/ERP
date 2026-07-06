@@ -42,3 +42,34 @@
   (3.2)**, **sin logo/hex → acento provisional (3.3)**. Promovidas ✅.
 - Aprendizaje transversal: **el link de "lista de precios" del Linktree revela el software incumbente** —
   no scrapear, pedir el export. → checklist paso 6 / §3.2.
+
+---
+
+## 6. Iteración 2 (2026-07-06) — COPIAR EXACTO la vidriera
+
+**Contexto:** la demo anterior (`public/previews/magra/index.html`) NO coincidía con el sitio real
+(usaba paleta **oxblood `#7b2d3b`** — un supuesto de la iteración 1). El dueño autorizó copiar EXACTO
+(autorización TOTAL). Se rehízo la vidriera fiel al original leyendo el **render** con el navegador.
+Método formalizado en `docs/metodologia/copiar-exacto-vidriera.md`.
+
+### Qué se corrigió (fidelidad real, verificada por DevTools)
+- **Paleta REAL** (de las CSS vars de Astra/Elementor, no estimada): oro/tostado `#c5ae86` (acento:
+  H1, botones, franja envasados), verde profundo `#004f38`, crema `#f2e6d7` (header/secciones), navy
+  `#0f172a` (H2), negro `#1d1d1b` (texto/secciones oscuras). ⛔ El supuesto "oxblood" era **incorrecto**.
+- **Tipografías REALES:** **Bebas Neue** (display, mayúsculas condensadas) + **Open Sans** (texto).
+- **Estructura fiel** (7 bloques en orden): header crema → hero piedra con badge + "Esto no es una
+  carnicería!" + spread de cortes → beneficios (4) → Productos Gourmet (4) → Envasados al vacío (3) →
+  Nuestros proveedores → Reviews → footer. Copy **literal** transcripto.
+- **Imágenes reales hotlinkeadas** (autorización total): logo, hero `carnes_optimized.png`, 4 fotos
+  gourmet, 3 avatares de review (`mat/jes/maca`). Sello GSG en el pie **sin pisar** `@noctiluma_`.
+
+### Muro nuevo encontrado (⭐ heurística)
+- **Los `<img>` numerados NO eran las fotos de carne — eran SELLOS de marca.** `7.png` = smiley,
+  `5/otro` = "grill & chill". Las fotos reales de los 3 cortes (ojo de bife / churrasco / patamuslo)
+  son **background-images de columnas Elementor (lazy)**, no extraíbles por DOM en el tiempo del caso.
+  → Se usó **placeholder de marca marcado** en esas 3 cards + se dejó la foto exacta como
+  **pendiente del dueño** (ASSET_MANIFEST). **No se hotlinkeó el asset equivocado.** Heurística H8/H9.
+
+### Pendiente del dueño (para prod)
+- Las 3 fotos de cortes envasados (o autorizar capturarlas de su Elementor) para reemplazar los
+  placeholders · logo vectorial + hex confirmados (ya derivados, a validar) · lista de precios real.

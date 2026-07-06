@@ -13,6 +13,9 @@ lee al trabajar). Este archivo es la trazabilidad de **de qué caso salió cada 
 | H5 | **Fuente única (sólo Instagram):** se puede armar demo creíble siendo **explícito** sobre lo "de ejemplo"; el `completenessScore().prod` bajo es la señal honesta. | breakpoint | parcial (implícito en §3.5 + DoD) |
 | H6 | **Precios no públicos:** estimación de gama marcada `provisional` + pedido; jamás precio inventado como real. | magra, breakpoint | ✅ §3.5 |
 | H7 | **CTA de WhatsApp sin número real:** el placeholder debe ser de **formato válido** (no un patrón obviamente roto como puros ceros) + extraído a una constante única + registrado acá como `pedido-al-dueno`. Un CTA roto en una demo en vivo es peor que uno de ejemplo bien marcado. | adosmanos | parcial (1 caso; candidata a checklist §3.5 si se repite) |
+| H8 | **Para COPIAR EXACTO, leer el RENDER, no el fetch.** El fetch→markdown descarta el CSS → nunca da hex ni fuentes. La paleta real sale de las **CSS vars globales** (`--e-global-color-*`/Astra) con `getComputedStyle` en el navegador. *(En Magra el color estimado "a ojo" —oxblood— era incorrecto; el real es oro `#c5ae86` + verde `#004f38` + crema `#f2e6d7`.)* | magra (copia exacta) | ✅ copiar-exacto §1/§3 |
+| H9 | **Cuidado: `<img>` numerados pueden ser SELLOS de marca, no producto.** En Elementor las fotos de producto de una card suelen ser **background-images de columna hermana (lazy)**; los `<img>` numerados (`5/7/9.png`) resultaron sellos (smiley, "grill & chill"). **Abrí la imagen antes de usarla**; si la real es un background no extraíble, **placeholder marcado + pedirla**, nunca hotlinkear el asset equivocado. | magra (copia exacta) | ✅ copiar-exacto §3 |
+| H10 | **Assets lazy / SPA:** scrollear para forzar la carga y/o leer el **panel de red** para capturar todos los `src` reales antes de listarlos. | magra (copia exacta) | ✅ copiar-exacto §2.5 |
 
 ## Cómo agregar una heurística
 
