@@ -128,10 +128,10 @@
   .gcard h4{margin:0 0 6px;font-size:13.5px;font-weight:750;color:var(--ink);display:flex;align-items:center;gap:7px}
   .gcard p{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.55}
   .gcard .sub{margin-top:8px;font-family:var(--f-mono);font-size:11px;color:var(--muted);line-height:1.7}
-  .pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid var(--line)}
-  .pill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
-  .pill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
-  .pill.dead{color:var(--dead);border-color:color-mix(in srgb,var(--dead) 45%,transparent)}
+  .gpill{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid var(--line)}
+  .gpill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+  .gpill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+  .gpill.dead{color:var(--dead);border-color:color-mix(in srgb,var(--dead) 45%,transparent)}
   .feed{display:flex;flex-direction:column}
   .wv{display:grid;grid-template-columns:13px 1fr;gap:11px;padding-bottom:12px}
   .wv .rl{display:flex;flex-direction:column;align-items:center}
@@ -201,6 +201,46 @@
   @media (max-width:820px){.score{grid-template-columns:repeat(2,1fr)}.podium{grid-template-columns:1fr}.two{grid-template-columns:1fr}.team{grid-template-columns:1fr}
     .row{grid-template-columns:40px 1fr 96px;grid-template-areas:"r n s" "r f f"}.rank{font-size:26px}.fact{grid-area:f}.rstate{grid-area:s}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  /* ===== Botón exportar PDF ===== */
+  .dh-actions{display:flex;gap:7px;flex-shrink:0;align-items:center}
+  .pdfbtn{border:1px solid var(--line);background:var(--raised);border-radius:7px;height:34px;padding:0 11px;cursor:pointer;color:var(--ink);font-family:var(--f-mono);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .pdfbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .print-only{display:none}
+  /* ===== Impresión: solo la ficha abierta, en claro y legible ===== */
+  @media print{
+    @page{margin:14mm}
+    html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+    /* si hay una ficha abierta, imprimí SOLO esa ficha */
+    body:has(.dw.open)>*:not(.dw){display:none!important}
+    .ov{display:none!important}
+    .dw:not(.open){display:none!important}
+    .dw.open{position:static!important;transform:none!important;width:100%!important;max-width:100%!important;height:auto!important;box-shadow:none!important;border:none!important;background:#fff!important;color:#111!important;display:block!important}
+    .dh{position:static!important;background:#fff!important;border-bottom:1.5px solid #111!important;padding:0 0 10px!important}
+    .dh h3{color:#111!important}
+    .dh .tg{color:#444!important}
+    .pdfbtn,.close{display:none!important}
+    .db{overflow:visible!important;height:auto!important;display:block!important;padding:14px 0 0!important}
+    .db>*{margin-bottom:13px!important}
+    .ds .dl{color:#666!important}
+    .ds p,.gcard p{color:#1a1a1a!important}
+    .idxbig{background:#f3f4f6!important;border:1px solid #bbb!important;color:#111!important}
+    .idxbig .ib-n{color:#111!important}
+    .idxbig .ib-l{color:#555!important}
+    .idxbig .ib-why{color:#222!important}
+    .idxbig .ib-bar{background:#ddd!important}
+    .idxbig .ib-bar i{background:#111!important}
+    .hero-box{background:#fbf6d8!important;border:1px solid #d8c766!important}
+    .hero-box .dl{color:#8a7400!important}
+    .hero-box p{color:#1a1a1a!important}
+    .dstats{background:#ccc!important;border-color:#ccc!important}
+    .dstats .s{background:#fff!important}
+    .dstats .s .k{color:#666!important} .dstats .s .v{color:#111!important} .dstats .s .v.good{color:#0a7a3c!important}
+    .pill{border:1px solid #bbb!important;background:#fff!important}
+    .pill.ok{color:#0a7a3c!important} .pill.warn{color:#a85800!important} .pill.dead{color:#b02a1f!important}
+    .path .pi,.pill,.ds,.hero-box,.idxbig,.dstats{break-inside:avoid}
+    .print-only{display:block!important;font-family:var(--f-mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#888!important;margin-top:2px}
+    .db::after{content:'Célula de Negocios Digitales · documento interno · ' attr(data-stamp);display:block;margin-top:18px;padding-top:10px;border-top:1px solid #ccc;font-family:var(--f-mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:#999}
+  }
 </style>
 
 <div class="hero">
@@ -248,9 +288,9 @@
           <h4>🚦 Estado (el semáforo)</h4>
           <p>El veredicto del equipo que desafía cada negocio, sin humo:</p>
           <p class="sub">
-            <span class="pill ok">A producción</span> validado, se puede empezar a construir.<br>
-            <span class="pill warn">En pista</span> viable, pero falta destrabar una condición (un canal de venta, un pricing, elegir el rubro).<br>
-            <span class="pill dead">Descartado</span> se mató antes de escribir código: ya hay competidor local, no paga, o el Estado lo regala gratis.
+            <span class="gpill ok">A producción</span> validado, se puede empezar a construir.<br>
+            <span class="gpill warn">En pista</span> viable, pero falta destrabar una condición (un canal de venta, un pricing, elegir el rubro).<br>
+            <span class="gpill dead">Descartado</span> se mató antes de escribir código: ya hay competidor local, no paga, o el Estado lo regala gratis.
           </p>
         </div>
 
@@ -336,7 +376,7 @@
 
 <div class="ov" id="ov"></div>
 <aside class="dw" id="dw" role="dialog" aria-modal="true" aria-labelledby="dwn">
-  <div class="dh"><div><h3 id="dwn"></h3><div class="tg" id="dwt"></div><div class="rw" id="dwr"></div></div><button class="close" id="dwx" aria-label="Cerrar">✕</button></div>
+  <div class="dh"><div><h3 id="dwn"></h3><div class="tg" id="dwt"></div><div class="print-only">Célula de Negocios Digitales · ficha del negocio</div><div class="rw" id="dwr"></div></div><div class="dh-actions"><button class="pdfbtn" id="dwpdf" aria-label="Exportar PDF" title="Descargar esta ficha como PDF">⤓ PDF</button><button class="close" id="dwx" aria-label="Cerrar">✕</button></div></div>
   <div class="db" id="dwb"></div>
 </aside>
 
@@ -856,6 +896,12 @@ function open(name){
 function close(){ov.classList.remove('open');dw.classList.remove('open');document.body.style.overflow=''}
 document.addEventListener('click',e=>{const el=e.target.closest('[data-id]');if(el)open(el.dataset.id)});
 document.getElementById('dwx').addEventListener('click',close);
+document.getElementById('dwpdf').addEventListener('click',()=>{
+  const b=document.getElementById('dwb');
+  try{b.setAttribute('data-stamp',new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}));}catch(e){b.setAttribute('data-stamp','');}
+  document.title=(document.getElementById('dwn').textContent||'Negocio')+' — Célula de Negocios Digitales';
+  window.print();
+});
 ov.addEventListener('click',close);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
 
