@@ -1,0 +1,37 @@
+{
+  "descripcion": "Ejemplo real de input del operario: lo que llega tras STT (audio) + visión (fotos). Notar que el operario NO dijo el número de registro del producto -> el núcleo debe marcarlo PENDIENTE_REVISION y disparar repregunta.",
+  "entrada": {
+    "transcripcion": "Che, terminé la desratización del subsuelo del restaurante. Puse cebo en las cuatro estaciones que están en el fondo, cerca del depósito había bastante caca de rata así que reforcé esa zona. Usé Klerat en bloque. Les dije a los del restaurante que no bajen al subsuelo por 24 horas. Revisé también los desagües de la cocina, estaban bien, sin actividad. Que arranquen con el control mensual, les dejé fecha para dentro de un mes.",
+    "textoAdicional": "",
+    "fechaServicio": "2026-07-06T11:30:00-03:00",
+    "fotos": [
+      {
+        "url": "https://storage.testigo.local/ej/antes-deposito.jpg",
+        "descripcion": "Rincón de depósito con heces de roedor visibles sobre el piso junto a la pared y cajas apiladas.",
+        "momento": "antes"
+      },
+      {
+        "url": "https://storage.testigo.local/ej/estacion-cebo.jpg",
+        "descripcion": "Estación de cebo cerrada de plástico negro colocada contra el zócalo del subsuelo.",
+        "momento": "durante"
+      },
+      {
+        "url": "https://storage.testigo.local/ej/despues-limpio.jpg",
+        "descripcion": "Mismo rincón del depósito ya limpio, sin heces visibles, con estación de cebo instalada.",
+        "momento": "despues"
+      }
+    ]
+  },
+  "config": {
+    "nombreEmpresa": "Fumigadora del Plata S.R.L.",
+    "matriculaEmpresa": "MAT-CABA-04821",
+    "operarioNombre": "Rubén Sosa",
+    "numeroParte": "2026-000342",
+    "textoLegalPie": "Servicio realizado conforme a normativa vigente. Conserve este comprobante para controles de bromatología. Fumigadora del Plata S.R.L.",
+    "cliente": {
+      "nombre": "Restaurante La Parrilla del Centro",
+      "direccion": "Av. Corrientes 1234, CABA",
+      "tipoEstablecimiento": "gastronomico"
+    }
+  }
+}
