@@ -40,6 +40,9 @@
   alguien sin contexto la entienda. Lo refresca al cierre de cada ciclo y cuando el dueño pide "status".
 - **🔎 Scout de mercado (a demanda):** se suma cuando hace falta traer señales nuevas o evitar repetir
   negocios; alimenta a los creativos del ciclo siguiente.
+- **🚀 Equipo de ejecución (se activa con el GO):** Constructor + Diseño & Marca + Cobro & Fiscal +
+  Growth + Operaciones. Pone en marcha end-to-end el negocio que el dueño manda a ejecutar. Runbook y
+  roster en `EQUIPO-EJECUCION.md`. Se dispara con **"GO [negocio]"**.
 
 ## Entregable permanente para el dueño
 - **`STATUS-NEGOCIOS.md`** es el parte de situación estable: se pide con **"status"** y siempre tiene la
