@@ -1,7 +1,7 @@
 import { getUsers, createUser, setUserActive, resetUserPassword } from "@/lib/user-actions";
 import { requireCapability } from "@/lib/authz";
 import SubmitButton from "@/components/SubmitButton";
-import { Input, Select, buttonClasses } from "@/components/ui";
+import { Input, Select, Field, buttonClasses } from "@/components/ui";
 import { fmtDateTime } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +47,7 @@ export default async function UsuariosPage({
 
       {banner && (
         <p
+          role={banner.ok ? "status" : "alert"}
           className={`mb-6 rounded-md px-3 py-2 text-sm ${
             banner.ok ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
           }`}
@@ -59,39 +60,29 @@ export default async function UsuariosPage({
       <section className="mb-10 rounded-lg border border-line p-4">
         <h2 className="text-lg font-medium mb-3">Nuevo usuario</h2>
         <form action={createUser} className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="block text-sm text-body mb-1">Nombre</label>
-            <Input name="name" required />
-          </div>
-          <div>
-            <label className="block text-sm text-body mb-1">Email</label>
-            <Input
-              type="email"
-              name="email"
-              required
-              autoComplete="off"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-body mb-1">Rol</label>
-            <Select name="role" required defaultValue="RECEPTION">
+          <Field label="Nombre" htmlFor="nu-name">
+            <Input id="nu-name" name="name" required />
+          </Field>
+          <Field label="Email" htmlFor="nu-email">
+            <Input id="nu-email" type="email" name="email" required autoComplete="off" />
+          </Field>
+          <Field label="Rol" htmlFor="nu-role">
+            <Select id="nu-role" name="role" required defaultValue="RECEPTION">
               <option value="OWNER">Dueña (todo)</option>
               <option value="RECEPTION">Recepción (agenda + clientes + cobrar)</option>
               <option value="PROFESSIONAL">Profesional (solo su agenda)</option>
             </Select>
-          </div>
-          <div>
-            <label className="block text-sm text-body mb-1">
-              Contraseña <span className="text-faint">(mín. 8)</span>
-            </label>
+          </Field>
+          <Field label="Contraseña" htmlFor="nu-password" hint="Mínimo 8 caracteres">
             <Input
+              id="nu-password"
               type="password"
               name="password"
               required
               minLength={8}
               autoComplete="new-password"
             />
-          </div>
+          </Field>
           <div className="sm:col-span-2">
             <SubmitButton
               pendingText="Creando…"
@@ -163,6 +154,7 @@ export default async function UsuariosPage({
                       required
                       minLength={8}
                       placeholder="Nueva contraseña"
+                      aria-label={`Nueva contraseña para ${u.name}`}
                       autoComplete="new-password"
                       className="flex-1 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
                     />

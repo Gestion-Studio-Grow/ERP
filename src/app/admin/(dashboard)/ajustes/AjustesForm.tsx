@@ -143,6 +143,7 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
               <Select
                 className="col-span-2 sm:col-span-1"
                 id={`prod-${l.key}`}
+                aria-label="Producto"
                 value={l.productId}
                 onChange={(e) => {
                   setLine(l.key, { productId: e.target.value });
@@ -164,6 +165,7 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
                   min={mode === "SIGNED" ? undefined : "0"}
                   step="0.001"
                   value={l.touched ? l.value || "" : ""}
+                  aria-label={mode === "COUNT" ? "Cantidad contada" : mode === "LOSS" ? "Cantidad" : "Ajuste (±)"}
                   placeholder={
                     !p
                       ? "—"

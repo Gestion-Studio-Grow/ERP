@@ -14,6 +14,11 @@
 //                       red estática que corre SIN tocar Neon → apta para cada
 //                       cambio. La verificación FUNCIONAL (aísla de verdad) vive en
 //                       verify-rls.mjs y necesita un branch de Neon (no acá).
+//   4. build          — `next build` compila la app entera (rutas, RSC, client
+//                       bundles). Cierra el Gate de Excelencia (tsc+build+test) de
+//                       CLAUDE.md: atrapa lo que tsc/lint solos no ven (errores de
+//                       build de Next, uso de server en client, etc.). Es la valla
+//                       más lenta → va última.
 //
 // Exit 0 = todas verdes (seguro pushear). Exit 1 = alguna roja.
 // ============================================================================
@@ -38,6 +43,7 @@ const GATES = [
     args: ["prisma/rls/check-coverage.mjs"],
     shell: false,
   },
+  { name: "build (next build)", cmd: "npm", args: ["run", "build"], shell: isWin },
 ];
 
 console.log("🚧 Corriendo vallas de pre-push…\n");

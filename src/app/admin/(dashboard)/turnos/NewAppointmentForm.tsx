@@ -5,7 +5,7 @@ import { createManualAppointment } from "@/lib/actions";
 import { getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtTime } from "@/lib/datetime";
-import { Input, Select, Textarea, buttonClasses, cn } from "@/components/ui";
+import { Input, Select, Textarea, Field, buttonClasses, cn } from "@/components/ui";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
@@ -84,53 +84,62 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
         className="space-y-3"
       >
         <div className="grid grid-cols-2 gap-3">
-          <Select
-            name="professionalId"
-            required
-            value={professionalId}
-            onChange={(e) => {
-              setProfessionalId(e.target.value);
-              setServiceId("");
-              loadSlots(e.target.value, "", date);
-            }}
-          >
-            <option value="">Profesional</option>
-            {professionals.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} {p.box ? `— ${p.box.name}` : ""}
-              </option>
-            ))}
-          </Select>
+          <Field label="Profesional" htmlFor="na-professional">
+            <Select
+              id="na-professional"
+              name="professionalId"
+              required
+              value={professionalId}
+              onChange={(e) => {
+                setProfessionalId(e.target.value);
+                setServiceId("");
+                loadSlots(e.target.value, "", date);
+              }}
+            >
+              <option value="">Elegí un profesional</option>
+              {professionals.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} {p.box ? `— ${p.box.name}` : ""}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-          <Select
-            name="serviceId"
-            required
-            value={serviceId}
-            disabled={!professional}
-            onChange={(e) => {
-              setServiceId(e.target.value);
-              loadSlots(professionalId, e.target.value, date);
-            }}
-          >
-            <option value="">Servicio</option>
-            {professional?.services.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.durationMin} min) — ${s.price.toLocaleString("es-AR")}
-                {s.residentPrice != null ? ` · vecino/a $${s.residentPrice.toLocaleString("es-AR")}` : ""}
-              </option>
-            ))}
-          </Select>
+          <Field label="Servicio" htmlFor="na-service">
+            <Select
+              id="na-service"
+              name="serviceId"
+              required
+              value={serviceId}
+              disabled={!professional}
+              onChange={(e) => {
+                setServiceId(e.target.value);
+                loadSlots(professionalId, e.target.value, date);
+              }}
+            >
+              <option value="">Elegí un servicio</option>
+              {professional?.services.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.durationMin} min) — ${s.price.toLocaleString("es-AR")}
+                  {s.residentPrice != null ? ` · vecino/a $${s.residentPrice.toLocaleString("es-AR")}` : ""}
+                </option>
+              ))}
+            </Select>
+          </Field>
         </div>
 
-        <Input
-          type="date"
-          required
-          value={date}
-          onChange={(e) => {
-            setDate(e.target.value);
-            loadSlots(professionalId, serviceId, e.target.value);
-          }}
-        />
+        <Field label="Fecha" htmlFor="na-date">
+          <Input
+            id="na-date"
+            type="date"
+            required
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              loadSlots(professionalId, serviceId, e.target.value);
+            }}
+          />
+        </Field>
 
         {date && (
           <div>
@@ -166,28 +175,38 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
         {selectedSlot && (
           <div className="space-y-2 border-t border-line pt-3">
             <div className="grid grid-cols-2 gap-3">
-              <Input name="clientName" required placeholder="Nombre del cliente" />
-              <Input name="clientPhone" required placeholder="Teléfono" />
+              <Field label="Nombre del cliente" htmlFor="na-client-name">
+                <Input id="na-client-name" name="clientName" required />
+              </Field>
+              <Field label="Teléfono" htmlFor="na-client-phone">
+                <Input id="na-client-phone" name="clientPhone" type="tel" required />
+              </Field>
             </div>
             <label className="flex items-center gap-2 text-sm text-body">
               <input type="checkbox" name="isResident" className="accent-accent" />
               Vecino/a de La Alameda
             </label>
-            <Input
-              name="couponCode"
-              placeholder="Cupón (opcional)"
-              className="uppercase placeholder:normal-case"
-            />
-            <Select name="status" defaultValue="CONFIRMED">
-              <option value="CONFIRMED">Confirmado (ya pagó o pactado en persona)</option>
-              <option value="PENDING">Pendiente de pago</option>
-            </Select>
-            <Textarea
-              name="notes"
-              rows={2}
-              placeholder="Notas (opcional): preferencias, tono, alergias…"
-            />
-            {error && <p className="text-sm text-danger">{error}</p>}
+            <Field label="Cupón (opcional)" htmlFor="na-coupon">
+              <Input
+                id="na-coupon"
+                name="couponCode"
+                className="uppercase placeholder:normal-case"
+              />
+            </Field>
+            <Field label="Estado" htmlFor="na-status">
+              <Select id="na-status" name="status" defaultValue="CONFIRMED">
+                <option value="CONFIRMED">Confirmado (ya pagó o pactado en persona)</option>
+                <option value="PENDING">Pendiente de pago</option>
+              </Select>
+            </Field>
+            <Field label="Notas (opcional)" htmlFor="na-notes" hint="Preferencias, tono, alergias…">
+              <Textarea id="na-notes" name="notes" rows={2} />
+            </Field>
+            {error && (
+              <p className="text-sm text-danger" role="alert">
+                {error}
+              </p>
+            )}
             <SubmitButton
               pendingText="Creando turno…"
               className={buttonClasses("solid", "md", "w-full")}

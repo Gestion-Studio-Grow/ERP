@@ -50,7 +50,7 @@ export function Field({
       </label>
       {children}
       {error ? (
-        <p className="text-xs text-danger">{error}</p>
+        <p className="text-xs text-danger" role="alert">{error}</p>
       ) : hint ? (
         <p className="text-xs text-muted">{hint}</p>
       ) : null}

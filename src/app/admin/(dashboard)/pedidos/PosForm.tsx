@@ -109,6 +109,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
               <Select
                 className="col-span-2 sm:col-span-1"
                 id={`prod-${l.key}`}
+                aria-label="Producto"
                 value={l.productId}
                 onChange={(e) => {
                   setLine(l.key, { productId: e.target.value, qty: 0 });
@@ -132,6 +133,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
                   min="0"
                   step={isWeight ? "0.01" : "1"}
                   value={l.qty || ""}
+                  aria-label={isWeight ? "Peso en kg" : "Cantidad"}
                   placeholder={p ? (isWeight ? "Peso" : "Cantidad") : "—"}
                   onChange={(e) => setLine(l.key, { qty: Number(e.target.value) })}
                   onKeyDown={(e) => {
