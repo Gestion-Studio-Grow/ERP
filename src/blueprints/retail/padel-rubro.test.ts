@@ -17,13 +17,20 @@ test("rubro padel: existe y es una tienda por unidad", () => {
   assert.ok(padel!.catalog.every((i) => i.sale === "u"), "todo se vende por unidad");
 });
 
-test("rubro padel: catálogo acotado a palas + zapatillas", () => {
+test("rubro padel: catálogo de tienda de pádel (palas, zapatillas y accesorios)", () => {
   const padel = getRetailRubro("padel")!;
   const names = padel.catalog.map((i) => i.name.toLowerCase());
+  // Rango de una tienda de pádel real (pedido del dueño): palas, zapatillas,
+  // pelotas, bolsos/paleteros, grips/overgrips, muñequeras y protectores.
   assert.ok(names.some((n) => n.includes("pala")), "debería haber palas");
   assert.ok(names.some((n) => n.includes("zapatilla")), "debería haber zapatillas");
-  // Minimalista: sin decenas de líneas (referencia de calidad, no de tamaño).
-  assert.ok(padel.catalog.length <= 14, "catálogo chico (tienda minimalista)");
+  assert.ok(names.some((n) => n.includes("pelota")), "debería haber pelotas");
+  assert.ok(names.some((n) => n.includes("paletero") || n.includes("mochila")), "debería haber bolsos/paleteros");
+  assert.ok(names.some((n) => n.includes("grip")), "debería haber grips/overgrips");
+  assert.ok(names.some((n) => n.includes("muñequera")), "debería haber muñequeras");
+  assert.ok(names.some((n) => n.includes("protector")), "debería haber protectores");
+  // Acotado a una tienda real, sin runaway (referencia de calidad, no de tamaño).
+  assert.ok(padel.catalog.length <= 24, "catálogo de tienda, sin decenas de líneas");
 });
 
 test("wording de la tienda de pádel por slug", () => {

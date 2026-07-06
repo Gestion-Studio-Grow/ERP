@@ -374,6 +374,21 @@ const padel: RetailRubro = {
     { name: "Zapatillas Adidas Ubersonic 4", sale: "u", price: 179900, stock: 11 },
     { name: "Zapatillas Bullpadel Hack Vibram", sale: "u", price: 169900, stock: 9 },
     { name: "Zapatillas Head Sprint Pro 3.5", sale: "u", price: 149900, stock: 13 },
+    // Pelotas
+    { name: "Tubo de pelotas Head Padel Pro (x3)", sale: "u", price: 12900, stock: 40 },
+    { name: "Tubo de pelotas Bullpadel Premium (x3)", sale: "u", price: 13900, stock: 36 },
+    // Bolsos / paleteros
+    { name: "Paletero Adidas Multigame", sale: "u", price: 84900, stock: 10 },
+    { name: "Paletero Bullpadel Hack", sale: "u", price: 92900, stock: 8 },
+    { name: "Mochila de pádel Nox", sale: "u", price: 64900, stock: 12 },
+    // Grips / overgrips
+    { name: "Overgrips Bullpadel (pack x3)", sale: "u", price: 7900, stock: 50 },
+    { name: "Grip base Adidas", sale: "u", price: 6500, stock: 40 },
+    // Muñequeras
+    { name: "Muñequeras Head (par)", sale: "u", price: 8500, stock: 30 },
+    // Protectores
+    { name: "Protector de pala transparente", sale: "u", price: 6900, stock: 44 },
+    { name: "Protector de pala premium Bullpadel", sale: "u", price: 8900, stock: 28 },
   ],
 };
 
