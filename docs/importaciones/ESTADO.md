@@ -16,25 +16,44 @@ cruzados contra el cimiento de Fase 0. Corrido **en solitario por el PMO** (Sonn
 analistas todavía — sigue en modo ahorro/tope de 4 concurrentes. Top 2: **botellas/termos reutilizables
 de acero inoxidable** (antidumping recién eliminado 2025) y **línea zero-waste de bambú**.
 
-**Fase 2 — Análisis detallado por oportunidad: NO INICIADA.** Requiere abrir Ola 1 (Analista de
-oportunidades + proveedores China + costos/logística/aduana) para profundizar el costeo landeado real
-por NCM de los candidatos del shortlist — el dueño decide cuándo sumar esa ola.
+**Fase 2 — Análisis detallado por oportunidad: EN CURSO (2026-07-06).** OK del dueño sobre el shortlist
+recibido. Primer análisis consolidado (NCM+arancel, costo landeado, proveedores, precio de venta,
+competencia, margen) hecho por el **PMO en solitario** (Sonnet 5) para los 2 candidatos top —
+**todavía sin abrir las 3 células analistas** (modo ahorro / tope de 4 concurrentes, hay un equipo de QA
+corriendo en paralelo en otro frente). El candidato #3 recibió un plan de prueba vía courier en vez de
+análisis completo.
+
+- **#1 Botellas/termos de acero inoxidable** — `analisis/analisis-termos-botellas-acero.md`. Margen bruto
+  estimado 54-63% (rangos provisionales). Riesgo regulatorio bajo; ventana temprana post-antidumping.
+- **#2 Línea zero-waste de bambú** — `analisis/analisis-bambu-zerowaste.md`. Margen bruto estimado
+  55-74%. Demanda ya validada en Mercado Libre; ticket unitario chico, compensa con pack/combo.
+- **#3 Bolsas/envases reutilizables** — `analisis/prueba-courier-bolsas-reutilizables.md`. Plan de
+  muestra vía régimen courier, sin costeo landeado completo todavía.
+
+**Pendiente de esta fase (cuando se abra la Ola 1):** cotización firme de proveedor, arancel exacto
+(NCM 9617.00.10 y 9603.21.00) vía despachante/VUCE, y precio de venta confirmado con listados reales de
+Mercado Libre — los números de hoy son estimaciones de mercado marcadas *provisional*, no un costeo
+cerrado para aprobar una orden.
 
 ## Qué hay armado
 
 - `fundamento-mercado-ar.md` — cimiento de régimen (Fase 0), con fuentes y "a confirmar" marcados donde
   el dato depende del producto puntual o cambia seguido.
 - `shortlist-oportunidades.md` — 5 candidatos priorizados (Fase 1), con qué se descartó y por qué.
+- `analisis/analisis-termos-botellas-acero.md` · `analisis/analisis-bambu-zerowaste.md` ·
+  `analisis/prueba-courier-bolsas-reutilizables.md` — Fase 2, primer análisis consolidado por PMO.
 - `ESTADO.md` (este archivo).
 
 ## Qué falta (siguiente paso propuesto)
 
-1. **OK del dueño sobre el shortlist** — confirmar si arranca por #1 (termos) + #2 (bambú), o si quiere
-   reordenar/sumar otro candidato antes de abrir la Ola 1.
-2. **Ola 1 (recién ahí, máx. 4 sesiones):** PMO + Analista de oportunidades + Analista de proveedores
-   China + Analista de costos/logística/aduana — costeo landeado por NCM de los 1-2 candidatos elegidos,
-   sourcing puntual en Alibaba/1688 (MOQ, muestras, proveedor).
-3. **Ola 2:** Analista de mercado local/pricing + Analista de logística/fulfillment.
+1. **Abrir Ola 1 (máx. 4 sesiones, cuando el dueño/PMO decida sumar cupo):** Analista de proveedores
+   China (cotización firme de 2-3 proveedores para termo y línea de bambú) + Analista de
+   costos/logística/aduana (cerrar arancel exacto vía VUCE/despachante, angostar el rango de costo
+   landeado) — profundizan lo que el PMO dejó en estimación *provisional*.
+2. **Correr en paralelo (bajo costo):** la prueba de muestra courier del candidato #3.
+3. **Ola 2 (después):** Analista de mercado local/pricing (confirmar precio de venta con scraping real de
+   Mercado Libre) + Analista de logística/fulfillment.
+4. **Recién con todo eso cerrado:** el PMO arma el carrito curado (`carrito/`) para aprobación del dueño.
 
 ## Worktree / branch de este frente
 
