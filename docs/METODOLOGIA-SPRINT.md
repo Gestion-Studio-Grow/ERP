@@ -369,7 +369,10 @@ Recetas paso-a-paso y fundamentos con el **por qué** de cada cosa, para no re-d
   (rubro, identidad/colores/logo/tono, catálogo/servicios, ofertas, historia, contacto) **y GENERAN la
   preventa experta = el preset:** tenant + subdomain + blueprint del rubro, branding (color/logo
   recreado/tono), datos de demo por rubro (sin transaccionar, sin passwords) y la **instancia del
-  probador lista** — todo con Auditoría SAP + Sello GSG. **Prueba de concepto ya hecha a mano:** Break
+  probador lista**. **🛡️ GATE BLOQUEANTE, no negociable:** el preset se **genera → audita por TODA la
+  metodología (Auditoría SAP [5 principios + a11y + consistencia] + Sello GSG + Arquitectura +
+  Confiabilidad) → recién ahí se muestra**. Si no pasa el Gate, **NO se entrega/muestra al cliente**.
+  **Prueba de concepto ya hecha a mano:** Break
   Point (desde Instagram → tenant `adosmanos`) y Magra (desde su web → `carniceria`). Motor de **escala
   comercial** (alta en minutos). **Alimenta el motor del probador de Célula 3** (`docs/demo/README.md`);
   se publica en FASE 1 (sin secretos) por el playbook de demo a costo cero; el alta real es FASE 2

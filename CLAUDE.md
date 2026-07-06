@@ -20,8 +20,10 @@ de reinventar un flujo, fijate si ya hay receta. Índice en `docs/METODOLOGIA-SP
 operativos`. Obligatorios/transversales: **🤖 Generador de PRESET por IA**
 (`docs/metodologia/generador-preset-ia.md`) — todo alta de cliente nuevo: **el cliente da SOLO su red
 social y/o web → los agentes extraen todo (rubro, identidad, catálogo, ofertas, historia, contacto) y
-generan la preventa experta = el preset** (tenant+blueprint+branding+datos demo+probador, con Auditoría
-SAP + Sello GSG; PoC: Break Point desde Instagram, Magra desde su web; coordina con Célula 3) ·
+generan la preventa experta = el preset** (tenant+blueprint+branding+datos demo+probador). **Gate
+bloqueante no negociable: generar → auditar por TODA la metodología (SAP + GSG + Arquitectura +
+Confiabilidad) → recién ahí mostrar; sin Gate NO se muestra al cliente.** PoC: Break Point desde
+Instagram, Magra desde su web; coordina con Célula 3 ·
 **Demo pública a costo cero** (`docs/metodologia/demo-publica-costo-cero.md`).
 
 **Estructura de la compañía — TRES unidades bajo Gestión Studio Grow (estudio paraguas):** (1) **ERP

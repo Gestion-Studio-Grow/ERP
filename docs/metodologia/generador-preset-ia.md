@@ -33,10 +33,20 @@ provisionales marcados y se piden capturas de lo que esté tras login.
    **catálogo/servicios** · **ofertas/promos** · **historia / "quiénes somos"** · **medios de contacto**
    (WhatsApp, dirección, horarios, redes).
 2. **GENERAN la PREVENTA EXPERTA adaptada** = el **preset completo**: tenant + **blueprint del rubro** +
-   **branding** (color/logo recreado/tono) + **datos de demo del rubro** + **probador listo**, todo con
-   **Auditoría SAP + Sello GSG**.
-3. **Queda listo para mostrarle al cliente su producto ya adaptado a su marca** — "así opera TU negocio
-   con nosotros", en la primera reunión.
+   **branding** (color/logo recreado/tono) + **datos de demo del rubro** + **probador listo**.
+3. **AUDITAN por TODA la metodología (Gate de Excelencia completo) — paso BLOQUEANTE:** Auditoría SAP
+   Fiori (5 principios + accesibilidad + consistencia) **+** Sello de Marca GSG **+** Arquitectura **+**
+   Confiabilidad. **No es opcional ni "se revisa después".**
+4. **Recién si pasó el Gate**, queda listo para **mostrarle al cliente su producto adaptado a su marca**.
+
+> ## 🚫 REGLA NO NEGOCIABLE — el preset NO se muestra si no pasó el Gate
+> **Todo preset/preventa que genere la IA pasa por la METODOLOGÍA COMPLETA antes de mostrarse al
+> cliente.** El orden es **generar → auditar (SAP + GSG + Arquitectura + Confiabilidad) → recién ahí
+> mostrar**. Un preset que no tilda los **4 bloques del Gate de Excelencia** (con SAP y GSG **sí o sí**)
+> **NO se entrega ni se muestra**: vuelve al agente hasta que pase. La auditoría es parte del acto de
+> generar, no un trámite posterior. *Por qué:* lo que sale con nuestra cara es la carta de presentación
+> — un preset sin auditar puede tener un defecto de UX/accesibilidad/marca que quema la venta y la
+> reputación GSG. El nivel se garantiza ANTES de que el cliente lo vea, no después.
 
 ### Prueba de concepto (ya lo hicimos a mano — ahora se formaliza y automatiza)
 Esto no es teoría: es el **mismo patrón que ya ejecutamos manual**, ahora convertido en método repetible.
@@ -114,7 +124,10 @@ marcados.
    **todo marcado provisional**, sin transaccionar.
 7. **Materializar la instancia del probador** (motor de Célula 3) con los componentes 1–6 → un sandbox
    navegable del negocio.
-8. **Auditar**: pasar **SAP Fiori (7 ángulos)** + **sello GSG** antes de mostrarlo (Gate de Excelencia).
+8. **Auditar (BLOQUEANTE) por toda la metodología — Gate de Excelencia completo**: SAP Fiori (5
+   principios + accesibilidad + consistencia) **+** sello GSG **+** Arquitectura **+** Confiabilidad.
+   **El preset NO se muestra si no pasó.** Recién con el Gate en verde se entrega (ver la regla no
+   negociable en "El corazón").
 
 **SALIDAS:** el **preset** (los 6 componentes) → (a) el **probador vivo** para preventa (FASE 1, sin
 secretos, URL `.vercel.app` gratis por cliente, ver el playbook de demo a costo cero); y (b) la **receta
@@ -142,35 +155,48 @@ de provisioning** lista para el alta real (FASE 2) cuando el cliente cierra — 
 
 ---
 
-## Auditoría SAP + Sello GSG (obligatorios en cada preset)
-Un preset es un entregable → **pasa el Gate de Excelencia** antes de mostrarse:
-- **Auditoría SAP Fiori (7 ángulos)** — `docs/metodologia/auditoria-sap-fiori.md`: el probador del
-  cliente tiene que ser role-based, coherente, simple, adaptable, delightful, accesible y consistente.
-- **Sello GSG** — `docs/metodologia/estandar-marca-gsg.md`: el probador lleva la marca **del cliente**
-  visible; **GSG es el sello de calidad detrás** (identidad de calidad + marcador verificable en el
-  backoffice/metadatos, sin pisar la marca del cliente).
+## 🛡️ GATE DE ENTREGA del preset — BLOQUEANTE, no negociable
+Un preset es un entregable de cara al cliente → **pasa el Gate de Excelencia COMPLETO (4 bloques) antes
+de mostrarse.** El preset **NO se entrega/muestra si no pasó el Gate**; vuelve al agente hasta que pase.
+Detalle del Gate en `docs/METODOLOGIA-SPRINT.md → "GATE DE EXCELENCIA"`.
+
+1. **🔎 Auditoría SAP Fiori — completa (5 principios + accesibilidad + consistencia)** —
+   `docs/metodologia/auditoria-sap-fiori.md`. El probador del cliente tiene que ser role-based, coherente,
+   simple, adaptable, delightful/enterprise, **accesible** y **consistente**. **Sí o sí.**
+2. **🏷️ Sello de Marca GSG** — `docs/metodologia/estandar-marca-gsg.md`. El probador lleva la marca **del
+   cliente** visible; **GSG es el sello de calidad detrás** (identidad de calidad + marcador verificable
+   en backoffice/metadatos, sin pisar la marca del cliente). **Sí o sí.**
+3. **Arquitectura** — capas/límites, testabilidad, multi-tenant (`tenantId`), no evade RLS, deuda anotada.
+4. **Confiabilidad** — `tsc`+`build`+`test` verdes, aislamiento por tenant, manejo de errores, no rompe prod.
+
+> **El orden es parte de la regla:** *generar → auditar (los 4 bloques) → recién ahí mostrar.* La
+> auditoría es parte del acto de generar, **nunca** un "lo revisamos después de mostrárselo al cliente".
 
 ---
 
 ## Cómo lo invoca un sprint (transversal, en minutos)
 Cualquier sprint que dé de alta un cliente nuevo **invoca este generador** como su flujo de onboarding:
 
-1. **Reunir entradas** (marca + rubro + referencias digitales del prospecto).
-2. **Correr el flujo** (8 pasos) → generar el preset (6 componentes).
-3. **Publicar el probador** (FASE 1, sin secretos) con el playbook `demo-publica-costo-cero.md` → URL
-   `.vercel.app` gratis del cliente → **mostrar en preventa**.
-4. **Si cierra:** FASE 2 — el dueño pega las credenciales, se corre el provisioning real, RLS enforced.
-5. **Gate de Excelencia** (SAP + GSG + Arquitectura + Confiabilidad) antes de integrar cualquier código.
+1. **Reunir la entrada** (SOLO la red social y/o web del prospecto).
+2. **Correr el flujo** → generar el preset (6 componentes).
+3. **🛡️ AUDITAR por toda la metodología (Gate de Excelencia completo) — BLOQUEANTE:** SAP (5 principios +
+   a11y + consistencia) + Sello GSG + Arquitectura + Confiabilidad. **Si no pasa, NO se muestra:** vuelve
+   al agente. *(Este paso va ANTES de mostrar, siempre.)*
+4. **Recién si pasó el Gate → publicar el probador** (FASE 1, sin secretos) con el playbook
+   `demo-publica-costo-cero.md` → URL `.vercel.app` gratis del cliente → **mostrar en preventa**.
+5. **Si cierra:** FASE 2 — el dueño pega las credenciales, se corre el provisioning real, RLS enforced
+   (y todo código que se integre vuelve a pasar el Gate).
 6. **Actualizar `docs/ESTADO-ACTUAL.md`** (nuevo tenant/preset) y dejar la receta del cliente en
    `docs/tenants/<slug>/`.
 
-### Checklist del preset (tildá al generarlo)
+### Checklist del preset (tildá al generarlo — el Gate es condición para mostrar)
 - [ ] **Ficha** del negocio (modelo de venta, tono, incumbente) escrita.
 - [ ] **Rubro → blueprint** resuelto (o comodín justificado) · **slug + subdomain** definidos.
 - [ ] **Branding** generado (acento, logo/monograma recreado, wording afinado al tono).
 - [ ] **Datos de demo** por rubro sembrados + líneas del negocio, **marcados provisionales**, sin secretos.
 - [ ] **Probador** navegable del cliente (FASE 1, `force-static`, sin base ni credenciales).
-- [ ] **Auditoría SAP (7 ángulos)** + **sello GSG** pasados.
+- [ ] **🛡️ GATE DE ENTREGA pasado (BLOQUEANTE):** Auditoría SAP (5 principios + a11y + consistencia) +
+      Sello GSG + Arquitectura + Confiabilidad. **Sin esto NO se muestra al cliente.**
 - [ ] Receta de provisioning lista para FASE 2 (alta real la dispara el dueño con sus credenciales).
 
 ---
