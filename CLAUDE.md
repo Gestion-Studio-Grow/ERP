@@ -40,20 +40,26 @@ Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prom
 
 ## Gate de Excelencia — OBLIGATORIO, NO SALTEABLE (regla de alto nivel)
 
-**Ningún cambio se integra ni se pushea a `main` sin pasar el GATE DE EXCELENCIA (UX + Arquitectura +
-Confiabilidad).** Aplica a **toda sesión/frente de ambos sectores**, desktop y móvil. Es adicional a
-"verde antes de commitear" (tsc+build+test), no lo reemplaza. Fundamento transversal para **todos los
-agentes**: filosofía **SAP/Fiori** — *rol-based · coherente · simple · adaptable · delightful · calidad
-enterprise*. Checklist corto que cada frente tilda **antes de pushear**:
+**Ningún cambio se integra ni se pushea a `main` sin pasar el GATE DE EXCELENCIA.** Aplica a **toda
+sesión/frente de ambos sectores**, desktop y móvil. Es adicional a "verde antes de commitear"
+(tsc+build+test), no lo reemplaza. Son **4 bloques; los bloques 1 y 2 son OBLIGATORIOS SIN EXCEPCIÓN en
+TODO desarrollo.** Checklist corto que cada frente tilda **antes de pushear**:
 
-1. **Excelencia UX (SAP/Fiori):** rol-based · coherente (design system) · simple · adaptable
-   (responsive + branding por tenant) · delightful/enterprise (estados carga/vacío/error).
-2. **Excelencia Arquitectura:** capas/límites de dominio · testabilidad · escalabilidad multi-tenant
+1. **🔎 AUDITORÍA SAP FIORI — completa y obligatoria (7 ángulos):** rol-based · coherente · simple ·
+   adaptable (responsive + branding por tenant) · delightful/enterprise · **accesibilidad** (labels
+   reales/ARIA/`role="alert"`/teclado/contraste) · **consistencia** (no duplica patrones existentes).
+   Ningún cambio se integra sin pasarla. Fundamento: `docs/metodologia/auditoria-sap-fiori.md`.
+2. **🏷️ SELLO DE MARCA GSG — obligatorio en todo entregable:** todo lo que sale lleva el ADN/nivel de
+   Gestión Studio Grow. Sello verificable: app → `metadata.generator="Gestión Studio Grow"` + crédito
+   discreto en el footer del **backoffice** (no en la vidriera del tenant); doc → firma "— Elaborado por
+   GSG"; commit → trailer del equipo GSG. El tenant conserva SU marca visible; GSG es el sello de calidad
+   detrás. Fundamento: `docs/metodologia/estandar-marca-gsg.md`.
+3. **Excelencia Arquitectura:** capas/límites de dominio · testabilidad · escalabilidad multi-tenant
    (predicado `tenantId` / `tenantTransaction`) · seguridad/RLS (no evade aislamiento) · deuda anotada.
-3. **Confiabilidad de Producción:** `tsc`+`build`+`test` verdes · aislamiento por tenant · manejo de
+4. **Confiabilidad de Producción:** `tsc`+`build`+`test` verdes · aislamiento por tenant · manejo de
    errores · no rompe prod (schema = migración SIN aplicar, Gate 2).
 
-Ítem que no aplica → **N/A + por qué**. Si no tilda los 3 bloques, **no se integra**. Detalle completo
+Ítem que no aplica → **N/A + por qué**. Si no tilda los **4 bloques**, **no se integra**. Detalle completo
 en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el handoff de PR/commit).
 
 ## Autorización y gates (política push-libre)

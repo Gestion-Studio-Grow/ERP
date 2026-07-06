@@ -107,11 +107,12 @@ que quedarse corto.
 - **`pausa`** → frenás, consolidás (main limpio y pusheado, ramas integradas/anotadas, handoff al día), corrés la **FASE FINAL (Backup): git tag anotado `snapshot/AAAA-MM-DD` a origin + `docs/ESTADO-ACTUAL.md` actualizado**, y esperás.
 
 ## 🛡️ GATE DE EXCELENCIA — NO SALTEABLE (antes de integrar/pushear a main)
-**Regla dura: ningún cambio se integra a `main` sin pasar el gate de excelencia (UX + Arquitectura + Confiabilidad).** Aplica a todo frente de ambos sectores. El PMO **no mergea** sin él. Adicional a "verde antes de commitear". Fundamento transversal: **filosofía SAP/Fiori** (rol-based · coherente · simple · adaptable · delightful · calidad enterprise). Cada frente tilda en su handoff antes de pushear:
-- **UX (SAP/Fiori):** rol-based · coherente (design system) · simple · adaptable (responsive+branding por tenant) · delightful/enterprise (loading/vacío/error).
-- **Arquitectura:** capas/límites de dominio · testabilidad · escalabilidad multi-tenant (predicado `tenantId`/`tenantTransaction`) · seguridad/RLS (no evade aislamiento) · deuda anotada (ADR/PROXIMOS-PASOS).
-- **Confiabilidad prod:** `tsc`+`build`+`test` verdes · aislamiento por tenant · manejo de errores · schema = migración SIN aplicar (Gate 2), nada irreversible solo.
-- Ítem que no aplica → **N/A + por qué**. Si no tilda los 3 bloques, **no se integra**. Detalle: `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA".
+**Regla dura: ningún cambio se integra a `main` sin pasar el gate de excelencia.** Aplica a todo frente de ambos sectores. El PMO **no mergea** sin él. Adicional a "verde antes de commitear". **4 bloques; los bloques 1 y 2 son OBLIGATORIOS sin excepción en TODO desarrollo.** Cada frente tilda en su handoff antes de pushear:
+- **1. 🔎 Auditoría SAP Fiori (OBLIGATORIA, 7 ángulos):** role-based · coherente · simple · adaptable · delightful/enterprise · **accesibilidad** (labels/ARIA/teclado/contraste) · **consistencia**. Ningún cambio se integra sin pasarla. Detalle: `docs/metodologia/auditoria-sap-fiori.md`.
+- **2. 🏷️ Sello de Marca GSG (OBLIGATORIO en todo entregable):** calidad GSG (pasó el bloque 1) · sello verificable (app → `metadata.generator="Gestión Studio Grow"` + crédito en footer del backoffice; doc → firma "— Elaborado por GSG"; commit → trailer GSG) · no pisa la marca visible del tenant. Detalle: `docs/metodologia/estandar-marca-gsg.md`.
+- **3. Arquitectura:** capas/límites de dominio · testabilidad · escalabilidad multi-tenant (`tenantId`/`tenantTransaction`) · seguridad/RLS (no evade aislamiento) · deuda anotada (ADR/PROXIMOS-PASOS).
+- **4. Confiabilidad prod:** `tsc`+`build`+`test` verdes · aislamiento por tenant · manejo de errores · schema = migración SIN aplicar (Gate 2), nada irreversible solo.
+- Ítem que no aplica → **N/A + por qué**. Si no tilda los **4 bloques**, **no se integra**. Detalle: `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA".
 
 ## Reglas (ver `docs/METODOLOGIA-SPRINT.md` para el detalle)
 - Cada equipo en SU worktree/zona; **un tema por commit**; `tsc`+build (+`npm test` si aplica) en verde antes de commitear.
