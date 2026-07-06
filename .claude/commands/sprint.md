@@ -32,7 +32,7 @@ El barrido de la FASE 0 cubre, como mínimo:
 3. **El tenant NO es eje de paralelización de código** — el multi-tenant se resuelve **una sola vez** en la capa **plataforma/RLS** (aislamiento por fila). No hay una sesión de código por cliente.
 4. **EXCEPCIÓN — delivery por cliente** — el trabajo de **entrega/operación** de un cliente (onboarding, config, datos, deliverables) **sí** puede tener su sesión por cliente, porque **no toca el core compartido**. Regla mnemotécnica: **core = por dominio; delivery = puede ser por cliente**.
 5. **Lo compartido lo SECUENCIA el PMO en serie** — `prisma/schema.prisma`, migraciones y auth/tenancy (`tenant.ts` / `rls.ts`) **no** se reparten a dos frentes a la vez: entran de a uno para que no peleen los mismos archivos.
-6. **Capas fijas de toda corrida** — **PMO por encima** (lidera + secuencia lo compartido + merge-master + **avance e innovación proactiva en AMBOS sectores**) y **N frentes de Desarrollo por core en los DOS SECTORES**: **Sector ERP** → Pagos · Caja · Inventario/POS · Fiscal · Plataforma · **Diseño** (ahora core); **Sector Grow (Agencia Digital)** → Consultores/Análisis de mercado · Desarrolladores · PMO proactivo. Calidad/tests no es core (cada dueño entrega en verde).
+6. **Capas fijas de toda corrida** — **PMO por encima** (lidera + secuencia lo compartido + merge-master + **avance e innovación proactiva en AMBOS sectores**) y **N frentes de Desarrollo por core en los DOS SECTORES**: **Sector ERP** → Pagos · Caja · Inventario/POS · Fiscal · Plataforma · **Diseño** (ahora core); **Sector Agencia Digital** → Consultores/Análisis de mercado · Desarrolladores · PMO proactivo. Calidad/tests no es core (cada dueño entrega en verde).
 
 ## Fases OBLIGATORIAS de `sprint`: FASE 0 (Exploración) + FASE FINAL (Backup)
 Objetivo: que **no se repitan errores de migración, cosas dejadas afuera, ni pérdida de contexto** entre sprints.
@@ -77,7 +77,7 @@ son y qué tienen que hacer) antes de ejecutar.
 5. **Plataforma** (RLS/tenancy, perf, auth, observabilidad + reporting) → `../estetica-erp-plataforma` · `frente/plataforma`. **Dueño del cimiento auth/tenancy.** Territorio: `tenant*.ts`, `rls.ts`, `prisma/rls/`, `session.ts`, `capabilities.ts`, `authz.ts`, `reportes/`.
 6. **Diseño** (sistema de diseño/UX: tokens, primitivos, branding por tenant — ahora **core**, ya no cross-cutting) → `../estetica-erp-diseno` · `frente/diseno`. Territorio: `src/components/ui/`, `branding.ts`, tokens/tema.
 
-### Sector B — Sector Grow (Agencia Digital) (charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md`)
+### Sector B — Agencia Digital (charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md`)
 Charter: **misma metodología y mismo PMO, pero repos/deploys SEPARADOS** del ERP → worktrees/ramas en el **repo propio del sector**.
 7. **Consultores / Análisis de mercado** (inteligencia de mercado, estado del arte, estrategia, diferencial con evidencia) → repo del sector · `frente/agencia-consultores`. Entregables: `docs/sectores/agencia-digital/analisis-mercado/`.
 8. **Desarrolladores** (construir lo que los consultores validan, apalancando ERP/ARCA/storefront) → repo del sector · `frente/agencia-dev`.
