@@ -40,6 +40,13 @@
   alguien sin contexto la entienda. Lo refresca al cierre de cada ciclo y cuando el dueño pide "status".
 - **🔎 Scout de mercado (a demanda):** se suma cuando hace falta traer señales nuevas o evitar repetir
   negocios; alimenta a los creativos del ciclo siguiente.
+- **📣 Célula de Marketing y Publicidad (2 agentes):** potencia los negocios validados y analiza **qué
+  estrategia PROBADA sirve de verdad** para cada uno — con **fuentes reales** y **sin sesgo del modelo**.
+  (1) **Estratega de Growth/Go-to-market:** canal de adquisición, posicionamiento, embudo, retención,
+  qué palanca mueve la aguja según casos y datos reales del rubro. (2) **Analista de Performance/
+  Publicidad:** medios pagos (Meta/Google/WhatsApp), CAC/ROAS reales, creatividades, medición y qué
+  NO hacer. Regla: nada de humo publicitario; cada recomendación con evidencia y aplicable a AR.
+  Charter: `marketing/FUNDAMENTO.md`.
 - **🚀 Equipo de ejecución (se activa con el GO):** Constructor + Diseño & Marca + Cobro & Fiscal +
   Growth + Operaciones. Pone en marcha end-to-end el negocio que el dueño manda a ejecutar. Runbook y
   roster en `EQUIPO-EJECUCION.md`. Se dispara con **"GO [negocio]"**.
@@ -87,6 +94,10 @@
   primero a una oportunidad de mercado gana; la ventana se cierra.
 - **Cada idea ata a una señal real y actual** (una noticia, un cambio regulatorio, una tendencia tech),
   no a una intuición abstracta. La señal + su fecha + su fuente van en la propuesta.
+- **Revisar BOLETINES OFICIALES y fuentes de NUEVA LEGISLACIÓN/REGULACIÓN** (creativos **y** analíticos):
+  Boletín Oficial nacional (BORA), boletines provinciales, InfoLEG, normativa y RG de ARCA/AFIP, BCRA,
+  ANSES, ministerios. Una **obligación o un derecho nuevo crea un mercado** el día que se publica →
+  cazar el **gap/oportunidad** apenas sale. Llegar primero a la ventana regulatoria es la ventaja.
 
 ### Para el DESAFIADOR — rango ampliado (retorno lento/pasivo permitido)
 - **Se permiten negocios de retorno LENTO, SUSTENTABLE y de INGRESOS PASIVOS.** No matar una idea solo
