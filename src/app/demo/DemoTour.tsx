@@ -37,12 +37,33 @@ const SCENE_COMPONENTS = [
   CierreScene,
 ];
 
+// Quien muestra la demo puede completar su propio WhatsApp sin tocar código
+// (ver el campo "Completá tu WhatsApp" más abajo). Persiste en localStorage,
+// nunca en el repo — sigue sin haber secretos ni backend acá.
+const WA_STORAGE_KEY = "gsg-demo-whatsapp";
+
 export default function DemoTour() {
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [waInput, setWaInput] = useState("");
+  const [showWaConfig, setShowWaConfig] = useState(false);
   const last = SCENES.length - 1;
   const scene = SCENES[i];
   const Active = SCENE_COMPONENTS[i];
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(WA_STORAGE_KEY);
+    if (saved) setWaInput(saved);
+  }, []);
+
+  const handleWaInput = (raw: string) => {
+    setWaInput(raw);
+    const digits = raw.replace(/\D/g, "");
+    if (digits) window.localStorage.setItem(WA_STORAGE_KEY, digits);
+    else window.localStorage.removeItem(WA_STORAGE_KEY);
+  };
+
+  const waNumber = waInput.replace(/\D/g, "") || undefined;
 
   const go = useCallback(
     (n: number) => {
@@ -195,7 +216,7 @@ export default function DemoTour() {
       {/* CTA sticky */}
       <div className="z-10 w-full max-w-[420px] pt-3">
         <a
-          href={whatsappHref()}
+          href={whatsappHref(waNumber)}
           target="_blank"
           rel="noopener noreferrer"
           className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-[15px] font-semibold text-[color:var(--demo-ink)] shadow-lg transition-transform active:translate-y-px"
@@ -217,6 +238,33 @@ export default function DemoTour() {
           <a href={mailtoHref()} className="underline-offset-2 hover:underline">
             Escribinos por mail
           </a>
+        </div>
+
+        {/* Discreto: quien muestra la demo completa su propio WhatsApp sin tocar
+            código. Colapsado por defecto para no ensuciar el diseño. */}
+        <div className="mt-1.5 flex justify-center">
+          {showWaConfig ? (
+            <label className="flex items-center gap-1.5 text-[11px] text-white/45">
+              WhatsApp de esta demo
+              <input
+                type="tel"
+                inputMode="numeric"
+                autoFocus
+                placeholder="54 9 11...."
+                value={waInput}
+                onChange={(e) => handleWaInput(e.target.value)}
+                className="w-[132px] rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
+              />
+            </label>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowWaConfig(true)}
+              className="text-[11px] text-white/35 underline-offset-2 hover:text-white/55 hover:underline"
+            >
+              Completá tu WhatsApp
+            </button>
+          )}
         </div>
       </div>
     </main>
