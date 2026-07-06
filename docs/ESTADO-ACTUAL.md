@@ -44,16 +44,21 @@ desconexión:** el **ensayo de RLS se completó en un BRANCH de Neon** (no prod)
 > propósito** (no se rotó `DATABASE_URL` ni Netlify ni alta). **Falta:** password de `app_rls` (dueño) +
 > rotación de env vars + deploy + alta.
 
-### PASOS DEL DUEÑO para el go-live de Magra (en orden, al retomar)
-1. ✅ **BLOQUE A HECHO** — RLS 33/33 en prod + rol `app_rls` creado (ver recuadro arriba).
-2. 🔴 **Contraseña de `app_rls`** → Neon → Roles → *Reset password* (o `ALTER ROLE app_rls PASSWORD '…'`).
-   Guardar el secret; sin esto el rol no autentica. **Es el próximo paso.**
-3. 🔴 **Env vars en Netlify** (+ redeploy): `DATABASE_URL=<app_rls con su password>` (template abajo) ·
-   `OPERATOR_DATABASE_URL=<neondb_owner>` · `RLS_ENFORCEMENT=on`. **Verificar CH intacto tras el deploy.**
-4. 🔴 **Alta de Magra** → `/operador/alta` (2º tenant, blueprint `carniceria`).
-5. 🔴 **Deploy `magra-erp`** → 2º sitio Netlify con `FORCE_TENANT_SLUG=magra`.
+### PASOS DEL GO-LIVE de Magra — CASI COMPLETO
+1. ✅ **BLOQUE A** — RLS 33/33 en prod + rol `app_rls` creado (recuadro arriba).
+2. ✅ **Password de `app_rls` + rotación de env vars en Netlify + deploy** (hechos por el dueño):
+   **CH corriendo con `app_rls`, `RLS_ENFORCEMENT=on`** → RLS ACTIVO y enforced en prod.
+3. ✅ **Alta de Magra — HECHA (2026-07-06, 2º tenant real)** vía `scripts/provision-tenant.ts` con el
+   rol owner. `tenantId=cmr8nncxj0000aoh7cqpn7yyg`, slug `magra`, blueprint `carniceria`, OWNER +
+   BusinessSettings + catálogo demo sembrados. **El gate ADR-018 ABRIÓ** (RLS activo → permitió el 2º
+   tenant). **Aislamiento verificado en prod como `app_rls`:** ctx=CH ve solo CH, ctx=Magra ve solo
+   Magra, sin ctx → 0 filas (fail-closed). 🟢
+4. 🔴 **Deploy `magra-erp`** → 2º sitio Netlify (mismo repo) con `FORCE_TENANT_SLUG=magra`. **Único paso
+   que falta** (lo hace el dueño con sus secrets). Sin dominio propio, es la Opción A (URL gratis por tenant).
+5. ⚠️ **Email del OWNER de Magra es PROVISIONAL** (`dueno@magra.com.ar`) → confirmar/reemplazar por el real
+   y comunicar/rotar la contraseña de bootstrap por canal seguro.
 
-**Template de `DATABASE_URL` para `app_rls`** (el dueño completa `<PASSWORD>`):
+**Template de `DATABASE_URL` para `app_rls`** (ya cargado en Netlify por el dueño; queda de referencia):
 `postgresql://app_rls:<PASSWORD>@ep-little-credit-act3cxpe-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
 
 Comandos y detalle: **`docs/runbooks/alta-magra.md`**. Fundamento de los hallazgos: §4 y §6.
@@ -95,8 +100,8 @@ charter + FUNDAMENTO + 2 análisis de mercado en `docs/sectores/agencia-digital/
 
 | Tenant | Slug | Blueprint | Estado |
 |---|---|---|---|
-| **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `estetica` | ✅ **VIVO en prod** — único tenant real operando |
-| **Magra** (carnicería boutique) | `magra` | `carniceria` | 🚧 **CONSTRUIDO, SIN ALTA en prod** — tenant + playbook de preventa listos; el alta del 2º tenant está **bloqueada por el gate RLS** (el provisioning se niega a crear la 2ª fila `Tenant` sin RLS activo). Su sitio **magra-erp tampoco está deployado** (ver §4) |
+| **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `estetica` | ✅ **VIVO en prod** — corriendo con `app_rls` + RLS enforced (2 tenants ahora) |
+| **Magra** (carnicería boutique) | `magra` | `carniceria` | ✅ **ALTA HECHA en prod (2026-07-06)** — `tenantId=cmr8nncxj0000aoh7cqpn7yyg`, OWNER+BusinessSettings+catálogo demo sembrados; el gate ADR-018 abrió (RLS activo) y el aislamiento quedó verificado en prod. **Falta solo su sitio Netlify `magra-erp`** (`FORCE_TENANT_SLUG=magra`, lo hace el dueño). Email del OWNER **provisional** a confirmar |
 
 **Gate de negocio de Magra (decisión de dueño, no técnica):** cobro MP online, fotos, precios reales.
 

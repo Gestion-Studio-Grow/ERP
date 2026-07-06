@@ -69,6 +69,7 @@ function ProductRow({ product }: { product: Product }) {
         {product.unit}
       </td>
       <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm">
+        <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Stock:</span>
         <span className={lowStock ? "text-danger font-medium" : "text-body"}>
           {product.stock} {product.unit}
         </span>

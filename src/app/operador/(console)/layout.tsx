@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { requireOperator } from "@/lib/operator-session";
 import { operatorLogout } from "@/lib/operator-actions";
 import { Button } from "@/components/ui";
+
+// Control-plane: título propio (no "CH Estética…" heredado) y sin indexar.
+export const metadata: Metadata = {
+  title: "Consola · Control-plane",
+  robots: { index: false, follow: false },
+};
 
 // Shell del plano de operador. Guard duro (requireOperator) además del portón del
 // proxy. Look deliberadamente distinto al backoffice del tenant: esto es "nosotros

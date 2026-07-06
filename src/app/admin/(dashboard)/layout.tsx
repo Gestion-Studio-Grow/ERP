@@ -1,9 +1,18 @@
+import type { Metadata } from "next";
 import AdminShell from "./AdminShell";
 import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import { requireUser } from "@/lib/authz";
 import { getTenantBrand, resolveAccent, invertTheme } from "@/lib/branding";
 import type { CSSProperties } from "react";
+
+// Título neutro (antes heredaba "CH Estética…" del layout raíz → se filtraba la
+// marca de CH a la pestaña del panel de CUALQUIER tenant, p. ej. Magra). Y el
+// backoffice no debe indexarse.
+export const metadata: Metadata = {
+  title: "Panel de gestión",
+  robots: { index: false, follow: false },
+};
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // El portón grueso (¿hay sesión?) lo hace `proxy.ts`; acá resolvemos el

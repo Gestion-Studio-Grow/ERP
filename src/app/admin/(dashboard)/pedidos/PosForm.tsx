@@ -105,8 +105,9 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
           const isWeight = p?.saleUnit === "WEIGHT";
           const lineTotal = p && l.qty > 0 ? l.qty * unitPriceOf(p) : 0;
           return (
-            <div key={l.key} className="grid grid-cols-[1fr_128px_auto] items-center gap-2">
+            <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_128px_auto]">
               <Select
+                className="col-span-2 sm:col-span-1"
                 id={`prod-${l.key}`}
                 value={l.productId}
                 onChange={(e) => {
