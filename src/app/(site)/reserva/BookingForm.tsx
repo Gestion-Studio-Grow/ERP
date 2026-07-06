@@ -48,6 +48,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
   const [isResident, setIsResident] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  // Hoy en fecha local (no UTC): evita que un turno se agende en el pasado.
+  const today = useMemo(() => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }, []);
+
   const professional = useMemo(
     () => professionals.find((p) => p.id === professionalId),
     [professionalId, professionals]
@@ -159,6 +165,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
             <input
               type="date"
               required
+              min={today}
               aria-labelledby="reserva-step-fecha"
               className={inputClass}
               style={inputStyle}
@@ -174,7 +181,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
         {date && (
           <div>
             <StepLabel n={4} id="reserva-step-horario">Horario disponible</StepLabel>
-            <div aria-live="polite">
+            <div aria-live="polite" role="status">
               {isPending && (
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                   Buscando horarios…
@@ -183,6 +190,15 @@ export default function BookingForm({ professionals }: { professionals: Professi
               {!isPending && slots.length === 0 && (
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                   No hay horarios disponibles ese día.
+                </p>
+              )}
+              {/* Antes, al cargar los horarios no cambiaba nada dentro de la región
+                  viva → un lector de pantalla no anunciaba que llegaron resultados.
+                  Este aviso (visible solo para lectores) cierra ese vacío. */}
+              {!isPending && slots.length > 0 && (
+                <p className="sr-only">
+                  {slots.length} horario{slots.length !== 1 ? "s" : ""} disponible
+                  {slots.length !== 1 ? "s" : ""}. Elegí uno de la lista.
                 </p>
               )}
             </div>

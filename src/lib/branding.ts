@@ -99,3 +99,18 @@ export const getTenantAccent = cache(async (): Promise<string> => {
   return resolveAccent(b.preset, b.frontTheme).accent;
 });
 export const DEFAULT_ACCENT = ACCENT_PRESETS[DEFAULT_BRAND.preset].light;
+
+// Favicon POR TENANT como data-URI SVG: el glifo de marca (monograma o iniciales)
+// en el acento del tenant sobre una teja hueso redondeada. Único builder para que
+// el ícono de la pestaña sea idéntico en toda la app (layout raíz → landing,
+// /reserva, /admin) y en la vidriera (/tienda), sin que un tenant herede el "CH"
+// de otro. Antes el layout raíz hardcodeaba el ícono "CH" para todas las rutas.
+export function tenantFaviconDataUri(glyph: string, accent: string): string {
+  const g = (glyph || "•").trim().slice(0, 3);
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>` +
+    `<rect width='64' height='64' rx='12' fill='#faf7f2'/>` +
+    `<text x='32' y='44' font-family='Georgia,serif' font-size='30' font-weight='500' fill='${accent}' text-anchor='middle'>${g}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}

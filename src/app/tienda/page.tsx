@@ -14,7 +14,7 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { getStorefront } from "@/lib/order-actions";
-import { getTenantAccent } from "@/lib/branding";
+import { getTenantAccent, tenantFaviconDataUri } from "@/lib/branding";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { getSiteReplica } from "@/tenants/site-replica";
 import Storefront from "./Storefront";
@@ -36,17 +36,10 @@ function tenantInitials(name: string): string {
   return raw.slice(0, 2).toUpperCase() || "•";
 }
 
-// Favicon POR TENANT: monograma (iniciales) en el acento del tenant sobre hueso,
-// como data-URI SVG. Antes la vidriera de cualquier tenant mostraba el ícono "CH"
-// del layout raíz (p. ej. Magra, una carnicería, con el favicon del spa).
-function tenantFavicon(initials: string, accent: string): string {
-  const svg =
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>` +
-    `<rect width='64' height='64' rx='12' fill='#faf7f2'/>` +
-    `<text x='32' y='44' font-family='Georgia,serif' font-size='30' font-weight='500' fill='${accent}' text-anchor='middle'>${initials}</text>` +
-    `</svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
+// El favicon por tenant usa el mismo builder que el layout raíz
+// (tenantFaviconDataUri), acá con las iniciales derivadas del nombre del
+// storefront en vez del monograma del brand map. Antes la vidriera de cualquier
+// tenant mostraba el ícono "CH" del layout raíz (p. ej. Magra, con el del spa).
 
 // Metadata POR TENANT. Antes la vidriera heredaba el <title> del layout raíz
 // ("CH Estética…"), así que el storefront de Magra decía "CH Estética" en la
@@ -66,7 +59,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     openGraph: { title, description, type: "website" },
-    icons: { icon: tenantFavicon(tenantInitials(name), accent) },
+    icons: { icon: tenantFaviconDataUri(tenantInitials(name), accent) },
   };
 }
 
