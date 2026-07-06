@@ -43,6 +43,15 @@
 - **🚀 Equipo de ejecución (se activa con el GO):** Constructor + Diseño & Marca + Cobro & Fiscal +
   Growth + Operaciones. Pone en marcha end-to-end el negocio que el dueño manda a ejecutar. Runbook y
   roster en `EQUIPO-EJECUCION.md`. Se dispara con **"GO [negocio]"**.
+- **🛰️ Célula de Inteligencia de Señales (Noticias → Oportunidades, corre a diario):** sub-célula con
+  **PMO experto propio** y roster (Curador de Fuentes, Verificador/Fact-check, Analista de Señales,
+  Traductor a Oportunidades). Se informa de noticias **confiables** (globales + locales AR), las verifica
+  contra fuente primaria, las analiza y las **transforma en briefs de oportunidad** para los creativos.
+  Es el primer eslabón del sprint. Constitución completa en `inteligencia-senales/FUNDAMENTO.md`.
+  Entregable: radar diario fechado en `radar/`.
+- **🎨 Banca creativa ampliada:** el equipo creativo escala a **varios agentes por ciclo**, cada uno con
+  un ángulo distinto (regulatorio, tecnológico, arbitraje local, integración pública/privada), para
+  cubrir más oportunidades en paralelo. Vamos con todo.
 - **📊 Célula de Ingeniería de Datos (sube el nivel de los análisis):** expertos en datos que le dan
   RIGOR CUANTITATIVO a cada análisis, para que los números dejen de ser corazonadas:
   - **Dimensionamiento con datos reales:** TAM/SAM/SOM desde fuentes duras (censo, AFIP/ARCA, INDEC,
@@ -70,6 +79,14 @@
 
 > El dueño fija hacia dónde apuntar en cada ciclo de generación. Estas líneas **mandan** sobre el
 > brainstorm: si una idea no encaja con el foco, no se propone.
+
+### Para los CREATIVOS — nutrirse de la actualidad (obligatorio)
+- **Alimentarse de NOTICIAS globales + del mercado LOCAL argentino** todos los días: macroeconomía,
+  regulación (ARCA/AFIP, ANSES, BCRA), tecnología, IA, movimientos de plataformas, tendencias de consumo.
+- **Cazar la oportunidad emergente y usar la tecnología para sacarle rédito rápido.** El que llega
+  primero a una oportunidad de mercado gana; la ventana se cierra.
+- **Cada idea ata a una señal real y actual** (una noticia, un cambio regulatorio, una tendencia tech),
+  no a una intuición abstracta. La señal + su fecha + su fuente van en la propuesta.
 
 ### Para TODOS los agentes — salir del sesgo del modelo
 - **Salir del sesgo clásico de los LLM.** No proponer lo primero/obvio que cualquier modelo tiraría
