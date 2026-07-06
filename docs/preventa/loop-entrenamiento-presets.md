@@ -66,6 +66,22 @@ Se agrega al tope. Los defectos se escriben aunque el Gate haya pasado (son el c
   sirvió con wording sensorial; `voice: premium/descontracturado`. Worktree aislado evitó el commit-race.
 - **Regla-cambiada:** ninguna; caso limpio, valida el set Retail para rubros no-alimenticios.
 
+### 2026-07-06 · Previews de magra y CH Estética publicados (4/4 negocios con link)
+
+Completa el set: los 4 tenants tienen ahora su preview bajo `/previews/<slug>` (mismo patrón GSG:
+demo banner, a11y, sello en pie, sin secretos/DB/passwords — quedan en **demo gratis hasta la venta**).
+
+- **`magra`** (`/previews/magra`): réplica fiel de `docs/tenants/magra/provisioning-magra.md` — tagline
+  "Esto no es una carnicería.", catálogo real (vacuno Angus Don Ramón/cerdo/pollo/gourmet, ya
+  consolidado en `retail/rubros.ts` por esta misma célula), WhatsApp e Instagram **reales** (ya
+  documentados, no un placeholder), proveedores y reviews reales (nombres verificados, cita a
+  confirmar). Caso ya registrado en `registro-casos/magra.md`.
+- **`chestetica`** (`/previews/chestetica`): CH es el tenant piloto REAL en prod, no un prospecto — el
+  preview usa su marca/acento reales (`petroleo`, `src/lib/branding.ts`) pero el catálogo es el de
+  referencia del rubro `estetica` (no la agenda real de CH) y el WhatsApp queda **provisional** (no se
+  consultó la DB de prod para un artefacto estático). Caso nuevo registrado en
+  `registro-casos/chestetica.md`.
+
 ### 2026-07-06 · Auditoría de la célula Productos por Rubro (blueprints + previews)
 
 **Alcance:** revisión de `src/blueprints/` (los 3 previews + los 4 tenants) por la célula dueña de los

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="CH Estética — tratamientos faciales, corporales y de manos y pies. Reservá tu turno online." />
+<meta name="theme-color" content="#2c6e77" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="CH Estética · Turnos online" />
+<meta property="og:description" content="CH Estética — tratamientos faciales, corporales y de manos y pies. Reservá tu turno online." />
+<title>CH Estética · Reservá tu turno (demo)</title>
+<!--
+  DEMO AUTOCONTENIDA — CH Estética (tenant `beauty-spa`, blueprint SERVICIOS/AGENDA,
+  rubro `estetica`). Un solo archivo, sin build. CH es el tenant piloto REAL del ERP
+  (Carolina Haponiuk); acento petroleo y nombre reales (src/lib/branding.ts). El
+  catálogo/wording espeja el rubro `estetica` (src/blueprints/agenda/rubros.ts) —
+  referencia de tratamientos/precios (ARS, mediados 2026), no la lista/agenda real
+  de CH. WhatsApp de reserva PROVISIONAL (no confirmado para este preview, ver
+  docs/metodologia/registro-casos/chestetica.md).
+-->
+<style>
+  :root {
+    --bg: #ffffff;
+    --ink: #16201f;
+    --ink-soft: #5c6b6a;
+    --line: #e3ecec;
+    --line-strong: #cddcdb;
+    --accent: #2c6e77;      /* petroleo — acento real de marca de CH Estética */
+    --accent-ink: #ffffff;
+    --sunken: #f3f8f8;
+    --shadow: 0 10px 40px rgba(22,32,31,.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+  a { color: inherit; }
+  .banner{background:var(--ink);color:#fff;font-size:12.5px;text-align:center;padding:7px 16px;letter-spacing:.2px}
+  .banner b{color:#9fd0d6}
+
+  header.nav { position: sticky; top: 0; z-index: 30; background: rgba(255,255,255,.9); backdrop-filter: saturate(1.1) blur(8px); border-bottom: 1px solid var(--line); }
+  .nav-in { display: flex; align-items: center; gap: 20px; height: 68px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.02em; font-size: 19px; }
+  .brand .mono { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+  .nav-links { display: flex; gap: 22px; margin-left: 8px; font-size: 14.5px; color: var(--ink-soft); }
+  .nav-links a { text-decoration: none; cursor: pointer; }
+  .nav-links a:hover { color: var(--ink); }
+  .btn-book { margin-left: auto; border: none; background: var(--accent); color: #fff; cursor: pointer; border-radius: 999px; padding: 10px 18px; font: inherit; font-size: 14px; font-weight: 700; }
+
+  .hero { padding: 60px 0 32px; text-align: center; }
+  .hero h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.1; letter-spacing: -.03em; margin: 0 auto 14px; max-width: 20ch; }
+  .hero p { font-size: 17px; color: var(--ink-soft); margin: 0 auto; max-width: 52ch; }
+  .hero .cta { margin-top: 26px; }
+  .btn-primary { display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer; background: var(--accent); color: #fff; font: inherit; font-weight: 700; font-size: 15px; padding: 14px 26px; border-radius: 999px; }
+  .btn-primary:hover { filter: brightness(.94); }
+
+  .props { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; padding: 8px 0 44px; }
+  .prop { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; color: var(--ink-soft); text-align: left; }
+  .prop .ic { font-size: 20px; line-height: 1; }
+  .prop b { display: block; color: var(--ink); font-size: 14px; }
+
+  .toolbar { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 8px 0 26px; }
+  .seg { display: inline-flex; background: var(--sunken); border-radius: 999px; padding: 4px; }
+  .seg button { border: none; background: none; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 999px; color: var(--ink-soft); }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+  .list { display: grid; gap: 12px; padding-bottom: 48px; }
+  .svc { display: flex; align-items: center; gap: 16px; background: var(--sunken); border-radius: 16px; padding: 18px 22px; }
+  .svc .ic { font-size: 30px; flex: none; }
+  .svc .info { flex: 1; min-width: 0; }
+  .svc .name { font-weight: 650; font-size: 15.5px; }
+  .svc .meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .svc .price { font-weight: 800; font-size: 16px; color: var(--accent); white-space: nowrap; }
+  .svc .book { border: 1px solid var(--accent); background: #fff; color: var(--accent); cursor: pointer; border-radius: 999px; padding: 9px 16px; font: inherit; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+  .svc .book:hover { background: var(--accent); color: #fff; }
+  @media (max-width: 640px) { .svc { flex-wrap: wrap; } .svc .price, .svc .book { margin-left: auto; } }
+
+  .about { background: var(--ink); color: #eef6f6; border-radius: 20px; padding: 40px; margin: 8px 0 56px; display: grid; gap: 10px; }
+  .about h2 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
+  .about p { margin: 0; color: #bcd3d2; max-width: 70ch; }
+  .about .cta-row { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .btn-wa, .btn-ig { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; cursor: pointer; border-radius: 999px; padding: 11px 20px; font-size: 14px; font-weight: 700; border: 1px solid #eef6f6; }
+  .btn-wa { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-ig { background: transparent; color: #eef6f6; }
+
+  footer { border-top: 1px solid var(--line); padding: 30px 0 60px; color: var(--ink-soft); font-size: 13.5px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .demo-tag { position: fixed; bottom: 12px; left: 12px; font-size: 11px; color: var(--ink-soft); background: #fff; border: 1px solid var(--line); padding: 6px 10px; border-radius: 999px; z-index: 20; }
+  /* — GSG · accesibilidad + sello — */
+  :where(a,button,input,select,[tabindex]):focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; } }
+  .gsg{ display:inline-flex; align-items:center; gap:9px; color:var(--ink-soft); font-size:12.5px; }
+  .gsg .seal{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line-strong); display:grid; place-items:center; font-size:9px; font-weight:800; letter-spacing:.04em; color:var(--ink-soft); }
+  .gsgbar{ margin-top:18px; padding-top:16px; border-top:1px solid var(--line-strong); display:flex; }
+</style>
+</head>
+<body>
+  <div class="banner">Demo de preventa · datos de ejemplo, a confirmar · vidriera de <b>CH Estética</b> · tenant <b>beauty-spa</b> (rubro <b>estética</b>)</div>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <div class="brand"><span class="mono" aria-hidden="true">CH</span> CH Estética</div>
+      <nav class="nav-links">
+        <a onclick="setCat('Faciales')">Faciales</a>
+        <a onclick="setCat('Corporales')">Corporales</a>
+        <a onclick="setCat('Manos y pies')">Manos y pies</a>
+      </nav>
+      <button class="btn-book" onclick="return waHola()">Reservar turno</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Cuidado y bienestar, a tu tiempo.</h1>
+      <p>Tratamientos faciales, corporales y de manos y pies con Carolina Haponiuk y su equipo. Reservá tu turno online, te confirmamos por WhatsApp.</p>
+      <div class="cta"><button class="btn-primary" onclick="return waHola()">💬 Reservar turno</button></div>
+      <div class="props">
+        <div class="prop"><span class="ic" aria-hidden="true">🗓️</span><div><b>Turno online</b>elegís día y horario</div></div>
+        <div class="prop"><span class="ic" aria-hidden="true">✅</span><div><b>Profesional</b>Carolina Haponiuk y su equipo</div></div>
+        <div class="prop"><span class="ic" aria-hidden="true">🕘</span><div><b>Horario</b>Lun a sáb · 9 a 19 h</div></div>
+        <div class="prop"><span class="ic" aria-hidden="true">💬</span><div><b>Confirmación</b>por WhatsApp</div></div>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <div class="seg" id="seg">
+        <button data-cat="Faciales" aria-pressed="true" onclick="setCat('Faciales')">Faciales</button>
+        <button data-cat="Corporales" aria-pressed="false" onclick="setCat('Corporales')">Corporales</button>
+        <button data-cat="Manos y pies" aria-pressed="false" onclick="setCat('Manos y pies')">Manos y pies</button>
+      </div>
+    </div>
+
+    <section class="list" id="list"></section>
+
+    <section class="about" id="about">
+      <h2>¿Quiénes somos?</h2>
+      <p>CH Estética es el espacio de Carolina Haponiuk: tratamientos faciales, corporales y de manos y pies pensados para que tu turno sea un momento tuyo. Reservás online y te confirmamos por WhatsApp, sin vueltas.</p>
+      <div class="cta-row">
+        <a class="btn-wa" href="#" onclick="return waHola()">💬 Escribinos por WhatsApp</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <span>© 2026 CH Estética</span>
+    <span>·</span>
+    <span>Lun a sáb · 9 a 19 h</span>
+    <span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span>
+  </footer>
+
+  <div class="demo-tag">Demo · sin backend · precios de ejemplo</div>
+
+<script>
+  // --- Catálogo (espeja el rubro `estetica`, src/blueprints/agenda/rubros.ts) ---
+  const SERVICES = [
+    { name: "Limpieza facial profunda", cat: "Faciales", min: 50, price: 18000, ic: "🧖" },
+    { name: "Peeling químico", cat: "Faciales", min: 40, price: 22000, ic: "✨" },
+    { name: "Masaje descontracturante", cat: "Corporales", min: 60, price: 16000, ic: "💆" },
+    { name: "Radiofrecuencia corporal", cat: "Corporales", min: 45, price: 25000, ic: "🌀" },
+    { name: "Manicura semipermanente", cat: "Manos y pies", min: 45, price: 9000, ic: "💅" },
+    { name: "Pedicura completa", cat: "Manos y pies", min: 50, price: 11000, ic: "🦶" },
+  ];
+
+  const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
+  const state = { cat: "Faciales" };
+  const $ = (id) => document.getElementById(id);
+
+  function setCat(cat) {
+    state.cat = cat;
+    for (const b of $("seg").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.cat === cat));
+    renderList();
+    window.scrollTo({ top: $("seg").getBoundingClientRect().top + window.scrollY - 80, behavior: "smooth" });
+  }
+
+  function renderList() {
+    const list = SERVICES.filter((s) => s.cat === state.cat);
+    $("list").innerHTML = list.map((s) =>
+      `<div class="svc"><span class="ic" aria-hidden="true">${s.ic}</span>` +
+      `<div class="info"><div class="name">${s.name}</div><div class="meta">${s.min} min</div></div>` +
+      `<span class="price">${money(s.price)}</span>` +
+      `<button class="book" onclick="return bookWA('${s.name.replace(/'/g, "\\'")}')">Reservar</button></div>`
+    ).join("");
+  }
+
+  // WhatsApp PROVISIONAL — CH Estética no confirmó un número para este preview (ver
+  // docs/metodologia/registro-casos/chestetica.md); único punto de cambio.
+  const WA = "5491100000000";
+  function bookWA(serviceName) {
+    window.open(`https://wa.me/${WA}?text=` + encodeURIComponent(`¡Hola CH Estética! Quiero reservar un turno para "${serviceName}".`), "_blank");
+    return false;
+  }
+  function waHola() {
+    window.open(`https://wa.me/${WA}?text=` + encodeURIComponent("¡Hola CH Estética! Quiero reservar un turno."), "_blank");
+    return false;
+  }
+
+  // Init
+  renderList();
+</script>
+</body>
+</html>
