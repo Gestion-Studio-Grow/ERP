@@ -9,7 +9,7 @@
 //   1. extractSubdomain: apex/www/localhost/host-ajeno → null; sub.<base> → sub.
 //   2. resolveTenantId(host): cada subdominio → SU tenant; apex/desconocido con 2
 //      tenants → THROW (fail-closed).
-//   3. Aislamiento: el tenantId resuelto ve SOLO lo suyo (policies + rol app_user).
+//   3. Aislamiento: el tenantId resuelto ve SOLO lo suyo (policies + rol app_rls).
 //   4. Fallback single-tenant: con 1 tenant, apex → ese tenant.
 
 import { PGlite } from "@electric-sql/pglite";
@@ -40,12 +40,12 @@ try {
   await pg.exec(readFileSync("prisma/rls/0001_enable_rls.sql", "utf8"));
   await pg.exec(`
     DO $$ BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_user') THEN
-        CREATE ROLE app_user NOSUPERUSER NOBYPASSRLS;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_rls') THEN
+        CREATE ROLE app_rls NOSUPERUSER NOBYPASSRLS;
       END IF;
     END $$;
-    GRANT USAGE ON SCHEMA public TO app_user;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+    GRANT USAGE ON SCHEMA public TO app_rls;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_rls;
   `);
   await pg.exec(`
     INSERT INTO "Tenant"(id,name,slug,subdomain,timezone) VALUES
@@ -101,7 +101,7 @@ try {
     else bad("fail-closed", `apex threw=${threwApex} unknown threw=${threwUnknown}`);
   }
 
-  // ── 3. Aislamiento: el tenant resuelto ve SOLO lo suyo (policies + app_user) ──
+  // ── 3. Aislamiento: el tenant resuelto ve SOLO lo suyo (policies + app_rls) ──
   // (a) la cadena real corre sin romperse; (b) el tenantId resuelto aísla.
   {
     // (a) chain real: resolver → runInTenantContext → extensión (superuser ve todo,
@@ -112,10 +112,10 @@ try {
     );
     const chainOk = Array.isArray(rows);
 
-    // (b) aislamiento con el tenantId resuelto (rol app_user, shim de rol).
+    // (b) aislamiento con el tenantId resuelto (rol app_rls, shim de rol).
     const seenMagra = (
       await basePrisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SET LOCAL ROLE app_user`;
+        await tx.$executeRaw`SET LOCAL ROLE app_rls`;
         await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${magraId}, true)`;
         return tx.client.findMany({ select: { tenantId: true } });
       })
@@ -124,7 +124,7 @@ try {
     const caroId = await resolveTenantId("caro.shop.test");
     const seenCaro = (
       await basePrisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SET LOCAL ROLE app_user`;
+        await tx.$executeRaw`SET LOCAL ROLE app_rls`;
         await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${caroId}, true)`;
         return tx.client.findMany({ select: { tenantId: true } });
       })

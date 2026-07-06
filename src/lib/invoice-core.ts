@@ -81,6 +81,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
         fecha: input.fecha,
         neto: input.neto,
         iva: input.iva.reduce((s, x) => s + x.importe, 0),
+        ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
         total: input.total,
         status: "PENDING",
       },
@@ -130,6 +131,7 @@ export async function registerFiscalDocument(
       caeVencimiento: input.caeVencimiento,
       numero: input.numero,
       tipoComprobante: input.tipoComprobante,
+      authorizedAt: new Date(),
     },
   });
   if (res.count === 0) {

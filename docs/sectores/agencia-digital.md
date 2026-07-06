@@ -1,11 +1,23 @@
-# Sector — Agencia Digital Creativa
+# Sector — Agencia Digital (satélite del ERP)
 
-**Qué es este documento:** el *charter* del segundo sector de la compañía —una **agencia digital
-creativa de publicidad digital** con un frente propio de **software que genera ganancias**—. Fija
-qué es el sector, cómo se organiza como *core/sector*, qué frentes tiene, cómo aplica la metodología
-del repo y cómo convive con el sector ya existente (el ERP SaaS multi-tenant). Es un doc de encuadre,
-no de implementación: nada de lo de acá toca prod, Neon ni deploys. La ratificación estructural queda
-como **ADR-027** (ver §7).
+**Qué es este documento:** el *charter* de la **Agencia Digital**, una de las tres unidades de la
+compañía **Gestión Studio Grow**. La Agencia Digital es el **SATÉLITE del ERP**: marketing +
+desarrollo + innovación **para vender el ERP y sumarle funcionalidades**. Todo lo que hace **gira
+alrededor del multi-tenant**. Fija qué es, cómo se organiza, qué frentes tiene, cómo aplica la
+metodología del repo y cómo convive con las otras unidades. Es un doc de encuadre, no de
+implementación: nada de lo de acá toca prod, Neon ni deploys. La ratificación estructural queda como
+**un ADR de ratificación del sector** (número a asignar al integrar — ADR-027 ya se usó para
+*Analytics cross-tenant*; ver §7).
+
+> **⚠️ FRONTERA CON AGENCIA GROW (regla definitiva del dueño, 2026-07-05).** La compañía tiene **TRES**
+> unidades bajo el estudio paraguas Gestión Studio Grow: (1) **ERP multi-tenant** — el producto SaaS;
+> (2) **Agencia Digital** — *este doc*, satélite del ERP; (3) **Agencia Grow** — los **negocios propios
+> del grupo**, que **NO** giran alrededor del ERP (`docs/sectores/agencia-grow.md`). Este charter
+> antes fusionaba las dos agencias: el **"motor de negocios propios"** y el **Panel del Dueño** se
+> **extrajeron a Agencia Grow**. Lo que queda acá es **solo** lo que gira alrededor del ERP: venderlo,
+> demostrarlo y sumarle features (WhatsApp conversacional, benchmarking cross-tenant, storefront como
+> demo, go-to-market, arca standalone como producto vendible). Regla: gira alrededor del ERP → Digital;
+> es un negocio propio del grupo → Grow.
 
 > **Entrada del sector:** si abrís una sesión para trabajar acá, **leé primero
 > `docs/sectores/agencia-digital/FUNDAMENTO.md`** (quién sos, qué hacés, método, objetivo — enganchado
@@ -23,16 +35,22 @@ como **ADR-027** (ver §7).
 
 ## 1. Qué es el sector
 
-La **Agencia Digital** es una unidad de negocio de **servicios creativos + performance de publicidad
-digital** que, además, incuba **productos de software propios** con ingresos recurrentes. Dos motores
-en un mismo sector:
+La **Agencia Digital** es la unidad de **servicios creativos + performance de publicidad digital** que,
+además, construye **software que gira alrededor del ERP** (features y empaquetados para venderlo mejor).
+Dos motores en un mismo sector, **ambos apuntando al ERP**:
 
 - **Motor de servicios (agencia):** identidad y diseño, campañas paid (Meta/Google/TikTok),
   contenido y social. Ingreso por **fee mensual / proyecto / % de inversión gestionada**.
-- **Motor de producto (software-para-ganancias):** SaaS y herramientas que apalancan lo que la
-  compañía **ya construyó** (ERP multi-tenant, Plugin ARCA, storefront brandeable). Ingreso
-  **recurrente por suscripción**, con la economía SaaS del sector ERP (`FUNDAMENTOS §1`: se paga una
-  vez, lo reciben todos los clientes).
+- **Motor de producto ERP-órbita:** SaaS y herramientas que **apalancan y venden lo que la compañía ya
+  construyó** (ERP multi-tenant, Plugin ARCA, storefront brandeable) — WhatsApp conversacional cableado
+  al ERP, benchmarking cross-tenant, arca standalone como producto vendible. Ingreso **recurrente por
+  suscripción**, con la economía SaaS del sector ERP (`FUNDAMENTOS §1`: se paga una vez, lo reciben
+  todos los clientes).
+
+> **No confundir con Agencia Grow.** "Productos" acá = productos **de la compañía que se venden a
+> terceros y potencian el ERP**, NO los **negocios propios del grupo** (eso es Agencia Grow,
+> `docs/sectores/agencia-grow.md`). En particular, el **Panel del Dueño** (`owner-insights` /
+> `owner-trends`) **NO** es de este sector: es una herramienta de gestión de negocios propios → **Grow**.
 
 **Por qué los dos juntos y no dos sectores:** el motor de servicios es el **canal de distribución**
 del motor de producto. La agencia consigue clientes (una marca que necesita ads y una landing que
@@ -97,7 +115,8 @@ nuevo—:
    estado en el tablero del sector). El repo es la memoria compartida (ADR-008).
 4. **Decisión estructural → ADR.** Lo estructural del sector (elegir un producto, su modelo de datos,
    su pricing) se persiste como ADR con su porqué, no como comentario suelto. Este charter se ratifica
-   como **ADR-027**.
+   como **un ADR de ratificación del sector** (número a asignar al integrar). El primer ADR nacido del
+   sector ya está: **ADR-027 — Analytics cross-tenant**.
 5. **Definición de terminado + verificación.** Si es código: `tsc`/build en verde (+ preview si hay
    pantalla). Si es entregable de servicio: revisado contra el brief. No se entrega lo que no se
    verificó (`METODO-ROLES.md` §3).
@@ -196,8 +215,10 @@ coordinación-por-repo que ya funciona.
 Esta sesión es **documentación/planificación**; no toca prod, Neon ni deploys. Follow-ups sugeridos,
 para que el owner los dispare cuando quiera:
 
-1. **Ratificar como ADR-027** — "Sector Agencia Digital: gobierno único, repos separados, puente
-   productizado" (formaliza §6 como decisión estructural, `METODO-ROLES.md` §3).
+1. **Ratificar el sector como ADR** (número a asignar al integrar, ADR-028+) — "Sector Agencia Digital:
+   gobierno único, repos separados, puente productizado" (formaliza §6 como decisión estructural,
+   `METODO-ROLES.md` §3). *(Nota: ADR-027 ya se usó para el primer ADR nacido del sector, Analytics
+   cross-tenant.)*
 2. **Crear el espacio del sector** — repo/carpeta `agencia-digital` + su tablero (análogo a
    `ESTADO-FRENTES.md`/`TABLERO-SESIONES.md`).
 3. **Kickoff del frente de Producto** — abrir la `/sesion-feature` de **P3 (Storefront producto)** para

@@ -10,7 +10,7 @@
 -- setear `app.current_tenant_id`. Verificar ANTES que seed.ts, el script de
 -- provisioning (ADR-019) y cualquier mantenimiento que escriba datos setean el
 -- GUC (o usan ALTER TABLE ... NO FORCE temporal). Por eso se separa de 0001 y
--- NO se aplica en el mismo paso: primero se rota la app a app_user y se valida,
+-- NO se aplica en el mismo paso: primero se rota la app a app_rls y se valida,
 -- después (si se quiere) se fuerza.
 --
 -- Data-driven, igual que 0001: fuerza RLS en toda tabla con tenantId.

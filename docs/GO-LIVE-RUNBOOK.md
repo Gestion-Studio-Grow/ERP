@@ -46,7 +46,15 @@ por su subdominio). Cero downtime si se sigue el orden.
 
 ---
 
-## PASO 1 — Neon: crear el rol `app_user` y aplicar las policies
+## PASO 1 — Neon: crear el rol de app y aplicar las policies
+
+> ⚠️ **SUPERSEDED (2026-07-05) — usá el rol `app_rls`, NO `app_user`.** El auditado de prod encontró
+> un `app_user` PREEXISTENTE con `BYPASSRLS` **inarreglable** por `neondb_owner` (rotar `DATABASE_URL`
+> a él daría CERO aislamiento). La secuencia CORREGIDA y probada en verde (branch de Neon, 8/8) crea un
+> rol **NUEVO `app_rls`** (`prisma/rls/0002_app_role.sql`) y cierra el drift de 9 tablas re-corriendo
+> `0001`. **Seguí el guion canónico `docs/runbooks/alta-magra.md` (Pasos 1-2)**; abajo quedan los pasos
+> por-UI como referencia, pero **leé `app_rls` donde diga `app_user`** y confirmá con
+> `prisma/rls/check-rls-live.mjs` (33/33 + `app_rls` sin bypass).
 
 > Seguro: nada de esto cambia el comportamiento de la app todavía (la app sigue
 > conectando con el rol de siempre hasta el Paso 3).

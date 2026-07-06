@@ -1,4 +1,9 @@
-# FUNDAMENTO — Sector Agencia Digital
+# FUNDAMENTO — Sector Agencia Digital (satélite del ERP)
+
+> **⚠️ Agencia Digital ≠ Agencia Grow.** Este sector es el **satélite del ERP** (marketing + dev +
+> innovación para vender el ERP y sumarle features; gira alrededor del multi-tenant). Los **negocios
+> propios del grupo** y el **Panel del Dueño** son de **Agencia Grow** (`docs/sectores/agencia-grow.md`),
+> otra unidad. Regla: gira alrededor del ERP → Digital; negocio propio del grupo → Grow.
 
 > **LEEME PRIMERO.** Si abriste una sesión para trabajar en el sector **Agencia Digital**, este
 > documento es tu **Fase 0**: define **quién sos**, **qué tenés que hacer**, con **qué método** y con
@@ -119,7 +124,8 @@ cual:
 - **Coordinación por el REPO, no por el chat.** Cada sesión deja su resultado en el repo (rama +
   estado). El repo es la memoria (ADR-008).
 - **Decisión estructural → ADR.** Elegir un producto, su modelo de datos o su pricing se persiste con
-  su porqué. El charter del sector se ratifica como **ADR-027**.
+  su porqué. El charter del sector se ratifica como **un ADR de ratificación** (nº a asignar); el primer
+  ADR nacido del sector ya está: **ADR-027 — Analytics cross-tenant** (`docs/adr/`).
 - **Definición de terminado + verificación.** Código: `tsc`/build verde (+ preview si hay pantalla).
   Research: fuentes citadas y conclusión accionable. No se entrega lo no verificado.
 - **Backup al cierre.** Todo termina en **commit + push a GitHub** con el porqué en el mensaje.
@@ -156,9 +162,22 @@ docs/sectores/
 ├── agencia-digital.md                      ← charter estratégico del sector (§ frentes, productos, convivencia)
 └── agencia-digital/
     ├── FUNDAMENTO.md                        ← ESTE doc — leer primero (quién sos / qué hacés / método / objetivo)
+    ├── 2026-07-05-AVANCE-consolidado.md     ← reporte ejecutivo para el dueño (productos+estado, plata, próximos pasos)
+    ├── 2026-07-05-pmo-propuesta-producto-1.md  ← PMO: 1er producto a construir (Panel del Dueño) + handoff a Devs
     └── analisis-mercado/
         ├── 2026-07-05-panorama-inicial.md               ← #1: Meta/Google Ads, stack, diferencial de loop cerrado
-        └── 2026-07-05-servicios-automatizables-y-analytics.md  ← #2: servicios vendibles/automatizables + analytics-producto + palancas
+        ├── 2026-07-05-servicios-automatizables-y-analytics.md  ← #2: servicios automatizables + analytics-producto + palancas
+        ├── 2026-07-05-segmento-local-canning.md          ← #3: dimensionamiento corredor Canning (SEO local = canal de tenants)
+        └── 2026-07-05-geografia-caba-local-online.md     ← #4: CABA + local + online (tamaño/competencia/pricing/foco)
+
+docs/adr/ADR-027-analytics-cross-tenant-benchmarking.md  ← 1er ADR nacido del sector (benchmarking anónimo por rubro vs RLS)
+
+Software de la Agencia Digital (prototipos ERP-órbita, en el Core del ERP):
+  src/lib/wa-intent.ts (+ .test.ts)            ← router de intención del WhatsApp conversacional (palanca #2)
+  src/lib/benchmark-aggregate.ts (+ .test.ts)  ← anonimización k-anonymity del benchmarking cross-tenant (ADR-027)
+
+  ⚠️ NO es de la Agencia Digital (se reasignó a AGENCIA GROW — docs/sectores/agencia-grow.md):
+  src/lib/owner-insights.ts / src/lib/owner-trends.ts  ← Panel del Dueño (herramienta de negocios propios, no satélite del ERP)
 ```
 
 **Orden de lectura al abrir sesión en el sector:** (1) este `FUNDAMENTO.md` → (2) el charter → (3) el

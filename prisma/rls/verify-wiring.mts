@@ -6,9 +6,9 @@
 //   tsx prisma/rls/verify-wiring.mts
 //
 // Qué prueba (con el flag RLS_ENFORCEMENT=on):
-//   1. Aislamiento con el cliente Prisma REAL + las policies + rol app_user
+//   1. Aislamiento con el cliente Prisma REAL + las policies + rol app_rls
 //      (shim SET LOCAL ROLE, porque PGlite conecta como superusuario que hace
-//      bypass de RLS; en prod el bypass lo da rotar DATABASE_URL a app_user).
+//      bypass de RLS; en prod el bypass lo da rotar DATABASE_URL a app_rls).
 //   2. El contexto por request (runInTenantContext, ALS) le provee el tenant a
 //      la extensión REAL sin llamar a getCurrentTenantId (camino multi-tenant).
 //   3. Self-resolución: con UN solo tenant, la extensión y tenantTransaction
@@ -47,12 +47,12 @@ try {
   await pg.exec(readFileSync("prisma/rls/0001_enable_rls.sql", "utf8"));
   await pg.exec(`
     DO $$ BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_user') THEN
-        CREATE ROLE app_user NOSUPERUSER NOBYPASSRLS;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_rls') THEN
+        CREATE ROLE app_rls NOSUPERUSER NOBYPASSRLS;
       END IF;
     END $$;
-    GRANT USAGE ON SCHEMA public TO app_user;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+    GRANT USAGE ON SCHEMA public TO app_rls;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_rls;
   `);
   await pg.exec(`
     INSERT INTO "Tenant"(id,name,slug,timezone) VALUES
@@ -72,17 +72,17 @@ try {
   const { runInTenantContext } = await import("@/lib/tenant-context");
   const { basePrisma } = await import("@/lib/prisma-base");
 
-  // ── 1. AISLAMIENTO: cliente real + policies + rol app_user (shim de rol) ──────
-  // (con 2 tenants) ctx=Caro conectando como app_user → solo se ve a Caro.
+  // ── 1. AISLAMIENTO: cliente real + policies + rol app_rls (shim de rol) ──────
+  // (con 2 tenants) ctx=Caro conectando como app_rls → solo se ve a Caro.
   {
     const rows = await basePrisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SET LOCAL ROLE app_user`;
+      await tx.$executeRaw`SET LOCAL ROLE app_rls`;
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', 't_caro', true)`;
       return tx.client.findMany({ select: { tenantId: true } });
     });
     const seen = rows.map((r) => r.tenantId);
     if (seen.length === 1 && seen[0] === "t_caro")
-      ok("aislamiento (cliente real + policies + app_user): ctx=Caro ve SOLO a Caro");
+      ok("aislamiento (cliente real + policies + app_rls): ctx=Caro ve SOLO a Caro");
     else bad("aislamiento", `vio [${seen.join(",")}]`);
   }
 

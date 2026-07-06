@@ -27,5 +27,5 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = basePrisma;
 // Flag maestro del candado RLS (ADR-018). OFF por defecto: mientras no valga
 // exactamente "on", la app usa el cliente crudo y NADA cambia respecto de hoy.
 // Se enciende en el go-live, en la misma pasada que se rota DATABASE_URL al rol
-// `app_user` (sin ese rol, encenderlo solo agrega overhead sin enforcement).
+// `app_rls` (sin ese rol, encenderlo solo agrega overhead sin enforcement).
 export const RLS_ENFORCEMENT = process.env.RLS_ENFORCEMENT === "on";

@@ -9,14 +9,14 @@
 //
 // Requisitos previos en esa branch:
 //   psql "$RLS_VERIFY_DATABASE_URL" -f prisma/rls/0001_enable_rls.sql
-//   psql "$RLS_VERIFY_DATABASE_URL" -v app_pw=una_pw_de_ensayo -f prisma/rls/0002_app_role.sql
+//   psql "$RLS_VERIFY_DATABASE_URL" -f prisma/rls/0002_app_role.sql   # crea app_rls (usa SET ROLE, no auth)
 //
 // Qué valida (con dos tenants sintéticos y la tabla "Client"):
 //   1. LECTURA aislada: con ctx=A se ven filas de A y NO de B.
 //   2. WITH CHECK: con ctx=A, INSERT de una fila con tenantId=B es RECHAZADO.
 //   3. UPDATE cross-tenant: con ctx=A, mover una fila de A a tenantId=B es RECHAZADO.
 //   4. FAIL-CLOSED: sin setear el GUC, SELECT devuelve 0 filas.
-// La app se simula con `SET LOCAL ROLE app_user` (current_user ≠ owner → RLS aplica).
+// La app se simula con `SET LOCAL ROLE app_rls` (current_user ≠ owner → RLS aplica).
 
 import pg from "pg";
 import { readFileSync } from "node:fs";
@@ -55,13 +55,13 @@ const fail = (name, detail) => results.push([false, `${name} — ${detail}`]);
 
 const db = new Client({ connectionString: url });
 
-// Corre `fn` en una transacción como app_user con ctx de tenant `tenantId`
+// Corre `fn` en una transacción como app_rls con ctx de tenant `tenantId`
 // (o sin ctx si es null). Devuelve lo que devuelva fn; siempre hace ROLLBACK
 // para no dejar rastro de las pruebas de escritura.
 async function asApp(tenantId, fn) {
   await db.query("BEGIN");
   try {
-    await db.query("SET LOCAL ROLE app_user");
+    await db.query("SET LOCAL ROLE app_rls");
     if (tenantId !== null) {
       await db.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
     }
@@ -74,8 +74,8 @@ async function asApp(tenantId, fn) {
 async function main() {
   await db.connect();
 
-  // Para poder `SET ROLE app_user` desde el owner del branch.
-  await db.query("GRANT app_user TO CURRENT_USER");
+  // Para poder `SET ROLE app_rls` desde el owner del branch.
+  await db.query("GRANT app_rls TO CURRENT_USER");
 
   // Semilla como owner (bypassa RLS por ownership): 2 tenants + 1 client c/u.
   await db.query("BEGIN");

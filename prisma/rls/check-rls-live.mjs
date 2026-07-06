@@ -8,11 +8,17 @@
 // base— nunca se le aplicó `ENABLE ROW LEVEL SECURITY` + policy `tenant_isolation`.
 // Fue justo lo que pasó en prod (2026-07-05): 0001 se aplicó una vez sobre 24
 // tablas y las 9 tablas nuevas (Order/Invoice/Cash*/Stock*/OutboxEvent) quedaron
-// sin proteger. También verifica que `app_user`, si existe, NO tenga BYPASSRLS.
+// sin proteger. También verifica que `app_rls` —el rol al que se rota DATABASE_URL—
+// exista y NO tenga BYPASSRLS (si lo tuviera, evadiría todas las policies).
+//
+// Nota sobre `app_user`: prod tiene un `app_user` legacy con BYPASSRLS que es
+// INARREGLABLE por `neondb_owner` (necesita superuser) — por eso el go-live usa un
+// rol NUEVO `app_rls` (ver 0002_app_role.sql). Este audit reporta `app_user` solo a
+// título informativo (no falla por él): es inofensivo mientras NADIE conecte con él.
 //
 // Es SOLO LECTURA (pg_class / pg_policies / information_schema / pg_roles): segura
 // de correr contra prod. Exit 0 = sin drift; Exit 1 = hay tablas sin proteger o el
-// rol app_user evade RLS.
+// rol app_rls evade RLS.
 
 import pg from "pg";
 
@@ -73,20 +79,35 @@ try {
     );
   }
 
-  // app_user, si existe, NO debe tener BYPASSRLS (si no, evade todas las policies).
+  // app_rls (el rol al que se rota DATABASE_URL) NO debe tener BYPASSRLS ni ser
+  // superuser (si no, evade todas las policies). Este es el chequeo que BLOQUEA.
   const role = await client.query(
-    `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname='app_user'`,
+    `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname='app_rls'`,
   );
   if (role.rows.length === 0) {
-    console.log(`\napp_user: no existe todavía (se crea con 0002_app_role.sql).`);
+    console.log(`\napp_rls: no existe todavía (se crea con 0002_app_role.sql).`);
   } else if (role.rows[0].rolbypassrls || role.rows[0].rolsuper) {
     failed = true;
     console.error(
-      `\n❌ app_user EVADE RLS (bypassrls=${role.rows[0].rolbypassrls}, super=${role.rows[0].rolsuper}).\n` +
+      `\n❌ app_rls EVADE RLS (bypassrls=${role.rows[0].rolbypassrls}, super=${role.rows[0].rolsuper}).\n` +
         `   → re-correr 0002_app_role.sql (fuerza NOBYPASSRLS aunque el rol ya exista).`,
     );
   } else {
-    console.log(`\n✅ app_user existe y NO evade RLS (bypassrls=false, super=false).`);
+    console.log(`\n✅ app_rls existe y NO evade RLS (bypassrls=false, super=false).`);
+  }
+
+  // app_user LEGACY: informativo, NO bloquea. En prod tiene BYPASSRLS y es
+  // inarreglable por neondb_owner (necesita superuser); es inofensivo mientras nadie
+  // conecte con él — por eso el go-live usa `app_rls`, no éste. Se avisa para que
+  // NUNCA se rote DATABASE_URL a `app_user` por error.
+  const legacy = await client.query(
+    `SELECT rolbypassrls FROM pg_roles WHERE rolname='app_user'`,
+  );
+  if (legacy.rows.length && legacy.rows[0].rolbypassrls) {
+    console.log(
+      `\nℹ️  app_user legacy existe con BYPASSRLS (inarreglable, esperado). Inofensivo si\n` +
+        `   nadie conecta con él. NO rotar DATABASE_URL a app_user — usar app_rls.`,
+    );
   }
 
   console.log(failed ? "\nRESULTADO: HAY DRIFT ❌" : "\nRESULTADO: SIN DRIFT — cobertura RLS completa ✅");
