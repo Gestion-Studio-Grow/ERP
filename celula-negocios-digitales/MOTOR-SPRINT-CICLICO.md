@@ -88,6 +88,16 @@
 - **Cada idea ata a una señal real y actual** (una noticia, un cambio regulatorio, una tendencia tech),
   no a una intuición abstracta. La señal + su fecha + su fuente van en la propuesta.
 
+### Para el DESAFIADOR — rango ampliado (retorno lento/pasivo permitido)
+- **Se permiten negocios de retorno LENTO, SUSTENTABLE y de INGRESOS PASIVOS.** No matar una idea solo
+  porque tarda en madurar, crece despacio o es de ticket chico: si es **sustentable, de bajo
+  mantenimiento y deja margen**, es válida. Horizonte de 12–18 meses es aceptable.
+- **Seguí descartando con eficacia, pero por razones REALES:** sin demanda comprobable, sin moat / lo
+  comoditiza una plataforma grande, competidor local ya lo tiene resuelto, unit economics negativos, o
+  dependencia fatal de una plataforma. **NO** descartar por "es lento", "es pasivo" o "es chico".
+- Reabre a revisión lo que se mató antes por lentitud (ej. newsletter con sponsors, comparadores de
+  afiliados, directorios): re-evaluarlos con el rango nuevo.
+
 ### Para TODOS los agentes — salir del sesgo del modelo
 - **Salir del sesgo clásico de los LLM.** No proponer lo primero/obvio que cualquier modelo tiraría
   (otro chatbot, otro wrapper de IA, otro dashboard, otra "agencia de automatización"). Si suena a idea
