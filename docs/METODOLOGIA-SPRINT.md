@@ -364,13 +364,16 @@ Recetas paso-a-paso y fundamentos con el **por qué** de cada cosa, para no re-d
 
 - **🤖 GENERADOR DE PRESET POR IA (método TRANSVERSAL de preventa/onboarding)** —
   `docs/metodologia/generador-preset-ia.md`. 🔒 **PASO OBLIGATORIO del onboarding:** **todo alta de
-  cliente nuevo se hace generando su preset con este método** (no se arma un tenant a mano por fuera). La
-  IA/agentes, a partir de la marca + rubro + redes/web del prospecto, generan **de una** el **preset**:
-  tenant + subdomain + blueprint del rubro, identidad/branding (color, logo recreado, tono), datos de
-  demo por rubro (sin transaccionar, sin passwords) y la **instancia del probador lista para preventa** —
-  todo con Auditoría SAP + Sello GSG. Es el motor de **escala comercial** (alta en minutos). **Alimenta
-  el motor del probador de Célula 3** (`docs/demo/README.md`) y se publica por el playbook de demo a
-  costo cero (abajo), en FASE 1 (sin secretos); el alta real es FASE 2 (credenciales del dueño).
+  cliente nuevo se hace generando su preset con este método** (no se arma un tenant a mano por fuera).
+  **El corazón: el cliente da SOLO su link de red social y/o su web → los agentes INGESTAN, EXTRAEN**
+  (rubro, identidad/colores/logo/tono, catálogo/servicios, ofertas, historia, contacto) **y GENERAN la
+  preventa experta = el preset:** tenant + subdomain + blueprint del rubro, branding (color/logo
+  recreado/tono), datos de demo por rubro (sin transaccionar, sin passwords) y la **instancia del
+  probador lista** — todo con Auditoría SAP + Sello GSG. **Prueba de concepto ya hecha a mano:** Break
+  Point (desde Instagram → tenant `adosmanos`) y Magra (desde su web → `carniceria`). Motor de **escala
+  comercial** (alta en minutos). **Alimenta el motor del probador de Célula 3** (`docs/demo/README.md`);
+  se publica en FASE 1 (sin secretos) por el playbook de demo a costo cero; el alta real es FASE 2
+  (credenciales del dueño).
 
 - **Demo pública a COSTO CERO** — `docs/metodologia/demo-publica-costo-cero.md`. 🔒 **PASO OBLIGATORIO
   del sprint (no opcional):** **toda demo pública del ERP se genera y publica siguiendo este método** —

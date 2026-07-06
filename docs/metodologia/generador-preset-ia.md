@@ -17,6 +17,42 @@ ese motor.
 
 ---
 
+## 🎯 EL CORAZÓN — "el cliente da su red/web → los agentes arman la preventa experta"
+
+Toda la metodología se resume en una frase. Lo demás es el detalle de cómo se cumple.
+
+### ENTRADA (lo único que aporta el prospecto)
+**El cliente da SOLO su link de RED SOCIAL (Instagram, TikTok, Facebook) y/o su PÁGINA ACTUAL
+(web/tienda). Nada más.** Ni formularios, ni fichas, ni catálogos cargados a mano. *Por qué mínima:*
+**fricción cero para el prospecto** — pedirle un link es un "sí" fácil; pedirle que llene datos lo
+frena. Cuanto más rico el material que ya tiene publicado, mejor el preset; con poco, se generan
+provisionales marcados y se piden capturas de lo que esté tras login.
+
+### FLUJO (los agentes, automático — el mismo patrón que ya hicimos a mano)
+1. **INGESTAN** esa red/web y **EXTRAEN**: **rubro** · **identidad** (colores, logo, tono/voz) ·
+   **catálogo/servicios** · **ofertas/promos** · **historia / "quiénes somos"** · **medios de contacto**
+   (WhatsApp, dirección, horarios, redes).
+2. **GENERAN la PREVENTA EXPERTA adaptada** = el **preset completo**: tenant + **blueprint del rubro** +
+   **branding** (color/logo recreado/tono) + **datos de demo del rubro** + **probador listo**, todo con
+   **Auditoría SAP + Sello GSG**.
+3. **Queda listo para mostrarle al cliente su producto ya adaptado a su marca** — "así opera TU negocio
+   con nosotros", en la primera reunión.
+
+### Prueba de concepto (ya lo hicimos a mano — ahora se formaliza y automatiza)
+Esto no es teoría: es el **mismo patrón que ya ejecutamos manual**, ahora convertido en método repetible.
+- **Break Point Pádel — desde su INSTAGRAM.** Leímos su red (club de pádel, tono "club de amigos y
+  amigas", identidad, servicios) y armamos su preventa/probador (`docs/artefactos/breakpoint-preventa.html`)
+  → se materializó en el tenant **`adosmanos`** (blueprint `servicios`/turnos). *Entrada: un Instagram.*
+- **Magra — desde su WEB.** Leímos su web (boutique premium de carnes envasadas al vacío, delivery +
+  WhatsApp, incumbente Bistrosoft) y armamos el tenant **`magra`** (blueprint `carniceria`) con su catálogo
+  y tono (ver `docs/preventa/analisis-redes-magra.md` + `docs/tenants/magra/`). *Entrada: una web.*
+- También **Shine Velas** (`docs/artefactos/shinevelas-preview.html`) siguió el patrón (rubro `velas`).
+
+**La tarea de esta metodología es que ese patrón lo repita CUALQUIER sprint, con nivel GSG, sin
+re-descubrirlo.** Los pasos de abajo son la versión sistematizada de lo que hicimos con Break Point y Magra.
+
+---
+
 ## Por qué (el fundamento comercial)
 
 1. **ESCALA.** A mano, cada cliente es un proyecto artesanal (horas de lectura + armado). Un generador
@@ -54,9 +90,11 @@ componentes**, todos derivados de la lectura del prospecto:
 
 ## El flujo del generador (entradas → pasos IA → salidas)
 
-**ENTRADAS (lo que trae la preventa):** nombre y marca del cliente · rubro (aunque sea texto libre) ·
-sus **referencias digitales** (Instagram/TikTok, web, Linktree, ficha de Google, capturas si están tras
-login). Cuanto más rico el material, mejor el preset; con poco, se generan provisionales marcados.
+**ENTRADA (lo ÚNICO que aporta el prospecto):** su **link de red social** (Instagram/TikTok/Facebook)
+**y/o su web/tienda actual**. Nada más (ver "El corazón", arriba). De ahí los agentes **extraen** todo:
+rubro · identidad (colores, logo, tono) · catálogo/servicios · ofertas · historia/"quiénes somos" ·
+medios de contacto. Lo que esté tras login → se pide como captura. Con poco material → provisionales
+marcados.
 
 **PASOS (los ejecuta el agente — sistematizan el playbook manual `docs/preventa/playbook-lectura-redes-a-tenant.md`):**
 
