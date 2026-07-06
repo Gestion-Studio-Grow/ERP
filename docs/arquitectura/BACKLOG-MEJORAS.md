@@ -87,16 +87,41 @@ integran unilateralmente → los **secuencia el PMO** (METODOLOGIA-SPRINT regla 
 
 ---
 
+## UX — Excelencia SAP Fiori (pantallas)
+
+> Detalle y score por principio en `UX-FIORI-AUDIT.md`. **Regla de despacho:** son cambios de **UI no
+> cubiertos por tests unitarios** y con criterio visual → se aplican con **OK del dueño**, en tandas
+> coherentes, verificados por `build` + preview. NO se despachan unilateralmente (a diferencia de los
+> quick-wins de lógica pura test-covered). Los grandes (U5/U6) además necesitan diseño previo.
+
+**Quick-wins de accesibilidad/coherencia (bajos, listos para aplicar con OK):**
+- **U1 · `<Field>` en forms admin** — envolver inputs sueltos (turnos/usuarios/pedidos/recordatorios/ajustes) para label+`htmlFor` (WCAG 1.3.1). 🔴 alto valor a11y, riesgo bajo.
+- **U2 · Labels reales, no placeholders** — WCAG 3.3.2 (BookingForm, recordatorios, usuarios). 🔴 alto valor, riesgo bajo. Se hace junto con U1.
+- **U3 · Toggles `bg-black`→token semántico** (`bg-accent`/`bg-surface-sunken`) — respetan tenant/tema (pedidos/ajustes/compras). 🟠 medio, riesgo bajo. *(decisión visual — confirmar el token con el dueño).*
+- **U7 · `role="alert"` en mensajes de error** — el lector los anuncia (NewAppointmentForm, BookingForm…). 🟠 medio, riesgo mínimo (aditivo).
+- **U4 · `SubmitButton`/`pendingText` en forms sin feedback** (PosForm/AjustesForm/ComprasForm). 🟠 medio, riesgo bajo.
+- **U8 · `BookingForm` usa el primitivo `Input`** (o un `SiteInput`) en vez de redeclarar estilos. 🟡 bajo.
+- **U9 · Componente `EmptyState`** (icon+texto+CTA) y adoptarlo en listas vacías. 🟡 bajo.
+
+**Cambios grandes (backlog + OK + diseño previo):**
+- **U5 · Partir `catalogo/page.tsx`** en subrutas (`/catalogo/{servicios,productos,profesionales,cupones}`) + ficha de profesional dedicada. 🟠 medio-alto, riesgo medio (refactor de estructura).
+- **U6 · POS/Caja mobile-first** (ADR-009): breakpoints SM, inputs grandes, scroll-x en tablas. 🟠 medio, riesgo medio.
+
+---
+
 ## P3 — Higiene (bajo impacto, hacer al pasar)
 
-- **H1 · Deduplicar `METODO_LABEL`** (en `report-csv.ts` y `reportes/page.tsx`) → constante compartida. 🟢 bajo.
+- **H1 · Deduplicar `METODO_LABEL`** → movido a `report-config.ts` (fuente única), consumido por `report-csv.ts` y `reportes/page.tsx`. ✅ **hecho 2026-07-06** (test-covered, conducta idéntica).
+- **H4 · Definir `npm run gates`** — el checklist de CLAUDE.md y las consignas citan `npm run gates`, pero **no existe** como script en `package.json` (solo `lint`/`test`; `build` vía Next). Añadir `"gates": "tsc --noEmit && npm test && next build"` (o el set que fije Plataforma). 🟢 bajo — se solapa con **M2** (formalizar el gate de predeploy); **secuencia PMO** (toca `package.json`).
 - **H2 · Barrer TODOs/provisional de transición** (branding presets, business-config, demo/blueprint placeholders) a medida que sus migraciones/gates se resuelven. 🟢 bajo.
 - **H3 · Adoptar `withAction(name, fn)`** para contexto de request en server actions (observabilidad v2, ya en PROXIMOS-PASOS) — encaja con M4. 🟢 bajo-medio.
 
 ---
 
 ## Orden sugerido (frente continuo)
-1. **Ya (sin gate, sin colisión):** M1 ✅ · M3 (tests de lógica pura) · H1.
-2. **Con PMO/ventana:** M2 (gate predeploy) · S2 (timing-safe) cuando el refactor de `route.ts` esté commiteado · M4 (split actions) en ventana dedicada.
-3. **Con dueño (Gate 2 / 2º tenant):** S1 · A2 · S3.
-4. **ADR primero:** A1 (Float→Decimal).
+1. **Hecho (sin gate, test-covered):** M1(a) ✅ · H1 ✅.
+2. **Ya, avanzable sin gate:** M3 (tests de lógica pura de mayor riesgo).
+3. **UX con OK del dueño (tanda de accesibilidad/coherencia):** U1+U2 (Field+labels) · U7 (`role="alert"`) · U3 (tokens en toggles) · U4 (pending) · U8 · U9. Verificados por build+preview.
+4. **Con PMO/ventana:** M2/H4 (gate `npm run gates`) · S2 (timing-safe, tras commitear `route.ts`) · M4 (split actions).
+5. **Con dueño + diseño previo:** U5 (partir Catálogo) · U6 (POS/Caja mobile).
+6. **Con dueño (Gate 2 / 2º tenant):** S1 · A2 · S3. · **ADR primero:** A1 (Float→Decimal), R4 (redondeo POS↔fiscal).

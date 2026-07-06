@@ -8,6 +8,7 @@
 // decimal y Excel en locale español espera `;` — así los números no se parten.
 
 import type { DeepKpis } from "@/lib/report-kpis";
+import { METODO_LABEL } from "@/lib/report-config";
 
 const SEP = ";";
 
@@ -46,12 +47,6 @@ export type ReportCsvInput = {
   porProfesional: { label: string; total: number }[];
   porServicio: { label: string; total: number }[];
   kpis: DeepKpis;
-};
-
-const METODO_LABEL: Record<string, string> = {
-  EFECTIVO: "Efectivo",
-  MERCADOPAGO: "Mercado Pago",
-  TRANSFERENCIA: "Transferencia",
 };
 
 // Arma el CSV completo. Determinista (mismo input → mismo texto), sin fechas

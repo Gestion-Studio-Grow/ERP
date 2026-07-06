@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getReportData, getDeepReportData, getOwnerPanelData } from "@/lib/actions";
-import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
+import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS, METODO_LABEL } from "@/lib/report-config";
 import { getCommissionsOverview, settleCommissions } from "@/lib/commission-actions";
 import { requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -40,12 +40,6 @@ function Table({ title, rows }: { title: string; rows: { label: string; total: n
 const money = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
 const pct = (n: number) => (n * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "%";
 const hs = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " h";
-
-const METODO_LABEL: Record<string, string> = {
-  EFECTIVO: "Efectivo",
-  MERCADOPAGO: "Mercado Pago",
-  TRANSFERENCIA: "Transferencia",
-};
 
 // Tarjeta de un KPI puntual (número grande + contexto). `tone` tiñe el número
 // cuando la métrica tiene lectura buena/mala (ej. no-show alto = danger).
