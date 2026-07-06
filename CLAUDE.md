@@ -42,6 +42,18 @@ de mercado (`docs/sectores/agencia-digital/analisis-mercado/`).
 **Sesiones de AGENCIA GROW — Fase 0 adicional (obligatoria):** si la sesión trabaja en negocios propios
 del grupo (Panel del Dueño, cartera propia), **antes de nada leé `docs/sectores/agencia-grow.md`**.
 
+## Política de modelos — ECONOMÍA por defecto (vigente)
+
+**Modo por defecto ACTIVO: economía.** El default del proyecto es **Sonnet 5** (`claude-sonnet-5`, fijado
+en `.claude/settings.json`): se usa para la **mayoría del trabajo** (implementación acotada, docs, UI de
+rubro, tests, exploración, provisioning rutinario). **Opus 4.8** (`claude-opus-4-8`) se reserva **solo
+para lo que lo amerita**: arquitectura/diseño de sistema, seguridad, dinero/fiscal, metodología/gobernanza,
+auditorías de excelencia críticas y decisiones de alto juicio o riesgo (algo irreversible o que toca
+prod/Neon/deploy). Criterio: *¿un error acá es caro/difícil de revertir o requiere criterio experto de
+sistema?* Sí → Opus; no (la mayoría) → Sonnet. Comandos: **`/economia`** (default, Sonnet) y **`/boost`**
+(todo en Opus, para sprints críticos) — ver `.claude/commands/economia.md` y `.claude/commands/boost.md`.
+Coherente con la prioridad de **costo sobre velocidad** del dueño.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
