@@ -18,8 +18,9 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 
 ## ▶️ RETOMAR EN LA LAPTOP — sesión Agencia Grow (2026-07-05, para continuar con `sprint`)
 
-**Dónde está el trabajo:** rama **`claude/adr-storage-pmo-fsp15k`** (pusheada a origin, árbol limpio).
-Todo es **documentación + prototipo**; NO toca prod/Neon/deploy. Tag de retorno: `snapshot/2026-07-05-agencia-grow`.
+**Dónde está el trabajo:** rama **`claude/adr-storage-pmo-fsp15k`** (pusheada a origin, árbol limpio;
+tip `4ee2d81`). Todo es **documentación + prototipo**; NO toca prod/Neon/deploy. *(Punto de retorno = la
+rama en origin; no hay tag: el GitHub App de la sesión no puede pushear tags — 403, igual que crear repos.)*
 
 **Qué se hizo esta sesión (sector Agencia Grow — antes "Agencia Digital"):**
 - **Identidad + gobierno + pricing como ADR:** ADR-028 (ratificación), ADR-029 (modelo de pricing),
