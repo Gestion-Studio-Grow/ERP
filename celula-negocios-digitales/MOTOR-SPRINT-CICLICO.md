@@ -43,6 +43,17 @@
 - **🚀 Equipo de ejecución (se activa con el GO):** Constructor + Diseño & Marca + Cobro & Fiscal +
   Growth + Operaciones. Pone en marcha end-to-end el negocio que el dueño manda a ejecutar. Runbook y
   roster en `EQUIPO-EJECUCION.md`. Se dispara con **"GO [negocio]"**.
+- **📊 Célula de Ingeniería de Datos (sube el nivel de los análisis):** expertos en datos que le dan
+  RIGOR CUANTITATIVO a cada análisis, para que los números dejen de ser corazonadas:
+  - **Dimensionamiento con datos reales:** TAM/SAM/SOM desde fuentes duras (censo, AFIP/ARCA, INDEC,
+    padrones, Google Trends, volúmenes de búsqueda, datasets públicos), no estimaciones al ojo.
+  - **Señales de demanda medibles:** volumen de búsqueda, tendencias, tamaño de padrones/rubros,
+    densidad de competidores por zona — para validar o matar una hipótesis con evidencia.
+  - **Modelado de unit economics y sensibilidad:** COGS de IA por uso real, curvas de CAC/LTV, break-even
+    con escenarios (piso/base/techo), y qué variable mueve la aguja.
+  - **Pipelines reproducibles:** dejan el cómo se obtuvo cada número (fuente + método) para que se pueda
+    re-correr y auditar. Alimentan a Consultores, Analíticos y al Desafiador con datos, no opiniones.
+  - Regla: **fuentes citadas y método explícito**; nada de números sin trazabilidad.
 
 ## Entregable permanente para el dueño
 - **`STATUS-NEGOCIOS.md`** es el parte de situación estable: se pide con **"status"** y siempre tiene la
