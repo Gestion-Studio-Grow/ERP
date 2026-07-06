@@ -215,4 +215,56 @@ mock centralizado, se reconsidera.
   se creó — este incremento es el código; el paso de infraestructura (Netlify/Vercel) queda para cuando
   el dueño lo pida.
 
+## 7. Precisión del dueño (2026-07-06): secuencia CONSULTOR → BACKOFFICE
+
+**Orden correcto, no negociable:** el backoffice de la demo **no se arma antes** de que un **agente
+consultor** recomiende, según el rubro/negocio del prospecto, qué necesita para su gestión óptima (qué
+módulos, qué configuración, qué reportes). La recomendación del consultor **determina** qué incluye y
+cómo queda el backoffice — es entrada, no un adorno posterior. Hoy el v1 (§6) hace lo inverso: el
+backoffice está **hardcodeado** a un solo rubro (Agenda&Servicios/estética) sin ningún paso de consulta
+previo. Es el próximo trabajo, explícitamente para la sesión Opus (no se implementó acá, solo se deja
+estructurado el enganche).
+
+### 7.1 Dónde engancha (sin romper lo que ya funciona)
+
+```
+CONSULTOR (nuevo)                          BACKOFFICE (v1, existente)
+─────────────────────                      ──────────────────────────
+rubro/negocio del prospecto     ──────►     src/lib/demo-sandbox.ts
+  │                                           hoy: fixtures fijas de
+  ▼                                           UN rubro (PROS/SERVICES/
+ConsultorRecommendation                      CLIENTS hardcodeados)
+  { rubro, blueprintFamily,       ──────►
+    modules[], reports[] }                  mañana: fixtures SE ARMAN
+                                             a partir de la Recommendation
+```
+
+- **`ConsultorRecommendation`** (contrato mínimo a definir, no implementado): reusa exactamente la tabla
+  de familias que ya ratificó la Célula del Probador en `docs/preventa/preset-contract.md` §3
+  (Agenda&Servicios / Retail-Mostrador / Gastronomía / Servicios&Oficios / Genérico) — **no inventar una
+  segunda taxonomía de rubros**. El consultor v1 puede ser tan simple como: recibir un string de rubro →
+  `resolveBlueprint()` (ya existe en `src/blueprints/`) → devolver la familia + su set de módulos de la
+  tabla ya escrita. Cero IA todavía; el punto es que el **paso exista y el backoffice dependa de su
+  salida**, no que sea sofisticado.
+- **Dónde se conecta:** `getDemoAgendaDay`/`DEMO_CAJA_DATA`/`getDemoReportData` (hoy fijas) pasan a
+  recibir la `ConsultorRecommendation` (o al menos el rubro/familia) y elegir/parametrizar sus fixtures
+  según ella, en vez de los arrays hardcodeados de `demo-sandbox.ts`. La familia Retail/Mostrador, por
+  ejemplo, cambiaría `agenda`→`vidriera` (ya previsto en preset-contract.md §3, todavía no construido acá).
+- **No se toca** `session.ts`/`tenant.ts`/`proxy.ts` para esto — el enganche del consultor es una capa
+  *antes* de `demo-sandbox.ts`, el resto de la cadena de acceso sin password queda igual.
+
+### 7.2 Qué queda pendiente para Opus (en orden)
+
+1. Definir `ConsultorRecommendation` en código (tipo + función mínima rubro→recomendación, reusando
+   `resolveBlueprint()` y la tabla de familias de `preset-contract.md`).
+2. Generalizar `demo-sandbox.ts`: sacar los fixtures de Agenda&Servicios del hardcode y parametrizarlos
+   por la `Recommendation` (empezar sumando **una segunda familia**, p.ej. Retail/Mostrador, para probar
+   que el enganche generaliza — no todas las 5 de una vez).
+   - **Nota de mocking (para no re-descubrir):** en 2026-07-06 la sesión Sandbox concurrente puede haber
+     construido las mismas fixtures/estructura de datos ficticios sobre `src/lib/db.ts` (mock de Prisma)
+     en paralelo — **revisar `git log`/el estado de `docs/demo/plan-sandbox-persistencia.md` antes de
+     tocar `demo-sandbox.ts`** para no duplicar fixtures ya escritas por esa otra sesión.
+3. Solo después, el Gate GSG (Opus) audita el conjunto completo (acceso sin password + consultor +
+   backoffice parametrizado) antes de cualquier deploy real.
+
 — Elaborado por **Gestión Studio Grow (GSG)**.
