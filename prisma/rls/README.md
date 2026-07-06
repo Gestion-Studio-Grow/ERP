@@ -15,7 +15,7 @@ diseñar bajo presión.
 | Archivo | Qué hace | Cuándo |
 |---|---|---|
 | `0001_enable_rls.sql` | ENABLE ROW LEVEL SECURITY + `CREATE POLICY tenant_isolation` (USING + WITH CHECK) en **toda** tabla con `tenantId`. Data-driven (recorre `information_schema`) → a prueba de drift. | En el gate, primero. |
-| `0002_app_role.sql` | Crea `app_user`: rol de login **sin `BYPASSRLS`**, no owner, solo DML. El enforcement real llega al conectar la app con este rol. Password fuera del repo. | En el gate, con `-v app_pw=…`. |
+| `0002_app_role.sql` | Crea `app_rls`: rol de login **NUEVO** (no el `app_user` legacy de prod, que tiene `BYPASSRLS` inarreglable) **sin `BYPASSRLS`**, no owner, solo DML. El enforcement real llega al conectar la app con este rol. Password fuera del repo. | En el gate, con `-v app_pw=…`. |
 | `0003_force_rls_optional.sql` | Hardening: `FORCE ROW LEVEL SECURITY` (RLS también para el owner). Opcional, con precondiciones. | Después de validar, si se quiere. |
 | `0001_rollback.sql` | Quita policies + RLS + FORCE. Para limpiar la branch de ensayo o revertir. | Según haga falta. |
 | `check-coverage.mjs` | Red **estática** (sin DB): verifica que todo modelo de-tenant tenga columna `tenantId` (si falta, no es aislable). Corre en CI/sesión. | Siempre. `node prisma/rls/check-coverage.mjs` |
@@ -35,8 +35,15 @@ diseñar bajo presión.
 - **Enforcement vía rol, no vía FORCE (por defecto):** Postgres exime de RLS al
   **dueño** de la tabla (`neondb_owner`). Se deja así a propósito para que el
   owner conserve bypass en migraciones, `seed.ts` y el provisioning del 2º
-  tenant (ADR-019). El enforcement lo da conectar la **app** como `app_user`
+  tenant (ADR-019). El enforcement lo da conectar la **app** como `app_rls`
   (sin `BYPASSRLS`). `0003` (FORCE) es defensa en profundidad opcional.
+- **Rol NUEVO `app_rls`, no el `app_user` legacy (hallazgo del ensayo 2026-07-05):**
+  prod tiene un `app_user` PREEXISTENTE con `BYPASSRLS=true` que `neondb_owner` **no
+  puede** corregir (`ALTER ROLE … NOBYPASSRLS` → "permission denied"; requiere
+  superuser, que Neon no da). Rotar `DATABASE_URL` a ese rol daría cero aislamiento
+  en silencio. Por eso `0002` crea un rol LIMPIO `app_rls` (nace `NOBYPASSRLS`) y la
+  app se conecta con él. El `app_user` legacy queda inofensivo mientras nadie conecte
+  con él.
 - **Excluidas:** `Tenant` (raíz, se lee pre-contexto en la resolución por
   request; RLS ahí sería deadlock de bootstrap) y `_ProfessionalServices` (join
   M2M sin `tenantId`, protegido transitivamente porque sus extremos sí tienen
@@ -58,11 +65,11 @@ diseñar bajo presión.
    ```
    Deben pasar las 4 aserciones (lectura aislada, WITH CHECK, UPDATE cross-tenant,
    fail-closed).
-4. Ensayar la app contra la branch con `app_user` (ver "Adopción en la app").
+4. Ensayar la app contra la branch con `app_rls` (ver "Adopción en la app").
    Chequear especialmente los ~12 `$transaction` y `connection_limit` bajo
    (3–5) sobre el pooler (ADR-023 F6).
 5. Solo con el ensayo en verde: aplicar `0001` + `0002` a **producción** (mismo
-   trabajo que provisiona el tenant #2), rotar `DATABASE_URL` a `app_user`, y
+   trabajo que provisiona el tenant #2), rotar `DATABASE_URL` a `app_rls`, y
    recién ahí dar de alta el 2º tenant.
 
 ## Adopción en la app (pendiente, parte del gate)

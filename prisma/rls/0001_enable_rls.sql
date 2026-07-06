@@ -31,9 +31,9 @@
 -- exime al owner salvo FORCE ROW LEVEL SECURITY. Deliberado:
 --   * El owner conserva bypass para migraciones, seed.ts y el script de
 --     provisioning del 2º tenant (ADR-019), que escriben cross-tenant.
---   * El enforcement real lo da conectar la APP como `app_user` (sin BYPASSRLS,
+--   * El enforcement real lo da conectar la APP como `app_rls` (sin BYPASSRLS,
 --     NO owner) — ver 0002_app_role.sql. Recién con DATABASE_URL apuntando a
---     app_user las policies se aplican a la app.
+--     app_rls las policies se aplican a la app.
 -- Corolario: aplicar SOLO este 0001 NO cambia el comportamiento mientras la app
 -- siga como owner → seguro de aplicar; el enforcement se enciende al rotar la
 -- credencial. Hardening para forzar RLS también al owner: 0003_force_rls_optional.sql.

@@ -18,12 +18,15 @@
 >    CashSession, StockMovement, StockPurchase, StockPurchaseItem` (POS/facturación/caja/stock).
 >    Filtrarían entre tenants si se activa el enforcement sin cerrarlas.
 > 3. **`app_user` existe con `BYPASSRLS=true`** → rotar `DATABASE_URL` a él daría **CERO
->    aislamiento**, en silencio.
+>    aislamiento**, en silencio. **Y es INARREGLABLE por `neondb_owner`:** `ALTER ROLE app_user
+>    … NOBYPASSRLS` → *"permission denied"* (quitar BYPASSRLS necesita superuser, que Neon no da).
 >
-> **Secuencia CORREGIDA (reemplaza el "aplicar de cero"):** re-correr `0001` **cierra el drift**
-> (es data-driven → cubre 33/33, verificado offline); `0002` **patcheado** ahora fuerza
-> `ALTER ROLE app_user … NOBYPASSRLS` aunque el rol ya exista (antes lo saltaba con IF NOT EXISTS).
-> Correr `check-rls-live.mjs` **antes y después** para confirmar 33/33 y `app_user` sin bypass.
+> **Secuencia CORREGIDA (reemplaza el "aplicar de cero" y el viejo "patchear app_user"):** re-correr
+> `0001` **cierra el drift** (es data-driven → cubre 33/33, verificado offline); `0002` **crea un rol
+> NUEVO `app_rls`** —limpio, nace `NOBYPASSRLS`— en vez de intentar arreglar el `app_user` inarreglable,
+> y se rota `DATABASE_URL` a **`app_rls`**. El `app_user` legacy queda intacto e inofensivo (nadie
+> conecta con él). Correr `check-rls-live.mjs` **antes y después** para confirmar 33/33 y `app_rls`
+> sin bypass. *(Hallazgo del ensayo en branch de Neon, 2026-07-05, 🟢 VERDE 8/8.)*
 
 ## Leyenda de riesgo
 
@@ -33,8 +36,8 @@
 
 ## Lo que YA está listo (no hay que construirlo)
 
-- SQL de RLS data-driven: `prisma/rls/0001_enable_rls.sql` (ENABLE + policy `tenant_isolation` en **toda** tabla con `tenantId` → cubre 33/33 hoy), `0002_app_role.sql` (crea `app_user` sin `BYPASSRLS` **y lo fuerza a NOBYPASSRLS aunque ya exista** — fix 2026-07-05), `0003_force_rls_optional.sql` (hardening opcional), `0001_rollback.sql`.
-- Redes de verificación: `check-coverage.mjs` (estática), **`check-rls-live.mjs` (auditoría del drift en vivo, solo lectura — branch o prod)**, `verify-rls.mjs` (funcional contra branch), **`verify-provision-gate.mts` (offline: gate + cobertura 33/33 + footgun app_user)**, `verify-wiring.mts` + `verify-tenant-resolution.mts` (integración del código real con PGlite). Procedimiento canónico: `prisma/rls/README.md`.
+- SQL de RLS data-driven: `prisma/rls/0001_enable_rls.sql` (ENABLE + policy `tenant_isolation` en **toda** tabla con `tenantId` → cubre 33/33 hoy), `0002_app_role.sql` (crea el rol **NUEVO** `app_rls` sin `BYPASSRLS` — evita el `app_user` legacy inarreglable; ver hallazgo arriba), `0003_force_rls_optional.sql` (hardening opcional), `0001_rollback.sql`.
+- Redes de verificación: `check-coverage.mjs` (estática), **`check-rls-live.mjs` (auditoría del drift en vivo, solo lectura — branch o prod; verifica `app_rls` sin bypass)**, `verify-rls.mjs` (funcional contra branch, como `app_rls`), **`verify-provision-gate.mts` (offline: gate + cobertura 33/33 + `app_rls` NOBYPASSRLS)**, `verify-wiring.mts` + `verify-tenant-resolution.mts` (integración del código real con PGlite). Procedimiento canónico: `prisma/rls/README.md`.
 - Cableado app-level **escrito y apagado** tras el flag `RLS_ENFORCEMENT` (`src/lib/prisma-base.ts`, `rls.ts`, `tenant-context.ts`) → hoy cero cambio en prod.
 - Control-plane con alta por UI: `/operador/alta` → `provisionFromConsole` → `provisionTenant` (`src/lib/operator-actions.ts:51`).
 
@@ -70,18 +73,18 @@ Objetivo: probar la activación **sobre una copia** de la base viva, no sobre la
    ```bash
    RLS_AUDIT_DATABASE_URL="$BRANCH_URL" node prisma/rls/check-rls-live.mjs
    ```
-   Se espera que reporte el drift (9 tablas sin proteger + `app_user` con bypass), igual que prod.
+   Se espera que reporte el drift (9 tablas sin proteger + `app_user` legacy con bypass), igual que prod.
 
 3. **Aplicar RLS sobre el branch** (por `psql`, **no** `prisma migrate deploy` — estos
    SQL viven fuera de `prisma/migrations/` a propósito). Re-correr `0001` **cierra el drift**;
-   el `0002` patcheado deja `app_user` en `NOBYPASSRLS`:
+   el `0002` **crea el rol NUEVO `app_rls`** (`NOBYPASSRLS` de nacimiento):
 
    ```bash
    psql "$BRANCH_URL" -f prisma/rls/0001_enable_rls.sql
    psql "$BRANCH_URL" -v app_pw="<pw-de-ensayo>" -f prisma/rls/0002_app_role.sql
    ```
 
-4. **Auditar el estado DESPUÉS** — debe dar **33/33 y `app_user` sin bypass**:
+4. **Auditar el estado DESPUÉS** — debe dar **33/33 y `app_rls` sin bypass**:
 
    ```bash
    RLS_AUDIT_DATABASE_URL="$BRANCH_URL" node prisma/rls/check-rls-live.mjs   # RESULTADO: SIN DRIFT ✅
@@ -97,15 +100,15 @@ Objetivo: probar la activación **sobre una copia** de la base viva, no sobre la
    Deben pasar las **4 aserciones**: lectura aislada, `WITH CHECK` en INSERT, bloqueo de
    UPDATE cross-tenant, y fail-closed (sin contexto → 0 filas).
 
-4. **Ensayar la app contra el branch como `app_user`** (opcional pero recomendado):
-   levantar local con `DATABASE_URL=$BRANCH_URL?...&user=app_user`, `RLS_ENFORCEMENT=on`,
+4. **Ensayar la app contra el branch como `app_rls`** (opcional pero recomendado):
+   levantar local con `DATABASE_URL=$BRANCH_URL?...&user=app_rls`, `RLS_ENFORCEMENT=on`,
    `OPERATOR_DATABASE_URL=$BRANCH_URL` (rol dueño). Chequear especialmente los ~12
    `$transaction` y `connection_limit` bajo (3-5) sobre el pooler (ADR-023 F6).
 
 5. **Limpiar:** borrar el branch de Neon al terminar (o dejarlo hasta el go-live). 🟢
 
 > **Salida esperada del Paso 1:** "las 4 aserciones en verde sobre un branch, la app
-> corre como `app_user` sin romperse". Recién con esto se pide el OK del Paso 2.
+> corre como `app_rls` sin romperse". Recién con esto se pide el OK del Paso 2.
 
 ---
 
@@ -117,22 +120,23 @@ Objetivo: probar la activación **sobre una copia** de la base viva, no sobre la
 
 **Antes (checklist previo):**
 - [ ] 🟢 Paso 1 en verde, documentado.
-- [ ] 🔴 Definir y guardar el **password de `app_user`** en el vault/secrets de Netlify (nunca al repo).
+- [ ] 🔴 Definir y guardar el **password de `app_rls`** (el rol NUEVO) en el vault/secrets de Netlify (nunca al repo).
 - [ ] 🔴 Confirmar que no hay migraciones de Prisma pendientes que el alta necesite (control-plane y fiscal ya aplicadas; POS/stock son aditivas).
 - [ ] 🔴 Backup / snapshot de la base viva (branch de respaldo en Neon antes de tocar).
 
 **Ejecución (cada uno requiere OK):**
-1. 🔴 Aplicar a prod los mismos SQL, con `psql` contra la `DATABASE_URL` de prod. **`0001`
-   cierra el drift de las 9 tablas** (data-driven → 33/33); **`0002` fuerza `app_user` a
-   `NOBYPASSRLS`** (arregla el rol preexistente con bypass):
+1. 🔴 Aplicar a prod los mismos SQL, con `psql` contra la `DATABASE_URL` de prod (rol dueño). **`0001`
+   cierra el drift de las 9 tablas** (data-driven → 33/33); **`0002` crea el rol NUEVO `app_rls`**
+   (`NOBYPASSRLS` de nacimiento — NO se toca el `app_user` legacy, que es inarreglable):
    ```bash
    RLS_AUDIT_DATABASE_URL="$PROD_URL" node prisma/rls/check-rls-live.mjs   # ANTES: muestra el drift
    psql "$PROD_URL" -f prisma/rls/0001_enable_rls.sql
-   psql "$PROD_URL" -v app_pw="<pw-real-de-app_user>" -f prisma/rls/0002_app_role.sql
-   RLS_AUDIT_DATABASE_URL="$PROD_URL" node prisma/rls/check-rls-live.mjs   # DESPUÉS: SIN DRIFT ✅ (33/33, sin bypass)
+   psql "$PROD_URL" -v app_pw="<pw-real-de-app_rls>" -f prisma/rls/0002_app_role.sql
+   RLS_AUDIT_DATABASE_URL="$PROD_URL" node prisma/rls/check-rls-live.mjs   # DESPUÉS: SIN DRIFT ✅ (33/33, app_rls sin bypass)
    ```
-2. 🔴 **Rotar variables de entorno en Netlify** (sin esto, encender el flag solo agrega overhead sin enforcement — ver `src/lib/prisma-base.ts`). ⚠️ **NO rotar `DATABASE_URL` a `app_user` hasta que el audit DESPUÉS confirme `app_user` sin bypass** — si no, no habría aislamiento:
-   - `DATABASE_URL` → connection string con el rol **`app_user`** (ya forzado a `NOBYPASSRLS` por `0002`). **El valor lo carga el dueño** (contiene el password nuevo; no se tipea desde acá).
+   *(El `$PROD_URL` acá es el del rol dueño `neondb_owner` — es quien crea el rol y las policies.)*
+2. 🔴 **Rotar variables de entorno en Netlify** (sin esto, encender el flag solo agrega overhead sin enforcement — ver `src/lib/prisma-base.ts`). ⚠️ **NO rotar `DATABASE_URL` a `app_rls` hasta que el audit DESPUÉS confirme `app_rls` sin bypass** — si no, no habría aislamiento. **Y nunca rotarlo a `app_user`** (el legacy con BYPASSRLS inarreglable → cero aislamiento):
+   - `DATABASE_URL` → connection string con el rol **`app_rls`** (creado `NOBYPASSRLS` por `0002`). **El valor lo carga el dueño** (contiene el password nuevo; no se tipea desde acá).
    - `OPERATOR_DATABASE_URL` → connection string con el rol **dueño** (`neondb_owner`, con bypass) — es el único proceso que ve cross-tenant, para el `/operador` (`src/lib/operator-db.ts`).
    - `RLS_ENFORCEMENT` = `on`.
 3. 🔴 **Deploy** (Gate 1 — "deployá") para que tome las variables.
@@ -145,7 +149,8 @@ Objetivo: probar la activación **sobre una copia** de la base viva, no sobre la
 **Rollback (si algo sale mal):**
 1. 🔴 Revertir `DATABASE_URL` al rol dueño y `RLS_ENFORCEMENT`=`off` en Netlify + redeploy → la app vuelve al comportamiento pre-RLS al instante (el flag apagado usa el cliente crudo).
 2. 🔴 Si además se quiere sacar las policies: `psql "$PROD_URL" -f prisma/rls/0001_rollback.sql` (quita policies + RLS + FORCE).
-3. El rol `app_user` puede quedar creado sin daño (no molesta si nadie conecta con él).
+3. El rol `app_rls` puede quedar creado sin daño (no molesta si nadie conecta con él). El `app_user`
+   legacy también queda como estaba (con su BYPASSRLS inarreglable) — inofensivo mientras nadie lo use.
 
 ---
 
@@ -199,23 +204,27 @@ un request sin subdominio **falla fail-closed**. Por eso, para 2 tenants hace fa
 
    *(Guía detallada existente: `docs/GO-LIVE-RUNBOOK.md` → PARTE 2.)*
 
-### Fix del storefront en `/` (🟡 cambio de código, verificable, NO toca prod hasta deploy)
+### Fix del storefront en `/` — ✅ HECHO (🟡 cambio de código, verificado, NO toca prod hasta deploy)
 
 **Problema real (verificado):** el root `/` lo sirve `src/app/(site)/page.tsx`, que es la
 **landing de estética de CH** (servicios, equipo, reserva de turno). La vidriera de Magra
-(carnicería, rubro-aware) vive en **`/tienda`** (`src/app/tienda/page.tsx`). Hoy, entrar a
-`magra.tudominio.com/` mostraría la landing con forma de spa — **la equivocada**.
+(carnicería, rubro-aware) vive en **`/tienda`** (`src/app/tienda/page.tsx`). Antes, entrar a
+`magra.tudominio.com/` mostraba la landing con forma de spa — **la equivocada**.
 
-**Fix (una sesión de código, no prod):** hacer el root `/` **consciente del blueprint** del
-tenant resuelto:
-- Tenant de **servicios/estética** (CH) → landing `(site)` actual.
-- Tenant **retail/mostrador** (Magra y rubros de `src/blueprints/retail/`) → la vidriera de
-  `/tienda` (o un redirect `/` → `/tienda` para esos blueprints).
+**Fix aplicado (2026-07-05, rama `frente/rls-redirect`):** el root `/` ahora es **consciente del
+blueprint** del tenant resuelto. En `src/app/(site)/page.tsx`, al principio de `Home()`:
+```ts
+const slug = await getCurrentTenantSlug();
+if (resolveRubroIdBySlug(slug)) redirect("/tienda");
+```
+- Tenant de **servicios/estética** (CH, slug no-retail) → sigue viendo la landing `(site)` de siempre.
+- Tenant **retail/mostrador** (Magra y rubros de `src/blueprints/retail/`) → redirect `/` → `/tienda`.
 
-El wiring de resolución por tenant ya existe (`getCurrentTenantSlug`, `getStorefront`,
-`getTenantAccent`); es enrutar el root según el blueprint, no construir vidriera nueva.
-Se verifica con `tsc`+build y visualmente en preview. **Marcarlo como pendiente en
-`docs/PROXIMOS-PASOS.md` y hacerlo antes de anunciar la URL pública de Magra.**
+Reusa el wiring que ya existía (`getCurrentTenantSlug` + `resolveRubroIdBySlug`, el mismo mapa
+slug→rubro de la vidriera); no construye vidriera nueva. **Fail-open:** sin tenant/slug o rubro
+no-retail cae a la landing histórica. Cuando exista `Tenant.blueprintId`, el chequeo pasa a leer esa
+columna (un solo punto de cambio). Verificado con `tsc`+build. *(No requiere OK: es 🟡, no toca prod
+hasta el deploy del Gate 1.)*
 
 ---
 
@@ -267,7 +276,7 @@ if (forced) {
 - **Gate RLS (ADR-018):** intacto. El gate mira `pg_class.relrowsecurity` (¿RLS activo sobre
   las tablas?), independiente de *cómo* se resuelve el tenant. `FORCE_TENANT_SLUG` no lo toca
   → sigue siendo imposible crear el 2º tenant sin RLS.
-- **Aislamiento:** con RLS on + `DATABASE_URL` en `app_user`, el pin fija el `tenantId` que la
+- **Aislamiento:** con RLS on + `DATABASE_URL` en `app_rls`, el pin fija el `tenantId` que la
   extensión mete en el GUC → cada sitio ve **solo** su tenant, respaldado por la policy de DB.
 - **`/operador`:** no lo afecta — usa `operatorPrisma` (cross-tenant, bypass), no
   `getCurrentTenantId`. La consola sigue viendo todos los tenants desde cualquier sitio. Se
@@ -275,8 +284,9 @@ if (forced) {
 - **Cookies/sesión:** a favor. Cada `*.netlify.app` es un **origen distinto** → jar de cookies
   separado. La sesión de admin de CH no cruza a `magra-erp.netlify.app`. Aislamiento extra gratis.
 
-**Sigue aplicando el fix del `/`** (blueprint-aware, ver Paso 4): con `FORCE_TENANT_SLUG=magra`,
-`/tienda` muestra bien la vidriera de Magra, pero `/` todavía renderiza la landing de estética.
+**El fix del `/` ya está aplicado** (blueprint-aware, ver Paso 4 — ✅ HECHO): con
+`FORCE_TENANT_SLUG=magra`, `/tienda` muestra la vidriera de Magra y `/` **redirige a `/tienda`**
+(ya no renderiza la landing de estética). CH (slug no-retail) sigue con su landing en `/`.
 
 ### OPCIÓN B — ruteo por path en un sitio único (`/t/magra/...`)
 
@@ -310,7 +320,7 @@ separados + RLS). Es la forma costo-cero de reemplazar el Paso 4.
 - 🟡 **Override `FORCE_TENANT_SLUG`** en `tenant.ts` + test — cambio de código, verificable con `tsc`+build+tests, no toca prod hasta deploy. (Se puede preparar ya.)
 - 🟢 **Sigue dependiendo de activar RLS** (Pasos 1-3) — sin eso, dos sitios sobre la misma DB no están aislados.
 - 🔴 **Crear el nuevo sitio Netlify** (`magra-erp.netlify.app` u otro nombre libre) apuntando al **mismo repo/branch** — acción humana en Netlify.
-- 🔴 **Setear las env vars por sitio:** en el sitio de Magra `FORCE_TENANT_SLUG=magra` (y en el de CH, opcional, `FORCE_TENANT_SLUG=beauty-spa`); en **ambos** las vars de RLS del Paso 2 (`DATABASE_URL`→`app_user`, `OPERATOR_DATABASE_URL`→rol dueño, `RLS_ENFORCEMENT=on`).
+- 🔴 **Setear las env vars por sitio:** en el sitio de Magra `FORCE_TENANT_SLUG=magra` (y en el de CH, opcional, `FORCE_TENANT_SLUG=beauty-spa`); en **ambos** las vars de RLS del Paso 2 (`DATABASE_URL`→`app_rls`, `OPERATOR_DATABASE_URL`→rol dueño, `RLS_ENFORCEMENT=on`).
 - ⚠️ **Nota de plan free:** cada sitio consume sus propios build-minutes/funciones/bandwidth del free tier de Netlify. Para 2-3 tenants es holgado; a escala grande se revisa. El auto-publish sigue apagado (Gate 1) por sitio.
 
 > **Con Opción A, el Paso 4 (dominio propio + wildcard + `APP_BASE_DOMAIN`) queda OPCIONAL** —
@@ -322,8 +332,8 @@ separados + RLS). Es la forma costo-cero de reemplazar el Paso 4.
 ## Resumen de OKs del dueño (lo único que no se hace solo)
 
 1. 🔴 Acceso a Neon para crear el **branch de ensayo** (Paso 1) — *sin riesgo, es desechable*.
-2. 🔴 **Gate 2:** aplicar RLS a prod + rotar `DATABASE_URL` a `app_user` + `RLS_ENFORCEMENT=on` + deploy (Paso 2) — **irreversible**.
-3. 🔴 Password de `app_user` y confirmación del **email real** del dueño de Magra (secrets/dato).
+2. 🔴 **Gate 2:** aplicar RLS a prod + crear `app_rls` + rotar `DATABASE_URL` a `app_rls` + `RLS_ENFORCEMENT=on` + deploy (Paso 2) — **irreversible**.
+3. 🔴 Password de `app_rls` (el rol NUEVO) y confirmación del **email real** del dueño de Magra (secrets/dato).
 4. 🔴 Crear el tenant Magra en prod desde `/operador/alta` (Paso 3).
 5. **Para las URLs — elegir UNA vía** (excluyentes):
    - **5a. Costo cero (recomendada):** 🔴 crear el sitio Netlify `magra-erp.netlify.app` (mismo repo) + setear `FORCE_TENANT_SLUG` y las vars de RLS por sitio (Opción A). Requiere antes el 🟡 override en `tenant.ts`.

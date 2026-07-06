@@ -10,16 +10,21 @@
 //   2. Alta del tenant #2 SIN RLS → el GATE ADR-018 la BLOQUEA (throw esperado).
 //   3. Aplica RLS (0001) y verifica: (a) COBERTURA — toda tabla con `tenantId`
 //      queda con RLS + policy (drift guard); (b) Tenant excluida (raíz sin
-//      tenantId); (c) un app_user PREEXISTENTE con BYPASSRLS queda NOBYPASSRLS.
+//      tenantId); (c) el rol NUEVO `app_rls` (como lo crea 0002) nace NOBYPASSRLS.
 //   4. Alta del tenant #2 CON RLS → PASA (el gate se abre).
-//   5. Aislamiento como app_user: cada tenant ve SOLO lo suyo; sin contexto, nada.
+//   5. Aislamiento como app_rls: cada tenant ve SOLO lo suyo; sin contexto, nada.
 //
-// Regresiones que cubre (bugs detectados en el ensayo del 2026-07-05):
+// Regresiones que cubre (bugs/hallazgos del ensayo del 2026-07-05):
 //   - El sentinel del gate NO debe incluir "Tenant" (0001 la excluye por ser raíz
 //     sin `tenantId`); si lo incluyera, `isRlsActive` daría false para siempre y el
 //     gate nunca abriría aun con RLS aplicado.
 //   - Drift de cobertura: una tabla de-tenant sin RLS/policy filtra entre tenants.
-//   - Footgun del app_user con BYPASSRLS: evadiría todas las policies en silencio.
+//   - Rol de app SIN BYPASSRLS: el go-live usa un rol NUEVO `app_rls` (0002) porque
+//     el `app_user` legacy de prod tiene BYPASSRLS INARREGLABLE (necesita superuser,
+//     que Neon no da). Acá se valida que `app_rls` nace limpio y que el aislamiento
+//     se sostiene conectando como él. (La restricción de permisos de Neon no se puede
+//     reproducir en PGlite —acá somos superuser— pero sí el resultado: rol nuevo, sin
+//     bypass, con enforcement real.)
 
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
@@ -122,22 +127,21 @@ try {
   if (tenantRls === false) ok("Tenant excluida de RLS a propósito (raíz sin tenantId)");
   else bad("Tenant RLS", `relrowsecurity=${tenantRls} (debía ser false)`);
 
-  // 3b. app_user + REGRESIÓN del footgun: se simula el estado hallado en prod
-  // (rol PREEXISTENTE con BYPASSRLS) y se aplica el ALTER incondicional del 0002
-  // patcheado; debe quedar NOBYPASSRLS. Sin ese ALTER, un app_user con bypass
-  // evadiría TODAS las policies → cero aislamiento (2026-07-05).
-  await db.exec(`CREATE ROLE app_user LOGIN BYPASSRLS`); // estado "malo" preexistente
-  await db.exec(`ALTER ROLE app_user WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`); // 0002 (fix)
+  // 3b. Rol de app `app_rls` (como lo crea 0002): rol NUEVO, LOGIN, sin BYPASSRLS.
+  // El go-live NO reusa el `app_user` legacy de prod (BYPASSRLS inarreglable por
+  // neondb_owner → evadiría TODAS las policies): crea un rol limpio y rota
+  // DATABASE_URL a ÉL. Acá se valida que nace NOBYPASSRLS (birthright del CREATE).
+  await db.exec(`CREATE ROLE app_rls LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`);
   await db.exec(`
-    GRANT USAGE ON SCHEMA public TO app_user;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+    GRANT USAGE ON SCHEMA public TO app_rls;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_rls;
   `);
   const appRole = (await db.query<{ rolbypassrls: boolean }>(
-    `SELECT rolbypassrls FROM pg_roles WHERE rolname='app_user'`,
+    `SELECT rolbypassrls FROM pg_roles WHERE rolname='app_rls'`,
   )).rows[0];
   if (appRole && appRole.rolbypassrls === false)
-    ok("app_user preexistente con BYPASSRLS → 0002 lo fuerza a NOBYPASSRLS (fix del footgun)");
-  else bad("app_user NOBYPASSRLS", `rolbypassrls=${appRole?.rolbypassrls}`);
+    ok("app_rls (rol nuevo del 0002) nace NOBYPASSRLS → enforcement real, sin footgun");
+  else bad("app_rls NOBYPASSRLS", `rolbypassrls=${appRole?.rolbypassrls}`);
 
   // ── 4. Tenant #2 CON RLS → ahora PASA (gate abierto) ────────────────────────
   let magraId = "";
@@ -157,11 +161,11 @@ try {
   if (countAfterOpen === 2) ok("ahora hay 2 tenants en la base del ensayo");
   else bad("conteo tras alta #2", `hay ${countAfterOpen} (debía ser 2)`);
 
-  // ── 5. Aislamiento como app_user (enforcement real, rol sin BYPASSRLS) ───────
+  // ── 5. Aislamiento como app_rls (enforcement real, rol sin BYPASSRLS) ────────
   // Cada contexto ve SOLO su tenant. Se prueba sobre "User" (cada tenant tiene su OWNER).
   async function ownersVisibleAs(tenantId: string | null): Promise<string[]> {
     return prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SET LOCAL ROLE app_user`;
+      await tx.$executeRaw`SET LOCAL ROLE app_rls`;
       if (tenantId) await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id', '${tenantId}', true)`);
       const rows = await tx.$queryRaw<{ tenantId: string }[]>`SELECT "tenantId" FROM "User"`;
       return [...new Set(rows.map((r) => r.tenantId))];

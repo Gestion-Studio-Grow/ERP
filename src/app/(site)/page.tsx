@@ -1,8 +1,11 @@
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { getCatalog } from "@/lib/catalog-actions";
 import { getPublishedReviews } from "@/lib/reviews-actions";
 import { getLocation } from "@/lib/settings";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { resolveRubroIdBySlug } from "@/blueprints/retail";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
@@ -42,6 +45,15 @@ const TEAM_PHOTOS: Record<string, { src: string; rotate?: number }> = {
 };
 
 export default async function Home() {
+  // Root `/` consciente del blueprint del tenant (runbook alta-magra.md §Paso 4 · ESTADO-ACTUAL §6):
+  // un tenant Retail/Mostrador (Magra y rubros de src/blueprints/retail) NO debe ver la landing de
+  // estética de CH — su home ES la vidriera (`/tienda`). Se resuelve por el mismo mapa slug→rubro que
+  // usa la vidriera (resolveRubroIdBySlug); fail-open: sin tenant/slug (getCurrentTenantSlug → null) o
+  // rubro no-retail cae a la landing histórica de CH, el comportamiento por defecto de siempre.
+  // El día que exista `Tenant.blueprintId`, este chequeo pasa a leer esa columna (un solo punto de cambio).
+  const slug = await getCurrentTenantSlug();
+  if (resolveRubroIdBySlug(slug)) redirect("/tienda");
+
   const [{ groups }, { professionals }, news, reviews, location] = await Promise.all([
     getPublicBookingData(),
     getCatalog(),
