@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { getReportData, getDeepReportData } from "@/lib/actions";
+import { getReportData, getDeepReportData, getOwnerPanelData } from "@/lib/actions";
 import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
 import { getCommissionsOverview, settleCommissions } from "@/lib/commission-actions";
 import { requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { fmtShortDate } from "@/lib/datetime";
+import { generateOwnerInsights } from "@/lib/owner-insights";
+import { analyzeTrends, type MetricSeriesInput } from "@/lib/owner-trends";
+import { OwnerPanel } from "@/components/OwnerPanel";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses } from "@/components/ui";
 
@@ -80,13 +83,42 @@ export default async function ReportesPage({
   const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsedDias)
     ? parsedDias
     : DEFAULT_REPORT_RANGE_DAYS;
-  const [data, deep, overview, user] = await Promise.all([
+  const [data, deep, panel, overview, user] = await Promise.all([
     getReportData(rangeDays),
     getDeepReportData(rangeDays),
+    getOwnerPanelData(rangeDays),
     getCommissionsOverview(),
     requireUser(),
   ]);
   const k = deep.kpis;
+
+  // Panel del Dueño (Agencia Grow): la lectura en lenguaje llano se computa acá con
+  // los motores puros. Insights = período actual vs. previo; tendencias = serie de
+  // los últimos meses completos, cada métrica con su dirección "buena".
+  const insights = generateOwnerInsights(panel.current, panel.previous);
+  const trendSeries: MetricSeriesInput[] = [
+    {
+      metric: "ticketPromedio",
+      good: "up",
+      series: panel.months.map((m) => ({ periodo: m.month, value: m.kpis.ticketPromedio })),
+    },
+    {
+      metric: "tasaNoShow",
+      good: "down",
+      series: panel.months.map((m) => ({ periodo: m.month, value: m.kpis.estados.tasaNoShow })),
+    },
+    {
+      metric: "tasaCancelacion",
+      good: "down",
+      series: panel.months.map((m) => ({ periodo: m.month, value: m.kpis.estados.tasaCancelacion })),
+    },
+    {
+      metric: "tasaRecurrencia",
+      good: "up",
+      series: panel.months.map((m) => ({ periodo: m.month, value: m.kpis.retencion.tasaRecurrencia })),
+    },
+  ];
+  const trends = analyzeTrends(trendSeries);
   // Umbral de lectura del no-show: >10% del rubro se considera fuga alta.
   const noShowTone = k.estados.tasaNoShow > 0.1 ? "danger" : "neutral";
   // Solo el OWNER puede liquidar (marcar pagado); los demás con reports:read
@@ -139,6 +171,15 @@ export default async function ReportesPage({
           {banner.text}
         </p>
       )}
+
+      {/* Panel del Dueño (Agencia Grow): la lectura de negocio en lenguaje llano va
+          arriba de todo — es el "wow" del reporte, no un apéndice. */}
+      <OwnerPanel
+        insights={insights}
+        trends={trends}
+        hasPrevious={panel.hasPrevious}
+        monthsAnalyzed={panel.months.length}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         <div className="rounded-lg border border-line p-4">
