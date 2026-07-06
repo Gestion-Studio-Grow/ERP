@@ -53,5 +53,5 @@ next-env.d.ts
 _private/
 docs/internal/
 
-# PDFs generados por generar-pdf-cartera.mjs (artefactos, no versionar)
-Cartera-*.pdf
+# PDFs generados por los generadores del panel de la célula (artefactos, no versionar)
+celula-negocios-digitales/panel/*.pdf
