@@ -139,8 +139,9 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
           const p = byId.get(l.productId);
           const delta = lineDelta(l);
           return (
-            <div key={l.key} className="grid grid-cols-[1fr_120px_auto] items-center gap-2">
+            <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_120px_auto]">
               <Select
+                className="col-span-2 sm:col-span-1"
                 id={`prod-${l.key}`}
                 value={l.productId}
                 onChange={(e) => {
