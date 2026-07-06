@@ -122,6 +122,26 @@ TODO desarrollo.** Checklist corto que cada frente tilda **antes de pushear**:
 en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el handoff de PR/commit). La
 **Auditoría GSG que corre este Gate va SIEMPRE en Opus 4.8** (ver §3 del Modelo de trabajo, arriba).
 
+## 💸 CICLO DEMO → VENTA → INVERSIÓN — regla de gasto (OBLIGATORIA)
+
+**Regla dura de negocio de GSG, no salteable, aplicable a TODOS los negocios/preventas** (Magra, CH,
+Shine, A Dos Manos, Break Point y futuros). **No se invierte un peso hasta que la venta está concretada.**
+Encaja con **demo pública a costo cero** (`docs/metodologia/demo-publica-costo-cero.md`) y con las **dos
+fases de credenciales**:
+
+1. **DEMO — antes de la venta: cero gasto, cero datos reales.** Mientras la venta **NO** está concretada,
+   **todo queda en DEMO**: gratis, en la **URL gratuita** (`erp-ch.vercel.app/previews/…` o el probador
+   sandbox), **sin gastar un peso, sin datos reales, sin passwords, sin persistencia**. **No** se compra
+   dominio ni se activa login/base antes de vender.
+2. **VENTA — el disparador.** La inversión se habilita **RECIÉN cuando la venta se concreta** (OK
+   comercial del cliente). Antes de eso: nada de comprar link ni activar persistencia.
+3. **INVERSIÓN — después de la venta.** Recién ahí se **compra el dominio propio** y/o se **activa el
+   tenant con datos reales** (persistencia + login, RLS enforced). Los secretos/credenciales de la fase
+   real **los pega SIEMPRE el dueño, nunca el agente** (FASE 2 de credenciales).
+
+**En una línea:** *hasta que la venta esté concretada, todo es demo gratis en la URL gratuita; el dominio
+propio y la persistencia con datos reales son inversión POST-venta, nunca antes.*
+
 ## Autorización y gates (política push-libre)
 
 - **Autónomo hasta GitHub:** código → build → `tsc`/verificación → **gate de excelencia** → commit → **push a `main` (GitHub)** sin re-preguntar. GitHub es el destino por defecto de todo el trabajo.
