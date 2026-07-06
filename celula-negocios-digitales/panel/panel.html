@@ -107,7 +107,18 @@
   .wv .wt{font-weight:700;font-size:13px;display:flex;justify-content:space-between;gap:8px}
   .wv .wd{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);font-weight:500}
   .wv ul{margin:5px 0 0;padding-left:15px} .wv li{font-size:12px;color:var(--ink-soft);margin:2px 0}
-  .team{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .team{display:flex;flex-wrap:wrap;gap:8px}
+  .rolechip{font-family:var(--f-mono);font-size:12px;color:var(--ink-soft);background:var(--raised);border:1px solid var(--line);border-radius:7px;padding:7px 11px;font-weight:600}
+  .chart{display:flex;flex-direction:column;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:17px 18px;box-shadow:var(--shadow)}
+  .cbar{display:grid;grid-template-columns:104px 1fr auto;gap:12px;align-items:center}
+  .cbar .cl{font-weight:700;font-size:13.5px}
+  .cbar .ct{height:16px;background:var(--surface-2);border-radius:6px;overflow:hidden}
+  .cbar .ct i{display:block;height:100%;border-radius:6px}
+  .cbar .ct i.ok{background:linear-gradient(90deg,#2AA85C,var(--ok))}
+  .cbar .ct i.warn{background:linear-gradient(90deg,#E07A26,var(--warn))}
+  .cbar .cv{font-family:var(--f-mono);font-size:12.5px;font-weight:700;white-space:nowrap;text-align:right}
+  .cbar .cv span{display:block;font-weight:500;color:var(--muted);font-size:10px}
+  @media(max-width:600px){.cbar{grid-template-columns:76px 1fr}.cbar .cv{grid-column:1/-1;text-align:left}}
   .role{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:12px}
   .role .rn{font-weight:750;font-size:13.5px} .role .rd2{font-size:12px;color:var(--ink-soft);margin-top:5px}
   .runbook{display:flex;flex-direction:column;gap:8px;margin-top:12px}
@@ -183,6 +194,11 @@
     <div class="sortnote">▼ ordenado por Índice de Factibilidad</div>
   </div>
   <div class="board" id="board"></div>
+
+  <section class="sec">
+    <div class="sh"><h2>Potencial mensual · escenario realista</h2><span class="c">ganancia estimada a 6–12 meses · candidatos a producción</span></div>
+    <div class="chart" id="chart"></div>
+  </section>
 
   <section class="sec">
     <div class="sh"><h2>Reportería · qué cargó cada wave</h2><span class="c">el ciclo corre hasta que digas frená</span></div>
@@ -459,7 +475,10 @@ board('all');
 
 // waves / team / runbook
 document.getElementById('feed').innerHTML=WAVES.map(w=>`<div class="wv ${w.cls}"><div class="rl"><div class="rd"></div><div class="ln"></div></div><div><div class="wt"><span>${w.t}</span><span class="wd">${w.d}</span></div><ul>${w.items.map(i=>`<li>${i}</li>`).join('')}</ul></div></div>`).join('');
-document.getElementById('team').innerHTML=TEAM.map(r=>`<div class="role"><div class="rn">${r.i} ${r.n}</div><div class="rd2">${r.d}</div></div>`).join('');
+document.getElementById('team').innerHTML=TEAM.map(r=>`<span class="rolechip">${r.i} ${r.n}</span>`).join('');
+const CHART=[{n:'Kudos',v:4700,c:'ok'},{n:'Fantasma',v:4500,c:'warn'},{n:'Testigo',v:4300,c:'ok'},{n:'Plantillería',v:2500,c:'warn'}];
+const cmx=Math.max(...CHART.map(x=>x.v));
+document.getElementById('chart').innerHTML=CHART.map(x=>`<div class="cbar"><div class="cl">${x.n}</div><div class="ct"><i class="${x.c}" style="width:${Math.round(x.v/cmx*100)}%"></i></div><div class="cv">US$${x.v.toLocaleString('es-AR')}/mes<span>≈ $${arsOf(x.v)} ARS</span></div></div>`).join('');
 document.getElementById('runbook').innerHTML=RUNBOOK.map(s=>`<div class="rb"><div class="rbn">${RUNBOOK.indexOf(s)}</div><div><div class="rbt">${s.t} <span class="own">${s.o}</span> ${s.gate?`<span class="gate">🔒 ${s.gate}</span>`:''}</div><div class="rbd">${s.d}</div></div></div>`).join('');
 
 // drawer
@@ -492,44 +511,34 @@ document.getElementById('dwx').addEventListener('click',close);
 ov.addEventListener('click',close);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
 
-// ===== WebGL perspective grid (sports / speed) =====
+// ===== WebGL perspective grid — RENDER ESTÁTICO (GPU, sin loop = rápido) =====
 (function(){
- const cv=document.getElementById('gl');let gl;try{gl=cv.getContext('webgl')}catch(e){}
+ const cv=document.getElementById('gl');let gl;try{gl=cv.getContext('webgl',{antialias:false,depth:false,powerPreference:'low-power'})}catch(e){}
  if(!gl){cv.style.display='none';return;}
  const vs=`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`;
- const fs=`precision highp float;uniform vec2 R;uniform float T;
+ const fs=`precision mediump float;uniform vec2 R;
  void main(){
   vec2 uv=(gl_FragCoord.xy-0.5*R)/R.y;
   vec3 col=vec3(0.047,0.055,0.067);
   float hz=0.30;
   if(uv.y<hz){
    float z=1.0/(hz-uv.y+0.02);
-   float x=uv.x*z;
-   float sp=T*0.9;
-   vec2 g=vec2(x*1.2, z*0.9 - sp);
+   vec2 g=vec2(uv.x*z*1.2, z*0.9 - 7.0);
    vec2 gr=abs(fract(g)-0.5);
    float line=smoothstep(0.055,0.0,min(gr.x,gr.y));
    float fade=exp(-z*0.11);
-   vec3 yellow=vec3(0.96,0.82,0.05);
-   col=mix(col,yellow,line*fade*0.9);
-   col+=yellow*0.10*fade;
+   vec3 y=vec3(0.96,0.82,0.05);
+   col=mix(col,y,line*fade*0.9)+y*0.10*fade;
   }
   col+=vec3(0.96,0.82,0.05)*smoothstep(0.02,0.0,abs(uv.y-hz))*0.25;
-  float vig=1.0-0.5*dot(uv,uv);
-  gl_FragColor=vec4(col*vig,1.0);
+  gl_FragColor=vec4(col*(1.0-0.5*dot(uv,uv)),1.0);
  }`;
  function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
  const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);gl.useProgram(pr);
  const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
  const lp=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,2,gl.FLOAT,false,0,0);
- const uR=gl.getUniformLocation(pr,'R'),uT=gl.getUniformLocation(pr,'T');
- const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
- function size(){const dpr=Math.min(devicePixelRatio||1,1.6);cv.width=cv.clientWidth*dpr;cv.height=cv.clientHeight*dpr;gl.viewport(0,0,cv.width,cv.height);}
- let t0=0;
- function frame(ms){const t=reduce?6.0:ms*0.001;size();gl.uniform2f(uR,cv.width,cv.height);gl.uniform1f(uT,t);gl.drawArrays(gl.TRIANGLES,0,3);if(!reduce&&!document.hidden)requestAnimationFrame(frame);}
- requestAnimationFrame(frame);
- if(reduce){size();gl.uniform2f(uR,cv.width,cv.height);gl.uniform1f(uT,6.0);gl.drawArrays(gl.TRIANGLES,0,3);}
- addEventListener('resize',()=>{if(reduce){size();gl.uniform2f(uR,cv.width,cv.height);gl.drawArrays(gl.TRIANGLES,0,3);}});
- document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!reduce)requestAnimationFrame(frame)});
+ const uR=gl.getUniformLocation(pr,'R');
+ function render(){const dpr=Math.min(devicePixelRatio||1,1.3);const w=Math.round(cv.clientWidth*dpr),h=Math.round(cv.clientHeight*dpr);if(!w||!h)return;cv.width=w;cv.height=h;gl.viewport(0,0,w,h);gl.uniform2f(uR,w,h);gl.drawArrays(gl.TRIANGLES,0,3);}
+ render();let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,160)});
 })();
 </script>
