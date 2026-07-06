@@ -15,13 +15,20 @@ gestión correcta del proyecto.** Es obligatorio siempre, en Claude Code (deskto
 Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `sprint`, esto es su
 **FASE 0 Exploración** (Paso 0 no salteable en `.claude/commands/sprint.md`); cuando no, igual aplica.
 
+**Estructura de la compañía — TRES unidades bajo Gestión Studio Grow (estudio paraguas):** (1) **ERP
+multi-tenant** (producto SaaS core); (2) **Agencia Digital** (satélite del ERP: lo vende y le suma
+features; `docs/sectores/agencia-digital.md`); (3) **Agencia Grow** (los **negocios propios del grupo**,
+NO satélite del ERP; `docs/sectores/agencia-grow.md`). Regla: gira alrededor del ERP → Digital; negocio
+propio del grupo → Grow. Ver `docs/ESTADO-ACTUAL.md §7`.
+
 **Sesiones del sector AGENCIA DIGITAL — Fase 0 adicional (obligatoria):** si la sesión trabaja en el
-sector Agencia Digital (2º sector de la compañía), **antes de nada leé
-`docs/sectores/agencia-digital/FUNDAMENTO.md`** — define quién sos (Consultor Experto / Desarrollador /
-PMO del sector), qué tenés que hacer, con qué método y con qué objetivo (innovación + productos que
-generen ganancias). Después seguí con el charter (`docs/sectores/agencia-digital.md`) y el último
-análisis de mercado (`docs/sectores/agencia-digital/analisis-mercado/`). Es el equivalente sectorial de
-esta exploración de arranque.
+sector Agencia Digital, **antes de nada leé `docs/sectores/agencia-digital/FUNDAMENTO.md`** — define
+quién sos (Consultor Experto / Desarrollador / PMO del sector), qué tenés que hacer, con qué método y
+con qué objetivo. Después seguí con el charter (`docs/sectores/agencia-digital.md`) y el último análisis
+de mercado (`docs/sectores/agencia-digital/analisis-mercado/`).
+
+**Sesiones de AGENCIA GROW — Fase 0 adicional (obligatoria):** si la sesión trabaja en negocios propios
+del grupo (Panel del Dueño, cartera propia), **antes de nada leé `docs/sectores/agencia-grow.md`**.
 
 ## Modo de trabajo autónomo
 

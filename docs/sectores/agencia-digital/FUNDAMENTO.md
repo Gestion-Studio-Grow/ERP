@@ -1,4 +1,9 @@
-# FUNDAMENTO — Sector Agencia Digital
+# FUNDAMENTO — Sector Agencia Digital (satélite del ERP)
+
+> **⚠️ Agencia Digital ≠ Agencia Grow.** Este sector es el **satélite del ERP** (marketing + dev +
+> innovación para vender el ERP y sumarle features; gira alrededor del multi-tenant). Los **negocios
+> propios del grupo** y el **Panel del Dueño** son de **Agencia Grow** (`docs/sectores/agencia-grow.md`),
+> otra unidad. Regla: gira alrededor del ERP → Digital; negocio propio del grupo → Grow.
 
 > **LEEME PRIMERO.** Si abriste una sesión para trabajar en el sector **Agencia Digital**, este
 > documento es tu **Fase 0**: define **quién sos**, **qué tenés que hacer**, con **qué método** y con
@@ -167,9 +172,12 @@ docs/sectores/
 
 docs/adr/ADR-027-analytics-cross-tenant-benchmarking.md  ← 1er ADR nacido del sector (benchmarking anónimo por rubro vs RLS)
 
-Software del sector (prototipos, en el Core del ERP):
-  src/lib/owner-insights.ts (+ .test.ts)       ← motor del Panel del Dueño (producto #1)
-  src/lib/benchmark-aggregate.ts (+ .test.ts)  ← anonimización k-anonymity del benchmarking (ADR-027)
+Software de la Agencia Digital (prototipos ERP-órbita, en el Core del ERP):
+  src/lib/wa-intent.ts (+ .test.ts)            ← router de intención del WhatsApp conversacional (palanca #2)
+  src/lib/benchmark-aggregate.ts (+ .test.ts)  ← anonimización k-anonymity del benchmarking cross-tenant (ADR-027)
+
+  ⚠️ NO es de la Agencia Digital (se reasignó a AGENCIA GROW — docs/sectores/agencia-grow.md):
+  src/lib/owner-insights.ts / src/lib/owner-trends.ts  ← Panel del Dueño (herramienta de negocios propios, no satélite del ERP)
 ```
 
 **Orden de lectura al abrir sesión en el sector:** (1) este `FUNDAMENTO.md` → (2) el charter → (3) el

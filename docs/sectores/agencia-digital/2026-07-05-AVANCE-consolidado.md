@@ -1,5 +1,11 @@
 # AVANCE CONSOLIDADO — Sector Agencia Digital (2026-07-05)
 
+> **⚠️ Nota posterior (2026-07-05):** este informe es de cuando "Agencia Digital" abarcaba también los
+> negocios propios. Tras separar las **tres unidades** (ver `docs/sectores/agencia-grow.md` y
+> `ESTADO-ACTUAL.md §7`): el **Panel del Dueño** y el **Benchmarking** que abajo figuran juntos se
+> repartieron — **Panel del Dueño → Agencia Grow**; **Benchmarking cross-tenant y WhatsApp → Agencia
+> Digital**. El resto del informe se mantiene como snapshot histórico.
+
 > **Para pasarle al dueño esta noche.** Estado del sector Agencia: qué se construyó, qué plata puede
 > generar y por dónde seguimos. Todo commiteado en GitHub (repo `estetica-erp`, rama `main`). Es
 > documentación + prototipos de software; **no se tocó producción, ni la base (Neon), ni se publicó nada

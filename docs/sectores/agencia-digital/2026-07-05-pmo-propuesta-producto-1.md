@@ -1,5 +1,11 @@
 # PMO del sector — Propuesta de Producto #1 para Desarrolladores (2026-07-05)
 
+> **⚠️ REASIGNADO A AGENCIA GROW (2026-07-05).** El "Panel del Dueño" es de **Agencia Grow** (negocios
+> propios del grupo), **no** de Agencia Digital — ver `docs/sectores/agencia-grow.md`. Este archivo
+> queda en esta carpeta solo para no romper la referencia de `src/lib/owner-insights.ts`; su **gobierno
+> es de Grow**. El enmarque de "doble propósito / tier premium del ERP / demo de go-to-market" que sigue
+> abajo es del análisis original y quedó **superado** por la separación de las tres unidades.
+
 **Autor:** PMO del sector Agencia (rol proactivo — `FUNDAMENTO.md` §1) · **Para:** equipo de
 Desarrolladores · **Base:** los 3 análisis de mercado del sector + ADR-027 · **No toca prod ni Neon;
 esto es la especificación/handoff, no la construcción.**

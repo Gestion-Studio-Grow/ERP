@@ -169,12 +169,24 @@ de integrar el cambio de representación de dinero.
 
 ---
 
-## 7. Estado por frente/core — LOS DOS SECTORES
+## 7. Estado por frente/core — GESTIÓN STUDIO GROW + SUS TRES UNIDADES
 
-Modelo: cada sesión es dueña de un core/frente; PMO por encima de ambos sectores (ver
+**Estructura de la compañía (regla definitiva del dueño, 2026-07-05):** el **estudio paraguas
+Gestión Studio Grow** tiene **TRES** unidades, no dos:
+
+| Unidad | Qué es | ¿Gira alrededor del ERP? | Charter |
+|---|---|---|---|
+| **1. ERP multi-tenant** | El producto SaaS core | — (es el producto) | `FUNDAMENTOS-Y-VISION.md` |
+| **2. Agencia Digital** | Satélite del ERP: marketing + dev + innovación para venderlo y sumarle features | ✅ Sí | `docs/sectores/agencia-digital.md` |
+| **3. Agencia Grow** | Los **negocios propios del grupo**, con beneficio | ❌ No | `docs/sectores/agencia-grow.md` |
+
+> Antes esto figuraba como "2 sectores" (ERP + Agencia Digital), con Grow **fusionada** dentro de
+> Digital. Separadas el 2026-07-05: el Panel del Dueño pasó a Grow; Digital quedó limpia (satélite ERP).
+
+Modelo: cada sesión es dueña de un core/frente; PMO por encima de las tres unidades (ver
 `docs/METODOLOGIA-SPRINT.md`).
 
-### Sector A — ERP multi-tenant
+### Unidad 1 — ERP multi-tenant
 | Core | Estado del frente |
 |---|---|
 | **Pagos** | adapter REST MP + dispatch de gateway por tenant en main; falta checkout/seña + credenciales OAuth |
@@ -184,14 +196,22 @@ Modelo: cada sesión es dueña de un core/frente; PMO por encima de ambos sector
 | **Plataforma** | observabilidad v2 + reporting + `FORCE_TENANT_SLUG` + **fix del gate RLS** en main; **RLS a prod es su Gate clave (#1)** |
 | **Diseño** (ahora core) | sistema de diseño/tokens/branding; adopción por pantallas admin pendiente |
 
-### Sector B — Agencia Digital
+### Unidad 2 — Agencia Digital (satélite del ERP)
 Charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md`. **Misma metodología y PMO, repos/deploys
-SEPARADOS** del ERP. Visión: **la Agencia es el go-to-market del propio ERP** (vende ERP/ARCA/storefront).
+SEPARADOS** del ERP. Visión: **satélite del ERP** — vender el ERP y sumarle features (go-to-market).
 | Frente | Estado |
 |---|---|
-| **Consultores / Análisis de mercado** | análisis en `analisis-mercado/`; **alcance definido: CABA + local + online**; **informe nocturno en preparación** |
-| **Desarrolladores** | **construyendo productos** (los que Consultores validan; go-to-market del propio ERP/ARCA/storefront) |
-| **PMO proactivo (Agencia)** | visión y alcance definidos; coordinando la construcción de productos + el informe nocturno |
+| **Consultores / Análisis de mercado** | 5 análisis en `analisis-mercado/`; alcance **CABA + local + online** |
+| **Desarrolladores** | **WhatsApp conversacional** (`src/lib/wa-intent.ts` + test 🟢) + **benchmarking cross-tenant** (`src/lib/benchmark-aggregate.ts` + test 🟢, ADR-027) — ambos ERP-órbita |
+| **PMO proactivo (Agencia)** | visión y alcance definidos; coordina construcción + informe nocturno |
+
+### Unidad 3 — Agencia Grow (negocios propios del grupo)
+Charter `docs/sectores/agencia-grow.md`. **NO es satélite del ERP:** desarrolla los negocios propios del
+grupo, con beneficio para los dueños. Separada de Digital el 2026-07-05.
+| Frente | Estado |
+|---|---|
+| **Panel del Dueño** | `src/lib/owner-insights.ts` + `src/lib/owner-trends.ts` (+ tests 🟢) — insights/tendencias de negocio single-tenant. Spec en `docs/sectores/agencia-digital/2026-07-05-pmo-propuesta-producto-1.md` (queda ahí por refs de código; es de Grow) |
+| **Cartera de negocios propios** | ⚠️ **a confirmar por el dueño:** `dos-manos-padel`, `shine-velas`, `crypto-bot`, `standup-board` (carpetas hermanas fuera de `estetica-erp`) — candidatos, sin tocar |
 
 ---
 
