@@ -93,6 +93,31 @@ antes de trabajar. El **PMO verifica el etiquetado** al despachar cada frente.
 Preset por IA** exige **autorización registrada del cliente** antes de replicar su marca (sin OK explícito
 **no se genera ni se muestra**) y su salida pasa el **Gate bloqueante** antes de mostrarse al cliente.
 
+## 🌊 CONCURRENCIA Y PRIORIDADES — regla de operación (OBLIGATORIA, foco en demos)
+
+Norma dura de operación de GSG para no saturar el servicio y **concentrar los recursos escasos en lo que
+vende**. Complementa el modelo de células por capa (arriba) y la escala del sprint.
+
+**Tope de concurrencia:** **nunca más de 4 sesiones corriendo a la vez.** Se abre/mueve **de a olas
+chicas**. Abrir *worktrees* de más está OK (quedan ociosos); lo que se limita es cuántas sesiones
+**corren en simultáneo** (≤ 4). Si hay más frentes que cupo, entran por olas según la prioridad de abajo.
+
+**Prioridades (foco: lo que concreta ventas), sobre todo en congestión:**
+- **P1 — SIEMPRE corre (demos y venta):** demo público · previews con link · probador (backoffice sin
+  contraseña) · adaptador self-serve · **publicar los tenants que falten** (Magra, satélites).
+- **P2 — corre si hay lugar (habilitadores):** verificar/encender la base · generador de preset por IA ·
+  seguridad pre-cobros.
+- **P3 — se pausa en congestión (bajo impacto):** investigación de nuevas líneas de negocio (3D / bajo
+  capital) · retoques cosméticos de productos ya publicados · deuda de lint/tests heredada · métrica de
+  costo / robustecimiento de la factory.
+
+**En congestión: solo P1, máximo 4 a la vez; P2 espera; P3 pausado.**
+
+**El porqué:** abrir demasiadas sesiones a la vez **satura el servicio** ("servicio ocupado") y frena
+todo. El tope de 4 + las olas chicas mantienen la fluidez; las prioridades garantizan que, cuando la
+capacidad escasea, el trabajo que **genera ventas (demos)** siempre corre y lo de bajo impacto cede el
+lugar. Es coherente con el ciclo **DEMO → VENTA → INVERSIÓN**: primero lo que vende.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
