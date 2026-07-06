@@ -75,6 +75,7 @@ export const RETAIL_RUBRO_HINTS: { id: string; keywords: string[] }[] = [
   { id: "fiambreria", keywords: ["fiambreria", "fiambres", "queseria", "quesos", "picada"] },
   { id: "indumentaria", keywords: ["indumentaria", "ropa", "boutique", "moda", "textil", "vestimenta"] },
   { id: "padel", keywords: ["padel", "pádel", "paddle", "palas", "paletas", "zapatillas de padel", "tienda de padel"] },
+  { id: "velas", keywords: ["velas", "vela", "aromas", "aromatizante", "difusor", "difusores", "fragancia", "soja", "deco", "hogar", "bazar"] },
 ];
 
 // Wording del rubro para la vidriera, resuelto por el slug del tenant (mientras no

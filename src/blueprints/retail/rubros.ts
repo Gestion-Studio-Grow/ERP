@@ -272,35 +272,60 @@ const indumentaria: RetailRubro = {
   ],
 };
 
-// --- Velas / deco (rubro de `shinevelas`) — tienda de productos por unidad ---
+// --- Velas, aromas & deco / Bazar de experiencia (rubro de `shinevelas`) ---
+// Rubro VISUAL y EXPERIENCIAL — no es sólo vender velas: es velas (aromáticas,
+// decorativas, artesanales) + aromas + DECORACIÓN para el hogar + accesorios del
+// ritual. Todo venta por unidad, sin balanza. Las SECCIONES del catálogo salen del
+// clasificador por nombre (src/lib/storefront-visual.ts → productSection). Arquetipo
+// informado por el negocio real de Shine; el branding/copy REALES viven en el tenant.
+// Precios PROVISIONALES (ARS, mediados 2026), a confirmar por el negocio.
 const velas: RetailRubro = {
   id: "velas",
   label: "Velas & deco",
   wording: {
-    catalogHeading: "Nuestras velas",
+    catalogHeading: "La colección",
     itemNoun: "producto",
-    heroTagline: "Velas artesanales y aromas para tu casa. Elegí las tuyas y hacé tu pedido.",
-    orderCta: "Enviar pedido",
+    heroTagline: "Velas, aromas y decoración para transformar tu casa en un ambiente. Armá el tuyo.",
+    orderCta: "Hacer pedido",
     weightNote: null,
   },
-  modules: ["pos", "stock", "venta-unidad", "listas-precio", "proveedores"],
+  modules: ["pos", "stock", "venta-unidad", "proveedores"],
   brandingDefaults: {
-    shortLabel: "Shine · velas artesanales",
-    city: "Buenos Aires",
-    hoursLabel: "Lun a sáb · 10 a 19 h",
-    contactNote: "Velas artesanales y aromas para el hogar.",
+    shortLabel: "Velas · aromas · deco",
+    city: "CABA",
+    hoursLabel: "Lun a vie · 10 a 18 h · pedidos por WhatsApp",
+    contactNote: "Velas de soja, difusores, decoración y accesorios hechos y elegidos a mano.",
   },
+  // Catálogo experiencial: velas (aromáticas/decorativas/artesanales), aromas,
+  // decoración para el hogar y accesorios del ritual. Los nombres alimentan las
+  // secciones de la vidriera (ver productSection). Precios ARS provisionales.
   catalog: [
-    { name: "Vela aromática chica", sale: "u", price: 4500, stock: 40 },
-    { name: "Vela aromática grande", sale: "u", price: 8900, stock: 30 },
-    { name: "Vela de soja en vaso", sale: "u", price: 7200, stock: 25 },
-    { name: "Set 3 velas de té", sale: "u", price: 3900, stock: 50 },
+    // Velas aromáticas (soja + mecha de algodón)
+    { name: "Vela Vainilla y Canela", sale: "u", price: 8500, stock: 24 },
+    { name: "Vela Flor de Naranjo", sale: "u", price: 8500, stock: 24 },
+    { name: "Vela Sándalo", sale: "u", price: 9000, stock: 20 },
+    { name: "Vela Lavanda", sale: "u", price: 8500, stock: 22 },
+    // Velas decorativas
     { name: "Vela decorativa tallada", sale: "u", price: 11900, stock: 15 },
-    { name: "Difusor de aromas", sale: "u", price: 9800, stock: 20 },
-    { name: "Sahumerios (pack x6)", sale: "u", price: 3200, stock: 60 },
-    { name: "Portavela de cerámica", sale: "u", price: 6500, stock: 18 },
-    { name: "Vela de masaje", sale: "u", price: 8200, stock: 12 },
-    { name: "Caja regalo (2 velas)", sale: "u", price: 15900, stock: 16 },
+    { name: "Vela en copa de vidrio ámbar", sale: "u", price: 10500, stock: 18 },
+    // Velas artesanales
+    { name: "Vela artesanal de cera de abeja", sale: "u", price: 9800, stock: 16 },
+    { name: "Vela de masaje humectante", sale: "u", price: 8900, stock: 14 },
+    // Aromas
+    { name: "Difusor Coco y Vainilla", sale: "u", price: 11000, stock: 18 },
+    { name: "Difusor Jazmín", sale: "u", price: 11000, stock: 16 },
+    { name: "Difusor Cedro y Ámbar", sale: "u", price: 11500, stock: 14 },
+    { name: "Aromatizante Textil Flores Blancas", sale: "u", price: 6500, stock: 30 },
+    { name: "Sahumerios de sándalo (pack x6)", sale: "u", price: 3200, stock: 60 },
+    { name: "Home spray Lavanda", sale: "u", price: 7200, stock: 24 },
+    // Decoración para el hogar
+    { name: "Portavela de cerámica artesanal", sale: "u", price: 6500, stock: 20 },
+    { name: "Bandeja deco de madera", sale: "u", price: 9400, stock: 16 },
+    { name: "Florero de vidrio soplado", sale: "u", price: 12800, stock: 12 },
+    { name: "Espejo decorativo redondo", sale: "u", price: 18900, stock: 8 },
+    // Accesorios del ritual
+    { name: "Cortamechas de acero", sale: "u", price: 5200, stock: 24 },
+    { name: "Fósforos largos deco (frasco)", sale: "u", price: 3800, stock: 40 },
   ],
 };
 

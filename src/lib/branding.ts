@@ -56,6 +56,9 @@ const TENANTS: Record<string, TenantBrand> = {
   "beauty-spa": { name: "CH Estética", monogram: "CH", preset: "petroleo", frontTheme: "light" },
   // Magra (carnicería): vidriera clara → admin oscuro. Acento oxblood de marca.
   "magra": { name: "Magra", monogram: "M", preset: "oxblood", frontTheme: "light" },
+  // Shine (velas de soja): vidriera clara cálida → admin oscuro. Acento ámbar/dorado,
+  // el "shine" de una llama de vela. Ver src/tenants/storefront.ts (copy) y rubro `velas`.
+  "shinevelas": { name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light" },
 };
 
 const DEFAULT_BRAND: TenantBrand = {
