@@ -35,10 +35,21 @@
 - **🎨 Creativos + 📊 Analíticos:** la capa horizontal de generación+análisis.
 - **⚔️ Red-team (2):** el filtro adversarial antes de cada entrega.
 - **🛠️ Desarrolladores:** construyen lo validado, en carpetas aisladas (`productos/<slug>/`).
+- **📣 Reportero ejecutivo (NUEVO):** mantiene vivo el tablero `STATUS-NEGOCIOS.md` — la lista
+  autocontenida de TODOS los negocios (qué es de cero + estado + números precisos), escrita para que
+  alguien sin contexto la entienda. Lo refresca al cierre de cada ciclo y cuando el dueño pide "status".
+- **🔎 Scout de mercado (a demanda):** se suma cuando hace falta traer señales nuevas o evitar repetir
+  negocios; alimenta a los creativos del ciclo siguiente.
+
+## Entregable permanente para el dueño
+- **`STATUS-NEGOCIOS.md`** es el parte de situación estable: se pide con **"status"** y siempre tiene la
+  lista completa de negocios, su estado y los números clave (build, COGS, precio, margen, break-even).
 
 ## Cadencia
 - **1 sprint / semana** por defecto (configurable). Se dispara con un **trigger recurrente** que reabre
-  el ciclo y reporta al dueño. **Pausable en cualquier momento** (decilo y lo freno).
+  el ciclo, refresca `STATUS-NEGOCIOS.md` y reporta al dueño.
+- **El ciclo corre HASTA QUE EL DUEÑO LO FRENE.** Se pausa cuando el dueño dice "frená" (el PMO
+  desactiva el trigger); se reanuda cuando dice "seguí".
 - Cada ciclo **no repite** negocios ya cubiertos: busca ángulos nuevos o profundiza sobrevivientes.
 
 ## Reglas permanentes (aprendidas en los ciclos 1-2)
