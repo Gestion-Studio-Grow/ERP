@@ -180,6 +180,7 @@
     <div class="badges">
       <span class="badge live"><span class="dot"></span>Ciclo semanal activo</span>
       <span class="badge">🔒 Local · sin publicar</span>
+      <span class="badge">💵 US$1 = $1.489 (BNA 06·07)</span>
       <span class="badge" id="upd">Act. 06·07·2026</span>
     </div>
   </header>
@@ -247,8 +248,9 @@
 <script>
 const DATA=[
  {cat:'dev',name:'Kudos',tag:'Reseñas en piloto automático · Activo',st:'dev',label:'En desarrollo',
+  cliente:{primero:'Arrancar por la red caliente: un local conocido (peluqueria o restaurante del barrio) como beta pago. La venta la cierra una demo de 5 minutos mostrando su ranking de hoy contra como quedaria — el before/after de estrellas se vende solo.',mas:'Venta por rubro (todas las peluquerias, despues todas las cafeterias) + referidos entre comercios de la misma zona (los duenos se conocen) + un caso de exito con numeros reales. Canal frio: outreach por WhatsApp/Instagram mostrandole su reputacion actual.'},
   opera:'Maria tiene una peluqueria. Pega el QR de Kudos en el mostrador; un cliente contento lo escanea y deja 5★ en Google. Otro deja 3★ quejandose de la espera y Kudos le responde en 2 minutos con una disculpa y una solucion. A fin de mes Maria paso de 4,2 a 4,6★ y aparece primera en el mapa de su barrio — sin haber tocado nada.',
-  roi:{arr:'2–3 semanas de trabajo + ~US$200 (infra, WhatsApp, dominio).',real:'A los ~6 meses con 15 locales: US$1.800/mes de ingreso, ~US$75 de costo → ≈ US$1.700/mes de ganancia. A los 12 meses con 40 locales: ≈ US$4.700/mes.',pay:'El cash se recupera con el 2º local; el esfuerzo de build se paga en el primer mes a 15 locales.'},
+  roi:{arr:'2–3 semanas de trabajo del equipo + ~US$200 en efectivo, desglosado: WhatsApp Business API ~US$50, hosting + dominio ~US$30, setup de Google Business ~US$20 y ~US$100 de credito de IA para las pruebas. El grueso es tiempo, no plata.',real:'A los ~6 meses con 15 locales: US$1.800/mes de ingreso, ~US$75 de costo → ≈ US$1.700/mes de ganancia. A los 12 meses con 40 locales: ≈ US$4.700/mes.',pay:'El cash se recupera con el 2º local; el esfuerzo de build se paga en el primer mes a 15 locales.'},
   quees:'Un servicio que le consigue reseñas de 5★ a un comercio (QR en el ticket o WhatsApp después de la compra) y responde el 100% de las reseñas con la voz de la marca. Más reseñas buenas = más ventas y mejor ranking en Google.',
   construir:'Webhook de Google Business Profile + WhatsApp + generador de respuestas con Claude Sonnet (voz de marca cacheada) + tablero de estrellas. El corazón ya está: rutea 1★→revisión humana / 5★→autopublica, escala temas sensibles y cumple la política anti-"gating" de Google.',
   cobra:'Suscripción US$99–149/mes por local + setup opcional US$100–200. En pesos por Mercado Pago o USD por Merchant of Record.',
@@ -260,8 +262,9 @@ const DATA=[
   path:['Cablear IA real + Google Business Profile','Probar 50+ reseñas reales y afinar el ruteo','Marca + landing "gestionamos tus reseñas"','Cobro MP US$99–149 + facturación','Conseguir 2–3 locales beta de la red cercana (demo 5 min)','Operar: reporte mensual de estrellas = ROI']},
 
  {cat:'dev',name:'Fantasma',tag:'El turno noche de WhatsApp · Activo',st:'dev',label:'En desarrollo',
+  cliente:{primero:'Una pyme con dolor obvio de perder consultas de noche (barberia, gomeria, delivery). Demo imbatible: correr Fantasma un fin de semana gratis y mostrarle el reporte de los leads que se le hubieran escapado. El numero real cierra la venta.',mas:'Por rubro (el mismo guion sirve para todas las barberias) + referidos + contenido en redes mostrando conversaciones reales rescatadas. El reporte del lunes es material de marketing solo.'},
   opera:'Una barberia cierra a las 20h. A las 23h un cliente escribe: "cuanto sale corte + barba y tienen turno el sabado?". Fantasma le contesta al toque, le cotiza, le agenda el sabado 11h y le manda el link de sena por Mercado Pago. El lunes el dueno abre el reporte: "9 turnos agendados de noche que se hubieran perdido".',
-  roi:{arr:'1–2 semanas + ~US$150.',real:'A los ~4 meses con 8 clientes: US$1.600/mes, ~US$160 de costo → ≈ US$1.440/mes. A los ~8 meses con 25 clientes: ≈ US$4.500/mes.',pay:'El cash se recupera con el primer cliente. Es el de caja mas rapida: primer cobro en 2–3 semanas.'},
+  roi:{arr:'1–2 semanas + ~US$150 en efectivo: WhatsApp Business API ~US$50, hosting ~US$30, cuenta de Mercado Pago gratis y ~US$70 de credito de IA para afinar el agente.',real:'A los ~4 meses con 8 clientes: US$1.600/mes, ~US$160 de costo → ≈ US$1.440/mes. A los ~8 meses con 25 clientes: ≈ US$4.500/mes.',pay:'El cash se recupera con el primer cliente. Es el de caja mas rapida: primer cobro en 2–3 semanas.'},
   quees:'Un empleado de IA que atiende el WhatsApp del negocio fuera de horario (noche y fin de semana): responde, cotiza, agenda y deja los clientes calientes anotados para la mañana. El lunes entrega un reporte de "la plata que se hubiera escapado".',
   construir:'Reúsa el stack WhatsApp + agente Claude Sonnet + Mercado Pago. Corazón construido: máquina de estados con dos límites de margen, motor de COGS por conversación y pricing por uso. Typechea limpio y la demo corre (cotiza, agenda, genera link de pago).',
   cobra:'Suscripción POR USO (tope + excedente), nunca plana: Básica US$120/100 conv · Pro US$249/250 · Full US$399/500. El excedente siempre supera el costo → cada conversación extra es rentable. + fee opcional por lead.',
@@ -273,8 +276,9 @@ const DATA=[
   path:['Cablear Sonnet real + validar COGS con 20 conversaciones','Setear WhatsApp Business API + guion por rubro','Marca + landing "contratá el turno noche"','Cobro por uso (tope+excedente) + MP','Primer piloto: una pyme con mucho WhatsApp nocturno','Reporte del lunes de leads rescatados']},
 
  {cat:'dev',name:'Testigo',tag:'Parte de trabajo por foto+audio · Activo',st:'dev',label:'En desarrollo',
+  cliente:{primero:'Un contratista faro de control de plagas (3-8 operarios): se le arma gratis el primer mes a cambio de ser caso de exito. El parte para bromatologia es un must, no un nice-to-have, asi que el dolor es real.',mas:'Por rubro y por camara/gremio (asociaciones de control de plagas) + boca a boca entre contratistas + el cliente final (el restaurante que recibe el parte) pregunta "quien te lo hace?". Despues, rubros adyacentes: obras, mantenimiento, jardineria.'},
   opera:'Una empresa de fumigacion termina un trabajo en un restaurante. El operario saca 2 fotos y manda un audio: "apliqué tal producto, foco en cocina y deposito, reingreso en 4 horas". Testigo arma el certificado con las fotos, el detalle y la firma y se lo envia al restaurante, que lo necesita si o si para bromatologia. El contratista entrega algo profesional y cobra mas caro.',
-  roi:{arr:'3–4 semanas + ~US$200.',real:'A los ~6 meses con 10 contratistas (≈50 operarios): ≈ US$1.000/mes casi todo ganancia. A los 12 meses con 40 cuadrillas: ≈ US$4.000–4.500/mes.',pay:'El cash se recupera con el primer contratista. Retencion altisima → ingreso muy estable una vez instalado.'},
+  roi:{arr:'3–4 semanas + ~US$200 en efectivo: WhatsApp API ~US$50, hosting ~US$30, transcripcion de audio + generacion de PDF ~US$40 y ~US$80 de credito de IA para las pruebas.',real:'A los ~6 meses con 10 contratistas (≈50 operarios): ≈ US$1.000/mes casi todo ganancia. A los 12 meses con 40 cuadrillas: ≈ US$4.000–4.500/mes.',pay:'El cash se recupera con el primer contratista. Retencion altisima → ingreso muy estable una vez instalado.'},
   quees:'Para plomeros, obras, jardineros, fumigadores. El operario manda una foto + un audio por WhatsApp y recibe un informe de trabajo profesional (foto antes/después, checklist, firma) en PDF para mostrarle al cliente. Hace que el laburo se vea prolijo y se cobre más caro.',
   construir:'Ingesta WhatsApp (foto+voz) → transcripción + Claude Sonnet estructura el parte → PDF. Corazón construido con salida estructurada y una regla dura: nunca inventa datos regulatorios (los marca pendientes y repregunta). Rubro faro elegido: control de plagas (el parte es obligatorio por bromatología).',
   cobra:'Suscripción US$15–30 por operario/mes (un contratista de 5 = US$75–150/mes). MP o USD.',
@@ -286,8 +290,9 @@ const DATA=[
   path:['Webhook WhatsApp + transcripción + PDF real end-to-end','Pulir la plantilla del parte de control de plagas','Marca + landing del rubro','Cobro US$15–30/operario + MP','Contratista faro de control de plagas (3–8 operarios)','Onboarding por rubro + soporte']},
 
  {cat:'dev',name:'Plantillería',tag:'Plantillas para Argentina · Pasivo',st:'dev',label:'En desarrollo',
+  cliente:{primero:'SEO long-tail transaccional ("planilla control monotributo excel") + un posteo organico en comunidades (grupos de monotributistas, emprendedores) con la plantilla estrella. La primera venta llega en dias si una pieza de contenido engancha.',mas:'Contenido continuo (Reels/TikTok mostrando la plantilla en uso) + marketplaces (Notion, Hotmart, Mercado Libre) + reviews + sumar SKUs y bundles + creadores que la recomienden. Es 60% distribucion: aca se gana o se pierde el negocio.'},
   opera:'Un monotributista busca en Google "planilla control monotributo excel". Llega a la tienda, compra la plantilla a US$29 y la descarga al instante. Carga sus ingresos del mes y ve el semaforo que le avisa si esta por pasarse de categoria. Vos no tocaste nada: la misma plantilla se vendio otras 40 veces ese mes.',
-  roi:{arr:'1–2 semanas + ~US$150.',real:'Meses 1–2: 10–20 ventas (US$350–700). A los ~5 meses, con catalogo + distribucion: meseta de ~37 ventas/mes ≈ US$1.000/mes. Con mas plantillas y audiencia: US$2.000–3.000/mes.',pay:'El cash se recupera con las primeras ~5 ventas. Al ser pago unico, el ingreso depende del trafico, no de la retencion.'},
+  roi:{arr:'1–2 semanas + ~US$150 en efectivo: dominio + hosting ~US$40, cuenta de Lemon Squeezy gratis (cobra comision por venta) y ~US$110 en plantillas base, diseno y pruebas. Casi todo es diseno, no infra.',real:'Meses 1–2: 10–20 ventas (US$350–700). A los ~5 meses, con catalogo + distribucion: meseta de ~37 ventas/mes ≈ US$1.000/mes. Con mas plantillas y audiencia: US$2.000–3.000/mes.',pay:'El cash se recupera con las primeras ~5 ventas. Al ser pago unico, el ingreso depende del trafico, no de la retencion.'},
   quees:'Una tienda de plantillas (Excel/Notion/Docs) hechas para la realidad argentina: control de monotributo, sueldos, gastos, presupuestos por oficio. Se hacen una vez y se venden infinitas veces, sin costo de atención.',
   construir:'Landing + checkout + entrega del archivo. El build técnico es mínimo; el valor está en el diseño (fuerte del estudio) y el know-how normativo AR. Scaffold Next.js listo (landing, producto, checkout con Lemon Squeezy, entrega). 5 plantillas definidas + pack.',
   cobra:'Pago único US$25–75 por plantilla (pack de las 5 a US$89). Lemon Squeezy (cobra USD desde AR) o Mercado Pago.',
@@ -299,6 +304,7 @@ const DATA=[
   path:['Construir la plantilla de Monotributo contra un caso real','Abrir Lemon Squeezy con el producto cargado','Terminar landing + fichas de las 5 plantillas','Distribución: SEO long-tail + redes + comunidades/ML (el cuello)','Sumar SKUs + reviews']},
 
  {cat:'warn',name:'El Data Semanal',tag:'Newsletter de finanzas AR · Semi-pasivo',st:'warn',label:'Herido',
+  cliente:{primero:'Un lead magnet (una calculadora util o un dato exclusivo) + difusion organica en redes propias y grupos. Los primeros 500-1.000 suscriptores salen de ahi.',mas:'Referral (recomenda y gana) + colaboraciones cruzadas con otras newsletters + contenido en redes. Los sponsors llegan solos cuando la lista pasa los 3-5k suscriptores.'},
   opera:'Cada lunes a la manana sale el email: "El dolar subio 3% esta semana, tu plazo fijo pierde contra la inflacion". 15.000 personas lo abren. Una billetera virtual paga US$400 por aparecer como sponsor esa semana.',
   roi:{arr:'1 semana + costo de la plataforma de email.',real:'Primeros sponsors chicos (US$100–200/envio) a los 4–8 meses con 3–5k suscriptores. Ingreso serio (US$1.000+/mes) recien a los 12–18 meses con ~20k suscriptores.',pay:'Lento. El costo real es el tiempo de crecer la lista. Mejor como pieza de otro producto.'},
   quees:'Un boletín por email: 1 dato + 1 gráfico por semana sobre la economía cotidiana argentina (dólar, plazo fijo, inflación). Se monetiza con auspiciantes (fintech, billeteras).',
@@ -311,6 +317,7 @@ const DATA=[
   veredicto:'No cierra como negocio suelto (tarda 12–18 meses). Sirve como PIEZA de otro producto: una herramienta capta el email → la newsletter retiene → el sponsor paga.'},
 
  {cat:'warn',name:'Mapa del Barrio',tag:'Micro-directorios locales · Semi-pasivo',st:'warn',label:'Herido',
+  cliente:{primero:'Sembrar la guia con datos publicos (aparece completa el dia 1) → captar trafico local por SEO → venderle el listado destacado al comercio que ya aparece gratis (upsell natural).',mas:'Venta por WhatsApp/puerta a puerta a comercios de la zona + clonar la guia a nuevas zonas y rubros. El trafico organico que ya tiene la guia es el argumento de venta.'},
   opera:'Alguien busca "veterinaria 24h en Lomas". Encuentra tu guia del barrio con resenas reales. La veterinaria de la esquina paga US$20/mes por aparecer primera y destacada.',
   roi:{arr:'2–3 semanas por zona + infra.',real:'Primeros listados pagos a los 2–4 meses. US$2.000–3.000/mes recien con 100–150 comercios instalados (8–15 meses).',pay:'La venta a comercios es el trabajo real y recurrente; el retorno llega con base instalada.'},
   quees:'Guías online hiperlocales ("veterinarias 24h en tal barrio", "quién arregla notebooks en tal zona") que se llenan con reseñas de la gente. Se les cobra a los comercios por aparecer destacados.',
@@ -349,67 +356,67 @@ const DATA=[
   riesgos:'Fuerte como producto premium dentro de un bundle, flojo como motor de volumen barato.',
   rt:{m:'🔴 Muerto',p:'🟡 Herido'}},
 
- {cat:'idea',name:'Postora',tag:'Community manager con IA · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'9/10',
+ {cat:'idea',name:'Postora',tag:'Community manager con IA · Ronda 1',cliente:{primero:'Un comercio conocido: mostrarle un mes de contenido ya hecho gratis. Ver los posteos listos con su marca convence solo.',mas:'Por rubro + referidos + el propio feed del cliente es la vidriera que atrae al proximo.'},st:'idea',label:'Idea · sin desafiar',score:'9/10',
   opera:'Una cafeteria contrata Postora; cada semana recibe listos para publicar los posteos del mes con su identidad, fotos y textos, sin contratar un community manager.',
   roi:{arr:'4–6 semanas + ~US$150.',real:'A US$45/mes: 40 comercios ≈ US$1.800/mes; 100 comercios ≈ US$4.500/mes.',pay:'Numeros de referencia — todavia sin red-team; validar demanda local antes de invertir.'},
   quees:'Un community manager de IA para comercios de barrio (gastronomía, estética, gimnasios): les arma y agenda un mes de contenido con la identidad de la marca.',
   cobra:'Suscripción US$29–59/mes.',nums:{Precio:'US$29–59/mes',Puntaje:'9/10'},
   mercado:'Categoría ya validada por competidores (Velari, Presly). Aprovecha directamente la ventaja de diseño del estudio. Todavía no pasó por el red-team.'},
- {cat:'idea',name:'Recepcionista IA',tag:'Voz + WhatsApp + agenda · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'9/10',
+ {cat:'idea',name:'Recepcionista IA',tag:'Voz + WhatsApp + agenda · Ronda 1',cliente:{primero:'Una clinica o estetica con alto ausentismo; piloto midiendo turnos confirmados.',mas:'Por vertical + partners (proveedores de equipamiento estetico) + referidos.'},st:'idea',label:'Idea · sin desafiar',score:'9/10',
   opera:'Un centro de estetica recibe llamadas y WhatsApps todo el dia; la recepcionista IA los atiende, agenda turnos y confirma, bajando el ausentismo, sin recepcionista humana 24/7.',
   roi:{arr:'3–5 semanas + ~US$200.',real:'A US$300/mes, 20 clientes ≈ US$6.000/mes; pero la voz baja el margen a 40–60% → ≈ US$2.400–3.600 neto.',pay:'Ojo margen por voz. Referencia sin red-team.'},
   quees:'Una recepcionista de IA (voz + WhatsApp + agenda) para clínicas, estéticas y consultorios: agenda turnos, responde y baja el ausentismo.',
   cobra:'Setup US$300–1k + US$150–500/mes.',nums:{Precio:'setup + US$150–500/mes',Puntaje:'9/10'},
   mercado:'Fuerte, pero la voz sube el costo (margen 40–60%). Se cobra por uso. Falta el red-team.'},
- {cat:'idea',name:'Directorio B2B',tag:'Directorio + venta de leads · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'8.5/10',
+ {cat:'idea',name:'Directorio B2B',tag:'Directorio + venta de leads · Ronda 1',cliente:{primero:'Sembrar el directorio con datos + conseguir el primer comprador de leads del rubro.',mas:'SEO + venta a los proveedores que quieren esos leads + clonar a nuevos rubros.'},st:'idea',label:'Idea · sin desafiar',score:'8.5/10',
   opera:'Una empresa busca "proveedor de packaging"; tu directorio le muestra opciones y te paga por pasarle ese contacto calificado al proveedor.',
   roi:{arr:'2–4 semanas.',real:'Mix de listados + leads a US$30–50: con 50 leads/mes ≈ US$1.500–2.500/mes.',pay:'Referencia sin red-team.'},
   quees:'Un directorio de un rubro con datos propios que le vende contactos de clientes (leads) a los proveedores.',
   cobra:'Leads US$30–50 + listados premium + suscripción.',nums:{Precio:'US$30–50/lead',Puntaje:'8.5/10'},
   mercado:'El activo más defensible ante los AI Overviews (datos propios + intención transaccional).'},
- {cat:'idea',name:'VetVoz',tag:'Historia clínica por voz · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'8/10',
+ {cat:'idea',name:'VetVoz',tag:'Historia clínica por voz · Ronda 1',cliente:{primero:'Una veterinaria faro con prueba gratis de 2 semanas.',mas:'Colegios y asociaciones veterinarias + boca a boca gremial.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
   opera:'El veterinario termina de revisar un perro y dicta en voz alta lo que hizo; VetVoz arma la historia clinica completa en la ficha, sin tipear.',
   roi:{arr:'4–6 semanas.',real:'A US$40/mes, 60 veterinarias ≈ US$2.400/mes.',pay:'Demanda creciendo fuerte; referencia sin red-team.'},
   quees:'Un copiloto que dicta la historia clínica por voz para veterinarias de LATAM (el vet habla, el sistema arma la ficha).',
   cobra:'Suscripción mensual.',nums:{Precio:'suscripción',Puntaje:'8/10'},
   mercado:'La búsqueda de "veterinary AI" creció +1.680% interanual; los gestores vet de LATAM aún no tienen esto en español.'},
- {cat:'idea',name:'Vitrina',tag:'Fotos de producto con IA · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'8/10',
+ {cat:'idea',name:'Vitrina',tag:'Fotos de producto con IA · Ronda 1',cliente:{primero:'Vendedores de Mercado Libre/Instagram via free trial con creditos.',mas:'Freemium viral + integracion con marketplaces.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
   opera:'Un vendedor saca una foto casera de una zapatilla con el celular; Vitrina la convierte en foto profesional con fondo limpio y le arma el titulo y la descripcion para publicar.',
   roi:{arr:'3–4 semanas.',real:'Freemium: 300 pagos a US$10 ≈ US$3.000/mes (volumen alto, ticket bajo).',pay:'Riesgo de comoditizacion; referencia sin red-team.'},
   quees:'Sube una foto casera de un producto y devuelve foto profesional + ficha lista para Mercado Libre / Instagram / WhatsApp.',
   cobra:'Freemium + créditos.',nums:{Precio:'freemium + créditos',Puntaje:'8/10'},
   mercado:'Referencia de precio: Photoroom US$7,50/mes. Aprovecha el diseño del estudio.'},
- {cat:'idea',name:'Back-office AFIP',tag:'Conciliación con IA · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'8/10',
+ {cat:'idea',name:'Back-office AFIP',tag:'Conciliación con IA · Ronda 1',cliente:{primero:'Un contador con cartera: le automatizas un cliente gratis como prueba.',mas:'El contador trae su cartera entera (canal) + referidos entre estudios.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
   opera:'Un contador con 50 clientes recibe facturas por todos lados; el agente las concilia y las cruza con AFIP solo, ahorrandole dias de trabajo manual.',
   roi:{arr:'4–6 semanas.',real:'A US$800/mes, 10 clientes ≈ US$8.000/mes (mayor ticket).',pay:'Ciclo de venta mas largo; referencia sin red-team.'},
   quees:'Un agente que concilia facturas y AFIP para pymes y contadores (el trabajo administrativo tedioso, automatizado).',
   cobra:'Retainer US$500–2k/mes.',nums:{Precio:'US$500–2k/mes',Puntaje:'8/10'},
   mercado:'Mayor ticket y stickiness; canal natural: contadores. Falta el red-team.'},
- {cat:'idea',name:'Comparador con afiliados',tag:'Comparador transaccional · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'8/10',
+ {cat:'idea',name:'Comparador con afiliados',tag:'Comparador transaccional · Ronda 1',cliente:{primero:'SEO en un nicho con intencion de compra clara.',mas:'Sumar nichos + contenido; el trafico compone solo.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
   opera:'Alguien compara seguros o servicios en tu sitio, hace clic y contrata; vos cobras una comision recurrente por esa venta.',
   roi:{arr:'2–3 semanas.',real:'Comisiones recurrentes: escalable a US$1.000–3.000/mes con trafico.',pay:'Cero friccion de cobro; referencia sin red-team.'},
   quees:'Un comparador de un nicho con intención de compra que cobra comisión de afiliado (recurrente y vitalicia).',
   cobra:'Comisión de afiliado.',nums:{Precio:'comisión',Puntaje:'8/10'},
   mercado:'MVP rápido y cero fricción de cobro; intención transaccional que sobrevive a los AI Overviews.'},
- {cat:'idea',name:'Calificación de leads',tag:'Filtro de leads por WhatsApp · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'8/10',
+ {cat:'idea',name:'Calificación de leads',tag:'Filtro de leads por WhatsApp · Ronda 1',cliente:{primero:'Una inmobiliaria o concesionaria con muchas consultas; el fee por resultado baja el riesgo de probar.',mas:'Por vertical de ticket alto + sinergia con el marketing del estudio.'},st:'idea',label:'Idea · sin desafiar',score:'8/10',
   opera:'Una inmobiliaria recibe 100 consultas por WhatsApp; el agente filtra las serias de las curiosas y le pasa al vendedor solo las que valen la pena.',
   roi:{arr:'2–3 semanas.',real:'Retainer + fee: 10 clientes de ticket alto ≈ US$2.000–4.000/mes.',pay:'Referencia sin red-team.'},
   quees:'Filtra y califica clientes entrantes por WhatsApp para rubros de ticket alto (inmobiliarias, autos, salud premium).',
   cobra:'Retainer + fee por resultado.',nums:{Precio:'retainer + fee',Puntaje:'8/10'},
   mercado:'Sinergia directa con el marketing del estudio.'},
- {cat:'idea',name:'MediaKit.ar',tag:'Media kit en 60s · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'7/10',
+ {cat:'idea',name:'MediaKit.ar',tag:'Media kit en 60s · Ronda 1',cliente:{primero:'Micro-influencers via redes: el producto se demuestra en un video de 60s.',mas:'Viral organico + freemium.'},st:'idea',label:'Idea · sin desafiar',score:'7/10',
   opera:'Un micro-influencer necesita presentarse a marcas; en 60 segundos arma su media kit profesional con sus numeros y su tarifario.',
   roi:{arr:'2 semanas.',real:'Ticket bajo/one-time; techo limitado por competidores gratis: US$500–1.500/mes plausible.',pay:'Referencia sin red-team.'},
   quees:'Arma el "media kit" (presentación profesional + tarifario) de micro-influencers en 60 segundos.',
   cobra:'Freemium / pago único.',nums:{Precio:'freemium/one-time',Puntaje:'7/10'},
   mercado:'Diseño puro y barato de construir; techo limitado por competidores gratis.'},
- {cat:'idea',name:'PrevenIA',tag:'Compliance S&H · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'7/10',
+ {cat:'idea',name:'PrevenIA',tag:'Compliance S&H · Ronda 1',cliente:{primero:'Una pyme con un vencimiento inminente (urgencia real).',mas:'Por camaras/ART + referidos.'},st:'idea',label:'Idea · sin desafiar',score:'7/10',
   opera:'Una pyme tiene que cumplir con Seguridad e Higiene; PrevenIA le arma y mantiene la documentacion y le avisa los vencimientos, sin un consultor caro.',
   roi:{arr:'4–6 semanas.',real:'Suscripcion: 30 pymes a US$40 ≈ US$1.200/mes.',pay:'Validar competencia local; referencia sin red-team.'},
   quees:'Compliance de Seguridad e Higiene laboral (ART/SRT) para pymes argentinas, asistido por IA.',
   cobra:'Suscripción.',nums:{Precio:'suscripción',Puntaje:'7/10'},
   mercado:'Dolor regulatorio real; requiere validar competencia local.'},
- {cat:'idea',name:'GremioPro',tag:'Gestión para oficios · Ronda 1',st:'idea',label:'Idea · sin desafiar',score:'7/10',
+ {cat:'idea',name:'GremioPro',tag:'Gestión para oficios · Ronda 1',cliente:{primero:'Un plomero o electricista conocido que ya sufre el cuaderno.',mas:'Gremios + boca a boca + adyacencia con Testigo (mismo cliente).'},st:'idea',label:'Idea · sin desafiar',score:'7/10',
   opera:'Un plomero cotiza un trabajo, lo agenda y cobra la sena por Mercado Pago, todo desde el celular, sin planillas ni cuadernos.',
   roi:{arr:'4–6 semanas.',real:'A US$25/mes, 80 oficios ≈ US$2.000/mes.',pay:'Adyacente a Testigo; referencia sin red-team.'},
   quees:'Presupuesto + agenda + cobro por IA para oficios (plomeros, electricistas) en español, con Mercado Pago.',
@@ -458,6 +465,9 @@ document.getElementById('team').innerHTML=TEAM.map(r=>`<div class="role"><div cl
 
 document.getElementById('runbook').innerHTML=RUNBOOK.map(s=>`<div class="rbstep"><div class="rbn"></div><div><div class="rbt">${s.t} <span class="owner">${s.o}</span> ${s.gate?`<span class="gate">${s.gate}</span>`:''}</div><div class="rbd">${s.d}</div></div></div>`).join('');
 
+const RATE=1488.5;
+function arsOf(u){return Math.round(u*RATE).toLocaleString('es-AR')}
+function withArs(t){return t.replace(/US\$(\d[\d.]*)/g,(m,n)=>`${m} (≈ $${arsOf(parseInt(n.replace(/\./g,'')))} ARS)`)}
 function statPill(d){return `<span class="pill ${d.st}"><span class="pd"></span>${d.label}</span>`}
 function card(d){
  const s=d.nums||{};const keys=Object.keys(s).slice(0,4);
@@ -488,7 +498,8 @@ function openDetail(name){
  parts.push(`<div class="dsec"><div class="dl">Qué es (de cero)</div><p>${d.quees}</p></div>`);
  if(d.opera)parts.push(`<div class="dsec"><div class="dl">Cómo opera · un ejemplo real</div><p>${d.opera}</p></div>`);
  if(d.nums){const keys=Object.keys(d.nums);parts.push(`<div class="dstats">${keys.map(k=>`<div class="st"><div class="k">${k}</div><div class="v ${k==='Margen'?'good':''}">${d.nums[k]}</div></div>`).join('')}</div>`);}
- if(d.roi)parts.push(`<div class="whero"><div class="dl">💰 Retorno estimado (aprox.)</div><p><b>Para arrancar:</b> ${d.roi.arr}<br><b>Escenario realista:</b> ${d.roi.real}<br><b>Cuándo funciona:</b> ${d.roi.pay}</p></div>`);
+ if(d.roi)parts.push(`<div class="whero"><div class="dl">💰 Retorno estimado (aprox.)</div><p><b>Para arrancar:</b> ${withArs(d.roi.arr)}<br><b>Escenario realista:</b> ${d.roi.real}<br><b>Cuándo funciona:</b> ${d.roi.pay}</p><p style="margin-top:8px;color:var(--muted);font-size:11px">Pesos al cambio oficial BNA (venta) del 06/07/2026: US$1 = $1.488,50.</p></div>`);
+ if(d.cliente)parts.push(`<div class="dsec"><div class="dl">🎯 Clientes · el primero y cómo escalar</div><p><b>Primer cliente:</b> ${d.cliente.primero}<br><b>Cómo sumamos más:</b> ${d.cliente.mas}</p></div>`);
  if(d.construir)parts.push(`<div class="dsec"><div class="dl">Cómo se construye</div><p>${d.construir}</p></div>`);
  if(d.cobra)parts.push(`<div class="dsec"><div class="dl">Cómo se cobra</div><p>${d.cobra}</p></div>`);
  if(d.mercado)parts.push(`<div class="dsec"><div class="dl">Mercado y competencia</div><p>${d.mercado}</p></div>`);
