@@ -1,4 +1,4 @@
-# FUNDAMENTO — Sector Agencia Digital
+# FUNDAMENTO — Sector Grow (Agencia Digital)
 
 > **LEEME PRIMERO.** Si abriste una sesión para trabajar en el sector **Agencia Digital**, este
 > documento es tu **Fase 0**: define **quién sos**, **qué tenés que hacer**, con **qué método** y con

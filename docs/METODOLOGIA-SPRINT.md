@@ -79,7 +79,7 @@ Estas seis reglas son la ley del sprint. Rigen sobre todo lo demás de este docu
    - **N frentes de Desarrollo — uno por core, en los DOS SECTORES de la compañía** (ver "Mapa de
      sectores y cores" abajo). Al invocar `sprint` se abren automáticamente frentes de **ambos**:
      - **Sector ERP multi-tenant:** **Pagos · Caja · Inventario/POS · Fiscal · Plataforma · Diseño.**
-     - **Sector Agencia Digital:** **Consultores/Análisis de mercado · Desarrolladores · PMO proactivo.**
+     - **Sector Grow (Agencia Digital):** **Consultores/Análisis de mercado · Desarrolladores · PMO proactivo.**
    - **Calidad/tests** no es core: cada dueño entrega su core en verde (regla "verde antes de
      commitear"). (Diseño **dejó de ser cross-cutting** y ahora es **core** del sector ERP.)
 
@@ -108,7 +108,7 @@ punta a punta. Un tenant completo de punta a punta solo es unidad de sesión par
 | **Plataforma** | RLS/tenancy, performance, auth, observabilidad **+ reporting** | `src/lib/tenant*.ts`, `rls.ts`, `prisma/rls/`, `session.ts`, `capabilities.ts`, `authz.ts`, `getReportData`/`reportes/`, perf/obs | `estetica-erp-plataforma` · `frente/plataforma` |
 | **Diseño** | sistema de diseño/UX: tokens, primitivos, branding por tenant (ahora **core**, ya no cross-cutting) | `src/components/ui/`, `src/lib/branding.ts`, tokens/tema, adopción por pantallas | `estetica-erp-diseno` · `frente/diseno` |
 
-### Sector B — Agencia Digital
+### Sector B — Sector Grow (Agencia Digital)
 Identidad, frentes y territorio en el **charter `docs/sectores/agencia-digital.md`** +
 **`docs/sectores/agencia-digital/FUNDAMENTO.md`** (que cada sesión del sector lee al abrir). Por
 decisión del charter: **misma metodología y mismo PMO, pero repos/deploys SEPARADOS** del ERP → los
@@ -138,7 +138,7 @@ Inventario/POS          C:/Users/mlloveras2/Documents/Claude/estetica-erp-invent
 Fiscal                  C:/Users/mlloveras2/Documents/Claude/estetica-erp-fiscal                [frente/fiscal]
 Plataforma              C:/Users/mlloveras2/Documents/Claude/estetica-erp-plataforma            [frente/plataforma]
 Diseño                  C:/Users/mlloveras2/Documents/Claude/estetica-erp-diseno                [frente/diseno]
-— Sector Agencia Digital (repo/deploys PROPIOS — ver docs/sectores/agencia-digital.md) —
+— Sector Grow (Agencia Digital) (repo/deploys PROPIOS — ver docs/sectores/agencia-digital.md) —
 Consultores/Mercado     <repo propio del sector>   [frente/agencia-consultores]
 Desarrolladores         <repo propio del sector>   [frente/agencia-dev]
 PMO Agencia             <repo propio del sector>   [frente/agencia-pmo]
