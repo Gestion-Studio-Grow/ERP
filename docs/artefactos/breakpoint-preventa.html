@@ -3,146 +3,154 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Break Point Pádel · Club (demo)</title>
+<title>Break Point Pádel · Club de amigos y amigas (demo)</title>
 <!--
   DEMO DE PREVENTA — Break Point Pádel (Ezeiza, Bs. As.) como TENANT de nuestro ERP.
   Un solo archivo, sin build: se abre directo en el navegador.
-  Dirección de diseño: MINIMALISTA · sobrio · deportivo elegante (filosofía SAP Fiori).
-  Base neutra + azul royal (#0B5FB0) y naranja (#F07A0C) de marca usados con moderación,
-  solo como acentos. Logo recreado en SVG/CSS. Espacios de foto = placeholders sobrios
-  listos para reemplazar por las fotos reales del cliente (buscar data-photo / .ph).
-  Módulos: reservas de canchas (turnos con buffer, sin doble-reserva), tienda/SHOP con
-  carrito -> WhatsApp, clases/escuelita, horarios, torneos (Circuito Padel Sur) y Delicias.
-  Datos operativos (turnos ocupados, stock, precios) = de ejemplo, a confirmar con el cliente.
+  Dirección de diseño: ELEGANTE + CÁLIDO + CERCANO. Club de comunidad ("amigos y amigas"),
+  sobrio y con clase pero humano. Base neutra cálida (crema) + azul royal (#0B5FB0) y
+  naranja (#F07A0C) de marca como acentos. Delicias Break en clave BODEGÓN (terracota/cobre).
+  Logo recreado fiel en CSS/SVG: círculo azul royal, "BREAK POINT PÁDEL" blanco condensado,
+  pelota NARANJA como la "O" de POINT. Variantes sobre claro / oscuro / naranja.
+  Espacios de foto = placeholders sobrios listos para reemplazar (buscar data-photo / .ph).
+  Módulos: reservas (turnos con buffer, sin doble-reserva), tienda/SHOP con carrito -> WhatsApp,
+  clases/escuelita, horarios, torneos (Circuito Padel Sur), comunidad y Delicias (bodegón).
+  Accesibilidad: foco visible, prefers-reduced-motion, roles/labels, contraste AA.
+  Datos operativos (precios, stock, turnos, métricas de comunidad) = de ejemplo, a confirmar.
+  Referencias superadas: clubes hospitality-led (PadelBox Bermondsey, Padel Haus) + neobodegón
+  porteño (calidez, terracota/cobre, charcutería propia). Sello: Gestión Studio Grow (GSG).
 -->
 <style>
   :root{
     --royal:#0b5fb0;
-    --royal-ink:#0a3f77;
+    --royal-deep:#0a4d90;
     --orange:#f07a0c;
-    --ink:#15181d;         /* casi negro */
-    --ink-2:#3a4048;
-    --muted:#767c85;
-    --faint:#a7adb5;
-    --line:#e7e8ea;
-    --line-2:#eff0f2;
-    --paper:#ffffff;
-    --paper-2:#f7f7f6;     /* off-white cálido */
-    --paper-3:#f2f2f0;
-    --night:#101317;       /* base oscura sobria */
-    --night-2:#181c22;
-    --on-night:#e9eaec;
-    --on-night-muted:#9aa0a8;
+    --orange-deep:#d96a00;
+    --terra:#b8532a;       /* bodegón */
+    --copper:#a9673a;
+    --amber:#e0a24e;
+    --ink:#221d17;         /* casi negro cálido */
+    --ink-2:#463f36;
+    --muted:#847a6c;
+    --faint:#a99f8f;
+    --line:#e8e0d2;
+    --line-2:#f0ebe0;
+    --paper:#fffdf8;
+    --cream:#f7f2ea;       /* base cálida */
+    --cream-2:#f1eadd;
+    --night:#17120c;       /* espresso cálido */
+    --night-2:#211a12;
+    --on-night:#efe7db;
+    --on-night-muted:#b0a695;
     --display:"Arial Narrow","Helvetica Neue",ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+    --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
     --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     --ease:cubic-bezier(.22,.61,.36,1);
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
   html,body{margin:0}
-  body{
-    font-family:var(--sans);color:var(--ink);background:var(--paper);
-    line-height:1.6;-webkit-font-smoothing:antialiased;font-size:16px;
-  }
+  body{font-family:var(--sans);color:var(--ink);background:var(--paper);line-height:1.62;-webkit-font-smoothing:antialiased;font-size:16px}
   a{color:inherit;text-decoration:none}
   ::selection{background:var(--royal);color:#fff}
   .wrap{max-width:1160px;margin:0 auto;padding:0 32px}
   @media(max-width:640px){.wrap{padding:0 20px}}
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--royal);outline-offset:3px;border-radius:4px}
 
-  /* display type — condensada, mayúsculas, sobria */
-  .display{
-    font-family:var(--display);font-weight:800;text-transform:uppercase;
-    letter-spacing:-.005em;line-height:.96;font-stretch:condensed;
-  }
-  .kicker{
-    font-size:11.5px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:var(--muted);
-    display:inline-flex;align-items:center;gap:11px;
-  }
+  .display{font-family:var(--display);font-weight:800;text-transform:uppercase;letter-spacing:-.005em;line-height:.95;font-stretch:condensed}
+  .kicker{font-size:11.5px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:var(--muted);display:inline-flex;align-items:center;gap:11px}
   .kicker::before{content:"";width:22px;height:1px;background:var(--orange);display:inline-block}
   h2.sec{font-size:clamp(30px,5vw,52px);margin:16px 0 0}
   .lead{color:var(--muted);font-size:17px;max-width:56ch;margin:16px 0 0;line-height:1.65}
+  .serif-accent{font-family:var(--serif);font-style:italic}
 
-  /* ---------- ball-as-O detail (guiño al logo) ---------- */
-  .ball{
-    display:inline-block;width:.72em;height:.72em;border-radius:50%;background:var(--orange);
-    position:relative;vertical-align:baseline;margin:0 .01em;transform:translateY(.02em);
-  }
-  .ball::after{content:"";position:absolute;inset:0;border-radius:50%;
-    background:radial-gradient(circle at 32% 30%, rgba(255,255,255,.55), transparent 42%);
-  }
+  /* ---------- Logo: pelota-O + emblema ---------- */
+  .ball{display:inline-block;width:.72em;height:.72em;border-radius:50%;background:var(--orange);position:relative;vertical-align:baseline;transform:translateY(.02em)}
+  .ball::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 33% 30%, rgba(255,255,255,.6), transparent 44%)}
+  .ball::before{content:"";position:absolute;left:8%;right:8%;top:48%;height:1px;background:rgba(255,255,255,.5);border-radius:2px;transform:rotate(-14deg)}
+
+  .emblem{position:relative;border-radius:50%;background:var(--royal);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:none;box-shadow:0 10px 30px -14px rgba(11,95,176,.55)}
+  .emblem .ring{position:absolute;inset:7.5%;border:1.5px solid rgba(255,255,255,.5);border-radius:50%}
+  .emblem .ring2{position:absolute;inset:11.5%;border:1px solid rgba(255,255,255,.22);border-radius:50%}
+  .emblem .e-top,.emblem .e-mid,.emblem .e-bot{font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-weight:800;line-height:.9;position:relative;z-index:1}
+  .emblem .e-top{font-size:.82em;letter-spacing:.16em}
+  .emblem .e-mid{font-size:1.18em;letter-spacing:.02em;display:flex;align-items:center;margin:.05em 0}
+  .emblem .e-mid .ball{width:.72em;height:.72em;margin:0 .015em}
+  .emblem .e-bot{font-size:.68em;letter-spacing:.34em;font-weight:700;text-indent:.34em}
+  .emblem .e-dot{position:absolute;width:.14em;height:.14em;border-radius:50%;background:var(--orange);z-index:1}
+  .emblem .e-dot.l{left:16%}.emblem .e-dot.r{right:16%}
+  /* variantes */
+  .emblem--orange{background:var(--orange);box-shadow:0 10px 30px -14px rgba(240,122,12,.6)}
+  .emblem--orange .ring{border-color:rgba(255,255,255,.6)}
+  .emblem--orange .e-mid .ball{background:#fff}
+  .emblem--orange .e-mid .ball::after{background:radial-gradient(circle at 33% 30%, rgba(11,95,176,.25), transparent 44%)}
+  .emblem--orange .e-mid .ball::before{background:rgba(11,95,176,.4)}
+  .emblem--orange .e-dot{background:#fff}
 
   .mark{display:block;flex:none}
 
-  /* ---------- top ribbon (preventa) ---------- */
-  .ribbon{
-    font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);
-    text-align:center;padding:9px 16px;border-bottom:1px solid var(--line-2);background:var(--paper);
-  }
+  /* ---------- ribbon ---------- */
+  .ribbon{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);text-align:center;padding:9px 16px;border-bottom:1px solid var(--line-2);background:var(--paper)}
   .ribbon b{color:var(--ink-2);font-weight:600}
 
   /* ---------- Nav ---------- */
-  nav.top{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
-  .nav-in{display:flex;align-items:center;gap:26px;height:74px}
+  nav.top{position:sticky;top:0;z-index:50;background:rgba(255,253,248,.88);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .nav-in{display:flex;align-items:center;gap:24px;height:76px}
   .brand{display:flex;align-items:center;gap:13px}
-  .wordmark{line-height:1}
-  .wordmark .w1{font-family:var(--display);font-weight:800;font-stretch:condensed;text-transform:uppercase;font-size:20px;letter-spacing:.02em}
-  .wordmark .w2{display:block;font-size:9.5px;letter-spacing:.34em;color:var(--muted);text-transform:uppercase;margin-top:3px;font-weight:600}
+  .brand .emblem{width:46px;height:46px;font-size:9.2px}
+  .wordmark{line-height:1.05}
+  .wordmark .w1{font-family:var(--display);font-weight:800;font-stretch:condensed;text-transform:uppercase;font-size:20px;letter-spacing:.02em;display:flex;align-items:center}
+  .wordmark .w1 .ball{width:.66em;height:.66em}
+  .wordmark .w2{display:block;font-size:9.5px;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-top:2px;font-weight:600}
   .nav-links{display:flex;gap:2px;margin-left:auto}
-  .nav-links a{padding:9px 14px;font-size:13.5px;font-weight:600;color:var(--ink-2);border-radius:8px;transition:.18s var(--ease)}
+  .nav-links a{padding:9px 13px;font-size:13.5px;font-weight:600;color:var(--ink-2);border-radius:8px;transition:.18s var(--ease)}
   .nav-links a:hover{color:var(--royal)}
-  .icon-btn{
-    display:inline-flex;align-items:center;gap:8px;background:none;border:1px solid var(--line);
-    color:var(--ink);font-family:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:9px;cursor:pointer;
-    transition:.18s var(--ease);position:relative;
-  }
+  .icon-btn{display:inline-flex;align-items:center;gap:8px;background:none;border:1px solid var(--line);color:var(--ink);font-family:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:9px;cursor:pointer;transition:.18s var(--ease);position:relative}
   .icon-btn:hover{border-color:var(--ink)}
-  .count{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;border-radius:999px;background:var(--orange);color:#fff;font-size:10.5px;font-weight:800;display:none;place-items:center;padding:0 4px}
-  .btn{
-    display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;border:1px solid transparent;
-    font-family:inherit;font-weight:700;font-size:14px;padding:12px 20px;border-radius:9px;transition:.2s var(--ease);letter-spacing:.01em;
-  }
-  .btn-primary{background:var(--orange);color:#fff}
-  .btn-primary:hover{background:#d96a00}
+  .count{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;border-radius:999px;background:var(--orange);color:#231a10;font-size:10.5px;font-weight:800;display:none;place-items:center;padding:0 4px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;border:1px solid transparent;font-family:inherit;font-weight:700;font-size:14px;padding:12px 20px;border-radius:9px;transition:.2s var(--ease);letter-spacing:.01em}
+  .btn-primary{background:var(--orange);color:#231a10}
+  .btn-primary:hover{background:var(--orange-deep);color:#fff}
   .btn-primary:disabled{background:var(--line);color:var(--faint);cursor:not-allowed}
   .btn-dark{background:var(--ink);color:#fff}
   .btn-dark:hover{background:#000}
   .btn-outline{background:transparent;color:var(--ink);border-color:var(--line)}
   .btn-outline:hover{border-color:var(--ink)}
-  @media(max-width:900px){.nav-links{display:none}}
+  @media(max-width:920px){.nav-links{display:none}}
 
-  /* ---------- Photo placeholders (sobrios, listos para reemplazar) ---------- */
-  .ph{
-    position:relative;overflow:hidden;background:var(--paper-3);
+  /* ---------- Photo placeholders ---------- */
+  .ph{position:relative;overflow:hidden;background:var(--cream-2);
     background-image:linear-gradient(var(--line-2) 1px, transparent 1px),linear-gradient(90deg, var(--line-2) 1px, transparent 1px);
-    background-size:100% 50%, 33.33% 100%;
-    display:grid;place-items:center;color:var(--faint);border:1px solid var(--line);
-  }
-  .ph::after{
-    content:attr(data-photo);position:absolute;left:16px;bottom:14px;
-    font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);font-weight:600;
-  }
-  .ph .cam{width:34px;height:34px;opacity:.5}
-  .ph.dark{background:var(--night-2);border-color:#23282f;color:#4a5158;
-    background-image:linear-gradient(#1c2128 1px,transparent 1px),linear-gradient(90deg,#1c2128 1px,transparent 1px)}
+    background-size:100% 50%, 33.33% 100%;display:grid;place-items:center;color:var(--faint);border:1px solid var(--line)}
+  .ph::after{content:attr(data-photo);position:absolute;left:16px;bottom:14px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  .ph .cam{width:32px;height:32px;opacity:.5}
+  .ph.warm{background:#efe2d2;border-color:#e4d3bd;color:#b79b78;
+    background-image:linear-gradient(#e7d7c2 1px,transparent 1px),linear-gradient(90deg,#e7d7c2 1px,transparent 1px)}
+  .ph.warm::after{color:#b79b78}
 
-  /* ---------- Sections ---------- */
   section{padding:100px 0}
-  @media(max-width:640px){section{padding:64px 0}}
+  @media(max-width:640px){section{padding:66px 0}}
   .reveal{opacity:0;transform:translateY(16px);transition:.8s var(--ease)}
   .reveal.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .reveal{opacity:1;transform:none;transition:none}
+    *{animation:none!important}
+  }
 
   /* ---------- Hero ---------- */
-  header.hero{padding:64px 0 84px;border-bottom:1px solid var(--line)}
-  .hero-grid{display:grid;grid-template-columns:1.02fr .98fr;gap:56px;align-items:center}
-  .hero h1{font-size:clamp(52px,8.5vw,104px);margin:22px 0 0;color:var(--ink)}
-  .hero h1 .thin{color:var(--faint)}
-  .hero .lead{margin-top:26px}
-  .hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
-  .hero-photo{aspect-ratio:4/5;border-radius:12px}
-  @media(max-width:860px){.hero-grid{grid-template-columns:1fr;gap:36px}.hero-photo{aspect-ratio:16/11;order:-1}}
+  header.hero{padding:60px 0 84px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--paper),var(--cream))}
+  .hero-grid{display:grid;grid-template-columns:1.03fr .97fr;gap:52px;align-items:center}
+  .hero h1{font-size:clamp(48px,7.6vw,92px);margin:20px 0 0;color:var(--ink)}
+  .hero h1 .amp{font-family:var(--serif);font-style:italic;font-weight:400;text-transform:none;font-stretch:normal;color:var(--orange);letter-spacing:-.01em}
+  .hero .lead{margin-top:24px}
+  .hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+  .hero-right{position:relative}
+  .hero-photo{aspect-ratio:4/5;border-radius:14px}
+  .hero-emblem{position:absolute;left:-30px;bottom:-30px;width:132px;height:132px;font-size:26px;border:4px solid var(--paper)}
+  @media(max-width:860px){.hero-grid{grid-template-columns:1fr;gap:34px}.hero-photo{aspect-ratio:16/11;order:-1}.hero-emblem{width:96px;height:96px;font-size:19px;left:auto;right:-8px;bottom:-24px}}
 
-  /* info strip */
-  .strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:64px}
+  .strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:60px}
   .strip .it{flex:1 1 200px;padding:22px 24px;border-right:1px solid var(--line)}
   .strip .it:last-child{border-right:0}
   .strip .k{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);font-weight:600}
@@ -151,35 +159,35 @@
   @media(max-width:760px){.strip .it{flex-basis:100%;border-right:0;border-bottom:1px solid var(--line)}}
 
   /* ---------- Reservas ---------- */
-  #reservas{background:var(--paper-2);border-bottom:1px solid var(--line)}
-  .sec-head{max-width:640px;margin-bottom:52px}
+  #reservas{background:var(--cream);border-bottom:1px solid var(--line)}
+  .sec-head{max-width:640px;margin-bottom:50px}
   .book{display:grid;grid-template-columns:1fr 328px;gap:28px;align-items:start}
-  .card{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:14px}
   .card.pad{padding:28px}
   .flabel{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px;margin:0 0 14px}
   .flabel .n{width:20px;height:20px;border-radius:50%;border:1px solid var(--line);color:var(--ink);display:grid;place-items:center;font-size:11px;font-weight:800}
   .courts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-  .court{text-align:left;cursor:pointer;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:15px 16px;transition:.18s var(--ease);font-family:inherit}
+  .court{text-align:left;cursor:pointer;border:1px solid var(--line);background:var(--paper);border-radius:11px;padding:15px 16px;transition:.18s var(--ease);font-family:inherit}
   .court:hover{border-color:var(--ink-2)}
-  .court.sel{border-color:var(--royal);background:#f4f8fc;box-shadow:inset 0 0 0 1px var(--royal)}
+  .court.sel{border-color:var(--royal);background:#eef5fb;box-shadow:inset 0 0 0 1px var(--royal)}
   .court .nm{font-weight:700;font-size:14.5px;letter-spacing:.01em}
   .court .tp{font-size:12.5px;color:var(--muted);margin-top:3px}
   .court .pr{font-size:12.5px;color:var(--ink);margin-top:11px;font-weight:600}
   .court .pr small{color:var(--faint);font-weight:500}
-  .tag-min{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--royal);border:1px solid #cfe1f2;border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:middle}
+  .tag-min{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--royal);border:1px solid #cbe0f2;border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:middle}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:26px}
   .slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
   .slot{cursor:pointer;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:9px 13px;font-size:13.5px;font-weight:600;color:var(--ink);font-family:inherit;transition:.14s var(--ease)}
   .slot:hover:not(:disabled){border-color:var(--ink)}
   .slot.sel{background:var(--ink);border-color:var(--ink);color:#fff}
-  .slot:disabled{opacity:.4;cursor:not-allowed;text-decoration:line-through;background:var(--paper-2)}
+  .slot:disabled{opacity:.42;cursor:not-allowed;text-decoration:line-through;background:var(--cream)}
   input,select{width:100%;font-family:inherit;font-size:14.5px;color:var(--ink);padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--paper);transition:.16s var(--ease)}
   input::placeholder{color:var(--faint)}
-  input:focus,select:focus{outline:none;border-color:var(--royal);box-shadow:0 0 0 3px rgba(11,95,176,.1)}
+  input:focus,select:focus{outline:none;border-color:var(--royal);box-shadow:0 0 0 3px rgba(11,95,176,.12)}
   label.inp{display:block;margin-top:16px}
   label.inp>span{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:7px}
   .note{font-size:12px;color:var(--muted);margin-top:12px}
-  .summary{position:sticky;top:92px;padding:26px}
+  .summary{position:sticky;top:94px;padding:26px}
   .summary h4{margin:0;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:700}
   .sline{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:14px 0;border-bottom:1px solid var(--line-2)}
   .sline:first-of-type{margin-top:18px}
@@ -194,47 +202,63 @@
   @media(max-width:860px){.book{grid-template-columns:1fr}.summary{position:static}}
   @media(max-width:520px){.courts{grid-template-columns:1fr}.row2{grid-template-columns:1fr}}
 
-  /* ---------- Feature cards (clases) ---------- */
+  /* ---------- Comunidad ---------- */
+  #comunidad .grid-com{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center}
+  @media(max-width:860px){#comunidad .grid-com{grid-template-columns:1fr;gap:34px}}
+  .com-photo{aspect-ratio:5/4;border-radius:14px}
+  .quotes{display:grid;gap:14px;margin-top:28px}
+  .quote{border-left:2px solid var(--orange);padding:6px 0 6px 20px}
+  .quote p{margin:0;font-family:var(--serif);font-style:italic;font-size:17px;color:var(--ink);line-height:1.5}
+  .quote .who{font-family:var(--sans);font-style:normal;font-size:12px;color:var(--muted);margin-top:8px;font-weight:600;letter-spacing:.02em}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:60px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--paper)}
+  @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{padding:26px 22px;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:0}
+  @media(max-width:640px){.stat:nth-child(2){border-right:0}.stat:nth-child(1),.stat:nth-child(2){border-bottom:1px solid var(--line)}}
+  .stat .num{font-family:var(--display);font-stretch:condensed;font-weight:800;font-size:38px;line-height:1;color:var(--royal)}
+  .stat .lbl{font-size:12.5px;color:var(--muted);margin-top:8px}
+
+  /* ---------- Clases ---------- */
+  #clases{background:var(--cream);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
   @media(max-width:860px){.grid3{grid-template-columns:1fr}}
-  .fcard{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper);transition:.25s var(--ease);display:flex;flex-direction:column}
+  .fcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--paper);transition:.25s var(--ease);display:flex;flex-direction:column}
   .fcard:hover{border-color:var(--ink-2);transform:translateY(-3px)}
   .fcard .ph{aspect-ratio:16/10}
   .fcard .b{padding:24px}
   .fcard h3{margin:0;font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-size:22px;font-weight:800;letter-spacing:.01em}
-  .fcard .role{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);font-weight:700;margin-bottom:12px}
+  .fcard .role{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange-deep);font-weight:700;margin-bottom:12px}
   .fcard p{margin:10px 0 16px;color:var(--muted);font-size:14px}
   .fcard .price{font-size:14px;font-weight:700;color:var(--ink);padding-top:14px;border-top:1px solid var(--line-2)}
   .fcard .price span{color:var(--muted);font-weight:500}
 
   /* ---------- Horarios ---------- */
-  #horarios{background:var(--night);color:var(--on-night);border-top:1px solid var(--night-2)}
+  #horarios{background:var(--night);color:var(--on-night)}
   #horarios .kicker{color:var(--on-night-muted)}
   #horarios .lead{color:var(--on-night-muted)}
   #horarios h2.sec{color:#fff}
-  .sched{overflow-x:auto;margin-top:44px;border:1px solid #23282f;border-radius:12px}
+  .sched{overflow-x:auto;margin-top:44px;border:1px solid #2c231a;border-radius:14px}
   table.st{width:100%;border-collapse:collapse;min-width:640px}
-  .st th,.st td{padding:15px 12px;text-align:center;font-size:13px;border-bottom:1px solid #20252c}
+  .st th,.st td{padding:15px 12px;text-align:center;font-size:13px;border-bottom:1px solid #241c14}
   .st tr:last-child td{border-bottom:0}
   .st thead th{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--on-night-muted);font-weight:600}
   .st tbody th{text-align:left;color:#fff;font-weight:600;white-space:nowrap;font-size:12.5px;letter-spacing:.04em}
   .cell{font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:5px 2px;border-radius:6px}
   .c-open{color:var(--on-night-muted)}
-  .c-cls{color:#8bb9e6}
-  .c-esc{color:#f2a35a}
-  .c-tor{color:#e9eaec;font-weight:700}
+  .c-cls{color:#8fbde8}
+  .c-esc{color:#f0a95f}
+  .c-tor{color:#fff;font-weight:700}
   .legend{display:flex;flex-wrap:wrap;gap:22px;margin-top:22px;font-size:12px;color:var(--on-night-muted)}
   .legend span{display:inline-flex;align-items:center;gap:8px}
   .legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
 
-  /* ---------- Torneos + Delicias ---------- */
-  .split{display:grid;grid-template-columns:1.12fr .88fr;gap:24px}
-  @media(max-width:860px){.split{grid-template-columns:1fr}}
-  .feature{border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  /* ---------- Torneos ---------- */
+  #torneos .split{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  @media(max-width:860px){#torneos .split{grid-template-columns:1fr}}
+  .feature{border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;background:var(--paper)}
   .feature .ph{aspect-ratio:16/9}
   .feature .b{padding:30px}
   .badge{display:inline-flex;align-items:center;gap:9px;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--royal)}
-  .badge.warm{color:var(--orange)}
   .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
   .feature h3{font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-weight:800;font-size:30px;letter-spacing:.005em;margin:14px 0 6px}
   .feature p{color:var(--muted);font-size:14.5px;margin:0 0 20px}
@@ -242,14 +266,34 @@
   .stage:first-of-type{border-top:0}
   .stage .lab{color:var(--muted)}
   .stage .val{font-weight:600}
-  .confirmed{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--royal);font-weight:700;border:1px solid #cfe1f2;border-radius:5px;padding:2px 8px}
+  .confirmed{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--royal);font-weight:700;border:1px solid #cbe0f2;border-radius:5px;padding:2px 8px}
+
+  /* ---------- Delicias (bodegón) ---------- */
+  #delicias{background:linear-gradient(180deg,#2a1c12,#1c130c);color:#f3e6d4;position:relative;overflow:hidden}
+  #delicias .kicker{color:#e0b184}
+  #delicias .kicker::before{background:var(--amber)}
+  .del-grid{display:grid;grid-template-columns:.92fr 1.08fr;gap:52px;align-items:center}
+  @media(max-width:860px){.del-grid{grid-template-columns:1fr;gap:34px}}
+  .del-photo{aspect-ratio:4/3;border-radius:14px}
+  #delicias h2{font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-weight:800;font-size:clamp(34px,6vw,64px);line-height:.94;margin:14px 0 0;color:#fff}
+  #delicias h2 .script{font-family:var(--serif);font-style:italic;font-weight:400;text-transform:none;font-stretch:normal;color:var(--amber);font-size:.62em}
+  #delicias .del-lead{font-family:var(--serif);font-style:italic;font-size:19px;color:#e7d3ba;margin:20px 0 0;max-width:44ch;line-height:1.55}
+  .menu{margin-top:30px;border-top:1px solid #4a3623}
+  .mrow{display:flex;align-items:baseline;gap:12px;padding:14px 0;border-bottom:1px dotted #5a4229}
+  .mrow .mn{font-weight:600;font-size:15px;color:#f7ecdc;white-space:nowrap}
+  .mrow .md{flex:1;border-bottom:1px dotted #6b4f30;transform:translateY(-4px);opacity:.6}
+  .mrow .mp{font-family:var(--display);font-stretch:condensed;font-weight:700;font-size:18px;color:var(--amber)}
+  .mrow small{display:block;font-weight:400;font-size:12.5px;color:#c2a888;margin-top:2px}
+  .del-note{margin-top:26px;font-family:var(--serif);font-style:italic;color:#d9c3a6;font-size:15px}
+  .del-colab{margin-top:22px;display:inline-flex;align-items:center;gap:11px;font-size:13px;color:#e7d3ba;border:1px solid #4a3623;border-radius:999px;padding:8px 16px;background:rgba(255,255,255,.03)}
+  .del-colab b{color:#fff;font-weight:600}
 
   /* ---------- Shop ---------- */
-  #tienda{background:var(--paper-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  #tienda{background:var(--cream);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
   .shop{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
   @media(max-width:960px){.shop{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:520px){.shop{grid-template-columns:1fr}}
-  .prod{background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:.22s var(--ease)}
+  .prod{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:.22s var(--ease)}
   .prod:hover{border-color:var(--ink-2)}
   .prod .ph{aspect-ratio:1/1}
   .prod .in{padding:16px 17px 18px;display:flex;flex-direction:column;flex:1}
@@ -260,11 +304,9 @@
   .add{background:none;border:1px solid var(--line);color:var(--ink);font-family:inherit;font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.16s var(--ease)}
   .add:hover{border-color:var(--ink)}
   .add.added{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .colab{margin-top:30px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .colab .pill{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:5px 12px;background:var(--paper)}
 
-  /* cart drawer */
-  .dbg{position:fixed;inset:0;background:rgba(21,24,29,.4);opacity:0;pointer-events:none;transition:.3s var(--ease);z-index:80}
+  /* cart */
+  .dbg{position:fixed;inset:0;background:rgba(24,18,12,.42);opacity:0;pointer-events:none;transition:.3s var(--ease);z-index:80}
   .dbg.open{opacity:1;pointer-events:auto}
   .drawer{position:fixed;top:0;right:0;height:100%;width:392px;max-width:92vw;background:var(--paper);z-index:90;transform:translateX(100%);transition:.34s var(--ease);display:flex;flex-direction:column}
   .drawer.open{transform:none;box-shadow:-24px 0 60px -30px rgba(0,0,0,.35)}
@@ -273,7 +315,7 @@
   .x{border:1px solid var(--line);background:none;width:34px;height:34px;border-radius:8px;font-size:17px;cursor:pointer;font-family:inherit;color:var(--ink)}
   .clist{flex:1;overflow:auto;padding:8px 24px}
   .ci{display:flex;gap:14px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line-2)}
-  .ci .g{width:48px;height:48px;border-radius:8px;background:var(--paper-3);border:1px solid var(--line);flex:none}
+  .ci .g{width:48px;height:48px;border-radius:8px;background:var(--cream-2);border:1px solid var(--line);flex:none}
   .ci .nm{font-weight:600;font-size:14px}
   .ci .pu{font-size:12px;color:var(--muted);margin-top:2px}
   .qty{display:flex;align-items:center;gap:10px;margin-left:auto}
@@ -289,9 +331,21 @@
   .wa:disabled{background:var(--line);color:var(--faint);cursor:not-allowed}
   .paynote{font-size:11.5px;color:var(--faint);text-align:center;margin-top:12px}
 
-  /* ---------- ERP strip ---------- */
-  #erp{border-bottom:1px solid var(--line)}
-  .mods{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:48px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  /* ---------- Marca / identidad ---------- */
+  #marca{background:var(--paper);border-bottom:1px solid var(--line)}
+  .brand-lockups{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px}
+  @media(max-width:760px){.brand-lockups{grid-template-columns:1fr}}
+  .lock{border:1px solid var(--line);border-radius:14px;padding:34px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+  .lock.light{background:var(--cream)}
+  .lock.dark{background:var(--night);color:var(--on-night)}
+  .lock.warm{background:linear-gradient(180deg,#2a1c12,#1c130c);color:#f3e6d4}
+  .lock .emblem{width:100px;height:100px;font-size:20px}
+  .lock .cap{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .lock.dark .cap,.lock.warm .cap{color:var(--on-night-muted)}
+
+  /* ---------- ERP ---------- */
+  #erp{border-bottom:1px solid var(--line);background:var(--cream)}
+  .mods{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:48px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--paper)}
   @media(max-width:820px){.mods{grid-template-columns:1fr}}
   .mod{padding:26px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
   .mod:nth-child(3n){border-right:0}
@@ -301,16 +355,20 @@
   @media(max-width:820px){.mod{border-right:0}}
 
   /* ---------- Footer ---------- */
-  footer{background:var(--night);color:var(--on-night-muted);padding:72px 0 36px}
+  footer{background:var(--night);color:var(--on-night-muted);padding:72px 0 34px}
   .fgrid{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:40px}
   @media(max-width:760px){.fgrid{grid-template-columns:1fr}}
   footer h5{color:#fff;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;margin:0 0 16px;font-weight:600}
   footer a.fl{display:block;color:var(--on-night-muted);font-size:14px;padding:5px 0;transition:.16s var(--ease)}
   footer a.fl:hover{color:#fff}
   .fbrand{display:flex;align-items:center;gap:14px;margin-bottom:18px}
-  .fbrand .w1{color:#fff;font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-weight:800;font-size:22px;letter-spacing:.02em}
-  .fbrand .w2{color:var(--on-night-muted);font-size:9.5px;letter-spacing:.34em;text-transform:uppercase;margin-top:3px;font-weight:600}
-  .fnote{margin-top:44px;padding-top:22px;border-top:1px solid var(--night-2);font-size:12px;color:#5b636c;display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between}
+  .fbrand .emblem{width:52px;height:52px;font-size:10.4px}
+  .fbrand .w1{color:#fff;font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-weight:800;font-size:22px;letter-spacing:.02em;display:flex;align-items:center}
+  .fbrand .w1 .ball{width:.66em;height:.66em}
+  .fbrand .w2{color:var(--on-night-muted);font-size:9.5px;letter-spacing:.32em;text-transform:uppercase;margin-top:2px;font-weight:600}
+  .fnote{margin-top:44px;padding-top:22px;border-top:1px solid var(--night-2);font-size:12px;color:#6f6252;display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between;align-items:center}
+  .gsg{display:inline-flex;align-items:center;gap:9px;color:#8a7c69}
+  .gsg .seal{width:26px;height:26px;border-radius:50%;border:1px solid #4a3f30;display:grid;place-items:center;font-size:9px;font-weight:800;letter-spacing:.04em;color:#b0a695}
   .toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:13px 22px;border-radius:10px;font-size:13.5px;font-weight:600;opacity:0;pointer-events:none;transition:.3s var(--ease);z-index:100}
   .toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
@@ -322,28 +380,28 @@
 <!-- NAV -->
 <nav class="top">
   <div class="wrap nav-in">
-    <a class="brand" href="#top" aria-label="Break Point Pádel">
-      <svg class="mark" width="46" height="46" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <circle cx="23" cy="23" r="22" fill="#0b5fb0"/>
-        <circle cx="23" cy="23" r="18.5" fill="none" stroke="#ffffff" stroke-width="1" opacity=".55"/>
-        <circle cx="23" cy="23" r="7.2" fill="#f07a0c"/>
-        <path d="M17.4 20.2c3.4 1.1 7.8 1.1 11.2 0M17.4 25.8c3.4-1.1 7.8-1.1 11.2 0" stroke="#0b5fb0" stroke-width="1" fill="none" opacity=".55"/>
-        <text x="23" y="12.4" text-anchor="middle" font-family="Arial Narrow, sans-serif" font-size="6.6" font-weight="700" fill="#fff" letter-spacing=".5">BREAK</text>
-        <text x="23" y="39.2" text-anchor="middle" font-family="Arial Narrow, sans-serif" font-size="6" font-weight="700" fill="#fff" letter-spacing="1.4">PÁDEL</text>
-      </svg>
+    <a class="brand" href="#top" aria-label="Break Point Pádel — inicio">
+      <span class="emblem" role="img" aria-label="Logo Break Point Pádel">
+        <span class="ring"></span><span class="ring2"></span>
+        <span class="e-dot l"></span><span class="e-dot r"></span>
+        <span class="e-top">Break</span>
+        <span class="e-mid">P<span class="ball"></span>int</span>
+        <span class="e-bot">Pádel</span>
+      </span>
       <span class="wordmark">
-        <span class="w1">Break P<span class="ball"></span>int</span>
+        <span class="w1">Break&nbsp;P<span class="ball"></span>int</span>
         <span class="w2">Pádel · Ezeiza</span>
       </span>
     </a>
     <div class="nav-links">
       <a href="#reservas">Reservas</a>
+      <a href="#comunidad">Comunidad</a>
       <a href="#clases">Clases</a>
       <a href="#horarios">Horarios</a>
+      <a href="#delicias">Delicias</a>
       <a href="#tienda">Shop</a>
-      <a href="#torneos">Torneos</a>
     </div>
-    <button class="icon-btn" onclick="openCart()" aria-label="Ver carrito">Shop <span class="count" id="cart-count">0</span></button>
+    <button class="icon-btn" onclick="openCart()" aria-label="Abrir carrito de la tienda">Shop <span class="count" id="cart-count">0</span></button>
     <button class="btn btn-dark" onclick="jump('reservas')">Reservar</button>
   </div>
 </nav>
@@ -354,32 +412,41 @@
     <div class="hero-grid">
       <div>
         <span class="kicker">Club de pádel · Ezeiza</span>
-        <h1 class="display">El juego,<br>en su<br><span class="thin">mejor forma.</span></h1>
-        <p class="lead">Cuatro canchas panorámicas, escuela, clases, torneos del Circuito Padel Sur y Delicias Break. Un club pensado con el detalle de siempre — ahora, reservás en segundos.</p>
+        <h1 class="display">Más que canchas,<br>un club <span class="amp">de</span><br>amigos y amigas.</h1>
+        <p class="lead">Cuatro canchas panorámicas, escuela, torneos del Circuito Padel Sur y el bodegón Delicias Break para la sobremesa. Un lugar para jugar, pertenecer y quedarse — ahora, reservás en segundos.</p>
         <div class="hero-cta">
           <button class="btn btn-primary" onclick="jump('reservas')">Reservar cancha</button>
           <a class="btn btn-outline" href="https://wa.me/5491161870066?text=Hola%20Break%20Point!%20Quiero%20info" target="_blank" rel="noopener">WhatsApp · 11 6187 0066</a>
         </div>
       </div>
-      <div class="ph hero-photo" data-photo="Foto — cancha central">
-        <svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg>
+      <div class="hero-right">
+        <div class="ph hero-photo" data-photo="Foto — gente jugando / comunidad">
+          <svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg>
+        </div>
+        <span class="emblem hero-emblem" role="img" aria-label="Logo Break Point Pádel">
+          <span class="ring"></span><span class="ring2"></span>
+          <span class="e-dot l"></span><span class="e-dot r"></span>
+          <span class="e-top">Break</span>
+          <span class="e-mid">P<span class="ball"></span>int</span>
+          <span class="e-bot">Pádel</span>
+        </span>
       </div>
     </div>
     <div class="strip">
       <div class="it"><div class="k">Sede</div><div class="v">Paso de la Patria 55, Ezeiza</div></div>
       <div class="it"><div class="k">Reservas</div><div class="v"><b>11 6187 0066</b></div></div>
       <div class="it"><div class="k">Horario</div><div class="v">Todos los días · 8 a 24 h</div></div>
-      <div class="it"><div class="k">Canchas</div><div class="v">4 panorámicas · 2 techadas</div></div>
+      <div class="it"><div class="k">La casa</div><div class="v">Canchas · Escuela · Bodegón</div></div>
     </div>
   </div>
 </header>
 
 <!-- RESERVAS -->
-<section id="reservas">
+<section id="reservas" aria-labelledby="reservas-h">
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="kicker">Reservas</span>
-      <h2 class="sec display">Elegí cancha y horario</h2>
+      <h2 class="sec display" id="reservas-h">Elegí cancha y horario</h2>
       <p class="lead">Turnos de 90 minutos con 10' de cortesía entre partidos. Los horarios ocupados se bloquean solos — sin llamados, sin superposiciones.</p>
     </div>
     <div class="book reveal">
@@ -389,10 +456,12 @@
         <div class="row2">
           <div>
             <div class="flabel"><span class="n">2</span> Día</div>
+            <label class="sr-only" for="fecha">Elegí el día</label>
             <input type="date" id="fecha" />
           </div>
           <div>
             <div class="flabel"><span class="n">3</span> Modalidad</div>
+            <label class="sr-only" for="players">Modalidad</label>
             <select id="players">
               <option value="4">Dobles · 4 jugadores</option>
               <option value="2">Singles · 2 jugadores</option>
@@ -405,8 +474,8 @@
           <div class="note" id="slot-note">Elegí una cancha para ver los turnos disponibles.</div>
         </div>
         <div class="row2">
-          <label class="inp"><span>Nombre</span><input id="nombre" placeholder="Nombre y apellido" /></label>
-          <label class="inp"><span>WhatsApp</span><input id="telefono" placeholder="11 ..." inputmode="tel" /></label>
+          <label class="inp"><span>Nombre</span><input id="nombre" placeholder="Nombre y apellido" autocomplete="name" /></label>
+          <label class="inp"><span>WhatsApp</span><input id="telefono" placeholder="11 ..." inputmode="tel" autocomplete="tel" /></label>
         </div>
       </div>
 
@@ -421,7 +490,7 @@
           <div class="note" style="text-align:center">Pago con Mercado Pago o en el club. Cancelación gratis hasta 6 h antes.</div>
         </div>
         <div id="sum-done" class="done" style="display:none">
-          <div class="ok">✓</div>
+          <div class="ok" aria-hidden="true">✓</div>
           <h4 style="letter-spacing:.02em;font-size:16px;color:var(--ink);text-transform:none">Reserva confirmada</h4>
           <p class="note" id="done-txt" style="margin:12px 0 20px"></p>
           <button class="btn btn-outline full" onclick="resetBooking()">Reservar otro turno</button>
@@ -431,17 +500,43 @@
   </div>
 </section>
 
+<!-- COMUNIDAD -->
+<section id="comunidad" aria-labelledby="comunidad-h">
+  <div class="wrap">
+    <div class="grid-com">
+      <div class="ph com-photo reveal" data-photo="Foto — after en el club / amigos">
+        <svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg>
+      </div>
+      <div class="reveal">
+        <span class="kicker">Comunidad</span>
+        <h2 class="sec display" id="comunidad-h">Acá se hacen amigos</h2>
+        <p class="lead">Break Point no es solo pádel: es la gente. Ligas internas, mixtos de los viernes, la previa y el after. Venís a jugar y te quedás por el club.</p>
+        <div class="quotes">
+          <blockquote class="quote"><p>“Empecé sola buscando cancha y terminé con un grupo de amigas para toda la vida.”</p><div class="who">— Caro, socia desde 2023</div></blockquote>
+          <blockquote class="quote"><p>“Los viernes de mixto son sagrados. Se juega en serio y después nos quedamos en Delicias.”</p><div class="who">— Fede &amp; Lucía, socios</div></blockquote>
+        </div>
+      </div>
+    </div>
+    <div class="stats reveal" role="list" aria-label="Datos de la comunidad">
+      <div class="stat" role="listitem"><div class="num">+800</div><div class="lbl">socios y socias</div></div>
+      <div class="stat" role="listitem"><div class="num">12</div><div class="lbl">torneos al año</div></div>
+      <div class="stat" role="listitem"><div class="num">+120</div><div class="lbl">chicos en la escuelita</div></div>
+      <div class="stat" role="listitem"><div class="num">5</div><div class="lbl">años de club</div></div>
+    </div>
+  </div>
+</section>
+
 <!-- CLASES -->
-<section id="clases" style="background:var(--paper-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+<section id="clases" aria-labelledby="clases-h">
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="kicker">Formación</span>
-      <h2 class="sec display">Clases &amp; Escuelita</h2>
+      <h2 class="sec display" id="clases-h">Clases &amp; Escuelita</h2>
       <p class="lead">De los primeros globos a la volea ganadora. Grupos reducidos, profes matriculados y seguimiento del progreso.</p>
     </div>
     <div class="grid3 reveal">
       <article class="fcard">
-        <div class="ph" data-photo="Foto — escuelita"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
+        <div class="ph" data-photo="Foto — escuelita"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
         <div class="b">
           <div class="role">Chicos · 6 a 13</div>
           <h3>Escuelita Break</h3>
@@ -450,7 +545,7 @@
         </div>
       </article>
       <article class="fcard">
-        <div class="ph" data-photo="Foto — clase adultos"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
+        <div class="ph" data-photo="Foto — clase adultos"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
         <div class="b">
           <div class="role">Adultos · todos los niveles</div>
           <h3>Clases</h3>
@@ -459,7 +554,7 @@
         </div>
       </article>
       <article class="fcard">
-        <div class="ph" data-photo="Foto — entrenamiento"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
+        <div class="ph" data-photo="Foto — entrenamiento"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
         <div class="b">
           <div class="role">Competitivo</div>
           <h3>Alto rendimiento</h3>
@@ -472,39 +567,45 @@
 </section>
 
 <!-- HORARIOS -->
-<section id="horarios">
+<section id="horarios" aria-labelledby="horarios-h">
   <div class="wrap">
     <div class="sec-head reveal" style="max-width:640px">
       <span class="kicker">Agenda</span>
-      <h2 class="sec display">Horarios del club</h2>
+      <h2 class="sec display" id="horarios-h">Horarios del club</h2>
       <p class="lead">Cómo se reparte la semana entre juego libre, clases, escuelita y torneos. En el ERP, la grilla se ordena sola según las reservas.</p>
     </div>
     <div class="sched reveal">
       <table class="st">
-        <thead><tr><th>Franja</th><th>Lun</th><th>Mar</th><th>Mié</th><th>Jue</th><th>Vie</th><th>Sáb</th><th>Dom</th></tr></thead>
+        <caption class="sr-only">Grilla semanal de actividades por franja horaria</caption>
+        <thead><tr><th scope="col">Franja</th><th scope="col">Lun</th><th scope="col">Mar</th><th scope="col">Mié</th><th scope="col">Jue</th><th scope="col">Vie</th><th scope="col">Sáb</th><th scope="col">Dom</th></tr></thead>
         <tbody>
-          <tr><th>08 – 12</th><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-tor">Torneo</span></td><td><span class="cell c-tor">Torneo</span></td></tr>
-          <tr><th>12 – 16</th><td><span class="cell c-open">Libre</span></td><td><span class="cell c-cls">Clases</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-cls">Clases</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td></tr>
-          <tr><th>16 – 19</th><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td></tr>
-          <tr><th>19 – 24</th><td><span class="cell c-open">Libre</span></td><td><span class="cell c-cls">Clases</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-cls">Clases</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td></tr>
+          <tr><th scope="row">08 – 12</th><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-tor">Torneo</span></td><td><span class="cell c-tor">Torneo</span></td></tr>
+          <tr><th scope="row">12 – 16</th><td><span class="cell c-open">Libre</span></td><td><span class="cell c-cls">Clases</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-cls">Clases</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td></tr>
+          <tr><th scope="row">16 – 19</th><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-esc">Escuelita</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td></tr>
+          <tr><th scope="row">19 – 24</th><td><span class="cell c-open">Libre</span></td><td><span class="cell c-cls">Clases</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-cls">Clases</span></td><td><span class="cell c-tor">Mixto</span></td><td><span class="cell c-open">Libre</span></td><td><span class="cell c-open">Libre</span></td></tr>
         </tbody>
       </table>
     </div>
     <div class="legend reveal">
-      <span><i style="background:#5b636c"></i> Juego libre</span>
-      <span><i style="background:#8bb9e6"></i> Clases</span>
-      <span><i style="background:#f2a35a"></i> Escuelita</span>
-      <span><i style="background:#fff"></i> Torneos</span>
+      <span><i style="background:#b0a695"></i> Juego libre</span>
+      <span><i style="background:#8fbde8"></i> Clases</span>
+      <span><i style="background:#f0a95f"></i> Escuelita</span>
+      <span><i style="background:#fff"></i> Torneos / Mixto</span>
     </div>
   </div>
 </section>
 
-<!-- TORNEOS + DELICIAS -->
-<section id="torneos">
+<!-- TORNEOS -->
+<section id="torneos" aria-labelledby="torneos-h">
   <div class="wrap">
+    <div class="sec-head reveal" style="max-width:640px">
+      <span class="kicker">Competí</span>
+      <h2 class="sec display" id="torneos-h">Torneos del club</h2>
+      <p class="lead">Del amistoso interno a las etapas del Circuito Padel Sur. Categorías para todos los niveles y siempre con la mesa esperando al final.</p>
+    </div>
     <div class="split">
       <div class="feature reveal">
-        <div class="ph" data-photo="Foto — torneo / premiación"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
+        <div class="ph" data-photo="Foto — torneo / premiación"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
         <div class="b">
           <span class="badge"><span class="dot"></span> Circuito Padel Sur</span>
           <h3>Etapa #2 · Challenge</h3>
@@ -513,56 +614,102 @@
           <div class="stage"><span class="lab">Sede</span><span class="confirmed">Sede confirmada</span></div>
           <div class="stage"><span class="lab">Inscripción</span><span class="val">Abierta · por WhatsApp</span></div>
           <div style="margin-top:22px">
-            <a class="btn btn-outline" href="https://wa.me/5491161870066?text=Quiero%20inscribirme%20a%20la%20Etapa%202%20del%20Circuito%20Padel%20Sur" target="_blank" rel="noopener">Inscribir mi pareja</a>
+            <a class="btn btn-primary" href="https://wa.me/5491161870066?text=Quiero%20inscribirme%20a%20la%20Etapa%202%20del%20Circuito%20Padel%20Sur" target="_blank" rel="noopener">Inscribir mi pareja</a>
           </div>
         </div>
       </div>
       <div class="feature reveal">
-        <div class="ph" data-photo="Foto — Delicias Break"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
+        <div class="ph" data-photo="Foto — mixto de los viernes"><svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg></div>
         <div class="b">
-          <span class="badge warm"><span class="dot"></span> Delicias Break</span>
-          <h3>Un gran sábado de degustaciones</h3>
-          <p>Buffet y cafetería del club. Café de especialidad, tostados, picadas y una agenda de eventos para el after.</p>
-          <div class="stage"><span class="lab">Café + medialunas</span><span class="val">$3.500</span></div>
-          <div class="stage"><span class="lab">Picada Break · para 2</span><span class="val">$11.900</span></div>
-          <div class="stage"><span class="lab">Próximo evento</span><span class="val">Sábado · degustaciones</span></div>
+          <span class="badge"><span class="dot"></span> Liga interna</span>
+          <h3>Mixto de los viernes</h3>
+          <p>El clásico de la casa. Te anotás solo o en pareja, armamos los cruces y jugás toda la noche.</p>
+          <div class="stage"><span class="lab">Cuándo</span><span class="val">Viernes · 20 h</span></div>
+          <div class="stage"><span class="lab">Nivel</span><span class="val">Todos · se arman grupos</span></div>
+          <div class="stage"><span class="lab">Incluye</span><span class="val">1ª consumición en Delicias</span></div>
         </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DELICIAS (bodegón) -->
+<section id="delicias" aria-labelledby="delicias-h">
+  <div class="wrap">
+    <div class="del-grid">
+      <div class="ph warm del-photo reveal" data-photo="Foto — bodegón / mesa con amigos">
+        <svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg>
+      </div>
+      <div class="reveal">
+        <span class="kicker">Delicias Break</span>
+        <h2 id="delicias-h">El bodegón <span class="script">del club</span></h2>
+        <p class="del-lead">Después del partido, la mesa. Café de especialidad, tostados, picadas y vino de la casa — con la sobremesa larga que solo pasa entre amigos.</p>
+        <div class="menu">
+          <div class="mrow"><span class="mn">Café &amp; medialunas <small>de la panadería del barrio</small></span><span class="md"></span><span class="mp">$3.500</span></div>
+          <div class="mrow"><span class="mn">Tostado mixto &amp; jugo natural</span><span class="md"></span><span class="mp">$5.200</span></div>
+          <div class="mrow"><span class="mn">Picada Break para 2 <small>fiambres de Salumería Procs</small></span><span class="md"></span><span class="mp">$11.900</span></div>
+          <div class="mrow"><span class="mn">Milanesa con papas <small>como la de siempre</small></span><span class="md"></span><span class="mp">$9.800</span></div>
+          <div class="mrow"><span class="mn">Copa de vino de la casa</span><span class="md"></span><span class="mp">$2.400</span></div>
+        </div>
+        <p class="del-note">“Un gran sábado de degustaciones” — seguí la agenda de eventos del club.</p>
+        <div class="del-colab"><span aria-hidden="true">🤝</span> En alianza con <b>Salumería Procs</b> · charcutería de autor</div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- SHOP -->
-<section id="tienda">
+<section id="tienda" aria-labelledby="tienda-h">
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="kicker">Break Point Shop</span>
-      <h2 class="sec display">La tienda del club</h2>
+      <h2 class="sec display" id="tienda-h">La tienda del club</h2>
       <p class="lead">Paletas, pelotas, accesorios e indumentaria. Sumás al carrito y cerrás el pedido por WhatsApp, o pagás online.</p>
     </div>
     <div class="shop reveal" id="shop"></div>
-    <div class="colab reveal">
-      <span class="pill">Colaboración</span>
-      En alianza con <b style="color:var(--ink);font-weight:600">Salumería Procs</b> — fiambres y tablas de autor para las Delicias Break.
+  </div>
+</section>
+
+<!-- MARCA / identidad -->
+<section id="marca" aria-labelledby="marca-h">
+  <div class="wrap">
+    <div class="sec-head reveal" style="max-width:640px">
+      <span class="kicker">Identidad</span>
+      <h2 class="sec display" id="marca-h">La marca, bien puesta</h2>
+      <p class="lead">El isologo de Break Point funciona sobre cualquier fondo — en la app, en la cancha y en la vidriera. Azul royal, naranja y la pelota como sello.</p>
+    </div>
+    <div class="brand-lockups reveal">
+      <div class="lock light">
+        <span class="emblem" role="img" aria-label="Logo sobre fondo claro"><span class="ring"></span><span class="ring2"></span><span class="e-dot l"></span><span class="e-dot r"></span><span class="e-top">Break</span><span class="e-mid">P<span class="ball"></span>int</span><span class="e-bot">Pádel</span></span>
+        <span class="cap">Sobre fondo claro</span>
+      </div>
+      <div class="lock dark">
+        <span class="emblem" role="img" aria-label="Logo sobre fondo oscuro"><span class="ring"></span><span class="ring2"></span><span class="e-dot l"></span><span class="e-dot r"></span><span class="e-top">Break</span><span class="e-mid">P<span class="ball"></span>int</span><span class="e-bot">Pádel</span></span>
+        <span class="cap">Sobre fondo oscuro</span>
+      </div>
+      <div class="lock warm">
+        <span class="emblem emblem--orange" role="img" aria-label="Variante del logo en naranja"><span class="ring"></span><span class="ring2"></span><span class="e-dot l"></span><span class="e-dot r"></span><span class="e-top">Break</span><span class="e-mid">P<span class="ball"></span>int</span><span class="e-bot">Pádel</span></span>
+        <span class="cap">Variante naranja</span>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- ERP -->
-<section id="erp">
+<section id="erp" aria-labelledby="erp-h">
   <div class="wrap">
     <div class="sec-head reveal" style="max-width:680px">
       <span class="kicker">Detrás de escena</span>
-      <h2 class="sec display">Un solo sistema para todo el club</h2>
-      <p class="lead">Lo que ves no son pantallas sueltas: es Break Point corriendo sobre nuestro ERP. Cada módulo de la marca ya tiene su motor.</p>
+      <h2 class="sec display" id="erp-h">Un solo sistema para todo el club</h2>
+      <p class="lead">Lo que ves no son pantallas sueltas: es Break Point corriendo sobre nuestro ERP. Cada rincón de la marca ya tiene su motor.</p>
     </div>
     <div class="mods reveal">
       <div class="mod"><div class="mk2">Agenda</div><h4>Reservas de canchas</h4><p>Turnos por cancha, buffer anti-solapamiento y ocupación en tiempo real.</p></div>
       <div class="mod"><div class="mk2">Comercio</div><h4>Tienda &amp; POS</h4><p>Shop online y venta en mostrador con stock y precios unificados.</p></div>
       <div class="mod"><div class="mk2">Academia</div><h4>Clases &amp; Escuelita</h4><p>Cupos, cuotas mensuales y seguimiento de alumnos por nivel.</p></div>
-      <div class="mod"><div class="mk2">Eventos</div><h4>Torneos</h4><p>Inscripciones por categoría, fixture y cobro de la inscripción.</p></div>
+      <div class="mod"><div class="mk2">Comunidad</div><h4>Socios &amp; Torneos</h4><p>Padrón de socios, ligas internas, inscripciones y fixture.</p></div>
+      <div class="mod"><div class="mk2">Gastronomía</div><h4>Delicias · Buffet</h4><p>Comandas del bodegón y consumiciones ligadas a la reserva.</p></div>
       <div class="mod"><div class="mk2">Finanzas</div><h4>Pagos &amp; Fiscal</h4><p>Cobro con Mercado Pago y facturación electrónica ARCA integrada.</p></div>
-      <div class="mod"><div class="mk2">Dirección</div><h4>Panel del dueño</h4><p>Ingresos, ocupación y ventas del buffet en un tablero claro.</p></div>
     </div>
   </div>
 </section>
@@ -573,23 +720,18 @@
     <div class="fgrid">
       <div>
         <div class="fbrand">
-          <svg class="mark" width="48" height="48" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="23" cy="23" r="22" fill="#0b5fb0"/>
-            <circle cx="23" cy="23" r="18.5" fill="none" stroke="#ffffff" stroke-width="1" opacity=".55"/>
-            <circle cx="23" cy="23" r="7.2" fill="#f07a0c"/>
-            <text x="23" y="12.4" text-anchor="middle" font-family="Arial Narrow, sans-serif" font-size="6.6" font-weight="700" fill="#fff" letter-spacing=".5">BREAK</text>
-            <text x="23" y="39.2" text-anchor="middle" font-family="Arial Narrow, sans-serif" font-size="6" font-weight="700" fill="#fff" letter-spacing="1.4">PÁDEL</text>
-          </svg>
-          <span><span class="w1">Break P<span class="ball"></span>int</span><span class="w2">Pádel · Ezeiza</span></span>
+          <span class="emblem" role="img" aria-label="Logo Break Point Pádel"><span class="ring"></span><span class="ring2"></span><span class="e-dot l"></span><span class="e-dot r"></span><span class="e-top">Break</span><span class="e-mid">P<span class="ball"></span>int</span><span class="e-bot">Pádel</span></span>
+          <span><span class="w1">Break&nbsp;P<span class="ball"></span>int</span><span class="w2">Pádel · Ezeiza</span></span>
         </div>
-        <p style="max-width:34ch;font-size:14px;color:var(--on-night-muted)">El club donde jugás, aprendés, competís y te quedás. Te esperamos en cancha.</p>
+        <p style="max-width:34ch;font-size:14px;color:var(--on-night-muted)">El club donde jugás, aprendés, competís y te quedás. Amigos, amigas y una mesa siempre puesta.</p>
       </div>
       <div>
         <h5>El club</h5>
         <a class="fl" href="#reservas">Reservas</a>
+        <a class="fl" href="#comunidad">Comunidad</a>
         <a class="fl" href="#clases">Clases &amp; Escuelita</a>
-        <a class="fl" href="#tienda">Break Point Shop</a>
-        <a class="fl" href="#torneos">Torneos &amp; Delicias</a>
+        <a class="fl" href="#delicias">Delicias Break</a>
+        <a class="fl" href="#tienda">Shop</a>
       </div>
       <div>
         <h5>Contacto</h5>
@@ -600,16 +742,16 @@
       </div>
     </div>
     <div class="fnote">
-      <span>© 2026 Break Point Pádel · demo de preventa</span>
-      <span>Powered by nuestro ERP · tenant breakpoint · datos e imágenes de ejemplo</span>
+      <span>© 2026 Break Point Pádel · demo de preventa · datos e imágenes de ejemplo</span>
+      <span class="gsg"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span>
     </div>
   </div>
 </footer>
 
 <!-- CART -->
 <div class="dbg" id="dbg" onclick="closeCart()"></div>
-<aside class="drawer" id="drawer" aria-label="Carrito">
-  <div class="dh"><h3>Tu pedido</h3><button class="x" onclick="closeCart()" aria-label="Cerrar">×</button></div>
+<aside class="drawer" id="drawer" aria-label="Carrito de la tienda">
+  <div class="dh"><h3>Tu pedido</h3><button class="x" onclick="closeCart()" aria-label="Cerrar carrito">×</button></div>
   <div class="clist" id="clist"></div>
   <div class="df">
     <div class="tt"><span>Total</span><b id="cart-total">$0</b></div>
@@ -618,7 +760,8 @@
   </div>
 </aside>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<style>.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
 
 <script>
 "use strict";
@@ -647,7 +790,7 @@ function dayKey(iso){ return iso.split("-").reduce((a,b)=>a+Number(b),0); }
 
 function renderCourts(){
   $("courts").innerHTML = COURTS.map(c=>`
-    <button class="court" data-id="${c.id}" onclick="pickCourt('${c.id}')">
+    <button class="court" data-id="${c.id}" onclick="pickCourt('${c.id}')" aria-pressed="false">
       <div class="nm">${c.name}${c.tag?`<span class="tag-min">${c.tag}</span>`:""}</div>
       <div class="tp">${c.type}</div>
       <div class="pr">${money(c.price)} <small>· 90 min</small></div>
@@ -655,7 +798,7 @@ function renderCourts(){
 }
 function pickCourt(id){
   state.court = COURTS.find(c=>c.id===id); state.slot=null;
-  document.querySelectorAll(".court").forEach(el=>el.classList.toggle("sel", el.dataset.id===id));
+  document.querySelectorAll(".court").forEach(el=>{const s=el.dataset.id===id; el.classList.toggle("sel",s); el.setAttribute("aria-pressed",s);});
   renderSlots(); updateSummary();
 }
 function renderSlots(){
@@ -668,7 +811,7 @@ function renderSlots(){
     const i=Math.round((t-start)/step);
     const busy=((i*7+seed*3)%5===0)||((i+seed)%7===2);
     if(!busy) any=true;
-    html+=`<button class="slot${state.slot===t?" sel":""}" ${busy?"disabled":""} onclick="pickSlot(${t})">${fmt(t)}</button>`;
+    html+=`<button class="slot${state.slot===t?" sel":""}" ${busy?'disabled aria-disabled="true"':""} onclick="pickSlot(${t})" aria-label="Turno ${fmt(t)}${busy?' — ocupado':''}">${fmt(t)}</button>`;
   }
   box.innerHTML=html;
   $("slot-note").textContent = any ? "Los turnos tachados ya están reservados." : "No quedan turnos ese día, probá otra fecha.";
@@ -695,13 +838,13 @@ function validate(){
 }
 function confirmBooking(){
   const first = $("nombre").value.trim().split(" ")[0];
-  $("done-txt").innerHTML = `<b style="color:var(--ink)">${state.court.name}</b> · ${prettyDate(state.date)}<br>${fmt(state.slot)} a ${fmt(state.slot+TURN_MIN)} · ${money(state.court.price)}<br>Te confirmamos por WhatsApp, ${first}.`;
+  $("done-txt").innerHTML = `<b style="color:var(--ink)">${state.court.name}</b> · ${prettyDate(state.date)}<br>${fmt(state.slot)} a ${fmt(state.slot+TURN_MIN)} · ${money(state.court.price)}<br>Te confirmamos por WhatsApp, ${first}. ¡Te esperamos!`;
   $("sum-body").style.display="none"; $("sum-done").style.display="block";
   toast("Reserva confirmada");
 }
 function resetBooking(){
   state.court=null; state.slot=null; $("nombre").value=""; $("telefono").value="";
-  document.querySelectorAll(".court").forEach(el=>el.classList.remove("sel"));
+  document.querySelectorAll(".court").forEach(el=>{el.classList.remove("sel"); el.setAttribute("aria-pressed","false");});
   $("slots").innerHTML=""; $("slot-note").textContent="Elegí una cancha para ver los turnos disponibles.";
   $("sum-done").style.display="none"; $("sum-body").style.display="block";
   updateSummary(); jump("reservas");
@@ -719,7 +862,7 @@ const PRODUCTS = [
   { id:"p8", name:"Tabla Procs", brand:"Salumería Procs", price:18900, photo:"Foto — tabla" },
 ];
 const cart = {};
-const camSVG = '<svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg>';
+const camSVG = '<svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8 6.5l1.4-2.2h5.2L16 6.5"/></svg>';
 function renderShop(){
   $("shop").innerHTML = PRODUCTS.map(p=>`
     <div class="prod">
@@ -727,7 +870,7 @@ function renderShop(){
       <div class="in">
         <div class="brand-s">${p.brand}</div>
         <h4>${p.name}</h4>
-        <div class="foot"><span class="pr">${money(p.price)}</span><button class="add" id="add-${p.id}" onclick="addToCart('${p.id}')">Agregar</button></div>
+        <div class="foot"><span class="pr">${money(p.price)}</span><button class="add" id="add-${p.id}" onclick="addToCart('${p.id}')" aria-label="Agregar ${p.name} al carrito">Agregar</button></div>
       </div>
     </div>`).join("");
 }
@@ -746,8 +889,8 @@ function refreshCart(){
   const list=$("clist"), items=Object.entries(cart);
   list.innerHTML = items.length ? items.map(([id,q])=>{
     const p=PRODUCTS.find(x=>x.id===id);
-    return `<div class="ci"><div class="g"></div><div><div class="nm">${p.name}</div><div class="pu">${money(p.price)} c/u</div></div>
-      <div class="qty"><button onclick="changeQty('${id}',-1)">−</button><b>${q}</b><button onclick="changeQty('${id}',1)">+</button></div></div>`;
+    return `<div class="ci"><div class="g" aria-hidden="true"></div><div><div class="nm">${p.name}</div><div class="pu">${money(p.price)} c/u</div></div>
+      <div class="qty"><button onclick="changeQty('${id}',-1)" aria-label="Quitar uno">−</button><b>${q}</b><button onclick="changeQty('${id}',1)" aria-label="Sumar uno">+</button></div></div>`;
   }).join("") : `<div class="cempty">Tu carrito está vacío.<br>Sumá productos del Shop.</div>`;
   $("cart-total").textContent = money(cartTotal());
   $("wa-btn").disabled = !items.length;
@@ -766,6 +909,7 @@ function checkoutWA(){
 let tt;
 function toast(t){ const el=$("toast"); el.textContent=t; el.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove("show"),1900); }
 function jump(id){ $(id).scrollIntoView({behavior:"smooth"}); }
+window.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeCart(); });
 const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}}),{threshold:.12});
 
 /* ===== INIT ===== */
