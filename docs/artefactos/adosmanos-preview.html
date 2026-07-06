@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="A Dos Manos Pádel — tienda de palas y zapatillas elegidas a mano, con asesoramiento y pedido por WhatsApp." />
+<meta name="theme-color" content="#0b7a53" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="A Dos Manos Pádel · Tienda" />
+<meta property="og:description" content="A Dos Manos Pádel — tienda de palas y zapatillas elegidas a mano, con asesoramiento y pedido por WhatsApp." />
 <title>A Dos Manos Pádel · Tienda (demo)</title>
 <!--
   DEMO AUTOCONTENIDA — A Dos Manos Pádel (tenant `adosmanos`, blueprint RETAIL/TIENDA,
@@ -177,6 +182,12 @@
   .cart-empty { text-align: center; color: var(--ink-soft); padding: 40px 0; }
   .demo-tag { position: fixed; bottom: 12px; left: 12px; font-size: 11px; color: var(--ink-soft); background: #fff; border: 1px solid var(--line); padding: 6px 10px; border-radius: 999px; z-index: 20; }
   @media (max-width: 560px) { .nav-links { display: none; } .about { padding: 26px; } }
+  /* — GSG · accesibilidad + sello — */
+  :where(a,button,input,select,[tabindex]):focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; } }
+  .gsg{ display:inline-flex; align-items:center; gap:9px; color:var(--ink-soft); font-size:12.5px; }
+  .gsg .seal{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line-strong); display:grid; place-items:center; font-size:9px; font-weight:800; letter-spacing:.04em; color:var(--ink-soft); }
+  .gsgbar{ margin-top:18px; padding-top:16px; border-top:1px solid var(--line-strong); display:flex; }
 </style>
 </head>
 <body>
@@ -229,6 +240,7 @@
     <span>Envíos a todo el país</span>
     <span>·</span>
     <span>Cambios dentro de los 30 días</span>
+    <span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span>
   </footer>
 
   <!-- Scrim + drawer reutilizable (producto o carrito) -->

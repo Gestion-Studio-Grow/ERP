@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Shine — velas de soja, difusores, aromas y decoración hechos y elegidos a mano. Envíos CABA y GBA." />
+<meta name="theme-color" content="#9a6a1f" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Shine · Velas, aromas & deco" />
+<meta property="og:description" content="Shine — velas de soja, difusores, aromas y decoración hechos y elegidos a mano. Envíos CABA y GBA." />
 <title>Shine · Velas, aromas & deco — preview de vidriera (tenant shinevelas)</title>
 <style>
   /* ── Design tokens Nocturne (light) del ERP + acento ámbar del tenant shinevelas ── */
@@ -177,10 +182,16 @@
   .modal .desc{color:var(--text-muted);font-size:14.5px;line-height:1.6}
   .modal .mprice{color:var(--accent);font-weight:700;font-size:22px;margin:16px 0}
   .modal .close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:26px;color:#fff;opacity:.85;line-height:1}
+  /* — GSG · accesibilidad + sello — */
+  :where(a,button,input,select,[tabindex]):focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; } }
+  .gsg{ display:inline-flex; align-items:center; gap:9px; color:var(--text-muted); font-size:12.5px; }
+  .gsg .seal{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line); display:grid; place-items:center; font-size:9px; font-weight:800; letter-spacing:.04em; color:var(--text-muted); }
+  .gsgbar{ margin-top:18px; padding-top:16px; border-top:1px solid var(--line); display:flex; }
 </style>
 </head>
 <body>
-<div class="banner">Preview estático de la vidriera del ERP · ruta <b>/tienda</b> · tenant <b>shinevelas</b> (rubro <b>velas</b>) — VISIÓN experiencial: velas + aromas + <b>decoración</b> + accesorios</div>
+<div class="banner">Demo de preventa · datos de ejemplo, a confirmar · Preview estático de la vidriera del ERP · ruta <b>/tienda</b> · tenant <b>shinevelas</b> (rubro <b>velas</b>) — VISIÓN experiencial: velas + aromas + <b>decoración</b> + accesorios</div>
 
 <div class="topbar"><div class="wrap row">
   <a class="brand" href="#top"><span class="mono">S</span><span class="nm">Shine</span></a>
@@ -270,7 +281,7 @@
   <div class="col"><div class="fh">Dónde estamos</div><div>CABA</div><div style="opacity:.7;margin-top:4px">Lun a vie · 10 a 18 h · pedidos por WhatsApp</div></div>
   <div class="col"><div class="fh">Contacto</div><div><a id="footWa" target="_blank" rel="noopener">WhatsApp</a></div><div><a href="https://www.instagram.com/shine.velas.store/" target="_blank" rel="noopener">@shine.velas.store</a></div></div>
   <div class="col"><div class="fh">Envíos</div><div style="opacity:.85">CABA · GBA</div><div class="fh" style="margin-top:14px">Pagos</div><div style="opacity:.85">Efectivo · Transferencia · Débito · Crédito · Mercado Pago</div></div>
-</div></div></footer>
+</div><div class="gsgbar"><span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span></div></div></footer>
 
 <div class="backdrop" id="backdrop" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal" style="position:relative"></div>
