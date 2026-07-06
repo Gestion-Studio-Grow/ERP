@@ -253,4 +253,44 @@ conocimiento que sistematiza (leer y no re-descubrir):
 un incumbente frecuente) se **devuelve** a estos docs y a los blueprints — así el generador es **más
 preciso en cada iteración**. Un rubro nuevo se modela como config (`src/blueprints/…`), nunca como fork.
 
+---
+
+## 📥 Fase de INGESTA/EXTRACCIÓN — el "Material de Marca" (contrato estándar)
+
+> Esta sección formaliza la **primera fase del flujo** (los pasos 1–4 de "El flujo del generador"): la
+> lectura del prospecto ahora produce una **salida estándar, estructurada y máquina-chequeable** —el
+> **Material de Marca**— en vez de un `.md` distinto por caso. Es la forma verificable de la **Ficha del
+> negocio** (componente 1) + los insumos de identidad/branding (componente 3) y catálogo demo
+> (componente 4). Endurece la disciplina "no inventar" y le da a la fase de Adaptación un contrato claro.
+
+**Contrato en código:** `src/preset/extraction/material-de-marca.ts` (tipos + validación + tests). Es
+lógica pura, sin dependencias de servidor. API: `emptyMaterial()`, `field()`, `validateMaterial()`,
+`completenessScore()`, `toProvisionHandoff()`.
+
+**Regla de oro hecha chequeable.** Cada dato lleva `provenance`: `verificado` (visto en fuente pública,
+exige `source`) · `provisional` (estimación marcada, con `note`) · `pedido-al-dueno` (no accesible, valor
+nulo permitido). `validateMaterial()` bloquea las incoherencias (verificado sin fuente, "sin valor pero
+verificado"). `completenessScore()` da el **gate** demo/prod: qué campos faltan para una demo creíble y
+qué más pide producción. `toProvisionHandoff()` traduce a los flags del alta **sin inventar** (sólo emite
+valores presentes; arrastra provisionales y bloqueantes marcados).
+
+**Checklist de extracción con fallbacks** (`docs/metodologia/checklist-extraccion.md`): orden de barrido
+fuente por fuente + qué hacer ante cada muro conocido —**Instagram login-gated**, **web/tienda que carga
+por JS** (revela el incumbente), **marca sin logo/hex descargable** (acento provisional + logo recreado
+en CSS/SVG para demo)—. Encapsula las lecciones de Magra y Break Point para que ningún agente las
+redescubra.
+
+**Schema legible** (para coordinar con Adaptación/Calidad sin leer el código):
+`docs/metodologia/material-de-marca-schema.md` — campo por campo + el contrato de interfaz entre fases.
+
+### Entrenamiento constante — registro de casos
+El mecanismo que el dueño pidió para que el equipo **aprenda caso a caso**: cada extracción real deja una
+entrada en `docs/metodologia/registro-casos/` (qué se extrajo, qué falló, qué se corrigió), y de ahí
+salen heurísticas que se promueven al rollup (`registro-casos/heuristicas-aprendidas.md`) y a la
+checklist. Casos semilla: `magra`, `breakpoint`. Es la versión con evidencia de la sección "Entrenamiento
+de los agentes" de arriba: no sólo "devolvemos patrones a los docs", sino que **registramos cada caso y
+medimos la mejora**.
+
+---
+
 — Elaborado por **Gestión Studio Grow (GSG)**.
