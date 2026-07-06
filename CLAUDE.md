@@ -18,9 +18,10 @@ Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `s
 **Playbooks reutilizables (`docs/metodologia/`):** métodos probados con el *por qué* de cada paso; antes
 de reinventar un flujo, fijate si ya hay receta. Índice en `docs/METODOLOGIA-SPRINT.md → Playbooks
 operativos`. Obligatorios/transversales: **🤖 Generador de PRESET por IA**
-(`docs/metodologia/generador-preset-ia.md`) — todo alta de cliente nuevo: **el cliente da SOLO su red
-social y/o web → los agentes extraen todo (rubro, identidad, catálogo, ofertas, historia, contacto) y
-generan la preventa experta = el preset** (tenant+blueprint+branding+datos demo+probador). **Gate
+(`docs/metodologia/generador-preset-ia.md`) — todo alta de cliente nuevo: **🔒 autorización primero**
+(pedir y REGISTRAR el OK explícito del cliente para replicar su marca, como con Magra; sin ella no se
+genera ni se muestra), luego **el cliente da su red social y/o web → los agentes extraen todo (rubro,
+identidad, catálogo, ofertas, historia, contacto) y generan la preventa experta = el preset** (tenant+blueprint+branding+datos demo+probador). **Gate
 bloqueante no negociable: generar → auditar por TODA la metodología (SAP + GSG + Arquitectura +
 Confiabilidad) → recién ahí mostrar; sin Gate NO se muestra al cliente.** PoC: Break Point desde
 Instagram, Magra desde su web; coordina con Célula 3 ·

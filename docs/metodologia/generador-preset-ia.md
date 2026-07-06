@@ -21,12 +21,16 @@ ese motor.
 
 Toda la metodología se resume en una frase. Lo demás es el detalle de cómo se cumple.
 
-### ENTRADA (lo único que aporta el prospecto)
-**El cliente da SOLO su link de RED SOCIAL (Instagram, TikTok, Facebook) y/o su PÁGINA ACTUAL
-(web/tienda). Nada más.** Ni formularios, ni fichas, ni catálogos cargados a mano. *Por qué mínima:*
-**fricción cero para el prospecto** — pedirle un link es un "sí" fácil; pedirle que llene datos lo
-frena. Cuanto más rico el material que ya tiene publicado, mejor el preset; con poco, se generan
-provisionales marcados y se piden capturas de lo que esté tras login.
+### ENTRADA (dos cosas del prospecto: su material + su OK)
+1. **Su link de RED SOCIAL (Instagram, TikTok, Facebook) y/o su PÁGINA ACTUAL (web/tienda).** Nada más
+   de datos: ni formularios, ni fichas, ni catálogos a mano. *Por qué mínima:* **fricción cero** —
+   pedir un link es un "sí" fácil; pedir que llene datos lo frena. Cuanto más rico el material publicado,
+   mejor el preset; con poco → provisionales marcados + se piden capturas de lo que esté tras login.
+2. **Su AUTORIZACIÓN EXPLÍCITA** para que repliquemos su marca/contenido/imágenes en la preventa/demo
+   (ver "Paso de autorización", abajo). **Es obligatoria y se registra.**
+
+> **🔒 SIN AUTORIZACIÓN REGISTRADA, NO SE GENERA NI SE MUESTRA EL PRESET.** El OK del cliente es una
+> **precondición dura del flujo**, antes de ingerir/replicar nada (no "lo pedimos después").
 
 ### FLUJO (los agentes, automático — el mismo patrón que ya hicimos a mano)
 1. **INGESTAN** esa red/web y **EXTRAEN**: **rubro** · **identidad** (colores, logo, tono/voz) ·
@@ -60,6 +64,35 @@ Esto no es teoría: es el **mismo patrón que ya ejecutamos manual**, ahora conv
 
 **La tarea de esta metodología es que ese patrón lo repita CUALQUIER sprint, con nivel GSG, sin
 re-descubrirlo.** Los pasos de abajo son la versión sistematizada de lo que hicimos con Break Point y Magra.
+
+---
+
+## 🔒 PASO DE AUTORIZACIÓN DEL CLIENTE — obligatorio, ANTES de generar
+
+**Regla dura:** antes de **replicar o usar la marca, el contenido o las imágenes** de un cliente, hay que
+**pedirle y REGISTRAR su autorización explícita**. **Sin esa autorización registrada, no se genera ni se
+muestra el preset.** No es un trámite posterior: es una **precondición** del flujo (paso 0), igual que
+hicimos con Magra.
+
+### Qué se pide (y qué se registra)
+- **Consentimiento explícito** del cliente para que **repliquemos su identidad** (marca, colores, logo,
+  copy, catálogo, fotos) en una **preventa/demo** nuestra. Idealmente también confirmación de que el
+  cliente es **dueño del material** (o del estudio que hizo su web/redes).
+- **Se registra en el recipe del tenant** (`docs/tenants/<slug>/…`): quién autorizó, qué alcance (¿su
+  web?, ¿sus fotos?, ¿su catálogo?), y de dónde salió el material. Precedente: `docs/tenants/magra/replica-web-demo.md`
+  ("el dueño confirmó que el estudio (@noctiluma) es suyo → autorización total") y la regla
+  "Autorización primero" de `docs/preventa/playbook-replica-web-a-tenant.md`.
+- **Alcance limitado:** si el cliente autoriza solo parte (p. ej. su catálogo sí, sus fotos no), el
+  preset respeta ese límite → lo no autorizado se reemplaza por **placeholder de marca GSG** o se omite.
+
+### Por qué (no es burocracia)
+- **Respeto de marca y derechos.** La identidad, el copy y las fotos son **propiedad del cliente** (o de
+  terceros que se los hicieron). Replicarlos sin permiso es un problema legal y de reputación. Pedir el
+  OK es lo correcto y nos cubre.
+- **Confianza comercial.** Pedir permiso **antes** de tocar su marca arranca la relación con respeto —
+  el cliente ve que cuidamos lo suyo. Un prospecto que descubre que copiamos su web sin avisar
+  desconfía; uno al que le pedimos permiso, se siente tratado en serio. La autorización **es parte de la
+  venta**, no un obstáculo.
 
 ---
 
@@ -100,14 +133,17 @@ componentes**, todos derivados de la lectura del prospecto:
 
 ## El flujo del generador (entradas → pasos IA → salidas)
 
-**ENTRADA (lo ÚNICO que aporta el prospecto):** su **link de red social** (Instagram/TikTok/Facebook)
-**y/o su web/tienda actual**. Nada más (ver "El corazón", arriba). De ahí los agentes **extraen** todo:
-rubro · identidad (colores, logo, tono) · catálogo/servicios · ofertas · historia/"quiénes somos" ·
-medios de contacto. Lo que esté tras login → se pide como captura. Con poco material → provisionales
-marcados.
+**ENTRADA:** (a) su **link de red social** (Instagram/TikTok/Facebook) **y/o su web/tienda actual**; y
+(b) su **AUTORIZACIÓN explícita** para replicar su identidad (ver "Paso de autorización", arriba). De
+(a) los agentes **extraen** todo: rubro · identidad (colores, logo, tono) · catálogo/servicios · ofertas
+· historia/"quiénes somos" · medios de contacto. Lo que esté tras login → captura. Con poco material →
+provisionales marcados.
 
 **PASOS (los ejecuta el agente — sistematizan el playbook manual `docs/preventa/playbook-lectura-redes-a-tenant.md`):**
 
+0. **🔒 AUTORIZACIÓN (precondición BLOQUEANTE)** → pedir y **registrar** el consentimiento explícito del
+   cliente (en `docs/tenants/<slug>/`). **Sin esto no se ingiere ni se genera nada.** (Ver la sección
+   "Paso de autorización".)
 1. **Leer la presencia digital** → mapear web/IG/Linktree/Google. La web y el Linktree suelen ser la
    fuente de oro; lo que está tras login se pide como captura.
 2. **Leer el MODELO de venta** (no solo qué vende: *cómo*) → mostrador vs envasado, presencial vs
@@ -177,8 +213,9 @@ Detalle del Gate en `docs/METODOLOGIA-SPRINT.md → "GATE DE EXCELENCIA"`.
 ## Cómo lo invoca un sprint (transversal, en minutos)
 Cualquier sprint que dé de alta un cliente nuevo **invoca este generador** como su flujo de onboarding:
 
-1. **Reunir la entrada** (SOLO la red social y/o web del prospecto).
-2. **Correr el flujo** → generar el preset (6 componentes).
+1. **🔒 Autorización primero** → pedir y **registrar** el OK explícito del cliente para replicar su marca
+   (en `docs/tenants/<slug>/`). **Sin autorización registrada, NO se arranca.**
+2. **Reunir la entrada** (su red social y/o web) + **correr el flujo** → generar el preset (6 componentes).
 3. **🛡️ AUDITAR por toda la metodología (Gate de Excelencia completo) — BLOQUEANTE:** SAP (5 principios +
    a11y + consistencia) + Sello GSG + Arquitectura + Confiabilidad. **Si no pasa, NO se muestra:** vuelve
    al agente. *(Este paso va ANTES de mostrar, siempre.)*
@@ -190,6 +227,8 @@ Cualquier sprint que dé de alta un cliente nuevo **invoca este generador** como
    `docs/tenants/<slug>/`.
 
 ### Checklist del preset (tildá al generarlo — el Gate es condición para mostrar)
+- [ ] **🔒 Autorización del cliente PEDIDA y REGISTRADA** (en `docs/tenants/<slug>/`), con su alcance.
+      **Sin esto no se genera ni se muestra.**
 - [ ] **Ficha** del negocio (modelo de venta, tono, incumbente) escrita.
 - [ ] **Rubro → blueprint** resuelto (o comodín justificado) · **slug + subdomain** definidos.
 - [ ] **Branding** generado (acento, logo/monograma recreado, wording afinado al tono).

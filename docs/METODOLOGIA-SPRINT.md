@@ -365,7 +365,9 @@ Recetas paso-a-paso y fundamentos con el **por qué** de cada cosa, para no re-d
 - **🤖 GENERADOR DE PRESET POR IA (método TRANSVERSAL de preventa/onboarding)** —
   `docs/metodologia/generador-preset-ia.md`. 🔒 **PASO OBLIGATORIO del onboarding:** **todo alta de
   cliente nuevo se hace generando su preset con este método** (no se arma un tenant a mano por fuera).
-  **El corazón: el cliente da SOLO su link de red social y/o su web → los agentes INGESTAN, EXTRAEN**
+  **🔒 Autorización primero:** antes de replicar marca/contenido/imágenes hay que **pedir y registrar** el
+  OK explícito del cliente (como con Magra); **sin autorización registrada NO se genera ni se muestra.**
+  **El corazón: el cliente da SU link de red social y/o su web (+ su OK) → los agentes INGESTAN, EXTRAEN**
   (rubro, identidad/colores/logo/tono, catálogo/servicios, ofertas, historia, contacto) **y GENERAN la
   preventa experta = el preset:** tenant + subdomain + blueprint del rubro, branding (color/logo
   recreado/tono), datos de demo por rubro (sin transaccionar, sin passwords) y la **instancia del
