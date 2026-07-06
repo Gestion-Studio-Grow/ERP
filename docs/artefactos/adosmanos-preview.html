@@ -128,6 +128,9 @@
   .btn-ig { background: #fff; color: var(--ink); }
 
   footer { border-top: 1px solid var(--line); padding: 30px 0 60px; color: var(--ink-soft); font-size: 13.5px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .wa-config { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-soft); }
+  .wa-config input { width: 138px; font: inherit; font-size: 12.5px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; color: var(--ink); }
+  .wa-config input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* Panel producto + carrito (drawer/modal) */
   .scrim { position: fixed; inset: 0; background: rgba(20,24,26,.42); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 40; }
@@ -240,6 +243,10 @@
     <span>Envíos a todo el país</span>
     <span>·</span>
     <span>Cambios dentro de los 30 días</span>
+    <span class="wa-config">
+      <label for="wa-input">📱 Completá tu WhatsApp</label>
+      <input id="wa-input" type="tel" inputmode="numeric" placeholder="54 9 11...." oninput="setWhatsApp(this.value)" />
+    </span>
     <span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span>
   </footer>
 
@@ -257,6 +264,24 @@
   <div class="demo-tag">Demo · sin backend · precios de ejemplo</div>
 
 <script>
+  // ─────────────────────────────────────────────────────────────────────────
+  // 📱 WHATSAPP DE ESTA DEMO — completá acá o en el campo del footer (mismo efecto).
+  // Alimenta TODOS los botones de WhatsApp de la página (asesoramiento + checkout
+  // del carrito). Formato E.164 sin "+" (solo dígitos: país + área + número).
+  // ─────────────────────────────────────────────────────────────────────────
+  let WHATSAPP = "5491100000000"; // ← PEGÁ ACÁ el número real (hoy: placeholder de demo, formato válido)
+  const WA_STORAGE_KEY = "gsg-demo-whatsapp-adosmanos";
+
+  function digitsOnly(v) { return (v || "").replace(/\D/g, ""); }
+  function setWhatsApp(raw) {
+    const digits = digitsOnly(raw);
+    if (digits) { WHATSAPP = digits; localStorage.setItem(WA_STORAGE_KEY, digits); }
+  }
+  function initWhatsApp() {
+    const saved = localStorage.getItem(WA_STORAGE_KEY);
+    if (saved) { WHATSAPP = saved; const input = $("wa-input"); if (input) input.value = saved; }
+  }
+
   // --- Catálogo (espeja el rubro retail `padel`). glyph = ilustración placeholder. ---
   const PRODUCTS = [
     { id: "p1", name: "Adidas Metalbone 3.4", brand: "Adidas",    cat: "Palas", price: 329900, glyph: "🎾", desc: "Pala de potencia, formato diamante. Para el que busca pegar fuerte desde el fondo." },
@@ -387,12 +412,12 @@
     let msg = "¡Hola A Dos Manos! Quiero hacer este pedido:%0A";
     for (const { p, q } of lines) msg += `%0A• ${q}× ${p.name} — ${money(transfer(p.price) * q)}`;
     msg += `%0A%0ATotal (transferencia): ${money(cartTotalTransfer())}`;
-    window.open(`https://wa.me/${WA}?text=` + msg, "_blank");
+    window.open("https://wa.me/" + WHATSAPP + "?text=" + msg, "_blank");
   }
-  function waHola() { window.open(`https://wa.me/${WA}?text=` + encodeURIComponent("¡Hola! Quería una recomendación de pala 🎾"), "_blank"); return false; }
+  function waHola() { window.open("https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent("¡Hola! Quería una recomendación de pala 🎾"), "_blank"); return false; }
 
   // Init
-  renderChips(); renderGrid(); refreshCount();
+  initWhatsApp(); renderChips(); renderGrid(); refreshCount();
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 </script>
 </body>

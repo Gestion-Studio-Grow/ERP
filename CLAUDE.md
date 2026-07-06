@@ -93,6 +93,31 @@ antes de trabajar. El **PMO verifica el etiquetado** al despachar cada frente.
 Preset por IA** exige **autorización registrada del cliente** antes de replicar su marca (sin OK explícito
 **no se genera ni se muestra**) y su salida pasa el **Gate bloqueante** antes de mostrarse al cliente.
 
+## 🌊 CONCURRENCIA Y PRIORIDADES — regla de operación (OBLIGATORIA, foco en demos)
+
+Norma dura de operación de GSG para no saturar el servicio y **concentrar los recursos escasos en lo que
+vende**. Complementa el modelo de células por capa (arriba) y la escala del sprint.
+
+**Tope de concurrencia:** **nunca más de 4 sesiones corriendo a la vez.** Se abre/mueve **de a olas
+chicas**. Abrir *worktrees* de más está OK (quedan ociosos); lo que se limita es cuántas sesiones
+**corren en simultáneo** (≤ 4). Si hay más frentes que cupo, entran por olas según la prioridad de abajo.
+
+**Prioridades (foco: lo que concreta ventas), sobre todo en congestión:**
+- **P1 — SIEMPRE corre (demos y venta):** demo público · previews con link · probador (backoffice sin
+  contraseña) · adaptador self-serve · **publicar los tenants que falten** (Magra, satélites).
+- **P2 — corre si hay lugar (habilitadores):** verificar/encender la base · generador de preset por IA ·
+  seguridad pre-cobros.
+- **P3 — se pausa en congestión (bajo impacto):** investigación de nuevas líneas de negocio (3D / bajo
+  capital) · retoques cosméticos de productos ya publicados · deuda de lint/tests heredada · métrica de
+  costo / robustecimiento de la factory.
+
+**En congestión: solo P1, máximo 4 a la vez; P2 espera; P3 pausado.**
+
+**El porqué:** abrir demasiadas sesiones a la vez **satura el servicio** ("servicio ocupado") y frena
+todo. El tope de 4 + las olas chicas mantienen la fluidez; las prioridades garantizan que, cuando la
+capacidad escasea, el trabajo que **genera ventas (demos)** siempre corre y lo de bajo impacto cede el
+lugar. Es coherente con el ciclo **DEMO → VENTA → INVERSIÓN**: primero lo que vende.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
@@ -121,6 +146,26 @@ TODO desarrollo.** Checklist corto que cada frente tilda **antes de pushear**:
 Ítem que no aplica → **N/A + por qué**. Si no tilda los **4 bloques**, **no se integra**. Detalle completo
 en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el handoff de PR/commit). La
 **Auditoría GSG que corre este Gate va SIEMPRE en Opus 4.8** (ver §3 del Modelo de trabajo, arriba).
+
+## 💸 CICLO DEMO → VENTA → INVERSIÓN — regla de gasto (OBLIGATORIA)
+
+**Regla dura de negocio de GSG, no salteable, aplicable a TODOS los negocios/preventas** (Magra, CH,
+Shine, A Dos Manos, Break Point y futuros). **No se invierte un peso hasta que la venta está concretada.**
+Encaja con **demo pública a costo cero** (`docs/metodologia/demo-publica-costo-cero.md`) y con las **dos
+fases de credenciales**:
+
+1. **DEMO — antes de la venta: cero gasto, cero datos reales.** Mientras la venta **NO** está concretada,
+   **todo queda en DEMO**: gratis, en la **URL gratuita** (`erp-ch.vercel.app/previews/…` o el probador
+   sandbox), **sin gastar un peso, sin datos reales, sin passwords, sin persistencia**. **No** se compra
+   dominio ni se activa login/base antes de vender.
+2. **VENTA — el disparador.** La inversión se habilita **RECIÉN cuando la venta se concreta** (OK
+   comercial del cliente). Antes de eso: nada de comprar link ni activar persistencia.
+3. **INVERSIÓN — después de la venta.** Recién ahí se **compra el dominio propio** y/o se **activa el
+   tenant con datos reales** (persistencia + login, RLS enforced). Los secretos/credenciales de la fase
+   real **los pega SIEMPRE el dueño, nunca el agente** (FASE 2 de credenciales).
+
+**En una línea:** *hasta que la venta esté concretada, todo es demo gratis en la URL gratuita; el dominio
+propio y la persistencia con datos reales son inversión POST-venta, nunca antes.*
 
 ## Autorización y gates (política push-libre)
 

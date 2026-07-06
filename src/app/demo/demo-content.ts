@@ -8,7 +8,11 @@
 //
 // MENSAJE + CTA (coordinación con Célula 1 / GTM): el copy de venta y el destino
 // del CTA viven acá, en un solo lugar, para que GTM los ajuste sin tocar la UI.
-// El número de WhatsApp es PROVISIONAL — a confirmar por GTM antes de publicar.
+// El número de WhatsApp de abajo es el PLACEHOLDER/fallback — quien muestra la
+// demo puede completar el suyo en vivo con el campo "Completá tu WhatsApp" del
+// tour (persiste en localStorage, no toca este archivo). GTM igual debe fijar
+// acá el número real antes de publicar la campaña (el placeholder no sirve para
+// tráfico pago sin que el usuario lo complete a mano primero).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type SceneId = "agenda" | "reserva" | "caja" | "factura" | "dueno" | "cierre";
@@ -89,9 +93,12 @@ export const DEMO_CTA = {
   replayLabel: "Ver de nuevo",
 };
 
-export function whatsappHref(): string {
+// `number` es opcional: quien muestra la demo puede completar el suyo en vivo
+// (ver el campo "Completá tu WhatsApp" en DemoTour) sin tocar código. Sin eso,
+// cae al placeholder de arriba.
+export function whatsappHref(number: string = DEMO_CTA.whatsappNumber): string {
   const text = encodeURIComponent(DEMO_CTA.whatsappText);
-  return `https://wa.me/${DEMO_CTA.whatsappNumber}?text=${text}`;
+  return `https://wa.me/${number}?text=${text}`;
 }
 
 export function mailtoHref(): string {

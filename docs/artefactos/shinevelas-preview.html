@@ -187,7 +187,10 @@
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; } }
   .gsg{ display:inline-flex; align-items:center; gap:9px; color:var(--text-muted); font-size:12.5px; }
   .gsg .seal{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line); display:grid; place-items:center; font-size:9px; font-weight:800; letter-spacing:.04em; color:var(--text-muted); }
-  .gsgbar{ margin-top:18px; padding-top:16px; border-top:1px solid var(--line); display:flex; }
+  .gsgbar{ margin-top:18px; padding-top:16px; border-top:1px solid var(--line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .wa-config{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-muted); }
+  .wa-config input{ width:138px; font:inherit; font-size:12.5px; padding:6px 10px; border:1px solid var(--line-strong); border-radius:999px; background:var(--surface-raised); color:var(--text-strong); }
+  .wa-config input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 </style>
 </head>
 <body>
@@ -281,15 +284,37 @@
   <div class="col"><div class="fh">Dónde estamos</div><div>CABA</div><div style="opacity:.7;margin-top:4px">Lun a vie · 10 a 18 h · pedidos por WhatsApp</div></div>
   <div class="col"><div class="fh">Contacto</div><div><a id="footWa" target="_blank" rel="noopener">WhatsApp</a></div><div><a href="https://www.instagram.com/shine.velas.store/" target="_blank" rel="noopener">@shine.velas.store</a></div></div>
   <div class="col"><div class="fh">Envíos</div><div style="opacity:.85">CABA · GBA</div><div class="fh" style="margin-top:14px">Pagos</div><div style="opacity:.85">Efectivo · Transferencia · Débito · Crédito · Mercado Pago</div></div>
-</div><div class="gsgbar"><span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span></div></div></footer>
+</div><div class="gsgbar">
+  <span class="wa-config">
+    <label for="wa-input">📱 Completá tu WhatsApp</label>
+    <input id="wa-input" type="tel" inputmode="numeric" placeholder="54 9 11...." oninput="setWhatsApp(this.value)" />
+  </span>
+  <span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span>
+</div></div></footer>
 
 <div class="backdrop" id="backdrop" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal" style="position:relative"></div>
 </div>
 
 <script>
+// ─────────────────────────────────────────────────────────────────────────────
+// 📱 WHATSAPP DE ESTA DEMO — completá acá o en el campo del footer (mismo efecto).
+// Alimenta TODOS los botones de WhatsApp de la página (hero, footer, checkout del
+// carrito y sets de regalo). Formato E.164 sin "+" (solo dígitos).
+// ─────────────────────────────────────────────────────────────────────────────
+let WA="5491176213834"; // ← PEGÁ ACÁ el número real (hoy: valor de ejemplo)
+const WA_STORAGE_KEY="gsg-demo-whatsapp-shinevelas";
+function digitsOnly(v){ return (v||"").replace(/\D/g,""); }
+function setWhatsApp(raw){
+  const digits=digitsOnly(raw);
+  if(digits){ WA=digits; localStorage.setItem(WA_STORAGE_KEY,digits); updateWaLinks(); }
+}
+function updateWaLinks(){
+  const hi=`https://wa.me/${WA}?text=${encodeURIComponent("¡Hola Shine! Quiero hacer un pedido.")}`;
+  document.getElementById("heroWa").href=hi;
+  document.getElementById("footWa").href=hi;
+}
 // ── Datos reales del catálogo Shine (rubro velas) + storytelling. Precios ARS provisionales. ──
-const WA="5491176213834";
 const SHIP={flatRate:3500,freeThreshold:25000};
 const SECTIONS=[
   {id:"velas",label:"Velas",blurb:"Aromáticas, decorativas y artesanales — el corazón de tu ambiente."},
@@ -435,9 +460,12 @@ function openModal(id){
 function closeModal(){document.getElementById("backdrop").classList.remove("open");}
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 function render(){renderFilters();renderCatalog();renderCart();}
-const hi=`https://wa.me/${WA}?text=${encodeURIComponent("¡Hola Shine! Quiero hacer un pedido.")}`;
-document.getElementById("heroWa").href=hi;
-document.getElementById("footWa").href=hi;
+function initWhatsApp(){
+  const saved=localStorage.getItem(WA_STORAGE_KEY);
+  if(saved){ WA=saved; const input=document.getElementById("wa-input"); if(input) input.value=saved; }
+  updateWaLinks();
+}
+initWhatsApp();
 renderGifts();render();
 </script>
 </body>
