@@ -16,6 +16,32 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 
 ---
 
+## ▶️ RETOMAR EN LA LAPTOP — sesión Agencia Grow (2026-07-05, para continuar con `sprint`)
+
+**Dónde está el trabajo:** rama **`claude/adr-storage-pmo-fsp15k`** (pusheada a origin, árbol limpio).
+Todo es **documentación + prototipo**; NO toca prod/Neon/deploy. Tag de retorno: `snapshot/2026-07-05-agencia-grow`.
+
+**Qué se hizo esta sesión (sector Agencia Grow — antes "Agencia Digital"):**
+- **Identidad + gobierno + pricing como ADR:** ADR-028 (ratificación), ADR-029 (modelo de pricing),
+  ADR-030 (identidad: *Agencia Grow* = escalar el patrimonio con **negocios automatizados** operados por
+  **agentes expertos**). Rename `agencia-digital → agencia-grow` en todo el repo.
+- **Consola Grow v2 (prototipo 3D):** `docs/sectores/agencia-grow/prototipos/consola-grow.html`.
+- **Comando `sprint`:** PASO 1 (creación automática de sesiones) + frente **Front/Consola Grow** +
+  **acople/continuidad** (abrir `sprint` NUNCA arranca en blanco: lee esta foto + `PROXIMOS-PASOS` y sigue).
+- **Espacio `agencia-grow`:** diferido (seguimos por carpeta); semilla lista en `.../espacio-propio/`.
+- **Para el dueño:** `docs/GUIA-DEL-DUEÑO.md` (paso a paso) + `.../productos/PRECIOS-PROPUESTA.md`.
+
+**3 decisiones abiertas del dueño (para arrancar en la laptop):**
+1. **Repo `agencia-grow`** → crearlo en GitHub (7 pasos en `.../espacio-propio/COMO-CREAR-EL-REPO.md`) y avisar → se siembra.
+2. **Precios** → OK / ajustar `.../productos/PRECIOS-PROPUESTA.md`.
+3. **Diseño** → confirmar la Consola v2.
+
+**Próximo trabajo de código (sandbox, no deploy):** `/sesion-feature Panel del Dueño` (motor
+`src/lib/owner-insights.ts` ya testeado; falta la pantalla — usar la Consola como referencia) +
+bajar la misión a **backlog de negocios automatizados**. Cola completa en `docs/PROXIMOS-PASOS.md` → **SECTOR AGENCIA GROW**.
+
+---
+
 ## 🚨 HANDOFF URGENTE (2026-07-05 — laptop se desconecta, sesiones se frenan)
 
 **Prod intacto y estable:** deploy `f0a13f0`, **CH Estética vivo (1 tenant)**. **Cero riesgo por la
