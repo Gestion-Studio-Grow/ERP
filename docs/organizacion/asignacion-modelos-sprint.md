@@ -9,6 +9,11 @@
 > Opus, §5 operación día a día). Este doc es el **mapa sesión→modelo** que operacionaliza esa política
 > dentro de `.claude/commands/sprint.md`. Doc de gobernanza — no toca producción ni deploy.
 
+> **⚖️ Carácter — OBLIGATORIO Y ESTRICTO, no opcional.** Esto no es solo del comando `sprint`: es el
+> **modelo de trabajo obligatorio de GSG**, vigente **siempre** a nivel usuario / App / GSG (desktop y
+> móvil, se use o no `sprint`). El fundamento de alto nivel vive en `CLAUDE.md` → "MODELO DE TRABAJO DE
+> GSG"; este doc es su detalle operativo.
+
 ---
 
 ## 1. Regla de oro (economía por defecto, Opus donde pesa el juicio)
@@ -99,8 +104,15 @@ tabla §2, por cualquiera de estas vías equivalentes:
 - **Gate GSG:** aunque el frente haya corrido en Sonnet, la Auditoría GSG **escala a Opus** (`/boost` o
   `/model opus`) para correr el Gate y **vuelve a Sonnet** después. No se degrada nunca de modelo.
 
-> **Default sin instrucción:** si una sesión se abre sin modelo explícito, **asume Sonnet 5** (`/economia`).
-> Solo la capa de juicio de §2 y el Gate arrancan en Opus.
+### Etiquetado explícito de modelo (regla dura)
+**Cada célula declara y fija su modelo de forma explícita** —`/model opus` | `/model sonnet`, o el
+parámetro de modelo al despachar el subagente (Agent/`Task`)— según §2. **Nunca se apoya en el default de
+la cuenta ni lo asume.** Una sesión que arranca sin modelo declarado está **fuera de norma**: se corrige
+antes de trabajar. El **PMO verifica el etiquetado** al despachar cada frente; el etiquetado explícito es
+lo que hace la asignación auditable y reproducible (no depende de cómo esté configurada la cuenta).
+
+> **Default de seguridad:** si una sesión llegara a abrirse sin modelo declarado, **asume Sonnet 5**
+> (`/economia`) y se corrige. Solo la capa de juicio de §2 y el Gate arrancan en Opus.
 
 ---
 

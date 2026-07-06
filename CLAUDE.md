@@ -42,24 +42,56 @@ de mercado (`docs/sectores/agencia-digital/analisis-mercado/`).
 **Sesiones de AGENCIA GROW — Fase 0 adicional (obligatoria):** si la sesión trabaja en negocios propios
 del grupo (Panel del Dueño, cartera propia), **antes de nada leé `docs/sectores/agencia-grow.md`**.
 
-## Política de modelos — ECONOMÍA por defecto (vigente)
+## 🏛️ MODELO DE TRABAJO DE GSG — OBLIGATORIO Y ESTRICTO (fundamento vigente, NO opcional)
 
-**Modo por defecto ACTIVO: economía.** El default del proyecto es **Sonnet 5** (`claude-sonnet-5`, fijado
-en `.claude/settings.json`): se usa para la **mayoría del trabajo** (implementación acotada, docs, UI de
-rubro, tests, exploración, provisioning rutinario). **Opus 4.8** (`claude-opus-4-8`) se reserva **solo
-para lo que lo amerita**: arquitectura/diseño de sistema, seguridad, dinero/fiscal, metodología/gobernanza,
-auditorías de excelencia críticas y decisiones de alto juicio o riesgo (algo irreversible o que toca
-prod/Neon/deploy). Criterio: *¿un error acá es caro/difícil de revertir o requiere criterio experto de
-sistema?* Sí → Opus; no (la mayoría) → Sonnet. Comandos: **`/economia`** (default, Sonnet) y **`/boost`**
-(todo en Opus, para sprints críticos) — ver `.claude/commands/economia.md` y `.claude/commands/boost.md`.
-Coherente con la prioridad de **costo sobre velocidad** del dueño.
+**Esto NO es solo el comando `sprint`: es el MODELO DE TRABAJO OBLIGATORIO Y ESTRICTO de Gestión Studio
+Grow, vigente SIEMPRE — a nivel usuario, App y GSG, desktop y móvil, se use o no `sprint`.** No es una
+recomendación ni un default cómodo: es norma dura, no salteable. Fundamento y detalle:
+`docs/organizacion/factory-reforzada.md` (las dos capas + el loop de revisión) y
+`docs/organizacion/asignacion-modelos-sprint.md` (el mapa sesión→modelo y el criterio de asignación).
 
-**🛡️ EXCEPCIÓN DURA, NO NEGOCIABLE:** la **Auditoría GSG** —el **Gate de Excelencia completo** (Auditoría
-SAP Fiori en TODOS sus ángulos + sello/estándar GSG)— corre **SIEMPRE en Opus 4.8**, sin excepción,
-**incluso en modo `economia`**. El resto puede ir en Sonnet 5, pero el control de calidad GSG **nunca se
-degrada de modelo**: al llegar al paso de auditar/aprobar un entregable (incluidos los presets del
-generador por IA), se escala a Opus para la auditoría. Auditar con un modelo degradado sería ahorrar
-justo donde no se debe.
+**El porqué:** la medición de costo/uso mostró que Opus era la mayor parte del gasto pero mucho de eso
+era *ejecución delegable, no juicio*. La norma empuja la frontera Opus al núcleo de juicio y mueve el
+volumen a Sonnet, **sin bajar la calidad del control**: el Gate GSG nunca se degrada de modelo. Así se
+economiza donde no duele y se paga Opus solo donde un error es caro o irreversible.
+
+### 1. Estructura de células por capa (se auto-abren al decir `sprint`)
+La factory tiene **dos capas**. Al invocar `sprint` se **abren automáticamente** las células, **cada una
+con su modelo asignado** (1 frente = 1 worktree = 1 sesión):
+- **Capa OPUS 4.8 — alto juicio** (caro de revertir · seguridad · plata · arquitectura · el gate):
+  **PMO / Arquitecto jefe · Auditoría GSG (el Gate) · Seguridad · Preset IA (Ingesta + Adaptación).**
+- **Capa SONNET 5 — ejecución** (volumen · reversible · criterio acotado):
+  **Probador interactivo · Adaptador para cliente · Plataforma/Deploy/Infra · Productos por rubro ·
+  Growth/Agencia Digital.**
+
+### 2. Economía de modelos por defecto (regla dura)
+**Default = Sonnet 5** (`claude-sonnet-5`) para TODA la ejecución (implementación acotada, docs, UI de
+rubro, tests, exploración, provisioning). **Opus 4.8** (`claude-opus-4-8`) se reserva **solo** para la
+capa de alto juicio de arriba. Criterio: *¿un error acá es caro/difícil de revertir, o toca seguridad,
+plata, arquitectura o prod/Neon/deploy?* **Sí → Opus; no (la mayoría) → Sonnet.** Comandos: **`/economia`**
+(default, Sonnet) y **`/boost`** (todo Opus, sprints críticos de punta a punta) — ver
+`.claude/commands/economia.md` y `.claude/commands/boost.md`. Coherente con la prioridad de **costo sobre
+velocidad** del dueño. Los **subagentes** (Task/Workflow) corren en **Sonnet o Haiku, nunca Opus por
+herencia**.
+
+### 3. 🛡️ La Auditoría GSG corre SIEMPRE en Opus (excepción dura, no negociable)
+El **Gate de Excelencia completo** (Auditoría SAP Fiori en **TODOS** sus ángulos + sello/estándar GSG)
+corre **SIEMPRE en Opus 4.8**, sin excepción, **incluso en modo `economia`** y aunque la ejecución del
+frente haya sido Sonnet. El control de calidad GSG **nunca se degrada de modelo**: al auditar/aprobar un
+entregable (incluidos los presets del generador por IA) se **escala a Opus** para la auditoría y se
+vuelve a Sonnet para ejecutar. Auditar con un modelo degradado sería ahorrar justo donde no se debe.
+
+### 4. Cada célula ETIQUETA su modelo explícitamente (no depende del default de la cuenta)
+Toda célula **declara y fija su modelo de forma explícita** (`/model opus` | `/model sonnet`, o el
+parámetro de modelo al despachar el subagente) según la capa de §1 — **nunca se apoya en el default de
+la cuenta ni lo asume**. Una sesión que arranca sin modelo declarado está **fuera de norma**: se corrige
+antes de trabajar. El **PMO verifica el etiquetado** al despachar cada frente.
+
+### 5. Nada se integra sin el Gate (y el preset exige autorización del cliente)
+**Ningún entregable pasa a `main` sin cruzar el Gate de Excelencia** (Auditoría SAP en todos los ángulos
++ sello GSG + Arquitectura + Confiabilidad — ver sección "Gate de Excelencia" abajo). El **Generador de
+Preset por IA** exige **autorización registrada del cliente** antes de replicar su marca (sin OK explícito
+**no se genera ni se muestra**) y su salida pasa el **Gate bloqueante** antes de mostrarse al cliente.
 
 ## Modo de trabajo autónomo
 
@@ -87,7 +119,8 @@ TODO desarrollo.** Checklist corto que cada frente tilda **antes de pushear**:
    errores · no rompe prod (schema = migración SIN aplicar, Gate 2).
 
 Ítem que no aplica → **N/A + por qué**. Si no tilda los **4 bloques**, **no se integra**. Detalle completo
-en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el handoff de PR/commit).
+en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el handoff de PR/commit). La
+**Auditoría GSG que corre este Gate va SIEMPRE en Opus 4.8** (ver §3 del Modelo de trabajo, arriba).
 
 ## Autorización y gates (política push-libre)
 
@@ -96,4 +129,3 @@ en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el hand
 - **Gate 2 — `prisma migrate deploy`:** cambiar la estructura de la DB de producción (Neon) se **pausa y se reporta**; no se corre solo. Es lo único irreversible.
 - **Neon en PLAN GRATUITO — cuidá el consumo:** minimizá conexiones y queries contra la DB de prod, evitá operaciones pesadas / escaneos completos / benchmarks contra prod, cuidá el compute time y el límite de horas del plan free. Para análisis o pruebas, leé schema/migraciones del **repo** (`prisma/schema.prisma`, `prisma/migrations/`) en vez de golpear la base real salvo que sea imprescindible.
 - **Destructivo bloqueado** por config (force push, `reset --hard`, `migrate reset`, DROP, `rm -rf`).
-
