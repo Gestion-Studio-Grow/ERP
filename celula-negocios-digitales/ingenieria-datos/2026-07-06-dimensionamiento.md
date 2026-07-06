@@ -265,6 +265,20 @@ lenta respectivamente) → el mercado no es la razón para dudar, la **ejecució
 
 ---
 
+## 7.b — SOM en PESOS (dólar oficial BNA venta $1.488,50 · 06/07/2026)
+
+| Negocio | SOM mensual (USD) | **SOM mensual (ARS)** |
+|---|---|---|
+| **Kudos** 🟢 | US$10.000–40.000/mes | **$14,9 M – $59,5 M/mes** |
+| **Testigo** 🟢 | US$5.000–15.000/mes | **$7,4 M – $22,3 M/mes** |
+| **Fantasma** 🟡 | US$10.000–30.000/mes | **$14,9 M – $44,7 M/mes** |
+| **Plantillería** 🟡 | US$500–8.000/mes | **$0,74 M – $11,9 M/mes** |
+| **Recepcionista IA** 🟡 | US$6.000–20.000/mes | **$8,9 M – $29,8 M/mes** |
+| **Back-office AFIP** 🟡 | US$5.000–30.000/mes | **$7,4 M – $44,7 M/mes** |
+
+> Conversión al oficial del día; con dólar MEP/blue los importes en pesos serían mayores. Cifras de
+> SOM marcadas *(estimado)* en la sección respectiva.
+
 ## 8. Fuentes y método
 
 **Método general de TAM/SAM/SOM:** TAM = universo total del padrón madre (sección 0). SAM = recorte por
