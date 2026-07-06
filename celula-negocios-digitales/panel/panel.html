@@ -161,6 +161,7 @@
   .path .pi{display:grid;grid-template-columns:20px 1fr;gap:9px;font-size:13px;color:var(--ink-soft)}
   .path .pi .pn{font-family:var(--f-mono);font-weight:700;color:var(--accent);font-size:12px}
 
+  .iatag{font-size:13px;cursor:help;vertical-align:middle}
   footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
   footer code{font-family:var(--f-mono);color:var(--ink-soft)}
   @media (max-width:820px){.score{grid-template-columns:repeat(2,1fr)}.podium{grid-template-columns:1fr}.two{grid-template-columns:1fr}.team{grid-template-columns:1fr}
@@ -447,6 +448,43 @@ const DATA=[
  'GremioPro':{idx:30,prod:'dead',prodwhy:'El oficio AR no paga software de gestion, quiere mas trabajo via marketplaces que ya lo resuelven; el que querria gestion churnea por ticket bajo. Muere por demanda de pago, no por lento.'}
 };DATA.forEach(d=>{const p=V2[d.name];if(p){d.idx=p.idx;d.prod=p.prod;d.prodwhy=p.prodwhy;}});})();
 
+/* ==== IA — ejecutabilidad: full = 100% IA (el equipo levanta y opera desde el repo) / parcial / no (requiere humano) ==== */
+;(function(){const IA={
+ 'Kudos':['full','GBP + WhatsApp + Claude; adquisicion por outreach automatizado, sin firma ni presencia; el cliente pega el QR.'],
+ 'Testigo':['full','Ingesta foto+audio a PDF por IA; el matriculado que firma es del propio contratista cliente, no del equipo.'],
+ 'Fantasma':['full','Agente WhatsApp nocturno con MP; stack 100% IA, guion por rubro automatizable.'],
+ 'Plantillería':['full','Tienda de plantillas con Lemon Squeezy, distribucion SEO y contenido por IA, cero atencion humana.'],
+ 'Recepcionista IA':['full','Voz + WhatsApp + agenda ejecutables por IA; la voz sube COGS pero no exige humano en el loop.'],
+ 'Back-office AFIP':['parcial','La conciliacion es IA pero el modelo realista pasa por contador aliado que valida; removible con self-serve directo a la pyme.'],
+ 'Calificación de leads':['full','Filtro de leads por WhatsApp, IA pura; mejor como tier premium de Fantasma.'],
+ 'Postora':['full','Community manager de contenido generado y agendado por IA, sin humano.'],
+ 'Directorio B2B':['full','Directorio sembrado por IA y venta de leads self-serve u outreach, sin matriculado ni convenio.'],
+ 'Comparador con afiliados':['full','Sitio comparador con SEO y links de afiliado, 100% IA.'],
+ 'Mapa del Barrio':['full','Micro-directorios sembrados por IA y venta de listados por WhatsApp automatizable.'],
+ 'El Data Semanal':['full','Newsletter generada por IA, crecimiento organico y sponsors por outreach automatizable.'],
+ 'Vitrina':['full','SaaS de fotos de producto con IA, freemium self-serve.'],
+ 'VetVoz':['full','Transcripcion y estructura por IA; el veterinario cliente valida su ficha, no un humano del equipo.'],
+ 'MediaKit.ar':['full','Generador de media kit self-serve, IA pura.'],
+ 'PrevenIA':['no','Compliance de Higiene y Seguridad exige un matriculado en H&S que firme por ley la documentacion.'],
+ 'GremioPro':['full','Gestion para oficios con MP, SaaS 100% IA; el freno es demanda de pago, no humano.'],
+ 'Confesionario':['full','Encuestas por voz ejecutables por IA de punta a punta.'],
+ 'Calculadoras fiscales':['full','Red de calculadoras con ads, construccion y operacion 100% IA.'],
+ 'Mercader':['full','Gestion de MercadoLibre por IA; ejecutable aunque con riesgo de plataforma, sin humano obligatorio.'],
+ 'Cambió el Precio':['full','Bot y extension de historial de precios, scraping y operacion por IA.'],
+ 'Contra-Retencion':['parcial','Core IA pero rentas provinciales sin API obligan tramite manual; removible arrancando donde hay API.'],
+ 'Licita':['full','Radar de licitaciones por scraping y alertas IA; el alta y la presentacion las hace el cliente.'],
+ 'Paritaria al Dia':['parcial','Vigilancia y recalculo por IA pero el estudio valida por responsabilidad legal; tercerizable al contador del cliente.'],
+ 'Semaforo de Flota':['full','Monitoreo de vencimientos y alertas, SaaS 100% IA; el scraping fragil es tecnico, no humano.'],
+ 'Receta Clara':['full','Cruce de liquidacion y armado de reclamo por IA; la farmacia cliente concede el acceso, sin matriculado.'],
+ 'Quien Firma':['parcial','Arranca con capa BCRA + Boletin Oficial gratis por IA y suma RENAPER cuando haya convenio: dependencia removible.'],
+ 'Buzon ARCA':['full','Vigia del buzon fiscal por IA; el cliente delega la clave, sin humano en el loop (riesgo ToS es tecnico).'],
+ 'APOC Guard':['full','Chequeo de proveedores y constancia fechada, verificacion 100% IA via estudios como canal.'],
+ 'Reconoce':['parcial','Diagnostico previsional por IA pero el tramite del plan se deriva a estudio aliado; el diagnostico solo es full.'],
+ 'Compliance UIF':['no','Antilavado exige un oficial de cumplimiento matriculado que valide y firme por ley.'],
+ 'FCEM Anticipo':['no','El cobro anticipado depende de un convenio institucional con colocador MAV o banco.'],
+ 'Etiqueta Verde':['no','La etiqueta energetica requiere un certificador acreditado que la firme por ley provincial.']
+};DATA.forEach(d=>{const p=IA[d.name];if(p){d.ia=p[0];d.iawhy=p[1];}});})();
+
 const WAVES=[
  {t:'Ciclo 1 — Exploración',d:'06·07',cls:'done',items:['4 consultores + experto de cobro','12 negocios con research y fuentes','Portfolio + recomendación (barbell)']},
  {t:'Ciclo 2 — Pasivo vs Activo + Red-team',d:'06·07',cls:'done',items:['2 equipos horizontales','23 ideas → 10 finalistas','Red-team: 2 limpios, 2 comodines, 4 muertos']},
@@ -491,15 +529,15 @@ document.getElementById('score').innerHTML=[
 document.getElementById('podium').innerHTML=RANKED.slice(0,3).map((d,i)=>`<button class="pod p${i+1}" data-id="${d.name}"><div class="medal">${i+1}</div><div class="pn">${d.name}</div><div class="pt">${d.tag.split(' · ')[0]}</div><div class="pbar"><i style="width:${d.idx}%"></i></div><div class="pv"><span>Índice</span><span>${d.idx}/100</span></div></button>`).join('');
 
 // chips
-const CHIPS=[['all','Todos',DATA.length],['nuevo','Nuevos R3',DATA.filter(d=>d.cat==='nuevo').length],['ok','A producción',nOk],['warn','En pista',nWarn],['dead','Descartados',nDead],['dev','En desarrollo',DATA.filter(d=>d.cat==='dev').length]];
+const CHIPS=[['all','Todos',DATA.length],['ia_full','🤖 100% IA',DATA.filter(d=>d.ia==='full').length],['ia_parcial','⚙️ Parcial',DATA.filter(d=>d.ia==='parcial').length],['ia_no','🧑 Requiere humano',DATA.filter(d=>d.ia==='no').length],['nuevo','Nuevos',DATA.filter(d=>d.cat==='nuevo').length],['ok','A producción',nOk],['warn','En pista',nWarn],['dead','Descartados',nDead],['dev','En desarrollo',DATA.filter(d=>d.cat==='dev').length]];
 document.getElementById('chips').innerHTML=CHIPS.map((c,i)=>`<button class="chip" data-f="${c[0]}" aria-pressed="${i===0}">${c[1]} <span class="cc">${c[2]}</span></button>`).join('');
 
 function fbarClass(d){return d.prod}
 function board(f){
- document.getElementById('board').innerHTML=RANKED.filter(d=>f==='all'||d.prod===f||(f==='dev'&&d.cat==='dev')||(f==='nuevo'&&d.cat==='nuevo')).map(d=>`
+ document.getElementById('board').innerHTML=RANKED.filter(d=>f==='all'||d.prod===f||(f==='dev'&&d.cat==='dev')||(f==='nuevo'&&d.cat==='nuevo')||(f==='ia_full'&&d.ia==='full')||(f==='ia_parcial'&&d.ia==='parcial')||(f==='ia_no'&&d.ia==='no')).map(d=>`
   <button class="row ${d._rank<=3?'top':''}" data-id="${d.name}">
     <div class="rank">${d._rank}</div>
-    <div><div class="rname">${d.name}</div><div class="rtag">${d.tag}</div></div>
+    <div><div class="rname">${d.name} ${d.ia?`<span class="iatag" title="${(d.iawhy||'').replace(/"/g,'')}">${d.ia==='full'?'🤖':d.ia==='parcial'?'⚙️':'🧑'}</span>`:''}</div><div class="rtag">${d.tag}</div></div>
     <div class="fact"><div class="ft"><span>Factibilidad</span><span class="fv">${d.idx}/100</span></div><div class="fbar"><i class="${fbarClass(d)}" style="width:${d.idx}%"></i></div></div>
     <div class="rstate"><span class="pill ${d.prod}"><span class="pd"></span>${PRODLABEL[d.prod]}</span></div>
   </button>`).join('');
@@ -527,6 +565,7 @@ function open(name){
  document.getElementById('dwr').innerHTML=`<span class="pill ${d.prod}"><span class="pd"></span>${PRODLABEL[d.prod]}</span>`+(d.score?` <span class="pill warn"><span class="pd"></span>PMO ${d.score}</span>`:'');
  const p=[];
  p.push(`<div class="idxbig"><div class="ib-top"><div class="ib-n">${d.idx}<span style="font-size:16px;color:#8B96A3">/100</span></div><div class="ib-l" style="text-align:right">Índice de<br>Factibilidad Real<br>#${d._rank} de ${DATA.length}</div></div><div class="ib-bar"><i style="width:${d.idx}%"></i></div><div class="ib-why">${d.prodwhy}</div></div>`);
+ if(d.ia)p.push(`<div class="ds"><div class="dl">Ejecución por el equipo de IA</div><p>${d.ia==='full'?'🤖 <b>100% IA</b> — los agentes lo levantan y operan desde el repo, sin humano en el loop':d.ia==='parcial'?'⚙️ <b>Parcial</b> — el core es IA con una dependencia humana acotada/removible':'🧑 <b>Requiere humano</b> — hay un bloqueo legal/institucional'}. ${d.iawhy||''}</p></div>`);
  p.push(`<div class="ds"><div class="dl">Qué es (de cero)</div><p>${d.quees}</p></div>`);
  if(d.opera)p.push(`<div class="ds"><div class="dl">Cómo opera · un ejemplo real</div><p>${d.opera}</p></div>`);
  if(d.nums)p.push(`<div class="dstats">${Object.keys(d.nums).map(k=>`<div class="s"><div class="k">${k}</div><div class="v ${k==='Margen'?'good':''}">${d.nums[k]}</div></div>`).join('')}</div>`);
