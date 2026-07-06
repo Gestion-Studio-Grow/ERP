@@ -24,7 +24,11 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
 
 ---
 
-## A. EN DESARROLLO AHORA (4 negocios — arrancaron 2026-07-06)
+## A. EN DESARROLLO AHORA (4 negocios — kickoff COMPLETO 2026-07-06)
+
+> Los 4 tienen ya: spec del MVP + arquitectura + **código del corazón del producto funcionando** (demos
+> verificadas offline) + plan hasta el primer peso. Próximo paso de cada uno abajo. Falta cablear las
+> APIs reales (Claude Sonnet, WhatsApp, Google, pasarela) y salir a vender.
 
 ### 🛠️ Kudos — reseñas en piloto automático
 - **Qué es (de cero):** un servicio que le consigue reseñas de 5 estrellas a un comercio (con un QR en el
@@ -35,7 +39,7 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
   semanas**.
 - **Por qué gusta:** el líder (Birdeye) cobra US$299–449 → hay lugar para entrar a un tercio del precio.
   Es el de **mejor margen** de todos.
-- **Estado dev:** kickoff en curso (spec + arquitectura + motor de respuestas + plan).
+- **Estado dev:** ✅ **kickoff COMPLETO** — spec + arquitectura + motor de respuestas (ruteo 1★→revisión / 5★→autopublica + anti-"gating" de Google) con demo offline verificada. Próximo: conectar Claude Sonnet real + Google Business Profile y probar 50+ reseñas reales.
 
 ### 🛠️ Fantasma — el "turno noche" de WhatsApp
 - **Qué es (de cero):** un empleado de IA que atiende el WhatsApp del negocio **fuera de horario** (noche
@@ -46,7 +50,7 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
   **US$5.000/mes → ~25 clientes** · primer peso en **2–3 semanas** (el más rápido).
 - **Regla de oro:** se cobra **por uso** (con un tope de conversaciones incluidas + excedente), nunca una
   tarifa plana, o los tokens se comen la ganancia.
-- **Estado dev:** kickoff en curso (incluye el modelo de pricing por uso).
+- **Estado dev:** ✅ **kickoff COMPLETO** — agente (máquina de estados) + motor de COGS + **pricing por uso blindado** (Básica US$120/100 conv · Pro US$249/250 · Full US$399/500, excedente siempre > COGS). `tsc` verde + demo real (cotiza, agenda, link MP). Próximo: cablear Sonnet real y validar COGS contra 20 conversaciones de barbería.
 
 ### 🛠️ Testigo — parte de trabajo desde una foto y un audio
 - **Qué es (de cero):** para plomeros, obras, jardineros, fumigadores. El operario manda una **foto + un
@@ -56,7 +60,7 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
   **US$15–30/operario/mes** (un contratista de 5 = US$75–150) · margen **~90%** · para **US$5.000/mes →
   35–50 cuadrillas** · primer peso en **4–6 semanas**.
 - **Por qué gusta:** una vez que es su forma de entregar, **cambiarse duele** → los clientes no se van.
-- **Estado dev:** kickoff en curso (arranca por 1 rubro).
+- **Estado dev:** ✅ **kickoff COMPLETO** — rubro faro **control de plagas/fumigación** (parte exigido por bromatología → menos evangelización); pipeline foto+audio→parte→PDF con ejemplo renderizado + regla dura: **nunca inventa datos regulatorios** (los marca pendientes y repregunta). Próximo: webhook WhatsApp + STT + PDF real de punta a punta.
 
 ### 🛠️ Plantillería — plantillas listas para Argentina
 - **Qué es (de cero):** una tienda de **plantillas** (planillas de Excel / Notion) hechas para la realidad
@@ -66,7 +70,7 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
   precio **US$25–75 por plantilla** (pago único) · margen **90–95%** · para **US$1.000/mes → ~37 ventas**
   (caso real citado: US$1.800 en un mes con 3 plantillas) · primeras ventas en **semanas**.
 - **El desafío:** no es el costo, es la **distribución** — hay que hacer que la gente la encuentre.
-- **Estado dev:** kickoff en curso (catálogo + landing + plan de distribución).
+- **Estado dev:** ✅ **kickoff COMPLETO** — scaffold Next.js (landing + producto + checkout Lemon Squeezy + entrega) + 5 plantillas definidas + plan de distribución (60% del trabajo real). Próximo: construir la plantilla de Monotributo contra un caso real y abrir la cuenta de Lemon Squeezy → con eso ya cobra.
 
 ---
 

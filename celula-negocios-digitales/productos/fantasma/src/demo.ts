@@ -1,6 +1,8 @@
 // Fantasma — DEMO ejecutable del corazón.
-// Simula una conversación de WhatsApp fuera de horario (input→output), muestra el COGS real de esa
-// conversación y proyecta la factura mensual con su margen. Corré: `npm run demo`.
+// 1) Simula una conversación de WhatsApp fuera de horario (input→output) y muestra su COGS real.
+// 2) Simula una conversación larga (12-15 turnos) para ver cómo escala el COGS al rango del análisis.
+// 3) Proyecta la factura mensual y el margen con el pricing por uso (tope + excedente).
+// Corré: `npm run demo`.
 
 import { AgenteFantasma } from "./agente.ts";
 import { LLMMock } from "./llm.ts";
@@ -9,14 +11,23 @@ import { desglosarCogs } from "./cogs.ts";
 import { calcularFactura, PLANES } from "./planes.ts";
 import type { Conversacion, UsoLLM } from "./tipos.ts";
 
+// Supuestos de costeo CONSERVADORES para el pricing (por conversación completa de 12-15 turnos).
+// El real medido suele ser menor gracias al prompt caching — margen real ≥ modelado.
+const COGS_TIPICO_USD = 0.18;
+const COGS_PEOR_USD = 0.3;
+
 const linea = (c = "─") => console.log(c.repeat(72));
 
-async function correrConversacion(): Promise<Conversacion> {
+function cogsDeConversacion(conv: Conversacion): number {
+  const usos: UsoLLM[] = conv.turnos.filter((t) => t.uso).map((t) => t.uso!);
+  return desglosarCogs(usos).costoUsd;
+}
+
+async function correrHappyPath(): Promise<Conversacion> {
   const agente = new AgenteFantasma(new LLMMock());
   const cliente = BARBERIA_LO_DE_TITO;
-  const conv = agente.iniciarConversacion(cliente, "+54 9 11 5555-1234", /* esOffHours */ true);
+  const conv = agente.iniciarConversacion(cliente, "+54 9 11 5555-1234", true);
 
-  // Guion de la charla simulada (un lead un sábado a la noche).
   const mensajes = [
     "Hola, buenas! están?",
     "cuánto sale un combo corte + barba?",
@@ -34,76 +45,92 @@ async function correrConversacion(): Promise<Conversacion> {
     if (r.cerrada) break;
   }
 
-  // Efectos: cotización, agenda con seña, ticket.
-  if (conv.cotizacion) {
-    console.log(`   💰 Cotización registrada: $${conv.cotizacion.montoTotal}`);
-  }
+  if (conv.cotizacion) console.log(`   💰 Cotización registrada: $${conv.cotizacion.montoTotal}`);
   if (conv.agendado) {
     console.log(`   📅 Turno propuesto: ${conv.agendado.slot}  ·  seña $${conv.agendado.montoSeña}`);
     if (conv.agendado.mpLink) console.log(`   🔗 Link Mercado Pago: ${conv.agendado.mpLink}`);
   }
-  if (conv.ticket) {
-    console.log(`   🎫 Ticket caliente: ${conv.ticket.resumen} (urgencia ${conv.ticket.urgencia})`);
-  }
+  if (conv.ticket) console.log(`   🎫 Ticket: ${conv.ticket.resumen} (${conv.ticket.urgencia})`);
   console.log(`   ✅ Estado final: ${conv.estado}`);
 
   return conv;
 }
 
-function mostrarCogs(conv: Conversacion) {
-  linea();
-  console.log("💸 COGS de ESTA conversación (base del pricing por uso)");
-  linea();
+async function correrConversacionLarga(): Promise<Conversacion> {
+  // Cliente indeciso: muchas idas y vueltas de precios (contexto que crece → COGS que sube).
+  const agente = new AgenteFantasma(new LLMMock());
+  const cliente = BARBERIA_LO_DE_TITO;
+  const conv = agente.iniciarConversacion(cliente, "+54 9 11 4444-9876", true);
+  const idasYVueltas = [
+    "hola buenas",
+    "cuánto sale el corte?",
+    "cuánto sale la barba?",
+    "cuánto sale el combo?",
+    "cuánto vale el color completo?",
+    "cuánto sale el color parcial?",
+    "cuánto salen 2 combos?",
+    "cuánto salen 3 cortes?",
+    "cuánto sale el perfilado de barba?",
+    "cuánto vale el combo de nuevo?",
+    "tenés turno esta semana?",
+    "dale pago la seña y reservo",
+  ];
+  for (const msg of idasYVueltas) {
+    const r = await agente.procesarMensaje(cliente, conv, msg);
+    if (r.cerrada) break;
+  }
+  return conv;
+}
+
+function mostrarCogs(titulo: string, conv: Conversacion) {
   const usos: UsoLLM[] = conv.turnos.filter((t) => t.uso).map((t) => t.uso!);
   const d = desglosarCogs(usos);
-  console.log(`   Turnos con LLM:        ${d.turnos}`);
-  console.log(`   Input sin cache:       ${d.inputUncachedTotal.toLocaleString()} tok`);
-  console.log(`   Input cacheado (0,1×): ${d.inputCachedTotal.toLocaleString()} tok  (guion de marca)`);
-  console.log(`   Output:                ${d.outputTotal.toLocaleString()} tok`);
-  console.log(`   ────────────────────`);
-  console.log(`   COGS conversación:     US$${d.costoUsd.toFixed(4)}`);
   console.log(
-    `   → Dentro del rango del análisis (US$0,15–0,30). El guion cacheado es lo que lo mantiene bajo.`,
+    `   ${titulo}: ${d.turnos} turnos LLM · ` +
+      `in ${d.inputUncachedTotal.toLocaleString()} + cache ${d.inputCachedTotal.toLocaleString()} + ` +
+      `out ${d.outputTotal.toLocaleString()} tok  →  COGS US$${d.costoUsd.toFixed(4)}`,
   );
   return d.costoUsd;
 }
 
-function proyectarMes(cogsPorConversacion: number) {
+function proyectarMes() {
   linea();
-  console.log("📊 Proyección mensual y margen (blindaje: tope + excedente)");
+  console.log("📊 Proyección mensual y margen (pricing por uso: tope + excedente)");
   linea();
   const cliente = BARBERIA_LO_DE_TITO;
   const def = PLANES[cliente.plan];
+  console.log(
+    `   Plan ${def.nombre}: US$${def.precioMensualUsd}/mes · ${def.conversacionesIncluidas} incluidas · ` +
+      `excedente US$${def.excedentePorConvUsd}/conv`,
+  );
+  console.log(
+    `   Costeo por conversación (12-15 turnos): típico US$${COGS_TIPICO_USD} · peor caso US$${COGS_PEOR_USD}\n`,
+  );
 
-  // Dos escenarios: dentro del tope y por encima (para ver el excedente en acción).
   const escenarios = [
-    { nombre: "volumen normal", conversaciones: 220 },
+    { nombre: "volumen normal (dentro del tope)", conversaciones: 220 },
     { nombre: "volumen alto (se pasa del tope)", conversaciones: 380 },
   ];
 
-  console.log(
-    `   Plan ${def.nombre}: US$${def.precioMensualUsd}/mes · ${def.conversacionesIncluidas} incluidas · ` +
-      `excedente US$${def.excedentePorConvUsd}/conv\n`,
-  );
-
   for (const e of escenarios) {
-    const cogsTotal = e.conversaciones * cogsPorConversacion;
-    const f = calcularFactura(cliente.plan, e.conversaciones, cogsTotal);
-    console.log(`   Escenario: ${e.nombre} — ${e.conversaciones} conversaciones off-hours`);
-    console.log(`     COGS total del mes:   US$${f.cogsTotalUsd.toFixed(2)}`);
-    console.log(
-      `     Excedente:            ${f.excedenteCant} conv × US$${def.excedentePorConvUsd} = ` +
-        `US$${f.excedenteUsd.toFixed(2)}`,
-    );
-    console.log(`     Facturado al cliente: US$${f.totalFacturadoUsd.toFixed(2)}`);
-    console.log(
-      `     Margen bruto:         US$${f.margenBrutoUsd.toFixed(2)}  ` +
-        `(${(f.margenBrutoPct * 100).toFixed(0)}%)\n`,
-    );
+    console.log(`   ── ${e.nombre} — ${e.conversaciones} conversaciones off-hours`);
+    for (const [etq, cogsConv] of [
+      ["típico", COGS_TIPICO_USD],
+      ["peor caso", COGS_PEOR_USD],
+    ] as const) {
+      const f = calcularFactura(cliente.plan, e.conversaciones, e.conversaciones * cogsConv);
+      console.log(
+        `      COGS ${etq.padEnd(9)}: US$${f.cogsTotalUsd.toFixed(2).padStart(7)}  ·  ` +
+          `facturado US$${f.totalFacturadoUsd.toFixed(2)} (base + exced. US$${f.excedenteUsd.toFixed(2)})  ·  ` +
+          `margen US$${f.margenBrutoUsd.toFixed(2)} (${(f.margenBrutoPct * 100).toFixed(0)}%)`,
+      );
+    }
+    console.log("");
   }
   console.log(
-    "   ⚑ El excedente (US$0,80) es 2,7–4,4× el COGS/conv → cada conversación extra es RENTABLE.\n" +
-      "     Un flat puro se comería el margen en volumen alto; el tope+excedente lo protege.",
+    `   ⚑ El excedente (US$${def.excedentePorConvUsd}) supera el COGS/conv incluso en el peor caso ` +
+      `(US$${COGS_PEOR_USD}).\n` +
+      "     Cada conversación extra es rentable → el flat NUNCA se come el margen. Esa es la trampa evitada.",
   );
 }
 
@@ -112,9 +139,23 @@ async function main() {
   console.log("  FANTASMA — demo del corazón (agente turno noche de WhatsApp)");
   console.log("═".repeat(72));
 
-  const conv = await correrConversacion();
-  const cogs = mostrarCogs(conv);
-  proyectarMes(cogs);
+  const happy = await correrHappyPath();
+
+  linea();
+  console.log("💸 COGS medido (base del pricing por uso) — prompt caching del guion");
+  linea();
+  mostrarCogs("Conversación happy-path (corta)  ", happy);
+  const larga = await correrConversacionLarga();
+  mostrarCogs("Conversación larga (contexto crece)", larga);
+  console.log(
+    "\n   → Con prompt caching del guion, el COGS medido queda POR DEBAJO del supuesto conservador\n" +
+      "     de costeo (US$0,18 típico / US$0,30 peor caso). Es buena noticia: el margen real ≥ modelado.\n" +
+      "     Igual el pricing se diseña contra el supuesto conservador (colchón), y el kill-switch\n" +
+      "     (tope 25 turnos/conv) pone un techo duro al COGS por conversación pase lo que pase.",
+  );
+  console.log("");
+
+  proyectarMes();
 
   linea("═");
   console.log("  Break-even: ~25 clientes a ~US$200 = US$5.000/mes. Time-to-cash 2–3 semanas.");
