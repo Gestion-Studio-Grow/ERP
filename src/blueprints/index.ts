@@ -3,7 +3,6 @@
 
 import type { Blueprint } from "./types";
 import { serviciosBlueprint } from "./servicios";
-import { carniceriaBlueprint } from "./carniceria";
 import { genericoBlueprint } from "./generico";
 import { RETAIL_BLUEPRINTS, RETAIL_RUBRO_HINTS } from "./retail";
 import { FAMILY_BLUEPRINTS, FAMILY_RUBRO_HINTS } from "./families";
@@ -22,14 +21,15 @@ export const FALLBACK_BLUEPRINT_ID = "generico";
 const REGISTRY: Record<string, Blueprint> = {
   // Familia Retail/Mostrador: un blueprint por rubro (verdulería, dietética, kiosco,
   // fiambrería, indumentaria, carnicería) — config pura, ver src/blueprints/retail.
-  // Va primero para que los ids de abajo (incl. la carnicería standalone) tengan
-  // precedencia y no cambie el comportamiento ya existente.
+  // `carniceria` (rubro de magra) vive ACÁ desde 2026-07-06: se retiró el blueprint
+  // standalone que había quedado duplicado/desactualizado (catálogo genérico) en
+  // favor de este, informado por el negocio real de magra (boutique premium, líneas
+  // Don Ramón + gourmet) — una sola fuente de verdad, sin fork.
   ...RETAIL_BLUEPRINTS,
   // Familias de presets por rubro (Agenda&Servicios, Servicios&Oficios, Gastronomía)
   // — config pura, ver src/blueprints/{agenda,oficios,gastronomia} y families.ts.
   ...FAMILY_BLUEPRINTS,
   [serviciosBlueprint.id]: serviciosBlueprint,
-  [carniceriaBlueprint.id]: carniceriaBlueprint,
   [genericoBlueprint.id]: genericoBlueprint,
 };
 

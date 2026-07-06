@@ -6,7 +6,7 @@
 >
 > **Contexto (verificado en código, deploy `f0a13f0`):** hoy prod tiene **1 tenant**
 > (CH Estética, slug `beauty-spa`). Magra está **preparado pero no provisionado**
-> (branding `src/lib/branding.ts:58`, blueprint `src/blueprints/carniceria.ts`,
+> (branding `src/lib/branding.ts:58`, blueprint `src/blueprints/retail/rubros.ts` (rubro `carniceria`),
 > vidriera `/tienda`, playbooks en `docs/tenants/magra/`). El alta del 2º tenant está
 > **bloqueada a propósito** por el gate ADR-018 (`scripts/provision-tenant.ts:191-202`)
 > hasta que RLS de Postgres esté activo. Por eso este runbook activa RLS **primero**.
@@ -170,7 +170,7 @@ Con RLS **ya activo** (Paso 2), el gate ADR-018 se **abre** y el alta procede. E
 | **slug** | `magra` | identificador; branding/vidriera ya mapean este slug (`branding.ts:58`) |
 | **ownerEmail** | *(email real del dueño de Magra)* | 🔴 dato de negocio a confirmar |
 | **ownerName** | `Dueño Magra` | ajustable |
-| **blueprint** | `carniceria` | rubro Retail/Mostrador (`src/blueprints/carniceria.ts`) |
+| **blueprint** | `carniceria` | rubro Retail/Mostrador (`src/blueprints/retail/rubros.ts`) |
 | **subdomain** | `magra` | clave para entrar por `magra.<dominio>` (Paso 4) |
 | **plan** | `trial` o `active` | según acuerdo comercial |
 | **status** | `TRIAL` → `ACTIVE` al confirmar cobro | |

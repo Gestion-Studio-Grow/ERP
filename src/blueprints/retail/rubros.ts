@@ -73,9 +73,17 @@ const carniceria: RetailRubro = {
     weightNote: "El total puede ajustarse al peso real de cada pieza envasada.",
   },
   modules: ["pos", "stock", "venta-peso", "venta-unidad", "proveedores", "cuenta-corriente"],
+  // addressLine/whatsapp/instagram: PROVISIONALES (mismo dato que tenía el blueprint
+  // standalone `carniceria.ts`, ahora consolidado acá — únicos placeholders sin el
+  // alta real de magra los pisa vía flags de `provision-tenant.ts`, ver
+  // docs/tenants/magra/provisioning-magra.md).
   brandingDefaults: {
     shortLabel: "Carnes premium",
+    addressLine: "Av. Provisional 1234, Canning", // provisional
+    city: "Canning, Buenos Aires",
     hoursLabel: "Lun a Sáb 10–20h · Dom 9–13h",
+    whatsapp: "5491100000000", // provisional
+    instagram: "@magra.carniceria", // provisional
     contactNote: "Carnes premium envasadas al vacío, más una línea gourmet elegida con el mismo criterio.",
   },
   // Líneas REALES de magra (de su web): vaca Angus de Estancia Don Ramón, cerdo magro,

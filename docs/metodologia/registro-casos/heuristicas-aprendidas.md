@@ -12,6 +12,7 @@ lee al trabajar). Este archivo es la trazabilidad de **de qué caso salió cada 
 | H4 | **Sin logo/hex:** mapear a preset de acento (`provisional`) + **recrear el logo en CSS/SVG** para la demo; asset oficial = bloqueante de prod. | magra, breakpoint | ✅ §3.3 |
 | H5 | **Fuente única (sólo Instagram):** se puede armar demo creíble siendo **explícito** sobre lo "de ejemplo"; el `completenessScore().prod` bajo es la señal honesta. | breakpoint | parcial (implícito en §3.5 + DoD) |
 | H6 | **Precios no públicos:** estimación de gama marcada `provisional` + pedido; jamás precio inventado como real. | magra, breakpoint | ✅ §3.5 |
+| H7 | **CTA de WhatsApp sin número real:** el placeholder debe ser de **formato válido** (no un patrón obviamente roto como puros ceros) + extraído a una constante única + registrado acá como `pedido-al-dueno`. Un CTA roto en una demo en vivo es peor que uno de ejemplo bien marcado. | adosmanos | parcial (1 caso; candidata a checklist §3.5 si se repite) |
 
 ## Cómo agregar una heurística
 

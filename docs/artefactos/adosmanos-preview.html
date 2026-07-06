@@ -366,14 +366,18 @@
       `<button class="btn-primary wa" onclick="checkoutWA()">Finalizar por WhatsApp</button>`;
   }
 
+  // WhatsApp PROVISIONAL — A Dos Manos no confirmó su número aún (a diferencia de
+  // magra/shinevelas/breakpoint, que sí lo dieron); único punto de cambio cuando llegue
+  // el real (ver docs/metodologia/registro-casos/adosmanos.md).
+  const WA = "5491100000000";
   function checkoutWA() {
     const lines = cartLines();
     let msg = "¡Hola A Dos Manos! Quiero hacer este pedido:%0A";
     for (const { p, q } of lines) msg += `%0A• ${q}× ${p.name} — ${money(transfer(p.price) * q)}`;
     msg += `%0A%0ATotal (transferencia): ${money(cartTotalTransfer())}`;
-    window.open("https://wa.me/5490000000000?text=" + msg, "_blank");
+    window.open(`https://wa.me/${WA}?text=` + msg, "_blank");
   }
-  function waHola() { window.open("https://wa.me/5490000000000?text=" + encodeURIComponent("¡Hola! Quería una recomendación de pala 🎾"), "_blank"); return false; }
+  function waHola() { window.open(`https://wa.me/${WA}?text=` + encodeURIComponent("¡Hola! Quería una recomendación de pala 🎾"), "_blank"); return false; }
 
   // Init
   renderChips(); renderGrid(); refreshCount();

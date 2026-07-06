@@ -44,7 +44,7 @@ Sin este guardrail, "lo solucionamos" degenera en una consultora de software a m
 ## 3. Modelo de tenants
 
 - **Un tenant nuevo se modela SIEMPRE dentro del multi-tenant existente.** La pregunta por defecto ante un cliente nuevo no es "¿qué app le armo?" sino **"¿qué arquetipo/Blueprint lo cubre, y qué config/plugins le activo?"**.
-- **`magra`** (carnicería premium, Canning) es el **2º tenant** y la prueba de que el modelo funciona en la práctica: está realizado **dentro de este repo** como el Blueprint **`carniceria`** (`src/blueprints/carniceria.ts`, en `main`), con alta vía provisioning `--blueprint=carniceria` y vidriera pública `/carniceria` sobre la capability de POS/mostrador. **No** es una app aparte ni un fork: lo que difiere de estética (catálogo, unidades, flujo de venta/mostrador) es Blueprint + capabilities del Core, no código base duplicado.
+- **`magra`** (carnicería premium, Canning) es el **2º tenant** y la prueba de que el modelo funciona en la práctica: está realizado **dentro de este repo** como el Blueprint **`carniceria`** (familia Retail/Mostrador, `src/blueprints/retail/rubros.ts`, en `main`), con alta vía provisioning `--blueprint=carniceria` y vidriera pública `/tienda` sobre la capability de POS/mostrador. **No** es una app aparte ni un fork: lo que difiere de estética (catálogo, unidades, flujo de venta/mostrador) es Blueprint + capabilities del Core, no código base duplicado.
 - **El aislamiento entre tenants es la línea roja de seguridad y de diseño:** ningún dato, query o pantalla cruza tenants. El backstop es RLS de Postgres (ADR-018); hasta activarlo, el aislamiento es a nivel aplicación con resolución de tenant fail-closed (ADR-015).
 
 ---
