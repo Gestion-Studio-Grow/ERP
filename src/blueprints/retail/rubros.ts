@@ -272,6 +272,38 @@ const indumentaria: RetailRubro = {
   ],
 };
 
+// --- Velas / deco (rubro de `shinevelas`) — tienda de productos por unidad ---
+const velas: RetailRubro = {
+  id: "velas",
+  label: "Velas & deco",
+  wording: {
+    catalogHeading: "Nuestras velas",
+    itemNoun: "producto",
+    heroTagline: "Velas artesanales y aromas para tu casa. Elegí las tuyas y hacé tu pedido.",
+    orderCta: "Enviar pedido",
+    weightNote: null,
+  },
+  modules: ["pos", "stock", "venta-unidad", "listas-precio", "proveedores"],
+  brandingDefaults: {
+    shortLabel: "Shine · velas artesanales",
+    city: "Buenos Aires",
+    hoursLabel: "Lun a sáb · 10 a 19 h",
+    contactNote: "Velas artesanales y aromas para el hogar.",
+  },
+  catalog: [
+    { name: "Vela aromática chica", sale: "u", price: 4500, stock: 40 },
+    { name: "Vela aromática grande", sale: "u", price: 8900, stock: 30 },
+    { name: "Vela de soja en vaso", sale: "u", price: 7200, stock: 25 },
+    { name: "Set 3 velas de té", sale: "u", price: 3900, stock: 50 },
+    { name: "Vela decorativa tallada", sale: "u", price: 11900, stock: 15 },
+    { name: "Difusor de aromas", sale: "u", price: 9800, stock: 20 },
+    { name: "Sahumerios (pack x6)", sale: "u", price: 3200, stock: 60 },
+    { name: "Portavela de cerámica", sale: "u", price: 6500, stock: 18 },
+    { name: "Vela de masaje", sale: "u", price: 8200, stock: 12 },
+    { name: "Caja regalo (2 velas)", sale: "u", price: 15900, stock: 16 },
+  ],
+};
+
 export const RETAIL_RUBROS: Record<string, RetailRubro> = {
   carniceria,
   verduleria,
@@ -279,6 +311,7 @@ export const RETAIL_RUBROS: Record<string, RetailRubro> = {
   kiosco,
   fiambreria,
   indumentaria,
+  velas,
 };
 
 export const RETAIL_RUBRO_IDS = Object.keys(RETAIL_RUBROS);
@@ -302,6 +335,7 @@ export function getRetailRubro(id: string): RetailRubro | null {
 // despliegue, esto pasa a leerla con fallback a este mapa — un único punto de cambio.
 const RUBRO_BY_SLUG: Record<string, string> = {
   magra: "carniceria",
+  shinevelas: "velas",
 };
 
 export function resolveRubroIdBySlug(slug: string | null | undefined): string | null {

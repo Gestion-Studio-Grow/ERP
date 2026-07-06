@@ -98,10 +98,17 @@ charter + FUNDAMENTO + 2 análisis de mercado en `docs/sectores/agencia-digital/
 
 ## 3. Tenants
 
-| Tenant | Slug | Blueprint | Estado |
-|---|---|---|---|
-| **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `estetica` | ✅ **VIVO en prod** — corriendo con `app_rls` + RLS enforced (2 tenants ahora) |
-| **Magra** (carnicería boutique) | `magra` | `carniceria` | ✅ **ALTA HECHA en prod (2026-07-06)** — `tenantId=cmr8nncxj0000aoh7cqpn7yyg`, OWNER+BusinessSettings+catálogo demo sembrados; el gate ADR-018 abrió (RLS activo) y el aislamiento quedó verificado en prod. **Falta solo su sitio Netlify `magra-erp`** (`FORCE_TENANT_SLUG=magra`, lo hace el dueño). Email del OWNER **provisional** a confirmar |
+| Tenant | Slug | Subdomain | Blueprint | Estado |
+|---|---|---|---|---|
+| **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `chestetica` | `estetica`/servicios (col `blueprintId` null → default) | ✅ **VIVO en prod** — corriendo con `app_rls` + RLS enforced. Subdomain seteado 2026-07-06 |
+| **Magra** (carnicería boutique) | `magra` | `magra` | `carniceria` | ✅ **ALTA HECHA (2026-07-06)** — `tenantId=cmr8nncxj0000aoh7cqpn7yyg`. Subdomain seteado. Email OWNER **provisional** |
+| **Shine Velas** (velas artesanales) | `shinevelas` | `shinevelas` | `velas` (retail/tienda) | ✅ **ALTA HECHA (2026-07-06)** — `tenantId=cmr9b3b5a0000m8h7913rkvf3`, OWNER+Settings+catálogo velas sembrados; aislamiento (policy+RLS) verificado. Email OWNER **provisional** (`dueno@shinevelas.com.ar`); pass bootstrap en `estetica-erp/.env` |
+| **A Dos Manos** (cancha de pádel) | `adosmanos` | `adosmanos` | `servicios` (turnos) | ✅ **ALTA HECHA (2026-07-06)** — `tenantId=cmr9b3kij0000fkh73ax0d85h`, OWNER+Settings+catálogo servicios sembrados; aislamiento (policy+RLS) verificado. Email OWNER **provisional** (`dueno@adosmanos.com.ar`); pass bootstrap en `estetica-erp/.env` |
+
+**4 tenants listos** para el deploy único de Vercel por subdominio (`<sub>.<APP_BASE_DOMAIN>`). Migración
+`control_plane_tenant` (columna `subdomain`) confirmada **aplicada** en prod. Nuevo rubro retail `velas`
+(`src/blueprints/retail/rubros.ts`) + mapeo `shinevelas→velas` para la vidriera `/tienda`. Verificador
+read-only reusable: `prisma/rls/verify-tenant-isolation.mjs`.
 
 **Gate de negocio de Magra (decisión de dueño, no técnica):** cobro MP online, fotos, precios reales.
 
