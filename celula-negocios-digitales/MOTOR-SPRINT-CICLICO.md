@@ -108,6 +108,14 @@
   dependencia fatal de una plataforma. **NO** descartar por "es lento", "es pasivo" o "es chico".
 - Reabre a revisión lo que se mató antes por lentitud (ej. newsletter con sponsors, comparadores de
   afiliados, directorios): re-evaluarlos con el rango nuevo.
+- **Buscamos DOS tipos de ganador, y ambos valen por igual:** (a) el de **gran beneficio / escala** y
+  (b) el **pasivo pero SUSTENTABLE** (bajo mantenimiento, ingreso estable en el tiempo). Poné atención a
+  los dos: no descartes un pasivo sólido por no ser un cohete, ni un cohete por ser exigente. Etiquetá
+  cada negocio con su perfil (💥 alto beneficio / 🌱 pasivo sustentable / ⚖️ mixto).
+- **Desafialos con TRIPLE filtro:** (1) **fuentes reales** (competidores, precios, padrones), (2)
+  **análisis de Ingeniería de Datos** (TAM/SAM/SOM, demanda medible, unit economics con método), y (3)
+  **audacia de calle + olfato de operador** — criterio de alguien que puso plata propia y estuvo en la
+  cancha, no teoría de PowerPoint. Cuando los datos y el olfato chocan, explicá por qué y quién gana.
 
 ### Para TODOS los agentes — salir del sesgo del modelo
 - **Salir del sesgo clásico de los LLM.** No proponer lo primero/obvio que cualquier modelo tiraría
