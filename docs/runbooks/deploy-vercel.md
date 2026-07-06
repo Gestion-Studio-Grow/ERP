@@ -33,6 +33,22 @@ host ajeno / sin APP_BASE_DOMAIN →  fallback single-tenant (1 tenant) o ERROR
 - **RLS sigue siendo el candado real:** el `tenantId` que resuelve esto alimenta el GUC de la policy.
   El routing elige el tenant; RLS impide ver datos de otro aunque el routing fallara.
 
+### 1.c URLs `.vercel.app` GRATIS por tenant (sin dominio propio) — `TENANT_HOST_MAP`
+Para demos hoy, **sin comprar dominio**: Vercel Hobby permite agregar muchos dominios `.vercel.app`
+gratis al proyecto (hasta 50). Se le da a cada tenant su URL plana (ej. `chestetica-erp.vercel.app`),
+todas apuntando al mismo proyecto `erp-ch`. Como NO son subdominios de un dominio base común,
+`tenant.ts` resuelve por **hostname exacto** vía la env `TENANT_HOST_MAP` (mapa `host=subdomain;…`),
+que se evalúa **ANTES** del método de subdominio (que sigue intacto para el día del dominio propio).
+
+- **Agregar en Vercel → Domains** (una por tenant, gratis): `chestetica-erp.vercel.app`,
+  `magra-erp.vercel.app`, `shinevelas-erp.vercel.app`, `adosmanos-erp.vercel.app`.
+- **Setear la env:**
+  `TENANT_HOST_MAP=chestetica-erp.vercel.app=chestetica;magra-erp.vercel.app=magra;shinevelas-erp.vercel.app=shinevelas;adosmanos-erp.vercel.app=adosmanos`
+- **DEJAR `APP_BASE_DOMAIN` vacío** en este deploy (con dominio propio a futuro se setea y el mapa se
+  puede quitar). El valor del mapa es el `Tenant.subdomain` (mismo lookup y fail-closed que el subdominio).
+- El apex del proyecto (`erp-ch.vercel.app`, sin entrada en el mapa) cae al fail-closed con >1 tenant
+  (§1.b) → usalo solo para `/demo` (estático) o agregale su propia entrada al mapa si querés fijarlo.
+
 ### 1.a Prerrequisitos de datos (⚠️ Gate 2 — migración; acción del dueño con OK)
 Para que el routing por subdominio funcione en prod:
 1. **Migración `20260705120000_control_plane_tenant` aplicada** — agrega la columna `Tenant.subdomain`.
@@ -74,7 +90,8 @@ Los valores de DB/secretos ya existen en la config actual de prod (Neon/Netlify)
 | `OPERATOR_SECRET` | Secreto HMAC de la cookie del operador (`/operador`) — **llavero separado** del tenant. |
 | `OPERATOR_PASSWORD` | Contraseña de la consola de operador. Obligatoria en prod (sin ella, no se entra). |
 | `RLS_ENFORCEMENT` | Poner en **`on`** para activar el candado RLS (aislamiento por fila). |
-| `APP_BASE_DOMAIN` | Dominio base para resolver el tenant por subdominio (ej. `miapp.com`). **Clave del multi-tenant.** |
+| `APP_BASE_DOMAIN` | Dominio base para routing por subdominio (ej. `miapp.com`). **Con dominio propio.** En el deploy `.vercel.app` **dejar vacío** (ver §1.c). |
+| `TENANT_HOST_MAP` | Mapa `hostname=subdomain;…` para URLs `.vercel.app` gratis por tenant (§1.c). Se evalúa antes del subdominio. Alternativa a `APP_BASE_DOMAIN` mientras no haya dominio propio. |
 
 ### Recomendadas
 | Variable | Para qué sirve |

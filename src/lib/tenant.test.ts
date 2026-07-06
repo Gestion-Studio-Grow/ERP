@@ -5,7 +5,14 @@
 
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { extractSubdomain, forcedTenantSlug, resolveForcedTenantId } from "./tenant";
+import {
+  extractSubdomain,
+  forcedTenantSlug,
+  resolveForcedTenantId,
+  normalizeHost,
+  parseTenantHostMap,
+  hostMapSubdomain,
+} from "./tenant";
 
 before(() => {
   process.env.APP_BASE_DOMAIN = "miapp.com";
@@ -79,4 +86,50 @@ test("resolveForcedTenantId: THROW fail-closed si el slug no existe", async () =
     () => resolveForcedTenantId("noexiste", async () => null),
     /FORCE_TENANT_SLUG="noexiste" no matchea.*fail-closed/,
   );
+});
+
+// --- URLs .vercel.app gratis: mapa exacto de hostname → subdomain (TENANT_HOST_MAP) ---
+
+test("normalizeHost: primer host de la lista, sin puerto, lowercase", () => {
+  assert.equal(normalizeHost("Chestetica-ERP.vercel.app"), "chestetica-erp.vercel.app");
+  assert.equal(normalizeHost("magra-erp.vercel.app:443"), "magra-erp.vercel.app");
+  assert.equal(normalizeHost("magra-erp.vercel.app, proxy.interno"), "magra-erp.vercel.app");
+  assert.equal(normalizeHost(""), null);
+  assert.equal(normalizeHost(null), null);
+});
+
+test("parseTenantHostMap: parsea pares host=sub y tolera espacios/;-sobrante", () => {
+  const m = parseTenantHostMap(
+    "chestetica-erp.vercel.app=chestetica; magra-erp.vercel.app=magra ;;",
+  );
+  assert.equal(m.get("chestetica-erp.vercel.app"), "chestetica");
+  assert.equal(m.get("magra-erp.vercel.app"), "magra");
+  assert.equal(m.size, 2);
+});
+
+test("parseTenantHostMap: vacío/indefinido → mapa vacío", () => {
+  assert.equal(parseTenantHostMap(undefined).size, 0);
+  assert.equal(parseTenantHostMap("").size, 0);
+  assert.equal(parseTenantHostMap("basura-sin-igual").size, 0);
+});
+
+test("hostMapSubdomain: matchea el hostname exacto (case/puerto-insensible)", () => {
+  const env = {
+    TENANT_HOST_MAP:
+      "chestetica-erp.vercel.app=chestetica;magra-erp.vercel.app=magra;shinevelas-erp.vercel.app=shinevelas;adosmanos-erp.vercel.app=adosmanos",
+  };
+  assert.equal(hostMapSubdomain("chestetica-erp.vercel.app", env), "chestetica");
+  assert.equal(hostMapSubdomain("MAGRA-erp.vercel.app:443", env), "magra");
+  assert.equal(hostMapSubdomain("adosmanos-erp.vercel.app", env), "adosmanos");
+});
+
+test("hostMapSubdomain: host fuera del mapa → null (cae al método de subdominio)", () => {
+  const env = { TENANT_HOST_MAP: "chestetica-erp.vercel.app=chestetica" };
+  assert.equal(hostMapSubdomain("erp-ch.vercel.app", env), null); // el apex del proyecto
+  assert.equal(hostMapSubdomain("magra.miapp.com", env), null); // subdominio de dominio propio
+  assert.equal(hostMapSubdomain(null, env), null);
+});
+
+test("hostMapSubdomain: sin TENANT_HOST_MAP → null (no rompe el flujo de subdominio)", () => {
+  assert.equal(hostMapSubdomain("chestetica-erp.vercel.app", {}), null);
 });

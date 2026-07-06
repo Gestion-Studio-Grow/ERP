@@ -51,6 +51,51 @@ export function extractSubdomain(host: string | null | undefined): string | null
   return null; // host ajeno al dominio base → single-tenant fallback
 }
 
+/**
+ * Normaliza un host: toma el primero de una lista `x-forwarded-host` separada por
+ * comas, saca el puerto, trim + lowercase. PURA. `null` si queda vacío.
+ */
+export function normalizeHost(host: string | null | undefined): string | null {
+  if (!host) return null;
+  const h = host.split(",")[0].trim().toLowerCase().split(":")[0];
+  return h || null;
+}
+
+/**
+ * Parsea el mapa `TENANT_HOST_MAP` — `"host1=sub1;host2=sub2"` → Map(host→subdomain).
+ * PURA y testeable. Es la pieza de "URLs .vercel.app gratis por tenant" (sin dominio
+ * propio): cada hostname PLANO (ej. `chestetica-erp.vercel.app`) mapea al `subdomain`
+ * de su tenant. Tolera espacios, entradas vacías y `;` sobrante. El valor es un
+ * `Tenant.subdomain` (se resuelve por la misma vía que el routing por subdominio real).
+ */
+export function parseTenantHostMap(raw: string | undefined | null): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!raw) return map;
+  for (const entry of raw.split(";")) {
+    const s = entry.trim();
+    if (!s) continue;
+    const eq = s.indexOf("=");
+    if (eq <= 0) continue;
+    const host = s.slice(0, eq).trim().toLowerCase().split(":")[0];
+    const sub = s.slice(eq + 1).trim().toLowerCase();
+    if (host && sub) map.set(host, sub);
+  }
+  return map;
+}
+
+/**
+ * Subdominio mapeado para un host exacto según `TENANT_HOST_MAP`, o `null` si el host
+ * no está en el mapa. PURA (env inyectable para tests).
+ */
+export function hostMapSubdomain(
+  host: string | null | undefined,
+  env: Record<string, string | undefined> = process.env,
+): string | null {
+  const h = normalizeHost(host);
+  if (!h) return null;
+  return parseTenantHostMap(env.TENANT_HOST_MAP).get(h) ?? null;
+}
+
 /** Host del request (headers), o null fuera de un request (job/script). */
 async function hostFromRequest(): Promise<string | null> {
   try {
@@ -65,9 +110,15 @@ async function hostFromRequest(): Promise<string | null> {
 /**
  * Resuelve el tenantId a partir de un host. PURO respecto de Next (recibe el host),
  * así es testeable sin request. Fail-closed (ADR-015).
+ *
+ * Orden: 1) mapa EXACTO de hostname (`TENANT_HOST_MAP`, para URLs `.vercel.app`
+ * planas sin dominio propio); 2) subdominio de `APP_BASE_DOMAIN` (dominio propio);
+ * 3) fallback single-tenant. Ambos (1) y (2) resuelven a un `Tenant.subdomain`, así
+ * que comparten el mismo lookup y el mismo fail-closed.
  */
 export async function resolveTenantId(host: string | null | undefined): Promise<string> {
-  const sub = extractSubdomain(host);
+  const mapped = hostMapSubdomain(host);
+  const sub = mapped ?? extractSubdomain(host);
   if (sub) {
     const t = await basePrisma.tenant.findUnique({
       where: { subdomain: sub },
@@ -75,8 +126,10 @@ export async function resolveTenantId(host: string | null | undefined): Promise<
     });
     if (t) return t.id;
     throw new Error(
-      `getCurrentTenantId: no hay tenant para el subdominio "${sub}" (fail-closed, ADR-015). ` +
-        "Revisá que el tenant tenga ese subdomain o que la URL sea correcta.",
+      `getCurrentTenantId: no hay tenant para el subdominio "${sub}"` +
+        (mapped ? " (vía TENANT_HOST_MAP)" : "") +
+        " (fail-closed, ADR-015). Revisá que el tenant tenga ese subdomain, el mapa de hosts, " +
+        "o que la URL sea correcta.",
     );
   }
 
