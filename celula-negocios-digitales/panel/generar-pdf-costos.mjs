@@ -20,8 +20,8 @@ const rows = await page.evaluate(()=>{
 });
 await browser.close(); server.close();
 
-const casi=rows.filter(r=>r.costo==='casi').sort((a,b)=>b.idx-a.idx);
-const bajo=rows.filter(r=>r.costo==='bajo').sort((a,b)=>b.idx-a.idx);
+const casi=rows.filter(r=>r.costo==='sincosto').sort((a,b)=>b.idx-a.idx);
+const bajo=rows.filter(r=>r.costo==='uso').sort((a,b)=>b.idx-a.idx);
 const real=rows.filter(r=>r.costo==='real').sort((a,b)=>b.idx-a.idx);
 const esc=s=>(''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 const trow=r=>`<tr><td class="nm">${esc(r.name)}</td><td class="c n">${r.idx}</td><td class="n">${esc(r.arr)||'—'}</td><td class="n">${esc(r.mes)||'—'}</td><td class="dv">${esc(r.drv)}${r.wa?' <span class="tg">WhatsApp</span>':''}${r.voz?' <span class="tg vz">voz</span>':''}</td></tr>`;
@@ -65,40 +65,40 @@ const HTML=`<!doctype html><html lang="es"><head><meta charset="utf-8"><style>${
 <section class="pg brk">
   <div class="kick">Célula de Negocios Digitales · Análisis de costos · 6 agentes sobre las 95 fichas</div>
   <h1>Costo real de la cartera</h1>
-  <div class="lede">La respuesta exacta a "¿son sin costo?": revisamos negocio por negocio el costo de bolsillo para arrancar y el costo mensual real de operar.</div>
+  <div class="lede">La respuesta exacta a "¿son sin costo?" — con el criterio correcto: <b>el desarrollo y el diseño los hace la IA del estudio, así que cuestan US$0 y no se cuentan.</b> Solo costeamos lo que la IA NO puede cubrir.</div>
   <div class="head">
-    <div class="t">El veredicto honesto</div>
-    <div class="big">Ninguno es US$0 de verdad. Cero.</div>
-    <p>Todos necesitan como mínimo un dominio (~US$12) y tokens de IA para funcionar. Lo que sí hay son <b>49 de "casi cero"</b>: se arrancan con menos de US$50 de bolsillo y corren con planes gratis hasta tener el primer cliente. La etiqueta vieja "74 sin costo" era optimista — esta es la real.</p>
+    <div class="t">El veredicto, con dev y diseño ya cubiertos</div>
+    <div class="big">${casi.length} no cuestan nada real para arrancar.</div>
+    <p>Sacando dev y diseño (gratis, los hace la IA), la mayoría se lanza con ≈US$0 de bolsillo — solo el dominio. El costo real aparece solo cuando el negocio necesita algo que la IA no reemplaza: <b>WhatsApp/servicios por uso</b> (24) o una <b>inversión de verdad</b> (14): voz, dataset, matrícula o socio.</p>
   </div>
   <div class="cards">
-    <div class="card casi"><div class="big">${casi.length}</div><div class="lb">🟢 Casi cero</div><div class="ds">&lt; US$50 de arranque. Dominio + crédito de IA; tiers gratis hasta tener clientes.</div></div>
-    <div class="card bajo"><div class="big">${bajo.length}</div><div class="lb">🟡 Costo bajo</div><div class="ds">US$50–250. Suele ser WhatsApp Business (pago por conversación desde el día 1) o crédito de IA.</div></div>
-    <div class="card real"><div class="big">${real.length}</div><div class="lb">🔴 Costo real</div><div class="ds">&gt; US$250 o un insumo obligatorio pago: voz/telefonía, dataset, matrícula, socio.</div></div>
+    <div class="card casi"><div class="big">${casi.length}</div><div class="lb">🟢 Sin costo real</div><div class="ds">Lanzar cuesta ≈US$0 (solo dominio). Opera con nuestra IA/infra, sin servicio externo pago relevante.</div></div>
+    <div class="card bajo"><div class="big">${bajo.length}</div><div class="lb">🟡 Costo por uso</div><div class="ds">Sin desembolso de arranque, pero paga un servicio externo por uso (WhatsApp, imagen, scraping) con lo que factura.</div></div>
+    <div class="card real"><div class="big">${real.length}</div><div class="lb">🔴 Costo real</div><div class="ds">Necesita plata que la IA no evita: voz/telefonía, dataset pago, matrícula/socio/certificador, reportes pagos.</div></div>
   </div>
-  <div class="note"><b>Cómo leer las columnas:</b> "Arranque" = plata de bolsillo mínima para dejarlo listo para el 1er cliente (no incluye tu tiempo). "Mensual fijo" = costo por mes independiente de cuántos clientes tengas. "Driver" = el mayor costo real; las etiquetas <span class="tg">WhatsApp</span> (costo recurrente + onboarding de Meta) y <span class="tg vz">voz</span> (caro por minuto) marcan los que más pesan.</div>
+  <div class="note"><b>Cómo leer las columnas:</b> "Arranque" = plata de bolsillo para lanzar, <b>excluyendo dev y diseño</b> (que son gratis). "Operativo mensual" = costo externo por mes. "Driver" = el mayor costo que la IA no cubre. Las etiquetas <span class="tg">WhatsApp</span> (pago por conversación) y <span class="tg vz">voz</span> (caro por minuto) marcan los que más pesan.</div>
 </section>
 
 <section class="pg brk">
   <div class="kick">Grupo 1 de 3</div>
-  <h2>🟢 Casi cero — ${casi.length} negocios</h2>
-  <div class="h2sub">Arranque &lt; US$50 (dominio + crédito de IA). Lo más cercano a "gratis" que existe. Ordenados por índice.</div>
+  <h2>🟢 Sin costo real — ${casi.length} negocios</h2>
+  <div class="h2sub">Sacando dev y diseño (los cubre la IA), lanzarlos cuesta ≈US$0: solo dominio. Operan con nuestra IA/infra. Ordenados por índice.</div>
   ${tbl(casi)}
 </section>
 
 <section class="pg brk">
   <div class="kick">Grupo 2 de 3</div>
-  <h2>🟡 Costo bajo — ${bajo.length} negocios</h2>
-  <div class="h2sub">Arranque US$50–250. Casi todos, porque dependen de WhatsApp Business (pago por conversación desde el día 1). Ordenados por índice.</div>
+  <h2>🟡 Costo por uso — ${bajo.length} negocios</h2>
+  <div class="h2sub">Sin desembolso de arranque, pero operan con un servicio externo pago por uso (WhatsApp, generación de imagen, scraping, transcripción) que se cubre con lo facturado. Ordenados por índice.</div>
   ${tbl(bajo)}
 </section>
 
 <section class="pg">
   <div class="kick">Grupo 3 de 3</div>
   <h2>🔴 Costo real — ${real.length} negocios</h2>
-  <div class="h2sub">Arranque &gt; US$250 o un insumo obligatorio pago (voz, dataset, matrícula, socio). Los que requieren inversión de verdad. Ordenados por índice.</div>
+  <div class="h2sub">Necesitan plata que la IA no reemplaza: voz/telefonía, dataset pago, matrícula/socio/certificador o reportes pagos. Los que requieren inversión de verdad. Ordenados por índice.</div>
   ${tbl(real)}
-  <div class="note" style="margin-top:14px">Análisis reconciliado de 6 agentes de costos sobre las 95 fichas · pesos al dólar oficial BNA $1.488,50 · Célula de Negocios Digitales · todo local.</div>
+  <div class="note" style="margin-top:14px">Re-costeo con dev y diseño = US$0 (los cubre la IA del estudio) · análisis de 6 agentes sobre las 95 fichas · pesos al dólar oficial BNA $1.488,50 · Célula de Negocios Digitales · todo local.</div>
 </section>
 </body></html>`;
 
