@@ -40,8 +40,11 @@
   alguien sin contexto la entienda. Lo refresca al cierre de cada ciclo y cuando el dueño pide "status".
 - **🔎 Scout de mercado (a demanda):** se suma cuando hace falta traer señales nuevas o evitar repetir
   negocios; alimenta a los creativos del ciclo siguiente.
-- **📣 Célula de Marketing y Publicidad (2 agentes):** potencia los negocios validados y analiza **qué
-  estrategia PROBADA sirve de verdad** para cada uno — con **fuentes reales** y **sin sesgo del modelo**.
+- **📣 Célula de Marketing y Publicidad (2 agentes) — corre ANTES del desafiador:** analiza **TODOS** los
+  negocios del ciclo (viabilidad real de adquisición: canal dominante, CAC estimado, si el paid cierra o
+  no) y su lectura **entra a la cola como input del desafiador** — porque la distribución es el cuello
+  real, el desafiador decide con la realidad comercial sobre la mesa. Después, potencia los que pasan a
+  producción. Analiza **qué estrategia PROBADA sirve de verdad**, con **fuentes reales** y **sin sesgo**.
   (1) **Estratega de Growth/Go-to-market:** canal de adquisición, posicionamiento, embudo, retención,
   qué palanca mueve la aguja según casos y datos reales del rubro. (2) **Analista de Performance/
   Publicidad:** medios pagos (Meta/Google/WhatsApp), CAC/ROAS reales, creatividades, medición y qué
@@ -116,6 +119,11 @@
   **análisis de Ingeniería de Datos** (TAM/SAM/SOM, demanda medible, unit economics con método), y (3)
   **audacia de calle + olfato de operador** — criterio de alguien que puso plata propia y estuvo en la
   cancha, no teoría de PowerPoint. Cuando los datos y el olfato chocan, explicá por qué y quién gana.
+- **PRIORIZÁ lo REALIZABLE YA y de BAJO COSTO de arranque.** Entre dos negocios válidos, va **primero el
+  que se puede ejecutar ahora con poca plata y poco tiempo**. El índice y la recomendación deben empujar
+  al frente lo *achievable + barato*; los de gran beneficio pero costosos/lentos de arrancar quedan en
+  cola detrás (no descartados — encolados). Marcá para cada uno: **realizable ahora (sí/no)** y **costo de
+  arranque (bajo/medio/alto)**, y ordená la cola por eso.
 
 ### Para TODOS los agentes — salir del sesgo del modelo
 - **Salir del sesgo clásico de los LLM.** No proponer lo primero/obvio que cualquier modelo tiraría

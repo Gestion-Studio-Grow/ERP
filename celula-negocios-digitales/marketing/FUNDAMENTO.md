@@ -30,6 +30,9 @@ que "todos dicen". Detectar dónde el marketing **de verdad mueve la aguja** y d
   métrica de éxito, qué evitar) en `marketing/AAAA-MM-DD-<negocio>.md`, con fuentes.
 - Feed a la **banca creativa** (ángulos de mercado) y al **equipo de ejecución** (fase Growth del runbook).
 
-## Encaje
-Se activa sobre los negocios **validados / a producción** (no sobre ideas crudas). Mismo gobierno y PMO
-global; complementa a Ejecución (Growth) con la estrategia probada por detrás. Local, sin publicar.
+## Encaje (posición en el pipeline)
+**Corre ANTES del desafiador.** Analiza **todos** los negocios del ciclo (viabilidad de adquisición:
+canal, CAC, si el paid cierra) y su lectura **se suma a la cola como input del red-team/desafiador** —
+como la distribución es el cuello real de casi todo, el desafiador decide con la realidad comercial
+sobre la mesa, no a ciegas. Después del veredicto, **potencia los que pasan a producción** con el plan
+de crecimiento fino. Mismo gobierno y PMO global; alimenta también la fase Growth de Ejecución. Local.

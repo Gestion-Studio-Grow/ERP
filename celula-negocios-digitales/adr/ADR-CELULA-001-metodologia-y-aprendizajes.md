@@ -23,10 +23,11 @@ gates). Todo local hasta su OK explícito.
    VISIÓN DEL DUEÑO (prioriza, marca dirección, gatea dev y publicación)
         │
         ▼
- ① INTELIGENCIA DE SEÑALES → ② CREATIVOS → ③ ANALÍTICOS + INGENIERÍA DE DATOS
-    (noticias→oportunidad)     (sobre señales)   (dimensionan+costean, fuentes)
-        → ④ RED-TEAM + DESAFIADOR (nombran desafíos, aptitud a producción, índice)
-        → ⑤ REPORTERO (refresca tablero) → ⑥ DUEÑO gatea
+ ① INTELIGENCIA+BOLETINES → ② CREATIVOS → ③ ANALÍTICOS + INGENIERÍA DE DATOS
+    (noticias/legislación)     (sobre señales)   (dimensionan+costean, fuentes)
+        → ④ MARKETING analiza TODOS (adquisición/canal/CAC) — input del desafiador
+        → ⑤ RED-TEAM + DESAFIADOR (triple filtro; aptitud a producción, índice, perfil 💥/🌱)
+        → ⑥ REPORTERO (refresca tablero) → ⑦ DUEÑO gatea
    En paralelo: ⑦ EQUIPO DE EJECUCIÓN construye lo que el dueño manda a producción.
 ```
 
