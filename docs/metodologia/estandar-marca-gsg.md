@@ -36,6 +36,20 @@ Todo entregable lleva un **sello GSG verificable**. Según el tipo de entregable
 > superficie pública. En el sitio del cliente manda el cliente; el sello GSG va en el backoffice, en
 > metadatos, o en entregables propios de GSG.
 
+### ⚖️ Excepción en RÉPLICA EXACTA del front (fidelidad > estándar)
+Cuando el entregable es una **réplica exacta del sitio del cliente**, la **Capa 1 (calidad/SAP) NO
+reescribe el diseño del front**: se **respeta la vitrina copiada tal cual** — la **fidelidad a la marca
+del cliente manda sobre nuestro estándar estético** (ver la excepción en
+`docs/metodologia/auditoria-sap-fiori.md`). En ese front, el sello GSG existe **solo en metadatos**
+(`metadata.generator`), **nunca visible** sobre la vitrina del cliente (es el principio de no-colisión
+llevado al extremo: copia fiel = ni un pixel nuestro encima).
+
+**El BACKOFFICE NO tiene excepción:** nuestra interfaz de gestión (producto GSG) pasa el **Gate completo**
+y **lleva el sello** (crédito en footer del backoffice + `metadata.generator`). **Porqué:** el front
+copiado **es la identidad del cliente** (copiar exacto es el valor); el backoffice **es producto de GSG**,
+y ahí la excelencia y el sello son **obligatorios**. Mnemotécnica: **front replicado → fiel al cliente;
+backoffice → estándar + sello GSG.**
+
 ---
 
 ## Checklist del sello (en el Gate, antes de integrar)

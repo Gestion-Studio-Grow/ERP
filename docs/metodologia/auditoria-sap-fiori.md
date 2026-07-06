@@ -12,6 +12,33 @@ se apoya sobre esta auditoría: sin excelencia SAP no hay sello GSG.
 
 ---
 
+## ⚖️ Excepción — RÉPLICA EXACTA del front del cliente (la fidelidad manda sobre el estándar estético)
+
+**Regla de alcance:** cuando el trabajo es una **RÉPLICA EXACTA del sitio de un cliente**, la Auditoría
+SAP Fiori (y el sello GSG) **RESPETA EL DISEÑO DEL FRONT TAL CUAL — NO le impone nuestros principios de
+diseño.** La vitrina copiada es una **réplica fiel de la marca/identidad del cliente**, y la **fidelidad
+al original manda por encima de nuestro estándar estético** (colores, tipografía, layout, espaciados y
+wording son los del cliente, aunque no coincidan con Fiori).
+
+- **Alcance de la excepción — SOLO el FRONT** (la vitrina/vidriera pública copiada). En modo réplica, los
+  7 ángulos se auditan como **fidelidad al original + calidad técnica** (responsive no roto, links/CTAs
+  funcionando, imágenes/alt, accesibilidad básica, performance) — **NO** como conformidad con nuestros
+  principios estéticos. "Coherente/simple/delightful" se leen contra **el sitio original**, no contra el
+  design system de GSG.
+- **El BACKOFFICE NO tiene excepción.** Nuestra interfaz de gestión (producto GSG: `/admin`, `/operador`)
+  pasa **SIEMPRE el Gate COMPLETO**: SAP Fiori (5 principios) + **accesibilidad** + **consistencia** +
+  **sello GSG**. Ahí la excelencia es obligatoria, sin excepción.
+- **El porqué:** el **front copiado ES la identidad del cliente** — copiarlo exacto **es el valor** que
+  entregamos; imponerle nuestro diseño rompería la réplica y traicionaría al cliente. El **backoffice es
+  producto de GSG**, y ahí va la **excelencia obligatoria** (es donde vive nuestra "mano" y nuestro
+  estándar). Regla mnemotécnica: **front replicado → fiel al cliente; backoffice → estándar GSG.**
+
+> Esto **no** debilita el Gate: lo **enfoca**. En réplica exacta, "pasar la auditoría del front" significa
+> *ser fiel y técnicamente sólido*, no *parecerse a GSG*. Todo lo que sea producto GSG (backoffice,
+> demos/landings propias, generador de preset) sigue con el Gate completo.
+
+---
+
 ## Los 7 ángulos (cada uno con su chequeo concreto)
 
 Auditá el cambio contra **los 5 principios Fiori + accesibilidad + consistencia**. Marcá cada ítem; lo
