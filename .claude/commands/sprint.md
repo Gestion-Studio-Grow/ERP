@@ -106,8 +106,16 @@ que quedarse corto.
 - **`seguimos`** → retomás desde el handoff vivo sin re-preguntar el plan.
 - **`pausa`** → frenás, consolidás (main limpio y pusheado, ramas integradas/anotadas, handoff al día), corrés la **FASE FINAL (Backup): git tag anotado `snapshot/AAAA-MM-DD` a origin + `docs/ESTADO-ACTUAL.md` actualizado**, y esperás.
 
+## 🛡️ GATE DE EXCELENCIA — NO SALTEABLE (antes de integrar/pushear a main)
+**Regla dura: ningún cambio se integra a `main` sin pasar el gate de excelencia (UX + Arquitectura + Confiabilidad).** Aplica a todo frente de ambos sectores. El PMO **no mergea** sin él. Adicional a "verde antes de commitear". Fundamento transversal: **filosofía SAP/Fiori** (rol-based · coherente · simple · adaptable · delightful · calidad enterprise). Cada frente tilda en su handoff antes de pushear:
+- **UX (SAP/Fiori):** rol-based · coherente (design system) · simple · adaptable (responsive+branding por tenant) · delightful/enterprise (loading/vacío/error).
+- **Arquitectura:** capas/límites de dominio · testabilidad · escalabilidad multi-tenant (predicado `tenantId`/`tenantTransaction`) · seguridad/RLS (no evade aislamiento) · deuda anotada (ADR/PROXIMOS-PASOS).
+- **Confiabilidad prod:** `tsc`+`build`+`test` verdes · aislamiento por tenant · manejo de errores · schema = migración SIN aplicar (Gate 2), nada irreversible solo.
+- Ítem que no aplica → **N/A + por qué**. Si no tilda los 3 bloques, **no se integra**. Detalle: `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA".
+
 ## Reglas (ver `docs/METODOLOGIA-SPRINT.md` para el detalle)
 - Cada equipo en SU worktree/zona; **un tema por commit**; `tsc`+build (+`npm test` si aplica) en verde antes de commitear.
+- **🛡️ Gate de Excelencia (no salteable)** antes de integrar/pushear — ver arriba.
 - `git pull --rebase` antes de integrar; **solo el Ejecutivo/PMO mergea a `main`**, de a una rama, en orden, re-verificando.
 - ⚠️ cada worktree nuevo necesita `npm install` una vez (no copiar `node_modules`).
 - **Gates = acción humana del owner:** deploy a prod/Netlify y `prisma migrate deploy` no se cruzan solos; migraciones quedan como carpeta SIN aplicar, marcadas "pendiente acción humana".

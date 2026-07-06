@@ -41,6 +41,29 @@ producción" antes de empujarlo. Verificar acá, no en el sitio real.
 Meta: un push por tema de sesión (una vez que está verificado y listo), no un
 push por cada edición chica.
 
+## 🛡️ Gate de Excelencia — OBLIGATORIO, no salteable (antes de integrar/pushear)
+
+**Ningún cambio se integra a `main` sin pasar el gate de excelencia (UX + Arquitectura +
+Confiabilidad).** Es adicional a "verificar antes de pushear" (tsc+build+test). Fundamento
+transversal: filosofía **SAP/Fiori** (rol-based · coherente · simple · adaptable · delightful ·
+calidad enterprise). Tildá esto en el commit/PR antes de empujar (si un ítem no aplica: **N/A + por
+qué**):
+
+**UX (SAP/Fiori)**
+- [ ] Rol-based (cada rol ve lo suyo) · coherente (usa design system/tokens) · simple.
+- [ ] Adaptable (responsive + branding por tenant) · delightful/enterprise (loading/vacío/error).
+
+**Arquitectura**
+- [ ] Respeta capas/límites de dominio · lógica testeable · sin sumar deuda (o anotada en ADR/PROXIMOS-PASOS).
+- [ ] Multi-tenant: query con predicado `tenantId` / `tenantTransaction` · no evade RLS · secretos fuera del repo.
+
+**Confiabilidad de Producción**
+- [ ] `tsc --noEmit` + `npm run build` + `npm test` en verde · aislamiento por tenant verificado.
+- [ ] Manejo de errores controlado · cambios de schema = migración SIN aplicar (Gate 2), nada irreversible.
+
+Detalle y racional: `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA". Un cambio que no tilda los
+tres bloques **no se integra**.
+
 ## Convención de commits
 
 - Un commit = un cambio completo y verificado (build + type-check pasan), no un checkpoint intermedio.
