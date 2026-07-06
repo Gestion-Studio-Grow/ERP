@@ -14,6 +14,9 @@
     "predeploy-check": "tsx scripts/predeploy-check.mts",
     "purge-audit": "tsx scripts/purge-audit-logs.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "gate:rls": "node prisma/rls/check-coverage.mjs",
+    "gates": "node scripts/verify-gates.mjs",
+    "load-test": "node scripts/load-test.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
