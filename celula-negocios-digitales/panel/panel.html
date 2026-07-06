@@ -112,6 +112,26 @@
   .sh .c{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .panel{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:16px;box-shadow:var(--shadow)}
+  /* ===== GUÍA DE LECTURA ===== */
+  .guide{margin:22px 0 6px;background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);overflow:hidden}
+  .guide>summary{cursor:pointer;list-style:none;padding:16px 18px;display:flex;align-items:center;gap:12px}
+  .guide>summary::-webkit-details-marker{display:none}
+  .guide>summary .gt{font-family:var(--f-display);font-style:italic;font-weight:900;font-size:17px;text-transform:uppercase;letter-spacing:.01em}
+  .guide>summary .gs{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+  .guide>summary .gx{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--accent);font-weight:700}
+  .guide[open]>summary .gx::after{content:'ocultar'} .guide:not([open])>summary .gx::after{content:'ver'}
+  .guide[open]>summary{border-bottom:1px solid var(--line)}
+  .gbody{padding:6px 18px 20px}
+  .glead{font-size:14px;color:var(--ink-soft);margin:12px 0 4px;max-width:760px}
+  .gg{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:16px}
+  .gcard{background:var(--surface-2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:13px 15px}
+  .gcard h4{margin:0 0 6px;font-size:13.5px;font-weight:750;color:var(--ink);display:flex;align-items:center;gap:7px}
+  .gcard p{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.55}
+  .gcard .sub{margin-top:8px;font-family:var(--f-mono);font-size:11px;color:var(--muted);line-height:1.7}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid var(--line)}
+  .pill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+  .pill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+  .pill.dead{color:var(--dead);border-color:color-mix(in srgb,var(--dead) 45%,transparent)}
   .feed{display:flex;flex-direction:column}
   .wv{display:grid;grid-template-columns:13px 1fr;gap:11px;padding-bottom:12px}
   .wv .rl{display:flex;flex-direction:column;align-items:center}
@@ -204,6 +224,81 @@
 </div>
 
 <div class="wrap">
+  <details class="guide">
+    <summary>
+      <span class="gt">¿Qué estoy viendo?</span>
+      <span class="gs">guía de 1 minuto · para leer el panel sin contexto previo</span>
+      <span class="gx"></span>
+    </summary>
+    <div class="gbody">
+      <p class="glead">Esto es un <b>banco de ideas de negocio digital para Argentina</b>, ya investigadas por un equipo de agentes antes de gastar un peso. Cada fila es un negocio con su costo, su margen y un veredicto honesto de si conviene construirlo. Abajo, qué significa cada componente del tablero.</p>
+      <div class="gg">
+
+        <div class="gcard">
+          <h4>🏆 El leaderboard (la tabla)</h4>
+          <p>El corazón del panel. Cada fila es un negocio, ordenado de mejor a peor según el Índice de Factibilidad. Hacé clic en cualquiera para abrir su ficha completa: qué es, un ejemplo real de operación, números y riesgos.</p>
+        </div>
+
+        <div class="gcard">
+          <h4>📊 Índice de Factibilidad <span class="pill">0–100</span></h4>
+          <p>Qué tan cerca estamos de ejecutarlo por completo. No es "qué tan buena es la idea": suma cuatro cosas reales — <b>validación</b> (¿la demanda existe y paga?), <b>producto ya construido</b>, <b>camino claro a cobrar</b> y <b>riesgo</b>. Más alto = menos incógnitas y más listo para arrancar.</p>
+        </div>
+
+        <div class="gcard">
+          <h4>🚦 Estado (el semáforo)</h4>
+          <p>El veredicto del equipo que desafía cada negocio, sin humo:</p>
+          <p class="sub">
+            <span class="pill ok">A producción</span> validado, se puede empezar a construir.<br>
+            <span class="pill warn">En pista</span> viable, pero falta destrabar una condición (un canal de venta, un pricing, elegir el rubro).<br>
+            <span class="pill dead">Descartado</span> se mató antes de escribir código: ya hay competidor local, no paga, o el Estado lo regala gratis.
+          </p>
+        </div>
+
+        <div class="gcard">
+          <h4>🤖 ¿Cuánto lo hace la IA sola?</h4>
+          <p>Filtro clave para escalar sin sumar gente:</p>
+          <p class="sub">
+            <b>🤖 100% IA</b> — el equipo de agentes lo construye y lo opera solo.<br>
+            <b>⚙️ Parcial</b> — casi todo IA + una pieza humana chica y removible.<br>
+            <b>🧑 Humano fijo</b> — la ley obliga a una persona matriculada de por vida.
+          </p>
+        </div>
+
+        <div class="gcard">
+          <h4>🔧 En desarrollo vs. research</h4>
+          <p>Los marcados <b>"en desarrollo"</b> ya tienen código real funcionando (no PowerPoint) — son la apuesta actual. El resto es research validado y listo, esperando tu decisión de cuál empujar.</p>
+        </div>
+
+        <div class="gcard">
+          <h4>🥇 El podio</h4>
+          <p>Los 3 de mayor Índice, arriba de todo. Un atajo visual a "por dónde empezar" si tuvieras que elegir hoy.</p>
+        </div>
+
+        <div class="gcard">
+          <h4>💵 Los números (en pesos y USD)</h4>
+          <p>Costo de arranque, margen y ganancia estimada. Todo convertido al <b>dólar oficial BNA del día</b> (US$1 = $1.488,50), con el valor en dólares entre paréntesis. Son aproximaciones realistas, no promesas.</p>
+        </div>
+
+        <div class="gcard">
+          <h4>📈 Potencial mensual</h4>
+          <p>El gráfico compara la ganancia estimada a 6–12 meses (escenario realista, no el mejor caso) de los candidatos más firmes. Sirve para ver cuál mueve más la aguja.</p>
+        </div>
+
+        <div class="gcard">
+          <h4>📣 Reportería · waves</h4>
+          <p>El registro de qué fue cargando cada tanda de trabajo del equipo. Es la memoria de cómo llegamos a esta cartera.</p>
+        </div>
+
+        <div class="gcard">
+          <h4>🚀 De tu GO al primer peso</h4>
+          <p>El plan de ejecución: los pasos desde que vos das la orden ("GO") hasta cobrarle al primer cliente. Nada se construye ni se publica sin tu visto bueno explícito.</p>
+        </div>
+
+      </div>
+      <p class="glead" style="margin-top:16px;font-size:12.5px;color:var(--muted)">En una frase: <b>no tenés que decidir sobre todos los negocios, sino sobre 3–5.</b> El panel existe para que veas de un vistazo cuáles ya están listos, cuáles necesitan una sola cosa, y cuáles ya descartamos para ahorrarte plata y tiempo. Todo local, nada publicado.</p>
+    </div>
+  </details>
+
   <div class="bar">
     <div class="chips" id="chips"></div>
     <div class="search" id="searchbox">
