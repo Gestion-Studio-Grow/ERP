@@ -128,9 +128,10 @@
   .btn-ig { background: #fff; color: var(--ink); }
 
   footer { border-top: 1px solid var(--line); padding: 30px 0 60px; color: var(--ink-soft); font-size: 13.5px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
-  .wa-config { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-soft); }
-  .wa-config input { width: 138px; font: inherit; font-size: 12.5px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; color: var(--ink); }
-  .wa-config input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* Prompt just-in-time de WhatsApp (dentro del drawer reutilizable, ver openWaPrompt). */
+  .wa-prompt p { color: var(--ink-soft); font-size: 14px; margin: 0 0 18px; }
+  .wa-prompt label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 7px; }
+  .wa-prompt input { width: 100%; font: inherit; font-size: 15px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--ink); }
 
   /* Panel producto + carrito (drawer/modal) */
   .scrim { position: fixed; inset: 0; background: rgba(20,24,26,.42); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 40; }
@@ -243,10 +244,6 @@
     <span>Envíos a todo el país</span>
     <span>·</span>
     <span>Cambios dentro de los 30 días</span>
-    <span class="wa-config">
-      <label for="wa-input">📱 Completá tu WhatsApp</label>
-      <input id="wa-input" type="tel" inputmode="numeric" placeholder="54 9 11...." oninput="setWhatsApp(this.value)" />
-    </span>
     <span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span>
   </footer>
 
@@ -265,21 +262,52 @@
 
 <script>
   // ─────────────────────────────────────────────────────────────────────────
-  // 📱 WHATSAPP DE ESTA DEMO — completá acá o en el campo del footer (mismo efecto).
-  // Alimenta TODOS los botones de WhatsApp de la página (asesoramiento + checkout
-  // del carrito). Formato E.164 sin "+" (solo dígitos: país + área + número).
+  // 📱 WHATSAPP DE ESTA DEMO — completá acá el número real cuando lo tengas.
+  // Mientras tanto queda el placeholder de abajo, PERO nunca se manda solo: si
+  // no hay número guardado, el primer clic en cualquier CTA de WhatsApp
+  // (asesoramiento o checkout del carrito) abre un prompt just-in-time que lo
+  // pide ahí mismo — recién con eso abre WhatsApp (ver requestWhatsApp/openWaPrompt
+  // más abajo). Formato E.164 sin "+" (solo dígitos: país + área + número).
   // ─────────────────────────────────────────────────────────────────────────
   let WHATSAPP = "5491100000000"; // ← PEGÁ ACÁ el número real (hoy: placeholder de demo, formato válido)
   const WA_STORAGE_KEY = "gsg-demo-whatsapp-adosmanos";
 
   function digitsOnly(v) { return (v || "").replace(/\D/g, ""); }
-  function setWhatsApp(raw) {
-    const digits = digitsOnly(raw);
-    if (digits) { WHATSAPP = digits; localStorage.setItem(WA_STORAGE_KEY, digits); }
-  }
   function initWhatsApp() {
     const saved = localStorage.getItem(WA_STORAGE_KEY);
-    if (saved) { WHATSAPP = saved; const input = $("wa-input"); if (input) input.value = saved; }
+    if (saved) WHATSAPP = saved;
+  }
+
+  // `buildHref()` arma el link con el WHATSAPP vigente AL MOMENTO de abrirse
+  // (no antes) — así, si recién se completó en el prompt, ya lo usa.
+  let pendingWaBuilder = null;
+  function requestWhatsApp(buildHref) {
+    if (localStorage.getItem(WA_STORAGE_KEY)) { window.open(buildHref(), "_blank"); return false; }
+    pendingWaBuilder = buildHref;
+    openWaPrompt();
+    return false;
+  }
+  function openWaPrompt() {
+    showDrawer("Un dato antes de escribirte");
+    $("drawer-body").innerHTML =
+      `<div class="wa-prompt">` +
+      `<p>Para abrir WhatsApp necesitamos tu número. Lo guardamos solo en este navegador, no se envía a ningún lado.</p>` +
+      `<label for="wa-prompt-input">Tu WhatsApp</label>` +
+      `<input id="wa-prompt-input" type="tel" inputmode="numeric" placeholder="54 9 11...." autocomplete="tel" />` +
+      `</div>`;
+    $("drawer-foot").innerHTML = `<button class="btn-primary wa" onclick="confirmWaPrompt()">Continuar por WhatsApp</button>`;
+    const input = $("wa-prompt-input");
+    input.focus();
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") confirmWaPrompt(); });
+  }
+  function confirmWaPrompt() {
+    const input = $("wa-prompt-input");
+    const digits = digitsOnly(input.value);
+    if (!digits) { input.focus(); return; }
+    WHATSAPP = digits;
+    localStorage.setItem(WA_STORAGE_KEY, digits);
+    closeDrawer();
+    if (pendingWaBuilder) { window.open(pendingWaBuilder(), "_blank"); pendingWaBuilder = null; }
   }
 
   // --- Catálogo (espeja el rubro retail `padel`). glyph = ilustración placeholder. ---
@@ -412,9 +440,11 @@
     let msg = "¡Hola A Dos Manos! Quiero hacer este pedido:%0A";
     for (const { p, q } of lines) msg += `%0A• ${q}× ${p.name} — ${money(transfer(p.price) * q)}`;
     msg += `%0A%0ATotal (transferencia): ${money(cartTotalTransfer())}`;
-    window.open("https://wa.me/" + WHATSAPP + "?text=" + msg, "_blank");
+    requestWhatsApp(() => "https://wa.me/" + WHATSAPP + "?text=" + msg);
   }
-  function waHola() { window.open("https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent("¡Hola! Quería una recomendación de pala 🎾"), "_blank"); return false; }
+  function waHola() {
+    return requestWhatsApp(() => "https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent("¡Hola! Quería una recomendación de pala 🎾"));
+  }
 
   // Init
   initWhatsApp(); renderChips(); renderGrid(); refreshCount();

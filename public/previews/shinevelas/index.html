@@ -182,15 +182,18 @@
   .modal .desc{color:var(--text-muted);font-size:14.5px;line-height:1.6}
   .modal .mprice{color:var(--accent);font-weight:700;font-size:22px;margin:16px 0}
   .modal .close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:26px;color:#fff;opacity:.85;line-height:1}
+  /* Prompt just-in-time de WhatsApp: mismo modal, sin la columna de imagen. */
+  .modal.compact{grid-template-columns:1fr;max-width:400px}
+  .modal.compact .close{color:var(--text-muted)}
+  .modal.compact .body p{color:var(--text-muted);font-size:14px;margin:0 0 18px}
+  .modal.compact label{display:block;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:7px}
+  .modal.compact input{width:100%;font:inherit;font-size:15px;padding:12px 14px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface-raised);color:var(--text-strong)}
   /* — GSG · accesibilidad + sello — */
   :where(a,button,input,select,[tabindex]):focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; } }
   .gsg{ display:inline-flex; align-items:center; gap:9px; color:var(--text-muted); font-size:12.5px; }
   .gsg .seal{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line); display:grid; place-items:center; font-size:9px; font-weight:800; letter-spacing:.04em; color:var(--text-muted); }
   .gsgbar{ margin-top:18px; padding-top:16px; border-top:1px solid var(--line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-  .wa-config{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-muted); }
-  .wa-config input{ width:138px; font:inherit; font-size:12.5px; padding:6px 10px; border:1px solid var(--line-strong); border-radius:999px; background:var(--surface-raised); color:var(--text-strong); }
-  .wa-config input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 </style>
 </head>
 <body>
@@ -217,7 +220,7 @@
   <div class="ctas">
     <a class="btn primary" href="#seleccion">Explorar la colección</a>
     <a class="btn ghost" href="#ritual">Armá tu ritual</a>
-    <a class="btn wa" id="heroWa" target="_blank" rel="noopener">Pedir por WhatsApp</a>
+    <a class="btn wa" id="heroWa" target="_blank" rel="noopener" onclick="return requestWhatsApp(()=>`https://wa.me/${WA}?text=${encodeURIComponent('¡Hola Shine! Quiero hacer un pedido.')}`)">Pedir por WhatsApp</a>
   </div>
 </div></header>
 
@@ -282,15 +285,9 @@
 <footer><div class="wrap" style="padding:0"><div class="grid">
   <div><div class="nm">Shine</div><p class="col" style="margin-top:8px;max-width:280px">Velas de soja, difusores, decoración y accesorios hechos y elegidos a mano.</p></div>
   <div class="col"><div class="fh">Dónde estamos</div><div>CABA</div><div style="opacity:.7;margin-top:4px">Lun a vie · 10 a 18 h · pedidos por WhatsApp</div></div>
-  <div class="col"><div class="fh">Contacto</div><div><a id="footWa" target="_blank" rel="noopener">WhatsApp</a></div><div><a href="https://www.instagram.com/shine.velas.store/" target="_blank" rel="noopener">@shine.velas.store</a></div></div>
+  <div class="col"><div class="fh">Contacto</div><div><a id="footWa" target="_blank" rel="noopener" onclick="return requestWhatsApp(()=>`https://wa.me/${WA}?text=${encodeURIComponent('¡Hola Shine! Quiero hacer un pedido.')}`)">WhatsApp</a></div><div><a href="https://www.instagram.com/shine.velas.store/" target="_blank" rel="noopener">@shine.velas.store</a></div></div>
   <div class="col"><div class="fh">Envíos</div><div style="opacity:.85">CABA · GBA</div><div class="fh" style="margin-top:14px">Pagos</div><div style="opacity:.85">Efectivo · Transferencia · Débito · Crédito · Mercado Pago</div></div>
-</div><div class="gsgbar">
-  <span class="wa-config">
-    <label for="wa-input">📱 Completá tu WhatsApp</label>
-    <input id="wa-input" type="tel" inputmode="numeric" placeholder="54 9 11...." oninput="setWhatsApp(this.value)" />
-  </span>
-  <span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span>
-</div></div></footer>
+</div><div class="gsgbar"><span class="gsg" style="margin-left:auto"><span class="seal">GSG</span> Con el sello de Gestión Studio Grow</span></div></div></footer>
 
 <div class="backdrop" id="backdrop" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal" style="position:relative"></div>
@@ -298,21 +295,59 @@
 
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// 📱 WHATSAPP DE ESTA DEMO — completá acá o en el campo del footer (mismo efecto).
-// Alimenta TODOS los botones de WhatsApp de la página (hero, footer, checkout del
-// carrito y sets de regalo). Formato E.164 sin "+" (solo dígitos).
+// 📱 WHATSAPP DE ESTA DEMO — completá acá el número real cuando lo tengas. Hasta
+// entonces queda el valor de ejemplo de abajo, PERO nunca se manda solo: si no
+// hay número guardado, el primer clic en cualquier CTA de WhatsApp (hero, footer,
+// checkout del carrito, sets de regalo) abre un prompt just-in-time que lo pide
+// ahí mismo, en el mismo modal de producto (ver openWaPrompt) — recién con eso
+// abre WhatsApp. Formato E.164 sin "+" (solo dígitos).
 // ─────────────────────────────────────────────────────────────────────────────
 let WA="5491176213834"; // ← PEGÁ ACÁ el número real (hoy: valor de ejemplo)
 const WA_STORAGE_KEY="gsg-demo-whatsapp-shinevelas";
 function digitsOnly(v){ return (v||"").replace(/\D/g,""); }
-function setWhatsApp(raw){
-  const digits=digitsOnly(raw);
-  if(digits){ WA=digits; localStorage.setItem(WA_STORAGE_KEY,digits); updateWaLinks(); }
+function initWhatsApp(){
+  const saved=localStorage.getItem(WA_STORAGE_KEY);
+  if(saved) WA=saved;
+  updateWaLinks();
 }
 function updateWaLinks(){
   const hi=`https://wa.me/${WA}?text=${encodeURIComponent("¡Hola Shine! Quiero hacer un pedido.")}`;
   document.getElementById("heroWa").href=hi;
   document.getElementById("footWa").href=hi;
+}
+// `buildHref()` arma el link con el WA vigente AL MOMENTO de abrirse (no antes)
+// — así, si recién se completó en el prompt, ya lo usa.
+let pendingWaBuilder=null;
+function requestWhatsApp(buildHref){
+  if(localStorage.getItem(WA_STORAGE_KEY)){ window.open(buildHref(),"_blank"); return false; }
+  pendingWaBuilder=buildHref;
+  openWaPrompt();
+  return false;
+}
+function openWaPrompt(){
+  document.getElementById("modal").innerHTML=`
+    <button class="close" aria-label="Cerrar" onclick="closeModal()">×</button>
+    <div class="body">
+      <p>Para abrir WhatsApp necesitamos tu número. Lo guardamos solo en este navegador, no se envía a ningún lado.</p>
+      <label for="wa-prompt-input">Tu WhatsApp</label>
+      <input id="wa-prompt-input" type="tel" inputmode="numeric" placeholder="54 9 11...." autocomplete="tel" />
+      <button class="btn primary" style="width:100%;margin-top:16px;text-align:center" onclick="confirmWaPrompt()">Continuar por WhatsApp</button>
+    </div>`;
+  document.getElementById("modal").classList.add("compact");
+  document.getElementById("backdrop").classList.add("open");
+  const input=document.getElementById("wa-prompt-input");
+  input.focus();
+  input.addEventListener("keydown",e=>{ if(e.key==="Enter") confirmWaPrompt(); });
+}
+function confirmWaPrompt(){
+  const input=document.getElementById("wa-prompt-input");
+  const digits=digitsOnly(input.value);
+  if(!digits){ input.focus(); return; }
+  WA=digits;
+  localStorage.setItem(WA_STORAGE_KEY,digits);
+  updateWaLinks();
+  closeModal();
+  if(pendingWaBuilder){ window.open(pendingWaBuilder(),"_blank"); pendingWaBuilder=null; }
 }
 // ── Datos reales del catálogo Shine (rubro velas) + storytelling. Precios ARS provisionales. ──
 const SHIP={flatRate:3500,freeThreshold:25000};
@@ -400,11 +435,11 @@ function renderCatalog(){
   }).join("");
 }
 function renderGifts(){
-  document.getElementById("gifts").innerHTML=GIFTS.map(g=>`<div class="gift">
+  document.getElementById("gifts").innerHTML=GIFTS.map((g,i)=>`<div class="gift">
     ${g.note?`<span class="tag">${g.note}</span>`:""}
     <div class="gn">${g.name}</div><div class="gi">${g.items}</div>
     <div class="grow"><span class="gp">${money.format(g.price)}</span>
-    <a href="${waGift(g)}" target="_blank" rel="noopener">Lo quiero →</a></div>
+    <a href="#" target="_blank" rel="noopener" onclick="return requestWhatsApp(()=>waGift(GIFTS[${i}]))">Lo quiero →</a></div>
   </div>`).join("");
 }
 function waGift(g){return `https://wa.me/${WA}?text=${encodeURIComponent(`¡Hola Shine! Quiero el set "${g.name}" (${money.format(g.price)}).`)}`;}
@@ -429,8 +464,8 @@ function renderCart(){
     ${fulfillment==='DELIVERY'?(missing>0
       ? `<p class="nudge">Te faltan <b>${money.format(missing)}</b> para el envío gratis.</p><div class="bar" aria-hidden="true"><span style="width:${Math.round(prog*100)}%"></span></div>`
       : `<p class="nudge" style="color:var(--accent);font-weight:700">Tu pedido tiene envío gratis.</p>`):''}
-    <a class="btn primary" href="${waHref(lines,sub,ship,total)}" target="_blank" rel="noopener">Hacer pedido</a>
-    <a class="btn wa" href="${waHref(lines,sub,ship,total)}" target="_blank" rel="noopener">Pedir por WhatsApp</a>
+    <a class="btn primary" href="#" target="_blank" rel="noopener" onclick="return requestWhatsApp(()=>waHref(cartLines(),${sub},${ship},${total}))">Hacer pedido</a>
+    <a class="btn wa" href="#" target="_blank" rel="noopener" onclick="return requestWhatsApp(()=>waHref(cartLines(),${sub},${ship},${total}))">Pedir por WhatsApp</a>
     <p class="fineprint">Te contactamos para confirmar. El pago se coordina al recibirlo.</p>`;
 }
 function waHref(lines,sub,ship,total){
@@ -457,14 +492,9 @@ function openModal(id){
     </div>`;
   document.getElementById("backdrop").classList.add("open");
 }
-function closeModal(){document.getElementById("backdrop").classList.remove("open");}
+function closeModal(){document.getElementById("backdrop").classList.remove("open");document.getElementById("modal").classList.remove("compact");}
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 function render(){renderFilters();renderCatalog();renderCart();}
-function initWhatsApp(){
-  const saved=localStorage.getItem(WA_STORAGE_KEY);
-  if(saved){ WA=saved; const input=document.getElementById("wa-input"); if(input) input.value=saved; }
-  updateWaLinks();
-}
 initWhatsApp();
 renderGifts();render();
 </script>

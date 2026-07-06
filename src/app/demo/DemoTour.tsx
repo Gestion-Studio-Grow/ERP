@@ -37,33 +37,39 @@ const SCENE_COMPONENTS = [
   CierreScene,
 ];
 
-// Quien muestra la demo puede completar su propio WhatsApp sin tocar código
-// (ver el campo "Completá tu WhatsApp" más abajo). Persiste en localStorage,
-// nunca en el repo — sigue sin haber secretos ni backend acá.
+// Quien muestra la demo puede completar su propio WhatsApp sin tocar código.
+// Just-in-time: no hay campo suelto en la pantalla — recién se pide en el
+// momento en que se dispara el CTA de WhatsApp, si todavía no hay uno guardado
+// (ver openWhatsApp/confirmWa). Persiste en localStorage, nunca en el repo —
+// sigue sin haber secretos ni backend acá.
 const WA_STORAGE_KEY = "gsg-demo-whatsapp";
 
 export default function DemoTour() {
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [waInput, setWaInput] = useState("");
-  const [showWaConfig, setShowWaConfig] = useState(false);
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waDraft, setWaDraft] = useState("");
   const last = SCENES.length - 1;
   const scene = SCENES[i];
   const Active = SCENE_COMPONENTS[i];
 
-  useEffect(() => {
+  const openWhatsApp = () => {
     const saved = window.localStorage.getItem(WA_STORAGE_KEY);
-    if (saved) setWaInput(saved);
-  }, []);
-
-  const handleWaInput = (raw: string) => {
-    setWaInput(raw);
-    const digits = raw.replace(/\D/g, "");
-    if (digits) window.localStorage.setItem(WA_STORAGE_KEY, digits);
-    else window.localStorage.removeItem(WA_STORAGE_KEY);
+    if (saved) {
+      window.open(whatsappHref(saved), "_blank", "noopener,noreferrer");
+      return;
+    }
+    setWaDraft("");
+    setWaModalOpen(true);
   };
 
-  const waNumber = waInput.replace(/\D/g, "") || undefined;
+  const confirmWa = () => {
+    const digits = waDraft.replace(/\D/g, "");
+    if (!digits) return;
+    window.localStorage.setItem(WA_STORAGE_KEY, digits);
+    setWaModalOpen(false);
+    window.open(whatsappHref(digits), "_blank", "noopener,noreferrer");
+  };
 
   const go = useCallback(
     (n: number) => {
@@ -80,9 +86,15 @@ export default function DemoTour() {
   // `onAnimationEnd` no dispara y el carrusel NO auto-avanza (WCAG 2.2.2). El usuario
   // recorre con tap/teclado. Ver `.demo-fill` en StageStyles.
 
-  // Teclado (desktop).
+  // Teclado (desktop). Con el prompt de WhatsApp abierto, solo Escape actúa
+  // (cierra el prompt) — el resto de las teclas no debe navegar el tour ni
+  // pisar lo que se está tipeando en el input.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (waModalOpen) {
+        if (e.key === "Escape") setWaModalOpen(false);
+        return;
+      }
       if (e.key === "ArrowRight") next();
       else if (e.key === "ArrowLeft") prev();
       else if (e.key === " ") {
@@ -92,7 +104,7 @@ export default function DemoTour() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, prev]);
+  }, [next, prev, waModalOpen]);
 
   // Swipe táctil.
   const [touchX, setTouchX] = useState<number | null>(null);
@@ -215,15 +227,14 @@ export default function DemoTour() {
 
       {/* CTA sticky */}
       <div className="z-10 w-full max-w-[420px] pt-3">
-        <a
-          href={whatsappHref(waNumber)}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={openWhatsApp}
           className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-[15px] font-semibold text-[color:var(--demo-ink)] shadow-lg transition-transform active:translate-y-px"
         >
           {DEMO_CTA.primaryLabel}
           <span aria-hidden>→</span>
-        </a>
+        </button>
         <div className="mt-2 flex items-center justify-center gap-4 text-[12px] text-white/60">
           {onLast ? (
             <button type="button" onClick={() => go(0)} className="underline-offset-2 hover:underline">
@@ -239,34 +250,63 @@ export default function DemoTour() {
             Escribinos por mail
           </a>
         </div>
+      </div>
 
-        {/* Discreto: quien muestra la demo completa su propio WhatsApp sin tocar
-            código. Colapsado por defecto para no ensuciar el diseño. */}
-        <div className="mt-1.5 flex justify-center">
-          {showWaConfig ? (
-            <label className="flex items-center gap-1.5 text-[11px] text-white/45">
-              WhatsApp de esta demo
+      {/* Prompt just-in-time del WhatsApp: aparece recién al disparar el CTA,
+          solo si todavía no hay número guardado (ver openWhatsApp/confirmWa). */}
+      {waModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-8 pt-4 sm:items-center"
+          onClick={() => setWaModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wa-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[360px] rounded-2xl border border-white/10 bg-[color:var(--demo-ink)] p-5 shadow-2xl"
+          >
+            <h2 id="wa-modal-title" className="font-display text-base font-semibold text-white">
+              Un dato antes de escribirte
+            </h2>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-white/60">
+              Para abrir WhatsApp necesitamos tu número. Lo guardamos solo en este navegador, no se
+              envía a ningún lado.
+            </p>
+            <label className="mt-4 block text-[11px] font-semibold uppercase tracking-widest text-white/45">
+              Tu WhatsApp
               <input
                 type="tel"
                 inputMode="numeric"
                 autoFocus
+                autoComplete="tel"
                 placeholder="54 9 11...."
-                value={waInput}
-                onChange={(e) => handleWaInput(e.target.value)}
-                className="w-[132px] rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
+                value={waDraft}
+                onChange={(e) => setWaDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmWa();
+                }}
+                className="mt-2 w-full rounded-lg border border-white/15 bg-white/5 px-3.5 py-2.5 text-[15px] font-normal normal-case tracking-normal text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
               />
             </label>
-          ) : (
             <button
               type="button"
-              onClick={() => setShowWaConfig(true)}
-              className="text-[11px] text-white/35 underline-offset-2 hover:text-white/55 hover:underline"
+              onClick={confirmWa}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[color:var(--demo-ink)] transition-transform active:translate-y-px"
             >
-              Completá tu WhatsApp
+              Continuar por WhatsApp
+              <span aria-hidden>→</span>
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => setWaModalOpen(false)}
+              className="mt-2 w-full text-center text-[12px] text-white/40 underline-offset-2 hover:text-white/60 hover:underline"
+            >
+              Ahora no
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </main>
   );
 }
