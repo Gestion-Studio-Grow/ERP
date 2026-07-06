@@ -15,7 +15,7 @@ import {
   closeCashSession,
   type CajaActionState,
 } from "@/lib/caja-actions";
-import { round2 } from "@/lib/caja/cash-register";
+import { round2 } from "@/lib/round";
 import { Field, Input, Select, buttonClasses } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 

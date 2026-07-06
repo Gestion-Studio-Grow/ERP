@@ -19,6 +19,8 @@
 // El diseño en capas es a propósito: el router se construye y testea HOY sin esperar
 // al proveedor ni tocar el Core; cuando llegue el adaptador, se enchufa sin cambiarlo.
 
+import { round2 } from "@/lib/round";
+
 export type WaIntentKind =
   | "BOOK" // reservar / sacar turno
   | "RESCHEDULE" // reprogramar / cambiar un turno
@@ -486,8 +488,4 @@ export function parseWaMessage(text: string, opts: ParseWaOptions): WaIntent {
     entities,
     suggestedAction: SUGGESTED_ACTION[kind],
   };
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }

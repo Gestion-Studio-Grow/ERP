@@ -210,6 +210,46 @@ dominio.
 
 ---
 
+## 🛡️ GATE DE EXCELENCIA — obligatorio, NO SALTEABLE (antes de integrar/pushear a main)
+
+**Regla dura:** **ningún cambio se integra ni se pushea a `main` sin pasar el Gate de Excelencia
+(UX + Arquitectura + Confiabilidad).** Aplica a **todo frente, en ambos sectores**, en desktop y
+móvil. El PMO **no integra** una rama que no lo haya pasado. Es **adicional** a "verde antes de
+commitear" (tsc+build+test), no lo reemplaza.
+
+**Fundamento transversal — filosofía SAP/Fiori (excelencia para TODOS los agentes):** *rol-based ·
+coherente · simple · adaptable · delightful · calidad enterprise.* Es el estándar de fondo de los
+tres equipos de excelencia.
+
+Cada frente completa este **checklist** en su handoff (`## Sprint activo`) **antes de pushear**:
+
+**1. Excelencia UX (filosofía SAP/Fiori)**
+- [ ] **Rol-based** — cada rol ve lo suyo (OWNER/RECEPTION/PROFESSIONAL); nada de más ni de menos.
+- [ ] **Coherente** — usa design system/tokens y patrones existentes; no reinventa UI.
+- [ ] **Simple** — el camino feliz es obvio; menos pasos, menos carga cognitiva.
+- [ ] **Adaptable** — responsive + branding por tenant; sirve a cualquier tenant sin fork.
+- [ ] **Delightful + enterprise** — estados de carga/vacío/error cuidados; se siente producto serio.
+
+**2. Excelencia Arquitectura**
+- [ ] **Capas y límites de dominio** — el cambio vive en su core; no invade fronteras ajenas.
+- [ ] **Testabilidad** — lógica pura separable y testeada; no acopla a I/O sin necesidad.
+- [ ] **Escalabilidad multi-tenant** — toda query lleva predicado `tenantId` / usa `tenantTransaction`.
+- [ ] **Seguridad/RLS** — no rompe el aislamiento; nada evade RLS; secretos fuera del repo.
+- [ ] **Deuda técnica** — no suma deuda silenciosa; lo que quede va anotado (ADR / `PROXIMOS-PASOS.md`).
+
+**3. Confiabilidad de Producción (que no rompa prod)**
+- [ ] **Tests en verde** — `tsc --noEmit` + `npm run build` + `npm test` pasan.
+- [ ] **Aislamiento** — verificado que un tenant no ve datos de otro (donde aplique).
+- [ ] **Manejo de errores** — fallas controladas (best-effort/try-catch donde corresponde), sin tumbar el flujo.
+- [ ] **No rompe prod** — cambios de schema = migración **SIN aplicar** (Gate 2); nada irreversible se corre solo.
+
+> Si un ítem no aplica, se marca **N/A con una línea de por qué**. Un frente que no puede tildar los
+> tres bloques **NO se integra**: vuelve a su worktree hasta que pase. Los "tres equipos de
+> excelencia" (UX · Arquitectura · Confiabilidad) son el rol que cada frente asume sobre su propio
+> cambio antes de entregarlo, y que el PMO reverifica al integrar.
+
+---
+
 ## Reglas de operación (innegociables)
 
 - **Cada equipo en SU worktree/zona.** Nadie edita fuera de su dominio ni toca `main` salvo el
@@ -217,6 +257,9 @@ dominio.
 - **Un tema por commit**, atómico, con el *porqué* en el mensaje.
 - **Verde antes de commitear:** `tsc --noEmit` + `npm run build` (+ `npm test` si el equipo tocó
   lógica cubierta) en verde **antes** de cada commit.
+- **🛡️ Gate de Excelencia (NO salteable):** antes de integrar/pushear, cada frente pasa el gate
+  **UX + Arquitectura + Confiabilidad** (ver sección "GATE DE EXCELENCIA" arriba). **El PMO no mergea
+  sin él.**
 - **`git pull --rebase` antes de mergear/integrar.** El Ejecutivo/PMO integra cada rama a `main`
   **de a una, en orden**, resolviendo conflictos, re-verificando (tsc+build+test) y pusheando. Los
   equipos **no** mergean a `main` solos.

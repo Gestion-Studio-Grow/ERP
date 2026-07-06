@@ -731,6 +731,88 @@ export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE
   };
 }
 
+// Panel del Dueño (AGENCIA GROW — herramienta de gestión de negocios propios, no
+// satélite del ERP). Reúne el dato para la lectura de negocio en lenguaje llano:
+//   · insights del período (actual vs. período previo de igual largo) → owner-insights
+//   · tendencias mensuales multi-período (últimos meses COMPLETOS) → owner-trends
+// Single-tenant (RLS normal, no cruza a nadie: eso es ADR-027, Agencia Digital). Una
+// sola query range-bounded sobre una ventana ancha que se rebana en memoria — no
+// golpea Neon más de una vez y respeta el plan free. La narrativa/tendencia se computa
+// en la página (funciones puras owner-insights/owner-trends), acá solo el dato.
+export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+  await requireCapability("reports:read");
+  const tenantId = await getCurrentTenantId();
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const TREND_MONTHS = 6; // meses completos objetivo para la serie de tendencia
+  const hasta = new Date();
+
+  // Ventana ancha: la que abarque lo más viejo entre (a) el período previo para el
+  // delta de insights [now - 2*range] y (b) el inicio del bloque de tendencia
+  // [primer día del mes, TREND_MONTHS atrás]. Una query cubre ambos usos.
+  const trendStart = new Date(hasta.getFullYear(), hasta.getMonth() - TREND_MONTHS, 1);
+  const prevStart = new Date(hasta.getTime() - 2 * rangeDays * DAY_MS);
+  const desde = trendStart < prevStart ? trendStart : prevStart;
+
+  const appointments = await prisma.appointment.findMany({
+    where: { tenantId, startsAt: { gte: desde, lte: hasta } },
+    select: {
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      clientId: true,
+      professional: { select: { name: true } },
+      payment: { select: { amount: true, method: true, status: true } },
+    },
+  });
+
+  const mapped: KpiAppointment[] = appointments.map((a) => ({
+    status: a.status,
+    startsAt: a.startsAt,
+    endsAt: a.endsAt,
+    clientId: a.clientId,
+    professionalName: a.professional.name,
+    payment:
+      a.payment && a.payment.status === "APPROVED"
+        ? { amount: a.payment.amount, method: a.payment.method }
+        : null,
+  }));
+
+  // Insights: período actual vs. el previo de igual largo (comparación contra vos
+  // mismo — no requiere ADR-027 ni otros tenants).
+  const curStart = new Date(hasta.getTime() - rangeDays * DAY_MS);
+  const current = computeDeepKpis(mapped.filter((a) => a.startsAt >= curStart));
+  const prevList = mapped.filter((a) => a.startsAt >= prevStart && a.startsAt < curStart);
+  const previous = prevList.length > 0 ? computeDeepKpis(prevList) : null;
+
+  // Tendencias: buckets por mes calendario (zona del negocio). Se EXCLUYE el mes en
+  // curso (parcial): sus KPIs incompletos distorsionarían la tendencia. Se toman los
+  // últimos TREND_MONTHS meses completos con dato.
+  const currentMonth = dateStrInBusinessTz(hasta).slice(0, 7);
+  const byMonth = new Map<string, KpiAppointment[]>();
+  for (const a of mapped) {
+    const mk = dateStrInBusinessTz(a.startsAt).slice(0, 7);
+    if (mk === currentMonth) continue;
+    const arr = byMonth.get(mk) ?? [];
+    arr.push(a);
+    byMonth.set(mk, arr);
+  }
+  const months = Array.from(byMonth.keys())
+    .sort()
+    .slice(-TREND_MONTHS)
+    .map((month) => ({ month, kpis: computeDeepKpis(byMonth.get(month)!) }));
+
+  return {
+    rangeDays,
+    desde,
+    hasta,
+    hasPrevious: previous !== null,
+    current,
+    previous,
+    months,
+  };
+}
+
 export async function cancelAppointment(formData: FormData) {
   await requireCapability("agenda:manage");
   const appointmentId = String(formData.get("appointmentId"));

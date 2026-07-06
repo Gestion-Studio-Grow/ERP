@@ -11,6 +11,8 @@
 // lugar. Así el registro guardado es auditable y no ambiguo (ADR-006: el cálculo
 // vive en el Core, los montos se guardan tal cual se declararon).
 
+import { round2 } from "@/lib/round";
+
 export type CashMovementType = "APERTURA" | "VENTA" | "INGRESO" | "EGRESO" | "RETIRO";
 
 // Movimiento visto por la aritmética: solo tipo + monto (>0). La APERTURA no entra
@@ -18,12 +20,6 @@ export type CashMovementType = "APERTURA" | "VENTA" | "INGRESO" | "EGRESO" | "RE
 // si además se materializa como fila APERTURA en el ledger (para tener el turno
 // completo), esta función la ignora para no contarla dos veces.
 export type CashMovementLike = { type: CashMovementType; amount: number };
-
-// Redondeo a 2 decimales (pesos). Se aplica en cada agregación para que el arqueo
-// no arrastre el error de coma flotante de sumar muchos importes.
-export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 // Efecto de un movimiento sobre el efectivo esperado en el cajón:
 //   +1 → entra plata (VENTA en efectivo, INGRESO)
