@@ -5,8 +5,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { round2 } from "@/lib/round";
 import {
-  round2,
   buildPurchaseLines,
   purchaseTotal,
   type PurchaseProduct,

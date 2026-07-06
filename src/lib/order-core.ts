@@ -16,6 +16,7 @@
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { recordMovement } from "@/lib/stock/ledger";
+import { round2 } from "@/lib/round";
 import type { ProductSaleUnit } from "@/generated/prisma/client";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
@@ -40,11 +41,8 @@ export type InsertedOrder = {
   lines: number;
 };
 
-// Redondeo a 2 decimales (pesos). La venta por kg da importes con fracción
-// (0.750 kg × $8900/kg): se snapshotea el total ya redondeado en la línea.
-export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+// Redondeo a 2 decimales (pesos): regla única en src/lib/round.ts (importada arriba).
+// La venta por kg da importes con fracción (0.750 kg × $8900/kg); se snapshotea redondeado.
 
 // Precio de venta vigente de un producto según cómo se vende. WEIGHT → precio/kg;
 // UNIT → precio unitario. Devuelve null si el producto no tiene precio cargado

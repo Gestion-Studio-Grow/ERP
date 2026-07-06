@@ -13,6 +13,7 @@
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { recordMovement } from "@/lib/stock/ledger";
+import { round2 } from "@/lib/round";
 
 export type StockPurchaseKind = "COMPRA" | "REPOSICION";
 
@@ -44,11 +45,8 @@ export type PurchaseLine = {
   lineTotal: number;
 };
 
-// Redondeo a 2 decimales (pesos). El costo de compra puede venir con fracción
-// (0.750 kg × $1234/kg); se snapshotea el total ya redondeado.
-export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+// Redondeo a 2 decimales (pesos): regla única en src/lib/round.ts (importada arriba).
+// El costo de compra puede venir con fracción (0.750 kg × $1234/kg); se snapshotea redondeado.
 
 // ¿Es una cantidad utilizable? Debe ser finita y > 0 (no se repone 0 ni negativo:
 // un ajuste hacia abajo es otra operación, fuera de alcance). Blindaje del cálculo

@@ -58,6 +58,8 @@ export interface Impuestos {
   total: number;
 }
 
+// Redondeo fiscal EPSILON-safe (corrige la frontera binaria de x.xx5). Difiere a propósito del
+// `round2` del POS (src/lib/round.ts) — unificar ambos es una decisión pendiente (R4, docs/arquitectura).
 function redondear(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }

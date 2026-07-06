@@ -3,12 +3,12 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { round2 } from "@/lib/round";
 import {
   movementSign,
   summarizeMovements,
   expectedCash,
   reconcileCash,
-  round2,
   type CashMovementLike,
 } from "./cash-register";
 
