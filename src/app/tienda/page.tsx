@@ -72,8 +72,12 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function TiendaPage() {
   const [data, accent, slug] = await Promise.all([loadStorefront(), loadAccent(), getCurrentTenantSlug()]);
   const replica = getSiteReplica(slug);
+  // tenantKey namespacea el WhatsApp que un visitante complete cuando el tenant
+  // no tiene su número real configurado (ver WhatsAppCtaProvider) — sin slug
+  // (single-tenant/legacy) cae a un key fijo, sigue siendo estable por tenant.
+  const tenantKey = slug ?? "default";
   if (replica) {
-    return <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={accent} />;
+    return <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={accent} tenantKey={tenantKey} />;
   }
   return (
     <Storefront
@@ -83,6 +87,7 @@ export default async function TiendaPage() {
       copy={data.copy}
       products={data.products}
       accent={accent}
+      tenantKey={tenantKey}
     />
   );
 }

@@ -22,9 +22,13 @@ test("el blueprint registrado `carniceria` es el de la familia retail (catálogo
   assert.ok(rubro.catalog.some((i) => i.name.toLowerCase().includes("sorrentinos")), "línea gourmet presente");
 });
 
-test("branding provisional de magra (address/whatsapp/instagram) migró al rubro consolidado", () => {
+test("branding provisional de magra (address/instagram) migró al rubro consolidado", () => {
   const rubro = getRetailRubro("carniceria")!;
-  assert.ok(rubro.brandingDefaults.whatsapp, "whatsapp provisional presente");
   assert.ok(rubro.brandingDefaults.instagram, "instagram provisional presente");
   assert.ok(rubro.brandingDefaults.addressLine, "addressLine provisional presente");
+});
+
+test("brandingDefaults NUNCA trae un whatsapp hardcodeado (regla dura — sin número real, el CTA lo pide just-in-time)", () => {
+  const rubro = getRetailRubro("carniceria")!;
+  assert.ok(!rubro.brandingDefaults.whatsapp, "whatsapp no debe tener un default falso/placeholder");
 });

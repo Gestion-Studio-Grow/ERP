@@ -13,16 +13,18 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { BUSINESS_WHATSAPP } from "@/lib/business-config";
 
 // Copy por defecto = exactamente lo que mostraba el sitio hardcodeado, para que
-// el comportamiento no cambie hasta que la dueña edite algo.
+// el comportamiento no cambie hasta que la dueña edite algo. `whatsapp` NO
+// tiene default hardcodeado — regla dura: nunca un número falso. Vacío hasta
+// que la dueña cargue el real en /admin/localizacion; mientras tanto el CTA
+// de WhatsApp lo pide just-in-time (ver src/components/whatsapp-cta.tsx).
 export const LOCATION_DEFAULTS = {
   shortLabel: "La Alameda · Canning",
   addressLine: "Barrio La Alameda, Canning",
   city: "Buenos Aires",
   hoursLabel: "Lun a sáb · 9 a 19 h",
-  whatsapp: BUSINESS_WHATSAPP,
+  whatsapp: "",
   contactNote: "Reservas por la web · WhatsApp con turno confirmado",
 } as const;
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getAvailableSlots, createBookingFromModal } from "@/lib/actions";
 import { checkCoupon } from "@/lib/coupon-actions";
 import { fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
+import { useWhatsAppCta } from "@/components/whatsapp-cta";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
 
 const STEP_LABELS = ["", "Servicio", "Profesional", "Día y hora", "Datos", "Confirmación"];
@@ -17,6 +18,7 @@ export default function BookingModal({
   data: BookingData;
   onClose: () => void;
 }) {
+  const { requestWhatsApp } = useWhatsAppCta();
   const [step, setStep] = useState(1);
   const [svc, setSvc] = useState<SelectedService | null>(null);
   const [pro, setPro] = useState<BookingProfessional | null>(null);
@@ -274,14 +276,12 @@ export default function BookingModal({
     return "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
   }, [confirmedStartsAt, svc, pro]);
 
-  const waHref =
-    data.whatsapp && svc
-      ? `https://wa.me/${data.whatsapp}?text=${encodeURIComponent(
-          `Hola! Confirmo mi turno en CH Estética: ${svc.name}${whenLabel ? " — " + whenLabel : ""}${
-            pro ? " con " + pro.name : ""
-          }`
-        )}`
-      : null;
+  // El CTA nunca abre a un número hardcodeado (ver WhatsAppCtaProvider en el
+  // layout): si `data.whatsapp` no tiene un real configurado, el primer clic
+  // pide el número ahí mismo antes de abrir WhatsApp.
+  const waMessage = svc
+    ? `Hola! Confirmo mi turno en CH Estética: ${svc.name}${whenLabel ? " — " + whenLabel : ""}${pro ? " con " + pro.name : ""}`
+    : null;
 
   return (
     <div
@@ -590,10 +590,14 @@ export default function BookingModal({
                     Agregar a mi calendario
                   </a>
                 )}
-                {waHref && (
-                  <a href={waHref} target="_blank" rel="noopener noreferrer" style={{ color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15 }}>
+                {waMessage && (
+                  <button
+                    type="button"
+                    onClick={() => requestWhatsApp(waMessage)}
+                    style={{ background: "none", border: "none", padding: 0, font: "inherit", color: accent, textDecoration: "underline", textUnderlineOffset: 4, fontSize: 15, cursor: "pointer" }}
+                  >
                     Confirmar por WhatsApp
-                  </a>
+                  </button>
                 )}
               </div>
             </>

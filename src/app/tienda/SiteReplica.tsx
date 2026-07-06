@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { placeOnlineOrder } from "@/lib/order-actions";
 import type { SiteReplicaData } from "@/tenants/site-replica";
+import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 
 // Réplica del sitio de un tenant (config por tenant, resuelta por slug — NO un clon
 // suelto) con NUESTRO backoffice detrás. Contenido/imágenes vienen en `site`; el look
@@ -27,25 +28,38 @@ type Branding = { whatsapp: string | null; instagram: string | null; email: stri
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const money2 = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 const price = (p: Product) => (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
-const wa = (n: string | null | undefined, t: string) => (n ? `https://wa.me/${n}?text=${encodeURIComponent(t)}` : "#");
 
-export default function SiteReplica({
-  site,
-  name,
-  branding,
-  products,
-  accent,
-}: {
+type SiteReplicaProps = {
   site: SiteReplicaData;
   name: string;
   branding: Branding;
   products: Product[];
   accent: string;
-}) {
+  /** Slug del tenant — namespacea el WhatsApp que complete el visitante (ver WhatsAppCtaProvider). */
+  tenantKey: string;
+};
+
+// Mismo contrato que Storefront.tsx: nunca un número hardcodeado — sin
+// `branding.whatsapp` real, el Provider pide el número just-in-time al clic.
+export default function SiteReplica(props: SiteReplicaProps) {
+  return (
+    <WhatsAppCtaProvider tenantKey={props.tenantKey} configuredNumber={props.branding?.whatsapp}>
+      <SiteReplicaContent {...props} />
+    </WhatsAppCtaProvider>
+  );
+}
+
+function SiteReplicaContent({
+  site,
+  name,
+  branding,
+  products,
+  accent,
+}: SiteReplicaProps) {
+  const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const w = branding?.whatsapp;
 
   function bump(p: Product, d: 1 | -1) {
     const step = p.saleUnit === "WEIGHT" ? 0.25 : 1;
@@ -84,7 +98,7 @@ export default function SiteReplica({
             <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 520, marginTop: 16 }}>{site.heroText}</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
               <a href="#comprar" style={btn(accent, "var(--text-on-accent)")}>{site.ctaPrimary}</a>
-              <a href={wa(w, `¡Hola ${name}! Quiero hacer un pedido.`)} target="_blank" rel="noopener noreferrer" style={btn("#fff", "#128C4B", "1px solid #25D366")}>{site.ctaSecondary}</a>
+              <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={btn("#fff", "#128C4B", "1px solid #25D366")}>{site.ctaSecondary}</button>
             </div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -127,7 +141,7 @@ export default function SiteReplica({
               <div key={i} style={{ ...card, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontWeight: 800, fontSize: 18 }}>{v.name}</div>
                 <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.55, flex: 1 }}>{v.text}</div>
-                <a href={wa(w, `¡Hola ${name}! Quiero hacer un pedido de ${v.name}.`)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, fontWeight: 700, color: accent, textDecoration: "none" }}>Hacer pedido →</a>
+                <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido de ${v.name}.`)} style={{ fontSize: 14, fontWeight: 700, color: accent, textDecoration: "none", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>Hacer pedido →</button>
               </div>
             ))}
           </div>
@@ -230,7 +244,7 @@ export default function SiteReplica({
             {branding?.contactNote && <p style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.66, maxWidth: 280 }}>{branding.contactNote}</p>}
           </div>
           <div style={foot}><div style={foothead}>Dónde estamos</div>{branding?.addressLine && <div>{branding.addressLine}</div>}{branding?.city && <div>{branding.city}</div>}<div style={{ opacity: 0.7, marginTop: 4 }}>{branding?.hoursLabel ?? site.hoursLabel}</div></div>
-          <div style={foot}><div style={foothead}>Contacto</div>{w && <div><a href={`https://wa.me/${w}`} target="_blank" rel="noopener noreferrer" style={flink}>WhatsApp</a></div>}{branding?.instagram && <div><a href={`https://instagram.com/${branding.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" style={flink}>{branding.instagram}</a></div>}{branding?.email && <div><a href={`mailto:${branding.email}`} style={flink}>{branding.email}</a></div>}</div>
+          <div style={foot}><div style={foothead}>Contacto</div><div><button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer una consulta.`)} style={{ ...flink, background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }}>WhatsApp</button></div>{branding?.instagram && <div><a href={`https://instagram.com/${branding.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" style={flink}>{branding.instagram}</a></div>}{branding?.email && <div><a href={`mailto:${branding.email}`} style={flink}>{branding.email}</a></div>}</div>
           <div style={foot}><div style={foothead}>Sistema</div><div style={{ opacity: 0.7 }}>Vidriera + pedidos + POS integrados.</div></div>
         </div>
       </footer>

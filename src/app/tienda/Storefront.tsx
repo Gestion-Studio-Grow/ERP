@@ -7,6 +7,7 @@ import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import { productGradient, productGlyph, groupBySection } from "@/lib/storefront-visual";
 import { shippingCost, amountToFreeShipping } from "@/lib/storefront-shipping";
+import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 
 // Paleta cálida-minimalista (premium/boutique) — ahora sobre los DESIGN TOKENS del
 // ERP (Nocturne, ver globals.css), no colores sueltos: así la vidriera comparte
@@ -50,25 +51,38 @@ const money2 = new Intl.NumberFormat("es-AR", { style: "currency", currency: "AR
 function unitPriceOf(p: Product): number {
   return (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
 }
-function waLink(whatsapp: string | null | undefined, text: string): string | null {
-  return whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(text)}` : null;
-}
 
-export default function Storefront({
-  name,
-  branding,
-  wording,
-  copy,
-  products,
-  accent,
-}: {
+type StorefrontProps = {
   name: string;
   branding: Branding;
   wording: RetailWording;
   copy: StorefrontCopy | null;
   products: Product[];
   accent: string;
-}) {
+  /** Slug del tenant — namespacea el WhatsApp que complete el visitante (ver WhatsAppCtaProvider). */
+  tenantKey: string;
+};
+
+// El CTA de WhatsApp nunca abre a un número hardcodeado: si el tenant no tiene
+// `branding.whatsapp` real, el Provider pide el número just-in-time al primer
+// clic. El componente interno vive DENTRO del Provider para poder usar el hook.
+export default function Storefront(props: StorefrontProps) {
+  return (
+    <WhatsAppCtaProvider tenantKey={props.tenantKey} configuredNumber={props.branding?.whatsapp}>
+      <StorefrontContent {...props} />
+    </WhatsAppCtaProvider>
+  );
+}
+
+function StorefrontContent({
+  name,
+  branding,
+  wording,
+  copy,
+  products,
+  accent,
+}: StorefrontProps) {
+  const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -97,7 +111,6 @@ export default function Storefront({
 
   const total = lines.reduce((s, l) => s + l.total, 0);
   const hasItems = lines.length > 0;
-  const wa = branding?.whatsapp;
 
   // Envío: si el tenant declara config (copy.shipping), la vidriera lo calcula y
   // muestra el desglose + el nudge de envío gratis. Sin config → 0 y sin línea.
@@ -107,13 +120,11 @@ export default function Storefront({
   const missingForFree = amountToFreeShipping(total, shipCfg);
   const freeShippingProgress = shipCfg ? Math.min(1, total / shipCfg.freeThreshold) : 0;
 
-  const cartWaHref = waLink(
-    wa,
+  const cartMessage =
     `¡Hola ${name}! Quiero hacer un pedido:\n` +
-      lines.map((l) => `• ${l.qty} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
-      (shipCfg ? `\nEnvío (${fulfillment === "PICKUP" ? "retiro" : "a domicilio"}): ${shipping === 0 ? "gratis" : money2.format(shipping)}` : "") +
-      `\nTotal estimado: ${money2.format(grandTotal)}`,
-  );
+    lines.map((l) => `• ${l.qty} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
+    (shipCfg ? `\nEnvío (${fulfillment === "PICKUP" ? "retiro" : "a domicilio"}): ${shipping === 0 ? "gratis" : money2.format(shipping)}` : "") +
+    `\nTotal estimado: ${money2.format(grandTotal)}`;
 
   // Copy: firma del tenant si existe; si no, cae al wording del rubro / branding.
   const eyebrow = copy?.eyebrow ?? branding?.shortLabel ?? name;
@@ -146,11 +157,9 @@ export default function Storefront({
           {intro && <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 620 }}>{intro}</p>}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
             <a href="#seleccion" style={cta("var(--accent)", "var(--text-on-accent)")}>{wording.orderCta}</a>
-            {wa && (
-              <a href={waLink(wa, `¡Hola ${name}! Quiero hacer un pedido.`)!} target="_blank" rel="noopener noreferrer" style={cta("#fff", "#128C4B", "1px solid #25D366")}>
-                Pedir por WhatsApp
-              </a>
-            )}
+            <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={cta("#fff", "#128C4B", "1px solid #25D366")}>
+              Pedir por WhatsApp
+            </button>
           </div>
         </div>
       </header>
@@ -180,11 +189,9 @@ export default function Storefront({
                 <div key={i} style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontWeight: 800, fontSize: 17 }}>{l.title}</div>
                   <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.55, flex: 1 }}>{l.text}</div>
-                  {wa && (
-                    <a href={waLink(wa, `¡Hola ${name}! Quiero hacer un pedido de ${l.title}.`)!} target="_blank" rel="noopener noreferrer" style={{ ...linkCta, color: "var(--accent)" }}>
-                      Hacer pedido →
-                    </a>
-                  )}
+                  <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido de ${l.title}.`)} style={{ ...linkCta, color: "var(--accent)", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
+                    Hacer pedido →
+                  </button>
                 </div>
               ))}
             </div>
@@ -198,13 +205,11 @@ export default function Storefront({
             <div style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 16, padding: "28px 22px", textAlign: "center" }}>
               <p style={{ margin: 0, fontWeight: 700, fontSize: 16 }}>Estamos preparando la selección</p>
               <p style={{ margin: "6px 0 0", color: T.muted, fontSize: 14 }}>
-                En un rato vas a poder comprar online.{wa ? " Mientras tanto, escribinos por WhatsApp y te tomamos el pedido." : ""}
+                En un rato vas a poder comprar online. Mientras tanto, escribinos por WhatsApp y te tomamos el pedido.
               </p>
-              {wa && (
-                <a href={waLink(wa, `¡Hola ${name}! Quiero hacer un pedido.`)!} target="_blank" rel="noopener noreferrer" style={{ ...cta("#fff", "#128C4B", "1px solid #25D366"), display: "inline-flex", marginTop: 16 }}>
-                  Pedir por WhatsApp
-                </a>
-              )}
+              <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={{ ...cta("#fff", "#128C4B", "1px solid #25D366"), display: "inline-flex", marginTop: 16 }}>
+                Pedir por WhatsApp
+              </button>
             </div>
           ) : (
             // Catálogo agrupado en SECCIONES (Velas · Aromas · Decoración · Accesorios):
@@ -276,9 +281,7 @@ export default function Storefront({
                   <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.55, flex: 1 }}>{g.items}</div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
                     <span style={{ color: "var(--accent)", fontWeight: 800, fontSize: 16 }}>{typeof g.price === "number" ? money.format(g.price) : "A consultar"}</span>
-                    {wa && (
-                      <a href={waLink(wa, `¡Hola ${name}! Quiero el set "${g.name}".`)!} target="_blank" rel="noopener noreferrer" style={{ ...linkCta, color: "var(--accent)" }}>Lo quiero →</a>
-                    )}
+                    <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero el set "${g.name}".`)} style={{ ...linkCta, color: "var(--accent)", background: "none", border: "none", padding: 0, cursor: "pointer" }}>Lo quiero →</button>
                   </div>
                 </div>
               ))}
@@ -350,7 +353,7 @@ export default function Storefront({
                 <label style={{ ...lbl, gridColumn: "1 / -1" }}><span style={lblT}>Nota</span><input name="notes" style={inp} placeholder="ej: cómo lo querés preparado / aclaraciones" /></label>
               </div>
               <button type="submit" style={{ ...cta("var(--accent)", "var(--text-on-accent)"), height: 48 }}>{wording.orderCta}</button>
-              {cartWaHref && (<a href={cartWaHref} target="_blank" rel="noopener noreferrer" style={{ ...cta("#fff", "#128C4B", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</a>)}
+              <button type="button" onClick={() => requestWhatsApp(cartMessage)} style={{ ...cta("#fff", "#128C4B", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
               <p style={{ fontSize: 11, color: T.faint, textAlign: "center" }}>Te contactamos para confirmar. El pago se coordina al recibirlo.</p>
             </form>
           )}
@@ -421,7 +424,7 @@ export default function Storefront({
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.9, opacity: 0.82 }}>
             <div style={foothead}>Contacto</div>
-            {wa && <div><a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" style={footlink}>WhatsApp</a></div>}
+            <div><button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer una consulta.`)} style={{ ...footlink, background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }}>WhatsApp</button></div>
             {branding?.instagram && <div><a href={igUrl(branding.instagram)} target="_blank" rel="noopener noreferrer" style={footlink}>{igHandle(branding.instagram)}</a></div>}
             {branding?.email && <div><a href={`mailto:${branding.email}`} style={footlink}>{branding.email}</a></div>}
           </div>

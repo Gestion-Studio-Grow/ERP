@@ -2,8 +2,12 @@
 // módulo de "configuración general"). Centralizados acá para cambiarlos en
 // un solo lugar. TODO: mover a una tabla BusinessSettings editable desde el
 // admin cuando haya más de un cliente usando el sistema.
-
-export const BUSINESS_WHATSAPP = "5491100000000"; // reemplazar por el número real (sin +, sin espacios)
+//
+// El WhatsApp del negocio NO vive acá — regla dura: nunca un número
+// hardcodeado. Vive en `BusinessSettings.whatsapp` (por tenant, ver
+// src/lib/settings.ts) y, si el tenant no lo configuró, el CTA lo pide
+// just-in-time (src/components/whatsapp-cta.tsx) en vez de caer a un
+// placeholder falso.
 
 // Minutos de margen que se reservan automáticamente después de cada turno
 // (limpieza del box, preparación del siguiente cliente). Se aplica al
@@ -16,7 +20,3 @@ export const BUFFER_MIN = 10;
 // pared ("09:00") se interpreta en esta zona y se persiste en UTC.
 // TODO (G1): pasar a columna por-tenant cuando llegue multi-tenant.
 export const BUSINESS_TIMEZONE = "America/Argentina/Buenos_Aires";
-
-export function whatsappLink(message: string) {
-  return `https://wa.me/${BUSINESS_WHATSAPP}?text=${encodeURIComponent(message)}`;
-}

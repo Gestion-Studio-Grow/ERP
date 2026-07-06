@@ -4,6 +4,8 @@ import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { nextBusinessDays } from "@/lib/datetime";
 import { getLocation } from "@/lib/settings";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { WhatsAppCtaProvider } from "@/components/whatsapp-cta";
 import BookingProvider from "./_ch/BookingProvider";
 import Header from "./_ch/Header";
 import AnnouncementBar from "./_ch/AnnouncementBar";
@@ -11,11 +13,12 @@ import AnnouncementBar from "./_ch/AnnouncementBar";
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [{ groups, professionals }, news, location, brand] = await Promise.all([
+  const [{ groups, professionals }, news, location, brand, slug] = await Promise.all([
     getPublicBookingData(),
     getPublicNews(),
     getLocation(),
     getTenantBrand(),
+    getCurrentTenantSlug(),
   ]);
   // REGLA front/back: el FRONT (vidriera) usa el tema declarado del tenant; el
   // acento va afinado a ese tema (--accent + on-accent). `data-theme` deja los
@@ -27,7 +30,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const latestNews = news[0] ?? null;
 
   return (
-    <BookingProvider data={{ groups, professionals, days, whatsapp }}>
+    <WhatsAppCtaProvider tenantKey={slug ?? "ch-default"} configuredNumber={whatsapp}>
+      <BookingProvider data={{ groups, professionals, days, whatsapp }}>
       {/* Acento + tema del front por tenant, disponibles también en el sitio para
           cuando sus pantallas migren a los tokens de la base Nocturne. */}
       <div data-theme={brand.frontTheme} style={{ background: "var(--surface)", color: "var(--text-strong)", fontFamily: "var(--font-body), system-ui, sans-serif", "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}>
@@ -75,6 +79,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           </div>
         </footer>
       </div>
-    </BookingProvider>
+      </BookingProvider>
+    </WhatsAppCtaProvider>
   );
 }
