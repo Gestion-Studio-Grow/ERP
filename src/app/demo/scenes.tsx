@@ -34,8 +34,10 @@ function useCountUp(target: number, durationMs = 900): number {
   const [val, setVal] = useState(0);
   useEffect(() => {
     if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setVal(target);
-      return;
+      // Sin animación: mostramos el total directo. Se difiere un frame para no
+      // llamar a setState de forma síncrona dentro del efecto (cascading renders).
+      const id = requestAnimationFrame(() => setVal(target));
+      return () => cancelAnimationFrame(id);
     }
     let raf = 0;
     let start = 0;
@@ -342,7 +344,11 @@ export function CierreScene() {
   const pills = ["Agenda", "Reservá online", "Caja", "Facturación", "Panel del Dueño"];
   return (
     <div className="flex h-full flex-col items-center justify-center bg-surface px-6 text-center">
-      <span className="d-up d-pop grid size-14 place-items-center rounded-2xl bg-accent text-2xl text-on-accent shadow-raised" style={d(60)}>
+      <span
+        aria-hidden
+        className="d-up d-pop grid size-14 place-items-center rounded-2xl bg-accent text-2xl text-on-accent shadow-raised"
+        style={d(60)}
+      >
         ✦
       </span>
       <h3 className="d-up mt-4 font-display text-2xl font-semibold leading-tight text-strong" style={d(200)}>

@@ -53,6 +53,12 @@ export default function DemoTour() {
   const next = useCallback(() => setI((p) => Math.min(last, p + 1)), [last]);
   const prev = useCallback(() => setI((p) => Math.max(0, p - 1)), []);
 
+  // Accesibilidad — auto-avance bajo prefers-reduced-motion: NO se maneja con estado
+  // (evita set-state-in-effect e hidratación del prerender force-static). Se resuelve
+  // en CSS: la media query congela la barra de relleno de la escena activa, así el
+  // `onAnimationEnd` no dispara y el carrusel NO auto-avanza (WCAG 2.2.2). El usuario
+  // recorre con tap/teclado. Ver `.demo-fill` en StageStyles.
+
   // Teclado (desktop).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -88,6 +94,16 @@ export default function DemoTour() {
     <main className="demo-stage relative flex min-h-[100dvh] flex-col items-center overflow-hidden px-4 pb-3 pt-4 text-white">
       <StageStyles />
 
+      {/* Título de página para lectores de pantalla y estructura (el resto es visual). */}
+      <h1 className="sr-only">
+        Demo interactiva de {DEMO_BRAND.studio}: agenda, cobro, facturación y tu negocio entero en un solo sistema
+      </h1>
+
+      {/* Región viva: anuncia el cambio de escena a lectores de pantalla. */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {`Escena ${i + 1} de ${SCENES.length}. ${scene.kicker}: ${scene.title}. ${scene.pitch}`}
+      </div>
+
       {/* Header */}
       <header className="z-10 flex w-full max-w-[420px] items-center justify-between">
         <div className="flex items-center gap-2">
@@ -115,7 +131,7 @@ export default function DemoTour() {
             <div
               // key={i} en la activa → reinicia el relleno al cambiar de escena.
               key={idx === i ? `run-${i}` : `static-${idx}`}
-              className="h-full rounded-full bg-white"
+              className={`h-full rounded-full bg-white${idx === i ? " demo-fill" : ""}`}
               style={
                 idx < i
                   ? { width: "100%" }
@@ -241,6 +257,9 @@ function StageStyles() {
       @media (prefers-reduced-motion: reduce) {
         .d-up, .d-pop, .d-pick, .d-bar { animation-duration: 0.01ms !important; }
         .d-up { transform: none !important; }
+        /* Congela el auto-avance: sin animación no hay onAnimationEnd → no salta solo.
+           La barra activa se muestra llena; el usuario navega con tap/teclado. */
+        .demo-fill { animation: none !important; width: 100% !important; }
       }
     `}</style>
   );

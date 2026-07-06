@@ -80,7 +80,54 @@ test("el estado actual del negocio (2 tenants) NO produce ningún benchmark", ()
 });
 
 test("k configurable: con k=3 una cohorte de 3 se publica", () => {
-  const res = aggregateBenchmarks(cohort([100, 200, 300]), { k: 3, maxShare: 0.9 });
+  const res = aggregateBenchmarks(cohort([100, 200, 300]), { k: 3, maxShare: 0.9, roundTo: 1 });
   assert.equal(res.published.length, 1);
   assert.equal(res.published[0].p50, 200);
+});
+
+test("cuantización: los percentiles se redondean al múltiplo de roundTo", () => {
+  // Valores que dan percentiles no redondos; con roundTo=1000 snapean a miles.
+  const res = aggregateBenchmarks(cohort([1200, 3400, 5600, 7850, 9990]), {
+    k: 5,
+    maxShare: 0.9,
+    roundTo: 1000,
+  });
+  const cell = res.published[0];
+  // Cada percentil publicado es múltiplo exacto de 1000 (no filtra el valor real).
+  for (const v of [cell.p25, cell.p50, cell.p75]) {
+    assert.equal(v % 1000, 0, `esperaba múltiplo de 1000, fue ${v}`);
+  }
+});
+
+test("cuantización: roundTo por defecto (1) redondea interpolaciones a entero", () => {
+  // Con 6 tenants los percentiles interpolan a decimales (22.5 / 35 / 47.5); el
+  // default (roundTo=1) los lleva a entero → nunca se publican fracciones.
+  const res = aggregateBenchmarks(cohort([10, 20, 30, 40, 50, 60]));
+  const cell = res.published[0];
+  assert.equal(cell.p25, 23); // 22.5 → 23
+  assert.equal(cell.p50, 35);
+  assert.equal(cell.p75, 48); // 47.5 → 48
+});
+
+test("cuantización: roundTo<=0 desactiva el redondeo (valor exacto interpolado)", () => {
+  const res = aggregateBenchmarks(cohort([10, 20, 30, 40, 50, 60]), {
+    k: 5,
+    maxShare: 0.9,
+    roundTo: 0,
+  });
+  const cell = res.published[0];
+  assert.equal(cell.p25, 22.5); // interpolación exacta, sin redondear
+  assert.equal(cell.p75, 47.5);
+});
+
+test("anti-dominancia NO se aplica con valores negativos (share indefinido)", () => {
+  // Métrica que admite negativos (ej. variación %). Aunque un tenant sea grande en
+  // magnitud, no se suprime por dominancia; se publica el agregado.
+  const res = aggregateBenchmarks(cohort([-50, -10, 5, 20, 40]), {
+    k: 5,
+    maxShare: 0.5,
+    roundTo: 1,
+  });
+  assert.equal(res.published.length, 1);
+  assert.equal(res.suppressed.length, 0);
 });

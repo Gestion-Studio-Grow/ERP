@@ -30,6 +30,7 @@ const isWin = process.platform === "win32";
 // de node.exe (tiene espacios) se rompe y el gate falla en falso.
 const GATES = [
   { name: "tsc (tipos)", cmd: "npx", args: ["tsc", "--noEmit"], shell: isWin },
+  { name: "lint (eslint)", cmd: "npm", args: ["run", "lint"], shell: isWin },
   { name: "tests (npm test)", cmd: "npm", args: ["test"], shell: isWin },
   {
     name: "rls-coverage (aislamiento)",

@@ -51,9 +51,15 @@ export type AggregateOptions = {
   k: number;
   // fracción máxima del total que puede concentrar un solo tenant antes de suprimir.
   maxShare: number;
+  // cuantización de los percentiles publicados: se redondean al múltiplo más cercano
+  // de `roundTo` para no exponer valores exactos que faciliten re-identificar a un
+  // tenant (endurecimiento de privacidad, ADR-027 §3). Default 1 = redondeo a entero
+  // (nunca se publican centavos). En producción conviene subirlo según la métrica
+  // (ej. 1000 para montos en ARS). `roundTo <= 0` desactiva el redondeo.
+  roundTo: number;
 };
 
-export const DEFAULT_OPTIONS: AggregateOptions = { k: 5, maxShare: 0.5 };
+export const DEFAULT_OPTIONS: AggregateOptions = { k: 5, maxShare: 0.5, roundTo: 1 };
 
 export type AggregateResult = {
   published: BenchmarkCell[];
@@ -67,6 +73,13 @@ function cohortKey(p: {
   metric: string;
 }): string {
   return `${p.rubro}|${p.zona}|${p.periodo}|${p.metric}`;
+}
+
+// Redondea al múltiplo más cercano de `step` (cuantización de privacidad). Con
+// step <= 0 devuelve el valor sin tocar.
+function quantize(value: number, step: number): number {
+  if (step <= 0) return value;
+  return Math.round(value / step) * step;
 }
 
 // Percentil por interpolación lineal sobre una lista YA ordenada ascendente.
@@ -128,8 +141,12 @@ export function aggregateBenchmarks(
     const values = Array.from(perTenant.values());
     const total = values.reduce((s, v) => s + v, 0);
 
-    // anti-dominancia: si un tenant concentra demasiado del total, suprimir.
-    if (total > 0) {
+    // anti-dominancia: si un tenant concentra demasiado del total, suprimir. Se
+    // aplica solo sobre valores no negativos: con negativos la noción de "share
+    // del total" no está definida (el total puede acercarse a 0 y disparar falsos
+    // positivos), así que en ese caso no suprimimos por dominancia.
+    const anyNegative = values.some((v) => v < 0);
+    if (total > 0 && !anyNegative) {
       const maxValue = Math.max(...values);
       if (maxValue / total > options.maxShare) {
         suppressed.push({ cohorte: key, nTenants, reason: "dominance" });
@@ -145,9 +162,9 @@ export function aggregateBenchmarks(
       periodo,
       metric,
       nTenants,
-      p25: percentile(sorted, 0.25),
-      p50: percentile(sorted, 0.5),
-      p75: percentile(sorted, 0.75),
+      p25: quantize(percentile(sorted, 0.25), options.roundTo),
+      p50: quantize(percentile(sorted, 0.5), options.roundTo),
+      p75: quantize(percentile(sorted, 0.75), options.roundTo),
     });
   }
 

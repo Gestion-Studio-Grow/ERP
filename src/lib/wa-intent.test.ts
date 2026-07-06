@@ -166,8 +166,35 @@ test("hora: '15 hs' → 15:00", () => {
   assert.equal(parse("mañana 15 hs").entities.time, "15:00");
 });
 
-test("hora: 'a las 3 y media' → 03:30", () => {
-  assert.equal(parse("a las 3 y media").entities.time, "03:30");
+test("hora: 'a las 3 y media' → 15:30 (heurística de hora comercial, default ON)", () => {
+  // En contexto de reserva, "a las 3 y media" es la tarde, no la madrugada.
+  assert.equal(parse("a las 3 y media").entities.time, "15:30");
+});
+
+test("hora: heurística de hora comercial empuja 1–8 a la tarde", () => {
+  assert.equal(parse("turno a las 4").entities.time, "16:00");
+  assert.equal(parse("dale a las 6").entities.time, "18:00");
+  assert.equal(parse("a las 8 hs").entities.time, "20:00");
+  // 9–12 se quedan como AM (no se tocan).
+  assert.equal(parse("a las 10").entities.time, "10:00");
+});
+
+test("hora: assumeBusinessHours=false hace parseo literal", () => {
+  const r = parseWaMessage("a las 3 y media", { now: NOW, services: SERVICES, assumeBusinessHours: false });
+  assert.equal(r.entities.time, "03:30");
+});
+
+test("hora: mediodía y medianoche", () => {
+  assert.equal(parse("turno al mediodia").entities.time, "12:00");
+  assert.equal(parse("turno a la medianoche").entities.time, "00:00");
+  // "12 de la noche" es medianoche; "12 de la mañana" también → 00:00.
+  assert.equal(parse("a las 12 de la noche").entities.time, "00:00");
+  assert.equal(parse("a las 12 de la manana").entities.time, "00:00");
+});
+
+test("hora: franja explícita gana a la heurística", () => {
+  // Con "de la mañana" no se empuja a la tarde aunque sea 1–8.
+  assert.equal(parse("a las 8 de la manana").entities.time, "08:00");
 });
 
 test("hora: sin mención horaria → null", () => {

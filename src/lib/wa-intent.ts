@@ -82,6 +82,11 @@ export type ParseWaOptions = {
   // umbral por debajo del cual conviene pedir confirmación / escalar (no lo aplica
   // el parser; lo expone para el router de conversación). Default 0.5.
   lowConfidence?: number;
+  // Heurística de hora comercial. Si true (default), una hora "pelada" sin franja
+  // (ej. "a las 4") se asume de la TARDE en contexto de reserva (1–8 → 13–20 h),
+  // porque un turno "a las 3" casi nunca es a las 3 de la madrugada. Ponerlo en
+  // false para un parseo literal (4 → 04:00). Ver tests de ambos modos.
+  assumeBusinessHours?: boolean;
 };
 
 // --- Normalización ------------------------------------------------------------
@@ -373,8 +378,14 @@ function startOfDay(d: Date): Date {
 // --- Extracción de entidades: hora --------------------------------------------
 
 // Resuelve una hora a "HH:MM" 24h. Cubre "a las 15", "15hs", "15:30", "3 de la
-// tarde", "9 de la mañana", "y media". Devuelve null si no hay una hora clara.
-function extractTime(norm: string): { time: string; mention: string } | null {
+// tarde", "9 de la mañana", "y media", "mediodía"/"medianoche". Devuelve null si
+// no hay una hora clara. `assumeBusinessHours` (ver ParseWaOptions) desambigua las
+// horas peladas hacia la tarde en contexto de reserva.
+function extractTime(norm: string, assumeBusinessHours: boolean): { time: string; mention: string } | null {
+  // mediodía / medianoche (ya normalizados sin acento).
+  if (/\bmediodia\b/.test(norm)) return { time: "12:00", mention: "mediodia" };
+  if (/\bmedianoche\b/.test(norm)) return { time: "00:00", mention: "medianoche" };
+
   // "HH:MM" explícito.
   const hm = norm.match(/\b(\d{1,2}):(\d{2})\b/);
   if (hm) {
@@ -393,9 +404,16 @@ function extractTime(norm: string): { time: string; mention: string } | null {
     if (m[2] === "y media") min = 30;
     else if (m[2] === "y cuarto") min = 15;
     const daypart = m[3];
-    if (daypart === "tarde" && h < 12) h += 12;
-    else if (daypart === "noche" && h < 12) h += 12;
-    else if (daypart === "manana" && h === 12) h = 0;
+    if (daypart) {
+      // franja horaria explícita: el cliente ya desambiguó.
+      if (daypart === "tarde" && h < 12) h += 12;
+      else if (daypart === "noche") h = h === 12 ? 0 : h < 12 ? h + 12 : h; // "12 de la noche" = medianoche
+      else if (daypart === "manana" && h === 12) h = 0; // "12 de la mañana" = medianoche
+    } else if (assumeBusinessHours && h >= 1 && h <= 8) {
+      // Sin franja: en contexto de turnos, "a las 3/4/…/8" casi siempre es la
+      // tarde (13–20 h). Empujamos 1–8 → PM; 9–12 se dejan como AM (mañana/mediodía).
+      h += 12;
+    }
     if (h <= 23 && min <= 59) return { time: fmtTime(h, min), mention: m[0].trim() };
   }
 
@@ -460,7 +478,7 @@ export function parseWaMessage(text: string, opts: ParseWaOptions): WaIntent {
 
   // 4) entidades (siempre se intentan: un BOOK y un RESCHEDULE necesitan fecha/hora).
   const date = extractDate(norm, opts.now);
-  const time = extractTime(norm);
+  const time = extractTime(norm, opts.assumeBusinessHours ?? true);
   const service = opts.services?.length ? matchService(norm, opts.services) : null;
 
   const entities: WaEntities = {
