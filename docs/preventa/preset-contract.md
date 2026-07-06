@@ -7,9 +7,12 @@ probador (`src/app/demo/`) lo **consume**. Es el CONTRATO del que habla `docs/me
 ("acuerdo de interfaz — a cerrar con Célula 3"). Hoy ese contrato **no existe en código**: el motor está
 hardcodeado a un negocio ficticio ("Estudio Aura", `demo-content.ts`). Este doc lo define.
 
-> **Estado (2026-07-06):** PROPUESTA del agente de Calidad, **pendiente de ratificación de Célula 3**.
-> Nada se cablea al motor sin su OK (el motor es de ellos). Mientras tanto, el preset se sigue mostrando
-> por el camino actual (vidriera del tenant `/tienda` + probador base genérico).
+> **Estado (2026-07-06): RATIFICADO** por la Célula del Probador Interactivo, con **2 amendments**
+> (ver `docs/demo/plan-probador-interactivo.md` §5): (1) sumar `"whatsapp"` a `PresetSceneId` con su
+> arquetipo de datos; (2) `scenes[]` alimenta **dos** consumidores — el tour lineal `/demo` y el sandbox
+> de navegación libre `/probar` (nuevo) — sin duplicar el dato, solo cambia el motor que lo lee. Con esto
+> el contrato queda cerrado para que el generador empiece a emitir `Preset` reales. Falta escribir
+> `src/presets/contract.ts` en código (hoy sigue siendo Markdown).
 
 ---
 
