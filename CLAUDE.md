@@ -17,7 +17,10 @@ Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `s
 
 **Playbooks reutilizables (`docs/metodologia/`):** métodos probados con el *por qué* de cada paso; antes
 de reinventar un flujo, fijate si ya hay receta. Índice en `docs/METODOLOGIA-SPRINT.md → Playbooks
-operativos`. Ej.: **Demo pública a costo cero** (`docs/metodologia/demo-publica-costo-cero.md`).
+operativos`. Obligatorios/transversales: **🤖 Generador de PRESET por IA**
+(`docs/metodologia/generador-preset-ia.md`) — todo alta de cliente nuevo se hace generando su preset
+(tenant+blueprint+branding+datos demo+probador, con Auditoría SAP + Sello GSG; coordina con Célula 3) ·
+**Demo pública a costo cero** (`docs/metodologia/demo-publica-costo-cero.md`).
 
 **Estructura de la compañía — TRES unidades bajo Gestión Studio Grow (estudio paraguas):** (1) **ERP
 multi-tenant** (producto SaaS core); (2) **Agencia Digital** (satélite del ERP: lo vende y le suma

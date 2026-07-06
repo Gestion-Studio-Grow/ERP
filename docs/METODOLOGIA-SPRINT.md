@@ -362,6 +362,16 @@ Recetas paso-a-paso y fundamentos con el **por qué** de cada cosa, para no re-d
   `docs/metodologia/auditoria-sap-fiori.md` (7 ángulos) · **Sello de Marca GSG** —
   `docs/metodologia/estandar-marca-gsg.md`. Ningún desarrollo se integra sin pasarlos.
 
+- **🤖 GENERADOR DE PRESET POR IA (método TRANSVERSAL de preventa/onboarding)** —
+  `docs/metodologia/generador-preset-ia.md`. 🔒 **PASO OBLIGATORIO del onboarding:** **todo alta de
+  cliente nuevo se hace generando su preset con este método** (no se arma un tenant a mano por fuera). La
+  IA/agentes, a partir de la marca + rubro + redes/web del prospecto, generan **de una** el **preset**:
+  tenant + subdomain + blueprint del rubro, identidad/branding (color, logo recreado, tono), datos de
+  demo por rubro (sin transaccionar, sin passwords) y la **instancia del probador lista para preventa** —
+  todo con Auditoría SAP + Sello GSG. Es el motor de **escala comercial** (alta en minutos). **Alimenta
+  el motor del probador de Célula 3** (`docs/demo/README.md`) y se publica por el playbook de demo a
+  costo cero (abajo), en FASE 1 (sin secretos); el alta real es FASE 2 (credenciales del dueño).
+
 - **Demo pública a COSTO CERO** — `docs/metodologia/demo-publica-costo-cero.md`. 🔒 **PASO OBLIGATORIO
   del sprint (no opcional):** **toda demo pública del ERP se genera y publica siguiendo este método** —
   no se improvisa un deploy ni un ruteo por fuera. Da una URL `.vercel.app` viva y aislada por negocio,

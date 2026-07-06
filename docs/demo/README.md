@@ -8,6 +8,14 @@ tuturno.io, pero mejor: en vez de un video, el visitante **toca** y ve la app fu
 - **Dueño:** Célula 3 (Producto/Contenido).
 - **Construido:** 2026-07-06.
 
+> **Coordinación con preventa/onboarding — Generador de Preset por IA** (`docs/metodologia/generador-preset-ia.md`):
+> este `/demo` es el **motor del probador**; el **preset** de cada cliente (generado por los agentes de
+> preventa: marca, catálogo, wording, branding) es el **contenido que lo alimenta**. Norte compartido:
+> que el motor pase de genérico ("Estudio Aura") a **parametrizado por preset** (por cliente),
+> manteniendo la garantía dura de esta ruta (`force-static`, sin base/credenciales/`process.env`, sin
+> datos reales). El preset entrega su contenido como **datos de ejemplo** (estilo `demo-content.ts`),
+> nunca como conexión a la DB. La interfaz preset→motor se cierra entre Célula 3 y preventa.
+
 ---
 
 ## Cómo se ve / cómo se usa
