@@ -121,4 +121,7 @@ que quedarse corto.
 - **Gates = acción humana del owner:** deploy a prod/Netlify y `prisma migrate deploy` no se cruzan solos; migraciones quedan como carpeta SIN aplicar, marcadas "pendiente acción humana".
 - El **repo es la memoria**. Sin laptop / si no se pueden abrir sesiones nuevas: degradás a **una sola sesión reutilizada, en serie** (fallback en `docs/SPRINT-MOVIL.md`).
 
+## Playbooks reutilizables (`docs/metodologia/`)
+- **Demo pública a COSTO CERO** (`docs/metodologia/demo-publica-costo-cero.md`): URL `.vercel.app` viva por negocio sin dominio propio ni plan pago (multi-tenant+RLS, `TENANT_HOST_MAP`, un proyecto Vercel + N dominios gratis, secretos solo del dueño, GitHub App en la org, `/demo` estático, cron diario). Índice en `docs/METODOLOGIA-SPRINT.md → Playbooks operativos`.
+
 Arrancá tomando el rol y confirmando qué worktrees existen (`git worktree list`) antes de asignar bocados.

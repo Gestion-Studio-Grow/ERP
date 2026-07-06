@@ -343,7 +343,17 @@ Antes de dar por cerrado el sprint (y como parte de `pausa`), el PMO:
 
 ---
 
+## Playbooks operativos (métodos probados, reutilizables)
+Recetas paso-a-paso de flujos que ya ejecutamos, con el **por qué** de cada paso, para no
+re-descubrirlos en cada sprint. Viven en `docs/metodologia/`:
+
+- **Demo pública a COSTO CERO** — `docs/metodologia/demo-publica-costo-cero.md`: una URL `.vercel.app`
+  viva y aislada por negocio, sin dominio propio ni plan pago (multi-tenant + RLS, `TENANT_HOST_MAP`,
+  un proyecto Vercel + N dominios gratis, secretos solo del dueño, GitHub App a nivel de la org, `/demo`
+  estático, cron diario). Es el "modo demo" del runbook `docs/runbooks/deploy-vercel.md`.
+
 ## Mantener esto honesto
 Documento vivo. Si cambia el modelo de sprint (equipos, worktrees, protocolo), este doc y
 `.claude/commands/sprint.md` se actualizan en el mismo commit; si divergen, es un hallazgo para
-`/sesion-consolidacion`. La mecánica canónica de sesiones sigue en `docs/TABLERO-SESIONES.md`.
+`/sesion-consolidacion`. La mecánica canónica de sesiones sigue en `docs/TABLERO-SESIONES.md`. Los
+**playbooks** (arriba) se actualizan cuando el método cambia en la práctica.

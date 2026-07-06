@@ -15,6 +15,10 @@ gestión correcta del proyecto.** Es obligatorio siempre, en Claude Code (deskto
 Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `sprint`, esto es su
 **FASE 0 Exploración** (Paso 0 no salteable en `.claude/commands/sprint.md`); cuando no, igual aplica.
 
+**Playbooks reutilizables (`docs/metodologia/`):** métodos probados con el *por qué* de cada paso; antes
+de reinventar un flujo, fijate si ya hay receta. Índice en `docs/METODOLOGIA-SPRINT.md → Playbooks
+operativos`. Ej.: **Demo pública a costo cero** (`docs/metodologia/demo-publica-costo-cero.md`).
+
 **Estructura de la compañía — TRES unidades bajo Gestión Studio Grow (estudio paraguas):** (1) **ERP
 multi-tenant** (producto SaaS core); (2) **Agencia Digital** (satélite del ERP: lo vende y le suma
 features; `docs/sectores/agencia-digital.md`); (3) **Agencia Grow** (los **negocios propios del grupo**,
