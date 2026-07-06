@@ -1,7 +1,7 @@
 // Fantasma — pricing por uso: flat con TOPE + EXCEDENTE (blindaje de margen).
 // El COGS es lineal (US$0,15–0,30/conversación) → NUNCA flat puro.
 
-import type { Plan } from "./tipos.js";
+import type { Plan } from "./tipos.ts";
 
 export interface DefinicionPlan {
   plan: Plan;

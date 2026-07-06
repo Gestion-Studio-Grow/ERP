@@ -12,9 +12,9 @@ import type {
   DecisionTurno,
   Ticket,
   Turno,
-} from "./tipos.js";
-import type { LLMCliente } from "./llm.js";
-import { costoLlamada } from "./cogs.js";
+} from "./tipos.ts";
+import type { LLMCliente } from "./llm.ts";
+import { costoLlamada } from "./cogs.ts";
 
 export interface ResultadoTurno {
   respuesta: string;
@@ -25,7 +25,11 @@ export interface ResultadoTurno {
 let contadorId = 0;
 
 export class AgenteFantasma {
-  constructor(private readonly llm: LLMCliente) {}
+  private readonly llm: LLMCliente;
+
+  constructor(llm: LLMCliente) {
+    this.llm = llm;
+  }
 
   iniciarConversacion(cliente: Cliente, contactoFinal: string, esOffHours: boolean): Conversacion {
     return {

@@ -3,7 +3,7 @@
 // El agente (agente.ts) depende de esta interfaz, NO de Claude directamente. Así el corazón se
 // desarrolla y demuestra offline. La implementación real vive en llm-claude.ts (Claude Sonnet).
 
-import type { Cliente, DecisionTurno, UsoLLM } from "./tipos.js";
+import type { Cliente, DecisionTurno, UsoLLM } from "./tipos.ts";
 
 export interface RespuestaLLM {
   decision: DecisionTurno;

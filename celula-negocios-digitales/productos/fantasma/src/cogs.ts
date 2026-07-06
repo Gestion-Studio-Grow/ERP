@@ -1,7 +1,7 @@
 // Fantasma — motor de COGS por conversación.
 // Es el núcleo del pricing por uso: mide el costo real de cada conversación en tokens de Claude Sonnet.
 
-import type { UsoLLM } from "./tipos.js";
+import type { UsoLLM } from "./tipos.ts";
 
 /** Tarifas de Claude Sonnet (`claude-sonnet-5`), US$ por millón de tokens. */
 export const TARIFAS_SONNET = {

@@ -13,8 +13,8 @@
 //   - Se lee response.usage para el COGS REAL (cache_read vs input vs output).
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { Cliente, DecisionTurno, UsoLLM } from "./tipos.js";
-import type { LLMCliente, RespuestaLLM } from "./llm.js";
+import type { Cliente, DecisionTurno, UsoLLM } from "./tipos.ts";
+import type { LLMCliente, RespuestaLLM } from "./llm.ts";
 
 const MODELO = "claude-sonnet-5";
 

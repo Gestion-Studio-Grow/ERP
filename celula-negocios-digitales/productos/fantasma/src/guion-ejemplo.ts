@@ -1,7 +1,7 @@
 // Fantasma — cliente faro de ejemplo: una barbería (guion + catálogo + agenda).
 // El guion es el bloque grande y estable que se cachea (baja el COGS).
 
-import type { Cliente } from "./tipos.js";
+import type { Cliente } from "./tipos.ts";
 
 export const BARBERIA_LO_DE_TITO: Cliente = {
   id: "barberia_tito",

@@ -2,12 +2,12 @@
 // Simula una conversación de WhatsApp fuera de horario (input→output), muestra el COGS real de esa
 // conversación y proyecta la factura mensual con su margen. Corré: `npm run demo`.
 
-import { AgenteFantasma } from "./agente.js";
-import { LLMMock } from "./llm.js";
-import { BARBERIA_LO_DE_TITO } from "./guion-ejemplo.js";
-import { desglosarCogs } from "./cogs.js";
-import { calcularFactura, PLANES } from "./planes.js";
-import type { Conversacion, UsoLLM } from "./tipos.js";
+import { AgenteFantasma } from "./agente.ts";
+import { LLMMock } from "./llm.ts";
+import { BARBERIA_LO_DE_TITO } from "./guion-ejemplo.ts";
+import { desglosarCogs } from "./cogs.ts";
+import { calcularFactura, PLANES } from "./planes.ts";
+import type { Conversacion, UsoLLM } from "./tipos.ts";
 
 const linea = (c = "─") => console.log(c.repeat(72));
 
