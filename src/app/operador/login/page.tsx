@@ -20,11 +20,15 @@ export default async function OperatorLoginPage({
           Acceso restringido a operadores de la plataforma. No es el panel de un negocio.
         </p>
 
-        {error && (
+        {error === "throttled" ? (
+          <p className="mb-4 rounded-md bg-danger-soft text-danger text-sm px-3 py-2">
+            Demasiados intentos fallidos. Esperá unos minutos y volvé a probar.
+          </p>
+        ) : error ? (
           <p className="mb-4 rounded-md bg-danger-soft text-danger text-sm px-3 py-2">
             Contraseña de operador incorrecta.
           </p>
-        )}
+        ) : null}
 
         <form action={operatorLogin} className="space-y-3">
           <input type="hidden" name="next" value={next ?? "/operador"} />

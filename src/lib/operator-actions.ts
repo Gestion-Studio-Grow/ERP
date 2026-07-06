@@ -20,15 +20,27 @@ import {
 import { provisionTenant } from "../../scripts/provision-tenant";
 import { resolveBlueprint, getBlueprint } from "@/blueprints";
 import { defaultModulesForBlueprint, suggestedAccentForBlueprint, isModuleId } from "@/lib/operator-config";
+import { requestIp } from "@/lib/audit";
+import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 
 // --- Sesión de operador -------------------------------------------------------
 
 export async function operatorLogin(formData: FormData) {
   const password = String(formData.get("password") || "");
   const next = String(formData.get("next") || "/operador");
+
+  // Rate limiting anti fuerza bruta (Célula 2): 5 fallos / 15 min por IP. El plano
+  // de operador es cross-tenant (más sensible) → mismo freno que /admin.
+  const key = loginKey("operator", (await requestIp()) ?? "unknown");
+  if (loginRateLimiter.blocked(key)) {
+    redirect(`/operador/login?error=throttled&next=${encodeURIComponent(next)}`);
+  }
+
   if (!checkOperatorPassword(password)) {
+    loginRateLimiter.fail(key);
     redirect(`/operador/login?error=1&next=${encodeURIComponent(next)}`);
   }
+  loginRateLimiter.reset(key);
   const cookieStore = await cookies();
   cookieStore.set(getOperatorCookieName(), await createOperatorToken(), {
     httpOnly: true,

@@ -1,19 +1,24 @@
 // Webhook de Mercado Pago (ADR-024 §2.d). Recibe la notificación de pago,
-// verifica contra MP (hoy stub) y auto-factura el turno si el pago se acreditó.
+// VERIFICA LA FIRMA, y auto-factura el turno si el pago se acreditó.
 //
 // Detrás del flag maestro de facturación (isInvoicingEnabled), OFF por default:
 // mientras la migración de Invoice/OutboxEvent no esté aplicada, el endpoint
 // solo acusa recibo (200) sin tocar la DB — prod queda inerte y seguro.
 //
-// TODO(ADR-024): validar la firma `x-signature` de MP contra el `webhookSecret`
-// del tenant (hoy no hay credenciales). Resolución de tenant: hoy única
-// (getCurrentTenantId); mañana por la URL/subdominio del webhook.
+// SEGURIDAD (Célula 2): con facturación ON, se valida la firma `x-signature` de MP
+// (HMAC-SHA256, ver plugins/mercadopago/signature.ts) contra `MP_WEBHOOK_SECRET`
+// ANTES de procesar. Un webhook forjado marcaría un pago como acreditado y
+// dispararía una factura falsa → se rechaza fail-closed (secreto ausente → 503,
+// firma inválida → 401). El secreto vive en env (no en DB, no depende de migración);
+// hoy es único (un MP activo), mañana por-tenant (getCurrentTenantId ya resuelve el
+// tenant). Resolución de tenant por URL/subdominio: follow-up.
 
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { manejarNotificacionMP } from "@/lib/mercadopago-dispatch";
 import { logger } from "@/lib/logger";
 import { withRequestId, setRequestContext } from "@/lib/request-context";
+import { verifyMercadoPagoSignature } from "@/plugins/mercadopago/signature";
 
 export const POST = withRequestId(async (request: Request) => {
   if (!isInvoicingEnabled()) {
@@ -42,6 +47,26 @@ export const POST = withRequestId(async (request: Request) => {
 
   if (type !== "payment" || !paymentId) {
     return Response.json({ ok: true, ignored: { type, paymentId } });
+  }
+
+  // --- FIRMA (fail-closed) — antes de tocar la DB o el tenant.
+  const secret = process.env.MP_WEBHOOK_SECRET;
+  if (!secret) {
+    // Invoicing ON sin secreto configurado: no se puede confiar en la notificación.
+    logger.error("mercadopago", "webhook rechazado: falta MP_WEBHOOK_SECRET", undefined, {
+      paymentId,
+    });
+    return Response.json({ ok: false, error: "webhook-secret-missing" }, { status: 503 });
+  }
+  const firmaOk = verifyMercadoPagoSignature({
+    xSignature: request.headers.get("x-signature"),
+    xRequestId: request.headers.get("x-request-id"),
+    dataId: paymentId,
+    secret,
+  });
+  if (!firmaOk) {
+    logger.warn("mercadopago", "webhook rechazado: firma inválida", { paymentId });
+    return Response.json({ ok: false, error: "invalid-signature" }, { status: 401 });
   }
 
   const tenantId = await getCurrentTenantId();

@@ -211,6 +211,7 @@ Modelo: cada sesión es dueña de un core/frente; PMO por encima de las tres uni
 | **Inventario/POS** | compras/reposición + ledger `StockMovement` cableado en main; migraciones SIN aplicar |
 | **Fiscal** | soap adapter + worker wiring + config fiscal por tenant en main; falta `TraSigner`+cert (Gate 4) |
 | **Plataforma** | observabilidad v2 + reporting + `FORCE_TENANT_SLUG` + **fix del gate RLS** en main; **RLS a prod es su Gate clave (#1)** |
+| **Confiabilidad/SRE** (Célula 2) | **en main (2026-07-06):** runbook de hardening (`docs/runbooks/hardening-produccion.md`) + vallas (`npm run gates` = tsc+tests+regresión RLS · `npm run load-test` · `global-error.tsx`); **rate limiting** en logins `/admin` y `/operador` (`src/lib/rate-limit.ts`, 5 fallos/15min por IP); **firma del webhook MP** validada (HMAC fail-closed, `src/plugins/mercadopago/signature.ts`). Follow-ups en el runbook: rate-limit API pública, cron fail-closed, CI, plan pago Neon. **Nuevo secreto de prod: `MP_WEBHOOK_SECRET`** (al activar MP real). |
 | **Diseño** (ahora core) | sistema de diseño/tokens/branding; adopción por pantallas admin pendiente |
 
 ### Unidad 2 — Agencia Digital (satélite del ERP)

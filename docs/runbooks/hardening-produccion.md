@@ -262,8 +262,8 @@ tenant en código nuevo). Acá el foco es la **superficie de producción**: auth
 | **Middleware `src/proxy.ts`** | Portón grueso: valida firma de cookie en `/admin` y `/operador` | Correcto como reja gruesa (el chequeo de rol por acción vive en Server Actions) | OK. |
 | **Auth operador** (`operator-auth.ts`) | HMAC edge-safe, cookie propia, timing-safe, secreto propio | En dev acepta password `"operador"` si no hay `OPERATOR_PASSWORD`; en prod es **obligatoria** | 🔑 **Verificar que `OPERATOR_PASSWORD` y `OPERATOR_SECRET` estén seteadas en prod** (distintas del app). |
 | **Auth API pública** (`public-api-auth.ts`) | api-key por tenant, timing-safe, **fail-closed** (sin key → 503) | Sólido. Sin key configurada rechaza cerrado | OK. |
-| **⚠️ Rate limiting** | **NO EXISTE en ninguna superficie** | Login `/admin` y `/operador` sin freno → **fuerza bruta**; API pública `/public/v1/orders` sin freno → **abuso/flood** | 🔴 **Agregar rate limiting** (ver abajo). Prioridad alta. |
-| **Webhook MP** (`webhooks/mercadopago`) | **Firma `x-signature` NO validada** (TODO ADR-024, hoy stub) | Cuando MP esté vivo: un POST forjado podría marcar un pago como acreditado → **auto-factura falsa** | 🔴 **Validar la firma antes de activar MP en real.** Bloqueante del go-live de cobros. |
+| **Rate limiting logins** | ✅ **IMPLEMENTADO** (`src/lib/rate-limit.ts`) en `/admin/login` y `/operador/login`: 5 fallos / 15 min por IP, se resetea al éxito | Cerrada la fuerza bruta en ambos planos. Falta la API pública `/public/v1/orders` (flood) | 🟡 Extender el limitador a la API pública (mismo `RateLimiter`). Store por-proceso (ver nota abajo). |
+| **Webhook MP** (`webhooks/mercadopago`) | ✅ **FIRMA VALIDADA** (`src/plugins/mercadopago/signature.ts`, HMAC-SHA256): con invoicing ON, secreto ausente → 503, firma inválida → 401, fail-closed antes de tocar DB | Cerrado el riesgo de webhook forjado → auto-factura falsa | 🔑 Setear `MP_WEBHOOK_SECRET` en prod cuando se active MP real. |
 | **Cron `/api/cron/reminders`** | Protegido con `CRON_SECRET`… | …pero **fail-OPEN**: si `CRON_SECRET` no está seteada, `if (secret)` se saltea y el endpoint queda **abierto** | 🟠 Hacer **fail-closed** (sin `CRON_SECRET` → 503) **y** 🔑 verificar que esté seteada en prod. |
 | **Home / rutas públicas** | SSR con branding por tenant | Sin freno de tráfico → un flood consume compute de Neon (free) | cubierto por el rate limiting general + monitoreo de Neon (§3). |
 
@@ -274,9 +274,12 @@ No hay rate limiter. Opciones costo-conscientes:
   `/operador/login` y `/public/v1/*`. Barato, sin deps, pero **no comparte estado entre instancias**
   (aceptable para el volumen actual de 1–2 tenants). Un limitador con store externo (Upstash/Redis) es
   el paso siguiente cuando escale.
-- **Mínimo imprescindible antes de más clientes:** frenar **fuerza bruta en los dos logins** (ej. 5
-  intentos / 15 min por IP). **Propuesto, no implementado acá** (toca `proxy.ts`, archivo del frente
-  Plataforma → coordinar para no pisar; queda como follow-up de alta prioridad).
+- **✅ Hecho (2026-07-06):** freno de **fuerza bruta en los dos logins** — `src/lib/rate-limit.ts`
+  (limitador in-memory testeable, 5 fallos / 15 min por IP, reset al éxito) cableado en los Server
+  Actions `login()` y `operatorLogin()` (no en `proxy.ts`: los logins son Server Actions Node, ahí se ve
+  la IP y se cuenta el fallo). Estado por-proceso (no compartido entre instancias serverless) — apto
+  para el volumen actual; el upgrade a store externo (Upstash/Redis) va detrás de la misma interfaz
+  `RateLimiter`. **Pendiente:** extender a la API pública `/public/v1/*`.
 
 ### Otros
 - 🔑 **Rotar `NEON_API_KEY`** (quedó en `.env` comentada y pasó por chat) — ya flageado en
@@ -301,8 +304,9 @@ Marcado: ✅ hecho · 🟡 implementado, falta correr/activar · 🔑 **acción 
 - ✅ **Runbooks** de staging, rollback (app + DB) y go-live documentados.
 
 ### Antes de escalar a más clientes (prioridad)
-- 🔴 **Rate limiting en los dos logins** (`/admin`, `/operador`) — anti fuerza bruta. *(follow-up, toca `proxy.ts`)*
-- 🔴 **Validar firma del webhook de MP** antes de activar cobros online reales. *(bloquea go-live de pagos)*
+- ✅ **Rate limiting en los dos logins** (`/admin`, `/operador`) — anti fuerza bruta (`rate-limit.ts`, 2026-07-06).
+- ✅ **Firma del webhook de MP validada** (HMAC, fail-closed) — cierra la auto-factura por webhook forjado (2026-07-06).
+- 🟡 **Rate limiting en la API pública** `/public/v1/*` (mismo limitador) — anti flood. *(follow-up)*
 - 🟠 **Cron reminders fail-closed** + 🔑 confirmar `CRON_SECRET` en prod.
 - 🟡 **Correr la 1ª prueba de carga real** (local build nativo o staging) y registrar el techo acá.
 - 🟡 **Timeouts en llamadas externas** (MP/WhatsApp/ARCA) — evitar cuelgues que agoten conexiones.
@@ -313,7 +317,9 @@ Marcado: ✅ hecho · 🟡 implementado, falta correr/activar · 🔑 **acción 
 - 🔑 **Monitor de uptime** (UptimeRobot free → Telegram) sobre `/api/health`. *(mínimo, gratis)*
 - 🔑 **Alertas de uso de Neon** (compute/storage/horas) en el Console.
 - 🔑 **Backups `pg_dump` periódicos** a almacenamiento externo (mitigación mientras el plan sea free).
-- 🔑 **Verificar secretos en prod**: `OPERATOR_PASSWORD`, `OPERATOR_SECRET`, `CRON_SECRET`, webhook secret de MP.
+- 🔑 **Verificar secretos en prod**: `OPERATOR_PASSWORD`, `OPERATOR_SECRET`, `CRON_SECRET`, y
+  **`MP_WEBHOOK_SECRET`** (nuevo — el webhook de MP lo exige fail-closed cuando invoicing está ON; va al
+  `.env`/Netlify, **nunca en un campo**). Sin él con invoicing ON, el webhook responde 503.
 - 🔑 **Rotar `NEON_API_KEY`** (asumida comprometida).
 - 🔑 **Email real del OWNER de Magra** + rotar contraseña de bootstrap.
 

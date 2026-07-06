@@ -6,11 +6,20 @@ import { createSessionToken, getSessionCookieName } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth-password";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { requestIp } from "@/lib/audit";
+import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
   const next = String(formData.get("next") || "/admin");
+
+  // Rate limiting anti fuerza bruta (Célula 2): 5 fallos / 15 min por IP. Se
+  // chequea ANTES de tocar la DB — un atacante bloqueado ni siquiera consulta.
+  const key = loginKey("admin", (await requestIp()) ?? "unknown");
+  if (loginRateLimiter.blocked(key)) {
+    redirect(`/admin/login?error=throttled&next=${encodeURIComponent(next)}`);
+  }
 
   const tenantId = await getCurrentTenantId();
   const user = await prisma.user.findFirst({
@@ -22,8 +31,12 @@ export async function login(formData: FormData) {
   // real cuando el usuario existe.
   const ok = user ? await verifyPassword(password, user.passwordHash) : false;
   if (!user || !ok) {
+    loginRateLimiter.fail(key);
     redirect(`/admin/login?error=1&next=${encodeURIComponent(next)}`);
   }
+
+  // Login válido: limpiar el contador para no penalizar al usuario legítimo.
+  loginRateLimiter.reset(key);
 
   await prisma.user.update({
     where: { id: user.id },
