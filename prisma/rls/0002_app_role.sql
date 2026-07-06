@@ -16,9 +16,11 @@
 -- crear un rol LIMPIO `app_rls`: al crearse nuevo nace `NOBYPASSRLS` y `neondb_owner`
 -- sí puede administrarlo. La app se conecta por el proxy de Neon con `app_rls`.
 --
--- SECRETO FUERA DEL REPO: la contraseña NO se commitea. Se pasa al aplicar:
---   psql "$OPERATOR_DATABASE_URL" -v app_pw="$APP_RLS_PASSWORD" -f 0002_app_role.sql
--- (psql interpola :'app_pw' de forma segura y con quoting correcto.)
+-- SECRETO FUERA DEL REPO: la contraseña NO se commitea NI se setea acá. Este script
+-- crea `app_rls` SIN contraseña (rol inerte hasta que el dueño le ponga una). El
+-- dueño la carga aparte: consola de Neon (Roles → Reset password) o
+-- `ALTER ROLE app_rls PASSWORD '<secret>'`. Aplicar el script (como owner):
+--   psql "$OPERATOR_DATABASE_URL" -f 0002_app_role.sql
 --
 -- En Neon el rol de conexión del owner es `neondb_owner` (dueño de las tablas).
 -- `app_rls` es un rol DISTINTO, deliberadamente sin ownership.
@@ -37,15 +39,19 @@ BEGIN
 END
 $$;
 
--- CRÍTICO — forzar los atributos aunque el rol YA exista (el CREATE de arriba se
--- saltea con IF NOT EXISTS). Idempotente: re-correr deja el rol correcto sí o sí
--- antes de rotarle DATABASE_URL. `neondb_owner` PUEDE forzar estos atributos sobre
--- `app_rls` porque es un rol que él mismo creó (a diferencia del `app_user` heredado,
--- que necesita superuser). NUNCA quitar esta línea.
-ALTER ROLE app_rls WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+-- NO re-forzar atributos con `ALTER ROLE app_rls WITH … NOBYPASSRLS`.
+-- ⚠️ VERIFICADO EN PROD (go-live 2026-07-05): en Neon, `neondb_owner` **NO puede**
+-- `ALTER ROLE … [NO]BYPASSRLS` → `ERROR 42501 permission denied to alter role`
+-- (cambiar el atributo BYPASSRLS es superuser-only, y neon_superuser no alcanza).
+-- No hace falta: `app_rls` es un rol NUEVO y nace `NOBYPASSRLS` por el CREATE de
+-- arriba (probado: rolbypassrls=false). El footgun que aquel ALTER intentaba tapar
+-- (un rol PREEXISTENTE con bypass) es justamente el motivo de usar un rol nuevo.
 
--- Contraseña provista fuera del repo vía -v app_pw=...
-ALTER ROLE app_rls WITH PASSWORD :'app_pw';
+-- Contraseña: la pone el DUEÑO fuera del repo (no se commitea). En el go-live el
+-- rol se crea SIN contraseña (queda inerte, no autentica) y el dueño la carga en la
+-- consola de Neon (Roles → Reset password) o con `ALTER ROLE app_rls PASSWORD '…'`
+-- (setear password NO es superuser-only; `neondb_owner` sí puede). Recién con
+-- contraseña + rotación de DATABASE_URL el rol entra en uso.
 
 -- Acceso al schema y a las tablas existentes (solo DML; nada de DDL/ownership).
 GRANT USAGE ON SCHEMA public TO app_rls;

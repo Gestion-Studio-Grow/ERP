@@ -15,7 +15,7 @@ diseñar bajo presión.
 | Archivo | Qué hace | Cuándo |
 |---|---|---|
 | `0001_enable_rls.sql` | ENABLE ROW LEVEL SECURITY + `CREATE POLICY tenant_isolation` (USING + WITH CHECK) en **toda** tabla con `tenantId`. Data-driven (recorre `information_schema`) → a prueba de drift. | En el gate, primero. |
-| `0002_app_role.sql` | Crea `app_rls`: rol de login **NUEVO** (no el `app_user` legacy de prod, que tiene `BYPASSRLS` inarreglable) **sin `BYPASSRLS`**, no owner, solo DML. El enforcement real llega al conectar la app con este rol. Password fuera del repo. | En el gate, con `-v app_pw=…`. |
+| `0002_app_role.sql` | Crea `app_rls`: rol de login **NUEVO** (no el `app_user` legacy de prod, que tiene `BYPASSRLS` inarreglable) **sin `BYPASSRLS`**, no owner, solo DML. Lo crea **SIN contraseña** (rol inerte); el dueño la pone aparte (Neon console / `ALTER ROLE … PASSWORD`). **No** re-fuerza atributos con `ALTER ROLE … NOBYPASSRLS` (eso es superuser-only en Neon → falla; el CREATE ya nace correcto). | En el gate: `psql -f 0002_app_role.sql`. |
 | `0003_force_rls_optional.sql` | Hardening: `FORCE ROW LEVEL SECURITY` (RLS también para el owner). Opcional, con precondiciones. | Después de validar, si se quiere. |
 | `0001_rollback.sql` | Quita policies + RLS + FORCE. Para limpiar la branch de ensayo o revertir. | Según haga falta. |
 | `check-coverage.mjs` | Red **estática** (sin DB): verifica que todo modelo de-tenant tenga columna `tenantId` (si falta, no es aislable). Corre en CI/sesión. | Siempre. `node prisma/rls/check-coverage.mjs` |
@@ -57,7 +57,7 @@ diseñar bajo presión.
 2. Aplicar sobre la branch:
    ```bash
    psql "$BRANCH_URL" -f prisma/rls/0001_enable_rls.sql
-   psql "$BRANCH_URL" -v app_pw="<pw-de-ensayo>" -f prisma/rls/0002_app_role.sql
+   psql "$BRANCH_URL" -f prisma/rls/0002_app_role.sql   # crea app_rls SIN password
    ```
 3. Verificar:
    ```bash

@@ -32,17 +32,29 @@ desconexión:** el **ensayo de RLS se completó en un BRANCH de Neon** (no prod)
 > runbook. **✅ Repo YA actualizado al rol nuevo (`b01eb78`, 2026-07-05):** `0002_app_role.sql` crea
 > `app_rls` (ya no patchea `app_user`); `check-rls-live.mjs`, `verify-rls.mjs`, `verify-provision-gate.mts`,
 > `verify-wiring.mts`, `verify-tenant-resolution.mts`, README y runbooks apuntan a `app_rls`. Vallas
-> verdes (tsc·229 tests·3 nets RLS·build). **Falta para prod:** OK final del dueño + password de `app_rls` (secret).
+> verdes (tsc·229 tests·3 nets RLS·build).
 
-### ✅ PASOS DEL DUEÑO para el go-live de Magra (en orden, al retomar)
-1. **`app_rls`** (rol NUEVO, no `app_user`) → definir su **contraseña en Neon** (secret; nunca al repo).
-2. **RLS a prod** → re-correr `0001` (cierra el DRIFT de 9 tablas → 33/33) + **crear `app_rls`** (ver
-   hallazgo arriba) + auditar con `prisma/rls/check-rls-live.mjs`. **Ensayar SIEMPRE en branch primero**
-   (ya salió verde una vez); recién después prod.
-3. **Env vars en Netlify** (+ redeploy): `DATABASE_URL=<app_rls>` · `OPERATOR_DATABASE_URL=<neondb_owner>`
-   · `RLS_ENFORCEMENT=on`.
-4. **Alta de Magra** → `/operador/alta` (2º tenant, blueprint `carniceria`).
-5. **Deploy `magra-erp`** → 2º sitio Netlify con `FORCE_TENANT_SLUG=magra`.
+> **✅ BLOQUE A APLICADO A PROD (2026-07-05, OK del dueño):** con la conexión de owner (`neondb_owner`)
+> se aplicó `0001` (**RLS 33/33, SIN DRIFT** — cerrado el drift de las 9 tablas) y `0002` (**rol `app_rls`
+> creado**: canlogin=true, bypassrls=false, super=false, **SIN password** = inerte hasta que el dueño le
+> ponga una). `app_user` legacy intacto (no se tocó). **Prod NO cambió de comportamiento** (la app sigue
+> conectando como `neondb_owner` → RLS dormido; CH intacto). **Hallazgo del apply:** `ALTER ROLE app_rls
+> … NOBYPASSRLS` también da *permission denied* en Neon (atributo BYPASSRLS es superuser-only) → se quitó
+> del `0002` esa línea redundante (el CREATE ya nace `NOBYPASSRLS`); repo corregido. **Detenido acá a
+> propósito** (no se rotó `DATABASE_URL` ni Netlify ni alta). **Falta:** password de `app_rls` (dueño) +
+> rotación de env vars + deploy + alta.
+
+### PASOS DEL DUEÑO para el go-live de Magra (en orden, al retomar)
+1. ✅ **BLOQUE A HECHO** — RLS 33/33 en prod + rol `app_rls` creado (ver recuadro arriba).
+2. 🔴 **Contraseña de `app_rls`** → Neon → Roles → *Reset password* (o `ALTER ROLE app_rls PASSWORD '…'`).
+   Guardar el secret; sin esto el rol no autentica. **Es el próximo paso.**
+3. 🔴 **Env vars en Netlify** (+ redeploy): `DATABASE_URL=<app_rls con su password>` (template abajo) ·
+   `OPERATOR_DATABASE_URL=<neondb_owner>` · `RLS_ENFORCEMENT=on`. **Verificar CH intacto tras el deploy.**
+4. 🔴 **Alta de Magra** → `/operador/alta` (2º tenant, blueprint `carniceria`).
+5. 🔴 **Deploy `magra-erp`** → 2º sitio Netlify con `FORCE_TENANT_SLUG=magra`.
+
+**Template de `DATABASE_URL` para `app_rls`** (el dueño completa `<PASSWORD>`):
+`postgresql://app_rls:<PASSWORD>@ep-little-credit-act3cxpe-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
 
 Comandos y detalle: **`docs/runbooks/alta-magra.md`**. Fundamento de los hallazgos: §4 y §6.
 

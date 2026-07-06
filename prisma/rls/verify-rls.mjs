@@ -9,7 +9,7 @@
 //
 // Requisitos previos en esa branch:
 //   psql "$RLS_VERIFY_DATABASE_URL" -f prisma/rls/0001_enable_rls.sql
-//   psql "$RLS_VERIFY_DATABASE_URL" -v app_pw=una_pw_de_ensayo -f prisma/rls/0002_app_role.sql
+//   psql "$RLS_VERIFY_DATABASE_URL" -f prisma/rls/0002_app_role.sql   # crea app_rls (usa SET ROLE, no auth)
 //
 // Qué valida (con dos tenants sintéticos y la tabla "Client"):
 //   1. LECTURA aislada: con ctx=A se ven filas de A y NO de B.
