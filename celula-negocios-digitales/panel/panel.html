@@ -869,17 +869,26 @@ function exportFicha(){
   const body=document.getElementById('dwb').innerHTML||'';
   let stamp='';try{stamp=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){}
   const doc='<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+name+' — Celula de Negocios Digitales</title><style>'+PDFCSS+'</style></head><body><header><h1>'+name+'</h1><div class="tg">'+tag+'</div><div class="rw">'+rw+'</div></header><main class="db">'+body+'</main><footer>Celula de Negocios Digitales · documento interno · '+stamp+'</footer><scr'+'ipt>window.onload=function(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},350);};</scr'+'ipt></body></html>';
-  let w=null;try{w=window.open('','_blank');}catch(e){}
-  if(w&&w.document){w.document.open();w.document.write(doc);w.document.close();return;}
-  // fallback: descarga del archivo (se auto-imprime al abrirlo)
+  const fname=(name.replace(/[^\w\s-]/g,'').trim()||'ficha')+'.html';
+  // Camino principal: descarga directa (funciona en el iframe del panel; el archivo se auto-imprime al abrirlo -> Guardar como PDF)
   try{
     const blob=new Blob([doc],{type:'text/html;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;a.download=(name.replace(/[^\w\s-]/g,'').trim()||'ficha')+'.html';
+    a.href=url;a.download=fname;a.rel='noopener';
     document.body.appendChild(a);a.click();a.remove();
-    setTimeout(function(){URL.revokeObjectURL(url);},5000);
-  }catch(e){alert('No se pudo generar la ficha en este entorno. Abrí el panel en una pestaña propia y volvé a intentar.');}
+    setTimeout(function(){URL.revokeObjectURL(url);},8000);
+    return;
+  }catch(e){}
+  // Fallback 1: descarga por data-URI
+  try{
+    const a=document.createElement('a');
+    a.href='data:text/html;charset=utf-8,'+encodeURIComponent(doc);
+    a.download=fname;document.body.appendChild(a);a.click();a.remove();return;
+  }catch(e){}
+  // Fallback 2: abrir en pestaña propia
+  try{const w=window.open('','_blank');if(w&&w.document){w.document.open();w.document.write(doc);w.document.close();return;}}catch(e){}
+  alert('Tu navegador bloqueó la descarga en este entorno. Abrí el panel a pantalla completa (botón de expandir del artifact) y volvé a intentar.');
 }
 document.getElementById('dwpdf').addEventListener('click',exportFicha);
 ov.addEventListener('click',close);
