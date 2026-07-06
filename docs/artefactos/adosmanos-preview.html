@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>A Dos Manos Pádel · Reservá tu cancha (demo)</title>
+<!--
+  DEMO AUTOCONTENIDA — A Dos Manos Pádel (tenant `adosmanos`, blueprint agenda/padel).
+  Un solo archivo, sin build: se abre directo en el navegador. Reproduce el flujo REAL
+  de /reserva del ERP (elegí cancha → turno → fecha → horario → tus datos → confirmación)
+  con el catálogo, precios, canchas y wording del rubro `padel` (src/blueprints/agenda/
+  rubros.ts). La generación de horarios usa la MISMA matemática que src/lib/booking-slots.ts
+  (paso 30 min, buffer 10 min, sin doble-reserva). Datos de turnos ocupados: de ejemplo.
+-->
+<style>
+  :root {
+    /* Tokens del rubro padel: acento verde, tema oscuro deportivo. */
+    --bg: #0e1512;
+    --surface: #16211c;
+    --surface-2: #1d2c25;
+    --line: #2b3d34;
+    --text: #eaf3ee;
+    --text-muted: #9db3a8;
+    --accent: #22c55e;
+    --accent-strong: #16a34a;
+    --on-accent: #04140b;
+    --warning: #fbbf24;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #14251c 0%, transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 64px; }
+
+  /* Header / marca */
+  header.brand { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .logo {
+    width: 46px; height: 46px; border-radius: 12px; flex: none;
+    display: grid; place-items: center; font-weight: 800; font-size: 20px;
+    background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+    color: var(--on-accent); box-shadow: 0 6px 22px rgba(34,197,94,.35);
+  }
+  .brand h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+  .brand p { margin: 2px 0 0; color: var(--text-muted); font-size: 13px; }
+  .badge {
+    margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--text-muted); border: 1px solid var(--line); padding: 5px 10px; border-radius: 999px;
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(160deg, var(--surface-2), var(--surface));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 24px 24px 22px; margin-bottom: 22px;
+  }
+  .hero h2 { margin: 0 0 6px; font-size: 26px; }
+  .hero p { margin: 0; color: var(--text-muted); }
+  .hero .meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 16px; font-size: 13px; color: var(--text-muted); }
+  .hero .meta b { color: var(--text); font-weight: 600; }
+
+  /* Card del formulario */
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 22px;
+  }
+  .step { margin-bottom: 24px; }
+  .step:last-child { margin-bottom: 0; }
+  .step-label {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .16em; color: var(--text);
+  }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center;
+    font-size: 12px; font-weight: 700; background: var(--surface-2); border: 1px solid var(--line);
+  }
+  .step[data-active="1"] .step-num { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .step[data-done="1"] .step-num { background: var(--accent-strong); color: var(--on-accent); border-color: var(--accent-strong); }
+  .muted { color: var(--text-muted); }
+
+  /* Grillas de opciones */
+  .grid { display: grid; gap: 10px; }
+  .grid.canchas { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .grid.turnos { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+  .grid.slots { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+  .opt {
+    text-align: left; background: var(--surface-2); border: 1px solid var(--line);
+    color: var(--text); border-radius: 11px; padding: 13px 14px; cursor: pointer;
+    font: inherit; transition: border-color .15s, transform .05s, background .15s;
+  }
+  .opt:hover { border-color: var(--accent); }
+  .opt:active { transform: scale(.99); }
+  .opt[aria-pressed="true"] { border-color: var(--accent); background: #1c3527; box-shadow: inset 0 0 0 1px var(--accent); }
+  .opt .name { font-weight: 600; display: block; }
+  .opt .sub { color: var(--text-muted); font-size: 12.5px; margin-top: 3px; display: block; }
+  .opt .tag { font-size: 11px; color: var(--accent); font-weight: 700; }
+
+  .slot {
+    text-align: center; padding: 10px 6px; font-variant-numeric: tabular-nums;
+  }
+  .slot[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; box-shadow: none; }
+
+  input[type="text"], input[type="tel"], input[type="date"], input[type="email"] {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 10px; padding: 11px 12px; font: inherit;
+  }
+  input::placeholder { color: #6f857a; }
+  .row { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+
+  .summary {
+    background: var(--surface-2); border: 1px dashed var(--line); border-radius: 11px;
+    padding: 14px 16px; margin-bottom: 22px; font-size: 14px;
+  }
+  .summary .line { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+  .summary .line span:first-child { color: var(--text-muted); }
+  .summary .total { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 10px; font-weight: 700; font-size: 16px; }
+
+  .cta {
+    width: 100%; padding: 14px; border: none; border-radius: 11px; cursor: pointer;
+    background: linear-gradient(140deg, var(--accent), var(--accent-strong)); color: var(--on-accent);
+    font: inherit; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; font-size: 13px;
+    box-shadow: 0 8px 24px rgba(34,197,94,.28);
+  }
+  .cta:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+  .foot-note { text-align: center; color: var(--text-muted); font-size: 12.5px; margin-top: 12px; }
+  .empty { color: var(--text-muted); font-size: 14px; padding: 6px 0; }
+  .hidden { display: none !important; }
+
+  /* Confirmación */
+  .confirm { text-align: center; padding: 26px 20px; }
+  .check {
+    width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: grid; place-items: center;
+    background: var(--accent); color: var(--on-accent); font-size: 34px; font-weight: 800;
+  }
+  .confirm h2 { margin: 0 0 8px; }
+  .ticket {
+    display: inline-block; text-align: left; margin-top: 18px; background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; font-size: 14px; min-width: 260px;
+  }
+  .ticket .line { display: flex; justify-content: space-between; gap: 20px; padding: 3px 0; }
+  .ticket .line span:first-child { color: var(--text-muted); }
+  .link { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; margin-top: 20px; text-decoration: underline; }
+  .demo-tag {
+    position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-muted);
+    background: var(--surface); border: 1px solid var(--line); padding: 6px 10px; border-radius: 999px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="brand">
+    <div class="logo">2M</div>
+    <div>
+      <h1>A Dos Manos Pádel</h1>
+      <p>Reservá tu cancha online, al toque.</p>
+    </div>
+    <span class="badge">Demo del producto</span>
+  </header>
+
+  <section class="hero">
+    <h2>Reservá tu cancha</h2>
+    <p>Elegí cancha, turno y horario disponible. Te confirmamos por WhatsApp.</p>
+    <div class="meta">
+      <span>🏓 <b>3 canchas</b> · cristal y muro</span>
+      <span>🕗 <b>Todos los días</b> · 8 a 23 h</span>
+      <span>💳 <b>Seña</b> por WhatsApp</span>
+    </div>
+  </section>
+
+  <div id="flow" class="card">
+    <!-- Paso 1: Cancha -->
+    <div class="step" id="step-cancha" data-active="1">
+      <div class="step-label"><span class="step-num">1</span> Cancha</div>
+      <div class="grid canchas" id="canchas"></div>
+    </div>
+
+    <!-- Paso 2: Turno -->
+    <div class="step hidden" id="step-turno">
+      <div class="step-label"><span class="step-num">2</span> Tipo de turno</div>
+      <div class="grid turnos" id="turnos"></div>
+    </div>
+
+    <!-- Paso 3: Fecha -->
+    <div class="step hidden" id="step-fecha">
+      <div class="step-label"><span class="step-num">3</span> Fecha</div>
+      <input type="date" id="fecha" />
+    </div>
+
+    <!-- Paso 4: Horario -->
+    <div class="step hidden" id="step-horario">
+      <div class="step-label"><span class="step-num">4</span> Horario disponible</div>
+      <div id="slots-status" aria-live="polite"></div>
+      <div class="grid slots" id="slots"></div>
+    </div>
+
+    <!-- Paso 5: Datos -->
+    <div class="step hidden" id="step-datos">
+      <div class="step-label"><span class="step-num">5</span> Tus datos</div>
+      <div class="summary" id="summary"></div>
+      <div class="grid" style="gap:10px">
+        <input type="text" id="nombre" placeholder="Nombre y apellido" />
+        <div class="row">
+          <input type="tel" id="telefono" placeholder="Teléfono" />
+          <input type="email" id="email" placeholder="Email (opcional)" />
+        </div>
+      </div>
+      <div style="height:14px"></div>
+      <button class="cta" id="confirmar" disabled>Confirmar reserva</button>
+      <p class="foot-note">Te vamos a contactar por WhatsApp para coordinar la seña y confirmar el turno.</p>
+    </div>
+  </div>
+
+  <!-- Confirmación -->
+  <div id="done" class="card confirm hidden">
+    <div class="check">✓</div>
+    <h2>¡Reserva tomada!</h2>
+    <p class="muted">Te esperamos en la cancha. Recibirás la confirmación por WhatsApp.</p>
+    <div class="ticket" id="ticket"></div>
+    <div><button class="link" id="reset">Hacer otra reserva</button></div>
+  </div>
+</div>
+<div class="demo-tag">Demo · sin backend · datos de ejemplo</div>
+
+<script>
+// ---- Catálogo real del rubro `padel` (src/blueprints/agenda/rubros.ts) ----
+const CANCHAS = [
+  { id: "c1", name: "Cancha 1 · Cristal", sub: "Panorámica, cristal" },
+  { id: "c2", name: "Cancha 2 · Cristal", sub: "Cristal, cubierta" },
+  { id: "c3", name: "Cancha 3 · Muro", sub: "Muro, cubierta" },
+];
+const TURNOS = [
+  { id: "t60",  name: "Alquiler de cancha · 60 min", dur: 60, price: 12000, cat: "Alquiler" },
+  { id: "t90",  name: "Alquiler de cancha · 90 min", dur: 90, price: 16000, cat: "Alquiler" },
+  { id: "tluz", name: "Turno con luz · 60 min",      dur: 60, price: 14000, cat: "Alquiler", tag: "con luz" },
+  { id: "tprofe", name: "Clase con profe · 60 min",  dur: 60, price: 20000, cat: "Clases",   tag: "clase" },
+];
+const OPEN_FROM = 8 * 60;   // 08:00 en minutos
+const OPEN_TO   = 23 * 60;  // 23:00
+const STEP_MIN  = 30;
+const BUFFER_MIN = 10;
+
+// Turnos YA ocupados de ejemplo, por cancha (minutos desde 00:00). Simulan la agenda
+// del día para que se vean huecos reales. En el producto salen de la DB.
+const BUSY_BY_CANCHA = {
+  c1: [[9*60, 10*60], [18*60, 19*60+30]],
+  c2: [[8*60, 9*60], [12*60, 13*60], [20*60, 21*60]],
+  c3: [[19*60, 20*60]],
+};
+
+// ---- Misma matemática que src/lib/booking-slots.ts (buffer + no doble-reserva) ----
+function overlaps(aS, aE, bS, bE) { return aS < bE && aE > bS; }
+function generateSlots(dur, busy) {
+  const out = [];
+  for (let t = OPEN_FROM; t + dur <= OPEN_TO; t += STEP_MIN) {
+    const s = t, e = t + dur;
+    // Los turnos ocupados se agrandan con el buffer a cada lado.
+    const clash = busy.some(([bs, be]) => overlaps(s, e, bs - BUFFER_MIN, be + BUFFER_MIN));
+    if (!clash) out.push(t);
+  }
+  return out;
+}
+const fmt = (m) => String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0");
+const money = (n) => "$" + n.toLocaleString("es-AR");
+
+// ---- Estado ----
+const state = { cancha: null, turno: null, fecha: "", slot: null };
+
+const $ = (id) => document.getElementById(id);
+function show(id, on) { $(id).classList.toggle("hidden", !on); }
+function setStep(id, { active, done }) {
+  const el = $(id);
+  el.dataset.active = active ? "1" : "0";
+  el.dataset.done = done ? "1" : "0";
+}
+
+// Render canchas
+function renderCanchas() {
+  $("canchas").innerHTML = "";
+  CANCHAS.forEach((c) => {
+    const b = document.createElement("button");
+    b.className = "opt"; b.type = "button"; b.setAttribute("aria-pressed", state.cancha?.id === c.id);
+    b.innerHTML = `<span class="name">${c.name}</span><span class="sub">${c.sub}</span>`;
+    b.onclick = () => { state.cancha = c; state.slot = null; onPick(); };
+    $("canchas").appendChild(b);
+  });
+}
+// Render turnos
+function renderTurnos() {
+  $("turnos").innerHTML = "";
+  TURNOS.forEach((t) => {
+    const b = document.createElement("button");
+    b.className = "opt"; b.type = "button"; b.setAttribute("aria-pressed", state.turno?.id === t.id);
+    b.innerHTML = `<span class="name">${t.name}</span>` +
+      `<span class="sub">${t.dur} min · <b style="color:var(--text)">${money(t.price)}</b>` +
+      (t.tag ? ` · <span class="tag">${t.tag}</span>` : "") + `</span>`;
+    b.onclick = () => { state.turno = t; state.slot = null; onPick(); };
+    $("turnos").appendChild(b);
+  });
+}
+// Render slots
+function renderSlots() {
+  const box = $("slots"); const status = $("slots-status");
+  box.innerHTML = ""; status.innerHTML = "";
+  if (!state.cancha || !state.turno || !state.fecha) return;
+  const busy = BUSY_BY_CANCHA[state.cancha.id] || [];
+  const slots = generateSlots(state.turno.dur, busy);
+  if (slots.length === 0) {
+    status.innerHTML = `<p class="empty">No hay horarios disponibles ese día.</p>`;
+    return;
+  }
+  status.innerHTML = `<p class="empty">${slots.length} horarios disponibles. Elegí uno.</p>`;
+  slots.forEach((m) => {
+    const b = document.createElement("button");
+    b.className = "opt slot"; b.type = "button"; b.textContent = fmt(m);
+    b.setAttribute("aria-pressed", state.slot === m);
+    b.onclick = () => { state.slot = m; onPick(); };
+    box.appendChild(b);
+  });
+}
+// Summary
+function renderSummary() {
+  if (!state.slot) return;
+  const t = state.turno;
+  $("summary").innerHTML =
+    `<div class="line"><span>Cancha</span><span>${state.cancha.name}</span></div>` +
+    `<div class="line"><span>Turno</span><span>${t.name}</span></div>` +
+    `<div class="line"><span>Fecha y hora</span><span>${prettyDate(state.fecha)} · ${fmt(state.slot)} a ${fmt(state.slot + t.dur)}</span></div>` +
+    `<div class="line total"><span>Total</span><span>${money(t.price)}</span></div>`;
+}
+function prettyDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
+}
+
+// Progreso de pasos
+function onPick() {
+  renderCanchas(); renderTurnos();
+  setStep("step-cancha", { active: !state.cancha, done: !!state.cancha });
+  show("step-turno", !!state.cancha);
+  setStep("step-turno", { active: state.cancha && !state.turno, done: !!state.turno });
+  show("step-fecha", !!state.turno);
+  setStep("step-fecha", { active: state.turno && !state.fecha, done: !!state.fecha });
+  show("step-horario", !!state.fecha);
+  setStep("step-horario", { active: state.fecha && state.slot == null, done: state.slot != null });
+  renderSlots();
+  show("step-datos", state.slot != null);
+  setStep("step-datos", { active: state.slot != null, done: false });
+  renderSummary();
+  validate();
+}
+function validate() {
+  const ok = state.slot != null && $("nombre").value.trim() && $("telefono").value.trim();
+  $("confirmar").disabled = !ok;
+}
+
+// Init
+renderCanchas();
+$("fecha").min = new Date().toISOString().slice(0, 10);
+$("fecha").value = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+state.fecha = $("fecha").value;
+$("fecha").onchange = (e) => { state.fecha = e.target.value; state.slot = null; onPick(); };
+$("nombre").oninput = validate;
+$("telefono").oninput = validate;
+
+$("confirmar").onclick = () => {
+  const t = state.turno;
+  $("ticket").innerHTML =
+    `<div class="line"><span>Cancha</span><span>${state.cancha.name}</span></div>` +
+    `<div class="line"><span>Turno</span><span>${t.name}</span></div>` +
+    `<div class="line"><span>Día</span><span>${prettyDate(state.fecha)}</span></div>` +
+    `<div class="line"><span>Hora</span><span>${fmt(state.slot)} a ${fmt(state.slot + t.dur)}</span></div>` +
+    `<div class="line"><span>A nombre de</span><span>${$("nombre").value.trim()}</span></div>` +
+    `<div class="line"><span>Total</span><span>${money(t.price)}</span></div>`;
+  show("flow", false);
+  show("done", true);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+$("reset").onclick = () => {
+  state.cancha = null; state.turno = null; state.slot = null;
+  $("nombre").value = ""; $("telefono").value = ""; $("email").value = "";
+  show("done", false); show("flow", true);
+  show("step-turno", false); show("step-fecha", false); show("step-horario", false); show("step-datos", false);
+  onPick();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+</script>
+</body>
+</html>

@@ -6,10 +6,25 @@
 import { prisma } from "@/lib/prisma";
 import { BUFFER_MIN } from "@/lib/business-config";
 import { businessWallTimeToUtc, dayOfWeekForDate } from "@/lib/datetime";
+import { withBuffer } from "@/lib/booking-slots";
 
 // Cliente de transacción de Prisma (el `tx` que recibe $transaction). Se deriva
 // del tipo de prisma para no importar el namespace generado.
 export type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+// ¿El turno se puede todavía modificar (cancelar/reprogramar)? Sólo si está vivo
+// (pendiente o confirmado) y arranca en el futuro. Es política de dominio PURA:
+// vive acá (no en el componente) para ser testeable y para no llamar a `Date.now`
+// en el render de un Server Component (regla de pureza de React). `now` se inyecta
+// en los tests; por defecto es el reloj real.
+export function isAppointmentModifiable(
+  status: string,
+  startsAt: Date,
+  now: Date = new Date()
+): boolean {
+  const alive = status === "PENDING" || status === "CONFIRMED";
+  return alive && startsAt.getTime() > now.getTime();
+}
 
 // Devuelve la ventana de trabajo del profesional ese día según su horario
 // configurado, o null si ese día no trabaja.
@@ -47,9 +62,10 @@ export async function assertSlotAvailable(
   const { professionalId, boxId, serviceId, startsAt, endsAt, excludeAppointmentId } = params;
   const notSelf = excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {};
 
-  // Solape de profesional/box con el margen de limpieza/preparación (BUFFER_MIN).
-  const bufferedStart = new Date(startsAt.getTime() - BUFFER_MIN * 60000);
-  const bufferedEnd = new Date(endsAt.getTime() + BUFFER_MIN * 60000);
+  // Solape de profesional/box con el margen de limpieza/preparación (BUFFER_MIN),
+  // con el MISMO helper que usa la generación de franjas (booking-slots) para que
+  // "lo que se ofrece" y "lo que se acepta" no puedan divergir.
+  const { startsAt: bufferedStart, endsAt: bufferedEnd } = withBuffer(startsAt, endsAt, BUFFER_MIN);
   const conflicts = await tx.appointment.findMany({
     where: {
       ...notSelf,

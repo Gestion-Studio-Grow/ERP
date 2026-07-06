@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { createAppointment, getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
+import type { AgendaBookingCopy } from "@/blueprints/agenda";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = {
@@ -39,7 +40,13 @@ function StepLabel({ n, id, children }: { n: number; id?: string; children: Reac
 const inputClass = "w-full px-3 py-2.5 text-sm bg-transparent";
 const inputStyle = { border: "1px solid var(--line)", color: "var(--text-strong)" };
 
-export default function BookingForm({ professionals }: { professionals: Professional[] }) {
+export default function BookingForm({
+  professionals,
+  copy,
+}: {
+  professionals: Professional[];
+  copy: AgendaBookingCopy;
+}) {
   const [professionalId, setProfessionalId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState("");
@@ -47,6 +54,14 @@ export default function BookingForm({ professionals }: { professionals: Professi
   const [selectedSlot, setSelectedSlot] = useState("");
   const [isResident, setIsResident] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // El precio "vecino/a" es exclusivo de CH Estética (ADR-013): sólo mostramos el
+  // toggle si ALGÚN servicio tiene precio preferencial. Un club de pádel no lo usa
+  // → el checkbox no aparece (Fiori: nada que no aplique al rol/negocio).
+  const hasResidentPricing = useMemo(
+    () => professionals.some((p) => p.services.some((s) => s.residentPrice != null)),
+    [professionals]
+  );
 
   // Hoy en fecha local (no UTC): evita que un turno se agende en el pasado.
   const today = useMemo(() => {
@@ -82,12 +97,12 @@ export default function BookingForm({ professionals }: { professionals: Professi
         >
           {professional && (
             <p>
-              <span style={{ color: "var(--text-muted)" }}>Profesional</span> — {professional.name}
+              <span style={{ color: "var(--text-muted)" }}>{copy.summaryProviderLabel}</span> — {professional.name}
             </p>
           )}
           {service && (
             <p>
-              <span style={{ color: "var(--text-muted)" }}>Servicio</span> — {service.name} · $
+              <span style={{ color: "var(--text-muted)" }}>{copy.summaryServiceLabel}</span> — {service.name} · $
               {(isResident && service.residentPrice != null ? service.residentPrice : service.price).toLocaleString("es-AR")}
               {isResident && service.residentPrice != null && (
                 <span style={{ color: "var(--text-muted)" }}> (precio vecino/a)</span>
@@ -110,7 +125,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
       <form action={createAppointment} className="space-y-8">
         <div>
-          <StepLabel n={1} id="reserva-step-profesional">Profesional</StepLabel>
+          <StepLabel n={1} id="reserva-step-profesional">{copy.providerLabel}</StepLabel>
           <select
             name="professionalId"
             required
@@ -124,7 +139,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
               loadSlots(e.target.value, "", date);
             }}
           >
-            <option value="">Seleccioná un profesional</option>
+            <option value="">{copy.providerPlaceholder}</option>
             {professionals.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} {p.box ? `— ${p.box.name}` : ""}
@@ -135,7 +150,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
 
         {professional && (
           <div>
-            <StepLabel n={2} id="reserva-step-servicio">Servicio</StepLabel>
+            <StepLabel n={2} id="reserva-step-servicio">{copy.serviceLabel}</StepLabel>
             <select
               name="serviceId"
               required
@@ -148,7 +163,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
                 loadSlots(professionalId, e.target.value, date);
               }}
             >
-              <option value="">Seleccioná un servicio</option>
+              <option value="">{copy.servicePlaceholder}</option>
               {professional.services.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.durationMin} min) — ${s.price.toLocaleString("es-AR")}
@@ -255,15 +270,17 @@ export default function BookingForm({ professionals }: { professionals: Professi
               className={inputClass}
               style={inputStyle}
             />
-            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text-strong)" }}>
-              <input
-                type="checkbox"
-                name="isResident"
-                checked={isResident}
-                onChange={(e) => setIsResident(e.target.checked)}
-              />
-              Soy vecino/a de La Alameda
-            </label>
+            {hasResidentPricing && (
+              <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text-strong)" }}>
+                <input
+                  type="checkbox"
+                  name="isResident"
+                  checked={isResident}
+                  onChange={(e) => setIsResident(e.target.checked)}
+                />
+                Soy vecino/a de La Alameda
+              </label>
+            )}
             <input
               name="couponCode"
               aria-label="Cupón de descuento (opcional)"
@@ -275,7 +292,7 @@ export default function BookingForm({ professionals }: { professionals: Professi
               pendingText="Confirmando…"
               className="btn-editorial-solid w-full justify-center text-xs uppercase tracking-[0.1em] mt-2"
             >
-              Confirmar turno
+              {copy.confirmCta}
             </SubmitButton>
             <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
               Te vamos a contactar por WhatsApp para coordinar el pago y confirmar el turno.

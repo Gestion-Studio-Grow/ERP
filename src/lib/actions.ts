@@ -16,6 +16,7 @@ import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
+import { generateSlots, intervalsOverlap, withBuffer } from "@/lib/booking-slots";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
@@ -104,43 +105,35 @@ export async function getAvailableSlots(
   // después; los bloqueos de box/profesional ya son rangos explícitos y no
   // necesitan margen extra.
   const busy = [
-    ...existing.map((a) => ({
-      startsAt: new Date(a.startsAt.getTime() - BUFFER_MIN * 60000),
-      endsAt: new Date(a.endsAt.getTime() + BUFFER_MIN * 60000),
-    })),
+    ...existing.map((a) => withBuffer(a.startsAt, a.endsAt, BUFFER_MIN)),
     ...boxBlocks,
     ...professionalBlocks,
   ];
 
-  const slots: string[] = [];
-  const stepMin = 30;
-  for (
-    let t = new Date(dayStart);
-    t.getTime() + service.durationMin * 60000 <= dayEnd.getTime();
-    t = new Date(t.getTime() + stepMin * 60000)
-  ) {
-    const slotEnd = new Date(t.getTime() + service.durationMin * 60000);
-    if (busy.some((a) => t < a.endsAt && slotEnd > a.startsAt)) continue;
-
-    // Capacidad de recursos (G17): para cada recurso requerido, la suma de
-    // unidades de los turnos que se solapan más lo que este turno consume no
-    // puede superar la cantidad disponible.
-    let resourceOk = true;
+  // Capacidad de recursos (G17): para cada recurso requerido, la suma de unidades
+  // de los turnos que se solapan más lo que este turno consume no puede superar la
+  // cantidad disponible. Predicado por-franja (sólo si el servicio usa recursos).
+  const capacityOk = (slotStart: Date, slotEnd: Date) => {
     for (const sr of serviceResources) {
       const overlapUnits = resourceUsage
-        .filter((a) => t < a.endsAt && slotEnd > a.startsAt)
+        .filter((a) => intervalsOverlap(slotStart, slotEnd, a.startsAt, a.endsAt))
         .reduce((sum, a) => {
           const link = a.service.resources.find((r) => r.resourceId === sr.resourceId);
           return sum + (link?.units ?? 0);
         }, 0);
-      if (overlapUnits + sr.units > sr.resource.quantity) {
-        resourceOk = false;
-        break;
-      }
+      if (overlapUnits + sr.units > sr.resource.quantity) return false;
     }
-    if (resourceOk) slots.push(t.toISOString());
-  }
-  return slots;
+    return true;
+  };
+
+  return generateSlots({
+    dayStart,
+    dayEnd,
+    durationMin: service.durationMin,
+    stepMin: 30,
+    busy,
+    capacityOk: serviceResources.length > 0 ? capacityOk : undefined,
+  });
 }
 
 type BookingStatus = "PENDING" | "CONFIRMED";
