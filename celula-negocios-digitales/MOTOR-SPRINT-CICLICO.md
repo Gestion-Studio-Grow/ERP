@@ -125,6 +125,18 @@
   cola detrás (no descartados — encolados). Marcá para cada uno: **realizable ahora (sí/no)** y **costo de
   arranque (bajo/medio/alto)**, y ordená la cola por eso.
 
+### Rueda ya inventada — clonar lo PROBADO y adaptarlo al mercado local (bajada del dueño)
+- **Analizar y transformar negocios YA PROBADOS y funcionando afuera** (EE.UU./Europa/Brasil, con
+  revenue real y cifras verificables) y **adaptarlos al mercado local real argentino**. No hace falta
+  inventar todo de cero: la rueda inventada + localización seria es una fuente de negocios de primera.
+- **Método (validado en Wave 14):** (1) evidencia de que factura afuera (fuente + cifra); (2)
+  **verificación obligatoria de competencia local** — el hueco AR tiene que ser real, este error ya nos
+  mató 6+ negocios; (3) que el poder de compra argentino banque el pricing localizado; (4) **anclaje
+  local como moat**: pesos, WhatsApp, Mercado Pago, obras sociales, AFIP/entes públicos, inflación —
+  lo que el player global no copia fácil; (5) medir la ventana antes de que el global agregue español.
+- Casos de referencia en cartera: Disputa Ganada (Chargeflow), Escriba (Abridge/Freed), Débito
+  Devuelto (Adonis), Costo al Plato (MarginEdge), Cómputo Exprés (Handoff), Carga al Día (HappyRobot).
+
 ### Para TODOS los agentes — salir del sesgo del modelo
 - **Salir del sesgo clásico de los LLM.** No proponer lo primero/obvio que cualquier modelo tiraría
   (otro chatbot, otro wrapper de IA, otro dashboard, otra "agencia de automatización"). Si suena a idea
