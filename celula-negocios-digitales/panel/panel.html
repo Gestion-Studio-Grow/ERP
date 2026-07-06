@@ -566,6 +566,26 @@ const DATA=[
  'Etiqueta Verde':['no','La etiqueta energetica requiere un certificador acreditado que la firme por ley provincial.']
 };DATA.forEach(d=>{const p=IA[d.name];if(p){d.ia=p[0];d.iawhy=p[1];}});})();
 
+/* ==== PATCH v3 (parcial) — red-team con research fresco (06/07) + fixes del auditor de integridad ==== */
+;(function(){
+ // Fix auditoria: los 8 huerfanos sin doc pasan a "Carga directa"; la Ronda 9 documentada recupera su numero
+ DATA.forEach(d=>{
+  if(d.tag&&d.tag.includes('Ronda 9')&&!d.tag.includes('Ronda 9b'))d.tag=d.tag.replace('Ronda 9','Carga directa · sin doc');
+  else if(d.tag&&d.tag.includes('Ronda 10'))d.tag=d.tag.replace('Ronda 10','Carga directa · sin doc');
+ });
+ DATA.forEach(d=>{if(d.tag&&d.tag.includes('Ronda 9b'))d.tag=d.tag.replace('Ronda 9b','Ronda 9');});
+ // Veredictos del red-team v3 (verificacion de senal + competencia local + olfato)
+ const V3={
+ 'Cuidador en Regla':{idx:15,prod:'dead',prodwhy:'MUERTO por el Estado: ARCA lanzo el recibo de sueldo digital obligatorio y GRATIS para casas particulares (RG 5850/2026, desde mayo-2026) — se comio el producto; ademas el pitch citaba escalas salariales vencidas.'},
+ 'Billetera en Regla':{idx:30,prod:'warn',prodwhy:'DEGRADADO: la senal 8411/8432 es real pero el mercado son ~150 PSP ya cortejados por Marval, Allende Brea y 10+ estudios top, y ya obligados a tener oficial de cumplimiento; viable solo como implementacion operativa ultra-especializada.'},
+ 'Brote Legal':{idx:26,prod:'warn',prodwhy:'DEGRADADO: regimen transitorio que vence 03/2027 sobre organismo zombi (ARICCAME disuelta por decreto y restituida por el Congreso, con el Ejecutivo en contra); We Legal y otros estudios ya cubren el tramite. Proyecto puntual, no suscripcion.'},
+ 'Autor Directo':{idx:20,prod:'dead',prodwhy:'MUERTO: la senal es real y firme (fin del monopolio SADAIC) pero el negocio vende calculo cuando el cuello es la COBRANZA — sin inspectores ni masa critica de repertorio nadie obliga al bar a pagar; SADAIC sigue siendo el default.'},
+ 'Búnker de Datos':{idx:24,prod:'warn',prodwhy:'DEGRADADO: la Disp. CNC 1/2026 es real pero ARSAT construye el datacenter de respaldo en Bariloche (calza los 1.500 km) y BDO/EY/estudios ya toman los papeles; queda solo documentacion express de ticket chico.'},
+ 'Geriátrico Legal':{idx:22,prod:'warn',prodwhy:'DEGRADADO: pitch sobre norma nacional mal leida (la Res. 1938/2025 ABARATA el tramite y casi no aplica al target, que habilita a nivel provincial/municipal); gestorias como Opus ya lo cubren. Gestoria transaccional posible, SaaS no.'}
+ };
+ DATA.forEach(d=>{const p=V3[d.name];if(p){d.idx=p.idx;d.prod=p.prod;d.prodwhy=p.prodwhy+' '+(d.prodwhy||'');}});
+})();
+
 const WAVES=[
  {t:'Ciclo 1 — Exploración',d:'06·07',cls:'done',items:['4 consultores + experto de cobro','12 negocios con research y fuentes','Portfolio + recomendación (barbell)']},
  {t:'Ciclo 2 — Pasivo vs Activo + Red-team',d:'06·07',cls:'done',items:['2 equipos horizontales','23 ideas → 10 finalistas','Red-team: 2 limpios, 2 comodines, 4 muertos']},
