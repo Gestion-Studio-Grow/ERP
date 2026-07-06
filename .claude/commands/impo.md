@@ -13,6 +13,36 @@ dueño: es trabajo de **alto juicio y estratégico**). Vos (PMO) coordinás, sec
 > de `CLAUDE.md` → "MODELO DE TRABAJO DE GSG", "CONCURRENCIA Y PRIORIDADES" y el **Gate de Excelencia +
 > sello GSG**. No lo reemplaza: lo aplica a un frente nuevo (importaciones).
 
+## 🎯 Objetivo del equipo (el resultado que produce)
+**Producir un CARRITO CURADO de productos a importar** —para el **contacto importador del dueño**
+(China/global)— **listo para pedir.** El equipo **no compra: arma la propuesta.** **Cada ORDEN la
+cierra/aprueba el DUEÑO; nada se compra sin su OK explícito** (regla dura, igual que toda compra en GSG:
+los pagos/adelantos son acción humana del dueño). El carrito es el entregable final del PMO, respaldado
+por el análisis por producto.
+
+**Qué entrega por cada oportunidad — análisis DETALLADO por producto:**
+- **Demanda local (Argentina)** — tracción, volumen esperado, estacionalidad.
+- **Margen estimado** — sobre el costo landeado vs. el precio de venta objetivo.
+- **Costo landeado** — **FOB + flete + nacionalización + impuestos** (derechos, IVA, tasas/percepciones), por unidad.
+- **Competencia** — quién vende, a qué precio, en qué canal.
+- **Precio de venta objetivo** — y el canal (MercadoLibre / tienda propia / mayorista).
+- **Riesgo** — regulatorio, de calidad, de tipo de cambio, de MOQ/capital inmovilizado.
+- **Proveedor sugerido** — con **MOQ, muestras**, calidad y condiciones.
+
+## 🧱 FUNDAMENTO OBLIGATORIO — el cimiento antes de proponer nada
+**El equipo NO propone productos hasta documentar primero QUÉ SE PUEDE IMPORTAR HOY en la Argentina.**
+Es la base obligatoria del frente, se produce en la **FASE 0** y es dueña del **Analista de costos,
+logística y aduana**. Toda oportunidad de producto **se filtra contra este cimiento**: si no es
+importable hoy, **no entra al carrito**.
+- **Mercados/países y CATEGORÍAS abiertos HOY** para importar a la Argentina — qué está habilitado y qué
+  está restringido/prohibido por categoría/origen.
+- **Régimen de importación vigente** — licencias automáticas / no automáticas (LA/LNA), **SIRA / SEDI o el
+  sistema que aplique al momento** (*el régimen argentino cambia seguido → VERIFICAR contra fuente oficial;
+  provisional a confirmar*), y pasos de nacionalización.
+- **Aranceles y restricciones por categoría** — derechos de importación, percepciones/impuestos, cupos y
+  requisitos por rubro (p. ej. ANMAT/INAL en alimentos, seguridad eléctrica en electro, etc.).
+- **Salida:** `docs/importaciones/fundamento-regimen-ar.md` — el cimiento sobre el que se apoya todo el resto.
+
 ## ⛔ FASE 0 — NO SALTEABLE — Foto antes de despachar
 Al invocar `impo`, lo PRIMERO es la **FASE 0**: leer el fundamento del modelo de trabajo (`CLAUDE.md`) y
 la foto del frente de importaciones (`docs/importaciones/ESTADO.md` + último análisis en
@@ -37,10 +67,10 @@ placeholder coherente marcado "provisional a confirmar", no se frena). **Sin la 
 
 | Célula (sesión dueña) | Misión | Entregable en `docs/importaciones/` |
 |---|---|---|
-| **PMO Importaciones** | Coordina, prioriza, secuencia, integra los análisis en una **tesis de importación** (qué traer, de quién, a qué costo, para qué mercado) y pasa el Gate GSG antes de consolidar. | `ESTADO.md` + `tesis/` (síntesis y decisión) |
+| **PMO Importaciones** | Coordina, prioriza, secuencia, integra los análisis en una **tesis de importación** (qué traer, de quién, a qué costo, para qué mercado) y arma el **CARRITO CURADO listo para pedir**; pasa el Gate GSG antes de consolidar. **Nada al carrito sin cimiento de régimen; ninguna orden sin OK del dueño.** | `ESTADO.md` · `tesis/` · **`carrito/` (curado, para aprobación del dueño)** |
 | **Analista de oportunidades de producto** | **Qué importar que tenga demanda y margen en Argentina** — categorías con tracción, estacionalidad, ticket, diferenciación, riesgo regulatorio. | `analisis/oportunidades-<categoria>.md` |
 | **Analista de proveedores China** | **Sourcing**: Alibaba/1688, proveedores/fábricas, **MOQ**, calidad, muestras, certificaciones, incoterms, tiempos, formas de pago, verificación de proveedor. | `analisis/proveedores-<categoria>.md` |
-| **Analista de costos, logística y aduana** | **Costeo AR de punta a punta**: flete (marítimo/aéreo), nacionalización, impuestos/derechos AR, IVA, tasas, despachante, **tipo de cambio**, landed cost por unidad. | `analisis/costos-logistica-<categoria>.md` |
+| **Analista de costos, logística y aduana** | **Dueño del CIMIENTO de régimen** (`fundamento-regimen-ar.md`: qué se puede importar hoy, licencias/SIRA-SEDI, aranceles/restricciones por categoría) — **lo produce PRIMERO**. Luego **costeo AR de punta a punta**: flete (marítimo/aéreo), nacionalización, impuestos/derechos, IVA, tasas, despachante, **tipo de cambio**, landed cost por unidad. | `fundamento-regimen-ar.md` · `analisis/costos-logistica-<categoria>.md` |
 | **Analista de mercado local y pricing** | **Demanda y competencia AR**: canales (**MercadoLibre / tienda propia / mayorista**), pricing y **margen**, competidores, volumen esperado, go-to-market. | `analisis/mercado-pricing-<categoria>.md` |
 
 **Eje de paralelización:** por **categoría/oportunidad de producto** (no por proveedor). Cada categoría en
