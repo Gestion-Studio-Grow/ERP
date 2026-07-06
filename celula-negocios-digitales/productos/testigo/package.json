@@ -1,0 +1,22 @@
+{
+  "name": "testigo-prototipo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Prototipo aislado del producto Testigo (célula I+D). Núcleo: foto+audio de WhatsApp -> parte de trabajo de control de plagas en PDF. NO forma parte del ERP.",
+  "scripts": {
+    "demo": "node --loader ts-node/esm ejemplo/demo.ts",
+    "demo:mock": "TESTIGO_MOCK=1 node --loader ts-node/esm ejemplo/demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "ts-node": "^10.9.2",
+    "@types/node": "^22.0.0"
+  },
+  "comentario": "Dependencias declaradas, NO instaladas en este kickoff (prototipo aislado, sin npm install contra el repo). Para correr: npm install en esta carpeta y luego npm run demo:mock. Versiones a fijar contra el package real al integrar. Playwright se agrega en M1 para htmlAPDF()."
+}
