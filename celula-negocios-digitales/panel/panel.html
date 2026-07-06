@@ -206,41 +206,6 @@
   .pdfbtn{border:1px solid var(--line);background:var(--raised);border-radius:7px;height:34px;padding:0 11px;cursor:pointer;color:var(--ink);font-family:var(--f-mono);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .pdfbtn:hover{border-color:var(--accent);color:var(--accent)}
   .print-only{display:none}
-  /* ===== Impresión: solo la ficha abierta, en claro y legible ===== */
-  @media print{
-    @page{margin:14mm}
-    html,body{height:auto!important;overflow:visible!important;background:#fff!important}
-    /* si hay una ficha abierta, imprimí SOLO esa ficha */
-    body:has(.dw.open)>*:not(.dw){display:none!important}
-    .ov{display:none!important}
-    .dw:not(.open){display:none!important}
-    .dw.open{position:static!important;transform:none!important;width:100%!important;max-width:100%!important;height:auto!important;box-shadow:none!important;border:none!important;background:#fff!important;color:#111!important;display:block!important}
-    .dh{position:static!important;background:#fff!important;border-bottom:1.5px solid #111!important;padding:0 0 10px!important}
-    .dh h3{color:#111!important}
-    .dh .tg{color:#444!important}
-    .pdfbtn,.close{display:none!important}
-    .db{overflow:visible!important;height:auto!important;display:block!important;padding:14px 0 0!important}
-    .db>*{margin-bottom:13px!important}
-    .ds .dl{color:#666!important}
-    .ds p,.gcard p{color:#1a1a1a!important}
-    .idxbig{background:#f3f4f6!important;border:1px solid #bbb!important;color:#111!important}
-    .idxbig .ib-n{color:#111!important}
-    .idxbig .ib-l{color:#555!important}
-    .idxbig .ib-why{color:#222!important}
-    .idxbig .ib-bar{background:#ddd!important}
-    .idxbig .ib-bar i{background:#111!important}
-    .hero-box{background:#fbf6d8!important;border:1px solid #d8c766!important}
-    .hero-box .dl{color:#8a7400!important}
-    .hero-box p{color:#1a1a1a!important}
-    .dstats{background:#ccc!important;border-color:#ccc!important}
-    .dstats .s{background:#fff!important}
-    .dstats .s .k{color:#666!important} .dstats .s .v{color:#111!important} .dstats .s .v.good{color:#0a7a3c!important}
-    .pill{border:1px solid #bbb!important;background:#fff!important}
-    .pill.ok{color:#0a7a3c!important} .pill.warn{color:#a85800!important} .pill.dead{color:#b02a1f!important}
-    .path .pi,.pill,.ds,.hero-box,.idxbig,.dstats{break-inside:avoid}
-    .print-only{display:block!important;font-family:var(--f-mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#888!important;margin-top:2px}
-    .db::after{content:'Célula de Negocios Digitales · documento interno · ' attr(data-stamp);display:block;margin-top:18px;padding-top:10px;border-top:1px solid #ccc;font-family:var(--f-mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:#999}
-  }
 </style>
 
 <div class="hero">
@@ -896,12 +861,27 @@ function open(name){
 function close(){ov.classList.remove('open');dw.classList.remove('open');document.body.style.overflow=''}
 document.addEventListener('click',e=>{const el=e.target.closest('[data-id]');if(el)open(el.dataset.id)});
 document.getElementById('dwx').addEventListener('click',close);
-document.getElementById('dwpdf').addEventListener('click',()=>{
-  const b=document.getElementById('dwb');
-  try{b.setAttribute('data-stamp',new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}));}catch(e){b.setAttribute('data-stamp','');}
-  document.title=(document.getElementById('dwn').textContent||'Negocio')+' — Célula de Negocios Digitales';
-  window.print();
-});
+const PDFCSS="*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;line-height:1.5;max-width:720px;margin:32px auto;padding:0 22px;background:#fff}header{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:18px}header h1{font-size:24px;margin:0 0 4px;font-style:italic}header .tg{color:#555;font-size:13px}header .rw{margin-top:9px;display:flex;gap:7px;flex-wrap:wrap}.db>*{margin-bottom:14px}.idxbig{background:#f3f4f6;border:1px solid #bbb;border-radius:12px;padding:14px 16px}.idxbig .ib-top{display:flex;justify-content:space-between;align-items:baseline}.idxbig .ib-n{font-size:40px;font-weight:900;font-style:italic;line-height:.9}.idxbig .ib-l{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#666;text-align:right}.idxbig .ib-bar{height:9px;background:#ddd;border-radius:5px;margin:11px 0 9px;overflow:hidden}.idxbig .ib-bar i{display:block;height:100%;background:#111}.idxbig .ib-why{font-size:12.5px;color:#333}.ds .dl,.hero-box .dl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#666;margin-bottom:5px;font-weight:700}.ds p,.hero-box p{margin:0;font-size:13.5px;color:#1a1a1a}.hero-box{background:#fbf6d8;border:1px solid #d8c766;border-radius:10px;padding:12px 14px}.hero-box .dl{color:#8a7400}.dstats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#ccc;border:1px solid #ccc;border-radius:10px;overflow:hidden}.dstats .s{background:#fff;padding:9px 12px}.dstats .s .k{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:#666}.dstats .s .v{font-size:13.5px;font-weight:700;margin-top:2px}.dstats .s .v.good{color:#0a7a3c}.pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;border:1px solid #bbb;white-space:nowrap}.pill .pd{width:7px;height:7px;border-radius:50%;background:currentColor}.pill.ok{color:#0a7a3c}.pill.warn{color:#a85800}.pill.dead{color:#b02a1f}.vrow{display:flex;gap:7px;flex-wrap:wrap}.path{display:flex;flex-direction:column;gap:6px}.path .pi{display:grid;grid-template-columns:20px 1fr;gap:9px;font-size:13px}.path .pi .pn{font-weight:700;color:#111;font-size:12px}footer{margin-top:22px;padding-top:10px;border-top:1px solid #ccc;font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:#999}@media print{@page{margin:14mm}body{margin:0;max-width:100%}.idxbig,.ds,.hero-box,.dstats,.pill,.path .pi{break-inside:avoid}}";
+function exportFicha(){
+  const name=(document.getElementById('dwn').textContent||'Negocio');
+  const tag=document.getElementById('dwt').textContent||'';
+  const rw=document.getElementById('dwr').innerHTML||'';
+  const body=document.getElementById('dwb').innerHTML||'';
+  let stamp='';try{stamp=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){}
+  const doc='<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+name+' — Celula de Negocios Digitales</title><style>'+PDFCSS+'</style></head><body><header><h1>'+name+'</h1><div class="tg">'+tag+'</div><div class="rw">'+rw+'</div></header><main class="db">'+body+'</main><footer>Celula de Negocios Digitales · documento interno · '+stamp+'</footer><scr'+'ipt>window.onload=function(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},350);};</scr'+'ipt></body></html>';
+  let w=null;try{w=window.open('','_blank');}catch(e){}
+  if(w&&w.document){w.document.open();w.document.write(doc);w.document.close();return;}
+  // fallback: descarga del archivo (se auto-imprime al abrirlo)
+  try{
+    const blob=new Blob([doc],{type:'text/html;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=(name.replace(/[^\w\s-]/g,'').trim()||'ficha')+'.html';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},5000);
+  }catch(e){alert('No se pudo generar la ficha en este entorno. Abrí el panel en una pestaña propia y volvé a intentar.');}
+}
+document.getElementById('dwpdf').addEventListener('click',exportFicha);
 ov.addEventListener('click',close);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
 
