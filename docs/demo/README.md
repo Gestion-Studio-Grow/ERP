@@ -40,6 +40,12 @@ Stories** arriba. El visitante recorre 6 escenas:
 El CTA primario abre **WhatsApp** con un mensaje pre-cargado ("quiero esto para mi negocio");
 el secundario, un **mail**. Cero backend, cero formulario, cero fricción.
 
+**Instrumentada** (Célula Growth/Digital, 2026-07-06): emite `demo_start`, `demo_step_completado`
+(por escena, con el `rubro` del `utm_content`), `demo_complete`, `cta_whatsapp_click` y
+`cta_email_click` — ver `analytics.ts` y "Instrumentación" abajo. Cierra el gap que la estrategia de
+lanzamiento (`docs/sectores/agencia-digital/go-to-market/2026-07-06-estrategia-lanzamiento-erp.md` §2)
+marcaba como bloqueante para medir el piloto de pauta.
+
 ---
 
 ## Aislamiento de producción (coordinación con Célula 2)
@@ -80,6 +86,20 @@ sin tocar la UI:
 
 ---
 
+## Instrumentación (`analytics.ts`)
+
+`trackDemoEvent()` empuja a `window.dataLayer` (estándar GTM, lo consume GA4 y Meta Pixel vía tag) y,
+si existe, llama a `window.fbq` directo. **Sin GTM/Pixel cargado en la página, es no-op** (cero red) —
+por eso puede vivir en el código ya, antes de que la campaña esté publicada. `demoRubroFromUrl()` lee
+el `utm_content` del click (contrato de la campaña) para taggear los eventos por rubro.
+
+⚠️ **A confirmar por GTM antes de publicar:** falta inyectar el snippet de GTM (o el Pixel de Meta)
+en `layout.tsx`/`page.tsx` para que `dataLayer`/`fbq` existan de verdad — hoy la instrumentación está
+lista pero no tiene a quién emitirle hasta que se agregue el tag. Ver la matriz de eventos en la
+estrategia de lanzamiento §2.
+
+---
+
 ## Archivos
 
 | Archivo | Rol |
@@ -88,6 +108,7 @@ sin tocar la UI:
 | `src/app/demo/DemoTour.tsx` | Motor del tour (barra Stories, tap/swipe/teclado, autoplay, marco de teléfono, CTA). Cliente. |
 | `src/app/demo/scenes.tsx` | Las 6 escenas animadas (cero deps; animaciones CSS + un count-up). Cliente. |
 | `src/app/demo/demo-content.ts` | Datos de ejemplo + copy + config de CTA (punto de edición de GTM). |
+| `src/app/demo/analytics.ts` | Instrumentación del funnel (`trackDemoEvent`, `demoRubroFromUrl`) + tests. |
 
 Sin dependencias nuevas. Animaciones = CSS keyframes inyectados en `DemoTour` (no tocan
 `globals.css`, que es compartido). Respeta `prefers-reduced-motion`.
@@ -105,6 +126,11 @@ npm run dev      # y abrir http://localhost:3000/demo
 No requiere migraciones ni variables de entorno. Al ser `force-static`, se sirve como HTML
 estático → carga rápida, ideal para el tráfico de Stories.
 
-**Vallas verificadas** (2026-07-06): `tsc --noEmit` limpio · `npm test` 282/282 · render en vivo
+**Vallas verificadas** (2026-07-06, Célula 3): `tsc --noEmit` limpio · `npm test` 282/282 · render en vivo
 de las 6 escenas OK (agenda con turno entrante, reserva confirmada, caja con total, factura con
 CAE, panel del dueño con insights, cierre con CTA).
+
+**Instrumentación verificada** (2026-07-06, Célula Growth/Digital): `tsc --noEmit` limpio ·
+`npm test` 400/400 (6 nuevos de `analytics.ts`) · recorrido en vivo con `?utm_content=retail`
+confirmando `demo_start` → `demo_step_completado`×6 → `demo_complete` → `cta_whatsapp_click` en
+`window.dataLayer`, con `rubro` correcto en cada evento.

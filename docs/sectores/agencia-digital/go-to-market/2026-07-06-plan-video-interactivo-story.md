@@ -107,9 +107,12 @@ Para grabar las pantallas sin fricción:
 
 - [ ] Reemplazar el **número de WhatsApp** provisional por el real en `src/app/demo/demo-content.ts`
       (`DEMO_CTA.whatsappNumber`, formato E.164 sin `+`).
-- [ ] Confirmar UTMs y que el pixel de Meta registra el click del ad → `/demo`.
-- [ ] Instrumentar en `/demo` los eventos del funnel (`demo_start`/`demo_complete`/`cta_whatsapp_click`)
-      — pendiente de Célula 3 (ver handoff en la estrategia §5).
+- [x] **Instrumentar en `/demo` los eventos del funnel** (`demo_start`/`demo_step_completado`/
+      `demo_complete`/`cta_whatsapp_click`/`cta_email_click`) — hecho 2026-07-06 (Célula Growth/Digital),
+      `src/app/demo/analytics.ts` + `docs/demo/README.md`. Emite a `window.dataLayer`/`fbq`; no-op sin
+      GTM/Pixel cargado.
+- [ ] Confirmar UTMs y **agregar el snippet de GTM o el Pixel de Meta** a la página para que la
+      instrumentación de arriba tenga a quién emitirle (hoy no hay tag cargado).
 - [ ] OK del dueño para publicar y para el presupuesto de pauta (gate humano).
 - [ ] Revisar derechos de audio/trend y de la voz en off.
 

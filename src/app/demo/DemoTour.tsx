@@ -11,7 +11,7 @@
 // - Mobile-first (el tráfico viene de Stories). Cero dependencias externas.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SCENES,
   DEMO_BRAND,
@@ -27,6 +27,7 @@ import {
   DuenoScene,
   CierreScene,
 } from "./scenes";
+import { trackDemoEvent, demoRubroFromUrl } from "./analytics";
 
 const SCENE_COMPONENTS = [
   AgendaScene,
@@ -52,6 +53,24 @@ export default function DemoTour() {
   );
   const next = useCallback(() => setI((p) => Math.min(last, p + 1)), [last]);
   const prev = useCallback(() => setI((p) => Math.max(0, p - 1)), []);
+
+  // Instrumentación del funnel (Célula 1 — GTM), ver ./analytics.ts. `rubro` viene del
+  // `utm_content` del ad (contrato en la estrategia de lanzamiento); no-op sin GTM/Pixel.
+  const [rubro] = useState(() => demoRubroFromUrl());
+  const visitedScenes = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    trackDemoEvent("demo_start", { rubro });
+    // Se dispara una sola vez, al montar el tour.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (visitedScenes.current.has(i)) return;
+    visitedScenes.current.add(i);
+    trackDemoEvent("demo_step_completado", { escena: SCENES[i].id, paso: i + 1, rubro });
+    if (i === last) trackDemoEvent("demo_complete", { rubro });
+  }, [i, last, rubro]);
 
   // Accesibilidad — auto-avance bajo prefers-reduced-motion: NO se maneja con estado
   // (evita set-state-in-effect e hidratación del prerender force-static). Se resuelve
@@ -198,6 +217,7 @@ export default function DemoTour() {
           href={whatsappHref()}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => trackDemoEvent("cta_whatsapp_click", { rubro, paso: i + 1 })}
           className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-[15px] font-semibold text-[color:var(--demo-ink)] shadow-lg transition-transform active:translate-y-px"
         >
           {DEMO_CTA.primaryLabel}
@@ -214,7 +234,11 @@ export default function DemoTour() {
             </button>
           )}
           <span className="text-white/25">·</span>
-          <a href={mailtoHref()} className="underline-offset-2 hover:underline">
+          <a
+            href={mailtoHref()}
+            onClick={() => trackDemoEvent("cta_email_click", { rubro, paso: i + 1 })}
+            className="underline-offset-2 hover:underline"
+          >
             Escribinos por mail
           </a>
         </div>

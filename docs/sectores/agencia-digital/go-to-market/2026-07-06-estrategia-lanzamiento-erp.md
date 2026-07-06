@@ -172,6 +172,14 @@ Célula 3 / Devs); define **el contrato de lo que la campaña necesita del otro 
   piloto no mide. Si se quiere validar el creativo antes de que la demo exista, correr una semana
   mandando a `/premium` o `/tienda` como proxy y medir solo CTR/costo por click (no conversión).
 
+> **Nota posterior (2026-07-06, Célula Growth/Digital — Fase 0 de cierre del embudo).** Punto 4
+> (Instrumentación) **cerrado**: `/demo` emite `demo_start`/`demo_step_completado`/`demo_complete`/
+> `cta_whatsapp_click`/`cta_email_click` a `window.dataLayer`+`fbq` (`src/app/demo/analytics.ts`,
+> verificado en vivo + 6 tests). Sigue **pendiente** el tag de GTM/Pixel en sí (sin eso no hay a quién
+> emitirle) y el punto 3 (**multi-rubro real**: hoy la demo es genérica "Estudio Aura" para todo
+> `utm_content`; variar catálogo/escenas por rubro es un cambio de contenido más grande, no
+> instrumentación — ver el plan de Fase 0, `2026-07-06-fase0-cierre-embudo.md`).
+
 ---
 
 ## 6. Resumen ejecutivo (para el dueño)
