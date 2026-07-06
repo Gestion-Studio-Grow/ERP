@@ -47,9 +47,10 @@ const data = await page.evaluate(()=>{
         name: document.getElementById('dwn').textContent,
         tag: document.getElementById('dwt').textContent,
         verdict: document.getElementById('dwr').innerHTML,
-        body: document.getElementById('dwb').innerHTML
+        body: document.getElementById('dwb').innerHTML,
+        costo: d.costo||''
       });
-    }catch(e){ out.push({ name:d.name, tag:'', verdict:'', body:'<p>(error al renderizar)</p>' }); }
+    }catch(e){ out.push({ name:d.name, tag:'', verdict:'', body:'<p>(error al renderizar)</p>', costo:d.costo||'' }); }
   }
   return out;
 });
@@ -90,17 +91,28 @@ header .rw{margin-top:9px;display:flex;gap:7px;flex-wrap:wrap}
 .path .pi .pn{font-weight:700;color:#111;font-size:12px}
 .idxbig,.ds,.hero-box,.dstats,.pill,.path .pi{break-inside:avoid}`;
 
-const sections = data.map((f,i)=>`<section class="ficha">
-  <div class="brand">Célula de Negocios Digitales · Ficha ${i+1} de ${data.length}</div>
+function buildDoc(list){
+  const sections = list.map((f,i)=>`<section class="ficha">
+  <div class="brand">Célula de Negocios Digitales · Ficha ${i+1} de ${list.length}</div>
   <header><h1>${f.name}</h1><div class="tg">${f.tag}</div><div class="rw">${f.verdict}</div></header>
   <main class="db">${f.body}</main>
 </section>`).join('\n');
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><style>${CSS}</style></head><body>${sections}</body></html>`;
+}
 
-const doc = `<!doctype html><html lang="es"><head><meta charset="utf-8"><style>${CSS}</style></head><body>${sections}</body></html>`;
-
-const p2 = await browser.newPage();
-await p2.setContent(doc, { waitUntil:'load' });
-await p2.pdf({ path: OUT, format:'A4', printBackground:true, margin:{ top:'12mm', bottom:'12mm', left:'10mm', right:'10mm' } });
-console.log('PDF:', OUT, '·', (fs.statSync(OUT).size/1024).toFixed(0), 'KB');
+// 3 salidas: cartera completa + segmentadas por costo de arranque
+const SEGMENTS = [
+  { file: OUT,                                                    list: data },
+  { file: path.join(HERE, 'Cartera-SIN-costo.pdf'),              list: data.filter(f=>f.costo==='sin') },
+  { file: path.join(HERE, 'Cartera-CON-costo.pdf'),              list: data.filter(f=>f.costo==='con') },
+];
+for (const seg of SEGMENTS){
+  if (!seg.list.length){ console.log('(vacío, salteo)', seg.file); continue; }
+  const p = await browser.newPage();
+  await p.setContent(buildDoc(seg.list), { waitUntil:'load' });
+  await p.pdf({ path: seg.file, format:'A4', printBackground:true, margin:{ top:'12mm', bottom:'12mm', left:'10mm', right:'10mm' } });
+  await p.close();
+  console.log('PDF:', path.basename(seg.file), '·', seg.list.length, 'fichas ·', (fs.statSync(seg.file).size/1024).toFixed(0), 'KB');
+}
 
 await browser.close(); server.close();

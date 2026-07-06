@@ -52,3 +52,6 @@ next-env.d.ts
 # Material confidencial — NUNCA versionar (repo público)
 _private/
 docs/internal/
+
+# PDFs generados por generar-pdf-cartera.mjs (artefactos, no versionar)
+Cartera-*.pdf

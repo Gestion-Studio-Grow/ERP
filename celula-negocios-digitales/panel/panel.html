@@ -793,6 +793,27 @@ const arsOf=u=>Math.round(u*RATE).toLocaleString('es-AR');
 const withArs=t=>t.replace(/US\$(\d[\d.]*)/g,(m,n)=>`${m} (≈ $${arsOf(parseInt(n.replace(/\./g,'')))} ARS)`);
 const PRODLABEL={ok:'A producción',warn:'En pista',dead:'Descartado'};
 
+/* ==== Segmentación por COSTO DE ARRANQUE (regla transparente sobre roi.arr) ====
+   sin  = arranca casi sin plata: declara "costo BAJO" (o BAJO-MEDIO), o solo tiempo, o <=US$200 de bolsillo
+   con  = requiere desembolso real: declara "costo MEDIO/ALTO" o un insumo pago (dataset, socio, convenio, inventario) */
+;(function(){
+  function firstUsd(s){ s=(s||'').replace(/US\$/g,'$'); var m=(s.match(/\$\s?[\d.]+/g)||[]).map(function(x){return parseInt(x.replace(/[^\d]/g,''),10);}).filter(function(n){return !isNaN(n);}); return m.length?m[0]:null; }
+  DATA.forEach(function(d){
+    var s=(d.roi&&d.roi.arr)||'';
+    var m=s.match(/costo(?:\s+de\s+arranque)?\s+(BAJO-MEDIO|MEDIO-BAJO|MEDIO-ALTO|ALTO-MEDIO|BAJO|MEDIO|ALTO)/i);
+    if(m){ var t=m[1].toUpperCase();
+      d.costo=(t==='ALTO'||t==='MEDIO'||t==='MEDIO-ALTO'||t==='ALTO-MEDIO')?'con':'sin';
+      d.costowhy='La ficha declara costo de arranque '+t+'.';
+    } else {
+      var u=firstUsd(s);
+      if(u===null){ d.costo='sin'; d.costowhy='Arranca solo con tiempo, sin desembolso de bolsillo.'; }
+      else if(u>1000){ d.costo='sin'; d.costowhy='Producto digital de arranque bajo (la cifra grande es ingreso, no costo).'; }
+      else if(u<=200){ d.costo='sin'; d.costowhy='Arranque ~US$'+u+' de bolsillo (tiers gratis + crédito de IA).'; }
+      else { d.costo='con'; d.costowhy='Arranque ~US$'+u+' de bolsillo.'; }
+    }
+  });
+})();
+
 // rank all by index
 const RANKED=[...DATA].sort((a,b)=>b.idx-a.idx);
 RANKED.forEach((d,i)=>d._rank=i+1);
@@ -807,7 +828,7 @@ document.getElementById('score').innerHTML=[
 document.getElementById('podium').innerHTML=RANKED.slice(0,3).map((d,i)=>`<button class="pod p${i+1}" data-id="${d.name}"><div class="medal">${i+1}</div><div class="pn">${d.name}</div><div class="pt">${d.tag.split(' · ')[0]}</div><div class="pbar"><i style="width:${d.idx}%"></i></div><div class="pv"><span>Índice</span><span>${d.idx}/100</span></div></button>`).join('');
 
 // chips
-const CHIPS=[['all','Todos',DATA.length],['ia_full','🤖 100% IA',DATA.filter(d=>d.ia==='full').length],['ia_parcial','⚙️ Parcial',DATA.filter(d=>d.ia==='parcial').length],['ia_no','🧑 Requiere humano',DATA.filter(d=>d.ia==='no').length],['nuevo','Nuevos',DATA.filter(d=>d.cat==='nuevo').length],['ok','A producción',nOk],['warn','En pista',nWarn],['dead','Descartados',nDead],['dev','En desarrollo',DATA.filter(d=>d.cat==='dev').length]];
+const CHIPS=[['all','Todos',DATA.length],['costo_sin','🆓 Sin costo',DATA.filter(d=>d.costo==='sin').length],['costo_con','💵 Con costo',DATA.filter(d=>d.costo==='con').length],['ia_full','🤖 100% IA',DATA.filter(d=>d.ia==='full').length],['ia_parcial','⚙️ Parcial',DATA.filter(d=>d.ia==='parcial').length],['ia_no','🧑 Requiere humano',DATA.filter(d=>d.ia==='no').length],['nuevo','Nuevos',DATA.filter(d=>d.cat==='nuevo').length],['ok','A producción',nOk],['warn','En pista',nWarn],['dead','Descartados',nDead],['dev','En desarrollo',DATA.filter(d=>d.cat==='dev').length]];
 document.getElementById('chips').innerHTML=CHIPS.map((c,i)=>`<button class="chip" data-f="${c[0]}" aria-pressed="${i===0}">${c[1]} <span class="cc">${c[2]}</span></button>`).join('');
 
 function fbarClass(d){return d.prod}
@@ -835,7 +856,7 @@ function matchesQuery(d,q){
 function board(f,q){
  if(f!==undefined)currentFilter=f;
  if(q!==undefined)currentQuery=q;
- const list=RANKED.filter(d=>currentFilter==='all'||d.prod===currentFilter||(currentFilter==='dev'&&d.cat==='dev')||(currentFilter==='nuevo'&&d.cat==='nuevo')||(currentFilter==='ia_full'&&d.ia==='full')||(currentFilter==='ia_parcial'&&d.ia==='parcial')||(currentFilter==='ia_no'&&d.ia==='no')).filter(d=>matchesQuery(d,currentQuery));
+ const list=RANKED.filter(d=>currentFilter==='all'||d.prod===currentFilter||(currentFilter==='dev'&&d.cat==='dev')||(currentFilter==='nuevo'&&d.cat==='nuevo')||(currentFilter==='ia_full'&&d.ia==='full')||(currentFilter==='ia_parcial'&&d.ia==='parcial')||(currentFilter==='ia_no'&&d.ia==='no')||(currentFilter==='costo_sin'&&d.costo==='sin')||(currentFilter==='costo_con'&&d.costo==='con')).filter(d=>matchesQuery(d,currentQuery));
  const el=document.getElementById('board');
  const note=document.getElementById('sortnote');
  if(!list.length){el.innerHTML='<div class="noresults">Sin resultados para este filtro/búsqueda.</div>';note.textContent='0 resultados';return;}
@@ -882,6 +903,7 @@ function open(name){
  const p=[];
  p.push(`<div class="idxbig"><div class="ib-top"><div class="ib-n">${d.idx}<span style="font-size:16px;color:#8B96A3">/100</span></div><div class="ib-l" style="text-align:right">Índice de<br>Factibilidad Real<br>#${d._rank} de ${DATA.length}</div></div><div class="ib-bar"><i style="width:${d.idx}%"></i></div><div class="ib-why">${d.prodwhy}</div></div>`);
  if(d.ia)p.push(`<div class="ds"><div class="dl">Ejecución por el equipo de IA</div><p>${d.ia==='full'?'🤖 <b>100% IA</b> — los agentes lo levantan y operan desde el repo, sin humano en el loop':d.ia==='parcial'?'⚙️ <b>Parcial</b> — el core es IA con una dependencia humana acotada/removible':'🧑 <b>Requiere humano</b> — hay un bloqueo legal/institucional'}. ${d.iawhy||''}</p></div>`);
+ if(d.costo)p.push(`<div class="ds"><div class="dl">Costo de arranque</div><p>${d.costo==='sin'?'🆓 <b>Sin costo / casi cero</b> — se arranca con plata de bolsillo (o solo tiempo)':'💵 <b>Con costo</b> — requiere un desembolso real para arrancar'}. ${d.costowhy||''}</p></div>`);
  p.push(`<div class="ds"><div class="dl">Qué es (de cero)</div><p>${d.quees}</p></div>`);
  if(d.opera)p.push(`<div class="ds"><div class="dl">Cómo opera · un ejemplo real</div><p>${d.opera}</p></div>`);
  if(d.nums)p.push(`<div class="dstats">${Object.keys(d.nums).map(k=>`<div class="s"><div class="k">${k}</div><div class="v ${k==='Margen'?'good':''}">${d.nums[k]}</div></div>`).join('')}</div>`);
