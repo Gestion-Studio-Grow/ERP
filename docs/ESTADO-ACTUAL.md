@@ -29,8 +29,10 @@ desconexión:** el **ensayo de RLS se completó en un BRANCH de Neon** (no prod)
 > app_rls LOGIN PASSWORD '<secret>' NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE` + grants, y rotar
 > `DATABASE_URL` a ESE rol. `app_rls` autentica por el proxy de Neon y aísla correctamente
 > (ctx=A→A, ctx=B→B, WITH CHECK bloquea cross-tenant, fail-closed sin ctx). Diff mínimo de prod en el
-> runbook. **Pendiente de repo:** actualizar `0002`/`check-rls-live`/`verify-rls` al rol nuevo (hoy
-> apuntan a `app_user`). **Falta para prod:** OK final del dueño + password de `app_rls` (secret).
+> runbook. **✅ Repo YA actualizado al rol nuevo (`b01eb78`, 2026-07-05):** `0002_app_role.sql` crea
+> `app_rls` (ya no patchea `app_user`); `check-rls-live.mjs`, `verify-rls.mjs`, `verify-provision-gate.mts`,
+> `verify-wiring.mts`, `verify-tenant-resolution.mts`, README y runbooks apuntan a `app_rls`. Vallas
+> verdes (tsc·229 tests·3 nets RLS·build). **Falta para prod:** OK final del dueño + password de `app_rls` (secret).
 
 ### ✅ PASOS DEL DUEÑO para el go-live de Magra (en orden, al retomar)
 1. **`app_rls`** (rol NUEVO, no `app_user`) → definir su **contraseña en Neon** (secret; nunca al repo).
@@ -94,7 +96,7 @@ Orden lógico para dar de alta Magra end-to-end:
 
 | # | Gate | Qué destraba | Estado |
 |---|---|---|---|
-| 1 | **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → **prerrequisito duro del 2º tenant** | 🔒 **⚠️ Prod NO está "de cero" (auditado 2026-07-05, solo lectura vía `check-rls-live.mjs`):** RLS ya aplicado en **24/33 tablas**; **DRIFT — 9 tablas sin proteger** (`Order, OrderItem, Invoice, OutboxEvent, CashMovement, CashSession, StockMovement, StockPurchase, StockPurchaseItem`) → filtrarían entre tenants; y **`app_user` con `BYPASSRLS=true`** → rotar a él daría CERO aislamiento (hoy prod no se rompe: conecta como `neondb_owner`, RLS dormido). **Ensayo offline PASADO** (`verify-provision-gate.mts`): gate bloquea sin RLS → abre con RLS → aislamiento + fail-closed. **Bugs hallados y corregidos (repo):** el sentinel del gate incluía `Tenant` → nunca abría (`8b9d989`); `0002` no forzaba `NOBYPASSRLS` en rol existente (fix 2026-07-05). **ENSAYO EN BRANCH DE NEON REAL: 🟢 VERDE 8/8 (2026-07-05, branch borrado):** el branch replicó el drift (24/33) → `0001` cerró a 33/33 → aislamiento OK conectando como rol de app → fail-closed. **Hallazgo que cambia el plan:** `app_user` con BYPASSRLS es INARREGLABLE por `neondb_owner` (necesita superuser) → **usar rol NUEVO `app_rls`** (`CREATE ROLE … NOBYPASSRLS`, probado). Falta: OK final + password de `app_rls` (secret) + actualizar repo (`0002`/guards) al rol nuevo. Runbook: `docs/runbooks/alta-magra.md` |
+| 1 | **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → **prerrequisito duro del 2º tenant** | 🔒 **⚠️ Prod NO está "de cero" (auditado 2026-07-05, solo lectura vía `check-rls-live.mjs`):** RLS ya aplicado en **24/33 tablas**; **DRIFT — 9 tablas sin proteger** (`Order, OrderItem, Invoice, OutboxEvent, CashMovement, CashSession, StockMovement, StockPurchase, StockPurchaseItem`) → filtrarían entre tenants; y **`app_user` con `BYPASSRLS=true`** → rotar a él daría CERO aislamiento (hoy prod no se rompe: conecta como `neondb_owner`, RLS dormido). **Ensayo offline PASADO** (`verify-provision-gate.mts`): gate bloquea sin RLS → abre con RLS → aislamiento + fail-closed. **Bugs hallados y corregidos (repo):** el sentinel del gate incluía `Tenant` → nunca abría (`8b9d989`); `0002` no forzaba `NOBYPASSRLS` en rol existente (fix 2026-07-05). **ENSAYO EN BRANCH DE NEON REAL: 🟢 VERDE 8/8 (2026-07-05, branch borrado):** el branch replicó el drift (24/33) → `0001` cerró a 33/33 → aislamiento OK conectando como rol de app → fail-closed. **Hallazgo que cambia el plan:** `app_user` con BYPASSRLS es INARREGLABLE por `neondb_owner` (necesita superuser) → **usar rol NUEVO `app_rls`** (`CREATE ROLE … NOBYPASSRLS`, probado). **✅ Repo ya actualizado al rol nuevo (`b01eb78`): `0002`/guards/runbooks apuntan a `app_rls`, vallas verdes.** Falta: OK final + password de `app_rls` (secret). Runbook: `docs/runbooks/alta-magra.md` |
 | 2 | **Alta de Magra (2º tenant)** | Magra existe en la DB de prod | 🔒 depende de #1. `scripts/provision-tenant.ts` ya siembra tenant+OWNER+blueprint `carniceria`; correr con OK explícito tras RLS |
 | 3 | **Deploy del sitio `magra-erp`** | Magra accesible por URL propia | 🔑 **2º sitio Netlify** apuntando a la misma app con **`FORCE_TENANT_SLUG=magra`** (Opción A, URL gratis por tenant; ver `docs/runbooks/alta-magra.md`). Sin dominio propio el `.netlify.app` no separa por subdominio → un sitio por tenant, o pasar a Opción B (dominio + wildcard) |
 | 4 | **Certificado + homologación ARCA** | facturación electrónica viva (firma CMS del `TraSigner`) | 🔑 adapter SOAP escrito; falta cert del emisor + homologación + flag `ARCA_INVOICING_ENABLED` |
@@ -151,12 +153,13 @@ de integrar el cambio de representación de dinero.
   antes** re-correr `0001` (33/33) y `0002` patcheado (fuerza NOBYPASSRLS). Detalle y secuencia en
   §4 y en `docs/runbooks/alta-magra.md`. Guardas: `prisma/rls/check-rls-live.mjs` (auditoría en vivo)
   + `verify-provision-gate.mts` (offline). *(fixes de repo en main; falta ejecutar en Neon con OK.)*
-- **🐞 Redirect / home `/`:** el root (`src/app/(site)/page.tsx`) sirve la **landing de CH
-  hardcodeada** (`_ch/*`, `force-dynamic`), sin resolución por dominio/tenant nativa. **Mitigación ya
-  en repo:** `FORCE_TENANT_SLUG` (`685b5c9`) permite pinnear el tenant por sitio (Opción A) → cada
-  sitio Netlify sirve su tenant. La resolución multi-tenant "de verdad" por dominio (Opción B) queda
-  atada a dominio propio (§4). *(Detalle exacto del redirect reportado por el dueño: reproducir y
-  cerrar junto con dominio propio.)*
+- **✅ Redirect / home `/` — CERRADO (`b01eb78`, 2026-07-05):** el root (`src/app/(site)/page.tsx`)
+  ahora es **blueprint-aware**: un tenant Retail/Mostrador (Magra y rubros de `src/blueprints/retail`)
+  redirige `/`→`/tienda` en vez de servir la landing de estética de CH; un tenant de servicios (CH)
+  sigue con su landing. Reusa `getCurrentTenantSlug` + `resolveRubroIdBySlug`; fail-open (slug null /
+  rubro no-retail → landing histórica). Combinado con `FORCE_TENANT_SLUG` (`685b5c9`, pin por sitio,
+  Opción A), cada sitio Netlify sirve su tenant con el home correcto. La resolución por dominio (Opción
+  B) sigue atada a dominio propio (§4), pero el bug del home equivocado ya no existe.
 - **Wiring `completeAppointment` (ADR-024)** pendiente de commitear limpio (ver `PROXIMOS-PASOS.md`).
 - **WIP inconcluso fuera de main:** ARCA `signer.ts` (falta dep `node-forge` + wiring); y un refactor
   en curso en el checkout de `main` (borra `pagos-dispatch.ts`/`request-context.ts`, folds en
