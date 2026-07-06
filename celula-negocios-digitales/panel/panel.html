@@ -61,6 +61,20 @@
   /* ===== CONTROLS ===== */
   .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:6px 0 14px}
   .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .search{position:relative;flex:1 1 220px;max-width:280px}
+  .search input{width:100%;font-family:var(--f-body);font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 12px 8px 30px;color:var(--ink);outline:none}
+  .search input:focus{border-color:var(--accent)}
+  .search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--muted);pointer-events:none}
+  .search .clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 6px;display:none}
+  .search.has-val .clr{display:block}
+  .grouphead{display:flex;align-items:center;gap:10px;margin:22px 0 9px;padding-top:2px}
+  .grouphead:first-child{margin-top:0}
+  .grouphead .gt{font-family:var(--f-mono);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+  .grouphead .gc{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+  .grouphead .gl{flex:1;height:1px;background:var(--line)}
+  .grouphead.ok .gt{color:var(--ok)} .grouphead.warn .gt{color:var(--warn)} .grouphead.dead .gt{color:var(--dead)}
+  .perfil{font-size:12px;margin-right:2px}
+  .noresults{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px;font-family:var(--f-mono)}
   .chip{font-family:var(--f-mono);font-size:12px;font-weight:600;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);padding:7px 12px;border-radius:6px;cursor:pointer;transition:.15s;display:inline-flex;gap:6px;align-items:center}
   .chip:hover{border-color:var(--accent)}
   .chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
@@ -192,7 +206,12 @@
 <div class="wrap">
   <div class="bar">
     <div class="chips" id="chips"></div>
-    <div class="sortnote">▼ ordenado por Índice de Factibilidad</div>
+    <div class="search" id="searchbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+      <input type="text" id="searchinput" placeholder="Buscar negocio…" autocomplete="off">
+      <button class="clr" id="searchclr" aria-label="Limpiar búsqueda">✕</button>
+    </div>
+    <div class="sortnote" id="sortnote">▼ ordenado por Índice de Factibilidad</div>
   </div>
   <div class="board" id="board"></div>
 
@@ -577,19 +596,57 @@ const CHIPS=[['all','Todos',DATA.length],['ia_full','🤖 100% IA',DATA.filter(d
 document.getElementById('chips').innerHTML=CHIPS.map((c,i)=>`<button class="chip" data-f="${c[0]}" aria-pressed="${i===0}">${c[1]} <span class="cc">${c[2]}</span></button>`).join('');
 
 function fbarClass(d){return d.prod}
-function board(f){
- document.getElementById('board').innerHTML=RANKED.filter(d=>f==='all'||d.prod===f||(f==='dev'&&d.cat==='dev')||(f==='nuevo'&&d.cat==='nuevo')||(f==='ia_full'&&d.ia==='full')||(f==='ia_parcial'&&d.ia==='parcial')||(f==='ia_no'&&d.ia==='no')).map(d=>`
-  <button class="row ${d._rank<=3?'top':''}" data-id="${d.name}">
+function perfilOf(d){
+ const s=(d.prodwhy||'')+(d.tag||'');
+ const m=s.match(/💥|🌱|⚖️/);
+ return m?m[0]:'';
+}
+function rowHtml(d){
+ const perfil=perfilOf(d);
+ return `<button class="row ${d._rank<=3?'top':''}" data-id="${d.name}">
     <div class="rank">${d._rank}</div>
-    <div><div class="rname">${d.name} ${d.ia?`<span class="iatag" title="${(d.iawhy||'').replace(/"/g,'')}">${d.ia==='full'?'🤖':d.ia==='parcial'?'⚙️':'🧑'}</span>`:''}</div><div class="rtag">${d.tag}</div></div>
+    <div><div class="rname">${perfil?`<span class="perfil" title="Perfil">${perfil}</span>`:''}${d.name} ${d.ia?`<span class="iatag" title="${(d.iawhy||'').replace(/"/g,'')}">${d.ia==='full'?'🤖':d.ia==='parcial'?'⚙️':'🧑'}</span>`:''}</div><div class="rtag">${d.tag}</div></div>
     <div class="fact"><div class="ft"><span>Factibilidad</span><span class="fv">${d.idx}/100</span></div><div class="fbar"><i class="${fbarClass(d)}" style="width:${d.idx}%"></i></div></div>
     <div class="rstate"><span class="pill ${d.prod}"><span class="pd"></span>${PRODLABEL[d.prod]}</span></div>
-  </button>`).join('');
+  </button>`;
+}
+const GROUPS=[['ok','A producción','ok'],['warn','En pista','warn'],['dead','Descartados','dead']];
+let currentFilter='all', currentQuery='';
+function matchesQuery(d,q){
+ if(!q)return true;
+ const hay=(d.name+' '+(d.tag||'')+' '+(d.quees||'')).toLowerCase();
+ return hay.includes(q);
+}
+function board(f,q){
+ if(f!==undefined)currentFilter=f;
+ if(q!==undefined)currentQuery=q;
+ const list=RANKED.filter(d=>currentFilter==='all'||d.prod===currentFilter||(currentFilter==='dev'&&d.cat==='dev')||(currentFilter==='nuevo'&&d.cat==='nuevo')||(currentFilter==='ia_full'&&d.ia==='full')||(currentFilter==='ia_parcial'&&d.ia==='parcial')||(currentFilter==='ia_no'&&d.ia==='no')).filter(d=>matchesQuery(d,currentQuery));
+ const el=document.getElementById('board');
+ const note=document.getElementById('sortnote');
+ if(!list.length){el.innerHTML='<div class="noresults">Sin resultados para este filtro/búsqueda.</div>';note.textContent='0 resultados';return;}
+ if(currentFilter==='all'&&!currentQuery){
+  el.innerHTML=GROUPS.map(([key,label,cls])=>{
+   const items=list.filter(d=>d.prod===key);
+   if(!items.length)return'';
+   return `<div class="grouphead ${cls}"><span class="gt">${label}</span><span class="gc">(${items.length})</span><span class="gl"></span></div>`+items.map(rowHtml).join('');
+  }).join('');
+  note.textContent=`${list.length} negocios · agrupados por estado`;
+ }else{
+  el.innerHTML=list.map(rowHtml).join('');
+  note.textContent=`${list.length} resultado${list.length===1?'':'s'} · ordenado por Índice de Factibilidad`;
+ }
 }
 document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
  document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed','false'));
- c.setAttribute('aria-pressed','true');board(c.dataset.f);
+ c.setAttribute('aria-pressed','true');board(c.dataset.f,undefined);
 }));
+const searchInput=document.getElementById('searchinput'),searchBox=document.getElementById('searchbox'),searchClr=document.getElementById('searchclr');
+searchInput.addEventListener('input',()=>{
+ const q=searchInput.value.trim().toLowerCase();
+ searchBox.classList.toggle('has-val',!!q);
+ board(undefined,q);
+});
+searchClr.addEventListener('click',()=>{searchInput.value='';searchBox.classList.remove('has-val');searchInput.focus();board(undefined,'')});
 board('all');
 
 // waves / team / runbook
