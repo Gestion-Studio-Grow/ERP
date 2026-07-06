@@ -14,17 +14,27 @@
 - **🟧 Equipo ACTIVO — retorno de operación continua.** Ingreso que exige entrega/operación viva:
   servicios productizados, retainers, agentes B2B con mantenimiento, SaaS de alto contacto, done-for-you.
 
-## Roster y flujo (3 olas)
+## Roster y flujo (HORIZONTAL — 1 capa de trabajo + 1 capa de desafío)
 
-| Ola | Agente | Mandato | Archivo |
-|---|---|---|---|
-| 1 | 🎨 **A1** creativo pasivo | diverge: 8–12 ideas pasivas (incl. newsletter+ads) | `pasivo/01-creativo.md` |
-| 1 | 🎨 **B1** creativo activo | diverge: 8–12 ideas activas | `activo/01-creativo.md` |
-| 2 | 📊 **A2** analítico pasivo | filtra/dimensiona/unit-economics las de A1, con fuentes | `pasivo/02-analitico.md` |
-| 2 | 📊 **B2** analítico activo | filtra/dimensiona/unit-economics las de B1, con fuentes | `activo/02-analitico.md` |
-| 3 | ⚔️ **R1** red-team mercado | desafía demanda/competencia/moat/comoditización | `desafio/R1-mercado.md` |
-| 3 | ⚔️ **R2** red-team plata | desafía unit economics/CAC/tiempo-a-1er-peso/ejecución/fiscal | `desafio/R2-plata.md` |
-| — | 🎯 **PMO** | integra todo (sobrevivientes del red-team) | `RESUMEN-RONDA-2.md` |
+> **Ajuste del dueño:** creatividad y análisis son **horizontales, una sola capa** (agentes pares, no
+> apilados). El único gate posterior es el red-team.
+
+**Capa 1 — CREATIVIDAD + ANÁLISIS (horizontal, mismo nivel):**
+
+| Agente | Mandato | Archivo |
+|---|---|---|
+| 🎨 **A1** creativo pasivo | diverge: ideas pasivas (incl. newsletter+ads) | `pasivo/01-creativo.md` |
+| 📊 **A2** analítico pasivo | filtra/dimensiona/unit-economics, con fuentes | `pasivo/02-analitico.md` |
+| 🎨 **B1** creativo activo | diverge: ideas activas | `activo/01-creativo.md` |
+| 📊 **B2** analítico activo | filtra/dimensiona/unit-economics, con fuentes | `activo/02-analitico.md` |
+
+**Capa 2 — RED-TEAM (único gate, desafía la Capa 1):**
+
+| Agente | Mandato | Archivo |
+|---|---|---|
+| ⚔️ **R1** red-team mercado | desafía demanda/competencia/moat/comoditización | `desafio/R1-mercado.md` |
+| ⚔️ **R2** red-team plata | desafía unit economics/CAC/tiempo-a-1er-peso/ejecución/fiscal | `desafio/R2-plata.md` |
+| 🎯 **PMO** | integra los sobrevivientes del red-team | `RESUMEN-RONDA-2.md` |
 
 ## Reglas
 - Research web real + fuentes en las olas 2 y 3. Ola 1 es divergente (creativa), research liviano.
