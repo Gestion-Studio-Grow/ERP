@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendAppointmentReminder } from "@/lib/notifications";
+import { authorizeCron } from "@/lib/cron-auth";
 
 // Disparador de recordatorios, pensado para ejecutarse una vez por hora vía
 // cron. Protegido con CRON_SECRET para que no lo pueda llamar cualquiera
-// desde afuera.
+// desde afuera. FAIL-CLOSED: sin CRON_SECRET seteada el endpoint responde 503
+// (no ejecuta el efecto), en vez de quedar abierto (ver `authorizeCron`).
 //
 // La anticipación (reminderHoursBefore) y si el recordatorio está activado
 // (reminderEnabled) son config por servicio (panel /admin/recordatorios), no
@@ -12,12 +14,9 @@ import { sendAppointmentReminder } from "@/lib/notifications";
 // mismo, en memoria, contra el valor de cada servicio. Tolerancia de 1h
 // alrededor del punto exacto porque el cron corre cada hora.
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
+  const auth = authorizeCron(process.env.CRON_SECRET, request.headers.get("authorization"));
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   const now = Date.now();

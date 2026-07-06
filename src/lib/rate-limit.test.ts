@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRateLimiter, loginKey } from "./rate-limit";
+import {
+  createRateLimiter,
+  loginKey,
+  publicApiKey,
+  clientIpFromRequest,
+  checkPublicApiRate,
+  PUBLIC_API_RULE,
+} from "./rate-limit";
 
 test("no bloquea por debajo del máximo", () => {
   const rl = createRateLimiter({ max: 3, windowMs: 1000 }, () => 0);
@@ -57,4 +64,40 @@ test("retryAfterMs cuenta desde el fallo más viejo de la ventana", () => {
 test("loginKey separa plano y usa la IP", () => {
   assert.equal(loginKey("admin", "1.2.3.4"), "admin-login:1.2.3.4");
   assert.equal(loginKey("operator", "1.2.3.4"), "operator-login:1.2.3.4");
+});
+
+test("publicApiKey prefija la IP", () => {
+  assert.equal(publicApiKey("1.2.3.4"), "public-api:1.2.3.4");
+});
+
+test("clientIpFromRequest toma la primera IP de x-forwarded-for", () => {
+  const req = new Request("https://x/api", {
+    headers: { "x-forwarded-for": "9.9.9.9, 10.0.0.1" },
+  });
+  assert.equal(clientIpFromRequest(req), "9.9.9.9");
+});
+
+test("clientIpFromRequest cae a x-real-ip y luego a 'unknown'", () => {
+  const withReal = new Request("https://x/api", { headers: { "x-real-ip": "8.8.8.8" } });
+  assert.equal(clientIpFromRequest(withReal), "8.8.8.8");
+  const withNone = new Request("https://x/api");
+  assert.equal(clientIpFromRequest(withNone), "unknown");
+});
+
+test("checkPublicApiRate deja pasar hasta el límite y luego devuelve Retry-After", () => {
+  // IP única por test: el limitador es un singleton por proceso.
+  const ip = "203.0.113.1";
+  for (let i = 0; i < PUBLIC_API_RULE.max; i++) {
+    assert.equal(checkPublicApiRate(ip), null, `hit ${i + 1} debería pasar`);
+  }
+  const retry = checkPublicApiRate(ip);
+  assert.notEqual(retry, null);
+  assert.ok((retry as number) > 0 && (retry as number) <= 60);
+});
+
+test("checkPublicApiRate aísla por IP", () => {
+  const ip = "203.0.113.2";
+  for (let i = 0; i < PUBLIC_API_RULE.max; i++) checkPublicApiRate(ip);
+  assert.notEqual(checkPublicApiRate(ip), null); // bloqueada
+  assert.equal(checkPublicApiRate("203.0.113.3"), null); // otra IP libre
 });

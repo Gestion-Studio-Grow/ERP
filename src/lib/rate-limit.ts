@@ -73,3 +73,47 @@ export const loginRateLimiter: RateLimiter = createRateLimiter(LOGIN_RULE);
 export function loginKey(plano: "admin" | "operator", ip: string): string {
   return `${plano}-login:${ip}`;
 }
+
+// Regla de la API PÚBLICA de ingesta (`/api/public/v1/*`): anti-flood. A
+// diferencia del login (cuenta fallos), acá cada request cuenta como un "hit"
+// (`fail()` = registrar hit) — el mismo contador de ventana deslizante sirve
+// como rate limiter de tráfico. Más permisiva que el login porque es tráfico
+// legítimo de un front externo, pero acota ráfagas que quemarían compute de Neon.
+// 60 req / min por IP.
+export const PUBLIC_API_RULE: RateLimitRule = { max: 60, windowMs: 60 * 1000 };
+export const publicApiRateLimiter: RateLimiter = createRateLimiter(PUBLIC_API_RULE);
+
+/** Clave de la API pública por IP. */
+export function publicApiKey(ip: string): string {
+  return `public-api:${ip}`;
+}
+
+/**
+ * IP del cliente a partir de un `Request` (rutas de la API pública, que reciben
+ * el `Request` crudo y no usan `headers()` de next). Best-effort: detrás del
+ * edge de Netlify la IP real viaja en `x-forwarded-for`. `"unknown"` como
+ * fallback agrupa el tráfico sin IP bajo una misma clave (se lo limita igual).
+ */
+export function clientIpFromRequest(request: Request): string {
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) {
+    const first = xff.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return request.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
+/**
+ * Chequea y registra un hit de la API pública para una IP. Devuelve los
+ * segundos de espera (`Retry-After`) si la IP superó el límite, o `null` si el
+ * request puede seguir. El hit solo se registra cuando NO está bloqueada, para
+ * que la ventana se libere sola (no se penaliza extra al que ya está frenado).
+ */
+export function checkPublicApiRate(ip: string): number | null {
+  const key = publicApiKey(ip);
+  if (publicApiRateLimiter.blocked(key)) {
+    return Math.ceil(publicApiRateLimiter.retryAfterMs(key) / 1000);
+  }
+  publicApiRateLimiter.fail(key);
+  return null;
+}
