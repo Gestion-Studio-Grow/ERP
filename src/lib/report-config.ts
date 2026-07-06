@@ -8,3 +8,12 @@ export const REPORT_RANGE_DAYS = [30, 90, 180, 365] as const;
 
 // Rango por defecto cuando la URL no especifica uno válido.
 export const DEFAULT_REPORT_RANGE_DAYS = 90;
+
+// Etiqueta legible de cada método de pago. Fuente única consumida por la página de
+// reportes (`/admin/reportes`) y por el export CSV (`report-csv.ts`) — antes estaba
+// duplicada en ambos. Un método no mapeado cae a su propio código (fallback ?? m.method).
+export const METODO_LABEL: Record<string, string> = {
+  EFECTIVO: "Efectivo",
+  MERCADOPAGO: "Mercado Pago",
+  TRANSFERENCIA: "Transferencia",
+};

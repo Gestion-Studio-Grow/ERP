@@ -7,7 +7,8 @@ con el PMO todo lo que toque cimientos.
 ## Documentos
 - **[MAPA.md](./MAPA.md)** — foto estructural: capas, acoplamientos (hubs/hojas), god-files, límites de
   dominio y riesgos vivos con evidencia. La foto de **diseño** (complementa `ESTADO-ACTUAL.md`, que es la de **operación**).
-- **[BACKLOG-MEJORAS.md](./BACKLOG-MEJORAS.md)** — mejoras priorizadas por impacto×(1/riesgo), con dueño y secuencia.
+- **[UX-FIORI-AUDIT.md](./UX-FIORI-AUDIT.md)** — auditoría de la UX contra los 5 principios SAP Fiori: score por principio + top hallazgos con evidencia.
+- **[BACKLOG-MEJORAS.md](./BACKLOG-MEJORAS.md)** — mejoras priorizadas por impacto×(1/riesgo) (arquitectura **y** UX), con dueño y secuencia.
 
 ## Marco de evaluación
 Se mide contra: separación de capas · límites de dominio (ADR-002/020) · testabilidad (ADR-026) ·
@@ -32,3 +33,7 @@ adaptable, robusto enterprise. La visión rectora es `docs/FUNDAMENTOS-Y-VISION.
   idénticas de `round2` en `src/lib/round.ts` (cero cambio de conducta) + `round.test.ts`. La unificación
   POS↔fiscal en EPSILON (parte b / R4) se **eleva al PMO** por ser cambio de comportamiento de dinero. Sin
   tocar el WIP sin commitear de `main`.
+- **2026-07-06 — Iteración 2 (UX Fiori):** auditoría de la UX contra los 5 principios (score 6.2/10) →
+  `UX-FIORI-AUDIT.md` + sección UX en el backlog (U1–U10). Quick-win test-covered aplicado: **H1**
+  (`METODO_LABEL` unificado en `report-config.ts`). Los quick-wins de UI (Field/labels/`role="alert"`/
+  tokens) quedan listos para aplicar **con OK del dueño** (no test-covered → no unilaterales).
