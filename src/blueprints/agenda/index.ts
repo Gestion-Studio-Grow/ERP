@@ -30,14 +30,6 @@ const MONDAY_TO_SATURDAY = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
   endTime: "19:00",
 }));
 
-// Franjas de horario a sembrar para un recurso: el horario propio del rubro si lo
-// define (ej. club de pádel 7 días 8–23), o el histórico Lun–Sáb 9–19.
-function weeklyHoursFor(rubro: AgendaRubro) {
-  const wh = rubro.weeklyHours;
-  if (!wh) return MONDAY_TO_SATURDAY;
-  return wh.days.map((dayOfWeek) => ({ dayOfWeek, startTime: wh.startTime, endTime: wh.endTime }));
-}
-
 // Seeder del catálogo del rubro: categorías + servicios + un box + un profesional de
 // ejemplo con horarios, conectado a los servicios. Idempotente: sólo siembra si el
 // tenant no tiene servicios (re-provisionar no pisa lo cargado, ADR-019 §2.b).
@@ -70,27 +62,17 @@ function seederFor(rubro: AgendaRubro) {
       serviceIds.push(svc.id);
     }
 
-    // Recursos reservables. Sin `resources`, un único box + el profesional de
-    // ejemplo (comportamiento histórico, byte por byte). Con `resources`, un
-    // box + un "profesional" homónimo por recurso (las canchas del club), cada
-    // uno con el horario del rubro y conectado a todos los servicios.
-    const hours = weeklyHoursFor(rubro);
-    const connectServices = { connect: serviceIds.map((id) => ({ id })) };
-    const resourceNames = rubro.resources ?? [rubro.exampleProfessional];
-    const boxName = rubro.resources ? null : "Box de ejemplo (editable)";
-
-    for (const name of resourceNames) {
-      const box = await tx.box.create({ data: { tenantId, name: boxName ?? name } });
-      await tx.professional.create({
-        data: {
-          tenantId,
-          name,
-          boxId: box.id,
-          services: connectServices,
-          workingHours: { create: hours.map((w) => ({ tenantId, ...w })) },
-        },
-      });
-    }
+    // Box + profesional de ejemplo con horarios, conectado a los servicios.
+    const box = await tx.box.create({ data: { tenantId, name: "Box de ejemplo (editable)" } });
+    await tx.professional.create({
+      data: {
+        tenantId,
+        name: rubro.exampleProfessional,
+        boxId: box.id,
+        services: { connect: serviceIds.map((id) => ({ id })) },
+        workingHours: { create: MONDAY_TO_SATURDAY.map((w) => ({ tenantId, ...w })) },
+      },
+    });
     return true;
   };
 }

@@ -37,15 +37,6 @@ export interface AgendaWording {
   confirmCta?: string;
 }
 
-// Horario semanal de atención del rubro (opcional). Sin esto, el seeder usa el
-// histórico Lun–Sáb 9–19. Un club de pádel abre los 7 días y hasta tarde.
-export interface AgendaWeeklyHours {
-  /** Días activos (0 = domingo … 6 = sábado). */
-  days: number[];
-  startTime: string;
-  endTime: string;
-}
-
 // Un servicio semilla del catálogo. `cat` referencia una categoría por su nombre.
 export interface AgendaService {
   name: string;
@@ -63,16 +54,6 @@ export interface AgendaRubro {
   services: AgendaService[];
   /** Nombre del profesional de ejemplo que se siembra (editable). */
   exampleProfessional: string;
-  /**
-   * Recursos reservables a sembrar (opcional). Cada nombre crea un Box + un
-   * "profesional" homónimo con el horario del rubro, conectado a todos los
-   * servicios. Modela un negocio con VARIOS puntos de atención en paralelo (las
-   * canchas de un club, los sillones de una barbería). Sin esto, se siembra un
-   * único box + `exampleProfessional` (comportamiento histórico, intacto).
-   */
-  resources?: string[];
-  /** Horario semanal del rubro (opcional). Sin esto, Lun–Sáb 9–19. */
-  weeklyHours?: AgendaWeeklyHours;
   wording: AgendaWording;
   brandingDefaults: TenantBrandingDefaults;
   /** Preset de acento sugerido (src/lib/branding.ts) — lo aplica el alta si el operador no elige otro. */
@@ -194,41 +175,6 @@ export const AGENDA_RUBROS: AgendaRubro[] = [
     suggestedAccent: "celeste",
     suggestedTheme: "light",
   },
-  {
-    id: "padel",
-    label: "Pádel / Club deportivo",
-    keywords: ["padel", "pádel", "paddle", "cancha", "canchas", "club", "tenis", "deportivo", "reserva de cancha"],
-    // El catálogo del club son TIPOS DE TURNO (lo reservable), no personas. Cada
-    // cancha (recurso) los ofrece todos. Precios AR de referencia, mediados 2026.
-    categories: ["Alquiler de cancha", "Clases"],
-    services: [
-      { name: "Alquiler de cancha · 60 min", cat: "Alquiler de cancha", durationMin: 60, price: 12000 },
-      { name: "Alquiler de cancha · 90 min", cat: "Alquiler de cancha", durationMin: 90, price: 16000 },
-      { name: "Turno con luz · 60 min", cat: "Alquiler de cancha", durationMin: 60, price: 14000 },
-      { name: "Clase con profe · 60 min", cat: "Clases", durationMin: 60, price: 20000 },
-    ],
-    // Un club real tiene varias canchas en paralelo → varios recursos reservables.
-    resources: ["Cancha 1 · Cristal", "Cancha 2 · Cristal", "Cancha 3 · Muro"],
-    weeklyHours: { days: [0, 1, 2, 3, 4, 5, 6], startTime: "08:00", endTime: "23:00" },
-    exampleProfessional: "Cancha 1 · Cristal",
-    wording: {
-      catalogHeading: "Nuestras canchas y turnos",
-      providerNoun: "cancha",
-      heroTagline: "Reservá tu cancha de pádel online, al toque.",
-      bookCta: "Reservar cancha",
-      serviceNoun: "turno",
-      bookingTitle: "Reservá tu cancha",
-      bookingSubtitle: "Elegí cancha, turno y horario disponible. Te confirmamos por WhatsApp.",
-      confirmCta: "Confirmar reserva",
-    },
-    brandingDefaults: {
-      shortLabel: "A Dos Manos Pádel",
-      hoursLabel: "Todos los días · 8 a 23 h",
-      contactNote: "Reservá tu cancha de pádel online. Turnos de 60 y 90 min, con y sin luz.",
-    },
-    suggestedAccent: "verde",
-    suggestedTheme: "dark",
-  },
 ];
 
 export const AGENDA_RUBRO_IDS = AGENDA_RUBROS.map((r) => r.id);
@@ -247,10 +193,9 @@ export const GENERIC_AGENDA_WORDING: AgendaWording = {
 
 // Mapa slug de tenant → rubro de agenda (mismo patrón que retail `RUBRO_BY_SLUG`).
 // Sirve para que la vidriera resuelva el wording del rubro por el slug del tenant
-// actual sin depender de la DB. `adosmanos` (A Dos Manos Pádel) → rubro `padel`.
-const RUBRO_BY_SLUG: Record<string, string> = {
-  adosmanos: "padel",
-};
+// actual sin depender de la DB. Hoy sin mapeos (los rubros de agenda usan el wording
+// histórico); infra lista para cuando un rubro de agenda quiera voz propia por slug.
+const RUBRO_BY_SLUG: Record<string, string> = {};
 
 export function resolveAgendaRubroIdBySlug(slug: string | null | undefined): string | null {
   if (!slug) return null;

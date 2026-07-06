@@ -304,6 +304,46 @@ const velas: RetailRubro = {
   ],
 };
 
+// --- Pádel (rubro de `adosmanos`) — tienda MINIMALISTA de equipamiento ---
+// A Dos Manos Pádel: tienda chica, foco en dos líneas (palas + zapatillas), venta
+// por unidad. Referencia de estructura/calidad de compra: padelcanning.com.ar, pero
+// catálogo deliberadamente ACOTADO (no la amplitud de Canning). El precio con
+// transferencia (~28% off) y las cuotas son de la capa de checkout/pago, no del
+// catálogo semilla. Precios PROVISIONALES (ARS, mediados 2026) hasta lista real.
+const padel: RetailRubro = {
+  id: "padel",
+  label: "Tienda de pádel",
+  wording: {
+    catalogHeading: "Palas y zapatillas",
+    itemNoun: "producto",
+    heroTagline: "Palas y zapatillas de pádel, elegidas para que juegues mejor. Mirá el catálogo y hacé tu pedido.",
+    orderCta: "Hacé tu pedido",
+    weightNote: null,
+  },
+  modules: ["pos", "stock", "venta-unidad"],
+  brandingDefaults: {
+    shortLabel: "A Dos Manos Pádel",
+    hoursLabel: "Lun a sáb · 10 a 19 h",
+    contactNote: "Palas y zapatillas de pádel de las mejores marcas, con asesoramiento personalizado.",
+  },
+  // Dos líneas, marcas líderes. El nombre lleva la marca (no hay campo `brand` en el
+  // Core todavía); la vidriera filtra por marca a partir del nombre.
+  catalog: [
+    // Palas
+    { name: "Pala Adidas Metalbone 3.4", sale: "u", price: 329900, stock: 8 },
+    { name: "Pala Bullpadel Vertex 04", sale: "u", price: 349900, stock: 6 },
+    { name: "Pala Nox AT10 Genius 18K", sale: "u", price: 289900, stock: 7 },
+    { name: "Pala Siux Electra ST3 Stupa", sale: "u", price: 259900, stock: 9 },
+    { name: "Pala Head Speed Motion", sale: "u", price: 219900, stock: 10 },
+    { name: "Pala Adidas RX Series", sale: "u", price: 129900, stock: 14 },
+    // Zapatillas
+    { name: "Zapatillas Asics Gel-Padel Pro", sale: "u", price: 189900, stock: 12 },
+    { name: "Zapatillas Adidas Ubersonic 4", sale: "u", price: 179900, stock: 11 },
+    { name: "Zapatillas Bullpadel Hack Vibram", sale: "u", price: 169900, stock: 9 },
+    { name: "Zapatillas Head Sprint Pro 3.5", sale: "u", price: 149900, stock: 13 },
+  ],
+};
+
 export const RETAIL_RUBROS: Record<string, RetailRubro> = {
   carniceria,
   verduleria,
@@ -312,6 +352,7 @@ export const RETAIL_RUBROS: Record<string, RetailRubro> = {
   fiambreria,
   indumentaria,
   velas,
+  padel,
 };
 
 export const RETAIL_RUBRO_IDS = Object.keys(RETAIL_RUBROS);
@@ -336,6 +377,7 @@ export function getRetailRubro(id: string): RetailRubro | null {
 const RUBRO_BY_SLUG: Record<string, string> = {
   magra: "carniceria",
   shinevelas: "velas",
+  adosmanos: "padel",
 };
 
 export function resolveRubroIdBySlug(slug: string | null | undefined): string | null {
