@@ -347,10 +347,17 @@ Antes de dar por cerrado el sprint (y como parte de `pausa`), el PMO:
 Recetas paso-a-paso de flujos que ya ejecutamos, con el **por qué** de cada paso, para no
 re-descubrirlos en cada sprint. Viven en `docs/metodologia/`:
 
-- **Demo pública a COSTO CERO** — `docs/metodologia/demo-publica-costo-cero.md`: una URL `.vercel.app`
-  viva y aislada por negocio, sin dominio propio ni plan pago (multi-tenant + RLS, `TENANT_HOST_MAP`,
-  un proyecto Vercel + N dominios gratis, secretos solo del dueño, GitHub App a nivel de la org, `/demo`
-  estático, cron diario). Es el "modo demo" del runbook `docs/runbooks/deploy-vercel.md`.
+- **Demo pública a COSTO CERO** — `docs/metodologia/demo-publica-costo-cero.md`. 🔒 **PASO OBLIGATORIO
+  del sprint (no opcional):** **toda demo pública del ERP se genera y publica siguiendo este método** —
+  no se improvisa un deploy ni un ruteo por fuera. Da una URL `.vercel.app` viva y aislada por negocio,
+  sin dominio propio ni plan pago (multi-tenant + RLS, `TENANT_HOST_MAP`, un proyecto Vercel + N dominios
+  gratis, GitHub App a nivel de la org, `/demo` estático, cron diario). Es el "modo demo" del runbook
+  `docs/runbooks/deploy-vercel.md`.
+  - **Fundamento — credenciales en DOS FASES (innegociable):** **FASE demo/pública** (sin datos reales) =
+    **SIN passwords ni secretos** (el `/demo` es `force-static`, no toca base ni login) → cero fricción,
+    cero bloqueos. **FASE datos reales** (operación real de un tenant) = recién ahí se cargan la llave de
+    la base (`DATABASE_URL`) y las contraseñas de admin/operador, con RLS enforced, y **esos valores los
+    pega SIEMPRE el dueño, nunca el agente** (hay datos de clientes que proteger). Detalle en el playbook.
 
 ## Mantener esto honesto
 Documento vivo. Si cambia el modelo de sprint (equipos, worktrees, protocolo), este doc y

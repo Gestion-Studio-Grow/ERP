@@ -122,6 +122,6 @@ que quedarse corto.
 - El **repo es la memoria**. Sin laptop / si no se pueden abrir sesiones nuevas: degradás a **una sola sesión reutilizada, en serie** (fallback en `docs/SPRINT-MOVIL.md`).
 
 ## Playbooks reutilizables (`docs/metodologia/`)
-- **Demo pública a COSTO CERO** (`docs/metodologia/demo-publica-costo-cero.md`): URL `.vercel.app` viva por negocio sin dominio propio ni plan pago (multi-tenant+RLS, `TENANT_HOST_MAP`, un proyecto Vercel + N dominios gratis, secretos solo del dueño, GitHub App en la org, `/demo` estático, cron diario). Índice en `docs/METODOLOGIA-SPRINT.md → Playbooks operativos`.
+- **Demo pública a COSTO CERO** (`docs/metodologia/demo-publica-costo-cero.md`) — 🔒 **PASO OBLIGATORIO: toda demo pública se genera y publica con este método** (no se improvisa deploy/ruteo). URL `.vercel.app` viva por negocio sin dominio propio ni plan pago (multi-tenant+RLS, `TENANT_HOST_MAP`, un proyecto Vercel + N dominios gratis, GitHub App en la org, `/demo` estático, cron diario). **Credenciales en DOS FASES:** demo/pública = SIN secretos (cero fricción); datos reales = recién ahí `DATABASE_URL` + passwords, y **los pega siempre el dueño, nunca el agente**. Índice en `docs/METODOLOGIA-SPRINT.md → Playbooks operativos`.
 
 Arrancá tomando el rol y confirmando qué worktrees existen (`git worktree list`) antes de asignar bocados.

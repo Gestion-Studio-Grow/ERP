@@ -9,9 +9,46 @@ proyecto de Vercel).
 compartir un link vivo por WhatsApp. **No** es el go-live productivo con dominio propio (eso es el
 runbook `docs/runbooks/deploy-vercel.md`, del que este playbook es el "modo demo").
 
+> **🔒 PASO OBLIGATORIO DEL SPRINT (no opcional).** Toda demo pública del ERP se **genera y publica
+> siguiendo este método** — no se improvisa un deploy ni un ruteo por fuera. Si un frente necesita
+> mostrar una demo pública, este es el camino. (Registrado en `docs/METODOLOGIA-SPRINT.md` y en
+> `.claude/commands/sprint.md`.)
+
 **Regla de oro transversal:** *el agente/operador nunca toca secretos ni la cuenta del dueño.* El
 operador prepara todo lo del repo y las variables NO secretas; el dueño pega los secretos y hace los
 clics en su cuenta. Ver el reparto en el paso 4.
+
+---
+
+## 🔑 FUNDAMENTO — credenciales en DOS FASES (la regla que ordena todo)
+
+El secreto se introduce **lo más tarde posible**, y **solo cuando hay algo real que proteger**. Por eso
+el flujo tiene dos fases nítidas, y **no se mezclan**:
+
+### FASE 1 — DEMO / PÚBLICA (sin datos reales) → **CERO credenciales**
+- **Qué se muestra:** el `/demo` (`force-static`, público) y/o vistas de catálogo de ejemplo. **No toca
+  la base, no tiene login, no maneja datos de ningún cliente real.**
+- **Credenciales:** **NINGUNA.** Ni `DATABASE_URL`, ni contraseñas de admin/operador, ni secretos.
+- **Por qué:** **cero fricción, cero bloqueos.** El objetivo es tener el primer link vivo y mostrarlo al
+  cliente **ya**, sin esperar a que nadie consiga o pegue una llave. Como no hay datos reales, no hay
+  nada que proteger → pedir secretos acá solo trabaría el proceso sin ganar seguridad.
+
+### FASE 2 — DATOS REALES (operación real de un tenant) → **recién ahí las credenciales**
+- **Qué cambia:** el negocio va a **operar de verdad** (login real, cargar/leer datos de sus clientes,
+  cobrar). Ahí sí entra en juego información sensible.
+- **Credenciales:** **ahora** se cargan la **llave de la base (`DATABASE_URL`)** y las **contraseñas de
+  admin/operador** (`OPERATOR_PASSWORD`, `AUTH_SECRET`, `OPERATOR_SECRET`, `OPERATOR_DATABASE_URL`…), con
+  **RLS enforced** para aislar los datos reales entre tenants.
+- **Quién las pega:** **SIEMPRE el dueño**, en su propia cuenta (Vercel/`.env`). **Nunca el agente.** El
+  agente/operador solo carga lo **no secreto** (`RLS_ENFORCEMENT=on`, `TENANT_HOST_MAP`) y deja la
+  **plantilla** (`.env.vercel.template`, nombres sin valores).
+- **Por qué:** apenas hay **datos reales de clientes**, hay una **responsabilidad de custodia**. La llave
+  de esos datos es del dueño y solo él la maneja — así el secreto nunca pasa por el chat, por el repo, ni
+  por manos del agente. Menos manos que tocan el secreto = menos superficie de fuga.
+
+> **En una línea:** *sin datos reales → sin secretos (para no trabar); con datos reales → secretos, y los
+> pega el dueño (para proteger).* Nunca al revés: no se piden credenciales para una demo estática, ni se
+> operan datos reales sin ellas.
 
 ---
 
@@ -63,7 +100,7 @@ clics en su cuenta. Ver el reparto en el paso 4.
   puntos de falla, por cero beneficio (es la misma app con distinto tenant). Un proyecto + N dominios =
   un solo build, una sola config, y cada negocio con su URL.
 
-### 4. Variables: qué carga el operador y qué pega el DUEÑO (nunca secretos en manos del agente)
+### 4. Variables: qué carga el operador y qué pega el DUEÑO (nunca secretos en manos del agente) — aplica la regla de DOS FASES
 - **QUÉ:** el operador/agente carga las variables **NO secretas** y de routing: `RLS_ENFORCEMENT=on`,
   `TENANT_HOST_MAP=…`. El **dueño** pega los **secretos** en su cuenta de Vercel: `DATABASE_URL`
   (rol `app_rls`), `OPERATOR_DATABASE_URL` (rol owner), `AUTH_SECRET`, `OPERATOR_SECRET`,
@@ -84,7 +121,7 @@ clics en su cuenta. Ver el reparto en el paso 4.
   pero el repo vive en la org, **Vercel no ve el repo** y el dueño "no encuentra dónde dar acceso". El
   permiso vive donde vive el repo: en la org.
 
-### 6. Deploy a producción desde `main`; el `/demo` es `force-static` → primer link vivo SIN secretos
+### 6. Deploy a producción desde `main`; el `/demo` es `force-static` → primer link vivo SIN secretos (FASE 1)
 - **QUÉ:** conectar el proyecto a `main` y deployar. La ruta **`/demo`** es `force-static`
   (`src/app/demo/page.tsx`): se pre-renderiza en el build, **sin base ni credenciales**.
 - **POR QUÉ:** el `/demo` da un **primer link público navegable al instante**, que **no depende de la
@@ -120,15 +157,19 @@ clics en su cuenta. Ver el reparto en el paso 4.
 - [ ] `.env.vercel.template` al día (nombres, sin valores).
 - [ ] **Gate de Excelencia** verde (`npm run gates`: tsc·lint·tests·RLS + build) · commit por pathspec.
 
-**Vercel / cuenta (dueño, por el navegador):**
+**Vercel / cuenta — FASE 1 (demo pública, SIN secretos):**
 - [ ] GitHub App de Vercel autorizada **en la ORG** dueña del repo → Vercel ve el repo.
 - [ ] Un proyecto único; **N dominios `.vercel.app`** agregados (uno por tenant).
-- [ ] Secretos pegados (`DATABASE_URL` app_rls, `OPERATOR_DATABASE_URL` owner, `AUTH_SECRET`,
-      `OPERATOR_SECRET`, `OPERATOR_PASSWORD`).
 - [ ] No-secretos cargados: **`RLS_ENFORCEMENT=on`**, **`TENANT_HOST_MAP=…`**; **`APP_BASE_DOMAIN` VACÍO**;
       **`FORCE_TENANT_SLUG` NO seteada**.
-- [ ] Deploy desde `main`. Primer link: **`<proyecto>.vercel.app/demo`** (vivo, sin secretos).
-- [ ] Cada `<negocio>-erp.vercel.app` abre **su** tenant (login/tienda), aislado.
+- [ ] Deploy desde `main`. **Primer link ya compartible: `<proyecto>.vercel.app/demo`** (vivo, sin
+      credenciales — no depende de la base).
+
+**Vercel / cuenta — FASE 2 (datos reales, el DUEÑO pega los secretos):**
+- [ ] Secretos pegados **por el dueño**: `DATABASE_URL` (app_rls), `OPERATOR_DATABASE_URL` (owner),
+      `AUTH_SECRET`, `OPERATOR_SECRET`, `OPERATOR_PASSWORD`.
+- [ ] Con eso, cada `<negocio>-erp.vercel.app` abre **su** tenant (login/tienda), con datos reales
+      **aislados** por RLS.
 
 **Cierre (operador):**
 - [ ] `docs/ESTADO-ACTUAL.md` actualizado (tenants + subdomain + blueprint). Backup/tag de FASE FINAL.
