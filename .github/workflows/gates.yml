@@ -1,0 +1,24 @@
+# Vallas de CI — Célula 2 (Confiabilidad). Corre `npm run gates` (tsc + lint +
+# tests + regresión de aislamiento RLS) en cada push y PR. NO toca prod ni Neon:
+# ninguna valla necesita base de datos (la coverage de RLS es estática sobre el
+# schema; los tests son unitarios). El cliente Prisma se genera en el postinstall
+# (`prisma generate`, sin DB). Es seguro por diseño.
+name: gates
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # npm ci corre el postinstall → prisma generate (genera src/generated/prisma
+      # sin conectar a ninguna base).
+      - run: npm ci
+      - run: npm run gates
