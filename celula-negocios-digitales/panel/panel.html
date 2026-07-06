@@ -588,6 +588,42 @@ const DATA=[
  DATA.forEach(d=>{const p=V3[d.name];if(p){d.idx=p.idx;d.prod=p.prod;d.prodwhy=p.prodwhy+' '+(d.prodwhy||'');}});
 })();
 
+/* ==== PATCH v3 FINAL — consolidado del Desafiador senior sobre las 32 fichas de rondas 8-12 (autoritativo, reemplaza el parcial) ==== */
+;(function(){const V3F=[
+ {"name":"Frená a Tiempo","idx":32,"prod":"warn","prodwhy":"Señal inflada (la Disp. ANSV 167/2026 solo aprueba códigos) y multas.ar y Multabot ya operan flotas B2B; vive solo en nicho remises con el diferencial scoring+descargos validado."},
+ {"name":"Chapa Vigente","idx":24,"prod":"dead","prodwhy":"Vigon ya vende el legajo con control de vencimientos identico y las provincias digitalizan gratis; sin norma nueva que genere urgencia."},
+ {"name":"Patente Viva","idx":22,"prod":"dead","prodwhy":"TAM infimo de patentes pyme y las anualidades son commodity de los agentes de PI; el abono propuesto supera el costo de la propia anualidad."},
+ {"name":"Activo Prolijo","idx":30,"prod":"warn","prodwhy":"RG 1058 real pero la 1108 citada es Inocencia Fiscal; ~35 PSAV inscriptos ya asesorados por estudios: viable solo como white-label para esos estudios."},
+ {"name":"Reparto en Regla","idx":24,"prod":"dead","prodwhy":"La reforma feb-2026 desregula y baja el riesgo de las plataformas en vez de crear carga; Tributo Simple y pares ya sirven al repartidor."},
+ {"name":"Sello RIGI","idx":26,"prod":"dead","prodwhy":"PRODEPRO estatal da el directorio gratis y una certificacion sin acreditacion oficial no tiene valor probatorio ante la autoridad RIGI."},
+ {"name":"Trazabovina","idx":48,"prod":"warn","prodwhy":"Obligacion SENASA confirmada, masiva y con plazo desde 2026, la mejor señal del lote; condicion: validar que los ERP ganaderos no integren SIGSA y firmar canal veterinaria o consignataria."},
+ {"name":"Apuesta Legal","idx":26,"prod":"dead","prodwhy":"Res. 446/2025 real pero los operadores con licencia ya compran a estudios gaming instalados y el juego ilegal denunciado no paga compliance."},
+ {"name":"Autor Directo","idx":26,"prod":"dead","prodwhy":"Decreto 150/2025 firme y judicialmente sostenido, pero el cuello es la cobranza territorial local por local; la comision del 12% no banca ese enforcement."},
+ {"name":"Textil Sin Fronteras","idx":24,"prod":"dead","prodwhy":"El despachante ya calcula el costo puesto en local gratis para captar clientes y agentes de sourcing instalados cubren el resto; la pyme fabricante es victima, no compradora."},
+ {"name":"Cuidador en Regla","idx":22,"prod":"dead","prodwhy":"ARCA emite el recibo de sueldo digital obligatorio y gratis desde mayo 2026 (RG 5850) y el pitch cita una escala salarial vencida."},
+ {"name":"Geriátrico Legal","idx":24,"prod":"dead","prodwhy":"La Res. 1938/2025 abarata un tramite nacional que casi no aplica al target provincial; Opus y Auditoria Group ya gestionan habilitaciones y el abono no tiene contraprestacion."},
+ {"name":"Steel Compliance","idx":25,"prod":"dead","prodwhy":"IRAM 51001-1 es voluntaria y solo de materiales; certifica el propio IRAM y el expediente lo firma un ingeniero matriculado: sin mandato no hay abono."},
+ {"name":"Cobertura Fértil","idx":20,"prod":"dead","prodwhy":"Abogados en Salud, HMG y pares ya hacen exactamente esto gratis para el paciente cobrando a la prepaga; hueco saturado y con riesgo de ejercicio ilegal."},
+ {"name":"Mediación Viva","idx":25,"prod":"dead","prodwhy":"El SIGIM existe pero es gratis e incluye expedientes, plazos y actas; la premisa de notificacion esta mal calibrada y el nicho son ~2500 mediadores."},
+ {"name":"Vuelo en Regla","idx":18,"prod":"dead","prodwhy":"La Res. ANAC 550/2025 desregulo y el autorregistro es gratuito y online en minutos; vende compliance sobre una norma que lo elimino."},
+ {"name":"Conocimiento Vivo","idx":22,"prod":"dead","prodwhy":"La Res. 8/2026 citada es el programa Kit 4.0, no lo pitcheado; PwC, Piacentini y todo estudio contable ya venden EDC y el tramite TAD es gratis."},
+ {"name":"Billetera en Regla","idx":33,"prod":"warn","prodwhy":"El endurecimiento BCRA 8411/8432 es real pero son ~150 PSPCP ya cortejados por 10+ estudios; solo como implementacion operativa ultra especializada."},
+ {"name":"Brote Legal","idx":24,"prod":"dead","prodwhy":"Res. 41/2026 real pero transitoria hasta marzo 2027 sobre un ARICCAME disuelto y restituido a medias; We Legal y estudios ya cubren los tramites."},
+ {"name":"Búnker de Datos","idx":26,"prod":"dead","prodwhy":"La Disp. 1/2026 del Centro Nacional de Ciberseguridad existe y aprieta, pero ARSAT resuelve el CPD por convenio interadministrativo y las consultoras B2G el papeleo."},
+ {"name":"Arrepentimiento Blindado","idx":18,"prod":"dead","prodwhy":"Tiendanube trae el boton de arrepentimiento nativo y gratis en todas las tiendas argentinas; el propio TAM ya lo tiene resuelto de fabrica."},
+ {"name":"Cuota Justa","idx":24,"prod":"dead","prodwhy":"Ley 27.802 judicializada con fallos pro sindicatos en apelacion y el descuento sale del empleado: RRHH no captura ningun ahorro del cual cobrar el fee."},
+ {"name":"Añada Digital","idx":20,"prod":"dead","prodwhy":"La desregulacion del INV reduce el compliance y VINUM, CASE y Tiempo Soft ya sirven a las bodegas; el INV certifica exportacion gratis."},
+ {"name":"Puerto Limpio","idx":19,"prod":"dead","prodwhy":"La Res. 413/2026 simplifica un SIGCER que existe desde 2014; es un tramite puntual de despachantes instalados, sin contraprestacion mensual."},
+ {"name":"Baremo Vivo","idx":23,"prod":"dead","prodwhy":"MetaJuridico ya publica la calculadora del baremo 549/2025 gratis y los laboralistas hacen el reclamo a cuota litis sin costo inicial para el trabajador."},
+ {"name":"Puente Concursal","idx":22,"prod":"dead","prodwhy":"Nosis y Veraz ya venden alertas de concursos y quiebras y el expediente lo firma el concursalista; la pyme insolvente no paga un abono."},
+ {"name":"Garrafa Al Día","idx":33,"prod":"warn","prodwhy":"Brecha real (6% de adopcion) sin competidor privado, pero la pata comercios vende compliance que la norma no exige y el tramite es gratuito; vive solo via cooperativas y fraccionadoras que financien la inscripcion."},
+ {"name":"Registro en Regla","idx":24,"prod":"dead","prodwhy":"RNBD gratuito y declarativo con multas de $1.000 a $100.000: miedo sin miedo real, y la reforma en danza puede eliminar el registro."},
+ {"name":"Sala en Regla","idx":26,"prod":"dead","prodwhy":"Norma vigente pero solo el 5% cumple y nadie fiscaliza; el reintegro lo liquida el estudio contable con la guia G44 de ARCA."},
+ {"name":"Cantera en Regla","idx":22,"prod":"dead","prodwhy":"Norma citada equivocada y el plazo de 30 dias vencio en 2025; el informe lo firma una consultora ambiental registrada en la provincia."},
+ {"name":"Cupo Social SUBE","idx":24,"prod":"dead","prodwhy":"Res. 40/2026 real pero los datos SUBE ya son abiertos y gratis y el municipio desfinanciado no paga $180.000 mensuales."},
+ {"name":"Sangre en Regla","idx":24,"prod":"dead","prodwhy":"Res. 536/2026 real pero BIOCOM, BLOTEM, Donalab y GPI ya venden software de hemoterapia validado; un entrante sin track record clinico no llega."}
+];const M={};V3F.forEach(o=>M[o.name]=o);DATA.forEach(d=>{const p=M[d.name];if(p){d.idx=p.idx;d.prod=p.prod;d.prodwhy=p.prodwhy;}});})();
+
 const WAVES=[
  {t:'Ciclo 1 — Exploración',d:'06·07',cls:'done',items:['4 consultores + experto de cobro','12 negocios con research y fuentes','Portfolio + recomendación (barbell)']},
  {t:'Ciclo 2 — Pasivo vs Activo + Red-team',d:'06·07',cls:'done',items:['2 equipos horizontales','23 ideas → 10 finalistas','Red-team: 2 limpios, 2 comodines, 4 muertos']},
