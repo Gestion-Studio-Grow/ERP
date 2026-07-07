@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireOperator } from "@/lib/operator-session";
 import { operatorLogout } from "@/lib/operator-actions";
+import { cockpitNavEnabled } from "@/lib/cockpit/flag";
 import { Button } from "@/components/ui";
 
 // Control-plane: título propio (no "CH Estética…" heredado) y sin indexar.
@@ -30,6 +31,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
             <nav className="flex items-center gap-4 text-sm text-muted">
               <Link href="/operador" className="hover:text-strong">Tenants</Link>
               <Link href="/operador/alta" className="hover:text-strong">Alta de tenant</Link>
+              {cockpitNavEnabled() && (
+                <Link href="/operador/cockpit" className="hover:text-strong">Cockpit</Link>
+              )}
             </nav>
           </div>
           <form action={operatorLogout}>
