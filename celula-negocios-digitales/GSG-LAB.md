@@ -86,6 +86,18 @@ celula-negocios-digitales/
   panel/panel.html                el producto (fuente de verdad)
   panel/generar-pdf-*.mjs         generadores de PDF (manual/plantillas/costos/cartera)
   panel/publicar-a-app.mjs        publica el panel a la app (/operador/direccion)
+  lab-influencers/                sub-célula segmento influencers/CM/creativos (ver §6)
 docs/adr/ADR-056-*.md             el Panel de Dirección como producto del control-plane
 src/app/operador/(console)/direccion/   el producto vivo en la app (protegido)
 ```
+
+## 6. Sub-célula: Lab Influencers & Creadores (2026-07-07)
+
+Sub-célula del lab enfocada en el segmento **influencers / community managers / creativos**
+(Argentina/LATAM). Presta el patrón del motor cíclico (ADR-053: prestar antes de crear) con un
+roster propio de 5 lentes — **Creativo · Analítico · Dev · Diseñador experto · Analista de mercado
+local** — todos en **Sonnet 5**. Ciclo: generación → mejora v2 (lente cruzada) → mejora v3 + score
+ICE; toda propuesta pasa **2 mejoras** antes de acumularse. Salida: **dashboard local**
+(`lab-influencers/dashboard.html` + `data.js` acumulativo) con métricas y ranking; el costo de lo
+que hace la IA se computa **$0** (regla del dueño). Charter, método y cómo correr una ronda:
+**`lab-influencers/README.md`** · motor: **`lab-influencers/motor-ronda.workflow.js`**.

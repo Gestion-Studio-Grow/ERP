@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Gestión Studio Grow">
+<title>Lab Influencers — Dashboard de Oportunidades · GSG</title>
+<style>
+  :root {
+    --page:        #f9f9f7;
+    --surface-1:   #fcfcfb;
+    --text-1:      #0b0b0b;
+    --text-2:      #52514e;
+    --muted:       #898781;
+    --grid:        #e1e0d9;
+    --baseline:    #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+    --series-1:    #2a78d6; /* blue */
+    --series-2:    #1baf7a; /* aqua */
+    --series-3:    #eda100; /* yellow */
+    --series-4:    #008300; /* green */
+    --series-5:    #4a3aa7; /* violet */
+    --series-6:    #e34948; /* red */
+    --series-7:    #e87ba4; /* magenta */
+    --series-8:    #eb6834; /* orange */
+    --seq-300:     #6da7ec;
+    --seq-450:     #2a78d6;
+    --good-text:   #006300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page:        #0d0d0d;
+      --surface-1:   #1a1a19;
+      --text-1:      #ffffff;
+      --text-2:      #c3c2b7;
+      --muted:       #898781;
+      --grid:        #2c2c2a;
+      --baseline:    #383835;
+      --border:      rgba(255,255,255,0.10);
+      --series-1:    #3987e5;
+      --series-2:    #199e70;
+      --series-3:    #c98500;
+      --series-4:    #008300;
+      --series-5:    #9085e9;
+      --series-6:    #e66767;
+      --series-7:    #d55181;
+      --series-8:    #d95926;
+      --seq-300:     #5598e7;
+      --seq-450:     #3987e5;
+      --good-text:   #0ca30c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-1);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 64px; }
+  header h1 { font-size: 20px; margin: 0 0 2px; }
+  header .sub { color: var(--text-2); font-size: 13px; }
+  header .sub b { color: var(--text-1); font-weight: 600; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 6px; }
+  .chip {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-2);
+    border-radius: 999px; padding: 4px 12px; font-size: 12.5px; cursor: pointer;
+  }
+  .chip:hover { color: var(--text-1); }
+  .chip.on { color: var(--text-1); font-weight: 600; border-color: var(--baseline); }
+  .chip.on::before { content: "✓ "; font-weight: 700; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 14px 0 20px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
+  }
+  .tile .k { color: var(--text-2); font-size: 12px; margin-bottom: 4px; }
+  .tile .v { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; }
+  .tile .d { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .tile .d.good { color: var(--good-text); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 12px; overflow-x: auto;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 2px; }
+  .card .note { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+
+  .hbar-row { display: grid; grid-template-columns: 150px 1fr 42px; align-items: center; gap: 8px; margin: 6px 0; }
+  .hbar-label { font-size: 12.5px; color: var(--text-2); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hbar-track { position: relative; height: 16px; }
+  .hbar-fill { position: absolute; left: 0; top: 2px; height: 12px; border-radius: 0 4px 4px 0; min-width: 2px; }
+  .hbar-val { font-size: 12.5px; color: var(--text-1); font-variant-numeric: tabular-nums; }
+  .hbar-row:hover .hbar-fill { filter: brightness(1.08); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; border-bottom: 1px solid var(--baseline); padding: 6px 8px; white-space: nowrap; }
+  td { border-bottom: 1px solid var(--grid); padding: 7px 8px; vertical-align: top; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.op-row { cursor: pointer; }
+  tr.op-row:hover td { background: color-mix(in srgb, var(--seq-300) 8%, transparent); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+  .rank { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ice { font-weight: 650; }
+  tr.detail td { background: color-mix(in srgb, var(--surface-1) 60%, var(--page)); font-size: 12.5px; color: var(--text-2); }
+  .detail .stage { margin: 6px 0; }
+  .detail .stage b { color: var(--text-1); }
+  .badge { display: inline-block; border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; font-size: 11.5px; color: var(--text-2); margin-right: 6px; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧪 Lab Influencers &amp; Creadores — Dashboard de Oportunidades</h1>
+    <div class="sub" id="subtitle"></div>
+  </header>
+
+  <div class="filters" id="filters"></div>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>Oportunidades por segmento</h2>
+      <p class="note">Cantidad de propuestas que completaron el ciclo v1→v2→v3</p>
+      <div id="chartSegmento"></div>
+    </div>
+    <div class="card">
+      <h2>Puntos de dolor atacados</h2>
+      <p class="note">Por categoría de dolor del segmento</p>
+      <div id="chartDolor"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Ranking priorizado (score ICE)</h2>
+    <p class="note">ICE = impacto × confianza ÷ esfuerzo · costo IA = $0 (no se contempla) · clic en una fila para ver el ciclo de mejora</p>
+    <table id="ranking"></table>
+  </div>
+
+  <footer>Elaborado por <b>Gestión Studio Grow</b> · célula Lab Influencers · motor cíclico de 5 agentes (v1 → mejora v2 → mejora v3 + score)</footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  const D = window.LAB_DATA || { rondas: [], oportunidades: [] };
+  const SEG_LABEL = {
+    influencers: "Influencers", community_managers: "Community managers",
+    creativos: "Creativos/freelancers", transversal: "Transversal",
+  };
+  const SEG_COLOR = {
+    influencers: "var(--series-1)", community_managers: "var(--series-2)",
+    creativos: "var(--series-5)", transversal: "var(--series-8)",
+  };
+  const DOLOR_LABEL = {
+    cobros_facturacion: "Cobros y facturación", gestion_clientes_marcas: "Gestión de clientes/marcas",
+    produccion_contenido: "Producción de contenido", reportes_metricas: "Reportes y métricas",
+    organizacion_agenda: "Organización y agenda", venta_captacion: "Venta y captación",
+    entregables_visuales: "Entregables visuales", otro: "Otro",
+  };
+  const ice = (o) => o.final.esfuerzo > 0 ? (o.final.impacto * o.final.confianza) / o.final.esfuerzo : 0;
+  const fmt1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
+  const fmt0 = (n) => Math.round(n).toLocaleString("es-AR");
+
+  let fSeg = "todos", fRonda = "todas";
+  const ops = () => D.oportunidades.filter(o =>
+    (fSeg === "todos" || o.final.segmento === fSeg) &&
+    (fRonda === "todas" || String(o.ronda) === String(fRonda)));
+
+  function chips() {
+    const el = document.getElementById("filters");
+    const segs = ["todos", ...new Set(D.oportunidades.map(o => o.final.segmento))];
+    const rondas = ["todas", ...new Set(D.oportunidades.map(o => o.ronda))];
+    el.innerHTML = "";
+    segs.forEach(s => el.appendChild(chip(s === "todos" ? "Todos los segmentos" : (SEG_LABEL[s] || s),
+      fSeg === s, () => { fSeg = s; render(); })));
+    rondas.forEach(r => el.appendChild(chip(r === "todas" ? "Todas las rondas" : "Ronda " + r,
+      String(fRonda) === String(r), () => { fRonda = r; render(); })));
+  }
+  function chip(label, on, fn) {
+    const b = document.createElement("button");
+    b.className = "chip" + (on ? " on" : ""); b.textContent = label; b.onclick = fn;
+    return b;
+  }
+
+  function tiles(list) {
+    const t = document.getElementById("tiles");
+    if (!list.length) { t.innerHTML = ""; return; }
+    const avg = (f) => list.reduce((a, o) => a + f(o), 0) / list.length;
+    const sum = (f) => list.reduce((a, o) => a + f(o), 0);
+    t.innerHTML = [
+      tile("Oportunidades", list.length, D.rondas.length + " ronda" + (D.rondas.length === 1 ? "" : "s") + " · 2 mejoras c/u"),
+      tile("ICE promedio", fmt1(avg(ice)), "top: " + fmt1(Math.max(...list.map(ice)))),
+      tile("Costo humano MVP prom.", "US$ " + fmt0(avg(o => o.final.costoHumanoUSD)), fmt0(avg(o => o.final.horasHumanas)) + " hs humanas prom."),
+      tile("Automatizable por IA", fmt0(avg(o => o.final.pctAutomatizableIA)) + "%", "ese costo = $0, no se contempla", true),
+      tile("Tiempo a MVP prom.", fmt0(avg(o => o.final.tiempoMVPdias)) + " días", "cartera: US$ " + fmt0(sum(o => o.final.costoHumanoUSD)) + " total"),
+    ].join("");
+  }
+  const tile = (k, v, d, good) =>
+    `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d${good ? " good" : ""}">${d}</div></div>`;
+
+  function hbars(elId, rows, color) {
+    const el = document.getElementById(elId);
+    const max = Math.max(1, ...rows.map(r => r.v));
+    el.innerHTML = rows.map(r => `
+      <div class="hbar-row" title="${r.label}: ${r.v}">
+        <div class="hbar-label">${r.label}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${(r.v / max) * 100}%;background:${r.color || color}"></div></div>
+        <div class="hbar-val">${r.v}</div>
+      </div>`).join("") || '<div class="empty">Sin datos</div>';
+  }
+
+  function ranking(list) {
+    const el = document.getElementById("ranking");
+    if (!list.length) {
+      el.innerHTML = '<tr><td><div class="empty">Todavía no hay propuestas — la célula está trabajando. Corré una ronda del motor (ver README.md) y recargá.</div></td></tr>';
+      return;
+    }
+    const sorted = [...list].sort((a, b) => ice(b) - ice(a));
+    el.innerHTML = `<thead><tr>
+      <th>#</th><th>Oportunidad</th><th>Segmento</th><th>Dolor</th>
+      <th class="num">Imp.</th><th class="num">Conf.</th><th class="num">Esf.</th><th class="num">ICE</th>
+      <th class="num">Costo humano</th><th class="num">IA %</th><th class="num">MVP</th>
+    </tr></thead><tbody>` + sorted.map((o, i) => `
+      <tr class="op-row" data-id="${o.id}">
+        <td class="rank">${i + 1}</td>
+        <td><b>${o.final.titulo}</b><br><span style="color:var(--muted);font-size:12px">R${o.ronda} · origen: ${o.autor} · v3</span></td>
+        <td><span class="dot" style="background:${SEG_COLOR[o.final.segmento] || "var(--series-3)"}"></span>${SEG_LABEL[o.final.segmento] || o.final.segmento}</td>
+        <td>${DOLOR_LABEL[o.final.categoriaDolor] || o.final.categoriaDolor}</td>
+        <td class="num">${o.final.impacto}</td><td class="num">${o.final.confianza}</td><td class="num">${o.final.esfuerzo}</td>
+        <td class="num ice">${fmt1(ice(o))}</td>
+        <td class="num">US$ ${fmt0(o.final.costoHumanoUSD)}</td>
+        <td class="num">${o.final.pctAutomatizableIA}%</td>
+        <td class="num">${o.final.tiempoMVPdias} d</td>
+      </tr>
+      <tr class="detail" data-for="${o.id}" hidden><td colspan="11"><div class="detail">
+        <span class="badge">💢 ${o.final.dolor}</span>
+        <div class="stage"><b>Oportunidad:</b> ${o.final.descripcion}</div>
+        <div class="stage"><b>Solución:</b> ${o.final.solucion}</div>
+        <div class="stage"><b>Encaje GSG:</b> ${o.final.encajeGSG}</div>
+        <div class="stage"><b>Ciclo de mejora</b> — v1 (${o.autor}): «${o.v1.titulo}» → <b>v2:</b> ${o.mejoraV2} → <b>v3:</b> ${o.mejoraV3}</div>
+      </div></td></tr>`).join("") + "</tbody>";
+    el.querySelectorAll("tr.op-row").forEach(tr => tr.addEventListener("click", () => {
+      const d = el.querySelector(`tr.detail[data-for="${tr.dataset.id}"]`);
+      if (d) d.hidden = !d.hidden;
+    }));
+  }
+
+  function render() {
+    const list = ops();
+    document.getElementById("subtitle").innerHTML =
+      `Segmento: <b>${D.segmentoObjetivo || "influencers · CM · creativos"}</b> · ` +
+      `${D.oportunidades.length} oportunidades acumuladas en ${D.rondas.length} ronda(s) del ciclo`;
+    chips(); tiles(list);
+    const count = (key) => {
+      const m = new Map();
+      list.forEach(o => { const k = o.final[key]; m.set(k, (m.get(k) || 0) + 1); });
+      return [...m.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    hbars("chartSegmento", count("segmento").map(([k, v]) => ({ label: SEG_LABEL[k] || k, v, color: SEG_COLOR[k] })), "var(--seq-450)");
+    hbars("chartDolor", count("categoriaDolor").map(([k, v]) => ({ label: DOLOR_LABEL[k] || k, v })), "var(--seq-450)");
+    ranking(list);
+  }
+  render();
+})();
+</script>
+</body>
+</html>
