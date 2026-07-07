@@ -249,6 +249,7 @@ elevan** (§C), no se corren.
 | **I4** | **Rotar secretos + PITR** (`NEON_API_KEY` + password `app_rls` + habilitar PITR) | acción dueño (seguridad) | 2 rojos pre-cobros cerrados |
 | **I5** | **Limpieza de disco** — 10 worktrees stale + 8 carpetas huérfanas (`rm -rf` vedado por config) | acción dueño / método permitido | higiene del entorno (§7) |
 | **I6** | **Destino del oversell fix** de `calidad` — recuperar (cherry-pick a un frente + Gate) vs descartar | decisión dueño/PMO | evita perder un fix de bug real de POS (§6) |
+| **I7** | **Autorización de marca (ADR-042) de Shine Velas y A Dos Manos** — pedir y **registrar** el OK del cliente para replicar su identidad (como Magra). **Gap detectado por F1:** ninguno la tiene registrada; además el copy de Shine ya está en `main` **landeado antes** de la verificación y con reviews aparentemente inventadas. | acción dueño (autorización) | desbloquea el A2 real: copy DX-5 relevado de Shine/ADM + regulariza el copy de Shine ya en `main`. Ver `docs/estrategia/F1-vidrieras-calibracion-y-gate-adr042.md` |
 
 > Los secretos los **pega SIEMPRE el dueño** (FASE 2, ADR-041); las migraciones quedan como **carpeta sin
 > aplicar**; nada de §C se corre solo.
