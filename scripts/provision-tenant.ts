@@ -45,6 +45,7 @@ import {
   DEFAULT_BLUEPRINT_ID,
   BLUEPRINT_IDS,
 } from "../src/blueprints";
+import { defaultModulesForBlueprint } from "../src/blueprints/presets-meta";
 
 const DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -229,7 +230,11 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
         ...(plat.status ? { status: plat.status } : {}),
         ...(plat.plan !== undefined ? { plan: plat.plan } : {}),
         ...(plat.subdomain !== undefined ? { subdomain: plat.subdomain } : {}),
-        ...(plat.modules ? { modules: plat.modules } : {}),
+        // OP-2: si el alta no pasa `modules` explícito, no se deja en `[]` — se
+        // deriva del blueprint (mismo default que ve el consultor/demo, ver
+        // src/blueprints/presets-meta.ts). Así la consola de operador no vuelve a
+        // mostrar "0 módulos" en un tenant nuevo por falta de dato, no por bug real.
+        modules: plat.modules ?? defaultModulesForBlueprint(blueprint.id),
         ...(plat.accentPreset !== undefined ? { accentPreset: plat.accentPreset } : {}),
         ...(plat.frontTheme !== undefined ? { frontTheme: plat.frontTheme } : {}),
       },

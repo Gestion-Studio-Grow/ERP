@@ -10,6 +10,7 @@
 import { AGENDA_RUBROS } from "./agenda/rubros";
 import { OFICIOS_RUBROS } from "./oficios/rubros";
 import { GASTRO_RUBROS } from "./gastronomia/rubros";
+import { getRetailRubro } from "./retail/rubros";
 
 export interface PresetMeta {
   /** Módulos/pantallas activos por defecto en el alta (ver src/lib/operator-config MODULES). */
@@ -40,4 +41,28 @@ export const PRESET_META: Record<string, PresetMeta> = {
 export function presetMetaFor(blueprintId: string | null | undefined): PresetMeta | null {
   if (!blueprintId) return null;
   return PRESET_META[blueprintId] ?? null;
+}
+
+// "servicios" es el blueprint histórico (pre-familias): funcionalmente es el mismo
+// archetipo que la familia Agenda&Servicios, así que hereda su set de módulos.
+const LEGACY_MODULES: Record<string, string[]> = {
+  servicios: AGENDA_MODULES,
+};
+
+/**
+ * Módulos por defecto de un blueprint — para el alta 1-clic (provisioning, ADR-019)
+ * y para mostrar/derivar en la consola de operador cuando `Tenant.modules` está vacío
+ * (OP-2: la columna no debe leer "0" solo porque nunca se persistió). Cubre las tres
+ * familias de presets, el retail/mostrador (vocabulario propio por rubro) y el
+ * blueprint histórico "servicios". Devuelve `[]` para blueprints sin default conocido
+ * (p. ej. "generico") — ahí "0" es honesto, no un bug de datos.
+ */
+export function defaultModulesForBlueprint(blueprintId: string | null | undefined): string[] {
+  if (!blueprintId) return [];
+  return (
+    presetMetaFor(blueprintId)?.modules ??
+    getRetailRubro(blueprintId)?.modules ??
+    LEGACY_MODULES[blueprintId] ??
+    []
+  );
 }

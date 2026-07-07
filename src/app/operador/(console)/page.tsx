@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { operatorPrisma } from "@/lib/operator-db";
 import { getBlueprint } from "@/blueprints";
+import { defaultModulesForBlueprint } from "@/blueprints/presets-meta";
 import { Badge, Card, ButtonLink } from "@/components/ui";
 import type { BadgeProps } from "@/components/ui";
 
@@ -20,6 +21,20 @@ function blueprintLabel(id: string | null): string {
   } catch {
     return id;
   }
+}
+
+// OP-2: `Tenant.modules` puede estar vacío porque nunca se persistió en el alta
+// (provision-tenant.ts ya lo corrige para tenants NUEVOS — ver ese script), no
+// porque el tenant no tenga módulos. Para tenants existentes con la columna vacía,
+// derivamos el default del blueprint/rubro para mostrar un número honesto en vez de
+// un "0" que lee como negocio roto — marcado visualmente como derivado, no persistido.
+function modulesDisplay(tenant: { modules: string[]; blueprintId: string | null }): {
+  count: number;
+  derived: boolean;
+} {
+  if (tenant.modules.length > 0) return { count: tenant.modules.length, derived: false };
+  const fallback = defaultModulesForBlueprint(tenant.blueprintId);
+  return { count: fallback.length, derived: fallback.length > 0 };
 }
 
 // LISTADO + MONITOREO de tenants (control-plane, ADR-021). Lee CROSS-TENANT por la
@@ -106,7 +121,17 @@ export default async function OperatorHome() {
                     <td className="px-4 py-3 text-muted">
                       {t.subdomain ? <code className="text-xs">{t.subdomain}</code> : <span className="text-faint">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-muted">{t.modules.length}</td>
+                    <td className="px-4 py-3 text-muted">
+                      {(() => {
+                        const { count, derived } = modulesDisplay(t);
+                        if (!derived) return count;
+                        return (
+                          <span title="Derivado del rubro — todavía no persistido en el tenant">
+                            {count} <span className="text-faint text-xs italic">(según rubro)</span>
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-faint text-xs">
                       {t._count.users}u · {t._count.services + t._count.products}cat · {t._count.appointments + t._count.orders}op
                     </td>
