@@ -160,6 +160,15 @@ seed/migraciones, secretos, permisos, marca de cliente, gasto/órdenes de impo) 
 eleva al dueño**. **Regla de oro: ante la duda, se trata como irreversible.** Corre en **Sonnet** por
 defecto; escala a **Opus** en el borde reversible/irreversible o alto juicio. Detalle: **`docs/adr/ADR-048-arquitecto-de-solucion.md`** · charter operativo **`docs/organizacion/arquitecto-de-solucion.md`**.
 
+## 🎓 Protocolo de calibración universal — TODO agente calibra antes de actuar (ADR-052)
+
+**Antes de actuar, todo agente corre 3 pasos:** (1) **leer el corpus** de su rol —`CLAUDE.md` + los **ADRs
+de su rol** + **bases/roadmap** (`ESTADO-ACTUAL.md`) + la **memoria de lecciones** (`docs/lecciones-aprendidas/registro.md`)—;
+(2) **escribir 3–5 bullets** con los **principios que guían sus decisiones**, declarando su **zona de
+de-sesgo** (ADR-046: humano/criollo vs estándar/preciso); (3) **recién entonces actuar**. Sin (1)+(2) está
+**fuera de norma**. **Lista mínima de lectura por tipo de rol** en **ADR-052**. La estructura total de quién
+compone cada división está en **`docs/organizacion/roster-completo-gsg.md`** (ADR-051).
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.

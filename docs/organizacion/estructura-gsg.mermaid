@@ -1,13 +1,15 @@
 %% Estructura completa de GSG (Gestión Studio Grow) — organigrama + flujo canónico
-%% Fuente de verdad: ADR-032/039/045/048/049/050. Render: mermaid.live o cualquier viewer Mermaid.
+%% Fuente de verdad: ADR-032/039/045/048/049/050/051/052 · roster-completo-gsg.md
+%% Estado: (sin marca)=existe · [📐]=definido sin instanciar · [🟡]=parcial · [🆕]=PROPUESTO (falta, OK dueño)
+%% Todo agente CALIBRA antes de actuar (ADR-052). Render: mermaid.live
 flowchart TD
   OWNER["👤 DUEÑO (Maxi)\nAPRUEBA planes + irreversibles"]
 
   subgraph GOB["🏛️ GOBERNANZA (conducción y control)"]
     DISPATCH["Dispatch\nconductor / canal único · releva status"]
     PMO["PMO puro (AUTOR)\nbacklog·roadmap·metodología·ADRs · Opus"]
-    ARQ["Arquitecto de Solución (EJECUTOR)\nejecuta reversible · eleva irreversible · Sonnet/Opus"]
-    ADV["Advisory + Challenger (TENSIÓN)\ntesis/antítesis · Sonnet"]
+    ARQ["Arquitecto de Solución (EJECUTOR)[📐]\nejecuta reversible · eleva irreversible · Sonnet/Opus"]
+    ADV["Advisory[🆕] + Challenger[📐] (TENSIÓN)\ntesis/antítesis · Sonnet"]
     QA["QA / Probador\nprueba como usuario · Sonnet"]
     SEC["Seguridad\nRLS·auth·secretos · Opus"]
     GATE["Auditoría GSG (el Gate)\nexcelencia antes de cada merge · Opus SIEMPRE"]
@@ -15,16 +17,16 @@ flowchart TD
 
   subgraph UNI["🏢 UNIDADES / DIVISIONES"]
     ERP["1· ERP multi-tenant (core SaaS)"]
-    ERPC["Cores: Pagos · Caja · Inventario/POS · Fiscal(ARCA) · Plataforma/Deploy · Diseño"]
+    ERPC["Cores: Pagos · Caja · Inventario/POS · Fiscal(ARCA) · Plataforma/Deploy · Diseño · Reliability[🟡] · Data/DBA[🆕]"]
     DIG["2· Agencia Digital (satélite del ERP)"]
-    DIGC["Consultores/Mercado · Desarrolladores · PMO proactivo · Growth · WhatsApp"]
+    DIGC["Consultores/Mercado · Desarrolladores · PMO proactivo · Growth[🟡] · WhatsApp[🟡] · Soporte/Postventa[🆕]"]
     GROW["3· Agencia Grow (negocios propios)"]
-    GROWC["Panel del Dueño (owner-insights/trends) · cartera propia"]
+    GROWC["Panel del Dueño · cartera propia[🆕] · Pricing&Packaging (low/mid/big)[🆕]"]
     PRESET["4· Preset IA (onboarding) · Opus"]
-    PRESETC["Ingesta + Adaptación → preset del cliente"]
-    IMPO["5· Importaciones (impo) · Opus"]
+    PRESETC["Ingesta/Extracción · Adaptación/Calidad → preset del cliente"]
+    IMPO["5· Importaciones (impo)[📐] · Opus"]
     IMPOC["PMO impo · Oportunidades · Proveedores China · Costos/Logística/Aduana · Mercado/Pricing · Fulfillment/3PL"]
-    XCUT["Transversales: Producto por rubro · Delivery por cliente"]
+    XCUT["Transversales: Producto por rubro · Delivery por cliente · Docs/Índice[🆕] · FinOps/Costo-Uso[🆕] · Release Manager[🆕] · Legal/Compliance[🆕]"]
   end
 
   %% Gobernanza
