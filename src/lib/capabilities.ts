@@ -29,7 +29,9 @@ export type Capability =
   | "audit:read"
   | "users:manage"
   | "location:manage" // editar ubicación/contacto del negocio (módulo Localización)
-  | "commissions:manage"; // liquidar comisiones a profesionales (marcar período como pagado)
+  | "commissions:manage" // liquidar comisiones a profesionales (marcar período como pagado)
+  | "billing:manage" // emitir facturas y procesar la facturación electrónica ARCA (módulo ARCA)
+  | "payments:manage"; // generar links de cobro por Mercado Pago (módulo Cobros)
 
 // Todas las capacidades — OWNER las tiene todas (absorbe el "admin" de hoy,
 // ADR-017 §2.b). Mantener esta lista sincronizada con el union `Capability`.
@@ -53,6 +55,8 @@ export const ALL_CAPABILITIES: Capability[] = [
   "users:manage",
   "location:manage",
   "commissions:manage",
+  "billing:manage",
+  "payments:manage",
 ];
 
 // Mapa rol → capacidades (ADR-017 §2.b, tabla de roles).

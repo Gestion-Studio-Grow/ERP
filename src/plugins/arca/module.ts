@@ -23,6 +23,7 @@ export const arcaModule: ModuleDescriptor = {
   descripcion:
     "Autorización fiscal de comprobantes ante ARCA (ex-AFIP): obtiene el CAE vía WSAA + WSFEv1. No calcula impuestos (eso vive en el Core, ADR-006).",
   kind: "plugin",
+  capability: "billing:manage", // habilita la pantalla de Facturación del backoffice (RBAC)
   rubros: "todos",
   consumeEventos: ["InvoiceCreated"],
   llamaComandos: ["RegisterFiscalDocument"],

@@ -19,11 +19,14 @@ export const mercadopagoModule: ModuleDescriptor = {
   version: "0.1.0", // stub; reingeniería a real pendiente (plan-ventana Balde B).
   nombre: "Mercado Pago — Cobros",
   descripcion:
-    "Recibe notificaciones de pago de Mercado Pago; al acreditarse un pago, auto-factura el turno asociado (ADR-024). No calcula impuestos ni escribe la DB del Core.",
+    "Cobros por Mercado Pago: genera links de pago (Checkout Pro) y recibe notificaciones; al acreditarse un pago, auto-factura el turno asociado (ADR-024). No calcula impuestos ni escribe la DB del Core.",
   kind: "plugin",
+  capability: "payments:manage", // habilita la pantalla de Cobros del backoffice (RBAC)
   rubros: "todos",
   consumeEventos: [], // entrada real: webhook externo de MP, no el outbox.
-  llamaComandos: ["facturarAppointment"],
+  // "crearPreferencia" = generar link de pago (Checkout Pro, salida); "facturarAppointment"
+  // = auto-factura al acreditarse (ingesta). Ambas superficies del módulo de cobros.
+  llamaComandos: ["facturarAppointment", "crearPreferencia"],
   configSchema: {
     accessToken: {
       tipo: "string",
