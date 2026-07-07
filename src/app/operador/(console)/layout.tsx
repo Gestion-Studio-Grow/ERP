@@ -20,6 +20,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
             <nav className="flex items-center gap-4 text-sm text-muted">
               <Link href="/operador" className="hover:text-strong">Tenants</Link>
               <Link href="/operador/alta" className="hover:text-strong">Alta de tenant</Link>
+              <Link href="/operador/direccion" className="hover:text-strong">Mesa de Dirección</Link>
             </nav>
           </div>
           <form action={operatorLogout}>
