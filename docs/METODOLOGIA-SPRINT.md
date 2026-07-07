@@ -83,6 +83,12 @@ Estas seis reglas son la ley del sprint. Rigen sobre todo lo demás de este docu
    - **Calidad/tests** no es core: cada dueño entrega su core en verde (regla "verde antes de
      commitear"). (Diseño **dejó de ser cross-cutting** y ahora es **core** del sector ERP.)
 
+7. **Modelo por sesión + concurrencia.** Cada frente nace **con su modelo etiquetado explícitamente**
+   (mapa completo en `docs/organizacion/asignacion-modelos-sprint.md`: Sonnet default de ejecución; Opus
+   solo PMO/Auditoría GSG/Seguridad/Preset IA/Arquitecto de Solución en su tramo crítico). Y respeta
+   siempre el **tope ≤ 4 sesiones concurrentes + prioridades P1/P2/P3** de
+   `CLAUDE.md → CONCURRENCIA Y PRIORIDADES` — más frentes que cupo entran **en olas**, P1 primero.
+
 ---
 
 ## Mapa de SECTORES y CORES: cada sesión es dueña de un core/frente (eje de paralelización)
@@ -352,6 +358,10 @@ Antes de dar por cerrado el sprint (y como parte de `pausa`), el PMO:
 6. **FASE FINAL — Backup (obligatoria):** **git tag anotado** del estado estable
    (`snapshot/AAAA-MM-DD`) pusheado a origin + **`docs/ESTADO-ACTUAL.md` actualizado**. El tag es el
    punto de retorno del sprint.
+7. **Retro por célula (ADR-047, obligatoria):** cada célula actualiza memoria + registra 1 caso + propone
+   1 mejora de brief/skill antes de darse por cerrada. Si algo del sprint toca **fundamento estratégico**
+   (no ejecución), el PMO lo deriva a **Advisory Board + Challenger** (ADR-045,
+   `docs/organizacion/advisory-board-challenger.md`) — no se adopta directo.
 
 ---
 

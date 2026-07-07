@@ -23,6 +23,12 @@
       "Bash(prisma generate:*)",
       "Bash(prisma migrate dev:*)"
     ],
+    "ask": [
+      "Bash(npx prisma migrate deploy:*)",
+      "Bash(prisma migrate deploy:*)",
+      "Bash(pnpm prisma migrate deploy:*)",
+      "Bash(yarn prisma migrate deploy:*)"
+    ],
     "deny": [
       "Bash(rm -rf:*)",
       "Bash(rm -fr:*)",
