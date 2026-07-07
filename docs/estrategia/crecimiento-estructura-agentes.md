@@ -6,9 +6,16 @@ más allá de los 9 🆕 ya listados, en qué orden, con qué criterio de "agent
 estructura debe escalar con la segmentación LOW/MID/BIG (`docs/estrategia/roadmap-gsg.md`). **Doc-only —
 no instancia ningún agente.**
 
-**Historial de versiones:** v1 (Advisory) → v2 (síntesis tras Ronda 1 del Challenger) → **v3, esta
-versión** (síntesis tras Ronda 2 del Challenger, `docs/estrategia/challenger-contrapuntos.md`) + 3
-posiciones nuevas pedidas por el dueño.
+**Historial de versiones:** v1 (Advisory) → v2 (síntesis tras Ronda 1 del Challenger) → v3 (síntesis tras
+Ronda 2 del Challenger, `docs/estrategia/challenger-contrapuntos.md`, + 3 posiciones nuevas) →
+**v3.1, esta versión** (+ 5 posiciones adicionales pedidas por el dueño, atadas al workstream nuevo
+**Catálogo de módulos/Repositorio de plugins** que acaba de entrar al roadmap — §5.4-5.8).
+
+**Criterio del dueño para esta ronda ("ya fundamento GSG"):** *crear generoso, activar en olas* — no ser
+parsimonioso al **definir** (charter completo para todo lo que agregue precisión real), reservando la
+parsimonia para la **activación** (por señal, en olas — §3). La reutilización del pool/factory cubre
+parte de lo que podría pedirse acá; donde el pool ya alcanza, se dice explícitamente en vez de sumar
+relleno (§5.9).
 
 ---
 
@@ -111,7 +118,7 @@ ventana — y se declaran **dos varas explícitas**, no mezcladas en una sola na
 | Cola | Contenido | Decisión real que le pido al dueño |
 |---|---|---|
 | **Riesgo activo hoy (paralelo)** | **Data/DBA** (instanciación nueva) · **Seguridad amplía su mandato** para cubrir el checklist de PII (§4bis) + el protocolo de Incident Response (§2.3) | **1 decisión de instanciación nueva** (Data/DBA) + **1 decisión de ampliar un rol que ya existe** (Seguridad) — esta segunda es más liviana: no es un agente nuevo, es extender el mandato de uno ✅ ya operando, coherente con ADR-048 (cambio doc-only/estructura de células = reversible, el Arquitecto lo puede resolver y solo informa al dueño) |
-| **Apalancamiento (secuencial)** | 1º **Docs/Índice vivo** (barato, Sonnet) → 2º **Pricing & Packaging** (Opus, plata — mayor costo de decisión, va después) | **1 decisión de instanciación** (Pricing; Docs es tan barato que casi no consume atención) — **Advisory Board NO suma una 3ª decisión**: se fusiona al charter de ADR-045 (§1, ítem 8), no requiere OK de instanciación separado |
+| **Apalancamiento (secuencial)** | 1º **Docs/Índice vivo** + **Documentación Técnica del Catálogo** (§5.7, mismo costo bajo, van juntos) → 2º **Product Owner del Catálogo** (§5.4, ordena el backlog del workstream nuevo) → 3º **Pricing & Packaging** (Opus, plata — mayor costo de decisión, va al final) | **2 decisiones de instanciación de costo bajo-medio** (Documentación+Product Owner del Catálogo) + **1 de costo alto** (Pricing); Docs es tan barato que casi no consume atención — **Advisory Board NO suma una decisión más**: fusionado al charter de ADR-045 (§1, ítem 8) |
 
 **Resultado de la corrección:** en vez de "4 charters simultáneos" (v2), el dueño recibe en H0
 **2 decisiones reales de instanciación** (Data/DBA, Pricing) + **1 decisión liviana de ampliar Seguridad**
@@ -119,8 +126,8 @@ ventana — y se declaran **dos varas explícitas**, no mezcladas en una sola na
 
 | Horizonte | Qué es | Agentes que se activan | Disparador (evento de negocio) |
 |---|---|---|---|
-| **H1 — primer piloto MID** | Aparece el primer cliente RI mediano real. ⚠️ *Fecha referencial, no comprometida: hereda sin resolver el riesgo de `roadmap-gsg.md` §5 (sin lead real ni Gate 2 destrabado) — etiquetarla "H1" no la vuelve más firme.* | **Release Manager** (protocolo, no agente) · **Migración/Ingesta** (one-off del Adaptador) · **Preventa Técnica/Solutions Engineering** (§5.1, nueva) | El primer **lead MID calificado** — no antes |
-| **H2 — consolidar MID** | MID con varios clientes, release recurrente | Release Manager se separa si el volumen lo pide · Migración se promueve a agente si el volumen lo fuerza · FinOps se promueve de reporte a agente · SRE on-call/SLOs (shell listo desde H0, ver abajo) · **Product Analytics** (§5.2, nueva) | Volumen de deploys/gasto sostenido; primer contrato con expectativa de disponibilidad |
+| **H1 — primer piloto MID** | Aparece el primer cliente RI mediano real. ⚠️ *Fecha referencial, no comprometida: hereda sin resolver el riesgo de `roadmap-gsg.md` §5 (sin lead real ni Gate 2 destrabado) — etiquetarla "H1" no la vuelve más firme.* | **Release Manager** (protocolo, no agente) · **Migración/Ingesta** (one-off del Adaptador) · **Preventa Técnica/Solutions Engineering** (§5.1) · **Integraciones Externas** (§5.5, justo tras cerrar Gate 2) · **QA de Regresión del Catálogo** (§5.6) · **UX/Consistencia de Backoffice** (§5.8) | El primer **lead MID calificado** (Preventa/Product Analytics); Gate 2 destrabado (Integraciones); la ola de módulos nuevos de MEDIANO empezando en paralelo (QA de Regresión, UX de Backoffice) |
+| **H2 — consolidar MID** | MID con varios clientes, release recurrente | Release Manager se separa si el volumen lo pide · Migración se promueve a agente si el volumen lo fuerza · FinOps se promueve de reporte a agente · SRE on-call/SLOs (shell listo desde H0, ver abajo) · **Product Analytics** (§5.2) | Volumen de deploys/gasto sostenido; primer contrato con expectativa de disponibilidad |
 | **H3 — primer piloto GRANDE** | Entra dinero real a escala + régimen de información avanzado | Soporte/CS · Legal/Compliance pasa de checklist (en Seguridad) a agente completo si el dueño así lo decide (§4bis) · **Aprendiz/Shadow de Implementación GRANDE** (§5.3, nueva) — obligatorio, no opcional, como entregable del propio piloto 1 | Primer contrato GRANDE firmado + MP/ARCA reales |
 
 **Shell + lista de calibración — corrección del "pre-charter" (Ronda 2, hallazgo 2):** el "pre-charter"
@@ -275,6 +282,131 @@ un hueco de consistencia del documento.
   consultor — GSG necesita su propia versión chica de esa certificación interna antes de vender un
   segundo GRANDE.
 
+### Contexto de esta ronda: entra al roadmap el workstream "Catálogo de módulos / Repositorio de plugins"
+
+Acaba de sumarse al roadmap un frente nuevo: **sumar módulos y funcionalidades al backoffice, nutriendo
+el repo de plugins ANTES de salir a vender** (a diferencia de §5.1-5.3, que asumían un lead/piloto ya en
+curso). Esto es, en los hechos, la ejecución concreta de la ambición de "suite completa tipo SAP" que
+`roadmap-gsg.md` ya declaraba — y por eso trae consigo necesidades de estructura genuinamente nuevas,
+no cubiertas por §5.1-5.3 ni por los 11 agentes de §1-2.3.
+
+**Criterio aplicado para elegir estas 5 (y no más ni menos):** con "crear generoso" como mandato, se
+revisaron ~8 candidatos (Product Owner del Catálogo, Desarrolladores de módulos, Integraciones,
+QA de regresión, Documentación técnica, Data/Reporting del ERP, UX de backoffice, y variantes). **Se
+chartean las 5 que agregan precisión real y no están cubiertas por el pool** (ADR-053) ni por roles ya
+definidos; **2 se descartan explícitamente** por redundancia (§5.9), en vez de sumarlas por relleno.
+
+### 5.4 · Product Owner del Catálogo de Módulos/Plugins
+- **Misión (1 línea):** dueño único del backlog del catálogo — qué módulo se construye, en qué orden,
+  para qué tier (BAJA/MEDIANO/GRANDE), y cuándo un plugin está "vendible" vs. "en obras".
+- **División:** Gobernanza/Producto (nueva rama transversal al Core). **Modelo:** Opus (prioriza con
+  criterio de negocio, decide qué entra al catálogo — más cerca de autoría de roadmap que de ejecución).
+- **Entradas → salidas:** *in:* gaps de `roadmap-gsg.md` (multi-sucursal, inventario avanzado, CRM,
+  e-commerce, RRHH, envíos) + demanda real de Preventa Técnica (§5.1) y de Pricing (§1) · *out:* backlog
+  priorizado del catálogo + criterio de "listo para vender" (Gate de módulo, distinto del Gate de
+  Excelencia por PR).
+- **Cuándo activar:** **H0** — el workstream ya entró al roadmap; sin este rol, el catálogo crece por
+  iniciativa dispersa de cada célula de dominio (Pagos, Inventario, Fiscal…) sin una sola vara de
+  prioridad. Entra en la **cola de apalancamiento** (§3), después de Docs/Índice vivo.
+- **Por qué agrega precisión real (no relleno):** ningún rol existente tiene este mandato — el PMO
+  autora el plan de **compañía**, no el orden fino del catálogo de módulos; Producto por rubro (✅
+  existente) ejecuta features **por tenant**, no decide qué entra al catálogo **compartido**. Sin este
+  rol, "suite completa tipo SAP" sigue siendo ambición sin backlog ordenado — el riesgo que el Challenger
+  ya marcó en Ronda 1 (`roadmap-gsg.md` — construcción especulativa sin cliente real). **Referencia SAP:**
+  el **Product Management por Line-of-Business** en SAP decide qué entra al core S/4HANA vs. qué queda
+  como extensión de partner — la disciplina que falta acá.
+
+### 5.5 · Integraciones Externas (framework transversal)
+- **Misión (1 línea):** dueño del **patrón** de integrar cualquier tercero (OAuth, retries/backoff,
+  verificación de firma de webhook, rotación de secretos) — no reemplaza a Pagos/Fiscal/WhatsApp, les da
+  la plomería común para no reinventarla en cada integración nueva.
+- **División:** ERP multi-tenant (Plataforma). **Modelo:** Sonnet (implementación de patrón) → Opus si
+  toca secretos/dinero (mismo borde que Pagos/Fiscal hoy).
+- **Entradas → salidas:** *in:* necesidad de integrar un tercero nuevo (hoy: cerrar MP OAuth real y el
+  certificado ARCA; después: envíos Correo Argentino/Andreani, banking para GRANDE) · *out:* módulo de
+  integración reusable (auth + reintentos + firma) que la célula de dominio (Pagos/Fiscal/WhatsApp)
+  consume, no reconstruye.
+- **Cuándo activar:** **H1**, justo después de que Data/DBA destrabe Gate 2 — su primer trabajo real es
+  terminar lo que hoy son stubs (MP OAuth, certificado ARCA), y ahí mismo sienta el patrón para la
+  próxima integración (envíos) sin que cada una repita la lección **SEC-3** (firma de webhook + rate-
+  limit) desde cero.
+- **Por qué agrega precisión real:** hoy MP, ARCA y WhatsApp son 3 células que resuelven auth/retries/
+  firma cada una por su cuenta — no hay una sola pieza que capture el patrón, y `roadmap-gsg.md` ya
+  anuncia una 4ª integración (envíos) en MEDIANO. Sin este rol, cada integración nueva reinventa la
+  plomería (riesgo directo de repetir SEC-3). **Referencia SAP:** SAP separa **Integration Suite/BTP**
+  (plataforma de integración) de cada LoB específico (Finance, Sales) — la plomería es una disciplina,
+  no una tarea de cada módulo.
+
+### 5.6 · QA de Regresión del Catálogo
+- **Misión (1 línea):** cubre la matriz **combinatoria** módulo × rubro × tier que crece con cada plugin
+  nuevo — distinto de QA/Probador (✅ existente), que prueba **recorridos de un tenant real**, no
+  combinaciones cruzadas del catálogo entero.
+- **División:** ERP multi-tenant (Calidad). **Modelo:** Sonnet (tests automatizados, matriz de
+  regresión) + Opus revisa cuando una regresión toca un módulo de plata/fiscal.
+- **Entradas → salidas:** *in:* cada módulo nuevo o cambiado del catálogo · *out:* matriz de regresión
+  automatizada (qué combinaciones módulo×rubro×tier se rompieron) + entrada a
+  `docs/lecciones-aprendidas/registro.md` cuando encuentra un patrón nuevo de fallo cruzado.
+- **Cuándo activar:** **H1**, cuando el catálogo empieza a crecer en serio (multi-sucursal + inventario
+  avanzado + CRM llegando en paralelo para MEDIANO) — antes de eso, con 4 rubros y pocos módulos, el
+  riesgo combinatorio es bajo y QA/Probador ya alcanza.
+- **Por qué agrega precisión real:** la lección **MP-8** ("sin red de tests, la lógica regresiona") hoy
+  cubre lógica de dominio puntual; a medida que el catálogo crece, el riesgo deja de ser "¿funciona el
+  módulo?" y pasa a ser "¿rompió OTRO módulo en OTRO rubro?" — un tipo de regresión que ningún rol
+  existente cubre sistemáticamente. **Referencia SAP:** SAP corre suites de regresión masivas entre
+  combinaciones de módulos activados antes de cada release de S/4HANA — la razón por la que un cliente
+  puede activar Finance + Retail + HR sin que se rompan entre sí.
+
+### 5.7 · Documentación Técnica del Catálogo de Módulos
+- **Misión (1 línea):** documenta **qué hace cada módulo, cómo se configura y de qué depende** — distinto
+  de Docs/Índice vivo (✅ ya definido, gobierna TABLERO/ADR-INDEX/ESTADO-ACTUAL, documentación **interna
+  de proceso**), esto es documentación **de producto** del catálogo mismo.
+- **División:** Transversal/Producto. **Modelo:** Sonnet puro (mecánico, zona estándar-precisa).
+- **Entradas → salidas:** *in:* cada módulo que el Product Owner del Catálogo (§5.4) marca "vendible" ·
+  *out:* ficha de módulo (qué resuelve, requisitos, dependencias, tier mínimo) que consumen directamente
+  **Preventa Técnica** (§5.1, para armar propuestas) y **Adaptador/Delivery** (para configurar clientes).
+- **Cuándo activar:** **H0**, junto con Docs/Índice vivo en la cola de apalancamiento — es igual de
+  barato (Sonnet, mecánico) y cierra una fricción que **ya existe hoy**: este mismo documento tuvo que
+  relevar el estado del catálogo a mano (vía agentes de exploración) cada vez que hizo falta saber qué
+  módulo estaba construido, parcial o ausente.
+- **Por qué agrega precisión real:** sin esto, Preventa Técnica (§5.1) no tiene de dónde sacar "qué
+  módulos aplican" sin re-explorar el código cada vez — es la pieza que le falta a §5.1 para funcionar
+  sin fricción. **Referencia SAP:** el **SAP Help Portal / Best Practices Explorer** documenta cada
+  capability activable por LoB — ningún vendedor de SAP arma una propuesta leyendo código fuente.
+
+### 5.8 · UX/Consistencia de Backoffice (Catálogo)
+- **Misión (1 línea):** garantiza que los módulos nuevos del catálogo compartan **patrones de UI**
+  (navegación, estados, componentes) — distinto de la célula **Diseño** (✅ existente, hoy con foco en
+  branding/tokens/vidrieras **públicas** por tenant), esto es consistencia **del backoffice interno** a
+  medida que se multiplican los módulos.
+- **División:** ERP multi-tenant (Diseño/Calidad). **Modelo:** Sonnet (revisión de patrones) → escala a
+  Opus solo si una inconsistencia ya rompió el ángulo "consistencia" del Gate de Excelencia en más de un
+  módulo (señal de deuda sistémica, no puntual).
+- **Entradas → salidas:** *in:* cada módulo nuevo del backoffice (multi-sucursal, inventario avanzado,
+  CRM, RRHH…) · *out:* checklist de consistencia de UI (mismo lenguaje visual/interacción que los módulos
+  existentes) — insumo directo del ángulo **"consistencia"** del Gate SAP Fiori (`auditoria-sap-fiori.md`),
+  no un gate nuevo y paralelo.
+- **Cuándo activar:** **H1**, cuando arranca la ola real de módulos nuevos de MEDIANO (multi-sucursal +
+  inventario avanzado + CRM en paralelo) — antes de eso, con pocos módulos, el propio Gate por PR ya
+  alcanza para sostener consistencia.
+- **Por qué agrega precisión real:** el Gate de Excelencia YA exige "consistencia" (ADR-040, ángulo 1),
+  pero hoy esa evaluación es puntual por PR — a medida que el catálogo crece en paralelo (varios módulos
+  a la vez, posiblemente construidos por distintos agentes prestados del pool, ADR-053), nadie mira el
+  patrón **agregado** entre módulos, solo cada PR aislado. **Referencia SAP:** **SAP Fiori Design
+  Guidelines** es una disciplina propia, separada de cada equipo de LoB — exactamente el ángulo que GSG
+  ya adoptó como parte de su propia auditoría (`ADR-044` Argentinizar SAP) pero todavía sin un rol
+  dedicado a sostenerlo cuando el catálogo crezca en volumen.
+
+### 5.9 · Descartados explícitamente (cubiertos por el pool, ADR-053 — no se chartean como rol nuevo)
+- **"Desarrolladores de módulos" genérico:** sería puro relleno — las células de dominio ya ✅ existentes
+  (Pagos, Inventario/POS, Fiscal, Plataforma, Diseño) **son** quienes construyen cada módulo de su
+  dominio; el catálogo no necesita un rol "desarrollador" separado, necesita que esas células **presten**
+  capacidad al ritmo que el Product Owner del Catálogo (§5.4) priorice — exactamente el mecanismo de
+  préstamo/rotación de ADR-053, no un charter nuevo.
+- **"Data/Reporting del ERP":** se solapa en más de la mitad con **Product Analytics/Telemetría de uso**
+  (§5.2, ya definido en v3) y con **Owner Insights** (✅ ya existente) — sumarlo como rol aparte sería
+  redundancia, no precisión. Si en H2 aparece una necesidad de reportería **avanzada** (ej. dashboards
+  custom para GRANDE) que ninguno de los dos cubre, se evalúa entonces con evidencia real, no ahora.
+
 ## 6. Cómo escala la estructura LOW → MID → BIG (actualizado)
 
 - **LOW (hoy):** Gobernanza base + células de producto ✅ ya existentes alcanzan. De los 🆕, solo
@@ -311,8 +443,9 @@ un hueco de consistencia del documento.
 
 ## 8. Tabla-cuestionario final — para llevar al dueño
 
-Los 14 agentes/posiciones en juego (9 originales + Migración + Incident Response + las 3 nuevas), con la
-recomendación del Advisory y un campo para la decisión del dueño.
+Las 19 posiciones en juego (9 originales del roster + Migración + Incident Response + 3 nuevas de v3 +
+5 nuevas de esta ronda, atadas al workstream de Catálogo/Plugins), con la recomendación del Advisory y
+un campo para la decisión del dueño.
 
 | # | Agente/posición | Recomendación del Advisory | Cuándo | Decisión del dueño |
 |---|---|---|---|---|
@@ -329,10 +462,19 @@ recomendación del Advisory y un campo para la decisión del dueño.
 | 11 | **Respuesta a Incidentes de Exposición de Datos** | ✅ Protocolo dentro de Seguridad, activar ya | H0 (riesgo activo, junto con Data/DBA) | ☐ Sí ☐ Prefiero rol separado ☐ Otro: _____ |
 | 12 | **Preventa Técnica/Solutions Engineering (MID)** — *nueva* | ✅ Instanciar con el primer lead MID | H1 | ☐ Sí ☐ No ☐ Otro: _____ |
 | 13 | **Product Analytics/Telemetría de uso** — *nueva* | ✅ Instanciar con el primer MID activo | H1 | ☐ Sí ☐ No ☐ Otro: _____ |
-| 14 | **Aprendiz/Shadow de Implementación GRANDE** — *nueva* | ✅ Obligatorio como entregable del piloto GRANDE 1 | H3 | ☐ Sí ☐ No ☐ Otro: _____ |
+| 14 | **Aprendiz/Shadow de Implementación GRANDE** | ✅ Obligatorio como entregable del piloto GRANDE 1 | H3 | ☐ Sí ☐ No ☐ Otro: _____ |
+| 15 | **Product Owner del Catálogo de Módulos/Plugins** — *nueva (§5.4)* | ✅ Instanciar ya — ordena el workstream que ya entró al roadmap | H0 (apalancamiento) | ☐ Sí ☐ No ☐ Otro: _____ |
+| 16 | **Integraciones Externas (framework)** — *nueva (§5.5)* | ✅ Instanciar apenas Data/DBA destrabe Gate 2 | H1 | ☐ Sí ☐ No ☐ Otro: _____ |
+| 17 | **QA de Regresión del Catálogo** — *nueva (§5.6)* | ✅ Instanciar con la ola de módulos de MEDIANO | H1 | ☐ Sí ☐ No ☐ Otro: _____ |
+| 18 | **Documentación Técnica del Catálogo de Módulos** — *nueva (§5.7)* | ✅ Instanciar ya, junto con Docs/Índice vivo (mismo costo bajo) | H0 (apalancamiento) | ☐ Sí ☐ No ☐ Otro: _____ |
+| 19 | **UX/Consistencia de Backoffice (Catálogo)** — *nueva (§5.8)* | ✅ Instanciar con la ola de módulos de MEDIANO | H1 | ☐ Sí ☐ No ☐ Otro: _____ |
+
+*(Descartados con criterio, no por omisión — §5.9: "Desarrolladores de módulos" genérico y "Data/
+Reporting del ERP", ambos cubiertos por el pool/ADR-053 o por roles ya definidos.)*
 
 ---
 
-**Estado:** v3, síntesis del Advisory Board tras la Ronda 2 del Challenger + 3 posiciones nuevas. Lista
-para el **OK de adopción del dueño** vía la tabla-cuestionario (§8). No instancia ningún agente — es
+**Estado:** v3.1, síntesis del Advisory Board tras la Ronda 2 del Challenger + 3 posiciones nuevas (v3)
++ 5 posiciones nuevas atadas al workstream Catálogo/Plugins (esta ronda, §5.4-5.8). Lista para el **OK
+de adopción del dueño** vía la tabla-cuestionario (§8, 19 posiciones). No instancia ningún agente — es
 recomendación de estructura, doc-only.
