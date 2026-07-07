@@ -19,7 +19,15 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 
 ## 🚦 HANDOFF — próximo paso real (2026-07-07)
 
-**Marco vigente:** **Plan de Ventana hasta 2026-07-08 20:00** (`docs/estrategia/plan-ventana-2026-07-08.md`),
+**📐 Método canónico vigente (fuente de verdad del flujo de trabajo):** toda sesión/frente sigue **AL PIE** el
+**flujo RACI** de **`docs/adr/ADR-049-split-de-roles-raci.md`**, renderizado en **`docs/organizacion/estructura-gsg.mermaid`**
+(que además es el **organigrama de células**, gemelo textual de `docs/organizacion/roster-completo-gsg.md`).
+Flujo: Necesidad → **PMO propone** → ¿Fundamento? (Advisory tesis → Challenger antítesis → síntesis, ADR-045) →
+**Dueño aprueba** → ¿Reversible? (no → Arquitecto **eleva** → OK dueño; sí → Arquitecto/célula **ejecuta**,
+pool/factory ADR-053) → **Calibra (ADR-052)** → **Gate de Excelencia en Opus (ADR-040)** → ¿pasa? → **Merge** →
+Dispatch **releva status** → **Retro (ADR-047)** → mejora continua.
+
+**Marco de ventana vigente:** **Plan de Ventana hasta 2026-07-08 20:00** (`docs/estrategia/plan-ventana-2026-07-08.md`),
 criterio del dueño **80% AFINAR / 20% otros**, **Sonnet por defecto** (Opus solo Gate/juicio crítico),
 **concurrencia ≤ 4 en olas**, **P1 = demos/venta primero**. Baldes fijados: 🟢 **A** = pulir a vendible HOY
 en Sonnet · 🔴 **B** = NO tocar, reingeniería MAÑANA en Opus (cockpit operador, módulos ARCA/MP reales,
@@ -219,9 +227,13 @@ Re-mapeados al rol y flujo SGS (RACI ADR-049). **Ola de ejecución** tras el OK 
 | **F2 · QA mobile + flujos completos** | **QA / Probador** | núcleo (read-only, sin worktree) | Sonnet | transversal; verifica lo de F1 y cierra cobertura mobile/reserva/checkout |
 | **F4 · Coherencia doc + retro** | **PMO (autor)** + rol Docs/Índice vivo (lo absorbe el PMO) | núcleo (esta sesión) | Opus | FASE 0 / cierre — **este documento** + §C + retro ADR-047 |
 
-**Regla dura por frente:** modelo etiquetado explícito · entrega verde (`tsc`+`build`+`test`) · **Gate de
+**Regla dura por frente:** sigue **al pie el flujo RACI** (ADR-049 / `estructura-gsg.mermaid`) · modelo
+etiquetado explícito · **Paso 0 de calibración (ADR-052)** · entrega verde (`tsc`+`build`+`test`) · **Gate de
 Excelencia auditado en Opus** antes de que el PMO mergee · retro ADR-047 al cierre. Irreversibles **se
 elevan** (§C), no se corren.
+
+**➡️ Prompts de arranque "listo para pegar" de F1 y F3** (con el flujo RACI completo + el Plan de Ventana
+**embebidos**, para trabajar en norma sin depender del chat): **`docs/estrategia/prompts-arranque-F1-F3.md`**.
 
 ---
 
