@@ -6,73 +6,37 @@ FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nue
 este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
-- **Actualizado:** 2026-07-05 (FASE FINAL / backup de fin de jornada) · **Autor:** PMO (sesión autónoma)
-- **Snapshot / punto de retorno:** tag **`snapshot/2026-07-05-eod`** → el commit de este backup
-  (incluye esta foto; código en `35603bd`) (+ el previo `snapshot/2026-07-05-postdeploy` → `f0a13f0`).
-  Para retomar: `git checkout snapshot/2026-07-05-eod` o simplemente leer este doc en `main`.
-- **Método:** barrido del repo (`git log`, `prisma/migrations/`, `src/blueprints/`, docs). **NO se
-  consultó Neon prod** (política: diagnóstico, no tocar prod/DB) → el estado de migraciones *aplicadas*
-  se deriva de docs y se marca "a confirmar" donde no hay evidencia dura.
-
-> **Actualización ligera 2026-07-07 (Arquitecto de Solución, doc-only, sin tocar Neon):** `main` avanzó a
-> **`273a267`** (`21c70d0` → `273a267`): landearon **ADR-045** (Advisory Board + Challenger), **ADR-046**
-> (de-sesgo por sector), **ADR-047** (retro) y **ADR-048** (Arquitecto de Solución, autoridad sobre lo
-> reversible — este mismo rol) + su charter en `docs/organizacion/`. Nada de lo de abajo (§1–8) cambió de
-> fondo — es reconciliación de metodología/gobernanza, no cambios de prod/tenants/migraciones. Detalle
-> completo de "qué se hizo" en el rationale de la sesión, no repetido acá para no duplicar fuentes.
+- **Actualizado:** 2026-07-07 (FASE 0 + F4 doc-only, PMO) · **Autor:** PMO (sesión autónoma)
+- **Método:** barrido del repo (`git log`, `git worktree list`, `prisma/migrations/`, `.claude/`,
+  `docs/`) + reconciliación del drift acumulado. **NO se consultó Neon prod** (política: diagnóstico,
+  no tocar prod/DB) → el estado de migraciones *aplicadas* se deriva de docs y se marca "a confirmar".
+- **Reconciliación de esta pasada (2026-07-07):** el doc venía del snapshot `273a267`; **`main` ya está
+  en `29e9dcb`** (~28 commits después). Se reconcilió: **(1)** el HANDOFF viejo del go-live de Magra →
+  **Plan de Ventana vigente**; **(2)** **plataforma de deploy: Netlify → Vercel** (evidencia dura, ver §2);
+  **(3)** RLS pasó de "casi completo" a **VIVO y enforced**. Detalle de qué landeó desde el snapshot en §1.
 
 ---
 
-## 🚨 HANDOFF URGENTE (2026-07-05 — laptop se desconecta, sesiones se frenan)
+## 🚦 HANDOFF — próximo paso real (2026-07-07)
 
-**Prod intacto y estable:** deploy `f0a13f0`, **CH Estética vivo (1 tenant)**. **Cero riesgo por la
-desconexión:** el **ensayo de RLS se completó en un BRANCH de Neon** (no prod) y quedó **🟢 VERDE
-8/8**; el branch **se borró** (solo queda `main`). Prod NUNCA se tocó. Todo pusheado.
+**Marco vigente:** **Plan de Ventana hasta 2026-07-08 20:00** (`docs/estrategia/plan-ventana-2026-07-08.md`),
+criterio del dueño **80% AFINAR / 20% otros**, **Sonnet por defecto** (Opus solo Gate/juicio crítico),
+**concurrencia ≤ 4 en olas**, **P1 = demos/venta primero**. Baldes fijados: 🟢 **A** = pulir a vendible HOY
+en Sonnet · 🔴 **B** = NO tocar, reingeniería MAÑANA en Opus (cockpit operador, módulos ARCA/MP reales,
+repo de plugins ADR-054/055 bajo principio de VARIANTE).
 
-> **🔑 HALLAZGO DEL ENSAYO EN BRANCH (2026-07-05) — cambia el plan:** el `app_user` de prod con
-> `BYPASSRLS` es **INARREGLABLE** por `neondb_owner` (`ALTER ROLE … NOBYPASSRLS` → *"permission denied"*;
-> quitar BYPASSRLS necesita superuser, que Neon no da). El `0002` "patcheado" **fallaría en prod**. La
-> solución **probada en verde**: NO tocar `app_user`; **crear un rol NUEVO `app_rls`** con `CREATE ROLE
-> app_rls LOGIN PASSWORD '<secret>' NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE` + grants, y rotar
-> `DATABASE_URL` a ESE rol. `app_rls` autentica por el proxy de Neon y aísla correctamente
-> (ctx=A→A, ctx=B→B, WITH CHECK bloquea cross-tenant, fail-closed sin ctx). Diff mínimo de prod en el
-> runbook. **✅ Repo YA actualizado al rol nuevo (`b01eb78`, 2026-07-05):** `0002_app_role.sql` crea
-> `app_rls` (ya no patchea `app_user`); `check-rls-live.mjs`, `verify-rls.mjs`, `verify-provision-gate.mts`,
-> `verify-wiring.mts`, `verify-tenant-resolution.mts`, README y runbooks apuntan a `app_rls`. Vallas
-> verdes (tsc·229 tests·3 nets RLS·build).
+**Prod intacto y estable:** CH Estética vivo en **Vercel**, **RLS enforced** (`app_rls`), 4 tenants
+provisionados en Neon con aislamiento verificado. Nada rojo bloqueante en `main`.
 
-> **✅ BLOQUE A APLICADO A PROD (2026-07-05, OK del dueño):** con la conexión de owner (`neondb_owner`)
-> se aplicó `0001` (**RLS 33/33, SIN DRIFT** — cerrado el drift de las 9 tablas) y `0002` (**rol `app_rls`
-> creado**: canlogin=true, bypassrls=false, super=false, **SIN password** = inerte hasta que el dueño le
-> ponga una). `app_user` legacy intacto (no se tocó). **Prod NO cambió de comportamiento** (la app sigue
-> conectando como `neondb_owner` → RLS dormido; CH intacto). **Hallazgo del apply:** `ALTER ROLE app_rls
-> … NOBYPASSRLS` también da *permission denied* en Neon (atributo BYPASSRLS es superuser-only) → se quitó
-> del `0002` esa línea redundante (el CREATE ya nace `NOBYPASSRLS`); repo corregido. **Detenido acá a
-> propósito** (no se rotó `DATABASE_URL` ni Netlify ni alta). **Falta:** password de `app_rls` (dueño) +
-> rotación de env vars + deploy + alta.
+**➡️ PRÓXIMO PASO (retomar Balde A):** abrir **en norma** los 2 frentes de ejecución reversible —
+**F1 `frente/diseno-vidrieras`** (alinear vidrieras Shine + A Dos Manos a lo real, patrón DX-5) y
+**F3 `frente/demo-vendible`** (demo consultor→backoffice por playbook demo-costo-cero). **F2 QA** y
+**F4 PMO/Docs** corren en el núcleo (sin worktree). Cada frente arranca con **Paso 0 de calibración
+(ADR-052)** y **F1 debe verificar la autorización de marca (ADR-042) de Shine y ADM** antes de tocar su
+identidad. **Los irreversibles NO se corren** — quedan en §C para el "1 clic de OK" del dueño.
 
-### PASOS DEL GO-LIVE de Magra — CASI COMPLETO
-1. ✅ **BLOQUE A** — RLS 33/33 en prod + rol `app_rls` creado (recuadro arriba).
-2. ✅ **Password de `app_rls` + rotación de env vars en Netlify + deploy** (hechos por el dueño):
-   **CH corriendo con `app_rls`, `RLS_ENFORCEMENT=on`** → RLS ACTIVO y enforced en prod.
-3. ✅ **Alta de Magra — HECHA (2026-07-06, 2º tenant real)** vía `scripts/provision-tenant.ts` con el
-   rol owner. `tenantId=cmr8nncxj0000aoh7cqpn7yyg`, slug `magra`, blueprint `carniceria`, OWNER +
-   BusinessSettings + catálogo demo sembrados. **El gate ADR-018 ABRIÓ** (RLS activo → permitió el 2º
-   tenant). **Aislamiento verificado en prod como `app_rls`:** ctx=CH ve solo CH, ctx=Magra ve solo
-   Magra, sin ctx → 0 filas (fail-closed). 🟢
-4. 🔴 **Deploy `magra-erp`** → 2º sitio Netlify (mismo repo) con `FORCE_TENANT_SLUG=magra`. **Único paso
-   que falta** (lo hace el dueño con sus secrets). Sin dominio propio, es la Opción A (URL gratis por tenant).
-5. ⚠️ **Email del OWNER de Magra es PROVISIONAL** (`dueno@magra.com.ar`) → confirmar/reemplazar por el real
-   y comunicar/rotar la contraseña de bootstrap por canal seguro.
-
-**Template de `DATABASE_URL` para `app_rls`** (ya cargado en Netlify por el dueño; queda de referencia):
-`postgresql://app_rls:<PASSWORD>@ep-little-credit-act3cxpe-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
-
-Comandos y detalle: **`docs/runbooks/alta-magra.md`**. Fundamento de los hallazgos: §4 y §6.
-
-### 🔐 SEGURIDAD — acción del dueño
-**`NEON_API_KEY` quedó en `.env` (comentada) y pasó por el chat → ROTARLA en Neon** por precaución.
-El `.env` no se versiona, pero rotá la key igual (asumila comprometida).
+> **Estado de apertura de F1/F3:** terreno preparado (este doc + §C). **Pendiente de OK del dueño para
+> abrir los worktrees.** Ver §9.
 
 ---
 
@@ -80,26 +44,44 @@ El `.env` no se versiona, pero rotá la key igual (asumila comprometida).
 
 | Ítem | Valor |
 |---|---|
-| **main HEAD (origin)** | **`35603bd`** — `docs(sector): visión estratégica en FUNDAMENTO — la Agencia es el go-to-market del propio ERP` |
-| **Último deploy conocido a prod** | **`f0a13f0`** (merge `land-inventario-f1b`) — *confirmar si se redeployó tras esto* |
-| **Delta main → prod (sin deployar)** | fixes + docs post-`f0a13f0`: `8b9d989` fix del gate RLS, `685b5c9` override `FORCE_TENANT_SLUG`, y el sector Agencia Digital (charter + FUNDAMENTO + 2 análisis de mercado). **Nada de esto rompe prod; son fixes/docs.** |
-| **Snapshot tags** | `snapshot/2026-07-05-eod` → commit de este backup (código `35603bd`) · `snapshot/2026-07-05-postdeploy` → `f0a13f0` |
+| **main HEAD (origin)** | **`29e9dcb`** — `feat(cockpit): rediseño consola operador — cockpit interactivo read-only (T4, W1–W6)` |
+| **Plataforma de prod** | **Vercel** (`vercel.json` activo; ver §2). Netlify = **legacy** (Opción A, superada). |
+| **Auto-publish** | **APAGADO / gated** — push a `main` **no** publica. Deploy = acción del dueño (**Gate 1**). |
+| **Snapshot tags** | `snapshot/2026-07-07-f4` (este backup) · previos: `snapshot/2026-07-05-eod`, `snapshot/2026-07-05-postdeploy` (`f0a13f0`) |
 
-**Cores con trabajo en main (ERP):** Pagos (gateway de cobros por tenant), Caja (arqueo en vivo +
-rediseño `/admin/caja`), Inventario/POS (ledger `StockMovement` cableado a venta/compra/consumo),
-Fiscal (wiring `clientePara` del worker ARCA + config fiscal por tenant), Plataforma (observabilidad
-v2 con `requestId` + override `FORCE_TENANT_SLUG` + **fix del gate RLS**). **Sector Agencia Digital:**
-charter + FUNDAMENTO + 2 análisis de mercado en `docs/sectores/agencia-digital/`.
+**Qué landeó desde el snapshot `273a267` → `29e9dcb` (resumen):**
+- **Cockpit Operador (T4, `29e9dcb`)** — rediseño de la consola de operador como cockpit interactivo
+  read-only (control-plane, no datos de negocio). **Funcional; OP-2/OP-3 cerrados.** *(Balde B: no pulir,
+  reingeniería mañana en Opus.)*
+- **Banco de pruebas ARCA/MP (`db13aa4`, `5d5d8f5`)** — módulos ARCA y Mercado Pago **reales sobre la
+  fundación, en sandbox por defecto** (sin credenciales productivas). *(Balde B.)*
+- **Fundación repo de módulos (`0843c9f`, ADR-054/055)** + **catálogo bajo variante (`ce00385`)** —
+  principio de VARIANTE (objeto maestro + ABM de asignación). *(Balde B: sólo documentado/fundación.)*
+- **Fixes Magra vidriera (`f1ee590`, `32924c4`, `1fe395f`)** — M-1 footer on-brand, copy real relevado.
+- **Gobernanza (ADR-045…055)** — Advisory+Challenger, de-sesgo por sector, retro, Arquitecto de Solución,
+  roster completo GSG, calibración universal, pool de agentes, principio de variante + **Plan de Ventana**.
+
+**Cores con trabajo en `main` (ERP):** Pagos, Caja, Inventario/POS (ledger `StockMovement`), Fiscal
+(ARCA sandbox), Plataforma (RLS enforced + cockpit operador), Diseño. **Agencia Digital:** consultores +
+go-to-market + WhatsApp por capas.
 
 ---
 
 ## 2. Prod: qué está vivo
 
-- **App deployada** en Netlify + Neon (Postgres), corriendo `f0a13f0` (último deploy conocido).
-- **Auto-publish de Netlify APAGADO** (`stop_builds`): push a `main` **no** publica. Deploy = acción
-  del dueño (Gate 1).
-- **Vertical maduro en prod:** núcleo de servicios/estética (agenda, clientes, catálogo, cobro
-  manual, comisiones, reseñas, recordatorios, RBAC, auditoría) — tenant CH operando.
+- **App deployada en Vercel + Neon (Postgres).** Evidencia: `vercel.json` activo (build `prisma generate
+  && next build` + cron diario), QA 2026-07-07 verificó `chestetica-erp.vercel.app` y `magra-erp.vercel.app`
+  sirviendo, playbook `docs/metodologia/demo-publica-costo-cero.md` y runbook `docs/runbooks/deploy-vercel.md`
+  son Vercel. *(No se consultó el panel de prod esta sesión — política de no tocar prod; reconciliación por
+  evidencia de repo + QA.)*
+- **Netlify = legacy:** el `netlify.toml` de raíz y las menciones en docs viejos corresponden a la **Opción
+  A** (un sitio por tenant con `FORCE_TENANT_SLUG`), **superada** por la **Opción B de Vercel** (un solo
+  proyecto, subdominios por tenant vía `APP_BASE_DOMAIN` + `Tenant.subdomain`). Deuda doc: purgar menciones
+  Netlify residuales.
+- **Auto-publish gated:** publicar en prod requiere OK explícito del dueño (*"deployá"*). El push a `main`
+  no gasta créditos ni publica.
+- **Vertical maduro en prod:** núcleo de servicios/estética (agenda, clientes, catálogo, cobro manual,
+  comisiones, reseñas, recordatorios, RBAC, auditoría) — tenant CH operando.
 
 ---
 
@@ -107,37 +89,28 @@ charter + FUNDAMENTO + 2 análisis de mercado en `docs/sectores/agencia-digital/
 
 | Tenant | Slug | Subdomain | Blueprint | Estado |
 |---|---|---|---|---|
-| **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `chestetica` | `servicios` (Servicios/Turnos) | ✅ **VIVO en prod** — `app_rls` + RLS enforced. Subdomain 2026-07-06. **Fix OP-1 (2026-07-06):** `name`→"CH Estética" + `blueprintId`→`servicios` (control-plane ya no lo muestra genérico); datos intactos (149 servicios, agenda) |
-| **Magra** (carnicería boutique) | `magra` | `magra` | `carniceria` | ✅ **ALTA HECHA (2026-07-06)** — `tenantId=cmr8nncxj0000aoh7cqpn7yyg`. Subdomain seteado. Email OWNER **provisional** |
-| **Shine Velas** (velas artesanales) | `shinevelas` | `shinevelas` | `velas` (retail/tienda) | ✅ **ALTA HECHA (2026-07-06)** — `tenantId=cmr9b3b5a0000m8h7913rkvf3`, OWNER+Settings+catálogo velas sembrados; aislamiento (policy+RLS) verificado. Email OWNER **provisional** (`dueno@shinevelas.com.ar`); pass bootstrap en `estetica-erp/.env` |
-| **A Dos Manos** (tienda de pádel) | `adosmanos` | `adosmanos` | `padel` (retail/tienda) | ✅ **ALTA + CONVERSIÓN (2026-07-06)** — `tenantId=cmr9b3kij0000fkh73ax0d85h`. **Convertido de `servicios`→`padel`** (autorizado): purgado el demo servicios/turnos (2 serv/1 cat/1 prof/6 hs/1 box, 0 appointments) y sembrados **20 productos** (palas, zapatillas, pelotas, bolsos, grips, muñequeras, protectores). Aislamiento (policy+RLS on) verificado. Email OWNER **provisional** (`dueno@adosmanos.com.ar`); pass bootstrap en `estetica-erp/.env`. Vía `scripts/convert-tenant-blueprint.ts` |
+| **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `chestetica` | `servicios` | ✅ **VIVO en prod** (Vercel) — `app_rls` + RLS enforced. Vidriera real sirviendo (QA 07-07). |
+| **Magra** (carnicería boutique) | `magra` | `magra` | `carniceria` | ✅ **Alta HECHA en Neon** (`cmr8nncxj0000aoh7cqpn7yyg`), aislamiento verificado. **Falta deploy del sitio** (I1) + **datos reales** (M-2/M-3, Gate 2). Email OWNER provisional. |
+| **Shine Velas** | `shinevelas` | `shinevelas` | `velas` (retail) | ✅ **Alta HECHA en Neon** (`cmr9b3b5a0000m8h7913rkvf3`), aislamiento verificado. Falta deploy + alinear vidriera a lo real (F1). Email OWNER provisional. |
+| **A Dos Manos** (pádel) | `adosmanos` | `adosmanos` | `padel` (retail) | ✅ **Alta + conversión HECHA en Neon** (`cmr9b3kij0000fkh73ax0d85h`, 20 productos), aislamiento verificado. Falta deploy + alinear vidriera (F1). Email OWNER provisional. |
 
-**4 tenants listos** para el deploy único de Vercel por subdominio (`<sub>.<APP_BASE_DOMAIN>`). Migración
-`control_plane_tenant` (columna `subdomain`) confirmada **aplicada** en prod. Nuevo rubro retail `velas`
-(`src/blueprints/retail/rubros.ts`) + mapeo `shinevelas→velas` para la vidriera `/tienda`. Verificador
-read-only reusable: `prisma/rls/verify-tenant-isolation.mjs`.
+**4 tenants provisionados** con aislamiento (policy + RLS) verificado. **Solo CH tiene sitio deployado**;
+Magra/Shine/ADM esperan deploy (Gate 1). Migración `control_plane_tenant` (columna `subdomain`) aplicada.
 
 **Gate de negocio de Magra (decisión de dueño, no técnica):** cobro MP online, fotos, precios reales.
 
 ---
 
-## 4. Gates pendientes (acción del dueño) — el camino para prender Magra
+## 4. Gates pendientes (acción del dueño) — ver §C para el "1 clic de OK"
 
-Orden lógico para dar de alta Magra end-to-end:
-
-| # | Gate | Qué destraba | Estado |
-|---|---|---|---|
-| 1 | **RLS a prod (Gate 2)** | aislamiento por fila a nivel DB → **prerrequisito duro del 2º tenant** | 🔒 **⚠️ Prod NO está "de cero" (auditado 2026-07-05, solo lectura vía `check-rls-live.mjs`):** RLS ya aplicado en **24/33 tablas**; **DRIFT — 9 tablas sin proteger** (`Order, OrderItem, Invoice, OutboxEvent, CashMovement, CashSession, StockMovement, StockPurchase, StockPurchaseItem`) → filtrarían entre tenants; y **`app_user` con `BYPASSRLS=true`** → rotar a él daría CERO aislamiento (hoy prod no se rompe: conecta como `neondb_owner`, RLS dormido). **Ensayo offline PASADO** (`verify-provision-gate.mts`): gate bloquea sin RLS → abre con RLS → aislamiento + fail-closed. **Bugs hallados y corregidos (repo):** el sentinel del gate incluía `Tenant` → nunca abría (`8b9d989`); `0002` no forzaba `NOBYPASSRLS` en rol existente (fix 2026-07-05). **ENSAYO EN BRANCH DE NEON REAL: 🟢 VERDE 8/8 (2026-07-05, branch borrado):** el branch replicó el drift (24/33) → `0001` cerró a 33/33 → aislamiento OK conectando como rol de app → fail-closed. **Hallazgo que cambia el plan:** `app_user` con BYPASSRLS es INARREGLABLE por `neondb_owner` (necesita superuser) → **usar rol NUEVO `app_rls`** (`CREATE ROLE … NOBYPASSRLS`, probado). **✅ Repo ya actualizado al rol nuevo (`b01eb78`): `0002`/guards/runbooks apuntan a `app_rls`, vallas verdes.** Falta: OK final + password de `app_rls` (secret). Runbook: `docs/runbooks/alta-magra.md` |
-| 2 | **Alta de Magra (2º tenant)** | Magra existe en la DB de prod | 🔒 depende de #1. `scripts/provision-tenant.ts` ya siembra tenant+OWNER+blueprint `carniceria`; correr con OK explícito tras RLS |
-| 3 | **Deploy del sitio `magra-erp`** | Magra accesible por URL propia | 🔑 **2º sitio Netlify** apuntando a la misma app con **`FORCE_TENANT_SLUG=magra`** (Opción A, URL gratis por tenant; ver `docs/runbooks/alta-magra.md`). Sin dominio propio el `.netlify.app` no separa por subdominio → un sitio por tenant, o pasar a Opción B (dominio + wildcard) |
-| 4 | **Certificado + homologación ARCA** | facturación electrónica viva (firma CMS del `TraSigner`) | 🔑 adapter SOAP escrito; falta cert del emisor + homologación + flag `ARCA_INVOICING_ENABLED` |
-
-**Dominio propio (Opción B, a futuro):** `APP_BASE_DOMAIN` + DNS wildcard `*.tudominio.com` → un solo
-sitio sirve `chestetica.` y `magra.` por subdominio (ver runbook). Hoy se va por Opción A (un sitio
-por tenant con `FORCE_TENANT_SLUG`).
-
-**Credenciales que encienden features ya construidas:** WhatsApp (proveedor Meta/Twilio), Mercado
-Pago (OAuth por comercio) — infra/adapters listos, esperan credencial.
+| # | Gate | Estado |
+|---|---|---|
+| 1 | **RLS a prod** | ✅ **HECHO** — RLS **vivo y enforced** (`app_rls` NOBYPASSRLS, `RLS_ENFORCEMENT=on`, 33/33 sin drift). Ya no es pendiente. |
+| 2 | **Alta de los tenants** | ✅ **HECHO** — los 4 tenants provisionados con aislamiento verificado. |
+| 3 | **Deploy de sitios** (Magra/Shine/ADM) | 🔑 **Gate 1** — CH ya live; los otros 3 esperan deploy en Vercel. → §C·I1 |
+| 4 | **Migraciones inventario/fiscal + datos reales Magra** | 🔒 **Gate 2** — 9 migraciones sin aplicar (§5) + Branding/catálogo real de Magra (M-2/M-3). → §C·I2 |
+| 5 | **ARCA — cert + homologación** | 🔑 **Gate 4** — adapter SOAP escrito + sandbox listo; falta cert emisor + homologación + flag `ARCA_INVOICING_ENABLED`. → §C·I3 |
+| 6 | **Seguridad pre-cobros** | 🔴 rotar `NEON_API_KEY` + password `app_rls` + habilitar **PITR**. → §C·I4 |
 
 ---
 
@@ -145,121 +118,144 @@ Pago (OAuth por comercio) — infra/adapters listos, esperan credencial.
 
 > ⚠️ **No verificado contra Neon esta sesión.** "Aplicada" = evidencia en docs. "SIN aplicar" = Gate 2.
 
-**✅ Aplicadas a Neon (hasta `add_waitlist`):** `init` → … → `20260703170000_add_users_rbac` →
-`20260704120000_add_business_settings` → `20260704130000_add_commission_payouts` →
-`20260704140000_add_waitlist`.
+**✅ Aplicadas a Neon (hasta `add_waitlist`):** `init` → … → `20260704140000_add_waitlist`.
 
 **🔒 SIN aplicar — Gate 2 (código en repo, DB no migrada):**
 - `20260704160000_add_invoice_outbox` — Invoice/Outbox del Plugin ARCA.
 - `20260704180000_add_pos_orders` — POS/órdenes. **⚠️ a confirmar** (POS venta opera; puede estar aplicada).
-- `20260705120000_control_plane_tenant` — plano de control / super-admin.
+- `20260705120000_control_plane_tenant` — plano de control / super-admin. *(la columna `subdomain` figura aplicada; confirmar el resto.)*
 - `20260705124318_add_cash_register` — caja del POS.
 - `20260705130000_add_product_track_stock` — `trackStock`.
 - `20260705140000_add_stock_purchases` — compras/reposición.
 - `20260705150000_add_stock_ledger` — ledger `StockMovement`.
-- `20260705150001_add_tenant_fiscal_config` — config fiscal por tenant (**renombrada** desde `150000`).
-- `20260705150002_fiscal_invoice_align` — Invoice alineado al spec: `ivaDesglose` (Json), `authorizedAt`, unique `(tenantId, puntoVenta, tipoComprobante, numero)`.
+- `20260705150001_add_tenant_fiscal_config` — config fiscal por tenant.
+- `20260705150002_fiscal_invoice_align` — Invoice alineado al spec (`ivaDesglose` Json, `authorizedAt`, unique).
 
-**✅ COLISIÓN DE TIMESTAMP — RESUELTA (2026-07-05, frente Fiscal):** la doble `20260705150000`
-(`add_stock_ledger` vs `add_tenant_fiscal_config`) se cerró renombrando la fiscal a
-`20260705150001_…`; orden explícito `ledger(150000) < tenant_fiscal_config(150001) < fiscal_invoice_align(150002)`.
-Sin colisiones. RLS de Plataforma vive en `prisma/rls/` (fuera de `migrations/`) → no cruza con esto.
+**✅ Sin colisiones de timestamp** (verificado 2026-07-07: los 27 dirs son únicos; la doble `150000` se
+resolvió a `150000/150001/150002`). **RLS** vive **fuera** de `prisma/migrations/` a propósito (`prisma/rls/`)
+→ ningún `migrate deploy` lo aplica solo.
 
-**⚠️ DECISIÓN PENDIENTE (PMO/ADR) — dinero `Float` vs `Decimal`:** el spec fiscal pide `Decimal(14,2)`
-para `neto/iva/total` de `Invoice`; hoy son `Float`, coherente con que todo el sistema mueve importes
-como `number` (contrato del plugin ARCA). Migrar cruza ese contrato de punta a punta y solo impacta con
-ARCA en real (hoy stub/gateado). **No se tocó unilateralmente**: requiere decisión de arquitectura antes
-de integrar el cambio de representación de dinero.
-
-**RLS:** los SQL viven **fuera** de `prisma/migrations/` a propósito (`prisma/rls/`) — ningún
-`migrate deploy` los aplica solo (ver `prisma/rls/README.md`).
+**⚠️ DECISIÓN PENDIENTE (PMO/ADR) — dinero `Float` vs `Decimal`:** el spec fiscal pide `Decimal(14,2)`;
+hoy son `Float` (coherente con el contrato `number` del plugin ARCA). Solo impacta con ARCA en real (hoy
+sandbox). No se toca unilateralmente — requiere decisión de arquitectura antes de integrar.
 
 ---
 
 ## 6. Bugs / deuda conocida
 
-- **🔥 RLS de prod con DRIFT + `app_user` con BYPASSRLS (auditado 2026-07-05).** RLS aplicado en
-  24/33 tablas; 9 de-tenant sin proteger (`Order/OrderItem/Invoice/OutboxEvent/Cash*/Stock*`);
-  `app_user` evade RLS. **NO dar de alta el 2º tenant ni rotar `DATABASE_URL` a `app_user` sin
-  antes** re-correr `0001` (33/33) y `0002` patcheado (fuerza NOBYPASSRLS). Detalle y secuencia en
-  §4 y en `docs/runbooks/alta-magra.md`. Guardas: `prisma/rls/check-rls-live.mjs` (auditoría en vivo)
-  + `verify-provision-gate.mts` (offline). *(fixes de repo en main; falta ejecutar en Neon con OK.)*
-- **✅ Redirect / home `/` — CERRADO (`b01eb78`, 2026-07-05):** el root (`src/app/(site)/page.tsx`)
-  ahora es **blueprint-aware**: un tenant Retail/Mostrador (Magra y rubros de `src/blueprints/retail`)
-  redirige `/`→`/tienda` en vez de servir la landing de estética de CH; un tenant de servicios (CH)
-  sigue con su landing. Reusa `getCurrentTenantSlug` + `resolveRubroIdBySlug`; fail-open (slug null /
-  rubro no-retail → landing histórica). Combinado con `FORCE_TENANT_SLUG` (`685b5c9`, pin por sitio,
-  Opción A), cada sitio Netlify sirve su tenant con el home correcto. La resolución por dominio (Opción
-  B) sigue atada a dominio propio (§4), pero el bug del home equivocado ya no existe.
-- **Wiring `completeAppointment` (ADR-024)** pendiente de commitear limpio (ver `PROXIMOS-PASOS.md`).
-- **WIP inconcluso fuera de main:** ARCA `signer.ts` (falta dep `node-forge` + wiring); y un refactor
-  en curso en el checkout de `main` (borra `pagos-dispatch.ts`/`request-context.ts`, folds en
-  `mercadopago-dispatch`/`logger`, toca api routes) **sin commitear** — de otra sesión, pendiente de
-  que su dueño lo cierre.
-- Deuda técnica priorizada: `docs/ROADMAP.md §2.3` (F1/F3/F8) y `PROXIMOS-PASOS.md`.
+- **QA end-to-end 2026-07-07 (`docs/calidad/reporte-qa-productos-2026-07-07.md`):**
+  - **A-1** (CH: equipo con servicios idénticos) → ✅ **RESUELTO** (fix de dato en prod con OK, patrón DX-7).
+  - **M-1** (Magra: footer genérico) → ✅ **RESUELTO** (código, reversible).
+  - **m-1** (Shine: góndola vacía anunciada) → ✅ **RESUELTO** (código, se ata al stock real).
+  - **M-2 / M-3** (Magra: Branding placeholder + catálogo genérico en Neon) → 🔒 **es DATO, no código** →
+    **elevar al dueño (Gate 2)**. Dirección/IG (`@magra.carniceria` vs real `@tiendamagra`)/horario/catálogo.
+- **🔎 Fix de bug SIN mergear en worktree `calidad`:** `fix(pos): eliminar doble descuento de stock
+  (oversell)` (`3cca30f`) + tests — **no está en `main`** (4 commits ahead). **Decisión pendiente:**
+  recuperar (cherry-pick a un frente) vs descartar. Además `src/lib/tenant.ts` con cambios sin commitear +
+  `tenant.test.ts` nuevo en ese worktree. Ver §7. **No se tocó.**
+- **Cobertura QA parcial (07-07):** mobile quedó parcial (el resize se resetea al navegar) + no se
+  completaron los 5 pasos de reserva CH ni el checkout real → **pasada mobile/flujos dedicada = F2**.
+- Deuda técnica priorizada: `docs/ROADMAP.md` y `docs/PROXIMOS-PASOS.md`.
 
 ---
 
-## 7. Estado por frente/core — GESTIÓN STUDIO GROW + SUS TRES UNIDADES
+## 7. Worktrees y sesiones — inventario (2026-07-07)
 
-**Estructura de la compañía (regla definitiva del dueño, 2026-07-05):** el **estudio paraguas
-Gestión Studio Grow** tiene **TRES** unidades, no dos:
+**10 worktrees registrados** (todos **detrás de `main`**; solo `calidad` tiene cambios sin commitear).
+**No hay worktrees fantasma** (`git worktree prune` limpio). **NO se limpió/rebaseó nada** — inventario y
+recomendación; la limpieza es acción del dueño (§C·I5, `rm -rf` vedado por config).
 
-| Unidad | Qué es | ¿Gira alrededor del ERP? | Charter |
+| Worktree | Rama | HEAD | vs `main` (behind/ahead) | Sucio | Nota |
+|---|---|---|---|---|---|
+| `-calidad` | `frente/calidad` | `754471c` | 187 / **4** | **2** | ⚠️ **oversell fix + tests sin mergear** + `tenant.ts` sin commitear. Revisar antes de descartar. |
+| `-deploy` | `deploy/land-f1b` | `f0a13f0` | 157 / 0 | 0 | puntero del deploy viejo. Stale, seguro. |
+| `-diseno` | `frente/diseno` | `4c648c2` | 119 / 0 | 0 | en origin. Stale. **No reusar para F1** (abrir worktree fresco). |
+| `-fiscal` | `core/pagos` | `520d95b` | 168 / 0 | 0 | ⚠️ nombre de dir ≠ rama; en origin. Stale. |
+| `-growthfunnel` | `frente/growth-funnel` | `4f57af0` | 82 / 1 | 0 | en origin. 1 commit propio. Stale. |
+| `-importaciones` | `frente/importaciones` | `fdbbbf8` | 61 / 3 | 0 | en origin (impo, trigger propio). Stale. |
+| `-plataforma` | `frente/plataforma` | `47924db` | 136 / 0 | 0 | **local-only** pero su HEAD es **ancestro de main** (contenido, seguro). |
+| `-producto` | `frente/producto-rubros` | `f1ee590` | 13 / 0 | 0 | el más cercano a main (M-1/m-1 ya mergeados). Stale. |
+| `-reliability` | `frente/reliability` | `cf79296` | 43 / 0 | 0 | en origin. Stale. |
+| `-whatsapp-cta` | `frente/whatsapp-cta` | `3dd0956` | 52 / 0 | 0 | en origin. Stale. |
+
+**8 carpetas huérfanas** (hermanas de `estetica-erp`, **NO son worktrees ni repos** — copias/artefactos en
+disco, probablemente materializaciones de sprints viejos): `-adosmanos`, `-cajaint`, `-fix002`,
+`-magradocs`, `-op23`, `-pagos-fase3`, `-rls`, `-waitlist` (esta con `node_modules`). Ocupan disco; **no
+tienen git** → limpiarlas es higiene (§C·I5).
+
+**Sesiones vivas:** no es detectable por git si hay procesos `claude` corriendo. Git-wise, **solo `calidad`
+tiene trabajo sin commitear** (posible sesión que quedó abierta ahí). El resto está limpio.
+
+**Recomendación (no ejecutada):** para F1/F3 **abrir worktrees frescos rebasados sobre `main 29e9dcb`**
+(`frente/diseno-vidrieras`, `frente/demo-vendible`), **no reusar** los stale. Antes de tocar `calidad`,
+**decidir el destino del oversell fix**. Limpieza de stale/huérfanos → §C·I5.
+
+---
+
+## 8. Estructura de agentes — realidad vs doc (para no asumir)
+
+**La estructura de agentes existe como METODOLOGÍA + COMANDOS + GOBERNANZA, no como flota instanciada:**
+- **`.claude/agents/` NO existe** (0 subagentes activos). **`.claude/agents-en-pausa/`** tiene 2 archivos
+  **stale** (`fullstack-arquitecto`, `revisor-verificador`, apuntan al método viejo `METODO-ROLES.md`).
+- **`.claude/commands/` (14):** comandos slash que una sesión adopta (sprint, economia, boost, impo, remoto,
+  manual, rol, rol-fullstack, sesion-*). Son prompts, no agentes con toolset propio.
+- **`docs/organizacion/roster-completo-gsg.md` (~30 roles):** gobernanza documental. "✅" = *rol ya operado
+  por una sesión*, **NO** *archivo de agente*. Ninguno tiene archivo `.claude/agents/`.
+- **Mecanismo real de "1 frente = 1 sesión"** (`sprint.md`): el dueño abre N ventanas `claude` y pega el
+  comando/charter, **o** el PMO despacha subagentes ad-hoc (Agent tool) con el charter como prompt. El
+  "auto-abren las células" es aspiracional; mecánicamente es manual/ad-hoc. **Funciona** — pero conviene
+  saberlo. Materializar agentes como archivos = trabajo de Balde B (opcional).
+
+---
+
+## 9. Frentes listos para abrir (Plan de Ventana — Balde A)
+
+Re-mapeados al rol y flujo SGS (RACI ADR-049). **Ola de ejecución** tras el OK del dueño.
+
+| Frente | Rol formal | Worktree | Modelo | Paso 0 / verificación previa |
+|---|---|---|---|---|
+| **F1 · Alinear vidrieras Shine + ADM a lo real** | **Diseño** (core) + **Adaptador/Delivery**; coord. **Arquitecto de Solución** (reversible) | `frente/diseno-vidrieras` (fresco) | Sonnet (Gate en Opus) | **Calibración ADR-052** + ⚠️ **verificar autorización de marca (ADR-042) de Shine y ADM registrada** antes de tocar identidad |
+| **F3 · Demo consultor→backoffice vendible** | **Consultores/Agencia Digital** + **Producto por rubro** | `frente/demo-vendible` (fresco) | Sonnet (Gate en Opus) | **Calibración ADR-052** + **por playbook** `demo-publica-costo-cero.md` (no improvisar deploy/ruteo) |
+| **F2 · QA mobile + flujos completos** | **QA / Probador** | núcleo (read-only, sin worktree) | Sonnet | transversal; verifica lo de F1 y cierra cobertura mobile/reserva/checkout |
+| **F4 · Coherencia doc + retro** | **PMO (autor)** + rol Docs/Índice vivo (lo absorbe el PMO) | núcleo (esta sesión) | Opus | FASE 0 / cierre — **este documento** + §C + retro ADR-047 |
+
+**Regla dura por frente:** modelo etiquetado explícito · entrega verde (`tsc`+`build`+`test`) · **Gate de
+Excelencia auditado en Opus** antes de que el PMO mergee · retro ADR-047 al cierre. Irreversibles **se
+elevan** (§C), no se corren.
+
+---
+
+## C · 🔒 IRREVERSIBLES pendientes de OK del dueño ("1 clic de OK")
+
+**Ninguno se ejecuta en la ventana.** Quedan **listos** para tu aprobación; decís cuál y se corre.
+
+| # | Acción irreversible | Gate | Qué desbloquea |
 |---|---|---|---|
-| **1. ERP multi-tenant** | El producto SaaS core | — (es el producto) | `FUNDAMENTOS-Y-VISION.md` |
-| **2. Agencia Digital** | Satélite del ERP: marketing + dev + innovación para venderlo y sumarle features | ✅ Sí | `docs/sectores/agencia-digital.md` |
-| **3. Agencia Grow** | Los **negocios propios del grupo**, con beneficio | ❌ No | `docs/sectores/agencia-grow.md` |
+| **I1** | **Deploy de sitios** Magra + Shine + ADM en Vercel (`<slug>-erp.vercel.app` o subdominios) | **Gate 1** (deploy = *"deployá"*) | los 3 tenants live (CH ya lo está) |
+| **I2** | **Aplicar migraciones** de Inventario/Fiscal (9, §5) + cargar **datos reales de Magra** (Branding M-2 + catálogo M-3) en Neon | **Gate 2** (`migrate deploy` / edición de datos, OK Neon) | inventario avanzado + facturación + vidriera fiel de Magra |
+| **I3** | **ARCA — certificado del emisor + homologación** + flag `ARCA_INVOICING_ENABLED` | **Gate 4** (acción dueño) | facturación electrónica real (hoy sandbox) |
+| **I4** | **Rotar secretos + PITR** (`NEON_API_KEY` + password `app_rls` + habilitar PITR) | acción dueño (seguridad) | 2 rojos pre-cobros cerrados |
+| **I5** | **Limpieza de disco** — 10 worktrees stale + 8 carpetas huérfanas (`rm -rf` vedado por config) | acción dueño / método permitido | higiene del entorno (§7) |
+| **I6** | **Destino del oversell fix** de `calidad` — recuperar (cherry-pick a un frente + Gate) vs descartar | decisión dueño/PMO | evita perder un fix de bug real de POS (§6) |
 
-> Antes esto figuraba como "2 sectores" (ERP + Agencia Digital), con Grow **fusionada** dentro de
-> Digital. Separadas el 2026-07-05: el Panel del Dueño pasó a Grow; Digital quedó limpia (satélite ERP).
-
-Modelo: cada sesión es dueña de un core/frente; PMO por encima de las tres unidades (ver
-`docs/METODOLOGIA-SPRINT.md`).
-
-### Unidad 1 — ERP multi-tenant
-| Core | Estado del frente |
-|---|---|
-| **Pagos** | adapter REST MP + dispatch de gateway por tenant en main; falta checkout/seña + credenciales OAuth |
-| **Caja** | arqueo en vivo + rediseño `/admin/caja` en main; `add_cash_register` SIN aplicar |
-| **Inventario/POS** | compras/reposición + ledger `StockMovement` cableado en main; migraciones SIN aplicar |
-| **Fiscal** | soap adapter + worker wiring + config fiscal por tenant en main; falta `TraSigner`+cert (Gate 4) |
-| **Plataforma** | observabilidad v2 + reporting + `FORCE_TENANT_SLUG` + **fix del gate RLS** en main; **RLS a prod es su Gate clave (#1)** |
-| **Confiabilidad/SRE** (Célula 2) | **en main (2026-07-06):** runbook de hardening (`docs/runbooks/hardening-produccion.md`) + vallas (`npm run gates` = tsc+tests+regresión RLS · `npm run load-test` · `global-error.tsx`); **rate limiting** en logins `/admin` y `/operador` (`src/lib/rate-limit.ts`, 5 fallos/15min por IP); **firma del webhook MP** validada (HMAC fail-closed, `src/plugins/mercadopago/signature.ts`). Follow-ups en el runbook: rate-limit API pública, cron fail-closed, plan pago Neon. **Nuevo secreto de prod: `MP_WEBHOOK_SECRET`** (al activar MP real). **PREP DEPLOY VERCEL (2026-07-06):** `vercel.json` (build `prisma generate && next build` + cron **diario** — Hobby no permite horario) + CI `.github/workflows/gates.yml` (`npm run gates` en cada push) + runbook `docs/runbooks/deploy-vercel.md` (un solo deploy, subdominios por tenant vía `APP_BASE_DOMAIN`+`Tenant.subdomain`, env vars, apex fail-closed con >1 tenant). ⚠️ **Gate de lint de `npm run gates` viene ROJO en main** (13 errores preexistentes de otros frentes en `_ch/`+admin dashboard, agregado por otra sesión) → el CI arrancará rojo hasta que los dueños los limpien. |
-| **Diseño** (ahora core) | sistema de diseño/tokens/branding; adopción por pantallas admin pendiente |
-
-### Unidad 2 — Agencia Digital (satélite del ERP)
-Charter `docs/sectores/agencia-digital.md` + `FUNDAMENTO.md`. **Misma metodología y PMO, repos/deploys
-SEPARADOS** del ERP. Visión: **satélite del ERP** — vender el ERP y sumarle features (go-to-market).
-| Frente | Estado |
-|---|---|
-| **Consultores / Análisis de mercado** | 5 análisis en `analisis-mercado/`; alcance **CABA + local + online** |
-| **Desarrolladores** | **WhatsApp conversacional** (`src/lib/wa-intent.ts` + test 🟢) + **benchmarking cross-tenant** (`src/lib/benchmark-aggregate.ts` + test 🟢, ADR-027) — ambos ERP-órbita |
-| **PMO proactivo (Agencia)** | visión y alcance definidos; coordina construcción + informe nocturno |
-
-### Unidad 3 — Agencia Grow (negocios propios del grupo)
-Charter `docs/sectores/agencia-grow.md`. **NO es satélite del ERP:** desarrolla los negocios propios del
-grupo, con beneficio para los dueños. Separada de Digital el 2026-07-05.
-| Frente | Estado |
-|---|---|
-| **Panel del Dueño** | `src/lib/owner-insights.ts` + `src/lib/owner-trends.ts` (+ tests 🟢) — insights/tendencias de negocio single-tenant. Spec en `docs/sectores/agencia-digital/2026-07-05-pmo-propuesta-producto-1.md` (queda ahí por refs de código; es de Grow) |
-| **Cartera de negocios propios** | ⚠️ **a confirmar por el dueño:** `dos-manos-padel`, `shine-velas`, `crypto-bot`, `standup-board` (carpetas hermanas fuera de `estetica-erp`) — candidatos, sin tocar |
+> Los secretos los **pega SIEMPRE el dueño** (FASE 2, ADR-041); las migraciones quedan como **carpeta sin
+> aplicar**; nada de §C se corre solo.
 
 ---
 
-## 8. Para retomar — próximos pasos claros
+## Para retomar — próximos pasos claros
 
-1. **Leé esta foto** + `docs/ESTADO-FRENTES.md` (tablero) + `## Sprint activo` de `docs/SPRINT-MOVIL.md`.
+1. **Leé esta foto** + el **Plan de Ventana** (`docs/estrategia/plan-ventana-2026-07-08.md`) + `docs/ESTADO-FRENTES.md`.
    Si abrís con `sprint`, esto ES la FASE 0 (no salteable).
-2. **Palanca #1 — prender Magra (secuencia del §4):** RLS a prod (ensayo en branch de Neon → cablear
-   app → rotar `DATABASE_URL` → aplicar) → alta de Magra (`provision-tenant.ts`) → deploy sitio
-   `magra-erp` (`FORCE_TENANT_SLUG=magra`). Todo con OK explícito por gate.
-3. **✅ Colisión de timestamp `20260705150000` — RESUELTA** (frente Fiscal, §5). Antes de `migrate deploy`,
-   verificá que no aparezcan colisiones NUEVAS de otros frentes.
-4. **Higiene:** cerrar el refactor sin commitear en el tree de `main` (§6) y el wiring `completeAppointment`.
-5. **Sector Agencia:** el PMO de Agencia baja la visión (§7) a backlog de productos vendibles.
-6. **Estado:** no hay nada rojo en `main` (`35603bd`); prod estable en `f0a13f0`. El delta sin deployar
-   son fixes/docs (no urgen deploy).
+2. **Balde A (hoy, Sonnet):** abrir **F1** y **F3** en worktrees frescos (§9), con **Paso 0 de calibración**
+   y la **verificación ADR-042** de Shine/ADM. **F2 (QA)** y **F4 (PMO)** en el núcleo.
+3. **Balde B (mañana, Opus):** cockpit operador → reingeniería, módulos ARCA/MP reales, repo de plugins
+   (ADR-054/055, principio de VARIANTE). **No tocar hoy** — solo mantener estable.
+4. **Irreversibles:** presentá la §C al dueño para el "1 clic de OK". Nada de deploy/Neon/secretos se corre solo.
+5. **Estado:** no hay nada rojo en `main` (`29e9dcb`); prod estable en Vercel. El delta sin deployar son
+   fixes/docs.
 
-> **Gates = acción del dueño.** Nada de RLS/alta/deploy/migraciones se corre solo. Este doc + los
+> **Gates = acción del dueño.** Nada de deploy/alta/migraciones/secretos se corre solo. Este doc + los
 > runbooks (`docs/runbooks/`) son el guion para ejecutarlos cuando el dueño dé el OK.
+
+— Elaborado por GSG (PMO)
