@@ -1,6 +1,7 @@
 # ADR-036: Rubro retail `padel`/deportes + conversión segura de blueprint de un tenant en prod
 
 **Estado:** Aceptado (2026-07-06) — implementado (rubro consolidado; reglas aplicadas)
+**Fecha:** 2026-07-06
 **Depende de:** ADR-002 (blueprints = config), ADR-018 (RLS), ADR-015 (resolución fail-closed)
 **Relacionado:** ADR-028 (modelo de entrega), ADR-019 (provisioning)
 

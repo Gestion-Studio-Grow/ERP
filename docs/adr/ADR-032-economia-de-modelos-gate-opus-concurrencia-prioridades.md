@@ -1,6 +1,7 @@
 # ADR-032: Economía de modelos + Gate GSG siempre en Opus + tope de concurrencia + prioridades P1/P2/P3 (factory de dos capas)
 
 **Estado:** Aceptado (2026-07-06) — norma de alto nivel vigente
+**Fecha:** 2026-07-06
 **Depende de / extiende:** ADR-008 (costo de tokens de Claude)
 **Relacionado:** ADR-030 (demo→venta→inversión), ADR-033 (Gate GSG)
 

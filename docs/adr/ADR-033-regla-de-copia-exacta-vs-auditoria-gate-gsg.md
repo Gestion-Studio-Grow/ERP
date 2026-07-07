@@ -1,6 +1,7 @@
 # ADR-033: Regla de copia exacta ↔ auditoría — el front replicado se respeta; el backoffice pasa el Gate GSG completo
 
 **Estado:** Aceptado (2026-07-06)
+**Fecha:** 2026-07-06
 **Depende de:** Gate de Excelencia (`docs/METODOLOGIA-SPRINT.md`, `CLAUDE.md`)
 **Relacionado:** ADR-034 (preset por IA / copiar exacto), ADR-028 (modelo de entrega)
 

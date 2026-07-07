@@ -1,6 +1,7 @@
 # ADR-029: Ruteo multi-tenant por hostname (`TENANT_HOST_MAP`) para URLs `.vercel.app` gratis por tenant
 
 **Estado:** Aceptado (2026-07-06) — implementado en `src/lib/tenant.ts`, cubierto por tests
+**Fecha:** 2026-07-06
 **Depende de:** ADR-001 (multi-tenant), ADR-015 (resolución de tenant fail-closed)
 **Relacionado:** ADR-028 (modelo de entrega), ADR-031 (demo navegable)
 

@@ -1,6 +1,7 @@
 # ADR-030: Ciclo DEMO → VENTA → INVERSIÓN — no se invierte hasta vender
 
 **Estado:** Aceptado (2026-07-06) — norma de negocio vigente, no salteable
+**Fecha:** 2026-07-06
 **Depende de:** ADR-031 (dos fases de credenciales), ADR-028 (modelo de entrega)
 **Relacionado:** ADR-032 (prioridades P1/P2/P3)
 

@@ -1,6 +1,7 @@
 # ADR-038: Estructura de Importaciones (`impo`) — ciclo end-to-end de importación desde China
 
 **Estado:** Aceptado (2026-07-06) — comando documentado; ninguna sesión de import abierta aún
+**Fecha:** 2026-07-06
 **Depende de:** ADR-032 (economía de modelos / concurrencia), ADR-030 (disciplina de capital)
 **Relacionado:** ADR-028 (venta online sobre el ERP), ADR-034 (desarrollo digital previo por preset)
 
