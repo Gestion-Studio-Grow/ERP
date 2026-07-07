@@ -1,0 +1,53 @@
+%% Estructura completa de GSG (Gestión Studio Grow) — organigrama + flujo canónico
+%% Fuente de verdad: ADR-032/039/045/048/049/050. Render: mermaid.live o cualquier viewer Mermaid.
+flowchart TD
+  OWNER["👤 DUEÑO (Maxi)\nAPRUEBA planes + irreversibles"]
+
+  subgraph GOB["🏛️ GOBERNANZA (conducción y control)"]
+    DISPATCH["Dispatch\nconductor / canal único · releva status"]
+    PMO["PMO puro (AUTOR)\nbacklog·roadmap·metodología·ADRs · Opus"]
+    ARQ["Arquitecto de Solución (EJECUTOR)\nejecuta reversible · eleva irreversible · Sonnet/Opus"]
+    ADV["Advisory + Challenger (TENSIÓN)\ntesis/antítesis · Sonnet"]
+    QA["QA / Probador\nprueba como usuario · Sonnet"]
+    SEC["Seguridad\nRLS·auth·secretos · Opus"]
+    GATE["Auditoría GSG (el Gate)\nexcelencia antes de cada merge · Opus SIEMPRE"]
+  end
+
+  subgraph UNI["🏢 UNIDADES / DIVISIONES"]
+    ERP["1· ERP multi-tenant (core SaaS)"]
+    ERPC["Cores: Pagos · Caja · Inventario/POS · Fiscal(ARCA) · Plataforma/Deploy · Diseño"]
+    DIG["2· Agencia Digital (satélite del ERP)"]
+    DIGC["Consultores/Mercado · Desarrolladores · PMO proactivo · Growth · WhatsApp"]
+    GROW["3· Agencia Grow (negocios propios)"]
+    GROWC["Panel del Dueño (owner-insights/trends) · cartera propia"]
+    PRESET["4· Preset IA (onboarding) · Opus"]
+    PRESETC["Ingesta + Adaptación → preset del cliente"]
+    IMPO["5· Importaciones (impo) · Opus"]
+    IMPOC["PMO impo · Oportunidades · Proveedores China · Costos/Logística/Aduana · Mercado/Pricing · Fulfillment/3PL"]
+    XCUT["Transversales: Producto por rubro · Delivery por cliente"]
+  end
+
+  %% Gobernanza
+  OWNER <--> DISPATCH
+  DISPATCH --- PMO
+  PMO -- "propone plan" --> OWNER
+  OWNER -- "aprueba" --> ARQ
+  ARQ -- "ejecuta REVERSIBLE" --> UNI
+  ARQ -- "eleva IRREVERSIBLE" --> OWNER
+  ADV -- "tensiona (pre-fundamento)" --> PMO
+  QA -- "prueba" --> UNI
+  SEC -. "vela / veta" .- UNI
+  GATE -. "gate antes de merge" .- UNI
+
+  %% Unidades → células
+  ERP --> ERPC
+  DIG --> DIGC
+  GROW --> GROWC
+  PRESET --> PRESETC
+  IMPO --> IMPOC
+
+  %% Flujo canónico (resumen)
+  PMO ==> |"1 propone"| OWNER
+  OWNER ==> |"2 aprueba"| ARQ
+  ARQ ==> |"3 ejecuta/eleva"| DISPATCH
+  DISPATCH ==> |"4 releva status"| OWNER

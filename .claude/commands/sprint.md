@@ -141,4 +141,25 @@ regla. El PMO es quien detecta y deriva ese caso; no lo decide solo.
 - **🤖 Generador de PRESET por IA** (`docs/metodologia/generador-preset-ia.md`) — 🔒 **PASO OBLIGATORIO del onboarding: todo alta de cliente nuevo se hace generando su preset con este método** (no se arma un tenant a mano por fuera). **🔒 Autorización primero:** pedir y REGISTRAR el OK explícito del cliente para replicar su marca (como con Magra); sin autorización registrada NO se genera ni se muestra. **Corazón: el cliente da su red social y/o su web (+ su OK) → los agentes INGESTAN y EXTRAEN** (rubro, identidad/colores/logo/tono, catálogo/servicios, ofertas, historia, contacto) **y GENERAN la preventa experta = el preset**: tenant+subdomain+blueprint del rubro, branding, datos de demo por rubro (sin secretos), **probador listo**. 🛡️ **GATE BLOQUEANTE no negociable:** generar → **auditar por TODA la metodología (SAP [5 principios + a11y + consistencia] + Sello GSG + Arquitectura + Confiabilidad) → recién ahí mostrar**; sin Gate NO se muestra al cliente. **PoC ya hecha a mano:** Break Point (Instagram→`adosmanos`), Magra (web→`carniceria`). Motor de escala (alta en minutos). **Coordina con Célula 3** (motor del probador, `docs/demo/README.md`) y publica por el playbook de abajo.
 - **Demo pública a COSTO CERO** (`docs/metodologia/demo-publica-costo-cero.md`) — 🔒 **PASO OBLIGATORIO: toda demo pública se genera y publica con este método** (no se improvisa deploy/ruteo). URL `.vercel.app` viva por negocio sin dominio propio ni plan pago (multi-tenant+RLS, `TENANT_HOST_MAP`, un proyecto Vercel + N dominios gratis, GitHub App en la org, `/demo` estático, cron diario). **Credenciales en DOS FASES:** demo/pública = SIN secretos (cero fricción); datos reales = recién ahí `DATABASE_URL` + passwords, y **los pega siempre el dueño, nunca el agente**. Índice en `docs/METODOLOGIA-SPRINT.md → Playbooks operativos`.
 
+## 🎬 Roster fijo de sprint (SIEMPRE se convoca esta estructura · ADR-050)
+
+Al abrir un `sprint` se convoca **siempre el mismo núcleo**; los frentes de ejecución se activan **según lo
+que toque el sprint**. Todo respeta el **tope ≤ 4 corriendo** en olas y las prioridades **P1/P2/P3**.
+
+**A· NÚCLEO — SIEMPRE (gobernanza + control):**
+- **Dueño** — **APRUEBA** el plan y lo irreversible (gate de aprobación).
+- **Dispatch** — **conductor/canal** único con el dueño; releva status; eleva.
+- **PMO (autor · Opus)** — FASE 0 + **propone el plan** + secuencia lo compartido + tablero.
+- **Arquitecto de Solución (ejecutor · Sonnet/Opus borde)** — **ejecuta lo reversible** del plan aprobado; **eleva lo irreversible** (ADR-048/049).
+- **Advisory + Challenger (Sonnet)** — **tensionan** la estrategia antes de fundamento (puntual, ADR-045).
+- **QA / Probador (Sonnet)** — **prueba como usuario real**; verifica antes de cerrar.
+- **Seguridad (Opus)** — RLS/aislamiento/auth/secretos; on-call + parte del Gate (puntual).
+- **Auditoría GSG / el Gate (Opus SIEMPRE)** — corre el Gate completo **antes de cada merge**.
+
+**B· FRENTES — según el sprint:** Preset IA (Opus, en altas) · Producto por rubro (Sonnet) · Adaptador/Delivery por cliente (Sonnet) · **ERP cores** (Pagos·Caja·Inventario/POS·Fiscal·Plataforma/Deploy·Diseño, Sonnet→Opus en su tramo) · **Agencia Digital** (Consultores/Mercado·Devs·PMO·Growth·WhatsApp). *(Importaciones = trigger propio `impo`, todo Opus.)*
+
+**C· Olas (≤ 4):** el **control entra puntual** (Gate al merge, Seguridad/Advisory por gatillo) → **no ocupa cupo permanente**; los **frentes** corren en olas de ≤ 4 por prioridad. En congestión, **solo P1**.
+
+**Orden:** Ola 0 = PMO corre FASE 0 → propone → **Dueño aprueba** → Ola de ejecución (Arquitecto reversible + ≤3 frentes, QA prueba) → puntual (Advisory/Seguridad/Gate) → irreversible **se eleva** → cierre: **retro (ADR-047) + backup**. Detalle: **`docs/adr/ADR-050`**.
+
 Arrancá tomando el rol y confirmando qué worktrees existen (`git worktree list`) antes de asignar bocados.
