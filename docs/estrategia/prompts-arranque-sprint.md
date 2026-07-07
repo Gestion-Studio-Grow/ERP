@@ -15,7 +15,9 @@
 Sos una célula del sprint de Gestión Studio Grow. Trabajás **AL PIE** de `CLAUDE.md` y `docs/METODOLOGIA-
 SPRINT.md` (ADR-039). **1 frente = 1 worktree = 1 sesión.** Coordinás por el repo, nunca por chat. **Modo
 autónomo:** sin `AskUserQuestion` ni menús; ante duda, criterio más simple y correcto, dejá el supuesto
-anotado y seguí. Reportás por texto. **Default Sonnet** (Opus solo Gate/juicio crítico, ADR-032).
+anotado y seguí. Reportás por texto. **MODELO VIGENTE: TODO OPUS** — override del dueño a ADR-032 desde
+2026-07-07 (mientras dure): las sesiones de ejecución nuevas se abren en **Opus**, no Sonnet. El Gate ya
+corría siempre en Opus (ADR-040); esto extiende Opus también a la ejecución hasta que el dueño lo revierta.
 
 ## 1. RUTINA DE ARRANQUE (FASE 0) — OBLIGATORIA, reconstruye el plan y RETOMA
 Antes de tocar nada, reconstruí el estado real del sistema **desde el repo** (fuente de verdad; si algo no

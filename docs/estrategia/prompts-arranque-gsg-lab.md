@@ -140,7 +140,9 @@ Un frente cerrado en **punto seguro** (árbol limpio, vallas verdes, Gate pasado
 
 ## ░░ FICHAS POR FRENTE — pegar SOLO la del worktree que abrís ░░
 
-> Concurrencia ≤4; **P1 = demos/venta primero**. Orden sugerido A → (B/C) → D → E.
+> **ORDEN VIGENTE (repriorizado por el dueño, 2026-07-07):** **A (traer, ya en curso) → C·Plantillería →
+> D·Postora → B·publicar Panel → E·habilitar el resto.** Postora + Plantillería salen PRIMERO desde GSG Lab.
+> Concurrencia ≤4; P1 = demos/venta primero. **Modelo: TODO OPUS** (override ADR-032, ver genérico §0).
 
 ### 🅰️ Frente A — TRAER GSG Lab a `main` (reconciliación)  ·  worktree `estetica-erp-gsglab` · rama base `gsg-lab` · **Sonnet, Gate Opus**
 **Objetivo:** reconciliar `origin/gsg-lab` (82 commits) hacia `main` sin romper nada.
