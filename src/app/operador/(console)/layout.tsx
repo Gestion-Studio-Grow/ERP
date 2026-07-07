@@ -5,8 +5,11 @@ import { operatorLogout } from "@/lib/operator-actions";
 import { Button } from "@/components/ui";
 
 // Control-plane: título propio (no "CH Estética…" heredado) y sin indexar.
+// `generator` es el sello GSG invisible en el <head> (verificable en el HTML,
+// ADR-043/estandar-marca-gsg.md) — el crédito visible va discreto en el footer.
 export const metadata: Metadata = {
   title: "Consola · Control-plane",
+  generator: "Gestión Studio Grow",
   robots: { index: false, follow: false },
 };
 
@@ -35,6 +38,11 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      {/* Sello de marca GSG — crédito discreto en el footer del backoffice, no
+          visible en la vidriera del tenant (ADR-043/estandar-marca-gsg.md). */}
+      <footer className="mx-auto max-w-6xl px-6 pb-6">
+        <p className="text-xs text-muted">Hecho por Gestión Studio Grow</p>
+      </footer>
     </div>
   );
 }
