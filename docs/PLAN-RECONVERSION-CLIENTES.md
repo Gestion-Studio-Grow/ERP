@@ -15,11 +15,11 @@
 
 | Cliente | Rubro | ¿Tenant real en Neon? | URL (`TENANT_HOST_MAP`) | Estado | Qué falta |
 |---|---|---|---|---|---|
-| **CH Estética** | estética / servicios (turnos) | ✅ **sí** | `chestetica-erp.vercel.app` | ✅ **REAL y VIVO** | Solo **retirar** su preview estático `public/previews/chestetica/` + confirmar sello GSG en backoffice. |
-| **Magra** | carnicería / retail | ✅ **sí** (alta hecha) | `magra-erp.vercel.app` (ya en el mapa) | 🟡 **casi — falta servir/verificar** | **Verificar que levante con la llave ya cargada** (host→tenant + `DATABASE_URL`); agregar el dominio al proyecto Vercel si falta; **publicar (Gate 1, OK dueño)**; retirar su preview. **No toca Neon.** |
-| **A Dos Manos** | retail / tienda (pádel) | ❌ **no** (solo preview) | `adosmanos-erp.vercel.app` (mapeo previsto) | 🔒 **gated (Neon)** | **Alta como tenant real** (blueprint **retail/tienda**) → **requiere OK del dueño para tocar Neon (Gate 2)**. Luego servir front+back + retirar preview. |
-| **Shine** | retail / tienda (velas/deco) | ❌ **no** (solo preview) | `shinevelas-erp.vercel.app` (mapeo previsto) | 🔒 **gated (Neon)** | Igual que A Dos Manos: **alta tenant real retail** → **OK Neon (Gate 2)**. Luego servir + retirar preview. |
-| **Break Point** | preventa (pádel) | ❌ (es prospecto) | `breakpoint-erp.vercel.app` (demo) | 🎬 **DEMO / preventa** | Queda como **demo del flujo**: front+back que salen del Generador de Preset / Adaptador cuando el motor esté. Su preview estático = **demo interina** hasta entonces. |
+| **CH Estética** | estética / servicios (turnos) | ✅ **sí** | `chestetica-erp.vercel.app` | ✅ **REAL y VIVO** | Preview estático **retirado** (2026-07-06). Confirmar sello GSG en backoffice. |
+| **Magra** | carnicería / retail | ✅ **sí** (alta hecha) | `magra-erp.vercel.app` (ya en el mapa) | 🟡 **casi — falta servir/verificar** | Preview estático **retirado** (2026-07-06, por decisión del dueño — el concepto de preview quedó muerto, no se esperó a publicar). Sigue pendiente: verificar que levante con la llave ya cargada; publicar (Gate 1, OK dueño). |
+| **A Dos Manos** | retail / tienda (pádel) | ❌ **no** (solo preview, ya retirado) | `adosmanos-erp.vercel.app` (mapeo previsto) | 🔒 **gated (Neon)** | Preview estático **retirado** (2026-07-06). Sigue gated: alta como tenant real (blueprint retail/tienda) requiere OK del dueño para tocar Neon (Gate 2). |
+| **Shine** | retail / tienda (velas/deco) | ❌ **no** (solo preview, ya retirado) | `shinevelas-erp.vercel.app` (mapeo previsto) | 🔒 **gated (Neon)** | Preview estático **retirado** (2026-07-06). Sigue gated: alta tenant real retail → OK Neon (Gate 2). |
+| **Break Point** | preventa (pádel) | ❌ (es prospecto) | `breakpoint-erp.vercel.app` (demo) | 🎬 **DEMO / preventa** | **Único preview estático que se mantiene** — es la única forma de mostrarlo hoy. Se retira cuando exista el demo del flujo real (Generador de Preset / Adaptador). |
 
 > Nota: el `TENANT_HOST_MAP` ya contempla los cuatro consolidados (`chestetica-erp`, `magra-erp`,
 > `shinevelas-erp`, `adosmanos-erp` → su subdomain), verificado en `src/lib/tenant.test.ts`. Lo que falta
@@ -27,14 +27,13 @@
 
 ## 2. Qué hacer con `public/previews/*` (deprecación ordenada)
 
-- **Consolidados** (`chestetica`, `magra`, `adosmanos`, `shinevelas`): **retirar** el preview estático
-  **cuando su URL real ya sirve** el producto — **no antes** (para no dejar la URL sin nada). Orden:
-  **CH ahora** (ya es real); **Magra** al publicar; **A Dos Manos / Shine** al darse de alta. Hasta ese
-  momento, quedan marcados **DEPRECADOS** (stopgap, no son el entregable).
-- **Prospecto** (`breakpoint`): **se mantiene** como **demo interina** hasta que exista el front+back del
-  flujo; ahí se reemplaza por la app en modo demo.
-- **Regla:** ningún consolidado conserva preview estático una vez servido su producto real. El estático es
-  transición, no destino.
+**Actualización 2026-07-06 — el dueño confirmó que el concepto quedó muerto sin condición:** ya no se
+espera a que la URL real sirva el producto para retirar el preview estático. Se retiraron de una
+`chestetica`, `magra`, `adosmanos` y `shinevelas` (aunque A Dos Manos y Shine sigan gated en Neon — el
+preview no vuelve, la vidriera real se muestra recién cuando el tenant exista).
+
+- **Prospecto** (`breakpoint`): **se mantiene** como **demo interina** — es la única forma de mostrarlo
+  hoy — hasta que exista el front+back del flujo; ahí se reemplaza por la app en modo demo.
 
 ## 3. Plan ordenado y priorizado (modo ahorro · ≤ 4 sesiones · en olas)
 
@@ -46,9 +45,9 @@ ciclo **DEMO → VENTA → INVERSIÓN** (consolidados = post-venta → se sirven
    - Verificar que `magra-erp.vercel.app` **resuelve al tenant `magra`** y que **levanta con la llave ya
      cargada** (`DATABASE_URL`/`OPERATOR_DATABASE_URL`, RLS `app_rls`).
    - Agregar el dominio `.vercel.app` al proyecto si faltara (config de Vercel, sin secretos).
-   - **Publicar = Gate 1** (acción del dueño: *"deployá"*). Al confirmar vivo → **retirar** su preview.
-2. **CH Estética — cierre de reconversión** (ya real y vivo): **retirar** `public/previews/chestetica/` y
-   confirmar el **sello GSG** en el footer del backoffice. Cleanup de bajo costo.
+   - **Publicar = Gate 1** (acción del dueño: *"deployá"*). Preview ya retirado.
+2. **CH Estética — cierre de reconversión** (ya real y vivo): preview ya retirado; confirmar el
+   **sello GSG** en el footer del backoffice.
 
 ### 🌊 Ola 2 — P2 / GATED, requiere OK del dueño para Neon (Gate 2)
 3. **A Dos Manos y Shine — alta como tenants reales (retail/tienda).**
@@ -56,7 +55,7 @@ ciclo **DEMO → VENTA → INVERSIÓN** (consolidados = post-venta → se sirven
      rubro, `subdomain`, entrada en `TENANT_HOST_MAP` (ya prevista), preset del flujo (branding/catálogo
      demo), `.env.vercel.template`. Todo lo **no secreto** queda cableado en el repo.
    - **Ejecutar el alta SOLO con OK explícito del dueño (Gate 2 — tocar Neon).** Con RLS activo y el
-     aislamiento verificado. Luego servir front+back en su URL y **retirar** sus previews.
+     aislamiento verificado. Luego servir front+back en su URL. (Preview estático ya retirado.)
    - Los **secretos los pega el dueño** (FASE 2 de credenciales).
 
 ### 🔁 Continuo — P1 demo/preventa
