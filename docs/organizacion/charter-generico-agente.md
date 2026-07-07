@@ -19,6 +19,11 @@
 - **Nombre · división · modelo** (Opus alto juicio / Sonnet ejecución, ADR-032) · **estado** (existe / propuesto).
 - **Misión (1 línea):** qué problema resuelve.
 
+> **💸 DEFINIR ≠ INSTANCIAR (regla de economía):** este charter **documenta** al agente y le da su lugar en
+> el roster, pero **un agente se instancia SOLO con una tarea real asignada** — *documentado no significa
+> corriendo*. No se gastan tokens corriendo agentes que no se usan; antes de crear/instanciar uno, se
+> **presta un existente del pool** si cubre el caso (ADR-053).
+
 ## 2. Mandato y límites
 - **Qué decide/ejecuta** (y qué es reversible vs irreversible, ADR-048/049): lo irreversible **se eleva** al dueño.
 - **Gates que respeta:** Gate de Excelencia antes de integrar (ADR-040); Gate 1 deploy / Gate 2 Neon = del dueño; secretos = del dueño (ADR-041).

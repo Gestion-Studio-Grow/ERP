@@ -193,6 +193,13 @@ contextos = más completo, menos sesgo genérico) — no es solo ahorro, es **me
 cruce **vuelca lo aprendido a la memoria** (ADR-047). **Es BASE de GSG** (`docs/fundamentos/bases-gsg.md §7`),
 no solo ADR. Detalle/mecánica: **`docs/adr/ADR-053-pool-compartido-de-agentes-cross-training.md`**.
 
+**💸 Regla de economía — DEFINIR ≠ INSTANCIAR:** **no se gastan tokens instanciando/corriendo agentes que
+no se usan.** TODOS los agentes propuestos (v3 + los 3 + los 5/9 nuevos + los del catálogo/plugins) se
+**DOCUMENTAN** (charter + lugar en el roster) pero **NO se instancian hasta que haya una tarea real que los
+requiera** — *documentado no significa corriendo*. El **roster fijo + el charter genérico** son el registro
+que garantiza que **siempre convocamos a los MISMOS agentes** (consistencia), y el **pool/factory** permite
+**prestar los existentes antes de crear nuevos** (ADR-053). Un agente se instancia **solo con tarea asignada**.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
