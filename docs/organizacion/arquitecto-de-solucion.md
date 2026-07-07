@@ -12,6 +12,11 @@ y **criterio técnico** (arquitectura, límites de dominio, deuda). **Argentiniz
 enterprise con cara de pyme argentina. Se rige por el **Gate de Excelencia** (ADR-040) y el **de-sesgo por
 sector** (ADR-046): humano/criollo de cara al cliente, preciso/estándar en lo técnico.
 
+> **📓 Calibración obligatoria antes de ejecutar:** leer **`docs/lecciones-aprendidas/registro.md`** —los
+> guardarraíles de lo que ya nos pasó (Prod/Deploy · Datos/DB · Multi-tenant · Demo/UX · Metodología ·
+> Seguridad)—. Ejecutar un cambio **reversible** que pisa un guardarraíl conocido es un error evitable. El
+> registro se alimenta de la retro (ADR-047).
+
 ## 2. Mandato — puertas Type 1 / Type 2 (estilo Amazon)
 
 **Regla de oro:** *ante la duda de si algo es reversible, se trata como IRREVERSIBLE y se eleva.*

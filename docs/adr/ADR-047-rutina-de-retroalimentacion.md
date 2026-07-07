@@ -39,6 +39,13 @@ tramo de juicio (revisión de bases) usa la asignación de ADR-045; se escala a 
 - **(−)** Requiere **disciplina**: si no se corre, la memoria y los briefs **derivan**. La cadencia (a) atada
   a la Definición de terminado del sprint es lo que la hace no-opcional.
 
+> **Destino de la palanca "casos":** el registro vivo es **`docs/lecciones-aprendidas/registro.md`**
+> (síntoma → causa → fix → lección → **guardarraíl** → refs). La cadencia (a) **suma o actualiza** una
+> entrada por cierre de sprint; la (b) las **destila** y promueve guardarraíles recurrentes a regla dura.
+> Ese registro es **lectura obligatoria de calibración** de PMO y Arquitecto (y de las células antes de
+> tocar áreas de riesgo).
+
 ## Estado
 **Aceptado — vigente.** Rutina de mejora continua de GSG; cadencia (a) en el cierre de sprint (ADR-039),
-cadencia (b) en consolidación con revisión Advisory+Challenger (ADR-045). Referenciada desde `CLAUDE.md`.
+cadencia (b) en consolidación con revisión Advisory+Challenger (ADR-045). Registro vivo:
+`docs/lecciones-aprendidas/registro.md`. Referenciada desde `CLAUDE.md`.

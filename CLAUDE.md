@@ -11,6 +11,10 @@ gestión correcta del proyecto.** Es obligatorio siempre, en Claude Code (deskto
 - **`git status`** + tip de `main` y ramas/worktrees — WIP sin commitear y en qué estado está el árbol.
 - **Migraciones pendientes** — `prisma/migrations/` vs lo aplicado (según docs; no golpear Neon),
   incluidas **colisiones de timestamp**.
+- **📓 `docs/lecciones-aprendidas/registro.md` — LECTURA OBLIGATORIA DE CALIBRACIÓN** para el **PMO**
+  (autor) y el **Arquitecto de Solución** (ejecutor), y para **cualquier célula ANTES de tocar un área de
+  riesgo** (Prod/Deploy · Datos/DB · Multi-tenant · Seguridad). Son los **guardarraíles de lo que ya nos
+  pasó**; se **alimenta de la retro** (ADR-047: cada cierre de sprint suma/actualiza una entrada).
 
 Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `sprint`, esto es su
 **FASE 0 Exploración** (Paso 0 no salteable en `.claude/commands/sprint.md`); cuando no, igual aplica.
