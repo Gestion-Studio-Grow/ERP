@@ -44,7 +44,10 @@ const SCENE_COMPONENTS = [
 // sigue sin haber secretos ni backend acá.
 const WA_STORAGE_KEY = "gsg-demo-whatsapp";
 
-export default function DemoTour() {
+// `showBackofficeEntry` lo decide el server (page.tsx) leyendo la flag de demo:
+// el botón "Ver el backoffice (demo)" SOLO aparece en el deploy de demo, nunca en
+// el sitio de un cliente real (ahí el visitante no debe ver una puerta a un panel).
+export default function DemoTour({ showBackofficeEntry = false }: { showBackofficeEntry?: boolean } = {}) {
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
   const [waModalOpen, setWaModalOpen] = useState(false);
@@ -250,14 +253,19 @@ export default function DemoTour() {
             Escribinos por mail
           </a>
         </div>
-        {/* Sandbox de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md):
-            enlace plano al backoffice real. Sin cambio de comportamiento si el
-            deploy no tiene DEMO_MODE_ENABLED (el visitante cae al login real). */}
-        <div className="mt-1.5 text-center text-[12px] text-white/60">
-          <a href="/admin/turnos" className="underline-offset-2 hover:underline">
-            Entrá al backoffice real (demo) →
+        {/* Puerta VISIBLE al backoffice en modo demo (sin password, datos
+            ficticios). Solo en el deploy de demo — en un sitio de cliente real
+            `showBackofficeEntry` es false y no se muestra. Va a /probar, que
+            gatea + muestra la recomendación del consultor antes de entrar. */}
+        {showBackofficeEntry ? (
+          <a
+            href="/probar"
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-white/30 px-6 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-white/10"
+          >
+            Ver el backoffice (demo)
+            <span aria-hidden>→</span>
           </a>
-        </div>
+        ) : null}
       </div>
 
       {/* Prompt just-in-time del WhatsApp: aparece recién al disparar el CTA,

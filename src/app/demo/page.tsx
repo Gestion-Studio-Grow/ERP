@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
 import DemoTour from "./DemoTour";
+// Import puro y edge-safe (cero deps, sin Prisma/credenciales): NO rompe el
+// aislamiento force-static del /demo — solo lee la flag de entorno del deploy
+// para decidir si mostrar la puerta al backoffice-demo. El motor del tour
+// (demo-content/scenes) sigue 100% puro.
+import { isDemoSandbox } from "@/lib/demo-flag";
 
 // DEMO INTERACTIVA DEL ERP (Célula 3 — Producto/Contenido).
 // Ruta pública, SIN login, a la que apunta la publicidad de Instagram Stories.
@@ -22,5 +27,7 @@ export const metadata: Metadata = {
 };
 
 export default function DemoPage() {
-  return <DemoTour />;
+  // Se evalúa en build (force-static): en el deploy de demo la flag está puesta
+  // y el botón se hornea; en un deploy real queda ausente.
+  return <DemoTour showBackofficeEntry={isDemoSandbox()} />;
 }

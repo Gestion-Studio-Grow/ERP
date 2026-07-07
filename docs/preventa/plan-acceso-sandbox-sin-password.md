@@ -320,10 +320,68 @@ un negocio ficticio **de su rubro**. El acceso sin password (§2) no se tocó: e
 
 - Sumar las 3 familias restantes con catálogo propio (gastronomía/oficios hoy caen al catálogo genérico o
   a agenda; el enganche ya generaliza, es sumar datos, no arquitectura).
-- Surface visual de la recomendación en el backoffice (un cartel "Consultor recomienda: familia X,
-  módulos…") — hoy la recomendación **determina los datos** pero no se muestra como tal; es la mejora de UI
-  natural del próximo incremento.
 - Deploy real aislado (`DEMO_MODE_ENABLED=true` + `DEMO_RUBRO=<rubro>` + `FORCE_TENANT_SLUG=demo-*`) sigue
   siendo paso de infra (Netlify/Vercel), cuando el dueño lo pida.
+
+## 9. Estado — PUNTO DE ENTRADA VISIBLE al backoffice-demo (2026-07-06, Opus)
+
+Ajuste de alcance del dueño: faltaba una **puerta visible**. El acceso sin password + datos ficticios ya
+existía, pero no se veía **cómo entrar** desde un sitio (y `/admin` pide contraseña). Se agregó la puerta,
+**gateada por la flag de demo** para no exponer nunca el `/admin` real de un cliente.
+
+### 9.1 Cómo quedó el acceso (el flujo end-to-end)
+
+```
+Deploy de DEMO (DEMO_MODE_ENABLED=true, DEMO_RUBRO=<rubro>)      Deploy de CLIENTE REAL (Magra/CH)
+───────────────────────────────────────────────────────        ─────────────────────────────────
+/demo  →  botón "Ver el backoffice (demo)"  (VISIBLE)           /demo  →  (sin botón, oculto)
+   │                                                            /probar → 404 (notFound)
+   ▼                                                            /admin  → login real con password
+/probar  →  gate ✓ + muestra la recomendación del                       (INTACTO, no se tocó)
+   │        consultor (rubro/familia + módulos)
+   ▼
+/admin (pantalla primaria del rubro)  →  entra SIN password,
+   con datos ficticios + BANNER "Modo demo" persistente
+```
+
+### 9.2 Qué se construyó
+
+- **`src/app/probar/page.tsx`** (nuevo, server, `force-dynamic`): la puerta. Si `isDemoSandbox()` es
+  false → `notFound()` (en un deploy real la ruta **no existe**, cero exposición). Si es true → página
+  branded que muestra lo que **el consultor recomendó** (blueprint/familia + chips de módulos) y un CTA
+  grande "Ver el backoffice (demo) →" a la pantalla primaria del rubro (`/admin/turnos` para servicios,
+  `/admin/caja` para mostrador), más un enlace al Panel del Dueño. Conecta consultor→backoffice de forma
+  **visible**, no solo en los datos.
+- **`src/app/admin/(dashboard)/DemoBanner.tsx`** (nuevo, server): banda "Modo demo — <rubro> · datos
+  ficticios, nada se guarda" con enlace a `/probar`. `role="status"`, tokens semánticos (`warning`) →
+  respeta el tema/branding del tenant. **Devuelve `null` en un deploy real** (su `/admin` queda sin banda).
+  Cumple el ítem de honestidad del Gate (§6.4). Cableado en `layout.tsx` del dashboard.
+- **`src/app/demo/DemoTour.tsx` + `page.tsx`**: el enlace plano de antes (que se mostraba SIEMPRE y caía al
+  login en deploys reales) pasó a un **botón prominente gateado**. `page.tsx` (server) lee la flag y pasa
+  `showBackofficeEntry`; el botón solo aparece en el deploy de demo y va a `/probar`. El **motor** del tour
+  (`demo-content.ts`/`scenes.tsx`) queda **100% puro** — la flag se lee solo en `page.tsx` (import
+  edge-safe, cero deps), sin romper el aislamiento force-static.
+
+### 9.3 Distinción respetada (regla del dueño)
+
+Los clientes REALES no se tocan: su `/admin` con contraseña sigue igual, `/probar` les da 404 y el banner
+no aparece. La puerta sin password, los datos ficticios y el banner **solo viven en el deploy de demo**
+(`DEMO_MODE_ENABLED`). Sin passwords ni secretos en el modo demo; nada real se toca.
+
+### 9.4 Gate de Excelencia (Opus 4.8) — PASA
+
+- **① SAP Fiori:** CTA único y claro (simple) · consistente con el estilo demo/admin existente · banner
+  `role="status"` + `/probar` con `<h1>` semántico y enlaces con texto claro (accesibilidad) · banner con
+  tokens semánticos → adapta a tema/branding del tenant (adaptable) · reusa clases de token existentes, no
+  duplica patrón (consistencia). ✓
+- **② Sello GSG:** doc firmado; footer del backoffice sin tocar. ✓
+- **③ Arquitectura:** puerta gateada por flag; `/probar` `notFound()` y banner `null` en real → **cero
+  exposición** del `/admin` real. No toca auth/tenant/proxy. Motor de `/demo` puro. ✓
+- **④ Confiabilidad:** `tsc` + `next build` (`/demo` estático, `/probar` dinámico, `/admin` con banner —
+  todos compilan) + `npm test` (433/433) verdes. **Inerte por defecto** (flag ausente → 404/null/sin
+  botón). Sin migración. Nota: el visual con la flag PRENDIDA no se probó en navegador (el `curl`/red
+  saliente está bloqueado en este entorno y no se toca el env/árbol compartido) — mismo criterio que §6.3;
+  la lógica del gate es trivial y está type-checked, y los datos que renderiza (la recomendación) están
+  cubiertos por tests unitarios.
 
 — Elaborado por **Gestión Studio Grow (GSG)**.

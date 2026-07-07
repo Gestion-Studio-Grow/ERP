@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import AdminShell from "./AdminShell";
 import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
+import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
 import { getTenantBrand, resolveAccent, invertTheme } from "@/lib/branding";
 import type { CSSProperties } from "react";
@@ -34,6 +35,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       style={{ "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}
       className="min-h-screen bg-surface text-body"
     >
+      {/* Banda de "modo demo" — solo aparece en el deploy de demo; null en real. */}
+      <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
           <AdminShell role={user.role} userName={user.name} brandName={brand.name} monogram={brand.monogram}>
