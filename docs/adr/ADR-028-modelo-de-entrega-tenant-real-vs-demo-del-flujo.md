@@ -1,6 +1,7 @@
 # ADR-028: Modelo de entrega — cliente consolidado = tenant real en su URL; demo = app del flujo; fin de los previews estáticos
 
 **Estado:** Aceptado (2026-07-06) — en reconversión (ver `docs/PLAN-RECONVERSION-CLIENTES.md`)
+**Fecha:** 2026-07-06
 **Depende de:** ADR-001 (multi-tenant), ADR-029 (ruteo por hostname), ADR-019 (provisioning)
 **Relacionado:** ADR-030 (ciclo demo→venta→inversión), ADR-031 (demo navegable), ADR-034 (preset por IA)
 

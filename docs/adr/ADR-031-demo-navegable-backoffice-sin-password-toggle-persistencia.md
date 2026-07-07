@@ -1,6 +1,7 @@
 # ADR-031: Demo navegable — backoffice sin password + datos ficticios + toggle de persistencia (dos fases de credenciales)
 
 **Estado:** Aceptado (2026-07-06) — implementado (fixtures del sandbox por rubro)
+**Fecha:** 2026-07-06
 **Depende de:** ADR-018 (activación de RLS), ADR-015 (resolución fail-closed)
 **Relacionado:** ADR-030 (ciclo demo→venta→inversión), ADR-035 (consultor→backoffice)
 

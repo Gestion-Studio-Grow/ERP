@@ -1,6 +1,7 @@
 # ADR-035: Consultor → Backoffice — la recomendación del consultor precede y determina el backoffice adaptado por rubro
 
 **Estado:** Aceptado (2026-07-06) — implementado (fixtures del sandbox por rubro/familia)
+**Fecha:** 2026-07-06
 **Depende de:** ADR-002 (blueprints = config), ADR-034 (preset por IA)
 **Relacionado:** ADR-031 (demo navegable), ADR-028 (modelo de entrega)
 

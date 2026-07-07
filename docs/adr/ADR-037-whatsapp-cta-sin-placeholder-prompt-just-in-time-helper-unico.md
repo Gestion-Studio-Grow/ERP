@@ -1,6 +1,7 @@
 # ADR-037: WhatsApp CTA sin placeholder — prompt just-in-time + helper único `whatsapp-cta`
 
 **Estado:** Aceptado (2026-07-06) — implementado (helper único + fix del CTA roto de adosmanos)
+**Fecha:** 2026-07-06
 **Depende de:** ADR-028 (modelo de entrega — vitrinas)
 **Relacionado:** unidad Agencia Digital (wa-intent / wa-provider / wa-dispatch)
 

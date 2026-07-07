@@ -1,6 +1,7 @@
 # ADR-034: Generador de preset por IA — onboarding por ingesta, con autorización obligatoria del cliente y método "copiar exacto" (leer el render, no el fetch)
 
 **Estado:** Aceptado (2026-07-06) — método vigente; contrato en código, altas reales gated
+**Fecha:** 2026-07-06
 **Depende de:** ADR-019 (provisioning), ADR-002 (blueprints), ADR-009 (onboarding self-service)
 **Relacionado:** ADR-033 (regla de copia exacta ↔ auditoría), ADR-028 (modelo de entrega)
 
