@@ -78,6 +78,11 @@ export default function ProbarPage() {
             </span>
           ))}
         </div>
+        <p className="mt-4 text-[13px] leading-relaxed text-neutral-500">
+          Así queda armado tu sistema. En la demo recorrés el <strong>panel del dueño, la
+          {rec.primaryScreen === "agenda" ? " agenda" : " caja"}, tus clientes y los reportes</strong> con
+          datos de ejemplo. El resto de los módulos se enciende cuando activás tu negocio.
+        </p>
       </div>
 
       <div className="w-full space-y-3">

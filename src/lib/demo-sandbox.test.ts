@@ -18,8 +18,12 @@ import {
   getDemoReportData,
   getDemoDeepReportData,
   getDemoOwnerPanelData,
+  getDemoClients,
+  getDemoClient,
+  getDemoDashboardData,
   recommendForRubro,
 } from "./demo-sandbox";
+import { demoNavHrefs } from "./demo-consultor";
 
 // Recomendaciones explícitas de dos familias, para verificar que los fixtures se
 // arman a partir de la recomendación (no de arrays fijos de un solo rubro).
@@ -151,4 +155,85 @@ test("getDemoDeepReportData(retail): computa KPIs sobre ventas ficticias del rub
   assert.ok(d.totalTurnos > 0);
   assert.ok(typeof d.kpis.ticketPromedio === "number");
   assert.ok(d.kpis.ticketPromedio > 0);
+});
+
+// ── Fixtures nuevas: Clientes, Dashboard (cerrar callejones J-1/J-3) ─────────
+
+test("getDemoClients: lista poblada con shape { id, name, phone, _count }", () => {
+  const list = getDemoClients(ESTETICA);
+  assert.ok(list.length >= 5);
+  for (const c of list) {
+    assert.match(c.id, /^demo-client-/);
+    assert.ok(c.name.length > 0);
+    assert.ok(c.phone.length > 0);
+    assert.ok(typeof c._count.appointments === "number");
+  }
+});
+
+test("getDemoClients(retail): badge de turnos en 0 (mostrador no lleva turnos)", () => {
+  const list = getDemoClients(CARNICERIA);
+  assert.ok(list.every((c) => c._count.appointments === 0));
+});
+
+test("getDemoClient(agenda): ficha con historial de turnos consumible por la página", () => {
+  const list = getDemoClients(ESTETICA);
+  // Un cliente con turnos (>0) según el conteo determinista.
+  const withHistory = list.find((c) => c._count.appointments > 0)!;
+  const client = getDemoClient(withHistory.id, ESTETICA);
+  assert.ok(client);
+  assert.equal(client!.id, withHistory.id);
+  assert.ok(client!.appointments.length >= 1);
+  for (const a of client!.appointments) {
+    assert.ok(a.service.name.length > 0);
+    assert.ok(a.professional.name.length > 0);
+    assert.ok(a.startsAt instanceof Date);
+    if (a.payment) assert.equal(a.payment.status, "APPROVED");
+  }
+});
+
+test("getDemoClient(retail): ficha sin historial de turnos (honesto)", () => {
+  const client = getDemoClient("demo-client-1", CARNICERIA);
+  assert.ok(client);
+  assert.equal(client!.appointments.length, 0);
+});
+
+test("getDemoClient: id inexistente → null (la página hace notFound)", () => {
+  assert.equal(getDemoClient("no-existe", ESTETICA), null);
+});
+
+test("getDemoDashboardData: shape del landing (KPIs + agenda del día), sin DB", () => {
+  const d = getDemoDashboardData(ESTETICA);
+  assert.ok(Array.isArray(d.todayAppointments));
+  assert.ok(d.todayAppointments.length >= 1); // estética: día con turnos
+  assert.ok(typeof d.pendingCount === "number");
+  assert.ok(d.weekRevenue > 0);
+  assert.ok(d.professionalsCount >= 1);
+  assert.equal(d.clientsCount, getDemoClients(ESTETICA).length);
+  assert.ok(Array.isArray(d.blocksToday));
+});
+
+test("getDemoDashboardData(retail): landing sin turnos (mostrador), pero con ingresos", () => {
+  const d = getDemoDashboardData(CARNICERIA);
+  assert.equal(d.todayAppointments.length, 0);
+  assert.ok(d.weekRevenue > 0); // los ingresos salen de ventas de mostrador
+});
+
+// ── Nav de demo: solo módulos con fixture (sin callejones sin salida) ────────
+
+const WIRED = new Set(["/admin", "/admin/turnos", "/admin/caja", "/admin/clientes", "/admin/reportes"]);
+
+test("demoNavHrefs: incluye el Dashboard siempre y solo rutas cableadas", () => {
+  for (const rubro of ["estetica", "carniceria", "gastronomia", "plomeria", "kiosco"]) {
+    const hrefs = demoNavHrefs(recommendForRubro(rubro));
+    assert.ok(hrefs.includes("/admin"), `${rubro}: falta el Dashboard`);
+    assert.ok(hrefs.includes("/admin/clientes"), `${rubro}: falta Clientes`);
+    assert.ok(hrefs.includes("/admin/reportes"), `${rubro}: falta Reportes`);
+    // NINGUNA ruta del nav de demo puede caer fuera del set cableado (= callejón).
+    for (const h of hrefs) assert.ok(WIRED.has(h), `${rubro}: ruta no cableada ${h}`);
+  }
+});
+
+test("demoNavHrefs(agenda): ofrece la Agenda; (retail): ofrece la Caja", () => {
+  assert.ok(demoNavHrefs(recommendForRubro("estetica")).includes("/admin/turnos"));
+  assert.ok(demoNavHrefs(recommendForRubro("carniceria")).includes("/admin/caja"));
 });

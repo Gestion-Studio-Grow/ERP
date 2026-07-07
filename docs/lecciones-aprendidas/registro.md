@@ -141,6 +141,13 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Fix:** **backoffice-demo sin password + datos ficticios + toggle de persistencia**; puerta visible `/probar` + banner gateado por flag (commit `43aab61`), fixtures por rubro.
 - **Lección:** la demo navegable exige backoffice **accesible sin fricción pero aislado** (sin datos reales).
 - **Guardarraíl:** demo = **FASE 1 sin secretos**; **toggle de persistencia** separa demo de operación; **nunca datos reales** en demo.
+- **Forma final (2026-07-07, F3):** "sin password" no alcanza — el backoffice-demo también tiene que
+  ser **sin callejones**. El OWNER ficticio veía los 16 módulos pero solo 3 tenían fixtures; el resto
+  (incl. el Dashboard) pegaba a Prisma sin DB → 500. **Fix:** cablear las fixtures faltantes
+  (Dashboard, Clientes) **y** acotar el nav de demo al set con fixtures, derivándolo de la
+  recomendación del consultor (`demoNavHrefs`). **Guardarraíl nuevo:** en modo demo, **ningún ítem del
+  nav puede apuntar a una ruta sin fixture** (hay test que lo verifica); un módulo sin datos ficticios
+  se **oculta**, no se deja como callejón. Ver `docs/calidad/cierre-J1-J3-demo-vendible-2026-07-07.md`.
 - **Refs:** ADR-031, ADR-041; QA J-1/J-3.
 
 **[DX-2] Entregable sin sello GSG (OP-3)**

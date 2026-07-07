@@ -184,3 +184,37 @@ export function activeDemoRubro(): string {
 export function activeDemoRecommendation(): ConsultorRecommendation {
   return recommendForRubro(activeDemoRubro());
 }
+
+// ─────────────────────────── Nav del backoffice en MODO DEMO ────────────────
+//
+// En el sandbox, el OWNER ficticio vería TODOS los módulos del nav (16), pero solo
+// unos pocos tienen fixtures sin DB; el resto pegaría a Prisma y sería un callejón
+// sin salida (J-1/J-3 "forma final"). Por eso el nav de demo se ACOTA al set que sí
+// está cableado con datos ficticios, y se deriva de la recomendación del consultor
+// (consultor → backoffice), no de una lista suelta: mostramos lo que recomendamos.
+//
+// Mapa módulo→ruta, SOLO para los módulos con fixture demo (ver demo-sandbox.ts y
+// los branches en actions.ts/caja-actions.ts). Si mañana se cablea otro módulo, se
+// agrega acá una sola línea. `dashboard` (/admin) va SIEMPRE: es el landing wired.
+const WIRED_DEMO_MODULE_HREF: Record<string, string> = {
+  agenda: "/admin/turnos",
+  pos: "/admin/caja",
+  caja: "/admin/caja",
+  clients: "/admin/clientes",
+  reports: "/admin/reportes",
+};
+
+/**
+ * Rutas del nav que el backoffice-demo puede exponer para esta recomendación, sin
+ * callejones: el Dashboard (siempre) + los módulos recomendados que tienen fixture.
+ * Determinista y puro (sin entorno) → testeable. El orden final lo pone el nav
+ * (AdminShell) según su lista canónica; acá solo decidimos el CONJUNTO permitido.
+ */
+export function demoNavHrefs(rec: ConsultorRecommendation): string[] {
+  const hrefs = new Set<string>(["/admin"]); // Dashboard: landing wired, siempre.
+  for (const m of rec.modules) {
+    const href = WIRED_DEMO_MODULE_HREF[m];
+    if (href) hrefs.add(href);
+  }
+  return Array.from(hrefs);
+}

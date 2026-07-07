@@ -27,6 +27,9 @@ import {
   getDemoReportData,
   getDemoDeepReportData,
   getDemoOwnerPanelData,
+  getDemoClients,
+  getDemoClient,
+  getDemoDashboardData,
 } from "@/lib/demo-sandbox";
 
 export async function getProfessionalsWithServices() {
@@ -924,6 +927,7 @@ export async function completeAppointment(formData: FormData) {
 
 export async function getClients() {
   await requireCapability("clients:read");
+  if (isDemoSandbox()) return getDemoClients();
   // Solo se necesita la CANTIDAD de turnos por cliente (badge en la lista), no las
   // filas. `_count` lo resuelve en la DB con un COUNT agrupado en vez de traer todos
   // los `appointments` de todos los clientes a memoria y contar en JS (ADR-023 F5).
@@ -935,6 +939,7 @@ export async function getClients() {
 
 export async function getClient(id: string) {
   await requireCapability("clients:read");
+  if (isDemoSandbox()) return getDemoClient(id);
   return prisma.client.findUnique({
     where: { id },
     include: {
@@ -997,6 +1002,7 @@ export async function getAgendaDay(date: string) {
 
 export async function getDashboardData() {
   await requireCapability("dashboard:read");
+  if (isDemoSandbox()) return getDemoDashboardData();
   // "Hoy" es el día calendario del negocio, no el del servidor (UTC).
   const todayStart = businessWallTimeToUtc(todayInBusinessTz(), "00:00");
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);

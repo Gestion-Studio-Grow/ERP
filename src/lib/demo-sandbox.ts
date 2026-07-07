@@ -20,7 +20,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SessionUser } from "@/lib/session";
-import { businessWallTimeToUtc } from "@/lib/datetime";
+import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
 import { computeDeepKpis, type KpiAppointment, type KpiPaymentMethod } from "@/lib/report-kpis";
 import { isDemoSandbox, DEMO_TENANT_ID } from "@/lib/demo-flag";
 import {
@@ -113,13 +113,23 @@ function demoProviders(rec: ConsultorRecommendation): DemoProvider[] {
   return [{ id: "demo-pro-1", name: "Mostrador", box: { name: "Caja 1" } }];
 }
 
-// Clientes ficticios (neutros, sirven para cualquier rubro).
-const CLIENTS = [
-  { name: "Marina G.", phone: "11-5555-0101" },
-  { name: "Lucía P.", phone: "11-5555-0102" },
-  { name: "Ana R.", phone: "11-5555-0103" },
-  { name: "Sofía M.", phone: "11-5555-0104" },
-  { name: "Belén T.", phone: "11-5555-0105" },
+// Clientes ficticios (neutros, sirven para cualquier rubro). Con id estable
+// `demo-client-*` para que la lista de Clientes y el detalle sean navegables sin
+// DB. El pool alimenta también la agenda y el desglose por cliente de los KPIs.
+type DemoClient = { id: string; name: string; phone: string };
+const CLIENTS: DemoClient[] = [
+  { id: "demo-client-1", name: "Marina Gómez", phone: "11-5555-0101" },
+  { id: "demo-client-2", name: "Lucía Paz", phone: "11-5555-0102" },
+  { id: "demo-client-3", name: "Ana Rossi", phone: "11-5555-0103" },
+  { id: "demo-client-4", name: "Sofía Medina", phone: "11-5555-0104" },
+  { id: "demo-client-5", name: "Belén Torres", phone: "11-5555-0105" },
+  { id: "demo-client-6", name: "Carla Ferreyra", phone: "11-5555-0106" },
+  { id: "demo-client-7", name: "Julieta Sosa", phone: "11-5555-0107" },
+  { id: "demo-client-8", name: "Rocío Ibáñez", phone: "11-5555-0108" },
+  { id: "demo-client-9", name: "Valentina Ríos", phone: "11-5555-0109" },
+  { id: "demo-client-10", name: "Micaela Duarte", phone: "11-5555-0110" },
+  { id: "demo-client-11", name: "Florencia Álvarez", phone: "11-5555-0111" },
+  { id: "demo-client-12", name: "Daniela Núñez", phone: "11-5555-0112" },
 ];
 
 // Devuelve un día "lleno" del negocio ficticio, cualquier fecha que se navegue.
@@ -357,4 +367,103 @@ export function getDemoOwnerPanelData(
   });
 
   return { rangeDays, desde, hasta, hasPrevious: true, current, previous, months };
+}
+
+// ─────────────────────────────────────────────── Fixtures — Clientes ───────
+//
+// Lista y ficha de cliente sin DB. La lista es neutra por rubro (nombre +
+// teléfono + cantidad de turnos); la ficha arma un historial ficticio SOLO para
+// las familias con agenda (para las de mostrador el historial va vacío —
+// honesto: ese negocio no lleva "turnos" de cliente). Mismos shapes que
+// `getClients`/`getClient` (actions.ts) para que las páginas los consuman igual.
+
+// Cantidad de turnos por cliente, determinista (varía por índice, no aleatoria).
+function demoApptCount(i: number): number {
+  return [8, 5, 3, 12, 1, 6, 2, 9, 4, 7, 0, 3][i % 12];
+}
+
+export function getDemoClients(
+  rec: ConsultorRecommendation = activeDemoRecommendation(),
+) {
+  // Para mostrador (sin agenda) el badge de turnos es 0; para agenda, el conteo
+  // ficticio de arriba. Así la lista es coherente con la ficha.
+  const hasAgenda = rec.primaryScreen === "agenda";
+  return CLIENTS.map((c, i) => ({
+    id: c.id,
+    name: c.name,
+    phone: c.phone,
+    _count: { appointments: hasAgenda ? demoApptCount(i) : 0 },
+  }));
+}
+
+export function getDemoClient(
+  id: string,
+  rec: ConsultorRecommendation = activeDemoRecommendation(),
+) {
+  const idx = CLIENTS.findIndex((c) => c.id === id);
+  if (idx < 0) return null; // id inexistente → la página hace notFound()
+  const c = CLIENTS[idx];
+
+  // Historial ficticio solo para familias con agenda; mostrador → vacío (honesto).
+  const appointments: Array<{
+    id: string;
+    status: "COMPLETED" | "CONFIRMED" | "NO_SHOW";
+    startsAt: Date;
+    service: { name: string };
+    professional: { name: string };
+    payment: { status: "APPROVED"; amount: number } | null;
+  }> = [];
+
+  if (rec.primaryScreen === "agenda") {
+    const catalog = demoCatalog(rec);
+    const providers = demoProviders(rec);
+    const n = Math.min(demoApptCount(idx), 6);
+    for (let k = 0; k < n; k++) {
+      const svc = catalog[(idx + k) % catalog.length];
+      const pro = providers[(idx + k) % providers.length];
+      // Turnos en el pasado, ~cada 21 días hacia atrás; el más viejo primero se
+      // ordena desc abajo (como el real: `orderBy startsAt desc`).
+      const startsAt = new Date(Date.now() - (k + 1) * 21 * DAY_MS);
+      const completed = k > 0; // el turno más reciente queda CONFIRMED (a futuro-cercano)
+      appointments.push({
+        id: `demo-appt-${c.id}-${k}`,
+        status: completed ? "COMPLETED" : "CONFIRMED",
+        startsAt,
+        service: { name: svc.name },
+        professional: { name: pro.name },
+        payment: completed ? { status: "APPROVED", amount: svc.price } : null,
+      });
+    }
+  }
+
+  return {
+    id: c.id,
+    name: c.name,
+    phone: c.phone,
+    email: null as string | null,
+    isResident: null as boolean | null,
+    appointments,
+  };
+}
+
+// ─────────────────────────────────────────── Fixtures — Dashboard ──────────
+//
+// Landing del backoffice (Panel del Dueño) SIN DB. Reusa la agenda del día y el
+// total del reporte de 7 días para que los KPIs sean coherentes con lo que se ve
+// al entrar a Agenda y a Reportes. Mismo shape que `getDashboardData`.
+
+export function getDemoDashboardData(
+  rec: ConsultorRecommendation = activeDemoRecommendation(),
+) {
+  const day = getDemoAgendaDay(todayInBusinessTz(), rec);
+  const pendingCount = day.appointments.filter((a) => a.status === "PENDING").length;
+  const weekRevenue = getDemoReportData(7, rec).totalIngresos;
+  return {
+    todayAppointments: day.appointments,
+    pendingCount,
+    weekRevenue,
+    professionalsCount: day.professionals.length,
+    clientsCount: CLIENTS.length,
+    blocksToday: [] as { professional: { name: string }; reason: string }[],
+  };
 }

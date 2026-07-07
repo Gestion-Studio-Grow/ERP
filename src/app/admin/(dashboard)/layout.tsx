@@ -5,6 +5,8 @@ import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
 import { getTenantBrand, resolveAccent, invertTheme } from "@/lib/branding";
+import { isDemoSandbox } from "@/lib/demo-flag";
+import { activeDemoRecommendation, demoNavHrefs } from "@/lib/demo-consultor";
 import type { CSSProperties } from "react";
 
 // Título neutro (antes heredaba "CH Estética…" del layout raíz → se filtraba la
@@ -29,6 +31,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const backTheme = invertTheme(brand.frontTheme);
   const { accent, onAccent } = resolveAccent(brand.preset, backTheme);
 
+  // En el deploy de demo, el nav se acota a los módulos con fixture (sin
+  // callejones sin salida) y coherentes con lo que recomendó el consultor. En un
+  // deploy real es `null` → el nav se filtra solo por rol, como siempre.
+  const demoNav = isDemoSandbox() ? demoNavHrefs(activeDemoRecommendation()) : null;
+
   return (
     <div
       data-theme={backTheme}
@@ -39,7 +46,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          <AdminShell role={user.role} userName={user.name} brandName={brand.name} monogram={brand.monogram}>
+          <AdminShell role={user.role} userName={user.name} brandName={brand.name} monogram={brand.monogram} demoNavHrefs={demoNav}>
             {children}
           </AdminShell>
         </ToastProvider>

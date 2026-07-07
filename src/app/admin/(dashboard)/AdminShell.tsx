@@ -156,17 +156,25 @@ export default function AdminShell({
   userName,
   brandName,
   monogram,
+  demoNavHrefs = null,
 }: {
   children: React.ReactNode;
   role: Role;
   userName: string;
   brandName: string;
   monogram: string;
+  // En el deploy de demo: lista blanca de rutas con fixture (sin callejones). En
+  // real es `null` → sin restricción extra, el nav se filtra solo por rol.
+  demoNavHrefs?: string[] | null;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const items = ALL_ITEMS.filter((item) => roleHasCapability(role, item.cap));
+  const items = ALL_ITEMS.filter(
+    (item) =>
+      roleHasCapability(role, item.cap) &&
+      (demoNavHrefs === null || demoNavHrefs.includes(item.href)),
+  );
   const roleLabel = ROLE_LABEL[role];
 
   // Cerrar el cajón al navegar (cambia el pathname) y con Escape.
