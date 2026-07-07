@@ -8,6 +8,7 @@ import {
   productGlyph,
   productSection,
   groupBySection,
+  linesWithStock,
   PRODUCT_SECTIONS,
   nameHash,
   haloShift,
@@ -79,6 +80,33 @@ test("groupBySection: todo producto aterriza en exactamente una sección", () =>
   const products = PRODUCT_SECTIONS.map((s) => ({ name: `demo ${s.id}` }));
   const total = groupBySection(products).reduce((n, g) => n + g.items.length, 0);
   assert.equal(total, products.length);
+});
+
+// --- linesWithStock (QA m-1: no anunciar una sección sin góndola) ----------
+
+test("linesWithStock: oculta una línea cuya sección no tiene productos", () => {
+  const lines = [
+    { title: "Velas", text: "…", section: "velas" as const },
+    { title: "Accesorios", text: "…", section: "accesorios" as const },
+  ];
+  const products = [{ name: "Vela Lavanda" }];
+  const out = linesWithStock(lines, products);
+  assert.deepEqual(out.map((l) => l.title), ["Velas"]);
+});
+
+test("linesWithStock: una línea sin `section` se muestra siempre (retrocompatible)", () => {
+  const lines = [{ title: "Carne de vaca", text: "…", section: undefined }]; // sin section, p. ej. magra
+  const out = linesWithStock(lines, [] as { name: string }[]);
+  assert.deepEqual(out.map((l) => l.title), ["Carne de vaca"]);
+});
+
+test("linesWithStock: con catálogo vacío, sólo sobreviven las líneas sin `section`", () => {
+  const lines = [
+    { title: "Con stock", text: "…", section: "velas" as const },
+    { title: "Sin section", text: "…", section: undefined },
+  ];
+  const out = linesWithStock(lines, [] as { name: string }[]);
+  assert.deepEqual(out.map((l) => l.title), ["Sin section"]);
 });
 
 // --- nameHash / haloShift (determinismo) ------------------------------------

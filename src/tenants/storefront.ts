@@ -13,6 +13,7 @@
 // catálogo son provisionales (rubro); estos textos/estructura son de su propia comunicación.
 
 import type { ShippingConfig } from "@/lib/storefront-shipping";
+import type { ProductSectionId } from "@/lib/storefront-visual";
 
 export interface StorefrontValueProp {
   icon: string;
@@ -23,6 +24,14 @@ export interface StorefrontValueProp {
 export interface StorefrontLine {
   title: string;
   text: string;
+  /**
+   * Sección del catálogo (`productSection`) que esta línea promociona (opcional).
+   * Si está presente, la vidriera SOLO la muestra cuando esa sección tiene al menos
+   * un producto comprable — evita "anunciar" un mundo (p. ej. Decoración/Accesorios)
+   * con góndola vacía (QA m-1, 2026-07-07). Sin `section` → se muestra siempre
+   * (comportamiento histórico, p. ej. las líneas de magra).
+   */
+  section?: ProductSectionId;
 }
 
 export interface StorefrontReview {
@@ -158,10 +167,10 @@ const shinevelas: StorefrontCopy = {
   ],
   vacioTitle: "Mundos para tu casa",
   vacioLines: [
-    { title: "Velas", text: "Aromáticas, decorativas y artesanales, en cera de soja con mecha de algodón." },
-    { title: "Aromas", text: "Difusores, sahumerios y textiles para perfumar cada rincón por semanas." },
-    { title: "Decoración", text: "Portavelas, bandejas, floreros y espejos que completan la escena." },
-    { title: "Accesorios", text: "Los detalles del ritual: cortamechas, apagadores y fósforos largos." },
+    { title: "Velas", text: "Aromáticas, decorativas y artesanales, en cera de soja con mecha de algodón.", section: "velas" },
+    { title: "Aromas", text: "Difusores, sahumerios y textiles para perfumar cada rincón por semanas.", section: "aromas" },
+    { title: "Decoración", text: "Portavelas, bandejas, floreros y espejos que completan la escena.", section: "decoracion" },
+    { title: "Accesorios", text: "Los detalles del ritual: cortamechas, apagadores y fósforos largos.", section: "accesorios" },
   ],
   gourmetTitle: "Aromas de temporada",
   gourmetItems: ["Vainilla y canela", "Flor de naranjo", "Sándalo", "Lavanda", "Coco y vainilla", "Jazmín", "Cedro y ámbar"],

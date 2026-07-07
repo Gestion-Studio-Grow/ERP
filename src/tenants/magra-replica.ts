@@ -72,6 +72,11 @@ export interface SiteReplicaData {
   aboutText: string;
   socialNote: string;
   copyright: string;
+  /** Subtítulo de la sección "Comprá online" (nuestro copy de plataforma, no del sitio
+   * replicado) — opcional; sin él, SiteReplica cae a un texto neutro. QA (M-1, 2026-07-07)
+   * marcó el default anterior ("Cae directo a la cocina/mostrador") como choque de marca
+   * con el posicionamiento premium/boutique del cliente. */
+  comprarSubtitle?: string;
 }
 
 export const MAGRA_REPLICA: SiteReplicaData = {
@@ -126,4 +131,5 @@ export const MAGRA_REPLICA: SiteReplicaData = {
   aboutText: "Probadas por nosotros, elegidas para vos. En MAGRA ofrecemos una selección de carnes premium envasadas al vacío de los mejores proveedores, además de productos gourmet para acompañar tus comidas. Servicio puerta a puerta en Canning.",
   socialNote: "Seguinos en Instagram y Facebook!",
   copyright: "© 2025 MAGRA Meat Market. Todos los derechos reservados.",
+  comprarSubtitle: "Elegí, sumá al carrito y hacé tu pedido. Te lo dejamos listo para retirar o te lo enviamos envasado al vacío.",
 };

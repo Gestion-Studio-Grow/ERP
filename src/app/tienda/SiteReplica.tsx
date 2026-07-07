@@ -150,7 +150,7 @@ function SiteReplicaContent({
 
         {/* Comprá online — NUESTRO backoffice detrás */}
         <section id="comprar" style={{ scrollMarginTop: 70 }}>
-          <Head title="Comprá online" sub="Elegí, sumá al carrito y hacé tu pedido. Cae directo a la cocina/mostrador." />
+          <Head title="Comprá online" sub={site.comprarSubtitle ?? "Elegí, sumá al carrito y hacé tu pedido."} />
           {products.length === 0 ? (
             <p style={{ color: T.muted }}>Catálogo en preparación.</p>
           ) : (

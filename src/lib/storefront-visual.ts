@@ -102,6 +102,21 @@ export function groupBySection<T extends { name: string }>(
   })).filter((g) => g.items.length > 0);
 }
 
+/**
+ * Filtra líneas de marketing (p. ej. `StorefrontCopy.vacioLines`) que declaran una
+ * `section` opcional, dejando sólo las que tienen al menos 1 producto comprable en
+ * esa sección — evita "anunciar" un mundo (Decoración/Accesorios) con góndola vacía
+ * (QA m-1, 2026-07-07). Una línea sin `section` se muestra siempre (retrocompatible).
+ * Genérico/estructural para no acoplar esta lógica pura al tipo `StorefrontLine`.
+ */
+export function linesWithStock<L extends { section?: ProductSectionId }, T extends { name: string }>(
+  lines: L[],
+  products: T[],
+): L[] {
+  const inStock = new Set(products.map((p) => productSection(p.name)));
+  return lines.filter((l) => !l.section || inStock.has(l.section));
+}
+
 // --- Halo determinístico ----------------------------------------------------
 
 // Hash determinístico y estable (djb2) del nombre → sirve para variar el ángulo

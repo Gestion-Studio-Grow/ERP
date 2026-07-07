@@ -52,6 +52,20 @@ marca del cliente** en su propia vidriera.
 - **Archivo:** `src/app/tienda/SiteReplica.tsx` / `src/tenants/magra-replica.ts` (footer/tagline) o el
   default del rubro retail.
 
+> **✅ RESUELTO (2026-07-07, célula Productos por Rubro) — con precisión de causa:** la frase se
+> partía en DOS causas distintas, confundidas como una (patrón DX-5):
+> 1. **"Cae directo a la cocina/mostrador"** — SÍ era código: hardcodeado en `SiteReplica.tsx` (el
+>    componente compartido de réplica de sitio), genérico/gastronómico, chocaba con el posicionamiento
+>    premium/boutique de magra. **Fix:** subtítulo movido a `site.comprarSubtitle` (campo opcional en
+>    `SiteReplicaData`, `src/tenants/magra-replica.ts`), con fallback neutro en el componente para
+>    futuros tenants que no lo definan.
+> 2. **"Carnicería premium — cortes seleccionados. Retiro y envío en Canning."** — verificado: **NO
+>    existe en ningún archivo del repo** (`grep` limpio). Coincide **palabra por palabra** con el
+>    `contactNote` del blueprint standalone `carniceria.ts` (retirado el 2026-07-06 por esta misma
+>    célula) — es **`BusinessSettings.contactNote` en Neon**, seedeado en el alta y nunca actualizado.
+>    Es **DATO**, mismo cajón que **M-2** (no se toca; se eleva). El código ya emite un `contactNote`
+>    on-brand para altas nuevas; el de magra en prod sigue pendiente del dueño (Gate 2).
+
 **M-2 · Magra — DATO de negocio genérico en Neon (Branding). [DATO — Gate 2, ELEVAR AL DUEÑO]**
 Aunque el copy de marketing ya quedó fiel (2ª frase del hero, "envasada al vacío", ABOUT US, © 2025,
 Facebook real, Tel real — merge `32924c4`), el **Branding del tenant sigue en placeholders del rubro**:
@@ -75,6 +89,16 @@ al vacío reales del negocio. Es seed/DATO de Neon (owner-pending), coherente co
 portavelas, bandejas, floreros, espejos) tiene **1** producto; "Accesorios" (cortamechas, apagadores,
 fósforos) tiene **0** comprables. Promesa > stock. Cargar productos o no anunciar la categoría.
 
+> **✅ RESUELTO (2026-07-07, célula Productos por Rubro).** Causa: la sección "Mundos para tu casa"
+> (`copy.vacioLines`, `src/tenants/storefront.ts`) es copy de marketing **estático**, sin relación con
+> el catálogo real — anuncia las 4 líneas (Velas/Aromas/Decoración/Accesorios) siempre, aunque la
+> góndola dinámica de abajo (`groupBySection`, que sí omite secciones vacías) tenga poco o nada. **Fix
+> reversible, sin inventar productos:** nuevo campo opcional `StorefrontLine.section` + helper puro
+> `linesWithStock()` (`src/lib/storefront-visual.ts`, con tests) que oculta una línea si su sección no
+> tiene ningún producto comprable — se ata dinámicamente al catálogo real, así el comportamiento se
+> autocorrige cuando cambie el stock (sin tocar Neon). Wireado en `Storefront.tsx` y en las 4 líneas de
+> `shinevelas`; magra no declara `section` → sin cambio de comportamiento.
+
 ---
 
 ## Cobertura / limitaciones de esta pasada
@@ -87,9 +111,12 @@ fósforos) tiene **0** comprables. Promesa > stock. Cargar productos o no anunci
 
 ## Orden sugerido de corrección (fixes reversibles a coordinar; DATO se eleva)
 1. **A-1** — corregir asignaciones profesional↔servicio del tenant CH (dato) — visible en el faro.
-2. **M-1** — sacar el wording "carnicería/cocina" del footer de Magra (código, reversible).
+   **Sigue pendiente, se eleva al dueño (Gate 2).**
+2. **M-1** — ✅ **hecho** — sacar el wording "carnicería/cocina" del footer de Magra (código,
+   reversible). Ver nota de resolución arriba (parte de la frase original era dato, no código).
 3. **M-2 / M-3** — **elevar al dueño**: cargar Branding real (dirección/IG/horario) + catálogo real de
-   Magra en Neon (Gate 2; el agente no toca prod).
-4. **m-1** — stock o des-anunciar categorías de Shine.
+   Magra en Neon (Gate 2; el agente no toca prod). **Sin cambios.**
+4. **m-1** — ✅ **hecho** — categorías de Shine ahora se atan al stock real (código, reversible). Ver
+   nota de resolución arriba.
 
 — Elaborado por GSG (Equipo de Calidad)

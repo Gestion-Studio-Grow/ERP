@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { placeOnlineOrder } from "@/lib/order-actions";
 import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
-import { productGradient, productGlyph, groupBySection } from "@/lib/storefront-visual";
+import { productGradient, productGlyph, groupBySection, linesWithStock } from "@/lib/storefront-visual";
 import { shippingCost, amountToFreeShipping } from "@/lib/storefront-shipping";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 
@@ -86,6 +86,9 @@ function StorefrontContent({
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  // Filtra las "líneas" de marketing (copy.vacioLines) que declaran `section` para no
+  // anunciar un mundo sin góndola (QA m-1, 2026-07-07) — ver linesWithStock (pura, testeada).
+  const vacioLines = useMemo(() => linesWithStock(copy?.vacioLines ?? [], products), [copy, products]);
 
   function setQty(id: string, qty: number) {
     setCart((c) => {
@@ -181,11 +184,11 @@ function StorefrontContent({
 
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: 24, display: "grid", gap: 44 }}>
         {/* ── Envasados al vacío ── */}
-        {copy && (
+        {copy && vacioLines.length > 0 && (
           <section>
             <SectionHead kicker="Nuestras líneas" title={copy.vacioTitle} />
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-              {copy.vacioLines.map((l, i) => (
+              {vacioLines.map((l, i) => (
                 <div key={i} style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontWeight: 800, fontSize: 17 }}>{l.title}</div>
                   <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.55, flex: 1 }}>{l.text}</div>
