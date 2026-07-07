@@ -42,6 +42,7 @@ anotado) · *Aceptado — vigente* (norma/metodología) · *Aceptado — en reco
 - **045** — **Advisory Board + Challenger (contrarian)** — tesis/antítesis antes de adoptar un fundamento; nada se adopta sin pasar por el Challenger. Corre en Sonnet (ultra-ahorro).
 - **046** — **De-sesgo / comportamiento humano por sector** — humano/criollo donde conviene (copy, ventas, WhatsApp, demos, atención, advisory); estándar/preciso donde no (código, tests, infra, fiscal, cálculos).
 - **047** — **Rutina de retroalimentación** — 3 palancas (memoria · casos · skills/briefs) + 2 cadencias (cierre de sprint por célula · consolidación periódica con Advisory+Challenger).
+- **048** — **Arquitecto de Solución** — rol ejecutivo con autoridad sobre lo **reversible** (decide/ejecuta, puertas Type 1/2); eleva lo **irreversible** al dueño. Charter en `docs/organizacion/`.
 
 ### 🔐 Multi-tenant, datos y aislamiento (RLS)
 - **001** — Estrategia multi-tenant (shared schema + `tenant_id` + RLS).
@@ -81,7 +82,8 @@ anotado) · *Aceptado — vigente* (norma/metodología) · *Aceptado — en reco
 - **Multi-tenant & aislamiento:** 001 → 015 → 018 → 029 → 023 (RLS aísla *y* enciende performance).
 - **Demo → venta → entrega:** 028 (qué es el entregable) ↔ 030 (cuándo se invierte) ↔ 031 (cómo es el demo) ↔ 041 (credenciales por fase) ↔ 029 (URL por tenant).
 - **Preset, marca y Gate:** 034 (generar) → 042 (autorización) → 033 (copia exacta) → 043 (sello) → 040 (Gate) → **044 (Argentinizar SAP — ángulo argentino)** ; 035 (consultor → backoffice) alimenta el backoffice.
-- **Modelo de trabajo GSG:** 008 (semilla) → 032 (modelos + concurrencia + prioridades) → 039 (sprint) → 040 (Gate) → 016 (handoff) → **045 (Advisory + Challenger)** → **047 (retroalimentación)**.
+- **Modelo de trabajo GSG:** 008 (semilla) → 032 (modelos + concurrencia + prioridades) → 039 (sprint) → 040 (Gate) → 016 (handoff) → **045 (Advisory + Challenger)** → **047 (retroalimentación)** → **048 (Arquitecto de Solución)**.
+- **Autoridad / decisión:** 048 (Arquitecto: ejecuta lo reversible, eleva lo irreversible) — se apoya en 041 (dos fases de credenciales) y en los gates de prod/Neon; 045 (Challenger) sigue filtrando el fundamento estratégico.
 - **Comportamiento / voz de producto:** 044 (Argentinizar SAP) → **046 (de-sesgo humano por sector)** → 040 (Gate lo evalúa) ; 009 (UX criolla) · 037 (WhatsApp).
 - **Fiscal / dinero:** 022 (ARCA) → 024 (disparadores + MP) → 025 (ingesta MP masiva).
 

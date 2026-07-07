@@ -55,6 +55,7 @@ El caballo de batalla. Una célula por frente:
 | **Tests / QA de ejecución** | Fixtures, harness de tests, cobertura, reproducción de bugs |
 | **Exploración / diagnóstico** | Lectura de código, búsquedas, mapeo de subsistemas (read-only) |
 | **Provisioning / onboarding** | Alta de tenants siguiendo playbook ya escrito |
+| **Arquitecto de Solución** | Ejecuta lo **reversible** de los planes (doc/wiring, backlog, refactors NO-prod tras flag, blueprints, estructura de células) y **eleva lo irreversible** al dueño (puertas Type 1/2, estilo Amazon). Sonnet por defecto; Opus en el borde. Ver **`docs/adr/ADR-048`** + charter `docs/organizacion/arquitecto-de-solucion.md` |
 
 Regla: la capa Sonnet **entrega borradores listos para auditar**, no mergea sola nada sensible (§3).
 

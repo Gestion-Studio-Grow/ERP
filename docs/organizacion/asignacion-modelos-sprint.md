@@ -54,6 +54,7 @@ Al invocar `sprint`, la creación automática de sesiones (regla 1 de la metodol
 | **Plataforma / Deploy / Infra** | Perf, observabilidad, reporting, tren de deploy: ejecución sobre archivos propios. **Escala a Opus/Seguridad** cuando toca RLS/tenancy/auth (cimiento compartido). | Core **Plataforma** (`frente/plataforma`) + Release/Infra |
 | **Productos por rubro** | Features y branding por tenant/rubro (retail, carnicería, velas, pádel…). Volumen, reversible. | Célula "Producto por rubro" (`factory-reforzada.md §2`); cores ERP de dominio |
 | **Growth / Agencia Digital** | Instrumentación de conversión y ejecución del sector Agencia Digital. La **estrategia** escala a Opus; la implementación es Sonnet. | Sector B Agencia Digital + gap G2 Growth |
+| **Arquitecto de Solución** | Ejecuta las decisiones **reversibles** de los planes (doc/wiring · orden de backlog · refactors NO-prod tras flag · blueprints · estructura de células) y **eleva las irreversibles** al dueño (puertas Type 1/2). Volumen acotado y reversible → Sonnet; **escala a Opus** en el **borde reversible/irreversible** o alto juicio. | **ADR-048** · charter `docs/organizacion/arquitecto-de-solucion.md` |
 
 ---
 
