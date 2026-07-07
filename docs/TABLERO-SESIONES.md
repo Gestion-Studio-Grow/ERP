@@ -41,6 +41,7 @@ Los tipos de sesión de arriba definen **un tema por thread**. En paralelo exist
 | Comando | Qué es |
 |---|---|
 | `/sprint` | **Sprint de squads cross-funcionales** disparado desde el móvil: el orquestador toma el rol de **socio gerente ejecutivo** y abre **tantos worktrees como desarrollos/tenants haya en paralelo** (5 squads base con especialidad-líder —Plataforma · Producto · Fiscal · Calidad · Ejecutivo/PMO— pero cada uno puede tomar un desarrollo/tenant completo). Cada worktree aislado; el Ejecutivo/PMO (sobre `main`) asigna y es merge-master. Protocolo de 4 palabras (`sprint`/`status`/`seguimos`/`pausa`). Metodología: `docs/METODOLOGIA-SPRINT.md`. |
+| `/impo` | **Estructura de Importaciones** (línea de negocio nueva, P3 salvo indicación del dueño): PMO de Importaciones + 5 analistas (oportunidades, proveedores China, costos/logística/aduana, mercado/pricing, fulfillment), **todas las células en Opus 4.8** (alto juicio/estratégico, decisión del dueño). Comparte el tope global **≤ 4 sesiones concurrentes** con `/sprint` — se abre **en olas**. Metodología: `ADR-038` + `.claude/commands/impo.md`. |
 | `/sesion-movil` | Ejecutor autónomo en rol **PMO**: Maxi despacha tareas y recibe status al terminar cada una. Si la tarea encaja en un tipo del tablero, sigue sus normas. |
 | `/rol <rol>` | Adoptás el rol que indique Maxi (PMO, QA, diseñador, redactor…). Autónomo, commit local. |
 | `/rol-fullstack` | Developer fullstack + arquitecto senior: implementa features y, si toca una decisión estructural, deja el ADR. |

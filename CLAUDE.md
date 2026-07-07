@@ -146,6 +146,16 @@ sprint, por célula** (parte de la Definición de terminado): actualizar memoria
 en mejoras de skills/briefs, limpiar memoria, y **revisión Advisory + Challenger de las bases** (ADR-045).
 Corre en **Sonnet** (ultra-ahorro). Detalle: **`docs/adr/ADR-047-rutina-de-retroalimentacion.md`**.
 
+## 🏗️ Arquitecto de Solución — autoridad sobre lo REVERSIBLE (ADR-048)
+
+Rol ejecutivo (perfil VP/Chief Architect ERP) que **separa reversible de irreversible** en los planes que
+baja el dueño: **REVERSIBLE** (doc-only, ADR/metodología, cableado interno, orden de backlog, refactors
+NO-prod tras flag, blueprints, estructura de células) lo **decide y ejecuta solo**, con **1 línea de
+rationale** por decisión (log ligero, insumo de la retro ADR-047); **IRREVERSIBLE** (deploy, Neon/DB,
+seed/migraciones, secretos, permisos, marca de cliente, gasto/órdenes de impo) **arma la propuesta y la
+eleva al dueño**. **Regla de oro: ante la duda, se trata como irreversible.** Corre en **Sonnet** por
+defecto; escala a **Opus** en el borde reversible/irreversible o alto juicio. Detalle: **`docs/adr/ADR-048-arquitecto-de-solucion.md`** · charter operativo **`docs/organizacion/arquitecto-de-solucion.md`**.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.

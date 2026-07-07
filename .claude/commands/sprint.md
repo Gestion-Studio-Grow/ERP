@@ -39,6 +39,14 @@ Objetivo: que **no se repitan errores de migración, cosas dejadas afuera, ni p�
 - **FASE 0 — Exploración ("la foto completa"), ANTES de despachar nada:** el PMO barre repo (tip de `main`, ramas/worktrees, WIP sin commitear, `prisma/migrations/` **incluidas colisiones de timestamp**, `ESTADO-FRENTES.md`/`PROXIMOS-PASOS.md`) + prod/DB/migraciones (hash deployado, migraciones **aplicadas vs SIN aplicar** —derivado de docs si no se toca Neon—, gates, tenants) y **produce/actualiza `docs/ESTADO-ACTUAL.md`**. **Regla dura: nadie despacha frentes sin la foto.**
 - **FASE FINAL — Backup, AL CERRAR (parte de `pausa`):** **git tag anotado** del estado estable (`snapshot/AAAA-MM-DD[-etiqueta]`) **pusheado a origin** + **`docs/ESTADO-ACTUAL.md` actualizado**. El tag es el **punto de retorno** del sprint.
 
+## Modelo por sesión + concurrencia (regla dura, ver `CLAUDE.md`)
+Cada frente que `sprint` abre nace **con su modelo etiquetado explícitamente** según el mapa
+`docs/organizacion/asignacion-modelos-sprint.md` (Sonnet default de ejecución; Opus solo PMO/Auditoría
+GSG/Seguridad/Preset IA/Arquitecto de Solución en su tramo crítico — ver `CLAUDE.md → MODELO DE TRABAJO`).
+Y respeta siempre el **tope ≤ 4 sesiones corriendo a la vez** + prioridades P1/P2/P3 de
+`CLAUDE.md → CONCURRENCIA Y PRIORIDADES`: si hay más frentes que cupo, entran **en olas** por prioridad
+(P1 demos/venta siempre primero).
+
 ## ⚠️ Una sesión de Claude Code AISLADA por frente (regla dura)
 Cada frente corre en **su propia sesión de Claude Code**, con **contexto propio y aislado**, sobre
 **su propio worktree**. **NUNCA una sola sesión compartida** que atienda varios frentes en serie —
@@ -104,7 +112,14 @@ que quedarse corto.
 - **`sprint`** → **primero FASE 0 (foto en `docs/ESTADO-ACTUAL.md`) — nadie despacha sin la foto.** Después **creás automáticamente** una sesión aislada por frente (1 frente = 1 worktree = 1 sesión; capas fijas PMO/Diseño/Ejecutivo + N Desarrollo **por dominio**, reglas 1–6; nunca a mano ni compartida) y asignás a cada uno su bocado de mayor palanca; **lo compartido lo secuenciás vos**.
 - **`status`** → estado REAL del repo (leé `docs/ESTADO-FRENTES.md` + `## Sprint activo` de `docs/SPRINT-MOVIL.md` + `git log`), en lenguaje de dueño, con estados canónicos (`docs/METODOLOGIA-REPORTE-AVANCE.md`).
 - **`seguimos`** → retomás desde el handoff vivo sin re-preguntar el plan.
-- **`pausa`** → frenás, consolidás (main limpio y pusheado, ramas integradas/anotadas, handoff al día), corrés la **FASE FINAL (Backup): git tag anotado `snapshot/AAAA-MM-DD` a origin + `docs/ESTADO-ACTUAL.md` actualizado**, y esperás.
+- **`pausa`** → frenás, consolidás (main limpio y pusheado, ramas integradas/anotadas, handoff al día), corrés la **FASE FINAL (Backup): git tag anotado `snapshot/AAAA-MM-DD` a origin + `docs/ESTADO-ACTUAL.md` actualizado**, **cada célula corre su rutina de retro (ADR-047: memoria al día + 1 caso + 1 mejora de brief/skill)**, y esperás.
+
+## Rutina de retro + Advisory/Challenger (ADR-047 / ADR-045)
+Al cerrar (`pausa`), **cada célula** actualiza memoria + registra 1 caso + propone 1 mejora de brief/skill
+(ADR-047, cadencia por-sprint). Si algo que surgió en el sprint toca **fundamento estratégico** (bases,
+roadmap, segmentación) — no ejecución — **no se adopta directo**: pasa primero por **Advisory Board +
+Challenger** (ADR-045, charter `docs/organizacion/advisory-board-challenger.md`) antes de convertirse en
+regla. El PMO es quien detecta y deriva ese caso; no lo decide solo.
 
 ## 🛡️ GATE DE EXCELENCIA — NO SALTEABLE (antes de integrar/pushear a main)
 **Regla dura: ningún cambio se integra a `main` sin pasar el gate de excelencia.** Aplica a todo frente de ambos sectores. El PMO **no mergea** sin él. Adicional a "verde antes de commitear". **4 bloques; los bloques 1 y 2 son OBLIGATORIOS sin excepción en TODO desarrollo.** Cada frente tilda en su handoff antes de pushear:

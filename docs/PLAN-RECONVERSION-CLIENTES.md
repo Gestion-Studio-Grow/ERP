@@ -41,16 +41,21 @@ Prioridad según `CLAUDE.md → CONCURRENCIA Y PRIORIDADES` (P1 = lo que ya es c
 ciclo **DEMO → VENTA → INVERSIÓN** (consolidados = post-venta → se sirven; prospecto = demo).
 
 ### 🌊 Ola 1 — P1, SIN tocar Neon, máxima palanca / mínimo costo
-1. **Magra — servir + verificar** (no requiere Neon: el tenant ya existe).
+1. **Magra — servir + verificar** (no requiere Neon: el tenant ya existe). **Dueño: célula Plataforma**
+   (`frente/plataforma` — dueña del deploy/tren de release y de `TENANT_HOST_MAP`).
    - Verificar que `magra-erp.vercel.app` **resuelve al tenant `magra`** y que **levanta con la llave ya
      cargada** (`DATABASE_URL`/`OPERATOR_DATABASE_URL`, RLS `app_rls`).
    - Agregar el dominio `.vercel.app` al proyecto si faltara (config de Vercel, sin secretos).
    - **Publicar = Gate 1** (acción del dueño: *"deployá"*). Preview ya retirado.
 2. **CH Estética — cierre de reconversión** (ya real y vivo): preview ya retirado; confirmar el
-   **sello GSG** en el footer del backoffice.
+   **sello GSG** en el footer del backoffice. **Dueño: célula Diseño** (`frente/diseno` — dueña del sello/
+   design system).
 
 ### 🌊 Ola 2 — P2 / GATED, requiere OK del dueño para Neon (Gate 2)
-3. **A Dos Manos y Shine — alta como tenants reales (retail/tienda).**
+3. **A Dos Manos y Shine — alta como tenants reales (retail/tienda).** **Dueño: célula Producto por rubro**
+   (`frente/producto-rubros` — dueña de blueprints/branding/catálogo demo por rubro), con **Plataforma**
+   co-dueña del tramo `TENANT_HOST_MAP`/deploy y **Arquitecto de Solución** (ADR-048) preparando el
+   paquete de alta (reversible: blueprint/subdomain/preset) sin ejecutar el Gate 2.
    - **Preparar el paquete de alta LISTO para un solo tiro** (sin ejecutar): blueprint `retail`/tienda por
      rubro, `subdomain`, entrada en `TENANT_HOST_MAP` (ya prevista), preset del flujo (branding/catálogo
      demo), `.env.vercel.template`. Todo lo **no secreto** queda cableado en el repo.
@@ -61,6 +66,8 @@ ciclo **DEMO → VENTA → INVERSIÓN** (consolidados = post-venta → se sirven
 ### 🔁 Continuo — P1 demo/preventa
 4. **Break Point — demo del flujo.** Cuando el motor de preset/adaptador entregue el front+back en modo
    demo, publicarlo en `breakpoint-erp.vercel.app` (FASE 1, sin datos reales) y jubilar su preview interino.
+   **Dueño: célula Preset IA** (Ingesta + Adaptación, capa Opus) coordinando con **Diseño** para el
+   probador (`docs/demo/README.md`).
 
 ## 4. Gates y lo que NO se ejecuta ahora
 

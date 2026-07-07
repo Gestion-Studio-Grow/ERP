@@ -36,7 +36,7 @@ Reservada para trabajo donde un error es caro o difícil de revertir. Roles:
 | Rol | Responsabilidad | Cuándo entra |
 |---|---|---|
 | **PMO puro (autor de planes)** | Gobierno, prioridades, límites de dominio, ADRs, backlog/roadmap/metodología; **propone** planes. **NO ejecuta** producto: el sombrero de **ejecutor/merge** se mudó al **Arquitecto de Solución** (ADR-048/049). | Siempre (autora y conduce; no ejecuta) |
-| **Auditor GSG** | Gate de Excelencia (SAP Fiori 5 principios + accesibilidad + consistencia + sello Marca GSG). **SIEMPRE Opus, sin excepción** | En cada merge (el loop de §3) |
+| **Auditor GSG** | Gate de Excelencia (SAP Fiori 5 principios + accesibilidad + consistencia + **ángulo argentino, ADR-044** + sello Marca GSG). **SIEMPRE Opus, sin excepción** | En cada merge (el loop de §3) |
 | **Seguridad** | RLS/aislamiento multi-tenant, auth, superficies expuestas, secretos | Cambios que tocan seguridad; go-lives |
 | **Fiscal / Dinero** | Cobros, ARCA/facturación, representación de importes (Decimal), caja, conciliación | Cambios que tocan plata |
 
@@ -84,7 +84,8 @@ El corazón de la factory reforzada: **ninguna salida de Sonnet llega a `main` s
 1. La célula Sonnet ejecuta y **auto-verifica** (Definición de terminado de `METODO-ROLES.md`: `tsc` verde,
    `npm run build` verde, preview si cambió pantalla). No entrega lo que no probó.
 2. El **Auditor GSG (Opus)** corre el Gate completo sobre el entregable: SAP Fiori (5 principios +
-   accesibilidad + consistencia) + sello Marca GSG + revisión de correctitud. Emite **pasa / no pasa** con
+   accesibilidad + consistencia) + **ángulo argentino (ADR-044)** + sello Marca GSG + revisión de
+   correctitud. Emite **pasa / no pasa** con
    feedback concreto.
 3. **Pasa** → merge por pathspec a `main` (nunca `-A`; working tree compartido). **No pasa** → vuelve a la
    célula con correcciones puntuales; se repite.

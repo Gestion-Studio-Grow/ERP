@@ -14,6 +14,13 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
   consultó Neon prod** (política: diagnóstico, no tocar prod/DB) → el estado de migraciones *aplicadas*
   se deriva de docs y se marca "a confirmar" donde no hay evidencia dura.
 
+> **Actualización ligera 2026-07-07 (Arquitecto de Solución, doc-only, sin tocar Neon):** `main` avanzó a
+> **`273a267`** (`21c70d0` → `273a267`): landearon **ADR-045** (Advisory Board + Challenger), **ADR-046**
+> (de-sesgo por sector), **ADR-047** (retro) y **ADR-048** (Arquitecto de Solución, autoridad sobre lo
+> reversible — este mismo rol) + su charter en `docs/organizacion/`. Nada de lo de abajo (§1–8) cambió de
+> fondo — es reconciliación de metodología/gobernanza, no cambios de prod/tenants/migraciones. Detalle
+> completo de "qué se hizo" en el rationale de la sesión, no repetido acá para no duplicar fuentes.
+
 ---
 
 ## 🚨 HANDOFF URGENTE (2026-07-05 — laptop se desconecta, sesiones se frenan)

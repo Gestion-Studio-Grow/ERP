@@ -4,8 +4,9 @@
 **Fecha:** 2026-07-06
 **Modelo:** **Sonnet 5 por defecto** (ultra-ahorro); escala a **Opus** a pedido del dueño o en el tramo crítico
 **Depende de:** ADR-008 (decisiones cerradas → ADR), ADR-032 (economía de modelos / escalada puntual a Opus)
-**Relacionado:** ADR-040 (Gate de Excelencia — misma lógica de "valla antes de adoptar"), ADR-039 (metodología)
+**Relacionado:** ADR-040 (Gate de Excelencia — misma lógica de "valla antes de adoptar"), ADR-039 (metodología), ADR-048 (Arquitecto de Solución — ejecuta lo reversible, eleva/sugiere cuándo algo necesita esta valla)
 **Referenciado desde:** `CLAUDE.md` → "Advisory Board + Challenger"
+**Charter operativo:** `docs/organizacion/advisory-board-challenger.md`
 
 ---
 
