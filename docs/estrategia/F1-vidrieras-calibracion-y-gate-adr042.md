@@ -114,5 +114,37 @@ tests, no por render). No mergeo a main: queda para el Gate de Excelencia (Opus)
 
 ---
 
-*Documento de frente (F1). No toca prod ni deploy; el único cambio de código es reversible y brand-neutral.
+---
+
+## 6. Actualización — autorización OTORGADA por el dueño (2026-07-07)
+
+El dueño dio **OK explícito: la autorización de marca (ADR-042) de Shine y ADM está registrada/aprobada.**
+Se levanta el gate → se puede tocar la identidad de ambos. Se avanzó el copy, pero apareció un **segundo
+bloqueo, esta vez de RELEVAMIENTO**:
+
+**El DX-5 fiel está bloqueado porque las fuentes reales son inaccesibles.** La comunicación real de ambos
+negocios vive en Instagram (`@shine.velas.store`, `@adosmanospadel`), que está **login-walled** (WebFetch
+solo devuelve el nombre del perfil), y **no tienen web / TiendaNube / Linktree / Google Business públicos**
+(verificado con WebFetch + WebSearch). Todo el material local (`docs/artefactos/*-preview.html`) está marcado
+**"datos de ejemplo"**. → No hay contra qué hacer el diff DX-5.
+
+**Decisión honesta (DX-5 existe justo para no inventar-y-mostrar-como-real):**
+- **ADM (`adosmanos`)** — copy propio nuevo, armado **sólo con hechos del MODELO de negocio** (2 líneas
+  palas/zapatillas, marcas líderes, 28% off transferencia, cuotas 3 y 12, envío gratis >$300.000, cambios
+  30 días) + voz sobria. **Sin reviews, sin historia de origen inventada, sin envío falso.** Líneas ancladas
+  a las secciones de pádel de `storefront-visual.ts`. **PROVISIONAL a confirmar.**
+- **Shine (`shinevelas`)** — se **quitaron las 3 reviews fabricadas** (venían del preview "ejemplo",
+  presentadas como clientes reales). El resto del copy (voz de marca) se mantiene.
+
+**Falta del dueño (no lo puedo relevar yo):** para cerrar el DX-5 fiel necesito el **material real** de cada
+negocio — bio/about, catálogo con precios reales, testimonios reales (capturas de IG/WhatsApp) — o una
+**sesión de navegador con acceso al Instagram**. Con eso ajusto copy exacto y repongo reseñas reales.
+
+**Vallas:** `tsc` + `npm test` (559 pass) + `build` → verde. Commits en `frente/diseno-vidrieras`
+(`8946dd4`). No mergeo yo: Gate del PMO. *Nota: `/tienda` es ruta dinámica (Neon) → no se verifica por
+preview de browser sin DB; el copy se valida por los 559 unit tests.*
+
+---
+
+*Documento de frente (F1). No toca prod ni deploy; los cambios de código son reversibles.
 — Elaborado por GSG (Arquitecto de Solución + Diseño)*
