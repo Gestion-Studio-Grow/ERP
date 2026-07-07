@@ -7,9 +7,10 @@ estructura debe escalar con la segmentación LOW/MID/BIG (`docs/estrategia/roadm
 no instancia ningún agente.**
 
 **Historial de versiones:** v1 (Advisory) → v2 (síntesis tras Ronda 1 del Challenger) → v3 (síntesis tras
-Ronda 2 del Challenger, `docs/estrategia/challenger-contrapuntos.md`, + 3 posiciones nuevas) →
-**v3.1, esta versión** (+ 5 posiciones adicionales pedidas por el dueño, atadas al workstream nuevo
-**Catálogo de módulos/Repositorio de plugins** que acaba de entrar al roadmap — §5.4-5.8).
+Ronda 2 del Challenger, `docs/estrategia/challenger-contrapuntos.md`, + 3 posiciones nuevas) → v3.1
+(+ 5 posiciones adicionales atadas al workstream **Catálogo de módulos/Repositorio de plugins** —
+§5.4-5.8) → **v3.2, esta versión** (revisión de completitud filosófica pedida por el dueño — ¿qué no
+puede faltar para custodiar y propagar los fundamentos/filosofía de GSG? — §7bis).
 
 **Criterio del dueño para esta ronda ("ya fundamento GSG"):** *crear generoso, activar en olas* — no ser
 parsimonioso al **definir** (charter completo para todo lo que agregue precisión real), reservando la
@@ -441,11 +442,71 @@ definidos; **2 se descartan explícitamente** por redundancia (§5.9), en vez de
 ¿Punta A (agente completo ya), Punta B (checklist por Seguridad, recomendado) o el híbrido
 (Seguridad + consulta puntual con abogado externo)?
 
+## 7bis. Revisión de completitud filosófica — ¿qué no puede faltar? (pedido explícito del dueño)
+
+**La pregunta del dueño:** ¿existe hoy un rol dueño de los FUNDAMENTOS y la FILOSOFÍA de GSG — guardián
+de `bases-gsg.md` (Argentinizar SAP, de-sesgo, Gate de Excelencia, DEMO→VENTA→INVERSIÓN, factory/pool)
+— que garantice que cada trabajo y cada agente **ENCARNAN** la filosofía, no solo la cumplen de forma?
+¿Está el mecanismo que integra el aporte de cada experto en un resultado excelente, a nivel de
+fundamentos/decisión (no solo en el Gate, que ya lo hace por entregable)?
+
+**Respuesta directa:** la mayoría de las piezas **ya están**, distribuidas y funcionando (tabla abajo).
+Hay **un solo hallazgo real** — no varios disfrazados de varios — y converge exactamente en el mismo
+punto que responde las dos preguntas del dueño a la vez: falta quién custodia que **el corpus de
+fundamentos siga coherente consigo mismo a través del tiempo**, a medida que se acumulan ADRs y
+documentos nuevos. No falta quién los escribe, ni quién los tensiona, ni quién verifica que cada
+entregable los encarne — eso ya está cubierto. Falta quién revisita `bases-gsg.md` / `roadmap-gsg.md` /
+este mismo documento **después** de que otros ADRs los pisen o los vuelvan parcialmente obsoletos.
+
+**Checklist de completitud — qué no puede faltar, y quién lo cubre hoy:**
+
+| # | Función que custodia/propaga los fundamentos | ¿Está? | Quién la cubre |
+|---|---|---|---|
+| 1 | **Autoría de los fundamentos** (quién los escribe y los mantiene como propuesta) | ✅ | PMO (autor de planes) + Advisory Board (ADR-045/049) |
+| 2 | **Tensión adversarial antes de adoptarlos** (anti-groupthink, mata supuestos frágiles) | ✅ | Challenger (ADR-045) |
+| 3 | **Aplicación de la filosofía en la ejecución diaria** (Argentinizar SAP + de-sesgo por superficie) | ✅ | Arquitecto de Solución (ADR-048, "argentiniza SAP y se rige por el de-sesgo") + de-sesgo transversal (ADR-046) |
+| 4 | **Calibración de cada agente antes de actuar** (declara sus propios principios y su zona de de-sesgo) | ✅ | Protocolo de Calibración Universal (ADR-052) — el mecanismo que hace que "encarnar, no solo cumplir" sea verificable por agente |
+| 5 | **Verificación de que CADA entregable encarna la filosofía** (no solo la forma) | ✅ | Gate de Excelencia (ADR-040), siempre Opus — la pregunta del dueño sobre "integrar expertise en excelencia" ya tiene mecanismo acá, a nivel de deliverable |
+| 6 | **Decisión soberana final** | ✅ | Dueño (ADR-049) |
+| 7 | **Retroalimentación** — lo aprendido en cada ciclo vuelve al corpus | ✅ | Retro (ADR-047) + `docs/lecciones-aprendidas/registro.md` |
+| 8 | **Propagación del conocimiento entre estructuras** (no queda encapsulado en una división) | ✅ | Pool compartido + cross-training (ADR-053) |
+| 9 | **Propagación hacia afuera** (que el cliente perciba la filosofía, no solo puertas adentro) | ✅ | Sello GSG (ADR-043) + de-sesgo zona humana explícita en "ventas · WhatsApp · demos · atención · advisory" (ADR-046) |
+| 10 | **Custodia de la COHERENCIA del corpus de fundamentos a través del tiempo** (que `bases-gsg.md`, `roadmap-gsg.md` y este documento no diverjan entre sí ni queden desactualizados a medida que se acumulan ADRs nuevos) | 🆕 **FALTA** | — (hallazgo de esta revisión) |
+
+**Evidencia concreta del hallazgo #10 (no es hipotético — pasó en esta misma sesión):** al escribir la
+v3 de este documento hizo falta un `git pull` para descubrir que otra sesión ya había sumado ADR-051/052
+al roster mientras yo trabajaba con una copia desactualizada; lo mismo volvió a pasar con ADR-053
+(pool/cross-training) y con el §7 nuevo de `bases-gsg.md` que ese ADR generó. Nadie tiene el mandato
+explícito de detectar esas divergencias **antes** de que una sesión las pise sin saberlo — hoy se
+descubren por accidente (un `git pull` a mitad de tarea), no por un rol que las busque a propósito.
+
+**Resolución — mandato ampliado, NO un headcount nuevo** (mismo criterio ya aplicado en §1 ítem 8 y en
+§5.9: no se charter un rol nuevo si el pool/roles existentes lo cubren sin diluirse):
+
+- **Advisory Board** (interpretativo, ya existe) **amplía su mandato** para incluir: releer
+  `bases-gsg.md` + `roadmap-gsg.md` + este documento en cada cierre de ciclo de síntesis (o, como piso
+  mínimo, en cada retro de sprint — ADR-047, sin inventar una cadencia nueva) y señalar fricciones o
+  desactualizaciones entre ellos — no para re-decidir nada (eso sigue siendo del dueño), sino para
+  **avisar** cuando el corpus se desincroniza.
+- **Docs/Índice vivo** (mecánico, ya definido en §1 ítem 7) **corrige una omisión real de su propio
+  charter**: hoy solo lista TABLERO/ADR-INDEX/ESTADO-ACTUAL como lo que mantiene sincronizado —
+  `bases-gsg.md`, `roadmap-gsg.md` y `crecimiento-estructura-agentes.md` deberían estar en esa misma
+  lista desde el día uno de ese rol.
+- **Se nombra el mandato conjunto "Custodia de Coherencia de Fundamentos"** para que quede visible y
+  asignable — no es una 20ª línea de roster con headcount propio, es una responsabilidad explícita
+  agregada a dos roles que ya están aprobados/en curso.
+
+**Conclusión de completitud filosófica:** la estructura está **filosóficamente completa en 9 de 10**
+funciones — el único hueco real (coherencia del corpus en el tiempo) se resuelve con un ajuste de
+mandato barato, no con estructura nueva. Coherente con el propio principio de esta ronda ("crear
+generoso, activar en olas" no significa "crear aunque no haga falta").
+
 ## 8. Tabla-cuestionario final — para llevar al dueño
 
 Las 19 posiciones en juego (9 originales del roster + Migración + Incident Response + 3 nuevas de v3 +
-5 nuevas de esta ronda, atadas al workstream de Catálogo/Plugins), con la recomendación del Advisory y
-un campo para la decisión del dueño.
+5 nuevas de la ronda de Catálogo/Plugins) + **1 mandato ampliado** (Custodia de Coherencia de
+Fundamentos, §7bis — no es headcount nuevo, es una decisión de asignación de responsabilidad), con la
+recomendación del Advisory y un campo para la decisión del dueño.
 
 | # | Agente/posición | Recomendación del Advisory | Cuándo | Decisión del dueño |
 |---|---|---|---|---|
@@ -468,13 +529,14 @@ un campo para la decisión del dueño.
 | 17 | **QA de Regresión del Catálogo** — *nueva (§5.6)* | ✅ Instanciar con la ola de módulos de MEDIANO | H1 | ☐ Sí ☐ No ☐ Otro: _____ |
 | 18 | **Documentación Técnica del Catálogo de Módulos** — *nueva (§5.7)* | ✅ Instanciar ya, junto con Docs/Índice vivo (mismo costo bajo) | H0 (apalancamiento) | ☐ Sí ☐ No ☐ Otro: _____ |
 | 19 | **UX/Consistencia de Backoffice (Catálogo)** — *nueva (§5.8)* | ✅ Instanciar con la ola de módulos de MEDIANO | H1 | ☐ Sí ☐ No ☐ Otro: _____ |
+| 20 | **Custodia de Coherencia de Fundamentos** — *mandato ampliado, no headcount nuevo (§7bis)* | ✅ Asignar ya a Advisory Board + Docs/Índice vivo (releer bases-gsg/roadmap/este doc en cada retro, ADR-047) | H0 (sin cadencia nueva — usa la retro existente) | ☐ Sí, asignar como está propuesto ☐ Prefiero un rol dedicado nuevo ("Guardián de Fundamentos") ☐ No hace falta ☐ Otro: _____ |
 
 *(Descartados con criterio, no por omisión — §5.9: "Desarrolladores de módulos" genérico y "Data/
 Reporting del ERP", ambos cubiertos por el pool/ADR-053 o por roles ya definidos.)*
 
 ---
 
-**Estado:** v3.1, síntesis del Advisory Board tras la Ronda 2 del Challenger + 3 posiciones nuevas (v3)
-+ 5 posiciones nuevas atadas al workstream Catálogo/Plugins (esta ronda, §5.4-5.8). Lista para el **OK
-de adopción del dueño** vía la tabla-cuestionario (§8, 19 posiciones). No instancia ningún agente — es
-recomendación de estructura, doc-only.
+**Estado:** v3.2, síntesis del Advisory Board tras la Ronda 2 del Challenger + 3 posiciones nuevas (v3)
++ 5 posiciones atadas al workstream Catálogo/Plugins (v3.1) + revisión de completitud filosófica con 1
+mandato ampliado (esta ronda, §7bis). Lista para el **OK de adopción del dueño** vía la tabla-cuestionario
+(§8, 19 posiciones + 1 mandato). No instancia ningún agente — es recomendación de estructura, doc-only.
