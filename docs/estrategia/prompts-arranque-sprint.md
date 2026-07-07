@@ -50,6 +50,19 @@ Necesidad → el ARQUITECTO genera el plan (sobre el ROADMAP del repo) → el PM
 El **Dueño (Maxi)** trabaja vía el **PMO**. El **Arquitecto** decide/ejecuta lo REVERSIBLE y ELEVA lo
 IRREVERSIBLE (ADR-048). **Dispatch** es canal/relevamiento.
 
+### 2-bis. LA ESTRUCTURA DE 2 AGENTES AUTÓNOMOS — norma de TODO sprint (ADR-048/049/053)
+El plan lo **avanzan de forma autónoma DOS agentes**; al dueño solo se le eleva lo **IRREVERSIBLE (§C)**:
+- **Agente 1 · PMO (Opus):** genera/actualiza el plan sobre el roadmap, lo **presenta al dueño**, consolida,
+  **releva estado** y coordina el Gate. **Es el único que reporta al dueño.**
+- **Agente 2 · Arquitecto de Solución (ADR-048):** separa reversible/irreversible; **EJECUTA todo lo
+  REVERSIBLE sin pedir permiso** (1 línea de rationale por decisión); coordina el **préstamo de células del
+  pool** (ADR-053) que hacen las manos. **ELEVA lo IRREVERSIBLE (§C) al dueño** con la propuesta armada.
+- **Elevación de §C:** Arquitecto arma la propuesta (qué · por qué · riesgo · 1 clic de OK) → PMO la
+  **presenta** al dueño → **OK explícito del dueño** → recién ahí se ejecuta. **Regla de oro: ante la duda,
+  irreversible.** Las **células de ejecución** (prestadas del pool) son las manos: calibran (ADR-052) y
+  pasan el Gate (ADR-040); **NO deciden lo irreversible.**
+- **Aplica SIEMPRE que se inicia un sprint** — es la norma de trabajo por defecto, no una opción.
+
 ## 3. Paso 0 · Calibración (ADR-052) — ANTES de actuar
 (1) leé el corpus de tu rol (§1 + los ADR de tu rol + el corpus propio del frente); (2) escribí **3–5
 bullets** con tus principios y tu **zona de de-sesgo** (ADR-046: copy/venta/WhatsApp/demos → **HUMANA
