@@ -129,10 +129,13 @@ sesión/frente de ambos sectores**, desktop y móvil. Es adicional a "verde ante
 (tsc+build+test), no lo reemplaza. Son **4 bloques; los bloques 1 y 2 son OBLIGATORIOS SIN EXCEPCIÓN en
 TODO desarrollo.** Checklist corto que cada frente tilda **antes de pushear**:
 
-1. **🔎 AUDITORÍA SAP FIORI — completa y obligatoria (7 ángulos):** rol-based · coherente · simple ·
-   adaptable (responsive + branding por tenant) · delightful/enterprise · **accesibilidad** (labels
-   reales/ARIA/`role="alert"`/teclado/contraste) · **consistencia** (no duplica patrones existentes).
-   Ningún cambio se integra sin pasarla. Fundamento: `docs/metodologia/auditoria-sap-fiori.md`.
+1. **🔎 AUDITORÍA SAP FIORI (7 ángulos) + ÁNGULO ARGENTINO — completa y obligatoria:** rol-based ·
+   coherente · simple · adaptable (responsive + branding por tenant) · delightful/enterprise ·
+   **accesibilidad** (labels reales/ARIA/`role="alert"`/teclado/contraste) · **consistencia** (no duplica
+   patrones existentes) · **🇦🇷 ángulo argentino — "Argentinizar SAP"** (criollo claro, no jerga · fiscal
+   ARCA/AFIP · Mercado Pago/transferencia · WhatsApp-first · simple para la pyme argentina). *Lo mejor de
+   SAP, argentinizado.* Ningún cambio se integra sin pasarla. Fundamento:
+   `docs/metodologia/auditoria-sap-fiori.md` (§8) · **ADR-044**.
 2. **🏷️ SELLO DE MARCA GSG — obligatorio en todo entregable:** todo lo que sale lleva el ADN/nivel de
    Gestión Studio Grow. Sello verificable: app → `metadata.generator="Gestión Studio Grow"` + crédito
    discreto en el footer del **backoffice** (no en la vidriera del tenant); doc → firma "— Elaborado por

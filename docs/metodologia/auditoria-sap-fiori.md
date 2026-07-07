@@ -1,4 +1,4 @@
-# 🔎 Fundamento — Auditoría de filosofía SAP Fiori (OBLIGATORIA, todos los ángulos)
+# 🔎 Fundamento — Auditoría SAP Fiori + Ángulo Argentino ("Argentinizar SAP") (OBLIGATORIA, todos los ángulos)
 
 **Regla dura:** **ningún desarrollo se integra a `main` sin pasar la Auditoría SAP Fiori completa.** Sin
 excepción, para todo frente/sector, desktop y móvil. Es un **paso obligatorio del Gate de Excelencia**
@@ -9,6 +9,22 @@ excepción, para todo frente/sector, desktop y móvil. Es un **paso obligatorio 
 *todos* los ángulos —no solo "se ve lindo"— es lo que evita que la calidad se degrade pantalla a pantalla
 a medida que muchos frentes tocan la misma app. La marca **GSG** (ver `docs/metodologia/estandar-marca-gsg.md`)
 se apoya sobre esta auditoría: sin excelencia SAP no hay sello GSG.
+
+---
+
+## 🇦🇷 Argentinizar SAP — el estándar de fondo (principio TRANSVERSAL, obligatorio)
+
+**No es "SAP a secas" ni "otro software más": es lo mejor de SAP, ARGENTINIZADO.** Tomamos **todo lo
+positivo de SAP** —Fiori, rigor enterprise, role-based, coherencia, calidad de nivel— **pero adaptado a la
+realidad argentina**: lenguaje **criollo y simple** (no jerga corporativa ni inglés técnico), **prácticas
+de negocio locales**, **fiscal ARCA/AFIP** (monotributo, factura A/B/C), **medios de pago locales**
+(Mercado Pago, transferencia, efectivo), **cultura WhatsApp-first**, y el **contexto y el bolsillo de la
+pyme argentina** (opera desde el celular, poca fricción, sin infra cara).
+
+**Por qué:** SAP "tal cual" es **ajeno, caro y en jerga**; el software local "sin nivel" no tiene rigor.
+GSG vive en el medio: **rigor enterprise con cara de pyme argentina.** Por eso la auditoría evalúa —**además
+de los 7 ángulos SAP Fiori**— el **ÁNGULO ARGENTINO** (§8, abajo). El **sello de marca GSG** *es*, por
+definición, lo mejor de SAP argentinizado. Fundamento de decisión: **ADR-044**.
 
 ---
 
@@ -41,8 +57,8 @@ wording son los del cliente, aunque no coincidan con Fiori).
 
 ## Los 7 ángulos (cada uno con su chequeo concreto)
 
-Auditá el cambio contra **los 5 principios Fiori + accesibilidad + consistencia**. Marcá cada ítem; lo
-que no aplica → **N/A + por qué**.
+Auditá el cambio contra **los 5 principios Fiori + accesibilidad + consistencia** —y **además el ángulo
+argentino** (§8, "Argentinizar SAP")—. Marcá cada ítem; lo que no aplica → **N/A + por qué**.
 
 ### 1. Role-based (basado en el rol)
 - [ ] Cada rol (OWNER / RECEPTION / PROFESSIONAL / operador) ve **solo lo suyo**: nada de más (ruido,
@@ -84,6 +100,19 @@ que no aplica → **N/A + por qué**.
       de tabla) — si hay divergencia, se unifica o se anota como deuda con ADR.
 - [ ] Navegación, layout y jerarquía visual **iguales** a pantallas equivalentes.
 - [ ] Íconos, colores semánticos (éxito/alerta/peligro) y espaciados **del sistema**, no ad-hoc.
+
+### 8. Ángulo argentino (Argentinizar SAP) — transversal, OBLIGATORIO
+*Lo mejor de SAP, adaptado a la pyme argentina (ver el fundamento arriba y **ADR-044**).*
+- [ ] **Criollo claro** — wording en español argentino simple, **como lo diría el dueño de la pyme**; sin
+      jerga corporativa ni inglés técnico innecesario. Nombres de campos/acciones que el comerciante entiende.
+- [ ] **Fiscal y prácticas locales** — respeta **ARCA/AFIP** (monotributo, factura A/B/C, condición de IVA)
+      y **cómo opera de verdad** el rubro en Argentina.
+- [ ] **Medios de pago locales** — **Mercado Pago, transferencia, efectivo** como default; no asume
+      tarjetas/gateways extranjeros.
+- [ ] **WhatsApp-first** — WhatsApp como **canal primario** de contacto/aviso/venta (no email-first); CTAs
+      y notificaciones por WhatsApp.
+- [ ] **Pyme argentina real** — simple y accesible para su **bolsillo y contexto**: opera desde el celular,
+      poca fricción, sin requerir infraestructura cara ni conocimiento técnico.
 
 ---
 

@@ -8,6 +8,11 @@ sello construye nuestra filosofía y reputación — que cualquiera que toque un
 reconozca el estándar. El cliente ve **su** marca (cada tenant tiene su branding); **GSG es el sello de
 calidad que está detrás**, garantizando que eso funciona, es coherente y está a la altura.
 
+**Qué ES ese estándar GSG:** *lo mejor de SAP, **ARGENTINIZADO*** — rigor enterprise de SAP/Fiori con cara
+de **pyme argentina** (criollo claro · fiscal ARCA/AFIP · Mercado Pago/transferencia · WhatsApp-first ·
+bolsillo y contexto local). El sello GSG **certifica ese nivel argentinizado**; la auditoría lo evalúa en su
+**ángulo argentino** (`docs/metodologia/auditoria-sap-fiori.md` §8 · **ADR-044**).
+
 ---
 
 ## Dos capas de la marca GSG
