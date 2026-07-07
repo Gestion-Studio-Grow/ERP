@@ -119,6 +119,11 @@ Formato: **nombre** — misión (1 línea) · **entradas → salidas** · **mode
 9. **Legal / Compliance** — cumplimiento legal (marca/consentimiento, datos personales, términos), más allá
    de lo fiscal. · *in:* flujos nuevos que tocan datos/marca · *out:* checklist legal + riesgos. · **Opus**
    · **Gobernanza**. (complementa ADR-042)
+10. **Product Owner del Catálogo/Plugins** — dueño del **repositorio de módulos**: prioriza el backlog de
+    plugins, define el **set mínimo vendible** por rubro/tier y mantiene el **registry** de madurez. · *in:*
+    gap de módulos (roadmap §6.1) + necesidades de venta · *out:* backlog priorizado + gate de venta por
+    rubro. · **Opus** (prioriza) / **Sonnet** (registry) · **ERP core / Gobernanza**. (ADR-054; **arranque
+    posible sin sumar agente:** PMO + Producto por rubro + Arquitecto)
 
 > **Cómo se activan:** el dueño elige cuáles aprobar; cada uno aprobado se graba con su charter y entra al
 > roster con su modelo. Prioridad sugerida por riesgo/palanca: **Data/DBA** y **Release Manager**

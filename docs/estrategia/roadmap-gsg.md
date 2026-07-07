@@ -124,3 +124,80 @@ decide **cómo se vende** cada tier.
   secuencia de alcance por hito (§3), se vuelve ambición sin roadmap. Este documento fija esa secuencia
   como primera versión, sujeta a revisión con cada piloto real.
 - El mapeo tier↔categoría fiscal (§1) es una hipótesis de trabajo, no validada aún con un contador.
+
+---
+
+## 6. Workstream — Catálogo de módulos / Repositorio de plugins  🆕 (pendiente OK del dueño)
+
+**Encargo del dueño:** *"planificar sumar módulos al backoffice y funcionalidades, nos falta demasiado;
+armar un repositorio que constituye los plugins; nutrir ese repositorio ANTES de salir a vender."* Este
+workstream es **habilitador (P1/P2)**, **previo o en paralelo al motor de venta (H1)**: el repositorio de
+módulos es la **munición** que el motor de venta dispara. Detalle de arquitectura: **ADR-054 (propuesto)**.
+
+### 6.1 · Inventario de brecha (gap) — módulos faltantes, priorizados por impacto en venta
+
+Sobre la línea de base de §2. Prioridad: **🔴 bloquea la venta** · **🟠 amplía el mercado vendible** · **🟢 profundidad**.
+
+| Módulo faltante | Estado hoy | Prioridad | Rubros que lo exigen |
+|---|---|---|---|
+| **Facturación ARCA real** (cert X.509 + `Invoice` + migración) | Scaffold | 🔴 | TODOS (sin factura no hay ERP AR vendible) |
+| **Cobro Mercado Pago real** (OAuth + credenciales por tenant) | Stub | 🔴 | Retail · Servicios |
+| **Roles/permisos (RBAC) operativo** | Parcial (ADR-017) | 🔴 | TODOS (dueño ≠ empleado) |
+| **Caja/arqueo** | Construido | 🔴 (verificar) | Retail · Servicios · Mostrador |
+| **Cuenta corriente / deudores (CxC)** | **No existe** | 🟠 | Mediano/RI · mayorista · mostrador con fiado |
+| **Compras/Proveedores + Órdenes de compra + Remitos** | PO en migr. sin aplicar; **remitos no** | 🟠 | Retail · Carnicería · Mediano |
+| **Inventario avanzado** (multi-depósito · lotes/vencimientos) | Migraciones escritas, **sin aplicar** (Gate 2) | 🟠 | Carnicería · farmacia-tipo · alimentos |
+| **WhatsApp conversacional** (webhook HTTP entrada + recordatorios/confirmaciones) | Router+CTA parcial | 🟠 | Servicios (turnos) · Retail (postventa) |
+| **Fidelización/CRM** (puntos · segmentación · campañas) | Parcial | 🟠 | Retail · Servicios |
+| **Reportería fiscal** (libro IVA · IIBB · percepciones) | Parcial | 🟠 | Mediano/RI |
+| **E-commerce completo** (checkout real + envíos Correo Arg./Andreani) | Parcial | 🟢/🟠 | Velas/deco · retail online |
+| **Multi-sucursal** | **No existe** | 🟢 (define "ya no sos BAJA") | Mediano · cadenas |
+| **RRHH / nómina** (control horario → liquidación) | **No existe** | 🟢 | Mediano · Grande |
+| **Régimen de información / retenciones** (tipo SICORE) | **No existe** | 🟢 | Grande |
+| **Integraciones bancarias** (conciliación) | **No existe** | 🟢 | Grande |
+
+> **Lectura:** los 🔴 son **el mismo bloque para todos los rubros** (factura + cobro + roles + caja) — es
+> lo que hay que cerrar YA. Los 🟠 son los que **abren MEDIANO** y diferencian por rubro. Los 🟢 son
+> profundidad de GRANDE.
+
+### 6.2 · Repositorio de plugins — arquitectura (resumen; detalle en ADR-054)
+
+Formaliza y **escala el patrón que ya existe** (`src/plugins/arca`, `src/plugins/mercadopago`, ADR-002/006):
+- **Un plugin = módulo aislado** en `src/plugins/<modulo>/` con **manifiesto** (id, semver, rubros
+  compatibles, capabilities requeridas, **migraciones aditivas**, eventos in/out). Nunca accede a datos del
+  Core directo: **habla por eventos + outbox** (ADR-002/006).
+- **Activación por tenant/rubro:** el **blueprint del rubro** declara su **set de plugins por default**; el
+  tenant activa/desactiva vía `modules[]`/`feature_flag`. **RLS/tenancy intactos** (cada plugin lleva
+  predicado `tenantId`).
+- **Catálogo/registry:** un índice de plugins con **estado de madurez por rubro** (el "qué hay disponible").
+- **Versionado:** semver por plugin; **migraciones siempre aditivas** (Gate 2 para aplicarlas); compatibilidad
+  declarada en el manifiesto.
+- **Es diseño para aprobar** — lo ejecuta el Arquitecto + células (Producto por rubro / cores), no se
+  construye ahora.
+
+### 6.3 · GATE ANTES DE VENDER (regla dura)
+
+> **No se sale a vender un tier/rubro hasta que el repositorio tenga su SET MÍNIMO VENDIBLE de módulos
+> núcleo activables para ese rubro.** Nutrir el repo es **condición de entrada** a la venta, no un "nice to have".
+
+**Set mínimo vendible por tier fiscal (§1):**
+- **BAJA (Monotributo):** Core+blueprint · **Factura C ARCA real** · **Cobro MP real** · Caja · RBAC básico ·
+  (Agenda **o** POS según rubro) · Reportería básica · WhatsApp CTA. **⛔ HOY NO CUMPLE:** faltan ARCA y MP
+  reales → *ese es el gate inmediato antes de vender BAJA a escala*.
+- **MEDIANO (RI):** todo BAJA + **Factura A/B + percepciones + libro IVA** · **Cuenta corriente** ·
+  **Compras/proveedores + remitos** · **Inventario avanzado** · **Multi-sucursal v1**.
+- **GRANDE (Agente de retención):** todo MEDIANO + régimen de información/retenciones · RRHH completo ·
+  integraciones bancarias · seguridad enterprise (cerrar los 2 rojos pre-cobros).
+
+**Set mínimo por rubro (BAJA, para el gate inmediato):** Servicios → agenda+turnos+recordatorios+factura C+seña MP+caja; Retail/tienda → catálogo+POS+stock+factura C+MP+caja; Mostrador/carnicería → POS venta x peso+stock con lotes+factura C+caja (+proveedores).
+
+### 6.4 · Dueño del catálogo (rol — propuesto)
+
+El catálogo necesita un **dueño de producto** que priorice el backlog de módulos, defina el set mínimo
+vendible por rubro/tier y mantenga el registry. Propuesta: **Product Owner del Catálogo/Plugins** (nuevo,
+en `roster-completo-gsg.md §4`) — o, como arranque sin sumar agente, **lo cubren PMO (autor, prioriza) +
+Producto por rubro (construye) + Arquitecto (integra)**. **Queda a decisión del dueño** cuál activar.
+
+> **Para aprobación del dueño:** (a) el **workstream** y su prioridad P1/P2; (b) la **arquitectura del repo**
+> (ADR-054); (c) el **gate de venta** y los sets mínimos por tier/rubro; (d) si se crea el **PO Catálogo/Plugins**
+> o lo cubren roles existentes. Nada de esto se ejecuta hasta el OK (y aplicar migraciones sigue siendo Gate 2).
