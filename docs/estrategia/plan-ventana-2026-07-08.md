@@ -31,14 +31,14 @@ Se pule a estado **vendible/definitivo**. Sonnet (Gate en Opus antes de mergear)
 
 | Ítem | % avance | Nota |
 |---|---|---|
-| **Consola operador** — *si va a rediseño* | funcional (OP-2/OP-3 cerrados) | no pulir; solo estable → **confirmar** si entra a rediseño |
-| **Productos/módulos marcados para rehacer** (a confirmar cuáles) | — | dejar como están; no invertir |
-| **Módulos núcleo faltantes** (ARCA real · MP real) | ARCA scaffold · MP stub | es **construcción/reingeniería**, no pulido → Opus mañana |
-| **Arquitectura del repo de plugins** (ADR-054) | propuesto | **diseño**, no se construye hoy → Opus |
+| **Consola operador** → **ENTRA a reingeniería/rediseño** ✅ *(confirmado dueño 2026-07-07)* | funcional (OP-2/OP-3 cerrados) | **NO pulir hoy; solo estable** → rediseño mañana en Opus |
+| **Módulos núcleo faltantes** (ARCA real · MP real) ✅ *(confirmado)* | ARCA scaffold · MP stub | **construcción/reingeniería**, no pulido → Opus mañana |
+| **Arquitectura del repo de plugins** (ADR-054) ✅ *(confirmado)* | propuesto | **diseño**, no se construye hoy → Opus mañana |
 
-> **⚠️ La lista exacta del Balde B la confirma el dueño/Arquitecto** (qué está "marcado para reingeniería").
-> Van como **candidatos** con marca *a confirmar*. **Ante la duda, un ítem va a B** (no se pule) — así no se
-> gasta pulido en algo que se rehace.
+> **✅ BALDE B FIJADO (confirmado por el dueño, 2026-07-07):** **consola operador** (entra a rediseño) +
+> **módulos núcleo** (ARCA real, Mercado Pago real) + **arquitectura del repo de plugins** (ADR-054). **Todo
+> el Balde B queda "no tocar / estable, sin pulido" hasta mañana** (reingeniería en Opus). Ante la duda con
+> cualquier otro ítem → va a B.
 
 ---
 
