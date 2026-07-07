@@ -17,7 +17,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
-- **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada
+- **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
@@ -193,6 +193,21 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   de asumir que hay que reescribir el front.
 - **Refs:** ADR-042, ADR-043, ADR-053 (este caso = ejemplo canónico del ADR), `docs/metodologia/auditoria-sap-fiori.md`
   §Excepción réplica exacta, `docs/tenants/magra/provisioning-magra.md`.
+
+**[DX-6] Una relación seedeada uniforme hace que el front "mienta" por entidad**
+- **Síntoma:** en la home de CH (faro), las **3 profesionales** mostraban **la misma** lista de
+  servicios y encima solo de depilación — Carolina (faciales/estética) aparecía como si solo depilara.
+- **Causa raíz:** la relación **profesional↔servicio** en Neon está cargada **igual para todas** (o
+  vacía) por un seed/alta genérico; el render `p.services…slice(0,4)` cae en los primeros por id. La
+  UI "carga bien" (no hay error) pero **representa mal la realidad** — capa de DATO, no de layout.
+- **Fix:** (pendiente, no se tocó prod) corregir las asignaciones por profesional en el alta del tenant.
+- **Lección:** que una entidad "cargue" no implica que **su relación refleje lo real**; un seed que
+  asigna lo mismo a todas produce entidades **idénticas y falsas** sin ningún error (primo de DB-2
+  "array vacío" y DX-5 "front no refleja lo real"). Verificar **por entidad**, no en agregado.
+- **Guardarraíl:** el alta/preset **valida que las relaciones N–N por entidad sean reales y distintas**
+  (no todas iguales, no todas vacías); QA revisa listas por-entidad (equipo, catálogo por profesional)
+  **caso por caso** contra lo esperado del rubro, no solo que la sección aparezca.
+- **Refs:** QA `docs/calidad/reporte-qa-productos-2026-07-07.md` A-1; DB-2, DX-5.
 
 ## MP — Metodología / Proceso
 
