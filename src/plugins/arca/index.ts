@@ -4,6 +4,7 @@
  */
 
 export { arcaManifest, type PluginManifest } from './manifest';
+export { arcaModule } from './module';
 export {
   procesarInvoiceCreated,
   ComprobanteInvalidoError,

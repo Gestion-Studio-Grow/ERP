@@ -41,3 +41,10 @@ patrón — potente pero simple, con su ABM claro.
 **Aceptado como principio de producto/arquitectura.** Documentado también en `docs/fundamentos/bases-gsg.md §8`
 (fundamento de producto) y `CLAUDE.md`. El **módulo de Servicios y el catálogo se rehacen bajo este principio**
 (objeto-maestro con ABM + asignación con ABM) en la reingeniería del Balde B.
+
+> **📌 Amendment 2026-07-07 — el eje MÓDULO↔TENANT ya tiene su fundación.** La generalización #4
+> (módulo/plugin ↔ tenant, ADR-054) se **materializó** como `src/modules/` (objeto-maestro
+> `ModuleDescriptor` + asignación por `Tenant.modules[]`, con el guardarraíl "nunca todos con todo").
+> Reversible y detrás de flag — ver `docs/arquitectura/repositorio-de-modulos.md`. Lo que **sigue en
+> reingeniería (Balde B)** es el ABM de **Servicios** (servicio↔profesional): UI backoffice + modelo de
+> esa relación.

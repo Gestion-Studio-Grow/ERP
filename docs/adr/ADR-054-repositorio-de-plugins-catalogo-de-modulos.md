@@ -1,12 +1,21 @@
-# ADR-054: Repositorio de plugins / catálogo de módulos — arquitectura (PROPUESTO)
+# ADR-054: Repositorio de plugins / catálogo de módulos — arquitectura
 
-**Estado:** 🟡 **PROPUESTO — pendiente de OK del dueño** (no se construye hasta la aprobación)
+**Estado:** 🟢 **FUNDACIÓN IMPLEMENTADA** (reversible, detrás de flag) — 2026-07-07, Opus (reingeniería, Balde B del plan-ventana confirmado por el dueño). Falta **nutrir el catálogo** y **cablear el backoffice/consola** (trabajo posterior, con su Gate).
 **Fecha:** 2026-07-07
 **Depende de:** ADR-002 (Core/Blueprint/Plugin), ADR-006 (motores/manifiesto de plugin), ADR-001/018 (multi-tenant/RLS)
+**Se complementa con:** **ADR-055 (principio de variante)** — el "cómo" de la activación por tenant
 **Relacionado:** ADR-022 (plugin ARCA), ADR-024/025 (plugin Mercado Pago), ADR-036 (blueprints por rubro), ADR-053 (pool de agentes)
 **Workstream:** `docs/estrategia/roadmap-gsg.md §6` (Catálogo de módulos / Repositorio de plugins)
 
 ---
+
+> **📌 Amendment 2026-07-07 — fundación construida.** El diseño de abajo se materializó como
+> `src/modules/` (contrato + registro/catálogo + asignación por variante + flag) más el primer
+> módulo real migrado (**ARCA**, `src/plugins/arca/module.ts`). Es **reversible** (código nuevo,
+> flag `MODULE_REGISTRY_ENABLED` default OFF, `git revert`), **sin migraciones aplicadas** (usa
+> `Tenant.modules[]` existente) y **verde** (tsc + 492 tests + build). Diseño detallado:
+> `docs/arquitectura/repositorio-de-modulos.md`. Principio de activación: **ADR-055**. Migración
+> opcional `TenantModule` elevada como dry-run: `docs/arquitectura/propuesta-migracion-tenant-module.md`.
 
 ## Contexto
 Al backoffice **le faltan módulos** para ser vendible como ERP pyme argentino (gap en `roadmap §6.1`). Hoy
