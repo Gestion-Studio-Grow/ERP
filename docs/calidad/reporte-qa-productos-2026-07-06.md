@@ -30,10 +30,23 @@ marca en Magra** y el **sello GSG no está en ninguna app de tenant**.
 
 ---
 
-## Checklist de calidad aplicada
-Cargan sin error · fidelidad de marca por tenant · catálogo/carrito funcionan · CTAs de WhatsApp con
-prompt just-in-time (nunca un número placeholder/falso) · sello GSG · coherencia · accesibilidad
-básica · sin errores de consola.
+## Checklist / metodología de QA (ACTUALIZADA — método corregido por el dueño)
+
+> **Regla nueva, obligatoria de acá en más:** QA se hace **RECORRIENDO EL VIAJE DE USUARIO
+> END-TO-END**, no verificando que las páginas "carguen". Se entra como una persona real, se navega,
+> se **intenta entrar al backoffice**, se hace clic en los botones, se agrega al carrito, se dispara
+> el WhatsApp, y se reporta **qué EXPERIMENTA el usuario en cada paso** — incluidos los **callejones
+> sin salida** (links a cuentas inexistentes, botones que prometen algo y llevan a un muro, pasos sin
+> salida clara).
+
+Cada sitio se recorre así:
+1. **Entrar** por la raíz como visitante → ¿qué ve primero? ¿es la vidriera de marca o un muro?
+2. **Navegar** la vidriera → menú, anclas, secciones. ¿Algún link muerto / a destino equivocado?
+3. **Comprar/reservar** → agregar al carrito / abrir reserva, ejercitar `+/−`, ver total.
+4. **Disparar WhatsApp** → confirmar prompt just-in-time (nunca número placeholder) o número real.
+5. **Intentar entrar al backoffice** → ¿hay punto de entrada visible? ¿demo sin password para mostrar?
+   ¿o solo `/admin` con contraseña? ¿la pantalla de login lleva la marca correcta del tenant?
+6. **Transversal:** carga sin error · consola limpia · fidelidad de marca · sello GSG · accesibilidad.
 
 ---
 
@@ -153,6 +166,81 @@ GSG, es donde el sello debería estar sí o sí. Se suma a M-3.
 
 ---
 
+## Pasada 2 — Recorrido de usuario END-TO-END (navegador real, click por click)
+
+Recorrí cada sitio como una persona, no solo cargando páginas. Qué **experimenta el usuario** en cada
+paso, con los defectos nuevos que aparecen solo al recorrer el viaje (no se ven "cargando la home").
+
+### CH Estética — `chestetica-erp.vercel.app`
+1. **Entrar:** el visitante NO llega a ninguna vidriera → la raíz lo **bota a `/admin/login`** y ve un
+   cajón "Ingresar al panel · Beauty & Spa". **Callejón sin salida total** para un cliente: no hay
+   vidriera, no hay "reservar", y la única acción (Ingresar) pide una contraseña que no tiene. (= C-1)
+2–5. No se puede recorrer nada público. El faro está caído de cara al usuario.
+
+### Magra — `magra-erp.vercel.app`
+1. **Entrar:** raíz → `/tienda`, carga la vitrina fiel. ✅
+2. **Navegar:** links visibles = **Instagram**, "Hacer pedido" (#comprar), "LISTA DE PRECIOS"
+   (#comprar). El de **Instagram apunta a `instagram.com/magra.carniceria`** → handle equivocado
+   (el real es **@tiendamagra**) = **link muerto/incorrecto**, callejón sin salida. (= M-2)
+3. **Comprar:** catálogo de 14 cortes con precio $/kg, carrito `+/−` anda. ✅
+4. **WhatsApp:** CTA con prompt just-in-time (sin placeholder). ✅
+5. **Backoffice:** **NO hay ningún punto de entrada al backoffice desde el sitio** (confirma el
+   hallazgo del dueño). Si el usuario prueba `/admin` a mano → `/admin/login` con contraseña (correcto
+   por ser cliente real), **pero la pantalla de login muestra la marca de OTRO tenant: "CH Estética —
+   La Alameda, Canning / Beauty & Spa"** en el dominio de Magra. Y **no existe una entrada de
+   backoffice-DEMO sin password** para mostrarle el sistema a un prospecto. (= J-1, J-2)
+
+### Shine — `shinevelas-erp.vercel.app`
+1–4. Raíz → `/tienda`, vitrina rica, 10 productos con precio, carrito `+/−`, WhatsApp just-in-time,
+   consola limpia. ✅
+2. **Navegar:** las secciones "Mundos" y "Aromas de temporada" ofrecen **Accesorios** y 7 aromas por
+   nombre que **no están en el catálogo comprable** → el usuario que hace clic buscando eso no
+   encuentra góndola. (= m-3)
+5. **Backoffice:** igual que Magra — sin entrada desde el sitio; `/admin` → login CH-branded. (= J-1, J-2)
+
+### A Dos Manos — `adosmanos-erp.vercel.app`
+1. **Entrar:** raíz → `/tienda`, 20 productos. ✅
+2. **Navegar:** fichas **sin foto real** (recuadro de gradiente). (= m-2)
+3. **Comprar:** **verificado con clicks** — agregué "Pala Adidas Metalbone 3.4" → carrito mostró
+   "1 u · $ 329.900,00". El campo de aclaraciones del pedido dice **"ej: cómo lo querés preparado"**
+   (lenguaje de carnicería en una tienda de pádel). ✅ carrito / ⚠ wording. (= m-1)
+4. **WhatsApp:** **verificado** — el CTA abre el prompt just-in-time ("Tu WhatsApp" + "Continuar por
+   WhatsApp" + "Ahora no"), **sin abrir ningún número placeholder**. ✅
+5. **Backoffice:** sin entrada desde el sitio; `/admin` → **`/admin/login` CH-branded** (verificado en
+   vivo: título "CH Estética" en el dominio de A Dos Manos). (= J-1, J-2)
+
+### Demo — `erp-ch.vercel.app/demo`
+1–4. Tour de 6 escenas; **avanza** con Siguiente/Anterior/Pausar (verificado). CTA "Quiero esto para
+   mi negocio" (WhatsApp just-in-time) + "Escribinos por mail" + "Saltar al final". ✅
+5. **Backoffice:** la demo SÍ ofrece un botón **"Entrá al backoffice real (demo) →"** — pero al
+   clickearlo **lleva a `/admin/login?next=/admin/turnos`: un muro de contraseña, NO un backoffice
+   demo sin password.** Promesa incumplida / **callejón sin salida**. Es el único lugar que invita a
+   ver el backoffice y termina en un login. (= J-3)
+
+---
+
+## Defectos nuevos del recorrido (se suman a los de arriba)
+
+**J-1 (MEDIO · el caso del dueño) · No hay punto de entrada al BACKOFFICE-DEMO (sin password) para
+mostrar el sistema.** En ningún sitio de cliente (Magra/Shine/A Dos Manos) hay una forma visible de
+entrar al backoffice, y `/admin` — bien — pide contraseña por ser cliente real. **Falta la superficie
+de backoffice en MODO DEMO** (sin password, datos ficticios) que permita mostrarle el panel a un
+prospecto sin darle credenciales reales. Hoy no existe un enlace ni una ruta clara a eso. **Acción:**
+exponer un probador de backoffice-demo (sandbox `DEMO_MODE_ENABLED`, datos ficticios) con acceso claro.
+
+**J-2 (MEDIO) · La pantalla de `/admin/login` no está brandeada por tenant — muestra "CH Estética /
+Beauty & Spa" en TODOS los dominios.** Verificado en vivo en magra-erp y adosmanos-erp: el login dice
+"CH Estética — La Alameda, Canning". Un empleado de Magra o A Dos Manos que va a entrar ve la marca de
+otro negocio. **Acción:** el chrome de login/backoffice debe resolver la marca del tenant activo.
+
+**J-3 (ALTO) · La demo promete "Entrá al backoffice real (demo)" y entrega un muro de login.** El
+botón de la `/demo` que invita a ver el backoffice lleva a `/admin/login` (pide contraseña), porque el
+deploy `erp-ch` no está en modo sandbox. Es la puerta pensada para mostrar el producto y es un
+callejón sin salida. **Acción:** que ese botón abra el backoffice-demo real (sandbox sin password) o,
+si no está listo, no ofrecerlo. Se cruza con **J-1**.
+
+---
+
 ## Lo que anda bien (verificado en vivo, no romperlo)
 
 - **A Dos Manos:** carrito **funciona** (agregué "Pala Adidas Metalbone 3.4" → cart mostró "1 u ·
@@ -173,8 +261,11 @@ GSG, es donde el sello debería estar sí o sí. Se suma a M-3.
 ## Recomendación de corrección (orden)
 
 1. **C-1** — republicar CH sirviendo su vidriera pública (bloqueante; es lo que mira el dueño).
-2. **M-1 / M-2** — sacar el wording "carnicería" del footer de Magra y cargar dirección + IG reales.
-3. **M-3** — setear el sello GSG (`generator` + footer del backoffice) en todas las apps.
-4. Menores (m-1…m-5) — wording por rubro, fotos, stock de categorías de Shine, copy del prompt.
+2. **J-3 / J-1** — que "Entrá al backoffice real (demo)" abra un backoffice-demo sin password, y
+   exponer ese probador como el punto de entrada para mostrar el sistema a prospectos.
+3. **J-2** — brandear la pantalla de login/backoffice por tenant (hoy muestra CH en todos).
+4. **M-1 / M-2** — sacar el wording "carnicería" del footer de Magra y cargar dirección + IG reales.
+5. **M-3** — setear el sello GSG (`generator` + footer del backoffice) en todas las apps.
+6. Menores (m-1…m-5) — wording por rubro, fotos, stock de categorías de Shine, copy del prompt.
 
 — Elaborado por GSG (Equipo de Calidad)
