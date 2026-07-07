@@ -128,6 +128,24 @@ contrario, los riesgos, los supuestos débiles y las alternativas, con el mismo 
 fundamento sin pasar por el Challenger.** Corre en **Sonnet por defecto (ultra-ahorro)**; escala a **Opus**
 a pedido del dueño. Detalle y porqué: **`docs/adr/ADR-045-advisory-board-challenger-contrarian.md`**.
 
+## 🗣️ De-sesgo / comportamiento humano POR SECTOR (ADR-046)
+
+La IA de GSG **se quita el sesgo del modelo para sonar humana DONDE conviene** y **actúa estándar DONDE no
+conviene**. **Zona HUMANA** (de-sesgar → humano/cálido/**criollo/argentino**): copy · ventas · WhatsApp ·
+demos · atención · advisory — voz de persona real, no jerga de modelo. **Zona ESTÁNDAR** (preciso,
+convencional): código · tests · infra · **fiscal ARCA** · cálculos — precisión y convención por encima de
+"personalidad". Se ata a **Argentinizar SAP** (ADR-044) y **lo chequea el Gate** (ADR-040, ángulo argentino).
+Detalle: **`docs/adr/ADR-046-de-sesgo-comportamiento-humano-por-sector.md`**.
+
+## 🔄 Rutina de retroalimentación — mejora continua (ADR-047)
+
+Rutina **obligatoria** con **3 palancas** —**memoria** (facts al día) · **casos** (registro de qué
+funcionó/falló) · **skills/briefs** (prompts de las células)— y **2 cadencias**: **(a)** al **cierre de cada
+sprint, por célula** (parte de la Definición de terminado): actualizar memoria + registrar 1 caso + proponer
+1 mejora breve de brief/skill; **(b)** **consolidación periódica** (semanal o cada N sprints): destilar casos
+en mejoras de skills/briefs, limpiar memoria, y **revisión Advisory + Challenger de las bases** (ADR-045).
+Corre en **Sonnet** (ultra-ahorro). Detalle: **`docs/adr/ADR-047-rutina-de-retroalimentacion.md`**.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
