@@ -36,15 +36,15 @@ repo de plugins ADR-054/055 bajo principio de VARIANTE).
 **Prod intacto y estable:** CH Estética vivo en **Vercel**, **RLS enforced** (`app_rls`), 4 tenants
 provisionados en Neon con aislamiento verificado. Nada rojo bloqueante en `main`.
 
-**➡️ PRÓXIMO PASO (retomar Balde A):** abrir **en norma** los 2 frentes de ejecución reversible —
-**F1 `frente/diseno-vidrieras`** (alinear vidrieras Shine + A Dos Manos a lo real, patrón DX-5) y
-**F3 `frente/demo-vendible`** (demo consultor→backoffice por playbook demo-costo-cero). **F2 QA** y
-**F4 PMO/Docs** corren en el núcleo (sin worktree). Cada frente arranca con **Paso 0 de calibración
-(ADR-052)** y **F1 debe verificar la autorización de marca (ADR-042) de Shine y ADM** antes de tocar su
-identidad. **Los irreversibles NO se corren** — quedan en §C para el "1 clic de OK" del dueño.
+**➡️ EN CURSO (Balde A — aprobado y abierto por el dueño 2026-07-07):** corren **F1 `frente/diseno-vidrieras`**
+(vidrieras Shine + ADM a lo real, DX-5) y **F3 `frente/demo-vendible`** (demo consultor→backoffice por
+playbook), cada uno con **Arquitecto de Solución** liderando y el flujo RACI + Plan de Ventana embebidos.
+**F2 QA** y **F4 PMO/Docs** en el núcleo. **El PMO coordina por el repo, corre el Gate en Opus y es el único
+que mergea** (orden F1 → F3). **Los irreversibles NO se corren** — se juntan en §C.
 
-> **Estado de apertura de F1/F3:** terreno preparado (este doc + §C). **Pendiente de OK del dueño para
-> abrir los worktrees.** Ver §9.
+> **Estado de apertura de F1/F3:** ✅ **ABIERTOS y calibrando** (ADR-052). Coordinación y reparto de
+> territorios en el **tablero de Sprint activo → `docs/ESTADO-FRENTES.md`**. Sin entregables para Gate
+> todavía. F1 debe verificar autorización de marca (ADR-042) de Shine/ADM y elevar el gap a §C si falta.
 
 ---
 

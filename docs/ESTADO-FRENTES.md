@@ -1,5 +1,49 @@
 # Estado de frentes — mapa vivo (bajo la metodología de reporte)
 
+---
+
+## 🟢 SPRINT ACTIVO — Ventana 2026-07-08 (Balde A) · coordinación PMO
+
+> **Canal de coordinación = este bloque + las ramas** (no el chat, ADR-039). Cada frente arranca leyendo su
+> bocado acá y deja su avance en su rama. El **PMO (núcleo) secuencia, corre el Gate en Opus y es el ÚNICO
+> que mergea a `main`.** Actualizado: **2026-07-07** · main en `8174bc4`.
+
+**Frentes abiertos (aprobados por el dueño, corriendo en worktrees separados):**
+
+| Frente | Worktree · rama | Rol líder | Modelo | Estado | Territorio (archivos propios) |
+|---|---|---|---|---|---|
+| **F1 · Vidrieras Shine+ADM a lo real** | `frente/diseno-vidrieras` | Arquitecto de Solución + Diseño/Adaptador | Sonnet | 🟢 abierto — calibrando (ADR-052) | `src/tenants/storefront.ts` · `src/app/tienda/Storefront.tsx` · `src/lib/storefront-visual.ts` · datos por-tenant de `shinevelas`/`adosmanos` |
+| **F3 · Demo consultor→backoffice vendible** | `frente/demo-vendible` | Arquitecto de Solución + Consultores/Producto | Sonnet | 🟢 abierto — calibrando (ADR-052) | flujo demo/probador (`src/app/demo/*` / `docs/demo`) · backoffice del rubro · entrada consultor |
+| **F2 · QA transversal** | núcleo (PMO), read-only | QA/Probador | Sonnet | ⏳ espera entregables de F1/F3 | — (verifica, no edita) |
+| **F4 · Docs/estado + retro** | núcleo (PMO), esta sesión | PMO | Opus | 🟢 en curso | `docs/ESTADO-ACTUAL.md` · este tablero |
+
+**🔴 COLA SERIE — archivos compartidos (NADIE los toca sin avisar al PMO; regla 5 del `sprint.md`):**
+`prisma/schema.prisma` · `prisma/migrations/` · `src/lib/tenant.ts` · `prisma/rls/` · auth/tenancy.
+Ninguno de F1/F3 debería necesitarlos (ambos son código de presentación, reversible). Si alguno lo necesita
+→ **frena y eleva al PMO**, no lo edita en paralelo.
+
+**⚠️ Punto de colisión potencial — config de rubro compartida** (`src/blueprints/retail/rubros.ts` o similar):
+si **ambos** necesitan tocarla, va **en serie: F1 primero** (es la superficie de vidriera), luego F3 rebasa.
+Territorios de F1 (storefront) y F3 (demo/probador) son **disjuntos** → corren en paralelo sin barrera salvo
+esa config.
+
+**Orden de merge (lo hace el PMO tras el Gate):** **F1 → F3.** F1 aterriza primero (vidriera fija, más
+acotada, alimenta lo que muestra la demo); F3 **rebasa sobre `main` ya con F1** para que la demo no muestre
+vidrieras pre-fix. Cada merge: rama verde (`tsc`+`build`+`test`) → **QA transversal** → **Gate de Excelencia
+en Opus** (7 ángulos SAP + argentino + Sello GSG + Arq + Confiabilidad) → recién ahí merge.
+
+**Gate previo de F1 (ADR-042):** verificar **autorización de marca registrada de Shine y A Dos Manos** antes
+de replicar su identidad. Si falta → el frente **eleva el gap a §C** de `ESTADO-ACTUAL.md`, no toca la marca.
+
+**Irreversibles:** nada se ejecuta en la ventana. Lo que eleven los frentes se junta en **§C** de
+`ESTADO-ACTUAL.md` para el "1 clic de OK" del dueño.
+
+**Estado de entregables para Gate:** _ninguno aún_ (frentes recién abiertos, calibrando). El PMO revisa las
+ramas periódicamente; cuando aparezca la primera rama verde, avisa al dueño y corre el Gate.
+
+---
+
+
 **Qué es:** la foto viva del avance de cada frente, reportada bajo `docs/METODOLOGIA-REPORTE-AVANCE.md`
 (estados canónicos 🟢 Avanzable ya · ✅ Completado — pendiente acción humana · 🔒 Gated). El **%
 mide lo que depende de nosotros** (código/diseño/verificación); la ejecución con datos reales es
