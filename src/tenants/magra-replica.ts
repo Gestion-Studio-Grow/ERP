@@ -66,6 +66,12 @@ export interface SiteReplicaData {
   reviewsTitle: string;
   reviews: Review[];
   hoursLabel: string;
+  facebookUrl: string;
+  phone: string;
+  aboutTitle: string;
+  aboutText: string;
+  socialNote: string;
+  copyright: string;
 }
 
 export const MAGRA_REPLICA: SiteReplicaData = {
@@ -74,7 +80,7 @@ export const MAGRA_REPLICA: SiteReplicaData = {
   heroImg: asset("hero-carnes.png"),
   heroKicker: "PRODUCTOS GOURMET PREMIUM",
   heroTitle: "Esto no es una carnicería!",
-  heroText: "MAGRA no es solo carne: es estilo, practicidad y sabor premium en un solo pack.",
+  heroText: "MAGRA no es solo carne: es estilo, practicidad y sabor premium en un solo pack. No hace falta saber de cocina, ni de cortes.",
   ctaPrimary: "LISTA DE PRECIOS",
   ctaSecondary: "Hacer pedido",
   benefits: [
@@ -92,9 +98,9 @@ export const MAGRA_REPLICA: SiteReplicaData = {
   ] as GourmetCat[],
   vacioTitle: "Envasados al vacío",
   vacio: [
-    { name: "Carne de vaca", text: "Somos distribuidores oficiales de Estancia Don Ramón." },
-    { name: "Carne de cerdo", text: "Cortes magros, bajos en grasa, sanos y llenos de sabor." },
-    { name: "Pollo orgánico", text: "El clásico que siempre queda bien, fresco y práctico." },
+    { name: "Carne de vaca envasada al vacío", text: "Somos distribuidores oficiales de Estancia Don Ramón." },
+    { name: "Carne de cerdo envasada al vacío", text: "Cortes magros, bajos en grasa, sanos y llenos de sabor." },
+    { name: "Pollo orgánico envasado al vacío", text: "El clásico que siempre queda bien, fresco y práctico." },
   ] as VacioLine[],
   providersTitle: "Nuestros proveedores",
   providers: [
@@ -114,4 +120,10 @@ export const MAGRA_REPLICA: SiteReplicaData = {
     { name: "Macarena A.", rating: 5, avatar: asset("review-macarena.webp"), text: "La carne es un 10. Súper tierna, sabrosa y viene al vacío impecable. Se nota que es buena de verdad. Además, me atendieron por WhatsApp con toda la onda, me ayudaron a elegir sin apurarme." },
   ] as Review[],
   hoursLabel: "Lunes a sábados de 10 a 20 h · Domingos de 9 a 13 h",
+  facebookUrl: "https://www.facebook.com/profile.php?id=61575131222502",
+  phone: "+54 9 11 7609 5555",
+  aboutTitle: "ABOUT US",
+  aboutText: "Probadas por nosotros, elegidas para vos. En MAGRA ofrecemos una selección de carnes premium envasadas al vacío de los mejores proveedores, además de productos gourmet para acompañar tus comidas. Servicio puerta a puerta en Canning.",
+  socialNote: "Seguinos en Instagram y Facebook!",
+  copyright: "© 2025 MAGRA Meat Market. Todos los derechos reservados.",
 };

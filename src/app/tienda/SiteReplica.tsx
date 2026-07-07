@@ -84,6 +84,7 @@ function SiteReplicaContent({
           <img src={site.logo} alt={name} style={{ height: 40, width: "auto" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 13 }}>
             {branding?.instagram && <a href={`https://instagram.com/${branding.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" style={navlink}>Instagram</a>}
+            {site.facebookUrl && <a href={site.facebookUrl} target="_blank" rel="noopener noreferrer" style={navlink}>Facebook</a>}
             <a href="#comprar" style={{ ...btn(accent, "var(--text-on-accent)"), height: 38 }}>{site.ctaSecondary}</a>
           </div>
         </div>
@@ -237,6 +238,14 @@ function SiteReplicaContent({
 
       {/* Footer */}
       <footer style={{ background: T.ink, color: "var(--surface)" }}>
+        {site.aboutText && (
+          <div style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+            <div style={{ ...wrap, padding: "32px 24px 28px" }}>
+              <div style={{ ...foothead, marginBottom: 10 }}>{site.aboutTitle}</div>
+              <p style={{ fontSize: 14, lineHeight: 1.7, opacity: 0.82, maxWidth: 640 }}>{site.aboutText}</p>
+            </div>
+          </div>
+        )}
         <div style={{ ...wrap, display: "grid", gap: 32, gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", padding: "44px 24px" }}>
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -244,8 +253,14 @@ function SiteReplicaContent({
             {branding?.contactNote && <p style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.66, maxWidth: 280 }}>{branding.contactNote}</p>}
           </div>
           <div style={foot}><div style={foothead}>Dónde estamos</div>{branding?.addressLine && <div>{branding.addressLine}</div>}{branding?.city && <div>{branding.city}</div>}<div style={{ opacity: 0.7, marginTop: 4 }}>{branding?.hoursLabel ?? site.hoursLabel}</div></div>
-          <div style={foot}><div style={foothead}>Contacto</div><div><button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer una consulta.`)} style={{ ...flink, background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }}>WhatsApp</button></div>{branding?.instagram && <div><a href={`https://instagram.com/${branding.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" style={flink}>{branding.instagram}</a></div>}{branding?.email && <div><a href={`mailto:${branding.email}`} style={flink}>{branding.email}</a></div>}</div>
+          <div style={foot}><div style={foothead}>Contacto</div>{site.phone && <div>Tel: {site.phone}</div>}<div><button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer una consulta.`)} style={{ ...flink, background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }}>WhatsApp</button></div>{branding?.instagram && <div><a href={`https://instagram.com/${branding.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer" style={flink}>{branding.instagram}</a></div>}{site.facebookUrl && <div><a href={site.facebookUrl} target="_blank" rel="noopener noreferrer" style={flink}>Facebook</a></div>}{branding?.email && <div><a href={`mailto:${branding.email}`} style={flink}>{branding.email}</a></div>}</div>
           <div style={foot}><div style={foothead}>Sistema</div><div style={{ opacity: 0.7 }}>Vidriera + pedidos + POS integrados.</div></div>
+        </div>
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+          <div style={{ ...wrap, padding: "16px 24px", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "space-between", fontSize: 11.5, opacity: 0.6 }}>
+            {site.socialNote && <span>{site.socialNote}</span>}
+            {site.copyright && <span>{site.copyright}</span>}
+          </div>
         </div>
       </footer>
     </div>
