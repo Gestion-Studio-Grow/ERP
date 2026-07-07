@@ -29,6 +29,7 @@
 | **W3** | **Estado de la DB (Neon) en tiempo real** | conexiones activas · latencia · **locks** · salud general | **Neon monitoring API** (read-only) **o** `pg_stat_activity`/`pg_locks` vía **rol de solo-lectura del control-plane**, en **snapshot cacheado** | **periódico:** snapshot **30–60 s** (no por segundo → Neon free) | vistas de sistema (pg_stat), **cero** tablas de negocio |
 | **W4** | **Diagrama de flujo del trabajo** | el flujo canónico **PMO → Dueño → Arquitecto → Dispatch** (ADR-049) + estado del sprint/olas | **derivado del repo/docs** (`ESTADO-FRENTES.md`, `## Sprint activo`, `git log`) — build-time o poll suave | **periódico / on-demand:** al abrir + cada **60 s** | doc/estado, sin datos |
 | **W5** | **Panel de información crítica** | **alertas · errores · ítems que requieren atención del dueño** (gates pendientes, migraciones sin aplicar, rojos de seguridad) | **agregación de errores** (logs, `level=error`) + **gates pendientes** (`ESTADO-ACTUAL.md`: Gate 1/Gate 2, secretos a rotar) + flags de retro (ADR-047) | **near-real-time:** poll **15–30 s** / SSE para alertas | señales de operación, no datos |
+| **W6** | **Plan / Roadmap EN VIVO** | **estado del bloque de reingeniería T1–T5** (avance/estado de cada tarea) + **roadmap por horizontes** (tiers/hitos), **al día sin pedirlo** | **docs del repo (read-only):** `docs/estrategia/plan-ventana-*.md` (Balde A/B, T1–T5) + `docs/estrategia/roadmap-gsg.md` (§3 tiers / §6 catálogo, horizontes/hitos) + **estado de sesiones** (`docs/ESTADO-FRENTES.md` · `## Sprint activo` · `git log`) | **periódico:** poll **60 s** / **on-change** (al commitear docs) | **doc/estado del repo**, sin datos de negocio |
 
 **Regla de fuentes:** todo widget consume **endpoints de salud/monitoreo** o **docs del repo**; **ninguno**
 consulta tablas de negocio de un tenant. Donde haya que tocar Neon (W3), es **rol read-only del
@@ -36,7 +37,7 @@ control-plane** + **snapshot cacheado**, nunca el rol de la app ni por-fila de n
 
 ## 2. Tiempo-real vs periódico (resumen)
 - **Near-real-time (15–30 s, poll o SSE):** W1 (tenants), W5 (alertas críticas). Es lo que el dueño mira "¿anda?".
-- **Periódico (30–60 s, snapshot + cache):** W2 (arquitectura), W3 (Neon), W4 (flujo).
+- **Periódico (30–60 s, snapshot + cache):** W2 (arquitectura), W3 (Neon), W4 (flujo), **W6 (plan/roadmap en vivo — poll 60 s / on-change de docs; el dueño ve el plan al día sin pedirlo)**.
 - **Nada de sub-segundo ni websockets permanentes contra Neon** — el costo no lo justifica (plan free).
   Un **worker/endpoint de snapshot** cachea las métricas y el cockpit lee el cache.
 
