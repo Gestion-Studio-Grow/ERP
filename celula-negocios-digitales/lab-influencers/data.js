@@ -13,6 +13,14 @@ window.LAB_DATA = {
       "ideasGeneradas": 35,
       "propuestasCompletas": 35,
       "nota": "Primera ronda: 5 lentes generan, mejora v2 (lente cruzada) + mejora v3 (validación AR + score). Sonnet."
+    },
+    {
+      "n": 2,
+      "fecha": "2026-07-07",
+      "agentes": 5,
+      "ideasGeneradas": 30,
+      "propuestasCompletas": 29,
+      "nota": "Segunda ronda con anti-duplicados (35 títulos de R1 excluidos). 29 nuevas, 1 descartadas por solaparse. Sonnet."
     }
   ],
   "oportunidades": [
@@ -993,6 +1001,818 @@ window.LAB_DATA = {
         "horasHumanas": 28,
         "costoHumanoUSD": 450,
         "pctAutomatizableIA": 75,
+        "tiempoMVPdias": 10
+      }
+    },
+    {
+      "id": "r2-a220585b",
+      "ronda": 2,
+      "autor": "Creativo",
+      "autorKey": "creativo",
+      "v1": {
+        "titulo": "Media kit y catálogo de servicios que se actualiza solo"
+      },
+      "mejoraV2": "Precisé el dolor (no es solo \"PDF feo\" sino la fricción de reabrir/actualizar, y el costo concreto de perder el pitch), concreté la solución con el nombre del blueprint y el flujo exacto (blueprint nuevo + preset IA + edición propia, sin backend nuevo), y until até explícitamente Mercado Pago (cobro de paquetes) y WhatsApp (aviso) que v1 no mencionaba, subiendo el encaje real con la plataforma existente.",
+      "mejoraV3": "Recorté el alcance del MVP sacando la promesa de \"contador que se refresca solo\" vía integración con redes (eso es un desarrollo aparte, no reversible en un blueprint) y la dejé como campo manual editable, que es lo que de verdad resuelve el dolor sin sumar riesgo técnico. Bajé confianza e impacto a un nivel honesto: es un habilitador de venta, no un producto que un creativo pague por sí solo salvo empaquetado dentro de una oferta mayor (agencia/adaptador).",
+      "final": {
+        "titulo": "Media kit vivo: link único que se actualiza solo (storefront-as-portfolio)",
+        "segmento": "creativos",
+        "dolor": "El creativo arma a mano un PDF de media kit que queda desactualizado en semanas (seguidores, precios, portfolio); llega a la reunión con datos viejos o sin el último trabajo y pierde el pitch frente a alguien que manda un link prolijo y vivo.",
+        "categoriaDolor": "venta_captacion",
+        "descripcion": "Un storefront público (la misma vidriera multi-tenant del ERP) reconfigurado vía un blueprint de rubro nuevo \"media kit de creador\": catálogo de paquetes de contenido con precio, bloque de portfolio, testimonios de marcas, y un campo de métricas (seguidores/engagement) que el creativo actualiza en segundos desde el backoffice. Un solo link estable va en la bio de Instagram y reemplaza el PDF adjunto que se manda por WhatsApp o mail.",
+        "solucion": "Blueprint nuevo de layout (\"media kit\") sobre el motor de catálogo/vidriera ya existente: renombra producto→paquete, agrega bloques de portfolio/testimonios/métricas manuales. El preset por IA arma el borrador leyendo Instagram/web (con autorización registrada, mismo flujo que Break Point/Magra); el creativo edita precios y portfolio desde el backoffice existente. Cobro de paquetes vía link de Mercado Pago ya integrado; aviso de actualización por WhatsApp con plantilla existente. Sin backend nuevo, sin integración de scraping de redes en el MVP (el contador es manual, no automático, para no sumar alcance).",
+        "encajeGSG": "Reutiliza 100% el storefront público multi-tenant, el motor de catálogo/blueprint por rubro, el generador de preset por IA (extracción desde redes con autorización), Mercado Pago para cobrar paquetes y WhatsApp-first para avisos. El único desarrollo real es el blueprint de layout (portfolio/testimonios/métricas manuales), acotado y reversible.",
+        "mejorasAplicadas": "Recorté el alcance del MVP sacando la promesa de \"contador que se refresca solo\" vía integración con redes (eso es un desarrollo aparte, no reversible en un blueprint) y la dejé como campo manual editable, que es lo que de verdad resuelve el dolor sin sumar riesgo técnico. Bajé confianza e impacto a un nivel honesto: es un habilitador de venta, no un producto que un creativo pague por sí solo salvo empaquetado dentro de una oferta mayor (agencia/adaptador).",
+        "impacto": 5,
+        "confianza": 5,
+        "esfuerzo": 3,
+        "horasHumanas": 18,
+        "costoHumanoUSD": 350,
+        "pctAutomatizableIA": 80,
+        "tiempoMVPdias": 5
+      }
+    },
+    {
+      "id": "r2-8cdb8fc0",
+      "ronda": 2,
+      "autor": "Creativo",
+      "autorKey": "creativo",
+      "v1": {
+        "titulo": "Agenda con seña obligatoria para servicios de contenido"
+      },
+      "mejoraV2": "Concreté la ventana de liberación automática (ej. 30 min) que la v1 dejaba vaga como \"X minutos\", agregué el detalle de UX del link público (mostrar seña/saldo, no copy genérico de peluquería) y el comprobante adjunto en el WhatsApp, para que quede accionable y no solo \"reetiquetar blueprint\".",
+      "mejoraV3": "Recorté el MVP a lo mínimo vendible (blueprint + 2 templates + 1 corrida de QA manual, sin tocar nada de UX genérica adicional), y bajé confianza/impacto a un nivel honesto: es una reetiquetación de un módulo maduro, no un producto nuevo, así que el techo de venta como línea aparte es moderado aunque el dolor sea real.",
+      "final": {
+        "titulo": "Turno con seña obligatoria para sesiones creativas (foto, video, edición)",
+        "segmento": "creativos",
+        "dolor": "El creador pierde horas de laburo y plata por cancelaciones de último momento y por clientes que negocian horarios a mensaje suelto de WhatsApp sin comprometerse ni pagar nada por adelantado, y el ida y vuelta manual de coordinar consume tiempo facturable.",
+        "categoriaDolor": "organizacion_agenda",
+        "descripcion": "Turnero público con link propio (mismo componente que ya usan barberías/salones del ERP), configurado como blueprint \"estudio creativo\": el cliente elige día/horario, paga una seña por Mercado Pago para confirmar y recibe recordatorio automático por WhatsApp 24hs antes. Si no paga la seña dentro de 30 minutos, el turno se libera solo. Sin seña pagada el turno no figura como confirmado, así el creador solo agenda tiempo real y no promesas.",
+        "solucion": "MVP acotado a config, no a desarrollo: activar blueprint \"estudio creativo\" sobre el turnero existente (regla de seña obligatoria ya soportada por el checkout MP, timeout de liberación a 30 min ya parametrizable), dos templates nuevos (WhatsApp de recordatorio con comprobante adjunto, y copy del link público mostrando precio de seña + saldo restante en vez del genérico de peluquería). Cero motor nuevo: es blueprint + 2 templates + una corrida de QA manual del flujo end-to-end (reservar → pagar seña → recordatorio → liberación por timeout) antes de ofrecerlo al primer cliente piloto.",
+        "encajeGSG": "Reusa 100% el módulo de agenda/turnos, el motor de recordatorios WhatsApp y el checkout de Mercado Pago ya construidos para el vertical de servicios; solo cambia blueprint de rubro y templates de copy/WhatsApp. Cero desarrollo de motor nuevo.",
+        "mejorasAplicadas": "Recorté el MVP a lo mínimo vendible (blueprint + 2 templates + 1 corrida de QA manual, sin tocar nada de UX genérica adicional), y bajé confianza/impacto a un nivel honesto: es una reetiquetación de un módulo maduro, no un producto nuevo, así que el techo de venta como línea aparte es moderado aunque el dolor sea real.",
+        "impacto": 6,
+        "confianza": 7,
+        "esfuerzo": 2,
+        "horasHumanas": 6,
+        "costoHumanoUSD": 150,
+        "pctAutomatizableIA": 75,
+        "tiempoMVPdias": 2
+      }
+    },
+    {
+      "id": "r2-8808b1d1",
+      "ronda": 2,
+      "autor": "Creativo",
+      "autorKey": "creativo",
+      "v1": {
+        "titulo": "Panel de comisiones para el community manager con varias cuentas"
+      },
+      "mejoraV2": "Se concretaron los montos con rangos de fee real de mercado argentino en pesos y se explicitó el problema de inflación/reajuste de fee, no solo el olvido de cobro. Se acotó \"solución\" a los tres cambios concretos y mínimos (blueprint, copy, tarea de resumen) en vez de hablar en general de \"reetiquetar\", dejando claro que no hay desarrollo de backend nuevo. Se sumó el enganche con ARCA sandbox (ya existente) para el recibo del monotributista, que suma valor real sin costo adicional, y se conectó con el playbook de preset por IA para bajar el costo de puesta en marcha a cero.",
+      "mejoraV3": "Se ratificó el MVP mínimo (blueprint + copy + cron, sin backend nuevo) y se ajustaron los scores a la baja en confianza de pago: el dolor es real pero la disposición a pagar por un CM freelance chico (vs. usar WhatsApp+planilla gratis) es el riesgo comercial principal, no la viabilidad técnica. Se estimaron horas humanas e infra concretas en vez de dejarlo implícito en \"bajo esfuerzo\".",
+      "final": {
+        "categoriaDolor": "cobros_facturacion",
+        "segmento": "community_managers",
+        "titulo": "Panel de cobranzas \"Mis Cuentas\" para el community manager con cartera de clientes",
+        "dolor": "El CM freelance argentino con 5-8 cuentas de clientes no tiene un lugar único para saber quién le debe, quién pagó y quién está en mora; hoy lo lleva en Notion/WhatsApp/planilla suelta, y eso le cuesta plata real por olvidos, fees desactualizados por inflación y el desgaste de \"perseguir\" el cobro por WhatsApp.",
+        "descripcion": "Tablero \"Mis Cuentas\" donde cada cliente gestionado es un registro con plan mensual recurrente (fee en pesos + recordatorio de reajuste). El sistema dispara el recordatorio de cobro por WhatsApp el día pactado, genera el link de Mercado Pago con el monto exacto, marca en mora a los N días de atraso, y manda un resumen semanal tipo \"esta semana te tienen que pagar $X: Cliente A vence hoy, Cliente B vencido hace 5 días\". Como plus, permite emitir recibo/factura de monotributista vía ARCA sandbox cuando el cliente lo pide.",
+        "solucion": "Reutiliza 100% el módulo de clientes + planes recurrentes + recordatorios WhatsApp + checkout Mercado Pago + ARCA sandbox ya existentes, con un blueprint nuevo \"CM/Agencia de contenido\" (nomenclatura: cuenta gestionada, red social, fee mensual, día de cobro), copy de WhatsApp adaptado (\"te debe $X por la gestión de [cuenta]\"), y un cron de resumen semanal reetiquetado sobre datos que ya existen. Sin backend nuevo: blueprint + copy + una consulta agregada + un mensaje de WhatsApp.",
+        "encajeGSG": "Encaje muy alto: motor de clientes, planes recurrentes, recordatorios WhatsApp, checkout MP y ARCA sandbox ya existen y se reutilizan sin tocar backend. El único trabajo real es blueprint de preset + copy + una tarea cron de agregación, generable como demo pública a costo cero vía el playbook de preset por IA.",
+        "mejorasAplicadas": "Se ratificó el MVP mínimo (blueprint + copy + cron, sin backend nuevo) y se ajustaron los scores a la baja en confianza de pago: el dolor es real pero la disposición a pagar por un CM freelance chico (vs. usar WhatsApp+planilla gratis) es el riesgo comercial principal, no la viabilidad técnica. Se estimaron horas humanas e infra concretas en vez de dejarlo implícito en \"bajo esfuerzo\".",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 22,
+        "costoHumanoUSD": 350,
+        "pctAutomatizableIA": 85,
+        "tiempoMVPdias": 5
+      }
+    },
+    {
+      "id": "r2-07c9cbf4",
+      "ronda": 2,
+      "autor": "Creativo",
+      "autorKey": "creativo",
+      "v1": {
+        "titulo": "Banco de contenido con aprobación por WhatsApp"
+      },
+      "mejoraV2": "Se eliminó el humo de \"bot de WhatsApp bidireccional\" y \"subdominio nuevo del storefront\" (caro e innecesario): se reemplaza por notificaciones salientes con plantilla sobre la integración de WhatsApp existente y por una página privada dentro del storefront actual con token temporal, evitando infraestructura nueva. Se precisó el dolor agregando la falta de comprobante ante reclamos como consecuencia concreta, y se acotó explícitamente qué es \"lo único genuino a construir\" (modelo de datos + visor + endpoint de notificación) para que el encaje con GSG sea verificable y no una afirmación genérica.",
+      "mejoraV3": "Validación final: el dolor es real (falta de comprobante ante reclamos) pero la disposición a pagar depende de que sea un feature dentro de un ERP/servicio que el CM ya paga, no un producto standalone — se ajustó el marco de venta implícitamente a \"addon\", no \"SaaS nuevo\". Se recortó el alcance a MVP mínimo vendible: sin versionado de comentarios threaded, sin dashboard de métricas, solo estado+comentario+notificación. Scoring bajado con honestidad: impacto medio (no es un dolor que por sí solo cierre venta, es un diferenciador de retención) y esfuerzo levemente subido porque el manejo de tokens temporales seguros y la vista pública dentro del storefront requiere cuidado de seguridad (evitar fugas de piezas no publicadas).",
+      "final": {
+        "titulo": "Portal de aprobación de contenido con notificación por WhatsApp",
+        "segmento": "community_managers",
+        "dolor": "La aprobación de piezas por WhatsApp diluye la trazabilidad: capturas duplicadas, versiones confundidas (\"la de ayer\") y ningún registro de quién aprobó qué y cuándo. Cuando algo sale mal después de publicado, el CM no tiene cómo probar que el cliente dio el visto bueno, lo que deriva en reclamos y horas perdidas releyendo chats.",
+        "categoriaDolor": "gestion_clientes_marcas",
+        "descripcion": "Un tablero de piezas por cliente, expuesto como página privada dentro del storefront existente del tenant (no un subdominio nuevo): el CM sube la pieza del mes con su versión, el cliente entra con un link con token temporal y aprueba o marca \"pedir cambios\" con comentario. Cada acción queda con timestamp y usuario, exportable como comprobante ante un reclamo. El aviso de \"tenés N piezas para aprobar\" y \"aprobó/rechazó la pieza X\" sale por el canal de WhatsApp ya integrado, como notificación saliente con plantilla y link de vuelta al tablero, sin bot conversacional nuevo.",
+        "solucion": "Módulo dentro del ERP existente: una tabla \"piezas de contenido\" (tenant-scoped) con estados (pendiente/aprobado/rechazado), historial de versiones y de quién decidió qué. Reutiliza el storefront público del tenant para la vista de cliente (token de acceso temporal, sin login pesado) y el RBAC actual para diferenciar el rol \"cliente aprueba\" del rol \"CM sube\". Las notificaciones usan la integración de WhatsApp ya existente (mensajes salientes con plantilla), sin bot nuevo. Lo único genuino a construir: modelo de datos de piezas/versiones, el visor con estado de aprobación, y el endpoint de notificación saliente al cambiar de estado.",
+        "encajeGSG": "Apalanca tres piezas ya construidas: (1) multi-tenancy/tenantId para que el CM gestione múltiples clientes; (2) RBAC existente para el rol aprobador vs. subidor; (3) el canal WhatsApp-first ya integrado para notificaciones salientes one-way, sin bot bidireccional. El desarrollo neto se acota a un modelo de datos chico y un visor, ambos reversibles y sin infraestructura nueva.",
+        "mejorasAplicadas": "Validación final: el dolor es real (falta de comprobante ante reclamos) pero la disposición a pagar depende de que sea un feature dentro de un ERP/servicio que el CM ya paga, no un producto standalone — se ajustó el marco de venta implícitamente a \"addon\", no \"SaaS nuevo\". Se recortó el alcance a MVP mínimo vendible: sin versionado de comentarios threaded, sin dashboard de métricas, solo estado+comentario+notificación. Scoring bajado con honestidad: impacto medio (no es un dolor que por sí solo cierre venta, es un diferenciador de retención) y esfuerzo levemente subido porque el manejo de tokens temporales seguros y la vista pública dentro del storefront requiere cuidado de seguridad (evitar fugas de piezas no publicadas).",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 4,
+        "horasHumanas": 35,
+        "costoHumanoUSD": 500,
+        "pctAutomatizableIA": 75,
+        "tiempoMVPdias": 10
+      }
+    },
+    {
+      "id": "r2-8445436b",
+      "ronda": 2,
+      "autor": "Creativo",
+      "autorKey": "creativo",
+      "v1": {
+        "titulo": "Reporte mensual de resultados armado solo, para mandarle al cliente"
+      },
+      "mejoraV2": "Se concretó el \"conectar o pegar a mano\" de v1 en un flujo de dos vías explícito (API real vs formulario de 5 campos), reconociendo que la mayoría de cuentas chicas no tendrá acceso business a la API. Se cuantificó el dolor (horas por cliente) y se marcó el conector OAuth como fase 2 opcional para bajar el riesgo/costo de arranque, dejando el MVP ejecutable con piezas que GSG ya tiene.",
+      "mejoraV3": "Se sacó del MVP el conector OAuth a Instagram/TikTok (quedó 100% fase 2) para bajar esfuerzo y riesgo de arranque; se validó que el dolor es real, recurrente y mensurable en horas, y que el formulario manual alcanza para vender y demostrar valor sin depender de permisos de terceros.",
+      "final": {
+        "categoriaDolor": "reportes_metricas",
+        "titulo": "Reporte mensual automático de resultados (WhatsApp, con marca del cliente)",
+        "segmento": "community_managers",
+        "dolor": "El día 1 de cada mes el CM arma a mano en Canva/PowerPoint un informe de métricas por cada cliente (1-3hs/cuenta); con 8-10 clientes son días perdidos, y si se atrasa el cliente no ve el trabajo del mes y duda en renovar.",
+        "descripcion": "Módulo \"Reporte Mensual\" dentro del ERP: cada cliente del CM ya tiene su branding cargado (logo/colores). El día 1 un cron dispara la generación. MVP acotado: el CM completa un formulario de 5 campos (2 min) con las métricas del mes; el sistema arma automáticamente un PDF/página con el branding del cliente, 2-3 gráficos simples y un resumen ejecutivo en criollo redactado por IA, y lo envía por WhatsApp al cliente final. La conexión directa a Instagram/TikTok Graph API (OAuth) queda explícitamente fuera del MVP, como fase 2, porque agrega aprobación de permisos business y soporte de terceros que no son necesarios para validar la venta.",
+        "solucion": "Nuevo módulo \"Reportes\" que reutiliza 100%: motor de branding por tenant (look del PDF), generación de copy por IA (resumen ejecutivo), canal WhatsApp-first (envío), y el scheduler existente de recordatorios (disparo día 1). Lo nuevo a construir, acotado: formulario de carga manual de 5 métricas + generador de PDF/página con 2-3 charts (chart.js/recharts). Sin integraciones OAuth externas en el MVP.",
+        "encajeGSG": "Reusa branding por tenant, generación de contenido por IA, WhatsApp de envío y el scheduler ya existentes; solo se construye el generador de reporte (PDF+charts) y el formulario, ambos acotados y reversibles, sin tocar integraciones externas.",
+        "mejorasAplicadas": "Se sacó del MVP el conector OAuth a Instagram/TikTok (quedó 100% fase 2) para bajar esfuerzo y riesgo de arranque; se validó que el dolor es real, recurrente y mensurable en horas, y que el formulario manual alcanza para vender y demostrar valor sin depender de permisos de terceros.",
+        "impacto": 8,
+        "confianza": 8,
+        "esfuerzo": 4,
+        "horasHumanas": 22,
+        "costoHumanoUSD": 350,
+        "pctAutomatizableIA": 85,
+        "tiempoMVPdias": 6
+      }
+    },
+    {
+      "id": "r2-ccea9f6b",
+      "ronda": 2,
+      "autor": "Creativo",
+      "autorKey": "creativo",
+      "v1": {
+        "titulo": "Tienda de presets y recursos con storefront propio"
+      },
+      "mejoraV2": "Concreté el dolor con cifras de comisión y el motivo real de fricción (falta de tarjeta internacional del comprador, no solo \"comisión alta\"); until now la solución era genérica -\"agregar entrega automática\"- y ahora especifico el mecanismo exacto (adjunto + webhook + reutilizo del motor WhatsApp existente) y sumo watermark/preview como resolución concreta del riesgo de piratería, un dolor no atacado en v1.",
+      "mejoraV3": "Se validó que el dolor es real y específico (barrera de tarjeta internacional, no solo comisión) y se acotó el MVP a un único tipo de producto digital sin DRM avanzado, dejando fuera protección de piratería robusta y multi-variante para la v1, que quedan como iteración futura si hay tracción.",
+      "final": {
+        "titulo": "Digital Store: presets, LUTs y plantillas en pesos, con entrega automática sin fricción de tarjeta internacional",
+        "segmento": "creativos",
+        "dolor": "Creadores que venden presets/LUTs/plantillas usan Gumroad o Payhip: cobran en USD con comisión 8-10%+conversión, exigen tarjeta internacional del comprador (filtra al público argentino que paga con MP/transferencia) y liquidan con demora y retención cambiaria — pierden ventas locales y margen en cada operación.",
+        "categoriaDolor": "venta_captacion",
+        "descripcion": "Storefront propio del creador (subdominio con su marca, ya existente en el ERP) donde el producto es un ítem digital (preset/LUT/plantilla/mockup). El comprador paga en pesos vía Mercado Pago o transferencia con comprobante y, al confirmarse el pago, recibe el archivo automáticamente por WhatsApp/mail con link de descarga con expiración. Incluye vidriera con preview watermarked, cupón de lanzamiento y un panel simple de ventas del mes en pesos reales.",
+        "solucion": "Se marca el ítem como \"producto digital\" (sin stock/envío) en el catálogo ya existente, se reutiliza el checkout MP ya integrado, y se agrega: (1) campo de adjunto (archivo o link protegido) en la ficha, (2) webhook post-pago que dispara el link de descarga por el motor de WhatsApp/mail que ya usa el ERP para recordatorios. El watermark se resuelve con dos versiones del archivo (preview liviana pública + original protegido tras pago). MVP acotado a un solo tipo de ítem digital (sin catálogo de variantes ni protección DRM avanzada).",
+        "encajeGSG": "Storefront, catálogo, checkout MP y motor de mensajería WhatsApp ya existen y se reutilizan sin tocar lógica de turnos ni stock físico; el desarrollo genuino es acotado (campo adjunto + webhook de entrega) y reversible, bajo riesgo para producción.",
+        "mejorasAplicadas": "Se validó que el dolor es real y específico (barrera de tarjeta internacional, no solo comisión) y se acotó el MVP a un único tipo de producto digital sin DRM avanzado, dejando fuera protección de piratería robusta y multi-variante para la v1, que quedan como iteración futura si hay tracción.",
+        "impacto": 6,
+        "confianza": 7,
+        "esfuerzo": 3,
+        "horasHumanas": 22,
+        "costoHumanoUSD": 350,
+        "pctAutomatizableIA": 85,
+        "tiempoMVPdias": 6
+      }
+    },
+    {
+      "id": "r2-55ca2623",
+      "ronda": 2,
+      "autor": "Creativo",
+      "autorKey": "creativo",
+      "v1": {
+        "titulo": "Preset de marca personal armado por IA en minutos"
+      },
+      "mejoraV2": "Concreté el entregable (media kit + catálogo de servicios + cobro MP, no un \"mini-sitio\" vago), reduje el segmento de \"transversal\" a \"influencers\" (foco real), agregué el export a PDF/imagen para WhatsApp que es el canal donde de verdad se mueve el trato con marcas, y bajé el humo: aclaré que el único trabajo nuevo real es el blueprint de rubro, todo lo demás es reuso de storefront/MP/WhatsApp ya existentes.",
+      "mejoraV3": "Se achicó el MVP al mínimo vendible: un solo blueprint acotado (sin variantes por tipo de creador todavía) y un export simple a imagen/PDF en vez de un \"generador de media kit\" separado. Se marca honestamente el riesgo de pagabilidad: el sub-segmento \"recién arranca\" tiene poca disposición/capacidad de pago — la validación real de venta debe hacerse con 3-5 creadores piloto vía demo gratis antes de invertir más horas en el blueprint, por eso confianza y esfuerzo quedan moderados en vez de altos.",
+      "final": {
+        "titulo": "Media Kit + Catálogo de Servicios en 24hs (blueprint \"Creador\" del Generador de Preset IA)",
+        "segmento": "influencers",
+        "dolor": "El creador que empieza a monetizar no tiene media kit ni forma de cobrar/ordenar pedidos: manda capturas de Instagram por WhatsApp, cobra por transferencia sin registro y pierde acuerdos con marcas por no tener un link profesional. Contratar agencia o diseñador freelance no cierra en pesos para alguien que recién arranca.",
+        "categoriaDolor": "entregables_visuales",
+        "descripcion": "Con autorización registrada del creador, se toma su Instagram/TikTok o web; la IA extrae identidad visual, rubro de contenido y tarifas/servicios mencionados, y arma en 24hs un storefront tipo \"perfil de creador\": media kit (alcance, engagement, audiencia), catálogo de servicios con precio en pesos, WhatsApp directo y cobro por Mercado Pago, más un export a imagen/PDF del media kit para reenviar por WhatsApp. Todo pasa el Gate de auditoría antes de mostrarse. Se entrega como demo gratis (URL <creador>-erp.vercel.app); dominio propio y persistencia real solo post-venta.",
+        "solucion": "Reuso directo del Generador de PRESET por IA (autorización → ingesta de redes → adaptación de branding → Gate) apuntado al storefront público del ERP en modo \"perfil de creador\": catálogo = servicios/paquetes, cobro = Mercado Pago ya integrado, contacto = WhatsApp-first ya integrado. Único desarrollo real: un blueprint de rubro \"creador de contenido\" (plantilla acotada de catálogo + campos de media kit) y el export a imagen/PDF del media kit; nada de infraestructura nueva.",
+        "encajeGSG": "Encaja 100% con el playbook \"Generador de PRESET por IA\" (autorización, extracción, Gate bloqueante), el storefront, MP y WhatsApp-first ya construidos, y el ciclo Demo→Venta→Inversión. El único costo humano/infra es diseñar el blueprint de rubro \"creador\" y el exportador de media kit, reutilizando el mecanismo de blueprints por rubro que ya existe para negocios.",
+        "mejorasAplicadas": "Se achicó el MVP al mínimo vendible: un solo blueprint acotado (sin variantes por tipo de creador todavía) y un export simple a imagen/PDF en vez de un \"generador de media kit\" separado. Se marca honestamente el riesgo de pagabilidad: el sub-segmento \"recién arranca\" tiene poca disposición/capacidad de pago — la validación real de venta debe hacerse con 3-5 creadores piloto vía demo gratis antes de invertir más horas en el blueprint, por eso confianza y esfuerzo quedan moderados en vez de altos.",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 22,
+        "costoHumanoUSD": 550,
+        "pctAutomatizableIA": 85,
+        "tiempoMVPdias": 6
+      }
+    },
+    {
+      "id": "r2-2d8b45c4",
+      "ronda": 2,
+      "autor": "Analítico",
+      "autorKey": "analitico",
+      "v1": {
+        "titulo": "Facturador ARCA para freelancers de contenido"
+      },
+      "mejoraV2": "Se aclaró que NO es un producto standalone sino un blueprint/preset de tenant sobre el core existente (evita duplicar infraestructura y reduce el costo real a casi cero); se concretó el catálogo de servicios y el flujo de cobro con las 3 piezas reales del ERP (ARCA, WhatsApp, Mercado Pago) en vez de mencionarlas en general; se marcó explícitamente el punto irreversible (homologación ARCA real) como algo a elevar al dueño, no a ejecutar solo; se eliminó el framing de \"producto nuevo vendible fuera del vertical\" por uno de \"mismo producto, nuevo blueprint de rubro\", que es más barato y más rápido de lanzar.",
+      "mejoraV3": "Se validó el dolor como real y recurrente en el segmento (monotributista de servicio único, sin back office), pero de ticket bajo por cliente — se ajustó el impacto a la baja frente a v2 por tamaño de mercado unitario y por la dependencia de homologación ARCA real para vender con datos productivos (hoy solo sandbox, gate irreversible fuera de esta sesión). Se acotó el MVP a 4 entregables concretos y chicos (blueprint, textos, toggle UI, flujo de factura) en vez de \"reconfigurar el storefront\" en general, y se recalibraron horas/costo con honestidad: es más un blueprint reusable que un producto nuevo, así que el esfuerzo de construcción es bajo pero el techo de impacto por cliente también lo es hasta que haya volumen.",
+      "final": {
+        "titulo": "Facturador ARCA WhatsApp-first para freelancers de contenido",
+        "segmento": "creativos",
+        "dolor": "El community manager/editor/creador freelance monotributista factura a marcas y agencias a mano (o no factura), pierde 2-4 hs/mes en el trámite de ARCA, y no tiene visibilidad de qué marca le debe qué mes.",
+        "categoriaDolor": "cobros_facturacion",
+        "descripcion": "Un tenant liviano del ERP (mismo core, blueprint distinto) donde el freelancer da de alta sus \"clientes\" (marcas/agencias) como clientes recurrentes de servicio, con catálogo precargado de 4-5 ítems típicos (gestión de RRSS mensual, edición de reels, pauta, foto/producción). Cada mes el sistema dispara por WhatsApp un recordatorio de facturación a cada marca y genera la factura ARCA en 2 clics al confirmar el cobro (efectivo, transferencia o link de Mercado Pago). Dashboard único: quién debe, quién pagó, historial fiscal del monotributo.",
+        "solucion": "MVP mínimo vendible: (1) blueprint de catálogo \"servicios digitales B2B\" cargado sobre el ERP existente, (2) textos de recordatorio WhatsApp adaptados a cobro B2B freelance (reusa el motor de recordatorios ya construido), (3) reconfiguración liviana del storefront como dashboard \"clientes/marcas\" (oculta vidriera pública, muestra estado de cobro), (4) factura ARCA en sandbox disparada desde el mismo flujo de confirmación de cobro que ya existe. Nada de infraestructura nueva: es blueprint + copy + toggle de UI.",
+        "encajeGSG": "Reusa 3 piezas ya construidas del ERP: adapter ARCA/AFIP (sandbox; homologación real es Gate 2/irreversible y se eleva al dueño antes de vender con datos productivos), motor de recordatorios WhatsApp, link de cobro Mercado Pago. El costo humano real se limita a 1 blueprint de catálogo + textos + un toggle de storefront→dashboard. Mismo patrón que Agencia Digital usa para vender el ERP a otros rubros, aplicado a un freelancer individual en vez de un comercio con local.",
+        "mejorasAplicadas": "Se validó el dolor como real y recurrente en el segmento (monotributista de servicio único, sin back office), pero de ticket bajo por cliente — se ajustó el impacto a la baja frente a v2 por tamaño de mercado unitario y por la dependencia de homologación ARCA real para vender con datos productivos (hoy solo sandbox, gate irreversible fuera de esta sesión). Se acotó el MVP a 4 entregables concretos y chicos (blueprint, textos, toggle UI, flujo de factura) en vez de \"reconfigurar el storefront\" en general, y se recalibraron horas/costo con honestidad: es más un blueprint reusable que un producto nuevo, así que el esfuerzo de construcción es bajo pero el techo de impacto por cliente también lo es hasta que haya volumen.",
+        "impacto": 5,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 22,
+        "costoHumanoUSD": 330,
+        "pctAutomatizableIA": 80,
+        "tiempoMVPdias": 7
+      }
+    },
+    {
+      "id": "r2-3ea737be",
+      "ronda": 2,
+      "autor": "Analítico",
+      "autorKey": "analitico",
+      "v1": {
+        "titulo": "Media kit + booking de colaboraciones para influencers"
+      },
+      "mejoraV2": "Concreté el dolor (el problema no es \"no tener vidriera\" sino DM sin registro + PDF desactualizado + pérdida de propuestas), até el estado de la propuesta al estado de turno ya existente en vez de inventar una entidad nueva, agregué el disparo del recordatorio WhatsApp existente como confirmación automática, y especifiqué que el storefront necesita un layout portfolio-first (no reusar el genérico de catálogo tal cual) para que realmente compita visualmente con un media kit profesional.",
+      "mejoraV3": "Recorté el MVP: saqué la dependencia del generador de preset por IA (ingesta automática de redes) del camino crítico para no atar la venta a una pieza más compleja de calibrar en la primera pasada; el alta inicial de paquetes se hace a mano con el ABM que ya existe, y la automatización de ingesta queda como mejora post-venta. Esto baja esfuerzo y tiempo a MVP sin perder el diferencial (media kit vivo + cobro de seña atado a agenda).",
+      "final": {
+        "titulo": "Media kit vivo + booking con seña para influencers y creadores",
+        "segmento": "influencers",
+        "dolor": "El influencer/creador cierra colaboraciones por DM: manda un PDF de tarifas desactualizado, no sabe si la marca \"lo vio\" ni en qué quedó la negociación, y pierde propuestas por desorganización o porque no hay forma simple de cobrar una seña antes de bloquear agenda de grabación.",
+        "categoriaDolor": "venta_captacion",
+        "descripcion": "Vidriera pública (storefront) que funciona como media kit vivo: métricas de audiencia, paquetes de colaboración con precio visible, testimonios de marcas anteriores y galería tipo portfolio (no lista de precios genérica). La marca elige paquete desde el celular, paga seña por Mercado Pago y el turno de grabación/entrega se agenda solo cuando el cobro se confirma, sin ida y vuelta de WhatsApp/DM. El creador ve en un único panel qué propuestas están \"en seña\", \"confirmadas\" o \"vencidas\", evitando el efecto carpeta de chat perdido.",
+        "solucion": "MVP acotado: (1) layout \"portfolio\" alternativo para el storefront del blueprint servicios ya existente (foto grande, métricas como badges, paquetes con precio) — un skin, no una feature nueva; (2) reserva de turno + cobro de seña reusa agenda y Mercado Pago tal cual están; el estado de la propuesta se resuelve con el mismo estado de turno del ERP, sin entidad nueva; (3) al confirmarse la seña, se dispara el recordatorio WhatsApp existente en rol de confirmación de colaboración. La ingesta automática de catálogo desde redes sociales (vía generador de preset IA) se deja como mejora de onboarding, no como bloqueante del MVP: para las primeras altas alcanza con cargar 3-5 paquetes a mano en el ABM ya existente.",
+        "encajeGSG": "Cero infraestructura nueva: reusa storefront público, agenda con estados de turno, cobro Mercado Pago y motor de recordatorios WhatsApp. El único trabajo real y acotado es el layout portfolio del storefront para el blueprint servicios; la ingesta por IA desde redes queda como fase 2 opcional, no como dependencia del MVP vendible.",
+        "mejorasAplicadas": "Recorté el MVP: saqué la dependencia del generador de preset por IA (ingesta automática de redes) del camino crítico para no atar la venta a una pieza más compleja de calibrar en la primera pasada; el alta inicial de paquetes se hace a mano con el ABM que ya existe, y la automatización de ingesta queda como mejora post-venta. Esto baja esfuerzo y tiempo a MVP sin perder el diferencial (media kit vivo + cobro de seña atado a agenda).",
+        "impacto": 6,
+        "confianza": 7,
+        "esfuerzo": 3,
+        "horasHumanas": 32,
+        "costoHumanoUSD": 550,
+        "pctAutomatizableIA": 70,
+        "tiempoMVPdias": 6
+      }
+    },
+    {
+      "id": "r2-1bfa3333",
+      "ronda": 2,
+      "autor": "Analítico",
+      "autorKey": "analitico",
+      "v1": {
+        "titulo": "Cobrador de honorarios recurrentes para community managers"
+      },
+      "mejoraV2": "Se agregó el número real de mercado argentino (fee típico $80k-$250k/mes) para dimensionar el dolor con datos concretos en vez de genérico; se resolvió el punto débil de v1 (transferencias \"sin registrar\") con conciliación automática vía webhook de MP y confirmación por tap en WhatsApp para transferencia, evitando que el CM vuelva a la app; se sumó el ángulo fiscal (insumo prolijo para monotributo/ARCA) que v1 no mencionaba; se aclaró que no requiere infraestructura nueva, solo reconfiguración de triggers existentes, subiendo el encaje GSG de \"reempaquetado\" a \"cero desarrollo nuevo\".",
+      "mejoraV3": "Se valida que el dolor es real y pagable (cobro recurrente con fricción de conciliación es un problema de plata, no cosmético) pero se corrige el optimismo de v2: no es \"cero desarrollo\", hay trabajo genuino en la vista de reporte, en el manejo de estados vencido/pendiente y en la confirmación por tap vía WhatsApp (requiere webhook/bot handler nuevo, no solo reconfigurar cron). Se ajustan impacto y esfuerzo a un nivel más realista y se agrega estimación de infra (mensajería WhatsApp Business API tiene costo por conversación en volumen).",
+      "final": {
+        "titulo": "Cartera de fee mensual para CMs: cobro por MP + recordatorio WhatsApp + conciliación automática",
+        "segmento": "community_managers",
+        "dolor": "El CM promedio en Argentina gestiona 6-12 marcas con fee mensual (~$80.000-$250.000 c/u) cobrado por transferencia o MP y controlado a mano en Excel/Notion; el atraso de cobro (10-15 días) es plata real perdida por inflación, el reclamo manual por WhatsApp se posterga o se olvida, y las transferencias sin conciliar dejan un lío al momento de rendir cuentas al contador o a ARCA por monotributo.",
+        "categoriaDolor": "cobros_facturacion",
+        "descripcion": "Panel de cartera de clientes con fee recurrente (cliente + monto + día de cobro + método) que dispara solo, 3-5 días antes del vencimiento, un recordatorio por WhatsApp con el link de pago de MP ya generado; al pagar, el webhook de MP marca \"cobrado\" y concilia el ingreso contra cliente y mes automáticamente. Si el cliente paga por transferencia, el CM confirma con un tap desde el mismo chat de WhatsApp, sin volver a la app. Al cierre de mes hay un estado de cobranza (cobrado/pendiente/vencido) exportable en un click.",
+        "solucion": "Reusa el módulo de Clientes + Cobros + Recordatorios del ERP (blueprint de servicios) reconfigurado con etiqueta \"cliente de gestión de redes\" con fee mensual en vez de turno. Se apalanca la integración MP ya existente (link de cobro + webhook), el canal WhatsApp-first ya integrado (recordatorio + confirmación por tap) y el motor de recordatorios (cron), solo redefiniendo el trigger a \"día de cobro mensual\". Se agrega una vista nueva de reporte de cobranza exportable.",
+        "encajeGSG": "Reuso casi total: Clientes + Cobros + Recordatorios (blueprint servicios) + Mercado Pago (link/webhook) + WhatsApp-first, todo ya vivo en el ERP. El trabajo real es configuración de triggers/objeto \"cliente con fee\" más una vista de reporte de cobranza — no hay pasarela, canal ni motor de jobs nuevo.",
+        "mejorasAplicadas": "Se valida que el dolor es real y pagable (cobro recurrente con fricción de conciliación es un problema de plata, no cosmético) pero se corrige el optimismo de v2: no es \"cero desarrollo\", hay trabajo genuino en la vista de reporte, en el manejo de estados vencido/pendiente y en la confirmación por tap vía WhatsApp (requiere webhook/bot handler nuevo, no solo reconfigurar cron). Se ajustan impacto y esfuerzo a un nivel más realista y se agrega estimación de infra (mensajería WhatsApp Business API tiene costo por conversación en volumen).",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 30,
+        "costoHumanoUSD": 650,
+        "pctAutomatizableIA": 75,
+        "tiempoMVPdias": 7
+      }
+    },
+    {
+      "id": "r2-0afa0b44",
+      "ronda": 2,
+      "autor": "Analítico",
+      "autorKey": "analitico",
+      "v1": {
+        "titulo": "Reporte automático de resultados para clientes de CMs y agencias chicas"
+      },
+      "mejoraV2": "Cuantifiqué el dolor (2-3 horas, atraso de un día) para que pese más como caso de venta; agregué el resumen en lenguaje llano con IA como diferencial frente a un simple export de métricas; until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until aclaré que el CM revisa antes de enviar (control humano) y until until until especifiqué que el canal de envío es el WhatsApp Business que el ERP ya usa, no uno nuevo.",
+      "mejoraV3": "Recorté el MVP al tamaño más chico vendible: saqué la integración con APIs de Instagram/TikTok (que exige aprobación de Meta y es un riesgo real de bloqueo) y la reemplacé por carga manual de métricas, dejando el OCR/vision como fase 2. Limpié el texto duplicado/corrupto de la versión anterior. Ajusté los scores a un nivel honesto: el dolor es real y el ahorro de tiempo es concreto, pero el esfuerzo de construir bien el flujo de branding+WhatsApp+aprobación humana no es trivial.",
+      "final": {
+        "titulo": "El informe de fin de mes que se manda solo",
+        "segmento": "community_managers",
+        "dolor": "Todo fin de mes el CM pierde 2-3 horas por cliente armando a mano un PDF en Canva con capturas de Instagram/TikTok para justificar el fee; si se atrasa un día, el cliente ya pregunta \"¿y los resultados?\" y un mes de laburo real queda en duda por un informe, no por el trabajo en sí.",
+        "categoriaDolor": "reportes_metricas",
+        "descripcion": "Un reporte mensual que se arma y se manda solo, sin que el CM toque Canva: el CM carga (tipeando o pegando) los números clave del mes por cliente —alcance, seguidores nuevos, engagement, piezas publicadas— y el sistema arma el PDF con el logo y colores del cliente final, agrega un párrafo corto en criollo generado por IA que explica qué significan esos números, y lo manda por WhatsApp el día pactado con un mensaje tipo \"Hola [cliente], acá tu informe de julio 📊\". El CM aprueba en 2 minutos antes de que salga; no lo arma de cero ni depende de conectar la API de Instagram/TikTok (evita el cuello de botella de aprobación de Meta para cuentas de terceros).",
+        "solucion": "MVP acotado dentro del panel del CM/agencia en el ERP: (1) un formulario simple para cargar las 4-5 métricas del mes por cliente (carga manual, sin integración de APIs sociales en esta v1); (2) el motor de reportes/branding ya existente arma el PDF con la marca del cliente final; (3) IA genera el resumen en lenguaje llano (\"creciste 8% en seguidores, tu pico fue el reel del martes\"); (4) el envío se dispara por el WhatsApp Business que el ERP ya usa para recordatorios, en la fecha configurada por cliente, con aprobación del CM antes de salir. Fase 2 (no incluida en este MVP): ingesta semi-automática vía captura de pantalla + OCR/vision, evitando pedir permisos de API a Meta.",
+        "encajeGSG": "Reutiliza tres piezas que el ERP ya tiene funcionando: el motor de reportes/analytics cross-tenant, el sistema de branding por tenant, y la integración WhatsApp-first ya montada para recordatorios/cobros. No se construye dashboard ni canal de envío nuevo, ni se depende de aprobación de Meta API: se reconfigura lo existente para un caso de uso nuevo (agencia → sus clientes), en línea con el frente de Analytics cross-tenant (ADR-027).",
+        "mejorasAplicadas": "Recorté el MVP al tamaño más chico vendible: saqué la integración con APIs de Instagram/TikTok (que exige aprobación de Meta y es un riesgo real de bloqueo) y la reemplacé por carga manual de métricas, dejando el OCR/vision como fase 2. Limpié el texto duplicado/corrupto de la versión anterior. Ajusté los scores a un nivel honesto: el dolor es real y el ahorro de tiempo es concreto, pero el esfuerzo de construir bien el flujo de branding+WhatsApp+aprobación humana no es trivial.",
+        "impacto": 7,
+        "confianza": 7,
+        "esfuerzo": 4,
+        "horasHumanas": 22,
+        "costoHumanoUSD": 550,
+        "pctAutomatizableIA": 65,
+        "tiempoMVPdias": 6
+      }
+    },
+    {
+      "id": "r2-a506ea10",
+      "ronda": 2,
+      "autor": "Analítico",
+      "autorKey": "analitico",
+      "v1": {
+        "titulo": "Tienda de mentorías/infoproductos para creadores"
+      },
+      "mejoraV2": "Se concretó el \"dónde\" (ficha visual con preview antes/después, no lista de texto — es lo que compra el ojo del creador) y el \"cómo se entrega\" (webhook automático a mentoría/agenda vs. archivo, en vez de dejarlo implícito). Se acotó el encaje GSG a las dos piezas nuevas reales (ficha UI + webhook de entrega) en vez de decir genéricamente \"se reutiliza todo\", y se eliminó la vaguedad de \"sin pelearse con dólares/tarjetas\" reemplazándola por el dato concreto de comisión 15-20%.",
+      "mejoraV3": "Se validó que el dolor es real y pagable (ahorro de comisión concreto 15-20% vs. Hotmart/Gumroad, más estética propia vs. Linktree). Se recortó el MVP a solo dos piezas nuevas verificables (ficha visual + webhook de entrega digital), dejando fuera de este alcance cualquier feature de mentoría avanzada (cupos múltiples, recordatorios especiales) para no inflar esfuerzo. Se ajustaron los scores a la baja con honestidad: impacto y confianza moderados (nicho dentro del segmento, no todo influencer vende infoproducto), esfuerzo bajo-moderado por ser wiring sobre módulos ya probados en prod.",
+      "final": {
+        "categoriaDolor": "entregables_visuales",
+        "confianza": 6,
+        "costoHumanoUSD": 700,
+        "descripcion": "Vidriera pública de infoproductos (presets, plantillas, mentorías 1:1) con estética de marca del creador y ficha de producto visual (preview antes/después, capturas, video corto) en vez de un link de Linktree o post fijado. Cobro en pesos vía Mercado Pago directo a la cuenta del creador, sin la comisión de 15-20% de Hotmart/Gumroad ni fricción de tarjeta internacional. Al acreditarse el pago, la entrega es automática: link de descarga para preset/plantilla, o redirección al módulo de agenda para reservar la mentoría 1:1 — sin que el creador gestione DMs uno por uno.",
+        "dolor": "El creador que vende presets, plantillas o mentorías 1:1 no tiene dónde mostrarlas con buena estética (Linktree feo), pierde 15-20% de comisión en Hotmart/Gumroad y entrega todo a mano por DM cuando vende varias unidades el mismo día.",
+        "encajeGSG": "Reutiliza storefront público + catálogo (blueprint retail) + checkout MP + módulo de agenda, ya construidos y en producción (Shine Velas, A Dos Manos). Piezas nuevas reales y acotadas: (1) ficha de producto con preview antes/después y video corto (mejora de UI del catálogo existente, no módulo nuevo) y (2) webhook \"producto digital → entrega automática\" sobre el checkout de MP ya existente. Sin infraestructura paga nueva.",
+        "esfuerzo": 4,
+        "horasHumanas": 32,
+        "impacto": 6,
+        "mejorasAplicadas": "Se validó que el dolor es real y pagable (ahorro de comisión concreto 15-20% vs. Hotmart/Gumroad, más estética propia vs. Linktree). Se recortó el MVP a solo dos piezas nuevas verificables (ficha visual + webhook de entrega digital), dejando fuera de este alcance cualquier feature de mentoría avanzada (cupos múltiples, recordatorios especiales) para no inflar esfuerzo. Se ajustaron los scores a la baja con honestidad: impacto y confianza moderados (nicho dentro del segmento, no todo influencer vende infoproducto), esfuerzo bajo-moderado por ser wiring sobre módulos ya probados en prod.",
+        "pctAutomatizableIA": 80,
+        "segmento": "influencers",
+        "solucion": "Cada infoproducto se carga como producto de catálogo con stock ilimitado y tipo \"entrega digital\" en vez de envío físico. Al confirmarse el pago de MP, un webhook dispara automáticamente el link de descarga (Drive/archivo) o, si es mentoría 1:1, redirige al módulo de agenda ya existente para que el comprador reserve directo su horario. La ficha de producto se extiende con soporte de imagen antes/después y video corto para que la vidriera muestre el producto con la estética que el creador necesita para vender.",
+        "tiempoMVPdias": 6,
+        "titulo": "Vidriera de Infoproductos: mentorías, presets y plantillas con cobro en pesos y entrega automática"
+      }
+    },
+    {
+      "id": "r2-2cb95082",
+      "ronda": 2,
+      "autor": "Dev",
+      "autorKey": "dev",
+      "v1": {
+        "titulo": "Cobrador automático para creativos freelance (factura + link de pago en un mensaje de WhatsApp)"
+      },
+      "mejoraV2": "Se afiló el dolor real: no es \"pierden horas armando presupuestos\", es la fricción social de cobrar y facturar (perseguir al cliente, pedirle el CUIT, la vergüenza de reclamar). Se concretó la solución a 2 taps de uso real en vez de un \"mini-ERP\" genérico, y se remarcó que no hay desarrollo nuevo de motor — solo reconfiguración de piezas existentes (recordatorios de turnos → recordatorios de cobro), subiendo el encaje GSG y bajando el costo de construirlo.",
+      "mejoraV3": "Se validó que el dolor es concreto, recurrente y pagable (roza lo fiscal, así que hay urgencia real de resolverlo bien, no cosmético). Se recortó el MVP al mínimo vendible: sin agenda ni inventario, un solo tipo de objeto (orden de cobro con servicio de catálogo corto) y reutilización explícita de 3 motores existentes sin desarrollo nuevo, lo que baja esfuerzo a 4/10 y sube confianza al no depender de piezas por construir. Se ajustaron horas humanas a lo que realmente exige un Blueprint (config + QA de integración WhatsApp/MP/ARCA), no un producto nuevo.",
+      "final": {
+        "categoriaDolor": "cobros_facturacion",
+        "confianza": 8,
+        "costoHumanoUSD": 1400,
+        "descripcion": "Blueprint ultra-liviano de un solo usuario para freelancers creativos (CM, editor, diseñador): cargan sus clientes de marca, generan una orden de cobro en dos taps (monto + servicio de una lista corta), el sistema manda automático el link de MP por WhatsApp, factura ARCA monotributo apenas se acredita, y si no pagó a las 48hs sale un recordatorio automático con el mismo tono que mandaría un cobrador humano. Un panel único con semáforo cobrado/pendiente/vencido reemplaza el Excel mental. Sin agenda, sin inventario, sin POS: solo clientes, órdenes de cobro tipo servicio, link de pago y factura automática.",
+        "dolor": "El freelancer creativo no tiene problema de precio sino de cobranza: cotiza a mano por WhatsApp, después queda a merced del \"ya te transfiero\" que se diluye, y cuando cobra, la mitad de las veces no factura (vergüenza de pedir el CUIT, pereza de entrar al portal de ARCA), dejando ese ingreso en negro sin respaldo ni declaración.",
+        "encajeGSG": "Reusa 100% el motor de Cobros, el Plugin ARCA (sandbox) y la integración MP ya construidos — cero motor nuevo, solo un Blueprint liviano (catálogo de \"servicios\" en vez de productos físicos, sin agenda/inventario). El recordatorio a 48hs reconfigura el motor de recordatorios de turnos aplicado a cobros. WhatsApp-first ya es pilar del ERP, así que la mensajería es reconfiguración, no feature nueva.",
+        "esfuerzo": 4,
+        "horasHumanas": 45,
+        "impacto": 7,
+        "mejorasAplicadas": "Se validó que el dolor es concreto, recurrente y pagable (roza lo fiscal, así que hay urgencia real de resolverlo bien, no cosmético). Se recortó el MVP al mínimo vendible: sin agenda ni inventario, un solo tipo de objeto (orden de cobro con servicio de catálogo corto) y reutilización explícita de 3 motores existentes sin desarrollo nuevo, lo que baja esfuerzo a 4/10 y sube confianza al no depender de piezas por construir. Se ajustaron horas humanas a lo que realmente exige un Blueprint (config + QA de integración WhatsApp/MP/ARCA), no un producto nuevo.",
+        "pctAutomatizableIA": 85,
+        "segmento": "creativos",
+        "solucion": "Blueprint \"freelancer-creativo\" sobre el core existente: onboarding de 10 minutos (nombre, CUIT monotributo, WhatsApp Business), catálogo corto de servicios predefinidos, orden de cobro en 2 taps que dispara link de MP por WhatsApp y factura ARCA automática al acreditarse, recordatorio automático a 48hs si no pagó, y panel semáforo cobrado/pendiente/vencido. Se vende como suscripción mensual chica, muy por debajo de lo que cuesta que un contador arme esto a mano.",
+        "tiempoMVPdias": 12,
+        "titulo": "\"Che, ¿ya me depositaste?\" — nunca más: cobrás con factura y sin perseguir a nadie"
+      }
+    },
+    {
+      "id": "r2-4716d9dc",
+      "ronda": 2,
+      "autor": "Dev",
+      "autorKey": "dev",
+      "v1": {
+        "titulo": "Media Kit + tarifario vivo como storefront público (vidriera para influencers)"
+      },
+      "mejoraV2": "Se sacó el humo de la integración con APIs de Meta/TikTok (poco realista y cara de mantener) y se reemplazó por carga manual mensual; se eliminó el checkout/Mercado Pago porque el objetivo es captar el lead, no cobrar en la página; se agregó el canal WhatsApp para la notificación del lead, apalancando lo que GSG ya tiene en vez de depender solo del CRM; se precisó el dolor con el costo concreto (perder la marca por falta de seguimiento/profesionalismo).",
+      "mejoraV3": "Se acotó la confianza reconociendo que el mercado ya tiene alternativas gratuitas (Linktree/Beacons) para el media kit en sí, por lo que el MVP se redefine explícitamente alrededor del diferencial pagable: lead directo a WhatsApp+CRM con seguimiento, no la vidriera sola. Se bajó el esfuerzo a 3 (reutilización casi total de piezas existentes: storefront, CRM, WhatsApp) y se ajustaron horas/costo a un MVP mínimo real (blueprint + quitar checkout + wiring de lead + QA), sin inflar impacto ni confianza.",
+      "final": {
+        "categoriaDolor": "venta_captacion",
+        "confianza": 6,
+        "costoHumanoUSD": 280,
+        "descripcion": "Página pública tipo storefront (misma tecnología del ERP) que funciona como media kit vivo del influencer: métricas clave por red (cargadas a mano, sin depender de APIs de Meta/TikTok), catálogo de paquetes de colaboración con precio (story, reel, posteo, combo) y un botón único de \"Solicitar cotización\". No hay checkout ni cobro online: el objetivo es reemplazar el PDF/Canva desactualizado por un link vivo y profesional que además genera un lead trazable. Compite de cerca con Linktree/Beacons gratuitos, así que el diferencial real y vendible es la integración nativa con el lead→WhatsApp→CRM, no la vidriera en sí.",
+        "dolor": "El influencer cotiza colaboraciones a mano con un PDF/Canva desactualizado por DM, sin precios visibles ni canal de cotización formal, y pierde el seguimiento del lead frente a marcas que evalúan varios perfiles a la vez.",
+        "encajeGSG": "Reutiliza el motor de storefront/vidriera multi-tenant (branding, catálogo, formulario), el módulo de clientes/CRM y el flujo WhatsApp-first ya existentes vía un blueprint nuevo \"media kit\" que saca Mercado Pago (no hay cobro) y ARCA (no hay factura). Mismo hosting Vercel multi-tenant y mismo generador de preset por IA (con el gate de autorización) para armar la primera versión desde el perfil de Instagram/TikTok del influencer.",
+        "esfuerzo": 3,
+        "horasHumanas": 18,
+        "impacto": 6,
+        "mejorasAplicadas": "Se acotó la confianza reconociendo que el mercado ya tiene alternativas gratuitas (Linktree/Beacons) para el media kit en sí, por lo que el MVP se redefine explícitamente alrededor del diferencial pagable: lead directo a WhatsApp+CRM con seguimiento, no la vidriera sola. Se bajó el esfuerzo a 3 (reutilización casi total de piezas existentes: storefront, CRM, WhatsApp) y se ajustaron horas/costo a un MVP mínimo real (blueprint + quitar checkout + wiring de lead + QA), sin inflar impacto ni confianza.",
+        "pctAutomatizableIA": 85,
+        "segmento": "influencers",
+        "solucion": "Blueprint \"media kit\" sobre el motor de storefront existente: reemplaza \"producto\" por \"paquete de colaboración\" (nombre, formato, precio, descripción), agrega bloque de métricas manuales por red (actualización mensual vía formulario simple) y quita el checkout de Mercado Pago. El botón \"Solicitar cotización\" crea el lead en el CRM del influencer y dispara aviso por WhatsApp reutilizando el flujo ya construido. El preset por IA arma la primera versión a partir del perfil que el influencer comparte, con autorización registrada, igual que el generador de preset de marca existente.",
+        "tiempoMVPdias": 6,
+        "titulo": "Media Kit vivo (storefront de colaboraciones) con lead directo a WhatsApp/CRM"
+      }
+    },
+    {
+      "id": "r2-7e31cdc4",
+      "ronda": 2,
+      "autor": "Dev",
+      "autorKey": "dev",
+      "v1": {
+        "titulo": "Agenda + cobro de sesiones/colaboraciones con marcas (booking para influencers y creativos)"
+      },
+      "mejoraV2": "Se afinó el dolor separando \"choque de fecha\" de \"plata perdida por no cobrar seña\" como dos síntomas del mismo problema raíz (falta de bloqueo con cobro). Se concretó la solución en 3 cambios puntuales y acotados (rename, 2 campos de schema, extender recordatorio existente a la fecha de entrega) en vez de \"adaptar blueprint\" en abstracto, y se explicitó que el gate de cobro es el mecanismo que convierte \"propuesta\" en \"confirmada\" — el punto de venta real de la solución.",
+      "mejoraV3": "Se validó que el dolor (plata perdida por cancelación sin seña) es real y pagable, pero se bajó la confianza de \"altísima\" a 7 porque el creador promedio en Argentina recién empieza a formalizar cobro de seña con marcas chicas — es un hábito a instalar, no un dolor 100% consciente hoy. Se ajustó el esfuerzo a 3 (rename + 2 campos de schema + reutilizar recordatorio existente, sin pantallas nuevas) y las horas humanas a 14 (incluye QA del flujo de cobro end-to-end y ajuste de textos de branding por tenant), reflejando el tamaño real del MVP más chico vendible.",
+      "final": {
+        "categoriaDolor": "organizacion_agenda",
+        "confianza": 7,
+        "costoHumanoUSD": 280,
+        "descripcion": "Se reconfigura el Blueprint de Agenda de servicios (ya en prod con CH Estética) para que cada fila deje de ser \"turno\" y pase a ser \"colaboración\": marca, fecha de grabación, fecha de entrega de contenido y estado de cobro. El mismo calendario visual de estética se relee como calendario de contenido: de un vistazo el creador ve qué le debe a cada marca y para cuándo. El bloqueo de fecha exige seña por Mercado Pago antes de confirmar — mismo mecanismo que ya reserva turnos, aplicado a otro rubro. Sin seña cobrada, la colaboración queda en \"propuesta\" y no bloquea la agenda ni dispara producción.",
+        "dolor": "El creador coordina grabaciones y entregas con 3-5 marcas en paralelo a mano por WhatsApp: sin agenda centralizada dobla fechas, se le pisan entregas, y arranca a producir sin cobrar seña — así queda plata afuera cuando la marca cancela o corre el shooting a último momento.",
+        "encajeGSG": "Reusa el core más maduro en prod (Agenda+Recordatorios+Cobros de CH Estética) vía blueprints/branding por tenant — el principio de variante de ADR-055 aplicado a un rubro nuevo sin construir módulo aparte. Apalanca la integración de Mercado Pago ya cableada (seña) y los recordatorios de WhatsApp ya operativos: ambos a costo marginal de infraestructura cero porque el rail ya existe.",
+        "esfuerzo": 3,
+        "horasHumanas": 14,
+        "impacto": 6,
+        "mejorasAplicadas": "Se validó que el dolor (plata perdida por cancelación sin seña) es real y pagable, pero se bajó la confianza de \"altísima\" a 7 porque el creador promedio en Argentina recién empieza a formalizar cobro de seña con marcas chicas — es un hábito a instalar, no un dolor 100% consciente hoy. Se ajustó el esfuerzo a 3 (rename + 2 campos de schema + reutilizar recordatorio existente, sin pantallas nuevas) y las horas humanas a 14 (incluye QA del flujo de cobro end-to-end y ajuste de textos de branding por tenant), reflejando el tamaño real del MVP más chico vendible.",
+        "pctAutomatizableIA": 80,
+        "segmento": "transversal",
+        "solucion": "Blueprint \"colaboraciones\" derivado 1:1 del Blueprint de servicios, mismo motor de Agenda+Recordatorios+Cobros, blanco distinto: (1) rename turno→colaboración y profesional→marca en textos y storefront/backoffice vía branding por tenant; (2) 2 campos nuevos en el modelo existente (tipo de contenido: reel/foto/story/UGC; fecha de entrega de contenido, distinta de la fecha de grabación); (3) activar el recordatorio de WhatsApp ya existente también para la fecha de entrega; (4) el cobro de seña por Mercado Pago sigue siendo la condición que pasa la colaboración de \"propuesta\" a \"confirmada\". Cero pantallas nuevas.",
+        "tiempoMVPdias": 6,
+        "titulo": "Blindaje de seña: agenda de colaboraciones con marcas + cobro anticipado por Mercado Pago"
+      }
+    },
+    {
+      "id": "r2-173d9dc0",
+      "ronda": 2,
+      "autor": "Dev",
+      "autorKey": "dev",
+      "v1": {
+        "titulo": "Reporte mensual automático de resultados para clientes de CM/agencia chica"
+      },
+      "mejoraV2": "Se cuantificó el dolor con tarifas y horas reales del mercado argentino de CM, se precisó que el sello GSG va discreto en backoffice y no en el reporte (marca del CM), se agregó el cruce con MP para automatizar el estado de cobro sin carga manual, y se marcó honestamente la conexión a APIs de redes como fase 2 con costo a evaluar (no se asume gratis).",
+      "mejoraV3": "Se recortó el MVP a carga manual de métricas (sin prometer conectores de API en el alcance ni en el costo/tiempo), se puntuó con honestidad bajando impacto y confianza por ser un nicho de ticket bajo dentro del ERP (no vende solo), y se ajustaron horas/costo a un desarrollo realista de formulario + template de reporte + integración de disparo y cruce de cobro, sin inflar el % automatizable por IA (la construcción del software la sigue haciendo un humano).",
+      "final": {
+        "titulo": "Reporte mensual automático de resultados (marca del CM) vía WhatsApp para justificar el fee",
+        "segmento": "community_managers",
+        "dolor": "El CM freelance/agencia chica en Argentina cobra $80.000-$250.000 por cliente/mes y lleva 5-10 cuentas a la vez; a fin de mes pierde 6-8 horas armando a mano en Canva el reporte que \"justifica\" el fee, tarea que no factura pero cuya ausencia dispara dudas de renovación. Es el momento de mayor fricción y mayor riesgo de pérdida del cliente del mes.",
+        "categoriaDolor": "reportes_metricas",
+        "descripcion": "Generador automático de reporte mensual con la marca del CM (nunca la de GSG) que arma una página web + PDF: métricas del mes cargadas por el CM (alcance, engagement, seguidores), grid del contenido publicado, resumen ejecutivo en criollo redactado por IA, y estado de cobro (pagado/pendiente) cruzado con Mercado Pago. Se dispara solo el día 1 de cada mes por WhatsApp, sin que el CM abra Canva ni Excel. MVP explícitamente manual en la carga de métricas: sin conectores de API de Meta/TikTok (eso queda evaluado como fase 2, no incluida en el costo/tiempo de este MVP).",
+        "solucion": "Tenant \"Estudio CM\" en el ERP: cada cliente del CM es una cuenta con un formulario simple de carga mensual de métricas (5-6 campos). El motor de IA (costo $0) redacta el resumen ejecutivo en tono humano/criollo (zona humana, ADR-046); el storefront ya soporta branding por cliente para pintar la página con la marca del CM; el motor de recordatorios/WhatsApp ya existente dispara el envío automático el día 1; el estado pagado/pendiente se cruza con Mercado Pago (ya integrado), sin carga manual de ese dato.",
+        "encajeGSG": "Reutiliza al 100% infraestructura ya construida: motor de recordatorios/WhatsApp, branding multi-tenant del storefront, integración MP para estado de cobro, y el trabajo de reportes de Agencia Digital. Cero infraestructura nueva paga para el MVP; el único costo real es horas humanas de desarrollo y la carga manual de métricas por el CM hasta que se evalúe (fase 2, no incluida acá) un conector de API que en varios casos es pago.",
+        "mejorasAplicadas": "Se recortó el MVP a carga manual de métricas (sin prometer conectores de API en el alcance ni en el costo/tiempo), se puntuó con honestidad bajando impacto y confianza por ser un nicho de ticket bajo dentro del ERP (no vende solo), y se ajustaron horas/costo a un desarrollo realista de formulario + template de reporte + integración de disparo y cruce de cobro, sin inflar el % automatizable por IA (la construcción del software la sigue haciendo un humano).",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 5,
+        "horasHumanas": 65,
+        "costoHumanoUSD": 900,
+        "pctAutomatizableIA": 65,
+        "tiempoMVPdias": 10
+      }
+    },
+    {
+      "id": "r2-938fc27d",
+      "ronda": 2,
+      "autor": "Dev",
+      "autorKey": "dev",
+      "v1": {
+        "titulo": "Catálogo + venta directa de productos digitales/presets desde WhatsApp (infoproductos de creativos)"
+      },
+      "mejoraV2": "Concreté el dolor con escenarios reales (venta perdida de madrugada, clonado de preset, doble booking de mentorías) en vez de descripción genérica. Bajé el alcance de \"blueprint nuevo\" a \"configuración/variante del retail existente\" para evitar duplicación de objetos (coherente con ADR-055) y reducir superficie de mantenimiento. Título y descripción reescritos en tono criollo/directo de venta, no de ficha técnica.",
+      "mejoraV3": "Validé que el dolor es real pero de nicho acotado (creativos que ya venden infoproductos, no todo el segmento) y bajé la confianza de \"altísima\" a honesta (6/10) porque no hay validación directa con un cliente pagando por esto todavía. Recorté el MVP a lo mínimo vendible: un trigger único (webhook→WhatsApp) sobre el retail existente, sin tocar catálogo. Ajusté esfuerzo/horas a una estimación conservadora (26h humanas: webhook, template de WhatsApp, QA de stock/mentorías, prueba end-to-end con pago real) y until costo (~US$650) contemplando solo trabajo humano e infra paga, sin contar lo que resuelve la IA.",
+      "final": {
+        "categoriaDolor": "entregables_visuales",
+        "confianza": 6,
+        "costoHumanoUSD": 650,
+        "descripcion": "Storefront liviano (3 a 8 productos digitales: preset, pack de LUTs, plantilla, cupo de mentoría) donde el cliente paga con Mercado Pago y recibe automáticamente por WhatsApp el archivo o el link de agenda, sin que el creativo esté online. Los ítems con stock limitado (mentorías, cupos de vivo) se cierran solos al agotarse, evitando el doble booking. Pensado para lanzar en un día, no como campus virtual: es una variante de configuración del retail existente, no un blueprint nuevo.",
+        "dolor": "El creativo que vende presets, plantillas o cupos de mentoría 1:1 depende de transferencia + \"ahora te paso el link\" manual: pierde ventas fuera de horario, no controla la reventa/clonado del archivo, y se le mezclan los cupos de mentoría hasta agendar doble.",
+        "encajeGSG": "100% sobre rieles existentes: Blueprint de retail (ya probado en Shine Velas y A Dos Manos) + Mercado Pago + módulo de mensajería WhatsApp, todo multi-tenant. Único desarrollo nuevo es el trigger de entrega post-pago (webhook MP → envío WhatsApp), acotado y reversible; no duplica objetos de catálogo (ADR-055): el infoproducto es una variante de ítem (trackStock true/false), no una entidad nueva.",
+        "esfuerzo": 4,
+        "horasHumanas": 26,
+        "impacto": 6,
+        "mejorasAplicadas": "Validé que el dolor es real pero de nicho acotado (creativos que ya venden infoproductos, no todo el segmento) y bajé la confianza de \"altísima\" a honesta (6/10) porque no hay validación directa con un cliente pagando por esto todavía. Recorté el MVP a lo mínimo vendible: un trigger único (webhook→WhatsApp) sobre el retail existente, sin tocar catálogo. Ajusté esfuerzo/horas a una estimación conservadora (26h humanas: webhook, template de WhatsApp, QA de stock/mentorías, prueba end-to-end con pago real) y until costo (~US$650) contemplando solo trabajo humano e infra paga, sin contar lo que resuelve la IA.",
+        "pctAutomatizableIA": 85,
+        "segmento": "creativos",
+        "solucion": "Se trata cada infoproducto como ítem del catálogo/inventario existente: trackStock=false para archivos ilimitados (preset, LUTs, plantilla) o trackStock=true con stock chico para cupos de mentoría/curso en vivo. Al acreditarse el pago vía webhook de Mercado Pago (ya integrado), se dispara un envío de WhatsApp (reusa el módulo de mensajería/recordatorios) con el archivo adjunto o el link de agenda. Único desarrollo nuevo: el trigger de entrega post-pago; el resto es configuración del retail ya existente.",
+        "tiempoMVPdias": 6,
+        "titulo": "\"Comprá y listo\": link de pago para presets, plantillas y mentorías que se entrega solo por WhatsApp"
+      }
+    },
+    {
+      "id": "r2-1dc2026c",
+      "ronda": 2,
+      "autor": "Dev",
+      "autorKey": "dev",
+      "v1": {
+        "titulo": "CRM de marcas y negociaciones para influencers (pipeline de colaboraciones)"
+      },
+      "mejoraV2": "Concreté el dolor con su costo económico explícito (propuestas frías, cobros que se pierden, descuentos por desmemoria) en vez de solo \"desorden\". Fijé las etapas del pipeline y agregué monto/moneda e historial de tarifas por marca para evitar subcotizar. Until now el cierre del ciclo con cobro quedaba solo mencionado; ahora especifico el trigger automático que crea el registro de cobro al pasar a 'Cerrado', y aclaré que la implementación es solo 2 campos + 1 vista (sin migración de arquitectura).",
+      "mejoraV3": "Validé el dolor como real pero de pago incierto como producto standalone (encaja mejor como feature/add-on dentro del ERP que como venta aislada), lo cual bajó confianza e impacto respecto de v2. Recorté el MVP a su mínimo vendible: sin dashboards ni reportes extra, solo kanban + recordatorio + trigger de cobro. Puntué con honestidad: esfuerzo bajo (3) por reuso casi total, pero impacto y confianza moderados (6) porque el segmento (influencers individuales) suele resolver esto hoy con Excel/Notion gratis y la disposición a pagar aparte no está probada; el valor real es como diferencial dentro de una suscripción ERP ya vendida, no como producto nuevo por sí solo.",
+      "final": {
+        "categoriaDolor": "gestion_clientes_marcas",
+        "confianza": 6,
+        "costoHumanoUSD": 450,
+        "descripcion": "Pipeline kanban de negociaciones con marcas, montado sobre el módulo de clientes ya existente: 2 campos nuevos (`etapaNegociacion` enum, `montoNegociado`) + 1 vista kanban filtrando la lista de clientes por etapa. Recordatorio automático por WhatsApp cuando una negociación lleva N días sin movimiento, reusando el motor de recordatorios de turnos con una regla nueva de inactividad. Al mover una negociación a 'Cerrado', un trigger crea el registro de cobro pendiente en el módulo de cobros/ARCA/MP ya existente, con el monto precargado. Historial simple de tarifa por marca para evitar subcotizar por desmemoria. Sin modelo de datos nuevo ni migración de arquitectura: es dato + 1 vista + 1 regla + 1 trigger sobre lo que el ERP ya tiene.",
+        "dolor": "El influencer/CM maneja 10-20 negociaciones simultáneas por DM/WhatsApp sin registro estructurado: no sabe cuánto ofreció cada marca, en qué etapa quedó, ni cuándo hacer seguimiento — resultado en propuestas que se enfrían, colaboraciones cerradas de palabra que nunca se facturan, y descuentos regalados por no recordar la tarifa anterior a marcas similares.",
+        "encajeGSG": "100% dato, cero arquitectura nueva: 2 campos en el modelo Cliente + 1 vista kanban + 1 regla nueva en el motor de recordatorios WhatsApp-first ya construido + 1 trigger que crea el cobro reutilizando el módulo de cobros/ARCA/MP existente. No toca RBAC, RLS ni storefront; es feature incremental sobre el ERP core, vendible como add-on a tenants existentes del segmento.",
+        "esfuerzo": 3,
+        "horasHumanas": 28,
+        "impacto": 6,
+        "mejorasAplicadas": "Validé el dolor como real pero de pago incierto como producto standalone (encaja mejor como feature/add-on dentro del ERP que como venta aislada), lo cual bajó confianza e impacto respecto de v2. Recorté el MVP a su mínimo vendible: sin dashboards ni reportes extra, solo kanban + recordatorio + trigger de cobro. Puntué con honestidad: esfuerzo bajo (3) por reuso casi total, pero impacto y confianza moderados (6) porque el segmento (influencers individuales) suele resolver esto hoy con Excel/Notion gratis y la disposición a pagar aparte no está probada; el valor real es como diferencial dentro de una suscripción ERP ya vendida, no como producto nuevo por sí solo.",
+        "pctAutomatizableIA": 75,
+        "segmento": "influencers",
+        "solucion": "Reutilizar el módulo de clientes: cada \"marca\" es un cliente con `etapaNegociacion` (enum: Contacto/Propuesta enviada/En negociación/Cerrado/Cobrado) y `montoNegociado`. Vista kanban liviana sobre la lista de clientes existente. El motor de recordatorios WhatsApp ya construido se reconfigura con la regla \"sin actividad en la ficha por N días\". Al pasar a 'Cerrado', un trigger crea el registro en el módulo de cobros ya existente (MP o manual) con el monto precargado, listo para facturar por ARCA.",
+        "tiempoMVPdias": 4,
+        "titulo": "CRM de marcas: pipeline de negociaciones para influencers"
+      }
+    },
+    {
+      "id": "r2-28821f03",
+      "ronda": 2,
+      "autor": "Diseñador experto",
+      "autorKey": "disenador",
+      "v1": {
+        "titulo": "Media Kit generador automático desde storefront"
+      },
+      "mejoraV2": "Test corto de mejoras.",
+      "mejoraV3": "Se sacó del MVP la integración con APIs de redes sociales (cara, fragil, no imprescindible) y se reemplazó por campos editables a mano por el propio creador, lo que baja el esfuerzo y el costo de mantenimiento. Se acotaron descripción y solución a la reutilización concreta de storefront+catálogo ya existentes, y se dejó explícito el CTA de WhatsApp por paquete como único mecanismo de conversión del MVP.",
+      "final": {
+        "titulo": "Media Kit vivo (link único, siempre al día) desde el storefront",
+        "segmento": "influencers",
+        "dolor": "El creador cotiza por WhatsApp y manda media kits en PDF que quedan desactualizados (precios viejos por la inflación, stats viejas), perdiendo horas reescribiendo y perdiendo pauta por mandar tarifas que ya no rigen.",
+        "categoriaDolor": "entregables_visuales",
+        "descripcion": "Un link único y público (tipo linktree pero con vidriera propia) que muestra el media kit del creador siempre actualizado: bio, stats clave (editables por el propio creador, sin integración a la API de IG en el MVP), y una tarilfa de paquetes/servicios que se actualiza desde el mismo panel que usa para su catálogo. En vez de reescribir un PDF cada vez que sube un precio, el creador edita un campo en su backoffice y el link que ya mandó por WhatsApp muestra el precio nuevo al instante. El CTA principal de cada paquete es \"Coordinar por WhatsApp\", cerrando el círculo de cotización sin fricción.",
+        "solucion": "Reutilizar el motor de storefront/vidriera y el módulo de catálogo que el ERP ya tiene para tenants de productos/servicios, armando un blueprint nuevo \"media kit de influencer\": página pública con bio, foto, 3-5 métricas editables a mano (seguidores, alcance, engagement) y una tabla de paquetes (post, reel, combo, story) con precio y botón de WhatsApp por ítem. Nada de scraping ni integración con la API de Instagram/TikTok en el MVP -eso se deja para una v2 si el cliente lo pide y paga por eso-. El creador edita precios y stats desde el mismo panel simple que ya usan otros tenants para su catálogo.",
+        "encajeGSG": "Apalanca directamente tres piezas ya construidas y pagas: el motor de storefront/vidriera pública por tenant, el módulo de catálogo/precios (ABM ya existente) y el enfoque WhatsApp-first de todo el ERP. Es un blueprint/preset nuevo sobre infraestructura existente, no un desarrollo desde cero -mismo patrón que otros rubros (Break Point, Magra) generados por el flujo de preset por IA.",
+        "mejorasAplicadas": "Se sacó del MVP la integración con APIs de redes sociales (cara, fragil, no imprescindible) y se reemplazó por campos editables a mano por el propio creador, lo que baja el esfuerzo y el costo de mantenimiento. Se acotaron descripción y solución a la reutilización concreta de storefront+catálogo ya existentes, y se dejó explícito el CTA de WhatsApp por paquete como único mecanismo de conversión del MVP.",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 24,
+        "costoHumanoUSD": 480,
+        "pctAutomatizableIA": 65,
+        "tiempoMVPdias": 5
+      }
+    },
+    {
+      "id": "r2-66b63a73",
+      "ronda": 2,
+      "autor": "Diseñador experto",
+      "autorKey": "disenador",
+      "v1": {
+        "titulo": "Reporte mensual para marcas con cobro de campaña integrado"
+      },
+      "mejoraV2": "Concreté el dolor con la fricción real (WhatsApp + vergüenza de reclamar cobro), until now el título era genérico y ahora vende el beneficio directo (un solo link). Until now el flujo era ambiguo entre generar automático vs manual: definí que el influencer arma el informe y elige manualmente factura o recibo, evitando prometer automatización de datos que Meta no expone fácil vía API pública. Recorté \"categoriaDolorSecundaria\" (no está en el schema) y until now el encaje decía \"sin desarrollar motor de pagos nuevo\" de forma vaga; ahora aclaro que también se reusa el módulo de clientes, eliminando la única pieza que sonaba a desarrollo desde cero.",
+      "mejoraV3": "Confirmo el MVP más chico vendible: carga manual de KPIs (sin prometer integración con la API de Meta, que no está disponible fácil para creadores individuales), reutilizando 100% módulos existentes de clientes/facturación/MP. Ajusté el scoring a la baja con honestidad: es un nicho angosto (influencers que ya facturan a marcas formalmente, no todos), por eso impacto y confianza quedan moderados y no altos; el esfuerzo es bajo porque no hay lógica de negocio nueva, solo una vista compuesta.",
+      "final": {
+        "titulo": "El informe que la marca pide y el cobro que vos necesitás, en un solo link",
+        "segmento": "influencers",
+        "dolor": "Terminada la campaña, el influencer pierde media tarde armando un Canva/PDF con capturas y métricas para \"justificar\" el pago, y después persigue por WhatsApp los datos de cobro y el comprobante — sin factura ni recibo prolijo, cobrando semanas tarde por vergüenza de reclamar.",
+        "categoriaDolor": "reportes_metricas",
+        "descripcion": "Un \"informe de campaña\" armado desde el ERP: el influencer carga capturas de stories/posts y KPIs (alcance, likes, views) a mano, elige la marca del listado de clientes y el monto pactado. El sistema genera un único link/PDF con el informe arriba y, pegado abajo, el medio de cobro: factura ARCA o recibo simple más el link de pago de Mercado Pago. La marca ve todo en un lugar y paga desde ahí, sin cadena de WhatsApp ni pedir el CBU de nuevo.",
+        "solucion": "Nuevo tipo de documento \"Informe de campaña\" sobre el módulo de clientes (la marca ya existe como cliente) y el de facturación/cobros ya construido: arriba, secciones editables de contenido (imágenes + KPIs manuales cargados a mano, sin integrarse a la API de Meta); abajo, botón \"Generar factura ARCA\" o \"Generar recibo\" + botón \"Crear link de pago MP\". Un solo link corto para la marca. No se toca el motor de pagos ni el de facturación, solo una vista de presentación que los antecede.",
+        "encajeGSG": "Reusa tal cual la facturación ARCA/AFIP sandbox, la integración Mercado Pago y el módulo de clientes que el ERP ya tiene — cero motor nuevo, solo una capa de presentación (el informe) delante de documentos de cobro existentes.",
+        "mejorasAplicadas": "Confirmo el MVP más chico vendible: carga manual de KPIs (sin prometer integración con la API de Meta, que no está disponible fácil para creadores individuales), reutilizando 100% módulos existentes de clientes/facturación/MP. Ajusté el scoring a la baja con honestidad: es un nicho angosto (influencers que ya facturan a marcas formalmente, no todos), por eso impacto y confianza quedan moderados y no altos; el esfuerzo es bajo porque no hay lógica de negocio nueva, solo una vista compuesta.",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 28,
+        "costoHumanoUSD": 420,
+        "pctAutomatizableIA": 75,
+        "tiempoMVPdias": 5
+      }
+    },
+    {
+      "id": "r2-8f413934",
+      "ronda": 2,
+      "autor": "Diseñador experto",
+      "autorKey": "disenador",
+      "v1": {
+        "titulo": "Calendario de contenido compartido con clientes (agenda del ERP reutilizada)"
+      },
+      "mejoraV2": "Concreté el dolor (trazabilidad de aprobaciones, no solo \"calendario disperso\"), aterricé la solución en un flujo operativo puntual (subir pieza → notificar → aprobar/rechazar con recordatorio automático) en vez de describir en abstracto, y until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until aterricé el encaje citando los tres componentes reales que reusa (agenda, WhatsApp, acceso sin login) sin agregar alcance nuevo.",
+      "mejoraV3": "Se limpió el texto corrupto de la v2 (bucle de \"until\" repetido sin sentido en mejorasAplicadas). Se acotó explícitamente el alcance del MVP para dejar fuera edición de imagen y publicación automática a redes, evitando scope creep hacia un dominio nuevo (integración con APIs de Instagram/Meta), que encarecería el esfuerzo sin validar primero el dolor con clientes pagos. Se ajustaron los scores a un nivel más honesto: el dolor es real pero de pago moderado (herramienta de productividad interna, no genera ingresos directos al CM), y el esfuerzo, aunque bajo por reuso, no es trivial por la landing pública nueva y el ABM del objeto pieza.",
+      "final": {
+        "titulo": "Calendario de aprobación de contenido con clientes (agenda del ERP reconvertida)",
+        "segmento": "community_managers",
+        "dolor": "El CM maneja 5-10 cuentas en paralelo con calendarios dispersos en Excel/Notion/Drive, y aprobar piezas con el cliente implica ida y vuelta manual por WhatsApp (capturas, \"sí dale\", \"cambiá el texto\") sin trazabilidad de qué quedó aprobado, cuándo y en qué versión.",
+        "categoriaDolor": "organizacion_agenda",
+        "descripcion": "Se reconvierte el módulo de agenda/turnos (ya multi-tenant, con estados y recordatorios) en un calendario de piezas de contenido: cada \"turno\" pasa a ser una pieza con estado borrador → en aprobación → aprobado/rechazado → publicado, asignada a un cliente puntual. El CM sube la pieza (imagen/copy) desde su backoffice; el cliente la ve y aprueba desde un link sin login, igual que el probador/storefront. Si el cliente no responde en X horas, el ERP dispara solo el recordatorio por WhatsApp, así el CM deja de perseguir aprobaciones a mano y queda registro de quién aprobó qué y cuándo.",
+        "solucion": "MVP acotado: una vista \"Aprobaciones\" (tablero tipo kanban por estado) dentro del backoffice existente del CM, más una landing pública de aprobación sin contraseña (mismo patrón que el storefront). Se reutiliza tal cual el motor de agenda/turnos (estado+fecha) y los recordatorios automáticos WhatsApp; el trabajo real es: (1) agregar el objeto \"pieza de contenido\" con su propio ABM (adjunto/preview, copy, cliente asignado, estado) siguiendo el patrón objeto-crea-una-vez/asigna de ADR-055, y (2) la landing de aprobación de un solo botón (aprobar/rechazar + comentario). No incluye edición de imagen ni programación real de publicación en redes (eso queda para una v2 si el dolor se valida con clientes pagos).",
+        "encajeGSG": "Encaja directo con tres piezas ya construidas del ERP: motor de agenda/turnos (estados+fechas+recordatorios), integración WhatsApp-first, y el patrón de acceso sin login del probador/storefront. Es reconfiguración de un dominio existente (nuevo objeto \"pieza\" con su ABM, no una feature de cero), coherente con ADR-055 (objeto se crea una vez, se asigna con ABM propio).",
+        "mejorasAplicadas": "Se limpió el texto corrupto de la v2 (bucle de \"until\" repetido sin sentido en mejorasAplicadas). Se acotó explícitamente el alcance del MVP para dejar fuera edición de imagen y publicación automática a redes, evitando scope creep hacia un dominio nuevo (integración con APIs de Instagram/Meta), que encarecería el esfuerzo sin validar primero el dolor con clientes pagos. Se ajustaron los scores a un nivel más honesto: el dolor es real pero de pago moderado (herramienta de productividad interna, no genera ingresos directos al CM), y el esfuerzo, aunque bajo por reuso, no es trivial por la landing pública nueva y el ABM del objeto pieza.",
+        "impacto": 5,
+        "confianza": 6,
+        "esfuerzo": 4,
+        "horasHumanas": 45,
+        "costoHumanoUSD": 550,
+        "pctAutomatizableIA": 75,
+        "tiempoMVPdias": 12
+      }
+    },
+    {
+      "id": "r2-81f29db5",
+      "ronda": 2,
+      "autor": "Diseñador experto",
+      "autorKey": "disenador",
+      "v1": {
+        "titulo": "Portfolio/catálogo de servicios con checkout directo para creativos freelance"
+      },
+      "mejoraV2": "Concreté el dolor (de \"portfolio sin checkout\" a \"gestión de seña/reserva dispersa en el chat\"), agregué el módulo de agenda/reservas y el webhook de WhatsApp existente como parte de la solución (no solo catálogo+MP), y until acoté el desarrollo nuevo a un único delta real (blueprint visual + ocultar campo stock) en vez de dejarlo como \"una skin\" sin precisar qué cambia técnicamente.",
+      "mejoraV3": "Se validó que el dolor es concreto y recurrente (mezcla de pedidos/señas por chat, no solo \"falta de portfolio\"), se acotó el desarrollo nuevo a dos ítems verificables (blueprint visual + ocultar stock) y se bajó la estimación de esfuerzo/horas a lo que realmente implica un delta de configuración sobre módulos ya productivos, sin inflar el puntaje de impacto dado que es un nicho dentro de creativos con ticket de venta bajo.",
+      "final": {
+        "titulo": "Vidriera-Portfolio con seña por Mercado Pago para creativos freelance",
+        "segmento": "creativos",
+        "dolor": "El creativo freelance (diseñador, editor, fotógrafo) cotiza y cobra por DM/WhatsApp con un link de Mercado Pago suelto: no queda un registro único de qué cliente pagó seña, qué pack contrató y para cuándo, así que pierde profesionalismo y se le mezclan pedidos.",
+        "categoriaDolor": "venta_captacion",
+        "descripcion": "Storefront público \"portfolio + tienda de packs\" con blueprint propio del Generador de Preset IA: el creativo carga sus packs de servicio (con foto de tapa y galería de trabajos), el cliente entra desde el link de bio, elige el pack, paga seña por Checkout Pro y el pedido queda como reserva \"señado\" en un panel único, con aviso automático por WhatsApp al recibir el pago. Reemplaza la cadena manual DM→link MP suelto→captura de pantalla por un flujo con registro persistente y trazable.",
+        "solucion": "MVP acotado: (1) blueprint visual \"portfolio creativo\" para el storefront (galería grande, sin grilla de góndola) generado por el Generador de Preset IA; (2) ocultar/campo opcional \"stock\" en el catálogo para este blueprint, porque el servicio creativo no tiene stock; (3) reusar tal cual catálogo, storefront, checkout Mercado Pago, agenda/reservas y el webhook de WhatsApp que ya dispara confirmaciones en otros tenants de servicios. Cero backend nuevo: es configuración + un blueprint + un ajuste de UI condicional.",
+        "encajeGSG": "100% motor existente: catálogo+storefront+Mercado Pago (Checkout Pro)+agenda/reservas+webhook de WhatsApp, la misma base que corre para barberías/salones. El único delta real es el blueprint de branding \"portfolio\" (misma pipeline de presets que Break Point/Magra) y ocultar el campo stock para este rubro.",
+        "mejorasAplicadas": "Se validó que el dolor es concreto y recurrente (mezcla de pedidos/señas por chat, no solo \"falta de portfolio\"), se acotó el desarrollo nuevo a dos ítems verificables (blueprint visual + ocultar stock) y se bajó la estimación de esfuerzo/horas a lo que realmente implica un delta de configuración sobre módulos ya productivos, sin inflar el puntaje de impacto dado que es un nicho dentro de creativos con ticket de venta bajo.",
+        "impacto": 6,
+        "confianza": 7,
+        "esfuerzo": 3,
+        "horasHumanas": 16,
+        "costoHumanoUSD": 250,
+        "pctAutomatizableIA": 85,
+        "tiempoMVPdias": 6
+      }
+    },
+    {
+      "id": "r2-cd683b64",
+      "ronda": 2,
+      "autor": "Diseñador experto",
+      "autorKey": "disenador",
+      "v1": {
+        "titulo": "Panel de gestión multi-cliente para community managers (mini-ERP por CM)"
+      },
+      "mejoraV2": "Concreté el dolor con el detalle real argentino (monotributo, factura tardía, WhatsApp como bitácora informal) en vez de una descripción genérica. Acoté la solución para que no implique construir conectores a APIs de redes sociales (costo/fragilidad alto) — el reporte es un PDF armado con datos ya cargados a mano, no scraping de métricas reales. Agregué que el propio CM también factura sus cobros vía ARCA sandbox, cerrando el círculo cobro→factura que la v1 dejaba implícito. Puse rango de precio de mercado (AR$80-150k/mes) como referencia de plausibilidad económica.",
+      "mejoraV3": "Validé que el dolor es real pero ajusté la confianza en \"pagable\": el CM freelance es precio-sensible y compite contra herramientas gratuitas (Notion, Excel) que ya tiene instaladas, así que la fricción de adopción es mayor que en un negocio con local físico — esto bajó el score de confianza e impacto respecto a v2. Recorté el MVP al flujo mínimo demostrable (1 marca, 1 ciclo cobro-recordatorio-reporte) en vez de todo el blueprint completo, para acotar horas humanas reales de configuración y prueba del preset.",
+      "final": {
+        "titulo": "Panel de gestión multi-cliente para community managers (mini-ERP por CM)",
+        "segmento": "community_managers",
+        "dolor": "El CM freelance argentino que lleva 5-8 cuentas cobra por transferencia/MP sin orden, factura tarde o no factura, y cuando el cliente pregunta \"¿me mandaste el reporte de este mes?\" lo busca en un Excel viejo o scrolleando WhatsApp para atrás — tiene 4 herramientas sueltas (Excel, Notion, WhatsApp, Drive) que no hablan entre sí.",
+        "categoriaDolor": "gestion_clientes_marcas",
+        "descripcion": "Blueprint de tenant \"Agencia CM\" en el generador de preset IA: cada marca-cliente es un cliente del CRM, con su plan mensual (AR$80-150k) como cobro recurrente con recordatorio WhatsApp a los 3 y 7 días de vencido, calendario editorial de contenido pendiente de aprobación, y botón \"generar reporte del mes\" que arma un PDF con lo publicado y métricas cargadas a mano. Dashboard único: qué me deben, qué tengo que aprobar, qué reporte tengo que mandar. El CM factura sus cobros vía ARCA sandbox (monotributo) sin salir del sistema.",
+        "solucion": "Combina 4 módulos ya existentes (CRM, recordatorios WhatsApp, cobros/ARCA/MP, agenda resignificada como calendario editorial) vía el Generador de Preset por IA — solo vocabulario (cliente→marca, turno→contenido, servicio→plan), sin tocar backend ni construir conectores a APIs de redes sociales (el riesgo/costo real que se evita). MVP mínimo vendible: preset + 1 flujo de demo (alta de marca → cobro recurrente → recordatorio → reporte PDF), sin onboarding masivo todavía.",
+        "encajeGSG": "100% blueprint nuevo sobre módulos probados en otros tenants (CRM, cobros/ARCA/MP, recordatorios WhatsApp, agenda). Cero conectores nuevos a Meta/TikTok/Instagram — el reporte es manual-asistido con datos ya cargados, no scraping de métricas reales, lo que mantiene el esfuerzo bajo y evita el punto más frágil del dominio.",
+        "mejorasAplicadas": "Validé que el dolor es real pero ajusté la confianza en \"pagable\": el CM freelance es precio-sensible y compite contra herramientas gratuitas (Notion, Excel) que ya tiene instaladas, así que la fricción de adopción es mayor que en un negocio con local físico — esto bajó el score de confianza e impacto respecto a v2. Recorté el MVP al flujo mínimo demostrable (1 marca, 1 ciclo cobro-recordatorio-reporte) en vez de todo el blueprint completo, para acotar horas humanas reales de configuración y prueba del preset.",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 18,
+        "costoHumanoUSD": 450,
+        "pctAutomatizableIA": 85,
+        "tiempoMVPdias": 5
+      }
+    },
+    {
+      "id": "r2-c4b98d24",
+      "ronda": 2,
+      "autor": "Analista de mercado local",
+      "autorKey": "mercado",
+      "v1": {
+        "titulo": "Facturador automático WhatsApp-first para creadores"
+      },
+      "mejoraV2": "Acoté el dolor a algo verificable (miedo a recategorización, no \"problemas con AFIP\" genérico); reemplacé el vago \"recordatorio de facturaste todo\" por un cálculo concreto (facturado vs cobrado vs techo de categoría cargado a mano, sin prometer scraping/integración con AFIP que no existe); aclaré que el parser es NLU liviano, no IA cara, y until que se vende como add-on de tenants existentes en vez de producto nuevo, bajando el costo de desarrollo y venta.",
+      "mejoraV3": "Validé que el dolor es real y específico (miedo a recategorización, no \"problemas con AFIP\" genérico) pero acoté aún más el impacto de negocio: es un add-on de nicho dentro de un nicho (solo sirve a tenants influencer que además sean monotributistas activos en ARCA), por lo que bajé impacto y confianza frente a v2. Recorté el MVP a 4 comandos de chat fijos (sin NLU ambiguo) para minimizar riesgo de parseo mal interpretado emitiendo comprobantes fiscales erróneos, que sería el peor failure mode posible (dato fiscal mal cargado). Subí ligeramente el esfuerzo/horas porque integrar WhatsApp Business webhook + flujo de alta de cliente + emisión fiscal en producción real (no sandbox) exige testing cuidadoso, no es trivial aunque las piezas ya existan.",
+      "final": {
+        "titulo": "Facturador WhatsApp para creadores (ARCA + MP, monotributo)",
+        "segmento": "influencers",
+        "dolor": "El monotributista de contenido cobra por transferencia o MP y no factura en ARCA: no tiene tiempo ni sabe usar el portal, y teme recategorizarse mal por no llevar registro de lo cobrado mes a mes.",
+        "categoriaDolor": "cobros_facturacion",
+        "descripcion": "Bot de WhatsApp atado al ERP: el creador escribe \"Facturale 80000 a Marca X\", el sistema resuelve o da de alta al cliente con 2 datos (CUIT/nombre, email), emite el comprobante C vía el módulo ARCA/AFIP ya existente y lo manda por WhatsApp/mail. Si el cobro entra por Mercado Pago concilia automático contra ese comprobante. Un cron mensual manda resumen \"facturaste $X de $Y cobrado\" y alerta cuando se acerca al techo de categoría (dato cargado a mano por el usuario, sin scraping a AFIP).",
+        "solucion": "Capa conversacional (parser de intents liviano, sin IA cara) sobre tres piezas que el ERP ya tiene: módulo ARCA/AFIP sandbox, integración Mercado Pago, canal WhatsApp Business. Se agrega alta rápida de cliente por chat, un comando de emisión, y un cron de resumen/alerta de techo (umbral manual). Se vende como add-on de un plan existente, no como producto nuevo — MVP acotado a 3-4 comandos de chat (facturar, alta cliente, consultar techo, resumen mensual).",
+        "encajeGSG": "Reutiliza 100% del stack pago (ARCA sandbox, MP, WhatsApp Business ya activo para turnos/recordatorios) sin infraestructura nueva; el desarrollo real es acotado (parser + cron) y reversible; se vende como add-on de add-on sobre tenants influencer ya activos, sin nueva adquisición de clientes.",
+        "mejorasAplicadas": "Validé que el dolor es real y específico (miedo a recategorización, no \"problemas con AFIP\" genérico) pero acoté aún más el impacto de negocio: es un add-on de nicho dentro de un nicho (solo sirve a tenants influencer que además sean monotributistas activos en ARCA), por lo que bajé impacto y confianza frente a v2. Recorté el MVP a 4 comandos de chat fijos (sin NLU ambiguo) para minimizar riesgo de parseo mal interpretado emitiendo comprobantes fiscales erróneos, que sería el peor failure mode posible (dato fiscal mal cargado). Subí ligeramente el esfuerzo/horas porque integrar WhatsApp Business webhook + flujo de alta de cliente + emisión fiscal en producción real (no sandbox) exige testing cuidadoso, no es trivial aunque las piezas ya existan.",
+        "impacto": 5,
+        "confianza": 6,
+        "esfuerzo": 5,
+        "horasHumanas": 55,
+        "costoHumanoUSD": 700,
+        "pctAutomatizableIA": 75,
+        "tiempoMVPdias": 12
+      }
+    },
+    {
+      "id": "r2-23d733ab",
+      "ronda": 2,
+      "autor": "Analista de mercado local",
+      "autorKey": "mercado",
+      "v1": {
+        "titulo": "Media kit y cotizador automático para pautas"
+      },
+      "mejoraV2": "Se acotó el dolor a algo verificable (falta de tarifa fija + cotización lenta + cobro sin trazabilidad) y se sacó la promesa de \"scraping de métricas por IA en tiempo real\", que es humo/riesgoso legalmente contra Meta; en su lugar se propone carga manual/import simple. Se agregó el cierre del círculo con cobro de seña vía Mercado Pago embebido en el presupuesto, que es la pieza de mayor encaje real con el stack (Mercado Pago ya integrado) y convierte la propuesta de \"un PDF más lindo\" a \"cotización que termina en venta registrada en el ERP\".",
+      "mejoraV3": "Se redujo el MVP al mínimo vendible: se sacó del alcance v1 el \\\"media kit vivo\\\" con métricas y catálogo ampliado, dejando solo catálogo simple + cotizador self-serve + cobro de seña embebido, que es lo que efectivamente cierra el círculo cotización→venta→cobro. Se bajó la confianza del dolor de \\\"muy pagable\\\" a \\\"pagable pero con adopción incierta\\\": es un dolor real pero de bajo ticket individual, así que el score de impacto y confianza se ajustó a la baja para no inflar, priorizando honestidad sobre entusiasmo.",
+      "final": {
+        "categoriaDolor": "venta_captacion",
+        "titulo": "Cotizador con cobro integrado para influencers (sobre el storefront ya existente)",
+        "segmento": "influencers",
+        "dolor": "Cuando una marca escribe por DM, el influencer no tiene tarifa fija por formato (reel, story, posteo, canje), cotiza \\\"a ojo\\\" por chat sin trazabilidad, y si cierra el trato no tiene forma prolija de cobrar seña ni de dejar constancia de la venta.",
+        "descripcion": "Página pública mínima (reusa el storefront de tenant) con un catálogo de 3-5 formatos de contenido con precio fijo en pesos y un botón \\\"cotizar\\\": la marca elige formato+cantidad, se genera un presupuesto en PDF con el link de pago de Mercado Pago ya adentro, y se manda por WhatsApp al influencer y a la marca. Si la marca paga la seña, la venta queda registrada en el ERP del influencer, no perdida en una captura de chat. Las métricas de audiencia (seguidores, alcance promedio) se muestran como texto fijo cargado a mano por el influencer, sin scraping ni promesa de dashboard en vivo — eso queda fuera del MVP para no inflar alcance ni tocar ToS de Meta/IG.",
+        "solucion": "MVP acotado a lo mínimo vendible: (1) catálogo de servicio relabeled a \\\"formatos de contenido\\\" con precio, reusando el módulo de catálogo existente; (2) botón de cotización self-serve en el storefront público que arma el presupuesto sin que el influencer tenga que escribir primero; (3) el link de cobro de Mercado Pago embebido en el mismo PDF de presupuesto para cobrar seña al aceptar. Se deja explícitamente afuera del v1 cualquier dashboard de métricas en vivo o integración con APIs de redes sociales — ese es un v2 opcional, no parte de este MVP, y no se promete al cliente hasta validar demanda real.",
+        "encajeGSG": "100% sobre módulos ya construidos: storefront público por tenant, catálogo con precios, generador de presupuestos/PDF y checkout de Mercado Pago ya integrado al ERP. No hay infraestructura nueva ni riesgo legal de scraping; el trabajo es vocabulario de rubro + exponer un botón de cotización self-serve + insertar el link de pago en la plantilla de PDF, es decir cableado sobre lo existente.",
+        "mejorasAplicadas": "Se redujo el MVP al mínimo vendible: se sacó del alcance v1 el \\\"media kit vivo\\\" con métricas y catálogo ampliado, dejando solo catálogo simple + cotizador self-serve + cobro de seña embebido, que es lo que efectivamente cierra el círculo cotización→venta→cobro. Se bajó la confianza del dolor de \\\"muy pagable\\\" a \\\"pagable pero con adopción incierta\\\": es un dolor real pero de bajo ticket individual, así que el score de impacto y confianza se ajustó a la baja para no inflar, priorizando honestidad sobre entusiasmo.",
+        "impacto": 5,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 18,
+        "costoHumanoUSD": 350,
+        "pctAutomatizableIA": 85,
+        "tiempoMVPdias": 5
+      }
+    },
+    {
+      "id": "r2-19f2ad3b",
+      "ronda": 2,
+      "autor": "Analista de mercado local",
+      "autorKey": "mercado",
+      "v1": {
+        "titulo": "Agenda y CRM de marcas/clientes con seguimiento de pagos pendientes"
+      },
+      "mejoraV2": "Se concretó el dolor: no es solo \"flujo de caja\", es falta de un tablero visual de un vistazo. Se agregó un diferencial visual concreto (semáforo de cobranza + Kanban de entregables) en vez de \"dashboard simple\" genérico, y se sumó la \"vista cliente\" pública aprovechando el storefront existente, subiendo el valor percibido sin construir nada nuevo de infraestructura.",
+      "mejoraV3": "Validado que el dolor es real y específico del segmento (visibilidad de estado de cuenta por marca, no solo cobranza genérica) y que es pagable como feature premium o addon de un plan existente. Se acotó el MVP a 3 piezas concretas y chicas (semáforo, Kanban, link read-only) evitando scope creep hacia un CRM completo nuevo. Se puntuó con honestidad: impacto medio (nicho, no motor de ventas masivo) pero esfuerzo bajo por altísima reutilización, lo que da una relación esfuerzo/impacto muy favorable.",
+      "final": {
+        "titulo": "CRM de marcas con semáforo de cobranza y timeline visual de entregables",
+        "segmento": "transversal",
+        "dolor": "El community manager/creador gestiona 5-15 marcas en simultáneo entre Excel, WhatsApp y notas sueltas: no tiene un solo lugar donde ver de un vistazo qué le deben, qué le deben entregar y para cuándo. El dolor es de visibilidad de un vistazo, no solo de caja.",
+        "categoriaDolor": "gestion_clientes_marcas",
+        "descripcion": "CRM liviano donde cada marca/cliente tiene una ficha con semáforo de cobranza (verde/amarillo/rojo + monto), una mini-timeline Kanban de entregables (pendiente/en revisión/entregado) e historial de contacto. Modo \"vista cliente\" opcional: link de solo lectura para que la marca vea el estado de sus entregables sin Excel compartido. Prioriza mirar colores y barras por sobre leer tablas.",
+        "solucion": "MVP acotado a reutilización: renombrar jerga del módulo clientes+agenda+recordatorios WhatsApp del ERP (clientes=marcas, turnos=entregas/reuniones), agregar un componente de semáforo de cobro (reutilizando el patrón de badges/estados ya existente) y una vista Kanban simple sobre los mismos datos de agenda/tareas. El link \"vista cliente\" reutiliza el mecanismo de storefront público por tenant, aplicado a nivel de cliente individual. Sin modelo de datos nuevo ni infraestructura nueva: son vistas y renombrados sobre tablas existentes.",
+        "encajeGSG": "100% reconfiguración de blueprint existente: clientes, agenda, recordatorios WhatsApp y el mecanismo de URL pública por tenant ya están en el core del ERP. Lo único a construir es UI (componente semáforo + vista Kanban) y el scoping del link público a nivel cliente — cero infraestructura nueva.",
+        "mejorasAplicadas": "Validado que el dolor es real y específico del segmento (visibilidad de estado de cuenta por marca, no solo cobranza genérica) y que es pagable como feature premium o addon de un plan existente. Se acotó el MVP a 3 piezas concretas y chicas (semáforo, Kanban, link read-only) evitando scope creep hacia un CRM completo nuevo. Se puntuó con honestidad: impacto medio (nicho, no motor de ventas masivo) pero esfuerzo bajo por altísima reutilización, lo que da una relación esfuerzo/impacto muy favorable.",
+        "impacto": 6,
+        "confianza": 7,
+        "esfuerzo": 3,
+        "horasHumanas": 32,
+        "costoHumanoUSD": 700,
+        "pctAutomatizableIA": 85,
+        "tiempoMVPdias": 10
+      }
+    },
+    {
+      "id": "r2-7e27f8c7",
+      "ronda": 2,
+      "autor": "Analista de mercado local",
+      "autorKey": "mercado",
+      "v1": {
+        "titulo": "Calendario editorial + reportes de resultados automáticos para marcas"
+      },
+      "mejoraV2": "Concreté el dolor con una escena específica (23hs de un día de fin de mes) en vez de dejarlo abstracto; recorté la solución a un cambio de \"adapter de datos\" sobre infraestructura existente en vez de sonar a feature nueva; until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until until",
+      "mejoraV3": "Se limpió el artefacto de texto corrupto (repetición de \"until\") de la v2. Se acotó explícitamente el alcance de v1 (solo entregas cargadas por el CM, sin métricas de performance de redes ni texto generado libre) para que el esfuerzo y el riesgo de la estimación sean honestos y no se infle la promesa de valor.",
+      "final": {
+        "titulo": "El informe mensual que se arma solo, sin PowerPoint ni trasnochada",
+        "segmento": "community_managers",
+        "dolor": "El 28 de cada mes el CM que lleva 3-4 cuentas se pone a las 23hs a copiar y pegar capturas en Canva para armar el informe del cliente. Lo manda tarde, con errores, o directamente lo debe y el cliente empieza a preguntar en qué se le está gastando la plata. No es falta de resultados: es falta de tiempo para mostrarlos, y eso hace dudar la renovación mes a mes.",
+        "categoriaDolor": "reportes_metricas",
+        "descripcion": "Un módulo que toma el calendario editorial que el CM ya carga día a día (qué se publicó, cuándo, para qué cliente) y a fin de mes genera solo un PDF prolijo con el detalle de entregas y un resumen ejecutivo en criollo (\"este mes publicamos 12 posteos y 3 reels\"), con un botón para mandarlo por WhatsApp al cliente final. El CM no arma nada extra: carga en el día a día y el informe le aparece listo el último día del mes. Sin métricas de alcance/engagement reales de cada red (eso requeriría integrarse a las APIs de Meta/TikTok, que es otro proyecto): la v1 reporta SOLO lo que el propio CM cargó como entregado, no performance.",
+        "solucion": "Reutilizar el motor de reportes periódicos + generación de PDF del ERP (hoy corre para ventas/POS) cambiando la fuente de datos: en vez de tomar tickets de venta, toma los ítems del calendario editorial como \"entregas\". Se agrega un cron mensual por tenant que arma el PDF automático y queda listo para reenviar por el WhatsApp que el CM ya usa con ese cliente. MVP acotado a: listado de entregas del mes agrupado por cliente + conteo por tipo de pieza + un párrafo de resumen con plantilla fija (no IA generativa de texto libre en v1, para no meter riesgo de alucinar números). Sin dashboards ni métricas de red social.",
+        "encajeGSG": "Cero desarrollo de reporting desde cero: se reusa el motor de reportes/PDF y el cron ya existentes en el ERP, más la integración WhatsApp-first que hoy dispara recordatorios de turnos (mismo mecanismo de envío, ahora dispara el informe en vez de un recordatorio de cita). El calendario editorial como fuente de datos ya debe existir como entidad en el ERP para que esto sea barato; si no existe todavía, ese es el verdadero costo del MVP.",
+        "mejorasAplicadas": "Se limpió el artefacto de texto corrupto (repetición de \"until\") de la v2. Se acotó explícitamente el alcance de v1 (solo entregas cargadas por el CM, sin métricas de performance de redes ni texto generado libre) para que el esfuerzo y el riesgo de la estimación sean honestos y no se infle la promesa de valor.",
+        "impacto": 6,
+        "confianza": 7,
+        "esfuerzo": 4,
+        "horasHumanas": 18,
+        "costoHumanoUSD": 250,
+        "pctAutomatizableIA": 75,
+        "tiempoMVPdias": 6
+      }
+    },
+    {
+      "id": "r2-eb20121a",
+      "ronda": 2,
+      "autor": "Analista de mercado local",
+      "autorKey": "mercado",
+      "v1": {
+        "titulo": "Gestor de canjes y pagos en especie con valorización automática"
+      },
+      "mejoraV2": "Se afiló el dolor agregando el síntoma concreto (llevan cuenta en Excel/memoria, subfacturan o no declaran) para hacerlo más verificable. Se concretó la solución con campos mínimos de carga y un semáforo de conveniencia en vez de un cálculo abstracto \"vale la pena\", y se agregó un fallback de precio de referencia cuando el producto no está en el catálogo propio (caso frecuente). Se recortó el texto de encaje GSG para dejar explícito que no se crea infraestructura nueva, solo un tipo de comprobante sobre tablas existentes.",
+      "mejoraV3": "Se recortó el MVP a lo mínimo indispensable (4-5 campos, un cálculo, un semáforo) descartando cualquier feature de \"análisis histórico de canjes\" o dashboard aparte que infle esfuerzo sin sumar venta. Se bajó la confianza respecto de v2 porque, aunque el dolor es real, la disposición a pagar EXTRA por esta feature puntual (vs. valorarla como parte del combo del ERP) es incierta sin validación de mercado directa. Se ajustaron horas y costo a un tamaño de tarea chico y concreto, no de módulo.",
+      "final": {
+        "titulo": "Registro de canjes con valorización automática y semáforo de conveniencia",
+        "segmento": "influencers",
+        "dolor": "Las colaboraciones en canje (no en plata) con marcas chicas/medianas son la norma en Argentina, y el influencer no tiene forma simple de valorizar lo recibido, comparar si conviene frente a su tarifa en efectivo, ni dejarlo asentado para el monotributo — hoy lo lleva de memoria o en un Excel suelto y termina subfacturando o sin declarar nada.",
+        "categoriaDolor": "cobros_facturacion",
+        "descripcion": "Un tipo de comprobante \"Canje\" dentro del módulo de cobros ya existente del ERP: al cargar una colaboración en especie, el sistema valoriza el producto recibido contra el catálogo de precios propio del creador (o un valor de referencia manual si no está catalogado), muestra al instante un semáforo (conviene / justo / no conviene) comparando contra la tarifa vigente para ese tipo de publicación, y lo suma como ingreso en especie al mismo reporte mensual que ya alimenta la facturación ARCA/monotributo. No crea infraestructura nueva: es un tipo de comprobante y una regla de comparación sobre tablas de cobros, catálogo e inventario que ya existen.",
+        "solucion": "MVP acotado: (1) nuevo tipo de comprobante \"Canje\" con 4-5 campos (marca, producto/servicio, cantidad, referencia de precio de catálogo o valor manual, tipo de publicación acordada); (2) cálculo automático del valor en pesos y comparación contra la tarifa vigente del creador para ese tipo de publicación, con semáforo simple sin cálculo manual; (3) el registro cae directo en el reporte mensual existente sumando el ingreso en especie, sin duplicar carga de datos. Nada de app aparte, nada de tabla contable nueva.",
+        "encajeGSG": "Reutiliza el módulo de cobros, el catálogo de precios, el inventario y el reporte mensual ARCA/monotributo que el ERP ya tiene: es un nuevo tipo de comprobante + una regla de negocio sobre datos existentes, no un módulo ni base de datos nueva. Encaja directo en el flujo que un creador ya usaría para facturar sus colaboraciones en efectivo.",
+        "mejorasAplicadas": "Se recortó el MVP a lo mínimo indispensable (4-5 campos, un cálculo, un semáforo) descartando cualquier feature de \"análisis histórico de canjes\" o dashboard aparte que infle esfuerzo sin sumar venta. Se bajó la confianza respecto de v2 porque, aunque el dolor es real, la disposición a pagar EXTRA por esta feature puntual (vs. valorarla como parte del combo del ERP) es incierta sin validación de mercado directa. Se ajustaron horas y costo a un tamaño de tarea chico y concreto, no de módulo.",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 3,
+        "horasHumanas": 14,
+        "costoHumanoUSD": 180,
+        "pctAutomatizableIA": 80,
+        "tiempoMVPdias": 4
+      }
+    },
+    {
+      "id": "r2-f83e3508",
+      "ronda": 2,
+      "autor": "Analista de mercado local",
+      "autorKey": "mercado",
+      "v1": {
+        "titulo": "Generador de piezas gráficas de marca por preset IA para freelancers"
+      },
+      "mejoraV2": "Concreté el listado de piezas del kit (portada de historias, media kit, presupuesto/factura, promo, firma WhatsApp) en vez de dejarlo genérico; definí el mecanismo técnico exacto (bifurcar el branch de salida del generador existente, sin tocar el motor de extracción); agregué el ángulo de negocio (gancho de funnel gratuito hacia el ERP) que la v1 no mencionaba, subiendo el encaje con la regla demo→venta→inversión de GSG.",
+      "mejoraV3": "Recorté el kit de 5-8 piezas a exactamente 5 para bajar esfuerzo y tiempo de MVP; agregué el mecanismo de captura de lead (email/WhatsApp antes de la descarga) que faltaba y es el verdadero valor de negocio del producto (no las piezas en sí); bajé impacto y confianza a valores honestos porque es una herramienta de funnel indirecta, no un ingreso directo, y subí ligeramente esfuerzo por la capa de render que no estaba dimensionada en v2.",
+      "final": {
+        "titulo": "Kit de Piezas Gráficas de Marca — funnel gratuito desde el motor de PRESET IA del ERP",
+        "segmento": "creativos",
+        "dolor": "Freelancers, community managers e influencers necesitan piezas gráficas coherentes con su marca (portada de historias, media kit, presupuesto/factura, banner de promo, firma de WhatsApp) todo el tiempo, pero no tienen diseñador fijo ni Canva Pro, y terminan armando cada pieza a mano, con identidad inconsistente entre campañas y clientes.",
+        "categoriaDolor": "entregables_visuales",
+        "descripcion": "Se bifurca la salida del Generador de PRESET por IA (ya construido y auditado para altas de tenant): mismo paso de ingesta con autorización + extracción de identidad (logo, paleta, tipografía, tono) desde Instagram o web, pero en vez de crear tenant+storefront, renderiza un Kit de Marca fijo de 5 piezas priorizadas (portada de historias, media kit, presupuesto/factura con la identidad del creador, post de promo, firma de WhatsApp) en PNG/PDF listas para descargar. Vive como landing standalone gratuita, sin login ni persistencia, y captura el contacto del freelancer como lead. No es el producto que se vende: es el imán de entrada que precalienta la venta del ERP completo (agenda + cobros MP + facturación ARCA) cuando el freelancer crece y empieza a facturar.",
+        "solucion": "MVP acotado a 5 piezas (no 8) usando el pipeline de extracción de identidad ya existente + una capa nueva de templates fijos (SVG/HTML→PNG/PDF) parametrizados por logo/paleta/tono extraídos. Sin editor visual, sin variantes por rubro en v1 — un set único de templates genéricos que sirve para cualquier creativo. Entrega por ZIP descargable + captura de email/WhatsApp del lead antes de la descarga (ese es el activo real del producto). Sin base de datos: assets se generan on-demand y se sirven efímeros.",
+        "encajeGSG": "Reutiliza el pipeline de extracción de identidad de marca del Generador de PRESET por IA (motor ya construido, auditado, con flujo de autorización resuelto) — lo único nuevo es la capa de templates/render, acotada a 5 piezas para el MVP. Encaja con demo pública a costo cero (sin DB, sin login, sin dominio propio) y alimenta el funnel hacia venta del ERP (agenda, cobros MP, facturación ARCA) cumpliendo el ciclo demo→venta→inversión: no se gasta nada hasta que hay venta real de suscripción al ERP.",
+        "mejorasAplicadas": "Recorté el kit de 5-8 piezas a exactamente 5 para bajar esfuerzo y tiempo de MVP; agregué el mecanismo de captura de lead (email/WhatsApp antes de la descarga) que faltaba y es el verdadero valor de negocio del producto (no las piezas en sí); bajé impacto y confianza a valores honestos porque es una herramienta de funnel indirecta, no un ingreso directo, y subí ligeramente esfuerzo por la capa de render que no estaba dimensionada en v2.",
+        "impacto": 6,
+        "confianza": 6,
+        "esfuerzo": 4,
+        "horasHumanas": 45,
+        "costoHumanoUSD": 700,
+        "pctAutomatizableIA": 85,
         "tiempoMVPdias": 10
       }
     }
