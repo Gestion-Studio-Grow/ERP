@@ -39,3 +39,11 @@ test("wording de la tienda de pádel por slug", () => {
   assert.equal(w.itemNoun, "producto");
   assert.equal(w.weightNote, null); // no se vende por peso
 });
+
+// Fix m-1 (reporte QA 2026-07-06): el placeholder de la nota del pedido decía
+// "cómo lo querés preparado" (wording de carnicería) en la tienda de pádel.
+test("wording de la tienda de pádel: la nota del pedido no lleva lenguaje de carnicería", () => {
+  const w = retailWordingForSlug("adosmanos");
+  assert.ok(w.notesPlaceholder.length > 0);
+  assert.doesNotMatch(w.notesPlaceholder.toLowerCase(), /preparad/);
+});

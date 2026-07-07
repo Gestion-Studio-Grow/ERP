@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { prisma } from "@/lib/prisma";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 
 // ============================================================================
 // BRANDING POR TENANT + REGLA DE TEMAS FRONT/BACK (design system)
@@ -59,6 +59,8 @@ const TENANTS: Record<string, TenantBrand> = {
   // Shine (velas de soja): vidriera clara cálida → admin oscuro. Acento ámbar/dorado,
   // el "shine" de una llama de vela. Ver src/tenants/storefront.ts (copy) y rubro `velas`.
   "shinevelas": { name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light" },
+  // A Dos Manos (tienda de pádel): vidriera clara → admin oscuro. Acento verde cancha.
+  "adosmanos": { name: "A Dos Manos", monogram: "AM", preset: "verde", frontTheme: "light" },
 };
 
 const DEFAULT_BRAND: TenantBrand = {
@@ -67,6 +69,12 @@ const DEFAULT_BRAND: TenantBrand = {
   preset: "petroleo",
   frontTheme: "light",
 };
+
+// Lookup PURO (sin DB) — separado para poder testear la asignación slug→marca sin
+// mockear Prisma/el request. `null`/slug desconocido → DEFAULT_BRAND.
+export function brandForSlug(slug: string | null): TenantBrand {
+  return (slug && TENANTS[slug]) || DEFAULT_BRAND;
+}
 
 // Acento resuelto (hex + texto-sobre-acento) para una superficie según SU tema.
 export function resolveAccent(preset: AccentPreset, theme: Theme) {
@@ -80,13 +88,19 @@ export function resolveAccent(preset: AccentPreset, theme: Theme) {
 // propósito (el branding es cosmético, nunca debe tumbar el render). Sin DB
 // (build / entorno sin base) cae al brand por defecto.
 //
+// Resuelve por el TENANT ACTUAL del request (`getCurrentTenantSlug`, host/subdominio/
+// TENANT_HOST_MAP/FORCE_TENANT_SLUG-aware) — antes usaba `tenant.findFirst()` sin
+// `where`, que devolvía siempre la MISMA fila (la más vieja de la tabla, típicamente
+// CH) sin importar qué tenant estaba sirviendo el request. Esa fue la causa de J-2:
+// TODOS los dominios (magra-erp, adosmanos-erp, etc.) mostraban la marca de CH en
+// `/admin/login` y en el resto del backoffice.
+//
 // TODO (cuando se despliegue la migración de Neon): persistir por tenant en
 // BusinessSettings (accentPreset, frontTheme, logo) y leerlo acá con fallback a
 // este mapa. Un único punto de cambio.
 export const getTenantBrand = cache(async (): Promise<TenantBrand> => {
   try {
-    const tenant = await prisma.tenant.findFirst({ select: { slug: true } });
-    return (tenant && TENANTS[tenant.slug]) || DEFAULT_BRAND;
+    return brandForSlug(await getCurrentTenantSlug());
   } catch {
     return DEFAULT_BRAND;
   }

@@ -28,6 +28,17 @@ test("branding provisional de magra (address/instagram) migró al rubro consolid
   assert.ok(rubro.brandingDefaults.addressLine, "addressLine provisional presente");
 });
 
+// Fix M-2 (reporte QA 2026-07-06): el Instagram provisional de magra apuntaba a un
+// handle real pero EQUIVOCADO ("@magra.carniceria", cuenta ajena/inexistente para el
+// negocio) sin ninguna marca visual de que era un dato provisional. Debe quedar como
+// placeholder MARCADO (a confirmar por el dueño), no como un handle que parece real.
+test("Instagram provisional de magra: placeholder marcado, no el handle equivocado detectado por QA", () => {
+  const rubro = getRetailRubro("carniceria")!;
+  const ig = rubro.brandingDefaults.instagram ?? "";
+  assert.notEqual(ig, "@magra.carniceria", "no debe ser el handle equivocado que reportó QA");
+  assert.match(ig.toLowerCase(), /confirmar/, "debe quedar visiblemente marcado como pendiente de confirmar");
+});
+
 test("brandingDefaults NUNCA trae un whatsapp hardcodeado (regla dura — sin número real, el CTA lo pide just-in-time)", () => {
   const rubro = getRetailRubro("carniceria")!;
   assert.ok(!rubro.brandingDefaults.whatsapp, "whatsapp no debe tener un default falso/placeholder");

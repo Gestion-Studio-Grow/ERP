@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getPublicBookingData, getPublicNews } from "@/lib/actions";
-import { getCatalog } from "@/lib/catalog-actions";
 import { getPublishedReviews } from "@/lib/reviews-actions";
 import { getLocation } from "@/lib/settings";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
@@ -54,14 +53,17 @@ export default async function Home() {
   const slug = await getCurrentTenantSlug();
   if (resolveRubroIdBySlug(slug)) redirect("/tienda");
 
-  const [{ groups }, { professionals }, news, reviews, location] = await Promise.all([
+  // `professionals` sale de getPublicBookingData() (loader PÚBLICO, ya filtra
+  // active/deletedAt server-side) — antes se pisaba con getCatalog(), un loader
+  // GATEADO por sesión (requireCapability → redirect a /admin/login). Cualquier
+  // visitante anónimo a la raíz de CH disparaba ese redirect: la causa real de
+  // C-1 (reporte QA 2026-07-06), no solo un tema de estado de deploy.
+  const [{ groups, professionals }, news, reviews, location] = await Promise.all([
     getPublicBookingData(),
-    getCatalog(),
     getPublicNews(),
     getPublishedReviews(),
     getLocation(),
   ]);
-  const activeProfessionals = professionals.filter((p) => p.active);
 
   // Localización (módulo Localización): datos del negocio ya resueltos (defaults
   // aplicados, mapsUrl derivado). Si la dueña no cargó nada, caen a los textos de
@@ -173,7 +175,7 @@ export default async function Home() {
         <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
           <p style={{ ...eyebrow, margin: "0 0 12px" }}>Quién te atiende</p>
           <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 48px" })}>Equipo</h2>
-          {activeProfessionals.map((p) => {
+          {professionals.map((p) => {
             const photo = TEAM_PHOTOS[p.name];
             return (
             <Reveal key={p.id} style={{ padding: "32px 0", display: "flex", gap: 24, alignItems: "flex-start", borderTop: "1px solid var(--line)" }}>
@@ -208,13 +210,13 @@ export default async function Home() {
                   {p.name}
                 </p>
                 <p style={{ margin: "12px 0 0", fontSize: ".875rem", color: "var(--text-muted)" }}>
-                  {p.services.length > 0 ? p.services.map((s) => s.name).slice(0, 4).join(" · ") : "Estética integral"}
+                  {p.serviceNames.length > 0 ? p.serviceNames.slice(0, 4).join(" · ") : "Estética integral"}
                 </p>
               </div>
             </Reveal>
             );
           })}
-          {activeProfessionals.length === 0 && (
+          {professionals.length === 0 && (
             <p style={{ color: "var(--text-muted)" }}>Próximamente presentamos al equipo.</p>
           )}
         </div>

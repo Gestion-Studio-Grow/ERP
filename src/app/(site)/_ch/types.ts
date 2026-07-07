@@ -23,6 +23,10 @@ export type BookingProfessional = {
   name: string;
   boxName: string | null;
   serviceIds: string[];
+  // Nombres de sus servicios, para la sección "Equipo" de la landing pública
+  // (antes esto se resolvía llamando a getCatalog(), gateado por sesión — ver
+  // getPublicBookingData en @/lib/actions).
+  serviceNames: string[];
 };
 
 export type BookingDay = { value: string; label: string };

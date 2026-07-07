@@ -37,6 +37,8 @@ export interface RetailWording {
   orderCta: string;
   /** Aclaración bajo el total (p. ej. peso variable). null = sin aclaración. */
   weightNote: string | null;
+  /** Placeholder del campo "Nota" del pedido, por rubro (evita wording de otro rubro). */
+  notesPlaceholder: string;
 }
 
 // Un ítem del catálogo semilla. `kg` = venta por peso (precio/kg); `u` = por unidad.
@@ -71,6 +73,7 @@ const carniceria: RetailRubro = {
     heroTagline: "Carnes premium envasadas al vacío, elegidas una por una. Pedí online y te llega a casa.",
     orderCta: "Hacé tu pedido",
     weightNote: "El total puede ajustarse al peso real de cada pieza envasada.",
+    notesPlaceholder: "ej: cómo lo querés preparado / aclaraciones",
   },
   modules: ["pos", "stock", "venta-peso", "venta-unidad", "proveedores", "cuenta-corriente"],
   // addressLine/instagram: PROVISIONALES (mismo dato que tenía el blueprint standalone
@@ -84,7 +87,11 @@ const carniceria: RetailRubro = {
     addressLine: "Av. Provisional 1234, Canning", // provisional
     city: "Canning, Buenos Aires",
     hoursLabel: "Lun a Sáb 10–20h · Dom 9–13h",
-    instagram: "@magra.carniceria", // provisional
+    // PLACEHOLDER marcado (fix M-2, reporte QA 2026-07-06): el valor anterior
+    // ("@magra.carniceria") apuntaba a un handle real de Instagram pero EQUIVOCADO
+    // (no es la cuenta de magra) — un link roto/ajeno en la vidriera del cliente sin
+    // ninguna marca visual de que era provisional. El handle real lo carga el dueño.
+    instagram: "@instagram-a-confirmar",
     contactNote: "Carnes premium envasadas al vacío, más una línea gourmet elegida con el mismo criterio.",
   },
   // Líneas REALES de magra (de su web): vaca Angus de Estancia Don Ramón, cerdo magro,
@@ -128,6 +135,7 @@ const verduleria: RetailRubro = {
     heroTagline: "Fruta y verdura fresca del día. Armá tu pedido y pasá a buscarlo o te lo llevamos.",
     orderCta: "Enviar pedido",
     weightNote: "El total final se ajusta al peso real pesado en el local.",
+    notesPlaceholder: "ej: maduración de la fruta, tamaño, aclaraciones",
   },
   modules: ["pos", "stock", "venta-peso", "venta-unidad", "proveedores"],
   brandingDefaults: {
@@ -162,6 +170,7 @@ const dietetica: RetailRubro = {
     heroTagline: "Frutos secos, cereales y almacén natural. Comprá por peso lo que necesites.",
     orderCta: "Enviar pedido",
     weightNote: "El total final se ajusta al peso real fraccionado en el local.",
+    notesPlaceholder: "ej: cantidad, marca preferida, aclaraciones",
   },
   modules: ["pos", "stock", "venta-peso", "venta-unidad", "listas-precio"],
   brandingDefaults: {
@@ -195,6 +204,7 @@ const kiosco: RetailRubro = {
     heroTagline: "Golosinas, bebidas y algo para el momento. Encargá y pasá a buscarlo.",
     orderCta: "Enviar pedido",
     weightNote: null,
+    notesPlaceholder: "ej: aclaraciones del pedido",
   },
   modules: ["pos", "stock", "venta-unidad", "proveedores"],
   brandingDefaults: {
@@ -227,6 +237,7 @@ const fiambreria: RetailRubro = {
     heroTagline: "Fiambres y quesos cortados como te gustan. Armá tu picada y retirala.",
     orderCta: "Enviar pedido",
     weightNote: "El total final se ajusta al peso real cortado en el mostrador.",
+    notesPlaceholder: "ej: grosor del corte, cantidad, aclaraciones",
   },
   modules: ["pos", "stock", "venta-peso", "venta-unidad", "proveedores", "cuenta-corriente"],
   brandingDefaults: {
@@ -259,6 +270,7 @@ const indumentaria: RetailRubro = {
     heroTagline: "Prendas seleccionadas. Reservá tu talle y pasá a probártelo.",
     orderCta: "Reservar",
     weightNote: null,
+    notesPlaceholder: "ej: talle, color, aclaraciones",
   },
   modules: ["pos", "stock", "venta-unidad", "listas-precio", "proveedores"],
   brandingDefaults: {
@@ -297,6 +309,7 @@ const velas: RetailRubro = {
     heroTagline: "Velas, aromas y decoración para transformar tu casa en un ambiente. Armá el tuyo.",
     orderCta: "Hacer pedido",
     weightNote: null,
+    notesPlaceholder: "ej: aroma preferido, envoltorio para regalo, aclaraciones",
   },
   modules: ["pos", "stock", "venta-unidad", "proveedores"],
   brandingDefaults: {
@@ -353,6 +366,7 @@ const padel: RetailRubro = {
     heroTagline: "Palas y zapatillas de pádel, elegidas para que juegues mejor. Mirá el catálogo y hacé tu pedido.",
     orderCta: "Hacé tu pedido",
     weightNote: null,
+    notesPlaceholder: "ej: talle, color, aclaraciones",
   },
   modules: ["pos", "stock", "venta-unidad"],
   brandingDefaults: {
@@ -414,6 +428,7 @@ export const GENERIC_RETAIL_WORDING: RetailWording = {
   heroTagline: "Elegí lo que necesitás y hacé tu pedido. Pasá a buscarlo o te lo acercamos.",
   orderCta: "Enviar pedido",
   weightNote: "El total puede ajustarse según el peso real en el local.",
+  notesPlaceholder: "ej: aclaraciones del pedido",
 };
 
 export function getRetailRubro(id: string): RetailRubro | null {

@@ -325,7 +325,7 @@ export async function getPublicBookingData() {
         id: true,
         name: true,
         box: { select: { name: true } },
-        services: { where: { active: true, deletedAt: null }, select: { id: true } },
+        services: { where: { active: true, deletedAt: null }, select: { id: true, name: true } },
       },
     }),
   ]);
@@ -344,6 +344,7 @@ export async function getPublicBookingData() {
       name: p.name,
       boxName: p.box?.name ?? null,
       serviceIds: p.services.map((s) => s.id),
+      serviceNames: p.services.map((s) => s.name),
     })),
   };
 }
