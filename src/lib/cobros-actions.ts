@@ -11,6 +11,7 @@ import { auditAdmin } from "@/lib/audit";
 import {
   crearPasarelaCobrosPara,
   modoCobrosDesdeEnv,
+  type ModoCobros,
 } from "@/lib/mercadopago-cobros-dispatch";
 import {
   SolicitudCobroInvalidaError,
@@ -25,7 +26,7 @@ export type GenerarCobroResult =
       preferenceId: string;
       initPoint: string;
       sandboxInitPoint?: string;
-      modo: "stub" | "real";
+      modo: ModoCobros;
     }
   | { ok: false; error: string };
 
@@ -76,7 +77,7 @@ export async function generarCobro(formData: FormData): Promise<GenerarCobroResu
 }
 
 /** Modo de cobros actual (para que la UI avise si está en sandbox). */
-export async function estadoCobros(): Promise<{ modo: "stub" | "real" }> {
+export async function estadoCobros(): Promise<{ modo: ModoCobros }> {
   await requireCapability("payments:manage");
   return { modo: modoCobrosDesdeEnv() };
 }

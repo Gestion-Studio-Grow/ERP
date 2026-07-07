@@ -27,3 +27,9 @@ export {
 } from "./http";
 
 export { StubPasarelaCobros, STUB_COBROS_BASE } from "./stub";
+
+export {
+  solicitudDePrueba,
+  generarCobroDePrueba,
+  type ResultadoPruebaCobro,
+} from "./prueba";

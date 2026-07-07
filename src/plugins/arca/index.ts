@@ -55,4 +55,11 @@ export {
   credencialDesdeEnv,
   type CredencialEmisor,
 } from './afip/signer';
-export { crearAfipClient, modoDesdeEnv, type ModoArca } from './afip/factory';
+export { crearAfipClient, modoDesdeEnv, configParaModo, type ModoArca } from './afip/factory';
+export {
+  comprobanteDePrueba,
+  emitirFacturaDePrueba,
+  fechaDePrueba,
+  CUIT_DE_PRUEBA,
+  type ResultadoPruebaArca,
+} from './afip/prueba';

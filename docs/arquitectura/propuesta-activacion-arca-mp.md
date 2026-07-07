@@ -96,4 +96,53 @@ tablas tocadas (`npm run gate:rls` verde).
 
 Nada de esto lo ejecuta el agente. Los secretos los pega el dueño (FASE 2, ADR-041).
 
+---
+
+## E. Banco de pruebas (homologación / test) — construido 2026-07-07
+
+**Estado:** 🟢 construido y verde (tsc + 551 tests + build), detrás de flag, default = stub. Deja
+**probar ARCA y Mercado Pago sin credenciales productivas ni dinero real**, con registro de cada
+intento. Complementa A-D (activación a `real`): esto es el escalón intermedio para validar sin
+arriesgar nada.
+
+### E.1 · Qué se agregó
+
+- **ARCA — modo `homologacion` (nuevo, además de `stub`/`real`):** `ARCA_MODO=homologacion` usa el
+  adapter SOAP real, pero **fuerza siempre** los endpoints de testing oficiales de ARCA
+  (`wsaahomo`/`wswhomo`), sin importar lo que diga `arcaHomologacion` del tenant — un certificado de
+  PRUEBA nunca puede terminar facturando de verdad (`src/plugins/arca/afip/factory.ts`,
+  `configParaModo`).
+- **Acción `emitirFacturaDePruebaAction()`** (`src/lib/arca-pruebas-actions.ts`, botón "🧪 Banco de
+  pruebas" en `/admin/facturacion`): arma una Factura C de prueba (monto chico, consumidor final),
+  pide el CAE y devuelve el resultado. **Bloqueada en modo `real`** (guardrail propio, no depende del
+  operador). No toca `Invoice`/`OutboxEvent` — no depende de que las migraciones fiscales estén
+  aplicadas a Neon.
+- **Mercado Pago — modo `test` (nuevo, además de `stub`/`real`):** `MP_MODO=test` usa el mismo
+  adapter HTTP real que `real` — MP usa **la misma API** para pruebas y producción; lo que distingue
+  es la credencial (`MP_API_BASE` es única). Se agregó una heurística (`pareceTokenDePrueba`) que
+  avisa por log si el token no tiene el prefijo `TEST-` esperado en modo test (o si tiene ese
+  prefijo en modo real) — nunca bloquea, nunca loguea el token completo.
+- **Acción `generarCobroDePruebaAction()`** (`src/lib/mercadopago-pruebas-actions.ts`, botón "🧪 Banco
+  de pruebas" en `/admin/facturacion`): genera un link de cobro de prueba (monto chico, concepto
+  identificable). **Bloqueada en modo `real`.**
+- **Registro de cada intento:** ambas acciones loguean con el logger estructurado existente
+  (`src/lib/logger.ts`, scopes `arca.prueba` / `mercadopago.prueba`) — modo, montos, CAE/preferenceId
+  o motivo de rechazo/error mapeado. Cero tabla nueva: no requiere ninguna migración.
+
+### E.2 · Credenciales de PRUEBA que carga el dueño (exacto, nada más que esto)
+
+| Dónde se genera | Variable de entorno | Notas |
+|---|---|---|
+| ARCA (clave fiscal → homologación / Administración de Certificados Digitales, servicio de testing) | `ARCA_CERT_PEM` | Certificado X.509 **de PRUEBA** (mismo formato que el de producción, fila A.1). Sin esto, `ARCA_MODO=homologacion` sigue en stub-error explícito, nunca falsea el CAE. |
+| ARCA (idem, junto con el CSR del certificado de prueba) | `ARCA_KEY_PEM` | Clave privada **de PRUEBA**. |
+| — (no es secreto; ya existe en `Tenant`) | `arcaCuit`/`arcaPuntoVenta` del tenant | Si no están cargados, el banco de pruebas cae solo a un CUIT/punto de venta de placeholder (`20111111112` / `1`) — no bloquea la prueba. |
+| Mercado Pago → Tus integraciones → **Credenciales de prueba** (no las de producción) | `MP_ACCESS_TOKEN` | El de PRUEBA empieza con `TEST-`. Es el MISMO nombre de variable que ya usa el modo `real` (fila A.2) — la diferencia la da `MP_MODO=test` vs `MP_MODO=real`, no una variable nueva. |
+
+**Prender el banco de pruebas:** `ARCA_MODO=homologacion` + `ARCA_CERT_PEM`/`ARCA_KEY_PEM` de prueba
+(para ARCA), y/o `MP_MODO=test` + `MP_ACCESS_TOKEN` de prueba (para MP) — cualquiera de los dos es
+independiente del otro. Sin ninguna credencial cargada, ambos módulos siguen en `stub` (sandbox en
+memoria, cero red) y los botones "🧪 Banco de pruebas" igual funcionan (CAE/link simulados). Ninguna
+de estas dos variables (`ARCA_MODO=homologacion`, `MP_MODO=test`) factura o cobra de verdad — para
+eso hace falta `=real` + credenciales productivas (bloque A-D arriba).
+
 — Elaborado por GSG

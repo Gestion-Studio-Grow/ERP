@@ -2,17 +2,43 @@
 
 // Generar cobro por Mercado Pago (link de pago / Checkout Pro) — módulo Cobros.
 // El link se comparte por WhatsApp (cultura argentina, ADR-044). Modo sandbox por
-// defecto: sin credenciales devuelve un link de prueba; con MP_MODO=real, uno real.
+// defecto: sin credenciales devuelve un link de prueba; con MP_MODO=test (credenciales
+// de PRUEBA) o MP_MODO=real (credenciales productivas), uno de Checkout Pro real.
+// El botón de banco de pruebas genera un cobro de prueba sin usar el formulario.
 
 import { useState } from "react";
 import { generarCobro, type GenerarCobroResult } from "@/lib/cobros-actions";
+import { generarCobroDePruebaAction } from "@/lib/mercadopago-pruebas-actions";
+import type { ModoCobros } from "@/lib/mercadopago-cobros-dispatch";
 import { useToast } from "../ToastProvider";
 import { Input } from "@/components/ui";
 
-export default function CobrosSection({ modo }: { modo: "stub" | "real" }) {
+const ETIQUETA_MODO: Record<ModoCobros, string> = {
+  stub: "modo prueba (sandbox) — el link no cobra de verdad",
+  test: "modo TEST — Checkout Pro real con credenciales de prueba, no cobra de verdad",
+  real: "",
+};
+
+export default function CobrosSection({ modo }: { modo: ModoCobros }) {
   const [link, setLink] = useState<Extract<GenerarCobroResult, { ok: true }> | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [probando, setProbando] = useState(false);
   const { showError, showSuccess } = useToast();
+
+  async function probarCobro() {
+    setProbando(true);
+    try {
+      const r = await generarCobroDePruebaAction();
+      if (r.ok) {
+        setLink({ ok: true, preferenceId: r.preferenceId, initPoint: r.initPoint, sandboxInitPoint: r.sandboxInitPoint, modo: r.modo });
+        showSuccess("Cobro de prueba generado (banco de pruebas).");
+      } else {
+        showError(r.error);
+      }
+    } finally {
+      setProbando(false);
+    }
+  }
 
   async function copiar(texto: string) {
     try {
@@ -29,9 +55,9 @@ export default function CobrosSection({ modo }: { modo: "stub" | "real" }) {
       <p className="mb-3 text-sm text-muted">
         Creá un link de pago para mandarle al cliente por WhatsApp. Cuando paga, el cobro entra
         solo.
-        {modo === "stub" && (
+        {modo !== "real" && (
           <span className="ml-2 rounded bg-surface-sunken px-2 py-0.5 text-xs text-muted">
-            modo prueba (sandbox) — el link no cobra de verdad
+            {ETIQUETA_MODO[modo]}
           </span>
         )}
       </p>
@@ -67,6 +93,19 @@ export default function CobrosSection({ modo }: { modo: "stub" | "real" }) {
         </button>
       </form>
 
+      {modo !== "real" && (
+        <div className="mt-3">
+          <button
+            type="button"
+            disabled={probando}
+            onClick={probarCobro}
+            className="rounded-md border border-line px-3 py-1.5 text-sm text-muted disabled:opacity-60"
+          >
+            {probando ? "Probando…" : "🧪 Banco de pruebas: generar cobro de prueba"}
+          </button>
+        </div>
+      )}
+
       {link && (
         <div className="mt-4 rounded-lg border border-line bg-surface-sunken p-4">
           <p className="mb-1 text-sm font-medium text-strong">Link de cobro listo</p>
@@ -87,7 +126,7 @@ export default function CobrosSection({ modo }: { modo: "stub" | "real" }) {
             >
               Abrir
             </a>
-            {link.modo === "stub" && (
+            {link.modo !== "real" && (
               <span className="text-xs text-muted">
                 (link de prueba — se activa de verdad al cargar las credenciales)
               </span>

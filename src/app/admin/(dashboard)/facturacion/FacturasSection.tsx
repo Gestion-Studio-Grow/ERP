@@ -10,10 +10,18 @@ import {
   type FacturaVista,
   type EstadoFiscal,
 } from "@/lib/facturacion-actions";
+import { emitirFacturaDePruebaAction } from "@/lib/arca-pruebas-actions";
+import type { ModoArca } from "@/plugins/arca";
 import { useToast } from "../ToastProvider";
 
 const ars = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 }).format(n);
+
+const ETIQUETA_MODO: Record<ModoArca, string> = {
+  stub: "prueba (sandbox)",
+  homologacion: "HOMOLOGACIÓN (ambiente de test oficial de ARCA)",
+  real: "REAL (factura de verdad)",
+};
 
 // AAAAMMDD → DD/MM/AAAA (criollo).
 function fechaAr(aaaammdd: string): string {
@@ -35,7 +43,22 @@ export default function FacturasSection({
   estado: EstadoFiscal;
 }) {
   const [procesando, setProcesando] = useState(false);
+  const [probando, setProbando] = useState(false);
   const { showError, showSuccess } = useToast();
+
+  async function probarFactura() {
+    setProbando(true);
+    try {
+      const r = await emitirFacturaDePruebaAction();
+      if (r.ok) {
+        showSuccess(`Factura de prueba autorizada — CAE ${r.cae} (vence ${fechaAr(r.caeVencimiento)}).`);
+      } else {
+        showError(r.error);
+      }
+    } finally {
+      setProbando(false);
+    }
+  }
 
   return (
     <section>
@@ -51,7 +74,7 @@ export default function FacturasSection({
           <span>
             Modo:{" "}
             <strong className={estado.modo === "real" ? "text-strong" : "text-muted"}>
-              {estado.modo === "real" ? "REAL (factura de verdad)" : "prueba (sandbox)"}
+              {ETIQUETA_MODO[estado.modo]}
             </strong>
           </span>
           <span>CUIT: <strong className="text-strong">{estado.cuit ?? "— sin cargar"}</strong></span>
@@ -60,8 +83,15 @@ export default function FacturasSection({
         </div>
         {estado.modo === "stub" && (
           <p className="mt-2 text-xs text-muted">
-            En modo prueba se obtiene un CAE simulado. Para facturar de verdad, el dueño carga el
-            certificado y la clave del emisor en el entorno y prende el modo real.
+            En modo prueba se obtiene un CAE simulado (sin red). Para probar contra ARCA de verdad sin
+            arriesgar nada, el dueño carga el certificado de PRUEBA y prende <code>ARCA_MODO=homologacion</code>;
+            para facturar de verdad, certificado productivo + <code>ARCA_MODO=real</code>.
+          </p>
+        )}
+        {estado.modo === "homologacion" && (
+          <p className="mt-2 text-xs text-muted">
+            Corriendo contra el ambiente de testing oficial de ARCA con el certificado de PRUEBA — el
+            CAE es válido solo para homologación, no es una factura real.
           </p>
         )}
       </div>
@@ -90,6 +120,16 @@ export default function FacturasSection({
         </button>
         {estado.pendientes === 0 && (
           <span className="text-sm text-muted">No hay facturas pendientes de autorización.</span>
+        )}
+        {estado.modo !== "real" && (
+          <button
+            type="button"
+            disabled={probando}
+            onClick={probarFactura}
+            className="rounded-md border border-line px-3 py-1.5 text-sm text-muted disabled:opacity-60"
+          >
+            {probando ? "Probando…" : "🧪 Banco de pruebas: emitir factura de prueba"}
+          </button>
         )}
       </div>
 
