@@ -36,15 +36,26 @@ repo de plugins ADR-054/055 bajo principio de VARIANTE).
 **Prod intacto y estable:** CH Estética vivo en **Vercel**, **RLS enforced** (`app_rls`), 4 tenants
 provisionados en Neon con aislamiento verificado. Nada rojo bloqueante en `main`.
 
-**➡️ EN CURSO (Balde A — aprobado y abierto por el dueño 2026-07-07):** corren **F1 `frente/diseno-vidrieras`**
-(vidrieras Shine + ADM a lo real, DX-5) y **F3 `frente/demo-vendible`** (demo consultor→backoffice por
-playbook), cada uno con **Arquitecto de Solución** liderando y el flujo RACI + Plan de Ventana embebidos.
-**F2 QA** y **F4 PMO/Docs** en el núcleo. **El PMO coordina por el repo, corre el Gate en Opus y es el único
-que mergea** (orden F1 → F3). **Los irreversibles NO se corren** — se juntan en §C.
+**⏸️ SPRINT PAUSADO (cierre 2026-07-07, el dueño reabre después).** Los dos frentes **pararon en punto
+seguro**: árbol limpio, vallas verdes, pusheados, **SIN merge a `main`** (esperan Gate). **`main` sigue en
+`29e9dcb`** — no cambió (lo de esta sesión es doc-only del PMO). Detalle por frente en §7-bis; irreversibles
+elevados en §C.
 
-> **Estado de apertura de F1/F3:** ✅ **ABIERTOS y calibrando** (ADR-052). Coordinación y reparto de
-> territorios en el **tablero de Sprint activo → `docs/ESTADO-FRENTES.md`**. Sin entregables para Gate
-> todavía. F1 debe verificar autorización de marca (ADR-042) de Shine/ADM y elevar el gap a §C si falta.
+- **F1 · `frente/diseno-vidrieras`** — HEAD **`09f668a`** · tag `snapshot/2026-07-07-f1-wip`. Verde (tsc/build/**559 tests**).
+- **F3 · `frente/demo-vendible`** — HEAD **`1334212`** · tag `snapshot/2026-07-07-f3-wip`. Verde (tsc/build/**560 tests**).
+
+**➡️ PRÓXIMO PASO EXACTO AL REABRIR (en este orden):**
+1. **Gate + merge de F1 primero** (orden F1 → F3): el PMO corre QA transversal + **Gate de Excelencia en Opus**
+   sobre `frente/diseno-vidrieras` (`09f668a`) → si pasa, mergea a `main`. **F1/F3 NO están mergeados.**
+2. **Luego F3:** rebasar `frente/demo-vendible` sobre `main` ya con F1 → QA + Gate en Opus → merge.
+3. **Necesita del dueño (no bloquea el Gate, sí el "estado final vendible"):**
+   - **§C·I7 (NUEVO):** material real de **Shine y A Dos Manos** (bio/catálogo/precios/testimonios o acceso IG)
+     — el copy DX-5 exacto quedó **provisional** porque las fuentes IG están login-walled. Sin esto, la vidriera
+     queda con copy provisional marcado, no "forma final".
+   - **§C·I1** deploy de los sitios · **§C·I2** datos reales de Magra · resto de §C.
+
+> **Nota de norma (registrada en lecciones MP-9):** F3 corrió en **Opus** siendo **reversible** (correspondía
+> **Sonnet**). Al reabrir, **fijar modelo explícito** por frente (reversible → Sonnet); el Gate va siempre en Opus.
 
 ---
 
@@ -55,7 +66,8 @@ que mergea** (orden F1 → F3). **Los irreversibles NO se corren** — se juntan
 | **main HEAD (origin)** | **`29e9dcb`** — `feat(cockpit): rediseño consola operador — cockpit interactivo read-only (T4, W1–W6)` |
 | **Plataforma de prod** | **Vercel** (`vercel.json` activo; ver §2). Netlify = **legacy** (Opción A, superada). |
 | **Auto-publish** | **APAGADO / gated** — push a `main` **no** publica. Deploy = acción del dueño (**Gate 1**). |
-| **Snapshot tags** | `snapshot/2026-07-07-f4` (este backup) · previos: `snapshot/2026-07-05-eod`, `snapshot/2026-07-05-postdeploy` (`f0a13f0`) |
+| **Snapshot tags** | `snapshot/2026-07-07-cierre` (cierre de sprint) · WIP de frentes sin mergear: `snapshot/2026-07-07-f1-wip` (`09f668a`), `snapshot/2026-07-07-f3-wip` (`1334212`) · previos: `snapshot/2026-07-07-f4b`, `snapshot/2026-07-07-f4`, `snapshot/2026-07-05-eod` |
+| **Ramas WIP abiertas (NO en main)** | `frente/diseno-vidrieras` (`09f668a`, F1) · `frente/demo-vendible` (`1334212`, F3) — **verdes, pusheadas, esperan Gate+merge** |
 
 **Qué landeó desde el snapshot `273a267` → `29e9dcb` (resumen):**
 - **Cockpit Operador (T4, `29e9dcb`)** — rediseño de la consola de operador como cockpit interactivo
@@ -200,6 +212,29 @@ tiene trabajo sin commitear** (posible sesión que quedó abierta ahí). El rest
 
 ---
 
+## 7-bis. Cierre de sprint — estado de F1 y F3 (WIP sin mergear, esperan Gate)
+
+Ambos frentes pararon en **punto seguro** (árbol limpio, verde, pusheado, **sin merge a `main`**). Orden de
+Gate/merge al reabrir: **F1 → F3**.
+
+### F1 · `frente/diseno-vidrieras` — HEAD `09f668a` · tag `snapshot/2026-07-07-f1-wip` · verde (tsc/build/559)
+- **✅ COMPLETO:** secciones de pádel **brand-neutral**; **calibración ADR-052** hecha; **copy de A Dos Manos**
+  + **saneo de Shine** (se quitaron **reviews/testimonios fabricados**, que violaban DX-5).
+- **🟡 A MEDIO / bloqueado (dato, no código):** el **copy DX-5 exacto de Shine y ADM es provisional** — las
+  fuentes reales (Instagram) están **login-walled**, no se pudo relevar la copia exacta. Marcado provisional en
+  `src/tenants/storefront.ts`: objetos `adosmanos` (~L210) y `shinevelas` reviews (~L196).
+- **⤴️ Elevó §C·I7:** falta que el **dueño aporte material real** (bio/catálogo/precios/testimonios) o **acceso
+  IG** para cerrar el copy a "forma final". (Relacionado con el gate ADR-042 de autorización de marca.)
+
+### F3 · `frente/demo-vendible` — HEAD `1334212` · tag `snapshot/2026-07-07-f3-wip` · verde (tsc/build/560)
+- **✅ COMPLETO:** **J-1/J-3** — backoffice-demo **sin password** y **sin callejones sin salida**
+  (dashboard/clientes/navegación **acotada a fixtures**).
+- **🟡 Follow-ups reversibles (no bloqueantes):** cablear fixtures de los **módulos restantes** (allowlist
+  `WIRED_DEMO_MODULE_HREF`); **branding de demo por rubro**.
+- **⤴️ Elevó:** **persistencia/credenciales de demo** (acción del dueño, FASE 2) + **Gate + merge** (PMO).
+- **⚠️ Nota de norma:** F3 corrió en **Opus** siendo **reversible** (correspondía **Sonnet**) → registrado en
+  lecciones **MP-9**. Al reabrir, fijar modelo explícito.
+
 ## 8. Estructura de agentes — realidad vs doc (para no asumir)
 
 **La estructura de agentes existe como METODOLOGÍA + COMANDOS + GOBERNANZA, no como flota instanciada:**
@@ -249,23 +284,28 @@ elevan** (§C), no se corren.
 | **I4** | **Rotar secretos + PITR** (`NEON_API_KEY` + password `app_rls` + habilitar PITR) | acción dueño (seguridad) | 2 rojos pre-cobros cerrados |
 | **I5** | **Limpieza de disco** — 10 worktrees stale + 8 carpetas huérfanas (`rm -rf` vedado por config) | acción dueño / método permitido | higiene del entorno (§7) |
 | **I6** | **Destino del oversell fix** de `calidad` — recuperar (cherry-pick a un frente + Gate) vs descartar | decisión dueño/PMO | evita perder un fix de bug real de POS (§6) |
+| **I7** | **Material real de Shine y A Dos Manos** (bio/catálogo/precios/testimonios) o **acceso IG** — hoy el copy DX-5 quedó **provisional** (fuentes IG login-walled) | acción dueño (dato/marca) | cerrar las vidrieras de Shine/ADM a "forma final" (F1); atado a autorización ADR-042 |
 
 > Los secretos los **pega SIEMPRE el dueño** (FASE 2, ADR-041); las migraciones quedan como **carpeta sin
 > aplicar**; nada de §C se corre solo.
+
+> **Nota de reconciliación Shine/ADM (doc-only, 2026-07-07):** `PLAN-RECONVERSION-CLIENTES.md` (07-06) decía
+> que Shine y A Dos Manos **no** eran tenants reales en Neon (gated). Quedó **superado**: sus **altas están
+> hechas** (§3, tenantIds `cmr9b3b5a…` / `cmr9b3kij…`, aislamiento verificado) y F1 trabajó sobre sus
+> vidrieras vivas. **Verdad única vigente: los 4 tenants existen en Neon.** Lo pendiente de Shine/ADM no es el
+> alta sino **datos reales (I7)** y **deploy del sitio (I1)**. `PLAN-RECONVERSION` se corrige en el mismo acto.
 
 ---
 
 ## Para retomar — próximos pasos claros
 
-1. **Leé esta foto** + el **Plan de Ventana** (`docs/estrategia/plan-ventana-2026-07-08.md`) + `docs/ESTADO-FRENTES.md`.
-   Si abrís con `sprint`, esto ES la FASE 0 (no salteable).
-2. **Balde A (hoy, Sonnet):** abrir **F1** y **F3** en worktrees frescos (§9), con **Paso 0 de calibración**
-   y la **verificación ADR-042** de Shine/ADM. **F2 (QA)** y **F4 (PMO)** en el núcleo.
-3. **Balde B (mañana, Opus):** cockpit operador → reingeniería, módulos ARCA/MP reales, repo de plugins
-   (ADR-054/055, principio de VARIANTE). **No tocar hoy** — solo mantener estable.
-4. **Irreversibles:** presentá la §C al dueño para el "1 clic de OK". Nada de deploy/Neon/secretos se corre solo.
-5. **Estado:** no hay nada rojo en `main` (`29e9dcb`); prod estable en Vercel. El delta sin deployar son
-   fixes/docs.
+1. **Leé esta foto** (sobre todo el HANDOFF + §7-bis) + `docs/ESTADO-FRENTES.md` (tablero de Sprint activo).
+   El sprint está **PAUSADO**, no cerrado: F1/F3 son WIP verdes sin mergear.
+2. **Retomá por el Gate, NO abras de cero:** el PMO corre QA + **Gate en Opus** sobre **F1 (`09f668a`)** →
+   merge → rebasa **F3 (`1334212`)** → Gate → merge. Fijar **modelo explícito** por frente (reversible → Sonnet, ver MP-9).
+3. **Del dueño:** **§C·I7** (material real Shine/ADM) para cerrar F1 a forma final; y el resto de §C (deploys, datos Magra).
+4. **Balde B (Opus):** cockpit operador → reingeniería, módulos ARCA/MP reales, repo de plugins (ADR-054/055, VARIANTE).
+5. **Estado:** nada rojo en `main` (`29e9dcb`, sin cambios de código esta sesión); prod estable en Vercel.
 
 > **Gates = acción del dueño.** Nada de deploy/alta/migraciones/secretos se corre solo. Este doc + los
 > runbooks (`docs/runbooks/`) son el guion para ejecutarlos cuando el dueño dé el OK.

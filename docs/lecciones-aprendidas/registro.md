@@ -319,6 +319,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Guardarraíl:** la lógica de **mayor riesgo** (reserva/fiscal/retención/tenant) va **con tests**; verde antes de commitear.
 - **Refs:** ADR-026.
 
+**[MP-9] Frente reversible corriendo en Opus (modelo mal etiquetado)**
+- **Síntoma:** F3 (`frente/demo-vendible`) — trabajo **reversible** (demo sin datos reales) — corrió en **Opus**, cuando por norma le correspondía **Sonnet** (Plan de Ventana: Sonnet por defecto, Opus solo Gate/juicio crítico).
+- **Causa raíz:** la sesión **no etiquetó/forzó su modelo** al abrir (o heredó Opus del contexto) — se saltó la §4 del Modelo de Trabajo ("cada célula declara y fija su modelo explícito").
+- **Fix:** al despachar/abrir cada frente, **fijar el modelo explícito** (`/model sonnet` para ejecución reversible) como Paso 0 junto con la calibración; el PMO **verifica el etiquetado** al despachar.
+- **Lección:** un frente reversible en Opus **gasta juicio caro donde no hace falta** — el control (Gate) es lo único que va siempre en Opus, la ejecución reversible va en Sonnet.
+- **Guardarraíl:** **ningún frente arranca sin modelo declarado**; reversible → Sonnet; una sesión sin modelo etiquetado está **fuera de norma** y se corrige antes de trabajar.
+- **Refs:** ADR-032, ADR-049; `docs/organizacion/asignacion-modelos-sprint.md`; Plan de Ventana 2026-07-08.
+
 ## SEC — Seguridad
 
 **[SEC-1] Secretos en el chat / credenciales expuestas**

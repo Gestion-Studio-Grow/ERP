@@ -11,6 +11,13 @@
 
 ---
 
+> **♻️ RECONCILIADO 2026-07-07 (PMO, doc-only):** la tabla de abajo decía que **A Dos Manos y Shine NO eran
+> tenants reales en Neon** — quedó **superado**. Sus **altas están hechas** (`ESTADO-ACTUAL.md §3`, tenantIds
+> `cmr9b3kij…` / `cmr9b3b5a…`, aislamiento verificado; el frente F1 trabajó sobre sus vidrieras vivas).
+> **Verdad única vigente: los 4 tenants (CH, Magra, Shine, A Dos Manos) existen en Neon.** Lo pendiente de
+> Shine/ADM **no** es el alta, sino **datos reales/marca** (§C·I7) y **deploy del sitio** (§C·I1). Las filas de
+> "¿Tenant real?" abajo se leen con esta corrección.
+
 ## 1. Estado real por cliente
 
 | Cliente | Rubro | ¿Tenant real en Neon? | URL (`TENANT_HOST_MAP`) | Estado | Qué falta |

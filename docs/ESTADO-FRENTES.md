@@ -2,7 +2,22 @@
 
 ---
 
-## 🟢 SPRINT ACTIVO — Ventana 2026-07-08 (Balde A) · coordinación PMO
+## ⏸️ SPRINT PAUSADO — cierre 2026-07-07 (el dueño reabre después)
+
+**Estado:** ambos frentes **pararon en punto seguro** (árbol limpio, verde, pusheado, **SIN merge a `main`**).
+`main` sigue en `29e9dcb`. **Al reabrir:** PMO corre Gate en Opus **F1 → F3** y mergea (ver `ESTADO-ACTUAL.md`
+HANDOFF + §7-bis). Backup del cierre: tag `snapshot/2026-07-07-cierre`.
+
+| Frente | Rama · HEAD · tag WIP | Vallas | Resumen |
+|---|---|---|---|
+| **F1** | `frente/diseno-vidrieras` · `09f668a` · `snapshot/2026-07-07-f1-wip` | 🟢 tsc/build/559 | ✅ pádel brand-neutral + copy ADM + saneo Shine (reviews fabricadas fuera). 🟡 copy DX-5 exacto Shine/ADM provisional (IG login-walled) → elevó **§C·I7**. |
+| **F3** | `frente/demo-vendible` · `1334212` · `snapshot/2026-07-07-f3-wip` | 🟢 tsc/build/560 | ✅ J-1/J-3 backoffice-demo sin password ni callejones. 🟡 follow-ups reversibles (fixtures módulos, branding demo). Elevó persistencia/creds (dueño) + Gate (PMO). ⚠️ corrió en Opus siendo reversible → MP-9. |
+
+**Pendiente del dueño para forma final:** §C·I7 (material real Shine/ADM). **Ninguno mergeado.**
+
+---
+
+## 🟢 SPRINT (histórico de apertura) — Ventana 2026-07-08 (Balde A) · coordinación PMO
 
 > **Canal de coordinación = este bloque + las ramas** (no el chat, ADR-039). Cada frente arranca leyendo su
 > bocado acá y deja su avance en su rama. El **PMO (núcleo) secuencia, corre el Gate en Opus y es el ÚNICO
