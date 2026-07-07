@@ -13,12 +13,18 @@ import {
   DEMO_TENANT_ID,
   DEMO_SESSION_USER,
   DEMO_WRITE_BLOCKED,
-  DEMO_CAJA_DATA,
+  getDemoCajaData,
   getDemoAgendaDay,
   getDemoReportData,
   getDemoDeepReportData,
   getDemoOwnerPanelData,
+  recommendForRubro,
 } from "./demo-sandbox";
+
+// Recomendaciones explícitas de dos familias, para verificar que los fixtures se
+// arman a partir de la recomendación (no de arrays fijos de un solo rubro).
+const ESTETICA = recommendForRubro("estetica"); // familia Agenda&Servicios
+const CARNICERIA = recommendForRubro("carniceria"); // familia Retail/Mostrador
 
 test("isDemoSandbox: false por defecto (ningún deploy real la setea)", () => {
   const prev = process.env.DEMO_MODE_ENABLED;
@@ -66,11 +72,24 @@ test("getDemoAgendaDay: siempre trae profesionales + turnos, cualquier fecha", (
   }
 });
 
-test("DEMO_CAJA_DATA: caja abierta con ledger coherente", () => {
-  assert.ok(DEMO_CAJA_DATA.open);
-  assert.ok(DEMO_CAJA_DATA.open.movements.length >= 1);
-  assert.equal(DEMO_CAJA_DATA.open.movements[0].type, "APERTURA");
-  assert.ok(DEMO_CAJA_DATA.recentClosed.length >= 1);
+test("getDemoCajaData: caja abierta con ledger coherente", () => {
+  const caja = getDemoCajaData(ESTETICA);
+  assert.ok(caja.open);
+  assert.ok(caja.open.movements.length >= 1);
+  assert.equal(caja.open.movements[0].type, "APERTURA");
+  assert.ok(caja.recentClosed.length >= 1);
+});
+
+test("getDemoCajaData: las VENTAs referencian ítems reales del rubro recomendado", () => {
+  // Estética: alguna venta con nombre de un servicio real del blueprint.
+  const estetica = getDemoCajaData(ESTETICA);
+  const ventasEst = estetica.open.movements.filter((m) => m.type === "VENTA");
+  assert.ok(ventasEst.every((m) => typeof m.reason === "string" && m.reason.length > 0));
+  // Carnicería: la venta usa un corte real (p. ej. "Lomo"), NO un servicio de spa.
+  const carne = getDemoCajaData(CARNICERIA);
+  const ventasCarne = carne.open.movements.filter((m) => m.type === "VENTA");
+  assert.ok(ventasCarne.length >= 1);
+  assert.ok(!ventasCarne.some((m) => /facial|masaje|pestañas/i.test(String(m.reason))));
 });
 
 test("getDemoReportData: shape consumible por la página de reportes", () => {
@@ -98,4 +117,38 @@ test("getDemoOwnerPanelData: insights + tendencia con varios meses", () => {
   for (const m of p.months) {
     assert.match(m.month, /^\d{4}-\d{2}$/);
   }
+});
+
+// ── Generalización por rubro (consultor → backoffice) ──────────────────────
+
+test("getDemoAgendaDay(retail): jornada VACÍA — el mostrador no trabaja con turnos", () => {
+  const day = getDemoAgendaDay("2026-07-06", CARNICERIA);
+  assert.equal(day.professionals.length, 0);
+  assert.equal(day.appointments.length, 0);
+});
+
+test("getDemoAgendaDay(agenda): turnos con servicios del rubro recomendado", () => {
+  const day = getDemoAgendaDay("2026-07-06", ESTETICA);
+  assert.ok(day.professionals.length >= 1);
+  assert.ok(day.appointments.length >= 1);
+  // Los nombres de servicio salen del blueprint de estética, no de un array fijo.
+  assert.ok(day.appointments.every((a) => a.service.name.length > 0));
+});
+
+test("getDemoReportData(retail): KPIs coherentes con precios de productos reales", () => {
+  const r = getDemoReportData(90, CARNICERIA);
+  assert.ok(r.totalIngresos > 0);
+  assert.ok(r.porServicio.length > 0); // acá "por servicio" lista productos del rubro
+  assert.ok(r.porProfesional.length > 0); // canal/mostrador
+  // Ordenado desc por total (mismo criterio que el reporte real).
+  for (let i = 1; i < r.porServicio.length; i++) {
+    assert.ok(r.porServicio[i - 1].total >= r.porServicio[i].total);
+  }
+});
+
+test("getDemoDeepReportData(retail): computa KPIs sobre ventas ficticias del rubro", () => {
+  const d = getDemoDeepReportData(90, CARNICERIA);
+  assert.ok(d.totalTurnos > 0);
+  assert.ok(typeof d.kpis.ticketPromedio === "number");
+  assert.ok(d.kpis.ticketPromedio > 0);
 });

@@ -267,4 +267,63 @@ ConsultorRecommendation                      CLIENTS hardcodeados)
 3. Solo después, el Gate GSG (Opus) audita el conjunto completo (acceso sin password + consultor +
    backoffice parametrizado) antes de cualquier deploy real.
 
+## 8. Estado — CONSULTOR → BACKOFFICE parametrizado por rubro (2026-07-06, Opus)
+
+Se ejecutaron los pasos 1 y 2 de §7.2. La secuencia del dueño (consultor **antes** del backoffice, la
+recomendación **determina** el backoffice) ya está en código, funcionando para **Agenda&Servicios** (piloto,
+estética) y **Retail/Mostrador** (carnicería y demás rubros de `src/blueprints/retail`).
+
+### 8.1 Qué se construyó
+
+- **`src/lib/demo-consultor.ts`** — el paso CONSULTOR. `recommendForRubro(rubro)` produce una
+  `ConsultorRecommendation` **determinista (cero IA)**: `resolveBlueprint()` mapea el rubro a un blueprint
+  modelado (o al comodín), `familyForBlueprint()` lo agrupa en una de las 5 familias de
+  `preset-contract.md §3`, y de ahí salen **módulos, reportes, pantalla primaria (agenda vs. vidriera),
+  `itemKind` (servicio vs. producto) y branding sugerido**. Reusa la taxonomía existente — **no** inventa
+  una segunda. `activeDemoRecommendation()` lee el rubro del deploy (`DEMO_RUBRO`, default `estetica` →
+  preserva el comportamiento del v1 sin configuración extra).
+- **`src/lib/demo-sandbox.ts` generalizado** — se borraron los arrays hardcodeados (`PROS`/`SERVICES`
+  de estética). Ahora cada fixture se **arma a partir de la recomendación**:
+  - `demoCatalog(rec)`: servicios del blueprint de agenda **o** productos del blueprint de retail
+    (precio/kg o /u), con fallback genérico honesto si el blueprint no trae catálogo.
+  - `getDemoAgendaDay(date, rec)`: turnos solo para familias con agenda; **jornada vacía** (honesta) para
+    mostrador (retail/gastro no trabajan con turnos, y `agenda` no está entre sus módulos).
+  - `getDemoCajaData(rec)` (antes la constante `DEMO_CAJA_DATA`): las VENTAs referencian **ítems reales del
+    rubro** (cortes para una carnicería, tratamientos para una estética).
+  - `getDemoReportData/DeepReportData/OwnerPanelData(rango, rec)`: los KPIs se computan con el motor real
+    (`computeDeepKpis`) sobre un período **derivado del catálogo del rubro**, así los números quedan
+    internamente consistentes para cualquier familia, no solo estética.
+- **`src/lib/caja-actions.ts`**: `getCajaData` pasa de la constante a `getDemoCajaData()` (único call site).
+- **Tests**: `demo-consultor.test.ts` (7) + `demo-sandbox.test.ts` ampliado (cruza estética vs. carnicería:
+  agenda vacía en retail, VENTAs con ítems del rubro, desglose ordenado). **433/433** verdes.
+
+### 8.2 El flujo, en una línea
+
+`DEMO_RUBRO` → `recommendForRubro()` → `ConsultorRecommendation {family, modules, primaryScreen, itemKind}`
+→ `demo-sandbox` arma agenda/caja/reportes **según esa recomendación** → el visitante entra a `/admin` y ve
+un negocio ficticio **de su rubro**. El acceso sin password (§2) no se tocó: el consultor es una capa
+*antes* de las fixtures, `session.ts`/`tenant.ts`/`proxy.ts` quedan igual.
+
+### 8.3 Gate de Excelencia (corrido en Opus 4.8) — PASA
+
+- **① SAP Fiori:** incremento de capa de datos/lógica, sin cambios de UI (los 7 ángulos de UI → N/A).
+  **Consistencia:** reusa `resolveBlueprint()` + la taxonomía de familias ya ratificada, **no** duplica. ✓
+- **② Sello GSG:** doc firmado; el crédito del footer del backoffice ya existía (sin tocar). ✓
+- **③ Arquitectura:** el consultor es una capa pura *antes* de las fixtures; separación clara
+  (consultor = qué/por qué; sandbox = fixtures concretas). No toca auth/tenant/proxy. Aislamiento
+  multi-tenant intacto (identidad/tenant `demo-*` namespaced, cero Prisma en el camino demo). ✓
+- **④ Confiabilidad:** `tsc` + `next build` (middleware y rutas `/admin` compilan, sin regresión de bundle
+  edge) + `npm test` (433/433) verdes. Sin migración. **Código inerte por defecto** (`DEMO_MODE_ENABLED`
+  ausente en todo deploy real → `demoCatalog`/consultor jamás corren ahí). ✓
+
+### 8.4 Qué queda (no bloqueante para este incremento)
+
+- Sumar las 3 familias restantes con catálogo propio (gastronomía/oficios hoy caen al catálogo genérico o
+  a agenda; el enganche ya generaliza, es sumar datos, no arquitectura).
+- Surface visual de la recomendación en el backoffice (un cartel "Consultor recomienda: familia X,
+  módulos…") — hoy la recomendación **determina los datos** pero no se muestra como tal; es la mejora de UI
+  natural del próximo incremento.
+- Deploy real aislado (`DEMO_MODE_ENABLED=true` + `DEMO_RUBRO=<rubro>` + `FORCE_TENANT_SLUG=demo-*`) sigue
+  siendo paso de infra (Netlify/Vercel), cuando el dueño lo pida.
+
 — Elaborado por **Gestión Studio Grow (GSG)**.

@@ -22,7 +22,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
 import { reconcileCash, type CashMovementLike, type CashMovementType } from "@/lib/caja/cash-register";
-import { isDemoSandbox, DEMO_CAJA_DATA, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
+import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 
 const CAJA_PATH = "/admin/caja";
 
@@ -58,7 +58,7 @@ function parseAmount(raw: FormDataEntryValue | null): number {
 // últimas sesiones cerradas para el histórico. Guard de lectura por `orders:read`.
 export async function getCajaData() {
   await requireCapability("orders:read");
-  if (isDemoSandbox()) return DEMO_CAJA_DATA;
+  if (isDemoSandbox()) return getDemoCajaData();
   const tenantId = await getCurrentTenantId();
   const [open, recentClosed] = await Promise.all([
     prisma.cashSession.findFirst({
