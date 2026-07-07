@@ -39,6 +39,12 @@ Se pule a estado **vendible/definitivo**. Sonnet (Gate en Opus antes de mergear)
 > **módulos núcleo** (ARCA real, Mercado Pago real) + **arquitectura del repo de plugins** (ADR-054). **Todo
 > el Balde B queda "no tocar / estable, sin pulido" hasta mañana** (reingeniería en Opus). Ante la duda con
 > cualquier otro ítem → va a B.
+>
+> **🧩 Plan de reingeniería (Balde B, Opus mañana) — principio de VARIANTE (ADR-055):** el **módulo de
+> Servicios** y el **catálogo** se **rehacen bajo el principio de variante** — **ABM del objeto (dato
+> maestro)** + **ABM de la asignación** (asignar/desasignar por entidad), **nunca "a todos con todo"** (causa
+> raíz de A-1/DX-6/DX-7). Mismo patrón para producto↔categoría y módulo/plugin↔tenant (ADR-054). Hoy solo
+> documentado; la construcción va mañana.
 
 ---
 

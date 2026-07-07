@@ -115,6 +115,20 @@ Excelencia, el de-sesgo por sector y el ciclo DEMO→VENTA→INVERSIÓN):
 El **"cómo" detallado** (préstamo/retorno, calibración cross-estructura, registro de exposición) vive en
 **`docs/adr/ADR-053`** (+ ADR-052 calibración, ADR-047 retro). Este documento fija el **pilar**; el ADR, la mecánica.
 
+## 8. Principio de diseño de PRODUCTO — Variante: el objeto se crea una vez y se ASIGNA (SAP argentinizado)
+
+**Fundamento de producto/arquitectura** (potencia de SAP, simple y criollo). Detalle y origen: **`docs/adr/ADR-055`**.
+
+> **El OBJETO (dato maestro) se crea UNA vez, con su ABM propio, y se ASIGNA con una relación explícita que
+> también tiene su ABM. NUNCA "a todos con todo".** Ej.: el **servicio** se crea como objeto (ABM de
+> servicio) y se **asigna al profesional** (ABM de asignación, distinto por profesional). Fue la causa raíz
+> de A-1 / DX-6 / DX-7 (asignación indebida "todos con todo").
+
+- **Deliberado y distinto por entidad:** cada entidad ve **solo lo asignado** → datos correctos.
+- **Generalizable a todo el catálogo:** **producto ↔ categoría**, **módulo/plugin ↔ tenant** (ADR-054),
+  **rubro ↔ blueprint** — el objeto vive una vez; la asignación es la relación, con su propio ABM.
+- El **módulo de Servicios y el catálogo se rehacen bajo este principio** (reingeniería, Balde B).
+
 ---
 
 *Fuentes de referencia externas usadas para contrastar (no para copiar): SAP (misión/propósito,

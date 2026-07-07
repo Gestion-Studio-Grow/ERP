@@ -49,6 +49,7 @@ anotado) · *Aceptado — vigente* (norma/metodología) · *Aceptado — en reco
 - **052** — **Protocolo de calibración universal** — todo agente lee su corpus + declara 3–5 principios (de-sesgo) **antes de actuar**; lista mínima de lectura por rol.
 - **053** — **Pool compartido de agentes + cross-training** — los agentes se **prestan** entre estructuras (no silos, no duplicados); vuelven a su célula de origen; el prestado calibra con la estructura destino y vuelca lo aprendido al registro.
 - **054** — **Repositorio de plugins / catálogo de módulos** (🟡 PROPUESTO) — arquitectura para sumar módulos como plugins reutilizables activables por tenant/rubro; habilita el gate de venta (roadmap §6).
+- **055** — **Principio de VARIANTE** — el objeto se crea una vez (dato maestro, ABM propio) y se **asigna** con relación explícita (ABM propio); nunca "a todos con todo". Generalizable a todo el catálogo. Construcción = reingeniería (Balde B).
 
 ### 🔐 Multi-tenant, datos y aislamiento (RLS)
 - **001** — Estrategia multi-tenant (shared schema + `tenant_id` + RLS).

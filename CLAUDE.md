@@ -200,6 +200,15 @@ requiera** — *documentado no significa corriendo*. El **roster fijo + el chart
 que garantiza que **siempre convocamos a los MISMOS agentes** (consistencia), y el **pool/factory** permite
 **prestar los existentes antes de crear nuevos** (ADR-053). Un agente se instancia **solo con tarea asignada**.
 
+## 🧩 Principio de producto — VARIANTE: el objeto se crea una vez y se ASIGNA (ADR-055)
+
+Fundamento de producto/arquitectura (SAP argentinizado): **el OBJETO (dato maestro) se crea UNA vez con su
+ABM propio, y se ASIGNA con una relación explícita que también tiene su ABM — NUNCA "a todos con todo"**
+(fue la causa raíz de A-1 / DX-6 / DX-7). Ej.: **servicio** (ABM de servicio) → **asignación al profesional**
+(ABM de asignación, distinta por profesional). **Generalizable:** producto↔categoría, **módulo/plugin↔tenant**
+(ADR-054), rubro↔blueprint. **Base:** `docs/fundamentos/bases-gsg.md §8`. **La construcción del ABM es
+reingeniería (Balde B, Opus mañana); hoy solo se documenta** (definir ≠ construir).
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
