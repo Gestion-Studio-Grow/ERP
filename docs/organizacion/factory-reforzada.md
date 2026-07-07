@@ -35,7 +35,7 @@ Reservada para trabajo donde un error es caro o difícil de revertir. Roles:
 
 | Rol | Responsabilidad | Cuándo entra |
 |---|---|---|
-| **PMO / Arquitecto jefe** | Gobierno, prioridades, límites de dominio, ADRs, dispatch de células | Siempre (conduce la factory) |
+| **PMO puro (autor de planes)** | Gobierno, prioridades, límites de dominio, ADRs, backlog/roadmap/metodología; **propone** planes. **NO ejecuta** producto: el sombrero de **ejecutor/merge** se mudó al **Arquitecto de Solución** (ADR-048/049). | Siempre (autora y conduce; no ejecuta) |
 | **Auditor GSG** | Gate de Excelencia (SAP Fiori 5 principios + accesibilidad + consistencia + sello Marca GSG). **SIEMPRE Opus, sin excepción** | En cada merge (el loop de §3) |
 | **Seguridad** | RLS/aislamiento multi-tenant, auth, superficies expuestas, secretos | Cambios que tocan seguridad; go-lives |
 | **Fiscal / Dinero** | Cobros, ARCA/facturación, representación de importes (Decimal), caja, conciliación | Cambios que tocan plata |

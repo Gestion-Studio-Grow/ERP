@@ -40,7 +40,7 @@ Al invocar `sprint`, la creación automática de sesiones (regla 1 de la metodol
 
 | Sesión | Por qué Opus (criterio §3) | Ancla en la estructura del sprint |
 |---|---|---|
-| **PMO / Arquitecto jefe** | Conduce la factory: prioridades, límites de dominio, ADRs, secuencia lo compartido, merge-master. Error de gobierno/arquitectura = caro e irreversible. | Capa PMO (sobre `main`, sin worktree) — `factory-reforzada.md §2` |
+| **PMO puro (AUTOR de planes)** | Genera/mantiene **backlog · roadmap · metodología · ADRs**; **propone** planes; secuencia lo compartido. **NO ejecuta** cambios de producto — el sombrero de **ejecutor/merge** se mudó al **Arquitecto de Solución** (ADR-048/049). Autoría/estrategia de alto juicio → Opus. | Capa PMO (sobre `main`, sin worktree) — `factory-reforzada.md §2` · **ADR-049** |
 | **Auditoría GSG / Excelencia (el Gate)** | **SIEMPRE Opus, sin excepción.** Corre el Gate completo (SAP Fiori + accesibilidad + consistencia + sello Marca GSG + correctitud) antes de cada merge. Es la excepción dura. | Loop de revisión `factory-reforzada.md §3`; Gate de Excelencia de `METODOLOGIA-SPRINT.md` |
 | **Seguridad** | RLS/aislamiento multi-tenant, auth, superficies expuestas, secretos. Un error de aislamiento es caro e irreversible. | Rol Opus "Seguridad" (`factory-reforzada.md §2`); escala cuando **Plataforma** toca RLS/auth |
 | **Preset IA — Ingesta + Adaptación** | Fidelidad de marca del cliente, extracción de identidad, y el **Gate bloqueante del preset**: decisiones de calidad/adaptación difíciles de revertir de cara al cliente. | Generador de Preset IA (`docs/metodologia/generador-preset-ia.md`; memorias preset ingesta/adaptación) |

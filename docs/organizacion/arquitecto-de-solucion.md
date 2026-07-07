@@ -61,6 +61,20 @@ El log alimenta la **cadencia (a)** de la rutina de retroalimentación (ADR-047:
 - **No toca secretos:** aplica la doble fase de credenciales (ADR-041) — los secretos los pega el dueño.
 - **Es merge-consciente:** trabaja en tree compartido → **commit por pathspec, nunca `-A`**.
 
+## 7. RACI — split de roles (ADR-049)
+
+El Arquitecto es el **EJECUTOR** dentro de un reparto claro (detalle y matriz en **`docs/adr/ADR-049`**):
+
+- **PMO puro = AUTOR de planes** (backlog · roadmap · metodología · ADRs). Propone; **no ejecuta** producto.
+- **DUEÑO = APRUEBA** los planes ("yo apruebo esos planes") y los **irreversibles**.
+- **Arquitecto de Solución = EJECUTA** lo **reversible** del plan **aprobado**; **eleva** lo irreversible.
+- **Dispatch = CANAL/CONDUCTOR** único con el dueño; orquesta, eleva y **releva status**. No autora estrategia.
+- **Advisory + Challenger = TENSIONAN** la estrategia antes de que sea fundamento (ADR-045).
+
+**Flujo canónico:** **PMO propone plan → Dueño aprueba → Arquitecto ejecuta reversible / eleva irreversible
+→ Dispatch releva status.** El Arquitecto **no autora** el plan (eso es PMO) ni **aprueba** lo irreversible
+(eso es el dueño): **ejecuta lo aprobado y reversible**, y **eleva el resto**.
+
 ---
 
 *Charter de organización/gobernanza. Operacionaliza `docs/adr/ADR-048`. No toca producción ni deploy.*
