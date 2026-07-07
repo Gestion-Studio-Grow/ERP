@@ -34,6 +34,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
               {cockpitNavEnabled() && (
                 <Link href="/operador/cockpit" className="hover:text-strong">Cockpit</Link>
               )}
+              <Link href="/operador/direccion" className="hover:text-strong">GSG Lab · Dirección</Link>
             </nav>
           </div>
           <form action={operatorLogout}>

@@ -54,3 +54,6 @@ next-env.d.ts
 # Material confidencial — NUNCA versionar (repo público)
 _private/
 docs/internal/
+
+# PDFs generados por los generadores del panel de la célula (artefactos, no versionar)
+celula-negocios-digitales/panel/*.pdf

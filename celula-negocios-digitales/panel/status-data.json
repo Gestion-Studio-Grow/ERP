@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "actualizado": "2026-07-06",
+    "waveActual": "Desarrollo (kickoff 4 MVP)",
+    "cicloActivo": true,
+    "nota": "Fuente de verdad del panel. El Reportero ejecutivo lo actualiza en CADA wave; el panel se redeploya al mismo link."
+  },
+  "kpis": { "investigados": 21, "desarrollo": 4, "cola": 13, "descartados": 4 },
+  "waves": [
+    { "id": "c1", "titulo": "Ciclo 1 — Exploración", "fecha": "2026-07-06", "estado": "cerrado",
+      "carga": ["4 consultores + experto de cobro", "12 negocios investigados con research y fuentes", "Portfolio + recomendación (barbell)"] },
+    { "id": "c2", "titulo": "Ciclo 2 — Pasivo vs Activo + Red-team", "fecha": "2026-07-06", "estado": "cerrado",
+      "carga": ["2 equipos (creativos+analíticos) horizontales", "23 ideas -> 10 finalistas", "Red-team de 2: 2 sobrevivientes limpios, 2 comodines, 4 muertos"] },
+    { "id": "cost", "titulo": "Costeo completo", "fecha": "2026-07-06", "estado": "cerrado",
+      "carga": ["21 negocios costeados", "build / COGS / precio / margen / break-even", "Ranking por retorno/esfuerzo"] },
+    { "id": "dev", "titulo": "Desarrollo — kickoff", "fecha": "2026-07-06", "estado": "en curso",
+      "carga": ["4 MVP arrancados: Kudos, Fantasma, Testigo, Plantilleria", "Codigo del corazon + demos verificadas", "Plan hasta el primer peso"] },
+    { "id": "next", "titulo": "Proximo ciclo (programado)", "fecha": "lunes", "estado": "programado",
+      "carga": ["Nuevo sprint automatico", "Negocios nuevos -> analisis -> red-team", "El Reportero carga los resultados aca"] }
+  ]
+}

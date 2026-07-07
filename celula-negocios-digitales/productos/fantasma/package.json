@@ -1,0 +1,19 @@
+{
+  "name": "fantasma",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fantasma — el turno noche de WhatsApp: empleado IA que atiende fuera de horario (responde, cotiza, agenda, deja tickets).",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "demo": "node --experimental-strip-types src/demo.ts"
+  },
+  "notas": {
+    "demo": "Corre offline con el LLM mock (cero dependencias). Node 22+ ejecuta TypeScript directo.",
+    "produccion": "Para la implementación real: `npm install @anthropic-ai/sdk` y usar src/llm-claude.ts (excluido del build por defecto)."
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

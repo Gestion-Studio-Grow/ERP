@@ -1,0 +1,46 @@
+{
+  "descripcion": "Salida esperada del núcleo para ejemplo/input.json. El operario mencionó producto (Klerat) pero NO el número de registro ni el principio activo/dosis con precisión -> quedan en PENDIENTE_REVISION y el pipeline dispara repregunta en vez de emitir. Así se cumple la regla 'nunca inventar datos regulatorios'.",
+  "parte": {
+    "tipoServicio": ["desratizacion"],
+    "plagasObjetivo": ["roedores"],
+    "modalidad": "correctivo",
+    "tipoEstablecimiento": "gastronomico",
+    "diagnostico": "Se constató actividad de roedores en el subsuelo del establecimiento. En proximidad del depósito se observaron heces compatibles con actividad reciente, con mayor concentración sobre el sector lindante a las cajas apiladas.",
+    "nivelInfestacion": "medio",
+    "productosAplicados": [
+      {
+        "nombreComercial": "Klerat",
+        "principioActivo": "PENDIENTE_REVISION",
+        "numeroRegistro": "PENDIENTE_REVISION",
+        "dosis": "PENDIENTE_REVISION",
+        "metodoAplicacion": "Cebo en bloque dispuesto en estaciones de cebado cerradas"
+      }
+    ],
+    "areasTratadas": ["subsuelo", "sector depósito", "desagües de cocina"],
+    "checklist": [
+      { "punto": "Estaciones de cebo perimetrales del subsuelo", "estado": "ok", "detalle": "Cuatro estaciones cargadas; refuerzo en el sector del depósito" },
+      { "punto": "Desagües de cocina", "estado": "ok", "detalle": "Revisados, sin actividad detectada" }
+    ],
+    "trabajoRealizado": "Se realizó servicio de desratización correctiva en el subsuelo del establecimiento. Se dispusieron cuatro estaciones de cebado en el sector posterior, reforzando la zona lindante al depósito donde se detectó mayor actividad. Se inspeccionaron los desagües de la cocina sin hallar evidencia de roedores. Se recomendó continuar con un plan de control mensual.",
+    "observaciones": "Se dejó pautada la continuidad del servicio con frecuencia mensual.",
+    "plazoReingreso": "24 horas",
+    "advertenciasSeguridad": [
+      "No ingresar al subsuelo durante 24 horas posteriores a la aplicación.",
+      "Mantener el cebo fuera del alcance de personas ajenas al servicio y de mascotas.",
+      "No manipular ni retirar las estaciones de cebado."
+    ],
+    "proximoServicioSugerido": "En 1 mes (control mensual)",
+    "fotos": [
+      { "url": "https://storage.testigo.local/ej/antes-deposito.jpg", "epigrafe": "Situación inicial: heces de roedor en el sector del depósito.", "momento": "antes" },
+      { "url": "https://storage.testigo.local/ej/estacion-cebo.jpg", "epigrafe": "Colocación de estación de cebado cerrada contra el zócalo del subsuelo.", "momento": "durante" },
+      { "url": "https://storage.testigo.local/ej/despues-limpio.jpg", "epigrafe": "Sector del depósito tras el servicio, con estación de cebado instalada.", "momento": "despues" }
+    ],
+    "camposPendientes": [
+      "productosAplicados[0].principioActivo",
+      "productosAplicados[0].numeroRegistro",
+      "productosAplicados[0].dosis"
+    ]
+  },
+  "requiereRepregunta": true,
+  "repreguntaWhatsApp": "Casi listo el parte. Me falta un dato para poder emitirlo:\n- ¿Cuál es el principio activo?\n- ¿Número de registro del producto?\n- ¿Qué dosis aplicaste?"
+}

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<!--
+  Ejemplo de SALIDA FINAL del pipeline Testigo: el parte de control de plagas ya completo
+  (tras resolver los campos PENDIENTE_REVISION por repregunta), renderizado por src/plantilla-pdf.ts.
+  En producción este HTML pasa por htmlAPDF() y se despacha como PDF por WhatsApp/e-mail.
+  Corresponde a ejemplo/input.json + la respuesta del operario a la repregunta.
+-->
+<style>
+  :root { --tinta:#1f3a2e; --acento:#2f8f6b; --gris:#666; }
+  * { box-sizing:border-box; }
+  body { font-family:"Segoe UI",Arial,sans-serif; color:#222; margin:0; padding:32px; font-size:13px; }
+  header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid var(--acento); padding-bottom:12px; }
+  header .empresa { font-size:18px; font-weight:700; color:var(--tinta); }
+  header .meta { text-align:right; color:var(--gris); font-size:12px; }
+  h1 { font-size:15px; color:var(--acento); text-transform:uppercase; letter-spacing:.5px; margin:20px 0 6px; border-bottom:1px solid #ddd; padding-bottom:3px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; }
+  .campo b { color:var(--tinta); }
+  table { width:100%; border-collapse:collapse; margin-top:6px; }
+  th,td { border:1px solid #ccc; padding:5px 7px; text-align:left; font-size:12px; }
+  th { background:var(--tinta); color:#fff; font-weight:600; }
+  ul { margin:6px 0; padding-left:18px; }
+  .estado.ok { color:var(--acento); font-weight:700; }
+  .estado.observado { color:#c47f00; font-weight:700; }
+  .estado.no_aplica { color:var(--gris); }
+  .pendiente { color:#b00; font-weight:700; }
+  .fotos { display:flex; flex-wrap:wrap; gap:12px; }
+  figure { margin:0; width:calc(50% - 6px); }
+  .ph { background:#eef2f0; border:1px dashed #aaa; height:120px; display:flex; align-items:center; justify-content:center; color:#999; font-size:11px; }
+  figcaption { font-size:11px; color:#444; margin-top:3px; }
+  .firma { margin-top:36px; display:flex; justify-content:space-between; }
+  .firma div { text-align:center; width:45%; }
+  .firma .linea { border-top:1px solid #333; margin-top:40px; padding-top:4px; font-size:12px; }
+  footer { margin-top:24px; border-top:1px solid #ddd; padding-top:8px; color:var(--gris); font-size:10px; }
+</style></head>
+<body>
+  <header>
+    <div>
+      <div class="empresa">Fumigadora del Plata S.R.L.</div>
+      <div style="color:var(--gris)">Control de plagas · Matrícula MAT-CABA-04821</div>
+    </div>
+    <div class="meta">
+      <div><b>PARTE N° 2026-000342</b></div>
+      <div>Técnico: Rubén Sosa</div>
+    </div>
+  </header>
+
+  <h1>Datos del servicio</h1>
+  <div class="grid">
+    <div class="campo"><b>Cliente:</b> Restaurante La Parrilla del Centro</div>
+    <div class="campo"><b>Establecimiento:</b> gastronomico</div>
+    <div class="campo"><b>Dirección:</b> Av. Corrientes 1234, CABA</div>
+    <div class="campo"><b>Modalidad:</b> correctivo</div>
+    <div class="campo"><b>Tipo de servicio:</b> Desratización</div>
+    <div class="campo"><b>Plagas objetivo:</b> roedores</div>
+    <div class="campo"><b>Áreas tratadas:</b> subsuelo, sector depósito, desagües de cocina</div>
+    <div class="campo"><b>Nivel de infestación:</b> medio</div>
+  </div>
+
+  <h1>Diagnóstico (situación encontrada)</h1>
+  <p>Se constató actividad de roedores en el subsuelo del establecimiento. En proximidad del depósito se observaron heces compatibles con actividad reciente, con mayor concentración sobre el sector lindante a las cajas apiladas.</p>
+
+  <h1>Productos aplicados</h1>
+  <table>
+    <thead><tr><th>Producto</th><th>Principio activo</th><th>N° registro</th><th>Dosis</th><th>Método</th></tr></thead>
+    <tbody><tr>
+      <td>Klerat</td>
+      <td>Brodifacoum 0.005%</td>
+      <td>SENASA 12.345</td>
+      <td>1 bloque de 100 g por estación</td>
+      <td>Cebo en bloque dispuesto en estaciones de cebado cerradas</td>
+    </tr></tbody>
+  </table>
+
+  <h1>Verificación</h1>
+  <ul>
+    <li><b>Estaciones de cebo perimetrales del subsuelo</b> — <span class="estado ok">OK</span> · Cuatro estaciones cargadas; refuerzo en el sector del depósito</li>
+    <li><b>Desagües de cocina</b> — <span class="estado ok">OK</span> · Revisados, sin actividad detectada</li>
+  </ul>
+
+  <h1>Trabajo realizado</h1>
+  <p>Se realizó servicio de desratización correctiva en el subsuelo del establecimiento. Se dispusieron cuatro estaciones de cebado en el sector posterior, reforzando la zona lindante al depósito donde se detectó mayor actividad. Se inspeccionaron los desagües de la cocina sin hallar evidencia de roedores. Se recomendó continuar con un plan de control mensual.</p>
+  <p><b>Observaciones:</b> Se dejó pautada la continuidad del servicio con frecuencia mensual.</p>
+
+  <h1>Seguridad</h1>
+  <p><b>Plazo de reingreso:</b> 24 horas</p>
+  <ul>
+    <li>No ingresar al subsuelo durante 24 horas posteriores a la aplicación.</li>
+    <li>Mantener el cebo fuera del alcance de personas ajenas al servicio y de mascotas.</li>
+    <li>No manipular ni retirar las estaciones de cebado.</li>
+  </ul>
+  <p><b>Próximo servicio sugerido:</b> En 1 mes (control mensual)</p>
+
+  <h1>Registro fotográfico</h1>
+  <div class="fotos">
+    <figure>
+      <div class="ph">[foto: antes]</div>
+      <figcaption><b>antes:</b> Situación inicial: heces de roedor en el sector del depósito.</figcaption>
+    </figure>
+    <figure>
+      <div class="ph">[foto: durante]</div>
+      <figcaption><b>durante:</b> Colocación de estación de cebado cerrada contra el zócalo del subsuelo.</figcaption>
+    </figure>
+    <figure>
+      <div class="ph">[foto: despues]</div>
+      <figcaption><b>despues:</b> Sector del depósito tras el servicio, con estación de cebado instalada.</figcaption>
+    </figure>
+  </div>
+
+  <div class="firma">
+    <div><div class="linea">Firma del técnico<br>Rubén Sosa</div></div>
+    <div><div class="linea">Conformidad del cliente</div></div>
+  </div>
+
+  <footer>Servicio realizado conforme a normativa vigente. Conserve este comprobante para controles de bromatología. Fumigadora del Plata S.R.L.</footer>
+</body></html>
