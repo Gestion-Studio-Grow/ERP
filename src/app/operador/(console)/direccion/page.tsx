@@ -11,9 +11,9 @@ export default function DireccionPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Mesa de Dirección</h1>
+          <h1 className="text-2xl font-semibold">GSG Lab · Mesa de Dirección</h1>
           <p className="text-muted text-sm mt-1">
-            Cartera de negocios digitales de la Célula · vista ejecutiva para la dirección.
+            Cartera de negocios digitales del laboratorio (GSG Lab) · vista ejecutiva para la dirección.
             Publicado {PANEL_PUBLICADO}.
           </p>
         </div>
