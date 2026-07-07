@@ -37,6 +37,14 @@
 - **División/célula** a la que pertenece y **relaciones RACI** (propone/aprueba/ejecuta/tensiona, ADR-049).
 - **Entrada en el roster:** `docs/organizacion/roster-completo-gsg.md` (ADR-051).
 
+## 6. Préstamo y retorno (pool compartido · ADR-053)
+- El agente es parte de un **pool reutilizable**: puede ser **PRESTADO** a otra estructura para un caso
+  puntual (lo coordina el Arquitecto). **Antes de crear un agente nuevo se verifica si uno del pool cubre el caso.**
+- **Al prestarse:** extiende su **calibración** al **contexto de la estructura destino** (briefs de la célula
+  anfitriona + su parte del corpus) — ADR-052 paso 4.
+- **Al cerrar el préstamo:** **vuelca lo aprendido** al registro de lecciones (ADR-047) y **vuelve a su
+  célula/división de origen** — **no se re-parenta ni se duplica**.
+
 ---
 
 *Plantilla de gobernanza (ADR-051/052). Todo agente nuevo se instancia sobre este molde y calibra en el Paso 0.*

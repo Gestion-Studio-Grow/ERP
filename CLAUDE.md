@@ -175,6 +175,19 @@ compone cada división está en **`docs/organizacion/roster-completo-gsg.md`** (
 > cuyo **Paso 0 es la calibración**, y entra al **roster** (`roster-completo-gsg.md`). Vale para los
 > existentes y para cualquiera que se cree de acá en adelante.
 
+## 🔁 Pool compartido de agentes + entrenamiento cross-estructura (ADR-053)
+
+Los agentes **NO son silos por división: forman un POOL reutilizable.** Para un caso puntual en otra
+estructura (ej.: alinear el **front de Magra** = Diseño + Adaptador/Delivery + QA) se **PRESTAN agentes
+existentes** del pool, **no se crean dedicados**. **Regla dura: antes de instanciar un agente nuevo,
+verificar si un agente del pool cubre el caso prestado** — crear nuevo **solo si no hay rol adecuado**
+(evita duplicados y respeta el tope ≤ 4). **Préstamo y retorno:** al cerrar el caso, cada agente **vuelve a
+su célula/división de origen** (no se re-parenta ni se duplica). **Cross-training:** el agente prestado
+**extiende su calibración** (ADR-052) leyendo el contexto de la estructura destino, y al cerrar **vuelca lo
+aprendido al registro de lecciones** (ADR-047) → el conocimiento **fluye entre estructuras**. Los préstamos
+los **coordina el Arquitecto de Solución** (es ejecución reversible). Refuerza el default **"crear generoso /
+activar en olas"**: muchas necesidades se cubren **prestando**, no creando. Detalle: **`docs/adr/ADR-053-pool-compartido-de-agentes-cross-training.md`**.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.

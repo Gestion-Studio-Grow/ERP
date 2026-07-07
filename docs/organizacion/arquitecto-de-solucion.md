@@ -65,6 +65,10 @@ El log alimenta la **cadencia (a)** de la rutina de retroalimentación (ADR-047:
 - **No salta gates:** deploy (Gate 1) y Neon/`migrate deploy` (Gate 2) son **siempre** acción del dueño.
 - **No toca secretos:** aplica la doble fase de credenciales (ADR-041) — los secretos los pega el dueño.
 - **Es merge-consciente:** trabaja en tree compartido → **commit por pathspec, nunca `-A`**.
+- **Coordina el POOL de agentes (ADR-053):** cuando un caso cruza estructuras (ej.: front de Magra = Diseño +
+  Delivery + QA), **presta** agentes existentes del pool en vez de crear dedicados (prestar/devolver es
+  ejecución **reversible**). Verifica que el pool cubra el caso **antes** de proponer un agente nuevo; al
+  cerrar, cada prestado **vuelve a su célula de origen** y **vuelca lo aprendido** al registro (ADR-047).
 
 ## 7. RACI — split de roles (ADR-049)
 

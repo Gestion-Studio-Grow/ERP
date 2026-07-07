@@ -30,6 +30,11 @@ entrenamiento universal**.
    **zona de de-sesgo** (ADR-046): *¿soy zona humana/criolla o zona estándar/precisa?* Es su "declaración de
    calibración".
 3. **Recién entonces actuar.** Sin los pasos 1–2, el agente está **fuera de norma**.
+4. **Si es un PRÉSTAMO cross-estructura (ADR-053):** la calibración se **EXTIENDE** — además de su corpus, el
+   agente prestado lee el **contexto de la estructura destino** (briefs de la célula anfitriona + su parte
+   del corpus). **Al cerrar el préstamo**, vuelca al **registro de lecciones aprendidas** lo aprendido en el
+   cruce, para que el conocimiento **fluya entre estructuras**; luego **vuelve a su célula de origen** (no se
+   re-parenta ni se duplica).
 
 ### Lista mínima de lectura por tipo de rol
 - **TODOS (base):** `CLAUDE.md` (modelo de trabajo · Gate · gates · DEMO→VENTA→INVERSIÓN · concurrencia) +
