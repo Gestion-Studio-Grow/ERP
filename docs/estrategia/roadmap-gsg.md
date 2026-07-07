@@ -201,3 +201,26 @@ Producto por rubro (construye) + Arquitecto (integra)**. **Queda a decisión del
 > **Para aprobación del dueño:** (a) el **workstream** y su prioridad P1/P2; (b) la **arquitectura del repo**
 > (ADR-054); (c) el **gate de venta** y los sets mínimos por tier/rubro; (d) si se crea el **PO Catálogo/Plugins**
 > o lo cubren roles existentes. Nada de esto se ejecuta hasta el OK (y aplicar migraciones sigue siendo Gate 2).
+
+### 6.5 · Plan MODULAR — cómo se suma un módulo/idea nueva (para las ideas del dueño)
+
+El catálogo está pensado para **crecer sin re-hacer el plan**: cada idea/módulo nuevo entra como **una fila**
+con el mismo formato y el resto no se toca. **Sumar un módulo = sumar una fila**, no re-planificar.
+
+**Formato de entrada (una línea):** `id · qué resuelve · rubros/segmentos que lo exigen · prioridad
+(🔴 bloquea venta / 🟠 amplía / 🟢 profundidad) · depende de · estado (💡 idea → 📐 propuesto → 🏗️ en
+construcción → ✅ en catálogo)`.
+
+**Cómo entra una idea nueva del dueño (sin frenar nada):**
+1. Se anota como fila en el **backlog abierto** (abajo) con ese formato.
+2. El **PO Catálogo/Plugins** (o PMO) la **prioriza** contra el gate de venta (§6.3): 🔴/🟠/🟢 y a qué rubro/segmento pertenece.
+3. Si es un **módulo** → se diseña como **plugin** (manifiesto, ADR-054); si cambia una **decisión** → se le abre su **ADR**.
+4. **Definir ≠ instanciar:** queda **documentada**; se construye solo con **OK del dueño + tarea real** (nada se enciende antes).
+
+**Backlog abierto — acá caen las ideas nuevas (se extiende sin límite):**
+| id | qué resuelve | rubros/segmentos | prioridad | depende de | estado |
+|---|---|---|---|---|---|
+| _(vacío — reservado para las ideas que vaya lanzando el dueño)_ | | | | | 💡 |
+
+> Con esto el workstream queda **modular y abierto**: el dueño lanza una idea → una fila → priorización →
+> (si aprueba) plugin/ADR. No hay que rehacer §6 para incorporar temas nuevos.
