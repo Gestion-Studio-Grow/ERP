@@ -8,17 +8,39 @@
 // panel de marca: un halo cálido —el "shine" de una vela— teñido con el acento del
 // tenant, más un glifo de la categoría del producto inferida del nombre.
 //
-// La MISMA clasificación agrupa el catálogo en SECCIONES (Velas · Aromas · Decoración
-// · Accesorios): así una tienda experiencial no muestra una grilla plana sino un
-// recorrido por mundos de producto. Apenas haya foto real, el halo se reemplaza por
-// <Image>; el clasificador/agrupador sigue sirviendo.
+// La MISMA clasificación agrupa el catálogo en SECCIONES: así una tienda no muestra
+// una grilla plana sino un recorrido por mundos de producto. Cubre dos rubros de
+// vidriera: VELAS/deco (Velas · Aromas · Decoración · Accesorios) y PÁDEL (Palas ·
+// Calzado · Pelotas · Bolsos · Grips y accesorios). Como `groupBySection` omite las
+// secciones vacías, cada rubro sólo muestra las suyas y las del otro no aparecen: un
+// único taxón compartido sin cruce (los vocabularios no colisionan — ver KIND_KEYWORDS).
+// Apenas haya foto real, el halo se reemplaza por <Image>; el clasificador sigue sirviendo.
+//
+// DEUDA ANOTADA (Gate §3): la evolución "limpia" es un esquema de secciones POR RUBRO
+// (variante ADR-055) inyectado desde el tenant/rubro, en vez de un taxón único. Se dejó
+// aditivo y sin cambiar firmas a propósito (ventana "afinar", cambio reversible acotado
+// al territorio de storefront-visual; no toca Storefront.tsx ni la página).
 
-export type ProductKind = "vela" | "difusor" | "textil" | "deco" | "accesorio" | "generico";
+export type ProductKind =
+  | "vela"
+  | "difusor"
+  | "textil"
+  | "deco"
+  | "accesorio"
+  // pádel (rubro `padel` / A Dos Manos): vocabulario genérico del rubro, no marca del tenant.
+  | "pala"
+  | "calzado"
+  | "pelota"
+  | "bolso"
+  | "equipo"
+  | "generico";
 
-// Familias de palabras por categoría (es-AR). El ORDEN es prioridad: `deco` va antes
-// que `vela` a propósito para que "Portavela" (un objeto deco) no caiga en velas por
-// contener el substring "vela". Los nombres del catálogo se eligen para no colisionar
-// (los accesorios no incluyen "vela"; las velas decorativas sí son velas).
+// Familias de palabras por categoría (es-AR). El ORDEN es prioridad: la primera que
+// matchea gana. `deco` va antes que `vela` para que "Portavela" (objeto deco) no caiga
+// en velas por el substring "vela"; y en pádel `equipo` (protectores) va antes que
+// `pala` para que "Protector de pala" no caiga en Palas. Los vocabularios de velas y
+// pádel NO colisionan entre sí (verificado: ningún producto de un rubro matchea las
+// palabras del otro), por eso conviven en una sola tabla.
 const KIND_KEYWORDS: { kind: Exclude<ProductKind, "generico">; words: string[] }[] = [
   // deco primero: objetos de decoración para el hogar (incl. portavelas/portasahumerios).
   { kind: "deco", words: ["portavela", "porta vela", "portasahumerio", "florero", "jarron", "jarrón", "bandeja", "espejo", "cuadro", "lámina", "lamina", "maceta", "adorno", "macramé", "macrame", "guirnalda", "farol", "aromatizador de ambiente"] },
@@ -27,6 +49,15 @@ const KIND_KEYWORDS: { kind: Exclude<ProductKind, "generico">; words: string[] }
   { kind: "textil", words: ["textil", "textiles", "sabana", "sábana", "aromatizante de tela", "ropa"] },
   // accesorios: herramientas y complementos (sin el substring "vela" para no colisionar).
   { kind: "accesorio", words: ["mecha", "mechas", "cortamecha", "cortamechas", "apagador", "snuffer", "fósforo", "fosforo", "cerilla", "kit", "pabilo", "pinza"] },
+  // --- Pádel (rubro `padel`) ---
+  // `equipo` ANTES que `pala`: "Protector de pala", "grip", "overgrip", "muñequera" son
+  // equipamiento, no palas, aunque contengan el substring "pala".
+  { kind: "equipo", words: ["overgrip", "grip", "muñequera", "muñequeras", "protector", "antivibrador"] },
+  { kind: "calzado", words: ["zapatilla", "zapatillas", "calzado"] },
+  { kind: "pelota", words: ["pelota", "pelotas"] },
+  { kind: "bolso", words: ["paletero", "mochila", "bolso", "bolsos"] },
+  // `pala` al final del bloque de pádel: es la categoría más amplia del rubro.
+  { kind: "pala", words: ["pala", "palas"] },
 ];
 
 /** Clasifica un producto por su nombre. Case/acentos-insensible razonable. */
@@ -47,6 +78,12 @@ const KIND_GLYPH: Record<ProductKind, string> = {
   textil: "≈",
   deco: "❖",
   accesorio: "✦",
+  // pádel — glifos sobrios y distintos entre sí y de los de velas.
+  pala: "◗",
+  calzado: "◄",
+  pelota: "●",
+  bolso: "▣",
+  equipo: "✚",
   generico: "◦",
 };
 
@@ -56,7 +93,18 @@ export function productGlyph(name: string): string {
 
 // --- Secciones del catálogo (recorrido experiencial) ------------------------
 
-export type ProductSectionId = "velas" | "aromas" | "decoracion" | "accesorios" | "otros";
+export type ProductSectionId =
+  | "velas"
+  | "aromas"
+  | "decoracion"
+  | "accesorios"
+  // pádel
+  | "palas"
+  | "calzado"
+  | "pelotas"
+  | "bolsos"
+  | "equipamiento"
+  | "otros";
 
 const KIND_TO_SECTION: Record<ProductKind, ProductSectionId> = {
   vela: "velas",
@@ -64,6 +112,12 @@ const KIND_TO_SECTION: Record<ProductKind, ProductSectionId> = {
   textil: "aromas",
   deco: "decoracion",
   accesorio: "accesorios",
+  // pádel
+  pala: "palas",
+  calzado: "calzado",
+  pelota: "pelotas",
+  bolso: "bolsos",
+  equipo: "equipamiento",
   generico: "otros",
 };
 
@@ -79,13 +133,22 @@ export interface SectionMeta {
   blurb: string;
 }
 
-// Orden de recorrido de la tienda: primero las velas (el corazón), luego los aromas,
-// después la decoración del hogar y por último los accesorios del ritual.
+// Orden de recorrido de la tienda. VELAS/deco primero (el corazón → aromas → deco →
+// accesorios), luego PÁDEL (palas → calzado → pelotas → bolsos → equipamiento) y por
+// último "otros" (catch-all). Cada rubro sólo puebla sus secciones; las del otro quedan
+// vacías y `groupBySection` las omite, así ninguna tienda ve secciones ajenas.
 export const PRODUCT_SECTIONS: SectionMeta[] = [
+  // Velas & deco
   { id: "velas", label: "Velas", blurb: "Aromáticas, decorativas y artesanales — el corazón de tu ambiente." },
   { id: "aromas", label: "Aromas", blurb: "Difusores, sahumerios y textiles para perfumar cada rincón." },
   { id: "decoracion", label: "Decoración", blurb: "Objetos para el hogar que acompañan la luz y completan la escena." },
   { id: "accesorios", label: "Accesorios", blurb: "Los detalles del ritual: mechas, apagadores y fósforos largos." },
+  // Pádel
+  { id: "palas", label: "Palas", blurb: "El corazón de tu juego: potencia, control y todo lo que hay en el medio." },
+  { id: "calzado", label: "Calzado", blurb: "Zapatillas con el agarre y la amortiguación que la pista te pide." },
+  { id: "pelotas", label: "Pelotas", blurb: "Presión y durabilidad para que cada partido rinda de principio a fin." },
+  { id: "bolsos", label: "Bolsos y paleteros", blurb: "Para llevar el equipo completo, prolijo y siempre a mano." },
+  { id: "equipamiento", label: "Grips y accesorios", blurb: "Los detalles que cuidan tu pala y tu mano: grips, protectores y más." },
   { id: "otros", label: "Más productos", blurb: "" },
 ];
 

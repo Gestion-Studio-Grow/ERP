@@ -45,6 +45,62 @@ test("classifyProduct: es case-insensitive y cae a genérico sin match", () => {
   assert.equal(classifyProduct(""), "generico");
 });
 
+// --- Pádel (rubro `padel` / A Dos Manos) — vocabulario genérico del rubro ---
+// Blindan que el catálogo real de la tienda de pádel (src/blueprints/retail/rubros.ts)
+// NO caiga todo en "otros" (grilla plana), sino en sus mundos. Nombres tomados del
+// catálogo semilla del rubro `padel`.
+test("classifyProduct: reconoce las categorías de una tienda de pádel", () => {
+  assert.equal(classifyProduct("Pala Adidas Metalbone 3.4"), "pala");
+  assert.equal(classifyProduct("Pala Bullpadel Vertex 04"), "pala");
+  assert.equal(classifyProduct("Zapatillas Asics Gel-Padel Pro"), "calzado");
+  assert.equal(classifyProduct("Tubo de pelotas Head Padel Pro (x3)"), "pelota");
+  assert.equal(classifyProduct("Paletero Adidas Multigame"), "bolso");
+  assert.equal(classifyProduct("Mochila de pádel Nox"), "bolso");
+  assert.equal(classifyProduct("Overgrips Bullpadel (pack x3)"), "equipo");
+  assert.equal(classifyProduct("Grip base Adidas"), "equipo");
+  assert.equal(classifyProduct("Muñequeras Head (par)"), "equipo");
+});
+
+test("classifyProduct: 'Protector de pala' es equipo, no pala (prioridad de orden)", () => {
+  // El protector contiene el substring "pala" pero es equipamiento: `equipo` va antes.
+  assert.equal(classifyProduct("Protector de pala transparente"), "equipo");
+  assert.equal(classifyProduct("Protector de pala premium Bullpadel"), "equipo");
+});
+
+test("productSection: mapea las categorías de pádel a sus mundos", () => {
+  assert.equal(productSection("Pala Nox AT10 Genius 18K"), "palas");
+  assert.equal(productSection("Zapatillas Adidas Ubersonic 4"), "calzado");
+  assert.equal(productSection("Tubo de pelotas Bullpadel Premium (x3)"), "pelotas");
+  assert.equal(productSection("Paletero Bullpadel Hack"), "bolsos");
+  assert.equal(productSection("Grip base Adidas"), "equipamiento");
+});
+
+test("groupBySection: una tienda de pádel arma su recorrido (no una grilla plana)", () => {
+  const padel = [
+    { name: "Pala Adidas RX Series" },
+    { name: "Zapatillas Head Sprint Pro 3.5" },
+    { name: "Tubo de pelotas Head Padel Pro (x3)" },
+    { name: "Paletero Adidas Multigame" },
+    { name: "Overgrips Bullpadel (pack x3)" },
+    { name: "Protector de pala premium Bullpadel" },
+  ];
+  const ids = groupBySection(padel).map((g) => g.section.id);
+  // Sólo secciones de pádel, en orden de recorrido; ninguna sección de velas.
+  assert.deepEqual(ids, ["palas", "calzado", "pelotas", "bolsos", "equipamiento"]);
+  assert.equal(ids.includes("velas"), false);
+});
+
+test("vocabularios de velas y pádel no colisionan (ningún cruce entre rubros)", () => {
+  // Productos de velas NO caen en secciones de pádel…
+  for (const n of ["Vela Lavanda", "Portavela de cerámica", "Difusor Jazmín", "Cortamechas de acero"]) {
+    assert.equal(["palas", "calzado", "pelotas", "bolsos", "equipamiento"].includes(productSection(n)), false, n);
+  }
+  // …y productos de pádel NO caen en secciones de velas.
+  for (const n of ["Pala Siux Electra ST3 Stupa", "Zapatillas Bullpadel Hack Vibram", "Mochila de pádel Nox"]) {
+    assert.equal(["velas", "aromas", "decoracion", "accesorios"].includes(productSection(n)), false, n);
+  }
+});
+
 // --- productGlyph -----------------------------------------------------------
 
 test("productGlyph: un glifo por categoría, estable y distinto entre categorías", () => {
