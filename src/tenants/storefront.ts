@@ -193,11 +193,11 @@ const shinevelas: StorefrontCopy = {
       { name: "Set Deco & Luz", items: "Vela decorativa + portavela de cerámica + bandeja", price: 24900, note: "Envío gratis" },
     ],
   },
-  reviews: [
-    { name: "Carla P.", rating: 5, text: "Compré una vela y terminé armando toda la deco del living con ellos. El aroma dura muchísimo y queda divino." },
-    { name: "Sofía M.", rating: 5, text: "El set de regalo es una experiencia: llega hermoso, se siente desde que abrís la caja. Ya pedí de nuevo." },
-    { name: "Belén R.", rating: 5, text: "Me asesoraron por WhatsApp para combinar vela, difusor y portavela. Llegó todo perfecto y coordinado." },
-  ],
+  // Reviews: VACÍO a propósito. Las 3 que había (Carla P./Sofía M./Belén R.) venían del
+  // preview de preventa marcado "datos de ejemplo" — nombres y textos INVENTADOS, no
+  // testimonios reales. Presentarlos como clientes reales viola DX-5 + honestidad de marca.
+  // Se dejan fuera hasta que el dueño aporte reseñas reales (capturas de IG/WhatsApp).
+  reviews: [],
   about: {
     title: "No vendemos velas. Creamos ambientes.",
     body: "Shine nació de una obsesión simple: que la luz y el aroma puedan cambiar cómo se siente un espacio. Empezamos con velas de soja hechas a mano y hoy sumamos difusores, objetos de decoración y los accesorios del ritual —todo elegido con el mismo criterio para que combine entre sí. No comprás un producto: armás el ambiente de tu casa. Para que tu luz nunca se apague.",
@@ -207,9 +207,53 @@ const shinevelas: StorefrontCopy = {
   shipping: { flatRate: 3500, freeThreshold: 25000 },
 };
 
+// --- A DOS MANOS Pádel (`adosmanos`, rubro `padel`) — voz de @adosmanospadel ---
+// ⚠️ PROVISIONAL — relevamiento DX-5 real PENDIENTE. La fuente real del negocio es su
+// Instagram (@adosmanospadel), hoy INACCESIBLE (login-walled; sin web/TiendaNube/Linktree
+// públicos — verificado por WebFetch + WebSearch 2026-07-07). Por eso este copy se arma
+// SÓLO con hechos del MODELO de negocio (rubro `padel` + términos conocidos: 2 líneas
+// palas/zapatillas, marcas líderes, 28% off por transferencia, cuotas 3 y 12, envío gratis
+// >$300.000, envíos a todo el país, cambios 30 días) y una voz de marca sobria y genérica.
+// NO se inventa: reviews (van vacías), historia de origen ni precios fuera del rubro.
+// El dueño debe aportar el material real (bio, about, testimonios, catálogo/precios) o una
+// captura del IG para cerrar el DX-5 fiel. Marcado provisional a confirmar.
+const adosmanos: StorefrontCopy = {
+  eyebrow: "A DOS MANOS · Pádel",
+  tagline: "Palas y zapatillas, para jugar mejor.",
+  pitch: "Tienda chica, elegida a mano.",
+  intro:
+    "Dos líneas, las mejores marcas y asesoramiento personalizado. No vendemos de todo: elegimos pocas palas y zapatillas —las que valen la pena— y te ayudamos a encontrar la que le sirve a tu juego. Mirá el catálogo y hacé tu pedido.",
+  valueProps: [
+    { icon: "◆", title: "Elegidas a mano", text: "Pocas palas y zapatillas, las mejores marcas: no vendemos de todo, vendemos lo que recomendamos." },
+    { icon: "✳", title: "Asesoramiento real", text: "Te ayudamos por WhatsApp a elegir según tu nivel y tu juego, sin vueltas." },
+    { icon: "$", title: "28% off por transferencia", text: "Mejor precio pagando por transferencia; también débito, crédito y Mercado Pago." },
+    { icon: "▣", title: "Cuotas sin interés", text: "3 y 12 cuotas sin interés con Mercado Pago." },
+    { icon: "→", title: "Envíos a todo el país", text: "Envío gratis superando $300.000. Cambios dentro de los 30 días." },
+  ],
+  vacioTitle: "Nuestras líneas",
+  vacioLines: [
+    { title: "Palas", text: "De iniciación a tope de gama: Adidas, Bullpadel, Nox, Siux y Head.", section: "palas" },
+    { title: "Zapatillas", text: "Agarre y amortiguación pensados para la pista: Asics, Adidas, Bullpadel y Head.", section: "calzado" },
+  ],
+  gourmetTitle: "También",
+  gourmetItems: ["Pelotas", "Paleteros y mochilas", "Grips y overgrips", "Muñequeras", "Protectores"],
+  providers: ["Adidas", "Bullpadel", "Nox", "Siux", "Head", "Asics"],
+  // Sin reseñas reales relevadas → vacío (no se inventan clientes). El dueño las aporta.
+  reviews: [],
+  about: {
+    title: "Vendemos lo que usaríamos nosotros.",
+    body: "En A Dos Manos no vas a encontrar de todo: elegimos pocas palas y zapatillas, de las mejores marcas, y sumamos solo lo que probaríamos en cancha. La idea es simple: que puedas comprar con confianza y que, si tenés dudas, te asesoremos para encontrar la que de verdad te sirve según tu juego. Escribinos y lo resolvemos sin vueltas.",
+  },
+  deliveryZones: ["Envíos a todo el país"],
+  paymentMethods: ["Transferencia (28% off)", "Débito", "Crédito", "Mercado Pago", "Cuotas 3 y 12 sin interés"],
+  // shipping: se OMITE a propósito — el umbral real de envío gratis ($300.000) se comunica
+  // como propuesta de valor, pero no hay tarifa plana real confirmada para el calculador.
+};
+
 const COPY_BY_SLUG: Record<string, StorefrontCopy> = {
   magra,
   shinevelas,
+  adosmanos,
 };
 
 export function getStorefrontCopy(slug: string | null | undefined): StorefrontCopy | null {

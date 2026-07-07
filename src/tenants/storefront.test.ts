@@ -55,6 +55,34 @@ test("slug desconocido → sin copy (cae al wording del rubro)", () => {
   assert.equal(getStorefrontCopy(null), null);
 });
 
+// --- A Dos Manos (adosmanos) — copy propio, provisional, SIN datos inventados ---
+
+test("adosmanos resuelve su copy propio (2 líneas + marcas reales del modelo)", () => {
+  const copy = getStorefrontCopy("adosmanos");
+  assert.ok(copy, "adosmanos debe tener copy propio");
+  assert.ok(copy!.tagline.length > 0);
+  // Las dos líneas del negocio, ancladas a las secciones de pádel (storefront-visual).
+  const secs = copy!.vacioLines.map((l) => l.section);
+  assert.ok(secs.includes("palas") && secs.includes("calzado"), "líneas Palas + Calzado por sección");
+  // Marcas líderes como proveedores (hecho del modelo, no inventado).
+  assert.ok(copy!.providers.includes("Bullpadel") && copy!.providers.includes("Adidas"));
+});
+
+test("adosmanos NO inventa datos: sin reviews, sin experiencia de velas, sin envío falso", () => {
+  const copy = getStorefrontCopy("adosmanos")!;
+  assert.equal(copy.reviews.length, 0, "no se fabrican testimonios reales");
+  assert.equal(copy.ritual, undefined, "el ritual es de velas, no de pádel");
+  assert.equal(copy.giftSets, undefined);
+  // No hay tarifa plana real confirmada → no se cablea el calculador de envío.
+  assert.equal(copy.shipping, undefined);
+});
+
+test("shinevelas ya no trae reseñas fabricadas (compliance DX-5)", () => {
+  // Las reviews con nombres inventados (preview "datos de ejemplo") se quitaron: se
+  // presentaban como clientes reales. Se reponen sólo con testimonios reales del dueño.
+  assert.equal(getStorefrontCopy("shinevelas")!.reviews.length, 0);
+});
+
 // --- Rubro por tenant -------------------------------------------------------
 
 test("shinevelas mapea al rubro `velas` y su catálogo es visual, por unidad", () => {
