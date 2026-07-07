@@ -118,6 +118,16 @@ todo. El tope de 4 + las olas chicas mantienen la fluidez; las prioridades garan
 capacidad escasea, el trabajo que **genera ventas (demos)** siempre corre y lo de bajo impacto cede el
 lugar. Es coherente con el ciclo **DEMO → VENTA → INVERSIÓN**: primero lo que vende.
 
+## 🧭 Advisory Board + Challenger — gobernanza de decisiones estratégicas (ADR-045)
+
+Toda **decisión estratégica** (bases/fundamentos, roadmap, **segmentación low/mid/big**, estrategia de
+escala) pasa por un par **tesis/antítesis** antes de adoptarse: el **Advisory Board** propone con rigor; el
+**Challenger (contrarian / red-team)** —mismos skills de alto nivel, **postura opuesta**— presenta el caso
+contrario, los riesgos, los supuestos débiles y las alternativas, con el mismo rigor. **Flujo:** Advisory
+**propone** → Challenger **desafía** → **síntesis/decisión del dueño**. **Regla dura: nada se adopta como
+fundamento sin pasar por el Challenger.** Corre en **Sonnet por defecto (ultra-ahorro)**; escala a **Opus**
+a pedido del dueño. Detalle y porqué: **`docs/adr/ADR-045-advisory-board-challenger-contrarian.md`**.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.

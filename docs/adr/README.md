@@ -39,6 +39,7 @@ anotado) · *Aceptado — vigente* (norma/metodología) · *Aceptado — en reco
 - **033** — Regla de copia exacta ↔ auditoría (el front replicado se respeta; el backoffice pasa el Gate completo).
 - **043** — Estándar de marca GSG (sello en todo entregable, sin pisar la marca del cliente).
 - **044** — **Argentinizar SAP** (lo mejor de SAP adaptado a la pyme argentina: criollo · ARCA · Mercado Pago · WhatsApp-first) — ángulo transversal de la auditoría.
+- **045** — **Advisory Board + Challenger (contrarian)** — tesis/antítesis antes de adoptar un fundamento; nada se adopta sin pasar por el Challenger. Corre en Sonnet (ultra-ahorro).
 
 ### 🔐 Multi-tenant, datos y aislamiento (RLS)
 - **001** — Estrategia multi-tenant (shared schema + `tenant_id` + RLS).
@@ -78,7 +79,7 @@ anotado) · *Aceptado — vigente* (norma/metodología) · *Aceptado — en reco
 - **Multi-tenant & aislamiento:** 001 → 015 → 018 → 029 → 023 (RLS aísla *y* enciende performance).
 - **Demo → venta → entrega:** 028 (qué es el entregable) ↔ 030 (cuándo se invierte) ↔ 031 (cómo es el demo) ↔ 041 (credenciales por fase) ↔ 029 (URL por tenant).
 - **Preset, marca y Gate:** 034 (generar) → 042 (autorización) → 033 (copia exacta) → 043 (sello) → 040 (Gate) → **044 (Argentinizar SAP — ángulo argentino)** ; 035 (consultor → backoffice) alimenta el backoffice.
-- **Modelo de trabajo GSG:** 008 (semilla) → 032 (modelos + concurrencia + prioridades) → 039 (sprint) → 040 (Gate) → 016 (handoff).
+- **Modelo de trabajo GSG:** 008 (semilla) → 032 (modelos + concurrencia + prioridades) → 039 (sprint) → 040 (Gate) → 016 (handoff) → **045 (Advisory + Challenger)**.
 - **Fiscal / dinero:** 022 (ARCA) → 024 (disparadores + MP) → 025 (ingesta MP masiva).
 
 ---
