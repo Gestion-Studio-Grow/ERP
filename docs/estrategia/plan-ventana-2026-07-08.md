@@ -8,6 +8,40 @@ IRREVERSIBLES no se ejecutan — se dejan listos y se ELEVAN al dueño** (§C, 1
 
 ---
 
+## 🪣 Etiquetado en DOS BALDES (para NO pulir lo que se rehace)
+
+**Regla del dueño:** nadie invierte pulido en algo que **mañana se rehace**. Cada ítem cae en un balde.
+**Gate en Opus antes de cada merge; los irreversibles esperan OK del dueño (§C).** *(Estos baldes etiquetan
+el trabajo de afinado; el detalle 80/20 sigue en §A/§B y los irreversibles en §C.)*
+
+### 🟢 BALDE A — "Terminar HOY en Sonnet" (forma FINAL, no va a reingeniería)
+Se pule a estado **vendible/definitivo**. Sonnet (Gate en Opus antes de mergear).
+
+| Ítem | % avance | Célula |
+|---|---|---|
+| **A1 · QA e2e como usuario de los 4 live** (CH·Magra·Shine·A Dos Manos): recorrer + listar defectos reversibles | ~0% (arranca) | **QA/Probador** |
+| **A2 · Alinear fronts a lo real** donde falte (patrón Magra / DX-5) | Magra ~90% · CH ~80% · Shine/ADM ~50% | **Diseño** + **Adaptador/Delivery** |
+| **A3 · Demo vendible**: demo consultor→backoffice + cerrar **J-1/J-3** y defectos abiertos **que sean forma final** | ~70% | **Producto por rubro** + **QA** |
+| **A4 · Coherencia documental** (roster · ADRs · lecciones · wiring) | ~95% (índice 54=54 ✓; falta pasada final) | **PMO (autor)** |
+| **A5 · Retro (ADR-047)** sobre lo de hoy → briefs/skills + memoria | 0% (al cierre) | **PMO** + cada célula |
+| **A6 · Dejar deploys LISTOS para OK** (Magra publish · fronts alineados): preparar, **no ejecutar** | listo-para-OK | **Plataforma/Deploy** (prepara) → eleva a §C |
+
+### 🔴 BALDE B — "NO tocar / reingeniería MAÑANA en Opus" (dejar estable, sin regresiones, sin pulir)
+**No se invierte pulido.** Solo **mantener estable** (que no rompa lo que ya anda). La reingeniería va mañana en Opus.
+
+| Ítem | % avance | Nota |
+|---|---|---|
+| **Consola operador** — *si va a rediseño* | funcional (OP-2/OP-3 cerrados) | no pulir; solo estable → **confirmar** si entra a rediseño |
+| **Productos/módulos marcados para rehacer** (a confirmar cuáles) | — | dejar como están; no invertir |
+| **Módulos núcleo faltantes** (ARCA real · MP real) | ARCA scaffold · MP stub | es **construcción/reingeniería**, no pulido → Opus mañana |
+| **Arquitectura del repo de plugins** (ADR-054) | propuesto | **diseño**, no se construye hoy → Opus |
+
+> **⚠️ La lista exacta del Balde B la confirma el dueño/Arquitecto** (qué está "marcado para reingeniería").
+> Van como **candidatos** con marca *a confirmar*. **Ante la duda, un ítem va a B** (no se pule) — así no se
+> gasta pulido en algo que se rehace.
+
+---
+
 ## A · 80% AFINAR (solo mejora de lo EXISTENTE — cero features nuevas)
 
 Prioridad P1→P4 dentro de la ventana. Todo **reversible/doc-only** salvo lo marcado 🔒 (→ va a §C).
