@@ -6,6 +6,7 @@ import ProfessionalsSection from "./ProfessionalsSection";
 import ProductsSection from "./ProductsSection";
 import ResourcesSection from "./ResourcesSection";
 import CouponsSection from "./CouponsSection";
+import AsignacionSection from "./AsignacionSection";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,20 @@ export default async function CatalogoPage() {
         <ResourcesSection resources={resources} />
         <ProductsSection products={products} />
         <ProfessionalsSection professionals={professionals} boxes={boxes} services={services} />
+        <AsignacionSection
+          services={services.map((s) => ({
+            id: s.id,
+            name: s.name,
+            active: s.active,
+            categoryName: s.category?.name ?? null,
+          }))}
+          professionals={professionals.map((p) => ({
+            id: p.id,
+            name: p.name,
+            active: p.active,
+            serviceIds: p.services.map((s) => s.id),
+          }))}
+        />
         <CouponsSection coupons={coupons} />
       </div>
     </main>

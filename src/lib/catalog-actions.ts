@@ -244,6 +244,36 @@ export async function setServiceProducts(formData: FormData) {
   revalidatePath(CATALOG_PATH);
 }
 
+// Asigna qué profesionales realizan un servicio — el ABM de la ASIGNACIÓN desde el
+// LADO DEL SERVICIO (variante, ADR-055). Complementa `updateProfessional` (que asigna
+// desde el lado del profesional): ambos escriben la misma relación implícita
+// `ProfessionalServices`, así el operador puede asignar servicio↔profesional desde
+// cualquiera de las dos puntas. La asignación es EXPLÍCITA y por entidad — nunca
+// "todos con todo" (fix-forward de A-1 / DX-6): acá se setea el set puntual de este
+// servicio, no un connect masivo.
+export async function setServiceProfessionals(formData: FormData) {
+  await requireCapability("catalog:manage");
+  const serviceId = String(formData.get("serviceId"));
+  const professionalIds = formData.getAll("professionalId").map(String).filter(Boolean);
+  if (!serviceId) return;
+
+  // `set` reemplaza el set completo. Los ids se validan contra las filas visibles por
+  // RLS (mismo tenant): un id de otro tenant no existe para este cliente Prisma y falla
+  // cerrado, igual que en `updateProfessional`. La fila Service ya está scopeada por RLS.
+  await prisma.service.update({
+    where: { id: serviceId },
+    data: { professionals: { set: professionalIds.map((id) => ({ id })) } },
+  });
+  await auditAdmin({
+    action: "update",
+    entity: "Service",
+    entityId: serviceId,
+    changes: { professionals: professionalIds },
+  });
+  revalidatePath(CATALOG_PATH);
+  revalidatePath("/");
+}
+
 // --- Products (stock) ---
 
 // Campos de venta al público (extensión retail, mec. A ADR-002). Opcionales: el
