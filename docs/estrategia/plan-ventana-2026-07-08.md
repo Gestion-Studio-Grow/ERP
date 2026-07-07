@@ -45,6 +45,11 @@ Se pule a estado **vendible/definitivo**. Sonnet (Gate en Opus antes de mergear)
 > maestro)** + **ABM de la asignación** (asignar/desasignar por entidad), **nunca "a todos con todo"** (causa
 > raíz de A-1/DX-6/DX-7). Mismo patrón para producto↔categoría y módulo/plugin↔tenant (ADR-054). Hoy solo
 > documentado; la construcción va mañana.
+>
+> **🛰️ Consola operador (T4) → COCKPIT OPERADOR:** el rediseño se hace sobre la spec
+> **`docs/arquitectura/cockpit-operador-spec-T4.md`** — panel tipo tablero de mando (mapa de tenants ·
+> salud de arquitectura · estado Neon read-only · flujo de trabajo · alertas críticas), **control-plane
+> read-only** (no datos de negocio), 3D vía CSS/SVG (WebGL lazy si hace falta). Solo spec hoy; construcción en T4.
 
 ---
 
