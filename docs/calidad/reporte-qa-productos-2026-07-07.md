@@ -28,7 +28,7 @@ contra CLAUDE.md y `docs/lecciones-aprendidas/registro.md`. **Solo lectura, no s
 
 ### 🟠 ALTO
 
-**A-1 · CH Estética — el EQUIPO muestra servicios idénticos y NO representativos por profesional.**
+**A-1 · CH Estética — el EQUIPO muestra servicios idénticos y NO representativos por profesional.** ✅ **RESUELTO 2026-07-07** (fix de dato en prod, con OK del dueño; patrón DX-7 dry-run→apply→verify). Reasignación diferenciada por profesional (scoped al `tenantId` de CH, solo la relación M2M `_ProfessionalServices`, sin seed/deleteMany): **Carolina** → Faciales+Cejas+Corporal+Capacitaciones (39, **sin depilación**); **Macarena** → Depilación+Masajes (24); **Romina** → Manos+Spa de pies+Cejas+Depilación (29). Verificado: sets distintos, ningún servicio activo queda huérfano. Ver DX-6.
 En la home de CH, las **tres** profesionales (Carolina Haponiuk, Macarena Arias, Romina Delpardo)
 muestran **exactamente la misma lista** de servicios, y encima **solo de depilación**:
 *"Zona chica (bozo, mentón…) · Axilas · Combo: bozo + axilas + piernas completas + cavado con tira de
