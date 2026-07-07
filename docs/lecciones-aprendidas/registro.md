@@ -18,7 +18,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
 ---
@@ -326,6 +326,15 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** un frente reversible en Opus **gasta juicio caro donde no hace falta** — el control (Gate) es lo único que va siempre en Opus, la ejecución reversible va en Sonnet.
 - **Guardarraíl:** **ningún frente arranca sin modelo declarado**; reversible → Sonnet; una sesión sin modelo etiquetado está **fuera de norma** y se corrige antes de trabajar.
 - **Refs:** ADR-032, ADR-049; `docs/organizacion/asignacion-modelos-sprint.md`; Plan de Ventana 2026-07-08.
+
+**[MP-10] Reconciliar una rama vieja a main = selectivo, no `git merge`**
+- **Síntoma:** `gsg-lab` (base 63f54ca, solo ADRs 001-028) estaba **135 commits detrás** de `main` y 82 adelante; un `git merge` habría **regresionado** cosas que `main` sumó después (sello GSG del layout, nav Cockpit, scripts `gates`/`load-test`, `.env.vercel.template`) porque la rama vieja las **borra** en su versión de esos archivos.
+- **Causa raíz:** una rama larga y divergente tiene versiones **viejas** de archivos compartidos (config, layout, .gitignore, package.json); traerla entera pisa el trabajo nuevo de `main`.
+- **Fix:** reconciliación **selectiva y aditiva** — `git checkout <rama> -- <rutas nuevas>` para lo que no existe en main (carpeta célula, rutas del panel), y **merge quirúrgico archivo por archivo** (Read+diff, agregar solo el delta) en cada archivo compartido; **nunca overwrite** del archivo entero de la rama vieja. Vallas (tsc+test+build) + Gate antes de mergear a main (commit 405a066).
+- **Lección:** ante ramas muy divergentes, **diff primero, integrá el delta** — asumí que la rama vieja borra mejoras nuevas y verificá cada archivo compartido antes de traerlo.
+- **Guardarraíl:** reconciliar rama vieja → main **por pathspec/delta, no `git merge`**; para cada archivo tocado por ambas, comparar contra `main` y traer **solo** lo nuevo. Colisión de nº de ADR → **renumerar el de la rama** al siguiente libre + arreglar el INDEX.
+- **Gotcha de infra:** `robocopy` desde Git Bash **necesita `MSYS_NO_PATHCONV=1`** — sin eso, MSYS convierte `/E` en `E:/` y el copiado falla en silencio (exit 0, 0 archivos). Materializar `node_modules` real (no junction) para el build de Turbopack sigue vigente (MP-6).
+- **Refs:** ADR-039, ADR-049; ADR-056 (renumerado desde ADR-028 de la rama); memoria worktree/robocopy.
 
 ## SEC — Seguridad
 
