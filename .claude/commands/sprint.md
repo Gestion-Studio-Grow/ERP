@@ -162,6 +162,6 @@ que toque el sprint**. Todo respeta el **tope ≤ 4 corriendo** en olas y las pr
 
 **Orden:** Ola 0 = PMO corre FASE 0 → propone → **Dueño aprueba** → Ola de ejecución (Arquitecto reversible + ≤3 frentes, QA prueba) → puntual (Advisory/Seguridad/Gate) → irreversible **se eleva** → cierre: **retro (ADR-047) + backup**. Detalle: **`docs/adr/ADR-050`**.
 
-> **🎓 Todo agente convocado CALIBRA primero (ADR-052):** antes de actuar lee su corpus (`CLAUDE.md` + ADRs de su rol + `ESTADO-ACTUAL.md` + `docs/lecciones-aprendidas/registro.md`) y escribe 3–5 principios que guían sus decisiones (declara su zona de de-sesgo). Organigrama completo de quién compone cada división: **`docs/organizacion/roster-completo-gsg.md`** (ADR-051).
+> **🎓 Todo agente convocado CALIBRA primero (ADR-052) — incluido todo agente NUEVO:** ningún agente opera sin calibrarse (leer corpus `CLAUDE.md` + ADRs de su rol + `ESTADO-ACTUAL.md` + `docs/lecciones-aprendidas/registro.md` + escribir 3–5 principios que lo guían, declarando su zona de de-sesgo). Todo agente nuevo se instancia sobre el **charter genérico** (`docs/organizacion/charter-generico-agente.md`, Paso 0 = calibración). Organigrama completo de quién compone cada división: **`docs/organizacion/roster-completo-gsg.md`** (ADR-051).
 
 Arrancá tomando el rol y confirmando qué worktrees existen (`git worktree list`) antes de asignar bocados.

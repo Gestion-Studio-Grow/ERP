@@ -125,6 +125,35 @@ Formato: **nombre** — misión (1 línea) · **entradas → salidas** · **mode
 > (protegen lo irreversible) → **FinOps** y **Pricing** (plata) → **Soporte** y **SRE** (operación) →
 > **Docs**, **Advisory roster**, **Legal** (orden/escala).
 
+## 5. Agentización de sesiones (roles recurrentes → agentes ; tareas one-off → plantillas)
+
+Revisión de las sesiones/comandos actuales. **Todo agente permanente se estandariza sobre el charter
+genérico** (`docs/organizacion/charter-generico-agente.md`) y **calibra** (ADR-052).
+
+### 5.a · AGENTES permanentes (rol recurrente — ya en el roster de arriba)
+| Sesión/comando | Rol recurrente | Agente permanente | Estado |
+|---|---|---|---|
+| `sesion-seguridad` | auditoría de seguridad | **Seguridad** (gobernanza) | ✅ ya agente |
+| `sesion-arquitectura` | arquitectura/gobierno | **PMO puro** (autor) + **Arquitecto de Solución** (ejecutor) | ✅ ya agentes (ADR-048/049) |
+| `remoto` / `sesion-movil` | conducción desde el móvil | **Dispatch** (conductor) | ✅ ya agente |
+| `sesion-consolidacion` | consolidación/cierre (main limpio, tags, handoff) | **Arquitecto** (ejecuta lo reversible) + **Docs/Índice vivo** (🆕) | 🟡 responsabilidad estandarizada (ADR-039 backup + ADR-047 retro); dueño formal = Docs cuando se active |
+| `impo` | importaciones | **Estructura Importaciones** (6 células) | 📐 ya agente (ADR-038) |
+| frentes: `calidad·diseno·pagos·plataforma·growth·producto·reliability·whatsapp·importaciones` | cores/células | células del §2 (QA·Diseño·Pagos·Plataforma·Growth·Producto·Reliability·WhatsApp·impo) | ✅ ya agentes |
+
+### 5.b · TAREAS one-off (NO agente permanente — plantilla ejecutada por la célula que corresponda)
+| Sesión/comando | Por qué one-off | Quién la ejecuta |
+|---|---|---|
+| `sesion-feature` | una feature acotada = **tarea**, no un rol permanente | el core/célula dueño del dominio |
+| `sesion-negocio` | análisis de negocio puntual = tarea | Consultores (Agencia) o PMO |
+| `rol` / `rol-fullstack` | plantillas genéricas de rol (utilitarias) | quedan como template, no como agente |
+| `manual` | utilitaria/manual | one-off |
+| `sprint` · `economia` · `boost` | **meta-comandos** (orquestan/switch de modelo), no roles | los usa cualquier sesión |
+
+> **Conclusión:** casi todos los roles recurrentes **ya estaban agentizados** (fruto de ADR-045…051); esta
+> sección lo **formaliza** y deja el mapeo explícito. El único hueco recurrente sin dueño formal es
+> **consolidación** → queda estandarizada como paso de cierre del Arquitecto + la célula **Docs/Índice vivo**
+> (🆕, §4). Nada nuevo se instancia sin OK del dueño.
+
 ---
 
 *Doc de organización/gobernanza (ADR-051). Todo agente calibra antes de actuar (ADR-052). No toca prod ni deploy.*

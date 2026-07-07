@@ -15,6 +15,13 @@ sin los **guardarraíles** de lo que ya nos pasó → repite errores conocidos. 
 entrenamiento universal**.
 
 ## Decisión
+> **REGLA DE ARRANQUE (dura, sin excepción): NINGÚN agente empieza a operar sin calibrarse primero** —leer
+> el corpus + los ADRs de su rol + la memoria de lecciones aprendidas, y escribir su resumen de principios—.
+> **Aplica a TODO agente: los existentes Y toda CREACIÓN FUTURA de agente** que se instancie de acá en
+> adelante. Un agente nuevo que arranca sin el Paso 0 está fuera de norma y no opera. El molde de creación es
+> el **charter genérico de agente** (`docs/organizacion/charter-generico-agente.md`), cuyo **Paso 0 es esta
+> calibración**.
+
 **Todo agente, al arrancar y antes de actuar, corre el Protocolo de Calibración** (3 pasos):
 1. **Leer el corpus** relevante a su rol (lista mínima abajo): el fundamento (`CLAUDE.md`), los **ADRs de su
    rol**, las **bases/roadmap** (`ESTADO-ACTUAL.md` / plan vigente) y la **memoria de lecciones aprendidas**

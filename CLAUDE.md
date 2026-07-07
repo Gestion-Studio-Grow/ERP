@@ -169,6 +169,12 @@ de-sesgo** (ADR-046: humano/criollo vs estándar/preciso); (3) **recién entonce
 **fuera de norma**. **Lista mínima de lectura por tipo de rol** en **ADR-052**. La estructura total de quién
 compone cada división está en **`docs/organizacion/roster-completo-gsg.md`** (ADR-051).
 
+> **🔒 Obligatorio para TODA CREACIÓN FUTURA de agente:** **ningún agente empieza a operar sin calibrarse
+> primero** (leer corpus + ADRs de su rol + memoria de lecciones + escribir su resumen de principios). Todo
+> agente nuevo se instancia sobre el **charter genérico** (`docs/organizacion/charter-generico-agente.md`),
+> cuyo **Paso 0 es la calibración**, y entra al **roster** (`roster-completo-gsg.md`). Vale para los
+> existentes y para cualquiera que se cree de acá en adelante.
+
 ## Modo de trabajo autónomo
 
 Las sesiones corren en modo autónomo. No usar `AskUserQuestion` ni ningún prompt/menú interactivo. Ante cualquier duda, asumir el criterio más simple y correcto, dejar el supuesto anotado y seguir sin frenar. Reportar todo por texto.
