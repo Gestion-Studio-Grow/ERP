@@ -45,6 +45,10 @@ tramo de juicio (revisión de bases) usa la asignación de ADR-045; se escala a 
 > Ese registro es **lectura obligatoria de calibración** de PMO y Arquitecto (y de las células antes de
 > tocar áreas de riesgo).
 
+> **Exposición cross-estructura (ADR-053):** cuando un agente se prestó a otra estructura, la cadencia (a)
+> **suma la exposición del cruce** (en qué nodo ejecutó/entrenó + qué aprendió) al registro — así el pool se
+> **entrena rotando** y se puede detectar quién necesita más exposición.
+
 ## Estado
 **Aceptado — vigente.** Rutina de mejora continua de GSG; cadencia (a) en el cierre de sprint (ADR-039),
 cadencia (b) en consolidación con revisión Advisory+Challenger (ADR-045). Registro vivo:

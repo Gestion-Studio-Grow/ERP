@@ -93,6 +93,28 @@ partida, de los principios operativos que **ya rigen** GSG en la práctica (`CLA
 - **Ejecución disciplinada** — "Sonnet ejecuta, Opus decide": el juicio caro se reserva, el volumen se
   delega, sin bajar el estándar de control.
 
+## 7. Cómo opera GSG — la factory de agentes: pool compartido + exposición deliberada
+
+**Pilar permanente de cómo GSG mueve su fuerza de agentes** (junto a "argentinizar SAP", el Gate de
+Excelencia, el de-sesgo por sector y el ciclo DEMO→VENTA→INVERSIÓN):
+
+> **Los agentes son un POOL que se entrena exponiéndose a toda la estructura. Reutilizamos y ROTAMOS a
+> propósito —no solo para ahorrar— para AMPLIAR su entrenamiento y BAJAR el sesgo genérico: más contextos =
+> agente más completo. Al prestarse a otra estructura, calibran con el destino y devuelven el aprendizaje a
+> la memoria; al cerrar, vuelven a su asignación de origen (no se re-parenta ni se duplica).**
+
+- **Exposición deliberada (objetivo, no solo permiso):** la rotación cross-estructura es un fin **buscado**
+  —un mecanismo de **mejora continua** del agente—, no algo que apenas se tolera.
+- **Reúso antes de crear:** antes de instanciar un agente nuevo se verifica si el **pool** ya lo cubre
+  (evita duplicados y respeta el tope de concurrencia).
+- **Exposición acumulada:** se lleva un **registro ligero** de en qué nodos ejecutó/entrenó cada agente,
+  para **rotarlos con criterio** y detectar **quién necesita más exposición**.
+- **Circula el conocimiento:** cada cruce vuelca su aprendizaje a la **memoria de lecciones** (retro), así
+  ninguna experiencia queda encapsulada en una división.
+
+El **"cómo" detallado** (préstamo/retorno, calibración cross-estructura, registro de exposición) vive en
+**`docs/adr/ADR-053`** (+ ADR-052 calibración, ADR-047 retro). Este documento fija el **pilar**; el ADR, la mecánica.
+
 ---
 
 *Fuentes de referencia externas usadas para contrastar (no para copiar): SAP (misión/propósito,

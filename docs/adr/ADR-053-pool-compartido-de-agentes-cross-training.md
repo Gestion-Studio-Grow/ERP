@@ -30,6 +30,19 @@ división. El dueño fija que los agentes son un **pool reutilizable**, no silos
    lo aprendido en el cruce → el conocimiento **fluye entre estructuras**, no queda encapsulado.
 5. **Coordinación:** el **Arquitecto de Solución** coordina los préstamos (prestar/devolver es **ejecución
    reversible**: no toca prod/irreversible).
+6. **La EXPOSICIÓN es DELIBERADA (objetivo buscado, no solo permitido):** el entrenamiento **y** la ejecución
+   de un agente pueden ocurrir **en cualquier parte de la estructura, a propósito, "en orden de exponer su
+   entrenamiento"**. Rotar/prestar se **busca activamente** porque **amplía el entrenamiento** del agente:
+   **más contextos = agente más completo y con menos sesgo genérico**. No es solo "reutilizar para ahorrar":
+   es un **mecanismo de mejora continua** del agente.
+7. **Registro de exposición acumulada (ligero):** por cada agente se anota **en qué nodos ejecutó/se entrenó**
+   (registro liviano, junto al de lecciones). Sirve para **rotarlos con criterio** y **detectar quién necesita
+   más exposición**. **Atado a la retro (ADR-047):** en **cada cierre**, la cadencia (a) **suma la exposición
+   del cruce** a la memoria.
+
+> **Es BASE, no solo ADR:** este principio (factory / pool + cross-training + exposición deliberada) está
+> elevado a **fundamento de primer nivel** en `docs/fundamentos/bases-gsg.md §7` y como principio base en
+> `CLAUDE.md`. Este ADR es el **"cómo" detallado**; el pilar vive en las bases.
 
 ## Consecuencias
 - **(+)** **Menos duplicación** de agentes; el tope de concurrencia se respeta mejor (se **reusa** en vez de

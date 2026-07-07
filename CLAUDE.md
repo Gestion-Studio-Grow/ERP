@@ -186,7 +186,12 @@ su célula/división de origen** (no se re-parenta ni se duplica). **Cross-train
 **extiende su calibración** (ADR-052) leyendo el contexto de la estructura destino, y al cerrar **vuelca lo
 aprendido al registro de lecciones** (ADR-047) → el conocimiento **fluye entre estructuras**. Los préstamos
 los **coordina el Arquitecto de Solución** (es ejecución reversible). Refuerza el default **"crear generoso /
-activar en olas"**: muchas necesidades se cubren **prestando**, no creando. Detalle: **`docs/adr/ADR-053-pool-compartido-de-agentes-cross-training.md`**.
+activar en olas"**: muchas necesidades se cubren **prestando**, no creando. **La EXPOSICIÓN es DELIBERADA:**
+rotar/prestar a distintos nodos se **busca a propósito** porque **amplía el entrenamiento** del agente (más
+contextos = más completo, menos sesgo genérico) — no es solo ahorro, es **mejora continua**; se lleva un
+**registro ligero de exposición acumulada** por agente (en qué nodos ejecutó) para rotar con criterio, y cada
+cruce **vuelca lo aprendido a la memoria** (ADR-047). **Es BASE de GSG** (`docs/fundamentos/bases-gsg.md §7`),
+no solo ADR. Detalle/mecánica: **`docs/adr/ADR-053-pool-compartido-de-agentes-cross-training.md`**.
 
 ## Modo de trabajo autónomo
 
