@@ -49,8 +49,20 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 >   **S5 (integración)** cableó el skeleton de nav en `AdminShell.tsx`/`layout.tsx` **detrás del flag maestro OFF** (con flag OFF → nav plana legada idéntica). **Vallas verdes: tsc + 596 tests + naming/tier/§C verificados.** Cero DB, cero cambio de UI con flags OFF.
 > - **Naming de los 5 grupos (OBSERVACIÓN del Gate, a confirmar por el dueño):** S4 usó etiquetas **neutro-profesionales** ("Operación · Clientes · Inventario y compras · Finanzas · Configuración") en vez de los **criollos de ADR-059 D3** ("Día a día · Plata y papeles · …"), citando un override del dueño **no verificable en el repo**. Es label-only detrás del flag OFF (reversible). **Elevado al dueño** para confirmar naming o revertir a criollo.
 > - **§C pendientes del rediseño (ELEVADOS, no ejecutados):** columna `Tenant.profile` + su migración (Gate 2) · entidades nuevas
->   (`cuentas-a-cobrar`, `inventario`, multi-sucursal) = ADR aparte · **§C·I6 (nuevo): BMC-lite exige el fix de doble-descuento de stock (worktree `calidad`) mergeado como criterio de "M2 terminado"** · la **valla de DATO** ("subir sin perder
+>   (`cuentas-a-cobrar`, `inventario`, multi-sucursal) = ADR aparte · la **valla de DATO** ("subir sin perder
 >   un dato") se construye con la persistencia (M4). Docs: `docs/estrategia/roadmap-dos-modelos.md` (hitos M0–M5).
+> - **✅ §C·I6 RESUELTO — era un pendiente FANTASMA, no un fix por traer (2026-07-08, nueva ola, S2):** el fix
+>   de doble-descuento/oversell de `calidad` (`3cca30f`/`85c38f3`) ya estaba **cherry-pickeado en esta misma
+>   rama desde el 2026-07-05** (`a290cb8`/`82b1a00`), **antes** de que arrancara este sprint de rediseño — el
+>   §C·I6 que este doc venía anotando como "pendiente de merge desde worktree `calidad`" estaba
+>   **desactualizado** respecto al repo real. Verificado por: (a) ancestry (`git merge-base --is-ancestor`),
+>   (b) diff línea a línea de `external-orders.ts`/`order-core.ts` contra `calidad` (sin diferencias de fondo),
+>   (c) auditoría del refactor de ledger F1b (`2ac11fa`, posterior) — **no reintrodujo** el bug: `recordMovement`
+>   (`src/lib/stock/ledger.ts`) es ahora **el ÚNICO mutador de `Product.stock`** en todo el repo (venta/compra/
+>   consumo/ajuste), con la misma guarda atómica anti-oversell (`stock: { gte: -delta }`). Cobertura de test
+>   igual o mayor a la de `calidad` (17 tests en `order-core.test.ts` + `ledger.test.ts` nuevos de F1b/F2).
+>   **Criterio de "M2 terminado" para stock-lite: DESTRABADO.** Nada que traer — nada que decidir (tabla `C`
+>   I6 actualizada abajo). tsc limpio + **596 tests** verdes.
 > - **Cobertura scope items SAP:** `docs/estrategia/mapa-cobertura-scope-items.md` — **VALIDADO** (desafío del Analista + revisión adversarial S5, `docs/estrategia/desafio-cobertura-2026-07-08.md`) — curado a AR (micro ~6 ·
 >   pyme ~15 · ~70% corporativo). **Decisión del dueño:** los descartados **NO se tiran → RESERVA** (§6):
 >   guardados como definición (no construidos), se despiertan por necesidad de cliente (reusable→producto /
@@ -337,7 +349,7 @@ elevan** (§C), no se corren.
 | **I3** | **ARCA — certificado del emisor + homologación** + flag `ARCA_INVOICING_ENABLED` | **Gate 4** (acción dueño) | facturación electrónica real (hoy sandbox) |
 | **I4** | **Rotar secretos + PITR** (`NEON_API_KEY` + password `app_rls` + habilitar PITR) | acción dueño (seguridad) | 2 rojos pre-cobros cerrados |
 | **I5** | **Limpieza de disco** — 10 worktrees stale + 8 carpetas huérfanas (`rm -rf` vedado por config) | acción dueño / método permitido | higiene del entorno (§7) |
-| **I6** | **Destino del oversell fix** de `calidad` — recuperar (cherry-pick a un frente + Gate) vs descartar | decisión dueño/PMO | evita perder un fix de bug real de POS (§6) |
+| **I6** | ~~Destino del oversell fix de `calidad`~~ → ✅ **CERRADO, VERIFICADO (2026-07-08):** ya estaba cherry-pickeado en la rama desde el 2026-07-05 (`a290cb8`/`82b1a00`) y sobrevivió intacto el refactor de ledger F1b (único mutador de `Product.stock`, misma guarda anti-oversell). No había nada que recuperar ni decidir — el ítem era un remanente desactualizado del doc. | — (cerrado, sin acción) | stock-lite destrabado para "M2 terminado" |
 | **I7** | **Material real de Shine y A Dos Manos** (bio/about, catálogo+precios reales, testimonios reales de IG/WhatsApp) o **acceso IG** — hoy el copy DX-5 quedó **provisional** (fuentes IG login-walled; sin web/TiendaNube pública) | acción dueño (aportar material) | cierra el copy DX-5 exacto de Shine/ADM (hoy provisional) + repone reseñas reales; con la autorización I8 ya otorgada, esto es lo único que falta para "forma final" |
 | **I8** | ~~Autorización de marca (ADR-042) de Shine/ADM~~ → ✅ **OTORGADA por el dueño 2026-07-07**. **Gap que detectó F1:** el copy de Shine ya está en `main` **landeado antes** de la verificación y con reviews aparentemente inventadas → regularizar con material real (I7). | acción dueño (autorización) — **hecha** | desbloqueó el A2; el DX-5 fiel queda ahora atado solo a I7 (material real). Ver `docs/estrategia/F1-vidrieras-calibracion-y-gate-adr042.md` |
 
