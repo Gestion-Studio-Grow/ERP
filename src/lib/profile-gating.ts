@@ -17,10 +17,11 @@
 
 import { cache } from "react";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { profilesEnabled, type Perfil } from "@/modules";
+import { profilesEnabled, upgradeTeaserEnabled, type Perfil } from "@/modules";
 
 export { perfilGateAllows, visibleNavItems } from "@/modules/perfil";
 export type { Perfil, NavGateItem } from "@/modules/perfil";
+export { type NavLockState, resolveNavLockState } from "@/modules/candado";
 
 // Overrides EN MEMORIA por tenantId, solo para DEMO (cero DB). Vacío por ahora: cada
 // tenant resuelve al default `"lite"` hasta que exista `Tenant.profile` (§C).
@@ -35,4 +36,28 @@ export const getActiveProfile = cache(async (): Promise<Perfil | null> => {
   const tenantId = await getCurrentTenantId();
   // §C futuro: leer `Tenant.profile` cuando exista la columna. Hoy: default lite + override demo.
   return PROFILE_OVERRIDES[tenantId] ?? "lite";
+});
+
+// ============================================================================
+// CANDADO/TEASER (server) — resolución del opt-in por tenant (ADR-059 D3, PR-2).
+// ============================================================================
+//
+// Gemelo SERVER de `resolveNavLockState` (`@/modules/candado`): con el flag
+// `UPGRADE_TEASER_ENABLED` OFF (default) devuelve `false` → el llamador renderiza los
+// ítems enterprise-only ocultos, no bloqueados (idéntico a hoy). El día que el candado
+// se venda como opt-in por tenant (D3: "opt-in explícito del tenant/venta, nunca
+// default"), este resolver es el único lugar a tocar — el mapa de overrides ya está
+// listo, en memoria, cero DB (mismo patrón que `PROFILE_OVERRIDES`).
+
+// Overrides EN MEMORIA por tenantId, para el opt-in puntual de venta (cero DB). Vacío:
+// hoy nadie tiene el teaser prendido salvo que `UPGRADE_TEASER_ENABLED` esté ON global.
+const TEASER_OVERRIDES: Readonly<Record<string, boolean>> = {};
+
+/**
+ * ¿Este tenant ve los ítems enterprise-only bloqueados (candado) en vez de ocultos?
+ * Default `false` (flag OFF) salvo override puntual. Cacheado por request.
+ */
+export const getUpgradeTeaserEnabled = cache(async (): Promise<boolean> => {
+  const tenantId = await getCurrentTenantId();
+  return TEASER_OVERRIDES[tenantId] ?? upgradeTeaserEnabled();
 });

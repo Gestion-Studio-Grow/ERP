@@ -44,7 +44,12 @@ export {
   asignacionSugerida,
 } from "./activation";
 
-export { moduleRegistryEnabled, profilesEnabled } from "./flags";
+export {
+  moduleRegistryEnabled,
+  profilesEnabled,
+  navGroupingEnabled,
+  upgradeTeaserEnabled,
+} from "./flags";
 
 export {
   type Perfil,
@@ -52,6 +57,8 @@ export {
   perfilGateAllows,
   visibleNavItems,
 } from "./perfil";
+
+export { type NavLockState, resolveNavLockState } from "./candado";
 
 export { construirCatalogo, catalogo, DESCRIPTORES_CATALOGO } from "./catalog";
 
