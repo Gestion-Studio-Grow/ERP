@@ -18,7 +18,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar)
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
 ---
@@ -344,6 +344,30 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Guardarraíl:** conflicto en una tabla/lista con IDs → **antes de resolver, leer qué concepto describe cada lado**; si son distintos, **conservar ambos y renumerar** (como la colisión de ADR de MP-10); actualizar las referencias cruzadas. Nunca `checkout --ours/--theirs` sobre filas de `§C`.
 - **Refs:** MP-10 (renumerar en colisión), ADR-040 (Gate), ADR-048 (irreversibles); `docs/estrategia/F1-vidrieras-calibracion-y-gate-adr042.md`.
 
+**[MP-12] `ESTADO-ACTUAL.md` con drift INTERNO — el HANDOFF avanza pero el §1/§8 quedan viejos**
+- **Síntoma:** en FASE 0, el banner HANDOFF ya marcaba F1 mergeado (`debb3c5`) pero el **§1** (`main HEAD` = `29e9dcb`), el **§7-bis** (F1 "WIP sin mergear") y el **§8** (`.claude/agents/` "NO existe") seguían en el snapshot viejo. El commit de cierre tocó solo la parte de arriba y dejó las tablas de abajo desincronizadas dentro del **mismo archivo**.
+- **Causa raíz:** el cierre de sprint actualiza el HANDOFF (lo que se lee primero) pero no re-barre las secciones de detalle; el doc queda **coherente arriba, stale abajo**, y quien lee §1/§8 saca una foto falsa.
+- **Fix:** FASE 0 reconcilió contra git puro (`main` real `6c88719`, 18 archivos en `.claude/agents/`): §1 `29e9dcb`→`6c88719`, §8 "NO existe"→"18 agentes materializados", §7-bis F1→MERGEADO, footer "Para retomar" al día. Doc-only, reversible, sin tocar prod.
+- **Lección:** el drift no es solo doc-vs-repo; también es **sección-vs-sección dentro del mismo doc**. Actualizar el HANDOFF no equivale a actualizar la foto.
+- **Guardarraíl:** en FASE 0, **verificar contra git (no contra el propio doc)** los 3 anclas duras — `main HEAD` (§1), estado de frentes (§7-bis) y `.claude/agents/` (§8) — y reconciliar TODAS las secciones que citen esos hechos, no solo el banner. "Gana el repo" aplica también a las contradicciones internas.
+- **Refs:** MP-5 (sin la foto no se despacha), ADR-039 (FASE 0), ADR-047 (retro).
+
+**[MP-13] Una fundación gateada SIN consumidor real infla el % de avance**
+- **Síntoma:** la fundación de módulos (`src/modules/`, ADR-054) figuraba "implementada" pero nadie del backoffice la usaba; el % "listo" tapaba que faltaba lo que el dueño realmente ve (prender/apagar apps).
+- **Causa raíz:** medir avance por "código escrito" y no por "consumido de punta a punta". Una fundación detrás de flag, sin UI ni cableado, es deuda oculta: no valida su propio diseño.
+- **Fix:** cablear un **consumidor real** (la vidriera `/admin/modulos`) contra la fundación → obligó a exponer la superficie (`vista.ts`), probó variante+dependencias con datos reales y subió el % con evidencia (pantalla + tests + build), no con optimismo.
+- **Lección:** una fundación recién "vale" cuando algo la usa; hasta entonces el % es aspiracional. El consumidor es el que descubre los huecos del contrato.
+- **Guardarraíl:** al reportar % de una fundación/flag, distinguir **construido** de **consumido**; no contar "listo" una capa sin al menos un consumidor real cableado y verde.
+- **Refs:** ADR-054 (repo de módulos), ADR-055 (variante), ADR-040 (Gate), ADR-047 (retro).
+
+**[MP-14] Gating por redirect → riesgo de LOOP si el destino también se gatea**
+- **Síntoma:** al querer enforcar el gating de módulos a nivel URL (redirigir si el módulo está apagado), el destino natural (`/admin` o la home del rol) puede ser **otra página gateada** → loop. Caso concreto: `PROFESSIONAL` con `agenda` apagada → su home ES agenda → redirect infinito.
+- **Causa raíz:** un guard que redirige sin garantizar que el destino sea SIEMPRE accesible para ese rol/estado. El gating por módulo no es barrera de seguridad (eso es el rol, ADR-017) — sumarlo como redirect encima del gating por rol crea combinaciones que hacen loop.
+- **Fix (esta sesión):** **NO** se shippeó el URL-enforcement; se dejó el **nav-gating** (esconde el ítem, sin redirect → no loopea) como la UX entregada, y el URL-block quedó como follow-up con diseño loop-safe pendiente.
+- **Lección:** un guard que redirige necesita un destino **probadamente terminal** (accesible para todo rol/estado, nunca gateado). Ante la duda, **esconder > redirigir**: ocultar no puede loopear.
+- **Guardarraíl:** antes de enforcar gating con `redirect()`, mapear el destino para CADA rol y CADA combinación de módulos apagados; si algún destino puede estar gateado, no redirigir — usar 404/estado neutro o esconder. Nunca redirigir a la home del rol si esa home es gateable.
+- **Refs:** ADR-017 (ocultar nav = UX; rol = seguridad), ADR-054/055, ADR-047 (retro).
+
 ## SEC — Seguridad
 
 **[SEC-1] Secretos en el chat / credenciales expuestas**
@@ -369,6 +393,24 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** toda superficie pública necesita **autenticación de origen** y **límite de tasa**.
 - **Guardarraíl:** verificar **firma** de todo webhook; **rate-limit** en endpoints de auth y API pública.
 - **Refs:** memoria Célula 2 hardening.
+
+**[MP-15] Deviación de una decisión de ADR citando una autoridad no trazable en el repo**
+- **Síntoma:** en el Gate de PR-2/M2, S4 renombró los 5 grupos de nav de las etiquetas **criollas** que fija
+  ADR-059 D3 ("Día a día · Plata y papeles · …") a etiquetas **neutro-profesionales** ("Operación · Finanzas
+  · …"), citando un "override del dueño 2026-07-08" **que no existe como rastro en el repo** (ni ADR, ni nota
+  en ESTADO-ACTUAL, ni confirmación).
+- **Causa raíz:** una decisión aceptada en un ADR se cambió a nivel de ejecución sobre una autoridad verbal
+  no persistida — el repo (fuente de verdad, ADR-008) no puede distinguir "el dueño lo pidió" de "la sesión
+  lo decidió".
+- **Fix:** el Gate lo marca **OBSERVACIÓN no bloqueante** (es label-only detrás del flag maestro OFF →
+  reversible) y lo **eleva al dueño** para confirmar el naming o revertir a criollo. Se cablea el skeleton
+  con el naming as-built, sin bloquear el sprint.
+- **Lección:** un cambio a una decisión de ADR aceptado necesita **rastro de autoridad en el repo**, no una
+  cita verbal; si no, el Gate no puede validarlo como "aprobado".
+- **Guardarraíl:** si una sesión se desvía de un ADR aceptado, **trae la confirmación del dueño al mismo
+  commit** (nota fechada en el ADR/ESTADO-ACTUAL) **o** lo marca como **propuesta para el Gate** — nunca lo
+  commitea como hecho consumado. El integrador (Gate) trata toda deviación sin rastro como observación a elevar.
+- **Refs:** ADR-059 D3, ADR-008 (repo como memoria), ADR-047; retro `docs/retro/retro-sprint-grow-ar-pr2-2026-07-08.md`.
 
 ---
 

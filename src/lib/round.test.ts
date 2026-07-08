@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { round2 } from "./round";
 
-// round2 es la regla ÚNICA del redondeo de dinero del POS (dedup de 4 copias idénticas).
-// Comportamiento = Math.round(n * 100) / 100 (preservado, sin cambio de conducta).
+// round2 es la regla ÚNICA del redondeo de dinero de TODO el sistema (POS + fiscal).
+// Comportamiento = EPSILON-safe Math.round((n + Number.EPSILON) * 100) / 100 (ADR-057, R4 cerrado).
 
 test("round2 redondea a 2 decimales", () => {
   assert.equal(round2(1.234), 1.23);
@@ -25,9 +25,10 @@ test("round2 es idempotente sobre valores ya redondeados", () => {
   assert.equal(round2(round2(19.99)), 19.99);
 });
 
-test("round2: quirk binario conocido en x.xx5 (1.005 → 1.00) — unificar con EPSILON es decisión pendiente (R4)", () => {
-  // 1.005 se representa como 1.00499999…; Math.round(100.4999…) = 100 → 1.00.
-  // El camino fiscal usa la variante EPSILON-safe (→ 1.01); unificar cambia el redondeo
-  // del POS al medio centavo y se eleva al PMO/ADR (docs/arquitectura M1/R4).
-  assert.equal(round2(1.005), 1);
+test("round2: EPSILON-safe en la frontera x.xx5 (ADR-057, R4 cerrado)", () => {
+  // Sin EPSILON, 1.005 se representa como 1.00499999… → Math.round(100.4999…) = 100 → 1.00.
+  // Con la variante EPSILON-safe (unificada POS+fiscal por ADR-057) redondea comercial
+  // "medio hacia arriba": 1.005 → 1.01, 1.015 → 1.02.
+  assert.equal(round2(1.005), 1.01);
+  assert.equal(round2(1.015), 1.02);
 });

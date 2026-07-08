@@ -102,9 +102,16 @@ Preset por IA** exige **autorización registrada del cliente** antes de replicar
 Norma dura de operación de GSG para no saturar el servicio y **concentrar los recursos escasos en lo que
 vende**. Complementa el modelo de células por capa (arriba) y la escala del sprint.
 
-**Tope de concurrencia:** **nunca más de 4 sesiones corriendo a la vez.** Se abre/mueve **de a olas
-chicas**. Abrir *worktrees* de más está OK (quedan ociosos); lo que se limita es cuántas sesiones
-**corren en simultáneo** (≤ 4). Si hay más frentes que cupo, entran por olas según la prioridad de abajo.
+**Pool fijo de 5 sesiones REUTILIZABLES — se re-asignan, no se multiplican (norma dura):** trabajamos con un
+**pool fijo de hasta 5 sesiones** (5 slots = 5 worktrees vivos). La regla es **REUTILIZAR SIEMPRE**: cuando un
+frente cierra, su sesión **NO se descarta ni se abre una nueva** — se **re-asigna** al próximo frente de la
+cola (mismo slot, se limpia el árbol y se retoma). Es la aplicación operativa de *definir ≠ instanciar*
+(ADR-053): 5 sesiones que rotan de tarea, no N sesiones efímeras. **Overflow = esperar que se libere:** si los
+5 slots están ocupados y entra un frente nuevo, **espera en la cola por prioridad** hasta que un slot se
+libere; **no se abre un sexto**. Abrir *worktrees* de más para dejarlos ociosos sigue OK; lo que se limita es
+cuántas sesiones **corren en simultáneo** (**≤ 5**). **Guardarraíl de saturación:** si el servicio muestra
+"ocupado", se **baja a olas más chicas** (correr 3–4 de los 5) hasta que afloje — el tope de 5 es el techo, no
+la obligación.
 
 **Prioridades (foco: lo que concreta ventas), sobre todo en congestión:**
 - **P1 — SIEMPRE corre (demos y venta):** demo público (**front+back en URL de cliente**) · probador
@@ -115,12 +122,14 @@ chicas**. Abrir *worktrees* de más está OK (quedan ociosos); lo que se limita 
   capital) · retoques cosméticos de productos ya publicados · deuda de lint/tests heredada · métrica de
   costo / robustecimiento de la factory.
 
-**En congestión: solo P1, máximo 4 a la vez; P2 espera; P3 pausado.**
+**En congestión: solo P1, máximo 5 a la vez (bajando a 3–4 si el servicio se satura); P2 espera; P3 pausado.**
 
-**El porqué:** abrir demasiadas sesiones a la vez **satura el servicio** ("servicio ocupado") y frena
-todo. El tope de 4 + las olas chicas mantienen la fluidez; las prioridades garantizan que, cuando la
-capacidad escasea, el trabajo que **genera ventas (demos)** siempre corre y lo de bajo impacto cede el
-lugar. Es coherente con el ciclo **DEMO → VENTA → INVERSIÓN**: primero lo que vende.
+**El porqué:** abrir demasiadas sesiones **efímeras** a la vez **satura el servicio** ("servicio ocupado") y
+frena todo. El **pool fijo de 5 reutilizables** + las olas chicas mantienen la fluidez **y** la consistencia
+(siempre las mismas sesiones, re-asignadas, no un enjambre nuevo cada vez); las prioridades garantizan que,
+cuando la capacidad escasea, el trabajo que **genera ventas (demos)** siempre corre y lo de bajo impacto cede
+el lugar. **Reutilizar > crear** (menos setup, menos contexto que re-acarrear, menos riesgo de saturar). Es
+coherente con el ciclo **DEMO → VENTA → INVERSIÓN**: primero lo que vende.
 
 ## 🧭 Advisory Board + Challenger — gobernanza de decisiones estratégicas (ADR-045)
 
@@ -181,7 +190,7 @@ Los agentes **NO son silos por división: forman un POOL reutilizable.** Para un
 estructura (ej.: alinear el **front de Magra** = Diseño + Adaptador/Delivery + QA) se **PRESTAN agentes
 existentes** del pool, **no se crean dedicados**. **Regla dura: antes de instanciar un agente nuevo,
 verificar si un agente del pool cubre el caso prestado** — crear nuevo **solo si no hay rol adecuado**
-(evita duplicados y respeta el tope ≤ 4). **Préstamo y retorno:** al cerrar el caso, cada agente **vuelve a
+(evita duplicados y respeta el tope ≤ 5). **Préstamo y retorno:** al cerrar el caso, cada agente **vuelve a
 su célula/división de origen** (no se re-parenta ni se duplica). **Cross-training:** el agente prestado
 **extiende su calibración** (ADR-052) leyendo el contexto de la estructura destino, y al cerrar **vuelca lo
 aprendido al registro de lecciones** (ADR-047) → el conocimiento **fluye entre estructuras**. Los préstamos

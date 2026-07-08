@@ -63,7 +63,15 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
   ]);
 
   return {
-    facturas: invoices as FacturaVista[],
+    // Borde del repositorio de Invoice (ADR-057): el dinero se persiste en Decimal(14,2)
+    // pero el contrato de la vista es `number` → se convierte acá con `.toNumber()`. Es el
+    // ÚNICO punto donde el sistema ve el Decimal; del borde para afuera, todo `number`.
+    facturas: invoices.map((f) => ({
+      ...f,
+      neto: f.neto.toNumber(),
+      iva: f.iva.toNumber(),
+      total: f.total.toNumber(),
+    })),
     estado: {
       modo: modoDesdeEnv(),
       cuit: tenant?.arcaCuit ?? null,

@@ -6,18 +6,80 @@ FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nue
 este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
-- **Actualizado:** 2026-07-07 (FASE 0 + F4 doc-only, PMO) · **Autor:** PMO (sesión autónoma)
+- **Actualizado:** 2026-07-08 (FASE 0 reconciliación de drift, PMO) · **Autor:** PMO (sesión autónoma)
 - **Método:** barrido del repo (`git log`, `git worktree list`, `prisma/migrations/`, `.claude/`,
   `docs/`) + reconciliación del drift acumulado. **NO se consultó Neon prod** (política: diagnóstico,
   no tocar prod/DB) → el estado de migraciones *aplicadas* se deriva de docs y se marca "a confirmar".
-- **Reconciliación de esta pasada (2026-07-07):** el doc venía del snapshot `273a267`; **`main` ya está
-  en `29e9dcb`** (~28 commits después). Se reconcilió: **(1)** el HANDOFF viejo del go-live de Magra →
-  **Plan de Ventana vigente**; **(2)** **plataforma de deploy: Netlify → Vercel** (evidencia dura, ver §2);
-  **(3)** RLS pasó de "casi completo" a **VIVO y enforced**. Detalle de qué landeó desde el snapshot en §1.
+- **Reconciliación de esta pasada (2026-07-08):** el doc traía drift interno — el HANDOFF ya marcaba F1
+  mergeado (`debb3c5`) pero el §1 y §8 seguían en el snapshot viejo. **`main` real = `6c88719`** (F1
+  vidrieras + GSG Lab + ritual `/status` + roster materializado en `.claude/agents/`). Se reconcilió:
+  **(1)** §1 `main HEAD` `29e9dcb` → **`6c88719`**; **(2)** §8 `.claude/agents/` "NO existe" → **18 agentes
+  materializados**; **(3)** §7-bis F1 marcado **MERGEADO**. *(Este clon remoto trae solo `main` + la rama de
+  sesión; las ramas/tags WIP de §7 viven en el entorno local del dueño, no en el remoto.)*
+- **Reconciliación previa (2026-07-07):** el doc venía del snapshot `273a267` → `main` `29e9dcb`
+  (~28 commits). Se reconcilió: HANDOFF viejo de Magra → **Plan de Ventana**; **Netlify → Vercel** (§2);
+  RLS → **VIVO y enforced**. Detalle de qué landeó desde el snapshot en §1.
 
 ---
 
 ## 🚦 HANDOFF — próximo paso real (2026-07-07)
+
+> **🧭 PUNTO DE PARTIDA — Rediseño del producto GROW-AR (2026-07-08, aprobado por el dueño).** Rama
+> `claude/sprint-startup-generic-rf6x0m`, verde. Se rediseñó el producto y arrancó la ejecución:
+> - **Filosofía GROW-AR (ADR-058):** un Core, **dos motores** (`lite` micro/comerciante ↔ `enterprise`
+>   pyme), invariante **`enterprise ⊇ lite`** ("crecé sin migrar", upgrade aditivo). Baja al criterio rector
+>   en `FUNDAMENTOS §10`.
+> - **Personalización ASIMÉTRICA (ADR-058 P5, decisión del dueño):** micro → **preset-IA** (máxima
+>   personalización, vende el self-serve); pyme → **estandarizar para dar carácter** (menos personalización
+>   → baja mano de obra + anti-rechazo enterprise + identidad de marca).
+> - **Reingeniería de interfaz (ADR-059):** aceptada **con los 3 fixes bloqueantes del Challenger** (ADR-045).
+>   Perfil = dimensión ortogonal; IA de 5 grupos criollos; un design system **dos densidades**; tier en canal
+>   **neutro** (el acento es del tenant); naming **"Comercio"/"Empresa"** (`lite`/`enterprise` nunca al cliente).
+> - **Equipo agrandado:** 7 charters nuevos en `.claude/agents/` (Data/DBA · Release Manager · FinOps ·
+>   Pricing · Soporte/CS · SRE · PO Catálogo/Plugins). Roster al día.
+> - **▶️ EJECUCIÓN — PR-1/M1 LANDED (reversible, flag OFF):** motor de perfiles `src/modules/perfil.ts`
+>   (`perfilGateAllows` + `visibleNavItems`) + `src/lib/profile-gating.ts` (`getActiveProfile` en memoria) +
+>   flag `PROFILES_ENABLED` + **property-test del invariante de NAV** (`perfil.test.ts`). Vallas verdes
+>   (**tsc + 577 tests**, +5). Cero DB, cero cambio de UI.
+> - **▶️ EJECUCIÓN — PR-2/M2 LANDED en la rama del sprint (reversible, flag maestro OFF) + GATE (Opus, S5) PASA CON OBSERVACIONES (2026-07-08):** pool de 5 sesiones —
+>   **S1** mapa de cobertura validado + corregido por revisión adversarial S5 (2F3/fiado → módulo de catálogo **default OFF** gateado por rubro, build diferido ADR-030; BMC-lite con dependencia anotada §C·I6; BFA CUT) ·
+>   **S2** tokens `--density`/`--space-*` (aditivos, `--density:1` = cero cambio visual; pisos duros 44px + AA) + primitivos `PageHeader`/`SectionGroup`/`ProfileBadge` (**tier en canal neutro**, nunca acento) + `profile-labels` (**"Comercio"/"Empresa"**, nunca lite/enterprise al cliente) ·
+>   **S3** flags `NAV_GROUPING_ENABLED` (maestro) + `UPGRADE_TEASER_ENABLED` (**ambos default OFF**) + `candado.ts` (3 estados, colapsa a legado con teaser OFF) + runbook de rollback ·
+>   **S4** `nav-groups.ts` (5 grupos + asignación ítem→grupo de los 17 + backlog KEEP) ·
+>   **S5 (integración)** cableó el skeleton de nav en `AdminShell.tsx`/`layout.tsx` **detrás del flag maestro OFF** (con flag OFF → nav plana legada idéntica). **Vallas verdes: tsc + 596 tests + naming/tier/§C verificados.** Cero DB, cero cambio de UI con flags OFF.
+> - **Naming de los 5 grupos (OBSERVACIÓN del Gate, a confirmar por el dueño):** S4 usó etiquetas **neutro-profesionales** ("Operación · Clientes · Inventario y compras · Finanzas · Configuración") en vez de los **criollos de ADR-059 D3** ("Día a día · Plata y papeles · …"), citando un override del dueño **no verificable en el repo**. Es label-only detrás del flag OFF (reversible). **Elevado al dueño** para confirmar naming o revertir a criollo.
+> - **§C pendientes del rediseño (ELEVADOS, no ejecutados):** columna `Tenant.profile` + su migración (Gate 2) · entidades nuevas
+>   (`cuentas-a-cobrar`, `inventario`, multi-sucursal) = ADR aparte · la **valla de DATO** ("subir sin perder
+>   un dato") se construye con la persistencia (M4). Docs: `docs/estrategia/roadmap-dos-modelos.md` (hitos M0–M5).
+> - **✅ §C·I6 RESUELTO — era un pendiente FANTASMA, no un fix por traer (2026-07-08, nueva ola, S2):** el fix
+>   de doble-descuento/oversell de `calidad` (`3cca30f`/`85c38f3`) ya estaba **cherry-pickeado en esta misma
+>   rama desde el 2026-07-05** (`a290cb8`/`82b1a00`), **antes** de que arrancara este sprint de rediseño — el
+>   §C·I6 que este doc venía anotando como "pendiente de merge desde worktree `calidad`" estaba
+>   **desactualizado** respecto al repo real. Verificado por: (a) ancestry (`git merge-base --is-ancestor`),
+>   (b) diff línea a línea de `external-orders.ts`/`order-core.ts` contra `calidad` (sin diferencias de fondo),
+>   (c) auditoría del refactor de ledger F1b (`2ac11fa`, posterior) — **no reintrodujo** el bug: `recordMovement`
+>   (`src/lib/stock/ledger.ts`) es ahora **el ÚNICO mutador de `Product.stock`** en todo el repo (venta/compra/
+>   consumo/ajuste), con la misma guarda atómica anti-oversell (`stock: { gte: -delta }`). Cobertura de test
+>   igual o mayor a la de `calidad` (17 tests en `order-core.test.ts` + `ledger.test.ts` nuevos de F1b/F2).
+>   **Criterio de "M2 terminado" para stock-lite: DESTRABADO.** Nada que traer — nada que decidir (tabla `C`
+>   I6 actualizada abajo). tsc limpio + **596 tests** verdes.
+> - **Cobertura scope items SAP:** `docs/estrategia/mapa-cobertura-scope-items.md` — **VALIDADO** (desafío del Analista + revisión adversarial S5, `docs/estrategia/desafio-cobertura-2026-07-08.md`) — curado a AR (micro ~6 ·
+>   pyme ~15 · ~70% corporativo). **Decisión del dueño:** los descartados **NO se tiran → RESERVA** (§6):
+>   guardados como definición (no construidos), se despiertan por necesidad de cliente (reusable→producto /
+>   exclusivo→proyecto aparte, `FUNDAMENTOS §2`).
+> - **⏸️ MERGE A MAIN = decisión del dueño** con la lista de §C resuelta (ver retro `docs/retro/retro-sprint-grow-ar-pr2-2026-07-08.md`). La rama queda verde y pusheada; nada se mergeó a `main`. **Próximo paso recomendado tras el OK del dueño:** PR-3/M2 (set `lite` por rubro + `KpiTile`/`EmptyState`) y `DataTable` como hito propio (ADR-059 D6, fix #5).
+
+> **🆕 Sprint 2026-07-08 (Balde B en Opus) — WIP en rama `claude/sprint-startup-generic-rf6x0m`, verde, Gate-pendiente para merge a `main`.** Foco del dueño: **ARCA · Facturador · Módulos del backoffice**. Entregado:
+> - **Módulos del backoffice (ADR-054/055):** vidriera **`/admin/modulos`** (el OWNER prende/apaga las apps, variante + dependencias, cap `modules:manage`) **+ gating de navegación** (`src/modules/gating.ts` + `src/lib/module-gating.ts`): con `MODULE_REGISTRY_ENABLED` on, apagar un módulo lo saca del menú; default off = nav legada intacta (reversible). Primer consumidor del backoffice para la fundación de módulos. Vallas verdes (tsc + **572 tests** + build + gate:rls 33/33 + lint).
+> - **ARCA — decisión de dinero (ADR-057):** cierra Float vs `Decimal(14,2)` (§5) + R4. `number` con redondeo único ahora (reversible); `Decimal(14,2)` al borde del repo de `Invoice` al encender ARCA real (**§C·I2/Gate 2**). Desbloquea la integración.
+> - **Metodología:** pool fijo de **5 sesiones reutilizables** (reuse-first; overflow espera slot) — `CLAUDE.md → CONCURRENCIA`.
+> - **ARCA — reversible cerrado (ADR-057 follow-through):** **redondeo único** EPSILON-safe unificado POS+fiscal (R4 cerrado; `round2` en `src/lib/round.ts`, suma de IVA redondeada en `invoice-core`) + **worker del outbox** (`/api/cron/arca-outbox`, fail-closed con `CRON_SECRET`, dormido hasta deploy+ARCA real). Vallas verdes (tsc + 568 tests + build + lint).
+> - **ARCA — migración Decimal preparada (R1, ADR-057):** `Invoice.{neto,iva,total}` → `Decimal(14,2)` en schema + **migración `20260708120000_invoice_money_decimal` SIN aplicar** (Gate 2); conversión `Decimal→number` en el único borde de lectura (`facturacion-actions`). Blast radius verificado = 1 edge. `main` queda schema-ahead-of-DB (mismo estado que las otras 9 pendientes → **aplicar migraciones antes de deployar**).
+> - **§C empaquetado:** runbook **`docs/runbooks/encender-arca-real.md`** — pasos ordenados (migrar → deployar → cert homologación → real), rollback y regla de secretos. Todo listo para el "1 clic" del dueño.
+> - **Catálogo de módulos (R4):** +descriptor **Reseñas**; el nav de Reseñas ahora es toggleable y gateable.
+> - **Facturador — verificado (no rehecho):** la pantalla `/admin/facturacion` ya mostraba estado por factura (pendiente/autorizada+CAE/rechazada+motivo) desde `prisma.invoice` real (lección MP-13).
+> - **Diferido con criterio (R2):** enforcement a nivel URL del gating de módulos → **no se hizo** por riesgo de **loop de redirects** (p. ej. PROFESSIONAL con `agenda` apagada) y por ser hardening de un feature **no-security** (el rol ya es la barrera, ADR-017). El nav-gating ya entrega la UX; el URL-block necesita un diseño loop-safe (follow-up).
+> - **Pendiente del dueño (§C):** cert + homologación ARCA (I3) · `migrate deploy` de las fiscales + Decimal (I2/Gate 2), **en ese orden** (ver runbook). Con eso, el worker emite solo.
 
 **📐 Método canónico vigente (fuente de verdad del flujo de trabajo):** toda sesión/frente sigue **AL PIE** el
 **flujo RACI** de **`docs/adr/ADR-049-split-de-roles-raci.md`**, renderizado en **`docs/organizacion/estructura-gsg.mermaid`**
@@ -61,7 +123,7 @@ por frente abajo; irreversibles elevados en §C.
 
 | Ítem | Valor |
 |---|---|
-| **main HEAD (origin)** | **`29e9dcb`** — `feat(cockpit): rediseño consola operador — cockpit interactivo read-only (T4, W1–W6)` |
+| **main HEAD (origin)** | **`6c88719`** — `docs(F1): cierre Ola 1 HANDOFF — retro MP-11 + handoff + banner ESTADO-ACTUAL` (F1 vidrieras + GSG Lab + ritual `/status` + roster en `.claude/agents/` ya en `main`) |
 | **Plataforma de prod** | **Vercel** (`vercel.json` activo; ver §2). Netlify = **legacy** (Opción A, superada). |
 | **Auto-publish** | **APAGADO / gated** — push a `main` **no** publica. Deploy = acción del dueño (**Gate 1**). |
 | **Snapshot tags** | `snapshot/2026-07-07-cierre` (cierre de sprint) · WIP de frentes sin mergear: `snapshot/2026-07-07-f1-wip` (`09f668a`), `snapshot/2026-07-07-f3-wip` (`1334212`) · previos: `snapshot/2026-07-07-f4b`, `snapshot/2026-07-07-f4`, `snapshot/2026-07-05-eod` |
@@ -210,12 +272,13 @@ tiene trabajo sin commitear** (posible sesión que quedó abierta ahí). El rest
 
 ---
 
-## 7-bis. Cierre de sprint — estado de F1 y F3 (WIP sin mergear, esperan Gate)
+## 7-bis. Cierre de sprint — estado de F1 (MERGEADO) y F3 (WIP en el entorno local del dueño)
 
-Ambos frentes pararon en **punto seguro** (árbol limpio, verde, pusheado, **sin merge a `main`**). Orden de
-Gate/merge al reabrir: **F1 → F3**.
+**Ola 1 cerrada:** F1 **mergeado a `main`** (su copy pádel/ADM + saneo Shine viven en `main` `6c88719`).
+F3 sigue como WIP: **no está en el remoto** (solo `main` + rama de sesión) — vive en el worktree local del
+dueño. Orden de Gate/merge al reabrir F3: rebasa sobre `main` con F1 → Gate Opus → merge.
 
-### F1 · `frente/diseno-vidrieras` — HEAD `09f668a` · tag `snapshot/2026-07-07-f1-wip` · verde (tsc/build/559)
+### F1 · `frente/diseno-vidrieras` — ✅ **MERGEADO a `main`** (contenido en `6c88719`) · verde (tsc/build/559)
 - **✅ COMPLETO:** secciones de pádel **brand-neutral**; **calibración ADR-052** hecha; **copy de A Dos Manos**
   + **saneo de Shine** (se quitaron **reviews/testimonios fabricados**, que violaban DX-5).
 - **🟡 A MEDIO / bloqueado (dato, no código):** el **copy DX-5 exacto de Shine y ADM es provisional** — las
@@ -235,17 +298,22 @@ Gate/merge al reabrir: **F1 → F3**.
 
 ## 8. Estructura de agentes — realidad vs doc (para no asumir)
 
-**La estructura de agentes existe como METODOLOGÍA + COMANDOS + GOBERNANZA, no como flota instanciada:**
-- **`.claude/agents/` NO existe** (0 subagentes activos). **`.claude/agents-en-pausa/`** tiene 2 archivos
-  **stale** (`fullstack-arquitecto`, `revisor-verificador`, apuntan al método viejo `METODO-ROLES.md`).
-- **`.claude/commands/` (14):** comandos slash que una sesión adopta (sprint, economia, boost, impo, remoto,
+**La estructura de agentes ya está MATERIALIZADA como archivos + METODOLOGÍA + COMANDOS + GOBERNANZA:**
+- **`.claude/agents/` EXISTE — 18 subagentes definidos** (materializados en `8e0aca5`/`b5c3536`): `pmo`,
+  `arquitecto-solucion`, `advisory`, `challenger`, `seguridad`, `auditoria-gsg-gate`, `qa`, `sello-marca-gsg`,
+  `raci-matriz`, `constructor`, `diseno-marca`, `cobro-fiscal`, `growth`, `operaciones`, `plataforma-deploy`,
+  `preset-ia`, `backoffice-producto`, `backoffice-ingenieria`. Se instancian **solo con tarea** (definir ≠
+  instanciar, ADR-053). *(El doc previo decía "NO existe / 0 subagentes" — quedó superado por el roster ya materializado.)*
+- **`.claude/commands/` (16):** comandos slash que una sesión adopta (sprint, economia, boost, impo, remoto, status, lab,
   manual, rol, rol-fullstack, sesion-*). Son prompts, no agentes con toolset propio.
 - **`docs/organizacion/roster-completo-gsg.md` (~30 roles):** gobernanza documental. "✅" = *rol ya operado
-  por una sesión*, **NO** *archivo de agente*. Ninguno tiene archivo `.claude/agents/`.
+  por una sesión*. **18 de esos roles YA tienen archivo `.claude/agents/`** (los del núcleo de gobierno + las
+  células de ejecución más usadas); el resto (Agencia Grow, pricing, etc.) sigue documentado sin archivo hasta
+  que haya tarea.
 - **Mecanismo real de "1 frente = 1 sesión"** (`sprint.md`): el dueño abre N ventanas `claude` y pega el
-  comando/charter, **o** el PMO despacha subagentes ad-hoc (Agent tool) con el charter como prompt. El
-  "auto-abren las células" es aspiracional; mecánicamente es manual/ad-hoc. **Funciona** — pero conviene
-  saberlo. Materializar agentes como archivos = trabajo de Balde B (opcional).
+  comando/charter, **o** el PMO despacha los subagentes del roster (Agent tool `subagent_type`) con su charter
+  ya materializado. El "auto-abren las células" sigue siendo disparo manual/ad-hoc, pero ahora **apoyado en
+  definiciones reales** en `.claude/agents/`. **Funciona.**
 
 ---
 
@@ -281,7 +349,7 @@ elevan** (§C), no se corren.
 | **I3** | **ARCA — certificado del emisor + homologación** + flag `ARCA_INVOICING_ENABLED` | **Gate 4** (acción dueño) | facturación electrónica real (hoy sandbox) |
 | **I4** | **Rotar secretos + PITR** (`NEON_API_KEY` + password `app_rls` + habilitar PITR) | acción dueño (seguridad) | 2 rojos pre-cobros cerrados |
 | **I5** | **Limpieza de disco** — 10 worktrees stale + 8 carpetas huérfanas (`rm -rf` vedado por config) | acción dueño / método permitido | higiene del entorno (§7) |
-| **I6** | **Destino del oversell fix** de `calidad` — recuperar (cherry-pick a un frente + Gate) vs descartar | decisión dueño/PMO | evita perder un fix de bug real de POS (§6) |
+| **I6** | ~~Destino del oversell fix de `calidad`~~ → ✅ **CERRADO, VERIFICADO (2026-07-08):** ya estaba cherry-pickeado en la rama desde el 2026-07-05 (`a290cb8`/`82b1a00`) y sobrevivió intacto el refactor de ledger F1b (único mutador de `Product.stock`, misma guarda anti-oversell). No había nada que recuperar ni decidir — el ítem era un remanente desactualizado del doc. | — (cerrado, sin acción) | stock-lite destrabado para "M2 terminado" |
 | **I7** | **Material real de Shine y A Dos Manos** (bio/about, catálogo+precios reales, testimonios reales de IG/WhatsApp) o **acceso IG** — hoy el copy DX-5 quedó **provisional** (fuentes IG login-walled; sin web/TiendaNube pública) | acción dueño (aportar material) | cierra el copy DX-5 exacto de Shine/ADM (hoy provisional) + repone reseñas reales; con la autorización I8 ya otorgada, esto es lo único que falta para "forma final" |
 | **I8** | ~~Autorización de marca (ADR-042) de Shine/ADM~~ → ✅ **OTORGADA por el dueño 2026-07-07**. **Gap que detectó F1:** el copy de Shine ya está en `main` **landeado antes** de la verificación y con reviews aparentemente inventadas → regularizar con material real (I7). | acción dueño (autorización) — **hecha** | desbloqueó el A2; el DX-5 fiel queda ahora atado solo a I7 (material real). Ver `docs/estrategia/F1-vidrieras-calibracion-y-gate-adr042.md` |
 
@@ -299,12 +367,12 @@ elevan** (§C), no se corren.
 ## Para retomar — próximos pasos claros
 
 1. **Leé esta foto** (sobre todo el HANDOFF + §7-bis) + `docs/ESTADO-FRENTES.md` (tablero de Sprint activo).
-   El sprint está **PAUSADO**, no cerrado: F1/F3 son WIP verdes sin mergear.
-2. **Retomá por el Gate, NO abras de cero:** el PMO corre QA + **Gate en Opus** sobre **F1 (`09f668a`)** →
-   merge → rebasa **F3 (`1334212`)** → Gate → merge. Fijar **modelo explícito** por frente (reversible → Sonnet, ver MP-9).
-3. **Del dueño:** **§C·I7** (material real Shine/ADM) para cerrar F1 a forma final; y el resto de §C (deploys, datos Magra).
+   **Ola 1 cerrada:** F1 ya está en `main`. F3 sigue WIP (en el worktree local del dueño, no en el remoto).
+2. **Retomá por F3:** cuando reaparezca la rama de F3, rebasala sobre `main` (`6c88719`) → QA + **Gate en Opus**
+   → merge. Fijar **modelo explícito** por frente (reversible → Sonnet, ver MP-9).
+3. **Del dueño:** **§C·I7** (material real Shine/ADM) para cerrar el copy DX-5 a forma final; y el resto de §C (deploys, datos Magra).
 4. **Balde B (Opus):** cockpit operador → reingeniería, módulos ARCA/MP reales, repo de plugins (ADR-054/055, VARIANTE).
-5. **Estado:** nada rojo en `main` (`29e9dcb`, sin cambios de código esta sesión); prod estable en Vercel.
+5. **Estado:** nada rojo en `main` (`6c88719`, sin cambios de código esta sesión — solo reconciliación doc); prod estable en Vercel.
 
 > **Gates = acción del dueño.** Nada de deploy/alta/migraciones/secretos se corre solo. Este doc + los
 > runbooks (`docs/runbooks/`) son el guion para ejecutarlos cuando el dueño dé el OK.

@@ -37,8 +37,8 @@ actuar** (ADR-052).
 | **Fiscal (ARCA)** | facturación electrónica WSFEv1, certs, Invoice/Outbox | Sonnet→Opus (plata) | ✅ |
 | **Plataforma/Deploy/Infra** | RLS/tenancy, perf, observabilidad, reporting, tren de deploy | Sonnet→Opus (seguridad) | ✅ |
 | **Diseño** | design system, tokens, primitivos, branding por tenant, vidrieras | Sonnet | ✅ |
-| **Reliability/SRE** | hardening, vallas, rate-limit, firma de webhooks | Sonnet→Opus | 🟡 (existe; falta SRE on-call/SLOs → §4) |
-| **Data / DBA** | dueño del ciclo de datos, migraciones Neon, integridad, RLS | Opus | 🆕 (§4) |
+| **Reliability/SRE** | hardening, vallas, rate-limit, firma de webhooks | Sonnet→Opus | ✅ + 📐 SRE on-call/SLOs (`sre-oncall`, charter 2026-07-08) |
+| **Data / DBA** | dueño del ciclo de datos, migraciones Neon, integridad, RLS | Opus | 📐 (`data-dba`, charter 2026-07-08) |
 
 ### 2.2 · Agencia Digital (satélite del ERP: lo vende + suma features)
 | Célula | Rol | Modelo | Estado |
@@ -48,14 +48,15 @@ actuar** (ADR-052).
 | **PMO proactivo (Agencia)** | avance + búsqueda proactiva de innovación del sector | Sonnet | ✅ |
 | **Growth** | métricas de conversión/activación/retención por vidriera/tenant | Sonnet→Opus (estrategia) | 🟡 (gap G2, parcial) |
 | **WhatsApp** | canal WhatsApp-first (wa-intent/provider/dispatch) | Sonnet | 🟡 (capas listas; falta handler HTTP + ADR proveedor) |
-| **Soporte / Customer Success** | soporte y éxito del cliente post-venta | Sonnet | 🆕 (§4) |
+| **Soporte / Customer Success** | soporte y éxito del cliente post-venta | Sonnet | 📐 (`soporte-customer-success`, charter 2026-07-08) |
 
 ### 2.3 · Agencia Grow (negocios propios del grupo)
 | Célula | Rol | Modelo | Estado |
 |---|---|---|---|
 | **Panel del Dueño** | analytics single-tenant (owner-insights / owner-trends) | Sonnet | ✅ (cableado en /admin/reportes) |
 | **Gestión de cartera propia** | conduce los negocios propios del grupo | Sonnet | 🆕 (§4) |
-| **Pricing & Packaging** | precios/planes por tier (low/mid/big), márgenes, unit economics | Opus (plata) | 🆕 (§4) |
+| **Pricing & Packaging** | precios/planes por perfil (lite/enterprise) y segmento, márgenes, unit economics | Opus (plata) | 📐 (`pricing-packaging`, charter 2026-07-08) |
+| **PO del Catálogo / Plugins** | dueño del repositorio de módulos; set mínimo vendible por rubro/perfil; registry | Opus/Sonnet | 📐 (`po-catalogo-plugins`, charter 2026-07-08) |
 
 ### 2.4 · Preset IA (motor de onboarding — transversal)
 | Célula | Rol | Modelo | Estado |
@@ -79,8 +80,8 @@ actuar** (ADR-052).
 | **Producto por rubro** | features y branding por tenant/rubro | Sonnet | ✅ |
 | **Adaptador / Delivery por cliente** | onboarding/config/datos de un cliente (`tenant/<slug>`) | Sonnet | ✅ |
 | **Docs / Índice vivo** | mantiene TABLERO/ADR-INDEX/ESTADO-ACTUAL sincronizados | Sonnet | 🆕 (§4; hoy lo hace el PMO) |
-| **FinOps / Costo-Uso** | telemetría de costo/uso de la factory (serie temporal + tablero) | Sonnet (+Opus revisa) | 🆕 (§4; gap G3) |
-| **Release Manager** | orquesta el tren de releases (batch→build→Gate→deploy con OK) | Opus coord | 🆕 (§4; gap G8) |
+| **FinOps / Costo-Uso** | telemetría de costo/uso de la factory (serie temporal + tablero) | Sonnet (+Opus revisa) | 📐 (`finops-costo-uso`, charter 2026-07-08) |
+| **Release Manager** | orquesta el tren de releases (batch→build→Gate→deploy con OK) | Opus coord | 📐 (`release-manager`, charter 2026-07-08) |
 | **Legal / Compliance** | autorización de marca, datos personales, términos | Opus | 🆕 (§4) |
 
 ## 3. Flujo canónico (RACI)
@@ -89,9 +90,18 @@ status.** Advisory+Challenger **tensionan** antes de adoptar fundamento (ADR-045
 cada merge; la **retro** (ADR-047) cierra cada sprint y alimenta la memoria de lecciones. Detalle en
 ADR-049 (RACI) y ADR-050 (roster de sprint).
 
-## 4. Agentes faltantes (🆕 PROPUESTOS — pendientes de OK del dueño, NO instanciados)
+## 4. Agentes faltantes — charters (📐 DEFINIDOS 2026-07-08 · 🆕 aún propuestos)
 
-Formato: **nombre** — misión (1 línea) · **entradas → salidas** · **modelo** · **división**.
+> **Consolidación 2026-07-08 ("agranda el equipo"):** se **materializaron 7 charters** en `.claude/agents/`
+> (definir ≠ instanciar, ADR-053: escritos, no corriendo — se convocan cuando haya tarea real): **Data/DBA**
+> (`data-dba`) · **Release Manager** (`release-manager`) · **FinOps/Costo-Uso** (`finops-costo-uso`) ·
+> **Pricing & Packaging** (`pricing-packaging`) · **Soporte/Customer Success** (`soporte-customer-success`) ·
+> **SRE on-call/SLOs** (`sre-oncall`) · **PO del Catálogo/Plugins** (`po-catalogo-plugins`). Cubren lo
+> irreversible (Data/DBA, Release Manager), la plata (FinOps, Pricing), la operación (Soporte, SRE) y el motor
+> de producto GROW-AR (PO Catálogo). **Siguen 🆕 propuestos** (sin charter aún, menor palanca): **Docs/Índice
+> vivo** (#7, hoy lo hace el PMO) · **Advisory Board roster** (#8) · **Legal/Compliance** (#9).
+
+Formato: **nombre** — misión (1 línea) · **entradas → salidas** · **modelo** · **división** · **charter**.
 
 1. **Data / DBA (dueño de datos)** — dueño del ciclo de datos y migraciones de prod; único que propone
    tocar Neon. · *in:* cambios de schema de los cores · *out:* plan de migración + verificación de

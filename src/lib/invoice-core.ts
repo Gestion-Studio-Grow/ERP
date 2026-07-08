@@ -20,6 +20,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { round2 } from "@/lib/round";
 
 /** Desglose de IVA por alícuota (calculado por el Core, ADR-006). */
 export interface SubtotalIva {
@@ -80,7 +81,9 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
         docNro: String(input.receptor.docNro),
         fecha: input.fecha,
         neto: input.neto,
-        iva: input.iva.reduce((s, x) => s + x.importe, 0),
+        // Total de IVA = suma de las alícuotas, redondeada a 2 decimales (ADR-057): cada
+        // `importe` ya viene redondeado del Core, pero la SUMA puede arrastrar deriva binaria.
+        iva: round2(input.iva.reduce((s, x) => s + x.importe, 0)),
         ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
         total: input.total,
         status: "PENDING",

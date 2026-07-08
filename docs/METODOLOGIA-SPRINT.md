@@ -86,8 +86,9 @@ Estas seis reglas son la ley del sprint. Rigen sobre todo lo demás de este docu
 7. **Modelo por sesión + concurrencia.** Cada frente nace **con su modelo etiquetado explícitamente**
    (mapa completo en `docs/organizacion/asignacion-modelos-sprint.md`: Sonnet default de ejecución; Opus
    solo PMO/Auditoría GSG/Seguridad/Preset IA/Arquitecto de Solución en su tramo crítico). Y respeta
-   siempre el **tope ≤ 4 sesiones concurrentes + prioridades P1/P2/P3** de
-   `CLAUDE.md → CONCURRENCIA Y PRIORIDADES` — más frentes que cupo entran **en olas**, P1 primero.
+   siempre el **pool fijo de ≤ 5 sesiones REUTILIZABLES (se re-asignan, no se multiplican) + prioridades
+   P1/P2/P3** de `CLAUDE.md → CONCURRENCIA Y PRIORIDADES` — más frentes que cupo **esperan que se libere un
+   slot** (no se abre un sexto), en olas, P1 primero.
 
 ---
 

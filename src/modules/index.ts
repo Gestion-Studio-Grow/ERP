@@ -44,6 +44,28 @@ export {
   asignacionSugerida,
 } from "./activation";
 
-export { moduleRegistryEnabled } from "./flags";
+export {
+  moduleRegistryEnabled,
+  profilesEnabled,
+  navGroupingEnabled,
+  upgradeTeaserEnabled,
+} from "./flags";
+
+export {
+  type Perfil,
+  type NavGateItem,
+  perfilGateAllows,
+  visibleNavItems,
+} from "./perfil";
+
+export { type NavLockState, resolveNavLockState } from "./candado";
 
 export { construirCatalogo, catalogo, DESCRIPTORES_CATALOGO } from "./catalog";
+
+export {
+  type FilaModulo,
+  type PlanToggle,
+  vistaModulos,
+  planActivar,
+  planDesactivar,
+} from "./vista";

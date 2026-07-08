@@ -1,21 +1,20 @@
 /**
- * Redondeo a 2 decimales (pesos) — regla ÚNICA del camino de dinero del POS.
+ * Redondeo a 2 decimales (pesos) — regla ÚNICA del camino de dinero de TODO el sistema
+ * (POS/caja/compras + FISCAL). Fuente de verdad única del redondeo de plata.
  *
- * Antes había 4 definiciones IDÉNTICAS de `round2` copiadas en caja, order-core, purchase-core y
- * wa-intent (`Math.round(n * 100) / 100`). Acá se unifican en un solo lugar, con el MISMO
- * comportamiento (dedup sin cambio de conducta) — así el redondeo del POS/caja/compras tiene una
- * sola fuente de verdad. Ver docs/arquitectura BACKLOG M1.
+ * Antes había 4 copias idénticas de `round2` (caja, order-core, purchase-core, wa-intent) + una
+ * variante distinta en `fiscal.ts` (`redondear`). Ambas se unificaron acá (dedup + R4 cerrado).
  *
- * ⚠️ Inconsistencia conocida (R4, decisión pendiente): el camino FISCAL (`fiscal.ts`) usa una
- * variante EPSILON-safe `Math.round((n + Number.EPSILON) * 100) / 100`, que corrige la frontera
- * binaria de x.xx5 (p. ej. 1.005 → 1.01 en vez de 1.00). Unificar TODO en esa variante cambia el
- * redondeo del POS al medio centavo — es un cambio de comportamiento de dinero que NO se decide en
- * un refactor de dedup: se eleva al PMO/ADR (ver docs/arquitectura). Hasta entonces, esta función
- * conserva el comportamiento histórico del POS.
+ * ✅ R4 resuelto (ADR-057): esta es la variante EPSILON-safe
+ * `Math.round((n + Number.EPSILON) * 100) / 100`, que corrige la frontera binaria de x.xx5
+ * (p. ej. 1.005 → 1.01, 1.015 → 1.02, en vez de caer por debajo). Es el redondeo comercial/AFIP
+ * "medio hacia arriba" y ahora rige también el POS (cambio de comportamiento en el medio centavo,
+ * ASUMIDO a propósito: antes el POS y la factura redondeaban distinto). Ver
+ * `docs/adr/ADR-057-representacion-de-dinero-decimal-vs-float-y-redondeo.md`.
  *
  * Nota: `round3` (cantidades en kg del ledger de stock) vive en `stock/ledger.ts` — no es dinero y
- * no estaba duplicado, por eso no se toca acá.
+ * no se toca acá.
  */
 export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
