@@ -52,21 +52,24 @@ El corazón. Extiende la fundación de módulos con la **dimensión perfil**.
 - **Dueño:** PO del Catálogo/Plugins + backoffice-ingeniería · **Gate** antes de integrar.
 
 ### ⬜ M2 · Set mínimo vendible **micro `lite`** — **0%** · *reversible*
-El backoffice del comerciante: lo mínimo que resuelve, auto-servible.
+El backoffice del comerciante: lo mínimo que resuelve, auto-servible, **hiper-personalizado por preset-IA**.
 - **Entregables:** definir el **set `lite`** por rubro (arranque: `servicios` + `carniceria` + genérico):
   caja/cobros, catálogo, clientes, facturación básica (Factura C), un panel simple. Descriptores de módulo
-  con su perfil `lite`. Maqueta → UI real gateada por perfil.
+  con su perfil `lite`. Maqueta → UI real gateada por perfil. **Alta vía preset-IA (ADR-034/ADR-058 P5):**
+  cada micro arranca sintiéndose suyo (marca/catálogo por IA) — **la personalización vende el self-serve**.
 - **Criterio de terminado:** un tenant `lite` opera de punta a punta (vender → cobrar → facturar) **sin
   pantallas que no usa**; pasa el Gate (SAP Fiori + ángulo argentino + sello GSG); es **self-serve** (condición
   de rentabilidad, `costos §2`).
 - **Reversible/§C:** reversible (config + UI). Facturación real = §C (cert ARCA, lo enciende el dueño).
-- **Dueño:** Producto por rubro + backoffice-ingeniería.
+- **Dueño:** Producto por rubro + backoffice-ingeniería + Preset IA.
 
 ### ⬜ M3 · Set **pyme `enterprise`** (aditivo sobre `lite`) — **0%** · *reversible*
-El backoffice de la empresa: el proceso completo, **encendido sobre** el lite.
+El backoffice de la empresa: el proceso completo, **encendido sobre** el lite, **estandarizado y con carácter**.
 - **Entregables:** por cada proceso del `lite`, definir los **pasos/campos/controles adicionales** del
   `enterprise` (ej. cuentas a cobrar con vencimientos/recordatorios; roles/permisos más finos; reportes;
-  aprobaciones). Todo **aditivo** — el invariante de M1 lo garantiza.
+  aprobaciones). Todo **aditivo** — el invariante de M1 lo garantiza. **Estándar-con-carácter (ADR-058 P5):**
+  a diferencia del micro, la pyme entra a un **producto opinado y consistente** (poca/nada de preset-IA) —
+  baja mano de obra por cliente, da carácter de marca y refuerza el anti-rechazo enterprise (ADR-059 D8).
 - **Criterio de terminado:** un tenant `enterprise` ve el proceso completo; **todo lo que hacía en `lite`
   sigue estando** (test del invariante en verde sobre los procesos reales); pasa el Gate.
 - **Reversible/§C:** reversible (config + UI); cualquier tabla nueva = §C (Data/DBA).

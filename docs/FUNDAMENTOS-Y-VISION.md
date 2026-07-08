@@ -165,10 +165,12 @@ Cinco principios (cada uno mezcla una capa):
 4. **Argentinizado y humano donde corresponde** (Fiori + ADR-044/046): rigor y diseño Fiori, pero en
    criollo claro, fiscal ARCA, Mercado Pago/transferencia, WhatsApp-first; humano en venta/atención,
    estándar y preciso en código/fiscal/cálculos.
-5. **Personalización de producto + onboarding por IA** (§5 + ADR-034): descubrimiento pre-alta → elige
-   **perfil (lite/enterprise) + Blueprint (rubro)** → branding → catálogo sembrado → configurador. El
-   preset por IA hace el alta **auto-servible**, condición para que el costo cierre a escala
-   (`docs/estrategia/costos-por-segmento.md`).
+5. **Personalización ASIMÉTRICA por perfil** (§5 + ADR-034 + ADR-058 P5): **micro `lite` → máxima
+   personalización vía preset-IA** (cada negocio se siente suyo; la personalización vende el self-serve y
+   hace el alta auto-servible, condición de costo a escala). **Pyme `enterprise` → se estandariza, menos
+   personalización, para dar CARÁCTER** (producto opinado y consistente → baja mano de obra por cliente,
+   refuerza el anti-rechazo enterprise, da identidad de marca). *Al comerciante lo enamoramos haciéndolo
+   sentir único; a la empresa la convencemos con un estándar de carácter fuerte.*
 
 > **Estado real:** hoy existe la **fundación de módulos** (ADR-054/055, `src/modules/`). El **motor de
 > perfiles `ScopeItem.{lite,enterprise}`** es **fundamento documentado, no construido** — reingeniería

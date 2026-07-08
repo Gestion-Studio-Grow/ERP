@@ -24,6 +24,29 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 
 ## 🚦 HANDOFF — próximo paso real (2026-07-07)
 
+> **🧭 PUNTO DE PARTIDA — Rediseño del producto GROW-AR (2026-07-08, aprobado por el dueño).** Rama
+> `claude/sprint-startup-generic-rf6x0m`, verde. Se rediseñó el producto y arrancó la ejecución:
+> - **Filosofía GROW-AR (ADR-058):** un Core, **dos motores** (`lite` micro/comerciante ↔ `enterprise`
+>   pyme), invariante **`enterprise ⊇ lite`** ("crecé sin migrar", upgrade aditivo). Baja al criterio rector
+>   en `FUNDAMENTOS §10`.
+> - **Personalización ASIMÉTRICA (ADR-058 P5, decisión del dueño):** micro → **preset-IA** (máxima
+>   personalización, vende el self-serve); pyme → **estandarizar para dar carácter** (menos personalización
+>   → baja mano de obra + anti-rechazo enterprise + identidad de marca).
+> - **Reingeniería de interfaz (ADR-059):** aceptada **con los 3 fixes bloqueantes del Challenger** (ADR-045).
+>   Perfil = dimensión ortogonal; IA de 5 grupos criollos; un design system **dos densidades**; tier en canal
+>   **neutro** (el acento es del tenant); naming **"Comercio"/"Empresa"** (`lite`/`enterprise` nunca al cliente).
+> - **Equipo agrandado:** 7 charters nuevos en `.claude/agents/` (Data/DBA · Release Manager · FinOps ·
+>   Pricing · Soporte/CS · SRE · PO Catálogo/Plugins). Roster al día.
+> - **▶️ EJECUCIÓN — PR-1/M1 LANDED (reversible, flag OFF):** motor de perfiles `src/modules/perfil.ts`
+>   (`perfilGateAllows` + `visibleNavItems`) + `src/lib/profile-gating.ts` (`getActiveProfile` en memoria) +
+>   flag `PROFILES_ENABLED` + **property-test del invariante de NAV** (`perfil.test.ts`). Vallas verdes
+>   (**tsc + 577 tests**, +5). Cero DB, cero cambio de UI.
+> - **Próximo paso (PR-2/M2):** mapa rol↔perfil → `perfilMin` en `ALL_ITEMS`, agrupación de nav (5 grupos),
+>   tokens `--density`, primitivos (`PageHeader`/`SectionGroup`/`ProfileBadge`), candados **default OFF**.
+> - **§C pendientes del rediseño:** columna `Tenant.profile` + su migración (Gate 2) · entidades nuevas
+>   (`cuentas-a-cobrar`, `inventario`, multi-sucursal) = ADR aparte · la **valla de DATO** ("subir sin perder
+>   un dato") se construye con la persistencia (M4). Docs: `docs/estrategia/roadmap-dos-modelos.md` (hitos M0–M5).
+
 > **🆕 Sprint 2026-07-08 (Balde B en Opus) — WIP en rama `claude/sprint-startup-generic-rf6x0m`, verde, Gate-pendiente para merge a `main`.** Foco del dueño: **ARCA · Facturador · Módulos del backoffice**. Entregado:
 > - **Módulos del backoffice (ADR-054/055):** vidriera **`/admin/modulos`** (el OWNER prende/apaga las apps, variante + dependencias, cap `modules:manage`) **+ gating de navegación** (`src/modules/gating.ts` + `src/lib/module-gating.ts`): con `MODULE_REGISTRY_ENABLED` on, apagar un módulo lo saca del menú; default off = nav legada intacta (reversible). Primer consumidor del backoffice para la fundación de módulos. Vallas verdes (tsc + **572 tests** + build + gate:rls 33/33 + lint).
 > - **ARCA — decisión de dinero (ADR-057):** cierra Float vs `Decimal(14,2)` (§5) + R4. `number` con redondeo único ahora (reversible); `Decimal(14,2)` al borde del repo de `Invoice` al encender ARCA real (**§C·I2/Gate 2**). Desbloquea la integración.

@@ -73,12 +73,24 @@ Tomamos el **rigor enterprise y el lenguaje de diseño Fiori** (rol-based, coher
 bolsillo de la pyme. Y **de-sesgo por zona** (ADR-046): humano/cálido en venta·demo·atención, estándar y
 preciso en código·fiscal·cálculos. *Lo mejor de SAP, hablando como argentino.*
 
-### P5 · Personalización de producto + onboarding por IA (visión GSG + preset)
-La experiencia hiper-personalizada (`FUNDAMENTOS §5`) sigue siendo **de producto, no de discurso**:
-descubrimiento pre-alta → **elige perfil (lite/enterprise) + Blueprint (rubro)** → branding por tenant →
-catálogo sembrado → configurador guiado. El **preset por IA** (ADR-034) es el motor que hace esa alta
-rápida y auto-servible — condición para que el modelo de costo cierre (activar a escala, no implementar a
-mano cliente por cliente).
+### P5 · Personalización ASIMÉTRICA por perfil — preset-IA al micro, estándar-con-carácter a la pyme
+La experiencia hiper-personalizada (`FUNDAMENTOS §5`) sigue siendo **de producto, no de discurso**, pero
+**la dosis de personalización es DISTINTA por perfil** (decisión del dueño, 2026-07-08):
+
+- **Micro / comerciante (`lite`) → MÁXIMA personalización, vía preset-IA.** El **preset por IA** (ADR-034)
+  es el motor: ingesta de marca del cliente → cada negocio arranca sintiéndose **suyo** (branding, catálogo,
+  identidad extraídos por IA). La personalización **vende el volumen self-serve** y es lo que hace el alta
+  auto-servible — condición para que el costo cierre (activar a escala, no configurar a mano).
+- **Pyme / empresa (`enterprise`) → se ESTANDARIZA, menos personalización, para DAR CARÁCTER.** Menos
+  configuración a medida y más **producto opinado y consistente**. Estandarizar tiene triple ganancia:
+  **(a)** baja la mano de obra por cliente (el cuello real, `costos §4`); **(b)** refuerza el **anti-rechazo
+  enterprise** (un producto opinado y sólido lee "serio/plataforma", no "juguete que se configura", ADR-059
+  D8); **(c)** le da **carácter de marca** — identidad fuerte que el cliente adopta, no una plantilla vacía
+  que tiene que llenar. El preset-IA acá se usa poco o nada; la pyme entra a un estándar con personalidad.
+
+> **En una línea:** *al comerciante lo enamoramos haciéndolo sentir único (preset-IA); a la empresa la
+> convencemos con un producto estándar de carácter fuerte.* Es coherente con `enterprise ⊇ lite`: el estándar
+> enterprise no quita nada del lite, solo cambia **cuánto se personaliza el alta**, no qué se puede hacer.
 
 ## Cómo se mezcla (mapa explícito de la mixtura)
 
