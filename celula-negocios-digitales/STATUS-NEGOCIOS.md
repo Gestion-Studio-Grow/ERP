@@ -17,6 +17,21 @@
 > ascensores AGC, portales de gasistas) → sin hueco. Ganó **cazar la ley recién salida**. Detalle en
 > `ronda-19/2026-07-07-nuevos-negocios.md`.
 
+## 📑 Clasificación en DOS LISTAS (regla del dueño, 2026-07-07)
+
+> El ranking se mantiene en **dos listas separadas**; el detalle rankeado vive en
+> `PORTFOLIO-Y-RECOMENDACION.md`. **Condición DURA para ambas:** solo entran las de **costo-0 real o bajo
+> costo** (build + operación, sin infra cara/capex/COGS relevante).
+
+- **📈 Lista 1 — ALTO BENEFICIO (escala/success-fee):** Disputa Ganada (48) · Escriba (46 ⚠️voz) · Débito
+  Devuelto (45) · Saldo a Favor (45) · Tasa Justa (44) · Cómputo Exprés (40) · Pagué de Más (40) · Multa
+  Nula (37) · Carga al Día (36 ⚠️voz) · Tarifa Justa (34) · Mono-Tech (34) · App al Día (34) · Prepaga
+  Justa (33).
+- **🌱 Lista 2 — SUSTENTABLES DE BENEFICIO MODERADO (recurrentes, defendibles, costo-0/bajo ✓):** Costo
+  al Plato (42 · food-cost SaaS, switching cost alto) · Subsidio Detectado (38 · match+rendición, SEO pasivo).
+- **⚠️ Bandera de costo:** únicas con COGS no trivial = **Escriba** y **Carga al Día** (voz/STT, margen
+  65–70%; se cobran por uso). El resto, COGS ~cero.
+
 ## Qué es la célula (contexto de cero)
 Un equipo de agentes de IA que funciona como una **consultora interna**: inventa negocios digitales que
 se pueden construir rápido con IA (Claude Code), los analiza con números reales de mercado, los somete a
