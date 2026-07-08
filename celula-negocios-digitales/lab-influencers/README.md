@@ -74,6 +74,25 @@ Desde una sesión Claude Code sobre este repo (ejecución en Sonnet):
 4. Commit + push a la rama de trabajo. **El Gate de Excelencia en Opus** aplica recién si algo
    de esto se integra a `main`.
 
+## 🖊️ Afinado por el mejor equipo (Opus + mercado) — 2ª capa
+
+Sobre las propuestas que ya pasaron el ciclo, corre un **motor de afinado** (`afinar-lapiz.workflow.js`)
+con **el mejor equipo en Opus 4.8** (alto juicio: plata, mercado, estrategia → norma §2/§3). Por cada
+**cluster de mercado**:
+- **2 corroboradores** (Opus + WebSearch): **mercado local (AR/LATAM)** y **mercado global** —
+  competidores reales, precios, tamaño, disposición a pagar, tendencia, **con fuentes citadas (URLs)**.
+- **Afinador senior** por propuesta: re-calibra scores con la evidencia, escribe **pasos a producción
+  detallados** (con sus gates), estima el **costo con devs humanos** (contraste) vs el costo real con
+  IA (**dev = $0, no se contempla**; solo infra), y las **métricas para el dueño** (precio sugerido,
+  margen, COGS, clientes para US$5k/mes, primer peso, payback, TAM local/global) + un **veredicto**
+  (validado / herido / descartado).
+- **Net-new:** si el mercado revela un hueco claro, el equipo **dispara oportunidades nuevas**
+  (`origen: afinado-nuevo`) con el mismo nivel de detalle.
+
+La salida se **fusiona en `data.js`** (campo `enr` por propuesta) y alimenta el **explorador**
+(`explorador.html`): titular *"esto te hubiese costado US$X con devs humanos"*, métricas de dueño,
+pasos a producción numerados y mercado local+global con fuentes clicables.
+
 ## Estados y gobernanza
 
 - Las oportunidades del dashboard son **preventa/ideación** — fase DEMO del ciclo
