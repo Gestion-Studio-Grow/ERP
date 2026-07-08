@@ -4,12 +4,12 @@ import { fmtTime } from "@/lib/datetime";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
-import { buttonClasses } from "@/components/ui";
+import { buttonClasses, KpiTile } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 // Set chico de íconos de línea para los KPI (dirección B). currentColor → toman
-// el acento del tenant dentro del chip.
+// el acento del tenant dentro del chip que arma KpiTile (ADR-059 D6).
 const KPI_ICONS: Record<string, React.ReactNode> = {
   agenda: (<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18" /></>),
   reloj: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
@@ -17,20 +17,19 @@ const KPI_ICONS: Record<string, React.ReactNode> = {
   cliente: (<><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" /></>),
 };
 
-function Kpi({ label, value, href, icon, sub }: { label: string; value: string; href?: string; icon: string; sub?: string }) {
-  const content = (
-    <div className="h-full rounded-xl border border-line bg-surface-raised shadow-xs p-4 hover:border-line-strong transition-colors">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted leading-tight">{label}</p>
-        <span className="grid place-items-center w-8 h-8 rounded-lg bg-accent-soft text-accent shrink-0">
-          <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{KPI_ICONS[icon]}</svg>
-        </span>
-      </div>
-      <p className="text-2xl font-bold text-strong mt-3 tracking-tight">{value}</p>
-      {sub && <p className="text-xs text-muted mt-1.5">{sub}</p>}
-    </div>
+function KpiIcon({ name }: { name: keyof typeof KPI_ICONS }) {
+  return (
+    <svg className="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {KPI_ICONS[name]}
+    </svg>
   );
-  return href ? <Link href={href} className="block h-full">{content}</Link> : content;
+}
+
+// Envoltorio local: el tile en sí vive en `KpiTile` (design system, D6) —
+// acá solo queda lo propio de esta página (qué ícono, a qué ruta linkea).
+function Kpi({ label, value, href, icon, sub }: { label: string; value: string; href?: string; icon: keyof typeof KPI_ICONS; sub?: string }) {
+  const tile = <KpiTile label={label} value={value} icon={<KpiIcon name={icon} />} sub={sub} />;
+  return href ? <Link href={href} className="block h-full">{tile}</Link> : tile;
 }
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {

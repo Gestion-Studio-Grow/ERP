@@ -17,7 +17,23 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+// Pool de conexiones ACOTADO (hardening $0, carril de confiabilidad). Cada
+// instancia (lambda/worker) abre como mucho `max` conexiones al pooler de Neon;
+// sin este techo, bajo carga o muchas instancias concurrentes el pooler se agota
+// y las requests empiezan a fallar. `connectionTimeoutMillis` hace fallar RÁPIDO
+// (en vez de colgar) si el pool está saturado. Todo por env con default
+// conservador → reversible, sin costo, sin tocar Neon.
+function envPosInt(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL,
+  max: envPosInt(process.env.DB_CONNECTION_LIMIT, 5),
+  connectionTimeoutMillis: envPosInt(process.env.DB_CONNECT_TIMEOUT_MS, 10_000),
+  idleTimeoutMillis: envPosInt(process.env.DB_IDLE_TIMEOUT_MS, 30_000),
+});
 
 export const basePrisma =
   globalForPrisma.prisma ?? new PrismaClient({ adapter });

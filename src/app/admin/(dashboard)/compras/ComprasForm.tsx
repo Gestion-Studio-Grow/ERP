@@ -20,7 +20,10 @@ type Line = { key: number; productId: string; qty: number; unitCost: number };
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 const qtyFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
-export default function ComprasForm({ products }: { products: ReplenishableProduct[] }) {
+// `formal` (perfil Empresa): muestra la cabecera de ORDEN FORMAL a proveedor —
+// razón social + CUIT + N° de orden de compra (J45/18J). Default false = cabecera
+// simple de Comercio (proveedor libre + nota), idéntica a hoy.
+export default function ComprasForm({ products, formal = false }: { products: ReplenishableProduct[]; formal?: boolean }) {
   const [kind, setKind] = useState<"COMPRA" | "REPOSICION">("COMPRA");
   const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qty: 0, unitCost: 0 }]);
   const [nextKey, setNextKey] = useState(2);
@@ -98,17 +101,46 @@ export default function ComprasForm({ products }: { products: ReplenishableProdu
         </span>
       </div>
 
-      {/* Cabecera del documento */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          <span className="block text-muted mb-1">Proveedor {isCompra ? "" : "(opcional)"}</span>
-          <Input name="supplier" placeholder="Nombre del proveedor o remito" />
-        </label>
-        <label className="text-sm">
-          <span className="block text-muted mb-1">Nota</span>
-          <Input name="notes" placeholder="ej: remito 0001-00042, entrega parcial" />
-        </label>
-      </div>
+      {/* Cabecera del documento — orden FORMAL (Empresa) o simple (Comercio). */}
+      {formal ? (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm">
+              <span className="block text-muted mb-1">Razón social del proveedor {isCompra ? "" : "(opcional)"}</span>
+              <Input name="supplier" placeholder="ej: Distribuidora Norte S.A." />
+            </label>
+            <label className="text-sm">
+              <span className="block text-muted mb-1">CUIT</span>
+              <Input name="cuit" placeholder="30-71234567-9" inputMode="numeric" />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm">
+              <span className="block text-muted mb-1">N° de orden de compra</span>
+              <Input name="orderNumber" placeholder="ej: A-0042" />
+            </label>
+            <label className="text-sm">
+              <span className="block text-muted mb-1">Nota</span>
+              <Input name="notes" placeholder="ej: entrega parcial" />
+            </label>
+          </div>
+          <p className="text-xs text-faint">
+            Orden formal a proveedor (edición Empresa): la razón social, el CUIT y el N° de orden
+            quedan registrados con la entrada.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="block text-muted mb-1">Proveedor {isCompra ? "" : "(opcional)"}</span>
+            <Input name="supplier" placeholder="Nombre del proveedor o remito" />
+          </label>
+          <label className="text-sm">
+            <span className="block text-muted mb-1">Nota</span>
+            <Input name="notes" placeholder="ej: remito 0001-00042, entrega parcial" />
+          </label>
+        </div>
+      )}
 
       {/* Líneas de la entrada */}
       <div className="space-y-2 border-t border-line pt-4">
