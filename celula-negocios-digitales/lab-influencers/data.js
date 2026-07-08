@@ -28,7 +28,7 @@ window.LAB_DATA = {
       "agentes": "Opus (mejor equipo)",
       "ideasGeneradas": 64,
       "propuestasCompletas": 64,
-      "nota": "Afinado por el mejor equipo (Opus): 11 clusters de mercado, 2 corroboradores (local AR + global con fuentes) + afinador senior por propuesta. Agrega pasos a producción, costo vs devs humanos (dev IA=$0) y métricas de dueño. Net-new pendiente (schema bloqueado por tamaño)."
+      "nota": "Afinado por el mejor equipo (Opus): 11 clusters de mercado, 2 corroboradores (local AR + global con fuentes) + afinador senior por propuesta. Agrega pasos a producción, costo vs devs humanos (dev IA=$0) y métricas de dueño. Net-new pendiente (schema bloqueado por tamaño). Net-new: 11 oportunidades disparadas desde los huecos de mercado."
     }
   ],
   "oportunidades": [
@@ -13005,6 +13005,1896 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Recalibré conf 6→8 (willingness-to-pay probada vía Canva Pro AR$10.825/mes y nicho creciendo 20%+; hueco argentino claro y defendible) e imp 6→7 (es top-of-funnel que alimenta todo el ERP, ventaja defendible). esf se mantiene en 4 (reusa el motor de PRESET; solo capa de templates). Reposicioné explícitamente: como línea de venta de kits está herida/descartada (margen aplastado por Canva US$0-13), como MOTOR DE ADQUISICIÓN del ERP está validada — y eso quedó en veredicto, dolor, desc y confianzaMercado. Agregué costo-contraste humano (~US$5.950 la capa; US$20-40k el motor completo detrás), métricas de dueño ancladas al ticket del ERP porque el kit es gratis (precio US$19/mes, margen 79%, 263 clientes para US$5k, payback ~1 mes) y 6 pasos demo→prod con gates que respetan demo-a-costo-cero y el ciclo demo→venta→inversión."
+      }
+    },
+    {
+      "id": "af-facturacion-arca-monotributo-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Facturación fiscal ARCA y monotributo)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Escudo de Canje — acuerdo bilateral creador↔marca + carpeta probatoria de valor de mercado + simulacro de defensa ante cruce/exclusión de ARCA",
+        "segmento": "influencers",
+        "categoriaDolor": "cobros_facturacion",
+        "dolor": "El creador acepta canjes/sponsoreos y (con el producto del cluster) ya los valúa y factura. Pero el dolor NUEVO de 2026 no es valuar: es SOBREVIVIR AL CRUCE. ARCA recategoriza y excluye de oficio de forma automática cruzando facturación electrónica vs. acreditaciones bancarias vs. reportes de plataformas y billeteras, y ya hubo influencers con inspecciones, notificaciones y embargos. Cuando llega la impugnación, el creador no tiene NI el acuerdo de canje firmado con la marca NI la prueba de a qué valor de mercado lo declaró. Encima el canje es de dos lados: la marca pide la factura para deducir. El creador queda desnudo ante una impugnación que puede expulsarlo del monotributo (salto a IVA+Ganancias). Ese expediente probatorio no lo arma nadie hoy.",
+        "descripcion": "Capa CONTRATO+PRUEBA+DEFENSA montada sobre la emisión y la valorización que ya existen. No es otro facturador ni otra calculadora de canjes (eso ya lo cubre el cluster): es el escudo documental que convierte cada canje en un expediente defendible ante ARCA. Net-new adyacente al hueco corroborado, sin repetir valuación ni doble semáforo.",
+        "solucion": "Escudo de Canje, tres piezas: (1) ACUERDO DE CANJE bilateral creador↔marca — entregables, plazos, FMV pactado y cláusula fiscal de que cada parte factura su lado (justo lo que la marca necesita para deducir), firmable por WhatsApp/email con sello de tiempo; (2) CARPETA PROBATORIA por canje — captura fechada del precio de lista/e-commerce del producto (evidencia del valor de mercado), brief de campaña, entregables publicados con links, DMs con la marca y la factura C emitida, todo timestamped y exportable a PDF; (3) SIMULACRO DE DEFENSA — checklist de qué pedirá ARCA en un cruce/recategorización/exclusión de oficio, con semáforo de expediente completo/incompleto y el borrador de descargo. No valúa ni emite: aporta el contrato, la prueba y la defensa que hoy nadie produce para el nicho creador.",
+        "encajeGSG": "Encaja como módulo asignable por tenant sobre el Plugin ARCA + ERP existentes (emisión, tenants, storefront, WhatsApp-first). Sigue ADR-055 (variante): el objeto 'expediente de canje' se crea una vez con ABM propio y se ASIGNA al tenant con relación explícita, nunca 'a todos con todo'. ADR-046: zona humana/criolla para copy, WhatsApp y el descargo cálido; zona estándar/precisa para el armado fiscal-probatorio y el FMV. Pasa el Gate de Excelencia con ángulo argentino fuerte (ARCA/exclusión de oficio, criollo claro). Cero gasto hasta vender (ciclo DEMO→VENTA→INVERSIÓN): demo del armado de expediente en la URL gratuita del cliente, sin datos reales.",
+        "impacto": 8,
+        "confianza": 6,
+        "esfuerzo": 6,
+        "horasHumanas": 560,
+        "costoHumanoUSD": 40,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 14
+      },
+      "afinado": {
+        "veredicto": "herido",
+        "confianzaMercado": "Confianza media-alta en el DOLOR, media en la DISPOSICIÓN A PAGAR. A favor: el tailwind 2026 es real y verificable — recategorización/exclusión de oficio automática por cruce (facturación vs. banco vs. plataformas), RG ARCA 5607/2024 con código específico para creadores, y casos concretos de influencers con inspecciones y embargos; ningún competidor (Facturitas, TributoSimple, Xubio, TusFacturas, ni el propio ARCA) cubre el acuerdo de canje ni la carpeta probatoria. En contra (por eso 'herido', no 'validado'): (a) riesgo real de que sea una FEATURE del producto valuación+semáforo del cluster y no un SKU aparte — la línea es fina; (b) la disposición a pagar por 'seguro/tranquilidad' es más blanda que por 'emitir la factura' (dolor agudo vs. dolor latente hasta que llega la carta de ARCA); (c) parte de la defensa formal roza asesoría contable (definir alcance para no prometer patrocinio jurídico). Recomendación: lanzarlo como add-on del Plugin ARCA, no como app suelta, y medir attach-rate antes de invertir en el simulacro de defensa avanzado.",
+        "pasosProduccion": [
+          {
+            "fase": "0 · Validación de demanda (demo a costo cero)",
+            "detalle": "Demo del armado de un expediente de canje (acuerdo + carpeta PDF de ejemplo) en la URL gratuita <cliente>-erp.vercel.app, sin datos reales. Testear con 5-8 creadores/CM del pipeline el mensaje 'y si ARCA te cruza, ¿tenés la prueba?'. Autorización registrada del cliente antes de usar su marca.",
+            "gate": "OK comercial mínimo: ≥3 de 8 dicen que pagarían add-on. Sin señal, se archiva como feature del cluster."
+          },
+          {
+            "fase": "1 · Modelo de datos y ABM (reversible, doc+flag)",
+            "detalle": "Objeto 'expediente de canje' con ABM propio (marca, producto, FMV, entregables, evidencias, estado) y asignación explícita al tenant (ADR-055). Predicado tenantId en toda query, RLS. Sin tocar prod.",
+            "gate": "Gate Arquitectura (aislamiento multi-tenant, testabilidad). Arquitecto de Solución aprueba lo reversible."
+          },
+          {
+            "fase": "2 · Generador de acuerdo de canje bilateral",
+            "detalle": "Plantilla de acuerdo creador↔marca (entregables, plazos, FMV, cláusula 'cada parte factura su lado'), export PDF con sello de tiempo, envío/firma por WhatsApp/email. Copy en zona humana (ADR-046).",
+            "gate": "Gate SAP Fiori 7 ángulos + ángulo argentino + sello GSG. Revisión de que el texto no promete patrocinio jurídico."
+          },
+          {
+            "fase": "3 · Carpeta probatoria + captura de FMV",
+            "detalle": "Captura fechada de precio de lista/e-commerce como evidencia de valor de mercado, adjuntos (brief, entregables, DMs, factura C), armado del PDF probatorio. Storage de blobs por tenant.",
+            "gate": "Gate Confiabilidad (tsc+build+test verdes, manejo de errores, aislamiento de blobs por tenant)."
+          },
+          {
+            "fase": "4 · Simulacro de defensa + semáforo de expediente",
+            "detalle": "Checklist de requerimientos ARCA ante cruce/recategorización/exclusión, semáforo completo/incompleto, borrador de descargo. Alcance acotado: asistencia documental, NO asesoría jurídica.",
+            "gate": "Gate de Excelencia completo (Auditoría GSG en Opus). Disclaimer legal revisado antes de mostrar al cliente."
+          },
+          {
+            "fase": "5 · Empaquetado como add-on y cobro",
+            "detalle": "Add-on mensual del Plugin ARCA + opción por-expediente. Integración con Mercado Pago. Medir attach-rate y payback real.",
+            "gate": "Gate 1 (deploy) requiere OK explícito del dueño. Gate 2 (migración Neon) se pausa y se reporta."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 560,
+          "tarifaUSDhora": 35,
+          "totalUSD": 19600,
+          "semanas": 10
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 40,
+          "semanas": 2
+        },
+        "ahorroVsHumano": {
+          "usd": 19600,
+          "veces": 41,
+          "frase": "Construirlo con devs humanos (~560 h a US$35/h) te hubiese costado unos US$19.600 y 10 semanas. Con dev-con-IA el desarrollo se computa US$0: pagás solo infra (~US$40/mes, sobre todo storage de las evidencias). Es ~41 veces más barato que el primer año de un equipo humano, y lo tenés en 2 semanas en vez de 10."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 6,
+          "modeloCobro": "Add-on mensual al Plugin ARCA (US$6/mes) para el creador con canjes frecuentes + opción por-expediente (US$3 por carpeta de canje generada) para el que hace canjes esporádicos. No se vende suelto: siempre montado sobre la emisión.",
+          "cogsUSDmes": 0.5,
+          "margenPct": 92,
+          "clientesPara5kMes": 834,
+          "primerPesoSemanas": 3,
+          "paybackMeses": 0.2,
+          "tamLocalNota": "~2,1M monotributistas en AR (+58,8% en 13 años). Subsegmento realista: creadores/CM/influencers activos que reciben canjes y ya deben facturar (RG ARCA 5607/2024) — orden de decenas de miles hoy, creciendo con la presión fiscal 2026. No apuntar a los 2,1M: apuntar al que YA hace canjes.",
+          "tamGlobalNota": "Creator economy LATAM crece ~20% anual; el barter/gifting gravable a valor de mercado (doctrina FMV) es tendencia global que presiona sobre creadores. El acuerdo de canje + expediente probatorio es replicable a cualquier régimen con cruce fiscal, pero el diferencial hoy es AR (ARCA cruzando en 2026)."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "Facturador oficial de ARCA",
+              "precioRef": "GRATIS. Emite comprobante C y lo comparte por WhatsApp. Mide el techo, pero NO genera acuerdo de canje ni carpeta probatoria de FMV. Línea base de la emisión, no del escudo."
+            },
+            {
+              "nombre": "Facturitas (bot WhatsApp)",
+              "precioRef": "~US$4-7/mes. Factura C por texto/audio con IA. Cero contrato de canje, cero expediente de defensa."
+            },
+            {
+              "nombre": "TributoSimple",
+              "precioRef": "Free / ~US$1 / ~US$1,5. Facturación, recategorización, estado fiscal. No arma prueba del valor de mercado de un canje."
+            },
+            {
+              "nombre": "Xubio",
+              "precioRef": "Free 10 fact/mes; PyME desde ~US$3,5/mes. Contable/PyME, no pensado en el creador ni en el barter documentado."
+            }
+          ],
+          "precioMercado": "Facturadores US$1-8/mes; la emisión básica está comoditizada (ARCA gratis). Nadie cobra por contrato de canje + expediente probatorio porque nadie lo ofrece.",
+          "tamano": "~2,1M monotributistas; subsegmento creadores con canjes en decenas de miles y creciendo por la presión fiscal 2026 y la RG 5607/2024.",
+          "veredicto": "Hueco real y no ocupado: todos facturan/recategorizan, ninguno documenta el canje ni arma la defensa ante el cruce. El diferencial es la PRUEBA y el CONTRATO, no la emisión. Riesgo: que el propio producto valuación+semáforo del cluster lo absorba como feature.",
+          "fuentes": [
+            {
+              "titulo": "El Economista / Andersen — Bajo la lupa: qué impuestos pagan los influencers por publicidad, canjes y 'cafecitos'",
+              "url": "https://ar.andersen.com/bajo-la-lupa-que-impuestos-deben-pagar-los-influencers-por-publicidad-canjes-y-cafecitos-prensa-el-economista/"
+            },
+            {
+              "titulo": "Consejo Profesional — Creadores de contenidos e influencers (tratamiento fiscal, ingresos en especie)",
+              "url": "https://trivia.consejo.org.ar/ficha/526896-creadores_de_contenidos_e_influencers"
+            },
+            {
+              "titulo": "Ámbito — Alerta de ARCA: motivos por los que te recategorizan de oficio o excluyen del régimen",
+              "url": "https://www.ambito.com/informacion-general/alerta-arca-monotributistas-los-motivos-los-que-te-pueden-recategorizar-oficio-o-excluir-del-regimen-n6296622"
+            },
+            {
+              "titulo": "YoFacturo — Cómo facturar como influencer/creador 2026 (canje a valor de mercado, riesgo de cruce con la marca)",
+              "url": "https://yo-facturo.com/blog/como-facturar-influencer-creador-contenido/"
+            },
+            {
+              "titulo": "Infobae — Facturas por WhatsApp para monotributistas (Facturitas, planes)",
+              "url": "https://www.infobae.com/inhouse/2025/03/26/monotributistas-cual-es-la-herramienta-digital-que-permite-generar-facturas-por-whatsapp/"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "TusFacturasApp (bot WhatsApp facturador ARCA)",
+              "precioRef": "Desde ~ARS $10.909 + IVA por 100 comprobantes/30 días. Emite; no documenta canjes ni arma expediente."
+            },
+            {
+              "nombre": "Xubio",
+              "precioRef": "Free hasta 10 fact/mes; ~US$3-8/mes. Contable, sin capa creator ni barter probatorio."
+            },
+            {
+              "nombre": "Colppy",
+              "precioRef": "~US$5-8/mes. SaaS contable para estudios/PyMEs, no para el creador con canjes."
+            },
+            {
+              "nombre": "ARCA (Facturador + Monitor de techo)",
+              "precioRef": "GRATIS. Emite y mide el tope, pero no valúa canjes ni conserva prueba del valor de mercado declarado."
+            }
+          ],
+          "precioMercado": "US$1-8/mes en facturación; sin oferta de contrato de canje + expediente probatorio en ningún jugador AR ni regional.",
+          "tamano": "Creator economy LATAM +~20% anual; 80% de marcas mantienen o suben presupuesto de influencer marketing (2025) → volumen creciente de canjes que tarde o temprano deben documentarse a FMV.",
+          "tendencia": "2025-2026: ARCA comoditiza la emisión (bot gratis + Monitor de techo), WhatsApp-first es norma, IA por audio/texto es el diferencial de entrada, y se consolida globalmente que gifting/barter es ingreso gravable a valor de mercado (doctrina IRS/FMV). El próximo frente no es emitir: es PROBAR y DEFENDER lo declarado ante el cruce fiscal.",
+          "veredicto": "Net-new defendible: la capa creator-específica de CONTRATO+PRUEBA+DEFENSA del canje no existe en el mercado. Montada sobre la emisión (no compite con ella), es el escudo que el cruce ARCA 2026 vuelve urgente. 'Herido' por el riesgo de ser feature y por disposición-a-pagar de 'seguro' más blanda que la de 'emitir'.",
+          "fuentes": [
+            {
+              "titulo": "LA NACION — Influencers y streamers: qué impuestos se pagan por los ingresos de la actividad",
+              "url": "https://www.lanacion.com.ar/economia/influencers-y-streamers-que-impuestos-se-pagan-por-los-ingresos-que-genera-la-actividad-nid09122024/"
+            },
+            {
+              "titulo": "iProUP — ARCA (ex AFIP) exige el pago de impuestos a influencers y youtubers (facturar todo, hasta los canjes)",
+              "url": "https://www.iproup.com/finanzas/51824-arca-ex-afip-exige-el-pago-de-impuestos-a-influencers-y-youtubers"
+            },
+            {
+              "titulo": "TusFacturasApp — Bot de WhatsApp facturador AFIP/ARCA",
+              "url": "https://www.tusfacturas.app/bot-whatsapp-facturador-factura-electronica-afip-arca.html"
+            }
+          ]
+        },
+        "cambios": "Diferenciación explícita del cluster: NO repito valorización de canjes ni doble semáforo (techo/conveniencia) ni copiloto de emisión — eso ya está propuesto. Propongo la capa adyacente CONTRATO+PRUEBA+DEFENSA (acuerdo bilateral + carpeta probatoria de FMV + simulacro de defensa ante cruce/exclusión). Supuestos anotados: (1) el Plugin ARCA y el ERP ya emiten y (idealmente) valúan, así que este módulo consume esa salida, no la duplica; (2) lo empaqueto como ADD-ON del Plugin ARCA, no como app suelta, para no competir con la emisión comoditizada; (3) veredicto 'herido' porque el riesgo alto es que sea feature del producto del cluster y porque la disposición a pagar por 'seguro fiscal' es más blanda que por 'facturar' — por eso la Fase 0 es gate duro de demanda antes de construir la defensa avanzada; (4) alcance acotado a asistencia documental, con disclaimer, para no prometer patrocinio jurídico. Si el attach-rate en Fase 0 es bajo, se degrada de SKU a feature del cluster (no se pierde el trabajo)."
+      }
+    },
+    {
+      "id": "af-cobranzas-link-pago-freelance-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Cobranza y link de pago para freelancers)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Exportá y Cobrá — cobro del exterior en USD con Factura E automática y compliance del ingreso de divisas",
+        "segmento": "transversal",
+        "categoriaDolor": "cobros_facturacion",
+        "dolor": "El freelancer argentino que le factura a un cliente del exterior (un CM que maneja una marca de afuera, un diseñador con estudio en USA/EU, un creativo con clientes globales) arma un Frankenstein todavía peor que el doméstico: cobra en USD por Payoneer/Wise/transferencia/USDC, después tiene que emitir a mano la Factura E (exportación de servicios, tipo de comprobante distinto al B/C, exento de IVA, con cotización del día), después registrar el ingreso de las divisas dentro de los 20 días hábiles que exige el BCRA, y encima perseguir el cobro en inglés. Nadie le junta las piezas: MP no cobra del exterior ni emite Factura E; TusFacturas/Facturante emiten Factura E pero no cobran ni persiguen ni manejan el USD; Payoneer/Wise reciben USD pero no emiten comprobante ARCA. Con el régimen nuevo del BCRA (Com. A 8330, sept-2025) se voló el tope de USD 36.000: ahora puede cobrar sin límite, pero el laberinto fiscal-cambiario quedó igual de solo.",
+        "descripcion": "Producto SaaS net-new dentro del ERP GSG: un perfil de cobro con marca personal apuntado exclusivamente al freelancer AR que EXPORTA servicios. Une en un solo acto (1) el cobro en USD del cliente del exterior (link/instrucciones multi-rail: tarjeta internacional, Payoneer/Wise, transferencia, opcional USDC/USDT), (2) la emisión automática de Factura E con CAE ante ARCA en moneda extranjera con cotización BNA del día, (3) la cuenta corriente en dólares de clientes del exterior (quién me debe cuántos USD), (4) la persecución bilingüe (español/inglés) por WhatsApp y email, y (5) un tracker de compliance que avisa el vencimiento de los 20 días hábiles para ingresar las divisas. Es el gemelo de exportación de la línea Cobrame/Cobrá Fácil, con otro stack fiscal (Factura E, no B/C), otra moneda (USD con cotización) y otro idioma (cliente extranjero).",
+        "solucion": "Sobre la base ya existente del ERP (integración ARCA en sandbox, MP, WhatsApp, storefront con branding por tenant y RBAC multi-tenant), se agrega un módulo \"Exportación de servicios\": (a) emisión de comprobante tipo E vía WSFEX/WSFE de ARCA en USD con cotización, (b) feed de tipo de cambio oficial BNA para valuar y mostrar el equivalente en ARS, (c) intake de cobro USD multi-rail con webhook → dispara Factura E → PDF bilingüe al cliente en segundos, (d) cuenta corriente en USD por cliente del exterior, (e) motor de recordatorios bilingüe por WhatsApp/email (de-sesgo ADR-046: humano en español, correcto en inglés), (f) tracker del plazo de 20 días hábiles de ingreso de divisas con alerta accionable. Modelo: integración sobre los rails, no se compite por comisión. Cobro SaaS mensual por freelancer.",
+        "encajeGSG": "Encaje altísimo y sin canibalizar el cluster. GSG ya tiene ARCA (sandbox), MP, WhatsApp, multi-tenant con branding y el patrón de perfil de cobro con marca. Factura E es una EXTENSIÓN del comprobante ya integrado (otro tipo + moneda + cotización), no un desarrollo desde cero. Ataca el único trend del brief todavía sin producto en el cluster (trend 3: multi-moneda/USD con conversión al oficial, clave bajo el régimen post-cepo) y monta sobre un viento de cola regulatorio fresco (BCRA A 8330, sept-2025). Se vende como add-on premium del ERP al mismo freelancer que ya es target, subiendo el ARPU. Coherente con DEMO→VENTA→INVERSIÓN: demo pública a costo cero del flujo de Factura E, y las credenciales ARCA prod las pega el dueño post-venta.",
+        "impacto": 8,
+        "confianza": 7,
+        "esfuerzo": 7,
+        "horasHumanas": 420,
+        "costoHumanoUSD": 45,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 21
+      },
+      "afinado": {
+        "veredicto": "validado",
+        "confianzaMercado": "Alta. La necesidad está corroborada por el régimen BCRA Com. A 8330 (18-sept-2025) que eliminó el tope de USD 36.000 y explicita los requisitos operativos que hoy nadie empaqueta: emitir Factura E, cuenta en USD, registrar la operación e ingresar divisas en 20 días hábiles. Exportación de servicios AR ~USD 7.000M/año (2023) y segmento de ~500k-1M freelancers creciendo 85% interanual. Riesgo de ejecución medio: WSFEX/Factura E y el manejo de cotización/divisas exigen precisión fiscal (zona estándar ADR-046) y las reglas cambiarias pueden cambiar. Ningún competidor local une cobro USD + Factura E automática + persecución bilingüe + tracker de divisas con marca personal.",
+        "pasosProduccion": [
+          {
+            "fase": "Fase 0 — Demo a costo cero",
+            "detalle": "Storefront de cobro export con marca personal en URL gratuita <cliente>-erp.vercel.app; simular flujo: cliente del exterior 'paga' USD → se genera Factura E de muestra (sin CAE real) con cotización BNA del día → PDF bilingüe. Sin datos reales, sin persistencia, sin credenciales.",
+            "gate": "Gate de Excelencia (SAP 7 ángulos + argentino + sello GSG) en Opus; cero gasto, cero datos reales; auditar antes de mostrar al cliente."
+          },
+          {
+            "fase": "Fase 1 — Factura E en ARCA sandbox",
+            "detalle": "Integrar emisión de comprobante tipo E (WSFEX/WSFE) en moneda USD con cotización; validar CAE en sandbox; PDF con leyenda de exportación de servicios exento de IVA.",
+            "gate": "tsc+build+test verdes; comprobante validado en sandbox ARCA; Gate SAP+GSG en Opus; zona estándar/fiscal (ADR-046) revisada."
+          },
+          {
+            "fase": "Fase 2 — Intake USD + cotización + cuenta corriente",
+            "detalle": "Cobro multi-rail (tarjeta internacional, Payoneer/Wise, transferencia; USDC/USDT opcional feature-flag); feed tipo de cambio oficial BNA; cuenta corriente en USD por cliente del exterior; webhook de pago → dispara Factura E.",
+            "gate": "Aislamiento multi-tenant (tenantId/RLS) verificado; seguridad pre-cobros; Gate de Excelencia; deuda anotada."
+          },
+          {
+            "fase": "Fase 3 — Persecución bilingüe + tracker de divisas",
+            "detalle": "Motor de recordatorios ES/EN por WhatsApp+email (de-sesgo ADR-046: humano/criollo en ES, correcto en EN); tracker de plazo de 20 días hábiles de ingreso de divisas con alerta accionable.",
+            "gate": "Accesibilidad (labels/ARIA/role=alert/teclado/contraste); consistencia con patrón Cobrame; Gate en Opus."
+          },
+          {
+            "fase": "Fase 4 — Venta → Inversión",
+            "detalle": "Con OK comercial: activar ARCA prod (Factura E real), persistencia con datos reales y login (RLS enforced), dominio propio si aplica. Credenciales las pega el dueño.",
+            "gate": "Gate 2 (prisma migrate deploy pausado y reportado, nunca solo); Gate 1 deploy con OK explícito de Maxi; Gate de Excelencia final."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 420,
+          "tarifaUSDhora": 35,
+          "totalUSD": 14700,
+          "semanas": 11
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 45,
+          "semanas": 3
+        },
+        "ahorroVsHumano": {
+          "usd": 14700,
+          "veces": 27,
+          "frase": "Con devs humanos (420 h × ~US$35/h) esto te hubiese costado ~US$14.700 de desarrollo. Con dev-con-IA el desarrollo se computa US$0: solo pagás infra (~US$45/mes, feed de cambio + llamadas ARCA + WhatsApp). Contra el primer año de infra (~US$540) el modelo humano sale ~27x más caro; contra el costo de dev, el ahorro es total."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 19,
+          "modeloCobro": "SaaS mensual por freelancer como add-on premium de exportación sobre el ERP (opción anual con descuento). SIN comisión sobre el cobro: es integración sobre los rails (MP/Payoneer/Wise), no se compite por %.",
+          "cogsUSDmes": 2.5,
+          "margenPct": 87,
+          "clientesPara5kMes": 264,
+          "primerPesoSemanas": 4,
+          "paybackMeses": 1,
+          "tamLocalNota": "~500k-1M freelancers AR exportando servicios, +85% interanual; exportación de servicios ~USD 7.000M/año (2023); régimen BCRA A 8330 sin tope desde sept-2025 con requisitos operativos que nadie empaqueta.",
+          "tamGlobalNota": "Freelance economy global ~USD 1,5T; el nicho Factura E/USD/AR es doméstico y defendible — los cross-border globales (Deel, Payoneer, Wise) reciben USD pero no emiten comprobante ARCA ni persiguen por WhatsApp en criollo."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "TusFacturas / Facturante",
+              "precioRef": "SaaS facturación ~USD 5-15/mes; emiten Factura E pero NO cobran, NO manejan el USD ni la cotización, NO persiguen el cobro"
+            },
+            {
+              "nombre": "Mercado Pago",
+              "precioRef": "Link 1,79-6,49% + IVA; NO cobra del exterior en USD ni emite Factura E automática"
+            },
+            {
+              "nombre": "Payoneer / Wise",
+              "precioRef": "Reciben USD del exterior (fee ~1-3% + FX); NO emiten comprobante ARCA ni cuenta corriente ni persecución localizada"
+            },
+            {
+              "nombre": "Apps cripto (USDC/USDT)",
+              "precioRef": "30% de exportadores cobra USDC, 22% USDT (2025); resuelven el rail pero NO la Factura E ni el compliance de divisas"
+            }
+          ],
+          "precioMercado": "Facturación SaaS ~USD 5-15/mes suelto; cobro USD 1-3% + FX suelto; nadie integra el flujo completo",
+          "tamano": "~500k-1M freelancers AR exportadores; exportación de servicios ~USD 7.000M/año",
+          "veredicto": "Hueco real y sin dueño: nadie une cobro USD + Factura E automática con cotización + cuenta corriente en dólares + persecución bilingüe + tracker de ingreso de divisas (20 días hábiles) bajo una marca personal. Es el gemelo de exportación del cluster doméstico, todavía vacío.",
+          "fuentes": [
+            {
+              "titulo": "Fin del cepo para freelancers: cómo cobrar en dólares del exterior sin límites (BCRA A 8330) — Infobae",
+              "url": "https://www.infobae.com/economia/2025/09/23/fin-del-cepo-para-freelancers-como-cobrar-en-dolares-del-exterior-sin-limites-con-el-nuevo-regimen-del-bcra/"
+            },
+            {
+              "titulo": "Exportaciones de servicios: cómo cobrar en dólares sin límites y condiciones del nuevo régimen del BCRA — Blog del Contador",
+              "url": "https://blogdelcontador.com.ar/news-46233-exportaciones-de-servicios-como-cobrar-en-dolares-sin-limites-y-condiciones-del-nuevo-regimen-del-bcra"
+            },
+            {
+              "titulo": "Freelancers: el cobro de servicios al exterior y su conversión al dólar oficial — Sala Mercado",
+              "url": "https://www.salamercado.com.ar/freelancers-el-cobro-de-los-servicios-al-exterior-y-su-conversion-al-dolar-oficial/"
+            },
+            {
+              "titulo": "Freelancers: cuánto ganan y cómo cobran los argentinos que venden servicios al exterior — Infobae",
+              "url": "https://www.infobae.com/economia/2025/12/04/freelancers-cuanto-ganan-y-como-cobran-los-argentinos-que-venden-servicios-a-empresas-del-exterior/"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "Deel",
+              "precioRef": "Contractor payments; onboarding/compliance global, planes desde ~USD 49/contractor/mes en tiers empresa; no emite Factura E AR ni persigue por WhatsApp"
+            },
+            {
+              "nombre": "Payoneer",
+              "precioRef": "Recepción de USD ~1-3% + markup FX; billetera global, sin comprobante fiscal AR"
+            },
+            {
+              "nombre": "Wise",
+              "precioRef": "Recepción multi-moneda con FX cerca del medio-mercado + fee bajo; sin facturación fiscal AR"
+            },
+            {
+              "nombre": "HoneyBook",
+              "precioRef": "USD 36-129/mes (subió 89,5% en 2025-26) + 2,9% por pago; en inglés, sin Factura E AR"
+            },
+            {
+              "nombre": "Stripe",
+              "precioRef": "2,9% + USD 0,30 + FX 1-2%; no opera cobro/factura doméstica AR"
+            }
+          ],
+          "precioMercado": "Cross-border USD 1-3% + FX (Payoneer/Wise) o SaaS USD 15-129/mes (Bonsai/HoneyBook), sin comprobante fiscal AR",
+          "tamano": "Freelance/creator economy global ~USD 1,5T; segmento cross-border en fuerte crecimiento",
+          "tendencia": "WhatsApp-first en cobranza (cobra ~20 días más rápido que email); convergencia link+factura+cobranza en un flujo; multi-moneda/USD con conversión automática; USDC/USDT en cobro export (30%/22% en 2025); presión de pricing por el alza de HoneyBook abriendo hueco a opciones baratas y localizadas",
+          "veredicto": "Los globales resuelven el rail USD pero NINGUNO localiza la Factura E ARCA, la cotización oficial, el compliance de ingreso de divisas ni la persecución en criollo. El net-new defendible de GSG es el bundle export localizado con marca personal.",
+          "fuentes": [
+            {
+              "titulo": "Creator Economy Market Size, Industry Report 2033 — Grand View Research",
+              "url": "https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report"
+            },
+            {
+              "titulo": "Freelancer Economy Statistics 2026: 72.9M US Freelancers, $1.5T — AutoFaceless",
+              "url": "https://autofaceless.ai/blog/freelancer-economy-statistics-2026"
+            },
+            {
+              "titulo": "The Global Freelance Client Payment Delay Report — Jobbers",
+              "url": "https://www.jobbers.io/the-global-freelance-client-payment-delay-report-2025-why-63-of-freelancers-wait-over-30-days-to-get-paid/"
+            },
+            {
+              "titulo": "Late Invoice Statistics You Should Know (2025) — Clockify",
+              "url": "https://clockify.me/late-invoice-statistics"
+            }
+          ]
+        },
+        "cambios": "Net-new genuino, no repite ninguna de las 6 propuestas del cluster (todas domésticas: MP + factura B/C + WhatsApp en español a clientes AR). Esta ataca el ÚNICO trend del brief todavía sin producto: multi-moneda/USD con conversión al oficial (trend 3), montada sobre el régimen BCRA A 8330 (sept-2025) que voló el tope de USD 36.000. Cambia el stack en tres ejes frente al cluster existente: (1) fiscal — Factura E de exportación de servicios en vez de B/C; (2) moneda — USD con cotización BNA y cuenta corriente en dólares; (3) idioma/compliance — persecución bilingüe ES/EN + tracker del plazo de 20 días hábiles de ingreso de divisas. Es el gemelo de exportación de Cobrame/Cobrá Fácil, dirigido al mismo freelancer target pero en su faceta de exportador, subiendo ARPU como add-on premium."
+      }
+    },
+    {
+      "id": "af-gestion-cartera-cm-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Panel multi-cliente y fees del CM)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Cerrá Cliente — el front-door del CM: cotización + propuesta/contrato firmable + primer cobro MP + factura ARCA",
+        "segmento": "community_managers",
+        "categoriaDolor": "venta_captacion",
+        "dolor": "El CM freelance argentino pierde clientes en la puerta y trabaja gratis las primeras semanas: cotiza a mano por WhatsApp, manda un audio o un PDF armado en Canva sin propuesta ni contrato, tarda en cerrar, arranca sin seña y muchas veces sin factura. Se ve amateur justo cuando más se juega la plata (el momento de captar). Los tres productos del cluster gestionan la cartera que YA tenés; nadie le da la herramienta para CONSEGUIR y formalizar al cliente nuevo en pesos y sin fricción.",
+        "descripcion": "Mini-módulo de captación para el CM monotributista: armás una propuesta profesional por rubro en 2 minutos (alcance del servicio, fee, entregables), la mandás por WhatsApp con un link, el cliente la acepta con un clic (aceptación registrada = mini-contrato), paga la seña/primer mes con link de Mercado Pago y sale la factura ARCA automática. Todo en pesos, con tu marca, y el cliente cerrado cae directo al panel de cartera del cluster.",
+        "solucion": "Wedge de front-door que reutiliza la infra del ERP (MP + ARCA + WhatsApp + branding por tenant): (1) Cotizador con plantillas por rubro CM (gestión de redes, pack de contenido, campaña, retainer) y fee configurable en pesos; (2) Propuesta compartible por link con la marca del CM, alcance, entregables y condiciones; (3) Aceptación con un clic con sello de tiempo/registro = mini-contrato válido (e-aceptación), evitando la fricción de firmas complejas; (4) Primer cobro (seña o mes 1) con link de Mercado Pago; (5) Factura ARCA del monotributista automática al detectar el pago; (6) Envío y seguimiento por WhatsApp (propuesta enviada / vista / aceptada / pagada). Al cerrarse, el cliente y su fee se dan de alta en el panel de cartera 'Mis Cuentas' del cluster — el front-door alimenta el back-office.",
+        "encajeGSG": "Encaje altísimo y de bajo esfuerzo marginal: GSG ya tiene MP, ARCA (sandbox), WhatsApp-first, branding por tenant y presets por IA. Este wedge es la pieza que FALTA aguas arriba del panel de cartera ya propuesto: captación → panel. Mismo segmento (CM/creativos/influencers), mismo ADN 'barato y en pesos', misma mecánica de demo pública a costo cero en URL de cliente. Sirve como gancho de venta del ecosistema (entra por 'cerrar tu primer cliente' y se queda por el ERP). Se genera por preset de marca del CM con la metodología (autorización primero → Gate → mostrar).",
+        "impacto": 8,
+        "confianza": 7,
+        "esfuerzo": 6,
+        "horasHumanas": 520,
+        "costoHumanoUSD": 25,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 14
+      },
+      "afinado": {
+        "veredicto": "validado",
+        "confianzaMercado": "Confianza media-alta. La categoría 'propuesta + contrato + primer cobro para freelancer/creativo' está PROBADA y monetizada globalmente (Bonsai USD 20-24, HoneyBook USD 36-129 tras subir ~89% en 2025, Dubsado USD 35-55) — hay demanda pagable clara. El hueco local es igual de claro: TusFacturas/CobroSimple/MisCobros hacen cobro/factura pero no propuesta ni contrato ni onboarding del CM; Metricool gestiona contenido pero no toca la venta; las suites globales son US/EU, en inglés y atadas a Stripe/PayPal (sin MP, CVU, WhatsApp ni ARCA). Riesgo abierto: adopción del freelance de bolsillo acotado (por eso precio de entrada bajo en pesos) y validez percibida de la e-aceptación vs 'contrato firmado' — mitigable con sello de tiempo/registro y términos claros. No es un hueco especulativo: es la etapa del ciclo de vida del CM que nadie empaqueta localmente.",
+        "pasosProduccion": [
+          {
+            "fase": "Fase 0 — Exploración y charter",
+            "detalle": "Leer ESTADO-ACTUAL + lecciones + charter Agencia Digital; definir blueprint del wedge (objetos: propuesta, plantilla-rubro, aceptación) reusando ADR-055 (objeto se crea una vez y se asigna). Documentar, no construir ABM todavía.",
+            "gate": "ADR/charter del wedge aprobado por Arquitecto de Solución; separar reversible (blueprint, docs) de irreversible (esquema DB)."
+          },
+          {
+            "fase": "MVP builder de cotización/propuesta",
+            "detalle": "Cotizador con plantillas por rubro CM y fee en pesos; propuesta compartible por link con branding por tenant; estados (enviada/vista/aceptada).",
+            "gate": "Gate de Excelencia completo (Auditoría SAP 7 ángulos + argentino + Sello GSG), corrido en Opus; tsc+build+test verdes."
+          },
+          {
+            "fase": "Aceptación + primer cobro + factura",
+            "detalle": "E-aceptación con sello de tiempo (mini-contrato); link de cobro Mercado Pago para seña/mes 1; factura ARCA del monotributista automática al detectar el pago (sandbox).",
+            "gate": "Gate 2 (migración generada SIN aplicar a Neon, se reporta); revisión de seguridad pre-cobros; aislamiento por tenant (tenantId/RLS)."
+          },
+          {
+            "fase": "Envío WhatsApp + demo pública costo cero",
+            "detalle": "Envío y seguimiento por WhatsApp; demo del flujo end-to-end en URL gratuita <cliente>-erp.vercel.app en modo demo, sin datos reales ni persistencia.",
+            "gate": "Autorización de marca registrada del CM + Gate bloqueante (metodología completa) ANTES de mostrar al cliente."
+          },
+          {
+            "fase": "Handoff al panel de cartera + activación post-venta",
+            "detalle": "Al aceptarse/pagarse, el cliente y su fee se dan de alta en el panel 'Mis Cuentas' del cluster. Recién con OK comercial se activa tenant real (persistencia/login, dominio propio).",
+            "gate": "Ciclo DEMO→VENTA→INVERSIÓN: nada de gasto ni datos reales antes de vender; secretos/credenciales los pega el dueño (FASE 2)."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 520,
+          "tarifaUSDhora": 38,
+          "totalUSD": 19760,
+          "semanas": 8
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 25,
+          "semanas": 2
+        },
+        "ahorroVsHumano": {
+          "usd": 19760,
+          "veces": 66,
+          "frase": "Construir este front-door con un equipo de devs humanos (~520 h a US$38/h) te hubiese costado ~US$19.760 y 8 semanas. Con la IA de GSG el desarrollo se computa US$0 y en ~2 semanas: solo pagás ~US$25/mes de infra (y reutiliza MP/ARCA/WhatsApp que ya están). El primer año sale unas 66× más barato que la vía humana."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 9,
+          "modeloCobro": "Suscripción mensual en pesos (equivalente ~US$9/mes), pensada como add-on de captación del panel de cartera o standalone de entrada; free hasta 1 propuesta activa para probar sin fricción. MP y factura pass-through.",
+          "cogsUSDmes": 1.5,
+          "margenPct": 83,
+          "clientesPara5kMes": 556,
+          "primerPesoSemanas": 3,
+          "paybackMeses": 1,
+          "tamLocalNota": "Cientos de miles de freelancers/CMs en AR; cada CM que cierra 1-2 clientes nuevos por mes es usuario natural del front-door.",
+          "tamGlobalNota": "Creator economy con CAGR ~21.8% y suites freelance CRM+billing consolidando; categoría de propuesta+cobro validada en miles de millones, hueco hispano/LATAM sin cubrir."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "TusFacturas.app (AR) — facturación ARCA + recordatorios WhatsApp",
+              "precioRef": "Planes de factura electrónica AFIP/ARCA con recordatorios; hace factura y aviso de pago, NO propuesta/contrato ni onboarding del CM."
+            },
+            {
+              "nombre": "CobroSimple (AR) — cobros + recordatorios",
+              "precioRef": "Precio público no verificable (403). Crear cobro + link + recordatorio WhatsApp/email; orientado al independiente, no a cerrar clientes del CM."
+            },
+            {
+              "nombre": "MisCobros (AR) — software de cobranzas",
+              "precioRef": "Suscripción 'económica' no publicada. Links de MP + notificaciones WhatsApp; enfoque cobranza recurrente, no captación/propuesta."
+            },
+            {
+              "nombre": "Metricool (plan Agency) — gestión multi-cliente de redes",
+              "precioRef": "~US$53/mes (Agency); gestiona contenido/aprobación por marca, NO toca cotización, contrato ni cobro del cliente nuevo."
+            }
+          ],
+          "precioMercado": "No existe un producto local de propuesta + contrato + primer cobro para el CM. Lo adyacente cobra suscripción 'económica' no publicada (MisCobros/CobroSimple) o planes de factura ARCA (TusFacturas); ninguno cubre la etapa de captación.",
+          "tamano": "Grande y sin atender en esta etapa: cientos de miles de freelancers/CMs, creator economy en récord y presión fiscal/comercial que empuja a formalizar. La condición dura es precio bajo en pesos.",
+          "veredicto": "Hueco NET-NEW local confirmado: nadie empaqueta el front-door (cotizar → propuesta → aceptar → primer cobro MP → factura ARCA) para el CM freelance argentino. Distinto de los tres productos del cluster, que gestionan la cartera ya existente.",
+          "fuentes": [
+            {
+              "titulo": "Cuánto cobra un Community Manager en Argentina — Guía 2025 (Mai Pistiner)",
+              "url": "https://www.maipistiner.com/post/cu%C3%A1nto-cobra-un-community-manager-en-argentina-gu%C3%ADa-2025"
+            },
+            {
+              "titulo": "Sueldo mensual de un community manager en Argentina 2025 (iProfesional)",
+              "url": "https://www.iprofesional.com/management/430831-que-sueldo-gana-community-manager-argentina-junio-2025"
+            },
+            {
+              "titulo": "Precios y tarifas de un Community Manager 2026 (freelance vs agencia)",
+              "url": "https://www.venderporinternet.org/precios-y-tarifas-de-un-community-manager/"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "Bonsai (hellobonsai.com) — propuestas, contratos, invoicing, pagos para freelancers/agencias",
+              "precioRef": "US$20-24/mes; tier agencia superior. Categoría probada, pero US/EU, inglés, Stripe/PayPal — sin MP/ARCA/WhatsApp/pesos."
+            },
+            {
+              "nombre": "HoneyBook — CRM + propuestas + cobros + portal de cliente para creativos",
+              "precioRef": "US$36 (Starter) / 59 / 129; subió ~89% en 2025. Hace exactamente el front-door, pero atado a rieles US."
+            },
+            {
+              "nombre": "Dubsado — CRM + propuestas/contratos + facturación + automatizaciones",
+              "precioRef": "US$35 (Starter) / 55 (Premier); +US$10/marca. Fuerte en propuesta+contrato, US/EU, sin localización AR."
+            },
+            {
+              "nombre": "Sendible / SocialPilot — panel multi-cliente para CM (scheduling, aprobaciones), SIN cobros",
+              "precioRef": "Sendible desde US$29/mes; SocialPilot desde US$25,50-30/mes. Gestionan contenido, no cotizan ni cobran."
+            }
+          ],
+          "precioMercado": "US$20-129/mes por la suite de propuesta+contrato+cobro (Bonsai 20-24, HoneyBook 36-129, Dubsado 35-55). Precio validado en dólares para un mercado con más poder adquisitivo; el vertical hispano/LATAM en pesos queda vacío y por debajo de su radar.",
+          "tamano": "Creator economy con CAGR ~21.8% (market.us) y tendencia de consolidación 'management + billing'. El CM freelance de LATAM (retainers US$200-400) queda por debajo del radar de las suites enterprise.",
+          "tendencia": "2025-2026: IA transversal en creadores (91% ya la usa); auge de cobros/conciliación automática y CVU en AR; cobros por WhatsApp con IA como categoría propia; suites que suman billing y viceversa. Vientos de cola fuertes para un front-door vertical con pagos locales.",
+          "veredicto": "Hueco NET-NEW global: la categoría existe y monetiza bien, pero ningún player la ofrece en español criollo con Mercado Pago, transferencia/CVU, WhatsApp y fiscalidad ARCA/monotributo. Es la capa exacta que hoy nadie ocupa para el CM hispano.",
+          "fuentes": [
+            {
+              "titulo": "Creator Economy Market Size, Share | CAGR of 21.8% — market.us",
+              "url": "https://market.us/report/creator-economy-market/"
+            },
+            {
+              "titulo": "Creator Economy Market Size, Share | Industry Report 2033 — Grand View Research",
+              "url": "https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report"
+            },
+            {
+              "titulo": "Social Media Management Software Pricing Guide 2025 — TrustRadius",
+              "url": "https://solutions.trustradius.com/buyer-blog/social-media-management-pricing-guide/"
+            },
+            {
+              "titulo": "11 best social media management tools for agencies in 2026 — Planable",
+              "url": "https://planable.io/blog/social-media-management-tools-for-agencies/"
+            }
+          ]
+        },
+        "cambios": "Net-new frente al cluster. Los tres productos existentes (mini-ERP por CM, cobranzas 'Mis Cuentas', cartera de fee mensual) gestionan la cartera que YA tenés: panel + cobro recurrente + conciliación + ARCA. Esta propuesta ataca la etapa distinta y vacía aguas arriba: la CAPTACIÓN/formalización del cliente nuevo (cotización → propuesta/contrato con e-aceptación → primer cobro MP → factura ARCA), en pesos y por WhatsApp. Es el front-door que alimenta el panel de cartera del cluster (captación → back-office), globalmente probado como categoría paga (Bonsai/HoneyBook/Dubsado) y localmente inexistente. Categoría venta_captacion, no cobros_facturacion, para no pisar lo ya propuesto."
+      }
+    },
+    {
+      "id": "af-media-kit-rate-card-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Media kit vivo y rate card para creadores)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Panel de Colaboraciones del Creador: CRM de canjes + Semáforo de monotributo/ARCA (el motor detrás del media kit)",
+        "segmento": "transversal",
+        "categoriaDolor": "cobros_facturacion",
+        "dolor": "El media kit ya está comoditizado y regalado: captura el lead, pero después el creador queda solo con el lío real. Cada colaboración/canje se le desparrama entre DMs, notas del celu y capturas: no sabe qué marca le debe, qué tiene que entregar ni cuándo cobró. Y encima el terror fiscal: es monotributista, laburando con varias marcas, y no tiene ni idea de cuánto facturó en el año ni si está por pasarse de categoría (recategorización enero/julio). Le piden factura C y no la sabe hacer; cobra por Mercado Pago y transferencia y nunca concilia contra lo que acordó. Los players globales (Beacons, Stan, Linktree) no tocan nada de esto: son vidriera en inglés con cobro en USD, no gestionan el after-lead ni el circuito fiscal argentino.",
+        "descripcion": "Producto NET-NEW y deliberadamente distinto de los 10 del cluster: todos ellos son la VIDRIERA pública (media kit vivo + storefront que capta el lead y cobra la seña). Este es la SALA DE MÁQUINAS privada: el back-office que arranca donde termina el media kit. Un pipeline de colaboraciones (propuesta → acordado → producción → entregado → cobrado → facturado) que toma cada marca como cliente, y arriba un cockpit fiscal argentino: Semáforo de Monotributo que avisa cuánto llevás facturado y cuándo estás por saltar de categoría, factura C automática contra ARCA, y conciliación de cobros de Mercado Pago/transferencia contra lo acordado. No es \"otro armador de media kit\": es el ERP del creador. Se paga porque se usa TODOS los meses y se ata al ingreso y a evitar un susto con AFIP, no a una cuota fija en USD por un folleto.",
+        "solucion": "Sobre el motor multi-tenant existente, blueprint \"Creador\": (1) Datos maestros Marca como objeto con ABM propio (ADR-055 VARIANTE) y Colaboración como relación con su propio ABM; (2) Pipeline kanban de colabs reusando el engine de turnos/pedidos, con estados y recordatorios WhatsApp-first de entregas y cobros; (3) Semáforo de Monotributo: acumulador de facturación anual por tenant contra las categorías AFIP vigentes, con alerta temprana de recategorización y proyección \"a este ritmo pasás a categoría X en tal mes\"; (4) Factura C automática vía ARCA (sandbox), disparada al marcar \"cobrado\"; (5) Conciliación Mercado Pago/transferencia por webhook contra el monto acordado en la colab; (6) Ingesta de lead desde el media kit/WhatsApp que crea la colab en estado \"propuesta\". El media kit gratis (del cluster) es el funnel; este cockpit es el upsell pago recurrente.",
+        "encajeGSG": "Encaje casi 1:1 con el core del ERP: Marca=cliente, Colaboración=turno/pedido, cobro=POS/Mercado Pago (módulo `mercadopago` ya existe), factura C=módulo `facturacion`/ARCA sandbox ya presente, comisiones y recordatorios ya viven en el motor, RLS enforced para aislamiento por tenant, y el alta se genera por el Generador de Preset IA (blueprint \"Creador\" desde Instagram/web). No hay que inventar plataforma: es reapuntar el motor a un rubro nuevo. Es la \"argentinización de SAP\" (ADR-044) aplicada al creador: fiscal ARCA + MP + WhatsApp + copy criollo, todo lo que el global no hace.",
+        "impacto": 8,
+        "confianza": 7,
+        "esfuerzo": 7,
+        "horasHumanas": 420,
+        "costoHumanoUSD": 45,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 14
+      },
+      "afinado": {
+        "veredicto": "validado",
+        "confianzaMercado": "Scores honestos. Impacto 8: el dolor fiscal+operativo del monotributista creador está corroborado (Argentina lidera nano-influencers LATAM con 82%, muchos facturando con varias marcas y sin estructura contable) y se ata al ingreso y al miedo a AFIP, que es donde SÍ hay disposición a pagar según el propio relevamiento. Confianza 7 (no 9): el media kit como tal está validado, pero este ángulo back-office/fiscal es net-new y todavía sin señal directa de conversión propia; la apuesta es lógica pero no probada con clientes. Esfuerzo 7 (alto): el pipeline reusa engine existente y sale barato, pero el Semáforo de Monotributo (tablas de categorías AFIP + recategorización), la factura C real contra ARCA y la conciliación MP son trabajo fino, fiscal y con riesgo de error caro → tocan zona Opus/Gate. Riesgo principal: que el creador chico prefiera seguir con el contador y no delegar lo fiscal a una app; se mitiga posicionando el Semáforo como \"aviso, no reemplazo del contador\".",
+        "pasosProduccion": [
+          {
+            "fase": "1. Blueprint y datos maestros (Creador/Marca/Colaboración)",
+            "detalle": "Definir blueprint 'Creador' y datos maestros: Marca como objeto con ABM propio y Colaboración como relación con su propio ABM (patrón VARIANTE, evita el 'todos con todo' de A-1/DX-6/DX-7). Reusa el modelo de clientes del ERP.",
+            "gate": "Gate de Excelencia bloque 3 (Arquitectura): capas/límites, predicado tenantId, RLS no evadido, deuda anotada. Doc-only + schema como migración SIN aplicar."
+          },
+          {
+            "fase": "2. Pipeline de colaboraciones (estados + recordatorios)",
+            "detalle": "Kanban de colabs (propuesta→acordado→producción→entregado→cobrado→facturado) reusando el engine de turnos/pedidos. Recordatorios WhatsApp-first de entregas y cobros. UI SAP Fiori argentinizada.",
+            "gate": "Gate bloques 1+2 (Auditoría SAP 7 ángulos + ángulo argentino + Sello GSG). tsc+build+test verdes, aislamiento por tenant verificado."
+          },
+          {
+            "fase": "3. Semáforo de Monotributo",
+            "detalle": "Acumulador de facturación anual por tenant contra categorías AFIP vigentes; alerta temprana de recategorización (ventanas enero/julio) y proyección de salto de categoría. Es aviso, NO reemplaza al contador.",
+            "gate": "Ángulo argentino ARCA/AFIP obligatorio. Revisión fiscal en Opus (dato caro de equivocar). Tablas de categoría versionadas; sin datos reales en demo."
+          },
+          {
+            "fase": "4. Factura C automática (ARCA sandbox)",
+            "detalle": "Al marcar 'cobrado' se dispara la factura C contra ARCA en sandbox. Reusa el módulo facturacion existente. Nada de prod fiscal real hasta venta.",
+            "gate": "Gate 2: cambios de DB como migración SIN aplicar; ARCA en sandbox, nunca prod. Confiabilidad de producción, manejo de errores fiscales."
+          },
+          {
+            "fase": "5. Conciliación Mercado Pago / transferencia",
+            "detalle": "Webhook de MP concilia el cobro real contra el monto acordado en la colab; marca diferencias. Reusa el módulo mercadopago. Secretos los pega el dueño (FASE 2 credenciales).",
+            "gate": "Seguridad en Opus (dinero + webhooks): sin secretos en repo, validación de firma de webhook, aislamiento por tenant."
+          },
+          {
+            "fase": "6. Ingesta de lead + alta por Preset IA",
+            "detalle": "Lead desde media kit/WhatsApp crea la colab en 'propuesta'. Alta del tenant vía Generador de Preset IA (blueprint Creador) desde Instagram/web del creador.",
+            "gate": "Autorización registrada del cliente ANTES de replicar marca. Generar → auditar por TODA la metodología → recién mostrar (Gate bloqueante)."
+          },
+          {
+            "fase": "7. Demo pública a costo cero",
+            "detalle": "Front+back del flujo en modo demo sobre la URL gratuita <cliente>-erp.vercel.app: pipeline + semáforo + factura C mockeada, sin persistencia ni datos reales, para mostrar y vender.",
+            "gate": "Ciclo DEMO→VENTA→INVERSIÓN: cero gasto, cero datos reales, sin dominio ni persistencia hasta que la venta esté concretada."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 420,
+          "tarifaUSDhora": 35,
+          "totalUSD": 14700,
+          "semanas": 6
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 45,
+          "semanas": 2
+        },
+        "ahorroVsHumano": {
+          "usd": 14700,
+          "veces": 27,
+          "frase": "Armar este cockpit con un equipo de devs humanos te hubiese costado unos US$14.700 (420 horas a US$35). Con IA el desarrollo es US$0: pagás solo la infra (~US$45/mes), o sea el primer año sale ~27 veces más barato que la mano de obra humana."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 9,
+          "modeloCobro": "Suscripción mensual (SaaS), cobrada en pesos por Mercado Pago. Media kit vivo gratis como funnel; se paga el Panel de Colaboraciones + cockpit fiscal (uso recurrente = ingreso recurrente). Tiers: Free (media kit) → Creador ~US$9/mes → Pro con multi-marca/reportes.",
+          "cogsUSDmes": 2,
+          "margenPct": 78,
+          "clientesPara5kMes": 556,
+          "primerPesoSemanas": 3,
+          "paybackMeses": 1,
+          "tamLocalNota": "AR lidera nano-influencers LATAM (82%); social commerce AR ~US$3.110M en 2025 creciendo ~30%/año. Universo objetivo: decenas de miles de creadores monotributistas facturando con marcas. A US$9/mes, 556 pagos cubren US$5k/mes; ~2.000 clientes ≈ US$18k/mes.",
+          "tamGlobalNota": "Creator economy global rumbo a >US$2 billones para 2035; LATAM con driver de monetización directa sobre infra local (Mercado Pago ~US$200B procesados en 2024). El back-office fiscal argentino no escala tal cual afuera, pero el patrón 'cockpit fiscal+CRM del creador' es replicable por país (Brasil/MEI, México/RIF) sobre el mismo motor."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "Beacons.ai (link-in-bio + media kit + store, global, usado en AR)",
+              "precioRef": "Plan gratis; pago desde US$10/mes — NO gestiona colabs ni fiscal AR"
+            },
+            {
+              "nombre": "Stan Store (storefront + bookings con seña, global)",
+              "precioRef": "Creator US$29/mes; Pro US$99/mes — sin ARCA/monotributo, cobro USD/Stripe"
+            },
+            {
+              "nombre": "Facturante / Xubio / Colppy (SaaS fiscal AR genérico)",
+              "precioRef": "~US$5-20/mes — hacen factura C pero NO son para creadores ni gestionan colabs/canjes"
+            },
+            {
+              "nombre": "Contador tradicional (el sustituto real hoy)",
+              "precioRef": "~US$15-30/mes de honorarios — no da pipeline ni semáforo en vivo"
+            }
+          ],
+          "precioMercado": "El media kit se regala; el fiscal genérico va US$5-20/mes y el contador US$15-30/mes. Hay techo real de pago cuando se ata al ingreso y al miedo a AFIP. US$9/mes se ubica por debajo del contador y del fiscal genérico, con el combo que ninguno da junto.",
+          "tamano": "Decenas de miles de creadores monotributistas en AR trabajando con marcas; social commerce AR ~US$3.110M/2025 (+30% anual). Nano-influencers 82% del mercado LATAM liderado por AR.",
+          "veredicto": "Hueco real y defendible: NADIE local junta pipeline de colabs + semáforo de monotributo + factura C + conciliación MP para el creador. El fiscal genérico no es para este segmento y el media kit no toca el after-lead. Net-new claro.",
+          "fuentes": [
+            {
+              "titulo": "iProUP — Cuánto gana un influencer en la Argentina: precio de story, video y reels",
+              "url": "https://www.iproup.com/empleo/62716-cuanto-gana-un-influencer-en-la-argentina-precio-de-story-video-y-reels"
+            },
+            {
+              "titulo": "BusinessWire / ResearchAndMarkets — Argentina Social Commerce Market Intelligence Report 2025 (forecast 2030)",
+              "url": "https://www.businesswire.com/news/home/20250514043653/en/Argentina-Social-Commerce-Market-Intelligence-Report-2025-Influencer-Marketing-Drives-Growth-Boosting-Engagement-and-Sales---Forecast-to-2030---ResearchAndMarkets.com"
+            },
+            {
+              "titulo": "HypeAuditor — Panorama del influencer marketing en LatAm 2026 (nano-influencers, Argentina 82%)",
+              "url": "https://hypeauditor.com/es/resources/whitepapers/panorama-influencer-marketing-latam-2026/"
+            },
+            {
+              "titulo": "AFIP/ARCA — Categorías y recategorización de Monotributo",
+              "url": "https://www.afip.gob.ar/monotributo/categorias/"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "Beacons.ai (link-in-bio + media kit auto-actualizable + storefront)",
+              "precioRef": "Free (fee 9%); Creator US$10/mes; Plus US$30/mes; Max US$90/mes"
+            },
+            {
+              "nombre": "Stan Store (storefront + bookings con seña + productos)",
+              "precioRef": "Creator US$29/mes; PRO US$99/mes (Stripe 2.9%+US$0.30)"
+            },
+            {
+              "nombre": "Linktree (link-in-bio, media kit básico)",
+              "precioRef": "Free (12% fee); Pro US$15/mes; Premium US$35/mes"
+            },
+            {
+              "nombre": "CreatorsJet (media kit dinámico en tiempo real)",
+              "precioRef": "Freemium; foco media kit auto-actualizable, sin back-office fiscal"
+            }
+          ],
+          "precioMercado": "Los globales cobran US$10-99/mes por la VIDRIERA (media kit/storefront) en USD vía Stripe/PayPal. Ninguno cobra por back-office de colabs ni por circuito fiscal — es categoría vacía. El benchmark de disposición a pagar existe (US$10-30/mes), pero el valor fiscal local justifica precio propio en pesos.",
+          "tamano": "Creator economy global rumbo a >US$2 billones para 2035; monetización directa-al-fan como driver en LATAM sobre infra de pago local (Mercado Pago ~US$200B procesados en 2024).",
+          "tendencia": "2025-2026: muere el media kit PDF estático y el link único deja de ser folleto para volverse punto de venta (Stan/Beacons). Próxima frontera menos poblada: gestión del after-lead y del ingreso del creador (pipeline + fiscal), donde este producto se planta antes que el pelotón.",
+          "veredicto": "Afuera el media kit/storefront está saturado; el back-office fiscal+CRM del creador está casi vacío. La versión AR no escala tal cual (es fiscal local), pero el patrón es replicable por país sobre el mismo motor. Net-new con horizonte regional.",
+          "fuentes": [
+            {
+              "titulo": "Creator Economy Market Size to Hit USD 2084.57 Billion by 2035 (Precedence Research)",
+              "url": "https://www.precedenceresearch.com/creator-economy-market"
+            },
+            {
+              "titulo": "Creator Economy Market Size, Share | Industry Report (Grand View Research)",
+              "url": "https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report"
+            },
+            {
+              "titulo": "75 Creator Economy Statistics Every Marketer Needs in 2026 (inBeat Agency)",
+              "url": "https://inbeat.agency/blog/creator-economy-statistics"
+            },
+            {
+              "titulo": "Beacons Pricing: Plans for Creators & Growing Businesses",
+              "url": "https://beacons.ai/i/pricing"
+            }
+          ]
+        },
+        "cambios": "Net-new genuino, NO repite los 10 del cluster. Todos ellos son la vidriera pública (media kit vivo + storefront que capta lead y cobra seña); este ataca el MISMO hueco argentino desde el otro lado: el back-office privado que empieza donde termina el media kit. Diferenciador defendible = el cockpit fiscal (Semáforo de Monotributo + factura C ARCA + conciliación MP), que ni el global ni el fiscal-genérico ni el media kit tocan. Ventaja de negocio: uso recurrente mensual (gestión de colabs + fiscal) → suscripción sostenible, versus el media kit que es regalable de una sola vez. Encaja casi 1:1 con el core del ERP (clientes, POS/MP, facturación ARCA, comisiones, recordatorios, RLS) y con el blueprint Creador del Preset IA: se reapunta el motor, no se inventa plataforma."
+      }
+    },
+    {
+      "id": "af-vidriera-portfolio-cotizador-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Vidriera-portfolio y cotizador de freelance)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Cobralo por Hitos — cobranza escalonada con entrega bloqueada por pago para proyectos creativos",
+        "segmento": "transversal",
+        "categoriaDolor": "cobros_facturacion",
+        "dolor": "El creativo que trabaja por proyecto cobra la seña y ahí termina la ayuda: después corre atrás del SALDO. \"Ya entregué el laburo y no me pagan la otra mitad\" es EL dolor del freelance argentino. Las apps de turnos (ReservaSimple, TurnoSmart, Zlog) resuelven un único depósito al reservar; los portfolios (Linktree, Behance, Workana) ni cobran. Y las tres propuestas que ya hay en el cluster (storefront + cotizador + seña MP) también frenan en la PRIMERA seña. Nadie cubre el resto del proyecto: seña 30% al aprobar, 40% contra avance, 30% contra entrega final. Ese tramo es donde se fuga la plata y donde hoy no hay producto.",
+        "descripcion": "Motor de cobranza por hitos (milestone billing) montado sobre el storefront-cotizador que ya existe, pero net-new en su mecánica: el creativo define los hitos del proyecto cotizado a medida (ej. 30/40/30) y el sistema orquesta cada cobro por Mercado Pago de forma escalonada, con recordatorio WhatsApp por hito, comprobante ARCA por cada cobro (no solo por la seña) y —el diferencial fuerte— ENTREGA BLOQUEADA POR PAGO: el entregable final (archivos, links, media kit) queda hospedado en el storefront y se libera automáticamente cuando el webhook de MP confirma el pago del saldo. Es un escrow-lite app-side (GSG hospeda y libera, sin custodiar plata), que resuelve el \"entregué y no me pagaron\" sin necesidad de un fideicomiso real. Distinto de las 3 propuestas del cluster: ellas venden la vidriera y la seña; esto vende la COBRANZA COMPLETA del proyecto y el gate de entrega.",
+        "solucion": "Plugin \"Cobralo por Hitos\" del ERP: (1) ABM de proyecto con hitos (dato maestro + relación, estilo ADR-055) — cada hito tiene monto/ARS, disparador (aprobación, avance, entrega) y % del total; (2) orquestación multi-cobro sobre el webhook MP existente — cada hito genera su link de pago, su estado y su reintento; (3) comprobante ARCA por hito reutilizando arca-dispatch; (4) recordatorio WhatsApp-first por hito con el CTA sin placeholder (ADR-037); (5) entregable hospedado en el storefront que el webhook desbloquea al confirmar el saldo (delivery gate); (6) panel del creativo con \"qué me deben / qué cobré\" del proyecto. Freemium: 1 proyecto activo gratis; plan pago habilita proyectos ilimitados + delivery gate + ARCA. Sin take-rate propio (solo comisión estándar de MP), coherente con la compresión del take-rate hacia 0% de la categoría.",
+        "encajeGSG": "Encaje altísimo, casi todo apalancamiento: reutiliza módulos ya vivos en el repo — cobros MP (src/lib/cobros-actions.ts, src/app/api/webhooks/mercadopago/route.ts), plugin ARCA (src/lib/arca-dispatch.ts, ADR-022), WhatsApp CTA (src/components/whatsapp-cta.tsx, ADR-037) y el storefront brandeable por tenant. Se vende como capability/plugin del multi-tenant (se construye una vez, lo reciben todos los tenants — economía SaaS del sector Digital), argentinizado de fábrica (ARS, MP, ARCA/AFIP, WhatsApp, criollo). Ataca justo la capa donde hay plata demostrada (el cobro), extendiéndola del turno único al proyecto por hitos. Es Agencia Digital puro: gira alrededor del ERP y le suma feature vendible.",
+        "impacto": 8,
+        "confianza": 6,
+        "esfuerzo": 6,
+        "horasHumanas": 200,
+        "costoHumanoUSD": 12,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 14
+      },
+      "afinado": {
+        "veredicto": "validado",
+        "confianzaMercado": "Honesto: la disposición a pagar (~USD 14/mes) está PROBADA para la capa de cobro-de-seña, pero sobre TURNO ÚNICO (ReservaSimple/TurnoSmart). Que el creativo pague por la cobranza ESCALONADA de un proyecto es una extensión razonable de ese WTP —el valor capturado es mayor (le aseguro el saldo, no solo la seña)— pero NO está A/B-probada todavía. El delivery gate suma valor real (resuelve el \"no me pagaron\") pero exige cambio de conducta y confianza (el creativo cede el entregable al gate). Por eso el veredicto es validado con un gate de smoke-test antes del build pesado: si la señal de intención de pago por la cobranza-por-hitos no aparece, la propuesta se hiere y queda como feature menor del storefront, no producto propio.",
+        "pasosProduccion": [
+          {
+            "fase": "1. PoC sobre infra existente",
+            "detalle": "Modelar hitos como ABM (proyecto + relación hito, ADR-055) y cablear multi-cobro sobre el webhook MP y arca-dispatch ya vivos. Delivery gate app-side con un entregable de prueba. Demo con un creativo piloto (ej. Break Point / un fotógrafo).",
+            "gate": "Gate de Excelencia en Opus (SAP 7 ángulos + ángulo argentino ARCA/MP/WhatsApp) ANTES de mostrar nada al cliente. Sin Gate no se muestra."
+          },
+          {
+            "fase": "2. Smoke de mercado (costo cero)",
+            "detalle": "Demo pública en URL gratuita con nombre de cliente (demo-publica-costo-cero), CTA que mide intención de pago por la cobranza por hitos y el delivery gate — no solo por la seña. Nada de gasto, datos ni persistencia.",
+            "gate": "Umbral de señal de WTP definido de antemano; si no se alcanza, se HIERE la propuesta (feature del storefront, no producto). Ciclo DEMO→VENTA→INVERSIÓN: no se invierte hasta señal."
+          },
+          {
+            "fase": "3. Build MVP del plugin",
+            "detalle": "Data model de hitos, orquestación de multi-cobro MP con estados/reintentos, ARCA por hito, recordatorio WhatsApp por hito, entregable bloqueado liberado por webhook. Reusa cobros-actions, mercadopago webhook, arca-dispatch, whatsapp-cta.",
+            "gate": "tsc+build+test verdes · aislamiento por tenant (tenantId/RLS enforced) · Gate de Excelencia en Opus · Gate 2: migración Prisma SIN aplicar sola a Neon (se eleva al dueño)."
+          },
+          {
+            "fase": "4. Piloto pago + primer peso",
+            "detalle": "1-2 creativos reales cobrando proyectos completos por el motor. Medir primer peso, tasa de cobro del saldo vs. antes, y adopción del delivery gate.",
+            "gate": "OK comercial explícito (venta concretada) antes de activar persistencia/dominio propio — INVERSIÓN post-venta. Secretos los pega el dueño (FASE 2 de credenciales)."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 200,
+          "tarifaUSDhora": 35,
+          "totalUSD": 7000,
+          "semanas": 6
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 12,
+          "semanas": 2
+        },
+        "ahorroVsHumano": {
+          "usd": 7000,
+          "veces": 49,
+          "frase": "Con devs humanos este motor de cobranza por hitos te hubiese costado ~US$7.000 (200 h × US$35/h, ~6 semanas). Construido con IA el desarrollo cuesta US$0: solo pagás la infra (~US$12/mes, casi todo ya compartido con el ERP). En el primer año sale ~49 veces más barato que la vía humana."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 19,
+          "modeloCobro": "SaaS suscripción mensual como add-on/plan del storefront; freemium (1 proyecto activo gratis, sin delivery gate); sin take-rate propio (solo comisión estándar de MP). Precio por encima del piso de ~US$14 del cobro-de-seña porque captura más valor: asegura el saldo completo, no solo la seña.",
+          "cogsUSDmes": 3,
+          "margenPct": 84,
+          "clientesPara5kMes": 263,
+          "primerPesoSemanas": 3,
+          "paybackMeses": 1,
+          "tamLocalNota": "Freelancers/creativos AR y LATAM que cotizan por proyecto: base amplia (Workana es argentina; miles de diseñadores, fotógrafos, productores, CMs por retainer). Mercado LATAM de freelance platforms ~US$1,65B con CAGR ~19% (Grand View). WTP en la capa de cobro ya demostrada a ~US$14/mes.",
+          "tamGlobalNota": "Creator economy ~US$252,3B 2025 → 310,4B 2026 (Grand View); freelance platforms US$6,4B→24,2B a 2033. El nicho servible es la tajada hispana/LATAM que HoneyBook/Dubsado/Bonsai NO cubren (rieles US, USD, inglés, sin WhatsApp ni ARCA). No hay que ganar el mercado global, solo el hueco LATAM del milestone billing argentinizado."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "ReservaSimple (agenda + seña MP + página + WhatsApp)",
+              "precioRef": "Free hasta 30 turnos/mes; Premium USD 13,99/mes (~ARS 16.999). Solo depósito único al reservar — NO cobra por hitos ni cotiza proyectos."
+            },
+            {
+              "nombre": "TurnoSmart / Zlog (mini-sitio con seña vía MP)",
+              "precioRef": "Free + planes pagos; seña en el momento de reservar, comisión estándar MP. Turno único, sin milestone billing."
+            },
+            {
+              "nombre": "Workana / Fiverr (marketplace freelance, Workana argentina)",
+              "precioRef": "Gratis armar perfil; comisión de plataforma ~20% por trabajo. Cobra al cliente y toma take-rate; no es storefront propio del creativo ni WhatsApp-first."
+            },
+            {
+              "nombre": "Linktree / Carrd (link-in-bio / portfolio)",
+              "precioRef": "Linktree 4–8 EUR/mes; Carrd desde ~US$19/año. Vidriera, NO cobra ni cotiza — es el commodity gratis del que nadie paga."
+            }
+          ],
+          "precioMercado": "US$13–14/mes es el ancla probada de la capa de cobro (ReservaSimple 13,99). La vidriera sola es commodity gratis (IG bio/Linktree).",
+          "tamano": "Amplio: freelancers y creativos AR/LATAM que facturan por proyecto. LATAM freelance platforms ~US$1,65B, CAGR ~19%.",
+          "veredicto": "El cobro tiene plata demostrada pero está resuelto SOLO para turno único. La cobranza por hitos + delivery gate para el creativo por proyecto es terreno vacío local: hueco net-new real.",
+          "fuentes": [
+            {
+              "titulo": "Freelancers en Argentina: cuánto ganan por hora (El Cronista / Global66)",
+              "url": "https://www.global66.com/blog/cuanto-cobra-un-freelance-por-hora-en-argentina/"
+            },
+            {
+              "titulo": "Cuánto cuesta una página web profesional en Argentina 2026 (Artics)",
+              "url": "https://www.artics.com.ar/cuanto-cuesta-una-pagina-web-profesional-en-argentina-en-2026/"
+            },
+            {
+              "titulo": "Principales plataformas para contratar freelancers (comisiones Fiverr/Workana/Upwork)",
+              "url": "https://www.martingaray.com.ar/startup-growth/principales-plataformas-para-contratar-freelancers/"
+            },
+            {
+              "titulo": "Cuánto cobra un freelancer en LATAM 2025 (Saldo)",
+              "url": "https://blog.saldo.com.ar/cuanto-cobra-un-freelancer-en-latam-en-2025-y-como-calcular-tu-tarifa-ideal-en-3-pasos/"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "HoneyBook (all-in-one freelance: propuesta + contrato + seña + factura, EEUU)",
+              "precioRef": "US$29–109/mes (anual) + 2.9%+25¢ por pago con tarjeta. Hace milestone billing PERO en rieles US (Stripe), USD, inglés, sin WhatsApp ni ARCA."
+            },
+            {
+              "nombre": "Dubsado (propuestas, flows, cobro con seña, Stripe/PayPal/Square)",
+              "precioRef": "US$35–55/mes. Cobra por hitos pero mismo problema: rieles US, sin localización LATAM/AR."
+            },
+            {
+              "nombre": "Hello Bonsai (propuestas/contratos/facturación freelancers)",
+              "precioRef": "US$15–39/usuario/mes. Facturación por etapas, sin MP/ARCA/WhatsApp."
+            },
+            {
+              "nombre": "Contra (portfolio + pagos comisión-cero, marketplace)",
+              "precioRef": "Freelancer gratis; Pro US$29/mes; el cliente paga US$19 por contrato. Portfolio + invoicing pero no WhatsApp-first ni fiscal AR ni delivery gate escrow-lite."
+            }
+          ],
+          "precioMercado": "US$15–55/mes en el segmento pro global. Todos cobran por hitos pero NINGUNO en rieles LATAM (MP/ARCA/WhatsApp/ARS).",
+          "tamano": "Creator economy ~US$252,3B (2025) → 310,4B (2026); a 2035 hacia ~US$2.084B (Precedence). Freelance platforms US$6,4B→24,2B a 2033.",
+          "tendencia": "2025-26: (1) consolidación all-in-one — el portfolio absorbe CRM+cotización+cobro; (2) IA nativa (Indy AI, Beacons, Linktree); (3) link-in-bio → storefront con seña/tip; (4) take-rate comprimido hacia 0%; (5) LATAM WhatsApp-first como interfaz de conversión. La seña/depósito antes de arrancar ya es estándar; el milestone billing es el siguiente estándar.",
+          "veredicto": "El milestone billing existe globalmente pero SIN localización LATAM profunda. El hueco net-new es empaquetar cobranza por hitos + delivery gate en rieles MP/ARCA/WhatsApp/ARS y criollo. Eso no existe para el creativo hispano.",
+          "fuentes": [
+            {
+              "titulo": "Creator Economy Market Size, Grand View (US$252,3B 2025 → 310,4B 2026)",
+              "url": "https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report"
+            },
+            {
+              "titulo": "Creator Economy Market to Hit US$2084,57B by 2035, Precedence Research",
+              "url": "https://www.precedenceresearch.com/creator-economy-market"
+            },
+            {
+              "titulo": "Freelance Platforms Market Size & Share Report 2026-2033, Grand View (US$6,4B→24,2B)",
+              "url": "https://www.grandviewresearch.com/industry-analysis/freelance-platforms-market-report"
+            },
+            {
+              "titulo": "Latin America Freelance Platforms Market Outlook 2030 (US$1,65B, CAGR 19%), Grand View",
+              "url": "https://www.grandviewresearch.com/horizon/outlook/freelance-platforms-market/latin-america"
+            }
+          ]
+        },
+        "cambios": "Refino del hueco corroborado, no repetición. Las 3 propuestas del cluster (storefront + cotizador + seña MP) frenan en la PRIMERA seña; este net-new ataca el tramo que queda vacío: la cobranza ESCALONADA por hitos (seña + avance + saldo contra entrega) más un DELIVERY GATE (escrow-lite app-side que libera el entregable al confirmarse el pago). El insight: la fuga de plata del creativo por proyecto no está en la seña —ya resuelta/propuesta— sino en el SALDO post-entrega, que nadie cubre ni local (apps de turno único) ni con encaje LATAM (HoneyBook/Dubsado hacen hitos pero en rieles US). Es distinto de lo ya propuesto y se apoya en infra GSG ya viva (webhook MP, arca-dispatch, whatsapp-cta). Riesgo marcado con honestidad: el WTP por la cobranza-por-hitos es extensión —no A/B-probada— del WTP por seña; se gatea con smoke-test antes del build pesado."
+      }
+    },
+    {
+      "id": "af-crm-marcas-sponsoreos-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: CRM y pipeline de brand deals)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Canje Legal: valuador de canjes + guardián del monotributo (ARCA) para creadores",
+        "segmento": "influencers",
+        "categoriaDolor": "cobros_facturacion",
+        "dolor": "El creador argentino recibe canjes (un bolso, una estadía, una cena, productos) a cambio de contenido y NO los valúa, NO los factura y NO sabe que ARCA los considera permuta gravada al valor de mercado del bien recibido. Peor: ese canje SUMA al tope anual del monotributo. Resultado: un pasivo fiscal invisible que se acumula todo el año y explota cuando ARCA cruza datos — multa, recategorización forzada o expulsión del monotributo al régimen general — sin que el creador se haya enterado de que venía sumando. Los 7 CRM de pipeline ya propuestos tratan el canje como una fila más del embudo; nadie lo trata como el OBJETO FISCAL que realmente es ni proyecta su impacto contra el tope.",
+        "descripcion": "Producto net-new que NO es otro pipeline/CRM: es el co-piloto fiscal del canje. Convierte cada canje en un objeto de primera clase con su valuación en pesos (a valor de mercado), emite la Factura E/A de la permuta (reusando el motor ARCA del ERP), y —la parte que nadie tiene— corre un GUARDIÁN DEL MONOTRIBUTO que acumula ingresos en efectivo + canjes del año corriente, los proyecta contra el tope y los límites de categoría vigentes, y avisa por WhatsApp ANTES de que el creador se pase de categoría o reviente el tope. Es el eslabón fiscal que las herramientas de descubrimiento (Lit, FLUVIP), los CRM globales (Deelo, Rella, Passionfroot) y hasta los facturadores locales de influencer omiten por completo.",
+        "solucion": "1) ABM de Canje como dato maestro (ADR-055): qué se recibió, marca, fecha, entregables comprometidos, y valuación en pesos (sugerida desde catálogo/precio de referencia + edición manual). 2) Facturación de la permuta: genera la Factura E/A del servicio publicitario y registra la contrapartida, ARCA-aware (sandbox primero). 3) Guardián del monotributo: acumulador rodante efectivo+canje YTD, proyección anual, semáforo de categoría (verde/amarillo/rojo), y alerta WhatsApp \"vas al 78% del tope, en este ritmo te pasás en octubre — recategorizá o frená canjes\". 4) Sugerencia de recategorización / timing de salto a Responsable Inscripto. 5) Reporte anual imprimible para el contador. Precio en pesos, criollo, WhatsApp-first. Los topes y montos se mantienen como parámetro editable porque ARCA los actualiza cada semestre.",
+        "encajeGSG": "Encaje altísimo con el ERP GSG: reusa el motor de facturación ARCA (sandbox ya montado), catálogo (para valuar el bien recibido a precio de referencia), clientes/marcas, cobros Mercado Pago y recordatorios WhatsApp. Lo nuevo y acotado es el objeto Canje + el motor de acumulación/proyección del tope. Es un add-on vendible dentro del ERP y una punta de lanza comercial: ataca miedo fiscal concreto (no \"conveniencia\"), lo que sube la disposición a pagar. Se genera como preset de rubro creador y pasa por el Gate de Excelencia (ángulo argentino/ARCA obligatorio) antes de mostrarse.",
+        "impacto": 8,
+        "confianza": 6,
+        "esfuerzo": 6,
+        "horasHumanas": 360,
+        "costoHumanoUSD": 25,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 14
+      },
+      "afinado": {
+        "veredicto": "validado",
+        "confianzaMercado": "Alta en el HUECO (corroborado por fuentes primarias: ARCA exige facturar los canjes al valor de mercado y ya empezó a mirar a los influencers; el canje suma al tope del monotributo, que se mueve cada semestre —~$108M cat. K feb-jun 2026, proyección ~$127M jul 2026—). Media en la DISPOSICIÓN A PAGAR: el creador chico con ingresos volátiles y muchos canjes tiene poca caja, así que el cliente que paga es el mid-tier y el community manager / mini-agencia que gestiona varias cuentas. El riesgo no es la existencia del dolor (es real y creciente por enforcement), sino que el pago sea consistente en el segmento bajo — por eso el precio va en pesos, bajo, con un plan Manager multi-creador que es donde está la plata.",
+        "pasosProduccion": [
+          {
+            "fase": "0 · Autorización + calibración",
+            "detalle": "Confirmar preset de rubro creador; si se usa marca de un cliente PoC (canjes reales), pedir y REGISTRAR el OK explícito antes de replicar identidad/datos. Calibración ADR-052.",
+            "gate": "Autorización de cliente registrada (bloqueante, no negociable)"
+          },
+          {
+            "fase": "1 · Objeto Canje (ABM)",
+            "detalle": "Modelar Canje como dato maestro con su ABM (ADR-055), campos de valuación en pesos y vínculo a marca/entregables. Multi-tenant con predicado tenantId. Schema = migración SIN aplicar.",
+            "gate": "Gate 2 (migración Neon se reporta, no se corre sola)"
+          },
+          {
+            "fase": "2 · Valuación + factura permuta",
+            "detalle": "Valuación sugerida desde catálogo/precio de referencia + edición manual; emisión Factura E/A de la permuta contra ARCA en SANDBOX. Sin datos reales ni secretos (los pega el dueño en fase real).",
+            "gate": "ARCA sandbox verde + ángulo argentino del Gate de Excelencia"
+          },
+          {
+            "fase": "3 · Guardián del monotributo",
+            "detalle": "Acumulador rodante efectivo+canje YTD, tabla de topes/categorías como parámetro editable, proyección anual y semáforo. Tests de borde (cambio de tope semestral, año fiscal, mezcla efectivo/canje).",
+            "gate": "tsc+build+test verdes + Excelencia Arquitectura (testabilidad del motor fiscal)"
+          },
+          {
+            "fase": "4 · Alertas WhatsApp + reporte contador",
+            "detalle": "Recordatorio WhatsApp al cruzar umbrales (60/80/95% del tope) y reporte anual imprimible. De-sesgo zona humana/criollo en el copy de aviso; zona estándar/preciso en los números fiscales (ADR-046).",
+            "gate": "Gate de Excelencia completo (SAP 7 ángulos + sello GSG), auditoría en Opus 4.8"
+          },
+          {
+            "fase": "5 · Demo público costo cero",
+            "detalle": "Publicar flujo front+back en URL gratuita <cliente>-erp.vercel.app en modo demo (sin datos reales, sin persistencia, sin gasto). Inversión/persistencia recién POST-venta.",
+            "gate": "Ciclo DEMO→VENTA→INVERSIÓN (cero gasto hasta venta concretada)"
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 360,
+          "tarifaUSDhora": 35,
+          "totalUSD": 12600,
+          "semanas": 8
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 25,
+          "semanas": 2
+        },
+        "ahorroVsHumano": {
+          "usd": 12600,
+          "veces": 42,
+          "frase": "Con devs humanos esto te hubiese costado US$12.600 (360 h × US$35/h, ~8 semanas y 2 devs). Con IA el desarrollo es US$0: solo pagás ~US$25/mes de infra. En el primer año sale unas 42x más barato."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 9,
+          "modeloCobro": "Suscripción mensual en PESOS. Plan Creador ~equivalente US$9/mes (miedo fiscal individual); plan Manager/mini-agencia multi-creador ~US$29/mes (donde está la plata real). Add-on dentro del ERP GSG, no producto suelto.",
+          "cogsUSDmes": 1.5,
+          "margenPct": 83,
+          "clientesPara5kMes": 470,
+          "primerPesoSemanas": 3,
+          "paybackMeses": 1,
+          "tamLocalNota": "AR/LATAM: cientos de miles de creadores mid-tier + CM/mini-agencias; el enforcement de ARCA sobre canjes es el disparador de urgencia. Nicho pagable estimado inicial: creadores que ya facturan (monotributistas activos) + managers.",
+          "tamGlobalNota": "Creator economy LATAM ~USD 38,5B (+19,7% anual). El guardián de tope es específico de Argentina/monotributo (no exportable tal cual), pero el patrón valuación-de-canje + factura-de-permuta es replicable a otros regímenes LATAM con adaptación fiscal."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "Deelo (llega al mercado en inglés/USD) — brand deal CRM del lado del creador; factura pero NO valúa canje ni controla tope monotributo",
+              "precioRef": "Free / USD 19 / 39 / 69 por mes"
+            },
+            {
+              "nombre": "YoFacturo / facturadores de influencer locales — ayudan a emitir factura pero NO tratan el canje como objeto ni proyectan el tope",
+              "precioRef": "Servicio de facturación, sin módulo de canje/guardián"
+            },
+            {
+              "nombre": "Zoho CRM es-xl / Tacticasoft — CRM de ventas genérico, cero fiscal-creador",
+              "precioRef": "USD 14 (Zoho) / plan local (Tacticasoft) por usuario/mes"
+            },
+            {
+              "nombre": "Lit / FLUVIP / Wico — MARKETPLACES de descubrimiento marca↔creador, no gestión fiscal del creador",
+              "precioRef": "Comisión/marketplace, no suscripción de gestión"
+            }
+          ],
+          "precioMercado": "Los CRM de creador rondan US$19-69/mes en USD; la facturación de influencer se cobra suelta. NADIE cobra por valuar el canje + guardián del monotributo: es precio de mercado inexistente = hueco.",
+          "tamano": "AR/LATAM en crecimiento; masa de monotributistas creadores + CM presionados por el nuevo enforcement de ARCA sobre canjes.",
+          "veredicto": "Hueco net-new confirmado: ningún player local trata el canje como objeto fiscal ni proyecta el tope del monotributo. Distinto de los 7 pipeline-CRM del cluster.",
+          "fuentes": [
+            {
+              "titulo": "Bajo la lupa: qué impuestos deben pagar los influencers por publicidad, canjes y cafecitos (Andersen/El Economista)",
+              "url": "https://ar.andersen.com/bajo-la-lupa-que-impuestos-deben-pagar-los-influencers-por-publicidad-canjes-y-cafecitos-prensa-el-economista/"
+            },
+            {
+              "titulo": "ARCA (ex AFIP) comenzará a exigir el pago de impuestos a influencers y creadores (iProUP)",
+              "url": "https://www.iproup.com/finanzas/51824-arca-ex-afip-exige-el-pago-de-impuestos-a-influencers-y-youtubers"
+            },
+            {
+              "titulo": "Cómo facturar como influencer/creador de contenido en Argentina 2026 (YoFacturo)",
+              "url": "https://yo-facturo.com/blog/como-facturar-influencer-creador-contenido/"
+            },
+            {
+              "titulo": "Monotributo 2026: nuevos topes de facturación y montos (iProfesional)",
+              "url": "https://www.iprofesional.com/impuestos/446005-monotributo-2026-cuales-son-los-nuevos-topes-de-facturacion-y-montos-mensuales"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "Passionfroot (US/EU) — CRM + storefront + facturación con AI agent Zest; Stripe/USD, sin ARCA ni concepto de canje/permuta",
+              "precioRef": "Gratis para arrancar; comisión 5-15% en deals"
+            },
+            {
+              "nombre": "Rella (US) — gestión all-in-one de brand deals; sin fiscal argentino ni tope monotributo",
+              "precioRef": "US$24-60/mes por asiento"
+            },
+            {
+              "nombre": "Creator Pilot (US) — lee contratos con IA de primer contacto a pago; no valúa barter ni controla régimen fiscal",
+              "precioRef": "Freemium (precio exacto no verificado)"
+            },
+            {
+              "nombre": "Clara (US) — app financiera + tracking; freemium, sin permuta/monotributo",
+              "precioRef": "Gratis (freemium)"
+            }
+          ],
+          "precioMercado": "US$19-69/mes en USD con Stripe. Ninguno modela el canje como permuta gravada ni proyecta un tope de régimen fiscal — es una función que no existe en el mercado global.",
+          "tamano": "Creator economy LATAM ~USD 38,5B, +19,7% anual; brand partnerships = ~70% del ingreso del creador.",
+          "tendencia": "2025-2026: IA en el pipeline (Zest, Creator Pilot que lee contratos), creator-as-a-business (un solo lugar que reemplaza inbox+spreadsheet+facturación) y foco en el flujo de PAGO/cobranza del creador, no solo descubrimiento. El eje fiscal/canje sigue vacío globalmente.",
+          "veredicto": "Ningún player global cubre valuación de canje + factura de permuta + guardián de régimen fiscal. La pieza es Argentina-específica pero el patrón es defendible y sin competencia directa.",
+          "fuentes": [
+            {
+              "titulo": "Best Influencer Management Software in 2026 — Deelo (features y precios)",
+              "url": "https://www.deelo.ai/blog/best-influencer-management-software-2026"
+            },
+            {
+              "titulo": "Creator Economy Market Size, Growth Trends 2026 (AMT)",
+              "url": "https://www.amt.ai/blog/creator-economy-market"
+            },
+            {
+              "titulo": "Latin America Creator Economy Market Size and Forecasts 2031 (Mobility Foresights)",
+              "url": "https://mobilityforesights.com/product/latin-america-creator-ecoonomy-market"
+            },
+            {
+              "titulo": "Influencer Marketing Platform Pricing 2025 (Stack Influence)",
+              "url": "https://stackinfluence.com/influencer-marketing-platform-pricing-2025/"
+            }
+          ]
+        },
+        "cambios": "Net-new distinto de los 7 pipeline-CRM ya propuestos en el cluster: en vez de gestionar el embudo de deals, ataca el ESLABÓN FISCAL que todos omiten. El canje deja de ser una fila del CRM y pasa a ser un OBJETO FISCAL de primera clase (ADR-055) con valuación en pesos + Factura E/A de permuta, y se agrega el GUARDIÁN DEL MONOTRIBUTO (acumulador efectivo+canje YTD, proyección contra tope y categorías, alerta WhatsApp preventiva) que ningún competidor local ni global tiene. Ajuste vs contexto: el tope del monotributo NO es $94,8M — está en ~$108M (cat. K, feb-jun 2026) con proyección a ~$127M en jul 2026; por eso los topes van como parámetro editable, no hardcodeados. Se confirmó con fuente primaria que ARCA obliga a facturar los canjes al valor de mercado y que el canje suma al tope, lo que sube el impacto y hace el dolor accionable HOY."
+      }
+    },
+    {
+      "id": "af-aprobacion-contenido-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Aprobación de contenido con trazabilidad)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Testigo — el sello probatorio SOBRE el WhatsApp que ya existe (sin portal) + pre-vuelo IA que baja las rondas de rechazo",
+        "segmento": "community_managers",
+        "categoriaDolor": "produccion_contenido",
+        "dolor": "El CM/creativo argentino ya recibe el \"dale, va\" del cliente EN el chat de WhatsApp real, informal. No quiere migrar a otro portal ni mandar links: quiere que ESE \"sí\" que ya ocurrió tenga valor cuando el cliente después reclame (\"yo no aprobé eso\", \"no era esta versión\", \"no te pago\"). Hoy improvisa con capturas de pantalla, que no prueban nada (se editan, no tienen sello de tiempo verificable ni identidad). Y pierde tiempo en 3-4 rondas de idas y vueltas porque manda a aprobar cosas que el cliente iba a rechazar igual.",
+        "descripcion": "Producto net-new que NO es un portal de aprobación (eso ya está en el cluster). Dos piezas: (1) TESTIGO: un número de WhatsApp de GSG que entra como testigo silencioso al chat real cliente-CM (o al que el CM reenvía la conversación) y sella cada versión + cada \"OK\" a medida que pasa — sello de tiempo verificable, hash del contenido aprobado, identidad del que dijo sí — sin sacar la aprobación de WhatsApp nativo. (2) PRE-VUELO IA: antes de mandar al cliente, la IA revisa la pieza contra las preferencias/marca aprendidas del historial de ese cliente y avisa \"esto lo van a rechazar por X\" para llegar aprobado de una. La estrella no es aprobar: es el COMPROBANTE con validez de reclamo, generado on-demand como PDF/carpeta presentable.",
+        "solucion": "Mecánica diferenciada del cluster: en vez de RELOCALIZAR la aprobación a un link/portal tokenizado, se CERTIFICA la aprobación donde naturalmente ocurre (WhatsApp nativo). El número Testigo de GSG queda en el hilo y sella mensajes en el momento de captura (no retroactivo sobre screenshots, que no prueban), con hash + timestamp de autoridad + identidad del emisor. On-demand genera el \"Comprobante de Conformidad\" (PDF con versión, quién, cuándo, hash verificable, link de verificación público). El pre-vuelo IA reduce las rondas de rechazo (-30/40% de idas y vueltas, alineado con Sprout -35% y batch -40%). Todo en criollo, cobro en ARS/MP/transferencia, monotributo-friendly.",
+        "encajeGSG": "Encaja como ADD-ON del ERP multi-tenant (módulo \"producción de contenido / aprobaciones\"), no como SaaS suelto — coherente con la recomendación local (WTP standalone baja frente al gratis y al recargo dólar-tarjeta). Reusa: integración WhatsApp Business ya prevista (WhatsApp-first del ERP), cobros en ARS (MP/transferencia sin recargo dólar), RBAC/multi-tenant, generación de PDF. Lo vende la Agencia Digital como diferencial \"el único que te da el comprobante sin sacarte de WhatsApp\". Complementa (no repite) los portales del cluster: se puede ofrecer el portal a quien lo quiera y el Testigo a quien no quiere cambiar de canal.",
+        "impacto": 7,
+        "confianza": 6,
+        "esfuerzo": 7,
+        "horasHumanas": 320,
+        "costoHumanoUSD": 45,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 14
+      },
+      "afinado": {
+        "veredicto": "herido",
+        "confianzaMercado": "Media-alta en el DOLOR (probado: aprobación con trazabilidad crece, WhatsApp es el canal de facto en LATAM, el screenshot improvisado es el sustituto actual). Media-baja en la MONETIZACIÓN STANDALONE (la disposición a pagar del CM argentino por un producto suelto es baja; el propio análisis local recomienda empaquetarlo como feature del ERP). Riesgos concretos: (a) validez legal del sello — hay que sellar en captura, no sobre screenshots, y ser honestos con que es \"prueba fuerte\", no acta notarial; (b) fricción de la WhatsApp Business API (Meta) para meter un número testigo en chats de terceros — puede requerir que el CM reenvíe o use un chat gestionado, no entrar a cualquier hilo. Por eso el veredicto es HERIDO: producto genuinamente net-new en la mecánica, pero su forma pagable sana es add-on del ERP, no SaaS aislado.",
+        "pasosProduccion": [
+          {
+            "fase": "0 — Descubrimiento legal/técnico",
+            "detalle": "Validar con 5-8 CMs reales que aceptan el número Testigo o el reenvío al chat gestionado. Definir qué nivel probatorio real se puede prometer (sello de tiempo + hash + identidad = prueba fuerte, NO acta notarial) y redactar el disclaimer honesto. Chequear límites de WhatsApp Business API (Meta) para el patrón testigo/reenvío.",
+            "gate": "Gate de descubrimiento: sin OK de 3+ CMs y sin un camino técnico limpio en WhatsApp API, NO se construye. Ante duda legal → se trata como irreversible y se eleva al dueño."
+          },
+          {
+            "fase": "1 — Sellado en captura (MVP Testigo)",
+            "detalle": "Módulo que recibe versión + mensaje de OK vía WhatsApp gestionado, calcula hash del contenido aprobado, estampa timestamp de autoridad e identidad del emisor, y persiste inmutable por tenant.",
+            "gate": "Gate de Excelencia (SAP 7 ángulos + argentino + sello GSG + arquitectura multi-tenant/RLS + tsc/build/test verdes). Aislamiento por tenantId verificado."
+          },
+          {
+            "fase": "2 — Comprobante de Conformidad",
+            "detalle": "Generador de PDF/carpeta presentable: versión, quién aprobó, cuándo, hash, link público de verificación. En criollo, presentable ante el cliente en una disputa.",
+            "gate": "Gate de Excelencia + revisión del disclaimer legal. Accesibilidad del PDF y del verificador público."
+          },
+          {
+            "fase": "3 — Pre-vuelo IA",
+            "detalle": "IA que revisa la pieza contra el historial/preferencias del cliente y flaggea probables rechazos antes de mandar. Mide reducción de rondas.",
+            "gate": "Gate de Excelencia. Métrica: rondas de rechazo antes/después. Costo de tokens IA dentro del COGS objetivo."
+          },
+          {
+            "fase": "4 — Cobro ARS + empaque add-on",
+            "detalle": "Cablear cobro en ARS (MP/transferencia) como add-on del ERP y/o pay-per-comprobante. Demo pública a costo cero antes de vender.",
+            "gate": "Ciclo DEMO→VENTA→INVERSIÓN: todo demo gratis en URL de cliente hasta venta concretada; persistencia real y secretos los pega el dueño post-venta (Gate 1/Gate 2)."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 320,
+          "tarifaUSDhora": 35,
+          "totalUSD": 11200,
+          "semanas": 8
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 45,
+          "semanas": 2
+        },
+        "ahorroVsHumano": {
+          "usd": 11200,
+          "veces": 20,
+          "frase": "Con devs humanos, este módulo (WhatsApp Business API + sellado con hash/timestamp + comprobante PDF verificable + pre-vuelo IA + cobro ARS) costaba unos US$11.200 (320 h × US$35/h, ~8 semanas). Con IA: US$0 de desarrollo y solo ~US$45/mes de infra — cerca de 20 veces más barato en el primer año, y lo que sí se paga es únicamente la infra."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 6,
+          "modeloCobro": "Add-on mensual del ERP en ARS (MP/transferencia, sin recargo dólar-tarjeta) — NO standalone. Alternativa para el que no quiere abono: pay-per-comprobante (pago por sello emitido). Empaquetado dentro del módulo de producción de contenido del ERP.",
+          "cogsUSDmes": 1.5,
+          "margenPct": 75,
+          "clientesPara5kMes": 834,
+          "primerPesoSemanas": 6,
+          "paybackMeses": 1,
+          "tamLocalNota": "AR/LATAM: universo grande de CMs/creativos/pymes pero WTP standalone baja; el número de 834 clientes para US$5k/mes a US$6 muestra por qué la forma sana es add-on que sube el ticket del ERP, no producto suelto. Sustituto actual gratis = captura de pantalla.",
+          "tamGlobalNota": "Mercado SMM ~US$30B (2025) y creator economy ~US$252B (2025, CAGR 23%); el nicho aprobación+audit lo pagan hoy agencias medianas anglosajonas en USD (Gain US$99-199, Approval Studio US$45-599). El ángulo 'sello sobre WhatsApp nativo' es exportable a todo LATAM hispanohablante."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "Mydrop / Apaya / CampaignSwift (portal tokenizado sin login; Mydrop suma aprobación nativa por WhatsApp)",
+              "precioRef": "US$15-40/mes; nicho no-login + WhatsApp, precios bajos/en definición"
+            },
+            {
+              "nombre": "Planable (líder aprobación, usado por agencias hispanas)",
+              "precioRef": "Free; Basic US$33; Pro US$49/workspace/mes"
+            },
+            {
+              "nombre": "Gain (one-click sin login para el cliente, con audit trail)",
+              "precioRef": "~US$20-30/usuario/mes"
+            },
+            {
+              "nombre": "Sustituto real del CM argentino: captura de pantalla de WhatsApp",
+              "precioRef": "US$0 (gratis, sin trazabilidad ni validez)"
+            }
+          ],
+          "precioMercado": "US$15-49/mes los portales; el sustituto dominante es gratis (screenshot). GSG apunta a ~US$6/mes como add-on en ARS.",
+          "tamano": "Grande en usuarios (CMs/creativos/pymes de AR/LATAM) pero con WTP standalone baja: el gratis y el recargo dólar-tarjeta comprimen el precio.",
+          "veredicto": "Hueco real y no cubierto entero por nadie (nadie sella el OK SOBRE el WhatsApp nativo con validez de reclamo en ARS/criollo), pero la forma monetizable sana es add-on del ERP, no SaaS suelto. Producto net-new: sí; standalone rentable: herido.",
+          "fuentes": [
+            {
+              "titulo": "Planable Pricing — planes y aprobación por workspace",
+              "url": "https://planable.io/pricing/"
+            },
+            {
+              "titulo": "Gain — Marketing Content Approval Platform (one-click, sin login)",
+              "url": "https://gainapp.com/"
+            },
+            {
+              "titulo": "7 Best Social Media Approval Tools 2026 (Mydrop: no-login + WhatsApp)",
+              "url": "https://mydropai.com/post/best-social-media-approval-tools-agency-client-workflows-2026/"
+            },
+            {
+              "titulo": "Apaya — Client Approval Workflows (link sin login)",
+              "url": "https://apaya.com/solutions/agencies/client-approval-workflows"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "Planable (approval-native, sin login para el cliente)",
+              "precioRef": "US$33/workspace/mes (Basic) a US$49 (Pro); usuarios ilimitados"
+            },
+            {
+              "nombre": "Gain (content approval con audit trail)",
+              "precioRef": "US$99/mes (Starter, 6 clientes) a US$199/mes (Agency, 12 clientes)"
+            },
+            {
+              "nombre": "Approval Studio (proofing + registro de versiones/audit)",
+              "precioRef": "US$45/mes (Lite) hasta US$599/mes (Enterprise)"
+            },
+            {
+              "nombre": "Sked Social / ContentStudio / Apaya (portales tokenizados sin cuenta)",
+              "precioRef": "US$25-99/mes según plataforma"
+            }
+          ],
+          "precioMercado": "US$33-199/mes para aprobación con audit trail; todo en USD y pensado para agencias anglosajonas. Ninguno sella sobre WhatsApp nativo.",
+          "tamano": "SMM ~US$30B (2025); creator economy ~US$252B (2025, CAGR 23,3%). Audit trail vendido a nichos regulados (salud/finanzas/legal) en USD.",
+          "tendencia": "2025-26 empuja a: portales tokenizados sin login (fin del dashboard con password), aprobación 1-clic, audit trail inmutable por compliance/disputas, IA de pre-escaneo (-35% tiempo) y batch (-40% time-to-publish). En LATAM WhatsApp ya es el canal de facto pero las herramientas globales lo tratan como email/dashboard.",
+          "veredicto": "Convergen 3 huecos: nadie junta WhatsApp-nativo + comprobante con validez de reclamo + ARS/criollo. El net-new de GSG es la mecánica 'testigo que sella sobre el chat nativo' (no otro portal) + pre-vuelo IA. Exportable a LATAM hispano; standalone débil, add-on fuerte.",
+          "fuentes": [
+            {
+              "titulo": "Grand View Research — Social Media Management Market 2026-2033 (US$29,9B en 2025)",
+              "url": "https://www.grandviewresearch.com/industry-analysis/social-media-management-market-report"
+            },
+            {
+              "titulo": "Grand View Research — Creator Economy Market (US$252,3B en 2025, CAGR 23,3%)",
+              "url": "https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report"
+            },
+            {
+              "titulo": "Planable — Pricing oficial (US$33-49/workspace)",
+              "url": "https://planable.io/pricing/"
+            },
+            {
+              "titulo": "Gain — Pricing oficial (US$99-199/mes, sin login)",
+              "url": "https://gainapp.com/pricing"
+            }
+          ]
+        },
+        "cambios": "Net-new frente al cluster: los 6 items existentes son variantes del MISMO mecanismo — un portal/link tokenizado al que el cliente aprueba (aunque llegue por WhatsApp). Esta propuesta cambia la MECÁNICA: no hay portal ni link; el OK se queda en el WhatsApp nativo donde ya ocurre y GSG entra como TESTIGO que sella en el momento de captura (hash + timestamp + identidad), convirtiendo el screenshot improvisado en comprobante con validez. Suma una segunda pieza que ningún item del cluster tiene: PRE-VUELO IA que baja las rondas de rechazo antes de mandar al cliente (trend 2025-26 de IA de pre-escaneo/batch, aún no explotado). Honesto: la estrella sigue siendo el comprobante (mismo hueco), pero atacado desde un ángulo distinto y complementario a los portales del cluster."
+      }
+    },
+    {
+      "id": "af-reportes-mensuales-resultados-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Reporte mensual de resultados del CM)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Captura y listo: el informe del mes SIN conectar ninguna cuenta — el CM manda la captura por WhatsApp y le vuelve el reporte con la marca de su cliente (y el link de cobro)",
+        "segmento": "community_managers",
+        "categoriaDolor": "reportes_metricas",
+        "dolor": "El muro no es armar el informe: es CONECTAR la cuenta. Todos los incumbentes (Metricool, Porter, Reportei) exigen enganchar el Instagram del cliente vía Meta Graph API + una Facebook Page linkeada + permisos en Business Manager. El micro-CM argentino (1-10 clientes) casi nunca tiene ese acceso: la cuenta del cliente es personal, está mal linkeada, o el CM no es admin del Business Manager. Resultado: no puede usar ninguna herramienta y termina haciendo el reporte A MANO igual —captura por captura pegada en Canva—, 3 a 6 hs por cliente por mes. El cluster ya tiene la cuña de 'envío + cobro por WhatsApp'; lo que NADIE resolvió para este segmento es que puedas reportar SIN pelearte con Meta.",
+        "descripcion": "Producto self-serve para el CM/agencia chica AR que no puede o no quiere montar la conexión técnica a Meta. En vez de pedir permisos de API, el CM (o su propio cliente) reenvía por WhatsApp las capturas del mes de Instagram/Meta Insights; una IA multimodal lee los números de la captura (alcance, interacciones, seguidores, guardados, historias, top posts), arma solo el one-pager mensual con la MARCA DEL CLIENTE (no la de la herramienta) y lo devuelve listo para mandar, con un link de Mercado Pago del fee opcional pegado. Cero API, cero Business Manager, cero Zapier/Make, cero Looker Studio. Argentinizado: criollo claro, nota de monotributo/ARCA, cobro por MP/transferencia, WhatsApp-first de verdad. Es un vector de INGESTA distinto al del cluster (que ataca el envío+cobro): acá la novedad es reportar sin conectar nada.",
+        "solucion": "Flujo en 3 toques: (1) el CM reenvía por WhatsApp las capturas de Insights del mes (propias o que le pasó el cliente); (2) la IA multimodal extrae las métricas, el CM valida/corrige en una pantalla simple (control de exactitud), y elige el cliente/marca; (3) GSG genera el informe branded (identidad del cliente vía preset) y lo devuelve por WhatsApp listo para reenviar, con link de cobro MP del fee del mes opcional. Anti-alucinación: toda métrica extraída queda editable y se marca 'sin confirmar' hasta que el CM la tilda; nunca se manda un número inventado. Se apoya en el ERP: branding por tenant, cobros MP, envío WhatsApp y generador de preset ya existen.",
+        "encajeGSG": "Producto SaaS del core ERP + Agencia Digital lo vende y le suma features.",
+        "impacto": 8,
+        "confianza": 6,
+        "esfuerzo": 6,
+        "horasHumanas": 380,
+        "costoHumanoUSD": 55,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 42
+      },
+      "afinado": {
+        "veredicto": "validado",
+        "confianzaMercado": "Corroborado con fuentes duras: el requisito de conexión vía Meta Graph API + Facebook Page + permisos de Business Manager está documentado en la propia ayuda de Metricool (dos métodos, ambos exigen cuenta profesional y control total en Business Manager) — ese es el muro real para el micro-CM. Reportei y Porter dependen del mismo modelo de conexión (o de Looker). CAVEAT honesto que baja la confianza a 6: la PRIMITIVA de 'armar reporte desde una captura con IA' ya existe globalmente — Whatagraph IQ la ofrece — pero en un tool anglo/enterprise, caro, sin WhatsApp, sin cobro y sin argentinizar; no hay nadie que la empaquete self-serve para el micro-CM argentino WhatsApp-first + MP + ARCA. Riesgo de ejecución medio: la exactitud de extracción sobre capturas variadas (distintas apps, idiomas, versiones de IG) exige la pantalla de validación humana; sin ella, riesgo de números mal leídos. Con validación editable obligatoria, el riesgo se contiene.",
+        "pasosProduccion": [
+          {
+            "fase": "F0 PoC de extracción por visión",
+            "detalle": "Probar el modelo multimodal contra un set real de capturas de IG/Meta Insights en español (alcance, interacciones, seguidores, guardados, historias, top posts). Medir exactitud campo por campo.",
+            "gate": "Exactitud >= 95% en el set de prueba con la pantalla de validación activada; toda métrica editable y marcada 'sin confirmar' hasta tilde del CM. Sin este número no se avanza."
+          },
+          {
+            "fase": "F1 MVP one-pager branded",
+            "detalle": "Generar el informe mensual con la marca del cliente desde los datos extraídos+validados, usando branding por tenant y el generador de preset.",
+            "gate": "Gate de Excelencia completo en Opus (SAP Fiori 7 ángulos + ángulo argentino + sello GSG + arquitectura multi-tenant/tenantId + confiabilidad tsc/build/test verdes). Autorización de marca del cliente registrada antes de replicar identidad."
+          },
+          {
+            "fase": "F2 Entrega WhatsApp + link de cobro MP",
+            "detalle": "Devolver el informe por WhatsApp listo para reenviar y pegar link de Mercado Pago del fee mensual opcional.",
+            "gate": "Sesión de seguridad pre-cobros (no expone datos entre tenants, RLS enforced) + Gate de Excelencia. Secretos MP/WhatsApp los pega el dueño (FASE 2 credenciales)."
+          },
+          {
+            "fase": "F3 Demo pública a costo cero",
+            "detalle": "Demo en URL gratuita con nombre de cliente (<cliente>-erp.vercel.app) en modo demo, sin datos reales ni persistencia, para mostrar el flujo captura->informe.",
+            "gate": "Autorización de marca registrada + Gate bloqueante (auditar por TODA la metodología) ANTES de mostrar al cliente. Cero gasto, cero datos reales."
+          },
+          {
+            "fase": "F4 Piloto pago",
+            "detalle": "Primer CM pagando; activar tenant real con persistencia + login sólo post-venta.",
+            "gate": "Ciclo DEMO->VENTA->INVERSIÓN: OK comercial del cliente antes de comprar dominio/activar persistencia. Gate 2 (migrate deploy) se pausa y se eleva al dueño."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 380,
+          "tarifaUSDhora": 35,
+          "totalUSD": 13300,
+          "semanas": 10
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 55,
+          "semanas": 6
+        },
+        "ahorroVsHumano": {
+          "usd": 13300,
+          "veces": 21,
+          "frase": "Con devs humanos, este producto (pipeline de extracción por visión + validación, generador de one-pager branded, entrega WhatsApp, link de cobro MP, multi-tenant) costaba ~US$13.300 solo de desarrollo (380 hs x US$35). Con IA el desarrollo es US$0 y sólo pagás ~US$55/mes de infra (Vercel + Neon + inferencia multimodal + envío WhatsApp): arrancás ~21x más barato el primer año."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 19,
+          "modeloCobro": "Suscripción mensual por CM (SaaS), tier por nº de clientes (Solo hasta 3, Pro hasta 10); add-on de cobro integrado (link MP en el informe). Precio en ARS al cambio, competitivo vs Reportei US$14,50 y Porter US$12,50.",
+          "cogsUSDmes": 55,
+          "margenPct": 82,
+          "clientesPara5kMes": 263,
+          "primerPesoSemanas": 6,
+          "paybackMeses": 1,
+          "tamLocalNota": "Subsegmento del mercado LATAM de social media mgmt (US$1,57B 2025 -> 1,89B 2026, +20% anual). Foco AR: miles de micro-CM/creativos que hoy NO pagan tooling porque no pueden conectar la cuenta; 263 CMs a US$19/mes = US$5k/mes recurrente.",
+          "tamGlobalNota": "LATAM hispanoparlante WhatsApp-first (AR, Uy, Cl, Co, Pe, Mx) replica el mismo dolor de conexión + WhatsApp. La primitiva de captura existe (Whatagraph) pero anglo/enterprise; el nicho self-serve WhatsApp+MP+español criollo está abierto."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "Metricool (líder de facto en AR/LATAM): reportes PDF/PPT automáticos, PERO exige conectar IG vía Facebook Page + permisos en Business Manager; marca blanca sólo en plan Custom; no nativo a WhatsApp",
+              "precioRef": "Free / Starter US$20-36/mes / Advanced US$53-159/mes"
+            },
+            {
+              "nombre": "Reportei (Brasil, en español): resumen por WhatsApp, pero vía Zapier/Make + WhatsApp Business API y con la cuenta conectada por API",
+              "precioRef": "US$14,50/mes (hasta 5 clientes) a US$64,50/mes (+20)"
+            },
+            {
+              "nombre": "Porter Metrics (LATAM): plantilla 'Reporte de Community Manager' en Looker Studio en español, exige Looker + fuente conectada, sin WhatsApp",
+              "precioRef": "Free start, desde US$12,50/mes por fuente"
+            }
+          ],
+          "precioMercado": "US$12,50-53/mes; pero el micro-CM AR sin acceso a Business Manager termina pagando US$0 y armando a mano",
+          "tamano": "Subsegmento AR del mercado LATAM de social media mgmt (US$1,57B 2025); miles de micro-CM/creativos hoy sin tooling por el muro de conexión",
+          "veredicto": "Hueco real y distinto del cluster: NADIE permite al micro-CM AR reportar SIN conectar la cuenta a Meta. La cuña 'envío+cobro' ya está en el cluster; ésta ataca la INGESTA sin conexión, argentinizada.",
+          "fuentes": [
+            {
+              "titulo": "Metricool — conexión de Instagram (métodos y requisitos de Business Manager)",
+              "url": "https://help.metricool.com/en/article/access-to-instagram-from-metricool-connection-types-and-differences-5xpqgi/"
+            },
+            {
+              "titulo": "Metricool — Pricing (planes y marca blanca en Custom)",
+              "url": "https://metricool.com/pricing/"
+            },
+            {
+              "titulo": "Reportei — Informes vía WhatsApp (requiere Zapier/Make + WhatsApp Business API)",
+              "url": "https://reportei.com/es/informes-via-whatsapp/"
+            },
+            {
+              "titulo": "Porter Metrics — Pricing (desde US$12,50/mes por fuente)",
+              "url": "https://portermetrics.com/en/pricing/"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "Whatagraph (IQ): el ÚNICO con armado de reporte desde una captura por IA — pero anglo/enterprise, sin WhatsApp, sin cobro, sin argentinizar",
+              "precioRef": "Planes agencia desde ~US$249/mes (orientado a agencias medianas/grandes)"
+            },
+            {
+              "nombre": "AgencyAnalytics (líder white-label, US): reporte automático + white-label + AI insights, pero conexión por API",
+              "precioRef": "US$20/cliente/mes; planes US$79 a 479/mes"
+            },
+            {
+              "nombre": "Reportei (Brasil/LATAM): el más cercano en WhatsApp, pero requiere Zapier/Make + WhatsApp Business API oficial",
+              "precioRef": "desde US$14,50/mes, no transparente por plan"
+            },
+            {
+              "nombre": "DashThis (Canadá): white-label desde el plan base, conexión por API",
+              "precioRef": "desde US$42/mes; tier alto ~US$409/mes"
+            }
+          ],
+          "precioMercado": "US$14,50-479/mes, todos anglo-first o con conexión por API; la captura-IA (Whatagraph) es enterprise y cara",
+          "tamano": "Mercado LATAM social media mgmt US$1,57B 2025 -> 1,89B 2026 (+20%). Global reporting comoditizado en el reporte; abierto en ingesta sin conexión para micro-segmento",
+          "tendencia": "2025-2026: (1) AI summaries ya estándar (Swydo/Whatagraph/AgencyAnalytics); (2) screenshot-ingestion emergente (Whatagraph IQ) pero enterprise; (3) migración a entrega conversacional (Reportei empuja WhatsApp pero técnico); (4) pricing per-client estandarizado",
+          "veredicto": "La primitiva de captura->reporte existe globalmente (Whatagraph IQ) => no es net-new puro global; PERO nadie la empaqueta self-serve para el micro-CM WhatsApp-first + MP + español criollo + ARCA. Cuña por segmento+canal+país, no por tecnología.",
+          "fuentes": [
+            {
+              "titulo": "Whatagraph — Instagram reporting tool (IA arma el reporte desde texto o captura)",
+              "url": "https://whatagraph.com/instagram-reporting-tool"
+            },
+            {
+              "titulo": "AgencyAnalytics — pricing 2026 (US$20/cliente/mes, white-label)",
+              "url": "https://agencyanalytics.com/pricing"
+            },
+            {
+              "titulo": "Reportei — Reports via WhatsApp (requiere Zapier/Make + WhatsApp Business API)",
+              "url": "https://reportei.com/en/reports-via-whatsapp/"
+            },
+            {
+              "titulo": "Swydo — 15 Best Social Media Reporting Tools 2026 (AI summaries estándar)",
+              "url": "https://www.swydo.com/blog/best-social-media-reporting-tools/"
+            }
+          ]
+        },
+        "cambios": "Pivoteé la cuña para NO repetir el cluster. El cluster satura 'el informe que se manda solo por WhatsApp + cobra en el mismo link' (vector = ENVÍO+COBRO). Acá ataco un vector distinto y confirmado por fuentes: la fricción de CONEXIÓN. Toda la evidencia dura (ayuda de Metricool: exige Facebook Page + Business Manager; Reportei: Zapier+API; Porter: Looker) muestra que el micro-CM AR no puede conectar la cuenta y por eso hace el reporte a mano. La novedad es INGESTA por captura vía IA multimodal, sin API/sin Business Manager, argentinizada. Caveat de honestidad que registré y que baja conf a 6: la primitiva de captura->reporte ya existe global (Whatagraph IQ), así que el net-new es por SEGMENTO+CANAL+PAÍS, no por tecnología pura; y sumé la pantalla de validación humana obligatoria como guardarraíl anti-alucinación (riesgo de exactitud). Supuesto anotado: precio US$19/mes por CM y COGS ~US$55/mes de infra son estimaciones a calibrar en el piloto."
+      }
+    },
+    {
+      "id": "af-agenda-booking-sena-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Agenda y booking con seña anticipada)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Cuenta Corriente Creativa: abono recurrente con seña por Mercado Pago y saldo blindado que se libera contra cada entrega (WhatsApp-first)",
+        "segmento": "creativos",
+        "categoriaDolor": "organizacion_agenda",
+        "dolor": "El creativo freelance que ya tiene clientes/marcas RECURRENTES (no el turno suelto) cobra a los tirones: renegocia seña en cada pieza, persigue el saldo por WhatsApp, no tiene una cuenta clara de \"cuánto me debe / cuánto adelantó\" ese cliente, y cuando una marca frena el mes se le cae el ingreso. Los SaaS locales (Gendu, Zlog, Turnito, ReservaSimple) resuelven el turno suelto de bajo ticket con seña, pero NINGUNO modela la relación recurrente creador↔marca como cuenta corriente con adelanto y liberación de saldo por entrega. HoneyBook global lo roza pero sin MP, sin WhatsApp y en USD.",
+        "descripcion": "Producto net-new sobre el ERP: cada cliente/marca recurrente tiene una CUENTA CORRIENTE creativa (concepto 100% argentino, ya conocido por la pyme). La marca deja un abono/adelanto prepago; cada sesión o entregable agendado descuenta la seña al reservar y LIBERA el saldo automáticamente al aprobarse la entrega (foto/video/edición), no el día de la sesión. Auto-recarga cuando el saldo baja del umbral, retainer mensual configurable, y todo el ida y vuelta (reserva, recordatorio, \"tu entrega está lista, se liberó el saldo\") por WhatsApp. Cobro 100% en pesos por MP nativo. Es el paso siguiente al booking de seña suelto que ya cubren las otras propuestas: acá el objeto es la RELACIÓN recurrente, no el turno.",
+        "solucion": "Máquina de estados reserva→seña cobrada→entrega→aprobación→liberación de saldo, montada sobre agenda/clientes/cobros/MP que el ERP ya tiene. Se agrega: (1) wallet/cuenta corriente por cliente con movimientos (adelanto, consumo, saldo, deuda); (2) abono/retainer mensual con auto-recarga; (3) liberación de saldo atada al evento de entrega aprobada, no a la fecha; (4) blindaje: la seña queda tomada al reservar y el saldo no se libera hasta que el cliente aprueba en WhatsApp; (5) blueprint por rubro creador (foto/video/edición/diseño/mentoría) generado por el Preset IA con branding por tenant. Anti-doble-booking heredado del core. Demo pública a costo cero antes de vender.",
+        "encajeGSG": "Blueprint del ERP multi-tenant que reusa agenda/clientes/cobros/MP/WhatsApp; el net-new es la cuenta corriente + liberación por entrega, modelada como dato maestro (cuenta) + relación con ABM propio (ADR-055). Argentiniza SAP (cuenta corriente, pesos, MP, WhatsApp-first), se genera con el Preset IA y pasa el Gate antes de mostrarse.",
+        "impacto": 7,
+        "confianza": 6,
+        "esfuerzo": 6,
+        "horasHumanas": 320,
+        "costoHumanoUSD": 25,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 14
+      },
+      "afinado": {
+        "veredicto": "herido",
+        "confianzaMercado": "El dolor del turno-con-seña y del no-show está corroborado y es pagante (media docena de SaaS locales viven de eso). Lo NO corroborado directamente en el relevamiento es la demanda específica del modelo recurrente/cuenta-corriente creador↔marca: se infiere de la tendencia de verticalización a creativos (HoneyBook, Session, Sprout) y del crecimiento ~23% anual del creator economy, no de un competidor local que ya lo venda. Por eso queda \"herido\": hueco real y defendible, pero necesita validación de campo (8–10 entrevistas) antes de construir el MVP. Riesgo: que el creativo recurrente prefiera factura/transferencia manual y no vea valor en formalizar la cuenta corriente.",
+        "pasosProduccion": [
+          {
+            "fase": "1. Descubrimiento y validación",
+            "detalle": "Entrevistar 8–10 creativos con clientes/marcas recurrentes (foto/video/edición/diseño/mentoría). Validar el modelo cuenta corriente + abono + liberación por entrega y disposición a pagar en pesos por MP.",
+            "gate": "≥5 confirman dolor de cobro recurrente/persecución de saldo y valoran el adelanto formalizado → sigue; si no, se pivota o se descarta (no se construye MVP sin señal)."
+          },
+          {
+            "fase": "2. Blueprint + Preset IA",
+            "detalle": "Diseñar blueprint 'Cuenta Corriente Creativa' por rubro creador con branding por tenant, datos demo y probador. Modelar cuenta (dato maestro) + movimientos/abono (relación con ABM propio, ADR-055).",
+            "gate": "Autorización de marca del cliente registrada primero; luego Gate de Excelencia (SAP 7 ángulos + ángulo argentino + sello GSG) sobre el preset ANTES de mostrarlo. Corre en Opus."
+          },
+          {
+            "fase": "3. MVP net-new sobre el ERP",
+            "detalle": "Implementar wallet/cuenta corriente por cliente, máquina de estados reserva→seña→entrega→aprobación→liberación de saldo, auto-recarga, retainer mensual y recordatorios/aprobación por WhatsApp. MP nativo, pesos.",
+            "gate": "tsc+build+test verdes; aislamiento por tenantId/RLS verificado; schema como migración SIN aplicar (Gate 2: no golpear Neon sin OK del dueño)."
+          },
+          {
+            "fase": "4. Demo pública a costo cero",
+            "detalle": "Publicar <cliente>-erp.vercel.app en modo demo (front+back del flujo), WhatsApp/MP mockeados, sin datos reales ni persistencia.",
+            "gate": "Ciclo DEMO→VENTA: cero gasto, cero datos reales, sin dominio propio ni login hasta que la venta esté concretada."
+          },
+          {
+            "fase": "5. Venta y activación",
+            "detalle": "Con OK comercial: activar tenant con datos reales (persistencia + login, RLS enforced) y/o dominio propio. Conectar MP y WhatsApp reales.",
+            "gate": "OK comercial explícito del cliente; credenciales/secretos de fase real los pega SIEMPRE el dueño, nunca el agente."
+          },
+          {
+            "fase": "6. Post-venta y retro",
+            "detalle": "Medir no-show, saldo liberado a tiempo, LTV por cuenta y auto-recargas. Registrar caso y lecciones.",
+            "gate": "Retro ADR-047: actualizar memoria + 1 caso + 1 mejora de brief/skill al cierre."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 320,
+          "tarifaUSDhora": 38,
+          "totalUSD": 12160,
+          "semanas": 9
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 25,
+          "semanas": 2
+        },
+        "ahorroVsHumano": {
+          "usd": 12160,
+          "veces": 40,
+          "frase": "Con devs humanos este MVP net-new (wallet/cuenta corriente + máquina de estados de liberación por entrega + flujos WhatsApp, sobre el ERP existente) te hubiese costado ~US$12.160 (320 h × US$38/h). Con IA el desarrollo es US$0: solo pagás infra (~US$25/mes, casi todo tiers gratuitos). Año 1: US$12.160 humano vs ~US$300 de infra ≈ 40× más barato."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 12,
+          "modeloCobro": "Suscripción baja en pesos (~AR$15.000/mes ≈ US$12) por tenant, o alternativa por comisión 4–5% sobre las señas/abonos cobrados (sin cuota fija), capitalizando el rechazo al USD de los players globales.",
+          "cogsUSDmes": 1.5,
+          "margenPct": 88,
+          "clientesPara5kMes": 417,
+          "primerPesoSemanas": 3,
+          "paybackMeses": 1,
+          "tamLocalNota": "Media docena de SaaS locales de agenda-con-seña ya monetizan (gratis a AR$25k/mes). El sub-nicho creativo recurrente es angosto pero de alto LTV: pocas cuentas de marca valen mucho más que muchos turnos sueltos.",
+          "tamGlobalNota": "Appointment scheduling software proyectado a multi-miles de millones a 2034; creator economy creciendo ~23% anual. GSG no compite global: usa MP+WhatsApp como foso en AR/LATAM donde Acuity/HoneyBook/Calendly no llegan nativos."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "Gendu (AR)",
+              "precioRef": "Plan gratis sin límite de turnos; pagos desde ~AR$6.900/mes; seña por MP o transferencia, sin comisión. Turno genérico multi-rubro, no recurrente."
+            },
+            {
+              "nombre": "Zlog (AR)",
+              "precioRef": "~AR$25.000/mes (AR$150.000/6 meses). Foco seña por MP + anti no-show. No modela cuenta corriente ni retainer."
+            },
+            {
+              "nombre": "ReservaSimple (AR)",
+              "precioRef": "Premium AR$16.999/mes (USD 13,99). Reservas ilimitadas, WhatsApp, MP. Turno suelto."
+            },
+            {
+              "nombre": "Turnito.app / Turno App (AR)",
+              "precioRef": "Gratis / Premium ~AR$21.400/mes, o 5% sobre las señas cobradas sin cuota fija. MP. Turno genérico."
+            }
+          ],
+          "precioMercado": "AR$6.900–25.000/mes (USD ~6–20) o ~5% sobre la seña; casi todos con MP nativo.",
+          "tamano": "Terreno genérico (peluquería/estética/salud) saturado y barato; sub-nicho creativo recurrente prácticamente sin oferta local. Angosto en cantidad, alto en LTV por cuenta.",
+          "veredicto": "Hueco real: ningún local modela la relación recurrente creador↔marca como cuenta corriente con liberación de saldo por entrega. GSG entra net-new, en pesos, WhatsApp-first, a precio bajo o por comisión.",
+          "fuentes": [
+            {
+              "titulo": "Zlog — Turnos online con pago de seña + Mercado Pago",
+              "url": "https://www.zlog.com.ar/"
+            },
+            {
+              "titulo": "Gendu — Sistema de turnos AR: plan gratis, seña por MP sin comisión",
+              "url": "https://www.gendu.com.ar/"
+            },
+            {
+              "titulo": "ReservaSimple — planes y precio Premium (AR$16.999/mes / USD 13,99)",
+              "url": "https://www.reservasimple.com/"
+            },
+            {
+              "titulo": "Turnito.app — planes y modelo por comisión sobre señas",
+              "url": "https://turnito.app/ar/"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "HoneyBook — CRM/retainer para freelancers (lo más cercano al modelo recurrente)",
+              "precioRef": "US$19–79/mes. Sin Mercado Pago, sin WhatsApp-first, en USD → fricción en AR/LATAM."
+            },
+            {
+              "nombre": "Acuity Scheduling (Squarespace) — el más fuerte en señas al reservar (Stripe/Square/PayPal)",
+              "precioRef": "US$16–49/mes por usuario. Sin MP nativo."
+            },
+            {
+              "nombre": "Square Appointments — depósito parcial/%, prepago y no-show fee",
+              "precioRef": "Gratis (solo) / US$49 Plus / US$149 Premium + 2,9% + US$0,30 online. Sin MP."
+            },
+            {
+              "nombre": "Calendly — cobro al reservar (Stripe), seña limitada a monto fijo",
+              "precioRef": "US$10–16/mes. Sin depósitos parciales ni cuenta corriente."
+            },
+            {
+              "nombre": "Cal.com — open-source, depósito o pago total (Stripe/PayPal)",
+              "precioRef": "Free / Teams desde ~US$15/usuario/mes. Sin MP nativo."
+            }
+          ],
+          "precioMercado": "US$10–49/mes/usuario (Acuity, Square, Calendly, Cal.com); HoneyBook US$19–79/mes.",
+          "tamano": "Mercado de appointment scheduling proyectado a multi-miles de millones a 2034; creator economy creciendo ~23% anual — empuja demanda de herramientas de monetización directa del creador.",
+          "tendencia": "2025–2026: (1) booking+payment integrado de fábrica; (2) anti-no-show (depósito obligatorio, hold, fee) como feature de venta; (3) verticalización a creativos/freelancers; (4) en LATAM, MP como rail y WhatsApp como canal ('WhatsApp-first'); (5) capa de IA para armado de agenda y flujos.",
+          "veredicto": "Los fuertes en seña no integran MP nativo ni son WhatsApp-first; HoneyBook toca el retainer pero en USD y sin canal local. La combinación cuenta-corriente creativa + seña MP + liberación por entrega + WhatsApp no la ofrece ningún jugador integrado → foso claro en AR/LATAM.",
+          "fuentes": [
+            {
+              "titulo": "Appointment Scheduling Software Market Size | Growth [2034] — Fortune Business Insights",
+              "url": "https://www.fortunebusinessinsights.com/appointment-scheduling-software-market-108614"
+            },
+            {
+              "titulo": "Appointment Scheduling Software Market Statistics 2034 — Fact.MR",
+              "url": "https://www.factmr.com/report/4636/appointment-scheduling-software-market"
+            },
+            {
+              "titulo": "Creator Economy Market Size, Share, Growth Report 2034 — Fortune Business Insights",
+              "url": "https://www.fortunebusinessinsights.com/creator-economy-market-116180"
+            },
+            {
+              "titulo": "Creator Economy Statistics 2026: Market Size, Earnings and Growth — SQ Magazine",
+              "url": "https://sqmagazine.co.uk/creator-economy-statistics/"
+            }
+          ]
+        },
+        "cambios": "Net-new frente a las 6 propuestas ya en el cluster (todas centradas en el BOOKING SUELTO con seña + saldo contra entrega, single-person, colaboración con marca, o cupos de taller). Acá el objeto no es el turno sino la RELACIÓN RECURRENTE creador↔marca modelada como cuenta corriente: abono/adelanto prepago, auto-recarga, retainer mensual y liberación de saldo atada al evento de entrega aprobada (no a la fecha). Argentiniza con el concepto local de \"cuenta corriente\" y se apoya en ADR-055 (dato maestro cuenta + relación con ABM propio para movimientos/abono). Único competidor conceptual es HoneyBook (global, sin MP/WhatsApp, en USD)."
+      }
+    },
+    {
+      "id": "af-tienda-productos-digitales-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Tienda de presets e infoproductos digitales)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Círculo — Membresías y mentorías recurrentes del creador: cobro en pesos por MP, Factura C automática recurrente y acceso por WhatsApp, dentro del ERP con marca propia",
+        "segmento": "transversal",
+        "categoriaDolor": "cobros_facturacion",
+        "dolor": "El creador argentino ya sabe vender el preset de $5 una vez (Pulgy y DropyFile le resolvieron el cobro+entrega one-shot). El problema es que ahí se termina: cada mes arranca de cero cazando ventas sueltas. El ingreso recurrente —la membresía, el círculo de mentoría, el \"club de edición\" mensual— es donde está la plata que no depende de vender de nuevo todos los días, pero HOY no lo puede armar en pesos sin dolor. Patreon y Podia cobran en dólares con tarjeta internacional (fricción PAIS/percepciones, baja bancarización) y no facturan nada en Argentina; los players locales son one-shot y no tienen suscripción ni capa fiscal. Y el monotributista que empieza a cobrar todos los meses de forma recurrente tiene que emitir Factura C mes a mes a mano por cada socio: es el infierno fiscal que hace que muchos ni arranquen o queden en negro y en riesgo con ARCA.",
+        "descripcion": "Motor de ingreso recurrente para el creador, montado sobre el ERP multi-tenant que GSG ya tiene (agenda, catálogo, RBAC, clientes, WhatsApp). No es otra tienda de descargables (eso ya está cubierto en el cluster): es el ESCALÓN de arriba del value-ladder. El comprador de un preset se convierte en socio de una membresía mensual/anual cobrada por Mercado Pago Suscripciones (preapproval, cobro automático real, link que se manda por WhatsApp sin necesidad de web), cada cobro acreditado dispara automáticamente la Factura C de monotributo ante ARCA, y el acceso al contenido/beneficios (drip de recursos, comunidad, cupos de mentoría agendados sobre la agenda del ERP) se entrega y gestiona por WhatsApp. Si el socio se da de baja o le rebota la tarjeta, el acceso cae solo y el dunning/reintentos corren automáticos. Todo con la marca del creador, no un marketplace genérico.",
+        "solucion": "Cuatro piezas net-new sobre la fundación existente: (1) Dato maestro \"Plan de membresía / Mentoría recurrente\" con ABM propio y ABM de asignación tier↔beneficio↔tenant (principio de VARIANTE, ADR-055 — nada de \"a todos con todo\"). (2) Cobro recurrente nativo con MP Suscripciones/preapproval: alta de plan, suscripción por link WhatsApp, webhooks de cobro recurrente, reintentos y dunning. (3) Facturación C recurrente automática: por cada cobro acreditado se emite la Factura C de monotributo ante ARCA sin intervención humana (el hueco que NADIE cubre, y en recurrente todavía menos). (4) Acceso gated + value-ladder por WhatsApp: contenido/comunidad/cupos de mentoría que se abren con la membresía activa y se cierran al darse de baja, más el upsell automático del comprador one-shot al socio recurrente. Portal del socio con marca propia del tenant.",
+        "encajeGSG": "Encaje altísimo y de bajo costo marginal: reusa lo que el ERP ya tiene vivo en prod (multi-tenant con RLS enforced, agenda para los cupos de mentoría, catálogo bajo variante, RBAC, clientes, canal WhatsApp, módulos ARCA/MP sandbox del banco de pruebas). Cierra el ciclo DEMO→VENTA→INVERSIÓN con recurrencia: es el producto que sube el LTV del tenant y le da a GSG ingreso recurrente propio (ARPU sostenido, no venta única). Es el complemento natural —no repetición— de las vidrieras de descargables ya propuestas: la tienda one-shot capta, la membresía retiene. Refuerza los tres diferenciales duros de GSG (pesos MP-native, fiscal ARCA real, WhatsApp-first) llevándolos al terreno recurrente donde ni los globales ni los locales llegan.",
+        "impacto": 9,
+        "confianza": 7,
+        "esfuerzo": 7,
+        "horasHumanas": 340,
+        "costoHumanoUSD": 15,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 14
+      },
+      "afinado": {
+        "veredicto": "validado",
+        "confianzaMercado": "Alta sobre la existencia del hueco, media sobre la ejecución fiscal. El hueco es real y verificado: MP tiene API de Suscripciones/preapproval productiva (cobro automático semanal a anual, link por WhatsApp sin web) — el riel existe y nadie lo casa con ARCA recurrente. Patreon confirmó en ago-2025 fee plano 10% + 2.9% + US$0,30 (~13%), en dólares y sin factura AR; Podia US$99/mes sin peso ni fiscal; los locales (Pulgy/DropyFile) son one-shot puro sin suscripción ni capa fiscal. La incertidumbre está en la robustez de la Factura C recurrente automática (idempotencia por cobro, reintentos ARCA, manejo de bajas/prorrateos) y en el dunning multi-tenant: es integración fiscal real, sandbox primero y credenciales productivas las pega el dueño (irreversible, se eleva).",
+        "pasosProduccion": [
+          {
+            "fase": "1. Fundación de datos maestros (VARIANTE)",
+            "detalle": "Objeto 'Plan de membresía / Mentoría recurrente' con ABM propio + ABM de asignación tier↔beneficio↔tenant (ADR-055). Modelo de estados del socio (activo/moroso/baja) con predicado tenantId. Doc-only/fundación reversible.",
+            "gate": "Excelencia Arquitectura (límites de dominio, multi-tenant, ADR-055) + tsc/build/test verdes. Reversible → Arquitecto ejecuta."
+          },
+          {
+            "fase": "2. Motor de cobro recurrente MP (sandbox)",
+            "detalle": "Integración MP Suscripciones/preapproval: alta de plan, creación de suscripción vía link WhatsApp, webhooks firmados de cobro recurrente, reintentos y dunning. Todo en sandbox, sin credenciales productivas.",
+            "gate": "Seguridad (webhooks firmados, no evade RLS) + aislamiento por tenant + Gate de Excelencia en Opus. MP productivo = IRREVERSIBLE → se eleva al dueño (él pega las credenciales)."
+          },
+          {
+            "fase": "3. Factura C recurrente automática ARCA (sandbox)",
+            "detalle": "Job idempotente: por cada cobro acreditado emite Factura C de monotributo ante ARCA, con reintentos y trazabilidad. Manejo de bajas/prorrateo. Sobre el banco de pruebas ARCA existente, sandbox por defecto.",
+            "gate": "Ángulo argentino/fiscal ARCA (Argentinizar SAP, ADR-044) + Confiabilidad de Producción. ARCA productivo = IRREVERSIBLE → se eleva."
+          },
+          {
+            "fase": "4. Acceso gated + drip + mentoría por WhatsApp",
+            "detalle": "Apertura/cierre de acceso según membresía activa, drip de recursos, recordatorios WhatsApp-first; los cupos de mentoría se agendan sobre la agenda del ERP. Copy WA de-sesgado a humano/criollo (ADR-046).",
+            "gate": "Auditoría SAP Fiori 7 ángulos (rol-based, accesibilidad, responsive/branding por tenant) + zona humana ADR-046 en el copy."
+          },
+          {
+            "fase": "5. Value-ladder / upsell + portal del socio",
+            "detalle": "Post-compra one-shot (preset) → oferta automática de membresía; portal del socio con la marca del tenant, gestión de baja self-serve. Cierra el ciclo captación→retención con la tienda de descargables ya propuesta.",
+            "gate": "Gate de Excelencia COMPLETO en Opus (4 bloques) + sello de marca GSG. Nada a main sin cruzarlo."
+          },
+          {
+            "fase": "6. Demo pública a costo cero + piloto 1 creador",
+            "detalle": "Demo en URL gratuita <cliente>-erp.vercel.app en modo demo (sin datos reales, sin persistencia, sin passwords). Piloto con un creador real solo tras OK comercial.",
+            "gate": "Ciclo DEMO→VENTA→INVERSIÓN: cero gasto/datos reales hasta venta concretada; dominio y persistencia = inversión POST-venta. Gate bloqueante antes de mostrar al cliente."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 340,
+          "tarifaUSDhora": 35,
+          "totalUSD": 11900,
+          "semanas": 9
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 15,
+          "semanas": 2
+        },
+        "ahorroVsHumano": {
+          "usd": 11900,
+          "veces": 66,
+          "frase": "Armar este motor de membresías con recurrencia MP + Factura C automática + WhatsApp gated con un equipo humano te hubiese costado unos US$11.900 (340 h a US$35/h). Con la IA de GSG el desarrollo se computa en US$0 y solo pagás la infra incremental (~US$15/mes): sobre el primer año sale unas 66 veces más barato que hacerlo con devs humanos."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 19,
+          "modeloCobro": "Add-on recurrente del ERP: US$19/mes por tenant que activa el módulo de membresías, con opción de override de fee bajo (~1-2%) sobre el GMV recurrente de las membresías del creador. El cobro al socio final va directo a la cuenta MP del creador (GSG no toca esa plata); GSG cobra el módulo + fee.",
+          "cogsUSDmes": 3,
+          "margenPct": 84,
+          "clientesPara5kMes": 263,
+          "primerPesoSemanas": 3,
+          "paybackMeses": 1,
+          "tamLocalNota": "Economía de creadores AR/LATAM en fuerte expansión (creator economy LATAM se multiplica ~9x hacia 2033; demanda AR creciendo ~30% anual). El sub-segmento recurrente (membresías/mentorías) es el de mayor LTV y el menos atendido en pesos: piso realista de miles de creadores con audiencia monetizable.",
+          "tamGlobalNota": "Creator economy global US$210.8B en 2025 (CAGR ~30.6%); las plataformas de membresía (Patreon/Podia/Mighty) mueven miles de millones pero cobran en USD y sin fiscal LATAM. El SAM de GSG es la porción LATAM que necesita cobro en pesos + factura local, hoy sin producto que lo integre con recurrencia."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "Pulgy (AR, 'convertí tu IG en ingresos')",
+              "precioRef": "Free hasta 2 productos/5 ventas, luego Pro; no se queda % (solo comisión MP). One-shot: cobro+entrega de digitales, SIN suscripción recurrente ni Factura C automática ni membresías."
+            },
+            {
+              "nombre": "DropyFile (AR)",
+              "precioRef": "MP nativo en pesos, entrega automática, landing IA, plan free; comisión trasladable al comprador. One-shot puro: no hay membresías recurrentes ni capa fiscal ARCA."
+            },
+            {
+              "nombre": "Hotmart (referente LATAM, cuenta en el exterior)",
+              "precioRef": "9,9% + US$0,50 por transacción; cobra en USD, acreditación 2 días. Tiene suscripciones pero NO factura ARCA/monotributo ni cobra nativo en pesos."
+            },
+            {
+              "nombre": "Crealo (AR)",
+              "precioRef": "5% por venta de digitales; posiciona 'low fee'. One-shot, sin membresía recurrente ni fiscal AR integrada."
+            }
+          ],
+          "precioMercado": "Membresía del creador al socio final típica AR: $3.000-$15.000/mes (ticket bajo, micro-comunidades). El costo de la plataforma para el creador hoy es 0-5% one-shot; nadie cobra por dar recurrencia + fiscal recurrente.",
+          "tamano": "Miles de creadores AR con audiencia monetizable ya vendiendo one-shot; el escalón recurrente está casi vacío en pesos. Demanda AR de infoproductos creciendo ~30% anual por encima de la oferta.",
+          "veredicto": "HUECO NET-NEW confirmado. Los locales resuelven one-shot (cobro+entrega); ninguno da suscripción recurrente + Factura C automática recurrente + acceso gated por WhatsApp con marca propia. Es el escalón de arriba que nadie ocupó.",
+          "fuentes": [
+            {
+              "titulo": "Mercado Pago Developers — Suscripciones (preapproval): cobro recurrente, link por WhatsApp",
+              "url": "https://www.mercadopago.com.ar/developers/es/docs/subscriptions/overview"
+            },
+            {
+              "titulo": "Mercado Pago — Recibí pagos recurrentes con una suscripción",
+              "url": "https://www.mercadopago.com.co/herramientas-para-vender/suscripciones"
+            },
+            {
+              "titulo": "Tarifas cobradas por Hotmart (Central de Ayuda Hotmart)",
+              "url": "https://help.hotmart.com/es/article/208298448/-cuales-son-las-tarifas-cobradas-por-hotmart-"
+            },
+            {
+              "titulo": "Latin America Creator Economy Market Size & Outlook 2033 (Grand View Research)",
+              "url": "https://www.grandviewresearch.com/horizon/outlook/creator-economy-market/latin-america"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "Patreon (global, US) — membresías recurrentes",
+              "precioRef": "Desde ago-2025: fee plano 10% + 2.9% + US$0,30 por transacción (~13% total). En USD, con tarjeta internacional; NO factura ARCA ni cobra nativo en pesos."
+            },
+            {
+              "nombre": "Podia (global) — memberships + course builder",
+              "precioRef": "Plan Shaker US$99/mes (0% fee). En USD, sin MP nativo ni fiscal LATAM."
+            },
+            {
+              "nombre": "Mighty Networks (global) — comunidades con tiers de pago",
+              "precioRef": "Planes desde ~US$41/mes; cobra en USD, sin cobro en pesos ni factura AR."
+            },
+            {
+              "nombre": "Gumroad (global, US) — memberships + one-shot",
+              "precioRef": "10% por venta + ~2.9% + US$0,30 de procesamiento. En USD, entrega por email, sin ARCA ni WhatsApp."
+            }
+          ],
+          "precioMercado": "Plataformas de membresía global: 0-13% del GMV recurrente o US$41-99/mes fijo. Todas en USD y sin fiscal ni MP LATAM.",
+          "tamano": "Creator economy global US$210.8B en 2025 (CAGR ~30.6%); las membresías son de las categorías de mayor crecimiento y LTV.",
+          "tendencia": "2025-2026: (1) recurrencia como arquitectura esperada, no eslogan ('vendé mientras dormís'); (2) value-ladder — creadores apilan presets→plantillas→mentorías→membresías; (3) migración del cobro a rieles locales (Mercado Pago, Pix) para esquivar la fricción de tarjeta internacional en LATAM; (4) micro-comunidades de bajo ticket. La suscripción recurrente en riel local + fiscal automático es exactamente hacia donde va el mercado.",
+          "veredicto": "Los globales dominan la recurrencia pero fallan en LATAM: USD, tarjeta internacional, sin MP nativo, sin ARCA, entrega por email. Combinar 'membresía recurrente en pesos + Factura C recurrente automática + acceso por WhatsApp dentro de un ERP con marca propia' es net-new: ni globales ni locales lo integran.",
+          "fuentes": [
+            {
+              "titulo": "Precedence Research — Creator Economy Market Size (US$210.8B 2025, CAGR 30.6%)",
+              "url": "https://www.precedenceresearch.com/creator-economy-market"
+            },
+            {
+              "titulo": "ThriveCart — Best Patreon Alternatives 2026 (fee plano Patreon 10% + procesamiento)",
+              "url": "https://thrivecart.com/blog/top-patreon-alternatives/"
+            },
+            {
+              "titulo": "Podia — Best membership platforms for creators (pricing Shaker US$99/mes)",
+              "url": "https://www.podia.com/articles/best-membership-platforms"
+            },
+            {
+              "titulo": "Grand View Research — Creator Economy Market Report",
+              "url": "https://www.grandviewresearch.com/industry-analysis/creator-economy-market-report"
+            }
+          ]
+        },
+        "cambios": "Propuesta NET-NEW, no una revisión. Frente a las 6 propuestas ya existentes del cluster —todas tiendas de descargables ONE-SHOT (cobro MP + entrega/WhatsApp + factura ARCA de venta única)— esta ataca el hueco que el propio análisis nombra y nadie del cluster tomó: el 'value-ladder de presets a mentorías/membresías', es decir el ingreso RECURRENTE. Diferencia dura: cobro recurrente por MP Suscripciones/preapproval (no pago único), Factura C RECURRENTE automática por cada cobro acreditado (nadie lo hace en recurrente), acceso gated + dunning + bajas, y mentorías agendadas sobre la agenda del ERP. Es el escalón de retención que complementa —sin repetir— las vidrieras one-shot ya propuestas."
+      }
+    },
+    {
+      "id": "af-preset-ia-piezas-graficas-new",
+      "ronda": "net-new",
+      "autor": "Afinador senior (Opus)",
+      "autorKey": "afinado",
+      "origen": "afinado-nuevo",
+      "v1": {
+        "titulo": "(net-new del hueco de mercado: Generador de presets y piezas de marca por IA)"
+      },
+      "mejoraV2": "—",
+      "mejoraV3": "—",
+      "final": {
+        "titulo": "Marca Viva — motor de identidad persistente que argentiniza y auto-aplica la marca real del cliente a TODO el ERP y sus comunicaciones",
+        "segmento": "transversal",
+        "categoriaDolor": "entregables_visuales",
+        "dolor": "El creador recibe un brand kit estático (Looka/Canva/Brandmark) que muere en una carpeta: su tienda, sus tickets, sus mensajes de WhatsApp, sus recordatorios y sus piezas promo NO quedan consistentes con su marca, y menos cuando su catálogo y su feed cambian cada semana. Las tools globales le dan un genkit lindo pero fuera del lugar donde realmente vende. Nadie mantiene su identidad viva y aplicada donde ocurre la plata.",
+        "descripcion": "Producto NET-NEW distinto de las dos propuestas ya existentes del cluster (que son el KIT GRATIS como imán de entrada al funnel). Marca Viva es el otro extremo del recorrido: la capa PAGA y RECURRENTE que toma la marca real ya ingerida del IG/web del cliente (mismo motor de Preset por IA) y la convierte en un set de TOKENS de marca (paleta, tipografía, logo, formas, tono/voz criollo) que se AUTO-APLICAN, por tenantId, a todo lo que el ERP produce: storefront, backoffice, tickets/comprobantes, plantillas de WhatsApp, recordatorios, pedidos de reseña y piezas promo listas para publicar (feed, historia, flyer). Cuando el creador cambia su feed o su catálogo, Marca Viva RE-SINCRONIZA y re-tematiza todo sin rehacer nada a mano. Ataca directo la tendencia 2025-26 (\"el brand kit deja de ser un archivo estático y pasa a aplicarse automáticamente a cada pieza\") pero con el diferencial que ningún global tiene: vive DENTRO del ERP argentinizado (pesos, MP/transferencia, factura ARCA, WhatsApp-first). Escapa la trampa de precio de los kits sueltos (US$0-65 anclado por Looka/Canva) porque no se vende como archivo: se cobra como add-on/módulo recurrente de la suscripción del tenant.",
+        "solucion": "Motor de tokens de marca + theming engine multi-tenant. (1) Reutiliza la ingesta IG/web del Preset por IA para extraer identidad real → la normaliza a un set versionado de tokens de marca por tenant. (2) Un theming engine aplica esos tokens, por tenantId, al storefront y al backoffice (CSS variables/design tokens, sin fork del Core). (3) Un generador de piezas templiza salidas listas para publicar (feed, historia, flyer promo, plantilla WhatsApp, comprobante) usando esos tokens. (4) Re-sync: un job detecta cambios en el feed/catálogo y re-genera tokens + re-tematiza, pasando de nuevo por el Gate antes de publicar. (5) Cobro del add-on en pesos por MP/transferencia con factura ARCA. Todo con autorización registrada del cliente antes de replicar marca, y Gate de Excelencia bloqueante antes de mostrar.",
+        "encajeGSG": "Encaja como pieza de RETENCIÓN y monetización del ERP, no de adquisición (esa la cubren los dos kits gratis ya propuestos). Respeta los pilares de las bases GSG: un solo Core nunca fork (el theming es por tokens/tenantId, no por rama), la marca parte de datos reales del cliente (no plantilla), y la argentinización profunda (pesos/MP/ARCA/WhatsApp) es el moat que Canva/Adobe/Looka no tienen. Reutiliza el motor de Preset por IA (ADR de generador-preset) como fuente de ingesta y se apoya en el principio VARIANTE (ADR-055): la marca es un dato maestro con su ABM, y su aplicación a cada superficie es una asignación con relación explícita — nunca \"a todos con todo\". Cierra el ciclo DEMO→VENTA→INVERSIÓN: el kit gratis atrae, Marca Viva monetiza y retiene post-venta.",
+        "impacto": 8,
+        "confianza": 7,
+        "esfuerzo": 8,
+        "horasHumanas": 600,
+        "costoHumanoUSD": 60,
+        "pctAutomatizableIA": 100,
+        "tiempoMVPdias": 21
+      },
+      "afinado": {
+        "veredicto": "validado",
+        "confianzaMercado": "Alta en demanda, media-alta en defendibilidad. El mercado de generadores de marca por IA está corroborado (CAGR ~20%) y el creador argentino ya paga branding (Canva Pro ~AR$10.825/mes es la prueba). La tendencia 2025-26 apunta EXACTAMENTE a esto (kit estático → aplicación automática a cada pieza), lo que valida el timing. El riesgo real es de ejecución (theming consistente por tenant sin fork + re-sync es un lift arquitectónico) y de que Canva/Adobe empujen en la misma dirección; el moat sostenible es la argentinización + vivir dentro del ERP donde el creador vende, que ningún global cubre.",
+        "pasosProduccion": [
+          {
+            "fase": "F1 — Motor de tokens de marca",
+            "detalle": "Reutilizar la ingesta IG/web del Preset por IA y normalizar la identidad extraída (paleta, tipografía, logo, formas, tono/voz criollo) a un set versionado de design tokens por tenant, con su ABM (dato maestro, ADR-055).",
+            "gate": "Autorización registrada del cliente ANTES de ingerir/replicar marca + Preset auditado por metodología completa (SAP+GSG) antes de mostrarse."
+          },
+          {
+            "fase": "F2 — Theming engine multi-tenant",
+            "detalle": "Aplicar los tokens al storefront y al backoffice vía CSS variables/design tokens resueltos por tenantId, sin fork del Core; asignación explícita marca→superficie (ADR-055).",
+            "gate": "Gate de Excelencia bloque 3 (aislamiento multi-tenant por tenantId, no evade RLS) + tsc/build/test verdes."
+          },
+          {
+            "fase": "F3 — Generador de piezas + comunicaciones",
+            "detalle": "Templizar salidas listas para publicar (feed, historia, flyer promo, plantilla WhatsApp, comprobante/ticket, pedido de reseña) usando los tokens del tenant.",
+            "gate": "Ángulo argentino (español criollo, WhatsApp-first, MP/transferencia) + accesibilidad (contraste, labels/ARIA) del Gate SAP Fiori."
+          },
+          {
+            "fase": "F4 — Re-sync + cobro del add-on",
+            "detalle": "Job que detecta cambios en feed/catálogo y re-genera tokens + re-tematiza; cobro del add-on recurrente en pesos por MP/transferencia con factura ARCA.",
+            "gate": "Re-sync vuelve a pasar el Gate antes de publicar + Gate cobros/seguridad pre-plata + Gate 2 (migraciones Neon se pausan y se reportan, no se aplican solas)."
+          }
+        ],
+        "costoDevHumano": {
+          "horas": 600,
+          "tarifaUSDhora": 35,
+          "totalUSD": 21000,
+          "semanas": 12
+        },
+        "costoConIA": {
+          "devUSD": 0,
+          "infraUSDmes": 60,
+          "semanas": 3
+        },
+        "ahorroVsHumano": {
+          "usd": 21000,
+          "veces": 116,
+          "frase": "Construir el motor de Marca Viva con un equipo humano (full-stack + IA + diseño, ~12 semanas a tarifa senior AR/LATAM) te hubiese costado ~US$21.000. Con IA el desarrollo se computa US$0 y solo pagás infra + APIs (~US$60/mes): ~116x más barato durante el build, y sin costo de dev recurrente."
+        },
+        "metricasDueno": {
+          "precioSugeridoUSD": 12,
+          "modeloCobro": "Add-on recurrente mensual sobre la suscripción del ERP (o incluido en el plan Pro del tenant) en pesos por MP/transferencia con factura ARCA — NO se vende como kit suelto para escapar el ancla de precio US$0-65.",
+          "cogsUSDmes": 1.5,
+          "margenPct": 87,
+          "clientesPara5kMes": 417,
+          "primerPesoSemanas": 6,
+          "paybackMeses": 1,
+          "tamLocalNota": "Pymes/creadores argentinos que ya pagan branding (Canva Pro ~AR$10.825/mes es la prueba); universo grande y directamente monetizable como add-on del ERP.",
+          "tamGlobalNota": "Mercado de generadores de marca por IA con CAGR ~20%; el vector de crecimiento 2025-26 es justo aplicación automática de marca a cada pieza, donde este producto juega."
+        },
+        "mercadoLocal": {
+          "competidores": [
+            {
+              "nombre": "Looka (logo + Brand Kit IA, líder global)",
+              "precioRef": "US$20 pack básico PNG (pago único), US$65 vector, Brand Kit US$96/año. En USD, sin factura AR ni MP."
+            },
+            {
+              "nombre": "Canva (Free + Pro, Brand Kit + Magic Studio)",
+              "precioRef": "~AR$10.825/mes (mar-2026) ≈ US$10-13/mes. El que el creador argentino YA paga y usa a diario."
+            },
+            {
+              "nombre": "Brandmark.io",
+              "precioRef": "US$25 / US$65 / US$175, pago único en USD."
+            },
+            {
+              "nombre": "SologoAI / Zoviz / Turbologo",
+              "precioRef": "Freemium: gratis y cobran la descarga en alta/vector, US$10-40 pago único en USD."
+            }
+          ],
+          "precioMercado": "Anclado abajo: US$0-65 pago único por kit, o ~US$10-13/mes Canva. Vender kits sueltos no deja margen; el add-on recurrente integrado al ERP re-encuadra el precio en valor (marca aplicada donde se vende), no en archivo.",
+          "tamano": "Grande y en crecimiento: creadores/pymes AR que ya pagan branding a diario; base directa para monetizar como add-on del tenant.",
+          "veredicto": "Hueco claro: ningún player local vive dentro del ERP, ni argentiniza (pesos/MP/ARCA/WhatsApp), ni mantiene la marca aplicada y re-sincronizada. Marca Viva es net-new pagable como recurrente.",
+          "fuentes": [
+            {
+              "titulo": "AI Logo Generator Market Size, Trends — CAGR 20% (market.us)",
+              "url": "https://market.us/report/ai-logo-generator-market/"
+            },
+            {
+              "titulo": "AI Logo Generator Market Size, Share, Growth — CAGR 20% (marketresearch.biz)",
+              "url": "https://marketresearch.biz/report/ai-logo-generator-market/"
+            },
+            {
+              "titulo": "Best AI Logo Generators 2026: Looka vs Brandmark vs LogoAI (precios)",
+              "url": "https://aitoolclaw.com/articles/best-ai-logo-generators/"
+            },
+            {
+              "titulo": "Best Looka Alternatives 2026 — Brandmark y otros (pago único)",
+              "url": "https://similarlabs.com/blog/looka-alternatives"
+            }
+          ]
+        },
+        "mercadoGlobal": {
+          "competidores": [
+            {
+              "nombre": "Looka (logo + Brand Kit IA)",
+              "precioRef": "Logo desde US$20 (pago único); Brand Kit por suscripción ~US$96/año (vectores, plantillas sociales, guía)."
+            },
+            {
+              "nombre": "Brandmark",
+              "precioRef": "US$25 (Basic) a ~US$175 (Designer: fuentes, guía, tarjetas, piezas sociales, presentación), pago único."
+            },
+            {
+              "nombre": "Canva Pro / Teams (Magic Studio + Brand Kit)",
+              "precioRef": "Pro ~US$15/mes (~US$10/mes anual, 500 créditos IA + Brand Kit); Teams ~US$10/usuario/mes."
+            },
+            {
+              "nombre": "Adobe Express (Firefly)",
+              "precioRef": "Premium US$9,99/mes; equipos ~US$7,99/usuario/mes (Firefly + assets de stock)."
+            }
+          ],
+          "precioMercado": "US$8-15/mes en suscripción (Canva/Adobe) o US$20-175 pago único por kit (Looka/Brandmark). Los gigantes bundlean IA sin cobro extra y comprimen el precio de los generadores puntuales.",
+          "tamano": "Mercado de generadores de marca por IA con CAGR ~20%; grande pero con márgenes comprimidos por consolidación (Canva Magic Studio, Adobe Firefly).",
+          "tendencia": "Se mueve de 'generá un logo' a 'generá una identidad completa y aplicada automáticamente a cada pieza en minutos'. El diferencial defendible ya no es un logo lindo sino ingerir la marca REAL del cliente (redes/web) y mantenerla aplicada — exactamente lo que ningún global integra al ERP ni localiza a Argentina.",
+          "veredicto": "Hueco defendible: los globales dan un genkit genérico desde prompts, no parten de la marca real, no la mantienen aplicada en el sistema donde el creador vende, ni localizan a LATAM. Marca Viva ocupa ese cruce (marca real + aplicación persistente + ERP argentinizado).",
+          "fuentes": [
+            {
+              "titulo": "Best AI Brand Kit Generators in 2026: Tools Compared — Iconly",
+              "url": "https://iconly.ai/blog/best-ai-brand-kit-generators-2026/"
+            },
+            {
+              "titulo": "Looka — Logo Design & Brand Identity (pricing)",
+              "url": "https://looka.com/"
+            },
+            {
+              "titulo": "Brandmark Logo Maker: AI-Powered Design and Pricing 2025 — Oreate AI",
+              "url": "https://www.oreateai.com/blog/brandmark-logo-maker-navigating-aipowered-design-and-pricing-in-2025/2e432fe42a5d19cda3d185404442b1c9"
+            },
+            {
+              "titulo": "Canva AI pricing in 2026: plans, credits, and is Pro worth it? — eesel AI",
+              "url": "https://www.eesel.ai/blog/canva-ai-pricing"
+            }
+          ]
+        },
+        "cambios": "Refiné la hipótesis de entrada. El cluster ya tiene DOS propuestas de KIT GRATIS como imán de entrada (funnel de adquisición). Para no repetirlas, giré el foco al extremo opuesto del recorrido: una capa PAGA y RECURRENTE de aplicación de marca (retención + monetización), que escapa la trampa de precio de los kits sueltos (US$0-65 anclado) cobrando como add-on de la suscripción del ERP. Anclé el diferencial en la tendencia 2025-26 (kit estático → aplicación automática a cada pieza) y en el moat GSG (argentinización + vivir dentro del ERP). Sumé re-sync como capacidad clave que ningún kit estático ofrece, y aterricé los pasos en los gates reales de GSG (autorización registrada, Gate bloqueante del Preset, aislamiento por tenantId, Gate 2 de migraciones)."
       }
     }
   ]
