@@ -46,6 +46,13 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 > - **§C pendientes del rediseño:** columna `Tenant.profile` + su migración (Gate 2) · entidades nuevas
 >   (`cuentas-a-cobrar`, `inventario`, multi-sucursal) = ADR aparte · la **valla de DATO** ("subir sin perder
 >   un dato") se construye con la persistencia (M4). Docs: `docs/estrategia/roadmap-dos-modelos.md` (hitos M0–M5).
+> - **Cobertura scope items SAP:** `docs/estrategia/mapa-cobertura-scope-items.md` — curado a AR (micro ~5 ·
+>   pyme ~15 · ~70% corporativo). **Decisión del dueño:** los descartados **NO se tiran → RESERVA** (§6):
+>   guardados como definición (no construidos), se despiertan por necesidad de cliente (reusable→producto /
+>   exclusivo→proyecto aparte, `FUNDAMENTOS §2`).
+> - **⏸️ PAUSA (2026-07-08):** el dueño sigue por **Dispatch (móvil)** en una **sesión nueva de sprint**;
+>   laptop conectada. Árbol limpio y pusheado. **Próximo paso recomendado: (b) Analista de mercado local
+>   desafía el mapa de cobertura → después PR-2/M2** (nav agrupada + densidad + primitivos, candados default OFF).
 
 > **🆕 Sprint 2026-07-08 (Balde B en Opus) — WIP en rama `claude/sprint-startup-generic-rf6x0m`, verde, Gate-pendiente para merge a `main`.** Foco del dueño: **ARCA · Facturador · Módulos del backoffice**. Entregado:
 > - **Módulos del backoffice (ADR-054/055):** vidriera **`/admin/modulos`** (el OWNER prende/apaga las apps, variante + dependencias, cap `modules:manage`) **+ gating de navegación** (`src/modules/gating.ts` + `src/lib/module-gating.ts`): con `MODULE_REGISTRY_ENABLED` on, apagar un módulo lo saca del menú; default off = nav legada intacta (reversible). Primer consumidor del backoffice para la fundación de módulos. Vallas verdes (tsc + **572 tests** + build + gate:rls 33/33 + lint).

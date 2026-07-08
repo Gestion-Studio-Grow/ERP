@@ -38,7 +38,8 @@ programar*): cada scope item de SAP = **un `ScopeItem`/módulo nuestro** (ADR-05
    cobertura del `lite`; todo lo demás del micro es opcional.
 
 **Leyenda de estado:** ✅ ya existe (nuestro) · 🔧 falta y **sí** lo usa la pyme AR (backlog) · ◻️ opcional/nicho
-· ⛔ **fuera** (corporativo, no pyme AR). **Perfil:** 🟠 lite (micro) · 🔵 enterprise (pyme) · — (fuera).
+· ⛔ **fuera del set por defecto** → **🗄️ RESERVA** (no se descarta: se guarda, se despierta si un cliente lo
+pide — ver §6). **Perfil:** 🟠 lite (micro) · 🔵 enterprise (pyme) · — (reserva).
 
 ---
 
@@ -84,12 +85,32 @@ programar*): cada scope item de SAP = **un `ScopeItem`/módulo nuestro** (ADR-05
 - **Set de la PYME (`enterprise`) — el lite + ~8-10 aditivos que SÍ usa:** **cuentas a cobrar** (J60/2F3) ·
   **compras** (J45/18J) · **inventario** (BMC) · **cuentas a pagar** (J59) · contabilidad simple (J58) ·
   reportes de rentabilidad (16T) · ARCA completo (1J2: A/B, NC, percepciones) · activos/banco (J62/BFA, baja).
-- **Fuera a propósito — ~70% de la lista SAP (⛔):** tesorería, hedge, consolidación de grupo, costeo
-  industrial, EWM avanzado, transporte, SuccessFactors, ML/predictive, OpenText. **Es corporativo. Que quede
-  afuera no es un hueco — es la decisión de no sobre-scopear** (lección del Challenger).
+- **Fuera del set por defecto — ~70% de la lista SAP (🗄️ reserva):** tesorería, hedge, consolidación de
+  grupo, costeo industrial, EWM avanzado, transporte, SuccessFactors, ML/predictive, OpenText. **Es
+  corporativo → no entra al set vendible por defecto** (no sobre-scopear, lección del Challenger). **Pero NO
+  se descarta: queda en RESERVA** (§6).
 
 **En una línea:** *la pyme AR necesita ~15 scope items de los ~60 de SAP; el micro, ~5. El mapa te asegura
-que están todos los que necesita y ninguno de los que no.*
+que están todos los que necesita y ninguno de los que no — y los demás quedan guardados, no tirados.*
+
+## 6. 🗄️ Reserva de scope items — nada se tira (decisión del dueño, 2026-07-08)
+
+Los scope items marcados ⛔ **no se descartan: se guardan como RESERVA del catálogo** — un backlog conocido
+que se **despierta si un cliente puntual lo necesita**. Es coherente con la promesa de marca (*"si tu modelo
+no está, lo solucionamos"*, `FUNDAMENTOS §2`) y con su guardrail:
+
+- **Guardados como definición, no construidos** (definir ≠ construir, ADR-055): la taxonomía SAP completa es
+  el **mapa de lo posible**; cada reserva es un `ScopeItem` **documentado pero no instanciado** hasta que haya
+  demanda real. No cuesta tokens ni mantenimiento tenerlos en reserva.
+- **Cuando un cliente lo pide, decide el guardrail de `FUNDAMENTOS §2`:** ¿lo puede **reusar otro tenant**?
+  → se **asciende a producto** (nuevo módulo del catálogo, con su perfil). ¿Es **exclusivo de ese cliente**?
+  → **proyecto aparte** cotizado y aislado (nunca contamina el Core compartido).
+- **Los que "ya existiesen" en otra forma** (código, plugin, prototipo) también se anotan acá con su estado,
+  para no reconstruir lo que ya está (lección MP-13).
+
+**Regla:** la reserva es un **almacén de oportunidad**, no una obligación de construir. Se prioriza por
+demanda real (venta concreta, ADR-030), lo cura el **PO del Catálogo/Plugins** y lo desafía el **Analista de
+mercado local** antes de ascender cualquiera a producto.
 
 ## 5. Gate de cobertura (cómo sabemos que "abarcamos")
 Un perfil está **cubierto** cuando **todos** sus scope items del set (arriba) están en estado ✅ *o* con
