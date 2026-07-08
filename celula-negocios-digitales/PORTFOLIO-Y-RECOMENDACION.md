@@ -8,9 +8,9 @@ Detalle por informe en `investigaciones/01…05-*.md`.
 
 ---
 
-## 🆕 TOP ACUMULADO por Índice honesto (rondas 14–16 — motor cíclico)
+## 🆕 TOP ACUMULADO por Índice honesto (rondas 14–17 — motor cíclico)
 
-> Actualizado **2026-07-07** por el motor de generación (Rondas 15–16). Ordena por el **Índice honesto**
+> Actualizado **2026-07-07** por el motor de generación (Rondas 15–17). Ordena por el **Índice honesto**
 > (5 dimensiones × 10 = /50) los sobrevivientes de las últimas rondas del motor. Detalle de cada uno en
 > su carpeta `ronda-NN/`. Los de la ronda 1 (tabla histórica más abajo) usan otra escala (/10) y no son
 > comparables 1:1.
@@ -24,8 +24,10 @@ Detalle por informe en `investigaciones/01…05-*.md`.
 | 5 | **Tasa Justa** | 15 | 44 | ⚖️ | impugna tasas municipales (TISH) sobrefacturadas con IA, success-fee |
 | 6 | **Costo al Plato** | 14 | 42 | 🌱 | food-cost automático desde la foto de la factura del proveedor |
 | 7 | **Cómputo Exprés** | 14 | 40 | 💥 | presupuesto de obra con IA y precios argentinos vivos |
-| 8 | **Subsidio Detectado** | 15 | 38 | 🌱 | matchea subsidios/ANR pyme + arma la rendición (SEO + canal consultora) |
-| 9 | **Carga al Día** | 14 | 36 | ⚖️ | agente IA que atiende la operación del transportista por WhatsApp |
+| 7 | **Pagué de Más** | 17 | 40 | 💥 | recovery audit de cuentas a pagar (pagos duplicados a proveedores), success-fee, sector privado |
+| 9 | **Subsidio Detectado** | 15 | 38 | 🌱 | matchea subsidios/ANR pyme + arma la rendición (SEO + canal consultora) |
+| 9 | **Multa Nula** | 17 | 37 | ⚖️ | impugna fotomultas mal labradas para flotas, success-fee *(GO piloto)* |
+| 11 | **Carga al Día** | 14 | 36 | ⚖️ | agente IA que atiende la operación del transportista por WhatsApp |
 | 10 | **Tarifa Justa** | 15 | 34 | ⚖️ | audita la factura de energía del comercio + reclama recategorización *(GO piloto, verif. parcial)* |
 | 10 | **Mono-Tech** | 16 | 34 | 💥 | copiloto del régimen Mono-Tech para exportadores de servicios *(GO piloto ventana, moat fino)* |
 | 12 | **Prepaga Justa** | 16 | 33 | ⚖️ | audita el aumento de tu prepaga + arma el reclamo/amparo *(GO piloto, requiere estudio aliado)* |
@@ -36,6 +38,11 @@ moat de biblioteca de reglas por jurisdicción**. Cuatro negocios comparten ese 
 Ganada, Débito Devuelto, Saldo a Favor, Tasa Justa) → **candidatos a un producto-plataforma común**
 (motor de lectura de documento + reglas por jurisdicción + armado de trámite + success-fee) vendido al
 mismo canal contable. Es la síntesis más fuerte que dejó el motor hasta hoy.
+>
+> **Ampliación (Ronda 17):** la veta **no depende del Estado**. **Pagué de Más** (recovery audit de
+> cuentas a pagar) prueba que el mismo modelo —recuperá plata que ya es tuya, success-fee, COGS casi
+> cero— funciona en el **sector privado puro**, sin riesgo regulatorio ni necesidad de estudio jurídico.
+> Es el perfil más limpio de la veta y entró top-7 de una.
 
 ---
 

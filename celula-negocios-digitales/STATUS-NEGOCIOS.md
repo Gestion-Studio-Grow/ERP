@@ -5,7 +5,7 @@
 > trae: qué es en criollo, en qué estado está, y los números clave (qué cuesta construirlo, cuánto sale
 > operarlo, a cuánto se vende, qué margen deja y cuántos clientes hacen falta para facturar).
 >
-> **Actualizado:** 2026-07-07 (motor Rondas 15–16) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
+> **Actualizado:** 2026-07-07 (motor Rondas 15–17) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
 
 ## Qué es la célula (contexto de cero)
 Un equipo de agentes de IA que funciona como una **consultora interna**: inventa negocios digitales que
@@ -167,6 +167,35 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
   + devolver excedente; demanda probada (estudios de amparos ya facturan).
 - **Números (prov.):** build 4–5 sem · precio 25% de lo recuperado · margen ~85% · base ~$3M/mes (≈ USD 2.000),
   techo alto con canal afinidad (sindicatos/RRHH). **Caveat:** requiere estudio jurídico aliado + resolver CAC consumer.
+
+---
+
+## B-quater. SOBREVIVIENTES DEL MOTOR CÍCLICO — Ronda 17 (2026-07-07, la veta también en el sector privado)
+
+> Ángulo: extender la veta ganadora (recupero · success-fee · COGS casi cero) sin encasillarse. 2 de 5
+> candidatos (el filtro mató reajuste jubilatorio → saturado + juicios 5–7 años; comisiones bancarias →
+> reclamo BCRA gratis/rápido; Impuesto de Sellos → se pliega como módulo de Saldo a Favor). Detalle en
+> `ronda-17/2026-07-07-nuevos-negocios.md`.
+
+### 💡 Pagué de Más — recovery audit de cuentas a pagar para la mediana empresa (Índice 40, 💥)
+- **Qué es (de cero):** se conecta al mayor de cuentas a pagar (export del ERP o Excel), cruza cada pago
+  contra factura/orden/remito y **detecta los pagos duplicados, dobles facturaciones y notas de crédito
+  no aplicadas** — la plata que la empresa pagó de más sin darse cuenta. Arma el legajo de recupero.
+  Cobra solo sobre lo recuperado. Modelo global probado (PRGX/APEX), inexistente como producto en AR.
+- **Números (prov.):** build 4–5 sem · COGS ~cero · precio **25–30% de lo recuperado** + monitoreo
+  opcional ~$150k/mes · margen ~90% · base ~$5,4M/mes (≈ USD 3.600) año 1.
+- **Por qué importa:** **diversifica la veta al sector privado** — cero riesgo regulatorio, no necesita
+  estudio jurídico ni que salga una ley. El perfil más limpio de toda la veta.
+
+### 💡 Multa Nula — impugnador de fotomultas mal labradas para flotas (Índice 37, ⚖️, GO piloto)
+- **Qué es (de cero):** recibe las multas de la flota (por patente), verifica la **validez técnica** de
+  cada una (radar homologado/calibrado INTI, cartelería, datos del acta, plazos) y arma el descargo de
+  las impugnables. Cobra un % de lo que anula.
+- **Señal fresca:** "cientos de radares no autorizados" (Infobae may-2026), fallo de inconstitucionalidad,
+  Ley 14.226 art. 28bis (nulidad). Competencia (Multabot) solo en el segmento individual → foco FLOTAS B2B.
+- **Números (prov.):** build 4–5 sem · precio 30% de lo anulado · margen ~88% · base ~$1,9M/mes (≈ USD 1.250).
+- **Caveat:** medir tasa real de impugnaciones exitosas por jurisdicción antes de escalar. Distinto de
+  "Frená a Tiempo" (r8, preventivo) — este es reactivo.
 
 ---
 
