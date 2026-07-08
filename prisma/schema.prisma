@@ -811,16 +811,15 @@ model Invoice {
   docNro   String
   fecha    String // AAAAMMDD
 
-  // Montos calculados por el Core (ADR-006).
-  // NOTA (divergencia consciente con CORE-SCHEMA-SPEC §1): el spec pide `Decimal(14,2)`
-  // para exactitud fiscal, pero hoy TODO el sistema mueve importes como `number` (el
-  // contrato del plugin ARCA —core-contract/port/comprobante— y el cálculo de IVA del
-  // Core son `number`). Migrar a Decimal cruza ese contrato de punta a punta y solo
-  // impacta con ARCA en real (hoy stub/gateado). Queda como decisión de arquitectura
-  // (ADR) a coordinar con el PMO antes de tocar la representación de dinero.
-  neto  Float
-  iva   Float // total de IVA (suma de alícuotas); el desglose va en `ivaDesglose`.
-  total Float
+  // Montos calculados por el Core (ADR-006). EXACTITUD FISCAL: Decimal(14,2) (spec §1).
+  // Decisión ADR-057: el dinero se persiste en `Decimal(14,2)` (exactitud al centavo para
+  // ARCA/auditoría), pero el CONTRATO del plugin/Core sigue en `number` — la conversión
+  // `Decimal ↔ number` se confina al BORDE del repositorio de Invoice (lectura `.toNumber()`
+  // en `facturacion-actions.ts`; la escritura acepta `number`). La migración que aplica esto
+  // (`prisma/migrations/20260708120000_invoice_money_decimal`) es Gate 2 (OK del dueño).
+  neto  Decimal @db.Decimal(14, 2)
+  iva   Decimal @db.Decimal(14, 2) // total de IVA (suma de alícuotas); el desglose va en `ivaDesglose`.
+  total Decimal @db.Decimal(14, 2)
 
   // Desglose de IVA por alícuota (spec §1: `iva` como `SubtotalIvaCore[]`). Se persiste
   // acá para auditoría/reimpresión; antes vivía solo en el payload (efímero) del outbox.
