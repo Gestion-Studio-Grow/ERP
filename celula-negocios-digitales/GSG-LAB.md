@@ -66,6 +66,11 @@
 - **Local hasta el OK del dueño:** todo queda local; publicar/cobrar/deploy son gates del dueño.
 - **Mercado local primero**, integraciones a entes públicos como moat, salir del sesgo del modelo, resolver
   un problema real + vendible, atado a una señal fechada. Detalle en `adr/ADR-CELULA-001` §4.
+- **Paso de SELECCIÓN antes de construir** *(regla dura del dueño):* el motor genera y rankea (2 listas), pero
+  **no toda oportunidad se construye**. Hay un **paso de selección explícito**: de las rankeadas, **el dueño
+  SELECCIONA** (Accountable, RACI ADR-049) cuáles avanzan a demo funcional completa. **Los desarrollos que
+  llegan a demo en el lab son los SELECCIONADOS.** Pipeline canónico: **Generar → Rankear → SELECCIONAR →
+  construir demo → Gate → publicar** (detalle en `MOTOR-SPRINT-CICLICO.md`).
 - **Producto = demo FUNCIONAL COMPLETA bajo el hub `/lab`** *(estándar duro del dueño):* todo producto del
   lab se sirve como **demo funcional end-to-end** —el viaje del usuario anda de punta a punta en modo demo, no
   solo navegable/mockup— y **bajo la MISMA URL de GSG Lab**: rutas `/lab/<producto>` (`/lab/plantilleria`,

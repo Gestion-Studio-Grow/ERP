@@ -29,6 +29,20 @@
 5. **Desarrollar (en paralelo):** los devs construyen los MVP validados, aislados y locales, hasta el
    primer peso. No esperan al próximo ciclo de research.
 
+## Pipeline de producto — con PASO DE SELECCIÓN explícito (regla dura del dueño)
+**No toda oportunidad generada se construye.** El pipeline canónico del lab es:
+
+> **Generar → Rankear (2 listas) → SELECCIONAR (el dueño aprueba) → construir DEMO FUNCIONAL COMPLETA → Gate → publicar**
+
+- **Generar + Rankear:** el motor produce oportunidades y las ordena en **dos listas** (alto beneficio +
+  sustentables costo-0/bajo). *(Es ①–③ del ciclo de arriba.)*
+- **SELECCIONAR — gate del dueño (Accountable, RACI ADR-049):** de las oportunidades rankeadas, **el dueño
+  SELECCIONA** cuáles avanzan a demo. **Solo los SELECCIONADOS se construyen**; nada llega a demo en el lab sin
+  pasar por esta selección. *(Es la "Visión del dueño" ④, ahora nombrada como paso explícito e ineludible.)*
+- **Construir demo funcional completa:** los devs construyen **solo lo seleccionado**, como **demo end-to-end
+  bajo el hub `/lab`** (estándar de producto, ADR-028/029/030/031).
+- **Gate → publicar:** Gate de Excelencia en Opus (ADR-040) → publicar/deploy = **§C del dueño**.
+
 ## Roles
 - **🎯 Dueño (cúspide):** visión, prioridad, gates (dev / deploy). No ejecuta; dirige.
 - **🎯 PMO:** orquesta el ciclo, integra, es el único que consolida y reporta al dueño.

@@ -7,7 +7,11 @@
 > *(El preámbulo que sigue se conserva como referencia histórica; la fuente de verdad del preámbulo es el genérico.)*
 
 ## ⭐ ESTÁNDARES DE GSG LAB — DoD + Gate (aplican a TODO producto del lab)
-Dos estándares duros del dueño (invariantes; fuente canónica `celula-negocios-digitales/GSG-LAB.md §3`):
+Estándares duros del dueño (invariantes; fuente canónica `celula-negocios-digitales/GSG-LAB.md §3`):
+
+**Pipeline del lab — con PASO DE SELECCIÓN:** **Generar → Rankear (2 listas) → SELECCIONAR (el dueño aprueba,
+Accountable RACI ADR-049) → construir DEMO FUNCIONAL COMPLETA (`/lab/<producto>`) → Gate (ADR-040) → publicar
+(§C).** No toda oportunidad se construye: **solo las SELECCIONADAS por el dueño llegan a demo en el lab.**
 
 1. **Demo funcional COMPLETA, bajo el hub `/lab`.** Todo producto del lab entrega una **demo end-to-end** —el
    viaje del usuario funciona de punta a punta en modo demo, **no solo navegable/mockup**— y **servida en la
