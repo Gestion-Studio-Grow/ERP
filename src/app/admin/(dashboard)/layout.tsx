@@ -4,6 +4,7 @@ import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
+import { getActiveModuleIds } from "@/lib/module-gating";
 import { getTenantBrand, resolveAccent, invertTheme } from "@/lib/branding";
 import type { CSSProperties } from "react";
 
@@ -19,7 +20,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // El portón grueso (¿hay sesión?) lo hace `proxy.ts`; acá resolvemos el
   // usuario para adaptar la navegación a su rol (ADR-017 §2.e — ocultar lo que
   // no puede es UX; la seguridad real son los guardas server-side por acción).
-  const [user, brand] = await Promise.all([requireUser(), getTenantBrand()]);
+  const [user, brand, activeModuleIds] = await Promise.all([
+    requireUser(),
+    getTenantBrand(),
+    // Gating por módulo (ADR-054/055): set activo del tenant, o null si el flag está
+    // apagado → AdminShell no gatea por módulo (solo por rol). Reversible.
+    getActiveModuleIds(),
+  ]);
 
   // REGLA front/back: el BACK (admin) va en el tema OPUESTO al front del tenant.
   // Seteamos `data-theme` (los tokens semánticos de globals.css flipan solos, y
@@ -39,7 +46,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          <AdminShell role={user.role} userName={user.name} brandName={brand.name} monogram={brand.monogram}>
+          <AdminShell role={user.role} userName={user.name} brandName={brand.name} monogram={brand.monogram} activeModules={activeModuleIds ? [...activeModuleIds] : null}>
             {children}
           </AdminShell>
         </ToastProvider>

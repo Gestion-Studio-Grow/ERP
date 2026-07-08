@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
 import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { moduleGateAllows } from "@/modules/gating";
 
 // Íconos de línea (dirección B): un set chico inline, sin dependencias. Se
 // eligen por href. `currentColor` para que hereden el color del ítem (activo =
@@ -39,20 +40,24 @@ function Icon({ name }: { name: string }) {
 // Cada ítem declara la capacidad que lo habilita; se filtra por el rol del
 // usuario. Ocultar acá es UX (ADR-017 §2.e) — la seguridad real la aplican los
 // guardas server-side (`requireCapability`) en cada loader/acción.
-const ALL_ITEMS: { href: string; label: string; icon: string; exact?: boolean; cap: Capability }[] = [
+// `module` (opcional) ata el ítem a un módulo del catálogo (src/modules): cuando el
+// gating está encendido (flag), el ítem se esconde si ese módulo está apagado para el
+// tenant. Los ítems SIN `module` son core/config (Dashboard, Ajustes, Usuarios, la
+// propia vidriera de Módulos…) y nunca se gatean por módulo — solo por rol.
+const ALL_ITEMS: { href: string; label: string; icon: string; exact?: boolean; cap: Capability; module?: string }[] = [
   { href: "/admin", label: "Dashboard", icon: "dashboard", exact: true, cap: "dashboard:read" },
-  { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read" },
-  { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read" },
-  { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage" },
-  { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read" },
-  { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read" },
-  { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage" },
-  { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage" },
-  { href: "/admin/ajustes", label: "Ajustes", icon: "ajustes", cap: "catalog:manage" },
+  { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda" },
+  { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read", module: "clients" },
+  { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist" },
+  { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read", module: "pos" },
+  { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read", module: "pos" },
+  { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog" },
+  { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog" },
+  { href: "/admin/ajustes", label: "Ajustes", icon: "ajustes", cap: "catalog:manage", module: "catalog" },
   { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage" },
-  { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage" },
-  { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage" },
-  { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read" },
+  { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders" },
+  { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca" },
+  { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports" },
   { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage" },
   { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage" },
@@ -158,17 +163,25 @@ export default function AdminShell({
   userName,
   brandName,
   monogram,
+  activeModules = null,
 }: {
   children: React.ReactNode;
   role: Role;
   userName: string;
   brandName: string;
   monogram: string;
+  // Ids de módulos activos del tenant, o `null` si el gating está apagado (flag OFF)
+  // → no se gatea por módulo. Se resuelve server-side en el layout.
+  activeModules?: string[] | null;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const items = ALL_ITEMS.filter((item) => roleHasCapability(role, item.cap));
+  const activeSet = activeModules === null ? null : new Set(activeModules);
+  const items = ALL_ITEMS.filter(
+    (item) =>
+      roleHasCapability(role, item.cap) && moduleGateAllows(item.module, activeSet),
+  );
   const roleLabel = ROLE_LABEL[role];
 
   // Cerrar el cajón al navegar (cambia el pathname) y con Escape.
