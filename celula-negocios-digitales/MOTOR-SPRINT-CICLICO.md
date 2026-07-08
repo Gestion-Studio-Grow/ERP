@@ -29,6 +29,16 @@
 5. **Desarrollar (en paralelo):** los devs construyen los MVP validados, aislados y locales, hasta el
    primer peso. No esperan al próximo ciclo de research.
 
+## Fuente primaria de vetas — la agenda de DESREGULACIÓN (enfoque canónico del lab)
+**Tesis de caza:** las oportunidades se buscan **primero** en las **desregulaciones de Federico Sturzenegger**
+(Ministerio de Desregulación y Transformación del Estado). Cada **desregulación, DNU, resolución o ley que
+ABRE o CIERRA un mercado** es una **VETA candidata** — un mercado que se libera, un requisito que cae, un
+trámite que se digitaliza, una barrera que aparece.
+- **Al retomar el ciclo, la Inteligencia de Señales escanea como FUENTE PRIMARIA:** el **Boletín Oficial** +
+  las medidas/anuncios del **Ministerio de Desregulación**, antes que cualquier otra señal.
+- Cada veta se ata a su **medida fechada** (norma + fecha); de ahí bajan los negocios candidatos que el motor
+  **genera → rankea → (SELECCIÓN del dueño) → construye**.
+
 ## Pipeline de producto — con PASO DE SELECCIÓN explícito (regla dura del dueño)
 **No toda oportunidad generada se construye.** El pipeline canónico del lab es:
 

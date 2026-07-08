@@ -66,6 +66,13 @@
 - **Local hasta el OK del dueño:** todo queda local; publicar/cobrar/deploy son gates del dueño.
 - **Mercado local primero**, integraciones a entes públicos como moat, salir del sesgo del modelo, resolver
   un problema real + vendible, atado a una señal fechada. Detalle en `adr/ADR-CELULA-001` §4.
+- **🎯 Enfoque estratégico — tesis de caza en las DESREGULACIONES (canónico):** la **veta primaria** del lab son
+  las **desregulaciones de Federico Sturzenegger** (Ministerio de Desregulación y Transformación del Estado —
+  "el desregulador"). **Cada desregulación, DNU, resolución o ley que ABRE o CIERRA un mercado es una VETA
+  candidata** (mercado que se libera, requisito que cae, trámite que se digitaliza, barrera que aparece). Al
+  retomar, el motor **escanea la agenda de desregulación** —**Boletín Oficial** + medidas del **Ministerio de
+  Desregulación**— como **FUENTE PRIMARIA de vetas**, antes que cualquier otra señal. Detalle del método en
+  `MOTOR-SPRINT-CICLICO.md`.
 - **Paso de SELECCIÓN antes de construir** *(regla dura del dueño):* el motor genera y rankea (2 listas), pero
   **no toda oportunidad se construye**. Hay un **paso de selección explícito**: de las rankeadas, **el dueño
   SELECCIONA** (Accountable, RACI ADR-049) cuáles avanzan a demo funcional completa. **Los desarrollos que
