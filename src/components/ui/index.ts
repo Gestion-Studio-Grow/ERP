@@ -16,3 +16,7 @@ export type { SectionGroupProps } from "./SectionGroup";
 export { ProfileBadge } from "./ProfileBadge";
 export type { ProfileBadgeProps } from "./ProfileBadge";
 export { profileEditionLabel, PROFILE_EDITION_LABEL } from "./profile-labels";
+export { KpiTile } from "./KpiTile";
+export type { KpiTileProps } from "./KpiTile";
+export { EmptyState } from "./EmptyState";
+export type { EmptyStateProps } from "./EmptyState";
