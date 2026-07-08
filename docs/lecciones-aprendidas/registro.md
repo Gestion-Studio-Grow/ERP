@@ -18,7 +18,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar)
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
 ---
@@ -343,6 +343,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** en un conflicto sobre una **lista/tabla enumerada** (irreversibles, ADRs, tenants), el choque casi nunca es "misma cosa, dos versiones" sino "**dos cosas, mismo número**" → la resolución correcta es **renumerar y conservar ambas**, no elegir una. Es el mismo reflejo que MP-10 (diff primero, integrá el delta) pero a nivel fila.
 - **Guardarraíl:** conflicto en una tabla/lista con IDs → **antes de resolver, leer qué concepto describe cada lado**; si son distintos, **conservar ambos y renumerar** (como la colisión de ADR de MP-10); actualizar las referencias cruzadas. Nunca `checkout --ours/--theirs` sobre filas de `§C`.
 - **Refs:** MP-10 (renumerar en colisión), ADR-040 (Gate), ADR-048 (irreversibles); `docs/estrategia/F1-vidrieras-calibracion-y-gate-adr042.md`.
+
+**[MP-12] `ESTADO-ACTUAL.md` con drift INTERNO — el HANDOFF avanza pero el §1/§8 quedan viejos**
+- **Síntoma:** en FASE 0, el banner HANDOFF ya marcaba F1 mergeado (`debb3c5`) pero el **§1** (`main HEAD` = `29e9dcb`), el **§7-bis** (F1 "WIP sin mergear") y el **§8** (`.claude/agents/` "NO existe") seguían en el snapshot viejo. El commit de cierre tocó solo la parte de arriba y dejó las tablas de abajo desincronizadas dentro del **mismo archivo**.
+- **Causa raíz:** el cierre de sprint actualiza el HANDOFF (lo que se lee primero) pero no re-barre las secciones de detalle; el doc queda **coherente arriba, stale abajo**, y quien lee §1/§8 saca una foto falsa.
+- **Fix:** FASE 0 reconcilió contra git puro (`main` real `6c88719`, 18 archivos en `.claude/agents/`): §1 `29e9dcb`→`6c88719`, §8 "NO existe"→"18 agentes materializados", §7-bis F1→MERGEADO, footer "Para retomar" al día. Doc-only, reversible, sin tocar prod.
+- **Lección:** el drift no es solo doc-vs-repo; también es **sección-vs-sección dentro del mismo doc**. Actualizar el HANDOFF no equivale a actualizar la foto.
+- **Guardarraíl:** en FASE 0, **verificar contra git (no contra el propio doc)** los 3 anclas duras — `main HEAD` (§1), estado de frentes (§7-bis) y `.claude/agents/` (§8) — y reconciliar TODAS las secciones que citen esos hechos, no solo el banner. "Gana el repo" aplica también a las contradicciones internas.
+- **Refs:** MP-5 (sin la foto no se despacha), ADR-039 (FASE 0), ADR-047 (retro).
 
 ## SEC — Seguridad
 

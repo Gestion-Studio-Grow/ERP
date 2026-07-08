@@ -6,14 +6,19 @@ FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nue
 este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
-- **Actualizado:** 2026-07-07 (FASE 0 + F4 doc-only, PMO) · **Autor:** PMO (sesión autónoma)
+- **Actualizado:** 2026-07-08 (FASE 0 reconciliación de drift, PMO) · **Autor:** PMO (sesión autónoma)
 - **Método:** barrido del repo (`git log`, `git worktree list`, `prisma/migrations/`, `.claude/`,
   `docs/`) + reconciliación del drift acumulado. **NO se consultó Neon prod** (política: diagnóstico,
   no tocar prod/DB) → el estado de migraciones *aplicadas* se deriva de docs y se marca "a confirmar".
-- **Reconciliación de esta pasada (2026-07-07):** el doc venía del snapshot `273a267`; **`main` ya está
-  en `29e9dcb`** (~28 commits después). Se reconcilió: **(1)** el HANDOFF viejo del go-live de Magra →
-  **Plan de Ventana vigente**; **(2)** **plataforma de deploy: Netlify → Vercel** (evidencia dura, ver §2);
-  **(3)** RLS pasó de "casi completo" a **VIVO y enforced**. Detalle de qué landeó desde el snapshot en §1.
+- **Reconciliación de esta pasada (2026-07-08):** el doc traía drift interno — el HANDOFF ya marcaba F1
+  mergeado (`debb3c5`) pero el §1 y §8 seguían en el snapshot viejo. **`main` real = `6c88719`** (F1
+  vidrieras + GSG Lab + ritual `/status` + roster materializado en `.claude/agents/`). Se reconcilió:
+  **(1)** §1 `main HEAD` `29e9dcb` → **`6c88719`**; **(2)** §8 `.claude/agents/` "NO existe" → **18 agentes
+  materializados**; **(3)** §7-bis F1 marcado **MERGEADO**. *(Este clon remoto trae solo `main` + la rama de
+  sesión; las ramas/tags WIP de §7 viven en el entorno local del dueño, no en el remoto.)*
+- **Reconciliación previa (2026-07-07):** el doc venía del snapshot `273a267` → `main` `29e9dcb`
+  (~28 commits). Se reconcilió: HANDOFF viejo de Magra → **Plan de Ventana**; **Netlify → Vercel** (§2);
+  RLS → **VIVO y enforced**. Detalle de qué landeó desde el snapshot en §1.
 
 ---
 
@@ -61,7 +66,7 @@ por frente abajo; irreversibles elevados en §C.
 
 | Ítem | Valor |
 |---|---|
-| **main HEAD (origin)** | **`29e9dcb`** — `feat(cockpit): rediseño consola operador — cockpit interactivo read-only (T4, W1–W6)` |
+| **main HEAD (origin)** | **`6c88719`** — `docs(F1): cierre Ola 1 HANDOFF — retro MP-11 + handoff + banner ESTADO-ACTUAL` (F1 vidrieras + GSG Lab + ritual `/status` + roster en `.claude/agents/` ya en `main`) |
 | **Plataforma de prod** | **Vercel** (`vercel.json` activo; ver §2). Netlify = **legacy** (Opción A, superada). |
 | **Auto-publish** | **APAGADO / gated** — push a `main` **no** publica. Deploy = acción del dueño (**Gate 1**). |
 | **Snapshot tags** | `snapshot/2026-07-07-cierre` (cierre de sprint) · WIP de frentes sin mergear: `snapshot/2026-07-07-f1-wip` (`09f668a`), `snapshot/2026-07-07-f3-wip` (`1334212`) · previos: `snapshot/2026-07-07-f4b`, `snapshot/2026-07-07-f4`, `snapshot/2026-07-05-eod` |
@@ -210,12 +215,13 @@ tiene trabajo sin commitear** (posible sesión que quedó abierta ahí). El rest
 
 ---
 
-## 7-bis. Cierre de sprint — estado de F1 y F3 (WIP sin mergear, esperan Gate)
+## 7-bis. Cierre de sprint — estado de F1 (MERGEADO) y F3 (WIP en el entorno local del dueño)
 
-Ambos frentes pararon en **punto seguro** (árbol limpio, verde, pusheado, **sin merge a `main`**). Orden de
-Gate/merge al reabrir: **F1 → F3**.
+**Ola 1 cerrada:** F1 **mergeado a `main`** (su copy pádel/ADM + saneo Shine viven en `main` `6c88719`).
+F3 sigue como WIP: **no está en el remoto** (solo `main` + rama de sesión) — vive en el worktree local del
+dueño. Orden de Gate/merge al reabrir F3: rebasa sobre `main` con F1 → Gate Opus → merge.
 
-### F1 · `frente/diseno-vidrieras` — HEAD `09f668a` · tag `snapshot/2026-07-07-f1-wip` · verde (tsc/build/559)
+### F1 · `frente/diseno-vidrieras` — ✅ **MERGEADO a `main`** (contenido en `6c88719`) · verde (tsc/build/559)
 - **✅ COMPLETO:** secciones de pádel **brand-neutral**; **calibración ADR-052** hecha; **copy de A Dos Manos**
   + **saneo de Shine** (se quitaron **reviews/testimonios fabricados**, que violaban DX-5).
 - **🟡 A MEDIO / bloqueado (dato, no código):** el **copy DX-5 exacto de Shine y ADM es provisional** — las
@@ -235,17 +241,22 @@ Gate/merge al reabrir: **F1 → F3**.
 
 ## 8. Estructura de agentes — realidad vs doc (para no asumir)
 
-**La estructura de agentes existe como METODOLOGÍA + COMANDOS + GOBERNANZA, no como flota instanciada:**
-- **`.claude/agents/` NO existe** (0 subagentes activos). **`.claude/agents-en-pausa/`** tiene 2 archivos
-  **stale** (`fullstack-arquitecto`, `revisor-verificador`, apuntan al método viejo `METODO-ROLES.md`).
-- **`.claude/commands/` (14):** comandos slash que una sesión adopta (sprint, economia, boost, impo, remoto,
+**La estructura de agentes ya está MATERIALIZADA como archivos + METODOLOGÍA + COMANDOS + GOBERNANZA:**
+- **`.claude/agents/` EXISTE — 18 subagentes definidos** (materializados en `8e0aca5`/`b5c3536`): `pmo`,
+  `arquitecto-solucion`, `advisory`, `challenger`, `seguridad`, `auditoria-gsg-gate`, `qa`, `sello-marca-gsg`,
+  `raci-matriz`, `constructor`, `diseno-marca`, `cobro-fiscal`, `growth`, `operaciones`, `plataforma-deploy`,
+  `preset-ia`, `backoffice-producto`, `backoffice-ingenieria`. Se instancian **solo con tarea** (definir ≠
+  instanciar, ADR-053). *(El doc previo decía "NO existe / 0 subagentes" — quedó superado por el roster ya materializado.)*
+- **`.claude/commands/` (16):** comandos slash que una sesión adopta (sprint, economia, boost, impo, remoto, status, lab,
   manual, rol, rol-fullstack, sesion-*). Son prompts, no agentes con toolset propio.
 - **`docs/organizacion/roster-completo-gsg.md` (~30 roles):** gobernanza documental. "✅" = *rol ya operado
-  por una sesión*, **NO** *archivo de agente*. Ninguno tiene archivo `.claude/agents/`.
+  por una sesión*. **18 de esos roles YA tienen archivo `.claude/agents/`** (los del núcleo de gobierno + las
+  células de ejecución más usadas); el resto (Agencia Grow, pricing, etc.) sigue documentado sin archivo hasta
+  que haya tarea.
 - **Mecanismo real de "1 frente = 1 sesión"** (`sprint.md`): el dueño abre N ventanas `claude` y pega el
-  comando/charter, **o** el PMO despacha subagentes ad-hoc (Agent tool) con el charter como prompt. El
-  "auto-abren las células" es aspiracional; mecánicamente es manual/ad-hoc. **Funciona** — pero conviene
-  saberlo. Materializar agentes como archivos = trabajo de Balde B (opcional).
+  comando/charter, **o** el PMO despacha los subagentes del roster (Agent tool `subagent_type`) con su charter
+  ya materializado. El "auto-abren las células" sigue siendo disparo manual/ad-hoc, pero ahora **apoyado en
+  definiciones reales** en `.claude/agents/`. **Funciona.**
 
 ---
 
@@ -299,12 +310,12 @@ elevan** (§C), no se corren.
 ## Para retomar — próximos pasos claros
 
 1. **Leé esta foto** (sobre todo el HANDOFF + §7-bis) + `docs/ESTADO-FRENTES.md` (tablero de Sprint activo).
-   El sprint está **PAUSADO**, no cerrado: F1/F3 son WIP verdes sin mergear.
-2. **Retomá por el Gate, NO abras de cero:** el PMO corre QA + **Gate en Opus** sobre **F1 (`09f668a`)** →
-   merge → rebasa **F3 (`1334212`)** → Gate → merge. Fijar **modelo explícito** por frente (reversible → Sonnet, ver MP-9).
-3. **Del dueño:** **§C·I7** (material real Shine/ADM) para cerrar F1 a forma final; y el resto de §C (deploys, datos Magra).
+   **Ola 1 cerrada:** F1 ya está en `main`. F3 sigue WIP (en el worktree local del dueño, no en el remoto).
+2. **Retomá por F3:** cuando reaparezca la rama de F3, rebasala sobre `main` (`6c88719`) → QA + **Gate en Opus**
+   → merge. Fijar **modelo explícito** por frente (reversible → Sonnet, ver MP-9).
+3. **Del dueño:** **§C·I7** (material real Shine/ADM) para cerrar el copy DX-5 a forma final; y el resto de §C (deploys, datos Magra).
 4. **Balde B (Opus):** cockpit operador → reingeniería, módulos ARCA/MP reales, repo de plugins (ADR-054/055, VARIANTE).
-5. **Estado:** nada rojo en `main` (`29e9dcb`, sin cambios de código esta sesión); prod estable en Vercel.
+5. **Estado:** nada rojo en `main` (`6c88719`, sin cambios de código esta sesión — solo reconciliación doc); prod estable en Vercel.
 
 > **Gates = acción del dueño.** Nada de deploy/alta/migraciones/secretos se corre solo. Este doc + los
 > runbooks (`docs/runbooks/`) son el guion para ejecutarlos cuando el dueño dé el OK.
