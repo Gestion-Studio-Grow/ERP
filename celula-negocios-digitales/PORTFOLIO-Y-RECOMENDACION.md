@@ -8,30 +8,53 @@ Detalle por informe en `investigaciones/01…05-*.md`.
 
 ---
 
-## 🆕 TOP ACUMULADO por Índice honesto (rondas 14–19 — motor cíclico)
+## 🆕 CARTERA DEL MOTOR — DOS LISTAS (regla del dueño, 2026-07-07)
 
-> Actualizado **2026-07-07** por el motor de generación (Rondas 15–19). Ordena por el **Índice honesto**
-> (5 dimensiones × 10 = /50) los sobrevivientes de las últimas rondas del motor. Detalle de cada uno en
-> su carpeta `ronda-NN/`. Los de la ronda 1 (tabla histórica más abajo) usan otra escala (/10) y no son
-> comparables 1:1.
+> El dueño pidió mantener **DOS listas separadas**: (1) **Alto beneficio** —el ranking de escala/gran
+> beneficio— y (2) **Sustentables de beneficio moderado** —recurrentes, defendibles, de menor margen
+> pero estables—.
+>
+> **🔒 Condición DURA para AMBAS (y sobre todo para la Lista 2):** una oportunidad solo entra si es
+> **COSTO 0 REAL o BAJO COSTO** de construir **y** de operar — **sin infra cara, sin gasto de capital,
+> sin COGS relevante.** Si una idea sustentable no cumple costo-0/bajo-costo, **no entra**.
+>
+> Índice honesto = 5 dimensiones × 10 = /50. Detalle de cada uno en su carpeta `ronda-NN/`. La ronda 1
+> (tabla histórica más abajo) usa otra escala (/10), no comparable 1:1.
+
+### 📈 LISTA 1 — ALTO BENEFICIO (escala / gran beneficio · 💥 y ⚖️ success-fee · costo-0/bajo ✓)
 
 | # | Negocio | Ronda | Índice /50 | Perfil | Qué es en una línea |
 |---|---|---|---|---|---|
 | 1 | **Disputa Ganada** | 14 | 48 | ⚖️ | recuperador automático de contracargos (MP/TiendaNube), cobra sobre lo recuperado |
-| 2 | **Escriba** | 14 | 46 | 💥 | escriba médico IA argentino (HC por voz), sinergia con estetica-erp |
+| 2 | **Escriba** ⚠️ | 14 | 46 | 💥 | escriba médico IA (HC por voz). *Único con COGS no trivial (voz/STT, margen ~65%); se cobra por uso* |
 | 3 | **Débito Devuelto** | 14 | 45 | ⚖️ | refacturación automática de débitos de obras sociales a clínicas |
 | 3 | **Saldo a Favor** | 15 | 45 | 💥 | recupera retenciones indebidas de IIBB (SIRCREB/SIRCUPA), success-fee |
 | 5 | **Tasa Justa** | 15 | 44 | ⚖️ | impugna tasas municipales (TISH) sobrefacturadas con IA, success-fee |
-| 6 | **Costo al Plato** | 14 | 42 | 🌱 | food-cost automático desde la foto de la factura del proveedor |
-| 7 | **Cómputo Exprés** | 14 | 40 | 💥 | presupuesto de obra con IA y precios argentinos vivos |
-| 7 | **Pagué de Más** | 17 | 40 | 💥 | recovery audit de cuentas a pagar (pagos duplicados a proveedores), success-fee, sector privado |
-| 9 | **Subsidio Detectado** | 15 | 38 | 🌱 | matchea subsidios/ANR pyme + arma la rendición (SEO + canal consultora) |
-| 9 | **Multa Nula** | 17 | 37 | ⚖️ | impugna fotomultas mal labradas para flotas, success-fee *(GO piloto)* |
-| 11 | **Carga al Día** | 14 | 36 | ⚖️ | agente IA que atiende la operación del transportista por WhatsApp |
-| 10 | **Tarifa Justa** | 15 | 34 | ⚖️ | audita la factura de energía del comercio + reclama recategorización *(GO piloto, verif. parcial)* |
-| 10 | **Mono-Tech** | 16 | 34 | 💥 | copiloto del régimen Mono-Tech para exportadores de servicios *(GO piloto ventana, moat fino)* |
+| 6 | **Cómputo Exprés** | 14 | 40 | 💥 | presupuesto de obra con IA y precios argentinos vivos |
+| 6 | **Pagué de Más** | 17 | 40 | 💥 | recovery audit de cuentas a pagar (pagos duplicados a proveedores), success-fee, sector privado |
+| 8 | **Multa Nula** | 17 | 37 | ⚖️ | impugna fotomultas mal labradas para flotas, success-fee *(GO piloto)* |
+| 9 | **Carga al Día** ⚠️ | 14 | 36 | ⚖️ | agente IA del transportista por WhatsApp. *COGS no trivial (voz); se cobra por uso* |
+| 10 | **Tarifa Justa** | 15 | 34 | ⚖️ | audita la factura de energía del comercio + reclama recategorización *(GO piloto)* |
+| 10 | **Mono-Tech** | 16 | 34 | 💥 | copiloto del régimen Mono-Tech para exportadores de servicios *(GO piloto ventana)* |
 | 10 | **App al Día** | 19 | 34 | ⚖️ | copiloto de formalización para trabajadores de apps (Reforma Laboral 2026) *(GO piloto B2B2C)* |
 | 13 | **Prepaga Justa** | 16 | 33 | ⚖️ | audita el aumento de tu prepaga + arma el reclamo/amparo *(GO piloto, requiere estudio aliado)* |
+
+### 🌱 LISTA 2 — SUSTENTABLES DE BENEFICIO MODERADO (recurrente · defendible · bajo mantenimiento · **costo-0/bajo obligatorio ✓**)
+
+> Oportunidades de beneficio **no alto pero sustentable** que se preservan para no perderlas en el ranking
+> de escala. Todas verificadas contra la condición dura de costo: **build bajo (semanas con Claude Code) +
+> COGS ~cero o mínimo, sin infra ni capex.**
+
+| # | Negocio | Ronda | Índice /50 | Perfil | Por qué sustentable + costo | Costo build / COGS |
+|---|---|---|---|---|---|---|
+| 1 | **Costo al Plato** | 14 | 42 | 🌱 | SaaS food-cost recurrente; **switching cost** alto (es su forma de costear) → churn bajo | build 4–5 sem · COGS ~USD 3/local/mes ✓ |
+| 2 | **Subsidio Detectado** | 15 | 38 | 🌱 | SaaS match+rendición con **motor SEO pasivo** + canal consultora; ingreso estable | build 3–4 sem · COGS ~USD 1–2/cliente/mes ✓ |
+
+**Bandera de costo (regla del dueño):** todas las oportunidades de ambas listas cumplen **costo-0/bajo**
+de build y operación, con **una excepción marcada ⚠️**: **Escriba** y **Carga al Día** cargan el único
+COGS no trivial de la cartera (voz/STT, márgenes 65–70% en vez de 85–90%) — mitigado porque **se cobran
+por uso** (el COGS se traslada), pero **son las que más se acercan al límite de la condición**. El resto
+tiene **COGS ~cero** (leen un documento/dato y aplican reglas). Ninguna requiere infra cara ni capex.
 
 **Lectura del PMO (2026-07-07):** las rondas 14 y 15 convergen en un patrón muy vendible —
 **"recuperá/no pierdas plata que ya es tuya", cobro por éxito, COGS casi cero, canal contador/cámara y
