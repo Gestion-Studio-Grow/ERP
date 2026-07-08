@@ -95,6 +95,34 @@
   --shadow-sm: 0 1px 3px rgba(32, 27, 22, 0.08), 0 1px 2px rgba(32, 27, 22, 0.05);
   --shadow-md: 0 4px 14px rgba(32, 27, 22, 0.08), 0 2px 4px rgba(32, 27, 22, 0.05);
   --shadow-lg: 0 12px 32px rgba(32, 27, 22, 0.14), 0 4px 8px rgba(32, 27, 22, 0.06);
+
+  /* ————— DENSIDAD (ADR-058/059 D4) — "un design system, DOS densidades" —————
+     Token `--density` + escala `--space-*` derivada: ADITIVOS y ORTOGONALES a
+     tema/accent (no reemplazan la escala numérica de Tailwind, conviven con
+     ella). Default `:root` (sin atributo) = ENTERPRISE, denso/data-first.
+     `[data-density="lite"]` = MICRO/comerciante, espacioso. El layout aplica
+     `data-density` junto a `data-theme` (fuera de esta capa — wiring de otro
+     frente); mientras nadie lo setee, `--density` queda en 1 y no hay CAMBIO
+     VISUAL: esta capa es puramente aditiva/reversible por diseño.
+     Piso duro que NO escala con la densidad (D4): área táctil mínima 44px. */
+  --density: 1;
+  --tap-min: 2.75rem; /* 44px — piso fijo, independiente de --density */
+
+  --space-3xs: calc(0.125rem * var(--density));
+  --space-2xs: calc(0.25rem * var(--density));
+  --space-xs: calc(0.5rem * var(--density));
+  --space-sm: calc(0.75rem * var(--density));
+  --space-md: calc(1rem * var(--density));
+  --space-lg: calc(1.5rem * var(--density));
+  --space-xl: calc(2rem * var(--density));
+  --space-2xl: calc(3rem * var(--density));
+}
+
+/* Micro/comerciante: más espacioso que el default enterprise (D4). Puesta por
+   el layout junto a `data-theme`; sin ese wiring, este selector nunca matchea
+   (cero impacto). Contraste AA no depende de la densidad (se hereda del tema). */
+[data-density="lite"] {
+  --density: 1.32;
 }
 
 /* ═════════ TEMA OSCURO — Nocturne ═════════
@@ -206,6 +234,17 @@
   --shadow-card: var(--shadow-sm);
   --shadow-raised: var(--shadow-md);
   --shadow-overlay: var(--shadow-lg);
+
+  /* Escala de densidad (D4) como utilidades: p-md, gap-sm, mb-lg, etc. —
+     conviven con la escala numérica de Tailwind (p-4, gap-2…), no la pisan. */
+  --spacing-3xs: var(--space-3xs);
+  --spacing-2xs: var(--space-2xs);
+  --spacing-xs: var(--space-xs);
+  --spacing-sm: var(--space-sm);
+  --spacing-md: var(--space-md);
+  --spacing-lg: var(--space-lg);
+  --spacing-xl: var(--space-xl);
+  --spacing-2xl: var(--space-2xl);
 }
 
 body {
