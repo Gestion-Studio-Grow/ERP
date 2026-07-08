@@ -5,12 +5,17 @@
 > trae: qué es en criollo, en qué estado está, y los números clave (qué cuesta construirlo, cuánto sale
 > operarlo, a cuánto se vende, qué margen deja y cuántos clientes hacen falta para facturar).
 >
-> **Actualizado:** 2026-07-07 (motor Rondas 15–18) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
+> **Actualizado:** 2026-07-07 (motor Rondas 15–19) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
 >
 > **Ronda 18 (barrido seco):** 0 negocios nuevos — 7 espacios verificados y descartados (plan de pagos
 > ARCA, REP envases, gastos corporativos, Tax Free, repricing, CBAM, turnos salud). Mapa de saturación +
 > **recomendación de consolidar la veta de recupero** en un producto-plataforma. Detalle en
 > `ronda-18/2026-07-07-barrido-saturacion.md`.
+>
+> **Ronda 19 (veta B — cuidado/oficios/plataformas):** 1 nuevo de 7. Aprendizaje: en cuidado y oficios
+> regulados **el Estado ya digitalizó el trámite obligatorio** (ARCA Casas Particulares, libro de
+> ascensores AGC, portales de gasistas) → sin hueco. Ganó **cazar la ley recién salida**. Detalle en
+> `ronda-19/2026-07-07-nuevos-negocios.md`.
 
 ## Qué es la célula (contexto de cero)
 Un equipo de agentes de IA que funciona como una **consultora interna**: inventa negocios digitales que
@@ -201,6 +206,21 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
 - **Números (prov.):** build 4–5 sem · precio 30% de lo anulado · margen ~88% · base ~$1,9M/mes (≈ USD 1.250).
 - **Caveat:** medir tasa real de impugnaciones exitosas por jurisdicción antes de escalar. Distinto de
   "Frená a Tiempo" (r8, preventivo) — este es reactivo.
+
+---
+
+## B-quinquies. SOBREVIVIENTE DEL MOTOR — Ronda 19 (2026-07-07, veta B / ventana regulatoria)
+
+### 💡 App al Día — copiloto de formalización para trabajadores de apps (Índice 34, ⚖️, GO piloto B2B2C)
+- **Qué es (de cero):** la Reforma Laboral 2026 volvió a los repartidores/choferes de apps "prestadores
+  independientes" que **deben inscribirse en ARCA y aportar como monotributistas**. App al Día es el
+  copiloto por WhatsApp que los inscribe, les recuerda/gestiona los aportes, ordena el seguro y les arma
+  el comprobante de ingresos. Cientos de miles de trabajadores con una obligación nueva y sin herramienta.
+- **Señal:** Reforma Laboral sancionada feb-2026 + Decreto 407/2026 (Secretaría de Transporte autoridad).
+- **Modelo:** **B2B2C** — las plataformas pagan el compliance de su flota (fee por prestador/mes) +
+  afiliación (monotributo/seguro/financieros) + wedge fintech; freemium al trabajador.
+- **Números (prov.):** build 5–6 sem · margen ~80% · techo ~$30M/mes con un acuerdo B2B, base
+  solo-afiliación ~$2M/mes. **Caveat:** viabilidad depende de cerrar el B2B con una plataforma.
 
 ---
 
