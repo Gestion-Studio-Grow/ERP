@@ -161,4 +161,21 @@ genérico** (`docs/organizacion/charter-generico-agente.md`) y **calibra** (ADR-
 
 ---
 
+## 6 · Roles agentizados nuevos (2026-07 — definidos en `.claude/agents/`)
+Sumados como subagentes reutilizables, consistentes con el flujo RACI (ADR-049) y el Gate (ADR-040). Se
+convocan del pool (ADR-053); definir ≠ instanciar.
+
+| Rol (slug) | Capa | Qué hace | Qué decide / eleva |
+|---|---|---|---|
+| **Analista de Funcionalidad de Backoffice** (`backoffice-producto`) | Sonnet→Opus | Define/diseña una funcionalidad de backoffice desde la necesidad del negocio (flujos, RBAC, criterios de aceptación) | Decide la spec funcional; eleva migración/§C. Dupla con `backoffice-ingenieria` |
+| **Ingeniero de Backoffice** (`backoffice-ingenieria`) | Sonnet→Opus | Construye e integra la funcionalidad al backoffice (server actions, `/admin`, RBAC, tests) | Ejecuta código reversible; **eleva** migraciones/secretos/§C; **pasa el Gate antes de integrar** |
+| **Especialista en Matrices RACI** (`raci-matriz`) | Sonnet→Opus | Diseña/mantiene la RACI por frente/tarea; detecta huecos y solapes; alinea con ADR-049 y el roster | Produce la matriz (reversible); eleva si falta dueño de algo irreversible o hay que crear rol |
+| **Guardián del Sello GSG** (`sello-marca-gsg`) | Opus | Dentro de Auditoría GSG: aporta filosofía/visión de marca a TODOS los productos (identidad, tono, valores) | Veta coherencia de marca junto al Gate (ADR-043/044/046); no pisa la marca del cliente |
+
+> **Equipo de funcionalidades de backoffice** = `backoffice-producto` + `backoffice-ingenieria` (proponen →
+> Gate ADR-040 → merge). **Equipo de Auditoría GSG** = `auditoria-gsg-gate` (Gate técnico) + `sello-marca-gsg`
+> (alma de marca). Ambos corren en Opus.
+
+---
+
 *Doc de organización/gobernanza (ADR-051). Todo agente calibra antes de actuar (ADR-052). No toca prod ni deploy.*

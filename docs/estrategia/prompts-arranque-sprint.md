@@ -82,6 +82,8 @@ elevar todo a Opus; el Gate va SIEMPRE en Opus).
 | **Seguridad** (`seguridad`) | Audita RLS/auth/secretos/aislamiento; endurece | Ejecuta hardening reversible; **eleva** cambios estructurales/secretos | Opus |
 | **Auditoría GSG / Gate** (`auditoria-gsg-gate`) | Corre el Gate de Excelencia antes de cada merge | **Aprueba/rechaza** el merge; no cambia código | **Opus siempre** |
 | **QA / Probador** (`qa`) | Prueba como usuario real end-to-end | Reporta bugs/callejones; no decide arquitectura | Sonnet |
+| **Guardián del Sello GSG** (`sello-marca-gsg`) | Aporta filosofía/visión de marca a todo entregable; corre junto al Gate | **Veta coherencia de marca** (ADR-043/044/046); no pisa la marca del cliente | Opus |
+| **Especialista RACI** (`raci-matriz`) | Diseña/mantiene la matriz RACI por frente; detecta huecos/solapes | Produce la RACI; eleva huecos de dueño o rol nuevo | Sonnet/Opus |
 
 ### 3.b Ejecución / células (se prestan del pool, ADR-053)
 | Agente | Qué hace | Qué decide / eleva | Capa |
@@ -93,6 +95,8 @@ elevar todo a Opus; el Gate va SIEMPRE en Opus).
 | **Operaciones** (`operaciones`) | Puesta en marcha end-to-end, runbooks, soporte | Ejecuta operación reversible; **eleva** acciones con datos reales | Sonnet |
 | **Plataforma/Deploy/Infra** (`plataforma-deploy`) | RLS/tenancy, performance, observabilidad, tren de deploy | Prepara todo; **ELEVA deploy/secrets/migraciones** (§C, Gate 1/2) | Sonnet→Opus (seg) |
 | **Preset IA** (`preset-ia`) | Ingesta de marca/artefacto + adaptación → preset | Genera; **exige autorización del cliente + Gate** antes de mostrar | Opus |
+| **Analista de Backoffice** (`backoffice-producto`) | Define/diseña una funcionalidad de backoffice desde la necesidad del negocio | Decide la spec; eleva migración/§C. Dupla con `backoffice-ingenieria` | Sonnet→Opus |
+| **Ingeniero de Backoffice** (`backoffice-ingenieria`) | Construye e integra la funcionalidad al backoffice | Ejecuta reversible; **eleva** migraciones/§C; **Gate antes de integrar** | Sonnet→Opus |
 
 **Agencia Grow (negocios propios):** Panel del Dueño (BI single-tenant) · Gestión de cartera propia
 (conduce los negocios) · Pricing & Packaging (tiers/márgenes, Opus por plata). Se definen en el roster y se
