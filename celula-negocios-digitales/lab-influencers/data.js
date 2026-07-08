@@ -226,7 +226,21 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Pivote de posicionamiento clave, disparado por la evidencia: se movió el núcleo de valor de 'emitir Factura C' (commodity que ARCA regala y Facturitas ya vende a ARS$4.999) a la capa que nadie cubre — valorización automática de canjes a precio de mercado + semáforo de conveniencia. El título y el copy de dolor/desc/sol se reescribieron para vender inteligencia fiscal, no emisión. Re-calibración de scores: imp 6→7 (deadline fiscal 2026 con cruce de datos + necesidad no cubierta), esf 4→5 (el motor de valorización a FMV + doble semáforo suma trabajo real sobre las 2 piezas originales), conf 7 mantenida (la evidencia valida ESTE ángulo como uno de los dos únicos, pero el techo de precio US$4-9/mes contra el piso gratis impide subirla). Se aclaró que el semáforo de techo, solo, también está herido (Monitor oficial de ARCA gratis) → el diferenciador defendible es canjes+conveniencia. Precio sugerido US$9/mes (premium sobre facturador por la capa de inteligencia) y modelo revenue-share con contadores confirmado como canal."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza el trackeo del techo y la valorización de canjes sobre el Plugin ARCA existente, pero la capa de inteligencia fiscal (FMV + doble semáforo) es un net-new defendible y vendible como add-on.",
+        "palancas": [
+          "ARCA",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Cuando una marca te paga con productos o regalos en vez de plata (un canje), la AFIP igual te obliga a facturar eso como si fuera venta. Esta herramienta te pone el precio justo a lo que recibiste, lo suma a tu total del año y te avisa con un semáforo si estás por pasarte del tope del monotributo o si el canje ni siquiera te conviene aceptarlo.",
+      "comoGana": "GSG cobra una suscripción mensual al creador por tener el control fiscal al día y no comerse una multa ni caerse del monotributo."
     },
     {
       "id": "r1-eb77424c",
@@ -426,7 +440,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Confianza 6→7 (Deelo prueba el modelo exacto del lado del creador y ambos análisis nombran Acuerdo Flash como el de mejor encaje del set). Impacto 5→6 por ser hueco net-new + urgencia fiscal ARCA/canje, con techo por el caveat de payer. Esfuerzo se mantiene en 3 (reusa core completo). Se agregó el contraste de costo humano (~US$5.700 vs US$0 de dev con IA). Pricing corroborado y bajado a ~US$9/mes equivalente en pesos, apuntando a mid-tier y community managers/mini-agencias (NO la masa nano/micro que trabaja por canje). Se movió Mercado Pago + factura ARCA/canje a v2 explícita y se sumó el disclaimer 'no notarial' como gate. Veredicto: validado."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Genera un entregable nuevo (el acuerdo/contrato flash confirmable) que antes no existía; el parser IA y la página pública crean un SKU vendible, no solo automatizan una tarea previa.",
+        "palancas": [
+          "WhatsApp",
+          "Contratos",
+          "Storefront",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "por-uso",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "Cerrás un trato o un canje con una marca por WhatsApp y queda todo de palabra, sin nada escrito. Esto agarra ese chat, arma un acuerdo simple con lo que quedaron (qué entregás, cuándo y cuánto cobrás), y la marca lo confirma con un clic; después te manda solo el recordatorio para cobrar.",
+      "comoGana": "Se cobra una mensualidad o un cargo por acuerdo cerrado, porque le da respaldo al creador y le asegura que le paguen."
     },
     {
       "id": "r1-314dbff8",
@@ -606,7 +636,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 7→8 (dolor ahora cuantificado: 65% cobra +30 días, US$6k adeudados, 102h/año) y conf 7→8 (mercado validado dos veces justo en el eje de este producto: factura ARCA + cobranza WhatsApp con marca, sin competidor integrado en AR); dejé esf en 4 (sigue siendo blueprint + plantilla + capa de color sobre módulos ya construidos). Reforcé el copy con el matiz duro que exige el mercado: montarse ENCIMA de MP, no competir por su comisión. Agregué costoDevHumano (US$4.180, 110h × US$38/h) como contraste vs US$0 de dev con IA. Fijé precio en US$12/mes por creador (dentro de la ventana US$8-20 y por debajo de HoneyBook), margen 83%, 417 clientes para US$5k/mes, payback ~1 mes. Escribí 7 pasos demo→producción con sus gates (blueprint, semáforo accesible, plantilla WhatsApp, preset IA con autorización, demo costo cero, venta→activación con Gate 1/2 del dueño, live+monitoreo)."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Reusa íntegramente clientes, cobros parcial/total, recordatorios, MP y ARCA; solo agrega blueprint + plantilla + capa de color. Automatiza el seguimiento de deuda sobre lo ya existente, sin SKU nuevo.",
+        "palancas": [
+          "CRM",
+          "MercadoPago",
+          "WhatsApp",
+          "ARCA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Si laburás con varias marcas a la vez, es fácil perder la cuenta de quién te pagó, quién te debe y a quién tenés que apurar. Esto te muestra en una pantalla clara quién te debe qué, y con un botón le mandás el recordatorio por WhatsApp ya con el link para que te pague y el comprobante si hace falta.",
+      "comoGana": "Suscripción mensual del creador, que a cambio cobra más rápido y no se olvida de reclamar plata que ya le deben."
     },
     {
       "id": "r1-36cba9d1",
@@ -813,7 +859,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afiné el lápiz sobre tres ejes. (1) PIVOTE DE MONETIZACIÓN — el hallazgo central de ambos mercados es que el media kit está regalado (Canva/Beacons free), así que corregí el modelo: el media kit vivo pasa a ser GANCHO GRATIS y el negocio se mueve al cobro argentinizado (comisión ~5% sobre la seña por MP + plan opcional US$9/mes 0% comisión), atado al ingreso del creador y no a una cuota fija en USD — que es justo el hueco que ni Beacons ni Stan ni Linktree cubren en la región. (2) SCORES — subí conf 6→7 (formato validado, 87% de marcas exige media kit, tendencia clara al 'vivo') e imp 6→7 (mercado grande y en crecimiento, Argentina lidera en nano), y subí esf 3→4 para reflejar el wiring real del cobro MP+ARCA+WhatsApp por encima del solo blueprint. Veredicto: validado (era 'validado con herida'), condicionado al pivote. (3) ALCANCE Y COSTO — reconocí que el MVP verdadero incluye la capa de cobro, no solo el media kit: costoDevHumano ~US$7.000 (200h) vs US$0 de dev con IA + ~US$15/mes infra. Reforcé el gsg (ahora reusa 5 piezas, sumando POS/MP y ARCA) y sumé los pasos de wiring de cobro y activación post-venta con sus gates de MP/ARCA sandbox."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Crea un objeto vendible nuevo (el media kit vivo / Stan Store del creador con paquetes de contenido y cobro), un blueprint monetizable que no existía antes.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "PresetsIA",
+          "CRM",
+          "ARCA"
+        ],
+        "modeloNegocio": "funnel-gratuito",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "En vez del típico PDF de Canva viejo y desactualizado, tenés una página web tuya siempre al día con tus números, tus precios y tus trabajos, que le mandás a la marca cuando te lo pide. Y ahí mismo la marca te puede pagar la seña por Mercado Pago.",
+      "comoGana": "La página gratis es el gancho; se cobra la versión paga que suma cobrar la seña ahí mismo y ver quién la abrió."
     },
     {
       "id": "r1-6cd5607b",
@@ -1033,7 +1096,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf 7→8 e imp 6→7: la evidencia sostiene dolor real, pagadores de hábito y una tendencia (no-login + WhatsApp + audit trail) que va exactamente hacia donde apunta la propuesta. esf queda en 4 (reuso pesado del motor de agenda + recordatorios WhatsApp + storefront). El giro clave respecto de la versión anterior: se re-encuadra de SaaS pago suelto a MÓDULO del ERP, porque la disposición a pagar standalone del CM argentino es baja (gratis + recargo dólar) y a US$15 harían falta ~333 clientes para US$5k/mes. Afiné el copy para poner al frente los dos diferenciales que ningún global cubre entero —WhatsApp-first y comprobante con validez de reclamo en criollo/pesos— y descarté el framing genérico 'link único sin login' por estar en terreno rojo/saturado. Agregué costo-contraste humano (~US$13.300, 380 h) vs IA (~US$0 dev + US$25/mes infra) y pasos demo→prod con gates alineados al ciclo DEMO→VENTA→INVERSIÓN."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza la persecución de aprobaciones sobre el motor de agenda existente, y a la vez arma un producto nuevo (portal de aprobación con trazabilidad y comprobante) vendible por la Agencia Digital.",
+        "palancas": [
+          "Agenda",
+          "WhatsApp",
+          "Storefront",
+          "CRM"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Si manejás redes de varias cuentas, te la pasás persiguiendo aprobaciones de posteos por WhatsApp y mail, sin registro de quién dijo que sí. Esto te da un link único que el cliente abre sin contraseña, aprueba o rechaza cada pieza, y queda anotado quién aprobó y cuándo, así nadie te dice después 'esto yo no lo aprobé'.",
+      "comoGana": "Suscripción mensual del community manager, que se ahorra horas persiguiendo y queda cubierto ante reclamos."
     },
     {
       "id": "r1-e3883d31",
@@ -1237,7 +1316,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afiné el lápiz en 5 frentes: (1) REPOSICIONAMIENTO — pasó de 'reporte mensual automático' (herido/commodity: Metricool/Porter/Reportei ya lo dan barato con IA incluida) a la cuña net-new 'el informe que se manda solo por WhatsApp y cobra el fee en el mismo link'; el reporte es el caballo de Troya, no el producto. (2) NUEVO PASO CORE — agregué el embed del link de cobro de Mercado Pago como componente diferencial (paso 4), que es lo que ningún incumbente une. (3) PRICING corregido a add-on de US$12/mes (ventana de mercado US$5-15), NO standalone, con margen 88% y payback <1 mes. (4) CONTRASTE humano nuevo: US$3.800 con devs humanos (100 hs x US$38) vs ~US$0 dev + US$20/mes infra (~16x). (5) SCORES recalibrados y anclados en evidencia: imp=6 (captura incremental modesta), conf=7 (el mercado sostiene la cuña con hueco citado, pero advierte comoditización del reporte a secas), esf=4 (reutiliza dashboards + branding + WhatsApp + MP, solo template + ABM campos + embed + copy IA son nuevos)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza la generación del reporte mensual (cron + IA) que hoy se hace a mano, y a la vez el informe branded con cobro embebido es el entregable/producto que sostiene el retainer.",
+        "palancas": [
+          "Reportes",
+          "Storefront",
+          "WhatsApp",
+          "MercadoPago",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "El reporte de fin de mes es lo que decide si el cliente te sigue pagando, pero armarlo a mano te come horas la noche anterior. Esto lo arma solo con tus números, lo escribe en criollo, te lo manda por WhatsApp y en el mismo mensaje va el link para que el cliente te pague el mes.",
+      "comoGana": "Suscripción del community manager, que asegura la renovación mensual y cobra el fee en el mismo envío."
     },
     {
       "id": "r1-b56139f5",
@@ -1464,7 +1560,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Reorientación fina al nicho defendible: de 'agenda con seña genérica' (segmento saturado, gratis-AR$17k) a 'creador freelance individual con seña + SALDO AUTOMÁTICO CONTRA ENTREGA + cobro en pesos por MP + WhatsApp-first', hueco que solo roza Booksolut (y solo en foto). Subí imp 7→8 (ROI anti-no-show cuantificado, dolor de alto ticket) y conf 7→8 (mercado monetizado y en alza, willingness-to-pay probada); bajé esf 4→3 (reuso confirmado de agenda+MP+WhatsApp, delta = config de tenant). Agregué modelo de cobro híbrido (cuota baja en pesos ~US$12/mes O 5% sobre la seña) para no chocar de frente con los USD de AgendaPro/Booksy. Sumé el paso 'saldo contra entrega' al flujo y precisé el gate bloqueante del preset por IA. Nota de riesgo dura: márgenes chicos y alta sensibilidad al precio → defensa por verticalización y UX, no por precio."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Es un blueprint nuevo 'Asesoría/Mentoría' con storefront de booking de una página: un SKU vendible para un segmento nuevo (freelance 1:1), más que automatizar una tarea existente.",
+        "palancas": [
+          "Agenda",
+          "MercadoPago",
+          "WhatsApp",
+          "Storefront"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Si vendés asesorías o sesiones uno a uno (edición, estrategia, coaching), coordinás todo a mano por WhatsApp y perdés plata cuando alguien reserva y no aparece. Esto te da una página simple donde la gente ve tus horarios, reserva y te deja pagada una seña por Mercado Pago, así el que falta ya te dejó algo.",
+      "comoGana": "Suscripción del freelance, que baja los plantones y cobra la seña automática de cada turno."
     },
     {
       "id": "r1-cb871644",
@@ -1671,7 +1783,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afiné el lápiz con la evidencia: (1) recalibré scores — imp 6→7 (mercado grande y en alza, demanda AR +30%/año con oferta rezagada; apalanca infra existente y abre value-ladder), conf se mantiene en 7 (validado pero el core 'cobro+entrega' ya lo tomaron Pulgy/DropyFile, así que solo se sostiene por el combo net-new), esf se mantiene en 3 (reuso casi total; ARCA y WhatsApp quedan fuera del MVP mínimo). (2) Reposicioné el título y el copy: el foso ya NO es 'cobro+entrega' (comoditizado) sino WhatsApp-first + marca propia + ARCA + ERP. (3) Reemplacé las horas/costo genéricos por costoDevHumano real (110 h × US$35 = US$3.850 sobre el ERP existente) vs costoConIA (dev US$0 + ~US$25/mes infra) → ahorro ~13×. (4) Agregué 6 pasos demo→producción con gates (schema/Gate 2, seguridad del link firmado, idempotencia del webhook, demo costo cero con Gate GSG, WhatsApp, venta→inversión). (5) Métricas del dueño corroboradas con mercado: US$19/mes por creador con 0% de comisión sobre la venta (contra Gumroad 10% / Hotmart / FilterGrade 30%), margen ~92%, 264 clientes para US$5k/mes, payback <1 mes."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Introduce un tipo de producto nuevo (digital, sin stock) con entrega automática por link firmado: habilita un SKU vendible que el catálogo físico no cubría.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Vendés presets, plantillas o recursos digitales por mensaje privado y tenés que estar despierto para mandar el archivo a mano, perdiendo ventas de madrugada. Esto lo hace solo: la persona paga por Mercado Pago y al toque le llega el archivo por mail y WhatsApp, sin que muevas un dedo.",
+      "comoGana": "El creador vende sus archivos 24 horas sin estar presente; GSG cobra suscripción o una comisión chica por la tienda."
     },
     {
       "id": "r1-c54de215",
@@ -1871,7 +1998,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Bajé la confianza de 7→6 y marqué el veredicto como HERIDO porque la evidencia señala este ángulo como el más flojo del set (mejor encaje solo en CM/agencias). Retargeteé el ICP del \"influencer freelance\" genérico al community manager / mini-agencia que gestiona cartera (el que sí paga). Sumé el gancho fiscal ARCA/canje como urgencia 2026. Reposicioné de producto suelto a add-on/vista del bundle CRM argentinizado. Precio ahora en pesos y bajo (~US$12-15, debajo de Deelo). Agregué pasos demo→producción con gates, costeo dev humano vs IA y métricas del dueño (payback casi inmediato porque el dev es US$0 y no suma infra)."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "100% sobre entidades existentes (clientes, transacciones, recordatorios); solo agrega un campo de estado y una regla de disparo por antigüedad. Automatiza el seguimiento de renovaciones, sin SKU nuevo.",
+        "palancas": [
+          "CRM",
+          "WhatsApp",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Las marcas que ya te contrataron una vez son las más fáciles de volver a venderles, pero se te pierden en chats viejos que nadie relee. Esto te lleva la cuenta de con quién laburaste, cuánto y cuándo, y te avisa cuándo es buen momento para volver a ofrecerle algo, con el mensaje ya escrito.",
+      "comoGana": "Suscripción del creador, que recupera trabajos con marcas conocidas en vez de dejarlos enfriar."
     },
     {
       "id": "r1-c435c328",
@@ -2063,7 +2205,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 6→8 y conf 6→8 con la evidencia de doble validación (mercado grande y creciente, dolor de mora cuantificado, disposición a pagar comprobada por el alza de HoneyBook); esf se mantiene en 3 (todo reusa el core, la única pieza nueva es la plantilla de invoice + el job de WhatsApp). Reposicioné el título y el copy sobre la tesis dura del mercado: NO competir por la comisión del link (MP/Ualá ya en 1,4–1,9%), ganar por el BUNDLE integrado (seña + factura ARCA auto + cobranza WhatsApp + marca personal) monetizado como SaaS mensual montado ENCIMA de MP. Fijé precio US$15/mes corroborado (bajo HoneyBook, sobre solo-factura), margen 80%, 334 clientes para US$5k/mes, payback <1 mes. Agregué el contraste de costo: MVP humano ~US$8.050 (230 h × US$35) vs ~US$0 dev con IA + US$40/mes infra. Detallé 7 pasos demo→producción anclados al ciclo DEMO→VENTA→INVERSIÓN y a los Gates GSG (autorización de marca, Gate de Excelencia en Opus, Gate 2 Neon)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza el cobro en dos tramos + factura + persecución sobre el core de cobros, pero se empaqueta como blueprint liviano con invoice brandeada, un combo vendible al creador.",
+        "palancas": [
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "Storefront",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Cobrás las publicidades por transferencia o efectivo suelto, sin comprobante, sin forma de exigir la seña y sin nada que mostrarle a la AFIP a fin de año. Esto te arma un link de cobro con tu marca, hace la factura sola, cobra en dos partes (seña y saldo) y te persigue el saldo por WhatsApp si la marca se hace la distraída.",
+      "comoGana": "Suscripción del creador, que cobra prolijo, en blanco y sin perder saldos; se monta encima de Mercado Pago sin competirle."
     },
     {
       "id": "r1-683e69ab",
@@ -2255,7 +2414,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf 6→7 e imp 6→7: la categoría queda probada por un competidor de match casi exacto (Deelo) y el viento fiscal ARCA/canje agrega urgencia; esf se mantiene en 4 (reutiliza el core). Afiné el foco de payer: el copy ahora apunta explícito a mid-tier y CM/mini-agencias (no a la masa nano/micro que va por canje), y sumé el registro de CANJES ARCA-aware como objeto de primera clase (era solo mención). Precio recalibrado a ~US$12/mes en ARS con freemium + tier Agencia por cartera (antes sin pricing corroborado), alineado al ancla Deelo US$19 pero ajustado por barrera cambiaria. Agregué costoDevHumano (~US$5.600, 160h) como titular de contraste y metricasDueno con margen 83% y ~420 clientes para US$5k/mes. Pasos de producción reescritos con el ciclo DEMO→VENTA→INVERSIÓN y sus gates (Gate GSG, demo costo cero, Gate 1 deploy, Gate 2 migrate)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Reusa ~100% del core CRM/recordatorios/MP para automatizar el pipeline de brand deals, y suma un net-new (registro y facturación de canjes vía ARCA) que lo vuelve producto diferenciable.",
+        "palancas": [
+          "CRM",
+          "WhatsApp",
+          "MercadoPago",
+          "ARCA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Negociás con marcas por chat y no sabés cuánto te deben, se te vencen las entregas y encima cobrás en pesos viejos cuando el dólar ya se movió. Esto ordena todas tus marcas en un tablero simple (a quién le hablás, quién te debe, qué entrega vence), te avisa cuándo actualizar precios y marca solo cuando entra un pago.",
+      "comoGana": "Suscripción del creador, que deja de perder plata por desorden, entregas vencidas y precios atrasados."
     },
     {
       "id": "r1-b4505957",
@@ -2455,7 +2630,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Reposicioné la propuesta según la evidencia: dejó de ser \"vender un media kit\" (comoditizado y regalado por Canva/Beacons/Kitlify → HERIDO como producto pago) para ser \"el media kit vivo es el GANCHO GRATIS y se monetiza el COBRO argentinizado\" (seña por Mercado Pago + factura C/ARCA + lead WhatsApp), que es el hueco real que ningún global cubre en LATAM. Marqué veredicto = herido (validado solo con el pivote). Ajusté scores: imp 6→7 (pasa a ser la puerta de entrada al \\\"Stan Store argentinizado\\\", con más valor estratégico), conf 7→6 (confianza intacta en el formato pero herida en el modelo de cobro tal como estaba escrito), esf 3→4 (el media kit reutiliza todo, pero enchufar la capa de seña/booking + ARCA es net-new y suma esfuerzo). Corregí el modelo de cobro: NO suscripción en USD de entrada, sino gratis + comisión ~4% sobre la seña o plan Pro US$12/mes (corroborado entre Beacons US$10 y Linktree US$15). Estimé costo con devs humanos ~US$6.300 (180h × US$35) vs US$0 de desarrollo con IA + ~US$8/mes de infra. Detallé 7 pasos demo→producción atados al ciclo DEMO→VENTA→INVERSIÓN con sus gates (autorización, Gate GSG en Opus, venta como disparador de inversión, Gate 1 deploy y Gate 2 Neon)."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "El media kit vivo generado por IA es un entregable nuevo (rate card/portfolio) que sirve de gancho gratis; es un SKU/funnel, no la automatización de una tarea previa del ERP.",
+        "palancas": [
+          "PresetsIA",
+          "Storefront",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "funnel-gratuito",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Cuando una marca te pide el media kit, andás manoteando un Canva viejo o mandando capturas sueltas, y eso te resta seriedad justo cuando estás cerrando precio. Esto arma tu carta de presentación en minutos: le das tu Instagram y el sistema saca tu estilo, tu nicho y tus mejores posteos y te deja la página lista.",
+      "comoGana": "Es el gancho gratis que engancha al creador; después se le vende la versión paga con cobro y seguimiento."
     },
     {
       "id": "r1-e433359d",
@@ -2674,7 +2864,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afinado con la evidencia: (1) imp 6→7 y conf 6→7 porque el mercado sostiene el dolor y el gap local (WhatsApp + comprobante + criollo + ARS) es genuino y no ocupado; esf se mantiene en 4 (reusa 3 piezas ya probadas). (2) Veredicto = validado PERO con pivote estratégico explícito: se monetiza como ADD-ON del ERP, no como SaaS pago suelto — la evidencia muestra disposición a pagar standalone baja en Argentina (compite contra el gratis + recargo dólar-tarjeta). (3) Título y desc reescritos para clavar el diferencial (WhatsApp-first + comprobante con validez de reclamo + criollo). (4) El comprobante se enmarca como 'prueba presentable ante disputa' para la pyme, no como compliance enterprise. (5) Se agregó paso de validación con CMs reales con gate go/no-go standalone-vs-feature antes de gastar en WhatsApp API. (6) Precio sugerido bajado a US$17/workspace del CM (corroborado contra el nicho no-login/WhatsApp US$15-40 y contra la sensibilidad al dólar local), con la advertencia honesta de que 294 clientes para US$5k/mes es la razón dura para bundlearlo al ERP."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza la persecución de aprobaciones sobre agenda/probador existentes, y crea un producto nuevo: el comprobante probatorio con validez de reclamo (auditoría + PDF), vendible por Agencia Digital.",
+        "palancas": [
+          "Agenda",
+          "WhatsApp",
+          "Storefront",
+          "Contratos"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Manejás muchas cuentas y perdés horas persiguiendo el 'sí' del cliente por WhatsApp, y cuando después reclama que no aprobó algo, no tenés con qué defenderte. Esto le da un link sin contraseña para aprobar cada pieza, y guarda cuándo y quién dijo que sí, con un comprobante que podés bajar para cobrar el retrabajo si te lo discuten.",
+      "comoGana": "Suscripción del community manager, que ahorra horas de persecución y queda respaldado ante cualquier reclamo."
     },
     {
       "id": "r1-59635fa2",
@@ -2877,7 +3083,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afiné el lápiz en 5 frentes: (1) REPOSICIONAMIENTO — dejé de venderlo como 'reporte mensual' (comoditizado: Metricool que ya pagan, Porter US$12,50, AI summaries estándar desde 2025) y lo giré a 'el informe que se manda solo por WhatsApp y cobra el fee en el mismo link', que es el único combo net-new (WhatsApp nativo + marca del cliente + MP + argentinizado); el reporte pasa a ser caballo de Troya. (2) SCORES — subí imp 6→7 (dolor de tiempo real 3-6 hs/cliente + retención del fee), bajé conf 7→6 (el mercado hiere el standalone), dejé esf en 6 con el App Review de Meta marcado como el gate de cronograma. (3) VEREDICTO 'herido': validado solo como cuña, no como herramienta suelta. (4) COSTOS — agregué el contraste US$5.250 con devs humanos (150 hs × US$35/h) vs US$0 de dev con IA + ~US$25/mes de infra. (5) PRECIO — US$12/mes por CM (alineado a Porter, por debajo de Metricool), margen 87%, 417 CMs para US$5k/mes, payback ~1 mes. Detallé 6 pasos demo→prod con gate cada uno, incluido el gate de App Review de Meta antes de escalar a cuentas nuevas."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza el informe mensual manual del CM (3-6hs no facturables) sobre infra existente, pero el conector nuevo a Meta Graph API y el reporte branded con cobro embebido lo convierten en un entregable vendible/renovable, no solo un ahorro de tarea.",
+        "palancas": [
+          "Reportes",
+          "WhatsApp",
+          "MercadoPago",
+          "Storefront"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Un informe lindo de una sola página que el community manager le manda al cliente por WhatsApp cada fin de mes, con la marca del CM y todo automático, sin pasarse horas armándolo a mano. En el mismo mensaje va el botón para que el cliente pague la mensualidad.",
+      "comoGana": "El CM le cobra a cada cliente el abono mensual, y esta herramienta le ahorra las 3 a 6 horas por cliente que hoy pierde armando el reporte gratis."
     },
     {
       "id": "r1-ef49fe09",
@@ -3100,7 +3322,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afinado con la evidencia: (1) se reorientó el título/copy del genérico al nicho defendible — freelance creativo individual — y se INCORPORÓ el diferencial que el mercado valida y casi nadie automatiza: seña por MP al reservar + saldo automático contra entrega (el hueco net-new real; localmente solo Booksolut, y solo en foto). (2) Scores re-calibrados: imp 6→7 (dolor de alto ticket $30-100k + ROI anti-no-show cuantificado) y conf 6→7 (doble validación de mercado + reuso del motor MP/Agenda ya en prod); esf se mantiene en 3 (sigue siendo blueprint + estado + hook sobre integración existente). (3) Se agregó el paso de seña/saldo y su gate de sandbox MP a producción. (4) Precio bajado y anclado al sweet spot en pesos (US$12/mes o 5% por comisión), NO cuota alta en dólares, para esquivar la herida de la sensibilidad al precio. Veredicto: validado."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint nuevo 'Creativo Freelance' generado por Preset IA: es un SKU/vertical vendible que reencuadra el motor de Agenda existente para un segmento nuevo, con seña MP y estado 'entregado'. No ahorra una tarea puntual, empaqueta una oferta.",
+        "palancas": [
+          "Agenda",
+          "MercadoPago",
+          "WhatsApp",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "baja"
+      },
+      "criollo": "Una agenda para el freelance creativo (fotógrafo, editor, diseñador) donde el cliente reserva el turno o el trabajo y deja una seña pagada por Mercado Pago; el resto lo paga cuando le entregás. La misma agenda te avisa qué tenés que entregar y cuándo, así no se te pisan las fechas ni te faltan a la cita.",
+      "comoGana": "Cobrando la seña por adelantado se corta el ausentismo del 20-30% y se asegura la plata antes de laburar."
     },
     {
       "id": "r1-396293e4",
@@ -3299,7 +3537,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 6→7: es una feature P1 (vende) que convierte la compra impulsiva 24/7 y es marginal sobre infra ya paga. Mantuve conf en 7 pero re-anclada con evidencia: el MVP 'cobro+entrega' a secas queda HERIDO frente a Pulgy/DropyFile (que ni cobran %); se sostiene únicamente apalancado en el combo net-new que ninguno integra —entrega por WhatsApp + storefront de marca + factura ARCA + value-ladder dentro del ERP—, y por eso reescribí título/desc/sol/gsg para clavar ese posicionamiento en vez de 'otro Pulgy'. esf sin cambio en 4 para el MVP core (tipo digital + disparo post-pago), con ARCA y value-ladder marcados explícitamente como pasos de roadmap post-MVP. Agregué 6 pasos demo→producción con gate cada uno (incluidos Gate 1/Gate 2 y demo a costo cero), el costeo vs devs humanos (~US$5.250, ~350× de ahorro de arranque) y las métricas de dueño (US$25/mes sin cobrar %, 200 clientes para US$5k/mes, margen ~94%, primer peso ~3 semanas, payback ~1 mes)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "El tipo de producto 'digital' en Catálogo/POS es una capacidad vendible nueva (canal de venta 24/7), y a la vez automatiza la entrega manual post-pago (link con token por WhatsApp). Es SKU nuevo + automatización de la tarea de entregar.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "WhatsApp",
+          "ARCA"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "baja"
+      },
+      "criollo": "Una tienda para el fotógrafo o editor que vende cosas digitales (presets, plantillas, filtros): el cliente paga en pesos por Mercado Pago y al toque le llega el archivo solo por WhatsApp o mail, sin que vos tengas que estar despierto mandándolo a mano.",
+      "comoGana": "Vende el mismo producto digital una y otra vez sin trabajo extra, aprovechando la compra por impulso que hoy se pierde entre el ‘pasame el comprobante’ y el envío manual."
     },
     {
       "id": "r1-5977eaff",
@@ -3487,7 +3741,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf 7→8 e imp 7→8: la doble evidencia (AR + global) sostiene mercado grande, en crecimiento y con dolor caro y medido, y disposición a pagar probada (HoneyBook +89,5% y sigue vendiendo). Subí esf 4→5: la cuña defendible NO es el link+aviso (commodity), sino sumar el motor de cobranza/recordatorios WhatsApp + cuenta corriente 'quién me debe qué' — net-new real más allá del recorte del storefront. Fijé el modelo de cobro como SaaS mensual ~US$12/mes montado sobre MP, NUNCA comisión (no se le gana a MP/Ualá 1,4–1,9%). Agregué al alcance la persecución de deuda y la cuenta corriente por ser el hueco sin dueño. Reescribí desc/sol/gsg para reflejar la cobranza WhatsApp-first y el 'sobre MP, no contra MP'. Dejé anotado el riesgo transversal: MP podría integrar factura nativa y erosionar la cuña."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'freelancer/solo' = perfil de cobro con marca (link-in-bio + ARCA + cobranza), un producto vendible nuevo para un segmento no cubierto. Tiene automatización de cobranza, pero el core es un SKU/blueprint net-new (dev acotado pero mayor).",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Un link de cobro con tu marca para el freelance de contenido: el cliente paga ahí, le sale la factura de la AFIP automática, y si se atrasa el sistema le manda el recordatorio por WhatsApp. Además ves clarito cuánto facturaste en el mes y cuánto tenés que declarar.",
+      "comoGana": "Cobra más prolijo y más rápido, y persigue solo a los que se atrasan para que no se le pierda ninguna cobranza."
     },
     {
       "id": "r1-f416e803",
@@ -3691,7 +3962,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf 6→7 e imp 6→7: la evidencia sostiene con fuerza la dirección (87% de marcas exige media kit, +34% de cierre con analítica viva, Argentina 82% nano, social commerce +30%/año) y el reuso de infra es del 100%; la única herida (comoditización del armador) ya la esquiva la propia 'sol' al monetizar el cobro, no el media kit. Mantuve esf en 3 (reconfiguración, sin backend nuevo). Reescribí el modelo de cobro: de suscripción implícita a FREEMIUM con fee 4% sobre la seña (o plan US$10/mes que baja el fee a 0%) — el mercado es claro en que el creador LATAM es 'poor in cash' y solo paga cuando la herramienta cobra por él. Agregué el media kit vivo como gancho GRATIS explícito (coherente con demo a costo cero). Detallé 7 pasos demo→producción con gates atados a las reglas duras del proyecto (autorización, Gate de Excelencia en Opus, DEMO→VENTA→INVERSIÓN, Gate 1/Gate 2, credenciales por el dueño, ARCA sandbox). Cuantifiqué el contraste humano (~US$7.700 / 220h) vs IA (US$0 dev + ~US$10/mes infra) y las métricas del dueño (margen 85%, ~500 clientes pagos para US$5k/mes, payback ~1 mes, primer peso ~3 semanas)."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'Creador' argentinizado (media kit vivo + rate card + seña MP) sobre storefront: es un producto/vertical vendible nuevo, mismo flujo de alta que Break Point/Magra aplicado a persona física. Empaqueta oferta, no automatiza una tarea preexistente.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "Agenda",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "baja"
+      },
+      "criollo": "Una carta de presentación online (media kit) del creador que se mantiene siempre actualizada, con sus precios a la vista, para mostrarle a las marcas. La marca elige el formato, reserva la fecha y deja la seña por Mercado Pago sin tener que chatear ida y vuelta.",
+      "comoGana": "El creador cierra colaboraciones más rápido y cobra la seña en el momento, sin perder tiempo respondiendo la misma cotización por privado una y otra vez."
     },
     {
       "id": "r1-4d9c7d42",
@@ -3894,7 +4181,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf de 6 a 7 e imp de 6 a 7 porque la evidencia sostiene tanto el dolor (disputas \"yo no aprobé eso\", 2-3 rondas por pieza) como el gap defendible; esf queda en 3 porque el MVP reusa motor + token. Reencuadré el veredicto: validado COMO FEATURE del ERP (no SaaS standalone — ahí la disposición a pagar del CM argentino es baja frente al gratis y al recargo dólar-tarjeta). Afiné el título y el sol/gsg para poner el \"comprobante con validez de reclamo\" como estrella (es el net-new que el mercado no empaqueta) y bajé la promesa de WhatsApp-nativo in-chat a v2 (el MVP manda link por WhatsApp, la aprobación in-chat exige WhatsApp Business API). Precio recalibrado a add-on US$15/mes en ARS, no plan suelto tipo Planable."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza el flujo caótico de aprobación de contenido por WhatsApp (link + comprobante con validez de reclamo), y a la vez es un blueprint nuevo 'agencia-contenido' vendible que remapea el motor de agenda. Ahorro de tarea + SKU nuevo.",
+        "palancas": [
+          "Agenda",
+          "WhatsApp",
+          "CRM",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "baja"
+      },
+      "criollo": "Para el community manager que maneja varias marcas: le manda al cliente la pieza por WhatsApp y el cliente la aprueba con un toque, sin contraseñas ni vueltas. Y queda registrado quién aprobó qué y cuándo, así nadie después dice ‘yo nunca dije que sí’.",
+      "comoGana": "Le ahorra al CM el ida y vuelta eterno para aprobar contenido y lo cubre ante reclamos, protegiendo el abono que le paga el cliente."
     },
     {
       "id": "r1-3e2a580c",
@@ -4074,7 +4377,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Se afinó el posicionamiento del titular: de \\\"generador de reporte mensual\\\" a \\\"el informe que se manda solo por WhatsApp y cobra el fee en el mismo link\\\", incorporando explícitamente el link de cobro de Mercado Pago como diferencial central (antes estaba implícito) -es el combo net-new que la evidencia confirma que nadie tiene. Se subió imp 6->7 (el entregable define la renovación + ahora dispara el cobro), se mantuvo conf en 7 (el mercado sostiene la cuña pero castiga el standalone, riesgo de comoditización real) y esf en 4 (reutiliza branding + WhatsApp + IA + MP ya construidos). Se agregó el costeo dev-humano vs IA (US$6.300 vs US$0 dev + US$30/mes infra) y las métricas de dueño: precio US$19/mes corroborado por debajo de Metricool, 95% de margen, 264 clientes para US$5k/mes, payback ~1 mes. Se detallaron 7 pasos demo->producción con gates DEMO->VENTA->INVERSIÓN."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Le ahorra al CM las 3-6hs/cliente de armar el informe a mano: sube capturas/CSV, la IA extrae y redacta, aprueba con un click y se envía. El cobro MP embebido es palanca de monetización, pero el núcleo es automatizar la tarea del reporte existente.",
+        "palancas": [
+          "Storefront",
+          "WhatsApp",
+          "MercadoPago",
+          "PresetsIA",
+          "Reportes"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "El informe de fin de mes armado casi solo: el CM sube unas capturas o planillas de cada red, la herramienta saca los números y arma el reporte comparativo lindo, él lo aprueba con un clic y lo manda por WhatsApp con el botón de pago de Mercado Pago adentro.",
+      "comoGana": "Le saca de encima las 3 a 6 horas no pagas por cliente y le mete el cobro del abono en el mismo link del reporte que decide si el cliente renueva."
     },
     {
       "id": "r1-7949d850",
@@ -4286,7 +4606,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf 6→7 (demanda AR +30% interanual con oferta rezagada + creator economy LATAM CAGR ~28% sostienen la propuesta) e imp 5→7 (además de monetizar creadores, el ERP+ARCA da un foso que nadie replica). Reencuadré el veredicto: de 'otro Pulgy' (herido, cobro+entrega ya está tomado) a 'todo-en-uno fiscal/WhatsApp dentro del ERP' (validado). Sumé un 7º paso post-MVP explícito con factura ARCA + value-ladder porque ahí está el hueco defendible que ni locales ni globales cubren. Ajusté hs 28→36 (esf sigue en 4, MVP reusa 100% de infra) y agregué las métricas de dueño y la comparativa de costo con devs humanos (~US$2.280 → US$0 de dev, solo ~US$12/mes de infra). Afiné el copy de dolor/desc/sol/gsg para meter el ángulo fiscal ARCA y la marca propia como diferencial, no el cobro+entrega a secas."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "El campo tipoEntrega:digital habilita una vidriera de descargables (capacidad de venta nueva) y a la vez automatiza la entrega manual del archivo con link firmado post-pago. Variante puntual sobre el objeto producto: SKU nuevo + automatización.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "WhatsApp",
+          "ARCA"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "baja"
+      },
+      "criollo": "Una vidriera propia para el creativo que vende descargables (presets, plantillas, filtros): el cliente compra y paga por Mercado Pago, y el archivo le llega solo por WhatsApp al instante. No hace falta que vos estés despierto ni mandando nada a mano.",
+      "comoGana": "Vende sus archivos digitales las 24 horas sin trabajo por cada venta, cobrando y entregando todo automático."
     },
     {
       "id": "r1-70dd7163",
@@ -4482,7 +4818,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 7→8 (dolor + viento fiscal ARCA + gap real y defendible) y conf 6→7 (categoría probada por Deelo y validada dos veces; el caveat de disposición a pagar en la masa nano/micro impide llegar a 8). Mantuve esf 4 (reuso pesado, único UI nuevo = Kanban). Afiné el foco de payer: de \"el influencer\" a \"community manager/mini-agencia + mid-tier\", que es quien sí paga. Agregué el CANJE como objeto de primera clase (ARCA-aware) al alcance del MVP y como gancho de urgencia fiscal. Precio recalibrado a ~US$15/mes cobrado en ARS (no en USD) por la barrera cambiaria, con tier agencia. Reescribí los 7 pasos demo→producción atados al ciclo DEMO→VENTA→INVERSIÓN y a los Gates. Costo humano estimado en ~US$6.000 (160 h × US$37,5) vs. US$0 de dev con IA + ~US$20/mes de infra."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "CRM de Marcas = pipeline/blueprint vendible nuevo para influencers (mapeo cliente→marca, cotizador ARS, semáforo cobranza, botón Facturar ARCA). Es un producto/vertical, no la automatización de una tarea suelta.",
+        "palancas": [
+          "CRM",
+          "Agenda",
+          "WhatsApp",
+          "ARCA",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una libreta ordenada para el influencer que negocia con muchas marcas a la vez: ve de un vistazo qué le prometió a cada una, qué tiene que entregar y qué le deben pagar, con precios sugeridos y botón para cobrar y facturar en la AFIP. Se acabó cotizar a ojo y perder cobros.",
+      "comoGana": "Deja de olvidarse entregas y cobros, y cobra mejor teniendo todo lo que negocia y factura en un solo lugar."
     },
     {
       "id": "r1-02077435",
@@ -4670,7 +5023,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Bajé conf de 6 a 5 y fijé veredicto en 'herido': el global lo marca HERIDA por fricción fiscal (quién factura/cómo se reparte impositivamente) y por ser dolor nicho. Mantuve imp 5 (pain agudo cuando ocurre — rotura de sociedad — pero addressable estrecho) y esf 3 (el MVP esquiva lo fiscal usando transferencias manuales trackeadas; el reuso del core sostiene el bajo esfuerzo). Reposicioné la propuesta: de producto suelto a diferenciador/upsell DENTRO del bundle de cobro, no punta de lanza (el mercado dice que la punta es cobranza WhatsApp + factura ARCA). Agregué un paso fiscal explícito como gate NO bloqueante para no prometer facturación automática del split y evitar riesgo ARCA. Ancla de precio corroborada en US$15/mes por colectivo (bajo HoneyBook, dentro de la ventana all-in-one AR US$8-20). Cuantifiqué costoDevHumano en US$2.240 (64 h × US$35) vs IA ~US$0 dev + US$20/mes infra. Reforcé en gsg que el split de MP existe solo como API para devs, nunca self-serve — que es exactamente el hueco casi vacío que el reuso ocupa."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Reusa el motor de comisiones + ledger MP para automatizar el reparto/split entre freelas de un colectivo (registro neutral, estado girado/pendiente). Ahorra la tarea manual del Excel informal; no es un SKU nuevo sino un reencuadre del motor existente.",
+        "palancas": [
+          "MercadoPago",
+          "Reportes",
+          "CRM"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Para cuando tres freelas (foto, edición, diseño) le facturan juntos a una marca: el sistema reparte la plata solo según lo que le toca a cada uno y muestra quién ya cobró y quién no. Un registro neutral y claro para que no se corten sociedades por el ‘después arreglamos’.",
+      "comoGana": "Reparte automático lo que cobra el grupo y cada uno ve su parte, evitando los quilombos de plata que terminan rompiendo equipos."
     },
     {
       "id": "r1-68e60738",
@@ -4873,7 +5241,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Se subió conf de 7 a 8 (evidencia dura: ~6 SaaS locales pagos + internacionales prueban mercado monetizado, MP estándar, no-show 20-30% como dolor real) e imp de 6 a 7 (ROI del anti-no-show cuantificado y hueco vertical net-new), capado por la alta sensibilidad al precio y márgenes chicos del segmento. esf se mantiene en 5: el reempaquetado es liviano pero el anti-doble-booking es un problema de CONCURRENCIA/transaccionalidad y el webhook de MP exige idempotencia — se elevó ese punto a gate bloqueante en los pasos. Se reorientó el foco al nicho creativo-freelance 1-a-muchos (donde la competencia es delgada) y se agregó la recomendación de cobro EN PESOS o por comisión 5% sobre la seña (modelo Turnito), evitando competir por precio en turnos genéricos saturados. Copy de desc/gsg afinado con el ángulo MP+WhatsApp-first en pesos como flanco donde los globales pierden. costoDevHumano fijado en ~US$5.600 (subset que reusa la plataforma; el MVP standalone completo sería US$10-14k según evidencia)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Blueprint 'evento/taller' vendible nuevo sobre el motor de agenda, y a la vez automatiza el anti doble-booking resolviendo la baja de cupo atómica sólo con pago acreditado. SKU nuevo + automatización de la conciliación manual.",
+        "palancas": [
+          "Agenda",
+          "MercadoPago",
+          "WhatsApp",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "por-uso",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Para el que vende cupos de un taller o mentoría: la persona paga la seña por Mercado Pago y recién ahí se le reserva el lugar, así nunca dos pagan el mismo cupo. Y el sistema manda los recordatorios por WhatsApp solo.",
+      "comoGana": "Llena los cupos cobrando la seña por adelantado y sin el lío de anotar pagos a mano ni el problema de vender el mismo lugar dos veces."
     },
     {
       "id": "r1-02516cff",
@@ -5085,7 +5469,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Se pivoteó la monetización: NO se cobra el media kit (comoditizado a gratis, quedaba herido) sino el COBRO argentinizado — seña por Mercado Pago + Factura C/ARCA + lead a WhatsApp — con el media kit vivo como gancho gratis (demo a costo cero). Scores recalibrados con evidencia: imp 5→7 (se ata al ingreso del creador y a un mercado que crece ~30%/año), conf 6→7 (87% de marcas ya exige media kit + hueco regional real que ningún global cubre), esf 3→5 (el MVP suma MP+ARCA+booking sobre el media kit base). Veredicto: 'herido' (el producto como estaba no cierra; el pivot lo salva). Precio: de standalone caro a freemium + comisión sobre la seña + Pro opcional US$9/mes. Se agregaron pasos de producción con gates de venta/credenciales/deploy y las métricas del dueño con TAM local/global corroborado."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Producto de dos capas: media kit vivo gratis (gancho) + Stan Store argentinizado pago (seña MP + ARCA + WhatsApp). Es un SKU/blueprint vendible con embudo freemium, empaqueta una oferta nueva más que automatizar una tarea.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "funnel-gratuito",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Dos cosas para el creador o CM: primero, gratis, una página siempre actualizada con sus métricas, portfolio y precios para mostrarle a las marcas por un solo link. Y después, la parte paga: cobrar la seña por Mercado Pago, facturar en la AFIP y avisar por WhatsApp.",
+      "comoGana": "Engancha con el media kit gratis y después cobra por la parte de cobrar la seña, facturar y coordinar todo desde un mismo lugar."
     },
     {
       "id": "r1-d0ac604f",
@@ -5301,7 +5702,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afinado con la evidencia: (1) subí imp 6→7 (el dolor de tiempo 3-6hs/cliente/mes y el rol defensivo del informe en la retención del cliente están corroborados); conf queda en 6 pero re-calibrada — validado SOLO como cuña, no como standalone (herido si se vende como 'herramienta de reportes'); esf queda en 3 por el reuso altísimo. (2) Reposicioné el título y el copy: de 'reporte que no da vergüenza' a 'el informe que se manda solo por WhatsApp y cobra el fee en el mismo link' — el reporte pasa a ser el caballo de Troya y el diferencial vendible es WhatsApp nativo (sin Zapier/Looker) + link de cobro Mercado Pago atado + argentinización, que es lo único net-new frente a Metricool/Porter/Reportei/AgencyAnalytics. (3) Agregué el atado del link de cobro MP como paso propio de producción (antes no era explícito). (4) Precio bajado a US$12/mes como add-on por CM (no por cliente), undercuteando a Porter US$12,50 y capturando el valor del combo, no del reporte comoditizado. (5) Cuantifiqué costo humano (~US$3.850) vs IA (US$0 dev + ~US$20/mes infra) y métricas de dueño (margen 88%, 417 CMs para US$5k/mes, payback ~1 mes)."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Nuevo tipo de documento 'informe' sobre el motor de PDF branded existente, carga 100% manual v1: automatiza la tarea recurrente del informe mensual (3-6hs) con disparo por recordatorios + entrega WhatsApp + link MP. Sin API ni infra nueva, es puro ahorro de tarea.",
+        "palancas": [
+          "Reportes",
+          "WhatsApp",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "baja"
+      },
+      "criollo": "El informe mensual con la marca del CM, cargando los números a mano en un formulario simple (sin conexiones raras que fallan), que se manda solo por WhatsApp cada mes. Así el cliente siempre recibe su reporte, aunque el CM esté de viaje o enfermo.",
+      "comoGana": "Asegura que el informe salga todos los meses sin falta, que es justo lo que sostiene que el cliente siga pagando el abono."
     },
     {
       "id": "r1-c52f8e05",
@@ -5520,7 +5936,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 6→7 y conf 6→7 con la evidencia: el dolor está probado y facturado (Planable/Gain/Sendible) y la tendencia va exacto hacia nuestro diferencial (no-login + WhatsApp + audit trail). Mantuve esf=4: reutiliza motor de agenda + WhatsApp; la aprobación de plantilla por Meta es riesgo de calendario, no de esfuerzo de dev. Reencuadré el veredicto a \"validado\" pero explícitamente como FEATURE del ERP y no como SaaS standalone (la DTP aislada del CM argentino es baja frente al gratis y al recargo dólar). Afiné el copy para poner el \"comprobante con validez de reclamo\" como estrella (el net-new que nadie empaqueta para la pyme). Precio bajado a US$19/mes add-on en ARS/MP (vs los US$33-49 globales en USD). Agregué el contraste de costo dev humano ~US$6.160 (176 h × US$35) vs US$0 dev con IA (~34× más barato), y las métricas de dueño con la advertencia de que 263 clientes para US$5k/mes confirman que aislado no escala — dentro del ERP sí."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Sobre el motor de agenda/turnos ya operativo agrega adjunto + plantilla WhatsApp con botones + webhook que loguea evidencia; automatiza la trazabilidad de la aprobacion, no crea un SKU nuevo.",
+        "palancas": [
+          "Agenda",
+          "WhatsApp",
+          "Contratos"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "Un lugar donde el community manager le manda la pieza al cliente por WhatsApp y el cliente la aprueba tocando un botón, y queda guardado quién dijo que sí y a qué hora. Así se termina el clásico 'yo nunca te dije que la subas'.",
+      "comoGana": "GSG le cobra al CM o a la agencia una cuota mensual fija por usar la herramienta."
     },
     {
       "id": "r1-0101ab06",
@@ -5708,7 +6139,21 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf 6→8 e imp 6→8: ambos análisis (local y global) validan con fuerza el eje factura ARCA auto + cobranza WhatsApp + marca personal, con mercado grande (500k-1M AR, +85% interanual), dolor cuantificado (65% a +30 días, US$6k adeudados, 102 h/año) y disposición a pagar probada (HoneyBook +89,5% y sigue vendiendo). Mantuve esf en 3 por el reuso casi total de infra. Reencuadré la monetización: de competir por comisión a SaaS US$12/mes por freelancer (corroborado por debajo de HoneyBook), montándose sobre MP y nunca contra su comisión. Recalculé el contraste con devs humanos: pasé del delta de reuso (~US$900) al costo real de construir el MVP completo con un equipo humano (~360 h × US$35 = ~US$12.600), que es el ahorro honesto que muestra el valor. Agregué 7 pasos demo→producción con gates (incluye Gate de Excelencia en Opus y FASE 2 de credenciales por el dueño) y métricas del dueño: 417 clientes para US$5k/mes, margen ~83%, payback ~1 mes, primer peso ~3 semanas."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Reempaqueta ARCA + MP + presupuestos como producto standalone single-user vendible aparte del ERP; es un SKU nuevo, no un ahorro sobre un flujo existente del creador.",
+        "palancas": [
+          "ARCA",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Para el fotógrafo, diseñador o editor que labura solo: le manda al cliente un link por WhatsApp para que pague la seña antes de arrancar, y el sistema le arma solita la factura ante la AFIP, sin tener que pelearse con la página.",
+      "comoGana": "Se cobra una cuota mensual al freelance por tener el cobro y la facturación resueltos."
     },
     {
       "id": "r1-b9e0b50e",
@@ -5912,7 +6357,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Se pivoteó el núcleo del producto: de \"vender la vidriera\" (commodity gratis, descartada por el mercado) a \"vender el cobro\" — seña por Mercado Pago + cotizador de proyecto + comprobante ARCA, regalando la vidriera como gancho. imp 5→7 (ataca directo el hueco net-new de la capa de pago), conf 6→7 (disposición a pagar demostrada en apps de seña, pero segmento \"creativo por proyecto\" sin cifra local dura), esf 3→4 (sumar el wiring cotización→seña MP a monto a medida + ARCA es más que extender el CTA). Título y copy reescritos para poner el cobro al frente. Modelo de cobro ajustado a freemium/abono-ARS por la sensibilidad argentina al abono fijo en USD."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Nuevo blueprint de rubro 'creativos por proyecto' sobre el storefront: cotizador + seña MP + comprobante. Es una vidriera-producto vendible nueva, no automatiza una tarea preexistente.",
+        "palancas": [
+          "Storefront",
+          "PresetsIA",
+          "MercadoPago",
+          "WhatsApp",
+          "ARCA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una página web propia del creativo con sus precios y sus trabajos a la vista, donde el cliente elige un paquete, deja la seña por Mercado Pago y recibe la factura. Deja de responder mil veces '¿cuánto cobrás?' por privado.",
+      "comoGana": "Cuota mensual al creativo por tener su vidriera que cotiza y cobra sola."
     },
     {
       "id": "r1-29f48098",
@@ -6094,7 +6556,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Pivoteé la propuesta del ángulo 'facturador WhatsApp→ARCA' (herido: ARCA lo hace gratis, Facturitas tomó el claim, el Monitor oficial ya da el semáforo de techo) hacia el net-new que local y global validan como sin dueño: valorización automática de canjes/sponsoreos + semáforo de conveniencia. La emisión pasa de diferencial a feature reusado de entrada. Recalibré: imp 5→6 (dolor fiscal real 2026 + gap defendible), conf se mantiene en 6 (rescatada por el pivot pese al pricing herido), esf 4→5 (la capa de valorización agrega trabajo sobre el reuso). Sumé costoDevHumano (~US$7.700), costoConIA (dev US$0 + US$40/mes infra), métricas de dueño (precio US$9/mes, margen 83%, 556 clientes para US$5k, payback ~1 mes) y afiné el copy de dolor/desc/sol para poner los canjes y los semáforos al frente."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza la emision de factura C y cobro por WhatsApp (reuso ARCA+MP) y a la vez agrega capa net-new de valorizacion de canjes + semaforo de techo, que es funcionalidad vendible nueva.",
+        "palancas": [
+          "ARCA",
+          "MercadoPago",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Un asistente por WhatsApp para el creador que le hace la factura, le pone precio a los canjes (esas cosas que le mandan las marcas de regalo) y le avisa con un semáforo si se está por pasar del límite del monotributo antes de que la AFIP lo pesque.",
+      "comoGana": "Suscripción mensual del creador por tener el control de sus impuestos al día."
     },
     {
       "id": "r1-e10c2356",
@@ -6286,7 +6763,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf de 5→6 (el mercado sostiene el formato y el hueco argentino, pero mantengo la cautela por la herida de comoditización y bajo ticket, no llego a 7-8). Subí imp de 6→7 (mercado grande, en crecimiento ~30% y con reutilización total de infra). Mantuve esf en 3 (sigue siendo config sobre motor existente). El cambio de fondo es de MONETIZACIÓN: la versión anterior insinuaba vender el media kit; la evidencia obliga a pivotear a 'media kit vivo GRATIS como gancho + monetizar el cobro/booking argentinizado (plan Pro en pesos + 3-5% de comisión sobre la seña)', porque el maker está regalado y el creador LATAM es 'poor in cash'. Agregué el mapeo paquete→ítem con ABM de asignación (ADR-055), el circuito factura C/ARCA explícito, 7 pasos detallados demo→producción cada uno con su gate, el contraste de costo vs devs humanos (~US$6.650, ~330×) y las métricas del dueño corroboradas con precios de mercado (ARPU ~US$15, ~333 clientes para US$5k/mes, margen 85%, payback ~1 mes)."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'Creador/Influencer' (Stan Store criollo): media kit vivo + storefront de cobro. Es un SKU/vertical nuevo sobre el motor de tenants, no un ahorro puntual de tarea.",
+        "palancas": [
+          "Storefront",
+          "PresetsIA",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una carta de presentación siempre actualizada con lo que cobra el creador, y un botón para que la marca reserve y deje la seña ahí mismo por Mercado Pago, con factura incluida. Se acabó el PDF viejo que manda por mail.",
+      "comoGana": "Cuota mensual al creador por su página que muestra tarifas y cobra la seña."
     },
     {
       "id": "r1-a6fb749b",
@@ -6527,7 +7021,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Respecto de la versión anterior: (1) conf 7→8 e imp 6→7, sostenidos por la doble validación de mercado (local + global) y el ROI cuantificado del anti-no-show; esf se mantiene en 3 porque reutiliza 100% el motor. (2) Se agregó el contraste de costo build: ~US$12.000 con devs humanos (~400h × US$30/h senior AR/LATAM) vs US$0 de dev con IA + ~US$30/mes de infra. (3) Se afinó el modelo de cobro: cuota baja EN PESOS (US$12/mes, ~AR$15.000) como default, con alternativa 5% sobre la seña (modelo Turnito) para el freelance ultra-sensible al precio — capitalizando el rechazo a los USD de AgendaPro/Booksy/Calendly. (4) Se detallaron 7 pasos demo→producción con sus gates, alineados al ciclo DEMO→VENTA→INVERSIÓN (cero gasto antes de vender). (5) Copy de dolor/sol de-sesgado a tono criollo argentino. (6) Se marcó el riesgo real: margen chico y saturación del genérico → la defensa es la verticalización al creador, no competir por precio."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Es un blueprint de rubro vendible nuevo (producto) pero su nucleo es automatizar el cobro del saldo: la regla 'entregado' dispara el link de pago sobre el POS existente.",
+        "palancas": [
+          "Agenda",
+          "MercadoPago",
+          "WhatsApp",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una agenda pensada para el que labura solo (fotógrafo, editor, diseñador): los clientes sacan turno y pagan la seña, y cuando entregás el trabajo se dispara solo el link para cobrar lo que falta. Nunca más turnos pisados ni perseguir el saldo por chat.",
+      "comoGana": "Cuota mensual al freelance por tener agenda y cobros ordenados en un solo lugar."
     },
     {
       "id": "r1-b208e0b5",
@@ -6722,7 +7232,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 5→6: la evidencia confirma que el diferencial net-new es el 'cobro que rinde cuentas' (reporte + link MP fusionados), que toca directamente el momento de cobrar (plata) y no existe en ningún player. Mantuve conf en 6 (no la subí pese al hueco claro) porque la misma evidencia hiere el standalone: la disposición a pagar un fee SEPARADO por 'el reporte' es baja (Porter/Metricool ya lo incluyen barato), así que la confianza solo se sostiene si se posiciona como cuña/add-on, no como producto suelto. Mantuve esf en 3 (reutiliza engine WhatsApp + MP + storefront; solo template + vista pública + ABM manual). Reescribí el título de 'El link de cobro que también rinde cuentas' a la promesa concreta 'el informe que se manda solo por WhatsApp y cobra el fee en el mismo link'. Cuantifiqué el contraste humano (antes usd:180/hs:14 vaporoso → ahora 90 hs × US$35/h = US$3.150 con devs humanos vs US$0 dev con IA + ~US$3/mes infra). Anclé precio en US$10/mes como add-on (corroborado con ventana US$5-15 y por debajo de Porter US$12,50), con margen 85% y 500 clientes para US$5k/mes. Agregué 6 pasos demo→producción con gates atados a la metodología GSG (Gate de Excelencia en Opus, demo a costo cero, credenciales fase-2 las pega el dueño)."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Le ahorra al CM las 3-6 hs mensuales de armar reportes y unifica reporte+cobro en un solo mensaje WhatsApp; es un template/add-on sobre el motor de recordatorios+cobros existente.",
+        "palancas": [
+          "WhatsApp",
+          "MercadoPago",
+          "Reportes",
+          "Storefront"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "A fin de mes el community manager manda un solo mensaje de WhatsApp con un link que muestra todo lo que hizo ese mes y, al lado, el botón para que el cliente le pague. Junta el 'esto hice' con el 'esto me debés' en un mismo lugar.",
+      "comoGana": "Cuota mensual al CM, que además ahorra las horas que perdía armando reportes a mano."
     },
     {
       "id": "r1-6d9e91e2",
@@ -6930,7 +7456,25 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf de 6 a 7 e imp de 4 a 7: la evidencia corrobora la categoría con un match casi exacto (Deelo) y varios players que prueban el modelo, más un gap de localización defendible (ARCA + MP + WhatsApp + canje) y un viento fiscal que convierte el dolor en urgencia. Mantuve esf en 3 (sigue siendo relabeling+config sobre infra existente). Re-enfoqué el copy: el payer ya no es 'el influencer chico/mediano' sino el community manager/mini-agencia y el mid-tier, porque la masa nano/micro no paga (canje, ingresos volátiles). Agregué explícitamente el ángulo fiscal ARCA/canje como gancho de urgencia y como paso de producción. Ajusté el pricing a modelo en ARS bajo (~US$12-15) + plan Agencia + alternativa freemium/comisión, corroborado contra Deelo/Rella/Passionfroot. Cambié el costoDevHumano del placeholder (18h/US$270 a US$15/h) a una estimación realista de equipo humano senior (50h a US$35/h = US$1.750, 2 semanas) para el titular de contraste."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Nuevo blueprint CRM de canjes/colaboraciones (marca=cliente, entrega=asignacion ADR-055) con reportes de embudo; es un vertical vendible nuevo, aunque sea configuracion sobre el motor Clientes+Turnos.",
+        "palancas": [
+          "CRM",
+          "Agenda",
+          "WhatsApp",
+          "ARCA",
+          "PresetsIA",
+          "Reportes"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Un lugar ordenado donde el creador o la mini-agencia anota qué marca le propuso qué, qué aceptó, qué tiene que entregar y cuándo, con los canjes cargados para después facturarlos. Deja de vivir todo suelto en el WhatsApp.",
+      "comoGana": "Cuota mensual por tener toda la relación con las marcas en un solo tablero."
     },
     {
       "id": "r1-634b5d29",
@@ -7126,7 +7670,21 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Reposicioné el producto de LÍNEA DE VENTA DIRECTA (herida: margen aplastado por el ancla Canva US$10-13 y el freemium global que ya educó a 'generar gratis') a MOTOR DE ADQUISICIÓN del ERP con kit genuinamente gratuito, que es lo que la evidencia valida como ventaja defendible. Marqué veredicto 'herido' y subí imp 5→6 (vale más como funnel que como revenue directo); mantuve conf 6 (demanda y WTP probadas, pero conversión funnel aún no medida) y esf 4 (reusa el pipeline). Reforcé el copy con el ángulo argentino (pesos/MP/ARCA/WhatsApp) y la ingesta del IG/web real como diferencial. Agregué el contraste de costo humano (~US$22.400 con devs senior vs ~US$0 dev + US$60/mes infra con IA) y métricas de dueño con freemium + tier Pro US$12/mes en pesos, dejando claro que la monetización real es el ERP, no el kit."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Kit de marca IA con export white-label y freemium como pieza de captacion vendible/gancho; es un entregable-SKU nuevo (aunque su rol comercial sea funnel al ERP), no un ahorro sobre un flujo del cliente.",
+        "palancas": [
+          "PresetsIA",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "funnel-gratuito",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una herramienta que en diez minutos arma una propuesta prolija para un cliente nuevo (colores, estilo, tono, ideas), en vez de perder horas investigando a mano antes de un pitch que a veces ni se cierra.",
+      "comoGana": "Arranca gratis con un límite y después un plan pago mensual; encima sirve de anzuelo para venderle el sistema completo."
     },
     {
       "id": "r2-a220585b",
@@ -7322,7 +7880,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Bajé conf de 5 a 4 para reflejar la herida real: el media kit \"a secas\" está regalado y el segmento dominante (nano, 82%, \"poor in cash\") no paga suscripción fija en USD. A cambio pivoteé la monetización — de \"vender el media kit\" a \"vender el circuito de cobro\" (comisión sobre la seña por MP + factura C/ARCA + lead a WhatsApp), que es donde la evidencia muestra disposición a pagar porque se ata al ingreso, no a una cuota. Refiné dolor/desc/sol/gsg para centrar ese pivote, reescribí el título (\"argentinizado / cobra la seña por MP\") y agregué la lógica de gancho gratis coherente con demo a costo cero. imp y esf sin cambios."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint de layout 'creador' (media kit vivo storefront-as-portfolio) con seña MP; es un vertical/SKU nuevo sobre el motor de vidriera, no automatizacion de una tarea existente.",
+        "palancas": [
+          "Storefront",
+          "PresetsIA",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Un link único, siempre al día, con las métricas, los precios y los últimos trabajos del creativo, que además cobra la seña por Mercado Pago. Llega a la reunión con algo vivo y prolijo en vez de un PDF que quedó viejo hace semanas.",
+      "comoGana": "Cuota mensual al creativo por tener su carta de presentación que también cobra."
     },
     {
       "id": "r2-8cdb8fc0",
@@ -7534,7 +8109,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Reorienté la propuesta del segmento genérico (saturado y barato: gratis a AR$17k/mes) al nicho creativo-freelance individual, que la evidencia marca poco cubierto. Subí conf 7→8 (mercado validado + willingness-to-pay probada + reuse total) e imp 6→7 (ROI claro en sesiones de alto ticket). Sumé el diferencial saldo-automático-contra-entrega y el énfasis en cobro 100% en pesos por MP (capitalizando el rechazo a los USD de AgendaPro/Booksy/Calendly). Cambié el modelo de cobro a híbrido: cuota baja en pesos o 5% sobre la seña (como Turnito), evitando cuota alta fija. Agregué el contraste de costo build humano (~US$13.4k) y las métricas del dueño corroboradas con precios reales del mercado."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Activa el blueprint 'estudio creativo' sobre el turnero con seña obligatoria y templates propios; es un vertical vendible nuevo por config, no un ahorro de tarea sobre lo que el creador ya hace en el sistema.",
+        "palancas": [
+          "Agenda",
+          "MercadoPago",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Una agenda de turnos para fotógrafo, video o edición donde el cliente no queda anotado si no paga la seña primero. Así se cortan los plantones de último momento en las sesiones caras.",
+      "comoGana": "Cuota mensual al creativo, que deja de perder plata por las cancelaciones."
     },
     {
       "id": "r2-8808b1d1",
@@ -7754,7 +8344,25 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 6→8 (el dolor está cuantificado con datos duros y el hueco es net-new confirmado en dos mercados) y conf 6→8 (validación local + global convergente, tendencia fiscal y de creator-economy a favor, y el 100% de reutilización verificado en el repo). Mantengo esf en 3: aunque no hay backend nuevo, la vista del panel + conciliación reetiquetada + cron + blueprint + QA del Gate siguen siendo trabajo real. Pasé el veredicto a \"validado\" con la condición dura de PRICING que marca la evidencia: entrar barato y en pesos o la propuesta se hiere. Afiné el dolor y la desc para incorporar los números de mercado (85%, primer recordatorio) y explicité la conciliación automática que ya existe en el código."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'CM/Agencia de contenido' con panel de cobranzas agregado sobre cartera de clientes; es un vertical/SKU nuevo (nomenclatura + agregacion + planes recurrentes), no una automatizacion puntual.",
+        "palancas": [
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "CRM",
+          "Membresias",
+          "Reportes"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Un tablero para el community manager que maneja varias cuentas, donde ve de un vistazo quién le pagó, quién le debe y quién está atrasado, sin andar rejuntando datos entre Notion, Excel y WhatsApp.",
+      "comoGana": "Cuota mensual al CM por tener toda la cobranza de sus clientes en una sola pantalla."
     },
     {
       "id": "r2-07c9cbf4",
@@ -7965,7 +8573,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 6→7 (dolor concreto y cotidiano, con comprobante monetizable) y conf 6→7 (el mercado sostiene la dirección: Planable/Gain facturan, tendencia no-login+WhatsApp+audit trail confirmada); esf queda en 4 (reutiliza multi-tenancy, RBAC, WhatsApp y storefront; el neto es chico). Reencuadré la estrategia: NO lanzarlo como SaaS pago suelto (disposición a pagar standalone baja en ARS, compite contra el gratis y el dólar-tarjeta) sino como FEATURE del ERP. Ascendí el 'comprobante con validez de reclamo' de detalle a ESTRELLA del producto (es el gap que ningún player empaqueta para la pyme). Corroboré precio: add-on US$15/mes por tenter en ARS/MP, margen ~90%, ~334 clientes para US$5k/mes. Agregué costoDevHumano (~US$7.350, 210 h a US$35/h, descontado por reuso de infra desde el rango 320-480 h del standalone) vs. costoConIA (dev US$0 + ~US$20/mes infra) = ~50x. Anclé los pasos a los gates reales de GSG (Gate de Excelencia en Opus, Gate 1 deploy, Gate 2 Neon, demo a costo cero, ADR-055 para el ABM, ADR-046 criollo)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Requiere un modulo net-new (tabla 'piezas de contenido' con estados/versiones/ABM ADR-055) que es funcionalidad vendible nueva, y a la vez automatiza la trazabilidad de aprobacion via WhatsApp sobre el storefront existente.",
+        "palancas": [
+          "Storefront",
+          "WhatsApp",
+          "CRM",
+          "Contratos"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Un lugar donde el cliente ve la pieza, la aprueba o la rechaza, le llega el aviso por WhatsApp y queda todo guardado: quién dijo qué y cuándo. Si después algo sale mal, el CM tiene cómo probar que le dieron el OK.",
+      "comoGana": "Cuota mensual al CM o a la agencia por tener las aprobaciones registradas y a salvo."
     },
     {
       "id": "r2-8445436b",
@@ -8177,7 +8801,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Recalibré conf de 8 a 6: la evidencia muestra que el 'reporte mensual' a secas está comoditizado (Metricool que el CM ya paga, Porter US$12,50, Reportei US$14,50, IA de insights estándar desde 2025) y la disposición a pagar un fee SEPARADO por el reporte es baja (US$5-15/mes). imp lo dejo en 8 (dolor de tiempo real, 3-6 hs/cliente/mes, y palanca de retención del fee) y esf en 4 (el link de cobro MP reusa infra existente). Marqué veredicto HERIDO: honesto con el doble fallo de mercado (herido standalone / validado como cuña). El cambio de fondo es el REPOSICIONAMIENTO que baké en título/desc/sol/gsg: dejó de ser 'módulo de reportes' y pasó a ser 'el informe que se manda solo por WhatsApp y cobra el fee en el mismo link' — sumé el link de cobro Mercado Pago al MVP (antes no estaba) porque es el combo net-new que ningún competidor une (WhatsApp nativo sin Zapier/Looker + cobro + argentinización). Ajusté costo humano a 160 hs / US$5.600 (el MVP con PDF branded, charts, WhatsApp, cron, MP y multi-tenant es más que las 22 hs originales). Modelo de cobro: dejó de pensarse como add-on al cliente final (ahí pierde contra free/Porter) y pasó a ser feature-ancla del tier del ERP (US$19/mes flat por CM) — el caballo de Troya que vende y retiene la suite."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza una tarea existente y no facturable del CM (armar el informe mensual) y a la vez empaqueta un modulo vendible nuevo (Reportes) con cobro del fee integrado.",
+        "palancas": [
+          "Reportes",
+          "PresetsIA",
+          "WhatsApp",
+          "MercadoPago",
+          "Storefront"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Cada arranque de mes, en vez de que el community manager se pase horas armando a mano el informe con los números de cada cliente, el sistema lo prepara solo, con la marca del cliente, y se lo manda por WhatsApp con un resumen fácil de entender. En el mismo mensaje va el link para cobrar la cuota del mes.",
+      "comoGana": "El community manager cobra la cuota mensual más rápido y sin perder días armando informes; y quien vende el sistema cobra una suscripción por usarlo."
     },
     {
       "id": "r2-ccea9f6b",
@@ -8397,7 +9038,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afiné respecto de la v2: (1) subí conf de 7 a 8 e imp de 6 a 7 — el mercado sostiene la propuesta PERO solo en su versión diferenciada; esf se mantiene en 3 porque el MVP (adjunto + webhook) es genuinamente chico, con la capa ARCA/value-ladder marcada como fase 2 separada. (2) Reencuadré el título y el copy para que NO compita como 'otro Pulgy': el moat es entrega WhatsApp + marca propia + factura ARCA + value-ladder dentro del ERP, no el cobro+entrega ya comoditizado. (3) Agregué 7 pasos demo→producción con gates atados al ciclo DEMO→VENTA→INVERSIÓN, al Gate de Excelencia bloqueante y a los Gate 1/Gate 2. (4) Costeo humano US$4.900 (140h × US$35) vs IA ~US$0 dev + US$12/mes infra = titular de ahorro ~408x. (5) Métricas del dueño corroboradas con mercado: precio al CREADOR US$25/mes (pass-through de comisión MP, no % sobre la venta como Gumroad/Hotmart), margen 92%, 200 clientes para US$5k/mes, payback ~1 mes, primer peso ~3 semanas."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Habilita una categoria nueva de SKU (producto digital: presets/LUTs/plantillas) con entrega y factura, no automatiza una tarea preexistente del creador.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "WhatsApp",
+          "ARCA"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una tiendita para vender cosas digitales (filtros de foto, plantillas, ajustes de color) en pesos y cobrando con Mercado Pago o transferencia, sin obligar al comprador a tener tarjeta del exterior. Apenas pagan, el archivo les llega solo por WhatsApp y sale la factura en regla.",
+      "comoGana": "El creador se queda con casi toda la venta (sin la comisión alta ni el vuelto en dólares de las plataformas de afuera) y factura vendiendo sus archivos una y otra vez."
     },
     {
       "id": "r2-55ca2623",
@@ -8589,7 +9246,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afiné el lápiz en cuatro frentes con la evidencia: (1) PIVOTÉ el título/copy y el modelo de negocio — el media kit deja de ser el producto pagado y pasa a ser gancho GRATIS; lo que se monetiza es el COBRO argentinizado (seña MP + factura C/ARCA + lead WhatsApp), único hueco net-new frente a Beacons/Stan/Linktree que la evidencia local y global confirman. (2) Recalibré scores: imp 6→7 (mercado grande y creciente, gap real atado al ingreso del creador), conf se sostiene en 6 (demanda validada pero monetización comoditizada/bajo ticket: 'poor in cash', ~556 clientes para US$5k con ARPU US$9), esf se mantiene en 3 (alto reuso; el media kit 'vivo' auto-actualizable se difiere a fase 2 por depender de APIs). (3) Cambié el modelo de cobro de una cuota fija en USD a fijo bajo EN PESOS o comisión sobre la seña — la evidencia muestra que la disposición a pagar se activa cuando la herramienta cobra por el creador, no antes. (4) Agregué el contraste de costo: ~US$5.250 con devs humanos (150h × US$35) vs US$0 dev + ~US$15/mes infra con IA. Los 7 pasos demo→producción respetan Autorización primero, Gate bloqueante y Demo→Venta→Inversión."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'Creador' net-new: media kit vivo gratis como gancho + storefront que cobra; es un producto/rubro vendible nuevo, no la automatizacion de algo existente.",
+        "palancas": [
+          "PresetsIA",
+          "Storefront",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "funnel-gratuito",
+        "comprador": "creador",
+        "horizonte": "plataforma",
+        "complejidad": "media"
+      },
+      "criollo": "Una página propia para el creador que arranca a vivir de esto: gratis muestra sus números y su carta de presentación para las marcas, y aparte tiene una parte que cobra (seña por Mercado Pago, factura en regla y contacto por WhatsApp). Todo con su onda y su marca.",
+      "comoGana": "El creador cierra más acuerdos con marcas porque tiene un link profesional que las convence, y cobra la seña al toque en vez de andar mandando capturas."
     },
     {
       "id": "r2-2d8b45c4",
@@ -8789,7 +9463,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afiné el lápiz con la evidencia: (1) PIVOTÉ el producto del ángulo herido 'otro facturador ARCA WhatsApp-first' —comoditizado por ARCA gratis + Facturitas $4.999/mes— al net-new defendible 'inteligencia fiscal del creador' (valorización de canjes a FMV + semáforo de techo + semáforo de conveniencia), que ninguna fuente muestra con dueño. (2) Re-calibré scores: conf 6→4 (el mercado NO sostiene el facturador; el pivot valida demanda pero la monetización es incierta contra el gratis), esf 3→5 (el pivot exige build real del motor de canjes+semáforos, no solo blueprint+copy+toggle), imp queda en 5 (dolor fiscal 2026 real, pero techo de precio bajo lo limita). (3) Corregí el costo: de 22hs/US$330 a ~130hs/US$4.550 con devs humanos porque el core net-new no es reuso. (4) Marqué veredicto 'herido'. (5) Repricé a ~US$10/mes justificado por la capa fiscal (no por la emisión, que va gratis como gancho) y aclaré que el semáforo de techo solo ya lo regala el Monitor de ARCA — el diferencial vivo es la valorización de canjes + conveniencia. (6) Reescribí dolor/desc/sol/gsg hacia canjes+techo+conveniencia y sumé los gates DEMO→VENTA→INVERSIÓN y Gate 2 ARCA productivo."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "El motor de valorizacion de canjes + semaforos de techo/conveniencia es capacidad net-new y defendible: un SKU nuevo, no solo automatizar la emision fiscal.",
+        "palancas": [
+          "ARCA",
+          "WhatsApp",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Un ayudante para que el creador o freelance no se coma un lío con los impuestos: le pone precio a los canjes que recibe (ropa, productos), lleva la cuenta de cuánto ganó en el año y le avisa con un semáforo cuando está por pasarse del tope del monotributo. Y la factura la emite desde el WhatsApp, sin pelearse con la página de la AFIP.",
+      "comoGana": "Resuelve un dolor que hoy nadie le soluciona (saber cuánto valen los canjes y cuándo conviene aceptarlos), y por eso el creador paga una cuota para tenerlo ordenado."
     },
     {
       "id": "r2-3ea737be",
@@ -8989,7 +9678,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afinado con la evidencia: (1) el veredicto se sostiene como VALIDADO pero se re-encuadró el eje de valor — se movió el titular de \"media kit\" (comoditizado y regalado: Beacons/Kitlify/Canva free) al COBRO argentinizado (seña MP + Factura C/ARCA + lead WhatsApp), que es el hueco que ningún global cubre; el media kit vivo pasa a ser gancho gratis. (2) imp 6→7 (mercado grande y creciente + hueco claro). conf 7 (sostenida: la categoría está validada, pero la herida del maker gratis impide subir más). esf 3 (sin cambios: sigue siendo un skin sobre infra existente). (3) Se cambió el modelo de cobro de un precio fijo a comisión-sobre-seña + plan bajo en pesos, coherente con 'poor in cash' y con la mayor disposición a pagar cuando la herramienta cobra. (4) Se agregó el paso fiscal Factura C/ARCA como diferencial y se explicitó la necesidad de VOLUMEN (~417 clientes para US$5k) por el bajo ticket del segmento nano dominante. (5) Se sumó la comparativa dev humano (~US$5.250) vs IA (~US$0 dev + US$25/mes infra)."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'Stan Store argentinizado': booking con seña + media kit como producto/rubro nuevo montado sobre agenda y cobros, no la automatizacion de una tarea puntual.",
+        "palancas": [
+          "Storefront",
+          "Agenda",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Como esas tiendas de creadores de afuera pero hecha para acá: el creador arma su vidriera con sus números y sus paquetes, la marca reserva una fecha y deja la seña por Mercado Pago antes de que él bloquee la agenda de grabación. Nada de perderse en los mensajes privados.",
+      "comoGana": "El creador deja de perder trabajos por desorden y asegura la plata cobrando la seña antes de arrancar a grabar; y quien lo ofrece cobra suscripción."
     },
     {
       "id": "r2-1bfa3333",
@@ -9205,7 +9911,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf de 6 a 7 e imp de 6 a 7: la doble validación de mercado sostiene el hueco net-new (ningún player junta panel + cobro MP + WhatsApp + conciliación + ARCA para el CM hispano) y cuantifica el dolor (85% cobra tarde, 65-70% paga al primer recordatorio). Mantuve esf=3 por el reuso casi total. Anclé el precio sugerido en US$19/mes (dentro del sweet spot US$15-40 corroborado, cobrable en ARS por la sensibilidad de precio del creador). Agregué las métricas del dueño (COGS ~US$3, margen 84%, 264 clientes para US$5k/mes, payback ~1 mes) y 7 pasos demo→producción con gates GSG. Reforcé el dolor y el gsg con el dato de cobranza al primer recordatorio y con el moat de rieles argentinos como diferencial frente a Bonsai/HoneyBook (inglés/Stripe) y Metricool/Sendible (no cobran)."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Reconfigura Clientes+Cobros+Recordatorios existentes para automatizar la cobranza mensual (link, reclamo, conciliacion) del CM; ahorra una tarea sobre lo ya construido.",
+        "palancas": [
+          "MercadoPago",
+          "WhatsApp",
+          "CRM",
+          "Reportes"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Para el community manager que maneja varias marcas con cuota fija por mes: el sistema le manda solo el link de cobro por WhatsApp, le recuerda al que se atrasa y va marcando quién ya pagó y quién no. Se acabó controlar todo a mano en una planilla.",
+      "comoGana": "El creador cobra antes (esos 10-15 días de atraso son plata que la inflación se come) y no se le escapa ninguna cuota."
     },
     {
       "id": "r2-0afa0b44",
@@ -9413,7 +10135,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Reposicionamiento clave: de \"reporte mensual automático\" (herido, comodity) a \"el informe que se manda solo por WhatsApp y cobra el fee en el mismo link\" (cuña net-new). Se agregó el link de cobro Mercado Pago al sol/desc/gsg como el diferencial validado que ningún incumbente tiene. Se subió conf de 7 a 8 (el hueco WhatsApp-nativo-sin-Zapier + cobro está confirmado por Reportei/AgencyAnalytics) y esf de 4 a 5 (el amarre del cobro suma scope). imp se mantiene en 7 (dolor real pero función 'reporte' comoditizándose). Se agregó paso de Seguridad pre-cobros en Opus por tocar plata. Precio sugerido fijado en US$15/mes corroborado con la banda Porter/Reportei, margen 90% por COGS mínimo (solo infra, IA en US$0)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza el armado del informe mensual (tarea existente no facturable) y suma un entregable/modulo vendible que cobra el fee en el mismo link.",
+        "palancas": [
+          "Reportes",
+          "PresetsIA",
+          "WhatsApp",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "El community manager carga a mano cuatro o cinco números del mes y el sistema arma solo el informe con la marca del cliente y un resumen en criollo (\"creciste 8% de seguidores, tu mejor día fue tal\"). Se manda por WhatsApp con el link para cobrar la cuota en el mismo mensaje.",
+      "comoGana": "Ahorra 2-3 horas por cliente cada fin de mes y cobra la cuota más rápido justificando el trabajo con el informe."
     },
     {
       "id": "r2-a506ea10",
@@ -9620,7 +10358,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afinado con la evidencia de mercado: (1) subí imp 6→7 y conf 6→7 porque el hueco fiscal ARCA + WhatsApp + agenda para value-ladder es defendible y GSG ya tiene todas las piezas; subí esf 4→5 porque el diferencial real exige entrega por WhatsApp + factura ARCA, no solo el webhook base. (2) Repivoteé el título y todo el copy: dejó de ser 'vidriera con cobro+entrega' (comoditizado por Pulgy/DropyFile, que ya cobran en pesos sin comisión) para volverse 'el todo-en-uno fiscal y WhatsApp-first' — sin ese giro el mercado lo hería como 'otro Pulgy'. (3) Agregué a la solución las dos piezas net-new que la salvan: entrega/cierre por WhatsApp post-pago + factura C ARCA automática. (4) Estimé costoDevHumano realista del incremento defendible (180 h ≈ US$6.300) vs US$0 de dev con IA. (5) Fijé modelo de cobro SaaS sin comisión sobre la venta (opuesto a Hotmart/Gumroad) como argumento de venta, con precio US$15/mes corroborado contra Pulgy Pro/DropyFile Premium. (6) Escribí los 6 pasos demo→prod con gates alineados al Gate de Excelencia + Gates 1/2 de deploy y Neon."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Vidriera de infoproductos (presets/plantillas/mentorias) como categoria vendible nueva con entrega digital + agenda + factura; SKU nuevo, no automatizacion de una tarea.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "Agenda",
+          "WhatsApp",
+          "ARCA"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una vidriera linda con la marca del creador para vender filtros, plantillas o mentorías uno a uno, cobrando en pesos con Mercado Pago. Cuando pagan un archivo, les llega solo por WhatsApp; cuando compran una mentoría, los manda directo a agendar su horario. Y la factura sale sola.",
+      "comoGana": "El creador deja de perder 10-20% de comisión de las plataformas de afuera y vende sus productos con su propia cara de marca, no atado a un Linktree feo."
     },
     {
       "id": "r2-2cb95082",
@@ -9804,7 +10559,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 7→8 (mercado grande y dolor cuantificado: 65% cobra a +30 días, US$6k impagos, 102h/año). Mantuve conf 8: el mercado sostiene la propuesta con fuerza, pero deje el riesgo del incumbente MP (podría integrar factura nativa) como techo. esf 4 sin cambios (reusa 100% del core). Reencuadré la cuña: NO competir por comisión, montarse encima de MP y monetizar la integración factura+WhatsApp+marca. Corroboré el precio en US$12/mes (por debajo de HoneyBook US$36-129 y del combo tusfacturas/Xubio), agregué 7 pasos demo→producción con gates, y el contraste de costo humano (~US$7.000, 200h × US$35) vs IA (US$0 dev + ~US$25/mes infra)."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Blueprint liviano freelancer-creativo que automatiza la cobranza y la emision de factura sobre el motor existente; el nucleo es ahorrar la tarea de cobrar+facturar, no un SKU nuevo.",
+        "palancas": [
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "CRM"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Para el freelance creativo que cobra tarde y le da vergüenza pedir el CUIT o pereza entrar a la AFIP: en un par de toques manda el link de pago por WhatsApp, y apenas le depositan sale la factura sola. Si no pagan, el sistema recuerda solo a las 48 horas, y un semáforo muestra quién pagó, quién debe y quién está vencido.",
+      "comoGana": "Cobra más rápido y factura siempre (deja de perder plata por no facturar), y quien lo ofrece cobra una cuota por el orden."
     },
     {
       "id": "r2-4716d9dc",
@@ -10000,7 +10771,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Recalibré scores con la evidencia: imp 6→7 (el media kit ya es requisito de facto, 87% de marcas lo exige; el pivot a cobro sube el valor), conf 6→5 (el mercado HIERE la propuesta tal cual: sin cobro es un armador comoditizado y regalado que el creador LATAM no paga), esf 3→4 y hs 18→~28 (mantener MP + ARCA suma trabajo vs sacarlos). El cambio de fondo: la v2 sacaba Mercado Pago y ARCA (\"no hay cobro\") — la evidencia dice que ahí estaba justo el único valor monetizable, así que corregí el diseño para CONSERVARLOS y monetizar la seña/booking, dejando el media kit vivo como gancho gratis (coherente con demo a costo cero). Reescribí dolor/desc/sol/gsg alrededor del pivot \"Stan Store argentinizado\". Agregué modelo de cobro atado al ingreso (comisión sobre seña + pro opcional en pesos) en vez de suscripción fija en USD, y 7 pasos demo→producción con sus gates."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'Creador' net-new: media kit vivo + rate card + booking con seña; es un rubro/producto vendible nuevo, no la automatizacion de una tarea puntual.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "CRM"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "La carta de presentación viva del creador: muestra sus números y sus paquetes de colaboración con precio a la vista, para que las marcas no anden pidiéndole un PDF viejo por mensaje. La marca reserva y deja la seña por Mercado Pago, y queda todo registrado con factura.",
+      "comoGana": "El creador no pierde el rastro de las marcas interesadas y asegura la seña al reservar, cobrando de forma seria en vez de una transferencia suelta."
     },
     {
       "id": "r2-7e31cdc4",
@@ -10191,7 +10979,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 6→7 (dolor de alto ticket confirmado + gap defendible), conf 7→8 (mercado monetizado y en alza + reuso de core maduro = bajo riesgo técnico) y esf 3→4 porque incorporé el SALDO-AUTOMÁTICO-CONTRA-ENTREGA como diferencial explícito — el hueco que la evidencia marca como no cubierto por nadie integrado; era una omisión de la versión anterior que solo hablaba de seña. Reorienté el foco del genérico (saturado y barato) al nicho creativo-freelance individual y agregué la defensa de precio: cuota baja en pesos o comisión 5% sobre la seña (modelo Turnito), nunca cuota fija en dólares. Sumé pasos de producción atados a los gates reales de GSG (DEMO→VENTA→INVERSIÓN, Gate 1/2) y corroboré precio contra el sweet spot local AR$7.000-17.000/mes."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'colaboraciones' derivado por rename+2 campos del blueprint servicios: un rubro vendible nuevo (ADR-055) mas que la automatizacion de una tarea existente.",
+        "palancas": [
+          "Agenda",
+          "MercadoPago",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Una agenda para el creador que graba con varias marcas al mismo tiempo, así no se le pisan las fechas ni se le mezclan las entregas. Antes de arrancar a producir cobra la seña por Mercado Pago, y el resto queda para cobrar cuando entrega el contenido.",
+      "comoGana": "Evita que se le caiga la plata cuando una marca cancela o corre la fecha, porque siempre cobra la seña antes de ponerse a laburar."
     },
     {
       "id": "r2-173d9dc0",
@@ -10419,7 +11222,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Reposicioné el producto: de \"reporte mensual automático\" (comoditizado, herido según evidencia) a \"el informe que se manda solo por WhatsApp y cobra el fee en el mismo link\" — el gancho pasa a ser ahorro de tiempo + cobro (MP) + WhatsApp nativo, con el reporte como caballo de Troya. Subí conf 6→7 e imp 6→7 porque el hueco net-new (nadie une informe branded + WhatsApp sin Zapier + link de cobro) está corroborado en mercado local y global; mantuve esf 5 (build real de PDF/IA/cruce MP pese al alto reuse). Recalibré costoDevHumano al alza y realista: US$900 (implícito ~US$14/h) → US$4.200 (120 h × US$35/h), acorde a tarifa senior AR/LATAM. Definí modelo de cobro FLAT por CM (US$15/mes hasta ~10 clientes) para undercutear el per-cliente de los incumbentes (AgencyAnalytics US$20/cliente), con COGS ~US$1 y margen 93%. Agregué los 7 pasos demo→producción con gates (Gate de Excelencia, de-sesgo ADR-046, RLS, sandbox WhatsApp, DEMO→VENTA costo cero, piloto, Gate 2 Neon). Veredicto: validado como cuña, con la advertencia dura de NO venderlo como \"herramienta de reportes\"."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza el informe mensual del CM (tarea no facturable) y lo empaqueta como tenant/entregable branded que cobra el fee en el mismo link.",
+        "palancas": [
+          "Reportes",
+          "PresetsIA",
+          "WhatsApp",
+          "MercadoPago",
+          "Storefront"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Pensado para el estudio de community management con varias cuentas: cada cliente carga sus números del mes en un formulario simple, y el sistema arma el informe con la marca del estudio y un resumen escrito con onda humana, no de robot. Se manda solo por WhatsApp.",
+      "comoGana": "El estudio se saca de encima 3-6 horas de trabajo por cliente cada mes y justifica su cuota con un informe prolijo que evita que el cliente dude en renovar."
     },
     {
       "id": "r2-938fc27d",
@@ -10618,7 +11438,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Se afinó el lápiz con la evidencia: (1) conf 6→7 y imp 6→7 — el mercado sostiene la demanda (LATAM CAGR ~28%, AR +30%/año con oferta rezagada), pero solo se valida el ángulo net-new, no el 'cobro+entrega' genérico; (2) esf 4→5 — para diferenciarse de Pulgy/DropyFile hay que cablear la capa fiscal ARCA y el value-ladder, no alcanza con el trigger; (3) veredicto = validado, pero reencuadrado: 'descartado como otro Pulgy, validado como el todo-en-uno fiscal WhatsApp-first'; (4) desc/gsg reforzados para poner el foso (WhatsApp + marca propia + ARCA + value-ladder) en el centro; (5) se agregaron pasos de fiscal ARCA y value-ladder a la ruta de producción; (6) modelo de cobro US$25/mes SIN fee sobre la venta como diferencial explícito frente a Gumroad 10%/Hotmart."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Vende presets/plantillas/mentorias como items de catalogo con entrega automatica post-pago; habilita una categoria de SKU nueva, no automatiza una tarea preexistente.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "WhatsApp",
+          "ARCA",
+          "Agenda"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "baja"
+      },
+      "criollo": "\"Comprá y listo\": el creador que vende filtros, plantillas o cupos de mentoría pone un link de pago, y cuando le pagan el archivo se entrega solo por WhatsApp, sin tener que estar mandándolo a mano. Para las mentorías, lleva la cuenta de los cupos para no agendar dos personas en el mismo horario.",
+      "comoGana": "Vende a cualquier hora (aunque esté durmiendo), no pierde ventas fuera de horario y factura cada entrega automáticamente."
     },
     {
       "id": "r2-1dc2026c",
@@ -10802,7 +11639,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf de 6 a 7 (el mercado probó la categoría exacta con Deelo/Passionfroot/Rella y el gap local ARCA+MP+WhatsApp+canje es defendible) e imp de 6 a 7 (add-on que sube ARPU sobre toda la base de tenants y monta el viento fiscal ARCA). Esf queda en 3: el core sigue siendo dato+vista+regla+trigger. Reorienté el copy y las métricas al PAYER real que marcó el mercado — CM/mini-agencia y mid-tier, NO la masa nano/micro que vive de canje — y agregué el canje como objeto de primera clase (flag esCanje + entrega gravada) porque ARCA ya lo busca gravar: ese es el gancho de urgencia. Fijé pricing en ARS bajo (~US$15/mes equivalente) con tier agencia, en línea con Deelo entrada y con la barrera cambiaria; nada de cuota fija cara en USD. Costo humano estimado en 72 h (2,5x las 28 h del build por coordinación/QA humanos) = US$2.520 vs ~US$0 dev con IA."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "No crea un SKU nuevo: automatiza el seguimiento de negociaciones que hoy el creador hace a mano por WhatsApp, sumando 3 campos al modelo Cliente + kanban + regla de recordatorio. Ahorra la tarea de perseguir propuestas frías sobre lo ya existente.",
+        "palancas": [
+          "CRM",
+          "WhatsApp",
+          "MercadoPago",
+          "ARCA"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Es una libreta ordenada donde el influencer anota cada marca con la que está hablando: cuánto le ofrecieron, en qué punto quedó la charla y cuándo volver a escribir. Así no se le enfría ningún trato ni se olvida de cobrar lo que cerró de palabra.",
+      "comoGana": "Le cobrás al creador una cuota mensual por usar esa libreta que le ordena las negociaciones."
     },
     {
       "id": "r2-28821f03",
@@ -10993,7 +11846,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afiné el lápiz con la evidencia: (1) PIVOT de monetización — se deja de vender el media kit (comoditizado, regalado por Canva/Beacons) y se monetiza el COBRO argentinizado (seña por MP + factura C/ARCA + lead a WhatsApp); el media kit vivo pasa a ser gancho gratis, coherente con demo-a-costo-cero. (2) Re-scores: imp 6→7 (el pivot amplía el valor y ata el ingreso al del creador), conf 6→7 (mercado sostiene fuerte la dirección: 87% de marcas exige media kit, tendencia living media kit + Argentina lidera nano), esf 3→4 (subo por cablear la capa de cobro MP/ARCA sobre el blueprint, aunque son módulos ya existentes). (3) Título reposicionado a 'Stan Store criollo'. (4) Corregí typos ('tarilfa'), sumé el circuito fiscal/MP al desc/sol/gsg. (5) Agregué contraste de costo humano (~US$4.900 vs US$0 dev con IA) y métricas del dueño con modelo freemium + comisión sobre seña, marcando honestamente que a US$7/mes hacen falta ~714 pagos → el juego es volumen (nano) o subir ARPO vía comisión."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Es un blueprint/preset nuevo 'Creador/Influencer' (media kit vivo + cobro de seña), un SKU vendible propio montado sobre storefront+catálogo+MP+ARCA. Mismo patrón que Break Point/Magra: nueva vidriera vendible, no una automatización sobre lo del creador.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una página web propia del creador con su foto, su bio, sus números y sus precios, siempre al día (nada de mandar PDF viejo con tarifas que ya no valen). Tiene un botón para que la marca le escriba y le deje la seña por Mercado Pago.",
+      "comoGana": "Cuota mensual por tener la página viva, más la comodidad de cobrar la seña ahí mismo."
     },
     {
       "id": "r2-66b63a73",
@@ -11193,7 +12063,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "1) Afiné el posicionamiento: el reporte NO es el producto (está comoditizado), sino el caballo de Troya — el gancho es WhatsApp-nativo + cobro atado (MP) + argentinización. Subí el título/desc/sol para hacer explícito el envío WhatsApp por wa.me (costo cero, sin API paga), que la evidencia marca como EL diferencial y que la versión anterior no nombraba. 2) Re-calibré scores: imp 6→7 (el combo toca dos dolores, tiempo + cobro, con hueco confirmado) y conf 6→7 (dos análisis independientes validan el hueco y GSG reusa todos los motores); esf queda en 3 (capa de presentación sobre lo ya construido). 3) Marqué explícito el riesgo \"herido si se vende como reporte\" en confianzaMercado y en el gate del paso de posicionamiento. 4) Precio sugerido bajado y anclado al mercado real (add-on US$5-15/mes → US$12)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza la tarea que hoy quema 3-6hs (armar el informe de campaña) Y a la vez es un entregable vendible nuevo (informe branded + cobro en un link). Capa de presentación sobre documentos de cobro existentes, pero con valor de producto propio.",
+        "palancas": [
+          "ARCA",
+          "MercadoPago",
+          "CRM",
+          "WhatsApp",
+          "Reportes"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "Cuando termina la campaña, arma solo el informe con las fotos y los números para mostrarle a la marca lo que hiciste, y en el mismo link le manda la factura y el botón para que te pague. Se acabó perder media tarde en Canva y después perseguir el cobro.",
+      "comoGana": "Suscripción mensual al creador que se ahorra las horas de armar informes y cobrar a mano."
     },
     {
       "id": "r2-8f413934",
@@ -11388,7 +12275,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf de 6→8 (el mercado sostiene fuerte el approach como feature: US$30B creciendo 25%, players facturando, tendencia no-login+WhatsApp+audit trail confirmada) e imp de 5→6 (diferencial genuino y defendible). esf queda en 4 (reconversión con reutilización alta). Afiné el título y el copy para poner el 'comprobante con validez de reclamo' y el 'OK por WhatsApp' como estrella — que es el net-new que ningún global cubre entero — en vez de solo 'link sin login' (terreno rojo/saturado). Fijé el modelo de cobro como ADD-ON del ERP en pesos/MP (no SaaS standalone) porque la disposición a pagar aislada del creador argentino es baja frente al gratis y al recargo dólar-tarjeta. Agregué el paso explícito de comprobante inmutable y el gate DEMO→VENTA→INVERSIÓN."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Reconvierte la agenda/turnos del ERP en un flujo de aprobaciones con OK por WhatsApp y comprobante de reclamo: automatiza y deja registro de una tarea que el CM hoy hace a los manotazos. Agrega el objeto 'pieza' pero no es un SKU vendible aparte.",
+        "palancas": [
+          "Agenda",
+          "WhatsApp",
+          "Storefront",
+          "Contratos"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Un calendario donde el community manager sube las piezas que va a publicar y el cliente les da el OK desde un link, quedando anotado qué aprobó y cuándo. Así nadie puede decir después 'yo nunca dije que sí a eso'.",
+      "comoGana": "Cuota mensual, y podés cobrar más según cuántas cuentas de cliente maneje el community."
     },
     {
       "id": "r2-81f29db5",
@@ -11603,7 +12506,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Reencuadré el núcleo del producto siguiendo la evidencia: el valor y el cobro viven en la capa de PAGO (seña MP + cotización + comprobante ARCA), no en la vidriera — que pasa a ser gancho gratis (título y sol reescritos con ese eje). Sumé el delta clave que el mercado señala como hueco net-new: el modo cotización-POR-PROYECTO (no por turno), que es lo único que ningún player AR/global cubre para el creativo; eso me obligó a subir esf 3→4 (ya no es 'cero backend': hay un flujo acotado nuevo). Subí imp 6→7 porque el reencuadre ataca directo la capa con disposición a pagar demostrada. Mantuve conf en 7 (WTP probada, pero el cotizador por-proyecto es net-new no probado en AR y hay resistencia del emergente al abono fijo en USD). Agregué ARCA como diferencial fiscal explícito, fijé precio en US$15/mes corroborado con ReservaSimple y añadí la alternativa take-rate ~5% para el emergente. Veredicto: validado (reframed), tras degradar la vidriera-sola a herida."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'portfolio creativo' nuevo (galería + cotizador de proyecto + seña MP) generado por Preset IA: es un tenant/vidriera vendible por rubro, no una automatización sobre algo que el creativo ya tiene. Delta real vs turnos: flujo por-cotización.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "PresetsIA",
+          "Agenda",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Una página tipo portfolio para el diseñador, editor o fotógrafo freelance: muestra su trabajo, arma el presupuesto del proyecto y cobra la seña por Mercado Pago, con todo registrado en un solo lugar en vez de un link suelto perdido en el WhatsApp.",
+      "comoGana": "Cuota mensual al freelance por tener su vidriera profesional que además le cobra la seña."
     },
     {
       "id": "r2-cd683b64",
@@ -11803,7 +12723,26 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí imp 6→7 (TAM grande + hueco net-new confirmado por ambos mercados) y conf 6→7 (los dos veredictos dan VALIDADO y el dolor de cobranza está cuantificado: 85% cobra tarde, 65-70% paga al primer recordatorio — eso valida directamente la palanca del recordatorio WhatsApp). esf se mantiene en 3 (reúso puro de módulos vía preset). Reemplacé la estimación de costo IA-time (18h/US$450) por el contraste que pide la regla del dueño: costoDevHumano de ~US$5.250 (150h × US$35) vs IA con dev US$0 + ~US$30/mes de infra. Bajé el precio sugerido a un ancla concreto de US$25/mes (corroborado con el sweet spot US$15-40 global y US$10-40 local), con margen 88% y 200 clientes para US$5k/mes. Agregué 7 pasos demo→producción atados a la regla DEMO→VENTA→INVERSIÓN y a los gates GSG/Gate 2. Afiné el copy de desc y sol para explicitar el moat (rieles argentinos) y la palanca del primer recordatorio."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Es un preset/blueprint nuevo (mini-ERP por CM) que empaqueta 4 módulos existentes con vocabulario propio y se vende como tenant. SKU vendible net-new para el segmento CM, no una feature incremental sobre un tenant existente.",
+        "palancas": [
+          "CRM",
+          "WhatsApp",
+          "MercadoPago",
+          "ARCA",
+          "Agenda",
+          "PresetsIA",
+          "Reportes"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Un solo tablero para el community manager que lleva 5 u 8 cuentas: ordena los clientes, los cobros, las facturas y el calendario de contenido. Reemplaza el Excel viejo, el WhatsApp y las cuatro herramientas sueltas por un solo lugar.",
+      "comoGana": "Suscripción mensual: es el sistemita todo-en-uno del community manager."
     },
     {
       "id": "r2-c4b98d24",
@@ -11995,7 +12934,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Se pivoteó el corazón de la propuesta: de 'otro facturador por WhatsApp' (comoditizado, carrera al precio contra el gratis de ARCA + Facturitas) a 'copiloto fiscal del creador'. La emisión pasó a ser feature interno de tabla-stakes; el gancho vendible ahora es la triada net-new que la evidencia validó como única defendible (canjes valorizados + semáforo de techo con canjes incluidos + semáforo de conveniencia). Se subió imp (5→6, dolor fiscal 2026 real y creciente) y esf (5→6, agrega ABM de canje y motor de semáforos), y se bajó/marcó conf en 5 con veredicto 'herido' porque el producto solo sobrevive si pivota. Se diferenció el semáforo de techo del Monitor oficial de ARCA sumándole la valorización de canjes que el oficial no hace. Precio recalibrado a US$7/mes (techo real del mercado) como add-on, no producto suelto."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Automatiza el control fiscal (semáforo de techo por WhatsApp sobre ARCA/MP ya pagos) PERO su diferenciador es net-new construido: ABM de canje + motor de valorización a precio de mercado. Add-on que mezcla automatización sobre lo existente con producto nuevo.",
+        "palancas": [
+          "ARCA",
+          "MercadoPago",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Un ayudante para el creador monotributista que le pone precio a los canjes que recibe (ropa, productos), le lleva la cuenta de cuánto cobró en el mes y le avisa con tiempo si se está por pasar del límite, para no comerse un lío con la AFIP.",
+      "comoGana": "Se vende como un extra pago mensual sumado al sistema del creador."
     },
     {
       "id": "r2-23d733ab",
@@ -12195,7 +13149,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Afinado con la evidencia: (1) subí confianza de 6→8 e impacto de 5→8 — el mercado sostiene con DDP dura (~US$14/mes en apps de seña-MP) el reencuadre al 'cobrás por el cobro, regalás la vidriera'; esfuerzo se mantiene en 3 (todo cableado sobre módulos existentes). (2) Reforcé el foco en la capa de PAGO como núcleo vendible y la vidriera como gancho gratis, alineado con el veredicto local/global. (3) Sumé explícito el comprobante ARCA como parte del valor localizado (cuña defendible: WhatsApp + seña MP + ARCA + ARS). (4) Fijé precio sugerido en US$14/mes por paridad con ReservaSimple, con opción freemium+take-rate para el creador emergente sensible al abono fijo en USD. (5) Detallé los 7 pasos demo→producción con gates del ciclo DEMO→VENTA→INVERSIÓN. (6) Corregí el costo humano a ~US$9.000 (250h × US$36, extremo bajo del rango 10-20k porque reusa plataforma) vs US$0 de dev con IA. (7) Mantuve el v2 de métricas de audiencia fuera del MVP hasta validar demanda real."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Sobre el storefront/catálogo existente automatiza el cobro de seña por MP, pero agrega una capacidad vendible nueva: cotizador self-serve por formato de contenido. El valor vive en la capa de pago, que es net-new sobre la vidriera commodity.",
+        "palancas": [
+          "Storefront",
+          "MercadoPago",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "Una página donde la marca elige el formato que quiere (reel, historia, posteo, canje), ve el precio fijo, arma el presupuesto sola y paga la seña. El creador deja de cotizar 'a ojo' por chat y no se le pierde nada en una captura.",
+      "comoGana": "Suscripción mensual al creador por tener su cotizador que cobra solo."
     },
     {
       "id": "r2-19f2ad3b",
@@ -12407,7 +13376,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Subí conf 7→8 e imp 6→7: la evidencia confirma la categoría (Deelo/Rella son match casi exacto) y que el payer real es exactamente el target de esta idea (CM/mini-agencia con cartera). Reencuadré el pricing a ARS bajo (~US$14/mes con freemium de entrada) por la barrera cambiaria y el caveat de disposición de pago del creador chico. Sumé el ángulo fiscal ARCA/canje como gancho de urgencia (aunque la idea no lo lideraba, es lo que convierte \"ordenar\" en \"necesito ya\"). Detallé 7 pasos demo→prod con gates de seguridad (link vista-cliente, aislamiento tenant) y Gate GSG en Opus. Ajusté el costo humano de 32h internas a ~110h de un equipo humano real (incluye Kanban drag-drop, link tokenizado con RLS, QA y accesibilidad)."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "100% reconfiguración de blueprint existente (clientes+agenda+recordatorios+URL pública): renombra jerga y agrega UI de semáforo/kanban para dar visibilidad de un vistazo. Automatiza el seguimiento de cobranza/entregables sin construir infra ni SKU nuevo.",
+        "palancas": [
+          "CRM",
+          "Agenda",
+          "WhatsApp",
+          "Storefront"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "quick-win",
+        "complejidad": "baja"
+      },
+      "criollo": "Un tablero donde el community manager ve de un pantallazo qué le deben, qué tiene que entregar y para cuándo, con lucecitas de color que avisan lo que está por vencer. Todo en un lugar, no repartido entre Excel, WhatsApp y notas sueltas.",
+      "comoGana": "Cuota mensual por darle al community la visibilidad de todo su laburo de un vistazo."
     },
     {
       "id": "r2-7e27f8c7",
@@ -12623,7 +13608,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Repositioné el producto: de 'herramienta de reportes' (herido/comodity) a la cuña net-new 'el informe que se manda solo por WhatsApp y cobra el fee en el mismo link' (reporte = caballo de Troya, valor capturable = ahorro de tiempo + cobro atado). Subí imp 6→7 por el valor estratégico como puerta de entrada a la suite + ángulo cobro; mantuve conf en 7 (la evidencia sostiene el gap pero hiere el standalone: función comoditizada con AI desde 2025); mantuve esf 4 por reuso del motor, pero FLAGUÉ como primer gate bloqueante que el calendario editorial debe existir como entidad/ABM (ADR-055) — si no existe, ahí está el costo real. Agregué 7 pasos demo→prod con gates atados al ciclo DEMO→VENTA→INVERSIÓN y a los Gates 1/2. Costo humano ~US$5.250 (150 hs × US$35) vs US$0 dev con IA + ~US$5/mes infra marginal (88x). Precio sugerido subido a US$15 (tope de la ventana, justificado por el combo WhatsApp+cobro) → 333 clientes para US$5k/mes, margen 90%, payback ~1 mes."
-      }
+      },
+      "tags": {
+        "tipo": "automatizacion",
+        "tipoPorque": "Reusa el motor de reportes/PDF + cron + WhatsApp + MP cambiando la fuente de datos: un cron mensual arma y manda solo el informe con branding del cliente y cobra el fee. Automatiza la tarea de fin de mes; net-new es solo el cableado, no un producto aparte.",
+        "palancas": [
+          "Reportes",
+          "WhatsApp",
+          "MercadoPago",
+          "Agenda"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "El último día del mes arma solo el informe del cliente con lo que se publicó y se lo manda por WhatsApp, con el link para cobrar el fee en el mismo mensaje. Chau quedarse a las 23hs copiando capturas en Canva.",
+      "comoGana": "Suscripción mensual al community que se saca de encima el informe del fin de mes."
     },
     {
       "id": "r2-eb20121a",
@@ -12818,7 +13819,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Se subió confianza de 6→7 e impacto de 6→8: ambos análisis de mercado coinciden en que ESTA propuesta (canjes + semáforo de conveniencia) es el ÚNICO ángulo net-new sin dueño del segmento, mientras que 'otro facturador WhatsApp' quedó herido. Esfuerzo se mantiene en 3 (reutiliza cobros/catálogo/inventario/reporte, no crea DB). Se reposicionó explícitamente: NO competir como facturador (ARCA gratis + Facturitas ya tomaron ese claim), y NO reimplantar el semáforo de TECHO (el Monitor de ARCA ya lo da gratis) — el diferencial es valuar el canje a precio de mercado + conveniencia. Se recalculó el costo dev humano con tarifa senior real (75 h × US$35 = US$2.625, antes se subvaluaba a ~US$180) y se explicitó devUSD=0 con IA. Se fijaron métricas de dueño: precio US$9/mes bundleado en plan Creador (no standalone), 91% margen, 556 clientes para US$5k/mes, payback ~1 mes por reutilizar infra. Copy de dolor/desc/sol/gsg afinado con el gancho fiscal 2026 (cruce ARCA con plataformas/bancos) y la doctrina FMV."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Nuevo tipo de comprobante 'Canje' (objeto vendible/registrable) más una regla de valorización automática y semáforo de conveniencia sobre catálogo/cobros existentes. Mezcla producto nuevo (comprobante) con automatización del cálculo, sin base de datos nueva.",
+        "palancas": [
+          "ARCA",
+          "MercadoPago",
+          "Reportes"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "Anota cada canje (cuando te pagan con productos en vez de plata), le pone un valor en pesos y te dice con un semáforo si te conviene o no comparado con lo que cobrás normalmente. Además te queda registrado para el monotributo.",
+      "comoGana": "Va dentro del paquete pago mensual del creador como una función más que suma valor."
     },
     {
       "id": "r2-f83e3508",
@@ -13005,7 +14021,20 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Recalibré conf 6→8 (willingness-to-pay probada vía Canva Pro AR$10.825/mes y nicho creciendo 20%+; hueco argentino claro y defendible) e imp 6→7 (es top-of-funnel que alimenta todo el ERP, ventaja defendible). esf se mantiene en 4 (reusa el motor de PRESET; solo capa de templates). Reposicioné explícitamente: como línea de venta de kits está herida/descartada (margen aplastado por Canva US$0-13), como MOTOR DE ADQUISICIÓN del ERP está validada — y eso quedó en veredicto, dolor, desc y confianzaMercado. Agregué costo-contraste humano (~US$5.950 la capa; US$20-40k el motor completo detrás), métricas de dueño ancladas al ticket del ERP porque el kit es gratis (precio US$19/mes, margen 79%, 263 clientes para US$5k, payback ~1 mes) y 6 pasos demo→prod con gates que respetan demo-a-costo-cero y el ciclo demo→venta→inversión."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Es un entregable nuevo (kit de 5 piezas gráficas) usado como imán gratuito: capa de templates/render net-new sobre el pipeline de extracción de identidad del Preset IA. SKU/lead-magnet propio, no automatiza una tarea recurrente del creador.",
+        "palancas": [
+          "PresetsIA"
+        ],
+        "modeloNegocio": "funnel-gratuito",
+        "comprador": "creador",
+        "horizonte": "quick-win",
+        "complejidad": "media"
+      },
+      "criollo": "Le arma gratis al creador un set de plantillas con su logo y sus colores: portada de historias, presupuesto, banner de promo, firma de WhatsApp. Todo coordinado, sin necesitar diseñador fijo ni pagar Canva Pro.",
+      "comoGana": "Es el regalo gancho: lo das gratis para conseguir el contacto y después venderle el sistema pago."
     },
     {
       "id": "af-facturacion-arca-monotributo-new",
@@ -13180,7 +14209,22 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Diferenciación explícita del cluster: NO repito valorización de canjes ni doble semáforo (techo/conveniencia) ni copiloto de emisión — eso ya está propuesto. Propongo la capa adyacente CONTRATO+PRUEBA+DEFENSA (acuerdo bilateral + carpeta probatoria de FMV + simulacro de defensa ante cruce/exclusión). Supuestos anotados: (1) el Plugin ARCA y el ERP ya emiten y (idealmente) valúan, así que este módulo consume esa salida, no la duplica; (2) lo empaqueto como ADD-ON del Plugin ARCA, no como app suelta, para no competir con la emisión comoditizada; (3) veredicto 'herido' porque el riesgo alto es que sea feature del producto del cluster y porque la disposición a pagar por 'seguro fiscal' es más blanda que por 'facturar' — por eso la Fase 0 es gate duro de demanda antes de construir la defensa avanzada; (4) alcance acotado a asistencia documental, con disclaimer, para no prometer patrocinio jurídico. Si el attach-rate en Fase 0 es bajo, se degrada de SKU a feature del cluster (no se pierde el trabajo)."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Módulo asignable por tenant 'expediente de canje' (acuerdo bilateral + carpeta probatoria + simulacro de defensa ante ARCA) con ABM propio (ADR-055): un producto/SKU legal-fiscal net-new sobre el Plugin ARCA, no una automatización de algo ya existente.",
+        "palancas": [
+          "ARCA",
+          "Contratos",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Arma el papelerío que respalda cada canje: un acuerdo firmado entre el creador y la marca, y una carpeta con pruebas de cuánto valía de verdad lo que recibiste. Es para tener con qué defenderte si la AFIP te cruza los datos y te reclama.",
+      "comoGana": "Se vende como un servicio extra pago para el creador que ya recibe canjes y quiere dormir tranquilo."
     },
     {
       "id": "af-cobranzas-link-pago-freelance-new",
@@ -13354,7 +14398,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Net-new genuino, no repite ninguna de las 6 propuestas del cluster (todas domésticas: MP + factura B/C + WhatsApp en español a clientes AR). Esta ataca el ÚNICO trend del brief todavía sin producto: multi-moneda/USD con conversión al oficial (trend 3), montada sobre el régimen BCRA A 8330 (sept-2025) que voló el tope de USD 36.000. Cambia el stack en tres ejes frente al cluster existente: (1) fiscal — Factura E de exportación de servicios en vez de B/C; (2) moneda — USD con cotización BNA y cuenta corriente en dólares; (3) idioma/compliance — persecución bilingüe ES/EN + tracker del plazo de 20 días hábiles de ingreso de divisas. Es el gemelo de exportación de Cobrame/Cobrá Fácil, dirigido al mismo freelancer target pero en su faceta de exportador, subiendo ARPU como add-on premium."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Es SKU vendible nuevo (módulo Exportación de servicios con Factura E en USD) y a la vez automatiza la tarea fiscal/compliance del cobro de divisas sobre la base ARCA ya integrada.",
+        "palancas": [
+          "ARCA",
+          "MercadoPago",
+          "WhatsApp",
+          "Reportes"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Si le trabajás a un cliente de afuera y te paga en dólares, esto te arma la factura sola, te muestra a cuánto está el dólar en pesos y te ordena todo el enchastre de cobrar de distintos lados. En vez de andar peleándote con los papeles, cobrás tranquilo y queda todo prolijo.",
+      "comoGana": "Cobra un abono o una comisión chica por cada factura al exterior que te resuelve."
     },
     {
       "id": "af-gestion-cartera-cm-new",
@@ -13520,7 +14580,25 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Net-new frente al cluster. Los tres productos existentes (mini-ERP por CM, cobranzas 'Mis Cuentas', cartera de fee mensual) gestionan la cartera que YA tenés: panel + cobro recurrente + conciliación + ARCA. Esta propuesta ataca la etapa distinta y vacía aguas arriba: la CAPTACIÓN/formalización del cliente nuevo (cotización → propuesta/contrato con e-aceptación → primer cobro MP → factura ARCA), en pesos y por WhatsApp. Es el front-door que alimenta el panel de cartera del cluster (captación → back-office), globalmente probado como categoría paga (Bonsai/HoneyBook/Dubsado) y localmente inexistente. Categoría venta_captacion, no cobros_facturacion, para no pisar lo ya propuesto."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Wedge front-door nuevo y vendible (cotizador + propuesta/contrato firmable + primer cobro + factura) que no existía aguas arriba del panel de cartera; reusa infra pero es una pieza-SKU nueva.",
+        "palancas": [
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "Contratos",
+          "PresetsIA",
+          "Storefront"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Es la puerta de entrada para el que maneja redes: le pasás al cliente un presupuesto lindo y una propuesta con tu marca, la acepta con un clic, te paga la seña ahí mismo y le sale la factura. Dejás de verte amateur y cerrás sin trabajar gratis las primeras semanas.",
+      "comoGana": "Se lleva un fee sobre cada cliente que cerrás y cobrás por la app."
     },
     {
       "id": "af-media-kit-rate-card-new",
@@ -13700,7 +14778,25 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Net-new genuino, NO repite los 10 del cluster. Todos ellos son la vidriera pública (media kit vivo + storefront que capta lead y cobra seña); este ataca el MISMO hueco argentino desde el otro lado: el back-office privado que empieza donde termina el media kit. Diferenciador defendible = el cockpit fiscal (Semáforo de Monotributo + factura C ARCA + conciliación MP), que ni el global ni el fiscal-genérico ni el media kit tocan. Ventaja de negocio: uso recurrente mensual (gestión de colabs + fiscal) → suscripción sostenible, versus el media kit que es regalable de una sola vez. Encaja casi 1:1 con el core del ERP (clientes, POS/MP, facturación ARCA, comisiones, recordatorios, RLS) y con el blueprint Creador del Preset IA: se reapunta el motor, no se inventa plataforma."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint 'Creador' nuevo y vendible: CRM de canjes/colaboraciones + semáforo de monotributo; es un producto maestro nuevo (Marca/Colaboración con ABM propio), no solo automatizar algo existente.",
+        "palancas": [
+          "CRM",
+          "ARCA",
+          "WhatsApp",
+          "MercadoPago",
+          "Agenda",
+          "PresetsIA"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Es un tablero para ordenar los canjes y las colaboraciones con marcas: quién te debe, qué tenés que entregar y cuándo cobraste, todo en un lugar en vez de perdido entre chats y notas del celu. Y te va marcando con un semáforo cuánto llevás facturado para que no te pases del monotributo sin darte cuenta.",
+      "comoGana": "Cobra un abono mensual al creador por tenerle todo ordenado y avisado."
     },
     {
       "id": "af-vidriera-portfolio-cotizador-new",
@@ -13865,7 +14961,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Refino del hueco corroborado, no repetición. Las 3 propuestas del cluster (storefront + cotizador + seña MP) frenan en la PRIMERA seña; este net-new ataca el tramo que queda vacío: la cobranza ESCALONADA por hitos (seña + avance + saldo contra entrega) más un DELIVERY GATE (escrow-lite app-side que libera el entregable al confirmarse el pago). El insight: la fuga de plata del creativo por proyecto no está en la seña —ya resuelta/propuesta— sino en el SALDO post-entrega, que nadie cubre ni local (apps de turno único) ni con encaje LATAM (HoneyBook/Dubsado hacen hitos pero en rieles US). Es distinto de lo ya propuesto y se apoya en infra GSG ya viva (webhook MP, arca-dispatch, whatsapp-cta). Riesgo marcado con honestidad: el WTP por la cobranza-por-hitos es extensión —no A/B-probada— del WTP por seña; se gatea con smoke-test antes del build pesado."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Plugin vendible nuevo (ABM de proyecto con hitos + entrega bloqueada por pago) que a la vez automatiza la cobranza del saldo sobre el webhook MP y ARCA ya vivos.",
+        "palancas": [
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "Storefront"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Para el que labura por proyecto: cobrás por partes y no entregás la siguiente etapa hasta que te pagaron la anterior. Se acabó el correr atrás del saldo cuando ya entregaste todo.",
+      "comoGana": "Se lleva una comisión chica por cada cobro por etapa que te destraba."
     },
     {
       "id": "af-crm-marcas-sponsoreos-new",
@@ -14040,7 +15152,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Net-new distinto de los 7 pipeline-CRM ya propuestos en el cluster: en vez de gestionar el embudo de deals, ataca el ESLABÓN FISCAL que todos omiten. El canje deja de ser una fila del CRM y pasa a ser un OBJETO FISCAL de primera clase (ADR-055) con valuación en pesos + Factura E/A de permuta, y se agrega el GUARDIÁN DEL MONOTRIBUTO (acumulador efectivo+canje YTD, proyección contra tope y categorías, alerta WhatsApp preventiva) que ningún competidor local ni global tiene. Ajuste vs contexto: el tope del monotributo NO es $94,8M — está en ~$108M (cat. K, feb-jun 2026) con proyección a ~$127M en jul 2026; por eso los topes van como parámetro editable, no hardcodeados. Se confirmó con fuente primaria que ARCA obliga a facturar los canjes al valor de mercado y que el canje suma al tope, lo que sube el impacto y hace el dolor accionable HOY."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "SKU nuevo: valuador de canjes + guardián del monotributo con objeto Canje maestro y motor de acumulación/proyección del tope; capacidad fiscal nueva, no automatización de algo preexistente.",
+        "palancas": [
+          "ARCA",
+          "CRM",
+          "MercadoPago",
+          "WhatsApp",
+          "Reportes"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "Cuando una marca te da un producto, una cena o una estadía a cambio de contenido, eso también cuenta como plata para la AFIP y suma al monotributo. Esto le pone precio a ese canje, te arma la factura y te avisa cuánto llevás para que no te agarren desprevenido.",
+      "comoGana": "Cobra un abono al creador por mantenerlo en regla y sin sustos con la AFIP."
     },
     {
       "id": "af-aprobacion-contenido-new",
@@ -14210,7 +15339,23 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Net-new frente al cluster: los 6 items existentes son variantes del MISMO mecanismo — un portal/link tokenizado al que el cliente aprueba (aunque llegue por WhatsApp). Esta propuesta cambia la MECÁNICA: no hay portal ni link; el OK se queda en el WhatsApp nativo donde ya ocurre y GSG entra como TESTIGO que sella en el momento de captura (hash + timestamp + identidad), convirtiendo el screenshot improvisado en comprobante con validez. Suma una segunda pieza que ningún item del cluster tiene: PRE-VUELO IA que baja las rondas de rechazo antes de mandar al cliente (trend 2025-26 de IA de pre-escaneo/batch, aún no explotado). Honesto: la estrella sigue siendo el comprobante (mismo hueco), pero atacado desde un ángulo distinto y complementario a los portales del cluster."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Add-on vendible (sello probatorio Testigo + pre-vuelo IA) que a la vez automatiza/certifica la aprobación que ya ocurre en el WhatsApp existente; combina SKU nuevo con automatización sobre lo existente.",
+        "palancas": [
+          "WhatsApp",
+          "Contratos",
+          "PresetsIA",
+          "MercadoPago"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Cuando el cliente te dice 'dale, va' por WhatsApp, esto deja constancia de que ese sí ocurrió, con fecha y hora, en el mismo chat donde siempre trabajás. Así, si después te sale con que 'yo no aprobé eso', tenés la prueba y no rehacés todo gratis.",
+      "comoGana": "Cobra un abono o un pago por uso por dejar sellado cada visto bueno."
     },
     {
       "id": "af-reportes-mensuales-resultados-new",
@@ -14376,7 +15521,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Pivoteé la cuña para NO repetir el cluster. El cluster satura 'el informe que se manda solo por WhatsApp + cobra en el mismo link' (vector = ENVÍO+COBRO). Acá ataco un vector distinto y confirmado por fuentes: la fricción de CONEXIÓN. Toda la evidencia dura (ayuda de Metricool: exige Facebook Page + Business Manager; Reportei: Zapier+API; Porter: Looker) muestra que el micro-CM AR no puede conectar la cuenta y por eso hace el reporte a mano. La novedad es INGESTA por captura vía IA multimodal, sin API/sin Business Manager, argentinizada. Caveat de honestidad que registré y que baja conf a 6: la primitiva de captura->reporte ya existe global (Whatagraph IQ), así que el net-new es por SEGMENTO+CANAL+PAÍS, no por tecnología pura; y sumé la pantalla de validación humana obligatoria como guardarraíl anti-alucinación (riesgo de exactitud). Supuesto anotado: precio US$19/mes por CM y COGS ~US$55/mes de infra son estimaciones a calibrar en el piloto."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Producto SaaS del core (informe branded vendible) cuyo valor central es automatizar la generación del reporte desde capturas sin conectar cuentas; SKU nuevo + automatización de la tarea.",
+        "palancas": [
+          "PresetsIA",
+          "WhatsApp",
+          "Reportes",
+          "MercadoPago",
+          "Storefront"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "cm-agencia",
+        "horizonte": "escalable",
+        "complejidad": "media"
+      },
+      "criollo": "En vez de andar conectando cuentas de Instagram (que es un lío y casi nunca podés), mandás la captura de las estadísticas por WhatsApp y te vuelve el informe del mes armado con la marca de tu cliente, listo para reenviar. Tres toques y listo.",
+      "comoGana": "Cobra por informe generado o un abono mensual al que maneja varias marcas."
     },
     {
       "id": "af-agenda-booking-sena-new",
@@ -14555,7 +15717,24 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Net-new frente a las 6 propuestas ya en el cluster (todas centradas en el BOOKING SUELTO con seña + saldo contra entrega, single-person, colaboración con marca, o cupos de taller). Acá el objeto no es el turno sino la RELACIÓN RECURRENTE creador↔marca modelada como cuenta corriente: abono/adelanto prepago, auto-recarga, retainer mensual y liberación de saldo atada al evento de entrega aprobada (no a la fecha). Argentiniza con el concepto local de \"cuenta corriente\" y se apoya en ADR-055 (dato maestro cuenta + relación con ABM propio para movimientos/abono). Único competidor conceptual es HoneyBook (global, sin MP/WhatsApp, en USD)."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "Blueprint nuevo: cuenta corriente por cliente + abono recurrente + liberación de saldo por entrega, modelado como dato maestro nuevo (ADR-055); capacidad vendible net-new, no solo automatizar la agenda existente.",
+        "palancas": [
+          "Agenda",
+          "MercadoPago",
+          "CRM",
+          "WhatsApp",
+          "Membresias"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Para el creativo que tiene clientes fijos todos los meses: lleva la cuenta clara de cuánto te adelantó y cuánto te debe cada uno, cobra un abono mensual solo y va soltando la plata a medida que entregás y te aprueban. Dejás de renegociar la seña en cada pieza.",
+      "comoGana": "Se lleva una comisión chica sobre cada abono y cada cobro que administra."
     },
     {
       "id": "af-tienda-productos-digitales-new",
@@ -14730,7 +15909,25 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Propuesta NET-NEW, no una revisión. Frente a las 6 propuestas ya existentes del cluster —todas tiendas de descargables ONE-SHOT (cobro MP + entrega/WhatsApp + factura ARCA de venta única)— esta ataca el hueco que el propio análisis nombra y nadie del cluster tomó: el 'value-ladder de presets a mentorías/membresías', es decir el ingreso RECURRENTE. Diferencia dura: cobro recurrente por MP Suscripciones/preapproval (no pago único), Factura C RECURRENTE automática por cada cobro acreditado (nadie lo hace en recurrente), acceso gated + dunning + bajas, y mentorías agendadas sobre la agenda del ERP. Es el escalón de retención que complementa —sin repetir— las vidrieras one-shot ya propuestas."
-      }
+      },
+      "tags": {
+        "tipo": "producto",
+        "tipoPorque": "SKU nuevo de ingreso recurrente: plan de membresía/mentoría con MP Suscripciones, Factura C recurrente y acceso; objeto maestro nuevo bajo VARIANTE, no automatización de algo ya vendido.",
+        "palancas": [
+          "Membresias",
+          "MercadoPago",
+          "ARCA",
+          "WhatsApp",
+          "Agenda",
+          "Storefront"
+        ],
+        "modeloNegocio": "saas-mensual",
+        "comprador": "creador",
+        "horizonte": "escalable",
+        "complejidad": "alta"
+      },
+      "criollo": "Es para vender membresías o mentorías que se pagan todos los meses solas, sin salir a cazar ventas sueltas cada vez. Cobra en pesos, saca la factura sola y le da acceso a la gente por WhatsApp, todo con tu marca.",
+      "comoGana": "Se lleva una comisión sobre cada cobro mensual que se repite automáticamente."
     },
     {
       "id": "af-preset-ia-piezas-graficas-new",
@@ -14895,7 +16092,188 @@ window.LAB_DATA = {
           ]
         },
         "cambios": "Refiné la hipótesis de entrada. El cluster ya tiene DOS propuestas de KIT GRATIS como imán de entrada (funnel de adquisición). Para no repetirlas, giré el foco al extremo opuesto del recorrido: una capa PAGA y RECURRENTE de aplicación de marca (retención + monetización), que escapa la trampa de precio de los kits sueltos (US$0-65 anclado) cobrando como add-on de la suscripción del ERP. Anclé el diferencial en la tendencia 2025-26 (kit estático → aplicación automática a cada pieza) y en el moat GSG (argentinización + vivir dentro del ERP). Sumé re-sync como capacidad clave que ningún kit estático ofrece, y aterricé los pasos en los gates reales de GSG (autorización registrada, Gate bloqueante del Preset, aislamiento por tenantId, Gate 2 de migraciones)."
-      }
+      },
+      "tags": {
+        "tipo": "hibrido",
+        "tipoPorque": "Motor de identidad persistente + theming engine (plataforma/infra reusable) que también auto-aplica y automatiza la marca a todo el ERP; es capacidad de plataforma vendible como retención, no un simple ahorro puntual.",
+        "palancas": [
+          "PresetsIA",
+          "Storefront",
+          "WhatsApp"
+        ],
+        "modeloNegocio": "add-on",
+        "comprador": "creador",
+        "horizonte": "plataforma",
+        "complejidad": "alta"
+      },
+      "criollo": "Agarra tu marca de verdad (colores, logo, estilo) y la deja aplicada sola en toda tu tienda, tus mensajes de WhatsApp, tus recordatorios y tus placas promo, para que todo se vea parejo y no muera un logo en una carpeta. Cuando cambiás algo, se actualiza todo de una.",
+      "comoGana": "Cobra un abono al creador por tenerle la marca aplicada y consistente en todo."
     }
-  ]
+  ],
+  "alternativas": [
+    {
+      "titulo": "Secuencia CREADOR: entrás cobrando, te quedás por la marca viva y el semáforo fiscal",
+      "tipoAlternativa": "wedge-secuencia",
+      "tesis": "Al influencer no le vendés un ERP: le vendés un primer cobro (link branded + Factura C/ARCA + persecución WhatsApp) que resuelve su dolor #1 sin compromiso. Desde ese cobro se expande en anillos —media kit vivo que genera la demanda, seña, CRM de marcas— hasta el sistema operativo del creador, y el semáforo de canjes/monotributo es el pegamento que hace carísimo irse.",
+      "componentes": [
+        "Cobrá Fácil: link de cobro con marca + factura ARCA automática + persecución por WhatsApp",
+        "Media Kit vivo + Rate Card con cobro de seña por Mercado Pago (blueprint \"Creador\")",
+        "Booking 1:1 / seña automática por Mercado Pago para el creador",
+        "CRM de marcas con semáforo de cobranza y timeline visual de entregables",
+        "Registro/Inteligencia fiscal de canjes con valorización automática y semáforo de conveniencia"
+      ],
+      "porque": "Ordena los ICE más altos (Cobrá Fácil 21.3, media kit 16.3) en una escalera de retención en vez de una lista de features sueltas; cada anillo reusa el mismo motor cobro+ARCA+WhatsApp, así que el costo marginal de cada expansión es config, no producto nuevo. Y es la única familia con moat estructural: la fiscalidad argentina. Las piezas sueltas pierden contra Stan Store/Linktree; la secuencia con foso fiscal detrás, no.",
+      "riesgo": "El creador puede quedarse en el wedge y no expandir (cobra una vez y se va): mitigar haciendo que la seña sea el segundo toque casi inmediato, no el quinto. El componente fiscal traccina poco como gancho aunque sea oro como pegamento, y hay canibalización con Mercado Pago pelado si el diferencial ARCA no se hace visible desde el primer cobro.",
+      "quickWin": "Publicar Cobrá Fácil como demo pública a costo cero en <cliente>-erp.vercel.app con la marca de un creador ya autorizado (Break Point/Magra): un link que cobra en pesos + Factura C de mentira en modo demo, mostrando el flujo cobro→factura→WhatsApp en una pantalla. Puro cableado de piezas existentes, cero infra nueva.",
+      "veredicto": "fuerte",
+      "rank": 1,
+      "impactoEstrategico": 9
+    },
+    {
+      "titulo": "Secuencia COMMUNITY MANAGER: cobrá el fee → blindá el laburo → quedate con la cartera",
+      "tipoAlternativa": "wedge-secuencia",
+      "tesis": "El CM tiene un dolor mensual, recurrente y con fecha —cobrar el fee sin perseguir a cada cliente— y ese es el wedge (panel Mis Cuentas). Se expande al entregable que justifica el fee (reporte que cobra en el mismo link), al blindaje del trabajo (aprobación con comprobante) y al mini-ERP que gestiona TODA su cartera, momento en que cambiarse le cuesta perder a todos sus clientes de una.",
+      "componentes": [
+        "Panel de cobranzas \"Mis Cuentas\" para el CM con cartera de clientes",
+        "Cartera de fee mensual: cobro por MP + recordatorio WhatsApp + conciliación",
+        "El informe que se manda solo por WhatsApp y cobra el fee en el mismo link",
+        "Portal/Agenda de aprobaciones sin login + comprobante con validez de reclamo (Testigo)",
+        "Panel de gestión multi-cliente (mini-ERP por CM)",
+        "Cerrá Cliente — front-door: cotización + contrato firmable + primer cobro MP + factura ARCA"
+      ],
+      "porque": "Es el segmento con los ICE de cobro más altos y consistentes (Mis Cuentas 21.3) y con retención estructural: una vez que mete 5-10 clientes adentro, el switching cost es brutal, mucho mayor que el creador individual → churn bajo y LTV alto. Además cada CM es un canal de adquisición gratis: sus clientes-marca ven la herramienta funcionando y son leads del play B2C. Es el mismo kernel reusado bajo otra jerarquía.",
+      "riesgo": "Es multi-tenant ANIDADA (tenant dentro de tenant): más compleja de aislar (RLS) y toca zona irreversible (datos/marca de terceros) → Gate y Arquitecto de Solución obligados. El CM es sensible al precio y va a querer white-label y regatear margen; el reporte 'sin conectar cuentas' tiene ICE bajo (8) si no se automatiza la lectura de la captura con IA.",
+      "quickWin": "Publicar el Panel Mis Cuentas con 3 clientes ficticios branded en semáforo (verde pagó / rojo debe) + botón que dispara el recordatorio por WhatsApp, sin login, con la marca de un CM real autorizado. Es el par de mayor ICE del segmento y se arma con presets existentes; es la pantalla que un CM entiende en 5 segundos y quiere ya.",
+      "veredicto": "fuerte",
+      "rank": 2,
+      "impactoEstrategico": 9
+    },
+    {
+      "titulo": "Un solo motor + 3 blueprints: razonar por chasis, no por oportunidad",
+      "tipoAlternativa": "plataforma",
+      "tesis": "El corpus no son 75 productos: es UN motor común —link brandeado que cobra (Mercado Pago + Factura ARCA + persecución WhatsApp) + Marca Viva por tenant— con 3 blueprints (Creador, CM, Creativo). Cada wedge/secuencia es una configuración del preset, no código nuevo; media kit, booking, tienda, informe, aprobación y cotizador son plantillas de un mismo objeto 'link accionable brandeado'.",
+      "componentes": [
+        "Marca Viva — motor de identidad persistente que auto-aplica la marca del cliente a todo el ERP",
+        "Cobrá Fácil (link que cobra + ARCA + WhatsApp)",
+        "Media Kit vivo / Turnero con seña / El informe que cobra (plantillas del mismo motor)",
+        "Panel de gestión multi-cliente para CM",
+        "Generador de Preset IA como fábrica natural de esas plantillas"
+      ],
+      "porque": "De-risquea TODO el roadmap: en vez de priorizar entre 75 apuestas, construís 1 motor + 3 configs y las secuencias se despliegan casi gratis. La repetición masiva (15 media kits, 11 informes, 8 links de cobro) no es ruido: es la señal más fuerte de dónde está la demanda validada. Calza exacto con ADR-055 (el objeto se crea una vez y se asigna) y con el Generador de Preset IA, ya transversal-obligatorio en la metodología.",
+      "riesgo": "Sobre-ingeniería temprana: si construís el 'motor universal' antes de vender el primer wedge, gastás juicio (y el escaso Opus) en abstracción sin validación de plata. La mitigación es al revés: vender una secuencia primero con lo mínimo y consolidar el motor recién cuando el segundo tenant repita el patrón.",
+      "quickWin": "No construir nada: mapear en una tabla las 75 → 3 blueprints × N toggles y marcar qué toggle ya existe en el ERP. Ejercicio doc-only (reversible, Arquitecto de Solución) que ordena el backlog entero en una tarde y evita construir 15 veces el mismo media kit.",
+      "veredicto": "fuerte",
+      "rank": 3,
+      "impactoEstrategico": 9
+    },
+    {
+      "titulo": "Turnero con Seña — el motor anti-plantón horizontal (el ICE 28 más allá del creador)",
+      "tipoAlternativa": "adyacencia",
+      "tesis": "El activo más fuerte del corpus no es 'para influencers': es un turnero con seña obligatoria por MP + saldo contra entrega + Factura ARCA + cobro por WhatsApp, y ese motor es idéntico para fotógrafos de eventos, coaches, profesores, terapeutas y esteticistas. La adyacencia se hace cambiando etiquetas del blueprint, no código; el fotógrafo de eventos es el faro (seña alta, entrega bloqueada por pago, ticket grande).",
+      "componentes": [
+        "Turnero con seña obligatoria por Mercado Pago (ICE 28)",
+        "Booking 1:1 con seña automática / Agenda una-sola-persona con saldo contra entrega",
+        "Reserva de Cupos con Seña Automática (anti doble-booking) para talleres y mentorías",
+        "Cobralo por Hitos — cobranza escalonada con entrega bloqueada por pago",
+        "Storefront-portfolio con cotizador de proyecto y seña por Mercado Pago"
+      ],
+      "porque": "Tiene el ICE más alto de las 75 (28) y el dolor —el que reserva y no aparece, o cancela sin costo— es universal en servicios 1:1 argentinos, no propio del creador de contenido. Vender el mismo motor validado a cinco rubros multiplica el TAM sin abrir un frente de desarrollo nuevo; el fotógrafo de eventos sube el ticket decenas de veces sobre el mismo motor, con la seña anti-cancelación como la razón real por la que firma.",
+      "riesgo": "Diluir el foco de marca 'ERP del creador' si se persigue a todos a la vez: mitigar eligiendo UN rubro faro (fotógrafo de eventos) y dejando el resto como blueprints activables. La entrega de galerías pesadas (cientos de fotos / 4K) no está resuelta: apoyarse en link-candado a la nube del propio profesional, no hosteo propio.",
+      "quickWin": "Clonar el blueprint 'Creativo Freelance' cambiando solo copy y rubro, y correr una demo pública a costo cero con un fotógrafo o coach de la red del dueño: reservar → pagar seña MP → confirmar por WhatsApp. Es la demo que más rápido produce el 'quiero esto' porque muestra plata entrando.",
+      "veredicto": "fuerte",
+      "rank": 4,
+      "impactoEstrategico": 8
+    },
+    {
+      "titulo": "El foso fiscal de canjes: caballo de Troya gratis, no feature paga",
+      "tipoAlternativa": "wedge-secuencia",
+      "tesis": "'Valorizar canjes + semáforo de techo de monotributo' aparece una y otra vez y casi siempre sale HERIDO en ICE, pero el need está validado en todo el corpus. Está herido porque intentan cobrarlo suelto: en realidad es el mejor imán de adquisición y la única defensibilidad estructural del catálogo. Regalarlo captura el dato más valioso del creador (sus ingresos y canjes reales) y crea la urgencia fiscal que justifica el upsell al riel de cobro+factura.",
+      "componentes": [
+        "Inteligencia fiscal de canjes — valorización automática + doble semáforo (techo y conveniencia)",
+        "Registro de canjes con valorización automática y semáforo de conveniencia",
+        "Canje Legal: valuador de canjes + guardián del monotributo (ARCA)",
+        "Escudo de Canje — acuerdo bilateral + carpeta probatoria ante cruce de ARCA",
+        "Exportá y Cobrá — cobro del exterior en USD con Factura E"
+      ],
+      "porque": "Es el único territorio del corpus con foso real: replicar cobros o media kits es fácil, pero la inteligencia fiscal argentina de canjes es difícil de copiar por Stan Store/Linktree y de altísimo dolor latente (miedo a que ARCA te excluya del monotributo). Como pegamento es oro: una vez que el creador confía su fiscalidad, es carísimo que se vaya. El mercado dice que lo valora PEGADO al cobro/media kit, no aislado: la gente no compra 'compliance', compra 'cobrá tranquilo'.",
+      "riesgo": "Es el veredicto más herido del corpus (copiloto fiscal 4-7, escudo 8): como gancho no tracciona aunque como pegamento sea oro, y un imán gratis que no convierte a pago es puro costo y data sin negocio. Riesgo regulatorio/responsabilidad: dar consejo fiscal implica exactitud o exposición legal. Alta complejidad de construcción sobre ARCA.",
+      "quickWin": "No venderlo como suite: incrustar SOLO el semáforo de canjes (ICE 18.7 validado) como calculadora pública gratis (sin login, sello GSG discreto) con CTA 'facturá y cobrá tu próximo canje acá', y medir cuántos que calculan su techo hacen click al riel. Una pantalla, costo cero, valida el funnel antes de construir el resto del escudo.",
+      "veredicto": "prometedora",
+      "rank": 5,
+      "impactoEstrategico": 7
+    },
+    {
+      "titulo": "Monetizar el riel, no el software: take-rate por transacción en vez de abono",
+      "tipoAlternativa": "pivot",
+      "tesis": "Ninguna de las 75 declara modelo de precio, pero TODAS terminan en 'seña/cobro por Mercado Pago' pasando por el sistema. El pivot: no cobrarle un abono al creador (que no lo paga y churnea) sino tomar una micro-comisión sobre cada seña/cobro/venta que fluye por el riel. El producto se paga solo cuando el cliente GANA, no antes.",
+      "componentes": [
+        "Turnero con seña obligatoria por Mercado Pago (ICE 28)",
+        "Cobrá Fácil: link de cobro con marca + factura ARCA + persecución WhatsApp",
+        "Panel de cobranzas \"Mis Cuentas\" para el CM",
+        "Círculo — membresías y mentorías recurrentes (cobro recurrente por MP)",
+        "\"Vendé mientras dormís\": tienda de productos digitales con cobro por MP"
+      ],
+      "porque": "El abono SaaS choca de frente con la realidad del segmento (creador argentino, ingreso irregular, cero disposición a pagar fijo). El take-rate elimina la fricción de venta ('probalo gratis, pago solo si cobrás'), alinea incentivos y explota que el riel ya toca la plata. Encaja quirúrgico con DEMO→VENTA→INVERSIÓN y dev=US$0: el gasto se dispara con el ingreso. Muchos ítems 'heridos' lo están por intentar cobrar una feature aislada; bajo take-rate son gratis y se financian con el flujo.",
+      "riesgo": "Complejidad regulatoria/técnica: intermediar plata puede requerir figura de agregador/split y toca compliance MP; el margen unitario en pesos con creadores chicos puede ser flaco. Alternativa intermedia: fee fijo bajo por transacción exitosa (split MP directo, sin custodiar fondos).",
+      "quickWin": "En la demo del turnero (ICE 28), instrumentar el conteo de señas cobradas exitosas SIN cobrar todavía; con 2-3 semanas de un tenant real se estima el GMV que pasaría por el riel y se dimensiona qué take-rate haría sostenible el modelo. Análisis puro sobre demo, cero infra paga.",
+      "veredicto": "prometedora",
+      "rank": 6,
+      "impactoEstrategico": 7
+    },
+    {
+      "titulo": "Pivot de recurrencia: coaches, mentores y educadores (LTV > la transacción del influencer)",
+      "tipoAlternativa": "nuevo-segmento",
+      "tesis": "El influencer es transaccional (cobra un canje y se va); coaches, mentores y profesores particulares tienen ingreso RECURRENTE (abono mensual, membresía, cohortes). El corpus ya trae las tres piezas que ese segmento necesita —booking 1:1 con seña, membresía/abono con Factura C recurrente y venta de mentorías/infoproductos— pero dispersas bajo 'creativos/influencers'; empaquetadas forman un vertical de mayor valor de vida del cliente.",
+      "componentes": [
+        "Círculo — membresías y mentorías recurrentes con Factura C automática recurrente",
+        "Booking 1:1 con seña automática por Mercado Pago (blueprint \"Asesoría\")",
+        "Vidriera de Infoproductos: presets, plantillas y mentorías con cobro en pesos",
+        "Reserva de Cupos con Seña Automática para talleres y mentorías",
+        "Reporte de avance del alumno/coachee branded con link de cobro del próximo mes"
+      ],
+      "porque": "La recurrencia es lo que le falta al negocio del influencer para tener churn bajo y previsibilidad: el coach cobra sesión + abono + curso y los tres flujos ya existen. El 'informe que se manda solo' se reconvierte casi sin cambio a 'reporte de avance del coachee' con link de cobro, que es exactamente la cadencia de un mentor. Es el mismo ERP con otra narrativa de valor, y una que retiene mejor.",
+      "riesgo": "Se pierde el diferencial fiscal más filoso (semáforo de canjes/techo) porque el coach no vive de canjes → hay que competir con calendarios genéricos tipo Calendly, apoyando el diferencial en 'Factura C recurrente automática + WhatsApp-first', que Calendly no hace en Argentina.",
+      "quickWin": "Armar el blueprint 'Mentor/Coach' combinando Círculo + Booking 1:1 + reporte de avance y generar el preset desde el Instagram de un coach real (con autorización) para una demo pública; medir si 'abono + Factura C automática' es el gancho que Calendly no cubre.",
+      "veredicto": "prometedora",
+      "rank": 7,
+      "impactoEstrategico": 6
+    },
+    {
+      "titulo": "Dar vuelta el comprador: venderle al que PAGA (marcas y agencias), no al creador suelto",
+      "tipoAlternativa": "pivot",
+      "tesis": "73 de las 75 miran al creador individual (que churnea, cobra poco y no quiere pagar abono), pero un puñado de piezas describe el OTRO lado del handshake: la marca/PyME que hace influencer marketing y necesita gestionar canjes, aprobaciones y pagos a un ROSTER de creadores. Ese lado tiene presupuesto y no se va; el pivot es empaquetar 'gestión de canjes, aprobaciones y pagos a creadores' para la marca/agencia y que los creadores entren gratis como red del otro lado (two-sided por debajo de la mesa).",
+      "componentes": [
+        "Cuenta corriente de marcas — quién me debe qué, con cobro accionable por WhatsApp",
+        "Acuerdo Flash: contrato WhatsApp-to-confirmación para canjes y sponsoreos",
+        "Escudo de Canje — acuerdo bilateral creador↔marca + carpeta probatoria",
+        "Portal de aprobación de contenido con trazabilidad (link único, sin login)",
+        "Pipeline de reactivación de marcas — CRM de renovación de sponsoreos"
+      ],
+      "porque": "Cada uno de esos ítems es un apretón de manos de DOS partes donde el corpus solo le cobró a una; el valor compone cuando ambos lados están adentro (la marca aprueba, el creador entrega, el cobro/canje queda con validez de reclamo para los dos). Arregla el problema estructural del segmento —el freelance no paga; la agencia sí— y GSG ya tiene el brazo de Agencia Digital para dogfoodear el rol 'agencia que administra 10-50 creadores'.",
+      "riesgo": "Two-sided es el modo difícil: sin masa de creadores el lado marca vale poco y viceversa (huevo-o-gallina). Mitiga empezar single-player del lado agencia (mini-ERP del CM ya validado) y activar el segundo lado recién cuando hay roster real.",
+      "quickWin": "Reempaquetar la demo del 'Portal de aprobación sin login' desde la óptica de la MARCA (una PyME que aprueba el contenido de 3 creadores en un tablero) y mostrársela a un cliente-agencia existente; medir si prefiere pagar ella el abono en vez del creador. Cero dev nuevo, solo reencuadre de la demo.",
+      "veredicto": "prometedora",
+      "rank": 8,
+      "impactoEstrategico": 5
+    },
+    {
+      "titulo": "Kiosco digital argentino: el infoproductor no-creativo (nutris, profes de idioma, wellness)",
+      "tipoAlternativa": "nuevo-segmento",
+      "tesis": "La tienda de productos digitales con cobro en pesos, entrega automática por WhatsApp y Factura ARCA sirve a cualquiera que venda un PDF/plantilla/plan por Instagram: nutricionistas con planes, profes de idiomas con material, entrenadores con rutinas, terapeutas con ejercicios. Es el mismo 'vendé mientras dormís' sin que el vendedor sea del mundo creativo.",
+      "componentes": [
+        "\"Vendé mientras dormís\": tienda de productos digitales con cobro en pesos por MP",
+        "Digital Store: presets/plantillas en pesos con entrega automática por WhatsApp y factura ARCA",
+        "\"Comprá y listo\": link de pago que se entrega solo por WhatsApp",
+        "Marca Viva — motor de identidad persistente por tenant",
+        "Círculo — membresías y mentorías recurrentes"
+      ],
+      "porque": "Amplía muchísimo el universo más allá de influencers/CM: hay muchos más nutris y profes vendiendo material por Instagram que creadores viviendo de canjes. El motor de Preset IA (Marca Viva) genera la vidriera con la identidad real de cada uno en minutos, el on-boarding self-serve que este segmento necesita. La Factura ARCA sigue siendo diferencial: todos son monotributistas que odian facturar.",
+      "riesgo": "Se pierde el gancho más único y defendible (canjes valorizados + semáforo de techo) porque el segmento no cobra en canjes → el diferencial queda reducido a 'tienda + factura', más commoditizable frente a Tiendanube/Hotmart. Es la adyacencia más lejana del ADN 'creador': validar demanda antes de invertir foco.",
+      "quickWin": "Generar (con autorización) un preset de tienda digital desde el Instagram de una nutricionista o profe conocida y publicar la demo a costo cero; medir si 'entrega automática + Factura C sin mover un dedo' convierte tan bien como en el creativo antes de comprometer roadmap.",
+      "veredicto": "especulativa",
+      "rank": 9,
+      "impactoEstrategico": 4
+    }
+  ],
+  "lecturaGlobal": "Las 24 miradas convergen en una sola verdad: no hay 75 productos, hay UN motor —el link brandeado que cobra en pesos, factura en ARCA y avisa por WhatsApp, auto-vestido con la marca del cliente (Marca Viva)— y un puñado de blueprints (Creador, CM, Creativo). La repetición masiva (15 media kits, 11 informes, 8 links de cobro, 6 turneros) no es ruido: es la señal más fuerte de dónde está la demanda ya validada. La estrategia ganadora no es elegir features sino ordenarlas en escaleras de retención por segmento: entrás con un wedge que muestra plata entrando (la seña ICE 28 o Cobrá Fácil 21.3) y expandís en anillos que reusan el mismo motor a costo de config. Hay dos compradores nítidos —el creador B2C (más volumen, más churn, más simple de demostrar) y el community manager B2B2C (menos volumen, retención brutal y canal de adquisición propio)—, y el único foso estructural es la capa fiscal argentina de canjes/monotributo: traccina poco como gancho pero es carísimo de dejar como pegamento. El desbloqueo de negocio no es el abono SaaS —que el creador argentino no paga— sino el take-rate sobre el riel que ya toca la plata, perfectamente alineado con DEMO→VENTA→INVERSIÓN y dev=US$0."
 };

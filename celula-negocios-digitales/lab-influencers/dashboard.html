@@ -250,7 +250,9 @@
         <td class="num">US$ ${fmt0(o.final.costoHumanoUSD)}</td>
         <td class="num">${o.final.pctAutomatizableIA}%</td>
         <td class="num">${o.final.tiempoMVPdias} d</td>`;
+      const criollo = o.criollo ? `<div class="stage" style="background:color-mix(in srgb,var(--seq-450) 8%,transparent);border:1px solid var(--grid);border-radius:8px;padding:8px 10px"><b>🧉 En criollo:</b> ${o.criollo}${o.comoGana ? ` <span style="color:var(--muted)">· Cómo gana: ${o.comoGana}</span>` : ""}</div>` : "";
       const detail = e ? `
+        ${criollo}
         <span class="badge">💢 ${o.final.dolor}</span>
         ${ver ? `<span class="badge" style="color:${ver[1]};border-color:${ver[1]}">Veredicto: ${ver[0]}</span>` : ""}
         <div class="stage" style="color:var(--good-text)">${e.ahorroVsHumano.frase}</div>
@@ -266,10 +268,11 @@
         <div class="stage"><b>Solución:</b> ${o.final.solucion}</div>
         <div class="stage"><b>Encaje GSG:</b> ${o.final.encajeGSG}</div>
         <div class="stage"><b>Ciclo de mejora</b> — v1 (${o.autor}): «${o.v1.titulo}» → <b>v2:</b> ${o.mejoraV2} → <b>v3:</b> ${o.mejoraV3}</div>`;
+      const tipoTag = o.tags?.tipo ? ` <span class="badge" style="font-size:10px">${({automatizacion:"⚙️ Automatización",producto:"📦 Producto",hibrido:"🔀 Híbrido"})[o.tags.tipo]}</span>` : "";
       return `
       <tr class="op-row" data-id="${o.id}">
         <td class="rank">${i + 1}</td>
-        <td><b>${o.final.titulo}</b>${ver ? ` <span style="color:${ver[1]};font-size:11px;font-weight:700">● ${ver[0]}</span>` : ""}<br><span style="color:var(--muted);font-size:12px">R${o.ronda} · origen: ${o.autor}${e ? " · afinado" : " · v3"}</span></td>
+        <td><b>${o.final.titulo}</b>${ver ? ` <span style="color:${ver[1]};font-size:11px;font-weight:700">● ${ver[0]}</span>` : ""}${tipoTag}<br><span style="color:var(--muted);font-size:12px">R${o.ronda} · origen: ${o.autor}${e ? " · afinado" : " · v3"}</span></td>
         <td><span class="dot" style="background:${SEG_COLOR[o.final.segmento] || "var(--series-3)"}"></span>${SEG_LABEL[o.final.segmento] || o.final.segmento}</td>
         <td>${DOLOR_LABEL[o.final.categoriaDolor] || o.final.categoriaDolor}</td>
         <td class="num">${o.final.impacto}</td><td class="num">${o.final.confianza}</td><td class="num">${o.final.esfuerzo}</td>
