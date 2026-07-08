@@ -5,7 +5,7 @@
 > trae: qué es en criollo, en qué estado está, y los números clave (qué cuesta construirlo, cuánto sale
 > operarlo, a cuánto se vende, qué margen deja y cuántos clientes hacen falta para facturar).
 >
-> **Actualizado:** 2026-07-07 (motor Ronda 15) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
+> **Actualizado:** 2026-07-07 (motor Rondas 15–16) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
 
 ## Qué es la célula (contexto de cero)
 Un equipo de agentes de IA que funciona como una **consultora interna**: inventa negocios digitales que
@@ -141,6 +141,32 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
   energética antes del GO pleno → **queda como GO piloto en observación**. Honestidad de método.
 - **Números (prov.):** build 4–5 sem · precio 25% del ahorro anual · margen ~85% · base ~$730k/mes (≈ USD 480),
   condicionado a validar hueco y ahorro real.
+
+---
+
+## B-ter. SOBREVIVIENTES DEL MOTOR CÍCLICO — Ronda 16 (2026-07-07, apuestas de ventana regulatoria)
+
+> Ángulo: dos ventanas regulatorias frescas de 2026. Ronda flaca a propósito (2 de 5 candidatos; el
+> filtro mató riesgo-de-contraparte → Nosis/Veraz, comisiones ML → adyacente, turismo USD → OwiBook/
+> Bokun). Ambos son **GO piloto, pelotón medio**. Detalle en `ronda-16/2026-07-07-nuevos-negocios.md`.
+
+### 💡 Mono-Tech — copiloto fiscal-cambiario del exportador de servicios (Índice 34, 💥, GO piloto)
+- **Qué es (de cero):** para el que factura al exterior y cobra en dólares (devs, diseñadores,
+  consultores): te dice si calificás al nuevo **régimen Mono-Tech**, te inscribe, te arma la **Factura E**
+  correcta, te avisa el plazo de liquidación de divisas y te **blinda contra el cruce de ARCA** 2026.
+- **Señal:** media sanción en Diputados del régimen Mono-Tech + BCRA duplica los USD que retiene el
+  freelancer + ARCA cruza facturas E vs liquidaciones (2026).
+- **Números (prov.):** build 4–5 sem · freemium + pro ~$18k/mes · margen ~85% · base ~$9M/mes (≈ USD 6.000)
+  si sale la ley. **Caveat:** moat fino (Wallbit/YoFacturo adyacentes) + depende de que se sancione.
+
+### 💡 Prepaga Justa — auditá el aumento de tu prepaga y reclamá lo cobrado de más (Índice 33, ⚖️, GO piloto)
+- **Qué es (de cero):** audita tu historial de cuotas vs IPC, cuantifica lo que la prepaga te cobró de
+  más tras el DNU 70/23, y arma el reclamo (denuncia a la Superintendencia + legajo de amparo con estudio
+  aliado). Cobra un % de lo que se retrotrae/devuelve.
+- **Señal:** fallo Cámara **11-feb-2026** declaró abusivos los aumentos de OSDE, ordenó retrotraer a IPC
+  + devolver excedente; demanda probada (estudios de amparos ya facturan).
+- **Números (prov.):** build 4–5 sem · precio 25% de lo recuperado · margen ~85% · base ~$3M/mes (≈ USD 2.000),
+  techo alto con canal afinidad (sindicatos/RRHH). **Caveat:** requiere estudio jurídico aliado + resolver CAC consumer.
 
 ---
 
