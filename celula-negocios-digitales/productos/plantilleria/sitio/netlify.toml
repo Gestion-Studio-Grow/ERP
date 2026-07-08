@@ -1,0 +1,5 @@
+# Deploy zero-config a Netlify (free tier). Sin secretos.
+# Base = esta carpeta (sitio/). Netlify corre el build y publica /out.
+[build]
+  command = "npm run build"
+  publish = "out"

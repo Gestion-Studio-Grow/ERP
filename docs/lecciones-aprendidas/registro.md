@@ -336,6 +336,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Gotcha de infra:** `robocopy` desde Git Bash **necesita `MSYS_NO_PATHCONV=1`** — sin eso, MSYS convierte `/E` en `E:/` y el copiado falla en silencio (exit 0, 0 archivos). Materializar `node_modules` real (no junction) para el build de Turbopack sigue vigente (MP-6).
 - **Refs:** ADR-039, ADR-049; ADR-056 (renumerado desde ADR-028 de la rama); memoria worktree/robocopy.
 
+**[MP-11] Demo estática costo-cero: generador propio > reinstalar el framework**
+- **Síntoma:** el scaffold de Plantillería era Next 14 con `params` síncronos; el `node_modules` del ERP ya es **Next 16 / React 19** (params async) y un `npm install next@14` fresco es pesado y frágil. Reusar el framework tal cual rompía tsc/build; instalar otro gastaba tiempo y red para una **demo**.
+- **Causa raíz:** atarse a un framework pesado para un producto que es **HTML estático + un poco de JS**; el runtime del monorepo no matchea el del prototipo aislado.
+- **Fix:** reemplazar Next por un **generador estático sin dependencias de runtime** (template strings TS → HTML en `build.ts`, cliente vanilla bundleado con esbuild). Las 3 vallas (tsc+test+build) se corren con el **toolchain del ERP vía junction** `sitio/node_modules → estetica-erp/node_modules` e invocando `node_modules/.bin/{tsc,tsx,esbuild}` — **cero `npm install`, cero robocopy**. El junction acá **sí sirve** (a diferencia de MP-6) porque no hay build de Turbopack: tsc/tsx/esbuild leen de él sin problema.
+- **Lección:** para una demo costo-cero, el **peso del stack es un costo** — un generador propio de 4 archivos da control total de las vallas y publica en cualquier host estático sin infra. El junction a `node_modules` alcanza para herramientas que solo **leen** (tsc/tsx/esbuild); Turbopack es la excepción que exige copia real (MP-6).
+- **Guardarraíl:** demo aislada → preferí **estático sin framework** salvo que el framework aporte algo real; si el prototipo trae un framework que no matchea el runtime del monorepo, **no lo reinstales para una demo** — portá el copy y generá estático. Fuente única de verdad del catálogo consumida por render **y** cliente (mismo `checkout.ts`, bundleado) para no duplicar lógica.
+- **Refs:** ADR-030/031 (demo costo-cero), ADR-044/046 (copy criollo / código estándar); complementa MP-6.
+
 ## SEC — Seguridad
 
 **[SEC-1] Secretos en el chat / credenciales expuestas**

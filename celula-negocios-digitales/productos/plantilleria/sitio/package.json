@@ -1,23 +1,22 @@
 {
   "name": "plantilleria-sitio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Landing + checkout estático de Plantillería AR. PROTOTIPO AISLADO — instalar deps SOLO dentro de esta carpeta, nunca contra el ERP raíz.",
+  "type": "module",
+  "description": "Tienda demo estática de Plantillería AR (generador sin framework). Checkout Mercado Pago en MODO DEMO. Instalar deps SOLO dentro de esta carpeta.",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "next": "latest",
-    "react": "latest",
-    "react-dom": "latest"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "build:html": "tsx build.ts",
+    "build:client": "esbuild src/client.ts --bundle --format=esm --target=es2020 --minify --outfile=out/app.js",
+    "build": "npm run build:html && npm run build:client",
+    "verde": "npm run typecheck && npm run test && npm run build",
+    "serve": "npx --yes serve out -l 4173"
   },
   "devDependencies": {
-    "typescript": "latest",
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@types/node": "^22",
+    "esbuild": "^0.28",
+    "tsx": "^4",
+    "typescript": "^5.6"
   }
 }
