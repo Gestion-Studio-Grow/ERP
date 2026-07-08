@@ -10,6 +10,7 @@
     "build:html": "tsx build.ts",
     "build:client": "esbuild src/client.ts --bundle --format=esm --target=es2020 --minify --outfile=out/app.js",
     "build": "npm run build:html && npm run build:client",
+    "build:artifact": "tsx build-artifact.ts",
     "verde": "npm run typecheck && npm run test && npm run build",
     "serve": "npx --yes serve out -l 4173"
   },
