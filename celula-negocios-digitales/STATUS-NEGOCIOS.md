@@ -16,6 +16,12 @@
 > regulados **el Estado ya digitalizó el trámite obligatorio** (ARCA Casas Particulares, libro de
 > ascensores AGC, portales de gasistas) → sin hueco. Ganó **cazar la ley recién salida**. Detalle en
 > `ronda-19/2026-07-07-nuevos-negocios.md`.
+>
+> **Ronda 20 (radar BORA):** 0 nuevos hoy (FAL → lo absorbe la nómina; SRT Prevención 4.0 → ART gratis +
+> certificación). Deja **watch-list dateada**: **"Fondo Devuelto"** (reclamá tu Fondo de cese FAL al
+> despido, success-fee) **madura ~nov-2026**; y PrevenIA podría certificarse en Prevención 4.0. 3 rondas
+> secas seguidas confirman **rendimiento decreciente → recomendación: consolidar + radar selectivo**.
+> Detalle en `ronda-20/2026-07-07-radar-bora.md`.
 
 ## 📑 Clasificación en DOS LISTAS (regla del dueño, 2026-07-07)
 
