@@ -30,6 +30,7 @@ export type Capability =
   | "users:manage"
   | "location:manage" // editar ubicación/contacto del negocio (módulo Localización)
   | "commissions:manage" // liquidar comisiones a profesionales (marcar período como pagado)
+  | "modules:manage" // activar/desactivar los módulos (apps) del negocio — vidriera de módulos
   | "billing:manage" // emitir facturas y procesar la facturación electrónica ARCA (módulo ARCA)
   | "payments:manage"; // generar links de cobro por Mercado Pago (módulo Cobros)
 
@@ -55,6 +56,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "users:manage",
   "location:manage",
   "commissions:manage",
+  "modules:manage",
   "billing:manage",
   "payments:manage",
 ];

@@ -47,3 +47,11 @@ export {
 export { moduleRegistryEnabled } from "./flags";
 
 export { construirCatalogo, catalogo, DESCRIPTORES_CATALOGO } from "./catalog";
+
+export {
+  type FilaModulo,
+  type PlanToggle,
+  vistaModulos,
+  planActivar,
+  planDesactivar,
+} from "./vista";

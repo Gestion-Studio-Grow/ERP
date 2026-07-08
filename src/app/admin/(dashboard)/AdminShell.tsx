@@ -27,6 +27,7 @@ function Icon({ name }: { name: string }) {
     auditoria: (<><path d="M9 12l2 2 4-4" /><rect x="4" y="4" width="16" height="16" rx="2" /></>),
     usuarios: (<><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 11l2 2 3-3.5" /></>),
     localizacion: (<><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></>),
+    modulos: (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
   };
   return (
     <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -55,6 +56,7 @@ const ALL_ITEMS: { href: string; label: string; icon: string; exact?: boolean; c
   { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage" },
   { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage" },
+  { href: "/admin/modulos", label: "Módulos", icon: "modulos", cap: "modules:manage" },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
