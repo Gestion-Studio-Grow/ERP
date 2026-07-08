@@ -6,6 +6,19 @@
 > Al abrir una sesión de este frente: pegá primero el genérico, después las **fichas por frente** de acá abajo.
 > *(El preámbulo que sigue se conserva como referencia histórica; la fuente de verdad del preámbulo es el genérico.)*
 
+## ⭐ ESTÁNDARES DE GSG LAB — DoD + Gate (aplican a TODO producto del lab)
+Dos estándares duros del dueño (invariantes; fuente canónica `celula-negocios-digitales/GSG-LAB.md §3`):
+
+1. **Demo funcional COMPLETA, bajo el hub `/lab`.** Todo producto del lab entrega una **demo end-to-end** —el
+   viaje del usuario funciona de punta a punta en modo demo, **no solo navegable/mockup**— y **servida en la
+   MISMA URL de GSG Lab**: rutas **`/lab/<producto>`** (`/lab/plantilleria`, `/lab/postora`, …), **no en URLs
+   sueltas**. Ancla: **ADR-028/029/030/031** (producto real en URL · ruteo · demo costo-cero · sin password +
+   toggle). **Es DoD del producto y parte del Gate** — sin demo funcional completa bajo el hub `/lab`, **no
+   pasa el Gate**. *(Supersede cualquier mención de "URL suelta / `.vercel.app` propia" en las fichas de abajo.)*
+2. **Portfolio en DOS listas.** Además del **ranking de alto beneficio**, el lab mantiene una **lista aparte de
+   "oportunidades sustentables de beneficio moderado"**, con **condición dura: costo 0 real o bajo costo** para
+   **construir Y operar**. Vive separada en `PORTFOLIO-Y-RECOMENDACION.md` / `STATUS-NEGOCIOS.md`.
+
 > **Qué es este archivo:** el/los prompt(s) de arranque **autocontenidos** para abrir el sprint de **GSG
 > Lab** (el Laboratorio de Negocios Digitales del estudio). Un frente = un worktree = una sesión. Copiá el
 > **PREÁMBULO COMÚN** + la ficha del **FRENTE** que abrís, pegalo en la sesión nueva y arrancá. Embebe TODO:

@@ -66,6 +66,17 @@
 - **Local hasta el OK del dueño:** todo queda local; publicar/cobrar/deploy son gates del dueño.
 - **Mercado local primero**, integraciones a entes públicos como moat, salir del sesgo del modelo, resolver
   un problema real + vendible, atado a una señal fechada. Detalle en `adr/ADR-CELULA-001` §4.
+- **Producto = demo FUNCIONAL COMPLETA bajo el hub `/lab`** *(estándar duro del dueño):* todo producto del
+  lab se sirve como **demo funcional end-to-end** —el viaje del usuario anda de punta a punta en modo demo, no
+  solo navegable/mockup— y **bajo la MISMA URL de GSG Lab**: rutas `/lab/<producto>` (`/lab/plantilleria`,
+  `/lab/postora`, …), **nunca en URLs sueltas**. Ancla: ADR-028 (producto real en URL, no preview), ADR-029
+  (ruteo), ADR-030 (demo costo-cero), ADR-031 (sin password + toggle). Es **DoD del producto y parte del
+  Gate**: sin demo funcional completa bajo el hub, **no pasa**.
+- **Portfolio en DOS listas** *(estándar duro del dueño):* además del **ranking de alto beneficio**, el lab
+  mantiene una **lista APARTE de "oportunidades sustentables de beneficio moderado"**, con **condición dura:
+  costo 0 real o bajo costo** para **construir Y operar** (build ≤ pocos días, COGS ~0, sin capital ni gasto
+  recurrente relevante). Se mantiene separada en `PORTFOLIO-Y-RECOMENDACION.md` / `STATUS-NEGOCIOS.md`; no
+  compite con el ranking principal.
 - **Cadencia:** ciclo diario, corre hasta que el dueño dice "frená"; se reanuda con "seguí".
 
 ## 4. Cómo GSG Lab se conecta con SGS (la metodología del estudio)
