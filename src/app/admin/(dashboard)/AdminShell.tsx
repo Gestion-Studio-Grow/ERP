@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
 import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
 import { moduleGateAllows } from "@/modules/gating";
+import { NAV_ITEM_GROUPS, groupNavItems } from "@/modules/nav-groups";
 
 // Íconos de línea (dirección B): un set chico inline, sin dependencias. Se
 // eligen por href. `currentColor` para que hereden el color del ítem (activo =
@@ -44,7 +45,8 @@ function Icon({ name }: { name: string }) {
 // gating está encendido (flag), el ítem se esconde si ese módulo está apagado para el
 // tenant. Los ítems SIN `module` son core/config (Dashboard, Ajustes, Usuarios, la
 // propia vidriera de Módulos…) y nunca se gatean por módulo — solo por rol.
-const ALL_ITEMS: { href: string; label: string; icon: string; exact?: boolean; cap: Capability; module?: string }[] = [
+type ShellItem = { href: string; label: string; icon: string; exact?: boolean; cap: Capability; module?: string };
+const ALL_ITEMS: ShellItem[] = [
   { href: "/admin", label: "Dashboard", icon: "dashboard", exact: true, cap: "dashboard:read" },
   { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda" },
   { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read", module: "clients" },
@@ -122,6 +124,32 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
   );
 }
 
+// Nav AGRUPADA en 5 grupos de negocio (ADR-059 D3) — detrás del flag maestro
+// `NAV_GROUPING_ENABLED` (default OFF; el layout server-side lo resuelve y lo
+// pasa como prop `navGrouping`). Reusa `groupNavItems` (S4, `@/modules/nav-groups`)
+// sobre los ítems YA filtrados por rol×módulo, y el MISMO <NavLinks> por grupo
+// (icono / estado activo / acento idénticos a la nav plana legada). `ungrouped`
+// es la red de seguridad de S4: un ítem sin grupo asignado se sigue viendo, no
+// desaparece en silencio. Con el flag OFF este componente ni se monta.
+function NavGroups({ items, onNavigate }: { items: ShellItem[]; onNavigate?: () => void }) {
+  const { groups, ungrouped } = groupNavItems(
+    items.map((it) => ({ ...it, grupo: NAV_ITEM_GROUPS[it.href] })),
+  );
+  return (
+    <div className="space-y-4">
+      {groups.map((g) => (
+        <div key={g.id} className="space-y-0.5">
+          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-faint">
+            {g.label}
+          </p>
+          <NavLinks items={g.items} onNavigate={onNavigate} />
+        </div>
+      ))}
+      {ungrouped.length > 0 && <NavLinks items={ungrouped} onNavigate={onNavigate} />}
+    </div>
+  );
+}
+
 function NavFooter({
   userName,
   roleLabel,
@@ -164,6 +192,7 @@ export default function AdminShell({
   brandName,
   monogram,
   activeModules = null,
+  navGrouping = false,
 }: {
   children: React.ReactNode;
   role: Role;
@@ -173,6 +202,10 @@ export default function AdminShell({
   // Ids de módulos activos del tenant, o `null` si el gating está apagado (flag OFF)
   // → no se gatea por módulo. Se resuelve server-side en el layout.
   activeModules?: string[] | null;
+  // ¿Nav agrupada en 5 grupos (ADR-059 D3)? Default false = nav plana legada. El
+  // layout lo resuelve con `navGroupingEnabled()` (flag `NAV_GROUPING_ENABLED`,
+  // default OFF). Reversible de un golpe: OFF → shell idéntico al de hoy.
+  navGrouping?: boolean;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -199,7 +232,7 @@ export default function AdminShell({
       {/* Sidebar fijo — solo desktop (lg+) */}
       <nav className="hidden lg:flex w-60 shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5">
         <div className="px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
-        <NavLinks items={items} />
+        {navGrouping ? <NavGroups items={items} /> : <NavLinks items={items} />}
         <div className="mt-auto"><NavFooter userName={userName} roleLabel={roleLabel} /></div>
       </nav>
 
@@ -222,7 +255,11 @@ export default function AdminShell({
                 ×
               </button>
             </div>
-            <NavLinks items={items} onNavigate={() => setDrawerOpen(false)} />
+            {navGrouping ? (
+              <NavGroups items={items} onNavigate={() => setDrawerOpen(false)} />
+            ) : (
+              <NavLinks items={items} onNavigate={() => setDrawerOpen(false)} />
+            )}
             <div className="mt-auto">
               <NavFooter
                 userName={userName}

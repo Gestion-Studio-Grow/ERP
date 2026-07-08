@@ -5,6 +5,7 @@ import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
 import { getActiveModuleIds } from "@/lib/module-gating";
+import { navGroupingEnabled } from "@/modules";
 import { getTenantBrand, resolveAccent, invertTheme } from "@/lib/branding";
 import type { CSSProperties } from "react";
 
@@ -46,7 +47,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          <AdminShell role={user.role} userName={user.name} brandName={brand.name} monogram={brand.monogram} activeModules={activeModuleIds ? [...activeModuleIds] : null}>
+          <AdminShell role={user.role} userName={user.name} brandName={brand.name} monogram={brand.monogram} activeModules={activeModuleIds ? [...activeModuleIds] : null} navGrouping={navGroupingEnabled()}>
             {children}
           </AdminShell>
         </ToastProvider>

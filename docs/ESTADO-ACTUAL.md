@@ -41,18 +41,21 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 >   (`perfilGateAllows` + `visibleNavItems`) + `src/lib/profile-gating.ts` (`getActiveProfile` en memoria) +
 >   flag `PROFILES_ENABLED` + **property-test del invariante de NAV** (`perfil.test.ts`). Vallas verdes
 >   (**tsc + 577 tests**, +5). Cero DB, cero cambio de UI.
-> - **Próximo paso (PR-2/M2):** mapa rol↔perfil → `perfilMin` en `ALL_ITEMS`, agrupación de nav (5 grupos),
->   tokens `--density`, primitivos (`PageHeader`/`SectionGroup`/`ProfileBadge`), candados **default OFF**.
-> - **§C pendientes del rediseño:** columna `Tenant.profile` + su migración (Gate 2) · entidades nuevas
->   (`cuentas-a-cobrar`, `inventario`, multi-sucursal) = ADR aparte · la **valla de DATO** ("subir sin perder
+> - **▶️ EJECUCIÓN — PR-2/M2 LANDED en la rama del sprint (reversible, flag maestro OFF) + GATE (Opus, S5) PASA CON OBSERVACIONES (2026-07-08):** pool de 5 sesiones —
+>   **S1** mapa de cobertura validado + corregido por revisión adversarial S5 (2F3/fiado → módulo de catálogo **default OFF** gateado por rubro, build diferido ADR-030; BMC-lite con dependencia anotada §C·I6; BFA CUT) ·
+>   **S2** tokens `--density`/`--space-*` (aditivos, `--density:1` = cero cambio visual; pisos duros 44px + AA) + primitivos `PageHeader`/`SectionGroup`/`ProfileBadge` (**tier en canal neutro**, nunca acento) + `profile-labels` (**"Comercio"/"Empresa"**, nunca lite/enterprise al cliente) ·
+>   **S3** flags `NAV_GROUPING_ENABLED` (maestro) + `UPGRADE_TEASER_ENABLED` (**ambos default OFF**) + `candado.ts` (3 estados, colapsa a legado con teaser OFF) + runbook de rollback ·
+>   **S4** `nav-groups.ts` (5 grupos + asignación ítem→grupo de los 17 + backlog KEEP) ·
+>   **S5 (integración)** cableó el skeleton de nav en `AdminShell.tsx`/`layout.tsx` **detrás del flag maestro OFF** (con flag OFF → nav plana legada idéntica). **Vallas verdes: tsc + 596 tests + naming/tier/§C verificados.** Cero DB, cero cambio de UI con flags OFF.
+> - **Naming de los 5 grupos (OBSERVACIÓN del Gate, a confirmar por el dueño):** S4 usó etiquetas **neutro-profesionales** ("Operación · Clientes · Inventario y compras · Finanzas · Configuración") en vez de los **criollos de ADR-059 D3** ("Día a día · Plata y papeles · …"), citando un override del dueño **no verificable en el repo**. Es label-only detrás del flag OFF (reversible). **Elevado al dueño** para confirmar naming o revertir a criollo.
+> - **§C pendientes del rediseño (ELEVADOS, no ejecutados):** columna `Tenant.profile` + su migración (Gate 2) · entidades nuevas
+>   (`cuentas-a-cobrar`, `inventario`, multi-sucursal) = ADR aparte · **§C·I6 (nuevo): BMC-lite exige el fix de doble-descuento de stock (worktree `calidad`) mergeado como criterio de "M2 terminado"** · la **valla de DATO** ("subir sin perder
 >   un dato") se construye con la persistencia (M4). Docs: `docs/estrategia/roadmap-dos-modelos.md` (hitos M0–M5).
-> - **Cobertura scope items SAP:** `docs/estrategia/mapa-cobertura-scope-items.md` — curado a AR (micro ~5 ·
+> - **Cobertura scope items SAP:** `docs/estrategia/mapa-cobertura-scope-items.md` — **VALIDADO** (desafío del Analista + revisión adversarial S5, `docs/estrategia/desafio-cobertura-2026-07-08.md`) — curado a AR (micro ~6 ·
 >   pyme ~15 · ~70% corporativo). **Decisión del dueño:** los descartados **NO se tiran → RESERVA** (§6):
 >   guardados como definición (no construidos), se despiertan por necesidad de cliente (reusable→producto /
 >   exclusivo→proyecto aparte, `FUNDAMENTOS §2`).
-> - **⏸️ PAUSA (2026-07-08):** el dueño sigue por **Dispatch (móvil)** en una **sesión nueva de sprint**;
->   laptop conectada. Árbol limpio y pusheado. **Próximo paso recomendado: (b) Analista de mercado local
->   desafía el mapa de cobertura → después PR-2/M2** (nav agrupada + densidad + primitivos, candados default OFF).
+> - **⏸️ MERGE A MAIN = decisión del dueño** con la lista de §C resuelta (ver retro `docs/retro/retro-sprint-grow-ar-pr2-2026-07-08.md`). La rama queda verde y pusheada; nada se mergeó a `main`. **Próximo paso recomendado tras el OK del dueño:** PR-3/M2 (set `lite` por rubro + `KpiTile`/`EmptyState`) y `DataTable` como hito propio (ADR-059 D6, fix #5).
 
 > **🆕 Sprint 2026-07-08 (Balde B en Opus) — WIP en rama `claude/sprint-startup-generic-rf6x0m`, verde, Gate-pendiente para merge a `main`.** Foco del dueño: **ARCA · Facturador · Módulos del backoffice**. Entregado:
 > - **Módulos del backoffice (ADR-054/055):** vidriera **`/admin/modulos`** (el OWNER prende/apaga las apps, variante + dependencias, cap `modules:manage`) **+ gating de navegación** (`src/modules/gating.ts` + `src/lib/module-gating.ts`): con `MODULE_REGISTRY_ENABLED` on, apagar un módulo lo saca del menú; default off = nav legada intacta (reversible). Primer consumidor del backoffice para la fundación de módulos. Vallas verdes (tsc + **572 tests** + build + gate:rls 33/33 + lint).
