@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
+import { decidirFacturacion } from "@/lib/invoice-idempotency";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const CONCEPTO_SERVICIOS = 2;
@@ -41,6 +42,12 @@ export async function facturarAppointment(
   });
   if (!appointment) return null;
 
+  // Idempotencia (hardening $0, sin migración): si el pago del turno ya tiene
+  // comprobante, un webhook MP duplicado devuelve el MISMO comprobante sin crear
+  // otra factura. La decisión pura está en `decidirFacturacion` (testeada).
+  const decision = decidirFacturacion(appointment.payment);
+  if (decision.accion === "reusar") return decision.comprobante;
+
   const monto =
     appointment.payment?.amount ??
     appointment.priceAtBooking ??
@@ -70,6 +77,16 @@ export async function facturarAppointment(
     servicioHasta: fecha,
     vencimientoPago: fecha,
   });
+
+  // Marca durable de idempotencia: deja el comprobante en el `Payment` del turno
+  // (unique por `appointmentId`) → un webhook MP duplicado cae en `reusar` arriba y
+  // no vuelve a facturar. Reusa columnas existentes (cero migración).
+  if (appointment.payment) {
+    await prisma.payment.update({
+      where: { id: appointment.payment.id },
+      data: { status: "APPROVED", comprobanteNro: invoiceId },
+    });
+  }
 
   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
   await processArcaOutbox();
