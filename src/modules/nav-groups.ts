@@ -270,8 +270,22 @@ export interface EnterpriseNavItem {
   module?: string;
   perfilMin: "enterprise";
   grupo: NavGroupId;
+  /**
+   * ¿La PANTALLA/ruta de este ítem ya existe (shippeada)? REGLA DE ORO del set validado
+   * de S1 (`docs/estrategia/set-minimo-empresa-2026-07-08.md` §4): *un ítem entra a la nav
+   * SOLO cuando su pantalla existe* — cablear un href sin ruta es un callejón sin salida
+   * (anti-patrón QA / ADR-059 D3 fix #4). `AdminShell` NO renderiza los `ready:false` ni
+   * con el flag maestro ON. Hoy los 3 son `false` (ninguna ruta existe) → Empresa día-1
+   * NO agrega ítems a la nav (solo perfil + framing + home analítico, que es exactamente
+   * lo que pide S1). Cuando backoffice-ingeniería shippee la pantalla, se pone `true` acá
+   * (una línea) y el ítem aparece — ese es el paso de "habilitación", no una selección nueva.
+   */
+  ready: boolean;
 }
 
+// ⚠️ El ORDEN acá = orden de habilitación de S1 (§4): 1º Cuentas a pagar (J59, el ancla),
+// luego Fase 2 (contabilidad J58 / devoluciones BMK). Los 3 arrancan `ready:false` porque
+// HOY ninguna ruta existe (verificado en el repo). El día-1 de Empresa muestra CERO de estos.
 export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
   {
     href: "/admin/cuentas-a-pagar",
@@ -280,6 +294,7 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     cap: "billing:manage",
     perfilMin: "enterprise",
     grupo: "finanzas",
+    ready: false, // P2/ancla — pasar a true cuando shippee la pantalla J59 (cheque diferido)
   },
   {
     href: "/admin/contabilidad",
@@ -288,6 +303,7 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     cap: "reports:read",
     perfilMin: "enterprise",
     grupo: "finanzas",
+    ready: false, // Fase 2 — S1: primero "Exportar para el contador" en Reportes, no módulo completo
   },
   {
     href: "/admin/devoluciones-proveedor",
@@ -296,8 +312,14 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     cap: "catalog:manage",
     perfilMin: "enterprise",
     grupo: "inventario-y-compras",
+    ready: false, // Fase 2 — S1: sub-pantalla de Compras, prioridad baja
   },
 ];
+
+/** Ítems Empresa cuya pantalla YA existe (regla de oro de S1). Lo que `AdminShell` renderiza. */
+export function readyEnterpriseNavItems(): EnterpriseNavItem[] {
+  return ENTERPRISE_NAV_ITEMS.filter((it) => it.ready);
+}
 
 // ============================================================================
 // Notas de trazabilidad al mapa validado (NO son ítems de nav nuevos):

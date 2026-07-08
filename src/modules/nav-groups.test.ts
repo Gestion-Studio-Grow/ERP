@@ -17,6 +17,7 @@ import {
   NAV_GROUPS,
   NAV_ITEM_GROUPS,
   groupNavItems,
+  readyEnterpriseNavItems,
   type NavGroupId,
   type NavGroupedItem,
 } from "./nav-groups";
@@ -192,26 +193,55 @@ test("ENTERPRISE_NAV_ITEMS: al agruparse caen en su grupo (Finanzas / Inventario
   assert.ok(inv && inv.items.some((i) => i.href === "/admin/devoluciones-proveedor"));
 });
 
-test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — solo visibles para OWNER perfil Empresa", () => {
-  // Espeja exactamente la lógica de AdminShell: candidatos = base + Empresa solo si
-  // hay perfil activo; luego visibleNavItems (rol × módulo × perfil).
+test("ENTERPRISE_NAV_ITEMS: regla de oro S1 — hoy ninguno tiene pantalla (ready:false) → día-1 no agrega ítems", () => {
+  // El set validado de S1: Empresa día-1 NO agrega ítems a la nav (las 5 rutas enterprise
+  // no existen). El shell solo renderiza los `ready` → hoy, cero.
+  for (const it of ENTERPRISE_NAV_ITEMS) {
+    assert.equal(it.ready, false, `${it.href} no debería estar 'ready' (su pantalla aún no existe)`);
+  }
+  assert.equal(readyEnterpriseNavItems().length, 0);
+});
+
+test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — con ready:false, ni OWNER Empresa los ve (sin dead-ends)", () => {
+  // Espeja la lógica de AdminShell: candidatos = base + SOLO los Empresa `ready`; luego
+  // visibleNavItems (rol × módulo × perfil). Hoy no hay ready → Empresa ve solo el piso.
+  const shellMerge = (profile: "lite" | "enterprise") =>
+    visibleNavItems(
+      [
+        ...ALL_17,
+        ...readyEnterpriseNavItems().map((it) => ({
+          href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo,
+        })),
+      ] as NavGroupedItem[],
+      { role: "OWNER", activeModules: null, activeProfile: profile },
+    );
+  const entHrefs = new Set(ENTERPRISE_NAV_ITEMS.map((i) => i.href));
+  // Empresa hoy: ningún ítem enterprise (todos ready:false) → sin callejones sin salida.
+  const ownerEnt = shellMerge("enterprise");
+  assert.ok(![...entHrefs].some((h) => ownerEnt.some((i) => i.href === h)), "sin pantallas, Empresa no debe cablear ítems");
+  // El piso Comercio sí se ve en Empresa (invariante ⊇).
+  assert.ok(ownerEnt.some((i) => i.href === "/admin/facturacion"));
+});
+
+test("ENTERPRISE_NAV_ITEMS: cuando un ítem shippea su pantalla (ready:true) SÍ se cablea para OWNER Empresa", () => {
+  // Simula la habilitación de S1: se pone ready:true al ancla (J59 cuentas a pagar).
+  const enabled = ENTERPRISE_NAV_ITEMS.map((it) =>
+    it.href === "/admin/cuentas-a-pagar" ? { ...it, ready: true } : it,
+  );
+  const ready = enabled.filter((i) => i.ready);
   const merged: NavGroupedItem[] = [
     ...ALL_17,
-    ...ENTERPRISE_NAV_ITEMS.map((it) => ({ href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo })),
+    ...ready.map((it) => ({ href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo })),
   ];
-  const entHrefs = new Set(ENTERPRISE_NAV_ITEMS.map((i) => i.href));
-
-  // OWNER, perfil Empresa → ve los 3 ítems Empresa.
+  // OWNER Empresa → ve Cuentas a pagar.
   const ownerEnt = visibleNavItems(merged, { role: "OWNER", activeModules: null, activeProfile: "enterprise" });
-  for (const h of entHrefs) {
-    assert.ok(ownerEnt.some((i) => i.href === h), `Empresa/OWNER debería ver ${h}`);
-  }
-  // OWNER, perfil Comercio → NO ve ninguno (perfilGateAllows los filtra).
+  assert.ok(ownerEnt.some((i) => i.href === "/admin/cuentas-a-pagar"), "OWNER Empresa debe ver el ancla ya shippeada");
+  // OWNER Comercio → NO lo ve (perfilGateAllows lo filtra: es enterprise-only).
   const ownerLite = visibleNavItems(merged, { role: "OWNER", activeModules: null, activeProfile: "lite" });
-  assert.ok(![...entHrefs].some((h) => ownerLite.some((i) => i.href === h)), "Comercio no debe ver ítems Empresa");
-  // RECEPTION, perfil Empresa → tampoco (caps billing/reports/catalog son solo OWNER).
+  assert.ok(!ownerLite.some((i) => i.href === "/admin/cuentas-a-pagar"), "Comercio no debe ver el ítem Empresa");
+  // RECEPTION Empresa → tampoco (billing:manage es solo OWNER).
   const recepEnt = visibleNavItems(merged, { role: "RECEPTION", activeModules: null, activeProfile: "enterprise" });
-  assert.ok(![...entHrefs].some((h) => recepEnt.some((i) => i.href === h)), "RECEPTION no debe ver ítems Empresa");
+  assert.ok(!recepEnt.some((i) => i.href === "/admin/cuentas-a-pagar"), "RECEPTION no debe ver el ítem Empresa");
 });
 
 test("BACKLOG_SCOPE_ITEM_NAV: invariante enterprise ⊇ lite — un ítem 'lite' se ve en ambos perfiles", () => {

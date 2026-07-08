@@ -7,7 +7,7 @@ import { logout } from "@/lib/auth-actions";
 import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
 import { moduleGateAllows } from "@/modules/gating";
 import { perfilGateAllows, type Perfil } from "@/modules/perfil";
-import { NAV_ITEM_GROUPS, ENTERPRISE_NAV_ITEMS, groupNavItems, type NavGroupId } from "@/modules/nav-groups";
+import { NAV_ITEM_GROUPS, readyEnterpriseNavItems, groupNavItems, type NavGroupId } from "@/modules/nav-groups";
 
 // Íconos de línea (dirección B): un set chico inline, sin dependencias. Se
 // eligen por href. `currentColor` para que hereden el color del ítem (activo =
@@ -229,11 +229,14 @@ export default function AdminShell({
   const activeSet = activeModules === null ? null : new Set(activeModules);
   // Eje PERFIL (ADR-058/059, 3ª dimensión). Con `activeProfile===null` (PROFILES OFF,
   // default) NO se suman ítems Empresa y `perfilGateAllows` deja pasar todo → nav
-  // idéntica a la legada. Con perfil Empresa se concatenan los `enterprise-only`; con
-  // perfil Comercio `perfilGateAllows` los filtra. Garantiza `enterprise ⊇ lite`: el
-  // Comercio nunca ve MÁS que la nav de hoy, la Empresa ve eso + lo aditivo.
+  // idéntica a la legada. Con perfil Empresa se concatenan los `enterprise-only` cuya
+  // PANTALLA ya existe (`readyEnterpriseNavItems`, regla de oro de S1: nada sin ruta →
+  // cero callejones sin salida); con perfil Comercio `perfilGateAllows` los filtra.
+  // Garantiza `enterprise ⊇ lite`: el Comercio nunca ve MÁS que la nav de hoy, la
+  // Empresa ve eso + lo aditivo YA construido. Hoy no hay ítems `ready` → Empresa día-1
+  // = piso Comercio re-frameado, sin ítems nuevos (exactamente lo que valida S1).
   const candidateItems: ShellItem[] =
-    activeProfile === null ? ALL_ITEMS : [...ALL_ITEMS, ...ENTERPRISE_NAV_ITEMS];
+    activeProfile === null ? ALL_ITEMS : [...ALL_ITEMS, ...readyEnterpriseNavItems()];
   const items = candidateItems.filter(
     (item) =>
       roleHasCapability(role, item.cap) &&
