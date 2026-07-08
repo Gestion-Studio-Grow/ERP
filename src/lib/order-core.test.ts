@@ -30,10 +30,10 @@ function prod(over: Partial<OrderProduct> = {}): OrderProduct {
 
 // --- round2 -----------------------------------------------------------------
 
-test("round2 redondea a 2 decimales (half-up del binario de JS)", () => {
+test("round2 redondea a 2 decimales (EPSILON-safe, ADR-057)", () => {
   assert.equal(round2(6675), 6675);
   assert.equal(round2(0.75 * 8900), 6675); // venta por kg
-  assert.equal(round2(1.005), 1.0); // el binario de 1.005 cae por debajo → 1.00
+  assert.equal(round2(1.005), 1.01); // EPSILON-safe corrige la frontera x.xx5 (ADR-057)
   assert.equal(round2(2.675), 2.68);
   assert.equal(round2(0), 0);
 });

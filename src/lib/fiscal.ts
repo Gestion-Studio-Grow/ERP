@@ -8,6 +8,9 @@
  */
 
 import type { SubtotalIva } from "@/lib/invoice-core";
+// Redondeo de dinero UNIFICADO (R4 cerrado, ADR-057): fiscal y POS comparten la misma
+// regla EPSILON-safe. `redondear` es el alias con nombre del dominio fiscal.
+import { round2 as redondear } from "@/lib/round";
 
 /**
  * Feature flag maestro de facturación (ADR-024 §2.b). OFF por default: la
@@ -56,12 +59,6 @@ export interface Impuestos {
   neto: number;
   iva: SubtotalIva[];
   total: number;
-}
-
-// Redondeo fiscal EPSILON-safe (corrige la frontera binaria de x.xx5). Difiere a propósito del
-// `round2` del POS (src/lib/round.ts) — unificar ambos es una decisión pendiente (R4, docs/arquitectura).
-function redondear(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 /**
