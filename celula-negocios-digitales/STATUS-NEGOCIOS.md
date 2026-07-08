@@ -5,7 +5,12 @@
 > trae: qué es en criollo, en qué estado está, y los números clave (qué cuesta construirlo, cuánto sale
 > operarlo, a cuánto se vende, qué margen deja y cuántos clientes hacen falta para facturar).
 >
-> **Actualizado:** 2026-07-07 (motor Rondas 15–17) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
+> **Actualizado:** 2026-07-07 (motor Rondas 15–18) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
+>
+> **Ronda 18 (barrido seco):** 0 negocios nuevos — 7 espacios verificados y descartados (plan de pagos
+> ARCA, REP envases, gastos corporativos, Tax Free, repricing, CBAM, turnos salud). Mapa de saturación +
+> **recomendación de consolidar la veta de recupero** en un producto-plataforma. Detalle en
+> `ronda-18/2026-07-07-barrido-saturacion.md`.
 
 ## Qué es la célula (contexto de cero)
 Un equipo de agentes de IA que funciona como una **consultora interna**: inventa negocios digitales que
