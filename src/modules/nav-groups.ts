@@ -1,61 +1,67 @@
 // ============================================================================
-// AGRUPACIÓN DE NAV — 5 grupos criollos (ADR-059 D3) + mapa rol↔perfil (D6b).
+// AGRUPACIÓN DE NAV — 5 grupos de negocio (ADR-059 D3) + mapa rol↔perfil (D6b).
 // ============================================================================
 //
 // PR-2/M2 (Sesión 4 — Ingeniería de interfaz, sprint GROW-AR 2026-07-08).
+//
+// NAMING (override del dueño, 2026-07-08): los 5 grupos usan etiquetas de negocio
+// claras en español neutro — SIN lunfardo ni coloquialismos. (La versión criolla
+// previa de ADR-059 D3 quedó reemplazada por este naming profesional; los grupos
+// conceptuales son los mismos, solo cambia el rótulo). El naming al cliente sigue
+// siendo "Comercio"/"Empresa" (nunca lite/enterprise) y el tier en canal neutro.
 //
 // ⚠️ ESQUELETO, NO WIRED: este módulo no lo importa (todavía) ni `AdminShell.tsx`
 // ni ningún layout. Es código puro, sin efecto, hasta que otra sesión lo consuma
 // detrás de un flag (candado/flag = carril de Sesión 3) y lo renderice con los
 // primitivos nuevos (`SectionGroup` = carril de Sesión 2). Por construcción es
 // REVERSIBLE Y DEFAULT-OFF: no hay ningún import real todavía, así que no cambia
-// ningún comportamiento visible. Cero riesgo de conflicto: no toca `AdminShell.tsx`,
+// ningún comportamiento visible. Cero conflicto: no toca `AdminShell.tsx`,
 // `perfil.ts` ni `flags.ts` (carriles de otras sesiones del pool).
 //
-// Qué resuelve:
-// 1. Los 5 grupos criollos (ADR-059 D3), con su ORDEN de aparición fijo.
+// Qué resuelve (asignación CERRADA sobre el mapa VALIDADO de S1 + revisión S5/Opus):
+// 1. Los 5 grupos de negocio (ADR-059 D3, renombrados), con ORDEN de aparición fijo.
 // 2. `groupNavItems`: selector puro que agrupa una lista de ítems YA filtrada por
 //    `visibleNavItems` (rol × módulo × perfil, `./perfil.ts`) en esos 5 grupos.
-// 3. La asignación ítem→grupo de los 17 ítems HOY existentes en `AdminShell` — ver
-//    `DRAFT_NAV_ITEM_GROUPS` abajo. Es DRAFT/propuesta: los 17 son de bajo riesgo
-//    (grupo funcional obvio, no dependen de la clasificación fina de scope items).
-//    NO incluye los ítems de BACKLOG (cuentas-a-cobrar, inventario, compras
-//    formalizada, cuentas-a-pagar, contabilidad, activos/banco) — esos scope items
-//    los está curando la Sesión 1 (analista de cobertura); su grupo + `perfilMin`
-//    se agregan acá cuando llegue el mapa validado (ver
-//    `docs/estrategia/mapa-rol-perfil-nav-grupos.md`).
+// 3. `NAV_ITEM_GROUPS`: la asignación ítem→grupo de los 17 ítems HOY existentes.
+// 4. `BACKLOG_SCOPE_ITEM_NAV`: los scope items KEEP del mapa validado que se suman a
+//    la nav en M2, con su grupo + perfil mínimo + naturaleza de gating (rubro / OFF).
+//
+// El GATING (universal vs. rubro-flag vs. default-OFF) NO cambia en qué grupo cae un
+// ítem — solo si renderiza para un tenant dado. Eso lo resuelve la composición de
+// `perfilMin` (este archivo lo declara) + module-gating (`./gating.ts`, ya existe);
+// el flag/candado que lo enciende es carril de S3.
 //
 // Client-safe: no importa Prisma/tenant/barrel `@/modules` — mismo criterio que
-// `perfil.ts`. Solo importa el TIPO `NavGateItem` (no lo modifica).
+// `perfil.ts`. Solo importa TIPOS de `./perfil` (no los modifica).
 
 import type { NavGateItem, Perfil } from "./perfil";
 
-/** Los 5 grupos criollos de la IA de navegación (ADR-059 D3), en su orden fijo de aparición. */
+/** Los 5 grupos de negocio de la IA de navegación (ADR-059 D3), en su orden fijo. */
 export type NavGroupId =
-  | "dia-a-dia"
-  | "clientes-y-avisos"
-  | "lo-que-vendo-y-repongo"
-  | "plata-y-papeles"
+  | "operacion"
+  | "clientes"
+  | "inventario-y-compras"
+  | "finanzas"
   | "configuracion";
 
 export interface NavGroupMeta {
   id: NavGroupId;
-  /** Nombre criollo tal cual lo fija ADR-059 D3 — no traducir, no tecnicismo. */
+  /** Etiqueta de negocio, español neutro, sin lunfardo (override del dueño 2026-07-08). */
   label: string;
 }
 
-/** Orden fijo de despliegue en el sidebar (ADR-059 D3). */
+/** Orden fijo de despliegue en el sidebar (ADR-059 D3, naming profesional). */
 export const NAV_GROUPS: readonly NavGroupMeta[] = [
-  { id: "dia-a-dia", label: "Día a día" },
-  { id: "clientes-y-avisos", label: "Clientes y avisos" },
-  { id: "lo-que-vendo-y-repongo", label: "Lo que vendo y repongo" },
-  { id: "plata-y-papeles", label: "Plata y papeles" },
+  { id: "operacion", label: "Operación" },
+  { id: "clientes", label: "Clientes" },
+  { id: "inventario-y-compras", label: "Inventario y compras" },
+  { id: "finanzas", label: "Finanzas" },
   { id: "configuracion", label: "Configuración" },
 ] as const;
 
 /** Un ítem de nav con su grupo asignado (además de los 3 ejes de `perfil.ts`). */
 export type NavGroupedItem<T extends NavGateItem = NavGateItem> = T & {
-  /** Grupo criollo. Ausente = todavía no asignado (ver `ungrouped` en `groupNavItems`). */
+  /** Grupo de negocio. Ausente = todavía no asignado (ver `ungrouped` en `groupNavItems`). */
   grupo?: NavGroupId;
 };
 
@@ -72,7 +78,7 @@ export interface GroupedNav<T extends NavGateItem> {
 
 /**
  * Agrupa ítems YA filtrados (rol × módulo × perfil vía `visibleNavItems`) en los
- * 5 grupos criollos. PURA — no muta `items`, no decide visibilidad (eso ya pasó).
+ * 5 grupos de negocio. PURA — no muta `items`, no decide visibilidad (eso ya pasó).
  */
 export function groupNavItems<T extends NavGateItem>(
   items: readonly NavGroupedItem<T>[],
@@ -103,69 +109,139 @@ export function groupNavItems<T extends NavGateItem>(
 }
 
 // ============================================================================
-// DRAFT — asignación ítem→grupo de los 17 ítems HOY en `AdminShell.ALL_ITEMS`.
+// Asignación ítem→grupo de los 17 ítems HOY en `AdminShell.ALL_ITEMS` — CERRADA.
 // ============================================================================
 //
-// Propuesta de Sesión 4, NO cerrada como asignación final del sprint (así lo
-// pidió el Dispatch): estos 17 son de bajo riesgo porque su grupo funcional es
-// obvio y no dependen de la clasificación de scope items que cura Sesión 1. Se
-// puede aplicar tal cual cuando el Gate integre, o ajustarse si S1/el dueño ven
-// algo distinto. Clave = `href` de `AdminShell.ALL_ITEMS` (no se importa ese
-// array acá para no acoplar/tocar `AdminShell.tsx`).
-export const DRAFT_NAV_ITEM_GROUPS: Readonly<Record<string, NavGroupId>> = {
-  "/admin": "dia-a-dia",
-  "/admin/turnos": "dia-a-dia",
-  "/admin/espera": "dia-a-dia",
-  "/admin/pedidos": "dia-a-dia",
-  "/admin/caja": "dia-a-dia",
-  "/admin/clientes": "clientes-y-avisos",
-  "/admin/recordatorios": "clientes-y-avisos",
-  "/admin/resenas": "clientes-y-avisos",
-  "/admin/catalogo": "lo-que-vendo-y-repongo",
-  "/admin/compras": "lo-que-vendo-y-repongo",
-  "/admin/facturacion": "plata-y-papeles",
-  "/admin/reportes": "plata-y-papeles",
-  "/admin/ajustes": "configuracion",
+// Clave = `href` de `AdminShell.ALL_ITEMS` (no se importa ese array acá para no
+// acoplar/tocar `AdminShell.tsx`). Ninguno de los 17 necesita perfilMin:"enterprise"
+// hoy: todos viven en el piso `lite` que el micro ya opera de punta a punta
+// (coincide con `mapa-cobertura-scope-items.md` §4). El invariante `enterprise ⊇
+// lite` se respeta: lo enterprise-only llega ADITIVO por el backlog (abajo), sin
+// restar nada de lo existente.
+//
+// Nota de ubicación corregida vs. el draft previo: "Ajustes" es **"Ajustes y
+// mermas"** (recuento físico, merma, rotura, vencimiento) → es stock puro, va a
+// **Inventario y compras**, NO a Configuración.
+export const NAV_ITEM_GROUPS: Readonly<Record<string, NavGroupId>> = {
+  // Operación — el día a día: tablero, agenda, mostrador, caja.
+  "/admin": "operacion",
+  "/admin/turnos": "operacion",
+  "/admin/espera": "operacion",
+  "/admin/pedidos": "operacion",
+  "/admin/caja": "operacion",
+  // Clientes — base de clientes + comunicación con ellos.
+  "/admin/clientes": "clientes",
+  "/admin/recordatorios": "clientes",
+  "/admin/resenas": "clientes",
+  // Inventario y compras — lo que se vende, se repone y se ajusta.
+  "/admin/catalogo": "inventario-y-compras",
+  "/admin/compras": "inventario-y-compras",
+  "/admin/ajustes": "inventario-y-compras", // "Ajustes y mermas" = stock
+  // Finanzas — facturación y análisis de resultados.
+  "/admin/facturacion": "finanzas",
+  "/admin/reportes": "finanzas",
+  // Configuración — administración del sistema.
   "/admin/auditoria": "configuracion",
   "/admin/usuarios": "configuracion",
   "/admin/localizacion": "configuracion",
   "/admin/modulos": "configuracion",
 };
 
-/**
- * Ninguno de los 17 ítems HOY existentes necesita `perfilMin:"enterprise"` (D6b,
- * ver doc). Son el piso `lite` que el micro ya opera de punta a punta (coincide
- * con `mapa-cobertura-scope-items.md` §4: "Set del MICRO ~5 piezas" ya construido
- * + Catálogo/Reportes/Facturación base). El primer candidato real a
- * `perfilMin:"enterprise"` es **Compras** en su forma FORMAL de proveedores/
- * órdenes (hoy `/admin/compras` ya existe y el micro también repone con ella;
- * si S1 confirma que el micro debe seguir viéndola tal cual, se queda `lite`) —
- * marcado PENDING abajo, no se decide acá.
- */
-export const PENDING_S1_PERFIL_DECISIONS: readonly {
+// ============================================================================
+// BACKLOG — scope items KEEP del mapa VALIDADO (S1 + revisión adversarial S5/Opus)
+// que se suman a la nav en M2. Asignación de grupo + perfil CERRADA.
+// ============================================================================
+//
+// `perfilMin`:
+//   - "lite"       → visible en Comercio Y Empresa (min = lite). El ítem está en
+//                    el set de ambos; si además trae rubro-gating, ver `defaultOff`
+//                    / la nota (el módulo decide si RENDERIZA para ese tenant).
+//   - "enterprise" → solo Empresa (aditivo sobre lite, `enterprise ⊇ lite`).
+//
+// `defaultOff`: descriptor DEFINIDO en el catálogo pero apagado por defecto — solo
+// renderiza para tenants cuyo rubro/perfil de negocio lo enciende (opt-in). NO va al
+// piso universal. El encendido real lo maneja module-gating (carril S3); acá solo se
+// declara la intención para que el grupo/perfil queden fijos.
+//
+// El `module` (descriptor de catálogo que gatea por rubro) queda TBD para varios:
+// esos descriptores todavía no existen (son backlog del PO Catálogo), así que no se
+// inventan ids acá — la nota lo indica.
+export interface BacklogNavItem {
+  /** Código de scope item SAP de referencia (trazabilidad al mapa de cobertura). */
+  scopeItem: string;
   href: string;
-  nota: string;
-}[] = [
+  label: string;
+  grupo: NavGroupId;
+  perfilMin: Perfil;
+  /** Id del módulo del catálogo que lo gatea por rubro; ausente = descriptor aún por definir. */
+  module?: string;
+  /** true = definido pero DEFAULT OFF (opt-in por rubro/perfil de negocio, no piso universal). */
+  defaultOff?: boolean;
+  nota?: string;
+}
+
+export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
   {
-    href: "/admin/compras",
+    scopeItem: "BMC",
+    href: "/admin/inventario",
+    label: "Inventario",
+    grupo: "inventario-y-compras",
+    perfilMin: "lite", // reclasificado a "ambos" por S1 (stock básico con versión light para Comercio)
+    defaultOff: false,
     nota:
-      "mapa-cobertura-scope-items.md clasifica Compras (J45/18J) como 🔵 " +
-      "enterprise/pyme (\"el micro repone a ojo\"), pero la página ya existe y " +
-      "hoy la usa cualquier tenant con inventario. Confirmar con el mapa " +
-      "validado de S1 si se degrada a perfilMin:\"enterprise\" o se queda lite.",
+      "Anti-oversell. Se construye para ambos perfiles, gateado por RUBRO: apagado " +
+      "para servicios puros sin stock, encendido para retail/carnicería/etc. El " +
+      "rubro-gating es module-gating (descriptor de inventario, PO Catálogo).",
+  },
+  {
+    scopeItem: "2F3/J60",
+    href: "/admin/cuentas-a-cobrar",
+    label: "Cuentas a cobrar",
+    grupo: "finanzas", // es deuda del cliente → Finanzas (guía S5)
+    perfilMin: "lite", // reclasificado a "ambos" por S1: fiado es cultura de comercio de barrio AR
+    defaultOff: true,
+    nota:
+      "Fiado. Descriptor DEFINIDO en el catálogo pero DEFAULT OFF: solo renderiza " +
+      "para tenants con perfil de fiado (opt-in por rubro), NO va al piso universal. " +
+      "Comercio ve la versión light; Empresa suma vencimientos/recordatorios (J60, " +
+      "profundización aditiva del mismo ítem, no un ítem nuevo).",
+  },
+  {
+    scopeItem: "J59",
+    href: "/admin/cuentas-a-pagar",
+    label: "Cuentas a pagar",
+    grupo: "finanzas",
+    perfilMin: "enterprise",
+    nota: "Proveedores + cheque diferido. Solo Empresa (aditivo).",
+  },
+  {
+    scopeItem: "J58",
+    href: "/admin/contabilidad",
+    label: "Contabilidad",
+    grupo: "finanzas",
+    perfilMin: "enterprise",
+    nota: "Libro mayor simple/exportable al contador. Solo Empresa.",
+  },
+  {
+    scopeItem: "BMK",
+    href: "/admin/devoluciones-proveedor",
+    label: "Devoluciones a proveedor",
+    grupo: "inventario-y-compras",
+    perfilMin: "enterprise",
+    nota:
+      "Prioridad baja. Puede absorberse como sub-pantalla de Compras en vez de ítem " +
+      "propio; si se hace ítem, cae en Inventario y compras. Solo Empresa.",
   },
 ];
 
-/**
- * Placeholder tipado para lo que llega de Sesión 1: por cada scope item nuevo
- * (cuentas-a-cobrar, inventario, cuentas-a-pagar, contabilidad, activos/banco…)
- * que se convierta en ítem de nav real, se agrega acá su grupo + perfil mínimo.
- * Vacío a propósito — cerrar esto es el próximo paso exacto post mapa validado
- * (ver `docs/estrategia/mapa-rol-perfil-nav-grupos.md` §3).
- */
-export const BACKLOG_SCOPE_ITEM_NAV: readonly {
-  scopeItem: string;
-  href: string;
-  grupo: NavGroupId;
-  perfilMin: Perfil;
-}[] = [];
+// ============================================================================
+// Notas de trazabilidad al mapa validado (NO son ítems de nav nuevos):
+// - 1J2 (ARCA)  → ya existe como `/admin/facturacion` (Finanzas).
+// - BD9 (POS)   → ya existe como `/admin/pedidos` + `/admin/caja` (Operación).
+// - J45/18J     → ya existe como `/admin/compras` (Inventario y compras); Comercio
+//                 la ve (reposición), rubro-gated como el stock. Empresa profundiza
+//                 con órdenes formales/proveedores (aditivo), no ítem nuevo.
+// - 16T rentab. → profundización del `/admin/reportes` existente (Finanzas), no ítem nuevo.
+// RESERVA (NO van a la nav de M2, quedan documentados en el catálogo): J62, 1W0, 3W0, J12.
+// CUT: BFA (se absorbe en Configuración, no es módulo propio).
+// ============================================================================
