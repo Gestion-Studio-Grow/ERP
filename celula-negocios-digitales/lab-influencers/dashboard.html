@@ -161,9 +161,11 @@
     organizacion_agenda: "Organización y agenda", venta_captacion: "Venta y captación",
     entregables_visuales: "Entregables visuales", otro: "Otro",
   };
+  const VER = { validado: ["Validado", "var(--good-text)"], herido: ["Herido", "#c98500"], descartado: ["Descartado", "#c0392b"] };
   const ice = (o) => o.final.esfuerzo > 0 ? (o.final.impacto * o.final.confianza) / o.final.esfuerzo : 0;
   const fmt1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
   const fmt0 = (n) => Math.round(n).toLocaleString("es-AR");
+  const usd = (n) => "US$ " + fmt0(n);
 
   let fSeg = "todos", fRonda = "todas";
   const ops = () => D.oportunidades.filter(o =>
@@ -191,6 +193,18 @@
     if (!list.length) { t.innerHTML = ""; return; }
     const avg = (f) => list.reduce((a, o) => a + f(o), 0) / list.length;
     const sum = (f) => list.reduce((a, o) => a + f(o), 0);
+    const enr = list.filter(o => o.afinado);
+    if (enr.length) {
+      const val = enr.filter(o => o.afinado.veredicto === "validado").length;
+      t.innerHTML = [
+        tile("Oportunidades", list.length, enr.length + " afinadas por el mejor equipo"),
+        tile("Con devs humanos", "US$ " + fmt0(sum(o => o.afinado ? o.afinado.costoDevHumano.totalUSD : 0)), "lo que costaría construir la cartera"),
+        tile("Con IA (desarrollo)", "~US$ 0", "no se contempla · solo infra paga", true),
+        tile("Validadas por mercado", val + "/" + enr.length, "corroboradas local + global"),
+        tile("ICE promedio", fmt1(avg(ice)), "precio prom. US$ " + fmt0(avg(o => o.afinado ? o.afinado.metricasDueno.precioSugeridoUSD : 0)) + "/mes"),
+      ].join("");
+      return;
+    }
     t.innerHTML = [
       tile("Oportunidades", list.length, D.rondas.length + " ronda" + (D.rondas.length === 1 ? "" : "s") + " · 2 mejoras c/u"),
       tile("ICE promedio", fmt1(avg(ice)), "top: " + fmt1(Math.max(...list.map(ice)))),
@@ -220,29 +234,50 @@
       return;
     }
     const sorted = [...list].sort((a, b) => ice(b) - ice(a));
+    const anyEnr = list.some(o => o.afinado);
+    const cols = anyEnr ? 12 : 11;
     el.innerHTML = `<thead><tr>
       <th>#</th><th>Oportunidad</th><th>Segmento</th><th>Dolor</th>
       <th class="num">Imp.</th><th class="num">Conf.</th><th class="num">Esf.</th><th class="num">ICE</th>
-      <th class="num">Costo humano</th><th class="num">IA %</th><th class="num">MVP</th>
-    </tr></thead><tbody>` + sorted.map((o, i) => `
-      <tr class="op-row" data-id="${o.id}">
-        <td class="rank">${i + 1}</td>
-        <td><b>${o.final.titulo}</b><br><span style="color:var(--muted);font-size:12px">R${o.ronda} · origen: ${o.autor} · v3</span></td>
-        <td><span class="dot" style="background:${SEG_COLOR[o.final.segmento] || "var(--series-3)"}"></span>${SEG_LABEL[o.final.segmento] || o.final.segmento}</td>
-        <td>${DOLOR_LABEL[o.final.categoriaDolor] || o.final.categoriaDolor}</td>
-        <td class="num">${o.final.impacto}</td><td class="num">${o.final.confianza}</td><td class="num">${o.final.esfuerzo}</td>
-        <td class="num ice">${fmt1(ice(o))}</td>
+      ${anyEnr ? '<th class="num">vs humanos</th><th class="num">Precio</th><th class="num">Margen</th>' : '<th class="num">Costo humano</th><th class="num">IA %</th><th class="num">MVP</th>'}
+    </tr></thead><tbody>` + sorted.map((o, i) => {
+      const e = o.afinado;
+      const ver = e && VER[e.veredicto];
+      const numCells = e ? `
+        <td class="num">${usd(e.costoDevHumano.totalUSD)}</td>
+        <td class="num">${usd(e.metricasDueno.precioSugeridoUSD)}</td>
+        <td class="num">${e.metricasDueno.margenPct}%</td>` : `
         <td class="num">US$ ${fmt0(o.final.costoHumanoUSD)}</td>
         <td class="num">${o.final.pctAutomatizableIA}%</td>
-        <td class="num">${o.final.tiempoMVPdias} d</td>
-      </tr>
-      <tr class="detail" data-for="${o.id}" hidden><td colspan="11"><div class="detail">
+        <td class="num">${o.final.tiempoMVPdias} d</td>`;
+      const detail = e ? `
+        <span class="badge">💢 ${o.final.dolor}</span>
+        ${ver ? `<span class="badge" style="color:${ver[1]};border-color:${ver[1]}">Veredicto: ${ver[0]}</span>` : ""}
+        <div class="stage" style="color:var(--good-text)">${e.ahorroVsHumano.frase}</div>
+        <div class="stage"><b>Métricas dueño:</b> precio ${usd(e.metricasDueno.precioSugeridoUSD)} (${e.metricasDueno.modeloCobro}) · margen ${e.metricasDueno.margenPct}% · ${e.metricasDueno.clientesPara5kMes} clientes → US$5k/mes · primer peso ${e.metricasDueno.primerPesoSemanas} sem · payback ${e.metricasDueno.paybackMeses} m</div>
+        <div class="stage"><b>Pasos a producción:</b> ${e.pasosProduccion.map((p, k) => (k + 1) + ") " + p.fase).join(" → ")}</div>
+        <div class="stage"><b>Mercado local:</b> ${e.mercadoLocal.veredicto} ${(e.mercadoLocal.fuentes || []).map(f => `<a href="${f.url}" target="_blank" rel="noopener" style="color:var(--seq-450)">[${f.titulo.slice(0, 22)}]</a>`).join(" ")}</div>
+        <div class="stage"><b>Mercado global:</b> ${e.mercadoGlobal.veredicto} ${(e.mercadoGlobal.fuentes || []).map(f => `<a href="${f.url}" target="_blank" rel="noopener" style="color:var(--seq-450)">[${f.titulo.slice(0, 22)}]</a>`).join(" ")}</div>
+        <div class="stage"><b>Oportunidad:</b> ${o.final.descripcion}</div>
+        <div class="stage"><b>Solución:</b> ${o.final.solucion}</div>
+        <div class="stage"><b>Ciclo:</b> v1 «${o.v1.titulo}» → v2 → v3 → <b>afinado:</b> ${e.cambios}</div>` : `
         <span class="badge">💢 ${o.final.dolor}</span>
         <div class="stage"><b>Oportunidad:</b> ${o.final.descripcion}</div>
         <div class="stage"><b>Solución:</b> ${o.final.solucion}</div>
         <div class="stage"><b>Encaje GSG:</b> ${o.final.encajeGSG}</div>
-        <div class="stage"><b>Ciclo de mejora</b> — v1 (${o.autor}): «${o.v1.titulo}» → <b>v2:</b> ${o.mejoraV2} → <b>v3:</b> ${o.mejoraV3}</div>
-      </div></td></tr>`).join("") + "</tbody>";
+        <div class="stage"><b>Ciclo de mejora</b> — v1 (${o.autor}): «${o.v1.titulo}» → <b>v2:</b> ${o.mejoraV2} → <b>v3:</b> ${o.mejoraV3}</div>`;
+      return `
+      <tr class="op-row" data-id="${o.id}">
+        <td class="rank">${i + 1}</td>
+        <td><b>${o.final.titulo}</b>${ver ? ` <span style="color:${ver[1]};font-size:11px;font-weight:700">● ${ver[0]}</span>` : ""}<br><span style="color:var(--muted);font-size:12px">R${o.ronda} · origen: ${o.autor}${e ? " · afinado" : " · v3"}</span></td>
+        <td><span class="dot" style="background:${SEG_COLOR[o.final.segmento] || "var(--series-3)"}"></span>${SEG_LABEL[o.final.segmento] || o.final.segmento}</td>
+        <td>${DOLOR_LABEL[o.final.categoriaDolor] || o.final.categoriaDolor}</td>
+        <td class="num">${o.final.impacto}</td><td class="num">${o.final.confianza}</td><td class="num">${o.final.esfuerzo}</td>
+        <td class="num ice">${fmt1(ice(o))}</td>
+        ${numCells}
+      </tr>
+      <tr class="detail" data-for="${o.id}" hidden><td colspan="${cols}"><div class="detail">${detail}</div></td></tr>`;
+    }).join("") + "</tbody>";
     el.querySelectorAll("tr.op-row").forEach(tr => tr.addEventListener("click", () => {
       const d = el.querySelector(`tr.detail[data-for="${tr.dataset.id}"]`);
       if (d) d.hidden = !d.hidden;
