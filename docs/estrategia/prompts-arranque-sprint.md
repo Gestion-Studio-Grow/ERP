@@ -146,6 +146,60 @@ Al cerrar: **actualizar memoria + registrar 1 caso + proponer 1 mejora de brief/
 `ESTADO-ACTUAL.md`**. Entregable: frente en **punto seguro** (árbol limpio, vallas verdes, Gate pasado,
 pusheado), sin merge a `main` si el Gate lo pide; los irreversibles quedan **listos-para-OK** y elevados a §C.
 
+## 9. Ritual de STATUS — trigger del dueño (reutilizable, NORMA)
+Cuando el dueño pide **"status"** (por Dispatch), el **PMO** entrega el parte **SIEMPRE reconstruido desde el
+repo** —`ESTADO-ACTUAL.md` + `git branch -a` / `git worktree list` + estado de gates y migraciones—, **nunca de
+memoria**. También accesible como `/status`. Formato **fijo, 4 bloques**; cualquier sesión lo reproduce igual:
+
+1. **Resumen ejecutivo SIN tecnicismos** — cada ítem en lenguaje simple (nada de jerga) + su **% de avance**.
+2. **Estado por ola/frente** con semáforo: 🟢 **listo (100%)** · 🟡 **en curso (con %)** · 🔵 **planeado, sin
+   trabas** · 🔴 **espera OK del dueño (§C)**.
+3. **Global** — **% agregado** de lo aprobado + en curso, con una línea de lectura.
+4. **Gráfico de roadmap** — **ofrecer/preparar** el roadmap visual (global GSG + ERP) por fases/olas, **color
+   por estado** (mismo semáforo). Se arma si el dueño acepta (SVG/HTML/mermaid).
+
+**Reglas duras:** el **%** sale de **evidencia del repo** (tests verdes, merge hecho, Gate pasado, migración
+aplicada), nunca inventado. El resumen del bloque 1 va en **zona HUMANA/criolla** (ADR-046); los datos duros,
+exactos. Lo 🔴 dice **qué necesita del dueño** (credencial · deploy · dato · migración).
+
+### Formato (copiar y completar desde el repo)
+```
+📊 STATUS — <fecha> · reconstruido del repo (no de memoria)
+
+1) RESUMEN EJECUTIVO (en criollo, sin tecnicismos)
+   • <tema en 1 frase simple — qué es para el negocio> — NN%
+   • ...
+
+2) POR OLA/FRENTE
+   🟢 <Frente> — listo (100%) — <1 línea>
+   🟡 <Frente> — en curso (NN%) — <qué falta>
+   🔵 <Frente> — planeado, sin trabas — <cuándo entra>
+   🔴 <Frente> — espera TU OK (§C: <credencial/deploy/dato/migración>)
+
+3) GLOBAL: NN% aprobado/en curso — <lectura en 1 línea>
+
+4) ROADMAP VISUAL: ¿te lo armo? (global GSG + ERP, por fases/olas, color por estado)
+```
+
+### Ejemplo (ilustrativo — los datos reales salen del repo)
+```
+📊 STATUS — 2026-07-07 · reconstruido del repo
+
+1) RESUMEN EJECUTIVO
+   • Vidrieras vendibles (los sitios que ve el cliente): terminadas y probadas, faltan aprobar — 95%
+   • Demo para vender el sistema: lista, esperando el visto bueno de calidad — 90%
+   • Cobros con Mercado Pago de verdad: construido a medias, falta que pegues las claves — 60%
+
+2) POR OLA/FRENTE
+   🟡 Ola 1 · Vidrieras (F1) — en curso (95%) — falta el Gate y el merge
+   🔵 Ola 2 · Demo vendible (F3) — planeado, sin trabas — entra apenas cierre F1
+   🔴 Ola 5 · Cobros MP — espera TU OK (§C: credenciales de Mercado Pago)
+
+3) GLOBAL: ~70% aprobado/en curso — el núcleo anda; lo que falta es Gate + tus OK de §C
+
+4) ROADMAP VISUAL: ¿te armo el mapa por fases/olas con colores? (global GSG + ERP)
+```
+
 ---
 
 ## Anexos por frente (se completan dinámicamente — el frente es UNA elección, no el eje)
