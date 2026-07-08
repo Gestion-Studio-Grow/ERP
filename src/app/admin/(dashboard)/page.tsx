@@ -3,6 +3,7 @@ import Link from "next/link";
 import { fmtTime } from "@/lib/datetime";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
+import { getActiveProfile } from "@/lib/profile-gating";
 import { buttonClasses } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -50,42 +51,71 @@ export default async function DashboardPage() {
   // Ingresos = dato financiero: solo quien puede ver reportes (OWNER). La
   // recepción ve el resto del dashboard sin la cifra de facturación.
   const canSeeRevenue = roleHasCapability(user.role, "reports:read");
+  // Home ANALÍTICO por rol (ADR-059 D8, P1.c del set Empresa): el tenant perfil
+  // "Empresa" con rol de visión financiera (OWNER) ve un panel analítico/ejecutivo
+  // —lidera lo financiero + un indicador derivado—; el Comercio y los roles
+  // operativos ven el home de UNA acción (resumen del día). Es un RE-LAYOUT sobre
+  // los MISMOS datos (`getDashboardData`): no hay módulo ni consulta nueva, no toca
+  // Neon. Con el motor de perfiles OFF (`profile===null`, default) es byte-idéntico
+  // al home de hoy → default-off-identical. El naming al cliente (badge "Empresa")
+  // lo pone el shell en canal neutro (ADR-059 D5/D7).
+  const profile = await getActiveProfile();
+  const analytical = profile === "enterprise" && canSeeRevenue;
   const data = await getDashboardData();
 
   const confirmedToday = data.todayAppointments.filter((a) => a.status === "CONFIRMED").length;
+  const confirmedPct =
+    data.todayAppointments.length > 0
+      ? `${Math.round((confirmedToday / data.todayAppointments.length) * 100)}%`
+      : "—";
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Dashboard</h1>
-          <p className="text-muted text-sm">Resumen del día.</p>
+          <p className="text-muted text-sm">
+            {analytical ? "Vista analítica del negocio." : "Resumen del día."}
+          </p>
         </div>
-        {/* Acceso directo a la tarea más frecuente (llamada / walk-in) sin
-            tener que navegar primero a la Agenda. */}
+        {/* Home de una acción (Comercio): el atajo a la tarea más frecuente es el
+            héroe (botón sólido). Home analítico (Empresa): la acción cede el
+            protagonismo a los indicadores → botón secundario (ADR-059 D8). */}
         <Link
           href="/admin/turnos"
-          className={buttonClasses("solid", "sm", "whitespace-nowrap")}
+          className={buttonClasses(analytical ? "outline" : "solid", "sm", "whitespace-nowrap")}
         >
           + Nuevo turno
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" icon="agenda"
-          sub={data.todayAppointments.length > 0 ? `${confirmedToday} confirmados` : undefined} />
-        <Kpi label="Pendientes" value={String(data.pendingCount)} href="/admin/turnos" icon="reloj"
-          sub={data.pendingCount > 0 ? "a confirmar pago" : undefined} />
-        {canSeeRevenue && (
-          <Kpi
-            label="Ingresos 7 días"
-            value={`$${data.weekRevenue.toLocaleString("es-AR")}`}
-            href="/admin/reportes"
-            icon="barras"
-          />
-        )}
-        <Kpi label="Clientes" value={String(data.clientsCount)} href="/admin/clientes" icon="cliente" />
-      </div>
+      {analytical ? (
+        // Panel analítico Empresa: lidera lo financiero + un indicador derivado
+        // (% de confirmación de hoy), sobre los mismos datos del día.
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Kpi label="Ingresos 7 días" value={`$${data.weekRevenue.toLocaleString("es-AR")}`} href="/admin/reportes" icon="barras" sub="ver rentabilidad" />
+          <Kpi label="Confirmación hoy" value={confirmedPct} href="/admin/turnos" icon="reloj"
+            sub={data.todayAppointments.length > 0 ? `${confirmedToday} de ${data.todayAppointments.length} turnos` : undefined} />
+          <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" icon="agenda" />
+          <Kpi label="Clientes" value={String(data.clientsCount)} href="/admin/clientes" icon="cliente" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" icon="agenda"
+            sub={data.todayAppointments.length > 0 ? `${confirmedToday} confirmados` : undefined} />
+          <Kpi label="Pendientes" value={String(data.pendingCount)} href="/admin/turnos" icon="reloj"
+            sub={data.pendingCount > 0 ? "a confirmar pago" : undefined} />
+          {canSeeRevenue && (
+            <Kpi
+              label="Ingresos 7 días"
+              value={`$${data.weekRevenue.toLocaleString("es-AR")}`}
+              href="/admin/reportes"
+              icon="barras"
+            />
+          )}
+          <Kpi label="Clientes" value={String(data.clientsCount)} href="/admin/clientes" icon="cliente" />
+        </div>
+      )}
 
       {data.blocksToday.length > 0 && (
         <div className="mb-6 flex items-center gap-2.5 rounded-lg bg-warning-soft border border-warning/25 px-4 py-2.5 text-sm text-warning">

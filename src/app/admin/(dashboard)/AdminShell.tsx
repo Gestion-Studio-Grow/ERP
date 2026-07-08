@@ -8,6 +8,7 @@ import { roleHasCapability, type Capability, type Role } from "@/lib/capabilitie
 import { moduleGateAllows } from "@/modules/gating";
 import { perfilGateAllows, type Perfil } from "@/modules/perfil";
 import { NAV_ITEM_GROUPS, readyEnterpriseNavItems, groupNavItems, type NavGroupId } from "@/modules/nav-groups";
+import { ProfileBadge } from "@/components/ui";
 
 // Íconos de línea (dirección B): un set chico inline, sin dependencias. Se
 // eligen por href. `currentColor` para que hereden el color del ítem (activo =
@@ -312,12 +313,22 @@ export default function AdminShell({
             <span className="block h-0.5 w-5 bg-strong" />
           </button>
           <span className="font-medium text-strong">{currentLabel(pathname, items)}</span>
-          <span className="ml-auto font-semibold text-muted">{brandName}</span>
+          <span className="ml-auto flex items-center gap-2 min-w-0">
+            <span className="font-semibold text-muted truncate">{brandName}</span>
+            {/* Edición del tenant (Comercio/Empresa) en canal NEUTRO — solo si el motor
+                de perfiles está encendido (activeProfile != null). ADR-059 D5/D7. */}
+            {activeProfile && <ProfileBadge profile={activeProfile} />}
+          </span>
         </header>
 
         {/* Header desktop */}
         <header className="hidden lg:flex bg-surface-raised border-b border-line px-8 h-[58px] items-center justify-between gap-4">
-          <span className="font-semibold text-strong whitespace-nowrap">{brandName}</span>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="font-semibold text-strong whitespace-nowrap">{brandName}</span>
+            {/* Edición (Comercio/Empresa), canal neutro (ADR-059 D5). Default OFF: sin
+                perfil activo no se renderiza → header idéntico al legado. */}
+            {activeProfile && <ProfileBadge profile={activeProfile} />}
+          </div>
           <span className="text-sm text-muted whitespace-nowrap">Panel de administración</span>
         </header>
 
