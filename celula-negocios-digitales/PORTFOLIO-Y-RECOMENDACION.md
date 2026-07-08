@@ -8,6 +8,35 @@ Detalle por informe en `investigaciones/01…05-*.md`.
 
 ---
 
+## 🆕 TOP ACUMULADO por Índice honesto (rondas 14–15 — motor cíclico)
+
+> Actualizado **2026-07-07** por el motor de generación (Ronda 15). Ordena por el **Índice honesto**
+> (5 dimensiones × 10 = /50) los sobrevivientes de las últimas rondas del motor. Detalle de cada uno en
+> su carpeta `ronda-NN/`. Los de la ronda 1 (tabla histórica más abajo) usan otra escala (/10) y no son
+> comparables 1:1.
+
+| # | Negocio | Ronda | Índice /50 | Perfil | Qué es en una línea |
+|---|---|---|---|---|---|
+| 1 | **Disputa Ganada** | 14 | 48 | ⚖️ | recuperador automático de contracargos (MP/TiendaNube), cobra sobre lo recuperado |
+| 2 | **Escriba** | 14 | 46 | 💥 | escriba médico IA argentino (HC por voz), sinergia con estetica-erp |
+| 3 | **Débito Devuelto** | 14 | 45 | ⚖️ | refacturación automática de débitos de obras sociales a clínicas |
+| 3 | **Saldo a Favor** | 15 | 45 | 💥 | recupera retenciones indebidas de IIBB (SIRCREB/SIRCUPA), success-fee |
+| 5 | **Tasa Justa** | 15 | 44 | ⚖️ | impugna tasas municipales (TISH) sobrefacturadas con IA, success-fee |
+| 6 | **Costo al Plato** | 14 | 42 | 🌱 | food-cost automático desde la foto de la factura del proveedor |
+| 7 | **Cómputo Exprés** | 14 | 40 | 💥 | presupuesto de obra con IA y precios argentinos vivos |
+| 8 | **Subsidio Detectado** | 15 | 38 | 🌱 | matchea subsidios/ANR pyme + arma la rendición (SEO + canal consultora) |
+| 9 | **Carga al Día** | 14 | 36 | ⚖️ | agente IA que atiende la operación del transportista por WhatsApp |
+| 10 | **Tarifa Justa** | 15 | 34 | ⚖️ | audita la factura de energía del comercio + reclama recategorización *(GO piloto, verif. parcial)* |
+
+**Lectura del PMO (2026-07-07):** las rondas 14 y 15 convergen en un patrón muy vendible —
+**"recuperá/no pierdas plata que ya es tuya", cobro por éxito, COGS casi cero, canal contador/cámara y
+moat de biblioteca de reglas por jurisdicción**. Cuatro negocios comparten ese esqueleto (Disputa
+Ganada, Débito Devuelto, Saldo a Favor, Tasa Justa) → **candidatos a un producto-plataforma común**
+(motor de lectura de documento + reglas por jurisdicción + armado de trámite + success-fee) vendido al
+mismo canal contable. Es la síntesis más fuerte que dejó el motor hasta hoy.
+
+---
+
 ## 1. La tesis (lo que se repitió en los 4 consultores, por separado)
 
 Cuatro equipos investigando ángulos distintos convergieron en **el mismo diferencial**:
