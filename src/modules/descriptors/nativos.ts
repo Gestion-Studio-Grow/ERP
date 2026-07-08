@@ -102,6 +102,16 @@ export const commissionsModule: ModuleDescriptor = {
   dependencias: [{ id: "reports", rango: "^1.0" }],
 };
 
+export const reviewsModule: ModuleDescriptor = {
+  id: "reviews",
+  version: "1.0.0",
+  nombre: "Reseñas",
+  descripcion: "Opiniones y calificaciones de clientes.",
+  kind: "capability",
+  capability: "reviews:manage",
+  rubros: "todos",
+};
+
 /** Todos los módulos nativos del catálogo. */
 export const MODULOS_NATIVOS: ModuleDescriptor[] = [
   agendaModule,
@@ -112,4 +122,5 @@ export const MODULOS_NATIVOS: ModuleDescriptor[] = [
   remindersModule,
   reportsModule,
   commissionsModule,
+  reviewsModule,
 ];
