@@ -101,3 +101,10 @@ ICE; toda propuesta pasa **2 mejoras** antes de acumularse. Salida: **dashboard 
 (`lab-influencers/dashboard.html` + `data.js` acumulativo) con métricas y ranking; el costo de lo
 que hace la IA se computa **$0** (regla del dueño). Charter, método y cómo correr una ronda:
 **`lab-influencers/README.md`** · motor: **`lab-influencers/motor-ronda.workflow.js`**.
+
+**Agentes materializados (pool de la sub-célula):** los 9 agentes están **materializados y en pausa**
+en `.claude/agents-en-pausa/lab-influencers/` (charter + calibración ADR-052; "definir ≠ instanciar")
+e indexados en **`lab-influencers/ROSTER.md`**: 5 lentes generativas (creativo · analítico · dev ·
+diseñador · mercado local, Sonnet), 3 de afinado (mercado local + global + afinador senior, Opus) y 2
+de navegación/estrategia (taxonomista Sonnet · estratega de alternativas Opus). Motores:
+`motor-ronda` (genera+mejora) · `afinar-lapiz` (mercado+afinado) · `netnew` · `analisis` (tags+alternativas).
