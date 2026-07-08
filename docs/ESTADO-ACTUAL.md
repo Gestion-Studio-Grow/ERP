@@ -24,6 +24,12 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 
 ## 🚦 HANDOFF — próximo paso real (2026-07-07)
 
+> **🆕 Sprint 2026-07-08 (Balde B en Opus) — WIP en rama `claude/sprint-startup-generic-rf6x0m`, verde, Gate-pendiente para merge a `main`.** Foco del dueño: **ARCA · Facturador · Módulos del backoffice**. Entregado:
+> - **Módulos del backoffice (ADR-054/055):** vidriera **`/admin/modulos`** — el OWNER prende/apaga las apps de su negocio (variante + dependencias, cap `modules:manage`). Primer consumidor del backoffice para la fundación de módulos. Vallas verdes (tsc + **568 tests** + build + gate:rls 33/33 + lint).
+> - **ARCA — decisión de dinero (ADR-057):** cierra Float vs `Decimal(14,2)` (§5) + R4. `number` con redondeo único ahora (reversible); `Decimal(14,2)` al borde del repo de `Invoice` al encender ARCA real (**§C·I2/Gate 2**). Desbloquea la integración.
+> - **Metodología:** pool fijo de **5 sesiones reutilizables** (reuse-first; overflow espera slot) — `CLAUDE.md → CONCURRENCIA`.
+> - **Pendiente del dueño (sin cambios, §C):** cert + homologación ARCA (I3) · migraciones fiscales + Decimal (I2/Gate 2). **Próximo frente reversible:** worker del outbox ARCA + implementar el redondeo único de ADR-057.
+
 **📐 Método canónico vigente (fuente de verdad del flujo de trabajo):** toda sesión/frente sigue **AL PIE** el
 **flujo RACI** de **`docs/adr/ADR-049-split-de-roles-raci.md`**, renderizado en **`docs/organizacion/estructura-gsg.mermaid`**
 (que además es el **organigrama de células**, gemelo textual de `docs/organizacion/roster-completo-gsg.md`).

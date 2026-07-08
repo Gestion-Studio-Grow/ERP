@@ -18,7 +18,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
 ---
@@ -351,6 +351,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** el drift no es solo doc-vs-repo; también es **sección-vs-sección dentro del mismo doc**. Actualizar el HANDOFF no equivale a actualizar la foto.
 - **Guardarraíl:** en FASE 0, **verificar contra git (no contra el propio doc)** los 3 anclas duras — `main HEAD` (§1), estado de frentes (§7-bis) y `.claude/agents/` (§8) — y reconciliar TODAS las secciones que citen esos hechos, no solo el banner. "Gana el repo" aplica también a las contradicciones internas.
 - **Refs:** MP-5 (sin la foto no se despacha), ADR-039 (FASE 0), ADR-047 (retro).
+
+**[MP-13] Una fundación gateada SIN consumidor real infla el % de avance**
+- **Síntoma:** la fundación de módulos (`src/modules/`, ADR-054) figuraba "implementada" pero nadie del backoffice la usaba; el % "listo" tapaba que faltaba lo que el dueño realmente ve (prender/apagar apps).
+- **Causa raíz:** medir avance por "código escrito" y no por "consumido de punta a punta". Una fundación detrás de flag, sin UI ni cableado, es deuda oculta: no valida su propio diseño.
+- **Fix:** cablear un **consumidor real** (la vidriera `/admin/modulos`) contra la fundación → obligó a exponer la superficie (`vista.ts`), probó variante+dependencias con datos reales y subió el % con evidencia (pantalla + tests + build), no con optimismo.
+- **Lección:** una fundación recién "vale" cuando algo la usa; hasta entonces el % es aspiracional. El consumidor es el que descubre los huecos del contrato.
+- **Guardarraíl:** al reportar % de una fundación/flag, distinguir **construido** de **consumido**; no contar "listo" una capa sin al menos un consumidor real cableado y verde.
+- **Refs:** ADR-054 (repo de módulos), ADR-055 (variante), ADR-040 (Gate), ADR-047 (retro).
 
 ## SEC — Seguridad
 
