@@ -24,8 +24,11 @@ resolver de perfil (`getActiveProfile`) tiene **fallback seguro a "Comercio"** s
 
 ## Estado actual (seguro, reversible)
 
-- **`main` = `74af0db`** — incremento Empresa base + PR-1/PR-2 + Balde-B. Todo el código Empresa vive
-  detrás de flags **DEFAULT OFF** (`PROFILES_ENABLED`, `NAV_GROUPING_ENABLED`, `UPGRADE_TEASER_ENABLED`).
+- **`main` = `a6e9969`** — incremento Empresa base (`74af0db`) **+ Ola 1** (deepening Empresa: Compras
+  J45/18J + Reportes margen 16T · set lite por rubro · primitivos KpiTile/EmptyState · hardening $0:
+  connection_limit / webhook idempotente / cron dead-letter / `/api/ready`) + PR-1/PR-2 + Balde-B. Todo
+  el código Empresa vive detrás de flags **DEFAULT OFF** (`PROFILES_ENABLED`, `NAV_GROUPING_ENABLED`,
+  `UPGRADE_TEASER_ENABLED`). Ola 1 pasó el Gate S5/Opus (tsc + 622 tests + gate:rls 33/33).
 - **Prod intacto:** nada aplicado a Neon, nada deployado. Con flags OFF, el panel es idéntico al de hoy.
 - **`main` queda schema-ahead-of-DB** (Decimal de facturas en schema, sin aplicar). **Regla:** aplicar las
   migraciones seguras **ANTES** de deployar el código nuevo (si no, lecturas de factura Decimal-vs-Float).
