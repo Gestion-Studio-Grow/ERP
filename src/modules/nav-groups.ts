@@ -34,6 +34,7 @@
 // Client-safe: no importa Prisma/tenant/barrel `@/modules` — mismo criterio que
 // `perfil.ts`. Solo importa TIPOS de `./perfil` (no los modifica).
 
+import type { Capability } from "@/lib/capabilities";
 import type { NavGateItem, Perfil } from "./perfil";
 
 /** Los 5 grupos de negocio de la IA de navegación (ADR-059 D3), en su orden fijo. */
@@ -231,6 +232,70 @@ export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
     nota:
       "Prioridad baja. Puede absorberse como sub-pantalla de Compras en vez de ítem " +
       "propio; si se hace ítem, cae en Inventario y compras. Solo Empresa.",
+  },
+];
+
+// ============================================================================
+// ÍTEMS DE NAV EMPRESA (perfilMin=enterprise) — listos para cablear (ESQUELETO).
+// ============================================================================
+//
+// Forma COMPLETA de nav (href/label/icon/cap/grupo/perfilMin) de los módulos Empresa,
+// para que `AdminShell` los concatene a la nav agrupada cuando el perfil activo es
+// Empresa (`activeProfile==="enterprise"`). Derivados del set KEEP validado (los mismos
+// 3 `perfilMin:"enterprise"` de `BACKLOG_SCOPE_ITEM_NAV`).
+//
+// ⚠️ PROVISIONAL — el set FINAL de lanzamiento lo prioriza S1. Cuando llegue, se ajusta
+// SOLO este array (agregar / quitar / reordenar); el plumbing de AdminShell/layout NO
+// cambia. Es el único punto de swap. Naming al cliente profesional, sin fuga de
+// "enterprise" (ADR-059 D7): el cliente ve "Empresa", nunca la palabra de ingeniería.
+//
+// Decisiones del esqueleto (a revisar cuando se construyan los módulos reales):
+// - `cap`: se REUSAN capabilities OWNER existentes — NO se toca `capabilities.ts`
+//   (perfil ≠ rol, ADR-059 D6b). `billing:manage` (cuentas a pagar), `reports:read`
+//   (contabilidad), `catalog:manage` (devoluciones). Las tres son solo-OWNER → ni
+//   RECEPTION ni PROFESSIONAL ven estos ítems. Cuando exista el módulo real podrá
+//   recibir una cap dedicada (backoffice-ingeniería), sin tocar este esqueleto.
+// - `module`: SIN descriptor de catálogo todavía (los descriptores Empresa son backlog
+//   del PO Catálogo) → hoy NO se gatean por módulo, solo por rol × perfil. El día que
+//   exista el descriptor se agrega `module` acá y el OWNER podrá prenderlo/apagarlo
+//   desde `/admin/modulos` (sin cambiar el plumbing).
+export interface EnterpriseNavItem {
+  href: string;
+  /** Etiqueta al cliente — profesional, español neutro (ADR-059 D7). */
+  label: string;
+  /** Nombre del ícono en el set inline de `AdminShell` (ver su mapa `Icon`). */
+  icon: string;
+  cap: Capability;
+  /** Descriptor de catálogo que lo gatearía por rubro; ausente = aún por definir (PO Catálogo). */
+  module?: string;
+  perfilMin: "enterprise";
+  grupo: NavGroupId;
+}
+
+export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
+  {
+    href: "/admin/cuentas-a-pagar",
+    label: "Cuentas a pagar",
+    icon: "cuentas-a-pagar",
+    cap: "billing:manage",
+    perfilMin: "enterprise",
+    grupo: "finanzas",
+  },
+  {
+    href: "/admin/contabilidad",
+    label: "Contabilidad",
+    icon: "contabilidad",
+    cap: "reports:read",
+    perfilMin: "enterprise",
+    grupo: "finanzas",
+  },
+  {
+    href: "/admin/devoluciones-proveedor",
+    label: "Devoluciones a proveedor",
+    icon: "devoluciones",
+    cap: "catalog:manage",
+    perfilMin: "enterprise",
+    grupo: "inventario-y-compras",
   },
 ];
 

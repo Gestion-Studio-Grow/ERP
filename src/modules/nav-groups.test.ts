@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { visibleNavItems, type NavGateItem } from "./perfil";
 import {
   BACKLOG_SCOPE_ITEM_NAV,
+  ENTERPRISE_NAV_ITEMS,
   NAV_GROUPS,
   NAV_ITEM_GROUPS,
   groupNavItems,
@@ -146,6 +147,71 @@ test("BACKLOG_SCOPE_ITEM_NAV: fiado y stock son 'ambos' (lite), no enterprise-on
   // Cuentas a pagar y contabilidad SÍ son solo Empresa (aditivos).
   assert.equal(byHref["/admin/cuentas-a-pagar"].perfilMin, "enterprise");
   assert.equal(byHref["/admin/contabilidad"].perfilMin, "enterprise");
+});
+
+test("ENTERPRISE_NAV_ITEMS: los 3 módulos Empresa son perfilMin enterprise, grupos válidos, hrefs propios", () => {
+  const baseHrefs = new Set(Object.keys(NAV_ITEM_GROUPS));
+  assert.equal(ENTERPRISE_NAV_ITEMS.length, 3);
+  for (const it of ENTERPRISE_NAV_ITEMS) {
+    assert.equal(it.perfilMin, "enterprise");
+    assert.ok(VALID_IDS.has(it.grupo), `grupo inválido en ${it.href}`);
+    assert.ok(!baseHrefs.has(it.href), `${it.href} colisiona con un ítem base`);
+    assert.ok(it.label && it.icon && it.cap, `${it.href} sin label/icon/cap`);
+    // Naming al cliente: la etiqueta NO filtra la palabra de ingeniería (ADR-059 D7).
+    assert.ok(!/enterprise|lite/i.test(it.label), `label "${it.label}" filtra lite/enterprise`);
+  }
+});
+
+test("ENTERPRISE_NAV_ITEMS: consistentes con el backlog validado (mismo href→grupo que BACKLOG)", () => {
+  const backlogEnterprise = Object.fromEntries(
+    BACKLOG_SCOPE_ITEM_NAV.filter((b) => b.perfilMin === "enterprise").map((b) => [b.href, b.grupo]),
+  );
+  for (const it of ENTERPRISE_NAV_ITEMS) {
+    assert.equal(it.grupo, backlogEnterprise[it.href], `${it.href} difiere del grupo del backlog`);
+  }
+  // Guía S5: cuentas a pagar / contabilidad → Finanzas; devoluciones → Inventario y compras.
+  const byHref = Object.fromEntries(ENTERPRISE_NAV_ITEMS.map((i) => [i.href, i]));
+  assert.equal(byHref["/admin/cuentas-a-pagar"].grupo, "finanzas");
+  assert.equal(byHref["/admin/contabilidad"].grupo, "finanzas");
+  assert.equal(byHref["/admin/devoluciones-proveedor"].grupo, "inventario-y-compras");
+});
+
+test("ENTERPRISE_NAV_ITEMS: al agruparse caen en su grupo (Finanzas / Inventario y compras)", () => {
+  const items: NavGroupedItem[] = ENTERPRISE_NAV_ITEMS.map((it) => ({
+    href: it.href,
+    cap: it.cap,
+    perfilMin: it.perfilMin,
+    grupo: it.grupo,
+  }));
+  const { groups, ungrouped } = groupNavItems(items);
+  assert.equal(ungrouped.length, 0, "ningún ítem Empresa debe quedar sin grupo");
+  const finanzas = groups.find((g) => g.id === "finanzas");
+  assert.ok(finanzas && finanzas.items.some((i) => i.href === "/admin/cuentas-a-pagar"));
+  assert.ok(finanzas && finanzas.items.some((i) => i.href === "/admin/contabilidad"));
+  const inv = groups.find((g) => g.id === "inventario-y-compras");
+  assert.ok(inv && inv.items.some((i) => i.href === "/admin/devoluciones-proveedor"));
+});
+
+test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — solo visibles para OWNER perfil Empresa", () => {
+  // Espeja exactamente la lógica de AdminShell: candidatos = base + Empresa solo si
+  // hay perfil activo; luego visibleNavItems (rol × módulo × perfil).
+  const merged: NavGroupedItem[] = [
+    ...ALL_17,
+    ...ENTERPRISE_NAV_ITEMS.map((it) => ({ href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo })),
+  ];
+  const entHrefs = new Set(ENTERPRISE_NAV_ITEMS.map((i) => i.href));
+
+  // OWNER, perfil Empresa → ve los 3 ítems Empresa.
+  const ownerEnt = visibleNavItems(merged, { role: "OWNER", activeModules: null, activeProfile: "enterprise" });
+  for (const h of entHrefs) {
+    assert.ok(ownerEnt.some((i) => i.href === h), `Empresa/OWNER debería ver ${h}`);
+  }
+  // OWNER, perfil Comercio → NO ve ninguno (perfilGateAllows los filtra).
+  const ownerLite = visibleNavItems(merged, { role: "OWNER", activeModules: null, activeProfile: "lite" });
+  assert.ok(![...entHrefs].some((h) => ownerLite.some((i) => i.href === h)), "Comercio no debe ver ítems Empresa");
+  // RECEPTION, perfil Empresa → tampoco (caps billing/reports/catalog son solo OWNER).
+  const recepEnt = visibleNavItems(merged, { role: "RECEPTION", activeModules: null, activeProfile: "enterprise" });
+  assert.ok(![...entHrefs].some((h) => recepEnt.some((i) => i.href === h)), "RECEPTION no debe ver ítems Empresa");
 });
 
 test("BACKLOG_SCOPE_ITEM_NAV: invariante enterprise ⊇ lite — un ítem 'lite' se ve en ambos perfiles", () => {

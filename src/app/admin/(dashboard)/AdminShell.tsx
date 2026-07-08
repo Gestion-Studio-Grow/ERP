@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
 import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
 import { moduleGateAllows } from "@/modules/gating";
-import { NAV_ITEM_GROUPS, groupNavItems } from "@/modules/nav-groups";
+import { perfilGateAllows, type Perfil } from "@/modules/perfil";
+import { NAV_ITEM_GROUPS, ENTERPRISE_NAV_ITEMS, groupNavItems, type NavGroupId } from "@/modules/nav-groups";
 
 // Íconos de línea (dirección B): un set chico inline, sin dependencias. Se
 // eligen por href. `currentColor` para que hereden el color del ítem (activo =
@@ -30,6 +31,10 @@ function Icon({ name }: { name: string }) {
     usuarios: (<><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 11l2 2 3-3.5" /></>),
     localizacion: (<><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></>),
     modulos: (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
+    // Ítems Empresa (perfilMin=enterprise). Mismo lenguaje de línea que el resto.
+    "cuentas-a-pagar": (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M12 17v-4M10 15l2-2 2 2" /></>),
+    contabilidad: (<><path d="M6 4h11a2 2 0 012 2v14H8a2 2 0 01-2-2z" /><path d="M9 8h7M9 12h7M9 16h4" /></>),
+    devoluciones: (<><path d="M9 14l-4-4 4-4" /><path d="M5 10h9a5 5 0 010 10h-2" /></>),
   };
   return (
     <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -45,7 +50,10 @@ function Icon({ name }: { name: string }) {
 // gating está encendido (flag), el ítem se esconde si ese módulo está apagado para el
 // tenant. Los ítems SIN `module` son core/config (Dashboard, Ajustes, Usuarios, la
 // propia vidriera de Módulos…) y nunca se gatean por módulo — solo por rol.
-type ShellItem = { href: string; label: string; icon: string; exact?: boolean; cap: Capability; module?: string };
+// `perfilMin`/`grupo` son opcionales: los 17 ítems base no los traen (viven en el set
+// Comercio y su grupo lo resuelve `NAV_ITEM_GROUPS`); los ítems Empresa
+// (`ENTERPRISE_NAV_ITEMS`) sí, para gatearse por perfil y caer en su grupo.
+type ShellItem = { href: string; label: string; icon: string; exact?: boolean; cap: Capability; module?: string; perfilMin?: Perfil; grupo?: NavGroupId };
 const ALL_ITEMS: ShellItem[] = [
   { href: "/admin", label: "Dashboard", icon: "dashboard", exact: true, cap: "dashboard:read" },
   { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda" },
@@ -133,7 +141,8 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
 // desaparece en silencio. Con el flag OFF este componente ni se monta.
 function NavGroups({ items, onNavigate }: { items: ShellItem[]; onNavigate?: () => void }) {
   const { groups, ungrouped } = groupNavItems(
-    items.map((it) => ({ ...it, grupo: NAV_ITEM_GROUPS[it.href] })),
+    // Grupo de los 17 base: `NAV_ITEM_GROUPS`. Ítems Empresa: traen su propio `grupo`.
+    items.map((it) => ({ ...it, grupo: NAV_ITEM_GROUPS[it.href] ?? it.grupo })),
   );
   return (
     <div className="space-y-4">
@@ -193,6 +202,7 @@ export default function AdminShell({
   monogram,
   activeModules = null,
   navGrouping = false,
+  activeProfile = null,
 }: {
   children: React.ReactNode;
   role: Role;
@@ -206,14 +216,29 @@ export default function AdminShell({
   // layout lo resuelve con `navGroupingEnabled()` (flag `NAV_GROUPING_ENABLED`,
   // default OFF). Reversible de un golpe: OFF → shell idéntico al de hoy.
   navGrouping?: boolean;
+  // Perfil activo del tenant (3ª dimensión, ADR-058/059), o `null` si el motor está
+  // apagado (flag `PROFILES_ENABLED` OFF, default) → NO se gatea por perfil. Lo
+  // resuelve `getActiveProfile()` server-side en el layout. Con `null` la nav es
+  // idéntica a la legada (no se suman ítems Empresa). El cliente ve "Comercio"/
+  // "Empresa", nunca lite/enterprise (ADR-059 D7).
+  activeProfile?: Perfil | null;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const activeSet = activeModules === null ? null : new Set(activeModules);
-  const items = ALL_ITEMS.filter(
+  // Eje PERFIL (ADR-058/059, 3ª dimensión). Con `activeProfile===null` (PROFILES OFF,
+  // default) NO se suman ítems Empresa y `perfilGateAllows` deja pasar todo → nav
+  // idéntica a la legada. Con perfil Empresa se concatenan los `enterprise-only`; con
+  // perfil Comercio `perfilGateAllows` los filtra. Garantiza `enterprise ⊇ lite`: el
+  // Comercio nunca ve MÁS que la nav de hoy, la Empresa ve eso + lo aditivo.
+  const candidateItems: ShellItem[] =
+    activeProfile === null ? ALL_ITEMS : [...ALL_ITEMS, ...ENTERPRISE_NAV_ITEMS];
+  const items = candidateItems.filter(
     (item) =>
-      roleHasCapability(role, item.cap) && moduleGateAllows(item.module, activeSet),
+      roleHasCapability(role, item.cap) &&
+      moduleGateAllows(item.module, activeSet) &&
+      perfilGateAllows(item.perfilMin, activeProfile),
   );
   const roleLabel = ROLE_LABEL[role];
 
