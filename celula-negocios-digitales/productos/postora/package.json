@@ -1,0 +1,20 @@
+{
+  "name": "postora",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Postora — community manager con IA para el comercio de barrio: arma el plan de contenido del mes en la voz de marca, con CTAs rastreables y ROI medible. Suscripción MP.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "node --test src/*.test.ts",
+    "demo": "node src/demo.ts"
+  },
+  "notas": {
+    "demo": "Corre offline con el LLM mock (cero dependencias, cero secretos). Node 22+/24 ejecuta TypeScript directo.",
+    "produccion": "Para la implementación real: `npm install @anthropic-ai/sdk` y usar src/llm-claude.ts (excluido del build por defecto). Cablear la API real = §C (gasto de tokens en prod)."
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
