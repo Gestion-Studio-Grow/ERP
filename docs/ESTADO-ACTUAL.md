@@ -28,7 +28,8 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 > - **Módulos del backoffice (ADR-054/055):** vidriera **`/admin/modulos`** — el OWNER prende/apaga las apps de su negocio (variante + dependencias, cap `modules:manage`). Primer consumidor del backoffice para la fundación de módulos. Vallas verdes (tsc + **568 tests** + build + gate:rls 33/33 + lint).
 > - **ARCA — decisión de dinero (ADR-057):** cierra Float vs `Decimal(14,2)` (§5) + R4. `number` con redondeo único ahora (reversible); `Decimal(14,2)` al borde del repo de `Invoice` al encender ARCA real (**§C·I2/Gate 2**). Desbloquea la integración.
 > - **Metodología:** pool fijo de **5 sesiones reutilizables** (reuse-first; overflow espera slot) — `CLAUDE.md → CONCURRENCIA`.
-> - **Pendiente del dueño (sin cambios, §C):** cert + homologación ARCA (I3) · migraciones fiscales + Decimal (I2/Gate 2). **Próximo frente reversible:** worker del outbox ARCA + implementar el redondeo único de ADR-057.
+> - **ARCA — reversible cerrado (ADR-057 follow-through):** **redondeo único** EPSILON-safe unificado POS+fiscal (R4 cerrado; `round2` en `src/lib/round.ts`, suma de IVA redondeada en `invoice-core`) + **worker del outbox** (`/api/cron/arca-outbox`, fail-closed con `CRON_SECRET`, dormido hasta deploy+ARCA real). Vallas verdes (tsc + 568 tests + build + lint).
+> - **Pendiente del dueño (sin cambios, §C):** cert + homologación ARCA (I3) · migraciones fiscales + Decimal (I2/Gate 2). Con esto encendido, el worker ya emite solo.
 
 **📐 Método canónico vigente (fuente de verdad del flujo de trabajo):** toda sesión/frente sigue **AL PIE** el
 **flujo RACI** de **`docs/adr/ADR-049-split-de-roles-raci.md`**, renderizado en **`docs/organizacion/estructura-gsg.mermaid`**
