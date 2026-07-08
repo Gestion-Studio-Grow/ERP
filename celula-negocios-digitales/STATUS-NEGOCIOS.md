@@ -5,7 +5,7 @@
 > trae: qué es en criollo, en qué estado está, y los números clave (qué cuesta construirlo, cuánto sale
 > operarlo, a cuánto se vende, qué margen deja y cuántos clientes hacen falta para facturar).
 >
-> **Actualizado:** 2026-07-06 · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
+> **Actualizado:** 2026-07-07 (motor Ronda 15) · **Autor:** PMO · **Regla:** todo LOCAL, nada publicado.
 
 ## Qué es la célula (contexto de cero)
 Un equipo de agentes de IA que funciona como una **consultora interna**: inventa negocios digitales que
@@ -92,6 +92,55 @@ condiciones) · ☠️ **Descartado** (el red-team lo mató, con motivo) · 💡
   → 100–150 comercios** + US$500–800 de banners · primer peso a los **2–4 meses**.
 - **Veredicto:** sobrevive a Google pero **la venta a comercios es trabajo activo** — es más "negocio
   local replicable" que ingreso pasivo.
+
+---
+
+## B-bis. SOBREVIVIENTES DEL MOTOR CÍCLICO — Ronda 15 (2026-07-07)
+
+> Ángulo de la ronda: **"recuperá lo que es tuyo"** — recupero y optimización para pyme/comercio/
+> ciudadano (retenciones, tasas, subsidios, tarifas mal cobradas). Números **provisionales a confirmar**,
+> dólar ~$1.500. Detalle completo en `ronda-15/2026-07-07-nuevos-negocios.md`. De 8 candidatos, 4
+> sobrevivieron; 4 murieron en verificación de competencia (alquileres → Rents.ar; facturación OS
+> profesionales → KLIA; sucesiones → patrocinio obligatorio + campo saturado; reintegros consumer →
+> unit economics).
+
+### 💡 Saldo a Favor — recupera las retenciones de Ingresos Brutos que te sacaron de más (Índice 45, 💥)
+- **Qué es (de cero):** lee tus resúmenes de banco/Mercado Pago/billetera, detecta las retenciones de
+  IIBB **indebidas o excesivas** (SIRCREB/SIRCUPA — sobre todo a monotributistas que no deberían ser
+  retenidos) y el saldo a favor acumulado, y **arma el trámite** de atenuación de alícuota / compensación
+  / devolución por provincia. Cobra sobre lo que corta o recupera.
+- **Números (prov.):** build 3–4 sem · COGS ~cero · precio **25% de lo recuperado** + plan contador
+  ~$60k/mes · margen ~90% · base año 1 ~$2M/mes (≈ USD 1.300), techo alto por canal contador.
+- **Por qué sobrevive:** pain masivo (5,5M monotributistas), resultado medible en el próximo resumen,
+  success-fee sin fricción, canal contador ya construido. **El de mayor mercado del motor.**
+
+### 💡 Tasa Justa — impugna la tasa municipal (Seguridad e Higiene) que te cobran de más (Índice 44, ⚖️)
+- **Qué es (de cero):** lee las boletas de TISH del comercio, detecta el sobrecobro (base mal calculada,
+  duplicación, desproporción con el servicio), pide al municipio la info que está **obligado a dar**
+  (prueba) y arma la impugnación administrativa. Cobra un % del ahorro.
+- **Señal fresca:** fallo Cámara San Nicolás **7-abr-2026** que obliga a municipios a transparentar en
+  qué gastan la tasa + doctrina CSJN/SCBA de proporcionalidad. Análogo probado: property-tax appeal (EE.UU.).
+- **Números (prov.):** build 4–5 sem · COGS ~cero · precio **20% del ahorro anual** · margen ~88% · base
+  año 1 ~$900k/mes (≈ USD 600), escala 5–20× con cadenas multi-local.
+- **Por qué sobrevive:** **el moat más defendible** (biblioteca de ordenanzas + jurisprudencia por municipio).
+
+### 💡 Subsidio Detectado — te encuentra el subsidio/ANR pyme y te arma la rendición (Índice 38, 🌱)
+- **Qué es (de cero):** matchea al perfil de la pyme qué programas públicos (ANR, créditos, crédito
+  fiscal) puede pedir hoy, alerta convocatorias y —el diferencial— **arma la carpeta de rendición**
+  (el trámite que hace perder el beneficio).
+- **Números (prov.):** build 3–4 sem · COGS ~USD 1–2/cliente/mes · freemium + plan pyme ~$30k/mes + plan
+  consultora ~$120k/mes · margen ~85% · base año 1 ~$4M/mes (≈ USD 2.600).
+- **Por qué sobrevive (nicho):** 🌱 pasivo sustentable, motor SEO + canal consultora. Directorios estáticos
+  existen; el hueco es **matchear + alertar + rendir**, no listar.
+
+### 💡 Tarifa Justa — audita la factura de energía del comercio y reclama recategorización (Índice 34, ⚖️ · GO piloto)
+- **Qué es (de cero):** lee las facturas de luz/gas del comercio, detecta potencia sobredimensionada /
+  categoría T2-T3 mal asignada / recargos evitables, y arma el trámite de recategorización. Cobra % del ahorro.
+- **Señal fresca:** **Decreto 943/2025** (BO 2-ene-2026) reordena subsidios → la factura sube todo 2026.
+- **⚠️ Verificación de competencia PARCIAL:** falta cerrar el barrido de consultoras de eficiencia
+  energética antes del GO pleno → **queda como GO piloto en observación**. Honestidad de método.
+- **Números (prov.):** build 4–5 sem · precio 25% del ahorro anual · margen ~85% · base ~$730k/mes (≈ USD 480),
+  condicionado a validar hueco y ahorro real.
 
 ---
 
