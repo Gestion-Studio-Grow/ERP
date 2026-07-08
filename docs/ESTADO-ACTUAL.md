@@ -36,18 +36,16 @@ repo de plugins ADR-054/055 bajo principio de VARIANTE).
 **Prod intacto y estable:** CH Estética vivo en **Vercel**, **RLS enforced** (`app_rls`), 4 tenants
 provisionados en Neon con aislamiento verificado. Nada rojo bloqueante en `main`.
 
-**⏸️ SPRINT PAUSADO (cierre 2026-07-07, el dueño reabre después).** Los dos frentes **pararon en punto
-seguro**: árbol limpio, vallas verdes, pusheados, **SIN merge a `main`** (esperan Gate). **`main` sigue en
-`29e9dcb`** — no cambió (lo de esta sesión es doc-only del PMO). Detalle por frente en §7-bis; irreversibles
-elevados en §C.
+**▶️ OLA 1 DEL HANDOFF CERRADA (2026-07-07).** **F1 mergeado a `main`** tras rebase + Gate (Opus) pasado.
+**`main` ahora en `debb3c5`** (era `fa94440`). F3 sigue en punto seguro, sin mergear (espera su Gate). Detalle
+por frente abajo; irreversibles elevados en §C.
 
-- **F1 · `frente/diseno-vidrieras`** — HEAD **`09f668a`** · tag `snapshot/2026-07-07-f1-wip`. Verde (tsc/build/**559 tests**).
-- **F3 · `frente/demo-vendible`** — HEAD **`1334212`** · tag `snapshot/2026-07-07-f3-wip`. Verde (tsc/build/**560 tests**).
+- **F1 · `frente/diseno-vidrieras`** — ✅ **MERGEADO a `main`** (`debb3c5`, FF sobre `fa94440`). Vidriera pádel + copy honesto ADM + saneo DX-5 Shine. Vallas verdes (tsc/build/**559 tests**), Gate pasado.
+- **F3 · `frente/demo-vendible`** — HEAD **`1334212`** · tag `snapshot/2026-07-07-f3-wip`. Verde (tsc/build/**560 tests**). **Puede rebasar sobre `main`-con-F1 (`debb3c5`).**
 
-**➡️ PRÓXIMO PASO EXACTO AL REABRIR (en este orden):**
-1. **Gate + merge de F1 primero** (orden F1 → F3): el PMO corre QA transversal + **Gate de Excelencia en Opus**
-   sobre `frente/diseno-vidrieras` (`09f668a`) → si pasa, mergea a `main`. **F1/F3 NO están mergeados.**
-2. **Luego F3:** rebasar `frente/demo-vendible` sobre `main` ya con F1 → QA + Gate en Opus → merge.
+**➡️ PRÓXIMO PASO EXACTO (Ola 2):**
+1. ✅ **F1 hecho** — rebasado sobre `origin/main`, Gate (Opus) pasado, mergeado a `main` (`debb3c5`, push OK).
+2. **Ola 2 · F3:** rebasar `frente/demo-vendible` sobre `main` ya con F1 (`debb3c5`) → QA + Gate en Opus → merge.
 3. **Necesita del dueño (no bloquea el Gate, sí el "estado final vendible"):**
    - **§C·I7 (NUEVO):** material real de **Shine y A Dos Manos** (bio/catálogo/precios/testimonios o acceso IG)
      — el copy DX-5 exacto quedó **provisional** porque las fuentes IG están login-walled. Sin esto, la vidriera

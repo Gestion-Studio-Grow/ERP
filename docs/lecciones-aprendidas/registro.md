@@ -18,7 +18,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`)
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
 ---
@@ -335,6 +335,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Guardarraíl:** reconciliar rama vieja → main **por pathspec/delta, no `git merge`**; para cada archivo tocado por ambas, comparar contra `main` y traer **solo** lo nuevo. Colisión de nº de ADR → **renumerar el de la rama** al siguiente libre + arreglar el INDEX.
 - **Gotcha de infra:** `robocopy` desde Git Bash **necesita `MSYS_NO_PATHCONV=1`** — sin eso, MSYS convierte `/E` en `E:/` y el copiado falla en silencio (exit 0, 0 archivos). Materializar `node_modules` real (no junction) para el build de Turbopack sigue vigente (MP-6).
 - **Refs:** ADR-039, ADR-049; ADR-056 (renumerado desde ADR-028 de la rama); memoria worktree/robocopy.
+
+**[MP-11] Rebase con conflicto en una TABLA de irreversibles (§C): dividir la fila, no pisarla**
+- **Síntoma:** al rebasar `frente/diseno-vidrieras` (F1) sobre `main`, el único conflicto fue en `docs/ESTADO-ACTUAL.md §C`, dos veces, ambos sobre la **misma fila `I7`**: `main` la usaba para "material real de Shine/ADM" y F1 para "autorización de marca ADR-042". Tomar un lado a ciegas **perdía un irreversible entero** del otro.
+- **Causa raíz:** dos frentes numeraron **conceptos distintos** con el mismo ID de fila (`I7`) en una tabla compartida; un `accept ours/theirs` los trata como el mismo ítem.
+- **Fix:** **surface-before-overwrite aplicado a la fila** — se conservó el `I7` de `main` (material) y se **agregó** el de F1 como **`I8`** (autorización, marcada ✅ otorgada 2026-07-07), con las dependencias cruzadas escritas explícitas (I7 "atado a la autorización I8"). Cero pérdida de contenido de ninguno de los dos lados. Vallas (tsc + 559 tests + build) + Gate (Opus) antes del merge FF a `main` (`debb3c5`).
+- **Lección:** en un conflicto sobre una **lista/tabla enumerada** (irreversibles, ADRs, tenants), el choque casi nunca es "misma cosa, dos versiones" sino "**dos cosas, mismo número**" → la resolución correcta es **renumerar y conservar ambas**, no elegir una. Es el mismo reflejo que MP-10 (diff primero, integrá el delta) pero a nivel fila.
+- **Guardarraíl:** conflicto en una tabla/lista con IDs → **antes de resolver, leer qué concepto describe cada lado**; si son distintos, **conservar ambos y renumerar** (como la colisión de ADR de MP-10); actualizar las referencias cruzadas. Nunca `checkout --ours/--theirs` sobre filas de `§C`.
+- **Refs:** MP-10 (renumerar en colisión), ADR-040 (Gate), ADR-048 (irreversibles); `docs/estrategia/F1-vidrieras-calibracion-y-gate-adr042.md`.
 
 ## SEC — Seguridad
 
