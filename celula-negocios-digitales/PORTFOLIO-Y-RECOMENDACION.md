@@ -8,9 +8,9 @@ Detalle por informe en `investigaciones/01…05-*.md`.
 
 ---
 
-## 🆕 TOP ACUMULADO por Índice honesto (rondas 14–17 — motor cíclico)
+## 🆕 TOP ACUMULADO por Índice honesto (rondas 14–19 — motor cíclico)
 
-> Actualizado **2026-07-07** por el motor de generación (Rondas 15–17). Ordena por el **Índice honesto**
+> Actualizado **2026-07-07** por el motor de generación (Rondas 15–19). Ordena por el **Índice honesto**
 > (5 dimensiones × 10 = /50) los sobrevivientes de las últimas rondas del motor. Detalle de cada uno en
 > su carpeta `ronda-NN/`. Los de la ronda 1 (tabla histórica más abajo) usan otra escala (/10) y no son
 > comparables 1:1.
@@ -30,7 +30,8 @@ Detalle por informe en `investigaciones/01…05-*.md`.
 | 11 | **Carga al Día** | 14 | 36 | ⚖️ | agente IA que atiende la operación del transportista por WhatsApp |
 | 10 | **Tarifa Justa** | 15 | 34 | ⚖️ | audita la factura de energía del comercio + reclama recategorización *(GO piloto, verif. parcial)* |
 | 10 | **Mono-Tech** | 16 | 34 | 💥 | copiloto del régimen Mono-Tech para exportadores de servicios *(GO piloto ventana, moat fino)* |
-| 12 | **Prepaga Justa** | 16 | 33 | ⚖️ | audita el aumento de tu prepaga + arma el reclamo/amparo *(GO piloto, requiere estudio aliado)* |
+| 10 | **App al Día** | 19 | 34 | ⚖️ | copiloto de formalización para trabajadores de apps (Reforma Laboral 2026) *(GO piloto B2B2C)* |
+| 13 | **Prepaga Justa** | 16 | 33 | ⚖️ | audita el aumento de tu prepaga + arma el reclamo/amparo *(GO piloto, requiere estudio aliado)* |
 
 **Lectura del PMO (2026-07-07):** las rondas 14 y 15 convergen en un patrón muy vendible —
 **"recuperá/no pierdas plata que ya es tuya", cobro por éxito, COGS casi cero, canal contador/cámara y
