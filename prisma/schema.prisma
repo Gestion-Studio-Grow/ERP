@@ -198,6 +198,14 @@ model Tenant {
   accentPreset String? // preset de acento del branding (src/lib/branding.ts)
   frontTheme   String? // "light" | "dark" — tema de la vidriera del tenant
 
+  // --- Perfil GROW-AR (ADR-058/059 D1, PR-2/M2): "Comercio" (lite) ↔ "Empresa" (enterprise) ---
+  // Nombres de motor en INGENIERÍA (`lite`/`enterprise`); el cliente ve "Comercio"/"Empresa"
+  // (ADR-059 D7, naming al cliente — nunca lite/enterprise de cara al tenant). Columna ADITIVA
+  // con DEFAULT: los tenants existentes quedan en `lite` sin backfill manual ni pérdida de dato.
+  // Reemplaza el override en memoria de `getActiveProfile` (`src/lib/profile-gating.ts`) — motor
+  // sigue reversible por `PROFILES_ENABLED` (flag OFF = no se lee ni se gatea por esta columna).
+  profile TenantProfile @default(lite)
+
   // --- Config fiscal / ARCA por tenant (ADR-022 §5, CORE-SCHEMA-SPEC opción B) ---
   // SOLO metadata no sensible. El certificado X.509 + clave del emisor NO viven en
   // la DB: entran por env/secret store (`ARCA_CERT_PEM`/`ARCA_KEY_PEM`, `credencialDesdeEnv`).
@@ -213,6 +221,14 @@ model Tenant {
 // Estado de un tenant en la plataforma (control-plane, ADR-021). TRIAL = en
 // pruebas (default del alta), ACTIVE = operando/pagando, SUSPENDED = pausado sin
 // borrar datos.
+// Perfil GROW-AR del tenant (ADR-058/059): `lite` = "Comercio" (micro, mínimo que resuelve),
+// `enterprise` = "Empresa" (pyme, proceso completo). Invariante `enterprise ⊇ lite` (crecé sin
+// migrar) lo garantiza `perfilGateAllows`/`resolveNavLockState` (`src/modules/`), no el schema.
+enum TenantProfile {
+  lite
+  enterprise
+}
+
 enum TenantStatus {
   TRIAL
   ACTIVE

@@ -16,6 +16,7 @@
 // `@/modules/perfil` (leaf client-safe); acá está solo la parte SERVER.
 
 import { cache } from "react";
+import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { profilesEnabled, upgradeTeaserEnabled, type Perfil } from "@/modules";
 
@@ -23,19 +24,35 @@ export { perfilGateAllows, visibleNavItems } from "@/modules/perfil";
 export type { Perfil, NavGateItem } from "@/modules/perfil";
 export { type NavLockState, resolveNavLockState } from "@/modules/candado";
 
-// Overrides EN MEMORIA por tenantId, solo para DEMO (cero DB). Vacío por ahora: cada
-// tenant resuelve al default `"lite"` hasta que exista `Tenant.profile` (§C).
+// Overrides EN MEMORIA por tenantId — escape hatch para DEMO (cero DB), con prioridad
+// sobre la columna. Vacío por defecto: la fuente autoritativa es `Tenant.profile`.
 const PROFILE_OVERRIDES: Readonly<Record<string, Perfil>> = {};
 
 /**
  * Perfil activo del tenant actual, o `null` si el motor está apagado (flag OFF) → el
  * llamador NO debe gatear por perfil. Cacheado por request (`react.cache`).
+ *
+ * Fuente autoritativa: la columna `Tenant.profile` (aditiva, default `lite`). **FALLBACK
+ * SEGURO a `"lite"` (Comercio)** si la columna AÚN NO está aplicada en prod (migración no
+ * corrida) o ante cualquier error de lectura: publicar el código ANTES que la migración
+ * NUNCA rompe el panel — el peor caso es "todos Comercio", que es exactamente el default
+ * aditivo. Con `PROFILES_ENABLED` OFF ni siquiera se entra acá (retorno temprano).
  */
 export const getActiveProfile = cache(async (): Promise<Perfil | null> => {
   if (!profilesEnabled()) return null;
   const tenantId = await getCurrentTenantId();
-  // §C futuro: leer `Tenant.profile` cuando exista la columna. Hoy: default lite + override demo.
-  return PROFILE_OVERRIDES[tenantId] ?? "lite";
+  const override = PROFILE_OVERRIDES[tenantId];
+  if (override) return override;
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { profile: true },
+    });
+    return tenant?.profile ?? "lite";
+  } catch {
+    // Columna inexistente (P2022) o cualquier fallo de lectura → Comercio (fail-safe).
+    return "lite";
+  }
 });
 
 // ============================================================================
