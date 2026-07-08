@@ -1,4 +1,5 @@
 import { getStockData } from "@/lib/stock-actions";
+import { getActiveProfile } from "@/lib/profile-gating";
 import { fmtShortDate } from "@/lib/datetime";
 import ComprasForm from "./ComprasForm";
 
@@ -14,7 +15,11 @@ const KIND_LABEL: Record<string, string> = {
 
 export default async function ComprasPage() {
   // getStockData aplica requireCapability("catalog:read") — guard de la página.
-  const { products, recent } = await getStockData();
+  // Perfil (ADR-058/059): la edición Empresa profundiza la MISMA pantalla con la orden
+  // formal a proveedor (razón social + CUIT + N° de orden, J45/18J). Con el motor OFF
+  // (profile===null) o Comercio, la cabecera es la simple de hoy → aditivo, sin dead-end.
+  const [{ products, recent }, profile] = await Promise.all([getStockData(), getActiveProfile()]);
+  const formal = profile === "enterprise";
 
   // Productos con stock por debajo del umbral: lo que conviene reponer primero.
   const lowStock = products.filter((p) => p.stock <= p.lowStockAt);
@@ -26,6 +31,7 @@ export default async function ComprasPage() {
         Registrá la entrada de mercadería (compra a proveedor o reposición interna): elegí los
         productos y las cantidades, y el sistema suma ese stock automáticamente. Es la contracara
         de la venta, que lo descuenta.
+        {formal && " En la edición Empresa podés dejar registrada la orden formal (razón social, CUIT y N° de orden)."}
       </p>
 
       {lowStock.length > 0 && (
@@ -39,7 +45,7 @@ export default async function ComprasPage() {
         </div>
       )}
 
-      <ComprasForm products={products} />
+      <ComprasForm products={products} formal={formal} />
 
       {recent.length > 0 && (
         <>

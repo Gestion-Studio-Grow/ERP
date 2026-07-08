@@ -20,6 +20,7 @@ import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { insertStockPurchase, type StockPurchaseKind } from "@/lib/stock/purchase-core";
+import { composeFormalNotes } from "@/lib/stock/formal-order";
 
 const STOCK_PATH = "/admin/compras";
 
@@ -79,10 +80,18 @@ export async function createStockPurchase(formData: FormData) {
   const kindRaw = String(formData.get("kind") || "COMPRA").trim();
   const kind: StockPurchaseKind = kindRaw === "REPOSICION" ? "REPOSICION" : "COMPRA";
 
+  // Orden formal a proveedor (perfil Empresa, J45/18J): el CUIT y el N° de orden viajan
+  // en campos propios pero se COMPONEN dentro de `notes` (lossless, sin columna nueva;
+  // columnas dedicadas = §C). Retrocompatible: para Comercio esos campos no llegan y
+  // `composeFormalNotes` devuelve la nota libre tal cual (o null), como antes.
   const result = await insertStockPurchase(tenantId, {
     kind,
     supplier: String(formData.get("supplier") || "").trim() || null,
-    notes: String(formData.get("notes") || "").trim() || null,
+    notes: composeFormalNotes({
+      orderNumber: String(formData.get("orderNumber") || ""),
+      cuit: String(formData.get("cuit") || ""),
+      note: String(formData.get("notes") || ""),
+    }),
     createdBy: `user:${user.id}`,
     items: parseLines(formData),
   });

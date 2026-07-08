@@ -4,6 +4,8 @@ import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS, METODO_LABEL } from "@/li
 import { getCommissionsOverview, settleCommissions } from "@/lib/commission-actions";
 import { requireUser } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
+import { getActiveProfile } from "@/lib/profile-gating";
+import { getMarginReport } from "@/lib/reports/margin-loader";
 import { fmtShortDate } from "@/lib/datetime";
 import { generateOwnerInsights } from "@/lib/owner-insights";
 import { analyzeTrends, type MetricSeriesInput } from "@/lib/owner-trends";
@@ -77,14 +79,21 @@ export default async function ReportesPage({
   const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsedDias)
     ? parsedDias
     : DEFAULT_REPORT_RANGE_DAYS;
-  const [data, deep, panel, overview, user] = await Promise.all([
+  const [data, deep, panel, overview, user, profile] = await Promise.all([
     getReportData(rangeDays),
     getDeepReportData(rangeDays),
     getOwnerPanelData(rangeDays),
     getCommissionsOverview(),
     requireUser(),
+    getActiveProfile(),
   ]);
   const k = deep.kpis;
+
+  // Rentabilidad/margen por producto (16T) — profundización Empresa (P1.b). Solo se
+  // carga y se muestra en la edición Empresa; y aun ahí, solo si hay productos con
+  // precio Y costo (rubro-gated de hecho: un spa de servicios no tiene margen que
+  // mostrar → sección ausente). Aditivo, no toca el reporte de ingresos existente.
+  const margin = profile === "enterprise" ? await getMarginReport() : null;
 
   // Panel del Dueño (Agencia Grow): la lectura en lenguaje llano se computa acá con
   // los motores puros. Insights = período actual vs. previo; tendencias = serie de
@@ -265,6 +274,53 @@ export default async function ReportesPage({
           </div>
         </div>
       </div>
+
+      {/* Rentabilidad / margen por producto (16T) — edición Empresa. Aditivo al reporte
+          de ingresos: no reemplaza nada, suma la lectura de "cuánto deja cada producto".
+          Solo aparece si hay productos con precio Y costo (rubro-gated de hecho). */}
+      {margin && margin.rows.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-1">Rentabilidad por producto</h2>
+          <p className="text-muted mb-4 text-sm">
+            Margen bruto = precio de venta − último costo de compra conocido. Edición Empresa.
+          </p>
+
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+            <KpiCard
+              label="Productos con margen"
+              value={String(margin.summary.count)}
+              hint="con precio y costo conocidos"
+            />
+            <KpiCard label="Margen promedio" value={pct(margin.summary.avgMarginPct)} />
+            <KpiCard
+              label="Venden a pérdida"
+              value={String(margin.summary.belowCostCount)}
+              hint="precio por debajo del costo"
+              tone={margin.summary.belowCostCount > 0 ? "danger" : "success"}
+            />
+          </div>
+
+          <div className="rounded-lg border border-line p-4">
+            <h3 className="font-medium mb-1">Margen por producto</h3>
+            <p className="text-xs text-muted mb-3">Ordenado de mayor a menor margen sobre el precio.</p>
+            <div className="space-y-1.5">
+              {margin.rows.slice(0, 12).map((r) => (
+                <div key={r.id} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate text-muted">{r.name}</span>
+                  <span className="whitespace-nowrap text-right">
+                    <span className={`font-medium ${r.margin < 0 ? "text-danger" : ""}`}>
+                      {pct(r.marginPct)}
+                    </span>
+                    <span className="ml-2 text-xs text-muted">
+                      {money(r.margin)}/{r.unitLabel} · {money(r.price)} − {money(r.cost)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 mb-8">
         <Table title="Ingresos por día" rows={data.porDia} />
