@@ -18,7 +18,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido)
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
 ---
@@ -359,6 +359,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** una fundación recién "vale" cuando algo la usa; hasta entonces el % es aspiracional. El consumidor es el que descubre los huecos del contrato.
 - **Guardarraíl:** al reportar % de una fundación/flag, distinguir **construido** de **consumido**; no contar "listo" una capa sin al menos un consumidor real cableado y verde.
 - **Refs:** ADR-054 (repo de módulos), ADR-055 (variante), ADR-040 (Gate), ADR-047 (retro).
+
+**[MP-14] Gating por redirect → riesgo de LOOP si el destino también se gatea**
+- **Síntoma:** al querer enforcar el gating de módulos a nivel URL (redirigir si el módulo está apagado), el destino natural (`/admin` o la home del rol) puede ser **otra página gateada** → loop. Caso concreto: `PROFESSIONAL` con `agenda` apagada → su home ES agenda → redirect infinito.
+- **Causa raíz:** un guard que redirige sin garantizar que el destino sea SIEMPRE accesible para ese rol/estado. El gating por módulo no es barrera de seguridad (eso es el rol, ADR-017) — sumarlo como redirect encima del gating por rol crea combinaciones que hacen loop.
+- **Fix (esta sesión):** **NO** se shippeó el URL-enforcement; se dejó el **nav-gating** (esconde el ítem, sin redirect → no loopea) como la UX entregada, y el URL-block quedó como follow-up con diseño loop-safe pendiente.
+- **Lección:** un guard que redirige necesita un destino **probadamente terminal** (accesible para todo rol/estado, nunca gateado). Ante la duda, **esconder > redirigir**: ocultar no puede loopear.
+- **Guardarraíl:** antes de enforcar gating con `redirect()`, mapear el destino para CADA rol y CADA combinación de módulos apagados; si algún destino puede estar gateado, no redirigir — usar 404/estado neutro o esconder. Nunca redirigir a la home del rol si esa home es gateable.
+- **Refs:** ADR-017 (ocultar nav = UX; rol = seguridad), ADR-054/055, ADR-047 (retro).
 
 ## SEC — Seguridad
 

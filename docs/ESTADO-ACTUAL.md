@@ -29,7 +29,12 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 > - **ARCA — decisión de dinero (ADR-057):** cierra Float vs `Decimal(14,2)` (§5) + R4. `number` con redondeo único ahora (reversible); `Decimal(14,2)` al borde del repo de `Invoice` al encender ARCA real (**§C·I2/Gate 2**). Desbloquea la integración.
 > - **Metodología:** pool fijo de **5 sesiones reutilizables** (reuse-first; overflow espera slot) — `CLAUDE.md → CONCURRENCIA`.
 > - **ARCA — reversible cerrado (ADR-057 follow-through):** **redondeo único** EPSILON-safe unificado POS+fiscal (R4 cerrado; `round2` en `src/lib/round.ts`, suma de IVA redondeada en `invoice-core`) + **worker del outbox** (`/api/cron/arca-outbox`, fail-closed con `CRON_SECRET`, dormido hasta deploy+ARCA real). Vallas verdes (tsc + 568 tests + build + lint).
-> - **Pendiente del dueño (sin cambios, §C):** cert + homologación ARCA (I3) · migraciones fiscales + Decimal (I2/Gate 2). Con esto encendido, el worker ya emite solo.
+> - **ARCA — migración Decimal preparada (R1, ADR-057):** `Invoice.{neto,iva,total}` → `Decimal(14,2)` en schema + **migración `20260708120000_invoice_money_decimal` SIN aplicar** (Gate 2); conversión `Decimal→number` en el único borde de lectura (`facturacion-actions`). Blast radius verificado = 1 edge. `main` queda schema-ahead-of-DB (mismo estado que las otras 9 pendientes → **aplicar migraciones antes de deployar**).
+> - **§C empaquetado:** runbook **`docs/runbooks/encender-arca-real.md`** — pasos ordenados (migrar → deployar → cert homologación → real), rollback y regla de secretos. Todo listo para el "1 clic" del dueño.
+> - **Catálogo de módulos (R4):** +descriptor **Reseñas**; el nav de Reseñas ahora es toggleable y gateable.
+> - **Facturador — verificado (no rehecho):** la pantalla `/admin/facturacion` ya mostraba estado por factura (pendiente/autorizada+CAE/rechazada+motivo) desde `prisma.invoice` real (lección MP-13).
+> - **Diferido con criterio (R2):** enforcement a nivel URL del gating de módulos → **no se hizo** por riesgo de **loop de redirects** (p. ej. PROFESSIONAL con `agenda` apagada) y por ser hardening de un feature **no-security** (el rol ya es la barrera, ADR-017). El nav-gating ya entrega la UX; el URL-block necesita un diseño loop-safe (follow-up).
+> - **Pendiente del dueño (§C):** cert + homologación ARCA (I3) · `migrate deploy` de las fiscales + Decimal (I2/Gate 2), **en ese orden** (ver runbook). Con eso, el worker emite solo.
 
 **📐 Método canónico vigente (fuente de verdad del flujo de trabajo):** toda sesión/frente sigue **AL PIE** el
 **flujo RACI** de **`docs/adr/ADR-049-split-de-roles-raci.md`**, renderizado en **`docs/organizacion/estructura-gsg.mermaid`**
