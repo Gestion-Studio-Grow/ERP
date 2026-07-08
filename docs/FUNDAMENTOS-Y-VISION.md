@@ -141,11 +141,47 @@ Restricciones de diseño, no solo operativas: acotan qué se recomienda y hasta 
 
 ---
 
-## 10. Checklist de encuadre para abrir cualquier sesión
+## 10. Filosofía GROW-AR — un Core, dos motores, crecé sin migrar (ADR-058)
+
+Síntesis vigente que **mezcla** esta visión con lo mejor de SAP (GROW / Fiori / Public Cloud) y con el
+modelo de dos perfiles que construimos. **No reemplaza nada de §1–§9: los extiende.** Detalle y el porqué
+en **ADR-058**.
+
+> **Una línea:** *un solo Core, dos motores (comerciante ↔ empresa), y **crecés sin migrar**: el mismo
+> tenant, el mismo proceso, se enciende más profundo a medida que tu negocio crece — lo mejor de SAP,
+> argentinizado.*
+
+Cinco principios (cada uno mezcla una capa):
+
+1. **Activar, no programar** (SAP Public Cloud → nuestra fundación de módulos, ADR-054): el valor se
+   entrega **encendiendo** capacidades de mejor práctica que ya existen en el Core, no desarrollando a
+   medida. Refuerza el guardrail anti-consultora de §2.
+2. **Dos motores sobre un mismo proceso** (lo que construimos): cada proceso es **un `ScopeItem` con
+   perfiles `lite` (comerciante) y `enterprise` (empresa)**. El perfil es **ortogonal al rubro** (Blueprint,
+   §4) y al aislamiento (§3). No son dos productos ni dos códigos.
+3. **Crecé sin migrar** (la promesa nueva, invariante duro): **`enterprise ⊇ lite`** — subir de perfil es
+   **aditivo** (se encienden pasos/campos/controles, nunca se reescribe ni se migra de sistema). El que
+   crece **no cambia de ERP**: crece dentro del mismo tenant. Es la forma sana de cumplir la promesa de §2.
+4. **Argentinizado y humano donde corresponde** (Fiori + ADR-044/046): rigor y diseño Fiori, pero en
+   criollo claro, fiscal ARCA, Mercado Pago/transferencia, WhatsApp-first; humano en venta/atención,
+   estándar y preciso en código/fiscal/cálculos.
+5. **Personalización de producto + onboarding por IA** (§5 + ADR-034): descubrimiento pre-alta → elige
+   **perfil (lite/enterprise) + Blueprint (rubro)** → branding → catálogo sembrado → configurador. El
+   preset por IA hace el alta **auto-servible**, condición para que el costo cierre a escala
+   (`docs/estrategia/costos-por-segmento.md`).
+
+> **Estado real:** hoy existe la **fundación de módulos** (ADR-054/055, `src/modules/`). El **motor de
+> perfiles `ScopeItem.{lite,enterprise}`** es **fundamento documentado, no construido** — reingeniería
+> posterior con su Gate (definir ≠ construir). Esta §10 fija el marco; no describe código ya escrito.
+
+---
+
+## 11. Checklist de encuadre para abrir cualquier sesión
 
 - [ ] ¿Esto se resuelve como **tenant + Blueprint/config/Plugin** del Core, o estoy por duplicar código / armar una app aparte? (Lo segundo → parar.)
 - [ ] Si es un pedido de "solucionar algo raro de un cliente: ¿es **reusable por otros** (producto) o **exclusivo de uno** (proyecto aparte, §2)?
 - [ ] ¿El rubro **cae en un arquetipo** (§4)? Si no, ¿va al **genérico**?
+- [ ] ¿El proceso se piensa como **un `ScopeItem` con perfiles lite/enterprise** (§10, ADR-058), respetando **`enterprise ⊇ lite`** (aditivo, "crecé sin migrar")? ¿No estoy armando dos productos para el mismo proceso?
 - [ ] ¿Refuerza la **experiencia hiper-personalizada** (§5) o la degrada (pantallas vacías, genérico sin branding)?
 - [ ] ¿Preserva el **aislamiento por tenant** (`tenantId` en cada tabla y query; compatible con RLS de ADR-018)?
 - [ ] ¿Respeta las **restricciones de free plan** (§8) y elige la opción **simple-y-correcta-hoy**?
