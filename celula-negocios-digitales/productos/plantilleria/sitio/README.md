@@ -1,37 +1,42 @@
-# Sitio Plantillería AR — scaffold
+# Sitio Plantillería AR — tienda demo estática
 
-Landing + páginas de producto + página de gracias/entrega. Next.js App Router, exportado **estático**.
+Landing + fichas de producto + carrito + checkout Mercado Pago (MODO DEMO) + página de gracias.
+**Generador estático sin framework** (template strings TS → HTML) + un bundle de cliente vanilla.
+Cero dependencias de runtime, cero backend, cero secretos → publica en cualquier host de estáticos.
 
-> ⚠️ PROTOTIPO AISLADO. Las dependencias se instalan **solo dentro de esta carpeta** (`sitio/`),
-> nunca contra el ERP raíz. En el kickoff los `.tsx` son scaffold autocontenido (diseño + copy reales)
-> y no se instalaron deps.
+> ⚠️ AISLADO. Las dependencias (solo de build: tsx/esbuild/typescript) se instalan **dentro de esta
+> carpeta** (`sitio/`), nunca contra el ERP raíz. El checkout es **demo**: no cobra plata real ni
+> guarda datos reales (ADR-030/031).
 
 ## Estructura
 ```
-app/
-  layout.tsx              layout raíz (header, footer, disclaimer global)
-  page.tsx                LANDING (hero, catálogo, pack, prueba social, FAQ)
-  globals.css             design tokens + estilos
-  producto/[slug]/page.tsx   detalle de cada plantilla + CTA de compra
-  gracias/[slug]/page.tsx    post-pago: instrucciones de entrega + upsell
-components/
-  CardPlantilla.tsx  BotonComprar.tsx  FAQ.tsx
-data/
-  catalogo.ts             SKUs (fuente de verdad: precios, contenido, checkoutUrl)
+data/catalogo.ts     SKUs = fuente única de verdad (precios, contenido, normativa, bundle)
+src/checkout.ts      lógica pura del carrito + orden demo (isomórfica, testeada)
+src/render.ts        render de todas las páginas a HTML (server-side, sin runtime)
+src/client.ts        JS del navegador (carrito en localStorage, checkout MP demo) → esbuild → out/app.js
+styles/globals.css   design tokens + estilos (copiado tal cual a out/)
+build.ts             genera ./out (10 páginas + CSS)
+test/                node:test (checkout puro + smoke de render)
 ```
 
-## Para correrlo de verdad
+## Correr las vallas y construir
 ```bash
-cd sitio          # ¡dentro de esta carpeta!
-npm install
-npm run dev       # http://localhost:3000
-npm run build     # genera /out estático para subir a Netlify/Vercel/Cloudflare Pages
+cd sitio
+npm install          # solo build-deps (tsx, esbuild, typescript)
+npm run typecheck    # tsc --noEmit
+npm run test         # node:test vía tsx
+npm run build        # → sitio/out/  (HTML + globals.css + app.js)
+npm run verde        # las tres de una
+npm run serve        # sirve out/ en http://localhost:4173 para probar
 ```
+> En el entorno del sprint (sin `npm install`) se corre con el toolchain del ERP:
+> `node_modules/` es un junction a `estetica-erp/node_modules` y se invoca `node_modules/.bin/{tsc,tsx,esbuild}`.
 
-## Para pasar a producción
-1. Crear los productos en Lemon Squeezy (1 por plantilla + el pack), subir cada archivo.
-2. Copiar cada checkout URL a `data/catalogo.ts` (reemplazar los `PLACEHOLDER`).
-3. Configurar el redirect post-pago de LS a `/gracias/[slug]/`.
-4. Deploy del sitio + apuntar el dominio.
+## Publicar la demo (costo cero)
+Ver **`../PUBLICAR.md`** — runbook §C de 1 clic (Netlify Drop / Vercel CLI / conectar repo).
+Los `netlify.toml` y `vercel.json` ya dejan el build zero-config.
 
-Detalle en `../ARQUITECTURA.md` y `../SPEC.md`.
+## Para pasar a producción (post-VENTA, no ahora)
+Reemplazar el checkout demo por cobro real (Mercado Pago y/o Lemon Squeezy MoR para USD), subir los
+archivos reales de las 5 plantillas, dominio propio y analítica. Detalle en `../ARQUITECTURA.md`,
+`../SPEC.md` y `../PUBLICAR.md` (sección final).

@@ -1,35 +1,38 @@
 // Catálogo de SKUs — Plantillería AR
-// Fuente única de verdad para la landing, páginas de producto y entrega.
-// Precios en USD (cobro vía Lemon Squeezy MoR) con equivalente ARS de referencia.
-// El equivalente ARS se recalcula a mano en cada actualización de normativa/tipo de cambio.
+// Fuente única de verdad para la landing, páginas de producto, carrito y entrega.
+// Precios en USD con equivalente ARS de referencia (informativo, el argentino piensa en pesos).
+//
+// DEMO: el checkout es Mercado Pago en MODO DEMO (no cobra plata real, no persiste datos).
+// No hay URLs de pasarela real ni secretos embebidos (ADR-030/031).
 
 export type Formato = "Google Sheets" | "Excel" | "Notion" | "Google Docs";
 
 export interface Plantilla {
   slug: string;
   nombre: string;
-  gancho: string;            // one-liner de venta
+  gancho: string; // one-liner de venta
   formato: Formato[];
   precioUSD: number;
-  precioARSref: number;      // referencia informativa, no es el cobro
-  publico: string;           // a quién le sirve
-  dolor: string;             // el problema que resuelve
-  incluye: string[];         // bullets concretos de contenido
-  normativa: string[];       // qué reglas AR están embebidas
+  precioARSref: number; // referencia informativa, no es el cobro
+  publico: string; // a quién le sirve
+  dolor: string; // el problema que resuelve
+  incluye: string[]; // bullets concretos de contenido
+  normativa: string[]; // qué reglas AR están embebidas
   destacada: boolean;
-  // URL de checkout Lemon Squeezy (placeholder hasta crear los productos reales)
-  checkoutUrl: string;
+  emoji: string; // ícono liviano para la ficha (sin assets externos, costo-cero)
 }
 
 export const PLANTILLAS: Plantilla[] = [
   {
     slug: "control-monotributo",
     nombre: "Control de Monotributo AR",
-    gancho: "No te pases de categoría sin darte cuenta. Alertas de recategorización antes de que ARCA te reclame.",
+    gancho:
+      "No te pases de categoría sin darte cuenta. Alertas de recategorización antes de que ARCA te reclame.",
     formato: ["Google Sheets", "Excel"],
     precioUSD: 29,
     precioARSref: 32000,
-    publico: "Monotributistas, freelancers, prestadores de servicios y oficios que facturan por su cuenta.",
+    publico:
+      "Monotributistas, freelancers, prestadores de servicios y oficios que facturan por su cuenta.",
     dolor:
       "El monotributista no sabe en tiempo real cuánto lleva facturado ni cuándo se está por pasar de categoría. Se entera tarde, cuando ARCA lo recategoriza de oficio o le cae una multa.",
     incluye: [
@@ -46,12 +49,13 @@ export const PLANTILLAS: Plantilla[] = [
       "Componente impositivo + aportes SIPA + obra social.",
     ],
     destacada: true,
-    checkoutUrl: "https://plantilleria.lemonsqueezy.com/buy/PLACEHOLDER-monotributo",
+    emoji: "📊",
   },
   {
     slug: "presupuestador-oficios",
     nombre: "Presupuestador para Oficios",
-    gancho: "Cotizá trabajos en 5 minutos con precio de materiales + mano de obra y margen que no te comas la inflación.",
+    gancho:
+      "Cotizá trabajos en 5 minutos con precio de materiales + mano de obra y margen que no te comas la inflación.",
     formato: ["Google Sheets", "Excel"],
     precioUSD: 39,
     precioARSref: 43000,
@@ -71,7 +75,7 @@ export const PLANTILLAS: Plantilla[] = [
       "Discriminación de mano de obra vs. materiales (base para facturar como monotributista).",
     ],
     destacada: true,
-    checkoutUrl: "https://plantilleria.lemonsqueezy.com/buy/PLACEHOLDER-oficios",
+    emoji: "🔧",
   },
   {
     slug: "caja-stock-kiosco",
@@ -95,12 +99,13 @@ export const PLANTILLAS: Plantilla[] = [
       "Base ordenada para la DDJJ de monotributo o el contador.",
     ],
     destacada: true,
-    checkoutUrl: "https://plantilleria.lemonsqueezy.com/buy/PLACEHOLDER-kiosco",
+    emoji: "🏪",
   },
   {
     slug: "sueldos-simple",
     nombre: "Liquidación de Sueldos Simple AR",
-    gancho: "Recibo, aguinaldo y vacaciones bien calculados para tu empleado, sin planilla de otro país.",
+    gancho:
+      "Recibo, aguinaldo y vacaciones bien calculados para tu empleado, sin planilla de otro país.",
     formato: ["Google Sheets", "Excel"],
     precioUSD: 45,
     precioARSref: 50000,
@@ -121,12 +126,13 @@ export const PLANTILLAS: Plantilla[] = [
       "Días de vacaciones por antigüedad (LCT art. 150).",
     ],
     destacada: false,
-    checkoutUrl: "https://plantilleria.lemonsqueezy.com/buy/PLACEHOLDER-sueldos",
+    emoji: "🧾",
   },
   {
     slug: "finanzas-personales-ar",
     nombre: "Finanzas Personales AR (anti-inflación)",
-    gancho: "Presupuesto que sobrevive a la inflación: pensado en pesos, dólares y plazo fijo, no en dólares estables.",
+    gancho:
+      "Presupuesto que sobrevive a la inflación: pensado en pesos, dólares y plazo fijo, no en dólares estables.",
     formato: ["Google Sheets", "Notion"],
     precioUSD: 25,
     precioARSref: 28000,
@@ -145,7 +151,7 @@ export const PLANTILLAS: Plantilla[] = [
       "Lógica de ahorro real (poder de compra) propia del contexto AR.",
     ],
     destacada: false,
-    checkoutUrl: "https://plantilleria.lemonsqueezy.com/buy/PLACEHOLDER-finanzas",
+    emoji: "💸",
   },
 ];
 
@@ -155,13 +161,74 @@ export function getPlantilla(slug: string): Plantilla | undefined {
   return PLANTILLAS.find((p) => p.slug === slug);
 }
 
-// Bundle: todo el catálogo con descuento (ancla de precio + ticket alto)
-export const BUNDLE = {
+// Bundle: todo el catálogo con descuento (ancla de precio + ticket alto).
+export interface Bundle {
+  slug: string;
+  nombre: string;
+  gancho: string;
+  precioUSD: number;
+  precioARSref: number;
+  ahorroUSD: number;
+  emoji: string;
+}
+
+export const BUNDLE: Bundle = {
   slug: "pack-completo",
   nombre: "Pack Completo (las 5 plantillas)",
   gancho: "Todo el kit para ordenar tu negocio y tu plata. Comprás las 5 por menos que 3 sueltas.",
   precioUSD: 89,
   precioARSref: 99000,
   ahorroUSD: 84, // suma suelta 173 vs 89
-  checkoutUrl: "https://plantilleria.lemonsqueezy.com/buy/PLACEHOLDER-pack",
+  emoji: "📦",
 };
+
+// Un ítem comprable = una plantilla o el bundle. Base del carrito y el checkout demo.
+export interface ItemComprable {
+  slug: string;
+  nombre: string;
+  precioUSD: number;
+  precioARSref: number;
+  emoji: string;
+}
+
+export function itemDesdeSlug(slug: string): ItemComprable | undefined {
+  if (slug === BUNDLE.slug) {
+    return {
+      slug: BUNDLE.slug,
+      nombre: BUNDLE.nombre,
+      precioUSD: BUNDLE.precioUSD,
+      precioARSref: BUNDLE.precioARSref,
+      emoji: BUNDLE.emoji,
+    };
+  }
+  const p = getPlantilla(slug);
+  if (!p) return undefined;
+  return {
+    slug: p.slug,
+    nombre: p.nombre,
+    precioUSD: p.precioUSD,
+    precioARSref: p.precioARSref,
+    emoji: p.emoji,
+  };
+}
+
+// Catálogo comprable completo (plantillas + bundle), consumido por el carrito del cliente.
+export const COMPRABLES: ItemComprable[] = COMPRABLES_desde();
+
+function COMPRABLES_desde(): ItemComprable[] {
+  const items: ItemComprable[] = PLANTILLAS.map((p) => ({
+    slug: p.slug,
+    nombre: p.nombre,
+    precioUSD: p.precioUSD,
+    precioARSref: p.precioARSref,
+    emoji: p.emoji,
+  }));
+  items.push({
+    slug: BUNDLE.slug,
+    nombre: BUNDLE.nombre,
+    precioUSD: BUNDLE.precioUSD,
+    precioARSref: BUNDLE.precioARSref,
+    emoji: BUNDLE.emoji,
+  });
+  return items;
+}

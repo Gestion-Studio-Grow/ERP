@@ -1,0 +1,350 @@
+<meta charset="utf-8">
+<meta name="generator" content="Gestión Studio Grow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Postora — demo</title>
+<style>
+  :root{
+    --ink:#201B2E; --ink-soft:#3A3548; --paper:#F6F4EF; --card:#FFFFFF;
+    --accent:#D6336C; --accent-ink:#A61E4D; --positive:#2F7D74; --amber:#B5791F;
+    --muted:#6B6577; --line:#E7E2D9; --line-soft:#EFEBE3;
+    --serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    /* Marca del cliente demo (Lo de Rolo) — DELIBERADAMENTE cálida: es la marca del comercio,
+       contenida dentro de los posteos, no la identidad de Postora. */
+    --rolo-primario:#C64B2B; --rolo-verde:#2E3A2E; --rolo-mostaza:#E9B949; --rolo-crema:#F4EFE3;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+  a{color:var(--accent-ink)}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;text-wrap:balance;line-height:1.12;margin:0}
+  .eyebrow{font-family:var(--sans);text-transform:uppercase;letter-spacing:.14em;
+    font-size:11px;font-weight:700;color:var(--accent-ink)}
+  .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+
+  /* Barra */
+  header.bar{position:sticky;top:0;z-index:20;background:rgba(32,27,46,.96);
+    backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.08)}
+  .bar .wrap{display:flex;align-items:center;justify-content:space-between;height:58px}
+  .word{font-family:var(--serif);font-size:22px;font-weight:600;color:#fff;letter-spacing:.01em}
+  .word b{color:var(--rolo-mostaza)}
+  .bar .tag{color:#C9C3D4;font-size:12.5px;letter-spacing:.02em}
+
+  /* Hero */
+  .hero{padding:64px 0 40px}
+  .hero h1{font-size:clamp(34px,5.4vw,56px);letter-spacing:-.015em}
+  .hero .lede{font-size:19px;color:var(--ink-soft);max-width:60ch;margin:18px 0 0}
+  .kicker{color:var(--accent)}
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+  .pill{background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 14px;font-size:13px;color:var(--ink-soft);display:flex;gap:8px;align-items:center}
+  .pill i{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block}
+
+  /* Secciones */
+  section{padding:34px 0}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;
+    border-top:1px solid var(--line);padding-top:22px}
+  .sec-head h2{font-size:26px}
+  .sec-head .n{font-family:var(--mono);font-size:13px;color:var(--muted);font-weight:600}
+  .sub{color:var(--muted);font-size:14.5px;max-width:64ch;margin:-8px 0 20px}
+
+  /* Escritorio: kit + calendario */
+  .desk{display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start}
+  @media(max-width:760px){.desk{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+  .kit{padding:20px;position:sticky;top:78px}
+  .kit .label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
+  .kit h3{font-size:20px;margin:4px 0 2px}
+  .kit .zona{color:var(--muted);font-size:13px}
+  .swatches{display:flex;gap:7px;margin:14px 0}
+  .swatches span{width:30px;height:30px;border-radius:8px;border:1px solid rgba(0,0,0,.08)}
+  .kit dl{margin:14px 0 0;font-size:13px}
+  .kit dt{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:10.5px;
+    font-weight:700;margin-top:12px}
+  .kit dd{margin:3px 0 0}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .tags b{background:var(--line-soft);border-radius:6px;padding:2px 8px;font-weight:600;font-size:12px}
+
+  /* Calendario de posteos */
+  .cal{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  @media(max-width:520px){.cal{grid-template-columns:1fr}}
+  .post{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);
+    display:flex;flex-direction:column}
+  .post .creative{background:var(--rolo-crema);padding:16px;position:relative;min-height:132px;
+    display:flex;flex-direction:column;justify-content:space-between}
+  .post .obj{align-self:flex-start;font-size:10.5px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.08em;color:#fff;background:var(--rolo-primario);border-radius:6px;padding:3px 9px}
+  .post .obj.reserva{background:var(--rolo-verde)}
+  .post .obj.novedad{background:var(--rolo-mostaza);color:#4a3a12}
+  .post .obj.comunidad{background:#7a5a3a}
+  .post .headline{font-family:var(--serif);color:var(--rolo-verde);font-size:20px;
+    line-height:1.1;font-weight:700}
+  .post .photo{font-size:12px;color:#9a6b52;font-style:italic}
+  .post .body{padding:14px;display:flex;flex-direction:column;gap:9px}
+  .post .copy{font-size:13.5px;color:var(--ink-soft)}
+  .post .hh{font-size:12px;color:var(--accent-ink);font-family:var(--mono)}
+  .post .cta{margin-top:2px;display:flex;align-items:center;gap:8px;font-size:12.5px;
+    background:var(--line-soft);border-radius:8px;padding:8px 10px}
+  .post .cta .ct{font-weight:600}
+  .post .cta .tg{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .post .date{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .more{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13.5px;padding:6px}
+
+  /* Blindaje / pricing */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .panel h3{font-size:18px;margin-bottom:4px}
+  .cogs-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;
+    border-bottom:1px dashed var(--line)}
+  .cogs-row:last-child{border-bottom:0}
+  .cogs-row .k{font-size:13.5px}
+  .cogs-row .m{font-size:11px;color:var(--muted);display:block}
+  .cogs-row .v{font-family:var(--mono);font-weight:600}
+  .bar-mini{height:6px;border-radius:3px;background:var(--line-soft);overflow:hidden;margin-top:3px;width:120px}
+  .bar-mini i{display:block;height:100%;background:var(--accent)}
+  .tiers{display:flex;gap:8px;margin:4px 0 18px}
+  .tier{flex:1;border:1.5px solid var(--line);border-radius:10px;padding:12px 10px;cursor:pointer;
+    background:var(--card);text-align:left;font-family:var(--sans);transition:.15s}
+  .tier:hover{border-color:var(--accent)}
+  .tier.on{border-color:var(--accent);background:#fdf2f6}
+  .tier .nm{font-weight:700;font-size:14px}
+  .tier .pr{font-family:var(--mono);color:var(--accent-ink);font-size:15px;font-weight:700}
+  .tier .dt{font-size:11px;color:var(--muted)}
+  .readout{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;margin-top:6px}
+  .readout .cell .lb{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+  .readout .cell .vl{font-family:var(--mono);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+  .readout .cell .vl.pos{color:var(--positive)}
+  .note{font-size:12.5px;color:var(--muted);margin-top:16px;border-left:3px solid var(--accent);
+    padding-left:12px}
+  .toggle{display:flex;align-items:center;gap:9px;font-size:13px;margin-top:14px;color:var(--ink-soft)}
+  .toggle input{accent-color:var(--accent);width:16px;height:16px}
+
+  /* Reporte */
+  .report{background:var(--ink);color:#EFEAF6;border-radius:16px;padding:28px}
+  .report h3{color:#fff;font-size:22px}
+  .report .rl{color:#B7AFC9;font-size:13.5px;margin-top:2px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0 6px}
+  @media(max-width:620px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:14px}
+  .kpi .vl{font-family:var(--mono);font-size:27px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+  .kpi .vl.pink{color:#FF8FB4}
+  .kpi .lb{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#B7AFC9;font-weight:700;margin-top:3px}
+  .toplist{margin-top:8px;font-size:13.5px}
+  .toplist .tr{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid rgba(255,255,255,.08)}
+  .toplist .tr .dt{font-family:var(--mono);font-size:11.5px;color:#9c93b3;width:80px}
+  .toplist .tr .ob{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#FF8FB4;width:88px}
+  .toplist .tr .st{color:#EFEAF6}
+
+  footer{border-top:1px solid var(--line);margin-top:20px;padding:26px 0 60px}
+  footer .wrap{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center}
+  .gsg{font-size:12.5px;color:var(--muted)}
+  .gsg b{color:var(--ink)}
+  .disc{font-size:11.5px;color:var(--muted);max-width:52ch}
+  .risk{background:#fdf2f6;border:1px solid #f3c9da;color:#8a1f44;border-radius:10px;
+    padding:12px 14px;font-size:13px;margin-top:16px}
+</style>
+
+<header class="bar"><div class="wrap">
+  <div class="word">Post<b>ora</b></div>
+  <div class="tag">CM con IA · demo sin datos reales</div>
+</div></header>
+
+<main>
+<div class="wrap">
+
+  <section class="hero">
+    <div class="eyebrow">Célula de Negocios Digitales · Studio Grow</div>
+    <h1>Tu community manager con IA.<br><span class="kicker">Tu marca, nuestro motor.</span></h1>
+    <p class="lede">Postora arma el plan de contenido del mes del comercio de barrio <b>en su propia voz y
+      estética</b>, ata cada posteo a una acción medible, y a fin de mes muestra <b>cuánta gente escribió y
+      cuánto se vendió</b>. Suscripción Mercado Pago en pesos.</p>
+    <div class="pill-row">
+      <span class="pill"><i></i>El diseño del estudio es el producto</span>
+      <span class="pill"><i></i>Unit economics de IA blindadas</span>
+      <span class="pill"><i></i>Contenido atado a ventas medibles</span>
+    </div>
+  </section>
+
+  <!-- 1 · El escritorio -->
+  <section>
+    <div class="sec-head"><span class="n">01</span><h2>El plan del mes, en la marca del comercio</h2></div>
+    <p class="sub">A la izquierda, el <b>Kit de Marca</b> del comercio (se crea una vez). A la derecha, el
+      plan que genera Postora: cada posteo sale en <b>su</b> paleta, tipografía y voz — no un template
+      genérico. Ese gusto es el moat frente a Canva/Meta.</p>
+    <div class="desk">
+      <aside class="card kit">
+        <div class="label">Kit de Marca</div>
+        <h3>Lo de Rolo</h3>
+        <div class="zona">Rotisería · Villa Crespo</div>
+        <div class="swatches">
+          <span style="background:#C64B2B" title="primario"></span>
+          <span style="background:#2E3A2E" title="secundario"></span>
+          <span style="background:#E9B949" title="acento"></span>
+          <span style="background:#F4EFE3" title="fondo"></span>
+        </div>
+        <dl>
+          <dt>Voz</dt><dd>Cercano, criollo, de barrio — como el dueño hablándole a un vecino.</dd>
+          <dt>Sí</dt><dd>Hablar de vos · mencionar el barrio · invitar por WhatsApp.</dd>
+          <dt>No</dt><dd>Signos en cadena · inglés innecesario · jerga corporativa.</dd>
+          <dt>Hashtags base</dt><dd class="tags"><b>#LoDeRolo</b><b>#comerbien</b></dd>
+        </dl>
+      </aside>
+
+      <div class="cal" id="cal"><!-- posteos inyectados --></div>
+    </div>
+  </section>
+
+  <!-- 2 · Blindaje -->
+  <section>
+    <div class="sec-head"><span class="n">02</span><h2>Por qué el margen no se funde</h2></div>
+    <p class="sub">El error clásico del "CM con IA" es cobrar flat por un agente sin límite. Postora lo evita
+      por diseño: <b>routing</b> (Haiku barato para idear, Sonnet solo para el copy), <b>prompt caching</b>
+      del Kit, <b>tope de posteos</b> por plan e <b>imagen IA por crédito</b> — nunca ilimitada.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>COGS medido — plan de 30 posteos</h3>
+        <div class="cogs-row">
+          <div class="k">Ideación <span class="m">Claude Haiku 4.5 · 1 llamada, Kit cacheado</span>
+            <span class="bar-mini"><i style="width:7%"></i></span></div>
+          <div class="v">US$0,005</div></div>
+        <div class="cogs-row">
+          <div class="k">Copy final <span class="m">Claude Sonnet 5 · 30 llamadas, Kit cacheado 0,1×</span>
+            <span class="bar-mini"><i style="width:93%"></i></span></div>
+          <div class="v">US$0,068</div></div>
+        <div class="cogs-row">
+          <div class="k">Arte <span class="m">Plantilla brandeada + foto del comercio</span></div>
+          <div class="v" style="color:var(--positive)">~US$0</div></div>
+        <div class="cogs-row">
+          <div class="k"><b>COGS del plan</b> <span class="m">~US$0,0025 por posteo — centavos</span></div>
+          <div class="v">US$0,073</div></div>
+        <p class="note">Opus <b>nunca</b> entra al loop de producción: subiría el COGS ~5× sin ganancia
+          percibida en un caption de barrio.</p>
+      </div>
+
+      <div class="panel">
+        <h3>Plan y margen</h3>
+        <div class="tiers" id="tiers">
+          <button class="tier" data-t="BARRIO"><div class="nm">Barrio</div><div class="pr">US$29</div><div class="dt">12 posteos</div></button>
+          <button class="tier" data-t="ACTIVO"><div class="nm">Activo</div><div class="pr">US$45</div><div class="dt">20 posteos · 4 img</div></button>
+          <button class="tier on" data-t="MARCA"><div class="nm">Marca</div><div class="pr">US$59</div><div class="dt">30 posteos · 10 img</div></button>
+        </div>
+        <div class="readout">
+          <div class="cell"><div class="lb">Facturado</div><div class="vl" id="r-fact">—</div></div>
+          <div class="cell"><div class="lb">COGS del mes</div><div class="vl" id="r-cogs">—</div></div>
+          <div class="cell"><div class="lb">Margen bruto</div><div class="vl pos" id="r-marg">—</div></div>
+          <div class="cell"><div class="lb">Excedente</div><div class="vl" id="r-exc">—</div></div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="heavy">
+          Simular cliente pesado (+15 posteos, +8 imágenes IA)</label>
+        <p class="note" id="marg-note">El excedente por posteo (US$1,00–1,50) supera el COGS de texto por
+          más de 150×. Ningún cliente pesado deja el margen en rojo.</p>
+      </div>
+    </div>
+    <div class="risk"><b>Zona roja (§C, no ejecutado en la demo):</b> cablear la API real de IA gasta tokens
+      de producción; el cobro real por Mercado Pago mueve plata. Se elevan al dueño — la demo corre 100%
+      offline, con el motor mock, sin secretos ni datos reales.</div>
+  </section>
+
+  <!-- 3 · Reporte -->
+  <section>
+    <div class="sec-head"><span class="n">03</span><h2>El reporte que frena el churn</h2></div>
+    <p class="sub">No son "posteos lindos": cada posteo lleva un link de WhatsApp taggeado o un código de
+      promo. A fin de mes, el dueño ve conversaciones y ventas atribuidas. La misma jugada que hace fuerte a
+      Kudos (estrellas→ventas) y Fantasma (plata rescatada).</p>
+    <div class="report">
+      <h3>Reporte de Resultados — Lo de Rolo</h3>
+      <div class="rl">Julio 2026 · 30 posteos publicados</div>
+      <div class="kpis">
+        <div class="kpi"><div class="vl">150</div><div class="lb">Clics al WhatsApp</div></div>
+        <div class="kpi"><div class="vl">60</div><div class="lb">Conversaciones</div></div>
+        <div class="kpi"><div class="vl pink">2,0</div><div class="lb">Charlas por posteo</div></div>
+        <div class="kpi"><div class="vl">US$124</div><div class="lb">Ventas atribuidas</div></div>
+      </div>
+      <div class="toplist">
+        <div class="tr"><span class="dt">09/07</span><span class="ob">Comunidad</span><span class="st">3 charlas · 1 venta</span></div>
+        <div class="tr"><span class="dt">21/07</span><span class="ob">Promo</span><span class="st">3 charlas · 1 venta</span></div>
+        <div class="tr"><span class="dt">03/07</span><span class="ob">Reserva</span><span class="st">3 charlas · 0 ventas</span></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</main>
+
+<footer><div class="wrap">
+  <div class="gsg">Postora · MVP generado por <b>Gestión Studio Grow</b> — el gusto del estudio, el motor de la fábrica.</div>
+  <div class="disc">Demo navegable sin datos reales, sin secretos y sin gastar tokens de producción.
+    Marca "Lo de Rolo" ficticia, a modo de ejemplo.</div>
+</div></footer>
+
+<script>
+  // ── Datos del plan (subconjunto real de la salida de src/demo.ts) ──
+  const posts = [
+    {date:"01/07",obj:"promo",head:"Combo del finde a precio de barrio",photo:"[ foto: milanesa con papas ]",
+      copy:"En Lo de Rolo te armamos algo lindo: el combo del finde a precio de barrio. Te leemos por acá 👇",
+      hh:"#LoDeRolo #comerbien #villacrespo",cta:"Mostrá el código ROLO5",tag:"…07-p01"},
+    {date:"02/07",obj:"novedad",head:"Plato nuevo de la semana",photo:"[ foto: empanadas recién hechas ]",
+      copy:"¡Novedad en Lo de Rolo! Empanadas del finde, foto bien apetitosa. Te leemos por acá 👇",
+      hh:"#LoDeRolo #comerbien #novedad",cta:"Escribinos por WhatsApp 👇",tag:"…07-p02"},
+    {date:"03/07",obj:"reserva",head:"Reservá tu mesa para el finde",photo:"[ foto: mesa servida ]",
+      copy:"Che, en Lo de Rolo te esperamos: reservá tu mesa para el finde por WhatsApp. Te leemos 👇",
+      hh:"#LoDeRolo #villacrespo #reserva",cta:"Escribinos por WhatsApp 👇",tag:"…07-p03"},
+    {date:"04/07",obj:"comunidad",head:"La historia de la casa",photo:"[ foto: Rolo en la cocina ]",
+      copy:"Un poquito de Lo de Rolo para vos: la historia de la casa y quién cocina. Te leemos por acá 👇",
+      hh:"#LoDeRolo #comerbien #comunidad",cta:"Escribinos por WhatsApp 👇",tag:"…07-p04"},
+  ];
+  const cal = document.getElementById("cal");
+  cal.innerHTML = posts.map(p=>`
+    <article class="post">
+      <div class="creative">
+        <span class="obj ${p.obj}">${p.obj}</span>
+        <div class="headline">${p.head}</div>
+        <div class="photo">${p.photo}</div>
+      </div>
+      <div class="body">
+        <div class="date">${p.date} · plantilla brandeada</div>
+        <div class="copy">${p.copy}</div>
+        <div class="hh">${p.hh}</div>
+        <div class="cta"><span class="ct">${p.cta}</span><span class="tg">tag ${p.tag}</span></div>
+      </div>
+    </article>`).join("") + `<div class="more">+ 26 posteos más en el plan del mes →</div>`;
+
+  // ── Blindaje interactivo (misma lógica que src/planes.ts) ──
+  const TIERS = {
+    BARRIO:{precio:29,posts:12,exc:1.5,imgIncl:0,imgPr:0.5},
+    ACTIVO:{precio:45,posts:20,exc:1.2,imgIncl:4,imgPr:0.4},
+    MARCA :{precio:59,posts:30,exc:1.0,imgIncl:10,imgPr:0.35},
+  };
+  const COGS_POST = 0.073/30;   // COGS de texto por posteo (medido)
+  const COGS_IMG  = 0.05;       // costo de una imagen IA
+  let tier = "MARCA";
+  const $ = id=>document.getElementById(id);
+
+  function render(){
+    const d = TIERS[tier];
+    const heavy = $("heavy").checked;
+    const nPosts = d.posts + (heavy?15:0);
+    const nImg   = d.imgIncl + (heavy?8:0);
+    const excP = Math.max(0,nPosts-d.posts), excPUsd = excP*d.exc;
+    const excI = Math.max(0,nImg-d.imgIncl), excIUsd = excI*d.imgPr;
+    const fact = d.precio + excPUsd + excIUsd;
+    const cogs = nPosts*COGS_POST + nImg*COGS_IMG;
+    const marg = (fact-cogs)/fact*100;
+    $("r-fact").textContent = "US$"+fact.toFixed(2);
+    $("r-cogs").textContent = "US$"+cogs.toFixed(2);
+    $("r-marg").textContent = marg.toFixed(0)+"%";
+    $("r-exc").textContent  = excP? "+"+excP+" posts" : (excI? "+"+excI+" img":"—");
+    $("marg-note").textContent = heavy
+      ? `Cliente pesado: ${nPosts} posteos y ${nImg} imágenes. El excedente y los créditos lo mantienen rentable — margen ${marg.toFixed(0)}%. La trampa del agente sin límite queda desactivada.`
+      : "El excedente por posteo (US$1,00–1,50) supera el COGS de texto por más de 150×. Ningún cliente pesado deja el margen en rojo.";
+  }
+  document.querySelectorAll(".tier").forEach(b=>b.addEventListener("click",()=>{
+    document.querySelectorAll(".tier").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); tier=b.dataset.t; render();
+  }));
+  $("heavy").addEventListener("change",render);
+  render();
+</script>

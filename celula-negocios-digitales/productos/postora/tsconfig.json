@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "//": "llm-claude.ts se excluye para que el corazón compile sin @anthropic-ai/sdk instalado.",
+  "exclude": ["src/llm-claude.ts", "node_modules"]
+}

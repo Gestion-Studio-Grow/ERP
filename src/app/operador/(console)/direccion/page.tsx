@@ -17,9 +17,14 @@ export default function DireccionPage() {
             Publicado {PANEL_PUBLICADO}.
           </p>
         </div>
-        <ButtonLink href="/operador/direccion/panel" target="_blank" rel="noreferrer">
-          Abrir a pantalla completa ↗
-        </ButtonLink>
+        <div className="flex items-center gap-2">
+          <ButtonLink href="/lab" target="_blank" rel="noreferrer">
+            Demos del Lab ↗
+          </ButtonLink>
+          <ButtonLink href="/operador/direccion/panel" target="_blank" rel="noreferrer">
+            Abrir a pantalla completa ↗
+          </ButtonLink>
+        </div>
       </div>
       <iframe
         title="Panel de Dirección — Célula de Negocios Digitales"
