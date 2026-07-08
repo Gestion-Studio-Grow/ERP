@@ -93,6 +93,19 @@ La salida se **fusiona en `data.js`** (campo `enr` por propuesta) y alimenta el 
 (`explorador.html`): titular *"esto te hubiese costado US$X con devs humanos"*, métricas de dueño,
 pasos a producción numerados y mercado local+global con fuentes clicables.
 
+## 🧭 Navegación por etiquetas + alternativas estratégicas — 3ª capa
+
+`analisis.workflow.js` agrega dos cosas al tablero:
+- **Taxonomía navegable** (taxonomista, Sonnet): cada oportunidad se etiqueta por **tipo**
+  (**automatización** = ahorra/automatiza una tarea · **producto** = SKU nuevo · **híbrido**),
+  **palanca GSG** (ARCA, MP, storefront, WhatsApp, agenda, CRM, presets IA, reportes…), **modelo de
+  negocio**, **comprador**, **horizonte** y **complejidad**. En el explorador se navega con la fila de
+  **tipo** + un selector de **faceta** que cambia qué etiqueta se filtra.
+- **Alternativas estratégicas** (estratega, Opus + Challenger): análisis **exhaustivo** del corpus
+  completo desde 6 lentes (suite/bundle · plataforma · adyacencia/nuevo segmento · consolidación ·
+  wedge-secuencia · pivot), consolidadas y rankeadas, con una **lectura global** del patrón que emerge.
+  Se ven en la sección "⚡ Alternativas estratégicas" del explorador.
+
 ## Estados y gobernanza
 
 - Las oportunidades del dashboard son **preventa/ideación** — fase DEMO del ciclo
