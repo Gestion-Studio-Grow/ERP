@@ -10,7 +10,11 @@ export type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger" 
 type Tone = BadgeTone;
 
 const tones: Record<Tone, string> = {
-  neutral: "bg-ch-linen/70 text-muted",
+  // Tenant-neutro: `--surface-sunken` es un token semántico derivado del
+  // tema (claro/oscuro), NO un color de marca. Antes usaba `bg-ch-linen`
+  // (hex de marca de CH Estética) como default de TODOS los tenants —
+  // filtraba la marca de un tenant a cualquier otro (bug real, corregido).
+  neutral: "bg-surface-sunken text-muted",
   accent: "bg-accent-soft text-accent",
   success: "bg-success-soft text-success",
   warning: "bg-warning-soft text-warning",
