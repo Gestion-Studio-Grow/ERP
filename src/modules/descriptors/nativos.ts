@@ -113,7 +113,69 @@ export const reviewsModule: ModuleDescriptor = {
   rubros: "todos",
 };
 
-/** Todos los módulos nativos del catálogo. */
+// ── Módulos Empresa de ADR-060 (D2/D3/D4/D5/D7) — capabilities del Core ──────────
+// Sus pantallas ya existen (`/admin/{inventario,cuentas-a-pagar,cuentas-a-cobrar,libros,
+// devoluciones-proveedor}`). Se declaran acá, en la FUENTE ÚNICA del catálogo, para que la
+// consola de alta los ofrezca (derivados, no a mano). `capability` = la que gatea cada
+// pantalla. `rubros: "todos"` = COMPATIBILIDAD (dónde PUEDE aplicar); el gating por PERFIL
+// (Comercio/Empresa) es otra dimensión (nav `perfilMin`), no la compatibilidad.
+
+export const inventarioModule: ModuleDescriptor = {
+  id: "inventario",
+  version: "1.0.0",
+  nombre: "Inventario",
+  descripcion: "Niveles de stock actuales y valuación a costo.",
+  kind: "capability",
+  capability: "catalog:read",
+  rubros: "todos",
+  dependencias: [{ id: "catalog", rango: "^1.0" }],
+};
+
+export const cuentasAPagarModule: ModuleDescriptor = {
+  id: "cuentas-a-pagar",
+  version: "1.0.0",
+  nombre: "Cuentas a pagar",
+  descripcion: "Deudas a proveedores, con cheque diferido: qué debés, a quién y cuándo.",
+  kind: "capability",
+  capability: "billing:manage",
+  rubros: "todos",
+  dependencias: [{ id: "catalog", rango: "^1.0" }],
+};
+
+export const cuentasACobrarModule: ModuleDescriptor = {
+  id: "cuentas-a-cobrar",
+  version: "1.0.0",
+  nombre: "Cuentas a cobrar",
+  descripcion: "Fiado de clientes: saldo, vencimiento y cobros parciales.",
+  kind: "capability",
+  capability: "billing:manage",
+  rubros: "todos",
+  dependencias: [{ id: "clients", rango: "^1.0" }],
+};
+
+export const librosModule: ModuleDescriptor = {
+  id: "libros",
+  version: "1.0.0",
+  nombre: "Libros / Exportar al contador",
+  descripcion: "Libro IVA (ventas y compras) para exportar al contador.",
+  kind: "capability",
+  capability: "reports:read",
+  rubros: "todos",
+  dependencias: [{ id: "reports", rango: "^1.0" }, { id: "arca", rango: "^0.1" }],
+};
+
+export const devolucionesProveedorModule: ModuleDescriptor = {
+  id: "devoluciones-proveedor",
+  version: "1.0.0",
+  nombre: "Devoluciones a proveedor",
+  descripcion: "Devolver mercadería: baja de stock + crédito en cuentas a pagar.",
+  kind: "capability",
+  capability: "catalog:manage",
+  rubros: "todos",
+  dependencias: [{ id: "catalog", rango: "^1.0" }],
+};
+
+/** Todos los módulos nativos del catálogo (fuente única — ADR-054/055). */
 export const MODULOS_NATIVOS: ModuleDescriptor[] = [
   agendaModule,
   posModule,
@@ -124,4 +186,10 @@ export const MODULOS_NATIVOS: ModuleDescriptor[] = [
   reportsModule,
   commissionsModule,
   reviewsModule,
+  // Módulos Empresa (ADR-060):
+  inventarioModule,
+  cuentasAPagarModule,
+  cuentasACobrarModule,
+  librosModule,
+  devolucionesProveedorModule,
 ];
