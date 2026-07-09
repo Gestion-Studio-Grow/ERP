@@ -1,3 +1,9 @@
+---
+id: ADR-054
+nivel: evolutiva
+dominio: [Arquitectura]
+depends_on: [ADR-001, ADR-002, ADR-006, ADR-018]
+---
 # ADR-054: Repositorio de plugins / catálogo de módulos — arquitectura
 
 **Estado:** 🟢 **FUNDACIÓN IMPLEMENTADA** (reversible, detrás de flag) — 2026-07-07, Opus (reingeniería, Balde B del plan-ventana confirmado por el dueño). Falta **nutrir el catálogo** y **cablear el backoffice/consola** (trabajo posterior, con su Gate).

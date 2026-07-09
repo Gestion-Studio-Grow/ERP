@@ -1,0 +1,1007 @@
+{
+  "generated": "2026-07-09",
+  "source": "docs/adr/ (headers 'Depende de:') + docs/adr/INDEX.md — mismos IDs, derivado, aditivo",
+  "rules": [
+    "IDs ADR-NNN INMUTABLES (RFC-001 R1).",
+    "El grafo APUNTA al ADR completo, nunca lo reemplaza (ADR-008/ADR-001, H1/R2).",
+    "Se re-genera como subproducto del ritual (Gate/retro): node scripts/adr-graph.mjs."
+  ],
+  "query": "dependents[X] responde '¿qué se cae / qué depende si cambio X?'",
+  "count": 59,
+  "nodes": [
+    {
+      "id": "ADR-001",
+      "title": "ADR-001: Estrategia de Aislamiento Multi-Tenant",
+      "nivel": "fundacional",
+      "dominio": [
+        "Arquitectura",
+        "Datos"
+      ],
+      "depends_on": [],
+      "dependents": [
+        "ADR-002",
+        "ADR-003",
+        "ADR-004",
+        "ADR-005",
+        "ADR-010",
+        "ADR-011",
+        "ADR-015",
+        "ADR-018",
+        "ADR-019",
+        "ADR-021",
+        "ADR-022",
+        "ADR-025",
+        "ADR-028",
+        "ADR-029",
+        "ADR-054",
+        "ADR-058"
+      ]
+    },
+    {
+      "id": "ADR-002",
+      "title": "ADR-002: Estructura Core / Business Capabilities / Blueprints / Plugins",
+      "nivel": "fundacional",
+      "dominio": [
+        "Arquitectura"
+      ],
+      "depends_on": [
+        "ADR-001"
+      ],
+      "dependents": [
+        "ADR-003",
+        "ADR-006",
+        "ADR-009",
+        "ADR-010",
+        "ADR-020",
+        "ADR-022",
+        "ADR-024",
+        "ADR-025",
+        "ADR-034",
+        "ADR-035",
+        "ADR-036",
+        "ADR-054",
+        "ADR-055",
+        "ADR-057",
+        "ADR-058",
+        "ADR-059"
+      ]
+    },
+    {
+      "id": "ADR-003",
+      "title": "ADR-003: Business Capabilities — MVP Blueprint \"Servicios\"",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-002"
+      ],
+      "dependents": [
+        "ADR-004",
+        "ADR-009",
+        "ADR-010",
+        "ADR-013",
+        "ADR-014",
+        "ADR-020",
+        "ADR-055"
+      ]
+    },
+    {
+      "id": "ADR-004",
+      "title": "ADR-004: Scheduling — Modelo de Datos y Prevención de Overbooking",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto",
+        "Datos"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-003"
+      ],
+      "dependents": [
+        "ADR-010",
+        "ADR-011"
+      ]
+    },
+    {
+      "id": "ADR-005",
+      "title": "ADR-005: Stack Técnico",
+      "nivel": "fundacional",
+      "dominio": [
+        "Arquitectura"
+      ],
+      "depends_on": [
+        "ADR-001"
+      ],
+      "dependents": [
+        "ADR-006",
+        "ADR-010",
+        "ADR-014",
+        "ADR-020",
+        "ADR-022",
+        "ADR-026"
+      ]
+    },
+    {
+      "id": "ADR-006",
+      "title": "ADR-006: Motores de Plataforma (Metadata, Workflow, Rules, Tax, Integration, AI, Feature Flags, Marketplace)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Arquitectura",
+        "IA"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-005"
+      ],
+      "dependents": [
+        "ADR-009",
+        "ADR-010",
+        "ADR-020",
+        "ADR-021",
+        "ADR-022",
+        "ADR-024",
+        "ADR-025",
+        "ADR-054",
+        "ADR-057"
+      ]
+    },
+    {
+      "id": "ADR-007",
+      "title": "ADR-007: Análisis Financiero por Escenario de Crecimiento",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Negocio"
+      ],
+      "depends_on": [],
+      "dependents": [
+        "ADR-010"
+      ]
+    },
+    {
+      "id": "ADR-008",
+      "title": "ADR-008: Estrategia de Optimización de Costo de Tokens (Claude) Durante el Desarrollo",
+      "nivel": "fundacional",
+      "dominio": [
+        "IA",
+        "Negocio"
+      ],
+      "depends_on": [],
+      "dependents": [
+        "ADR-010",
+        "ADR-016",
+        "ADR-026",
+        "ADR-032",
+        "ADR-039",
+        "ADR-045",
+        "ADR-047"
+      ]
+    },
+    {
+      "id": "ADR-009",
+      "title": "ADR-009: Experiencia de Usuario, UI Metadata-Driven, Permisos y Onboarding",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto",
+        "UX"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-003",
+        "ADR-006"
+      ],
+      "dependents": [
+        "ADR-010",
+        "ADR-012",
+        "ADR-034",
+        "ADR-040"
+      ]
+    },
+    {
+      "id": "ADR-010",
+      "title": "ADR-010: Convergencia del piloto Beauty & Spa hacia la plataforma de los ADR",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Arquitectura",
+        "Plataforma"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-002",
+        "ADR-003",
+        "ADR-004",
+        "ADR-005",
+        "ADR-006",
+        "ADR-007",
+        "ADR-008",
+        "ADR-009",
+        "AMD"
+      ],
+      "dependents": [
+        "ADR-011",
+        "ADR-012",
+        "ADR-015",
+        "ADR-018"
+      ]
+    },
+    {
+      "id": "ADR-011",
+      "title": "ADR-011: Relevamiento con el cliente — nuevas capacidades del piloto",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-004",
+        "ADR-010"
+      ],
+      "dependents": [
+        "ADR-012",
+        "ADR-013"
+      ]
+    },
+    {
+      "id": "ADR-012",
+      "title": "ADR-012: Panel central de recordatorios y notificaciones (plantillas editables por canal)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-009",
+        "ADR-010",
+        "ADR-011",
+        "AMD-007"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-013",
+      "title": "ADR-013: Precio diferencial \"vecino/a\" por servicio",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-003",
+        "ADR-011",
+        "AMD-003"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-014",
+      "title": "ADR-014: Seña obligatoria por servicio y cupones de descuento",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-003",
+        "ADR-005"
+      ],
+      "dependents": [
+        "ADR-024"
+      ]
+    },
+    {
+      "id": "ADR-015",
+      "title": "ADR-015: Resolución de tenant fail-closed (blindar G1 antes del 2º tenant)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Plataforma",
+        "Seguridad"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-010"
+      ],
+      "dependents": [
+        "ADR-017",
+        "ADR-018",
+        "ADR-019",
+        "ADR-021",
+        "ADR-029",
+        "ADR-031",
+        "ADR-036"
+      ]
+    },
+    {
+      "id": "ADR-016",
+      "title": "ADR-016: El handoff entre sesiones se persiste en una cola, no en el chat",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-008"
+      ],
+      "dependents": [
+        "ADR-039",
+        "ADR-047"
+      ]
+    },
+    {
+      "id": "ADR-017",
+      "title": "ADR-017: Modelo de usuarios, roles y autorización (RBAC) para el piloto",
+      "nivel": "fundacional",
+      "dominio": [
+        "Seguridad"
+      ],
+      "depends_on": [
+        "ADR-015"
+      ],
+      "dependents": [
+        "ADR-019",
+        "ADR-020",
+        "ADR-021"
+      ]
+    },
+    {
+      "id": "ADR-018",
+      "title": "ADR-018: Activación de RLS de Postgres — mecanismo y momento (gate del 2º tenant)",
+      "nivel": "fundacional",
+      "dominio": [
+        "Seguridad",
+        "Datos"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-010",
+        "ADR-015"
+      ],
+      "dependents": [
+        "ADR-019",
+        "ADR-021",
+        "ADR-022",
+        "ADR-031",
+        "ADR-036",
+        "ADR-041",
+        "ADR-054"
+      ]
+    },
+    {
+      "id": "ADR-019",
+      "title": "ADR-019: Onboarding / alta de tenant nuevo (provisioning) — script operado, no portal self-service",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Plataforma"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-015",
+        "ADR-017",
+        "ADR-018"
+      ],
+      "dependents": [
+        "ADR-021",
+        "ADR-028",
+        "ADR-034"
+      ]
+    },
+    {
+      "id": "ADR-020",
+      "title": "ADR-020: Contrato de API pública del Core — qué comando/consulta expone cada Business Capability y dónde está su límite",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Arquitectura"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-003",
+        "ADR-005",
+        "ADR-006",
+        "ADR-017"
+      ],
+      "dependents": [
+        "ADR-022",
+        "ADR-024"
+      ]
+    },
+    {
+      "id": "ADR-021",
+      "title": "ADR-021: Consola de operación / super-admin — plano de plataforma separado, scope y secuencia",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Plataforma"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-006",
+        "ADR-015",
+        "ADR-017",
+        "ADR-018",
+        "ADR-019"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-022",
+      "title": "ADR-022: Plugin ARCA — facturación electrónica como primer Plugin del Core",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto",
+        "Arquitectura"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-002",
+        "ADR-005",
+        "ADR-006",
+        "ADR-018",
+        "ADR-020"
+      ],
+      "dependents": [
+        "ADR-024",
+        "ADR-025",
+        "ADR-057"
+      ]
+    },
+    {
+      "id": "ADR-023",
+      "title": "ADR-023 — Check de performance multi-tenant y restricciones de free plan",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Plataforma",
+        "Datos"
+      ],
+      "depends_on": [],
+      "dependents": []
+    },
+    {
+      "id": "ADR-024",
+      "title": "ADR-024: Disparadores de facturación, toggle \"facturar sí/no\" y Plugin Mercado Pago",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-006",
+        "ADR-014",
+        "ADR-020",
+        "ADR-022"
+      ],
+      "dependents": [
+        "ADR-025"
+      ]
+    },
+    {
+      "id": "ADR-025",
+      "title": "ADR-025: Ingesta de Mercado Pago + facturación automática masiva (producto monotributista)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-002",
+        "ADR-006",
+        "ADR-022",
+        "ADR-024"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-026",
+      "title": "ADR-026: Harness de tests — `node:test` + `tsx`",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-005",
+        "ADR-008"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-027",
+      "title": "ADR-027 — Analytics cross-tenant: benchmarking anónimo por rubro sobre el dato del ERP",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto",
+        "Datos"
+      ],
+      "depends_on": [],
+      "dependents": []
+    },
+    {
+      "id": "ADR-028",
+      "title": "ADR-028: Modelo de entrega — cliente consolidado = tenant real en su URL; demo = app del flujo; fin de los previews estáticos",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Plataforma"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-019",
+        "ADR-029"
+      ],
+      "dependents": [
+        "ADR-030",
+        "ADR-037"
+      ]
+    },
+    {
+      "id": "ADR-029",
+      "title": "ADR-029: Ruteo multi-tenant por hostname (`TENANT_HOST_MAP`) para URLs `.vercel.app` gratis por tenant",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Plataforma"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-015"
+      ],
+      "dependents": [
+        "ADR-028"
+      ]
+    },
+    {
+      "id": "ADR-030",
+      "title": "ADR-030: Ciclo DEMO → VENTA → INVERSIÓN — no se invierte hasta vender",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto",
+        "Negocio"
+      ],
+      "depends_on": [
+        "ADR-028",
+        "ADR-031"
+      ],
+      "dependents": [
+        "ADR-038"
+      ]
+    },
+    {
+      "id": "ADR-031",
+      "title": "ADR-031: Demo navegable — backoffice sin password + datos ficticios + toggle de persistencia (dos fases de credenciales)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-015",
+        "ADR-018"
+      ],
+      "dependents": [
+        "ADR-030"
+      ]
+    },
+    {
+      "id": "ADR-032",
+      "title": "ADR-032: Economía de modelos + Gate GSG siempre en Opus + tope de concurrencia + prioridades P1/P2/P3 (factory de dos capas)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Negocio",
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-008"
+      ],
+      "dependents": [
+        "ADR-038",
+        "ADR-040",
+        "ADR-045",
+        "ADR-048",
+        "ADR-049",
+        "ADR-050",
+        "ADR-051",
+        "ADR-052",
+        "ADR-053"
+      ]
+    },
+    {
+      "id": "ADR-033",
+      "title": "ADR-033: Regla de copia exacta ↔ auditoría — el front replicado se respeta; el backoffice pasa el Gate GSG completo",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [],
+      "dependents": []
+    },
+    {
+      "id": "ADR-034",
+      "title": "ADR-034: Generador de preset por IA — onboarding por ingesta, con autorización obligatoria del cliente y método \"copiar exacto\" (leer el render, no el fetch)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto",
+        "IA"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-009",
+        "ADR-019"
+      ],
+      "dependents": [
+        "ADR-035",
+        "ADR-042"
+      ]
+    },
+    {
+      "id": "ADR-035",
+      "title": "ADR-035: Consultor → Backoffice — la recomendación del consultor precede y determina el backoffice adaptado por rubro",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-034"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-036",
+      "title": "ADR-036: Rubro retail `padel`/deportes + conversión segura de blueprint de un tenant en prod",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-015",
+        "ADR-018"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-037",
+      "title": "ADR-037: WhatsApp CTA sin placeholder — prompt just-in-time + helper único `whatsapp-cta`",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-028"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-038",
+      "title": "ADR-038: Estructura de Importaciones (`impo`) — ciclo end-to-end de importación desde China",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones",
+        "Negocio"
+      ],
+      "depends_on": [
+        "ADR-030",
+        "ADR-032"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-039",
+      "title": "ADR-039: Metodología del `sprint` — FASE 0 obligatoria, estructura por core/frente, PMO merge-master, cierre/backup",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-008",
+        "ADR-016"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-040",
+      "title": "ADR-040: Gate de Excelencia obligatorio — SAP Fiori (todos los ángulos) + sello GSG + arquitectura + confiabilidad, auditado en Opus",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-009",
+        "ADR-032"
+      ],
+      "dependents": [
+        "ADR-043",
+        "ADR-044",
+        "ADR-046",
+        "ADR-048"
+      ]
+    },
+    {
+      "id": "ADR-041",
+      "title": "ADR-041: Dos fases de credenciales — demo sin secretos → datos reales con secretos que carga el dueño",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Seguridad"
+      ],
+      "depends_on": [
+        "ADR-018"
+      ],
+      "dependents": [
+        "ADR-048"
+      ]
+    },
+    {
+      "id": "ADR-042",
+      "title": "ADR-042: Autorización del cliente antes de replicar su marca (consentimiento registrado, paso obligatorio)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "UX",
+        "Seguridad"
+      ],
+      "depends_on": [
+        "ADR-034"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-043",
+      "title": "ADR-043: Estándar de marca GSG — sello de calidad en todo entregable, sin pisar la marca del cliente",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Seguridad",
+        "UX"
+      ],
+      "depends_on": [
+        "ADR-040"
+      ],
+      "dependents": [
+        "ADR-044"
+      ]
+    },
+    {
+      "id": "ADR-044",
+      "title": "ADR-044: Argentinizar SAP — lo mejor de SAP, adaptado a la realidad de la pyme argentina (principio transversal de auditoría)",
+      "nivel": "fundacional",
+      "dominio": [
+        "Negocio",
+        "Producto"
+      ],
+      "depends_on": [
+        "ADR-040",
+        "ADR-043"
+      ],
+      "dependents": [
+        "ADR-046",
+        "ADR-058"
+      ]
+    },
+    {
+      "id": "ADR-045",
+      "title": "ADR-045: Advisory Board + Challenger (contrarian) — tensión productiva tesis/antítesis antes de adoptar un fundamento",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-008",
+        "ADR-032"
+      ],
+      "dependents": [
+        "ADR-049",
+        "ADR-050"
+      ]
+    },
+    {
+      "id": "ADR-046",
+      "title": "ADR-046: De-sesgo / comportamiento humano por sector — humano donde conviene, estándar donde no",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-040",
+        "ADR-044"
+      ],
+      "dependents": [
+        "ADR-052"
+      ]
+    },
+    {
+      "id": "ADR-047",
+      "title": "ADR-047: Rutina obligatoria de retroalimentación — 3 palancas (memoria · casos · skills/briefs) + 2 cadencias",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-008",
+        "ADR-016"
+      ],
+      "dependents": [
+        "ADR-052"
+      ]
+    },
+    {
+      "id": "ADR-048",
+      "title": "ADR-048: Arquitecto de Solución — autoridad sobre decisiones REVERSIBLES; las IRREVERSIBLES se elevan al dueño",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-032",
+        "ADR-040",
+        "ADR-041"
+      ],
+      "dependents": [
+        "ADR-049",
+        "ADR-050"
+      ]
+    },
+    {
+      "id": "ADR-049",
+      "title": "ADR-049: Split de roles (RACI) — PMO autor de planes · Dueño aprueba · Arquitecto ejecuta · Dispatch canal · Advisory+Challenger tensionan",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-032",
+        "ADR-045",
+        "ADR-048"
+      ],
+      "dependents": [
+        "ADR-050",
+        "ADR-051"
+      ]
+    },
+    {
+      "id": "ADR-050",
+      "title": "ADR-050: Roster fijo de sprint — estructura estándar de convocatoria (núcleo-siempre + frentes por sprint)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-032",
+        "ADR-045",
+        "ADR-048",
+        "ADR-049"
+      ],
+      "dependents": [
+        "ADR-051"
+      ]
+    },
+    {
+      "id": "ADR-051",
+      "title": "ADR-051: Roster completo de GSG — organigrama total (gobernanza + divisiones + células) como estructura estándar",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-032",
+        "ADR-049",
+        "ADR-050"
+      ],
+      "dependents": [
+        "ADR-053"
+      ]
+    },
+    {
+      "id": "ADR-052",
+      "title": "ADR-052: Protocolo de Calibración Universal — todo agente calibra (lee el corpus + declara sus principios) antes de actuar",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-032",
+        "ADR-046",
+        "ADR-047"
+      ],
+      "dependents": [
+        "ADR-053"
+      ]
+    },
+    {
+      "id": "ADR-053",
+      "title": "ADR-053: Pool compartido de agentes + entrenamiento cross-estructura — los agentes se prestan, no se duplican",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Operaciones"
+      ],
+      "depends_on": [
+        "ADR-032",
+        "ADR-051",
+        "ADR-052"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-054",
+      "title": "ADR-054: Repositorio de plugins / catálogo de módulos — arquitectura",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Arquitectura"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-002",
+        "ADR-006",
+        "ADR-018"
+      ],
+      "dependents": [
+        "ADR-058",
+        "ADR-059"
+      ]
+    },
+    {
+      "id": "ADR-055",
+      "title": "ADR-055: Principio de VARIANTE — el objeto se crea una vez (dato maestro) y se ASIGNA (SAP argentinizado)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Arquitectura"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-003"
+      ],
+      "dependents": [
+        "ADR-058",
+        "ADR-059"
+      ]
+    },
+    {
+      "id": "ADR-056",
+      "title": "ADR-056 — Panel de Dirección: producto ejecutivo para la mesa de dirección",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto",
+        "Plataforma"
+      ],
+      "depends_on": [],
+      "dependents": []
+    },
+    {
+      "id": "ADR-057",
+      "title": "ADR-057: Representación de dinero — `number`/Float con redondeo único, `Decimal(14,2)` en el borde fiscal",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Arquitectura",
+        "Datos"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-006",
+        "ADR-022"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-058",
+      "title": "ADR-058: Filosofía de producto GROW-AR — un Core, dos motores, crecé sin migrar",
+      "nivel": "fundacional",
+      "dominio": [
+        "Producto",
+        "Arquitectura"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-002",
+        "ADR-044",
+        "ADR-054",
+        "ADR-055"
+      ],
+      "dependents": [
+        "ADR-059"
+      ]
+    },
+    {
+      "id": "ADR-059",
+      "title": "ADR-059: Reingeniería de interfaz del backoffice — GROW-AR (perfil, densidad, \"crecé sin migrar\")",
+      "nivel": "evolutiva",
+      "dominio": [
+        "Producto",
+        "UX"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-054",
+        "ADR-055",
+        "ADR-058"
+      ],
+      "dependents": []
+    }
+  ]
+}

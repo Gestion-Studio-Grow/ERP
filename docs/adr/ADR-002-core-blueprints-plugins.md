@@ -1,3 +1,9 @@
+---
+id: ADR-002
+nivel: fundacional
+dominio: [Arquitectura]
+depends_on: [ADR-001]
+---
 # ADR-002: Estructura Core / Business Capabilities / Blueprints / Plugins
 
 **Estado:** Propuesto

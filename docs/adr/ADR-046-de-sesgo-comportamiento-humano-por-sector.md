@@ -1,3 +1,9 @@
+---
+id: ADR-046
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-040, ADR-044]
+---
 # ADR-046: De-sesgo / comportamiento humano por sector — humano donde conviene, estándar donde no
 
 **Estado:** Aceptado — vigente y transversal

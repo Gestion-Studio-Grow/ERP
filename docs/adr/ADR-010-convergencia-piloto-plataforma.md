@@ -1,3 +1,9 @@
+---
+id: ADR-010
+nivel: evolutiva
+dominio: [Arquitectura, Plataforma]
+depends_on: [ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-006, ADR-007, ADR-008, ADR-009, AMD]
+---
 # ADR-010: Convergencia del piloto Beauty & Spa hacia la plataforma de los ADR
 
 **Estado:** Aceptado — **Camino A confirmado** (2026-07-02)

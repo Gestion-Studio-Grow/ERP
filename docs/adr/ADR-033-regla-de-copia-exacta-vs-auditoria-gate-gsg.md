@@ -1,3 +1,9 @@
+---
+id: ADR-033
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: []
+---
 # ADR-033: Regla de copia exacta ↔ auditoría — el front replicado se respeta; el backoffice pasa el Gate GSG completo
 
 **Estado:** Aceptado (2026-07-06)

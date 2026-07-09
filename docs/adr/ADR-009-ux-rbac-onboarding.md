@@ -1,3 +1,9 @@
+---
+id: ADR-009
+nivel: evolutiva
+dominio: [Producto, UX]
+depends_on: [ADR-002, ADR-003, ADR-006]
+---
 # ADR-009: Experiencia de Usuario, UI Metadata-Driven, Permisos y Onboarding
 
 **Estado:** Propuesto

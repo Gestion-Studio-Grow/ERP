@@ -1,3 +1,9 @@
+---
+id: ADR-004
+nivel: evolutiva
+dominio: [Producto, Datos]
+depends_on: [ADR-001, ADR-003]
+---
 # ADR-004: Scheduling — Modelo de Datos y Prevención de Overbooking
 
 **Estado:** Aceptado — **enmendado 2026-07-05** (mecanismo Fase 1 reconciliado con el código, ver Enmienda).

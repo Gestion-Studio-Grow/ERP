@@ -1,3 +1,9 @@
+---
+id: ADR-040
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-009, ADR-032]
+---
 # ADR-040: Gate de Excelencia obligatorio — SAP Fiori (todos los ángulos) + sello GSG + arquitectura + confiabilidad, auditado en Opus
 
 **Estado:** Aceptado — vigente y no salteable

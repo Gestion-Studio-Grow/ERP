@@ -1,3 +1,9 @@
+---
+id: ADR-032
+nivel: evolutiva
+dominio: [Negocio, Operaciones]
+depends_on: [ADR-008]
+---
 # ADR-032: Economía de modelos + Gate GSG siempre en Opus + tope de concurrencia + prioridades P1/P2/P3 (factory de dos capas)
 
 **Estado:** Aceptado (2026-07-06) — norma de alto nivel vigente

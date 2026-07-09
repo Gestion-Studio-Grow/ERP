@@ -1,3 +1,9 @@
+---
+id: ADR-034
+nivel: evolutiva
+dominio: [Producto, IA]
+depends_on: [ADR-002, ADR-009, ADR-019]
+---
 # ADR-034: Generador de preset por IA — onboarding por ingesta, con autorización obligatoria del cliente y método "copiar exacto" (leer el render, no el fetch)
 
 **Estado:** Aceptado (2026-07-06) — método vigente; contrato en código, altas reales gated

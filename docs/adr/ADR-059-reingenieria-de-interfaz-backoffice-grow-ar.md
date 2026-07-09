@@ -1,3 +1,9 @@
+---
+id: ADR-059
+nivel: evolutiva
+dominio: [Producto, UX]
+depends_on: [ADR-002, ADR-054, ADR-055, ADR-058]
+---
 # ADR-059: Reingeniería de interfaz del backoffice — GROW-AR (perfil, densidad, "crecé sin migrar")
 
 **Estado:** Aceptado **con los cambios del Challenger** (ADR-045: propone → desafía → síntesis). Síntesis del

@@ -1,3 +1,9 @@
+---
+id: ADR-047
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-008, ADR-016]
+---
 # ADR-047: Rutina obligatoria de retroalimentación — 3 palancas (memoria · casos · skills/briefs) + 2 cadencias
 
 **Estado:** Aceptado — vigente (rutina de mejora continua)

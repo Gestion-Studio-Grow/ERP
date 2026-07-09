@@ -1,3 +1,9 @@
+---
+id: ADR-015
+nivel: evolutiva
+dominio: [Plataforma, Seguridad]
+depends_on: [ADR-001, ADR-010]
+---
 # ADR-015: Resolución de tenant fail-closed (blindar G1 antes del 2º tenant)
 
 **Estado:** Aceptado — pendiente de implementación (2026-07-03)

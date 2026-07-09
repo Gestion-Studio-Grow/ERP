@@ -1,3 +1,9 @@
+---
+id: ADR-014
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-003, ADR-005]
+---
 # ADR-014: Seña obligatoria por servicio y cupones de descuento
 
 **Estado:** Aceptado — implementado parcialmente (2026-07-03)

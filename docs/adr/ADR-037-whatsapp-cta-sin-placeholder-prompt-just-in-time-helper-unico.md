@@ -1,3 +1,9 @@
+---
+id: ADR-037
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-028]
+---
 # ADR-037: WhatsApp CTA sin placeholder — prompt just-in-time + helper único `whatsapp-cta`
 
 **Estado:** Aceptado (2026-07-06) — implementado (helper único + fix del CTA roto de adosmanos)

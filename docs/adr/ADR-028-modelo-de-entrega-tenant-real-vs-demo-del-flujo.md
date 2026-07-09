@@ -1,3 +1,9 @@
+---
+id: ADR-028
+nivel: evolutiva
+dominio: [Plataforma]
+depends_on: [ADR-001, ADR-019, ADR-029]
+---
 # ADR-028: Modelo de entrega — cliente consolidado = tenant real en su URL; demo = app del flujo; fin de los previews estáticos
 
 **Estado:** Aceptado (2026-07-06) — en reconversión (ver `docs/PLAN-RECONVERSION-CLIENTES.md`)

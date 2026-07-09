@@ -1,3 +1,9 @@
+---
+id: ADR-022
+nivel: evolutiva
+dominio: [Producto, Arquitectura]
+depends_on: [ADR-001, ADR-002, ADR-005, ADR-006, ADR-018, ADR-020]
+---
 # ADR-022: Plugin ARCA — facturación electrónica como primer Plugin del Core
 
 **Estado:** Aceptado — fija placement y contrato del Plugin ARCA; no construye el lado Core que toca DB (2026-07-04)

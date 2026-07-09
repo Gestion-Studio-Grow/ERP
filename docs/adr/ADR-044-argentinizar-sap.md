@@ -1,3 +1,9 @@
+---
+id: ADR-044
+nivel: fundacional
+dominio: [Negocio, Producto]
+depends_on: [ADR-040, ADR-043]
+---
 # ADR-044: Argentinizar SAP — lo mejor de SAP, adaptado a la realidad de la pyme argentina (principio transversal de auditoría)
 
 **Estado:** Aceptado — vigente y transversal

@@ -1,3 +1,9 @@
+---
+id: ADR-008
+nivel: fundacional
+dominio: [IA, Negocio]
+depends_on: []
+---
 # ADR-008: Estrategia de Optimización de Costo de Tokens (Claude) Durante el Desarrollo
 
 Esta misma sesión es el caso de prueba del método — la aplicamos desde ADR-001.

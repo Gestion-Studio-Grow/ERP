@@ -1,3 +1,9 @@
+---
+id: ADR-058
+nivel: fundacional
+dominio: [Producto, Arquitectura]
+depends_on: [ADR-001, ADR-002, ADR-044, ADR-054, ADR-055]
+---
 # ADR-058: Filosofía de producto GROW-AR — un Core, dos motores, crecé sin migrar
 
 **Estado:** Aceptado — **fundamento de producto** (mixtura, no reemplazo). Sintetiza en una sola

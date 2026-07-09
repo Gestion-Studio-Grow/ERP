@@ -1,3 +1,9 @@
+---
+id: ADR-056
+nivel: evolutiva
+dominio: [Producto, Plataforma]
+depends_on: []
+---
 # ADR-056 — Panel de Dirección: producto ejecutivo para la mesa de dirección
 
 > **Nota de reconciliación (2026-07-07):** este ADR nació como *ADR-028* en la rama `gsg-lab`. Al reconciliar GSG Lab a `main`, el número 028 ya estaba tomado por **ADR-028 — Modelo de entrega (tenant real vs demo del flujo)**; para evitar colisión se **renumeró a ADR-056** (siguiente libre) sin alterar la decisión. Ver `docs/adr/INDEX.md`.

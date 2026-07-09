@@ -1,3 +1,9 @@
+---
+id: ADR-016
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-008]
+---
 # ADR-016: El handoff entre sesiones se persiste en una cola, no en el chat
 
 **Estado:** Aceptado — implementado (2026-07-03)

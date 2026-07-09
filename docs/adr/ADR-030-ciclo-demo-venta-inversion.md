@@ -1,3 +1,9 @@
+---
+id: ADR-030
+nivel: evolutiva
+dominio: [Producto, Negocio]
+depends_on: [ADR-028, ADR-031]
+---
 # ADR-030: Ciclo DEMO → VENTA → INVERSIÓN — no se invierte hasta vender
 
 **Estado:** Aceptado (2026-07-06) — norma de negocio vigente, no salteable

@@ -1,3 +1,9 @@
+---
+id: ADR-038
+nivel: evolutiva
+dominio: [Operaciones, Negocio]
+depends_on: [ADR-030, ADR-032]
+---
 # ADR-038: Estructura de Importaciones (`impo`) — ciclo end-to-end de importación desde China
 
 **Estado:** Aceptado (2026-07-06) — comando documentado; ninguna sesión de import abierta aún

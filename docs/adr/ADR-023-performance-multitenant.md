@@ -1,3 +1,9 @@
+---
+id: ADR-023
+nivel: evolutiva
+dominio: [Plataforma, Datos]
+depends_on: []
+---
 # ADR-023 — Check de performance multi-tenant y restricciones de free plan
 
 **Estado:** aceptado (decisiones). Implementación diferida a `/sesion-feature` según el orden de ataque de §4.

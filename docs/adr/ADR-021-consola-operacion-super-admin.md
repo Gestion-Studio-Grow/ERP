@@ -1,3 +1,9 @@
+---
+id: ADR-021
+nivel: evolutiva
+dominio: [Plataforma]
+depends_on: [ADR-001, ADR-006, ADR-015, ADR-017, ADR-018, ADR-019]
+---
 # ADR-021: Consola de operación / super-admin — plano de plataforma separado, scope y secuencia
 
 **Estado:** Aceptado — pendiente de implementación (2026-07-04)

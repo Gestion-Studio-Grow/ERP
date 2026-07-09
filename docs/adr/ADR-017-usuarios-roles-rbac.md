@@ -1,3 +1,9 @@
+---
+id: ADR-017
+nivel: fundacional
+dominio: [Seguridad]
+depends_on: [ADR-015]
+---
 # ADR-017: Modelo de usuarios, roles y autorización (RBAC) para el piloto
 
 **Estado:** Aceptado — pendiente de implementación (2026-07-03)

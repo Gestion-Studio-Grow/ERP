@@ -1,3 +1,9 @@
+---
+id: ADR-057
+nivel: evolutiva
+dominio: [Arquitectura, Datos]
+depends_on: [ADR-002, ADR-006, ADR-022]
+---
 # ADR-057: Representación de dinero — `number`/Float con redondeo único, `Decimal(14,2)` en el borde fiscal
 
 **Estado:** Aceptado — **decisión de arquitectura**. Resuelve dos pendientes documentados: la divergencia

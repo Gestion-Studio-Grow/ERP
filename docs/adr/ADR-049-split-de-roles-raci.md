@@ -1,3 +1,9 @@
+---
+id: ADR-049
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-032, ADR-045, ADR-048]
+---
 # ADR-049: Split de roles (RACI) — PMO autor de planes · Dueño aprueba · Arquitecto ejecuta · Dispatch canal · Advisory+Challenger tensionan
 
 **Estado:** Aceptado — vigente

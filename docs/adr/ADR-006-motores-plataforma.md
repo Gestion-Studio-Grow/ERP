@@ -1,3 +1,9 @@
+---
+id: ADR-006
+nivel: evolutiva
+dominio: [Arquitectura, IA]
+depends_on: [ADR-002, ADR-005]
+---
 # ADR-006: Motores de Plataforma (Metadata, Workflow, Rules, Tax, Integration, AI, Feature Flags, Marketplace)
 
 **Depende de:** ADR-002 (Core/Blueprint/Plugin), ADR-005 (stack)

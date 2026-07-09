@@ -1,3 +1,9 @@
+---
+id: ADR-025
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-001, ADR-002, ADR-006, ADR-022, ADR-024]
+---
 # ADR-025: Ingesta de Mercado Pago + facturación automática masiva (producto monotributista)
 
 **Estado:** Aceptado — diseño de producto; núcleo con stubs, sin credenciales reales (2026-07-04)

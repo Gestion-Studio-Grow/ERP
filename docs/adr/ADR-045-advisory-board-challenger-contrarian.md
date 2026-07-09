@@ -1,3 +1,9 @@
+---
+id: ADR-045
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-008, ADR-032]
+---
 # ADR-045: Advisory Board + Challenger (contrarian) — tensión productiva tesis/antítesis antes de adoptar un fundamento
 
 **Estado:** Aceptado — vigente (gobernanza de decisiones estratégicas)
