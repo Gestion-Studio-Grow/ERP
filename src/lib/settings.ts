@@ -108,7 +108,15 @@ export function resolveLocation(row: BusinessSettingsRow | null): ResolvedLocati
 // requerir capacidad: son datos públicos del sitio. Cacheado por request para
 // deduplicar entre layout y home.
 export const getLocation = cache(async (): Promise<ResolvedLocation> => {
-  const tenantId = await getCurrentTenantId();
-  const row = await prisma.businessSettings.findUnique({ where: { tenantId } });
-  return resolveLocation(row);
+  // DEFENSIVO (corre en el layout público): si falla la lectura de BusinessSettings —p.ej.
+  // el tenant tiene un schema viejo sin alguna columna del módulo Localización— NO tumba el
+  // sitio: cae a la localización por defecto (`resolveLocation(null)`, ya null-safe). Inerte
+  // con la DB sana (schema migrado → mismo comportamiento).
+  try {
+    const tenantId = await getCurrentTenantId();
+    const row = await prisma.businessSettings.findUnique({ where: { tenantId } });
+    return resolveLocation(row);
+  } catch {
+    return resolveLocation(null);
+  }
 });
