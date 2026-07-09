@@ -59,16 +59,24 @@ export function DebtDetailBody({
         </div>
       </div>
 
-      {detail.cheque && (
-        <div className="rounded-lg border border-line p-4">
-          <h3 className="mb-2 font-medium text-strong">Cheque diferido</h3>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-            <div><dt className="text-muted">N°</dt><dd className="font-medium">{detail.cheque.numero}</dd></div>
-            <div><dt className="text-muted">Banco</dt><dd className="font-medium">{detail.cheque.banco}</dd></div>
-            <div><dt className="text-muted">Se deposita</dt><dd className="font-medium">{detail.cheque.fechaDiferida ? fmtShortDate(detail.cheque.fechaDiferida) : "—"}</dd></div>
-            <div><dt className="text-muted">Estado</dt><dd className="font-medium">{detail.cheque.estado}</dd></div>
-          </dl>
-        </div>
+      {detail.cheques && detail.cheques.length > 0 && (
+        <section>
+          <h3 className="mb-2 font-medium text-strong">Cheques diferidos</h3>
+          <div className="space-y-2">
+            {detail.cheques.map((ch, i) => (
+              <div key={`${ch.numero}-${i}`} className="rounded-lg border border-line p-4">
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-5">
+                  <div><dt className="text-muted">N°</dt><dd className="font-medium">{ch.numero}</dd></div>
+                  <div><dt className="text-muted">Banco</dt><dd className="font-medium">{ch.banco}</dd></div>
+                  <div><dt className="text-muted">Monto</dt><dd className="font-medium tabular-nums">{fmtMoneyARS(ch.monto)}</dd></div>
+                  <div><dt className="text-muted">Se deposita</dt><dd className="font-medium">{ch.fechaDiferida ? fmtShortDate(ch.fechaDiferida) : "—"}</dd></div>
+                  <div><dt className="text-muted">Estado</dt><dd className="font-medium">{ch.estado}</dd></div>
+                </dl>
+                {ch.endosadoA && <p className="mt-1 text-xs text-muted">Endosado a {ch.endosadoA}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       <section>
@@ -82,7 +90,9 @@ export function DebtDetailBody({
         />
       </section>
 
-      {detail.saldo > 0 && <RegisterCollectionForm saldo={detail.saldo} kind={kind} action={action} />}
+      {detail.saldo > 0 && (
+        <RegisterCollectionForm accountId={detail.id} saldo={detail.saldo} kind={kind} action={action} />
+      )}
     </div>
   );
 }

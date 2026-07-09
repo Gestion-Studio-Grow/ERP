@@ -17,10 +17,13 @@ const ERROR_MSG: Record<CollectionValidationError, string> = {
 };
 
 export function RegisterCollectionForm({
+  accountId,
   saldo,
   kind,
   action,
 }: {
+  /** id de la cuenta (viaja oculto al server action para imputar el cobro/pago). */
+  accountId: string;
   saldo: number;
   kind: "cobrar" | "pagar";
   action: (formData: FormData) => void | Promise<void>;
@@ -36,6 +39,7 @@ export function RegisterCollectionForm({
       <p className="text-sm font-medium text-strong">Registrar {verbo} parcial</p>
       <p className="text-xs text-muted">Saldo pendiente: {fmtMoneyARS(saldo)}</p>
 
+      <input type="hidden" name="id" value={accountId} />
       <input type="hidden" name="monto" value={validation.ok ? validation.amount : ""} />
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">

@@ -35,17 +35,21 @@ export interface CollectionEntry {
   nota?: string | null;
 }
 
-/** Datos del cheque diferido de una cuenta a pagar (D2, J59). */
+/** Datos de un cheque diferido de una cuenta a pagar (D2, J59). */
 export interface PayableChequeInfo {
   numero: string;
   banco: string;
+  monto: number;
   /** Fecha en que se puede depositar (el diferimiento). */
   fechaDiferida: Date | null;
   estado: string;
+  /** Endosado a un tercero, si corresponde. */
+  endosadoA?: string | null;
 }
 
-/** Detalle de una cuenta: la fila + su historial de cobros/pagos + (a pagar) el cheque. */
+/** Detalle de una cuenta: la fila + su historial de cobros/pagos + (a pagar) sus cheques. */
 export interface DebtAccountDetail extends DebtAccountRow {
   historial: CollectionEntry[];
-  cheque?: PayableChequeInfo | null;
+  /** Solo cuentas a pagar (D2): los cheques diferidos asociados. Vacío/ausente si no hay. */
+  cheques?: PayableChequeInfo[];
 }
