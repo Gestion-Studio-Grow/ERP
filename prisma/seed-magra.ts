@@ -27,12 +27,17 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { hashPassword } from "../src/lib/auth-password";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 const SLUG = "magra-demo";
 const ACTOR = "system:seed";
+// Usuario OWNER para poder ENTRAR al backoffice en el preview (un tenant sin usuario no es
+// operable). Credenciales de DEMO, conocidas, SOLO para la dev branch de QA.
+const OWNER_EMAIL = "dueno@magra-demo.test";
+const OWNER_PASSWORD = "magra1234";
 const PROFILE = process.env.MAGRA_PROFILE === "enterprise" ? "enterprise" : "lite";
 
 // Fechas relativas para el aging (calculadas al correr el seed — es un script, no un workflow).
@@ -88,6 +93,7 @@ async function main() {
   await prisma.product.deleteMany({ where: { tenantId } });
   await prisma.supplier.deleteMany({ where: { tenantId } });
   await prisma.client.deleteMany({ where: { tenantId } });
+  await prisma.user.deleteMany({ where: { tenantId } });
   await prisma.businessSettings.deleteMany({ where: { tenantId } });
 
   // 3) Localización / branding (banda "demo" la da el nombre + status TRIAL).
@@ -158,7 +164,19 @@ async function main() {
     },
   });
 
-  // 7) Clientes (2).
+  // 7) Usuario OWNER para entrar al backoffice (credenciales de DEMO, solo dev branch).
+  await prisma.user.create({
+    data: {
+      tenantId,
+      name: "Dueña — Magra DEMO",
+      email: OWNER_EMAIL,
+      passwordHash: await hashPassword(OWNER_PASSWORD),
+      role: "OWNER",
+      active: true,
+    },
+  });
+
+  // 8) Clientes (2).
   const cliente1 = await prisma.client.create({ data: { tenantId, name: "Rotisería La Esquina", phone: "11-5000-1111" } });
   const cliente2 = await prisma.client.create({ data: { tenantId, name: "Vecina — María G.", phone: "11-5000-2222" } });
 
@@ -230,6 +248,7 @@ async function main() {
     `✔ Magra DEMO sembrada: slug="${tenant.slug}" profile="${tenant.profile}" (id=${tenantId})\n` +
       `  ${products.length} productos (2 con stock bajo) · 2 proveedores · 2 compras · 2 ventas ` +
       `· 2 cuentas a pagar (1 con cheque diferido, 1 vencida) · 2 fiados (1 con cobro parcial).\n` +
+      `  👤 Login backoffice → email: ${OWNER_EMAIL} · contraseña: ${OWNER_PASSWORD} (rol OWNER, DEMO).\n` +
       `  Entrá por el slug "${SLUG}" en el preview. Perfil actual: ${PROFILE === "enterprise" ? "Empresa" : "Comercio"}.`,
   );
 }
