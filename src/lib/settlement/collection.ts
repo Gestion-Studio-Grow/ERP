@@ -14,8 +14,12 @@
 
 import { round2 } from "@/lib/round";
 
-/** Origen polimórfico de un cobro (espeja el enum `CollectionOriginType` del schema). */
-export type CollectionOriginType = "ORDER" | "APPOINTMENT" | "RECEIVABLE";
+/**
+ * Origen polimórfico de un movimiento de settlement (espeja el enum `CollectionOriginType`).
+ * ORDER/APPOINTMENT/RECEIVABLE = cobros (plata IN); PAYABLE = pagos a proveedor (plata OUT).
+ * La aritmética del saldo (`computeSettlement`) es la misma en ambos sentidos: total vs. imputado.
+ */
+export type CollectionOriginType = "ORDER" | "APPOINTMENT" | "RECEIVABLE" | "PAYABLE";
 
 /** Estado de settlement de un origen respecto de su total imputado. */
 export type SettlementStatus = "UNPAID" | "PARTIAL" | "PAID" | "OVERPAID";
