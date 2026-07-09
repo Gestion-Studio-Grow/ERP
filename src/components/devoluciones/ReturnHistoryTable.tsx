@@ -1,17 +1,18 @@
 "use client";
 
-import { DataTable, dateColumn, moneyColumn, textColumn, type DataTableColumn } from "@/components/ui";
+import { DataTable, dateColumn, moneyColumn, numberColumn, textColumn, type DataTableColumn } from "@/components/ui";
 import type { ReturnHistoryRow } from "@/lib/devoluciones/types";
 
-// Historial de devoluciones a proveedor (read-only) sobre el DataTable de S2. Canal
-// neutro. El "crédito" es la baja del saldo que le debemos al proveedor (D2/D4).
+// Historial de devoluciones a proveedor (read-only) sobre el DataTable de S2. Una fila por
+// producto devuelto (así lo asienta el ledger de S1). Canal neutro. El "valor" es el crédito
+// generado en la cuenta a pagar del proveedor (D2/D4).
 export function ReturnHistoryTable({ rows }: { rows: ReturnHistoryRow[] }) {
   const columns: DataTableColumn<ReturnHistoryRow>[] = [
     dateColumn<ReturnHistoryRow>("fecha", "Fecha", (r) => r.fecha),
-    textColumn<ReturnHistoryRow>("proveedor", "Proveedor", (r) => r.proveedor),
-    textColumn<ReturnHistoryRow>("detalle", "Devuelto", (r) => r.detalle),
+    textColumn<ReturnHistoryRow>("producto", "Producto", (r) => r.producto),
+    numberColumn<ReturnHistoryRow>("cantidad", "Cantidad", (r) => r.cantidad, { decimals: 3 }),
     textColumn<ReturnHistoryRow>("motivo", "Motivo", (r) => r.motivo),
-    moneyColumn<ReturnHistoryRow>("credito", "Crédito", (r) => r.credito),
+    moneyColumn<ReturnHistoryRow>("valor", "Crédito", (r) => r.valor),
   ];
   return (
     <DataTable

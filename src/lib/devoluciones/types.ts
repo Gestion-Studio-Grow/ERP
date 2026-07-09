@@ -28,14 +28,17 @@ export interface PurchaseOption {
   items: PurchaseItemOption[];
 }
 
-/** Una devolución ya registrada (para el historial). */
+/**
+ * Una devolución ya registrada (historial). El servicio de S1 asienta la devolución como
+ * un movimiento de stock POR PRODUCTO (`DEVOLUCION_PROVEEDOR`), así que cada fila del
+ * historial es un producto devuelto (no un documento agrupado).
+ */
 export interface ReturnHistoryRow {
   id: string;
   fecha: Date;
-  proveedor: string;
+  producto: string;
+  cantidad: number;
   motivo: string;
-  /** Crédito generado en la cuenta a pagar del proveedor. */
-  credito: number;
-  /** Resumen corto de lo devuelto (ej. "3 ítems"). */
-  detalle: string;
+  /** Valor de la devolución (cantidad × costo) = crédito generado en la cuenta a pagar. */
+  valor: number;
 }

@@ -1,17 +1,14 @@
 // ============================================================================
-// Loader de Inventario (niveles + valuación) — ⚠️ STUB (dependencia S1).
+// Loader de Inventario (niveles + valuación) — cableado al read model de S1.
 // ============================================================================
 //
-// El READ MODEL de inventario (niveles de stock actuales + último costo por producto) lo
-// publica S1. Hoy devuelve vacío: la pantalla se recorre (detrás de flags, perfil Empresa)
-// mostrando su estructura + estado "en preparación", SIN dead-end. Punto de cableado
-// `TODO(S1)`: cuando su read model esté en el árbol, se mapea a `InventoryInput[]` y
-// `buildInventory` calcula la valuación (el contrato de vista ya está fijo).
-//
-// Guard `catalog:read` (vista de solo lectura del stock, mismo cap que `getStockData`).
+// Mapea el read model de S1 (`@/lib/inventory/inventory-loader.getInventoryValuation`,
+// sobre `Product` + último costo de `StockPurchaseItem`) al CONTRATO DE VISTA de la UI
+// (`./valuation`), para que la pantalla no cambie. S1 ya guarda `catalog:read` y computa la
+// valuación; acá solo se re-nombra a `productId/valuation/belowLowStock/sinCosto`. Read-only.
 
-import { requireCapability } from "@/lib/authz";
-import { buildInventory, type InventoryRow, type InventorySummary } from "./valuation";
+import { getInventoryValuation } from "@/lib/inventory/inventory-loader";
+import type { InventoryRow, InventorySummary } from "./valuation";
 
 export interface InventoryReport {
   rows: InventoryRow[];
@@ -19,7 +16,23 @@ export interface InventoryReport {
 }
 
 export async function getInventory(): Promise<InventoryReport> {
-  await requireCapability("catalog:read");
-  // TODO(S1): mapear el read model de inventario a InventoryInput[] y llamar a buildInventory.
-  return buildInventory([]);
+  const val = await getInventoryValuation(); // guarda catalog:read + scopea por tenant
+  return {
+    rows: val.rows.map((r) => ({
+      productId: r.id,
+      name: r.name,
+      unit: r.unit,
+      stock: r.stock,
+      unitCost: r.unitCost ?? 0,
+      valuation: r.stockValue,
+      belowLowStock: r.lowStock,
+      sinCosto: !r.valued,
+    })),
+    summary: {
+      productos: val.summary.productCount,
+      valuacionTotal: val.summary.totalValue,
+      bajoStock: val.summary.lowStockCount,
+      sinCosto: val.summary.unvaluedCount,
+    },
+  };
 }

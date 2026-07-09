@@ -17,20 +17,21 @@ function Stat({ label, value, hint, tone = "neutral" }: { label: string; value: 
   );
 }
 
-// Inventario (recuento/valuación, ADR-060 D5). perfilMin=enterprise (gate acá, por
-// directiva de esta ola). ⚠️ Nota de coherencia: ADR-060 D5 + BACKLOG_SCOPE_ITEM_NAV
-// clasifican inventario como `lite` + RUBRO (aplica a todo Comercio con stock; el mínimo
-// anti-oversell ya lo dan Ajustes/Compras) — misma clase que el hallazgo que el Gate corrigió
-// en CxC. Se deja gateado enterprise como se pidió y se eleva la clasificación para que S5
-// decida el re-gate. Read-only; datos vía loader (hoy stub de S1) → sin dead-end.
+// Inventario (recuento/valuación, ADR-060 D5). RE-GATEADO a `lite` + RUBRO (fix de coherencia
+// que se había elevado): aplica a TODO Comercio con stock — NO enterprise-only (el mínimo
+// anti-oversell ya lo dan Ajustes/Compras; ADR-060 D5). El rubro-gating (qué tenants lo ven)
+// vive en la nav (perfilMin=lite + módulo por rubro). Se mantiene en el CANAL gateado por
+// `PROFILES_ENABLED` (via `getActiveProfile()===null` = motor OFF) para no renderear en prod
+// con flags OFF — igual criterio que CxC. Enterprise ⊇ lite intacto (ambos lo ven con el motor
+// ON). Read-only; datos vía read model de S1.
 export default async function InventarioPage() {
   await requireCapability("catalog:read");
   const profile = await getActiveProfile();
-  if (profile !== "enterprise") {
+  if (profile === null) {
     return (
       <main className="mx-auto max-w-3xl px-6 py-8">
         <PageHeader title="Inventario" description="Niveles de stock y su valuación." />
-        <EmptyState title="Disponible en la edición Empresa" description="El inventario valuado es parte de la edición Empresa." />
+        <EmptyState title="En preparación" description="El inventario valuado se activa junto con las nuevas funciones del panel." />
       </main>
     );
   }

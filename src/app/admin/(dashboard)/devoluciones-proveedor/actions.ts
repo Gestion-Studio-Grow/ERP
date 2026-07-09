@@ -1,15 +1,60 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { recordSupplierReturn } from "@/lib/stock/supplier-return";
+import { validateReturnLine } from "@/lib/devoluciones/return-validation";
 
-// Registrar una DEVOLUCIÓN a proveedor (D4) → el servicio de S1 asienta el movimiento de
-// stock (salida DEVOLUCION_PROVEEDOR) + el crédito en la cuenta a pagar del proveedor.
-// Punto de cableado: hoy el loader de compras elegibles es stub (S1), así que el form no
-// se renderiza con datos y este action no se invoca. Cuando S1 publique el servicio, se
-// valida cada línea (validateReturnLine) y se llama al servicio; luego revalidatePath.
-export async function registerReturn(_formData: FormData): Promise<void> {
-  await requireCapability("catalog:manage");
-  // TODO(S1): parsear líneas (productId/qty) + motivo + compra origen, validar con
-  // validateReturnLine (no devolver más de lo comprado) y llamar al servicio de devolución.
-  throw new Error("Devolución a proveedor pendiente de activación (servicio D4 de S1).");
+// Registrar una DEVOLUCIÓN a proveedor (D4). Cada línea (producto + cantidad) se asienta con
+// el servicio ATÓMICO de S1 (`recordSupplierReturn`): saca del stock (DEVOLUCION_PROVEEDOR) y
+// acredita la deuda del proveedor (Collection PAYABLE) si la compra tiene una cuenta a pagar
+// abierta. AUTORIDAD SERVER: `unitCost` y el tope comprado se leen de la compra, no del
+// cliente; la validación (no devolver más de lo comprado) es la misma regla PURA del form.
+export async function registerReturn(formData: FormData): Promise<void> {
+  const user = await requireCapability("catalog:manage");
+  const tenantId = await getCurrentTenantId();
+
+  const purchaseId = String(formData.get("purchaseId") || "").trim();
+  const motivo = String(formData.get("motivo") || "").trim() || null;
+  if (!purchaseId) return;
+
+  // Compra origen (autoridad de unitCost + cantidad comprada por línea).
+  const purchase = await prisma.stockPurchase.findFirst({
+    where: { id: purchaseId, tenantId },
+    include: { items: true },
+  });
+  if (!purchase) return;
+  const itemByProduct = new Map(
+    purchase.items.filter((i) => i.productId).map((i) => [i.productId as string, i]),
+  );
+
+  // Cuenta a pagar abierta de esta compra, para acreditarle la devolución (pata financiera D4).
+  const ap = await prisma.accountPayable.findFirst({
+    where: { tenantId, purchaseId, status: "OPEN" },
+    select: { id: true },
+  });
+
+  const productIds = formData.getAll("productId").map(String);
+  const qtys = formData.getAll("qty").map((v) => Number(String(v).replace(",", ".")));
+
+  for (let i = 0; i < productIds.length; i++) {
+    const item = itemByProduct.get(productIds[i]);
+    if (!item) continue;
+    const v = validateReturnLine(qtys[i], item.quantity);
+    if (!v.ok) continue;
+    await recordSupplierReturn(tenantId, {
+      productId: productIds[i],
+      qty: v.qty,
+      unitCost: item.unitCost,
+      purchaseId,
+      reason: motivo,
+      label: item.name,
+      payableId: ap?.id ?? null,
+      by: `user:${user.id}`,
+    });
+  }
+
+  revalidatePath("/admin/devoluciones-proveedor");
 }
