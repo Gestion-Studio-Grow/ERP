@@ -217,11 +217,13 @@ export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
   },
   {
     scopeItem: "J58",
-    href: "/admin/contabilidad",
-    label: "Contabilidad",
+    href: "/admin/libros",
+    label: "Libros / Exportar al contador",
     grupo: "finanzas",
     perfilMin: "enterprise",
-    nota: "Libro mayor simple/exportable al contador. Solo Empresa.",
+    nota:
+      "ADR-060 D7 (naming honesto): Libro IVA ESTRUCTURADO (Ventas + Compras) + export al " +
+      "contador. NUNCA 'Contabilidad'. Libro mayor formal (JournalEntry) = RESERVA/§C.",
   },
   {
     scopeItem: "BMK",
@@ -252,7 +254,7 @@ export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
 // Decisiones (a revisar cuando cada pantalla tenga su lógica de datos real):
 // - `cap`: se REUSAN capabilities OWNER existentes — NO se toca `capabilities.ts`
 //   (perfil ≠ rol, ADR-059 D6b). `billing:manage` (cuentas a pagar / a cobrar),
-//   `reports:read` (contabilidad), `catalog:manage` (inventario / devoluciones). Todas
+//   `reports:read` (libros), `catalog:manage` (inventario / devoluciones). Todas
 //   solo-OWNER → ni RECEPTION ni PROFESSIONAL ven estos ítems. La pantalla también las
 //   exige (requireCapability), así el guard ya está para el día del vivo.
 // - `module`: SIN descriptor de catálogo todavía (los descriptores Empresa son backlog
@@ -311,13 +313,16 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     ready: true,
   },
   {
-    href: "/admin/contabilidad",
-    label: "Contabilidad",
-    icon: "contabilidad",
+    // ADR-060 D7: ex "/admin/contabilidad" → "/admin/libros". Naming HONESTO "Libros /
+    // Exportar al contador" (NUNCA "Contabilidad": prometería asientos que no hay). Ya
+    // tiene lógica REAL (Libro IVA estructurado + export), no es shell — capa verde S4.
+    href: "/admin/libros",
+    label: "Libros",
+    icon: "contabilidad", // el glifo de libro/ledger sigue calzando con "Libros"
     cap: "reports:read",
     perfilMin: "enterprise",
     grupo: "finanzas",
-    ready: true, // shell navegable existe; al vivo arranca por "Exportar para el contador" (S1)
+    ready: true,
   },
   {
     href: "/admin/inventario",

@@ -147,9 +147,9 @@ test("BACKLOG_SCOPE_ITEM_NAV: fiado y stock son 'ambos' (lite), no enterprise-on
   assert.equal(byHref["/admin/cuentas-a-cobrar"].perfilMin, "lite");
   // El fiado NO va al piso universal: descriptor definido pero default OFF (opt-in por rubro).
   assert.equal(byHref["/admin/cuentas-a-cobrar"].defaultOff, true);
-  // Cuentas a pagar y contabilidad SÍ son solo Empresa (aditivos).
+  // Cuentas a pagar y libros (ex contabilidad, ADR-060 D7) SÍ son solo Empresa (aditivos).
   assert.equal(byHref["/admin/cuentas-a-pagar"].perfilMin, "enterprise");
-  assert.equal(byHref["/admin/contabilidad"].perfilMin, "enterprise");
+  assert.equal(byHref["/admin/libros"].perfilMin, "enterprise");
 });
 
 test("ENTERPRISE_NAV_ITEMS: los 5 shells Empresa son perfilMin enterprise, ready, grupos válidos, hrefs propios", () => {
@@ -176,7 +176,7 @@ test("ENTERPRISE_NAV_ITEMS: cada href está en el backlog validado con el MISMO 
   const byHref = Object.fromEntries(ENTERPRISE_NAV_ITEMS.map((i) => [i.href, i]));
   assert.equal(byHref["/admin/cuentas-a-pagar"].grupo, "finanzas");
   assert.equal(byHref["/admin/cuentas-a-cobrar"].grupo, "finanzas");
-  assert.equal(byHref["/admin/contabilidad"].grupo, "finanzas");
+  assert.equal(byHref["/admin/libros"].grupo, "finanzas");
   assert.equal(byHref["/admin/inventario"].grupo, "inventario-y-compras");
   assert.equal(byHref["/admin/devoluciones-proveedor"].grupo, "inventario-y-compras");
 });
@@ -191,7 +191,7 @@ test("ENTERPRISE_NAV_ITEMS: al agruparse caen en su grupo (Finanzas / Inventario
   const { groups, ungrouped } = groupNavItems(items);
   assert.equal(ungrouped.length, 0, "ningún ítem Empresa debe quedar sin grupo");
   const finanzas = groups.find((g) => g.id === "finanzas");
-  for (const h of ["/admin/cuentas-a-pagar", "/admin/cuentas-a-cobrar", "/admin/contabilidad"]) {
+  for (const h of ["/admin/cuentas-a-pagar", "/admin/cuentas-a-cobrar", "/admin/libros"]) {
     assert.ok(finanzas && finanzas.items.some((i) => i.href === h), `Finanzas debe incluir ${h}`);
   }
   const inv = groups.find((g) => g.id === "inventario-y-compras");
