@@ -127,7 +127,7 @@ deployment de preview. Cero costo, cero rastro en prod.
 
 ### B.0 Transversal (aplica a CADA pantalla)
 - [ ] **Funcional:** carga sin error (consola limpia); la **acción principal** funciona y **persiste** (recargar y sigue).
-- [ ] **Sin callejón sin salida (MP-14):** ningún link/botón lleva a 404 o ruta protegida; los ítems Empresa `ready:false` (J59/J58/BMK) **NO se renderizan**.
+- [ ] **Sin callejón sin salida (MP-14):** ningún link/botón lleva a 404 o ruta protegida. **Las 5 pantallas avanzadas de Empresa YA existen y son `ready:true`** (cuentas a pagar/cobrar, libros, inventario, devoluciones) → cada ítem visible lleva a una pantalla real (test fs anti-dead-end en verde).
 - [ ] **Perfil Comercio vs Empresa:** en Comercio se ve el set base; en Empresa se ve el base **+** lo aditivo (nunca *menos* — invariante `enterprise ⊇ lite`).
 - [ ] **Nav agrupada (flag ON):** los ítems caen en su grupo correcto (Operación · Clientes · Inventario y compras · Finanzas · Configuración); orden estable.
 - [ ] **Tier neutro:** el badge de edición (Comercio/Empresa) es **neutro** (texto+forma), nunca con el color de acento del tenant.
@@ -163,33 +163,41 @@ deployment de preview. Cero costo, cero rastro en prod.
 - **Compras:** las 2 compras aparecen con su proveedor (*Frigorífico El Novillo* / *Distribuidora Sur*).
 - **Caja/Pedidos:** el pedido pagado en efectivo movió caja; el pedido de *Rotisería* quedó con saldo.
 
-### B.1-bis · Módulos avanzados de Empresa — estado REAL (backend listo, pantalla pendiente)
-> **Honestidad de alcance:** la **capa de datos y los loaders/servicios** de estos módulos están construidos
-> y con datos sembrados en Magra, pero **sus pantallas `/admin/*` todavía NO existen** (otro carril) → sus
-> ítems de nav están **`ready:false` y NO se renderizan** (regla anti-dead-end). Por eso, **en este preview
-> el QA de Empresa NO puede navegarlos por la UI todavía**. Qué SÍ se puede verificar hoy:
+### B.1-bis · Módulos avanzados de Empresa — VERIFICADO: pantallas navegables (ready:true)
+> **Estado real (verificado contra la rama del sprint, 2026-07-08):** las **5 pantallas EXISTEN como
+> `page.tsx` y están `ready:true`** en el registro de nav (`ENTERPRISE_NAV_ITEMS`); el **test fs anti-dead-end
+> pasa** ("cada shell ready tiene su page.tsx en disco"). Consumen los **loaders reales** (los de `@/lib/debts`,
+> `@/lib/inventory`, `@/lib/stock/supplier-return`, vía los wrappers `@/lib/cuentas`·`@/lib/inventario`·
+> `@/lib/devoluciones`·`@/lib/libros`), que leen **las mismas tablas que el seed de Magra llena** → los datos
+> sembrados **se ven en pantalla**. Visibilidad por perfil (del test): **Comercio ve CxC (fiado) + Inventario**
+> (son `lite`/rubro); **Empresa ve las 5** (suma Cuentas a pagar, Libros, Devoluciones).
 
-| Módulo (D#) | Estado UI | Qué QA puede verificar hoy | Dato sembrado en Magra |
-|---|---|---|---|
-| **Cuentas a pagar `/admin/cuentas-a-pagar`** (D2) | 🔨 pantalla pendiente (`ready:false`) | datos + loaders (`listPayables`/`getPayableDetail`): saldo, **aging OVERDUE**, **cheque diferido** | 1 vencida ($219.500 saldo) + 1 con cheque diferido $400.000 |
-| **Cuentas a cobrar `/admin/cuentas-a-cobrar`** (D3) | 🔨 pendiente | `listReceivables`/`getReceivableDetail`: saldo, aging, historial de cobros | fiado $75.000 saldo + fiado light $8.500 |
-| **Libros / Exportar al contador `/admin/libros`** (D7) | 🔨 pendiente | (export deriva de facturas/ventas) | ventas + (facturación si se prueba) |
-| **Devoluciones a proveedor `/admin/devoluciones-proveedor`** (D4) | 🔨 pendiente | `recordSupplierReturn` (stock + crédito en CxP), `listSupplierReturns` | — (se genera al probar el servicio) |
-| **Inventario `/admin/inventario`** (D5) | 🔨 pendiente | `getInventoryValuation`: niveles + valuación + **stock bajo** | 8 productos, **2 en faltante** (Vacío, Carne picada) |
+| Pantalla (D#) | Perfil | Qué verificar con los datos de Magra |
+|---|---|---|
+| **Inventario `/admin/inventario`** (D5) | Comercio + Empresa | niveles + valuación a costo; **2 productos en stock bajo** (Vacío 2kg, Carne picada 3kg) marcados como faltante; total valuado |
+| **Cuentas a cobrar `/admin/cuentas-a-cobrar`** (D3) | Comercio + Empresa | 2 fiados: uno con **saldo $75.000** (cobro parcial de $40k) y aging por vencimiento; uno **light $8.500** sin vencimiento (NO_DUE_DATE); detalle con historial de cobros |
+| **Cuentas a pagar `/admin/cuentas-a-pagar`** (D2) | **Empresa** | 2 deudas: una **VENCIDA** (aging OVERDUE, saldo $219.500 tras pago parcial); una con **CHEQUE DIFERIDO** de $400.000 (banco Nación, entregado, vence ~20 días); detalle con cheques + pagos |
+| **Libros / Exportar al contador `/admin/libros`** (D7) | **Empresa** | Libro IVA (Ventas) derivado de las ventas/facturas de Magra; botón exportar |
+| **Devoluciones a proveedor `/admin/devoluciones-proveedor`** (D4) | **Empresa** | compras "devolvibles" (Frigorífico/Distribuidora); registrar una devolución → baja stock (ledger) + crédito en la cuenta a pagar; historial |
 
-**Cuando esas pantallas landeen** (otra ola), se cambia su `ready:true` y este QA se completa por UI con
-estos mismos datos. Hasta entonces, el QA de Empresa cubre: **flip de perfil** (badge "Empresa" + home
-analítico), **profundización de Compras/Reportes** (que sí tienen pantalla), y la **verificación de datos**
-de arriba (por los loaders / el Gate revisa el backend).
+**Cobertura del QA de Empresa:** el **producto completo** — flip de perfil (badge "Empresa" + home
+analítico) + **Compras/Reportes profundizados** + **las 5 pantallas avanzadas navegables** con los datos de
+Magra. No es "solo el flip de perfil".
 
 ### B.2 Recorridos end-to-end (viaje de usuario, no solo "carga")
 - [ ] **Comercio (lite):** entrar a `magra-demo` (perfil Comercio) → vender un corte en mostrador
   (`/pedidos`+`/caja`) → cobrar → facturar (Factura C) → ver en Facturación. Set lite de carnicería (pos,
   catálogo, clientes, reportes, arca, ajustes) **sin** pantallas de servicios (agenda/espera/comisiones).
-- [ ] **Empresa (enterprise):** `npm run flip:magra` a Empresa → recargar → **badge "Empresa" + home
-  analítico**; orden de compra formal a *Frigorífico El Novillo* (`/compras`) → recibir stock (`/ajustes`) →
-  ver **margen** (`/reportes`) → **todo lo de Comercio sigue estando** (invariante `enterprise ⊇ lite`).
-  *(Los módulos de deuda/inventario avanzados: ver B.1-bis — datos listos, pantalla pendiente.)*
+- [ ] **Empresa (enterprise) — producto completo:** `MAGRA_PROFILE=enterprise npm run flip:magra` → recargar
+  → **badge "Empresa" + home analítico**. Recorrer, con los datos sembrados:
+  1. **Compras** (`/compras`): orden formal a *Frigorífico El Novillo* (razón social/CUIT/N° orden).
+  2. **Inventario** (`/admin/inventario`): niveles + valuación; **Vacío y Carne picada en stock bajo**.
+  3. **Cuentas a pagar** (`/admin/cuentas-a-pagar`): la **vencida** (OVERDUE) y la del **cheque diferido** $400k.
+  4. **Cuentas a cobrar** (`/admin/cuentas-a-cobrar`): fiado con saldo + fiado light sin vencimiento.
+  5. **Devoluciones a proveedor** (`/admin/devoluciones-proveedor`): registrar una devolución → baja stock + crédito en CxP.
+  6. **Libros** (`/admin/libros`): Libro IVA de las ventas; exportar.
+  7. **Reportes** (`/reportes`): **margen por producto** (16T).
+  → **todo lo de Comercio sigue estando** (invariante `enterprise ⊇ lite`).
 - [ ] **Cambio de perfil sobre los MISMOS datos:** flipear Comercio ⇄ Empresa con `npm run flip:magra` y
   confirmar que Magra alterna la edición **sin perder ni cambiar** un dato (las ventas/fiados/compras siguen
   igual) — es la prueba viva de "crecé sin migrar".
