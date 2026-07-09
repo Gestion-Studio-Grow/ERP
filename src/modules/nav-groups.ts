@@ -270,7 +270,14 @@ export interface EnterpriseNavItem {
   cap: Capability;
   /** Descriptor de catálogo que lo gatearía por rubro; ausente = aún por definir (PO Catálogo). */
   module?: string;
-  perfilMin: "enterprise";
+  /**
+   * Perfil mínimo. Casi todos son `enterprise` (aditivos de Empresa), PERO este registro es el
+   * CANAL de nav gateado por el motor de perfiles (solo se concatena con `activeProfile != null`,
+   * i.e. `PROFILES_ENABLED` ON) — el mismo gate que evita que pantallas con tablas §C sin aplicar
+   * rendericen/crasheen en prod. Por eso CxC (fiado) vive acá con `perfilMin:"lite"`: es de
+   * Comercio+Empresa (ADR-060 D3) pero comparte la seguridad "no rendea en prod con flags OFF".
+   */
+  perfilMin: Perfil;
   grupo: NavGroupId;
   /**
    * ¿La PANTALLA/ruta de este ítem ya existe (shippeada)? REGLA DE ORO del set validado
@@ -305,11 +312,13 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     label: "Cuentas a cobrar",
     icon: "caja", // reusa el ícono de "caja" (cobrar) del set de AdminShell
     cap: "billing:manage",
-    perfilMin: "enterprise",
+    // RECONCILIADO (S5, re-gate Fase D/E): `lite` — CxC/fiado es de Comercio+Empresa
+    // (ADR-060 D3), coincide con la página (des-gateada de enterprise → capability
+    // billing:manage). Invariante `enterprise ⊇ lite` intacto (ambos lo ven). El
+    // rubro-gating fino llega con su descriptor de catálogo (`module`, PO Catálogo);
+    // hoy la barrera es la capability OWNER. CxP (J59) sí queda enterprise-only.
+    perfilMin: "lite",
     grupo: "finanzas",
-    // Shell Empresa para recorrer en preview. Al vivo su clasificación es rubro-gated /
-    // "ambos" (S1: fiado = cultura de barrio, versión light para Comercio) — se revisita
-    // cuando shippee su lógica; ver BACKLOG_SCOPE_ITEM_NAV (perfilMin "lite", defaultOff).
     ready: true,
   },
   {
