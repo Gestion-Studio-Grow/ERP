@@ -302,64 +302,87 @@ export async function createAppointment(formData: FormData) {
 // categorías con sus servicios activos + profesionales activos con box, y los
 // ids de servicios que cada uno realiza (para filtrar el paso "profesional").
 export async function getPublicBookingData() {
-  const [categories, uncategorized, professionals] = await Promise.all([
-    prisma.serviceCategory.findMany({
-      orderBy: { order: "asc" },
-      include: {
-        services: {
-          where: { active: true, deletedAt: null },
-          orderBy: { name: "asc" },
-          select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
+  // DEFENSIVO (incidente sitio público CH 2026-07-09): corre en el LAYOUT público → si
+  // lanza, cae TODO el sitio. `select` explícito en serviceCategory (NO `include`, que
+  // traería TODAS sus columnas y rompería si el schema tiene alguna que la DB del tenant
+  // aún no aplicó — schema-ahead) + try/catch con fallback vacío → nunca dispara el error
+  // boundary del cliente en vivo. Inerte con la DB migrada (staging idéntico). Reversible.
+  try {
+    const [categories, uncategorized, professionals] = await Promise.all([
+      prisma.serviceCategory.findMany({
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          name: true,
+          services: {
+            where: { active: true, deletedAt: null },
+            orderBy: { name: "asc" },
+            select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
+          },
         },
-      },
-    }),
-    prisma.service.findMany({
-      where: { active: true, deletedAt: null, categoryId: null },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
-    }),
-    prisma.professional.findMany({
-      where: { active: true, deletedAt: null, boxId: { not: null } },
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        box: { select: { name: true } },
-        services: { where: { active: true, deletedAt: null }, select: { id: true, name: true } },
-      },
-    }),
-  ]);
+      }),
+      prisma.service.findMany({
+        where: { active: true, deletedAt: null, categoryId: null },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
+      }),
+      prisma.professional.findMany({
+        where: { active: true, deletedAt: null, boxId: { not: null } },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          box: { select: { name: true } },
+          services: { where: { active: true, deletedAt: null }, select: { id: true, name: true } },
+        },
+      }),
+    ]);
 
-  const groups = categories
-    .filter((c) => c.services.length > 0)
-    .map((c) => ({ id: c.id, name: c.name, services: c.services }));
-  if (uncategorized.length > 0) {
-    groups.push({ id: "otros", name: "Otros servicios", services: uncategorized });
+    const groups = categories
+      .filter((c) => c.services.length > 0)
+      .map((c) => ({ id: c.id, name: c.name, services: c.services }));
+    if (uncategorized.length > 0) {
+      groups.push({ id: "otros", name: "Otros servicios", services: uncategorized });
+    }
+
+    return {
+      groups,
+      professionals: professionals.map((p) => ({
+        id: p.id,
+        name: p.name,
+        boxName: p.box?.name ?? null,
+        serviceIds: p.services.map((s) => s.id),
+        serviceNames: p.services.map((s) => s.name),
+      })),
+    };
+  } catch (err) {
+    logger.error("public-booking", "no se pudo cargar la vidriera (¿schema pre-migración?)", err);
+    return {
+      groups: [] as { id: string; name: string; services: { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null }[] }[],
+      professionals: [] as { id: string; name: string; boxName: string | null; serviceIds: string[]; serviceNames: string[] }[],
+    };
   }
-
-  return {
-    groups,
-    professionals: professionals.map((p) => ({
-      id: p.id,
-      name: p.name,
-      boxName: p.box?.name ?? null,
-      serviceIds: p.services.map((s) => s.id),
-      serviceNames: p.services.map((s) => s.name),
-    })),
-  };
 }
 
 // Novedades para la sección pública de la landing: las últimas cargadas en el
 // panel (últimos 30 días), de profesionales activos. Cargar la novedad ya la
 // publica acá; "Difundir" es solo el envío por WhatsApp (ver reminders-actions).
 export async function getPublicNews() {
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  return prisma.professionalNews.findMany({
-    where: { createdAt: { gte: since }, professional: { active: true, deletedAt: null } },
-    orderBy: { createdAt: "desc" },
-    take: 4,
-    include: { professional: { select: { name: true } } },
-  });
+  // DEFENSIVO (corre en el layout público): ante cualquier fallo de lectura devuelve
+  // vacío en vez de tumbar el sitio. Se mantiene el mismo shape (`include`) — no se cambia
+  // el contrato, solo se blinda. Inerte con la DB sana.
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return await prisma.professionalNews.findMany({
+      where: { createdAt: { gte: since }, professional: { active: true, deletedAt: null } },
+      orderBy: { createdAt: "desc" },
+      take: 4,
+      include: { professional: { select: { name: true } } },
+    });
+  } catch (err) {
+    logger.error("public-news", "no se pudieron cargar las novedades", err);
+    return [];
+  }
 }
 
 // Crea el turno desde el modal y DEVUELVE el turno (no redirige, a diferencia de
