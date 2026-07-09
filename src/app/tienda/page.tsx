@@ -14,7 +14,8 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { getStorefront } from "@/lib/order-actions";
-import { getTenantAccent, tenantFaviconDataUri } from "@/lib/branding";
+import { getTenantAccent, tenantFaviconDataUri, brandForSlug, resolveTenantLayout } from "@/lib/branding";
+import { tenantFidelityEnabled } from "@/lib/identity";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { getSiteReplica } from "@/tenants/site-replica";
 import Storefront from "./Storefront";
@@ -79,6 +80,12 @@ export default async function TiendaPage() {
   if (replica) {
     return <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={accent} tenantKey={tenantKey} />;
   }
+  // FIDELIDAD DE LAYOUT (RFC-004-A §3), detrás de `TENANT_FIDELITY_ENABLED` (default OFF):
+  // pasamos la estructura real del tenant (logo/banner/hero) + su logo asset. Con el flag
+  // OFF, `fidelity=false` → la vidriera renderiza el molde de hoy (byte-idéntico). El brand
+  // se resuelve por slug (misma capa que el acento); persistirlo por tenant en DB es §C.
+  const brand = brandForSlug(slug);
+  const fidelity = tenantFidelityEnabled();
   return (
     <Storefront
       name={data.name}
@@ -88,6 +95,9 @@ export default async function TiendaPage() {
       products={data.products}
       accent={accent}
       tenantKey={tenantKey}
+      layout={resolveTenantLayout(brand)}
+      logoAsset={brand.logoAsset ?? null}
+      fidelity={fidelity}
     />
   );
 }

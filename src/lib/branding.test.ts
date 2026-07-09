@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { brandForSlug, resolveAccent, invertTheme } from "./branding";
+import { brandForSlug, resolveAccent, invertTheme, resolveTenantLayout, DEFAULT_LAYOUT } from "./branding";
 
 test("brandForSlug: cada tenant real tiene su propia marca (no comparten identidad)", () => {
   const slugs = ["beauty-spa", "magra", "shinevelas", "adosmanos"];
@@ -39,4 +39,36 @@ test("resolveAccent + invertTheme: el back va en el tema opuesto al front de cad
     assert.ok(front.accent && back.accent);
     assert.notEqual(front.accent, back.accent, "el acento debería variar de tono entre front y back");
   }
+});
+
+// --- FIDELIDAD DE LAYOUT (RFC-004-A §3): romper el molde único ---
+
+test("resolveTenantLayout: Magra es logo CENTRADO, SIN banner, hero EDITORIAL (lo que pidió el dueño)", () => {
+  const magra = resolveTenantLayout(brandForSlug("magra"));
+  assert.equal(magra.logoPosition, "centered");
+  assert.equal(magra.banner, null, "el Magra real NO tiene banner");
+  assert.equal(magra.hero, "editorial");
+});
+
+test("resolveTenantLayout: los tenants NO comparten el mismo molde (se ven distintos entre sí)", () => {
+  const layouts = ["beauty-spa", "magra", "shinevelas", "adosmanos"].map((s) =>
+    resolveTenantLayout(brandForSlug(s)),
+  );
+  // Firma estructural de cada tenant = combinación logo|banner?|hero.
+  const signatures = layouts.map((l) => `${l.logoPosition}|${l.banner ? "banner" : "no"}|${l.hero}`);
+  assert.ok(new Set(signatures).size >= 3, `esperaba layouts variados, hubo: ${signatures.join(" · ")}`);
+  // CH usa banner + logo izquierda (el molde "de siempre"); Magra es su opuesto.
+  const ch = resolveTenantLayout(brandForSlug("beauty-spa"));
+  assert.equal(ch.logoPosition, "left");
+  assert.ok(ch.banner, "CH sí usa banner (su sitio real lo tiene)");
+  assert.notEqual(ch.logoPosition, resolveTenantLayout(brandForSlug("magra")).logoPosition);
+});
+
+test("resolveTenantLayout: tenant sin layout declarado cae al molde de hoy (DEFAULT_LAYOUT)", () => {
+  assert.deepEqual(resolveTenantLayout(brandForSlug(null)), DEFAULT_LAYOUT);
+  assert.deepEqual(resolveTenantLayout({ name: "X", monogram: "X", preset: "verde", frontTheme: "light" }), {
+    logoPosition: "left",
+    banner: null,
+    hero: "standard",
+  });
 });

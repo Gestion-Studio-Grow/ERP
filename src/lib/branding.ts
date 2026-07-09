@@ -38,30 +38,87 @@ export const ACCENT_PRESETS = {
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
 
+// ESTRUCTURA de la vidriera por tenant (RFC-004-A §3, "romper el molde único").
+// El Sesgo A del diagnóstico: la estructura estaba hardcodeada (mismo header/hero para
+// todos → "todas las webs salen iguales"). Estos campos declaran la IDENTIDAD DE LAYOUT
+// real de cada negocio, no un molde:
+//   - `logoPosition`: el logo va CENTRADO (marca-crest, tipo boutique: Magra, Shine) o a
+//     la IZQUIERDA con nav al lado (tipo tienda/retail clásico: A Dos Manos, CH).
+//   - `banner`: texto del anuncio superior, o `null` si el negocio NO usa banner (el Magra
+//     real no tiene banner; ponérselo era exactamente el sesgo que marcó el dueño).
+//   - `hero`: "editorial" (centrado, aire, foco en la marca) vs "standard" (a la izquierda,
+//     foco en el CTA/producto).
+// La vidriera solo los aplica con `TENANT_FIDELITY_ENABLED` ON (ver src/lib/identity.ts);
+// con el flag OFF renderiza el molde de hoy. `resolveTenantLayout` completa los defaults.
+export type LogoPosition = "centered" | "left";
+export type HeroLayout = "editorial" | "standard";
+export type TenantLayout = {
+  logoPosition: LogoPosition;
+  banner: string | null;
+  hero: HeroLayout;
+};
+
+// Default = el molde de hoy (logo a la izquierda, sin banner, hero estándar). Un tenant
+// sin `layout` declarado se ve como hasta ahora → aditivo, sin regresiones.
+export const DEFAULT_LAYOUT: TenantLayout = {
+  logoPosition: "left",
+  banner: null,
+  hero: "standard",
+};
+
 // Branding declarado por tenant. `frontTheme` es el tema de su vidriera; el back
-// se deriva con la regla. `monogram` es el logo (reemplazable por un SVG/asset
-// real más adelante; hoy monograma sobre el acento, con contraste AA garantizado
-// por el par accent/onAccent del preset).
+// se deriva con la regla. `monogram` es el logo textual de respaldo; `logoAsset` es
+// el LOGO REAL del tenant (URL/data-URI de SVG/PNG) cuando existe — la fidelidad de
+// marca pasa de "monograma sobre el acento" a "el logo del cliente". `layout` declara
+// su estructura real de vidriera (ver TenantLayout); ausente → DEFAULT_LAYOUT.
 export type TenantBrand = {
   name: string;
   monogram: string;
   preset: AccentPreset;
   frontTheme: Theme;
+  /** Logo real del tenant (URL o data-URI). Ausente → se usa el monograma sobre el acento. */
+  logoAsset?: string;
+  /** Estructura de vidriera real (parcial; se completa con DEFAULT_LAYOUT). */
+  layout?: Partial<TenantLayout>;
 };
 
 // Asignación por tenant (por slug). Cambiar el acento o el tema de un tenant es
 // una línea acá — sin tocar componentes ni tokens.
+// LAYOUT DEMO POR TENANT (RFC-004-A §3): seteado a mano para que cada vidriera se vea
+// DISTINTA entre sí y de CH — el material real entra por el preset-IA/provisioning
+// (RFC-004-B) o se persiste en DB (§C, Gate 2). Cada uno espeja la identidad real del
+// negocio, no un molde:
 const TENANTS: Record<string, TenantBrand> = {
-  // Salón: vidriera clara → admin oscuro (Nocturne). Acento petróleo de marca.
-  "beauty-spa": { name: "CH Estética", monogram: "CH", preset: "petroleo", frontTheme: "light" },
-  // Magra (carnicería): vidriera clara → admin oscuro. Acento oxblood de marca.
-  "magra": { name: "Magra", monogram: "M", preset: "oxblood", frontTheme: "light" },
-  // Shine (velas de soja): vidriera clara cálida → admin oscuro. Acento ámbar/dorado,
-  // el "shine" de una llama de vela. Ver src/tenants/storefront.ts (copy) y rubro `velas`.
-  "shinevelas": { name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light" },
-  // A Dos Manos (tienda de pádel): vidriera clara → admin oscuro. Acento verde cancha.
-  "adosmanos": { name: "A Dos Manos", monogram: "AM", preset: "verde", frontTheme: "light" },
+  // CH Estética — salón/spa: logo a la izquierda + nav, banner de anuncio (su sitio real
+  // lo usa), hero estándar. El molde "de siempre" ES, correctamente, el de CH.
+  "beauty-spa": {
+    name: "CH Estética", monogram: "CH", preset: "petroleo", frontTheme: "light",
+    layout: { logoPosition: "left", banner: "Reservá online · La Alameda, Canning", hero: "standard" },
+  },
+  // Magra — carnicería boutique premium: logo CENTRADO (crest), SIN banner, hero EDITORIAL.
+  // Exactamente lo que el dueño pidió: el Magra real es logo centrado y sin banner.
+  "magra": {
+    name: "Magra", monogram: "M", preset: "oxblood", frontTheme: "light",
+    layout: { logoPosition: "centered", banner: null, hero: "editorial" },
+  },
+  // Shine — velas & deco: boutique experiencial. Logo CENTRADO, banner de envío gratis
+  // (umbral real $25.000), hero EDITORIAL cálido. Acento ámbar (la llama).
+  "shinevelas": {
+    name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light",
+    layout: { logoPosition: "centered", banner: "Envío gratis desde $25.000 · CABA y GBA", hero: "editorial" },
+  },
+  // A Dos Manos — tienda de pádel: retail clásico. Logo a la IZQUIERDA + nav, sin banner,
+  // hero ESTÁNDAR (foco en catálogo). Acento verde cancha. Se ve "tienda", no "boutique".
+  "adosmanos": {
+    name: "A Dos Manos", monogram: "AM", preset: "verde", frontTheme: "light",
+    layout: { logoPosition: "left", banner: null, hero: "standard" },
+  },
 };
+
+// Layout completo del tenant (parcial declarado → completado con DEFAULT_LAYOUT). PURA.
+export function resolveTenantLayout(brand: TenantBrand): TenantLayout {
+  return { ...DEFAULT_LAYOUT, ...(brand.layout ?? {}) };
+}
 
 const DEFAULT_BRAND: TenantBrand = {
   name: "ERP",

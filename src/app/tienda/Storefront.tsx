@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { placeOnlineOrder } from "@/lib/order-actions";
 import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
+import type { TenantLayout } from "@/lib/branding";
 import { productGradient, productGlyph, groupBySection, linesWithStock } from "@/lib/storefront-visual";
 import { shippingCost, amountToFreeShipping } from "@/lib/storefront-shipping";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
@@ -61,6 +62,15 @@ type StorefrontProps = {
   accent: string;
   /** Slug del tenant — namespacea el WhatsApp que complete el visitante (ver WhatsAppCtaProvider). */
   tenantKey: string;
+  /**
+   * FIDELIDAD DE LAYOUT (RFC-004-A §3), detrás de `TENANT_FIDELITY_ENABLED`. Con `fidelity`
+   * ON y `layout` presente, la vidriera rompe el molde único: masthead con el logo real del
+   * tenant (centrado o a la izquierda), banner de anuncio si el negocio lo usa, y hero
+   * editorial/estándar. Con `fidelity` OFF (o sin `layout`) → molde de hoy, byte-idéntico.
+   */
+  layout?: TenantLayout;
+  logoAsset?: string | null;
+  fidelity?: boolean;
 };
 
 // El CTA de WhatsApp nunca abre a un número hardcodeado: si el tenant no tiene
@@ -81,8 +91,16 @@ function StorefrontContent({
   copy,
   products,
   accent,
+  layout,
+  logoAsset,
+  fidelity,
 }: StorefrontProps) {
   const { requestWhatsApp } = useWhatsAppCta();
+  // Fidelidad de layout: solo si el flag está ON y el tenant declaró estructura. Sin esto
+  // → molde de hoy (sin masthead ni banner, hero a la izquierda). Ver RFC-004-A §3.
+  const showFidelity = Boolean(fidelity && layout);
+  const editorial = showFidelity && layout?.hero === "editorial";
+  const centered = showFidelity && layout?.logoPosition === "centered";
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -144,11 +162,23 @@ function StorefrontContent({
 
   return (
     <div style={rootStyle}>
-      {/* ── Hero ── */}
+      {/* ── Banner de anuncio (solo si el tenant lo usa; fidelidad) ── */}
+      {showFidelity && layout?.banner && (
+        <div style={{ background: "var(--accent)", color: "var(--text-on-accent)", textAlign: "center", fontSize: 13, fontWeight: 600, letterSpacing: 0.2, padding: "8px 16px" }}>
+          {layout.banner}
+        </div>
+      )}
+
+      {/* ── Masthead (solo con fidelidad): logo REAL del tenant, centrado o a la izquierda ── */}
+      {showFidelity && (
+        <Masthead name={name} logoAsset={logoAsset} monogram={initials(name)} centered={centered} wording={wording} />
+      )}
+
+      {/* ── Hero ── (editorial = centrado; estándar = a la izquierda, molde de hoy) */}
       <header style={{ borderBottom: `1px solid ${T.line}` }}>
-        <div style={{ maxWidth: 1080, margin: "0 auto", padding: "76px 24px 56px" }}>
+        <div style={{ maxWidth: 1080, margin: "0 auto", padding: "76px 24px 56px", textAlign: editorial ? "center" : "left" }}>
           <div style={eyebrowStyle}>{eyebrow}</div>
-          <h1 style={{ fontSize: "clamp(40px, 6.5vw, 68px)", lineHeight: 1.0, letterSpacing: -1.8, fontWeight: 800, margin: "18px 0 0", maxWidth: 760 }}>
+          <h1 style={{ fontSize: "clamp(40px, 6.5vw, 68px)", lineHeight: 1.0, letterSpacing: -1.8, fontWeight: 800, margin: editorial ? "18px auto 0" : "18px 0 0", maxWidth: 760 }}>
             {tagline}
           </h1>
           {copy?.pitch && (
@@ -156,9 +186,9 @@ function StorefrontContent({
               {copy.pitch}
             </div>
           )}
-          <div style={{ width: 48, height: 3, background: "var(--accent)", margin: "24px 0 22px" }} />
-          {intro && <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 620 }}>{intro}</p>}
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
+          <div style={{ width: 48, height: 3, background: "var(--accent)", margin: editorial ? "24px auto 22px" : "24px 0 22px" }} />
+          {intro && <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 620, marginLeft: editorial ? "auto" : undefined, marginRight: editorial ? "auto" : undefined }}>{intro}</p>}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28, justifyContent: editorial ? "center" : "flex-start" }}>
             <a href="#seleccion" style={cta("var(--accent)", "var(--text-on-accent)")}>{wording.orderCta}</a>
             <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={cta("#fff", "#128C4B", "1px solid #25D366")}>
               Pedir por WhatsApp
@@ -439,6 +469,86 @@ function StorefrontContent({
       </footer>
     </div>
   );
+}
+
+// --- Masthead (fidelidad de layout, RFC-004-A §3) ---
+// El logo REAL del tenant (asset si existe; si no, un crest con las iniciales sobre el
+// acento) + el wordmark. CENTRADO (boutique: Magra, Shine) o a la IZQUIERDA con nav
+// (retail: A Dos Manos, CH). Es lo que hace que dos tenants NO se vean iguales.
+function Masthead({
+  name,
+  logoAsset,
+  monogram,
+  centered,
+  wording,
+}: {
+  name: string;
+  logoAsset?: string | null;
+  monogram: string;
+  centered: boolean;
+  wording: RetailWording;
+}) {
+  const mark = logoAsset ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={logoAsset} alt={name} style={{ height: centered ? 52 : 34, width: "auto", objectFit: "contain" }} />
+  ) : (
+    <span
+      aria-hidden
+      style={{
+        display: "grid",
+        placeItems: "center",
+        width: centered ? 52 : 34,
+        height: centered ? 52 : 34,
+        borderRadius: centered ? 999 : 9,
+        border: centered ? "1.5px solid var(--accent)" : "none",
+        background: centered ? "transparent" : "var(--accent)",
+        color: centered ? "var(--accent)" : "var(--text-on-accent)",
+        fontFamily: "var(--font-display), Georgia, serif",
+        fontWeight: 700,
+        fontSize: centered ? 22 : 15,
+        letterSpacing: 0.5,
+      }}
+    >
+      {monogram}
+    </span>
+  );
+
+  const wordmark = (
+    <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontWeight: 700, fontSize: centered ? 20 : 18, letterSpacing: centered ? 4 : 0.2, textTransform: centered ? "uppercase" : "none", color: T.ink }}>
+      {name}
+    </span>
+  );
+
+  if (centered) {
+    return (
+      <div style={{ borderBottom: `1px solid ${T.line}`, background: T.surface }}>
+        <div style={{ maxWidth: 1080, margin: "0 auto", padding: "22px 24px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          {mark}
+          {wordmark}
+        </div>
+      </div>
+    );
+  }
+  // Izquierda + nav (retail clásico).
+  return (
+    <div style={{ borderBottom: `1px solid ${T.line}`, background: T.surface }}>
+      <div style={{ maxWidth: 1080, margin: "0 auto", padding: "14px 24px", display: "flex", alignItems: "center", gap: 12 }}>
+        {mark}
+        {wordmark}
+        <nav style={{ marginLeft: "auto", display: "flex", gap: 20, fontSize: 13.5, color: T.muted, fontWeight: 600 }}>
+          <a href="#seleccion" style={{ color: "inherit", textDecoration: "none" }}>{wording.catalogHeading}</a>
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+// Iniciales de respaldo cuando no hay logo asset ("A Dos Manos" → "AM", "Magra" → "M").
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "•";
+  if (words.length === 1) return words[0].slice(0, 1).toUpperCase();
+  return words.map((w) => w[0]).join("").slice(0, 3).toUpperCase();
 }
 
 // --- subcomponentes / estilos ---

@@ -10,14 +10,41 @@
 // DEFAULT OFF: con `GSG_IDENTITY_ENABLED` apagado, el layout no setea el atributo →
 // tokens actuales intactos → byte-idéntico. Aditivo/reversible: encender el flag (o
 // revertir) alterna la identidad sin tocar el mecanismo de accent/tema que ya funciona.
+//
+// NOTA de lane: estos flags de IDENTIDAD/BRANDING viven acá (lib, lane de Diseño), NO en
+// `src/modules/flags.ts` (candados/perfiles, lane S3). Mismo parseo booleano, distinto dueño.
+
+/** Parseo booleano compartido (env string → boolean). PURA. Espeja el de src/modules/flags.ts. */
+function truthy(v: string | undefined): boolean {
+  const n = v?.trim().toLowerCase();
+  return n === "1" || n === "true" || n === "on" || n === "yes";
+}
 
 /** ¿Está encendida la identidad de producto GSG? Default OFF. PURA (env inyectable). */
 export function gsgIdentityEnabled(env: Record<string, string | undefined> = process.env): boolean {
-  const v = env.GSG_IDENTITY_ENABLED?.trim().toLowerCase();
-  return v === "1" || v === "true" || v === "on" || v === "yes";
+  return truthy(env.GSG_IDENTITY_ENABLED);
 }
 
 /** Valor de `data-identity` para el layout: "gsg" si el flag está ON, si no `undefined` (sin atributo). PURA. */
 export function identityAttr(enabled: boolean): "gsg" | undefined {
   return enabled ? "gsg" : undefined;
+}
+
+// ============================================================================
+// FIDELIDAD POR TENANT (RFC-004-A §3 / RFC-004-B) — romper el "molde único".
+// ============================================================================
+//
+// Sesgo A (RFC-004 §1): la ESTRUCTURA de la vidriera está hardcodeada (mismo header/hero
+// para todos), así que "todas las webs salen iguales". Este flag habilita que cada tenant
+// use SU layout real (posición del logo, banner sí/no, hero editorial/estándar) + su logo
+// asset — declarado en branding.ts (`TenantBrand.layout` / `logoAsset`).
+//
+// DEFAULT OFF: con `TENANT_FIDELITY_ENABLED` apagado, la vidriera renderiza el molde de
+// hoy (sin masthead ni banner, hero a la izquierda) → byte-idéntico. Ortogonal al flag de
+// identidad GSG (uno es el chrome del backoffice; el otro, la vidriera pública del tenant):
+// se pueden prender por separado. Reversible/aditivo.
+
+/** ¿Cada tenant usa su layout/logo reales en la vidriera (en vez del molde único)? Default OFF. PURA. */
+export function tenantFidelityEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return truthy(env.TENANT_FIDELITY_ENABLED);
 }
