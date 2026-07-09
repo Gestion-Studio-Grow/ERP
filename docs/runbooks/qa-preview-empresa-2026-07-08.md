@@ -14,6 +14,31 @@
 
 ## PARTE A — Montar el PREVIEW real (aislado, $0, sin tocar prod)
 
+### 🔘 EL BOTÓN — Magra lista en preview en 6 pasos (los ejecuta el DUEÑO; el agente NO toca DB/deploy)
+> Todo contra una **Neon dev branch de QA** (NUNCA prod). Requiere la cuenta del dueño (secretos + Vercel).
+```bash
+# 1. Neon → crear dev branch "qa-empresa" desde main y copiar su connection string.
+export QA_DB="postgres://…qa-empresa…"          # ← debe tener 'dev'/'qa'/'preview' en la URL (baranda del seed)
+
+# 2. Aplicar TODA la cola de migraciones a la dev branch (incl. Supplier/Collection/AccountPayable/
+#    AccountReceivable/DEVOLUCION_PROVEEDOR). Es dev → seguro.
+DATABASE_URL="$QA_DB" npx prisma migrate deploy
+
+# 3. Re-ejecutar RLS (data-driven) para que las TABLAS NUEVAS reciban su policy.
+DATABASE_URL="$QA_DB" psql "$QA_DB" -f prisma/rls/0001_enable_rls.sql   # o el runner de RLS del repo
+
+# 4. Sembrar Magra (idempotente; nace como Comercio).
+DATABASE_URL="$QA_DB" npm run seed:magra
+
+# 5. En Vercel (scope PREVIEW): setear las env vars de §A.2 (DATABASE_URL=$QA_DB, PROFILES_ENABLED=on,
+#    NAV_GROUPING_ENABLED=on, TENANT_HOST_MAP=<host>=magra-demo, secretos de QA) y disparar el Preview
+#    (push de la rama o `vercel` sin --prod). Abrir la Preview URL y entrar a magra-demo.
+
+# 6. Para QA de Empresa (mismos datos): flipear el perfil y recargar.
+DATABASE_URL="$QA_DB" MAGRA_PROFILE=enterprise npm run flip:magra   # ...y `MAGRA_PROFILE=lite` para volver
+```
+> **Nada de esto toca prod, ni gasta plan pago de Neon** (dev branch es gratis en Hobby). Al terminar: §A.4.
+
 ### A.0 Principio
 Un **Vercel Preview** es un deploy efímero por rama/commit, con su **propio set de Environment Variables**
 (scope *Preview*, separado de *Production*). Lo apuntamos a una **Neon dev branch** (copia aislada, gratis en
@@ -28,13 +53,37 @@ Hobby) donde SÍ podemos migrar y sembrar. Así el QA es real **y** prod queda c
    ```
    Esto aplica toda la cola pendiente **en dev** (incluida `add_tenant_profile` y el Decimal de facturas) —
    sin riesgo, son datos de dev. *(En prod esa cola sigue FRENADA hasta la decisión A/B del dueño; acá no.)*
-4. **Sembrar datos de QA** en la dev branch:
+4. **Sembrar datos de QA** en la dev branch — **el ejemplo elegido por el dueño es MAGRA** (carnicería /
+   mostrador), que sirve para QA de **AMBOS perfiles sobre los mismos datos**:
    ```
-   DATABASE_URL="<dev-branch-url>" npx tsx prisma/seed.ts                 # tenant(s) base (Comercio/lite)
-   DATABASE_URL="<dev-branch-url>" npx tsx prisma/seed-demo-empresa.ts    # tenant demo Empresa (profile=enterprise)
+   DATABASE_URL="<dev-branch-url>" npm run seed:magra     # = tsx prisma/seed-magra.ts → tenant "magra-demo" (Comercio por default)
    ```
-   Deja **≥2 tenants**: uno **Comercio** (`profile=lite`) y el **demo Empresa** (`profile=enterprise`) para
-   QA de ambos perfiles.
+   Siembra idempotente (re-correr = resetear la demo, no toca otros tenants). Deja el tenant **`magra-demo`**
+   con los datos del §A.1-bis. Nace como **Comercio** (`profile=lite`).
+   > *(El `seed-demo-empresa.ts` genérico sigue disponible, pero para esta ola el tenant de recorrido es
+   > **Magra**, por decisión del dueño.)*
+5. **Flipear el perfil para QA de Empresa** (SIN perder los datos sembrados):
+   ```
+   DATABASE_URL="<dev-branch-url>" npm run flip:magra                         # alterna Comercio ⇄ Empresa
+   DATABASE_URL="<dev-branch-url>" MAGRA_PROFILE=enterprise npm run flip:magra # fija Empresa
+   DATABASE_URL="<dev-branch-url>" MAGRA_PROFILE=lite       npm run flip:magra # fija Comercio
+   ```
+   El flip solo cambia `Tenant.profile` (no re-siembra) → se alterna cuantas veces haga falta durante el QA.
+
+### A.1-bis · Qué queda sembrado en `magra-demo` (datos ficticios, banda "DEMO")
+- **8 productos** (cortes por kg, con precio Y costo → habilitan margen y valuación de inventario). **2 con
+  STOCK BAJO** a propósito: **Vacío** (2 kg ≤ umbral 6) y **Carne picada especial** (3 kg ≤ umbral 10) →
+  el inventario debe marcarlos como faltante.
+- **2 proveedores:** *Frigorífico El Novillo SA* y *Distribuidora Sur SRL* (con CUIT).
+- **2 compras** con ítems y costo (alimentan la valuación y las cuentas a pagar).
+- **2 ventas:** un mostrador **pagado** (efectivo) y un pedido a *Rotisería La Esquina* con **cobro parcial**
+  (seña de $50.000, saldo pendiente).
+- **2 cuentas a pagar:** una de **$815.000 con un CHEQUE DIFERIDO** de $400.000 (banco Nación, vence en ~20
+  días, estado *entregado/DELIVERED*, aún sin acreditar) y una **VENCIDA** de $319.500 (venció hace 3 días,
+  con un pago parcial de $100.000 → saldo $219.500, aging **OVERDUE**).
+- **2 fiados (cuentas a cobrar):** uno de *Rotisería La Esquina* ($115.000, con cobro parcial de $40.000, con
+  vencimiento) y uno **light** de *Vecina — María G.* ($8.500, **sin vencimiento** → aging NO_DUE_DATE,
+  perfil Comercio).
 
 ### A.2 Environment Variables del preview (Vercel → Settings → Env Vars → scope **Preview**)
 Mismos nombres que prod (`.env.vercel.template`), con estos valores/diferencias para QA:
@@ -45,7 +94,7 @@ Mismos nombres que prod (`.env.vercel.template`), con estos valores/diferencias 
 | `OPERATOR_DATABASE_URL` | dev branch (rol owner) | operador cross-tenant en dev |
 | `AUTH_SECRET` / `OPERATOR_SECRET` / `OPERATOR_PASSWORD` | valores de QA (no los de prod) | secretos los pega el dueño |
 | `RLS_ENFORCEMENT` | `on` | QA con el mismo candado que prod |
-| `TENANT_HOST_MAP` | `<preview-host>=<comercio-slug>;<preview-host-2>=demo-empresa` | mapear los hosts del preview a los tenants |
+| `TENANT_HOST_MAP` | `<preview-host>=magra-demo` | un solo tenant (Magra) sirve AMBOS perfiles vía flip (§A.1 paso 5) |
 | **`PROFILES_ENABLED`** | **`on`** | 🔑 enciende el perfil (Comercio/Empresa) para QA |
 | **`NAV_GROUPING_ENABLED`** | **`on`** | 🔑 enciende la nav agrupada de 5 grupos |
 | `UPGRADE_TEASER_ENABLED` | **off** | D3: candados nunca por default, ni en QA salvo que se pruebe explícito |
@@ -108,10 +157,42 @@ deployment de preview. Cero costo, cero rastro en prod.
 | **Localización `/admin/localizacion`** | datos del negocio; CBU/alias (BFA absorbido acá) | ambos |
 | **Módulos `/admin/modulos`** | OWNER prende/apaga módulos; el cambio se refleja en la nav | ambos |
 
+**Chequeos específicos con los datos de Magra (§A.1-bis):**
+- **Reportes → margen (16T):** el margen se calcula sobre los 8 cortes (precio − costo); *Carne picada* y
+  *Pollo* dejan menos margen % que *Lomo* — ordenar y verificar.
+- **Compras:** las 2 compras aparecen con su proveedor (*Frigorífico El Novillo* / *Distribuidora Sur*).
+- **Caja/Pedidos:** el pedido pagado en efectivo movió caja; el pedido de *Rotisería* quedó con saldo.
+
+### B.1-bis · Módulos avanzados de Empresa — estado REAL (backend listo, pantalla pendiente)
+> **Honestidad de alcance:** la **capa de datos y los loaders/servicios** de estos módulos están construidos
+> y con datos sembrados en Magra, pero **sus pantallas `/admin/*` todavía NO existen** (otro carril) → sus
+> ítems de nav están **`ready:false` y NO se renderizan** (regla anti-dead-end). Por eso, **en este preview
+> el QA de Empresa NO puede navegarlos por la UI todavía**. Qué SÍ se puede verificar hoy:
+
+| Módulo (D#) | Estado UI | Qué QA puede verificar hoy | Dato sembrado en Magra |
+|---|---|---|---|
+| **Cuentas a pagar `/admin/cuentas-a-pagar`** (D2) | 🔨 pantalla pendiente (`ready:false`) | datos + loaders (`listPayables`/`getPayableDetail`): saldo, **aging OVERDUE**, **cheque diferido** | 1 vencida ($219.500 saldo) + 1 con cheque diferido $400.000 |
+| **Cuentas a cobrar `/admin/cuentas-a-cobrar`** (D3) | 🔨 pendiente | `listReceivables`/`getReceivableDetail`: saldo, aging, historial de cobros | fiado $75.000 saldo + fiado light $8.500 |
+| **Libros / Exportar al contador `/admin/libros`** (D7) | 🔨 pendiente | (export deriva de facturas/ventas) | ventas + (facturación si se prueba) |
+| **Devoluciones a proveedor `/admin/devoluciones-proveedor`** (D4) | 🔨 pendiente | `recordSupplierReturn` (stock + crédito en CxP), `listSupplierReturns` | — (se genera al probar el servicio) |
+| **Inventario `/admin/inventario`** (D5) | 🔨 pendiente | `getInventoryValuation`: niveles + valuación + **stock bajo** | 8 productos, **2 en faltante** (Vacío, Carne picada) |
+
+**Cuando esas pantallas landeen** (otra ola), se cambia su `ready:true` y este QA se completa por UI con
+estos mismos datos. Hasta entonces, el QA de Empresa cubre: **flip de perfil** (badge "Empresa" + home
+analítico), **profundización de Compras/Reportes** (que sí tienen pantalla), y la **verificación de datos**
+de arriba (por los loaders / el Gate revisa el backend).
+
 ### B.2 Recorridos end-to-end (viaje de usuario, no solo "carga")
-- [ ] **Comercio (lite):** entrar → vender en mostrador (`/pedidos`+`/caja`) → cobrar → facturar (Factura C) → ver en Facturación. Sin pantallas que no usa.
-- [ ] **Empresa (enterprise):** entrar → orden de compra formal a proveedor (`/compras`) → recibir stock (`/ajustes`) → ver margen (`/reportes`) → todo lo de Comercio **sigue estando**.
-- [ ] **Cambio de perfil (demo):** el tenant demo Empresa muestra edición "Empresa"; un tenant lite muestra "Comercio" — sin que el lite pierda nada.
+- [ ] **Comercio (lite):** entrar a `magra-demo` (perfil Comercio) → vender un corte en mostrador
+  (`/pedidos`+`/caja`) → cobrar → facturar (Factura C) → ver en Facturación. Set lite de carnicería (pos,
+  catálogo, clientes, reportes, arca, ajustes) **sin** pantallas de servicios (agenda/espera/comisiones).
+- [ ] **Empresa (enterprise):** `npm run flip:magra` a Empresa → recargar → **badge "Empresa" + home
+  analítico**; orden de compra formal a *Frigorífico El Novillo* (`/compras`) → recibir stock (`/ajustes`) →
+  ver **margen** (`/reportes`) → **todo lo de Comercio sigue estando** (invariante `enterprise ⊇ lite`).
+  *(Los módulos de deuda/inventario avanzados: ver B.1-bis — datos listos, pantalla pendiente.)*
+- [ ] **Cambio de perfil sobre los MISMOS datos:** flipear Comercio ⇄ Empresa con `npm run flip:magra` y
+  confirmar que Magra alterna la edición **sin perder ni cambiar** un dato (las ventas/fiados/compras siguen
+  igual) — es la prueba viva de "crecé sin migrar".
 
 ---
 
