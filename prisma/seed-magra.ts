@@ -27,12 +27,17 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { hashPassword } from "../src/lib/auth-password";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 const SLUG = "magra-demo";
 const ACTOR = "system:seed";
+// Usuario OWNER para poder ENTRAR al backoffice en el preview (un tenant sin usuario no es
+// operable). Credenciales de DEMO, conocidas, SOLO para la dev branch de QA.
+const OWNER_EMAIL = "dueno@magra-demo.test";
+const OWNER_PASSWORD = "magra1234";
 const PROFILE = process.env.MAGRA_PROFILE === "enterprise" ? "enterprise" : "lite";
 
 // Fechas relativas para el aging (calculadas al correr el seed — es un script, no un workflow).
@@ -88,6 +93,7 @@ async function main() {
   await prisma.product.deleteMany({ where: { tenantId } });
   await prisma.supplier.deleteMany({ where: { tenantId } });
   await prisma.client.deleteMany({ where: { tenantId } });
+  await prisma.user.deleteMany({ where: { tenantId } });
   await prisma.businessSettings.deleteMany({ where: { tenantId } });
 
   // 3) Localización / branding (banda "demo" la da el nombre + status TRIAL).
@@ -158,11 +164,26 @@ async function main() {
     },
   });
 
-  // 7) Clientes (2).
+  // 7) Usuario OWNER para entrar al backoffice (credenciales de DEMO, solo dev branch).
+  await prisma.user.create({
+    data: {
+      tenantId,
+      name: "Dueña — Magra DEMO",
+      email: OWNER_EMAIL,
+      passwordHash: await hashPassword(OWNER_PASSWORD),
+      role: "OWNER",
+      active: true,
+    },
+  });
+
+  // 8) Clientes (2).
   const cliente1 = await prisma.client.create({ data: { tenantId, name: "Rotisería La Esquina", phone: "11-5000-1111" } });
   const cliente2 = await prisma.client.create({ data: { tenantId, name: "Vecina — María G.", phone: "11-5000-2222" } });
 
-  // 8) Ventas / pedidos (2), una pagada, una con cobro parcial.
+  // 8) Ventas / pedidos (2): una pagada al contado, otra vendida EN CUENTA CORRIENTE
+  //    (fiado). La deuda del pedido a cuenta se modela UNA sola vez —como cuenta a cobrar
+  //    (`fiado1`, abajo)— y NO como cobro parcial del pedido: así la misma venta no se
+  //    cuenta dos veces (pedido impago + fiado con saldos distintos). ADR-060 D3.
   const pedido1 = await prisma.order.create({
     data: {
       tenantId, code: 1, status: "DELIVERED", channel: "COUNTER", fulfillment: "PICKUP",
@@ -179,10 +200,8 @@ async function main() {
       items: { create: [{ tenantId, name: "Asado de tira", saleUnit: "WEIGHT", quantity: 10, unitPrice: 11500, lineTotal: 115000 }] },
     },
   });
-  // Cobro PARCIAL del pedido2 vía Collection (deja saldo pendiente).
-  await prisma.collection.create({
-    data: { tenantId, originType: "ORDER", originId: pedido2.id, orderId: pedido2.id, amount: 50000, method: "TRANSFERENCIA", note: "Seña", collectedBy: ACTOR },
-  });
+  // pedido2 se vende en cuenta corriente (fiado): NO se registra cobro a nivel pedido.
+  // Su deuda + cobros parciales viven UNA sola vez en la cuenta a cobrar `fiado1` (abajo).
 
   // 9) Cuentas a PAGAR (2): una con cheque diferido, una vencida.
   const payable1 = await prisma.accountPayable.create({
@@ -230,6 +249,7 @@ async function main() {
     `✔ Magra DEMO sembrada: slug="${tenant.slug}" profile="${tenant.profile}" (id=${tenantId})\n` +
       `  ${products.length} productos (2 con stock bajo) · 2 proveedores · 2 compras · 2 ventas ` +
       `· 2 cuentas a pagar (1 con cheque diferido, 1 vencida) · 2 fiados (1 con cobro parcial).\n` +
+      `  👤 Login backoffice → email: ${OWNER_EMAIL} · contraseña: ${OWNER_PASSWORD} (rol OWNER, DEMO).\n` +
       `  Entrá por el slug "${SLUG}" en el preview. Perfil actual: ${PROFILE === "enterprise" ? "Empresa" : "Comercio"}.`,
   );
 }
