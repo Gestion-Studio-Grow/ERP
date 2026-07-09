@@ -9,7 +9,7 @@
 
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
-import type { $Enums } from "@/generated/prisma/client";
+import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
 import { recordCollection } from "@/lib/settlement/collection-repo";
 import { canTransitionCheque, type ChequeStatus } from "./cheque";
@@ -107,10 +107,17 @@ export async function transitionCheque(
         throw new Error(`Transición de cheque inválida: ${cheque.status} → ${to}.`);
       }
 
-      await tx.payableCheque.updateMany({
-        where: { id: chequeId, tenantId },
+      // 🔒 Compare-and-set: solo transiciona si el cheque SIGUE en el estado que leímos. Un
+      // doble-click / dos requests concurrentes ven el mismo `from`; solo UNO matchea el
+      // `where status` y afecta 1 fila → el otro afecta 0 y aborta. Así el asiento de pago
+      // (Collection) se crea UNA sola vez, nunca dos por el mismo cheque acreditado.
+      const res = await tx.payableCheque.updateMany({
+        where: { id: chequeId, tenantId, status: cheque.status },
         data: { status: to },
       });
+      if (res.count === 0) {
+        throw new Error("El cheque cambió de estado (operación concurrente); reintentá.");
+      }
 
       // Acreditó → pagó de verdad: asentar el Collection(PAYABLE) por el monto del cheque.
       if (to === "CLEARED") {
@@ -127,7 +134,10 @@ export async function transitionCheque(
         });
       }
     },
-    { tenantId },
+    // 🔒 SERIALIZABLE (fix del Gate de dinero): además del compare-and-set, la transacción
+    // serializa el asiento del Collection contra cobros concurrentes de la MISMA deuda;
+    // `tenantTransaction` reintenta ante conflicto de serialización.
+    { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
 

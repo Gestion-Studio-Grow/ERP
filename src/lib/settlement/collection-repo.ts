@@ -17,7 +17,7 @@
 
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
-import type { $Enums } from "@/generated/prisma/client";
+import { Prisma, type $Enums } from "@/generated/prisma/client";
 import {
   computeSettlement,
   validateNewCollection,
@@ -114,7 +114,13 @@ export async function recordCollection(
 
       return { collectionId: created.id, amount: v.amount, settlement: nuevo };
     },
-    { tenantId },
+    // 🔒 SERIALIZABLE (fix del Gate de dinero): la guarda "leer saldo → validar → insertar"
+    // es correcta en secuencia pero la DERROTA la concurrencia — dos cobros/pagos simultáneos
+    // (o un doble-click) leen el MISMO saldo, ambos validan y ambos insertan → SOBRE-COBRO
+    // (OVERPAID). Con Serializable, la segunda transacción entra en conflicto de serialización
+    // al commit; `tenantTransaction` la REINTENTA (maxRetries auto en Serializable), re-lee el
+    // saldo ya actualizado y rechaza el excedente. Uno gana, el otro se rechaza; nunca OVERPAID.
+    { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
 
