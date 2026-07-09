@@ -4,7 +4,10 @@ import { cn } from "./cn";
 // capa semántica (contraste AA). Unifica los múltiples chips de estado inline
 // del backoffice (confirmado / pendiente / cancelado, etc.).
 
-type Tone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
+// Exportado como BadgeTone: single source of verdad de los tonos disponibles
+// para cualquier otro primitivo que arme un Badge (ej. data-table-columns.tsx).
+export type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
+type Tone = BadgeTone;
 
 const tones: Record<Tone, string> = {
   neutral: "bg-ch-linen/70 text-muted",
