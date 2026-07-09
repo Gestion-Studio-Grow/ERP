@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk } from "next/font/google";
 import { getTenantBrand, resolveAccent, tenantFaviconDataUri } from "@/lib/branding";
+import { gsgIdentityEnabled, identityAttr } from "@/lib/identity";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -54,9 +55,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // IDENTIDAD DE PRODUCTO GSG (RFC-004), detrás de `GSG_IDENTITY_ENABLED` (default OFF):
+  // con el flag ON, `data-identity="gsg"` activa la base neutra propia de GSG (globals.css)
+  // — el color de marca sigue siendo del tenant (el acento, que inyecta cada layout). Con el
+  // flag OFF → sin atributo → tokens actuales (paleta CH) intactos → byte-idéntico a hoy.
+  const identity = identityAttr(gsgIdentityEnabled());
+
   return (
     <html
       lang="es"
+      data-identity={identity}
       className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${fraunces.variable} ${hanken.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

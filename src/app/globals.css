@@ -125,6 +125,66 @@
   --density: 1.32;
 }
 
+/* ═════════ IDENTIDAD DE PRODUCTO GSG (RFC-004) — base neutra PROPIA ═════════
+   El "look base" de arriba (:root) es la paleta NOCTURNE de CH (RFC-004 §1 L1):
+   el producto heredó la marca de un salón de estética. Esta capa introduce la
+   IDENTIDAD de GSG: un neutro "papel técnico" (frío-tibio, enterprise-creíble)
+   que NO es el hueso cálido de CH — el color de marca sigue siendo del tenant
+   (el `--accent`, que NO se toca acá; C-004 / ADR-059 D5). Bordes/sombras más
+   crispados = carácter "SAP argentinizado" vs. el "spa suave" de CH.
+   DETRÁS DE FLAG: el layout pone `data-identity="gsg"` solo con
+   `GSG_IDENTITY_ENABLED` ON; sin ese wiring este selector nunca matchea →
+   cero impacto → byte-idéntico. Aditivo/reversible. Solo redefine tokens
+   SEMÁNTICOS neutros; el acento del tenant se monta encima intacto. */
+[data-identity="gsg"] {
+  /* Superficies — papel técnico frío-tibio (NO el marfil #f6f3ec de CH). */
+  --surface-sunken: #ececea;
+  --surface: #f5f5f2;
+  --surface-raised: #ffffff;
+  --surface-inverted: #17181a;
+
+  /* Texto — tinta NEUTRA (no el marrón cálido de CH). */
+  --text-strong: #17181a;
+  --text: #35363a;
+  --text-muted: #6a6b70;
+  --text-faint: #9c9da3;
+
+  /* Líneas — hairline neutro, más marcado (disciplina data-first). */
+  --line: #e2e2df;
+  --line-strong: #c8c8c4;
+
+  /* Bordes más crispados = carácter técnico/enterprise (vs. el redondeo spa de CH). */
+  --radius-sm: 0.25rem;
+  --radius: 0.4375rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1.125rem;
+
+  /* Sombras planas/limativas = "flat enterprise" (vs. las cálidas suaves de CH). */
+  --shadow-xs: 0 1px 0 rgba(23, 24, 26, 0.05);
+  --shadow-sm: 0 1px 2px rgba(23, 24, 26, 0.07);
+  --shadow-md: 0 2px 8px rgba(23, 24, 26, 0.08);
+  --shadow-lg: 0 8px 24px rgba(23, 24, 26, 0.12);
+}
+
+/* GSG en OSCURO — "sala de control" grafito neutro (Empresa/analítico). Va con
+   MÁS specificity que `[data-theme="dark"]` (que el layout pone en un div anidado),
+   así la identidad GSG gana sobre la Nocturne oscura de CH cuando ambas aplican. */
+[data-identity="gsg"] [data-theme="dark"],
+[data-identity="gsg"][data-theme="dark"] {
+  --surface-sunken: #101113;
+  --surface: #17181a;
+  --surface-raised: #212327;
+  --surface-inverted: #f2f3f4;
+
+  --text-strong: #f2f3f4;
+  --text: #cbccd0;
+  --text-muted: #8d8e94;
+  --text-faint: #616268;
+
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+}
+
 /* ═════════ TEMA OSCURO — Nocturne ═════════
    Se activa con `data-theme="dark"` en un contenedor (el layout lo pone según
    la REGLA front/back de branding.ts). Solo redefine los tokens semánticos;
