@@ -152,7 +152,7 @@ test("BACKLOG_SCOPE_ITEM_NAV: fiado y stock son 'ambos' (lite), no enterprise-on
   assert.equal(byHref["/admin/libros"].perfilMin, "enterprise");
 });
 
-test("ENTERPRISE_NAV_ITEMS: 5 shells (4 enterprise + CxC lite reconciliado), ready, grupos válidos, hrefs propios", () => {
+test("ENTERPRISE_NAV_ITEMS: 5 shells (3 enterprise + CxC/Inventario lite reconciliados), ready, grupos válidos, hrefs propios", () => {
   const baseHrefs = new Set(Object.keys(NAV_ITEM_GROUPS));
   assert.equal(ENTERPRISE_NAV_ITEMS.length, 5);
   for (const it of ENTERPRISE_NAV_ITEMS) {
@@ -164,11 +164,14 @@ test("ENTERPRISE_NAV_ITEMS: 5 shells (4 enterprise + CxC lite reconciliado), rea
     // Naming al cliente: la etiqueta NO filtra la palabra de ingeniería (ADR-059 D7).
     assert.ok(!/enterprise|lite/i.test(it.label), `label "${it.label}" filtra lite/enterprise`);
   }
-  // Reconciliación S5 (re-gate D/E): CxC/fiado es `lite` (Comercio+Empresa, ADR-060 D3),
-  // coincide con su página des-gateada; los otros 4 son enterprise-only (CxP incluido).
+  // Reconciliación S5 (Gate final): CxC/fiado (D3) e Inventario/valuación (D5) son `lite`
+  // (Comercio+Empresa), coinciden con sus páginas re-gateadas; los otros 3 son
+  // enterprise-only (CxP, Libros, Devoluciones).
   const byHref = Object.fromEntries(ENTERPRISE_NAV_ITEMS.map((i) => [i.href, i]));
-  assert.equal(byHref["/admin/cuentas-a-cobrar"].perfilMin, "lite");
-  for (const h of ["/admin/cuentas-a-pagar", "/admin/libros", "/admin/inventario", "/admin/devoluciones-proveedor"]) {
+  for (const h of ["/admin/cuentas-a-cobrar", "/admin/inventario"]) {
+    assert.equal(byHref[h].perfilMin, "lite", `${h} debe ser lite (Comercio+Empresa)`);
+  }
+  for (const h of ["/admin/cuentas-a-pagar", "/admin/libros", "/admin/devoluciones-proveedor"]) {
     assert.equal(byHref[h].perfilMin, "enterprise", `${h} debe ser enterprise-only`);
   }
 });
@@ -228,7 +231,7 @@ test("ENTERPRISE_NAV_ITEMS: cada shell 'ready' tiene su page.tsx en disco (anti 
   }
 });
 
-test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — OWNER Empresa los 5; Comercio solo CxC (lite); RECEPTION/motor-OFF ninguno", () => {
+test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — OWNER Empresa los 5; Comercio CxC+Inventario (lite); RECEPTION/motor-OFF ninguno", () => {
   // Espeja la lógica de AdminShell: candidatos = base + los Empresa `ready`; luego
   // visibleNavItems (rol × módulo × perfil).
   const shellMerge = (role: "OWNER" | "RECEPTION", profile: "lite" | "enterprise" | null) =>
@@ -252,9 +255,10 @@ test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — OWNER Empresa los 5;
 
   // OWNER Comercio: ve SOLO CxC (lite, reconciliado); NO los 4 enterprise-only.
   const ownerLite = shellMerge("OWNER", "lite");
-  assert.ok(ownerLite.some((i) => i.href === "/admin/cuentas-a-cobrar"), "Comercio ve CxC (fiado, lite)");
-  const entOnly = entHrefs.filter((h) => h !== "/admin/cuentas-a-cobrar");
-  assert.ok(!entOnly.some((h) => ownerLite.some((i) => i.href === h)), "Comercio NO ve los 4 enterprise-only");
+  const liteItems = ["/admin/cuentas-a-cobrar", "/admin/inventario"];
+  for (const h of liteItems) assert.ok(ownerLite.some((i) => i.href === h), `Comercio ve ${h} (lite)`);
+  const entOnly = entHrefs.filter((h) => !liteItems.includes(h));
+  assert.ok(!entOnly.some((h) => ownerLite.some((i) => i.href === h)), "Comercio NO ve los 3 enterprise-only");
 
   // Motor OFF (profile null): ninguno + nav idéntica al piso.
   const ownerOff = shellMerge("OWNER", null);

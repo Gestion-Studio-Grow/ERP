@@ -338,11 +338,12 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     label: "Inventario",
     icon: "modulos", // reusa el ícono de cajas ("modulos") del set de AdminShell
     cap: "catalog:manage",
-    perfilMin: "enterprise",
+    // RECONCILIADO (S5, Gate final): `lite` — inventario/valuación (D5) aplica a TODO
+    // Comercio con stock (rubro-gated), coincide con su página re-gateada. Sigue en el
+    // canal PROFILES_ENABLED (no rendea en prod con flags OFF). Invariante enterprise ⊇
+    // lite intacto (ambos lo ven). El rubro-gating fino llega con su descriptor (module).
+    perfilMin: "lite",
     grupo: "inventario-y-compras",
-    // Shell Empresa para recorrer. Al vivo es rubro-gated (S1: aplica también a Comercio
-    // con stock; el mínimo anti-oversell ya lo cubren Compras + Ajustes) — se revisita con
-    // su lógica; ver BACKLOG_SCOPE_ITEM_NAV (perfilMin "lite", rubro-gated).
     ready: true,
   },
   {

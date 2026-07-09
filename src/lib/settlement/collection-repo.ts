@@ -51,9 +51,12 @@ export interface RecordCollectionResult {
   settlement: Settlement;
 }
 
+/** Cliente de transacción tenant-aware (lo que recibe el callback de `tenantTransaction`). */
+type SettlementTx = Parameters<Parameters<typeof tenantTransaction>[0]>[0];
+
 /** Suma los montos de los cobros ya registrados para un origen (dentro de la tx dada). */
 async function loadCollectedAmounts(
-  tx: Parameters<Parameters<typeof tenantTransaction>[0]>[0],
+  tx: SettlementTx,
   tenantId: string,
   originType: $Enums.CollectionOriginType,
   originId: string,
@@ -63,6 +66,56 @@ async function loadCollectedAmounts(
     select: { amount: true },
   });
   return rows.map((r) => r.amount.toNumber());
+}
+
+/**
+ * Aplica un cobro/pago contra un origen DENTRO de una transacción ya abierta por el llamador
+ * (no abre la suya). Es el núcleo de `recordCollection`, expuesto para COMPONER con otras
+ * operaciones en la misma tx (p. ej. la devolución a proveedor D4: revierte stock Y asienta
+ * el crédito en cuentas a pagar atómicamente). El llamador DEBE correr la tx en Serializable
+ * para que la guarda de saldo resista la concurrencia (fix del Gate de dinero).
+ */
+export async function applyCollectionInTx(
+  tx: SettlementTx,
+  tenantId: string,
+  args: RecordCollectionArgs,
+): Promise<RecordCollectionResult> {
+  const previo = await loadCollectedAmounts(tx, tenantId, args.originType, args.originId);
+  const settlement = computeSettlement(args.totalCharged, previo);
+
+  const v = validateNewCollection(args.amount, settlement.balance, {
+    allowOverpay: args.allowOverpay,
+  });
+  if (!v.ok) {
+    throw new Error(`Movimiento rechazado (${v.error}); saldo pendiente ${settlement.balance}.`);
+  }
+
+  const created = await tx.collection.create({
+    data: {
+      tenantId,
+      originType: args.originType,
+      originId: args.originId,
+      orderId: args.orderId ?? null,
+      appointmentId: args.appointmentId ?? null,
+      amount: v.amount, // number → Decimal(14,2) en el borde
+      method: args.method,
+      note: args.note ?? null,
+      collectedBy: args.collectedBy,
+    },
+    select: { id: true },
+  });
+
+  const nuevo = computeSettlement(args.totalCharged, [...previo, v.amount]);
+
+  // Coherencia con el booleano legado del POS: si un Order quedó saldado, marcarlo pago.
+  if (args.orderId && isSettled(nuevo)) {
+    await tx.order.updateMany({
+      where: { id: args.orderId, tenantId },
+      data: { paid: true },
+    });
+  }
+
+  return { collectionId: created.id, amount: v.amount, settlement: nuevo };
 }
 
 /**
@@ -76,44 +129,7 @@ export async function recordCollection(
   args: RecordCollectionArgs,
 ): Promise<RecordCollectionResult> {
   return tenantTransaction(
-    async (tx) => {
-      const previo = await loadCollectedAmounts(tx, tenantId, args.originType, args.originId);
-      const settlement = computeSettlement(args.totalCharged, previo);
-
-      const v = validateNewCollection(args.amount, settlement.balance, {
-        allowOverpay: args.allowOverpay,
-      });
-      if (!v.ok) {
-        throw new Error(`Cobro rechazado (${v.error}); saldo pendiente ${settlement.balance}.`);
-      }
-
-      const created = await tx.collection.create({
-        data: {
-          tenantId,
-          originType: args.originType,
-          originId: args.originId,
-          orderId: args.orderId ?? null,
-          appointmentId: args.appointmentId ?? null,
-          amount: v.amount, // number → Decimal(14,2) en el borde
-          method: args.method,
-          note: args.note ?? null,
-          collectedBy: args.collectedBy,
-        },
-        select: { id: true },
-      });
-
-      const nuevo = computeSettlement(args.totalCharged, [...previo, v.amount]);
-
-      // Coherencia con el booleano legado del POS: si un Order quedó saldado, marcarlo pago.
-      if (args.orderId && isSettled(nuevo)) {
-        await tx.order.updateMany({
-          where: { id: args.orderId, tenantId },
-          data: { paid: true },
-        });
-      }
-
-      return { collectionId: created.id, amount: v.amount, settlement: nuevo };
-    },
+    (tx) => applyCollectionInTx(tx, tenantId, args),
     // 🔒 SERIALIZABLE (fix del Gate de dinero): la guarda "leer saldo → validar → insertar"
     // es correcta en secuencia pero la DERROTA la concurrencia — dos cobros/pagos simultáneos
     // (o un doble-click) leen el MISMO saldo, ambos validan y ambos insertan → SOBRE-COBRO

@@ -18,7 +18,13 @@ import type { Prisma } from "@/generated/prisma/client";
 // del llamador (nunca abre la suya), para componer con el resto de la operación.
 export type LedgerTx = Prisma.TransactionClient;
 
-export type StockMovementType = "VENTA" | "COMPRA" | "REPOSICION" | "CONSUMO" | "AJUSTE";
+export type StockMovementType =
+  | "VENTA"
+  | "COMPRA"
+  | "REPOSICION"
+  | "CONSUMO"
+  | "AJUSTE"
+  | "DEVOLUCION_PROVEEDOR";
 
 // Redondeo a 3 decimales: el stock puede ser fraccional (kg). Se aplica al delta y al
 // balance para no arrastrar el error de coma flotante de sumar muchos movimientos.
@@ -38,6 +44,7 @@ export function movementDirection(type: StockMovementType): -1 | 0 | 1 {
       return 1;
     case "VENTA":
     case "CONSUMO":
+    case "DEVOLUCION_PROVEEDOR": // la mercadería sale del stock hacia el proveedor
       return -1;
     case "AJUSTE":
       return 0;
