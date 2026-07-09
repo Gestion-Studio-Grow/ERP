@@ -5,7 +5,8 @@ import type { CSSProperties } from "react";
 import { placeOnlineOrder } from "@/lib/order-actions";
 import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
-import type { TenantLayout } from "@/lib/branding";
+import type { TenantLayout, SectionKey, StorefrontPalette } from "@/lib/branding";
+import { FONT_VAR, resolveSectionOrder } from "@/lib/branding";
 import { productGradient, productGlyph, groupBySection, linesWithStock } from "@/lib/storefront-visual";
 import { shippingCost, amountToFreeShipping } from "@/lib/storefront-shipping";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
@@ -97,10 +98,28 @@ function StorefrontContent({
 }: StorefrontProps) {
   const { requestWhatsApp } = useWhatsAppCta();
   // Fidelidad de layout: solo si el flag está ON y el tenant declaró estructura. Sin esto
-  // → molde de hoy (sin masthead ni banner, hero a la izquierda). Ver RFC-004-A §3.
+  // → molde de hoy (sin masthead ni banner, hero a la izquierda). Ver RFC-004-A/C.
   const showFidelity = Boolean(fidelity && layout);
-  const editorial = showFidelity && layout?.hero === "editorial";
   const centered = showFidelity && layout?.logoPosition === "centered";
+  // Identidad genuina (Ola 1): variante de hero + tipografía + paleta + orden de secciones.
+  const heroVariant = showFidelity ? layout!.hero : "standard";
+  const heroCentered = heroVariant === "editorial" || heroVariant === "poster";
+  const typo = showFidelity ? layout?.typography : undefined;
+  const palette = showFidelity ? layout?.palette : undefined;
+  // Orden de secciones: reordena los ítems de la grilla vía CSS `order` (no mueve el DOM);
+  // solo se aplica con fidelidad → con el flag OFF, orden y estilos idénticos a hoy.
+  const sectionOrder = resolveSectionOrder(showFidelity ? layout?.sectionOrder : null);
+  const secPos = (k: SectionKey) => sectionOrder.indexOf(k);
+  const secStyle = (k: SectionKey, base?: CSSProperties): CSSProperties | undefined =>
+    showFidelity ? { ...(base ?? {}), order: secPos(k) } : base;
+  // Voz tipográfica de los títulos (display font + transform/weight/tracking del tenant).
+  const headingStyle: CSSProperties = {};
+  if (showFidelity) {
+    headingStyle.fontFamily = "var(--font-display), Georgia, serif";
+    if (typo?.headingTransform) headingStyle.textTransform = typo.headingTransform;
+    if (typo?.headingWeight) headingStyle.fontWeight = typo.headingWeight;
+    if (typo?.headingTracking) headingStyle.letterSpacing = typo.headingTracking;
+  }
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -158,7 +177,34 @@ function StorefrontContent({
     minHeight: "100vh",
     fontFamily: "var(--font-body), system-ui, -apple-system, sans-serif",
     ["--accent" as string]: accent,
+    // Tipografía + paleta del tenant (solo con fidelidad): reasignan las CSS vars que ya
+    // usa toda la vidriera (--font-*, --surface*, --text*), sin fuentes nuevas.
+    ...(typo ? { ["--font-display" as string]: FONT_VAR[typo.display], ["--font-body" as string]: FONT_VAR[typo.body] } : {}),
+    ...(palette ? paletteVars(palette) : {}),
   } as CSSProperties;
+
+  // Contenido del hero, compartido por las 4 variantes (centrado o alineado a la izquierda).
+  const heroInner = (center: boolean) => (
+    <>
+      <div style={eyebrowStyle}>{eyebrow}</div>
+      <h1 style={{ fontSize: "clamp(40px, 6.5vw, 68px)", lineHeight: 1.0, letterSpacing: -1.8, fontWeight: 800, margin: center ? "18px auto 0" : "18px 0 0", maxWidth: 760, ...headingStyle }}>
+        {tagline}
+      </h1>
+      {copy?.pitch && (
+        <div style={{ fontSize: "clamp(19px, 2.6vw, 26px)", fontWeight: 700, letterSpacing: -0.4, marginTop: 14, color: T.ink }}>
+          {copy.pitch}
+        </div>
+      )}
+      <div style={{ width: 48, height: 3, background: "var(--accent)", margin: center ? "24px auto 22px" : "24px 0 22px" }} />
+      {intro && <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 620, marginLeft: center ? "auto" : undefined, marginRight: center ? "auto" : undefined }}>{intro}</p>}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28, justifyContent: center ? "center" : "flex-start" }}>
+        <a href="#seleccion" style={cta("var(--accent)", "var(--text-on-accent)")}>{wording.orderCta}</a>
+        <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={cta("#fff", "#128C4B", "1px solid #25D366")}>
+          Pedir por WhatsApp
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div style={rootStyle}>
@@ -174,27 +220,19 @@ function StorefrontContent({
         <Masthead name={name} logoAsset={logoAsset} monogram={initials(name)} centered={centered} wording={wording} />
       )}
 
-      {/* ── Hero ── (editorial = centrado; estándar = a la izquierda, molde de hoy) */}
-      <header style={{ borderBottom: `1px solid ${T.line}` }}>
-        <div style={{ maxWidth: 1080, margin: "0 auto", padding: "76px 24px 56px", textAlign: editorial ? "center" : "left" }}>
-          <div style={eyebrowStyle}>{eyebrow}</div>
-          <h1 style={{ fontSize: "clamp(40px, 6.5vw, 68px)", lineHeight: 1.0, letterSpacing: -1.8, fontWeight: 800, margin: editorial ? "18px auto 0" : "18px 0 0", maxWidth: 760 }}>
-            {tagline}
-          </h1>
-          {copy?.pitch && (
-            <div style={{ fontSize: "clamp(19px, 2.6vw, 26px)", fontWeight: 700, letterSpacing: -0.4, marginTop: 14, color: T.ink }}>
-              {copy.pitch}
-            </div>
-          )}
-          <div style={{ width: 48, height: 3, background: "var(--accent)", margin: editorial ? "24px auto 22px" : "24px 0 22px" }} />
-          {intro && <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 620, marginLeft: editorial ? "auto" : undefined, marginRight: editorial ? "auto" : undefined }}>{intro}</p>}
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28, justifyContent: editorial ? "center" : "flex-start" }}>
-            <a href="#seleccion" style={cta("var(--accent)", "var(--text-on-accent)")}>{wording.orderCta}</a>
-            <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={cta("#fff", "#128C4B", "1px solid #25D366")}>
-              Pedir por WhatsApp
-            </button>
+      {/* ── Hero ── 4 variantes: standard (izq, molde), editorial (centrado), poster
+          (banda con lavado del acento), split (titular + panel de acento a la derecha). */}
+      <header style={{ borderBottom: `1px solid ${T.line}`, ...(heroVariant === "poster" ? { background: "color-mix(in srgb, var(--accent) 12%, var(--surface))" } : {}) }}>
+        {heroVariant === "split" ? (
+          <div style={{ maxWidth: 1080, margin: "0 auto", padding: "64px 24px", display: "flex", gap: 44, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 380px", minWidth: 280 }}>{heroInner(false)}</div>
+            <div aria-hidden style={{ flex: "1 1 300px", minWidth: 240, alignSelf: "stretch", minHeight: 260, borderRadius: 18, background: "linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 45%, #101314))", boxShadow: "inset 0 0 0 1px var(--line)" }} />
           </div>
-        </div>
+        ) : (
+          <div style={{ maxWidth: 1080, margin: "0 auto", padding: "76px 24px 56px", textAlign: heroCentered ? "center" : "left" }}>
+            {heroInner(heroCentered)}
+          </div>
+        )}
       </header>
 
       {/* ── Propuestas de valor ── */}
@@ -215,7 +253,7 @@ function StorefrontContent({
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: 24, display: "grid", gap: 44 }}>
         {/* ── Envasados al vacío ── */}
         {copy && vacioLines.length > 0 && (
-          <section>
+          <section style={secStyle("lines")}>
             <SectionHead kicker="Nuestras líneas" title={copy.vacioTitle} />
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
               {vacioLines.map((l, i) => (
@@ -232,7 +270,7 @@ function StorefrontContent({
         )}
 
         {/* ── La selección (catálogo con carrito) — el salto de valor vs. WhatsApp manual ── */}
-        <section id="seleccion" style={{ scrollMarginTop: 20 }}>
+        <section id="seleccion" style={secStyle("catalog", { scrollMarginTop: 20 })}>
           <SectionHead kicker="Comprá online" title={wording.catalogHeading} />
           {products.length === 0 ? (
             <div style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 16, padding: "28px 22px", textAlign: "center" }}>
@@ -286,7 +324,7 @@ function StorefrontContent({
 
         {/* ── Armá tu ritual (narrativa experiencial) ── */}
         {copy?.ritual && (
-          <section>
+          <section style={secStyle("ritual")}>
             <SectionHead kicker="La experiencia" title={copy.ritual.title} />
             <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 620, marginTop: -6, marginBottom: 18 }}>{copy.ritual.intro}</p>
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
@@ -303,7 +341,7 @@ function StorefrontContent({
 
         {/* ── Sets de regalo (experiencias armadas) ── */}
         {copy?.giftSets && copy.giftSets.sets.length > 0 && (
-          <section>
+          <section style={secStyle("gifts")}>
             <SectionHead kicker="Para regalar" title={copy.giftSets.title} />
             {copy.giftSets.intro && <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 620, marginTop: -6, marginBottom: 18 }}>{copy.giftSets.intro}</p>}
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
@@ -323,8 +361,8 @@ function StorefrontContent({
         )}
 
         {/* ── Tu pedido (carrito + checkout) ── */}
-        <section style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 20, padding: 22 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 14 }}>Tu pedido</h2>
+        <section style={secStyle("cart", { background: T.surface, border: `1px solid ${T.line}`, borderRadius: 20, padding: 22 })}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 14, ...headingStyle }}>Tu pedido</h2>
           {!hasItems && <p style={{ color: T.muted }}>Elegí lo que quieras de la selección con los botones + / −, o encargá por WhatsApp.</p>}
           {hasItems && (
             <form action={placeOnlineOrder} style={{ display: "grid", gap: 16 }}>
@@ -394,7 +432,7 @@ function StorefrontContent({
 
         {/* ── Productos gourmet ── */}
         {copy && copy.gourmetItems.length > 0 && (
-          <section>
+          <section style={secStyle("gourmet")}>
             <SectionHead kicker="Además" title={copy.gourmetTitle} />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {copy.gourmetItems.map((g, i) => (
@@ -406,7 +444,7 @@ function StorefrontContent({
 
         {/* ── Proveedores ── */}
         {copy && copy.providers.length > 0 && (
-          <section style={{ borderTop: `1px solid ${T.line}`, paddingTop: 24 }}>
+          <section style={secStyle("providers", { borderTop: `1px solid ${T.line}`, paddingTop: 24 })}>
             <div style={{ ...eyebrowStyle, color: T.faint }}>Trabajamos con</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 24px", marginTop: 12 }}>
               {copy.providers.map((pr, i) => (<span key={i} style={{ fontSize: 15, fontWeight: 700, color: T.muted }}>{pr}</span>))}
@@ -416,7 +454,7 @@ function StorefrontContent({
 
         {/* ── Reviews ── */}
         {copy && copy.reviews.length > 0 && (
-          <section>
+          <section style={secStyle("reviews")}>
             <SectionHead kicker="Lo que dicen" title="Clientes que ya probaron" />
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
               {copy.reviews.map((r, i) => (
@@ -436,7 +474,7 @@ function StorefrontContent({
         <section style={{ background: T.ink, color: T.bg }}>
           <div style={{ maxWidth: 1080, margin: "0 auto", padding: "64px 24px" }}>
             <div style={{ width: 48, height: 3, background: "var(--accent)", marginBottom: 22 }} />
-            <h2 style={{ fontSize: "clamp(26px, 4.5vw, 40px)", fontWeight: 800, letterSpacing: -0.8, maxWidth: 720, lineHeight: 1.12 }}>{copy.about.title}</h2>
+            <h2 style={{ fontSize: "clamp(26px, 4.5vw, 40px)", fontWeight: 800, letterSpacing: -0.8, maxWidth: 720, lineHeight: 1.12, ...headingStyle }}>{copy.about.title}</h2>
             <p style={{ marginTop: 16, fontSize: 16.5, lineHeight: 1.75, opacity: 0.82, maxWidth: 660 }}>{copy.about.body}</p>
           </div>
         </section>
@@ -469,6 +507,19 @@ function StorefrontContent({
       </footer>
     </div>
   );
+}
+
+// Paleta del tenant → CSS vars locales (Ola 1). Sobrescribe los tokens neutros SOLO en la
+// vidriera (inline en el root) para dar a cada negocio su "papel" propio; el acento no se toca.
+function paletteVars(p: StorefrontPalette): CSSProperties {
+  const v: Record<string, string> = {};
+  if (p.surface) v["--surface"] = p.surface;
+  if (p.surfaceRaised) v["--surface-raised"] = p.surfaceRaised;
+  if (p.surfaceSunken) v["--surface-sunken"] = p.surfaceSunken;
+  if (p.textStrong) v["--text-strong"] = p.textStrong;
+  if (p.textMuted) v["--text-muted"] = p.textMuted;
+  if (p.line) v["--line"] = p.line;
+  return v as CSSProperties;
 }
 
 // --- Masthead (fidelidad de layout, RFC-004-A §3) ---

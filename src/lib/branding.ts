@@ -51,15 +51,56 @@ export type AccentPreset = keyof typeof ACCENT_PRESETS;
 // La vidriera solo los aplica con `TENANT_FIDELITY_ENABLED` ON (ver src/lib/identity.ts);
 // con el flag OFF renderiza el molde de hoy. `resolveTenantLayout` completa los defaults.
 export type LogoPosition = "centered" | "left";
-export type HeroLayout = "editorial" | "standard";
+// Variante de HERO (Ola 1 — identidad genuina, no "template con otro color"):
+//   - standard : dos zonas a la izquierda (el molde de hoy).
+//   - editorial: centrado, serif, mucho aire (boutique — Magra).
+//   - poster   : banda con lavado del acento detrás del titular (vidriera cálida — Shine).
+//   - split    : titular a la izquierda + panel de acento a la derecha (retail — A Dos Manos).
+export type HeroLayout = "standard" | "editorial" | "poster" | "split";
+
+// TIPOGRAFÍA por tenant — se elige entre las familias YA cargadas (next/font en el layout
+// raíz): sin descargas nuevas, solo se reasignan `--font-display`/`--font-body`. Da voz
+// propia a cada vidriera (serif elegante ≠ grotesca deportiva) en vez de la serif de CH.
+export type FontKey = "fraunces" | "playfair" | "hanken" | "geist";
+export type StorefrontTypography = {
+  display: FontKey;
+  body: FontKey;
+  headingTransform?: "uppercase" | "none";
+  headingWeight?: number;
+  headingTracking?: string;
+};
+
+// PALETA de superficie por tenant — sobrescribe LOCALMENTE (inline, solo en la vidriera)
+// los tokens neutros para que cada negocio tenga su "papel" propio (bone cálido de la
+// carnicería ≠ blush de las velas ≠ slate frío del pádel). El ACENTO sigue saliendo del
+// preset del tenant; esto es el fondo sobre el que ese acento se monta.
+export type StorefrontPalette = {
+  surface?: string;
+  surfaceRaised?: string;
+  surfaceSunken?: string;
+  textStrong?: string;
+  textMuted?: string;
+  line?: string;
+};
+
+// Orden de las secciones de contenido de la vidriera (el "guion" del negocio): una
+// carnicería cuenta primero su historia; una tienda de pádel muestra primero el catálogo.
+// Claves faltantes se completan con el orden por defecto → nunca se pierde una sección.
+export type SectionKey =
+  | "lines" | "catalog" | "ritual" | "gifts" | "cart" | "gourmet" | "providers" | "reviews";
+
 export type TenantLayout = {
   logoPosition: LogoPosition;
   banner: string | null;
   hero: HeroLayout;
+  typography?: StorefrontTypography;
+  palette?: StorefrontPalette;
+  sectionOrder?: SectionKey[];
 };
 
-// Default = el molde de hoy (logo a la izquierda, sin banner, hero estándar). Un tenant
-// sin `layout` declarado se ve como hasta ahora → aditivo, sin regresiones.
+// Default = el molde de hoy (logo a la izquierda, sin banner, hero estándar, sin tipografía
+// ni paleta ni reorden propios). Un tenant sin `layout` declarado se ve como hasta ahora →
+// aditivo, sin regresiones. Con `TENANT_FIDELITY_ENABLED` OFF, la vidriera lo ignora entero.
 export const DEFAULT_LAYOUT: TenantLayout = {
   logoPosition: "left",
   banner: null,
@@ -95,29 +136,77 @@ const TENANTS: Record<string, TenantBrand> = {
     name: "CH Estética", monogram: "CH", preset: "petroleo", frontTheme: "light",
     layout: { logoPosition: "left", banner: "Reservá online · La Alameda, Canning", hero: "standard" },
   },
-  // Magra — carnicería boutique premium: logo CENTRADO (crest), SIN banner, hero EDITORIAL.
-  // Exactamente lo que el dueño pidió: el Magra real es logo centrado y sin banner.
+  // Magra — carnicería boutique premium: crest CENTRADO, SIN banner, hero EDITORIAL, serif
+  // Playfair de alto contraste sobre papel bone cálido. Exactamente lo que pidió el dueño
+  // (logo al medio, sin banner) y una voz gastronómica-editorial que NO es la de CH.
   "magra": {
     name: "Magra", monogram: "M", preset: "oxblood", frontTheme: "light",
-    layout: { logoPosition: "centered", banner: null, hero: "editorial" },
+    layout: {
+      logoPosition: "centered", banner: null, hero: "editorial",
+      typography: { display: "playfair", body: "geist", headingWeight: 600, headingTracking: "-0.02em" },
+      palette: { surface: "#f7f3ee", surfaceRaised: "#fffdfa", surfaceSunken: "#efe8df", textStrong: "#1f1a17", textMuted: "#6f665e", line: "#e6ddd2" },
+      // Cuenta primero la historia del producto (envasados) y luego vende.
+      sectionOrder: ["lines", "catalog", "cart", "gourmet", "providers", "reviews"],
+    },
   },
-  // Shine — velas & deco: boutique experiencial. Logo CENTRADO, banner de envío gratis
-  // (umbral real $25.000), hero EDITORIAL cálido. Acento ámbar (la llama).
+  // Shine — velas & deco: boutique experiencial. Crest CENTRADO, banner de envío gratis
+  // (umbral real $25.000), hero POSTER con lavado cálido del ámbar, serif Fraunces suave
+  // sobre papel blush. La experiencia (ritual) va ARRIBA del catálogo.
   "shinevelas": {
     name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light",
-    layout: { logoPosition: "centered", banner: "Envío gratis desde $25.000 · CABA y GBA", hero: "editorial" },
+    layout: {
+      logoPosition: "centered", banner: "Envío gratis desde $25.000 · CABA y GBA", hero: "poster",
+      typography: { display: "fraunces", body: "hanken", headingWeight: 500 },
+      palette: { surface: "#f6f1f0", surfaceRaised: "#fffafa", surfaceSunken: "#efe6e6", textStrong: "#241d20", textMuted: "#726167", line: "#e8dcdd" },
+      sectionOrder: ["ritual", "lines", "catalog", "gifts", "cart", "gourmet", "reviews"],
+    },
   },
-  // A Dos Manos — tienda de pádel: retail clásico. Logo a la IZQUIERDA + nav, sin banner,
-  // hero ESTÁNDAR (foco en catálogo). Acento verde cancha. Se ve "tienda", no "boutique".
+  // A Dos Manos — tienda de pádel: retail. Logo a la IZQUIERDA + nav, sin banner, hero SPLIT
+  // (titular + panel de acento), grotesca Hanken en MAYÚSCULAS sobre slate frío. El catálogo
+  // LIDERA (product-first). Se ve "tienda deportiva", ni boutique ni spa.
   "adosmanos": {
     name: "A Dos Manos", monogram: "AM", preset: "verde", frontTheme: "light",
-    layout: { logoPosition: "left", banner: null, hero: "standard" },
+    layout: {
+      logoPosition: "left", banner: null, hero: "split",
+      typography: { display: "hanken", body: "geist", headingTransform: "uppercase", headingWeight: 800, headingTracking: "-0.01em" },
+      palette: { surface: "#eef1f3", surfaceRaised: "#ffffff", surfaceSunken: "#e2e7ea", textStrong: "#141a1e", textMuted: "#5c676e", line: "#d7dee2" },
+      sectionOrder: ["catalog", "cart", "lines", "gourmet", "providers", "reviews"],
+    },
   },
 };
 
 // Layout completo del tenant (parcial declarado → completado con DEFAULT_LAYOUT). PURA.
 export function resolveTenantLayout(brand: TenantBrand): TenantLayout {
   return { ...DEFAULT_LAYOUT, ...(brand.layout ?? {}) };
+}
+
+// Clave de fuente → la CSS var que expone el layout raíz (next/font). Único punto de
+// mapeo, para que branding.ts declare identidad sin conocer los nombres de las vars. PURA.
+export const FONT_VAR: Record<FontKey, string> = {
+  fraunces: "var(--font-fraunces)",
+  playfair: "var(--font-spa-serif)",
+  hanken: "var(--font-hanken)",
+  geist: "var(--font-geist-sans)",
+};
+
+// Orden por defecto de las secciones de la vidriera (= el de hoy). Se usa para completar
+// cualquier clave que un tenant no liste en su `sectionOrder` → nunca se pierde contenido.
+export const DEFAULT_SECTION_ORDER: SectionKey[] = [
+  "lines", "catalog", "ritual", "gifts", "cart", "gourmet", "providers", "reviews",
+];
+
+/** Orden final de secciones: las del tenant primero, luego las faltantes en su orden por
+ *  defecto (sin duplicar). `null`/vacío → el orden por defecto tal cual. PURA. */
+export function resolveSectionOrder(order: SectionKey[] | null | undefined): SectionKey[] {
+  const seen = new Set<SectionKey>();
+  const out: SectionKey[] = [];
+  for (const k of [...(order ?? []), ...DEFAULT_SECTION_ORDER]) {
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(k);
+    }
+  }
+  return out;
 }
 
 const DEFAULT_BRAND: TenantBrand = {
