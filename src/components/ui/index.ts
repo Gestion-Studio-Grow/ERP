@@ -20,3 +20,6 @@ export { KpiTile } from "./KpiTile";
 export type { KpiTileProps } from "./KpiTile";
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateProps } from "./EmptyState";
+export { DataTable } from "./DataTable";
+export type { DataTableProps, DataTableColumn, DataTableSort, SortDirection } from "./DataTable";
+export { nextSort, ariaSortFor } from "./data-table-sort";
