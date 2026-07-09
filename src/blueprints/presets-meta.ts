@@ -40,10 +40,8 @@ const GASTRO_MODULES = ["pos", "catalog", "clients", "reports", "arca"];
 
 // Retail / Mostrador: el Comercio de una tienda (Magra, Shine, A Dos Manos). Vende
 // por mostrador (pos), tiene catálogo, clientes y reportes. SIN agenda/lista de
-// espera/comisiones (propias de servicios) → nav limpia. Espeja el set autoritativo
-// de provisioning (`src/lib/operator-config` DEFAULT_MODULES/BLUEPRINT_DEFAULT_MODULES);
-// acá se usa para la derivación honesta del conteo en la consola de operador (OP-2).
-// Follow-up fuera de este carril: unificar ambas fuentes en una sola.
+// espera/comisiones (propias de servicios) → nav limpia. Es parte de la FUENTE ÚNICA de
+// defaults por blueprint (FU1 unificado: operator-config re-exporta la función de acá).
 const RETAIL_LITE_MODULES = ["pos", "catalog", "clients", "reports"];
 // Nuance por rubro: la carnicería factura de mostrador (fiscal común en el retail AR)
 // → suma ARCA, igual que el set autoritativo de operator-config para `carniceria`. El
@@ -72,29 +70,49 @@ export function presetMetaFor(blueprintId: string | null | undefined): PresetMet
   return PRESET_META[blueprintId] ?? null;
 }
 
-// "servicios" es el blueprint histórico (pre-familias): funcionalmente es el mismo
-// archetipo que la familia Agenda&Servicios, así que hereda su set de módulos.
-const LEGACY_MODULES: Record<string, string[]> = {
-  servicios: AGENDA_MODULES,
+// ============================================================================
+// FUENTE DE VERDAD ÚNICA de "qué módulos trae un blueprint por defecto" (FU1, Concepto A).
+// ============================================================================
+//
+// Antes había DOS definiciones de `defaultModulesForBlueprint` con drift real (esta y la de
+// `src/lib/operator-config.ts`): distinto orden de lookup y distinto fallback → el mismo
+// blueprint recibía sets distintos según qué camino resolviera. Se unifican ACÁ; operator-config
+// ahora RE-EXPORTA esta función (única implementación, único fallback). Ver
+// docs/estrategia/propuestas-unificacion-blueprint-modules.md.
+
+// Fallback ÚNICO y EXPLÍCITO para blueprint desconocido / null: el set base funcional de un
+// mostrador (vender + catálogo + clientes + reportes). Se elige ESTE, no `[]`: un tenant sin
+// blueprint modelado igual necesita un panel que OPERE (el alta persiste estos módulos y la nav
+// tiene con qué renderizar). `[]` dejaría la UI vacía — un tenant "roto" en vez de uno mínimo.
+const BASE_MODULES = ["catalog", "clients", "pos", "reports"];
+
+// Overrides explícitos por blueprint que NO salen de una familia de presets ni del retail:
+//   - "servicios": el histórico (spa). Set de agenda + `commissions` (liquida a profesionales,
+//     propio del rubro servicios — antes solo lo tenía la versión de operator-config).
+//   - "generico": el comodín, con un poco de todo (agenda + mostrador), como asignaba el alta.
+// Absorbe el viejo `BLUEPRINT_DEFAULT_MODULES` de operator-config sin drift.
+const EXPLICIT_BLUEPRINT_MODULES: Record<string, string[]> = {
+  servicios: [...AGENDA_MODULES, "commissions"],
+  generico: ["catalog", "clients", "pos", "agenda", "reports"],
 };
 
 /**
- * Módulos por defecto de un blueprint — para el alta 1-clic (provisioning, ADR-019)
- * y para mostrar/derivar en la consola de operador cuando `Tenant.modules` está vacío
- * (OP-2: la columna no debe leer "0" solo porque nunca se persistió). Cubre las tres
- * familias de presets, el retail/mostrador y el blueprint histórico "servicios".
- * Devuelve `[]` para blueprints sin default conocido (p. ej. "generico") — ahí "0" es
- * honesto, no un bug de datos.
+ * Módulos por defecto de un blueprint — FUENTE ÚNICA (provisioning ADR-019 + consola OP-2).
+ * Orden de resolución: override explícito → familia de presets → retail (set lite por rubro) →
+ * **fallback base** (`BASE_MODULES`). SIEMPRE devuelve ids de módulo de NAV reales (los de
+ * `MODULES`); para retail usa el SET LITE POR RUBRO (`retailLiteModules`), nunca el vocabulario
+ * interno del blueprint (stock/venta-peso/…) → conteo honesto y UI Comercio limpia.
  *
- * SIEMPRE devuelve ids de módulo de NAV reales (los de `MODULES`): para retail usa el
- * SET LITE POR RUBRO (`retailLiteModules`), no el vocabulario interno del blueprint
- * (stock/venta-peso/…) — así el conteo de la consola es honesto y la UI Comercio queda
- * limpia (sin "módulos" que no existen en la nav).
+ * Blueprint desconocido, no modelado o `null`/`undefined` → `BASE_MODULES` (nunca `[]`): la UI
+ * jamás queda vacía; el peor caso es un tenant mínimo funcional, no uno roto.
  */
 export function defaultModulesForBlueprint(blueprintId: string | null | undefined): string[] {
-  if (!blueprintId) return [];
-  const preset = presetMetaFor(blueprintId)?.modules;
-  if (preset) return preset;
-  if (getRetailRubro(blueprintId)) return retailLiteModules(blueprintId);
-  return LEGACY_MODULES[blueprintId] ?? [];
+  if (blueprintId) {
+    const explicit = EXPLICIT_BLUEPRINT_MODULES[blueprintId];
+    if (explicit) return explicit;
+    const preset = presetMetaFor(blueprintId)?.modules;
+    if (preset) return preset;
+    if (getRetailRubro(blueprintId)) return retailLiteModules(blueprintId);
+  }
+  return BASE_MODULES;
 }
