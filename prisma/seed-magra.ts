@@ -180,7 +180,10 @@ async function main() {
   const cliente1 = await prisma.client.create({ data: { tenantId, name: "Rotisería La Esquina", phone: "11-5000-1111" } });
   const cliente2 = await prisma.client.create({ data: { tenantId, name: "Vecina — María G.", phone: "11-5000-2222" } });
 
-  // 8) Ventas / pedidos (2), una pagada, una con cobro parcial.
+  // 8) Ventas / pedidos (2): una pagada al contado, otra vendida EN CUENTA CORRIENTE
+  //    (fiado). La deuda del pedido a cuenta se modela UNA sola vez —como cuenta a cobrar
+  //    (`fiado1`, abajo)— y NO como cobro parcial del pedido: así la misma venta no se
+  //    cuenta dos veces (pedido impago + fiado con saldos distintos). ADR-060 D3.
   const pedido1 = await prisma.order.create({
     data: {
       tenantId, code: 1, status: "DELIVERED", channel: "COUNTER", fulfillment: "PICKUP",
@@ -197,10 +200,8 @@ async function main() {
       items: { create: [{ tenantId, name: "Asado de tira", saleUnit: "WEIGHT", quantity: 10, unitPrice: 11500, lineTotal: 115000 }] },
     },
   });
-  // Cobro PARCIAL del pedido2 vía Collection (deja saldo pendiente).
-  await prisma.collection.create({
-    data: { tenantId, originType: "ORDER", originId: pedido2.id, orderId: pedido2.id, amount: 50000, method: "TRANSFERENCIA", note: "Seña", collectedBy: ACTOR },
-  });
+  // pedido2 se vende en cuenta corriente (fiado): NO se registra cobro a nivel pedido.
+  // Su deuda + cobros parciales viven UNA sola vez en la cuenta a cobrar `fiado1` (abajo).
 
   // 9) Cuentas a PAGAR (2): una con cheque diferido, una vencida.
   const payable1 = await prisma.accountPayable.create({

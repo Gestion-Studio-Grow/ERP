@@ -76,8 +76,8 @@ Hobby) donde SÍ podemos migrar y sembrar. Así el QA es real **y** prod queda c
   el inventario debe marcarlos como faltante.
 - **2 proveedores:** *Frigorífico El Novillo SA* y *Distribuidora Sur SRL* (con CUIT).
 - **2 compras** con ítems y costo (alimentan la valuación y las cuentas a pagar).
-- **2 ventas:** un mostrador **pagado** (efectivo) y un pedido a *Rotisería La Esquina* con **cobro parcial**
-  (seña de $50.000, saldo pendiente).
+- **2 ventas:** un mostrador **pagado** (efectivo) y un pedido a *Rotisería La Esquina* vendido **en cuenta
+  corriente (fiado)** — su deuda se refleja **una sola vez** en Cuentas a cobrar (no como seña del pedido).
 - **2 cuentas a pagar:** una de **$815.000 con un CHEQUE DIFERIDO** de $400.000 (banco Nación, vence en ~20
   días, estado *entregado/DELIVERED*, aún sin acreditar) y una **VENCIDA** de $319.500 (venció hace 3 días,
   con un pago parcial de $100.000 → saldo $219.500, aging **OVERDUE**).
@@ -161,7 +161,7 @@ deployment de preview. Cero costo, cero rastro en prod.
 - **Reportes → margen (16T):** el margen se calcula sobre los 8 cortes (precio − costo); *Carne picada* y
   *Pollo* dejan menos margen % que *Lomo* — ordenar y verificar.
 - **Compras:** las 2 compras aparecen con su proveedor (*Frigorífico El Novillo* / *Distribuidora Sur*).
-- **Caja/Pedidos:** el pedido pagado en efectivo movió caja; el pedido de *Rotisería* quedó con saldo.
+- **Caja/Pedidos:** el pedido pagado en efectivo movió caja; el pedido de *Rotisería* quedó **impago (en cuenta corriente)** — su saldo vive en Cuentas a cobrar.
 
 ### B.1-bis · Módulos avanzados de Empresa — VERIFICADO: pantallas navegables (ready:true)
 > **Estado real (verificado contra la rama del sprint, 2026-07-08):** las **5 pantallas EXISTEN como
