@@ -1,0 +1,9 @@
+-- ROLLBACK de D4 (add_devolucion_proveedor_movement). Manual (§C).
+--
+-- ⚠️ Postgres NO soporta quitar un valor de un enum con un simple ALTER (no hay DROP VALUE).
+--    Es INOCUO dejar 'DEVOLUCION_PROVEEDOR' en el enum si no se usa (ninguna fila lo referencia).
+--    Revertirlo de verdad requeriría: recrear el tipo sin ese valor, migrar la columna
+--    `StockMovement.type` al tipo nuevo y dropear el viejo — solo si NO hay movimientos de ese
+--    tipo. No vale la pena salvo una reversión total. Se documenta y se deja el valor.
+--
+-- (Sin sentencias ejecutables: la reversión segura es no-op; ver arriba.)
