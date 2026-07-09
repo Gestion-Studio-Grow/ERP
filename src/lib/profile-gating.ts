@@ -55,6 +55,18 @@ export const getActiveProfile = cache(async (): Promise<Perfil | null> => {
   }
 });
 
+/**
+ * ASIGNA el perfil de un tenant (escritura directa de `Tenant.profile`). Es la pieza
+ * server que el flujo real de upgrade (M4, ADR-059 §Ejecución: UI + auditoría + "sin
+ * perder un dato") va a invocar — hoy no tiene caller de producto, se entrega como
+ * primitivo listo. Aditivo/reversible: solo actualiza la columna, no toca ningún otro
+ * dato del tenant; no hace nada con `PROFILES_ENABLED` (el flag gatea LECTURA/nav, no
+ * la escritura — asignar un perfil con el flag OFF es válido y queda esperando).
+ */
+export async function setTenantProfile(tenantId: string, profile: Perfil): Promise<void> {
+  await prisma.tenant.update({ where: { id: tenantId }, data: { profile } });
+}
+
 // ============================================================================
 // CANDADO/TEASER (server) — resolución del opt-in por tenant (ADR-059 D3, PR-2).
 // ============================================================================
