@@ -6,6 +6,7 @@ import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
 import { getActiveModuleIds } from "@/lib/module-gating";
 import { getActiveProfile } from "@/lib/profile-gating";
+import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
 import { getTenantBrand, resolveAccent, invertTheme } from "@/lib/branding";
 import type { CSSProperties } from "react";
@@ -41,9 +42,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const backTheme = invertTheme(brand.frontTheme);
   const { accent, onAccent } = resolveAccent(brand.preset, backTheme);
 
+  // DENSIDAD por perfil (ADR-059 D4): el MISMO design system en dos densidades. Comercio
+  // (lite) → `data-density="lite"` (espacioso, --density 1.32); Empresa (enterprise) y motor
+  // OFF → sin atributo (denso, :root --density 1 = hoy). Es el diferenciador visual que el
+  // Challenger marcó invisible (data-theme se seteaba, data-density nunca). Reversible: con
+  // `PROFILES_ENABLED` OFF, `activeProfile` es null → sin atributo → byte-idéntico.
+  const density = densityForProfile(activeProfile);
+
   return (
     <div
       data-theme={backTheme}
+      data-density={density}
       style={{ "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}
       className="min-h-screen bg-surface text-body"
     >
