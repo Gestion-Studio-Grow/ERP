@@ -184,6 +184,8 @@ model Tenant {
   stockPurchases     StockPurchase[]
   stockPurchaseItems StockPurchaseItem[]
   stockMovements     StockMovement[]
+  suppliers          Supplier[] // D1 — proveedor maestro (ADR-060 Fase C)
+  collections        Collection[] // D9 — cobros/settlement (ADR-060 Fase C.5)
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -524,6 +526,8 @@ model Appointment {
   notes          String?
   payment        Payment?
   review         Review?
+  collections    Collection[] // D9 — cobros (parciales/total) imputados a este turno
+  invoices       Invoice[] // D10 — facturas cuyo origen es este turno
   reminderSentAt DateTime?
   // Liquidación de comisiones (BACKLOG "Alta prioridad"). La comisión de un turno
   // se devenga cuando está COMPLETED con pago APPROVED; queda "pendiente de pago"
@@ -853,8 +857,20 @@ model Invoice {
   updatedAt    DateTime  @updatedAt
   authorizedAt DateTime? // cuándo ARCA devolvió el CAE (audit; spec §1)
 
+  // D10 (ADR-060 ajuste 2, fiscal) — ENLACE al origen de la factura (venta que la generó).
+  // Se fija AHORA porque agregarlo con facturas reales adentro es la migración más cara.
+  // Aditivo: FKs nullable; las facturas existentes quedan sin origen (null) sin backfill.
+  // Rastro débil (SetNull): borrar el origen no rompe el histórico fiscal. La idempotencia
+  // del webhook deja de depender del parche `Payment.comprobanteNro`.
+  order         Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId       String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  appointmentId String?
+
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
   @@index([tenantId, status])
+  @@index([tenantId, orderId]) // D10 — "la factura de este pedido"
+  @@index([tenantId, appointmentId]) // D10 — "la factura de este turno"
 }
 
 // Outbox transaccional (ADR-002): el Core escribe el evento de dominio en la
@@ -918,6 +934,8 @@ model Order {
 
   items         OrderItem[]
   cashMovements CashMovement[]
+  collections   Collection[] // D9 — cobros (parciales/total) imputados a este pedido
+  invoices      Invoice[] // D10 — facturas cuyo origen es este pedido
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
@@ -1056,8 +1074,13 @@ model StockPurchase {
 
   code     Int
   kind     StockPurchaseKind @default(COMPRA)
-  supplier String? // snapshot del proveedor (texto libre; no hay maestro de proveedores)
+  supplier String? // snapshot del proveedor (texto libre) — se CONSERVA como fallback/snapshot
   notes    String?
+
+  // D1/D6 (ADR-060) — link OPCIONAL al proveedor maestro. Aditivo: FK nullable; las compras
+  // existentes quedan con `supplierId` null y su `supplier` texto intacto (sin backfill).
+  supplierRef Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierId  String?
 
   totalCost Float @default(0)
 
@@ -1067,6 +1090,7 @@ model StockPurchase {
 
   @@unique([tenantId, code])
   @@index([tenantId, createdAt])
+  @@index([tenantId, supplierId]) // D1 — "compras de este proveedor" (para cuentas a pagar)
 }
 
 // Línea de una entrada de stock: qué producto y cuánto ingresó. Snapshotea
@@ -1141,5 +1165,90 @@ model StockMovement {
   createdAt DateTime @default(now())
 
   @@index([tenantId, productId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+// ============================================================================
+// FASE C/C.5 de ADR-060 — entidades FUNDACIONALES, todas ADITIVAS (no aplicadas a
+// prod: migraciones preparadas + rollback, §C · Gate 2). Ver
+// docs/estrategia/estructura-consolidada-producto.md (ADR-060).
+// ============================================================================
+
+// --- D1 · Supplier (proveedor maestro) ---
+// El PRERREQUISITO (cuello) de compras formal (D6), devoluciones (D4) y cuentas a
+// pagar (D2). Hoy `StockPurchase.supplier` es TEXTO LIBRE (snapshot); este maestro le
+// da identidad estable (razón social + CUIT) para poder deber/pagar/devolver a un
+// proveedor concreto. Aditivo: `StockPurchase.supplierId` es FK NULLABLE y el `supplier`
+// texto se conserva como fallback → ninguna compra existente se rompe ni requiere backfill.
+model Supplier {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  name  String // razón social
+  // CUIT de 11 dígitos sin guiones (mismo criterio que `Tenant.arcaCuit`/`Invoice.docNro`:
+  // String, no Int — un CUIT no entra en Int32). Único por tenant cuando está presente;
+  // varios NULL conviven (Postgres no colisiona NULLs en un UNIQUE).
+  taxId String?
+  email String?
+  phone String?
+  notes String?
+  active Boolean @default(true) // baja lógica: nunca se borra un proveedor con historial
+
+  purchases StockPurchase[] // back-relation de la FK nullable en StockPurchase (D6)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, taxId]) // un CUIT único por tenant (NULLs no colisionan)
+  @@index([tenantId])
+}
+
+// --- D9 · Collection / Receipt (cobranza / settlement unificado) ---
+// El HUECO CRÍTICO que marcó la revisión de Opus (ADR-060 §0.1): hoy servicios cobran con
+// `Payment` (1:1 con Appointment) y retail con `Order.paid` (booleano) — NINGUNO soporta
+// COBROS PARCIALES contra un saldo, que es justo lo que el fiado necesita. `Collection`
+// registra cada cobro (parcial o total) contra un origen; el SALDO es una función pura del
+// total imputado menos la suma de sus Collections (ver src/lib/settlement/collection.ts).
+//
+// Entidad NUEVA a propósito (ADR-060 ajuste 1): NO se muta `Payment` (relajar su `@unique`
+// no sería aditivo puro). `Payment`/`Order.paid` siguen intactos → aditividad 100%.
+//
+// Origen POLIMÓRFICO (Order | Appointment | AccountReceivable): FK nullable a los que YA
+// existen (Order/Appointment); para RECEIVABLE (D3, aún sin tabla) se usa `originId` (rastro
+// débil) hasta que exista — el discriminador `originType` lo hace explícito. `originId`
+// SIEMPRE está seteado (== el id del origen), así el saldo se computa sin depender de la FK.
+enum CollectionOriginType {
+  ORDER
+  APPOINTMENT
+  RECEIVABLE // AccountReceivable (D3) — la FK se agrega cuando exista la tabla
+}
+
+model Collection {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  originType CollectionOriginType
+  originId   String // id del origen (siempre presente; fuente de verdad para agrupar/saldar)
+
+  // FKs NULLABLES a los orígenes ya existentes (integridad referencial donde se puede).
+  // RECEIVABLE viaja solo por `originId` hasta que D3 exista. Rastros débiles: borrar el
+  // origen no debe romper el histórico de cobros → SetNull.
+  order         Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId       String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  appointmentId String?
+
+  // Monto de ESTE cobro (parcial o total). Decimal(14,2) en persistencia (ADR-057); el
+  // contrato del Core es `number`, con la conversión confinada al borde del repositorio.
+  amount Decimal       @db.Decimal(14, 2)
+  method PaymentMethod
+  note   String?
+
+  collectedBy String // actor "user:<id>" que registró el cobro (audit)
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, originType, originId]) // "todos los cobros de este origen" → para saldar
   @@index([tenantId, createdAt])
 }

@@ -217,11 +217,13 @@ export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
   },
   {
     scopeItem: "J58",
-    href: "/admin/contabilidad",
-    label: "Contabilidad",
+    href: "/admin/libros",
+    label: "Libros / Exportar al contador",
     grupo: "finanzas",
     perfilMin: "enterprise",
-    nota: "Libro mayor simple/exportable al contador. Solo Empresa.",
+    nota:
+      "ADR-060 D7 (naming honesto): Libro IVA ESTRUCTURADO (Ventas + Compras) + export al " +
+      "contador. NUNCA 'Contabilidad'. Libro mayor formal (JournalEntry) = RESERVA/§C.",
   },
   {
     scopeItem: "BMK",
@@ -236,25 +238,25 @@ export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
 ];
 
 // ============================================================================
-// ÍTEMS DE NAV EMPRESA (perfilMin=enterprise) — listos para cablear (ESQUELETO).
+// ÍTEMS DE NAV EMPRESA (perfilMin=enterprise) — 5 shells navegables (preview).
 // ============================================================================
 //
-// Forma COMPLETA de nav (href/label/icon/cap/grupo/perfilMin) de los módulos Empresa,
-// para que `AdminShell` los concatene a la nav agrupada cuando el perfil activo es
-// Empresa (`activeProfile==="enterprise"`). Derivados del set KEEP validado (los mismos
-// 3 `perfilMin:"enterprise"` de `BACKLOG_SCOPE_ITEM_NAV`).
+// Forma COMPLETA de nav (href/label/icon/cap/grupo/perfilMin) de las 5 pantallas Empresa,
+// para que `AdminShell` las concatene a la nav agrupada cuando el perfil activo es
+// Empresa (`activeProfile==="enterprise"`). Cubren el backlog validado (J59/J58/BMK
+// enterprise + BMC/2F3 que al vivo son rubro-gated, ver BACKLOG_SCOPE_ITEM_NAV).
 //
-// ⚠️ PROVISIONAL — el set FINAL de lanzamiento lo prioriza S1. Cuando llegue, se ajusta
-// SOLO este array (agregar / quitar / reordenar); el plumbing de AdminShell/layout NO
-// cambia. Es el único punto de swap. Naming al cliente profesional, sin fuga de
-// "enterprise" (ADR-059 D7): el cliente ve "Empresa", nunca la palabra de ingeniería.
+// Sus SHELLS "En preparación" YA EXISTEN (por eso `ready:true`) → recorribles en preview,
+// cero callejón sin salida. Naming al cliente profesional, sin fuga de "enterprise"
+// (ADR-059 D7): el cliente ve "Empresa", nunca la palabra de ingeniería. Punto único de
+// swap: agregar/quitar acá no toca el plumbing de AdminShell/layout.
 //
-// Decisiones del esqueleto (a revisar cuando se construyan los módulos reales):
+// Decisiones (a revisar cuando cada pantalla tenga su lógica de datos real):
 // - `cap`: se REUSAN capabilities OWNER existentes — NO se toca `capabilities.ts`
-//   (perfil ≠ rol, ADR-059 D6b). `billing:manage` (cuentas a pagar), `reports:read`
-//   (contabilidad), `catalog:manage` (devoluciones). Las tres son solo-OWNER → ni
-//   RECEPTION ni PROFESSIONAL ven estos ítems. Cuando exista el módulo real podrá
-//   recibir una cap dedicada (backoffice-ingeniería), sin tocar este esqueleto.
+//   (perfil ≠ rol, ADR-059 D6b). `billing:manage` (cuentas a pagar / a cobrar),
+//   `reports:read` (libros), `catalog:manage` (inventario / devoluciones). Todas
+//   solo-OWNER → ni RECEPTION ni PROFESSIONAL ven estos ítems. La pantalla también las
+//   exige (requireCapability), así el guard ya está para el día del vivo.
 // - `module`: SIN descriptor de catálogo todavía (los descriptores Empresa son backlog
 //   del PO Catálogo) → hoy NO se gatean por módulo, solo por rol × perfil. El día que
 //   exista el descriptor se agrega `module` acá y el OWNER podrá prenderlo/apagarlo
@@ -275,17 +277,19 @@ export interface EnterpriseNavItem {
    * de S1 (`docs/estrategia/set-minimo-empresa-2026-07-08.md` §4): *un ítem entra a la nav
    * SOLO cuando su pantalla existe* — cablear un href sin ruta es un callejón sin salida
    * (anti-patrón QA / ADR-059 D3 fix #4). `AdminShell` NO renderiza los `ready:false` ni
-   * con el flag maestro ON. Hoy los 3 son `false` (ninguna ruta existe) → Empresa día-1
-   * NO agrega ítems a la nav (solo perfil + framing + home analítico, que es exactamente
-   * lo que pide S1). Cuando backoffice-ingeniería shippee la pantalla, se pone `true` acá
-   * (una línea) y el ítem aparece — ese es el paso de "habilitación", no una selección nueva.
+   * con el flag maestro ON. Hoy los 5 son `true`: sus SHELLS navegables ("En preparación")
+   * existen, así que Empresa los recorre en preview sin dead-ends. `ready` sigue siendo la
+   * valla: distingue "pantalla existe y se recorre" de "pantalla con su lógica real viva".
    */
   ready: boolean;
 }
 
-// ⚠️ El ORDEN acá = orden de habilitación de S1 (§4): 1º Cuentas a pagar (J59, el ancla),
-// luego Fase 2 (contabilidad J58 / devoluciones BMK). Los 3 arrancan `ready:false` porque
-// HOY ninguna ruta existe (verificado en el repo). El día-1 de Empresa muestra CERO de estos.
+// ⚠️ Los 5 ya son `ready:true`: sus SHELLS navegables ("En preparación") EXISTEN en
+// `src/app/admin/(dashboard)/<ruta>/page.tsx` (directiva del dueño: producto entero
+// recorrible en preview detrás de flags, cero callejón sin salida). Se recorren cuando
+// el perfil es Empresa + nav agrupada ON; con los flags default OFF no cambia nada. Cada
+// pantalla pasa a "viva de verdad" recién cuando tenga su lógica de datos real; hasta
+// entonces es shell. El icono reusa nombres del set de `AdminShell` (no se toca su map).
 export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
   {
     href: "/admin/cuentas-a-pagar",
@@ -294,16 +298,43 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     cap: "billing:manage",
     perfilMin: "enterprise",
     grupo: "finanzas",
-    ready: false, // P2/ancla — pasar a true cuando shippee la pantalla J59 (cheque diferido)
+    ready: true, // shell navegable existe; datos reales (J59 + cheque diferido) = después
   },
   {
-    href: "/admin/contabilidad",
-    label: "Contabilidad",
-    icon: "contabilidad",
+    href: "/admin/cuentas-a-cobrar",
+    label: "Cuentas a cobrar",
+    icon: "caja", // reusa el ícono de "caja" (cobrar) del set de AdminShell
+    cap: "billing:manage",
+    perfilMin: "enterprise",
+    grupo: "finanzas",
+    // Shell Empresa para recorrer en preview. Al vivo su clasificación es rubro-gated /
+    // "ambos" (S1: fiado = cultura de barrio, versión light para Comercio) — se revisita
+    // cuando shippee su lógica; ver BACKLOG_SCOPE_ITEM_NAV (perfilMin "lite", defaultOff).
+    ready: true,
+  },
+  {
+    // ADR-060 D7: ex "/admin/contabilidad" → "/admin/libros". Naming HONESTO "Libros /
+    // Exportar al contador" (NUNCA "Contabilidad": prometería asientos que no hay). Ya
+    // tiene lógica REAL (Libro IVA estructurado + export), no es shell — capa verde S4.
+    href: "/admin/libros",
+    label: "Libros",
+    icon: "contabilidad", // el glifo de libro/ledger sigue calzando con "Libros"
     cap: "reports:read",
     perfilMin: "enterprise",
     grupo: "finanzas",
-    ready: false, // Fase 2 — S1: primero "Exportar para el contador" en Reportes, no módulo completo
+    ready: true,
+  },
+  {
+    href: "/admin/inventario",
+    label: "Inventario",
+    icon: "modulos", // reusa el ícono de cajas ("modulos") del set de AdminShell
+    cap: "catalog:manage",
+    perfilMin: "enterprise",
+    grupo: "inventario-y-compras",
+    // Shell Empresa para recorrer. Al vivo es rubro-gated (S1: aplica también a Comercio
+    // con stock; el mínimo anti-oversell ya lo cubren Compras + Ajustes) — se revisita con
+    // su lógica; ver BACKLOG_SCOPE_ITEM_NAV (perfilMin "lite", rubro-gated).
+    ready: true,
   },
   {
     href: "/admin/devoluciones-proveedor",
@@ -312,7 +343,7 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     cap: "catalog:manage",
     perfilMin: "enterprise",
     grupo: "inventario-y-compras",
-    ready: false, // Fase 2 — S1: sub-pantalla de Compras, prioridad baja
+    ready: true, // shell navegable existe; puede terminar como sub-pantalla de Compras (S1)
   },
 ];
 
