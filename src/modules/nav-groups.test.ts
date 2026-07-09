@@ -10,6 +10,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { visibleNavItems, type NavGateItem } from "./perfil";
 import {
   BACKLOG_SCOPE_ITEM_NAV,
@@ -150,11 +152,12 @@ test("BACKLOG_SCOPE_ITEM_NAV: fiado y stock son 'ambos' (lite), no enterprise-on
   assert.equal(byHref["/admin/contabilidad"].perfilMin, "enterprise");
 });
 
-test("ENTERPRISE_NAV_ITEMS: los 3 módulos Empresa son perfilMin enterprise, grupos válidos, hrefs propios", () => {
+test("ENTERPRISE_NAV_ITEMS: los 5 shells Empresa son perfilMin enterprise, ready, grupos válidos, hrefs propios", () => {
   const baseHrefs = new Set(Object.keys(NAV_ITEM_GROUPS));
-  assert.equal(ENTERPRISE_NAV_ITEMS.length, 3);
+  assert.equal(ENTERPRISE_NAV_ITEMS.length, 5);
   for (const it of ENTERPRISE_NAV_ITEMS) {
     assert.equal(it.perfilMin, "enterprise");
+    assert.equal(it.ready, true, `${it.href} debe estar 'ready' (su shell existe)`);
     assert.ok(VALID_IDS.has(it.grupo), `grupo inválido en ${it.href}`);
     assert.ok(!baseHrefs.has(it.href), `${it.href} colisiona con un ítem base`);
     assert.ok(it.label && it.icon && it.cap, `${it.href} sin label/icon/cap`);
@@ -163,17 +166,18 @@ test("ENTERPRISE_NAV_ITEMS: los 3 módulos Empresa son perfilMin enterprise, gru
   }
 });
 
-test("ENTERPRISE_NAV_ITEMS: consistentes con el backlog validado (mismo href→grupo que BACKLOG)", () => {
-  const backlogEnterprise = Object.fromEntries(
-    BACKLOG_SCOPE_ITEM_NAV.filter((b) => b.perfilMin === "enterprise").map((b) => [b.href, b.grupo]),
-  );
+test("ENTERPRISE_NAV_ITEMS: cada href está en el backlog validado con el MISMO grupo", () => {
+  // El grupo es consistente con BACKLOG_SCOPE_ITEM_NAV (el perfil puede diferir: inventario
+  // y cuentas a cobrar son shells Empresa acá pero al vivo son rubro-gated/"ambos", S1).
+  const backlogGrupo = Object.fromEntries(BACKLOG_SCOPE_ITEM_NAV.map((b) => [b.href, b.grupo]));
   for (const it of ENTERPRISE_NAV_ITEMS) {
-    assert.equal(it.grupo, backlogEnterprise[it.href], `${it.href} difiere del grupo del backlog`);
+    assert.equal(it.grupo, backlogGrupo[it.href], `${it.href} difiere del grupo del backlog`);
   }
-  // Guía S5: cuentas a pagar / contabilidad → Finanzas; devoluciones → Inventario y compras.
   const byHref = Object.fromEntries(ENTERPRISE_NAV_ITEMS.map((i) => [i.href, i]));
   assert.equal(byHref["/admin/cuentas-a-pagar"].grupo, "finanzas");
+  assert.equal(byHref["/admin/cuentas-a-cobrar"].grupo, "finanzas");
   assert.equal(byHref["/admin/contabilidad"].grupo, "finanzas");
+  assert.equal(byHref["/admin/inventario"].grupo, "inventario-y-compras");
   assert.equal(byHref["/admin/devoluciones-proveedor"].grupo, "inventario-y-compras");
 });
 
@@ -187,61 +191,69 @@ test("ENTERPRISE_NAV_ITEMS: al agruparse caen en su grupo (Finanzas / Inventario
   const { groups, ungrouped } = groupNavItems(items);
   assert.equal(ungrouped.length, 0, "ningún ítem Empresa debe quedar sin grupo");
   const finanzas = groups.find((g) => g.id === "finanzas");
-  assert.ok(finanzas && finanzas.items.some((i) => i.href === "/admin/cuentas-a-pagar"));
-  assert.ok(finanzas && finanzas.items.some((i) => i.href === "/admin/contabilidad"));
-  const inv = groups.find((g) => g.id === "inventario-y-compras");
-  assert.ok(inv && inv.items.some((i) => i.href === "/admin/devoluciones-proveedor"));
-});
-
-test("ENTERPRISE_NAV_ITEMS: regla de oro S1 — hoy ninguno tiene pantalla (ready:false) → día-1 no agrega ítems", () => {
-  // El set validado de S1: Empresa día-1 NO agrega ítems a la nav (las 5 rutas enterprise
-  // no existen). El shell solo renderiza los `ready` → hoy, cero.
-  for (const it of ENTERPRISE_NAV_ITEMS) {
-    assert.equal(it.ready, false, `${it.href} no debería estar 'ready' (su pantalla aún no existe)`);
+  for (const h of ["/admin/cuentas-a-pagar", "/admin/cuentas-a-cobrar", "/admin/contabilidad"]) {
+    assert.ok(finanzas && finanzas.items.some((i) => i.href === h), `Finanzas debe incluir ${h}`);
   }
-  assert.equal(readyEnterpriseNavItems().length, 0);
+  const inv = groups.find((g) => g.id === "inventario-y-compras");
+  for (const h of ["/admin/inventario", "/admin/devoluciones-proveedor"]) {
+    assert.ok(inv && inv.items.some((i) => i.href === h), `Inventario y compras debe incluir ${h}`);
+  }
 });
 
-test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — con ready:false, ni OWNER Empresa los ve (sin dead-ends)", () => {
-  // Espeja la lógica de AdminShell: candidatos = base + SOLO los Empresa `ready`; luego
-  // visibleNavItems (rol × módulo × perfil). Hoy no hay ready → Empresa ve solo el piso.
-  const shellMerge = (profile: "lite" | "enterprise") =>
+test("ENTERPRISE_NAV_ITEMS: los 5 shells existen (ready) → readyEnterpriseNavItems los expone todos", () => {
+  // Los SHELLS "En preparación" existen (directiva del dueño: producto entero recorrible).
+  // `ready` sigue siendo la valla anti-dead-end: si algún ítem se marcara ready sin su
+  // page.tsx, ESTE test seguiría verde pero el recorrido en preview lo delataría — por eso
+  // el registro y las 5 pages se agregan juntos, en el mismo commit.
+  assert.equal(readyEnterpriseNavItems().length, 5);
+  const readyHrefs = new Set(readyEnterpriseNavItems().map((i) => i.href));
+  assert.deepEqual(readyHrefs, new Set(ENTERPRISE_NAV_ITEMS.map((i) => i.href)));
+});
+
+test("ENTERPRISE_NAV_ITEMS: cada shell 'ready' tiene su page.tsx en disco (anti dead-end de verdad)", () => {
+  // La valla dura de la regla de oro: un ítem `ready` DEBE tener su ruta. Si alguien marca
+  // ready:true sin crear la page, este test falla (no un recorrido manual). Los base (17)
+  // ya existen; acá cubrimos los 5 shells Empresa nuevos.
+  for (const it of readyEnterpriseNavItems()) {
+    const slug = it.href.replace(/^\/admin\//, "");
+    const page = join(process.cwd(), "src", "app", "admin", "(dashboard)", slug, "page.tsx");
+    assert.ok(existsSync(page), `${it.href} está ready pero falta su página ${page}`);
+  }
+});
+
+test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — OWNER Empresa recorre los 5; Comercio/RECEPTION ninguno", () => {
+  // Espeja la lógica de AdminShell: candidatos = base + los Empresa `ready`; luego
+  // visibleNavItems (rol × módulo × perfil).
+  const shellMerge = (role: "OWNER" | "RECEPTION", profile: "lite" | "enterprise" | null) =>
     visibleNavItems(
       [
         ...ALL_17,
-        ...readyEnterpriseNavItems().map((it) => ({
-          href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo,
-        })),
+        ...(profile === null
+          ? []
+          : readyEnterpriseNavItems().map((it) => ({
+              href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo,
+            }))),
       ] as NavGroupedItem[],
-      { role: "OWNER", activeModules: null, activeProfile: profile },
+      { role, activeModules: null, activeProfile: profile },
     );
-  const entHrefs = new Set(ENTERPRISE_NAV_ITEMS.map((i) => i.href));
-  // Empresa hoy: ningún ítem enterprise (todos ready:false) → sin callejones sin salida.
-  const ownerEnt = shellMerge("enterprise");
-  assert.ok(![...entHrefs].some((h) => ownerEnt.some((i) => i.href === h)), "sin pantallas, Empresa no debe cablear ítems");
-  // El piso Comercio sí se ve en Empresa (invariante ⊇).
-  assert.ok(ownerEnt.some((i) => i.href === "/admin/facturacion"));
-});
+  const entHrefs = [...ENTERPRISE_NAV_ITEMS.map((i) => i.href)];
 
-test("ENTERPRISE_NAV_ITEMS: cuando un ítem shippea su pantalla (ready:true) SÍ se cablea para OWNER Empresa", () => {
-  // Simula la habilitación de S1: se pone ready:true al ancla (J59 cuentas a pagar).
-  const enabled = ENTERPRISE_NAV_ITEMS.map((it) =>
-    it.href === "/admin/cuentas-a-pagar" ? { ...it, ready: true } : it,
-  );
-  const ready = enabled.filter((i) => i.ready);
-  const merged: NavGroupedItem[] = [
-    ...ALL_17,
-    ...ready.map((it) => ({ href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo })),
-  ];
-  // OWNER Empresa → ve Cuentas a pagar.
-  const ownerEnt = visibleNavItems(merged, { role: "OWNER", activeModules: null, activeProfile: "enterprise" });
-  assert.ok(ownerEnt.some((i) => i.href === "/admin/cuentas-a-pagar"), "OWNER Empresa debe ver el ancla ya shippeada");
-  // OWNER Comercio → NO lo ve (perfilGateAllows lo filtra: es enterprise-only).
-  const ownerLite = visibleNavItems(merged, { role: "OWNER", activeModules: null, activeProfile: "lite" });
-  assert.ok(!ownerLite.some((i) => i.href === "/admin/cuentas-a-pagar"), "Comercio no debe ver el ítem Empresa");
-  // RECEPTION Empresa → tampoco (billing:manage es solo OWNER).
-  const recepEnt = visibleNavItems(merged, { role: "RECEPTION", activeModules: null, activeProfile: "enterprise" });
-  assert.ok(!recepEnt.some((i) => i.href === "/admin/cuentas-a-pagar"), "RECEPTION no debe ver el ítem Empresa");
+  // OWNER Empresa: ve los 5 shells (recorrible) + el piso (⊇).
+  const ownerEnt = shellMerge("OWNER", "enterprise");
+  for (const h of entHrefs) assert.ok(ownerEnt.some((i) => i.href === h), `OWNER Empresa debe ver ${h}`);
+  assert.ok(ownerEnt.some((i) => i.href === "/admin/facturacion"), "y el piso Comercio (⊇)");
+
+  // OWNER Comercio: ninguno (perfilGateAllows los filtra: son enterprise-only).
+  const ownerLite = shellMerge("OWNER", "lite");
+  assert.ok(!entHrefs.some((h) => ownerLite.some((i) => i.href === h)), "Comercio no ve ítems Empresa");
+
+  // Motor OFF (profile null): ninguno + nav idéntica al piso.
+  const ownerOff = shellMerge("OWNER", null);
+  assert.ok(!entHrefs.some((h) => ownerOff.some((i) => i.href === h)), "motor OFF no suma ítems Empresa");
+
+  // RECEPTION Empresa: ninguno (caps billing/reports/catalog son solo OWNER).
+  const recepEnt = shellMerge("RECEPTION", "enterprise");
+  assert.ok(!entHrefs.some((h) => recepEnt.some((i) => i.href === h)), "RECEPTION no ve ítems Empresa");
 });
 
 test("BACKLOG_SCOPE_ITEM_NAV: invariante enterprise ⊇ lite — un ítem 'lite' se ve en ambos perfiles", () => {
