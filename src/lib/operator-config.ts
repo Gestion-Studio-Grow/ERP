@@ -8,6 +8,7 @@
 // encienden/apagan.
 
 import { presetMetaFor } from "@/blueprints/presets-meta";
+import { DESCRIPTORES_CATALOGO } from "@/modules/catalog";
 
 // Un módulo del producto que se puede activar por tenant. `capability` lo ata al
 // RBAC del backoffice (capabilities.ts); `plugin` marca los que son integraciones.
@@ -19,18 +20,17 @@ export interface ModuleDef {
   plugin?: boolean;
 }
 
-export const MODULES: ModuleDef[] = [
-  { id: "agenda", label: "Agenda / Turnos", description: "Reservas por profesional, boxes y horarios." },
-  { id: "pos", label: "Caja / Pedidos (POS)", description: "Venta de mostrador y toma de pedidos." },
-  { id: "catalog", label: "Catálogo", description: "Servicios y productos del negocio." },
-  { id: "clients", label: "Clientes", description: "Ficha de clientes e historial." },
-  { id: "waitlist", label: "Lista de espera", description: "Cola de cancelaciones/no-shows." },
-  { id: "reminders", label: "Recordatorios", description: "Avisos y difusión (WhatsApp cuando se conecte)." },
-  { id: "reports", label: "Reportes", description: "Ingresos, comisiones y métricas." },
-  { id: "commissions", label: "Comisiones", description: "Liquidación por profesional." },
-  { id: "arca", label: "Facturación ARCA", description: "Facturación electrónica (Plugin).", plugin: true },
-  { id: "mercadopago", label: "Cobro MercadoPago", description: "Cobro online (Plugin).", plugin: true },
-];
+// FUENTE ÚNICA: la lista de la consola se DERIVA del catálogo canónico de módulos
+// (`src/modules`, ADR-054/055), no es una 2ª lista a mano. Antes era una copia paralela con
+// drift (le faltaba `reviews` y los módulos Empresa de ADR-060). Proyección directa del
+// `ModuleDescriptor` → `ModuleDef` (label=nombre, description=descripcion, plugin=kind).
+// `DESCRIPTORES_CATALOGO` es dato PURO (client-safe): no arrastra Prisma/red/React.
+export const MODULES: ModuleDef[] = DESCRIPTORES_CATALOGO.map((d) => ({
+  id: d.id,
+  label: d.nombre,
+  description: d.descripcion,
+  ...(d.kind === "plugin" ? { plugin: true } : {}),
+}));
 
 export const MODULE_IDS = MODULES.map((m) => m.id);
 
