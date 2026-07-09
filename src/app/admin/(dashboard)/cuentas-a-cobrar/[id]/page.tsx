@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { requireCapability } from "@/lib/authz";
-import { getActiveProfile } from "@/lib/profile-gating";
 import { getReceivable } from "@/lib/cuentas/loader";
 import { agingOf } from "@/lib/cuentas/aging";
 import { PageHeader, EmptyState } from "@/components/ui";
@@ -15,17 +14,11 @@ const volver = (
   </Link>
 );
 
+// Fiado (ADR-060 D3): `lite` + rubro, NO enterprise-only (ver el listado). El rubro-gating
+// vive en la nav; la barrera de rol es la capability. El vencimiento (J60) es aditivo de
+// Empresa, data-driven — el Comercio hace fiado light (sin vencimiento).
 export default async function CuentaACobrarDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireCapability("billing:manage");
-  const profile = await getActiveProfile();
-  if (profile !== "enterprise") {
-    return (
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <PageHeader title="Cuenta a cobrar" description="Fiado de un cliente." />
-        <EmptyState title="Disponible en la edición Empresa" description="Las cuentas a cobrar son parte de la edición Empresa." />
-      </main>
-    );
-  }
 
   const { id } = await params;
   const detail = await getReceivable(id);

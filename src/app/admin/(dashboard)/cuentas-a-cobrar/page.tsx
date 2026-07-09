@@ -1,5 +1,4 @@
 import { requireCapability } from "@/lib/authz";
-import { getActiveProfile } from "@/lib/profile-gating";
 import { getReceivables } from "@/lib/cuentas/loader";
 import { agingOf, summarizeAging } from "@/lib/cuentas/aging";
 import { PageHeader, EmptyState } from "@/components/ui";
@@ -8,20 +7,14 @@ import { DebtSummaryCards } from "@/components/cuentas/DebtSummaryCards";
 
 export const dynamic = "force-dynamic";
 
-// Cuentas a cobrar (fiado, ADR-060 D3). perfilMin=enterprise (gate acá) + rubro-gated en
-// la nav (fiado = comercio de barrio; el módulo/rubro decide la VISIBILIDAD del ítem).
-// Datos vía loader (hoy stub de S1) — la pantalla se recorre detrás de flags sin dead-end.
+// Cuentas a cobrar (fiado, ADR-060 D3). Es `lite` + RUBRO (fiado = comercio de barrio):
+// NO enterprise-only — un Comercio de rubro fiado lo usa. El rubro-gating (qué tenants lo
+// ven) vive en la nav (perfilMin=lite + módulo por rubro, default-OFF). El plus de Empresa
+// es ADITIVO (vencimiento/recordatorio, J60) sobre la misma pantalla — data-driven (el
+// Comercio hace fiado light sin vencimiento → la columna "Vence" queda "—", aging neutral),
+// no un gate. La `capability` (billing:manage) es la barrera de rol.
 export default async function CuentasACobrarPage() {
   await requireCapability("billing:manage");
-  const profile = await getActiveProfile();
-  if (profile !== "enterprise") {
-    return (
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <PageHeader title="Cuentas a cobrar" description="Fiado y saldos de clientes." />
-        <EmptyState title="Disponible en la edición Empresa" description="Las cuentas a cobrar (fiado) son parte de la edición Empresa." />
-      </main>
-    );
-  }
 
   const rows = await getReceivables();
   const now = new Date();
