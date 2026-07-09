@@ -1,3 +1,9 @@
+---
+id: ADR-043
+nivel: evolutiva
+dominio: [Seguridad, UX]
+depends_on: [ADR-040]
+---
 # ADR-043: Estándar de marca GSG — sello de calidad en todo entregable, sin pisar la marca del cliente
 
 **Estado:** Aceptado — vigente (bloque 2 del Gate)

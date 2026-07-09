@@ -1,3 +1,9 @@
+---
+id: ADR-012
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-009, ADR-010, ADR-011, AMD-007]
+---
 # ADR-012: Panel central de recordatorios y notificaciones (plantillas editables por canal)
 
 **Estado:** Aceptado — **documentado retroactivamente** el 2026-07-03 en la sesión de consolidación. La decisión ya está implementada y en producción; este ADR la persiste porque el código la citaba (`schema.prisma`, `notifications.ts`) sin que el ADR existiera. Mismo hueco que se detectó y corrigió con ADR-013/014.

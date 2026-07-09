@@ -1,3 +1,9 @@
+---
+id: ADR-039
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-008, ADR-016]
+---
 # ADR-039: Metodología del `sprint` — FASE 0 obligatoria, estructura por core/frente, PMO merge-master, cierre/backup
 
 **Estado:** Aceptado — vigente (metodología viva en `docs/METODOLOGIA-SPRINT.md`)

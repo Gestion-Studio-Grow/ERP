@@ -1,3 +1,9 @@
+---
+id: ADR-035
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-002, ADR-034]
+---
 # ADR-035: Consultor → Backoffice — la recomendación del consultor precede y determina el backoffice adaptado por rubro
 
 **Estado:** Aceptado (2026-07-06) — implementado (fixtures del sandbox por rubro/familia)

@@ -96,8 +96,9 @@ export const commissionsModule: ModuleDescriptor = {
   kind: "capability",
   capability: "commissions:manage",
   // Restricción de variante: liquidar comisiones a profesionales es propio del rubro
-  // de servicios (coherente con BLUEPRINT_DEFAULT_MODULES.servicios). Un tenant de otro
-  // rubro que intente activarlo cae en `incompatibles` (no rompe: se rechaza y avisa).
+  // de servicios (coherente con el default de "servicios" en `defaultModulesForBlueprint`,
+  // src/blueprints/presets-meta). Un tenant de otro rubro que intente activarlo cae en
+  // `incompatibles` (no rompe: se rechaza y avisa).
   rubros: ["servicios"],
   dependencias: [{ id: "reports", rango: "^1.0" }],
 };

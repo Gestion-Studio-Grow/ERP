@@ -1,3 +1,9 @@
+---
+id: ADR-050
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-032, ADR-045, ADR-048, ADR-049]
+---
 # ADR-050: Roster fijo de sprint — estructura estándar de convocatoria (núcleo-siempre + frentes por sprint)
 
 **Estado:** Aceptado — vigente

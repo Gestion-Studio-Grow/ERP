@@ -1,3 +1,9 @@
+---
+id: ADR-051
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-032, ADR-049, ADR-050]
+---
 # ADR-051: Roster completo de GSG — organigrama total (gobernanza + divisiones + células) como estructura estándar
 
 **Estado:** Aceptado — vigente

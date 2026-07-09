@@ -1,3 +1,9 @@
+---
+id: ADR-027
+nivel: evolutiva
+dominio: [Producto, Datos]
+depends_on: []
+---
 # ADR-027 — Analytics cross-tenant: benchmarking anónimo por rubro sobre el dato del ERP
 
 **Estado:** Aceptado (decisión de diseño; **no implementa código**, no aplica migración) · **Fecha:**

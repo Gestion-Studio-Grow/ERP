@@ -1,3 +1,9 @@
+---
+id: ADR-052
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-032, ADR-046, ADR-047]
+---
 # ADR-052: Protocolo de Calibración Universal — todo agente calibra (lee el corpus + declara sus principios) antes de actuar
 
 **Estado:** Aceptado — vigente y obligatorio para TODO agente

@@ -1,3 +1,9 @@
+---
+id: ADR-011
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-001, ADR-004, ADR-010]
+---
 # ADR-011: Relevamiento con el cliente — nuevas capacidades del piloto
 
 **Estado:** Aceptado — pendiente de implementación (se agenda después de cerrar G1)

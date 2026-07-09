@@ -1,3 +1,9 @@
+---
+id: ADR-013
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-003, ADR-011, AMD-003]
+---
 # ADR-013: Precio diferencial "vecino/a" por servicio
 
 **Estado:** Aceptado — implementado (2026-07-03)

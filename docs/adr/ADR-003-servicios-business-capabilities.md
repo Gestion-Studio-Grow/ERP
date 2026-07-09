@@ -1,3 +1,9 @@
+---
+id: ADR-003
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-001, ADR-002]
+---
 # ADR-003: Business Capabilities — MVP Blueprint "Servicios"
 
 **Estado:** Propuesto

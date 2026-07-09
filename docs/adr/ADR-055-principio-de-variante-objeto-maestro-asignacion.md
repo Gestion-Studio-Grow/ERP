@@ -1,3 +1,9 @@
+---
+id: ADR-055
+nivel: evolutiva
+dominio: [Arquitectura]
+depends_on: [ADR-002, ADR-003]
+---
 # ADR-055: Principio de VARIANTE — el objeto se crea una vez (dato maestro) y se ASIGNA (SAP argentinizado)
 
 **Estado:** Aceptado — **principio vigente**. La **construcción** del ABM (UI + modelo) es **reingeniería → Balde B** (Opus, mañana); hoy solo se **documenta** (definir ≠ construir).

@@ -1,3 +1,9 @@
+---
+id: ADR-020
+nivel: evolutiva
+dominio: [Arquitectura]
+depends_on: [ADR-002, ADR-003, ADR-005, ADR-006, ADR-017]
+---
 # ADR-020: Contrato de API pública del Core — qué comando/consulta expone cada Business Capability y dónde está su límite
 
 **Estado:** Aceptado — describe el contrato vigente y fija la regla de límites hacia adelante (2026-07-04)

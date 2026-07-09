@@ -1,3 +1,9 @@
+---
+id: ADR-042
+nivel: evolutiva
+dominio: [UX, Seguridad]
+depends_on: [ADR-034]
+---
 # ADR-042: Autorización del cliente antes de replicar su marca (consentimiento registrado, paso obligatorio)
 
 **Estado:** Aceptado — vigente y no salteable

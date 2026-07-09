@@ -1,3 +1,9 @@
+---
+id: ADR-007
+nivel: evolutiva
+dominio: [Negocio]
+depends_on: []
+---
 # ADR-007: Análisis Financiero por Escenario de Crecimiento
 
 **Nota de alcance:** son órdenes de magnitud para decidir arquitectura, no un presupuesto formal — para eso hace falta cotizar contra pricing vigente al momento de construir.

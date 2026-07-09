@@ -38,22 +38,12 @@ export function isModuleId(id: string): boolean {
   return MODULE_IDS.includes(id);
 }
 
-// Módulos que enciende cada blueprint por defecto en el alta. El operador los ajusta
-// después desde la consola. Un rubro no listado (comodín) cae a DEFAULT_MODULES.
-const DEFAULT_MODULES = ["catalog", "clients", "pos", "reports"];
-export const BLUEPRINT_DEFAULT_MODULES: Record<string, string[]> = {
-  servicios: ["agenda", "catalog", "clients", "waitlist", "reminders", "reports", "commissions"],
-  carniceria: ["pos", "catalog", "clients", "reports", "arca"],
-  generico: ["catalog", "clients", "pos", "agenda", "reports"],
-};
-
-export function defaultModulesForBlueprint(blueprintId: string | null | undefined): string[] {
-  if (blueprintId && BLUEPRINT_DEFAULT_MODULES[blueprintId]) return BLUEPRINT_DEFAULT_MODULES[blueprintId];
-  // Presets por rubro de las familias (agenda/oficios/gastronomía) traen su propio set.
-  const meta = presetMetaFor(blueprintId);
-  if (meta) return meta.modules;
-  return DEFAULT_MODULES;
-}
+// Módulos que enciende cada blueprint por defecto en el alta. FUENTE ÚNICA (FU1, Concepto A):
+// la implementación vive en `@/blueprints/presets-meta` y se RE-EXPORTA acá para no duplicarla
+// (antes había una copia con drift: distinto orden de lookup y fallback). Los consumidores de
+// operator-config (`operator-actions.ts`) siguen importándola de acá sin cambios.
+// Ver docs/estrategia/propuestas-unificacion-blueprint-modules.md.
+export { defaultModulesForBlueprint } from "@/blueprints/presets-meta";
 
 // Acento sugerido por el preset del rubro (si el operador no elige uno en el alta).
 export function suggestedAccentForBlueprint(

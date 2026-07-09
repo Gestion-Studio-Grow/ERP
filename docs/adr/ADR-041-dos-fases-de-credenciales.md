@@ -1,3 +1,9 @@
+---
+id: ADR-041
+nivel: evolutiva
+dominio: [Seguridad]
+depends_on: [ADR-018]
+---
 # ADR-041: Dos fases de credenciales — demo sin secretos → datos reales con secretos que carga el dueño
 
 **Estado:** Aceptado — vigente (principio de seguridad)

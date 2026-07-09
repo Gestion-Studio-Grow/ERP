@@ -1,3 +1,9 @@
+---
+id: ADR-018
+nivel: fundacional
+dominio: [Seguridad, Datos]
+depends_on: [ADR-001, ADR-010, ADR-015]
+---
 # ADR-018: Activación de RLS de Postgres — mecanismo y momento (gate del 2º tenant)
 
 **Estado:** Aceptado — pendiente de implementación (2026-07-03)

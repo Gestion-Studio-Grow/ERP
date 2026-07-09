@@ -1,3 +1,9 @@
+---
+id: ADR-036
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-002, ADR-015, ADR-018]
+---
 # ADR-036: Rubro retail `padel`/deportes + conversión segura de blueprint de un tenant en prod
 
 **Estado:** Aceptado (2026-07-06) — implementado (rubro consolidado; reglas aplicadas)

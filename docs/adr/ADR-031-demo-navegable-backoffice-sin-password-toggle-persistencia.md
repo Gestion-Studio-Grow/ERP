@@ -1,3 +1,9 @@
+---
+id: ADR-031
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-015, ADR-018]
+---
 # ADR-031: Demo navegable — backoffice sin password + datos ficticios + toggle de persistencia (dos fases de credenciales)
 
 **Estado:** Aceptado (2026-07-06) — implementado (fixtures del sandbox por rubro)

@@ -1,3 +1,9 @@
+---
+id: ADR-053
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-032, ADR-051, ADR-052]
+---
 # ADR-053: Pool compartido de agentes + entrenamiento cross-estructura — los agentes se prestan, no se duplican
 
 **Estado:** Aceptado — vigente

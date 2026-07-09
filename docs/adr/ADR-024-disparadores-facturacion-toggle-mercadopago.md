@@ -1,3 +1,9 @@
+---
+id: ADR-024
+nivel: evolutiva
+dominio: [Producto]
+depends_on: [ADR-002, ADR-006, ADR-014, ADR-020, ADR-022]
+---
 # ADR-024: Disparadores de facturación, toggle "facturar sí/no" y Plugin Mercado Pago
 
 **Estado:** Aceptado — diseño; se implementa con stubs, sin certificado/credenciales reales (2026-07-04)

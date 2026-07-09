@@ -1,3 +1,9 @@
+---
+id: ADR-005
+nivel: fundacional
+dominio: [Arquitectura]
+depends_on: [ADR-001]
+---
 # ADR-005: Stack Técnico
 
 **Depende de:** ADR-001 (RLS/exclusion constraints → requiere Postgres sí o sí)

@@ -1,3 +1,9 @@
+---
+id: ADR-001
+nivel: fundacional
+dominio: [Arquitectura, Datos]
+depends_on: []
+---
 # ADR-001: Estrategia de Aislamiento Multi-Tenant
 
 **Estado:** Propuesto

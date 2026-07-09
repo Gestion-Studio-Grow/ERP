@@ -1,3 +1,9 @@
+---
+id: ADR-026
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-005, ADR-008]
+---
 # ADR-026: Harness de tests — `node:test` + `tsx`
 
 **Estado:** Aceptado (2026-07-05)

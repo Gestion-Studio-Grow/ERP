@@ -1,3 +1,9 @@
+---
+id: ADR-019
+nivel: evolutiva
+dominio: [Plataforma]
+depends_on: [ADR-001, ADR-015, ADR-017, ADR-018]
+---
 # ADR-019: Onboarding / alta de tenant nuevo (provisioning) — script operado, no portal self-service
 
 **Estado:** Aceptado — pendiente de implementación (2026-07-04)

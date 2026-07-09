@@ -1,3 +1,9 @@
+---
+id: ADR-048
+nivel: evolutiva
+dominio: [Operaciones]
+depends_on: [ADR-032, ADR-040, ADR-041]
+---
 # ADR-048: Arquitecto de Solución — autoridad sobre decisiones REVERSIBLES; las IRREVERSIBLES se elevan al dueño
 
 **Estado:** Aceptado — vigente
