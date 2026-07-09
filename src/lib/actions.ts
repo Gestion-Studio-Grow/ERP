@@ -1057,3 +1057,45 @@ export async function getDashboardData() {
     blocksToday,
   };
 }
+
+// Home de MOSTRADOR/retail (Wave B): ventas del día, ingresos, stock bajo, caja abierta.
+// Gemelo de `getDashboardData` para tenants de rubro con POS (carnicería/velas/pádel/…).
+// La pantalla elige cuál usar según `dashboardModeForModules` (por módulos activos →
+// reversible por `MODULE_REGISTRY_ENABLED`). Read-only, sin schema nuevo.
+export async function getRetailDashboardData() {
+  await requireCapability("dashboard:read");
+  const todayStart = businessWallTimeToUtc(todayInBusinessTz(), "00:00");
+  const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  const weekStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+  const [todayOrders, weekOrders, products, clientsCount, openCash] = await Promise.all([
+    prisma.order.findMany({
+      where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: "CANCELLED" } },
+      select: { total: true },
+    }),
+    prisma.order.findMany({
+      where: { createdAt: { gte: weekStart }, status: { not: "CANCELLED" } },
+      select: { total: true },
+    }),
+    prisma.product.findMany({
+      where: { active: true, deletedAt: null, trackStock: true },
+      select: { id: true, name: true, unit: true, stock: true, lowStockAt: true },
+    }),
+    prisma.client.count(),
+    prisma.cashSession.findFirst({ where: { status: "OPEN" }, select: { id: true } }),
+  ]);
+
+  const lowStock = products
+    .filter((p) => p.stock <= p.lowStockAt)
+    .sort((a, b) => a.stock - b.stock);
+
+  return {
+    todaySalesCount: todayOrders.length,
+    todayRevenue: todayOrders.reduce((s, o) => s + o.total, 0),
+    weekRevenue: weekOrders.reduce((s, o) => s + o.total, 0),
+    lowStock, // { id, name, unit, stock, lowStockAt }[]
+    lowStockCount: lowStock.length,
+    clientsCount,
+    cashOpen: !!openCash,
+  };
+}
