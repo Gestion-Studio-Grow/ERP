@@ -108,7 +108,36 @@ for (const file of files) {
   }
 }
 
-// Reverso: dependents (solo entre nodos ADR; AMD no es nodo del grafo).
+const adrCount = nodes.length;
+
+// AMD (Enmiendas a ADR 001-008) — entidad REAL del INDEX ("AMD | Enmiendas a 001-008"),
+// SIN archivo propio. Se agrega como NODO(S) sintético(s) para que las edges que la
+// referencian RESUELVAN (fix del hallazgo del Gate: ADR-010→AMD, ADR-012→AMD-007,
+// ADR-013→AMD-003 quedaban colgadas). Fuente: INDEX + cuerpos de ADR-010/011/012/013.
+// Solo las sub-enmiendas EFECTIVAMENTE referenciadas en el repo (001/003/004/005/007); no
+// se inventan 002/006 (no aparecen en ningún doc). IDs inmutables (RFC-001 R1), aditivo.
+const AMENDMENTS = [
+  { id: "AMD", title: "Enmiendas a ADR 001-008 (paraguas)", amends: ["ADR-001", "ADR-002", "ADR-003", "ADR-004", "ADR-005", "ADR-006", "ADR-007", "ADR-008"] },
+  { id: "AMD-001", title: "Soft-delete (deleted_at)" },
+  { id: "AMD-003", title: "Precio congelado + notas libres en el Turno" },
+  { id: "AMD-004", title: "Zona horaria explícita (UTC en DB) + bloqueo/ausencias por profesional" },
+  { id: "AMD-005", title: "MFA (TOTP) + rate limit en login" },
+  { id: "AMD-007", title: "Email transaccional vía proveedor (Plugin)" },
+];
+for (const a of AMENDMENTS) {
+  nodes.push({
+    id: a.id,
+    title: a.title,
+    kind: "amendment",
+    nivel: "evolutiva",
+    dominio: ["Enmienda"],
+    depends_on: [],
+    dependents: [],
+    ...(a.amends ? { amends: a.amends } : {}),
+  });
+}
+
+// Reverso: dependents. AMD y sus sub-enmiendas YA son nodos → sus edges resuelven.
 const byId = new Map(nodes.map((n) => [n.id, n]));
 for (const n of nodes) {
   for (const dep of n.depends_on) {
@@ -128,8 +157,13 @@ const graph = {
   ],
   query: "dependents[X] responde '¿qué se cae / qué depende si cambio X?'",
   count: nodes.length,
+  adrCount,
+  amendmentCount: AMENDMENTS.length,
   nodes,
 };
 
 writeFileSync(join(ADR_DIR, "graph.json"), JSON.stringify(graph, null, 2) + "\n");
-console.log(`ADRs: ${nodes.length} · frontmatter agregado: ${fmAdded} · graph.json escrito (docs/adr/graph.json)`);
+console.log(
+  `ADRs: ${adrCount} · enmiendas AMD: ${AMENDMENTS.length} · nodos totales: ${nodes.length} · ` +
+    `frontmatter agregado: ${fmAdded} · graph.json escrito (docs/adr/graph.json)`,
+);

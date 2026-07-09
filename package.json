@@ -18,6 +18,9 @@
     "publicar:direccion": "node celula-negocios-digitales/panel/publicar-a-app.mjs",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "gate:rls": "node prisma/rls/check-coverage.mjs",
+    "adr:graph": "node scripts/adr-graph.mjs",
+    "adr:linkcheck": "node scripts/adr-linkcheck.mjs",
+    "adr:context": "node scripts/adr-context.mjs",
     "gates": "node scripts/verify-gates.mjs",
     "load-test": "node scripts/load-test.mjs",
     "postinstall": "prisma generate"
