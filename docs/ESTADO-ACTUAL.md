@@ -123,7 +123,7 @@ por frente abajo; irreversibles elevados en §C.
 
 | Ítem | Valor |
 |---|---|
-| **main HEAD (origin)** | **`a6e9969`** — `merge: Ola 1 GROW-AR — deepening Empresa + hardening $0 (Gate S5/Opus PASA)`. Incremento Empresa base (`74af0db`) + Ola 1 (Compras J45/18J · Reportes margen 16T · set lite por rubro · KpiTile/EmptyState · hardening $0). **Todo detrás de flags DEFAULT OFF.** §C sin ejecutar: nada aplicado a Neon, sin deploy, **cola con Decimal frenada** (decisión A/B del dueño). |
+| **main HEAD (origin)** | **`5ab3aa7`** — `merge: Fase C/C.5 de ADR-060 — entidades fundacionales + Libros (Gate S5/Opus PASA)`. Sobre Ola 1 (`a6e9969`): **Supplier (D1)** · **Collection/settlement (D9)** · **Invoice→origen (D10)** (3 migraciones **aditivas, escritas NO aplicadas**, con rollback.sql) · pantalla **`/admin/libros`** (Libro IVA estructurado, naming honesto) · helpers DataTable · `setTenantProfile`. **Todo detrás de flags DEFAULT OFF / loaders gateados por perfil enterprise (OFF en prod).** `gate:rls` 35/35. §C sin ejecutar: **nada aplicado a Neon** (las 3 nuevas + la cola con el Decimal **frenadas**, decisión A/B del dueño), sin deploy. |
 | **Plataforma de prod** | **Vercel** (`vercel.json` activo; ver §2). Netlify = **legacy** (Opción A, superada). |
 | **Auto-publish** | **APAGADO / gated** — push a `main` **no** publica. Deploy = acción del dueño (**Gate 1**). |
 | **Snapshot tags** | `snapshot/2026-07-07-cierre` (cierre de sprint) · WIP de frentes sin mergear: `snapshot/2026-07-07-f1-wip` (`09f668a`), `snapshot/2026-07-07-f3-wip` (`1334212`) · previos: `snapshot/2026-07-07-f4b`, `snapshot/2026-07-07-f4`, `snapshot/2026-07-05-eod` |
