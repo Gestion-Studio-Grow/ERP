@@ -162,40 +162,75 @@ Cero mediciones de Core Web Vitals reales hoy — es terreno enteramente nuevo, 
 
 ## PARTE B — ARQUITECTURA DE DISEÑO UX/UI (target, decision-grade)
 
-### B.1 · El design system como motor invisible compartido entre los dos productos
+### B.1 · El norte: Apple como base de experiencia, SAP como profundidad adaptada
 
-**Declaración de pilar:** un solo motor de tokens y primitivos sirve a **ambos** lenguajes de diseño (B.2) y a
+**Regla de una línea (dirección del dueño):** la referencia **PRIMARIA** de experiencia y lenguaje visual es
+**Apple** — claridad, jerarquía, espacio, *restraint*, deleite, movimiento con propósito, rendimiento sin
+fricción — y esa base se **adapta**, no se abandona ni se diluye, cuando el ERP necesita la profundidad
+operativa de **SAP**: densidad de datos, grillas potentes, flujos de empresa, teclado-first para power users.
+**No es "Apple o SAP": es la experiencia de Apple llevada a la profundidad de un ERP.** El producto **Empresa**
+debe sentirse como *"un SAP que diseñó Apple"* — denso pero limpio, potente pero sin fricción. El producto
+**Comercio** hereda la misma base sin la carga operativa: Apple casi sin adaptar.
+
+Cada principio tiene una lectura literal (Comercio) y una lectura adaptada a la densidad de datos de un ERP
+(Empresa) — **el principio nunca se resigna, se resuelve distinto**:
+
+| Principio Apple | Comercio (Apple ~literal) | Empresa (adaptado a la profundidad SAP) | Ya existe / evidencia |
+|---|---|---|---|
+| **Claridad** | Tipografía grande, poco texto por pantalla, una idea a la vez | Grillas densas pero **escaneables**: jerarquía tipográfica dentro de la tabla (números tabulares, negrita en totales/saldos), nunca "meter todo sin criterio" | `DataTable` ya alinea lo numérico a la derecha; el home analítico usa `tabular-nums` en los KPIs (`page.tsx`) — falta llevar la misma disciplina a más pantallas de dinero |
+| **Jerarquía** | Home de una acción, un botón sólido protagonista | Home con MUCHOS KPIs, pero **uno lidera** (Ingresos primero, en acento) antes que el resto — nunca una grilla plana de igual peso | Ya real: el home `analytical` en `page.tsx` ordena Ingresos → Confirmación → Turnos → Clientes, no una grilla pareja |
+| **Espacio / *restraint*** | `--density: 1.32`, aire generoso, cero ornamento | Comprime el **espacio**, nunca el **significado**: totales, acciones y errores conservan aire aunque las filas se compriman | Mecanismo ya existe (`--density`, A.1) — inerte en pantalla hoy (A.2) |
+| **Deleite** | Micro-interacciones cálidas y criollas (ADR-044/046) | En un ERP el deleite es **velocidad + confianza**, no adorno: cero callejón sin salida (MP-14, ya norma dura), feedback instantáneo de guardado/error | `ToastProvider`, `role="alert"` (parcial, U7), MP-14 ya vigente |
+| **Movimiento con propósito** | Transiciones suaves, siempre con `prefers-reduced-motion` | Cada animación comunica un cambio de estado (una fila que aparece, un orden que se invierte) — nunca decorativa | `ch-pulse`/`global-loading-spinner` ya respetan `prefers-reduced-motion` (`globals.css:526-566`); el ícono de orden de `DataTable` anima con `transition-transform` |
+| **Rendimiento sin fricción** | Igual en ambos — "se siente instantáneo" no se negocia por perfil | Igual en ambos — más datos en pantalla no es excusa para sentirse lento | El hueco más grande hoy (A.5/B.5) — el mayor riesgo de que Empresa se sienta "SAP de verdad" (lento, pesado) en vez de "SAP que diseñó Apple" |
+| **Consistencia** | Un solo sistema de tokens/primitivos para TODO — nunca dos calidades de UX | Igual — la densidad cambia, el vocabulario visual no | Es el pilar B.2 (motor compartido) |
+| **Accesibilidad como estándar** | Apple la trata como línea de base del producto, nunca un checklist aparte | Igual en ambos — más densidad jamás baja el piso de accesibilidad | Es B.4 (WCAG 2.2 AA como gate) |
+
+**Por qué esto no es solo estética:** la objeción de estatus del comprador Empresa (ADR-059 D8 — *"que la pyme
+no rechace por percibir que es el mismo sistema que usa un comerciante"*) se resuelve mejor con esta lectura
+que con un simple cambio de color: **un ERP que se ve y se siente como Apple, con la profundidad de SAP
+debajo, lee como plataforma seria** — ni "juguete simplificado" ni "SAP viejo y pesado". Es el mismo instinto
+que ya guio a `RFC-004-identidad-diseno.md §3` (Dirección A, "Fiori argentino / papel técnico": *rigor
+enterprise creíble, sin copiar a SAP ni a Apple, con carácter propio*) — esta sección lo ancla explícitamente
+en Apple como la referencia madre, con Fiori/SAP como la profundidad que se le adapta encima, no al revés.
+
+### B.2 · El design system como motor invisible compartido entre los dos productos
+
+**Declaración de pilar:** un solo motor de tokens y primitivos sirve a **ambos** lenguajes de diseño (B.3) y a
 **todos** los tenants — nunca dos sistemas de diseño, nunca un fork visual por producto o por cliente (mismo
 guardrail anti-fork de `FUNDAMENTOS-Y-VISION.md §1`). Ya existe en un ~70% (A.1): capa semántica + densidad +
 identidad + ficha de marca. Lo que falta **no es construir el motor — es terminarlo de encender y adoptarlo**,
 exactamente el diagnóstico de `RFC-002-ux.md §5` ("Dirección C"): *"no es falta de ideas de interacción, es que
 la reingeniería ya diseñada está a medio aplicar y apagada"*. Este addendum **adopta esa lectura como doctrina
 de pilar** (no la re-decide) y le agrega lo que RFC-002/RFC-004 no cubrían: performance percibida, gate de
-accesibilidad formal, patrones de grilla/ERP y elección de stack.
+accesibilidad formal, patrones de grilla/ERP, elección de stack y el marco Apple→SAP de B.1.
 
 - **Versionado:** los tokens viven en código (`globals.css` + `theme-packs.ts`), no en un config externo — se
   versionan con el repo, se revisan por PR como cualquier cambio, y un cambio de token es un diff legible
   (ya es así hoy).
 - **Testeo:** hoy la única evidencia automática es `tsc` + `node:test` sobre la lógica pura (`nextSort`,
-  `fmtMoneyARS`, `buildBrandSheet`…). Falta evidencia **visual** — ver B.6.
+  `fmtMoneyARS`, `buildBrandSheet`…). Falta evidencia **visual** — ver B.7.
 
-### B.2 · Dos productos, dos lenguajes de diseño, un mismo motor
+### B.3 · Dos productos, dos lenguajes de diseño — "un SAP que diseñó Apple"
 
 Analogía correcta (Apple/UIKit): **Comercio** y **Empresa** son "apps" distintas sobre los mismos primitivos,
 no dos productos con dos bases de código (esto ya es un invariante duro de ADR-058/059: `enterprise ⊇ lite`).
+Aplicando el marco de B.1: Comercio es Apple casi sin adaptar; Empresa es la MISMA experiencia comprimida a
+la densidad de SAP sin perder la claridad — el objetivo explícito no es "una grilla más" sino que el operador
+de una pyme sienta que usa una herramienta pulida, no un ERP legado.
 
-| | **Comercio** (micro) | **Empresa** (pyme) |
+| | **Comercio** (micro — Apple ~literal) | **Empresa** (pyme — "SAP que diseñó Apple") |
 |---|---|---|
-| Densidad | espaciosa (`--density: 1.32`, `data-density="lite"`, ya existe) | compacta/data-first (`--density: 1`, default) |
-| Home | una acción (resumen del día, botón sólido) — ya real (ADR-059 D8, P1.c) | analítico por rol (KPIs financieros) — ya real |
+| Densidad | espaciosa (`--density: 1.32`, `data-density="lite"`, ya existe) | compacta/data-first (`--density: 1`, default) — **densa, no apretada**: aire en el lugar justo (B.1) |
+| Home | una acción (resumen del día, botón sólido) — ya real (ADR-059 D8, P1.c) | analítico por rol (KPIs financieros), con jerarquía clara pese al volumen de datos — ya real |
 | Navegación | mínima, sin candados visibles por default (D3) | 5 grupos + ítems adicionales encendidos, nunca reubicados (D2, `enterprise ⊇ lite`) |
-| Camino rápido | POS de una pantalla, quick-add (RFC-002 Dirección A) — **no construido aún** | grillas potentes, teclado-first, command palette (B.5) — **no construido aún** |
+| Camino rápido | POS de una pantalla, quick-add (RFC-002 Dirección A) — **no construido aún** | grillas potentes, teclado-first, command palette (B.6) — **no construido aún** |
 | Personalización | máxima, preset-IA (ADR-058 P5) | estandarizada, con carácter (theme pack por rubro, ya existe) |
 
 **Que un cliente NO perciba que es el mismo producto** ya tiene el mecanismo (theme packs, A.1.4); lo que
 falta es que la **densidad se sienta** (hoy inerte) y que el camino rápido de cada perfil exista de verdad.
 
-### B.3 · Accesibilidad WCAG 2.2 AA — línea base y GATE, no aspiración
+### B.4 · Accesibilidad WCAG 2.2 AA — línea base y GATE, no aspiración
 
 WCAG 2.2 es hoy el estándar de referencia legal (EAA europea, guía del DOJ en EE. UU.) — 86 criterios, AA
 exige 56. Trae 9 criterios nuevos sobre 2.1; los más relevantes para un ERP con grillas y formularios:
@@ -213,7 +248,7 @@ U7) · foco visible + operable 100% por teclado (ya cumplido, mantenerlo) · con
 tokens) · `alt` real en imágenes (ya cumplido). Se suma **un skip-link** (`admin` y `(site)`) como ítem nuevo,
 único gap sin dueño hoy.
 
-### B.4 · Rendimiento percibido — "sin interrupciones" con presupuesto concreto
+### B.5 · Rendimiento percibido — "sin interrupciones" con presupuesto concreto
 
 Terreno nuevo (A.5): la recomendación es **incremental, no un big-bang de reescritura de rutas**.
 
@@ -233,9 +268,9 @@ Terreno nuevo (A.5): la recomendación es **incremental, no un big-bang de reesc
    consistente en las 5 fuentes (A.3), `next/image` en `tienda/` (hoy `<img>` crudo, A.5) y los `loading.tsx`
    del punto 2 — cierran la mayor parte de la percepción de "lento" sin arquitectura nueva.
 5. **UI optimista donde ya hay mutaciones frecuentes:** `useOptimistic` para altas rápidas del POS/quick-add
-   (B.5) cuando se construyan — no retrofit del resto del código.
+   (B.6) cuando se construyan — no retrofit del resto del código.
 
-### B.5 · Patrones UX de ERP — sobre el motor existente, no reemplazándolo
+### B.6 · Patrones UX de ERP — sobre el motor existente, no reemplazándolo
 
 - **Grillas de datos:** `DataTable` (hecho a mano, ya con orden/densidad/a11y/loading/vacío) alcanza para el
   volumen actual. **Disparador de migración** (no hacerlo antes de tiempo): cuando una grilla necesite
@@ -254,24 +289,25 @@ Terreno nuevo (A.5): la recomendación es **incremental, no un big-bang de reesc
   es el hueco de UX más citado para el operador de mostrador; se resuelve con composición de primitivos
   existentes (`PageHeader`+`DataTable`+`Field`), no con una librería nueva.
 
-### B.6 · Elección de tecnología — aprovechar lo que ya funciona, sumar solo lo probado
+### B.7 · Elección de tecnología — aprovechar lo que ya funciona, sumar solo lo probado
 
-Principio Apple (restraint): **no** se reemplaza una biblioteca de 12 primitivos que ya funciona, es chica y
-es 100% propia. Se **suma** selectivamente donde el problema es genuinamente difícil de hacer bien a mano:
+Principio Apple (*restraint*, B.1): **no** se reemplaza una biblioteca de 12 primitivos que ya funciona, es
+chica y es 100% propia. Se **suma** selectivamente donde el problema es genuinamente difícil de hacer bien a
+mano:
 
 | Necesidad | Ya existe / alcanza | Sumar cuando el disparador ocurra | Por qué NO lo más nuevo |
 |---|---|---|---|
 | Componentes headless (Dialog/Select/Combobox complejos) | `BookingModal` ya resuelve foco/Escape/`role="dialog"` a mano | **Base UI** (no Radix — Radix bajó ritmo de mantenimiento tras su adquisición por WorkOS; el propio equipo original de Radix hoy construye Base UI, mantenido por MUI) — solo para el próximo patrón genuinamente difícil (ej. un Combobox con búsqueda) | Adoptar una librería headless entera hoy sería reemplazar componentes que ya andan y están testeados |
-| Grilla de datos | `DataTable` propio | **TanStack Table + TanStack Virtual**, ver B.5 | Prematuro sin el volumen de filas que lo justifique |
+| Grilla de datos | `DataTable` propio | **TanStack Table + TanStack Virtual**, ver B.6 | Prematuro sin el volumen de filas que lo justifique |
 | Gráficos (reportes/dashboards) | ninguno construido aún | **Recharts** (SVG, ~150kB, la opción "aburrida" con más comunidad — no Tremor, que agrega una capa de abstracción sobre el mismo Recharts sin necesidad; no visx, de más bajo nivel del que un equipo de 3 necesita) | visx exige terminar construyendo tu propia librería de charts; Tremor no aporta sobre Recharts directo |
-| Command palette | ninguno | **`cmdk`** (B.5) | — |
+| Command palette | ninguno | **`cmdk`** (B.6) | — |
 | Movimiento/transiciones | CSS + `prefers-reduced-motion` ya respetado en 2 lugares (`ch-pulse`, `global-loading-spinner`) | librería `motion` (sucesora de Framer Motion) **solo** si aparece una transición de página o *drag-to-reorder* real | Añadir una librería de animación sin un caso de uso concreto es peso sin beneficio |
 | Evidencia visual / regresión | ninguna | **Playwright con `toHaveScreenshot()`** — autohospedado, cero servicio nuevo, y el repo **todavía no tiene Playwright** (tampoco para E2E) así que resuelve dos necesidades con una sola instalación | **Storybook + Chromatic** es la opción más completa pero es una suscripción paga + mantenimiento de historias; no se justifica todavía con 12 primitivos y un equipo de 3 — revisar cuando la librería crezca a ~25-30 componentes o el equipo crezca |
 
-**Ninguna de estas es urgente hoy.** El primer trabajo real es adopción + performance + a11y (B.3/B.4, sobre
+**Ninguna de estas es urgente hoy.** El primer trabajo real es adopción + performance + a11y (B.4/B.5, sobre
 lo que ya existe); el stack nuevo se suma **recién cuando el disparador concreto aparezca**, no por adelantado.
 
-### B.7 · Gobernanza de diseño
+### B.8 · Gobernanza de diseño
 
 - **Los tokens son DATO, no código de UI:** la ficha de marca (`Tenant.name/accentPreset/frontTheme/
   blueprintId` → theme pack) ya lo hace realidad (A.1.4) — un tenant nuevo no requiere tocar un componente,
@@ -286,10 +322,10 @@ lo que ya existe); el stack nuevo se suma **recién cuando el disparador concret
      fuera del theme pack de CH — extender a un lint de CI simple (una línea de `grep -r` en el pipeline).
   2. **% de adopción de primitivos**, la métrica de éxito que `RFC-002-ux.md §5` ya define (`PageHeader` = 100%
      de pantallas, 0 pantallas con `Intl.NumberFormat` propio) — medible por grep, sin herramienta nueva.
-  3. **Snapshots de Playwright** (B.6) como evidencia de que un cambio de token no rompió visualmente un
+  3. **Snapshots de Playwright** (B.7) como evidencia de que un cambio de token no rompió visualmente un
      theme pack — corre en CI, sin costo de servicio externo.
 
-### B.8 · Gap vs. estado actual + plan por fases (sin reescribir lo que ya sirve)
+### B.9 · Gap vs. estado actual + plan por fases (sin reescribir lo que ya sirve)
 
 No compite con la secuencia que `RFC-002-ux.md §5` ya propuso (C-core → C-full → A-hot → B-onboarding,
 pendiente de Challenger + Gate del dueño) — la **envuelve** y le agrega las fases 0 y las columnas de
@@ -299,29 +335,35 @@ performance/a11y que ese RFC no cubría:
 |---|---|---|---|
 | **0 · Barato y ya mismo** | `loading.tsx` en `admin/(dashboard)` y `(site)` · cerrar U1/U2/U7 (adoptar `<Field>`, `role="alert"` universal) · skip-link · `next/image` en `tienda/` · `display:"swap"` consistente en las 5 fuentes | nada — son cambios locales, reversibles, sin flag necesario | Reversible, sin Gate de arquitectura (sí Gate de Excelencia normal) |
 | **1 · C-core** (RFC-002) | Encender `data-density` en los layouts + migrar 5 pantallas diarias a primitivos | Gate + prototipo Comercio vs Empresa lado a lado (ya pedido por RFC-002) | Reversible, flag-gated |
-| **2 · C-full** (RFC-002) + Suspense selectivo (B.4.1) | Resto de pantallas a `DataTable`/primitivos + 5 grupos/perfil ON por default + streaming en `reportes`/`catalogo` | Gate | Reversible |
-| **3 · A-hot** (RFC-002) | POS de una pantalla, quick-add, command palette (`cmdk`, B.5) | Gate + decisión del dueño sobre el eje (RFC-002 §6) | Nueva superficie, no reemplaza nada |
+| **2 · C-full** (RFC-002) + Suspense selectivo (B.5.1) | Resto de pantallas a `DataTable`/primitivos + 5 grupos/perfil ON por default + streaming en `reportes`/`catalogo` | Gate | Reversible |
+| **3 · A-hot** (RFC-002) | POS de una pantalla, quick-add, command palette (`cmdk`, B.6) | Gate + decisión del dueño sobre el eje (RFC-002 §6) | Nueva superficie, no reemplaza nada |
 | **4 · B-onboarding** (RFC-002) + instrumentación Web Vitals | Primer-uso guiado + medición real de LCP/INP/CLS en producción | Gate | Nueva superficie |
-| **5 · Stack nuevo bajo demanda** (B.6) | TanStack Table/Virtual, Recharts, Base UI, Playwright visual — cada uno **solo** cuando su disparador concreto aparezca | Decisión puntual, no un "sprint de librerías" | Aditivo |
+| **5 · Stack nuevo bajo demanda** (B.7) | TanStack Table/Virtual, Recharts, Base UI, Playwright visual — cada uno **solo** cuando su disparador concreto aparezca | Decisión puntual, no un "sprint de librerías" | Aditivo |
 
 ---
 
 ## Resumen ejecutivo
 
-El producto ya tiene un design system real: cuatro capas de tokens (semántica, densidad, identidad de
-producto, ficha de marca por tenant) y una biblioteca propia de 12 primitivos, todo reversible detrás de
+La dirección del dueño para este pilar es clara: **Apple es la referencia primaria de experiencia** —
+claridad, jerarquía, espacio, *restraint*, deleite, movimiento con propósito, rendimiento sin fricción — y
+esa base se **adapta**, nunca se abandona, a la profundidad operativa de **SAP** (densidad de datos, grillas
+potentes, teclado-first). No es "Apple o SAP": Empresa debe sentirse como *"un SAP que diseñó Apple"* —
+denso pero limpio, potente pero sin fricción; Comercio hereda la misma base casi sin adaptar. El producto ya
+tiene un design system real que sostiene esa ambición: cuatro capas de tokens (semántica, densidad, identidad
+de producto, ficha de marca por tenant) y una biblioteca propia de 12 primitivos, todo reversible detrás de
 flags y sin dependencias externas. El problema no es la fundación — es que está **a medio encender y a medio
 adoptar** (~30% de las pantallas), un diagnóstico que el equipo ya hizo bien en `RFC-002-ux.md` y que este
 addendum adopta como doctrina de pilar en vez de re-derivarlo. Lo que faltaba declarar como parte de esta
 arquitectura, y que ningún documento existente cubría, es el rendimiento percibido: el 100% de las rutas
-renderiza bloqueante, sin streaming, sin `loading.tsx`, con un solo patrón de skeleton en toda la app — un
-hueco grande pero barato de cerrar de forma incremental, sin arquitectura nueva. En accesibilidad hay
-disciplina real (foco visible citado a WCAG, cero anti-patrones de teclado, un `Badge` que no puede depender
-solo del color) mezclada con dos gaps ya nombrados por la propia auditoría Fiori (formularios sin `<Field>`,
-`role="alert"` inconsistente) más uno nuevo (ningún skip-link). La recomendación de tecnología es de
-contención: no reemplazar los 12 primitivos que ya funcionan; sumar librerías probadas (TanStack Table,
-Recharts, Base UI, `cmdk`, Playwright) recién cuando el disparador concreto lo justifique, nunca por moda.
-El plan de cierre no compite con la secuencia ya propuesta por RFC-002 — la envuelve, agrega una Fase 0 barata
+renderiza bloqueante, sin streaming, sin `loading.tsx`, con un solo patrón de skeleton en toda la app —
+precisamente el mayor riesgo de que Empresa se sienta "SAP lento" en vez de "SAP que diseñó Apple", pero un
+hueco barato de cerrar de forma incremental. En accesibilidad hay disciplina real (foco visible citado a
+WCAG, cero anti-patrones de teclado, un `Badge` que no puede depender solo del color) mezclada con dos gaps
+ya nombrados por la propia auditoría Fiori (formularios sin `<Field>`, `role="alert"` inconsistente) más uno
+nuevo (ningún skip-link). La recomendación de tecnología es de contención: no reemplazar los 12 primitivos
+que ya funcionan; sumar librerías probadas (TanStack Table, Recharts, Base UI, `cmdk`, Playwright) recién
+cuando el disparador concreto lo justifique, nunca por moda — el mismo *restraint* que define a Apple. El
+plan de cierre no compite con la secuencia ya propuesta por RFC-002 — la envuelve, agrega una Fase 0 barata
 y una capa de performance/accesibilidad formal como gate permanente del producto.
 
 ---
