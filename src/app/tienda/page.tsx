@@ -15,8 +15,10 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { getStorefront } from "@/lib/order-actions";
 import { getTenantAccent, tenantFaviconDataUri, brandForSlug, resolveTenantLayout } from "@/lib/branding";
-import { tenantFidelityEnabled } from "@/lib/identity";
+import { tenantFidelityEnabled, tenantBrandSheetEnabled } from "@/lib/identity";
+import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import type { CSSProperties } from "react";
 import { getSiteReplica } from "@/tenants/site-replica";
 import Storefront from "./Storefront";
 import SiteReplica from "./SiteReplica";
@@ -77,27 +79,36 @@ export default async function TiendaPage() {
   // no tiene su número real configurado (ver WhatsAppCtaProvider) — sin slug
   // (single-tenant/legacy) cae a un key fijo, sigue siendo estable por tenant.
   const tenantKey = slug ?? "default";
-  if (replica) {
-    return <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={accent} tenantKey={tenantKey} />;
-  }
-  // FIDELIDAD DE LAYOUT (RFC-004-A §3), detrás de `TENANT_FIDELITY_ENABLED` (default OFF):
-  // pasamos la estructura real del tenant (logo/banner/hero) + su logo asset. Con el flag
-  // OFF, `fidelity=false` → la vidriera renderiza el molde de hoy (byte-idéntico). El brand
-  // se resuelve por slug (misma capa que el acento); persistirlo por tenant en DB es §C.
-  const brand = brandForSlug(slug);
-  const fidelity = tenantFidelityEnabled();
-  return (
+
+  // FICHA DE MARCA (RFC-004-D, frente A), detrás de `TENANT_BRAND_SHEET_ENABLED`: con el flag
+  // ON, la vidriera se envuelve en la PIEL del tenant (theme pack por `data-brand` + tema +
+  // acento de la ficha de la DB). Con el flag OFF → sin wrapper, tokens :root (byte-idéntico).
+  const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
+  const skinAccent = sheet ? brandSheetAccent(sheet, sheet.frontTheme).accent : accent;
+
+  const inner = replica ? (
+    <SiteReplica site={replica} name={data.name} branding={data.branding} products={data.products} accent={skinAccent} tenantKey={tenantKey} />
+  ) : (
+    // FIDELIDAD DE LAYOUT (RFC-004-A §3), detrás de `TENANT_FIDELITY_ENABLED`: estructura real
+    // del tenant (logo/banner/hero/orden) + logo asset. Con el flag OFF → molde de hoy.
     <Storefront
       name={data.name}
       branding={data.branding}
       wording={data.wording}
       copy={data.copy}
       products={data.products}
-      accent={accent}
+      accent={skinAccent}
       tenantKey={tenantKey}
-      layout={resolveTenantLayout(brand)}
-      logoAsset={brand.logoAsset ?? null}
-      fidelity={fidelity}
+      layout={resolveTenantLayout(brandForSlug(slug))}
+      logoAsset={brandForSlug(slug).logoAsset ?? null}
+      fidelity={tenantFidelityEnabled()}
     />
+  );
+
+  if (!sheet) return inner;
+  return (
+    <div data-theme={sheet.frontTheme} data-brand={sheet.themeId} style={{ "--accent": skinAccent } as CSSProperties}>
+      {inner}
+    </div>
   );
 }

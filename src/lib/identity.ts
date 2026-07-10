@@ -48,3 +48,22 @@ export function identityAttr(enabled: boolean): "gsg" | undefined {
 export function tenantFidelityEnabled(env: Record<string, string | undefined> = process.env): boolean {
   return truthy(env.TENANT_FIDELITY_ENABLED);
 }
+
+// ============================================================================
+// FICHA DE MARCA POR TENANT (RFC-004-D) — piel tenant-scoped de punta a punta.
+// ============================================================================
+//
+// El bug real (verificado en runtime): resolución y módulos FUNCIONAN, pero la PIEL cae a
+// CH. El branding leía un mapa hardcodeado por slug (que no tiene los slugs demo) → todos a
+// DEFAULT_BRAND (contenido de CH) + tokens neutros/tipografía globales de CH. Este flag
+// enciende la ficha de marca por tenant: el brand se resuelve de los DATOS del Tenant
+// (accentPreset/frontTheme/blueprintId/name) + un THEME PACK curado (neutros/tipografía/
+// densidad) inyectado en la raíz del front Y del back vía `data-brand`.
+//
+// DEFAULT OFF: con `TENANT_BRAND_SHEET_ENABLED` apagado, el branding sigue el camino legado
+// (mapa por slug) → byte-idéntico. beauty-spa/erp-ch NO se tocan. Reversible/aditivo.
+
+/** ¿Está encendida la ficha de marca por tenant (piel por datos + theme packs)? Default OFF. PURA. */
+export function tenantBrandSheetEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return truthy(env.TENANT_BRAND_SHEET_ENABLED);
+}

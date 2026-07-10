@@ -15,12 +15,14 @@ test("brandForSlug: cada tenant real tiene su propia marca (no comparten identid
   assert.deepEqual(names, ["CH Estética", "Magra", "Shine", "A Dos Manos"]);
 });
 
-test("brandForSlug: slug desconocido o null cae al brand por defecto (nunca al de otro tenant)", () => {
+test("brandForSlug: slug desconocido o null cae al brand por defecto NEUTRO (RFC-004-D: ya no CH)", () => {
   const unknown = brandForSlug("un-slug-que-no-existe");
   const nullSlug = brandForSlug(null);
-  assert.equal(unknown.name, "ERP");
-  assert.equal(nullSlug.name, "ERP");
+  // El default dejó de ser CH: nombre genérico + acento neutro (no petróleo de CH).
+  assert.equal(unknown.name, "Mi negocio");
+  assert.equal(nullSlug.name, "Mi negocio");
   assert.equal(unknown.name, nullSlug.name);
+  assert.notEqual(unknown.preset, "petroleo");
 });
 
 test("brandForSlug: nunca devuelve la marca de CH para el slug de otro tenant", () => {

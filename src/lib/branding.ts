@@ -209,10 +209,13 @@ export function resolveSectionOrder(order: SectionKey[] | null | undefined): Sec
   return out;
 }
 
+// DEFAULT NEUTRO (RFC-004-D): un tenant SIN ficha ya NO hereda la marca de CH. Nombre
+// genérico + acento neutro (celeste, NO el petróleo de CH). beauty-spa/CH tiene su entrada
+// propia en TENANTS, así que este cambio no lo toca. Cierra el "todo cae a CH" del branding.
 const DEFAULT_BRAND: TenantBrand = {
-  name: "ERP",
-  monogram: "◆",
-  preset: "petroleo",
+  name: "Mi negocio",
+  monogram: "•",
+  preset: "celeste",
   frontTheme: "light",
 };
 

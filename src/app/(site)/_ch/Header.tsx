@@ -6,7 +6,10 @@ import ReserveButton from "./ReserveButton";
 
 const navLink: React.CSSProperties = { color: "var(--text-strong)", textDecoration: "none", transition: "color .2s", fontSize: 14 };
 
-export default function Header({ hasNews }: { hasNews?: boolean }) {
+// `brandName` viene del tenant (ficha de marca, RFC-004-D). Ausente → "CH Estética"
+// (compat con la prod de CH). Un tenant no-CH ya no muestra el logo de CH.
+export default function Header({ hasNews, brandName }: { hasNews?: boolean; brandName?: string }) {
+  const label = brandName?.trim() || "CH Estética";
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -28,9 +31,8 @@ export default function Header({ hasNews }: { hasNews?: boolean }) {
       }}
     >
       <div style={{ maxWidth: 1152, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Link href="/#top" aria-label="CH Estética — inicio" style={{ display: "flex", alignItems: "baseline", gap: 8, textDecoration: "none" }}>
-          <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)", lineHeight: 1 }}>CH</span>
-          <span style={{ textTransform: "uppercase", letterSpacing: ".22em", fontWeight: 600, fontSize: ".75rem", color: "var(--text-muted)" }}>Estética</span>
+        <Link href="/#top" aria-label={`${label} — inicio`} style={{ display: "flex", alignItems: "baseline", gap: 8, textDecoration: "none" }}>
+          <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 22, color: "var(--accent)", lineHeight: 1 }}>{label}</span>
         </Link>
         <nav style={{ display: "flex", alignItems: "center", gap: 24 }} aria-label="Principal">
           <Link href="/#novedades" style={{ ...navLink, position: "relative" }} className="hidden sm:inline">

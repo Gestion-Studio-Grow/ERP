@@ -185,6 +185,89 @@
   --line-strong: rgba(255, 255, 255, 0.16);
 }
 
+/* ═════════ THEME PACKS por tenant (RFC-004-D, frente B) ═════════
+   La PIEL curada por tenant: cada `[data-brand="…"]` redefine neutros + tipografía +
+   densidad + radios (NO solo el acento). El layout (front y back) pone `data-brand`
+   desde la ficha del tenant (getBrandSheet), detrás de `TENANT_BRAND_SHEET_ENABLED`.
+   Los bloques `[data-brand][data-theme="dark"]` tienen 2 atributos → ganan sobre la
+   Nocturne oscura de abajo (1 atributo). Espeja src/lib/theme-packs.ts. Ningún pack
+   copia el hueso/petróleo de CH; beauty-spa NO usa este mecanismo. */
+
+/* — Servicios / estética: blush-rosé, serif Playfair, con aire — */
+[data-brand="servicios-spa"] {
+  --surface-sunken: #efe2e5; --surface: #f8f1f2; --surface-raised: #fffdfd; --surface-inverted: #241a1d;
+  --text-strong: #2a1e22; --text: #4c3b41; --text-muted: #8a727a; --text-faint: #b6a1a8;
+  --line: #ecdde1; --line-strong: #dcc6cc;
+  --font-display: var(--font-spa-serif); --font-body: var(--font-geist-sans);
+  --density: 1.14; --radius: 0.875rem;
+}
+[data-brand="servicios-spa"] [data-theme="dark"],
+[data-brand="servicios-spa"][data-theme="dark"] {
+  --surface-sunken: #150e10; --surface: #1d1418; --surface-raised: #271b20; --surface-inverted: #f8f1f2;
+  --text-strong: #f6ecef; --text: #dcc9d0; --text-muted: #a98f98; --text-faint: #7a626b;
+  --line: rgba(255, 225, 235, 0.10); --line-strong: rgba(255, 225, 235, 0.18);
+}
+
+/* — Velas & deco: cream cálido, serif Fraunces, aireado — */
+[data-brand="boutique-velas"] {
+  --surface-sunken: #eee6d6; --surface: #f7f2e9; --surface-raised: #fffdf7; --surface-inverted: #221d14;
+  --text-strong: #241f16; --text: #4c4433; --text-muted: #8b7f66; --text-faint: #b8ac92;
+  --line: #e9dfcd; --line-strong: #d8cab0;
+  --font-display: var(--font-fraunces); --font-body: var(--font-hanken);
+  --density: 1.2; --radius: 1rem;
+}
+[data-brand="boutique-velas"] [data-theme="dark"],
+[data-brand="boutique-velas"][data-theme="dark"] {
+  --surface-sunken: #14100a; --surface: #1c1710; --surface-raised: #272117; --surface-inverted: #f7f2e9;
+  --text-strong: #f7f0e2; --text: #ddd0b8; --text-muted: #a99a7c; --text-faint: #7a6d54;
+  --line: rgba(255, 240, 210, 0.10); --line-strong: rgba(255, 240, 210, 0.18);
+}
+
+/* — Pádel / retail deportivo: slate frío, grotesca Hanken, denso — */
+[data-brand="retail-deporte"] {
+  --surface-sunken: #e1e6ea; --surface: #eef1f3; --surface-raised: #ffffff; --surface-inverted: #10161a;
+  --text-strong: #101619; --text: #333d44; --text-muted: #5f6a72; --text-faint: #93a0a7;
+  --line: #d6dee2; --line-strong: #bdc8ce;
+  --font-display: var(--font-hanken); --font-body: var(--font-geist-sans);
+  --density: 1.0; --radius: 0.375rem;
+}
+[data-brand="retail-deporte"] [data-theme="dark"],
+[data-brand="retail-deporte"][data-theme="dark"] {
+  --surface-sunken: #0b0f12; --surface: #111820; --surface-raised: #1a232b; --surface-inverted: #eef1f3;
+  --text-strong: #eef4f7; --text: #c3ced4; --text-muted: #85939c; --text-faint: #5c6a73;
+  --line: rgba(200, 225, 240, 0.10); --line-strong: rgba(200, 225, 240, 0.18);
+}
+
+/* — Carnicería / Magra: bone cálido profundo, serif Playfair, sobrio — */
+[data-brand="boutique-carne"] {
+  --surface-sunken: #eae0d4; --surface: #f4efe8; --surface-raised: #fffdf9; --surface-inverted: #1c1613;
+  --text-strong: #1d1611; --text: #42352d; --text-muted: #7f6f62; --text-faint: #b0a292;
+  --line: #e5d9cb; --line-strong: #d5c5b1;
+  --font-display: var(--font-spa-serif); --font-body: var(--font-geist-sans);
+  --density: 1.08; --radius: 0.5rem;
+}
+[data-brand="boutique-carne"] [data-theme="dark"],
+[data-brand="boutique-carne"][data-theme="dark"] {
+  --surface-sunken: #120d0a; --surface: #1a1410; --surface-raised: #241c16; --surface-inverted: #f4efe8;
+  --text-strong: #f6efe6; --text: #dccabb; --text-muted: #a89283; --text-faint: #79655a;
+  --line: rgba(255, 235, 215, 0.10); --line-strong: rgba(255, 235, 215, 0.18);
+}
+
+/* — Base neutra GSG (no-CH): papel técnico frío-tibio para tenants sin ficha — */
+[data-brand="gsg-base"] {
+  --surface-sunken: #e2e3e2; --surface: #f4f5f4; --surface-raised: #ffffff; --surface-inverted: #17181a;
+  --text-strong: #191b1c; --text: #35363a; --text-muted: #6a6b70; --text-faint: #9c9da3;
+  --line: #e2e2df; --line-strong: #c8c8c4;
+  --font-display: var(--font-geist-sans); --font-body: var(--font-geist-sans);
+  --density: 1.0; --radius: 0.5rem;
+}
+[data-brand="gsg-base"] [data-theme="dark"],
+[data-brand="gsg-base"][data-theme="dark"] {
+  --surface-sunken: #101113; --surface: #17181a; --surface-raised: #212327; --surface-inverted: #f2f3f4;
+  --text-strong: #f2f3f4; --text: #cbccd0; --text-muted: #8d8e94; --text-faint: #616268;
+  --line: rgba(255, 255, 255, 0.09); --line-strong: rgba(255, 255, 255, 0.16);
+}
+
 /* ═════════ TEMA OSCURO — Nocturne ═════════
    Se activa con `data-theme="dark"` en un contenedor (el layout lo pone según
    la REGLA front/back de branding.ts). Solo redefine los tokens semánticos;
