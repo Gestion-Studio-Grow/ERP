@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 
 // Envío de notificaciones al cliente. Hoy soporta email real (si se configura
 // RESEND_API_KEY) y deja el mismo punto de entrada listo para conectar
@@ -7,6 +7,11 @@ import { prisma } from "@/lib/prisma";
 //
 // El texto de cada mensaje sale de MessageTemplate (panel /admin/recordatorios),
 // no está hardcodeado acá — esto es lo que permite editar el copy sin tocar código.
+//
+// `getActiveTemplate` lee vía `tenantTransaction` con `tenantId` EXPLÍCITO (no
+// ambiental): esto lo llama el worker del cron de recordatorios, sin
+// request/host — con RLS_ENFORCEMENT on, `getCurrentTenantId()` ambiental
+// rompería con >1 tenant (ADR-018 §4). El `tenantId` ya viene en el payload.
 
 type ReminderPayload = {
   tenantId: string;
@@ -31,7 +36,10 @@ async function getActiveTemplate(
   type: "APPOINTMENT_REMINDER" | "PROFESSIONAL_NEWS_BROADCAST",
   channel: "EMAIL" | "WHATSAPP"
 ) {
-  return prisma.messageTemplate.findFirst({ where: { tenantId, type, channel, active: true } });
+  return tenantTransaction(
+    (tx) => tx.messageTemplate.findFirst({ where: { tenantId, type, channel, active: true } }),
+    { tenantId },
+  );
 }
 
 const DEFAULT_REMINDER_BODY =
