@@ -20,7 +20,14 @@ import { fileURLToPath } from "node:url";
 const ADR_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "docs", "adr");
 
 // nivel fundacional (RFC-001 §2 + H2 para ADR-008). El resto: evolutiva.
-const FUNDACIONAL = new Set(["ADR-001", "ADR-002", "ADR-005", "ADR-008", "ADR-017", "ADR-018", "ADR-044", "ADR-058"]);
+// 060-071: fundación estratégica landeada 2026-07-10 (segmentación, motor compartido, RLS línea base,
+// refactor-no-reconstruir, núcleo transaccional, fábricas, credenciales fiscales, DR/25.326, gates humanos,
+// norte de diseño, disciplina de release, método de conocimiento).
+const FUNDACIONAL = new Set([
+  "ADR-001", "ADR-002", "ADR-005", "ADR-008", "ADR-017", "ADR-018", "ADR-044", "ADR-058",
+  "ADR-060", "ADR-061", "ADR-062", "ADR-063", "ADR-064", "ADR-065",
+  "ADR-066", "ADR-067", "ADR-068", "ADR-069", "ADR-070", "ADR-071",
+]);
 
 // dominio (RFC-001 §2 clusters + juicio para los no listados). Multi-dominio permitido (H4).
 const DOMINIO = {
@@ -44,6 +51,12 @@ const DOMINIO = {
   "ADR-053": ["Operaciones"], "ADR-054": ["Arquitectura"], "ADR-055": ["Arquitectura"],
   "ADR-056": ["Producto", "Plataforma"], "ADR-057": ["Arquitectura", "Datos"],
   "ADR-058": ["Producto", "Arquitectura"], "ADR-059": ["Producto", "UX"],
+  "ADR-060": ["Producto", "Arquitectura", "Negocio"], "ADR-061": ["Arquitectura", "Producto"],
+  "ADR-062": ["Seguridad", "Datos"], "ADR-063": ["Arquitectura", "Operaciones"],
+  "ADR-064": ["Arquitectura", "Datos"], "ADR-065": ["Plataforma", "Arquitectura"],
+  "ADR-066": ["Seguridad", "Producto"], "ADR-067": ["Plataforma", "Datos", "Seguridad"],
+  "ADR-068": ["Operaciones", "Seguridad"], "ADR-069": ["UX", "Producto"],
+  "ADR-070": ["Operaciones", "Plataforma"], "ADR-071": ["Operaciones", "IA"],
 };
 
 /**
