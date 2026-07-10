@@ -50,62 +50,17 @@ export type AccentPreset = keyof typeof ACCENT_PRESETS;
 //     foco en el CTA/producto).
 // La vidriera solo los aplica con `TENANT_FIDELITY_ENABLED` ON (ver src/lib/identity.ts);
 // con el flag OFF renderiza el molde de hoy. `resolveTenantLayout` completa los defaults.
-export type LogoPosition = "centered" | "left";
-// Variante de HERO (Ola 1 — identidad genuina, no "template con otro color"):
-//   - standard : dos zonas a la izquierda (el molde de hoy).
-//   - editorial: centrado, serif, mucho aire (boutique — Magra).
-//   - poster   : banda con lavado del acento detrás del titular (vidriera cálida — Shine).
-//   - split    : titular a la izquierda + panel de acento a la derecha (retail — A Dos Manos).
-export type HeroLayout = "standard" | "editorial" | "poster" | "split";
-
-// TIPOGRAFÍA por tenant — se elige entre las familias YA cargadas (next/font en el layout
-// raíz): sin descargas nuevas, solo se reasignan `--font-display`/`--font-body`. Da voz
-// propia a cada vidriera (serif elegante ≠ grotesca deportiva) en vez de la serif de CH.
-export type FontKey = "fraunces" | "playfair" | "hanken" | "geist";
-export type StorefrontTypography = {
-  display: FontKey;
-  body: FontKey;
-  headingTransform?: "uppercase" | "none";
-  headingWeight?: number;
-  headingTracking?: string;
-};
-
-// PALETA de superficie por tenant — sobrescribe LOCALMENTE (inline, solo en la vidriera)
-// los tokens neutros para que cada negocio tenga su "papel" propio (bone cálido de la
-// carnicería ≠ blush de las velas ≠ slate frío del pádel). El ACENTO sigue saliendo del
-// preset del tenant; esto es el fondo sobre el que ese acento se monta.
-export type StorefrontPalette = {
-  surface?: string;
-  surfaceRaised?: string;
-  surfaceSunken?: string;
-  textStrong?: string;
-  textMuted?: string;
-  line?: string;
-};
-
-// Orden de las secciones de contenido de la vidriera (el "guion" del negocio): una
-// carnicería cuenta primero su historia; una tienda de pádel muestra primero el catálogo.
-// Claves faltantes se completan con el orden por defecto → nunca se pierde una sección.
-export type SectionKey =
-  | "lines" | "catalog" | "ritual" | "gifts" | "cart" | "gourmet" | "providers" | "reviews";
-
-export type TenantLayout = {
-  logoPosition: LogoPosition;
-  banner: string | null;
-  hero: HeroLayout;
-  typography?: StorefrontTypography;
-  palette?: StorefrontPalette;
-  sectionOrder?: SectionKey[];
-};
-
-// Default = el molde de hoy (logo a la izquierda, sin banner, hero estándar, sin tipografía
-// ni paleta ni reorden propios). Un tenant sin `layout` declarado se ve como hasta ahora →
-// aditivo, sin regresiones. Con `TENANT_FIDELITY_ENABLED` OFF, la vidriera lo ignora entero.
-export const DEFAULT_LAYOUT: TenantLayout = {
-  logoPosition: "left",
-  banner: null,
-  hero: "standard",
-};
+// Los tipos + helpers de LAYOUT (hero/tipografía/paleta/orden) viven en el leaf CLIENT-SAFE
+// `./tenant-layout` — para que un componente `"use client"` (Storefront) los importe sin
+// arrastrar Prisma/pg (que este módulo sí importa vía tenant-site). Se re-exportan acá para
+// los callers de SERVIDOR que ya importan de `@/lib/branding`.
+export type {
+  LogoPosition, HeroLayout, FontKey, StorefrontTypography, StorefrontPalette, SectionKey, TenantLayout,
+} from "./tenant-layout";
+export {
+  DEFAULT_LAYOUT, resolveTenantLayout, FONT_VAR, DEFAULT_SECTION_ORDER, resolveSectionOrder,
+} from "./tenant-layout";
+import type { TenantLayout } from "./tenant-layout";
 
 // Branding declarado por tenant. `frontTheme` es el tema de su vidriera; el back
 // se deriva con la regla. `monogram` es el logo textual de respaldo; `logoAsset` es
@@ -175,39 +130,8 @@ const TENANTS: Record<string, TenantBrand> = {
   },
 };
 
-// Layout completo del tenant (parcial declarado → completado con DEFAULT_LAYOUT). PURA.
-export function resolveTenantLayout(brand: TenantBrand): TenantLayout {
-  return { ...DEFAULT_LAYOUT, ...(brand.layout ?? {}) };
-}
-
-// Clave de fuente → la CSS var que expone el layout raíz (next/font). Único punto de
-// mapeo, para que branding.ts declare identidad sin conocer los nombres de las vars. PURA.
-export const FONT_VAR: Record<FontKey, string> = {
-  fraunces: "var(--font-fraunces)",
-  playfair: "var(--font-spa-serif)",
-  hanken: "var(--font-hanken)",
-  geist: "var(--font-geist-sans)",
-};
-
-// Orden por defecto de las secciones de la vidriera (= el de hoy). Se usa para completar
-// cualquier clave que un tenant no liste en su `sectionOrder` → nunca se pierde contenido.
-export const DEFAULT_SECTION_ORDER: SectionKey[] = [
-  "lines", "catalog", "ritual", "gifts", "cart", "gourmet", "providers", "reviews",
-];
-
-/** Orden final de secciones: las del tenant primero, luego las faltantes en su orden por
- *  defecto (sin duplicar). `null`/vacío → el orden por defecto tal cual. PURA. */
-export function resolveSectionOrder(order: SectionKey[] | null | undefined): SectionKey[] {
-  const seen = new Set<SectionKey>();
-  const out: SectionKey[] = [];
-  for (const k of [...(order ?? []), ...DEFAULT_SECTION_ORDER]) {
-    if (!seen.has(k)) {
-      seen.add(k);
-      out.push(k);
-    }
-  }
-  return out;
-}
+// (resolveTenantLayout / FONT_VAR / DEFAULT_SECTION_ORDER / resolveSectionOrder ahora viven
+//  en el leaf client-safe `./tenant-layout` y se re-exportan arriba.)
 
 // DEFAULT NEUTRO (RFC-004-D): un tenant SIN ficha ya NO hereda la marca de CH. Nombre
 // genérico + acento neutro (celeste, NO el petróleo de CH). beauty-spa/CH tiene su entrada

@@ -5,6 +5,15 @@ import { gsgIdentityEnabled, identityAttr, tenantBrandSheetEnabled } from "@/lib
 import { getBrandSheet } from "@/lib/brand-sheet";
 import "./globals.css";
 
+// RENDER DINÁMICO APP-WIDE (fix build P1001, 2026-07-10). La app es 100% multi-tenant y
+// resuelve el tenant por HOST en cada request → NINGUNA ruta puede prerenderizarse en build
+// de forma útil (dependería del host, que no existe en build). Forzarlo en el layout RAÍZ
+// hace que `next build` NUNCA ejecute loaders ni toque la base (P1001 `Can't reach database
+// server at 127.0.0.1:5432` al prerenderizar una page que consulta Prisma —
+// p. ej. `serviceCategory.findMany` de la landing). El fix correcto NO es dar una DB de
+// build: es que el build no dependa de la DB. Aplica a todo el árbol de rutas.
+export const dynamic = "force-dynamic";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

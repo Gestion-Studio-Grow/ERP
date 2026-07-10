@@ -68,7 +68,8 @@ test("resolveTenantLayout: los tenants NO comparten el mismo molde (se ven disti
 
 test("resolveTenantLayout: tenant sin layout declarado cae al molde de hoy (DEFAULT_LAYOUT)", () => {
   assert.deepEqual(resolveTenantLayout(brandForSlug(null)), DEFAULT_LAYOUT);
-  assert.deepEqual(resolveTenantLayout({ name: "X", monogram: "X", preset: "verde", frontTheme: "light" }), {
+  // brand SIN `layout` (resolveTenantLayout es estructural: solo mira `.layout`) → molde de hoy.
+  assert.deepEqual(resolveTenantLayout({}), {
     logoPosition: "left",
     banner: null,
     hero: "standard",
