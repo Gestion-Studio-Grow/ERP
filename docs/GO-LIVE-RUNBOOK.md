@@ -54,7 +54,7 @@ por su subdominio). Cero downtime si se sigue el orden.
 > rol **NUEVO `app_rls`** (`prisma/rls/0002_app_role.sql`) y cierra el drift de 9 tablas re-corriendo
 > `0001`. **Seguí el guion canónico `docs/runbooks/alta-magra.md` (Pasos 1-2)**; abajo quedan los pasos
 > por-UI como referencia, pero **leé `app_rls` donde diga `app_user`** y confirmá con
-> `prisma/rls/check-rls-live.mjs` (33/33 + `app_rls` sin bypass).
+> `prisma/rls/check-rls-live.mjs` (hoy **38/38** — no 33; el conteo creció con las tablas de ADR-060 — + `app_rls` sin bypass; ADR-062).
 
 > Seguro: nada de esto cambia el comportamiento de la app todavía (la app sigue
 > conectando con el rol de siempre hasta el Paso 3).
