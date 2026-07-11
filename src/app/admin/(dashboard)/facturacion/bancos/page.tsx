@@ -21,8 +21,10 @@ import { Badge, PageContainer, PageHeader, SectionGroup, buttonClasses, fmtNumbe
 import ArcaPill from "./ArcaPill";
 import KpisBancos from "./KpisBancos";
 import ImportarExtracto from "./ImportarExtracto";
+import MercadoPagoSync from "./MercadoPagoSync";
 import EmitirFacturas from "./EmitirFacturas";
 import ColaRevision from "./ColaRevision";
+import { estadoMercadoPagoAction } from "@/lib/mercadopago-actions";
 import { fmtDateTimeAr } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +67,7 @@ export default async function FacturacionBancosPage() {
       listarPropuestasAction({ estadoPropuesta: "revision" }),
       listarPropuestasAction({ estadoPropuesta: "auto" }),
       getFacturacion(), // mismo estado fiscal que la pantalla de Facturación (consistencia)
+      estadoMercadoPagoAction(),
     ]);
   } catch (e) {
     // P2021/P2022: la tabla o columna no existe todavía (migración sin aplicar).
@@ -90,7 +93,7 @@ export default async function FacturacionBancosPage() {
     }
     throw e;
   }
-  const [kpis, enRevision, listas, { estado }] = datos;
+  const [kpis, enRevision, listas, { estado }, estadoMP] = datos;
 
   // % de confianza del mapeo por importación: lectura liviana del mapeoJson
   // (solo los 5 ids del KPI, tenantId explícito — ADR-018). No hay action de
@@ -142,6 +145,13 @@ export default async function FacturacionBancosPage() {
         description="El archivo tal cual lo baja el homebanking. Los movimientos repetidos se detectan solos: podés subir el mismo extracto dos veces sin miedo."
       >
         <ImportarExtracto />
+      </SectionGroup>
+
+      <SectionGroup
+        title="Cobros de Mercado Pago"
+        description="Lo que cobrás por Mercado Pago entra al mismo tablero y se factura por las mismas reglas. Si el mismo cobro aparece también en el extracto del banco, se detecta y no se duplica."
+      >
+        <MercadoPagoSync estado={estadoMP} />
       </SectionGroup>
 
       <SectionGroup
