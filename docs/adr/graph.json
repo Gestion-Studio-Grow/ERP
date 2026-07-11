@@ -7,8 +7,8 @@
     "Se re-genera como subproducto del ritual (Gate/retro): node scripts/adr-graph.mjs."
   ],
   "query": "dependents[X] responde '¿qué se cae / qué depende si cambio X?'",
-  "count": 77,
-  "adrCount": 71,
+  "count": 81,
+  "adrCount": 75,
   "amendmentCount": 6,
   "nodes": [
     {
@@ -70,7 +70,10 @@
         "ADR-058",
         "ADR-059",
         "ADR-061",
-        "ADR-064"
+        "ADR-064",
+        "ADR-073",
+        "ADR-074",
+        "ADR-075"
       ]
     },
     {
@@ -210,7 +213,8 @@
         "ADR-012",
         "ADR-034",
         "ADR-040",
-        "ADR-069"
+        "ADR-069",
+        "ADR-072"
       ]
     },
     {
@@ -377,7 +381,8 @@
         "ADR-036",
         "ADR-041",
         "ADR-054",
-        "ADR-062"
+        "ADR-062",
+        "ADR-074"
       ]
     },
     {
@@ -397,7 +402,8 @@
         "ADR-021",
         "ADR-028",
         "ADR-034",
-        "ADR-065"
+        "ADR-065",
+        "ADR-074"
       ]
     },
     {
@@ -435,7 +441,8 @@
         "ADR-019"
       ],
       "dependents": [
-        "ADR-065"
+        "ADR-065",
+        "ADR-074"
       ]
     },
     {
@@ -459,7 +466,8 @@
         "ADR-025",
         "ADR-057",
         "ADR-064",
-        "ADR-066"
+        "ADR-066",
+        "ADR-075"
       ]
     },
     {
@@ -492,7 +500,8 @@
       ],
       "dependents": [
         "ADR-025",
-        "ADR-064"
+        "ADR-064",
+        "ADR-075"
       ]
     },
     {
@@ -584,7 +593,8 @@
       ],
       "dependents": [
         "ADR-038",
-        "ADR-060"
+        "ADR-060",
+        "ADR-075"
       ]
     },
     {
@@ -633,7 +643,9 @@
         "Operaciones"
       ],
       "depends_on": [],
-      "dependents": []
+      "dependents": [
+        "ADR-073"
+      ]
     },
     {
       "id": "ADR-034",
@@ -651,7 +663,8 @@
       "dependents": [
         "ADR-035",
         "ADR-042",
-        "ADR-065"
+        "ADR-065",
+        "ADR-073"
       ]
     },
     {
@@ -740,7 +753,8 @@
         "ADR-048",
         "ADR-068",
         "ADR-070",
-        "ADR-071"
+        "ADR-071",
+        "ADR-072"
       ]
     },
     {
@@ -769,7 +783,9 @@
       "depends_on": [
         "ADR-034"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-073"
+      ]
     },
     {
       "id": "ADR-043",
@@ -783,7 +799,8 @@
         "ADR-040"
       ],
       "dependents": [
-        "ADR-044"
+        "ADR-044",
+        "ADR-072"
       ]
     },
     {
@@ -801,7 +818,8 @@
       "dependents": [
         "ADR-046",
         "ADR-058",
-        "ADR-069"
+        "ADR-069",
+        "ADR-072"
       ]
     },
     {
@@ -967,7 +985,9 @@
         "ADR-058",
         "ADR-059",
         "ADR-061",
-        "ADR-065"
+        "ADR-065",
+        "ADR-073",
+        "ADR-075"
       ]
     },
     {
@@ -984,7 +1004,10 @@
       "dependents": [
         "ADR-058",
         "ADR-059",
-        "ADR-065"
+        "ADR-065",
+        "ADR-073",
+        "ADR-074",
+        "ADR-075"
       ]
     },
     {
@@ -1012,7 +1035,8 @@
         "ADR-022"
       ],
       "dependents": [
-        "ADR-064"
+        "ADR-064",
+        "ADR-075"
       ]
     },
     {
@@ -1033,7 +1057,8 @@
       "dependents": [
         "ADR-059",
         "ADR-060",
-        "ADR-061"
+        "ADR-061",
+        "ADR-072"
       ]
     },
     {
@@ -1051,7 +1076,8 @@
         "ADR-058"
       ],
       "dependents": [
-        "ADR-069"
+        "ADR-069",
+        "ADR-072"
       ]
     },
     {
@@ -1135,7 +1161,9 @@
         "ADR-024",
         "ADR-057"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-075"
+      ]
     },
     {
       "id": "ADR-065",
@@ -1167,7 +1195,9 @@
         "ADR-025",
         "ADR-041"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-075"
+      ]
     },
     {
       "id": "ADR-067",
@@ -1214,7 +1244,9 @@
         "ADR-044",
         "ADR-059"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-072"
+      ]
     },
     {
       "id": "ADR-070",
@@ -1243,6 +1275,83 @@
         "ADR-008",
         "ADR-040",
         "ADR-047"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-072",
+      "title": "ADR-072: Enfoque de diseño — la filosofía del front (Apple×SAP), el sistema tematizable y el backoffice \"Fable\" congelado",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-009",
+        "ADR-040",
+        "ADR-043",
+        "ADR-044",
+        "ADR-058",
+        "ADR-059",
+        "ADR-069"
+      ],
+      "dependents": [
+        "ADR-073"
+      ]
+    },
+    {
+      "id": "ADR-073",
+      "title": "ADR-073: Personalización de diseño por tenant — SOLO configuración, nunca fork (+ \"Creative Grow\")",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-033",
+        "ADR-034",
+        "ADR-042",
+        "ADR-054",
+        "ADR-055",
+        "ADR-072"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-074",
+      "title": "ADR-074: Fábrica de tenants — `provisionTenant` como saga (commit transaccional + efectos externos compensables)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-018",
+        "ADR-019",
+        "ADR-021",
+        "ADR-055"
+      ],
+      "dependents": [
+        "ADR-075"
+      ]
+    },
+    {
+      "id": "ADR-075",
+      "title": "ADR-075: Módulo de Dropshipping — conectores a proveedores locales + saga cobro→orden→fulfillment (nacional puro)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-022",
+        "ADR-024",
+        "ADR-030",
+        "ADR-054",
+        "ADR-055",
+        "ADR-057",
+        "ADR-064",
+        "ADR-066",
+        "ADR-074"
       ],
       "dependents": []
     },
