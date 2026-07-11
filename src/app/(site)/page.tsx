@@ -89,27 +89,83 @@ export default async function Home() {
     <>
       {/* HERO */}
       <section style={{ maxWidth: 1152, margin: "0 auto", padding: "clamp(24px,6vw,40px) 24px clamp(28px,6vw,48px)", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
-        <div style={{ flex: "1 1 440px", minWidth: 300 }}>
-          <p style={{ ...eyebrow, margin: "0 0 16px" }}>{location.shortLabel}</p>
-          <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 480, margin: 0 })}>
-            {sheet ? "Tu momento, reservado." : "Tu tiempo, cuidado a metros de casa."}
-          </h1>
-          <p style={{ margin: "20px 0 0", fontSize: "1.0625rem", color: "var(--text-muted)", maxWidth: "28rem", lineHeight: 1.65 }}>
-            {sheet
-              ? `Turnos y atención en ${sheet.name}. Reservás en un minuto.`
-              : "Estética y spa dentro del barrio, con Carolina. Reservás en un minuto."}
-          </p>
-          <div style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-            <ReserveButton />
-            <a href="#servicios" style={linkAccent}>Ver servicios</a>
+        <div style={{ position: "relative", flex: "1 1 440px", minWidth: 300 }}>
+          {/* Monograma fantasma detrás del copy — firma editorial (decorativo).
+              Whisper de linen sobre el hueso: bajo para no bajar el contraste del
+              texto que se apoya encima (queda en un z-index superior). */}
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              top: "-.34em",
+              left: "-.05em",
+              fontFamily: "var(--font-display), Georgia, serif",
+              fontSize: "clamp(6.5rem,15vw,10rem)",
+              lineHeight: 1,
+              fontWeight: 480,
+              letterSpacing: "-.02em",
+              color: "color-mix(in srgb, var(--ch-linen) 42%, transparent)",
+              zIndex: 0,
+              pointerEvents: "none",
+              userSelect: "none",
+            }}
+          >
+            CH
+          </span>
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <p style={{ ...eyebrow, margin: "0 0 16px" }}>{location.shortLabel}</p>
+            <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 480, margin: 0 })}>
+              {sheet ? (
+                "Tu momento, reservado."
+              ) : (
+                <>
+                  Tu tiempo, cuidado{" "}
+                  <em style={{ fontStyle: "italic", fontWeight: 360, color: "var(--accent)" }}>a metros de casa.</em>
+                </>
+              )}
+            </h1>
+            <p style={{ margin: "20px 0 0", fontSize: "1.0625rem", color: "var(--text-muted)", maxWidth: "30rem", lineHeight: 1.72 }}>
+              {sheet
+                ? `Turnos y atención en ${sheet.name}. Reservás en un minuto.`
+                : "Tu lugar para desconectar, dentro del barrio. Estética especializada y rituales de spa con Carolina. Turnos que no se pisan; reservás en un minuto."}
+            </p>
+            <div style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+              <ReserveButton>Reservar turno</ReserveButton>
+              <a href="#servicios" style={linkAccent}>Ver servicios</a>
+            </div>
+            {!sheet && (
+              <div style={{ marginTop: 26, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                {["Estética especializada", "Rituales de spa", "Dentro del barrio"].map((t) => (
+                  <span
+                    key={t}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "var(--surface-sunken)", border: "1px solid var(--line)", padding: "6px 12px", borderRadius: 100, fontSize: ".8rem", color: "var(--text)" }}
+                  >
+                    <span aria-hidden style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)" }} />
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ flex: "1 1 360px", minWidth: 280 }}>
-          <PhotoPlaceholder
-            ratio="4 / 5"
-            gradient="radial-gradient(120% 90% at 78% 20%, rgba(46,110,119,.25), transparent 55%),linear-gradient(135deg,#D8CBB4 0%,#B79C7E 45%,#856B52 100%)"
-            caption="Manos acomodando lino sobre camilla de madera · luz de ventana, tarde cálida · frasco de vidrio petróleo como único acento frío"
-          />
+          {/* Foto real de la cabina (asset del proyecto en /public). El marco
+              art-directed (radio + sombra + viñeta) se conserva del lenguaje CH;
+              acá ya va la imagen, no el placeholder. */}
+          <div style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 4, overflow: "hidden", boxShadow: "var(--shadow-md)" }}>
+            <Image
+              src="/tenants/ch-hero-spa.jpg"
+              alt="Cabina de spa de CH Estética: lino color crema sobre la camilla, plantas naturales y luz cálida de tarde entrando por la ventana"
+              fill
+              priority
+              sizes="(max-width: 800px) 100vw, 400px"
+              style={{ objectFit: "cover" }}
+            />
+            <div
+              aria-hidden
+              style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(120% 100% at 50% 30%, transparent 60%, rgba(20,16,12,.16) 100%)" }}
+            />
+          </div>
         </div>
       </section>
 
@@ -117,9 +173,9 @@ export default async function Home() {
       <section style={{ borderTop: "1px solid var(--line)" }}>
         <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 40 }}>
           {[
-            ["Tiempo", "Entrás, te atienden, seguís tu día."],
-            ["Cercanía", "Dentro del barrio. Sin salir, sin tránsito."],
-            ["Cuidado", "Protocolos serios, piel que ya conocemos."],
+            ["Tiempo", "Entrás, te atienden, seguís tu día. La agenda respeta a cada persona."],
+            ["Cercanía", "Dentro del barrio. Sin salir, sin tránsito, sin estacionar afuera."],
+            ["Cuidado", "Protocolos de higiene serios y una profesional que te conoce la piel."],
           ].map(([t, d]) => (
             <Reveal key={t}>
               <h3 style={display({ fontSize: "1.25rem", fontWeight: 560, margin: "0 0 8px" })}>{t}</h3>
@@ -166,7 +222,9 @@ export default async function Home() {
       {/* SERVICIOS */}
       <section id="servicios" style={{ maxWidth: 1152, margin: "0 auto", padding: "64px 24px" }}>
         <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que hacemos</p>
-        <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 520, margin: "0 0 40px" })}>Servicios</h2>
+        <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 520, margin: "0 0 40px" })}>
+          Servicios <em style={{ fontStyle: "italic", fontWeight: 340 }}>&amp;</em> tratamientos
+        </h2>
         {groups.length === 0 ? (
           <p style={{ color: "var(--text-muted)" }}>Próximamente publicamos el menú de servicios.</p>
         ) : (
@@ -180,6 +238,38 @@ export default async function Home() {
           />
         </div>
       </section>
+
+      {/* EL RITUAL / SPA — el diferencial de CH: estética especializada + spa en
+          el mismo lugar. Copy propio de CH → gateado a la vidriera legada (!sheet);
+          un tenant con ficha de marca trae su propio relato. */}
+      {!sheet && (
+        <section id="ritual" style={{ background: "var(--surface-sunken)", borderTop: "1px solid var(--line)" }}>
+          <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
+            {/* Eyebrow con color propio (no el muted global): sobre el fondo
+                sunken de esta sección, text-muted cae a 4.33:1; --text pasa AA. */}
+            <p style={{ ...eyebrow, color: "var(--text)", margin: "0 0 12px" }}>Tu lugar para desconectar</p>
+            <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 20px" })}>Un ritual, no un trámite.</h2>
+            <p style={{ margin: "0 0 48px", fontSize: "1.0625rem", color: "var(--text)", maxWidth: "42rem", lineHeight: 1.72 }}>
+              La estética especializada resuelve; el spa te devuelve al cuerpo. En CH las dos cosas pasan en el
+              mismo lugar: entrás del barrio, bajás un cambio y salís en otra sintonía. Luz cálida, aromas suaves,
+              tiempo que no corre.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 32 }}>
+              {[
+                ["Antes", "Llegás y desconectás", "Te recibimos con tiempo. Sin sala de espera apurada: un té, luz baja y el ruido del barrio afuera."],
+                ["Durante", "El tratamiento, con criterio", "Diagnóstico primero, después las manos. Protocolos serios de dermatocosmiatría en clave de bienestar."],
+                ["Después", "Salís en otra sintonía", "Piel cuidada y la cabeza liviana. Te vas caminando, a metros de casa, con el próximo turno ya reservado."],
+              ].map(([k, t, d]) => (
+                <Reveal key={k} style={{ paddingTop: 24, borderTop: "2px solid var(--accent)" }}>
+                  <span style={{ display: "block", fontSize: ".7rem", fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--text-strong)" }}>{k}</span>
+                  <h3 style={display({ fontSize: "1.2rem", fontWeight: 520, margin: "12px 0 8px" })}>{t}</h3>
+                  <p style={{ fontSize: ".9rem", color: "var(--text)", lineHeight: 1.7, margin: 0 }}>{d}</p>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* EQUIPO */}
       <section id="equipo" style={{ borderTop: "1px solid var(--line)" }}>
