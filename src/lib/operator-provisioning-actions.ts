@@ -75,6 +75,9 @@ export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActi
     state: outcome.state,
     tenantId: commit?.tenantId,
     tenantCreated: commit?.tenantCreated,
+    hostBound: outcome.host?.bound ?? false,
+    invited: outcome.invited?.sent ?? false,
+    followups: outcome.followups?.length ?? 0,
     failure: outcome.failure?.reason,
   });
 

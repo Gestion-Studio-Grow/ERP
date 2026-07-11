@@ -542,6 +542,27 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
         </div>
       )}
 
+      {/* Pendientes manuales: efectos externos que se saltaron porque no hay credenciales configuradas
+          (host sin VERCEL_TOKEN, invitación sin proveedor de email). El tenant YA está activo; esto es
+          lo que falta rematar a mano para "terminar de verdad" el alta. */}
+      {outcome?.followups && outcome.followups.length > 0 && (
+        <div className="rounded-md bg-info-soft text-info text-sm px-3 py-2">
+          <p className="font-medium">Para terminar el alta, rematá a mano:</p>
+          <ul className="mt-1 space-y-0.5 list-disc list-inside">
+            {outcome.followups.map((f, i) => <li key={i}>{f}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {/* Credenciales fiscales: el alta NO recolecta CUIT/certificado ARCA (son secretos que pega el
+          dueño, se cargan aparte — ver runbook). Si el rubro factura con ARCA, se lo recordamos. */}
+      {outcome?.plan?.modules?.includes("arca") && (
+        <p className="text-xs text-muted">
+          Este rubro factura con ARCA: cargá el CUIT y el certificado fiscal del negocio antes de emitir.
+          Se configuran <b>aparte del alta</b> (con los secretos que pega el dueño), no en este wizard.
+        </p>
+      )}
+
       {/* Entrega segura del bootstrap (P10): fuera de la URL, copiar al portapapeles, se muestra una vez. */}
       {result.generatedPassword && <BootstrapPanel password={result.generatedPassword} />}
 
