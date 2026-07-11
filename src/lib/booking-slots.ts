@@ -70,3 +70,91 @@ export function generateSlots(params: {
   }
   return slots;
 }
+
+// --- Batch multi-día (perf) ---
+// Un turno ya ocupado que consume unidades de recursos compartidos. `resources`
+// son SOLO los links a recursos relevantes para el servicio consultado.
+export interface OccupiedAppointment extends Interval {
+  resources: { resourceId: string; units: number }[];
+}
+
+// Un recurso requerido por el servicio y su cupo total.
+export interface RequiredResource {
+  resourceId: string;
+  units: number;
+  quantity: number;
+}
+
+export interface DayWindow {
+  date: string;
+  dayStart: Date;
+  dayEnd: Date;
+}
+
+// Calcula las franjas libres de VARIOS días a partir de los datos del RANGO
+// completo ya traídos de la DB (una query por tabla, no una por día). Reparte
+// turnos/bloqueos por día en memoria con EXACTAMENTE los mismos predicados que la
+// versión por-día —turnos por `startsAt` dentro de la ventana; bloqueos por solape
+// estricto— y corre `generateSlots` por día. PURA: no toca DB ni reloj, por eso es
+// testeable. `busyAppointments` incluye el buffer aplicado por el llamador; los
+// bloqueos van sin buffer (ya son rangos explícitos). Devuelve fecha → franjas ISO.
+export function generateSlotsForDays(params: {
+  windows: DayWindow[];
+  durationMin: number;
+  stepMin: number;
+  bufferMin: number;
+  busyAppointments: Interval[];
+  boxBlocks: Interval[];
+  professionalBlocks: Interval[];
+  resourceUsage: OccupiedAppointment[];
+  requiredResources: RequiredResource[];
+}): Record<string, string[]> {
+  const {
+    windows,
+    durationMin,
+    stepMin,
+    bufferMin,
+    busyAppointments,
+    boxBlocks,
+    professionalBlocks,
+    resourceUsage,
+    requiredResources,
+  } = params;
+
+  const out: Record<string, string[]> = {};
+  for (const { date, dayStart, dayEnd } of windows) {
+    const dayExisting = busyAppointments.filter((a) => a.startsAt >= dayStart && a.startsAt < dayEnd);
+    const dayBoxBlocks = boxBlocks.filter((b) => b.startsAt < dayEnd && b.endsAt > dayStart);
+    const dayProBlocks = professionalBlocks.filter((b) => b.startsAt < dayEnd && b.endsAt > dayStart);
+    const dayResourceUsage = resourceUsage.filter((a) => a.startsAt >= dayStart && a.startsAt < dayEnd);
+
+    const busy = [
+      ...dayExisting.map((a) => withBuffer(a.startsAt, a.endsAt, bufferMin)),
+      ...dayBoxBlocks,
+      ...dayProBlocks,
+    ];
+
+    const capacityOk = (slotStart: Date, slotEnd: Date) => {
+      for (const sr of requiredResources) {
+        const overlapUnits = dayResourceUsage
+          .filter((a) => intervalsOverlap(slotStart, slotEnd, a.startsAt, a.endsAt))
+          .reduce((sum, a) => {
+            const link = a.resources.find((r) => r.resourceId === sr.resourceId);
+            return sum + (link?.units ?? 0);
+          }, 0);
+        if (overlapUnits + sr.units > sr.quantity) return false;
+      }
+      return true;
+    };
+
+    out[date] = generateSlots({
+      dayStart,
+      dayEnd,
+      durationMin,
+      stepMin,
+      busy,
+      capacityOk: requiredResources.length > 0 ? capacityOk : undefined,
+    });
+  }
+  return out;
+}
