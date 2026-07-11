@@ -16,6 +16,7 @@
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { recordMovement } from "@/lib/stock/ledger";
+import { recordCashSaleMovementInTx, type RecordCashSaleResult } from "@/lib/caja/cash-sale";
 import { round2 } from "@/lib/round";
 import type { ProductSaleUnit } from "@/generated/prisma/client";
 
@@ -39,7 +40,17 @@ export type InsertedOrder = {
   code: number;
   subtotal: number;
   lines: number;
+  // I7 (ADR-064): resultado de la imputación a caja, presente solo si el llamador pidió
+  // imputar (venta de mostrador en efectivo). El asiento se hizo DENTRO de la misma tx que
+  // la orden+stock → atómico. `recorded:false` es una condición benigna (no efectivo / sin
+  // caja abierta / ya imputada), NO un fallo: un fallo de DB habría abortado toda la venta.
+  cashSale?: RecordCashSaleResult;
 };
+
+// Opciones de `insertOrder`. `imputarCajaActor` activa el asiento de caja ATÓMICO con la
+// venta (I7): solo lo pasa el mostrador (venta presencial); la vidriera y la API externa no
+// tocan la caja física, así que lo omiten y la orden se crea sin imputar.
+export type InsertOrderOpts = { imputarCajaActor?: string };
 
 // Redondeo a 2 decimales (pesos): regla única en src/lib/round.ts (importada arriba).
 // La venta por kg da importes con fracción (0.750 kg × $8900/kg); se snapshotea redondeado.
@@ -130,6 +141,7 @@ export function canDecrementStock(available: number, quantity: number): boolean 
 export async function insertOrder(
   tenantId: string,
   input: OrderInput,
+  opts?: InsertOrderOpts,
 ): Promise<InsertedOrder> {
   if (input.fulfillment === "DELIVERY" && !input.address) {
     throw new Error("Para envío a domicilio hace falta la dirección.");
@@ -216,8 +228,26 @@ export async function insertOrder(
       });
     }
 
-    return created;
+    // I7 (ADR-064): FRONTERA ATÓMICA de la venta al contado. Si el mostrador cobró en
+    // efectivo, el asiento de caja va en ESTA MISMA tx (no en una segunda tx best-effort):
+    // o se crea la orden, se descuenta el stock y se asienta la caja, o NADA. Así el arqueo
+    // nunca queda con la venta cobrada pero sin su movimiento (ni al revés). El helper
+    // self-gatea (no efectivo / total<=0 → recorded:false, benigno) y NO lanza salvo por un
+    // error real de DB, que aborta toda la venta (la atomicidad que pide I7).
+    let cashSale: RecordCashSaleResult | undefined;
+    if (opts?.imputarCajaActor) {
+      cashSale = await recordCashSaleMovementInTx(tx, tenantId, {
+        orderId: created.id,
+        orderCode: created.code,
+        paid: input.paid && input.paymentMethod != null,
+        paymentMethod: input.paid ? input.paymentMethod : null,
+        total: subtotal, // subtotal == total: insertOrder no aplica descuento todavía.
+        actor: opts.imputarCajaActor,
+      });
+    }
+
+    return { ...created, cashSale };
   }, { tenantId });
 
-  return { id: order.id, code: order.code, subtotal, lines: lines.length };
+  return { id: order.id, code: order.code, subtotal, lines: lines.length, cashSale: order.cashSale };
 }
