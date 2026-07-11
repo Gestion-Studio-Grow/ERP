@@ -15,7 +15,7 @@ import {
 
 // Registra el pedido recibido para poder asertar la composición del prompt.
 function mockProvider(over: Partial<ImageProvider> = {}) {
-  const calls: { prompt: string; aspectRatio: string; apiKey: string }[] = [];
+  const calls: { prompt: string; aspectRatio: string; apiKey?: string }[] = [];
   const bytes: ImageBytes = { data: new Uint8Array([1, 2, 3, 4]), contentType: "image/png", ext: "png" };
   const provider: ImageProvider = {
     id: "fal",
@@ -189,14 +189,40 @@ test("generarImagen: outPath faltante -> PromptInvalidoError antes de tocar nada
   );
 });
 
-// --- Resolucion de proveedor --------------------------------------------------
+// --- Proveedor SIN clave (pollinations) --------------------------------------
 
-test("resolverProvider: default es fal", () => {
-  assert.equal(resolverProvider().id, "fal");
-  assert.equal(resolverProvider().envVar, "FAL_KEY");
+test("generarImagen: proveedor sin envVar (pollinations) genera SIN clave y con env vacio", async () => {
+  // Mock que emula a pollinations: no declara envVar → no se exige ninguna clave.
+  const calls: { apiKey?: string }[] = [];
+  const sinKey: ImageProvider = {
+    id: "pollinations",
+    async generate(req) {
+      calls.push({ apiKey: req.apiKey });
+      return { data: new Uint8Array([9, 9]), contentType: "image/jpeg", ext: "jpg" };
+    },
+  };
+  const fs = fakeFs();
+  const res = await generarImagen(
+    { prompt: "hero de spa", outPath: "out/free.jpg", rubro: "estetica", aspectRatio: "4:5" },
+    { provider: sinKey, env: {}, writeFileImpl: fs.writeFileImpl, mkdirImpl: fs.mkdirImpl },
+  );
+  assert.equal(res.provider, "pollinations");
+  assert.equal(res.contentType, "image/jpeg");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].apiKey, undefined, "no debe inventar clave para un proveedor sin key");
+  assert.equal(fs.written.length, 1);
 });
 
-test("resolverProvider: replicate y bfl existen (scaffold) con su envVar", () => {
+// --- Resolucion de proveedor --------------------------------------------------
+
+test("resolverProvider: default es pollinations (gratis, sin key)", () => {
+  assert.equal(resolverProvider().id, "pollinations");
+  assert.equal(resolverProvider().envVar, undefined, "pollinations no necesita clave");
+});
+
+test("resolverProvider: cada proveedor trae su envVar (o ninguna)", () => {
+  assert.equal(resolverProvider("gemini").envVar, "GEMINI_API_KEY");
+  assert.equal(resolverProvider("fal").envVar, "FAL_KEY");
   assert.equal(resolverProvider("replicate").envVar, "REPLICATE_API_TOKEN");
   assert.equal(resolverProvider("bfl").envVar, "BFL_API_KEY");
 });

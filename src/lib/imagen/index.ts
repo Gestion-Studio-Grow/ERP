@@ -14,6 +14,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { componerPrompt } from "./presets";
+import { crearPollinationsProvider } from "./providers/pollinations";
+import { crearGeminiProvider } from "./providers/gemini";
 import { crearFalProvider } from "./providers/fal";
 import { crearReplicateProvider } from "./providers/replicate";
 import { crearBflProvider } from "./providers/bfl";
@@ -59,6 +61,8 @@ export function sanitizarPrompt(raw: unknown): string {
 
 // Fábricas de proveedores por id. Registrar uno nuevo = una línea acá.
 const FABRICAS: Record<ProviderId, () => ImageProvider> = {
+  pollinations: () => crearPollinationsProvider(),
+  gemini: () => crearGeminiProvider(),
   fal: () => crearFalProvider(),
   replicate: () => crearReplicateProvider(),
   bfl: () => crearBflProvider(),
@@ -108,17 +112,21 @@ export async function generarImagen(
     estiloOverride: params.estilo,
   });
 
-  // 3) Resolver proveedor (mock inyectado > id de params > default fal).
+  // 3) Resolver proveedor (mock inyectado > id de params > default pollinations).
   const provider = deps.provider ?? resolverProvider(params.provider);
 
-  // 4) Leer la clave del entorno. Sin clave → error claro, NO rompe build/tests.
-  const apiKey = env[provider.envVar];
-  if (!apiKey || !apiKey.trim()) {
-    throw new FaltaKeyError(provider.envVar, provider.id);
+  // 4) Leer la clave del entorno SOLO si el proveedor la necesita (envVar). Los
+  //    proveedores sin clave (pollinations) saltan este paso y generan igual.
+  let apiKey: string | undefined;
+  if (provider.envVar) {
+    apiKey = env[provider.envVar];
+    if (!apiKey || !apiKey.trim()) {
+      throw new FaltaKeyError(provider.envVar, provider.id);
+    }
   }
 
-  // 5) Generar (única parte que toca la red; solo corre con clave presente).
-  const imagen = await provider.generate({ prompt: promptFinal, aspectRatio, apiKey });
+  // 5) Generar (única parte que toca la red).
+  const imagen = await provider.generate({ prompt: promptFinal, aspectRatio, apiKey, seed: params.seed });
 
   // 6) Guardar en disco, creando los directorios que falten.
   const dir = dirname(params.outPath);
