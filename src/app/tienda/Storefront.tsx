@@ -618,7 +618,9 @@ const eyebrowStyle: CSSProperties = { fontSize: 12, letterSpacing: 3, textTransf
 function cta(bg: string, color: string, border?: string): CSSProperties {
   return { display: "grid", placeItems: "center", padding: "0 22px", borderRadius: 12, border: border ?? "none", background: bg, color, fontWeight: 700, fontSize: 15, cursor: "pointer", textDecoration: "none", height: 46 };
 }
-const linkCta: CSSProperties = { fontSize: 14, fontWeight: 700, textDecoration: "none", marginTop: 2 };
+// display:inline-flex + minHeight 24 = área táctil AA (WCAG 2.5.8) sin cambiar el look
+// del CTA de texto ("Hacer pedido →" / "Lo quiero →"). Antes medían ~21px de alto.
+const linkCta: CSSProperties = { fontSize: 14, fontWeight: 700, textDecoration: "none", marginTop: 2, display: "inline-flex", alignItems: "center", minHeight: 24 };
 function qtyBtn(bg: string, color: string): CSSProperties {
   return { height: 34, minWidth: 34, borderRadius: 10, border: "none", background: bg, color, fontWeight: 700, fontSize: 16, cursor: "pointer" };
 }

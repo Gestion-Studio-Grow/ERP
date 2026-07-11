@@ -142,7 +142,7 @@ function SiteReplicaContent({
               <div key={i} style={{ ...card, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontWeight: 800, fontSize: 18 }}>{v.name}</div>
                 <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.55, flex: 1 }}>{v.text}</div>
-                <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido de ${v.name}.`)} style={{ fontSize: 14, fontWeight: 700, color: accent, textDecoration: "none", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>Hacer pedido →</button>
+                <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido de ${v.name}.`)} style={{ fontSize: 14, fontWeight: 700, color: accent, textDecoration: "none", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", display: "inline-flex", alignItems: "center", minHeight: 24 }}>Hacer pedido →</button>
               </div>
             ))}
           </div>
