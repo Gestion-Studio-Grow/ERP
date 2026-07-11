@@ -1,0 +1,48 @@
+# Mirror/backup automático del repo a un segundo remoto.
+# Defensa contra pérdida (docs/PRACTICA-DE-GUARDADO.md §5): mantiene una copia espejo fuera de este repo.
+#
+# ACTIVACIÓN (acción del dueño, una sola vez):
+#   1. Crear el repo de backup (vacío) en otra cuenta/org, p. ej. github.com/<owner>/ERP-backup.
+#   2. Repo → Settings → Secrets and variables → Actions → New repository secret:
+#        MIRROR_REPO_URL = https://<usuario>:<TOKEN_o_PAT>@github.com/<owner>/ERP-backup.git
+#        (el token del destino con permiso de push; puede ser un PAT o un fine-grained token).
+#   3. Listo: corre cada 6 h, en cada push y a mano (workflow_dispatch). Sin el secret, no hace nada (sale OK).
+#
+# Nota: `git push --mirror` deja el backup IDÉNTICO al origen (incluye borrados de ref). Es el comportamiento
+# buscado de un espejo. Si preferís un backup acumulativo, cambiá `--mirror` por `--all --tags --force-with-lease`.
+name: mirror-backup
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # cada 6 horas
+  push:
+    branches: ['**']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-backup
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Espejar a remoto de backup
+        env:
+          MIRROR_REPO_URL: ${{ secrets.MIRROR_REPO_URL }}
+          SRC_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          if [ -z "${MIRROR_REPO_URL:-}" ]; then
+            echo "::notice::MIRROR_REPO_URL no configurado — el mirror está INACTIVO. Configurá el secret para activarlo."
+            exit 0
+          fi
+          echo "Clonando espejo del origen…"
+          git clone --mirror "$SRC_URL" repo.git
+          cd repo.git
+          echo "Pusheando --mirror al backup…"
+          git push --mirror "$MIRROR_REPO_URL"
+          echo "::notice::Mirror/backup completado."
