@@ -56,6 +56,12 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 
 ## 🚦 HANDOFF — próximo paso real (2026-07-07)
 
+> **🆕 Novedad 2026-07-11 — Suite de facturación (frente `producto-contador`):** módulo bancos EN MAIN y
+> deployado (merge `6735716`) + decisión estructural **UN motor, TRES productos** (A·Comerciante /
+> B·Contador / C·Facturita, empaquetados de módulos, nunca forks) + pricing con unit economics + gates
+> permanentes de craft UX/UI y textos — **ADR-075…080** (numeración provisional de la rama, verificar
+> colisión al mergear) + `docs/producto/costos-pricing-suite.md`. Primer cliente real: un contador.
+
 > **🧭 PUNTO DE PARTIDA — Rediseño del producto GROW-AR (2026-07-08, aprobado por el dueño).** Rama
 > `claude/sprint-startup-generic-rf6x0m`, verde. Se rediseñó el producto y arrancó la ejecución:
 > - **Filosofía GROW-AR (ADR-058):** un Core, **dos motores** (`lite` micro/comerciante ↔ `enterprise`

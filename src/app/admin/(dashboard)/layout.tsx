@@ -8,7 +8,9 @@ import { getActiveModuleIds } from "@/lib/module-gating";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
-import { getTenantBrand, resolveAccent, invertTheme } from "@/lib/branding";
+import { getTenantBrand, resolveAccent } from "@/lib/branding";
+import { getTeamAccentPreset } from "@/lib/team-accent";
+import AdminThemeScript from "../AdminThemeScript";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import type { CSSProperties } from "react";
@@ -44,23 +46,35 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     getActiveProfile(),
   ]);
 
-  // REGLA front/back: el BACK (admin) va en el tema OPUESTO al front del tenant.
-  // Seteamos `data-theme` (los tokens semánticos de globals.css flipan solos, y
-  // como el admin ya es token-driven, todo el panel cambia de luminosidad) e
-  // inyectamos el acento del tenant AFINADO a ese tema (--accent + on-accent con
-  // contraste AA). hover/soft se derivan en globals.css.
+  // SKIN "FABLE" (mockups aprobados por el dueño, 2026-07): el backoffice ya NO
+  // toma su tema de la regla front/back — el tema del admin lo decide el USUARIO
+  // (prefers-color-scheme como default + toggle persistente en la topbar). El
+  // server manda `data-theme="light"` como fallback sin-JS y AdminThemeScript
+  // (primer hijo del contenedor) lo corrige ANTES del primer paint (cero flash);
+  // `suppressHydrationWarning` absorbe el desajuste de atributo. La vidriera del
+  // tenant conserva su regla y su marca intactas (el skin solo vive acá).
+  //
+  // ACENTO por tenant, intacto: como el usuario puede flipar el tema en el
+  // cliente, se inyectan LOS DOS tonos del preset (claro y oscuro + on-accent AA)
+  // como vars neutras, y el skin Fable de globals.css elige el del tema activo.
+  // Ojo: NO inyectar `--accent` inline — el inline le ganaría al CSS y el toggle
+  // no podría flipar el tono.
   //
   // FICHA DE MARCA (RFC-004-D, frente B), detrás de `TENANT_BRAND_SHEET_ENABLED`: cuando está
   // ON, la PIEL sale de la ficha del tenant leída de la DB (getBrandSheet: name/accentPreset/
-  // frontTheme/blueprintId → theme pack) y `data-brand` inyecta neutros+tipografía+densidad
-  // propios (globals.css). Con el flag OFF → camino legado (mapa por slug) → byte-idéntico.
+  // frontTheme/blueprintId → theme pack) y `data-brand` inyecta tipografía+densidad propias
+  // (los neutros en el admin los pisa el skin Fable, a propósito: mismo tema para todo back).
   const useSheet = tenantBrandSheetEnabled();
   const sheet = useSheet ? await getBrandSheet() : null;
 
-  const backTheme = sheet ? sheet.backTheme : invertTheme(brand.frontTheme);
-  const { accent, onAccent } = sheet
-    ? brandSheetAccent(sheet, backTheme)
-    : resolveAccent(brand.preset, backTheme);
+  // COLOR DEL EQUIPO (/admin/apariencia): si el dueño eligió un preset, ese manda
+  // en el back (Tenant.accentPreset — la MISMA columna que lee la ficha de marca,
+  // así ambos caminos cuentan la misma historia). Sin elección → preset del mapa
+  // legado, byte-idéntico a lo de siempre.
+  const teamPreset = await getTeamAccentPreset();
+  const preset = teamPreset ?? brand.preset;
+  const accentLight = sheet ? brandSheetAccent(sheet, "light") : resolveAccent(preset, "light");
+  const accentDark = sheet ? brandSheetAccent(sheet, "dark") : resolveAccent(preset, "dark");
   const dataBrand = sheet ? sheet.themeId : undefined;
   const brandName = sheet ? sheet.name : brand.name;
   const monogram = sheet ? initialsOf(sheet.name) : brand.monogram;
@@ -74,12 +88,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div
-      data-theme={backTheme}
+      data-skin="fable"
+      data-theme="light"
+      suppressHydrationWarning
       data-density={density}
       data-brand={dataBrand}
-      style={{ "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}
+      style={
+        {
+          "--tenant-accent-light": accentLight.accent,
+          "--tenant-on-accent-light": accentLight.onAccent,
+          "--tenant-accent-dark": accentDark.accent,
+          "--tenant-on-accent-dark": accentDark.onAccent,
+        } as CSSProperties
+      }
       className="min-h-screen bg-surface text-body"
     >
+      {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}
+      <AdminThemeScript />
       {/* Banda de "modo demo" — solo aparece en el deploy de demo; null en real. */}
       <DemoBanner />
       <GlobalLoadingProvider>

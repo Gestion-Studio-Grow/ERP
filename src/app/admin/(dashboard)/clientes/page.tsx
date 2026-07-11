@@ -9,7 +9,7 @@ export default async function ClientesPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="text-2xl font-semibold text-strong mb-1">Clientes</h1>
-      <p className="text-muted mb-6">{clients.length} clientes registrados.</p>
+      <p className="text-muted mb-6">{clients.length} {clients.length === 1 ? "cliente registrado" : "clientes registrados"}.</p>
 
       <ClientsList clients={clients} />
     </main>

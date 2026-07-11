@@ -15,21 +15,36 @@
 // muestra 1 decimal, no 2).
 
 /**
- * Monto en pesos argentinos: "$1.234,50". Acepta `number` o `string`
- * (el `.toString()`/`.toFixed()` de un `Prisma.Decimal` ya convertido en el
- * borde de lectura del server, ADR-057 — este módulo no importa Prisma:
- * es capa de presentación, portable). `null`/`undefined`/no-numérico -> "—".
+ * Monto en pesos argentinos: "$1.234,50" (canónico: signo pegado, SIN espacio
+ * tras el "$"). Acepta `number` o `string` (el `.toString()`/`.toFixed()` de un
+ * `Prisma.Decimal` ya convertido en el borde de lectura del server, ADR-057 —
+ * este módulo no importa Prisma: es capa de presentación, portable).
+ * `null`/`undefined`/no-numérico -> "—".
  * Negativos: el signo va ANTES del "$" ("-$1.234,50"), no después.
+ * `decimals` (default 2, grado contable) permite 0 para KPIs headline
+ * ("$1.234.567") — las TABLAS siguen en 2 decimales (ADR-057 intacto).
  */
-export function fmtMoneyARS(value: number | string | null | undefined): string {
+export function fmtMoneyARS(value: number | string | null | undefined, decimals = 2): string {
   const n = typeof value === "string" ? Number(value) : value;
   if (n == null || !Number.isFinite(n)) return "—";
   const sign = n < 0 ? "-" : "";
   const abs = Math.abs(n).toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   });
   return `${sign}$${abs}`;
+}
+
+/**
+ * CUIT/CUIL legible: "20376833098" → "20-37683309-8" (XX-XXXXXXXX-X).
+ * Acepta el número con o sin guiones/espacios; si no tiene 11 dígitos lo
+ * devuelve tal cual (no inventa formato). `null`/`undefined`/vacío -> "—".
+ */
+export function fmtCuit(cuit: string | null | undefined): string {
+  if (!cuit) return "—";
+  const d = cuit.replace(/\D/g, "");
+  if (d.length !== 11) return cuit;
+  return `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}`;
 }
 
 /**

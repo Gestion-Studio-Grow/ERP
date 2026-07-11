@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createOrder } from "@/lib/order-actions";
-import { Input, Select, buttonClasses } from "@/components/ui";
+import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
 // Producto vendible que llega del loader (getPosData): ya viene con precio.
 type SellableProduct = {
@@ -17,7 +17,6 @@ type SellableProduct = {
 // Una línea del ticket en construcción. `qty` son kilos (WEIGHT) o unidades (UNIT).
 type Line = { key: number; productId: string; qty: number };
 
-const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 
 function unitPriceOf(p: SellableProduct): number {
   return (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
@@ -121,8 +120,8 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
                   <option key={prod.id} value={prod.id}>
                     {prod.name} —{" "}
                     {prod.saleUnit === "WEIGHT"
-                      ? `${money.format(prod.pricePerKg ?? 0)}/kg`
-                      : `${money.format(prod.price ?? 0)}/u`}
+                      ? `${fmtMoneyARS(prod.pricePerKg ?? 0)}/kg`
+                      : `${fmtMoneyARS(prod.price ?? 0)}/u`}
                   </option>
                 ))}
               </Select>
@@ -152,7 +151,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
               </div>
               <div className="flex items-center gap-2 whitespace-nowrap">
                 <span className="w-24 text-right text-sm tabular-nums text-body">
-                  {lineTotal > 0 ? money.format(lineTotal) : "—"}
+                  {lineTotal > 0 ? fmtMoneyARS(lineTotal) : "—"}
                 </span>
                 <button
                   type="button"
@@ -212,7 +211,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
           )}
           <label className="text-sm sm:col-span-2">
             <span className="block text-muted mb-1">Nota</span>
-            <Input name="notes" placeholder="ej: cortar en milanesas, sin grasa" />
+            <Input name="notes" placeholder="Ej.: cortar en milanesas, sin grasa" />
           </label>
         </div>
       )}
@@ -237,7 +236,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
         <div className="text-sm text-muted">
           Total{" "}
           <span className="ml-1 text-2xl font-semibold tabular-nums text-strong">
-            {money.format(subtotal)}
+            {fmtMoneyARS(subtotal)}
           </span>
         </div>
         <button type="submit" disabled={!hasValidLine} className={buttonClasses("solid", "lg")}>

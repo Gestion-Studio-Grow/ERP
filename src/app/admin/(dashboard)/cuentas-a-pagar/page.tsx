@@ -36,7 +36,7 @@ export default async function CuentasAPagarPage() {
       <DebtSummaryCards resumen={resumen} totalLabel="A pagar a proveedores" />
       {rows.length === 0 ? (
         <EmptyState
-          title="Sin cuentas por pagar"
+          title="Sin cuentas a pagar"
           description="Cuando registres una deuda con un proveedor va a aparecer acá con su saldo, su vencimiento y el cheque diferido."
         />
       ) : (

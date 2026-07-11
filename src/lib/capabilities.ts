@@ -32,7 +32,16 @@ export type Capability =
   | "commissions:manage" // liquidar comisiones a profesionales (marcar período como pagado)
   | "modules:manage" // activar/desactivar los módulos (apps) del negocio — vidriera de módulos
   | "billing:manage" // emitir facturas y procesar la facturación electrónica ARCA (módulo ARCA)
-  | "payments:manage"; // generar links de cobro por Mercado Pago (módulo Cobros)
+  | "payments:manage" // generar links de cobro por Mercado Pago (módulo Cobros)
+  // Panel del contador (/contador, módulo CARTERA): administrar la cartera de
+  // clientes de un estudio contable. La capability sola NO alcanza: la página y
+  // las actions exigen ADEMÁS el módulo `cartera` ASIGNADO al tenant (ADR-055) —
+  // así un OWNER de un negocio común no ve el panel aunque el rol se la dé.
+  | "cartera:manage"
+  // Apariencia del backoffice (/admin/apariencia): elegir el color del equipo
+  // (Tenant.accentPreset) y el tema claro/oscuro del panel. Solo OWNER — es
+  // configuración del negocio, mismo tenor que localización/módulos.
+  | "appearance:manage";
 
 // Todas las capacidades — OWNER las tiene todas (absorbe el "admin" de hoy,
 // ADR-017 §2.b). Mantener esta lista sincronizada con el union `Capability`.
@@ -59,6 +68,8 @@ export const ALL_CAPABILITIES: Capability[] = [
   "modules:manage",
   "billing:manage",
   "payments:manage",
+  "cartera:manage",
+  "appearance:manage",
 ];
 
 // Mapa rol → capacidades (ADR-017 §2.b, tabla de roles).

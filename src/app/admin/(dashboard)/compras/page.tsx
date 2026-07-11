@@ -1,11 +1,11 @@
 import { getStockData } from "@/lib/stock-actions";
+import { fmtMoneyARS } from "@/components/ui";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { fmtShortDate } from "@/lib/datetime";
 import ComprasForm from "./ComprasForm";
 
 export const dynamic = "force-dynamic";
 
-const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 const qtyFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
 const KIND_LABEL: Record<string, string> = {
@@ -60,7 +60,7 @@ export default async function ComprasPage() {
                   <span className="text-xs text-faint">{fmtShortDate(entry.createdAt)}</span>
                   {entry.supplier && <span className="text-body">· {entry.supplier}</span>}
                   <span className="ml-auto tabular-nums font-medium text-body">
-                    {money.format(entry.totalCost)}
+                    {fmtMoneyARS(entry.totalCost)}
                   </span>
                 </div>
                 <ul className="mt-1.5 text-muted">
@@ -71,7 +71,7 @@ export default async function ComprasPage() {
                       </span>
                       {it.unitCost > 0 && (
                         <span className="tabular-nums text-faint">
-                          {money.format(it.unitCost)} c/u
+                          {fmtMoneyARS(it.unitCost)} c/u
                         </span>
                       )}
                     </li>

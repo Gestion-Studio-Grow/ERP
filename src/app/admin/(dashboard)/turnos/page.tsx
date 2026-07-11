@@ -16,7 +16,7 @@ function NovedadesDelDia({
   if (blocks.length === 0) return null;
   return (
     <div className="mb-6 rounded-md bg-warning-soft border border-warning/30 px-3 py-2 text-sm text-warning">
-      <span className="font-medium">Hoy no está: </span>
+      <span className="font-medium">Ausencias de hoy: </span>
       {blocks.map((b, i) => (
         <span key={i}>
           {b.professional.name} ({b.reason})

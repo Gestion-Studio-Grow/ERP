@@ -7,7 +7,7 @@ import { fmtDateTime } from "@/lib/datetime";
 export const dynamic = "force-dynamic";
 
 const ROLE_LABEL: Record<string, string> = {
-  OWNER: "Dueña",
+  OWNER: "Dueño/a",
   RECEPTION: "Recepción",
   PROFESSIONAL: "Profesional",
 };
@@ -23,7 +23,7 @@ const STATUS_MESSAGES: Record<string, { text: string; ok: boolean }> = {
   error_email_taken: { text: "Ya existe un usuario con ese email.", ok: false },
   error_role: { text: "Elegí un rol válido.", ok: false },
   error_password_short: { text: "La contraseña debe tener al menos 8 caracteres.", ok: false },
-  error_self_deactivate: { text: "No podés darte de baja a vos misma.", ok: false },
+  error_self_deactivate: { text: "No podés dar de baja a tu propio usuario.", ok: false },
   error_last_owner: { text: "No se puede dar de baja al último dueño activo.", ok: false },
   error_not_found: { text: "No se encontró el usuario.", ok: false },
 };
@@ -68,12 +68,12 @@ export default async function UsuariosPage({
           </Field>
           <Field label="Rol" htmlFor="nu-role">
             <Select id="nu-role" name="role" required defaultValue="RECEPTION">
-              <option value="OWNER">Dueña (todo)</option>
+              <option value="OWNER">Dueño/a (todo)</option>
               <option value="RECEPTION">Recepción (agenda + clientes + cobrar)</option>
               <option value="PROFESSIONAL">Profesional (solo su agenda)</option>
             </Select>
           </Field>
-          <Field label="Contraseña" htmlFor="nu-password" hint="Mínimo 8 caracteres">
+          <Field label="Contraseña" htmlFor="nu-password" hint="Mínimo 8 caracteres.">
             <Input
               id="nu-password"
               type="password"
@@ -162,7 +162,7 @@ export default async function UsuariosPage({
                       pendingText="…"
                       className={buttonClasses("outline", "sm", "whitespace-nowrap")}
                     >
-                      Resetear
+                      Cambiar contraseña
                     </SubmitButton>
                   </form>
                 </div>

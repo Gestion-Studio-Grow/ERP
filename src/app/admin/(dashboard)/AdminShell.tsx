@@ -9,6 +9,7 @@ import { moduleGateAllows } from "@/modules/gating";
 import { perfilGateAllows, type Perfil } from "@/modules/perfil";
 import { NAV_ITEM_GROUPS, readyEnterpriseNavItems, groupNavItems, type NavGroupId } from "@/modules/nav-groups";
 import { ProfileBadge } from "@/components/ui";
+import ThemeToggle from "./ThemeToggle";
 
 // Íconos de línea (dirección B): un set chico inline, sin dependencias. Se
 // eligen por href. `currentColor` para que hereden el color del ítem (activo =
@@ -31,6 +32,7 @@ function Icon({ name }: { name: string }) {
     auditoria: (<><path d="M9 12l2 2 4-4" /><rect x="4" y="4" width="16" height="16" rx="2" /></>),
     usuarios: (<><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 11l2 2 3-3.5" /></>),
     localizacion: (<><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></>),
+    apariencia: (<><path d="M12 3a9 9 0 100 18h1.5a2 2 0 001.4-3.4c-.9-.9-.3-2.6 1-2.6H19a3 3 0 003-3c0-5-4.5-9-10-9z" /><circle cx="7.8" cy="10.5" r="1" /><circle cx="12" cy="7.5" r="1" /><circle cx="16.2" cy="10.5" r="1" /></>),
     modulos: (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
     // Ítems Empresa (perfilMin=enterprise). Mismo lenguaje de línea que el resto.
     "cuentas-a-pagar": (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M12 17v-4M10 15l2-2 2 2" /></>),
@@ -56,7 +58,7 @@ function Icon({ name }: { name: string }) {
 // (`ENTERPRISE_NAV_ITEMS`) sí, para gatearse por perfil y caer en su grupo.
 type ShellItem = { href: string; label: string; icon: string; exact?: boolean; cap: Capability; module?: string; perfilMin?: Perfil; grupo?: NavGroupId };
 const ALL_ITEMS: ShellItem[] = [
-  { href: "/admin", label: "Dashboard", icon: "dashboard", exact: true, cap: "dashboard:read" },
+  { href: "/admin", label: "Inicio", icon: "dashboard", exact: true, cap: "dashboard:read" },
   { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda" },
   { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read", module: "clients" },
   { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist" },
@@ -72,11 +74,12 @@ const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage" },
   { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage" },
+  { href: "/admin/apariencia", label: "Apariencia", icon: "apariencia", cap: "appearance:manage" },
   { href: "/admin/modulos", label: "Módulos", icon: "modulos", cap: "modules:manage" },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
-  OWNER: "Dueña",
+  OWNER: "Dueño/a",
   RECEPTION: "Recepción",
   PROFESSIONAL: "Profesional",
 };
@@ -102,7 +105,7 @@ function Brand({ monogram, name }: { monogram: string; name: string }) {
   return (
     <div className="flex items-center gap-2.5">
       <span className="grid place-items-center w-8 h-8 rounded-lg bg-accent text-on-accent text-[13px] font-bold shadow-xs">{monogram}</span>
-      <span className="text-[15px] font-bold tracking-tight text-strong">{name}</span>
+      <span className="text-[15px] font-semibold tracking-tight text-strong">{name}</span>
     </div>
   );
 }
@@ -118,9 +121,9 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
             key={item.href}
             href={item.href}
             onClick={onNavigate}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+            className={`flex items-center gap-3 rounded-lg px-3 py-[7.5px] text-sm transition-colors ${
               active
-                ? "bg-accent-soft text-accent font-semibold"
+                ? "bg-surface-sunken text-strong font-semibold"
                 : "text-body font-medium hover:bg-surface-sunken"
             }`}
           >
@@ -149,7 +152,7 @@ function NavGroups({ items, onNavigate }: { items: ShellItem[]; onNavigate?: () 
     <div className="space-y-4">
       {groups.map((g) => (
         <div key={g.id} className="space-y-0.5">
-          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-faint">
+          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[.09em] text-faint">
             {g.label}
           </p>
           <NavLinks items={g.items} onNavigate={onNavigate} />
@@ -259,7 +262,7 @@ export default function AdminShell({
   return (
     <div className="min-h-screen flex bg-surface text-body">
       {/* Sidebar fijo — solo desktop (lg+) */}
-      <nav className="hidden lg:flex w-60 shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5">
+      <nav className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5">
         <div className="px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
         {navGrouping ? <NavGroups items={items} /> : <NavLinks items={items} />}
         <div className="mt-auto"><NavFooter userName={userName} roleLabel={roleLabel} /></div>
@@ -318,18 +321,24 @@ export default function AdminShell({
             {/* Edición del tenant (Comercio/Empresa) en canal NEUTRO — solo si el motor
                 de perfiles está encendido (activeProfile != null). ADR-059 D5/D7. */}
             {activeProfile && <ProfileBadge profile={activeProfile} />}
+            {/* Toggle claro/oscuro del backoffice (skin Fable) — discreto, al borde. */}
+            <ThemeToggle />
           </span>
         </header>
 
-        {/* Header desktop */}
-        <header className="hidden lg:flex bg-surface-raised border-b border-line px-8 h-[58px] items-center justify-between gap-4">
+        {/* Header desktop — sticky con blur (fix 29), como ya hacía el móvil. */}
+        <header className="hidden lg:flex sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-8 h-[58px] items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="font-semibold text-strong whitespace-nowrap">{brandName}</span>
             {/* Edición (Comercio/Empresa), canal neutro (ADR-059 D5). Default OFF: sin
                 perfil activo no se renderiza → header idéntico al legado. */}
             {activeProfile && <ProfileBadge profile={activeProfile} />}
           </div>
-          <span className="text-sm text-muted whitespace-nowrap">Panel de administración</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted whitespace-nowrap">Panel de administración</span>
+            {/* Toggle claro/oscuro del backoffice (skin Fable) — discreto, en la topbar. */}
+            <ThemeToggle />
+          </div>
         </header>
 
         <div className="flex-1">{children}</div>

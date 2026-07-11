@@ -11,7 +11,7 @@ import { generateOwnerInsights } from "@/lib/owner-insights";
 import { analyzeTrends, type MetricSeriesInput } from "@/lib/owner-trends";
 import { OwnerPanel } from "@/components/OwnerPanel";
 import SubmitButton from "@/components/SubmitButton";
-import { buttonClasses } from "@/components/ui";
+import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +26,12 @@ function Table({ title, rows }: { title: string; rows: { label: string; total: n
   return (
     <div className="rounded-lg border border-line p-4">
       <h3 className="font-medium mb-3">{title}</h3>
-      {rows.length === 0 && <p className="text-sm text-muted">Sin datos aún.</p>}
+      {rows.length === 0 && <p className="text-sm text-muted">Todavía no hay datos.</p>}
       <div className="space-y-1.5">
         {rows.map((r) => (
           <div key={r.label} className="flex justify-between text-sm">
             <span className="text-muted">{r.label}</span>
-            <span className="font-medium">${r.total.toLocaleString("es-AR")}</span>
+            <span className="font-medium tabular-nums">{fmtMoneyARS(r.total, 0)}</span>
           </div>
         ))}
       </div>
@@ -39,7 +39,7 @@ function Table({ title, rows }: { title: string; rows: { label: string; total: n
   );
 }
 
-const money = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
+const money = (n: number) => fmtMoneyARS(n, 0); // canónico del sistema (gate de textos, fix 16)
 const pct = (n: number) => (n * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "%";
 const hs = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " h";
 
@@ -61,7 +61,7 @@ function KpiCard({
   return (
     <div className="rounded-lg border border-line p-4">
       <p className="text-sm text-muted">{label}</p>
-      <p className={`text-2xl font-semibold ${toneClass}`}>{value}</p>
+      <p className={`text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
   );
@@ -188,7 +188,7 @@ export default async function ReportesPage({
         <div className="rounded-lg border border-line p-4">
           <p className="text-sm text-muted">Ingresos totales</p>
           <p className="text-2xl font-semibold">
-            ${data.totalIngresos.toLocaleString("es-AR")}
+            {fmtMoneyARS(data.totalIngresos, 0)}
           </p>
         </div>
         <div className="rounded-lg border border-line p-4">
@@ -206,7 +206,7 @@ export default async function ReportesPage({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <KpiCard
-          label="No-show"
+          label="Ausencias"
           value={pct(k.estados.tasaNoShow)}
           hint={`${k.estados.noShow} ausencias sobre ${k.estados.completados + k.estados.noShow} turnos que llegaron a su hora`}
           tone={noShowTone}
@@ -237,14 +237,14 @@ export default async function ReportesPage({
             Ingresos por hora ocupada (turnos completados y cobrados).
           </p>
           {k.rentabilidadHoraSilla.length === 0 && (
-            <p className="text-sm text-muted">Sin datos aún.</p>
+            <p className="text-sm text-muted">Todavía no hay datos.</p>
           )}
           <div className="space-y-1.5">
             {k.rentabilidadHoraSilla.map((r) => (
               <div key={r.label} className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="text-muted">{r.label}</span>
                 <span className="text-right">
-                  <span className="font-medium">{money(r.porHora)}/h</span>
+                  <span className="font-medium tabular-nums">{money(r.porHora)}/h</span>
                   <span className="ml-2 text-xs text-muted">
                     {money(r.ingresos)} · {hs(r.horas)}
                   </span>
@@ -259,7 +259,7 @@ export default async function ReportesPage({
           <h3 className="font-medium mb-1">Método de pago</h3>
           <p className="text-xs text-muted mb-3">Cómo se cobró en el período.</p>
           {k.mixMetodoPago.length === 0 && (
-            <p className="text-sm text-muted">Sin cobros aún.</p>
+            <p className="text-sm text-muted">Todavía no hay cobros.</p>
           )}
           <div className="space-y-1.5">
             {k.mixMetodoPago.map((m) => (
@@ -268,7 +268,7 @@ export default async function ReportesPage({
                   {METODO_LABEL[m.method] ?? m.method}
                   <span className="ml-1.5 text-xs">({m.cantidad})</span>
                 </span>
-                <span className="font-medium">{money(m.total)}</span>
+                <span className="font-medium tabular-nums">{money(m.total)}</span>
               </div>
             ))}
           </div>
@@ -347,7 +347,7 @@ export default async function ReportesPage({
               <div className="text-sm">
                 <p className="font-medium">
                   {c.professionalName} —{" "}
-                  <span className="text-strong">{money(c.amount)}</span>
+                  <span className="text-strong tabular-nums">{money(c.amount)}</span>
                 </p>
                 <p className="text-xs text-muted">
                   {c.appointmentCount} {c.appointmentCount === 1 ? "turno" : "turnos"} · sobre{" "}
@@ -398,7 +398,7 @@ export default async function ReportesPage({
                   {h.note && <> · {h.note}</>}
                 </p>
               </div>
-              <span className="font-medium whitespace-nowrap">{money(h.amount)}</span>
+              <span className="font-medium whitespace-nowrap tabular-nums">{money(h.amount)}</span>
             </div>
           ))}
         </div>

@@ -95,7 +95,7 @@ export default function CouponsSection({ coupons }: { coupons: Coupon[] }) {
         <Input
           name="code"
           required
-          placeholder="Código (ej. VERANO10)"
+          placeholder="Código (Ej.: VERANO10)"
           className="col-span-2 uppercase placeholder:normal-case"
         />
         <Select name="type" defaultValue="PERCENT">

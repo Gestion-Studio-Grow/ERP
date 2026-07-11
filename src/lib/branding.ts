@@ -34,7 +34,25 @@ export const ACCENT_PRESETS = {
   celeste: { light: "#2e7c97", dark: "#74c0da", onLight: "#ffffff", onDark: "#08181d" },
   verde: { light: "#2f7d66", dark: "#4fbe9b", onLight: "#ffffff", onDark: "#06201a" },
   ambar: { light: "#9a6a1f", dark: "#e0a83e", onLight: "#ffffff", onDark: "#1b1508" },
+  // El AZUL de los mockups del backoffice (skin Fable): #0071e3 en claro y
+  // #0a84ff en oscuro, con tinta blanca (--accent-ink del mockup). Es el mismo
+  // fallback del skin en globals.css — elegirlo como "color del equipo" deja el
+  // panel EXACTO como los mockups aprobados por el dueño.
+  // onDark #041e33 (tinta azul noche, AA sobre #0a84ff): blanco sobre #0a84ff
+  // quedaba 3.2:1 — el único preset que rompía la regla del par AA (fix 5).
+  azul: { light: "#0071e3", dark: "#0a84ff", onLight: "#ffffff", onDark: "#041e33" },
 } satisfies Record<string, PresetTones>;
+
+/** Etiquetas criollas de los presets (selector de color del equipo, /admin/apariencia). */
+export const ACCENT_PRESET_LABELS: Record<AccentPreset, string> = {
+  petroleo: "Petróleo",
+  oxblood: "Bordó",
+  rosa: "Rosa",
+  celeste: "Celeste",
+  verde: "Verde",
+  ambar: "Ámbar",
+  azul: "Azul",
+};
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
 

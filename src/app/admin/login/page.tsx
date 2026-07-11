@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
 import { login } from "@/lib/auth-actions";
-import { Input, buttonClasses } from "@/components/ui";
-import { getTenantBrand, resolveAccent, invertTheme } from "@/lib/branding";
+import { Field, Input, buttonClasses } from "@/components/ui";
+import { getTenantBrand, resolveAccent } from "@/lib/branding";
+import { getTeamAccentPreset } from "@/lib/team-accent";
+import AdminThemeScript from "../AdminThemeScript";
 import type { CSSProperties } from "react";
 
 // Título neutro + sin indexar, igual que el resto de /admin — esta pantalla vive
 // FUERA de (dashboard) (proxy.ts la deja pasar sin sesión) así que no hereda su
 // metadata y, sin esto, caía en el default de layout.tsx raíz ("CH Estética…"),
 // filtrando la marca de CH a la pestaña del login de CUALQUIER tenant (J-2).
+// Sello GSG: el login es la primera impresión del producto — GSG firma como
+// generador (discreto, en metadata + pie), el tenant conserva SU marca visible.
 export const metadata: Metadata = {
-  title: "Ingresar al panel",
+  title: "Ingresá a tu panel",
   robots: { index: false, follow: false },
+  generator: "Gestión Studio Grow",
 };
 
 export default async function LoginPage({
@@ -20,53 +25,108 @@ export default async function LoginPage({
 }) {
   const { next, error } = await searchParams;
   const brand = await getTenantBrand();
-  const backTheme = invertTheme(brand.frontTheme);
-  const { accent, onAccent } = resolveAccent(brand.preset, backTheme);
+  // Skin Fable (mismo criterio que el layout del admin): el tema lo decide el
+  // usuario/sistema, no la regla front/back. Se inyectan los DOS tonos del acento
+  // del tenant (nunca `--accent` inline: le ganaría al CSS y el tema no fliparía).
+  // El color del equipo elegido en /admin/apariencia también aplica acá.
+  const preset = (await getTeamAccentPreset()) ?? brand.preset;
+  const accentLight = resolveAccent(preset, "light");
+  const accentDark = resolveAccent(preset, "dark");
 
   return (
     <main
-      data-theme={backTheme}
-      style={{ "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}
-      className="min-h-screen flex items-center justify-center bg-surface px-6"
+      data-skin="fable"
+      data-theme="light"
+      suppressHydrationWarning
+      style={
+        {
+          "--tenant-accent-light": accentLight.accent,
+          "--tenant-on-accent-light": accentLight.onAccent,
+          "--tenant-accent-dark": accentDark.accent,
+          "--tenant-on-accent-dark": accentDark.onAccent,
+        } as CSSProperties
+      }
+      className="min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6"
     >
+      {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}
+      <AdminThemeScript />
+
       <div className="w-full max-w-sm">
-        <p className="text-sm text-faint mb-1">{brand.name}</p>
-        <h1 className="text-2xl font-semibold mb-6">Ingresar al panel</h1>
-
-        {error === "throttled" ? (
-          <p className="mb-4 rounded-md bg-danger-soft text-danger text-sm px-3 py-2">
-            Demasiados intentos fallidos. Esperá unos minutos y volvé a probar.
-          </p>
-        ) : error ? (
-          <p className="mb-4 rounded-md bg-danger-soft text-danger text-sm px-3 py-2">
-            Email o contraseña incorrectos. Probá de nuevo.
-          </p>
-        ) : null}
-
-        <form action={login} className="space-y-3">
-          <input type="hidden" name="next" value={next ?? "/admin"} />
-          <Input
-            type="email"
-            name="email"
-            required
-            autoFocus
-            autoComplete="username"
-            placeholder="Email"
-          />
-          <Input
-            type="password"
-            name="password"
-            required
-            autoComplete="current-password"
-            placeholder="Contraseña"
-          />
-          <button
-            type="submit"
-            className={buttonClasses("solid", "md", "w-full")}
+        {/* Marca del tenant: monograma sobre su acento + nombre. Centrado, con aire. */}
+        <div className="mb-6 flex flex-col items-center text-center">
+          <span
+            aria-hidden
+            className="grid h-12 w-12 place-items-center rounded-xl bg-accent text-lg font-bold text-on-accent shadow-sm"
           >
-            Ingresar
-          </button>
-        </form>
+            {brand.monogram}
+          </span>
+          <p className="mt-3 text-sm font-medium text-muted">{brand.name}</p>
+        </div>
+
+        {/* Card del login: superficie elevada sobre el canvas, borde --line,
+            radios del mockup (12px), sombra en reposo. */}
+        <section
+          aria-labelledby="login-titulo"
+          className="rounded-xl border border-line bg-surface-raised p-6 shadow-sm sm:p-8"
+        >
+          <h1 id="login-titulo" className="text-xl font-semibold tracking-tight text-strong">
+            Ingresá a tu panel
+          </h1>
+          <p className="mt-1 mb-6 text-sm text-muted">
+            Con el email y la contraseña de tu cuenta.
+          </p>
+
+          {error === "throttled" ? (
+            <p
+              role="alert"
+              className="mb-5 rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger"
+            >
+              Demasiados intentos fallidos. Esperá unos minutos y volvé a probar.
+            </p>
+          ) : error ? (
+            <p
+              role="alert"
+              className="mb-5 rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger"
+            >
+              Email o contraseña incorrectos. Probá de nuevo.
+            </p>
+          ) : null}
+
+          <form action={login} className="space-y-4">
+            <input type="hidden" name="next" value={next ?? "/admin"} />
+            <Field label="Email" htmlFor="login-email">
+              <Input
+                id="login-email"
+                type="email"
+                name="email"
+                required
+                autoFocus
+                autoComplete="username"
+                inputMode="email"
+                spellCheck={false}
+                placeholder="tu@email.com"
+              />
+            </Field>
+            <Field label="Contraseña" htmlFor="login-password">
+              <Input
+                id="login-password"
+                type="password"
+                name="password"
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+              />
+            </Field>
+            <button type="submit" className={buttonClasses("solid", "lg", "w-full mt-1")}>
+              Ingresar
+            </button>
+          </form>
+        </section>
+
+        {/* Sello GSG, discreto: el tenant conserva su marca; GSG firma detrás. */}
+        <p className="mt-6 text-center text-xs text-faint">
+          Con tecnología de Gestión Studio Grow
+        </p>
       </div>
     </main>
   );

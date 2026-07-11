@@ -15,10 +15,12 @@
 //     reingeniería a real, ahí se muda a su propio dir).
 //   - Bancos (plugin): su fuente de verdad vive junto al plugin
 //     (src/plugins/bancos/module.ts), misma convención que ARCA.
+//   - Cartera (nativo, panel del contador): src/modules/descriptors/cartera.ts.
 
 import { ModuleRegistry } from "./registry";
 import { MODULOS_NATIVOS } from "./descriptors/nativos";
 import { mercadopagoModule } from "./descriptors/mercadopago";
+import { carteraModule } from "./descriptors/cartera";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -28,6 +30,7 @@ export const DESCRIPTORES_CATALOGO = [
   arcaModule,
   mercadopagoModule,
   bancosModule,
+  carteraModule,
 ];
 
 /**

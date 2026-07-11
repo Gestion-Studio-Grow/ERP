@@ -13,13 +13,11 @@ import {
 import { emitirFacturaDePruebaAction } from "@/lib/arca-pruebas-actions";
 import type { ModoArca } from "@/plugins/arca";
 import { useToast } from "../ToastProvider";
-
-const ars = (n: number) =>
-  new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 }).format(n);
+import { Badge, Button, fmtCuit, fmtMoneyARS, type BadgeTone } from "@/components/ui";
 
 const ETIQUETA_MODO: Record<ModoArca, string> = {
-  stub: "prueba (sandbox)",
-  homologacion: "HOMOLOGACIÓN (ambiente de test oficial de ARCA)",
+  stub: "modo prueba (sin red)",
+  homologacion: "homologación (pruebas oficiales de ARCA)",
   real: "REAL (factura de verdad)",
 };
 
@@ -29,10 +27,12 @@ function fechaAr(aaaammdd: string): string {
   return `${aaaammdd.slice(6, 8)}/${aaaammdd.slice(4, 6)}/${aaaammdd.slice(0, 4)}`;
 }
 
-const ESTADO_LABEL: Record<FacturaVista["status"], { label: string; clase: string }> = {
-  PENDING: { label: "Pendiente", clase: "bg-surface-sunken text-muted" },
-  AUTHORIZED: { label: "Autorizada", clase: "bg-accent text-white" },
-  REJECTED: { label: "Rechazada", clase: "bg-surface-sunken text-danger" },
+// Estados fiscales con el Badge del sistema (fix 10): "Autorizada" en success
+// (AA garantizado por el fix 2), no en el acento del tenant (no es marca, es estado).
+const ESTADO_LABEL: Record<FacturaVista["status"], { label: string; tone: BadgeTone }> = {
+  PENDING: { label: "Pendiente", tone: "neutral" },
+  AUTHORIZED: { label: "Autorizada", tone: "success" },
+  REJECTED: { label: "Rechazada", tone: "danger" },
 };
 
 export default function FacturasSection({
@@ -77,36 +77,38 @@ export default function FacturasSection({
               {ETIQUETA_MODO[estado.modo]}
             </strong>
           </span>
-          <span>CUIT: <strong className="text-strong">{estado.cuit ?? "— sin cargar"}</strong></span>
+          <span>CUIT: <strong className="text-strong">{estado.cuit ? fmtCuit(estado.cuit) : "— sin cargar"}</strong></span>
           <span>Punto de venta: <strong className="text-strong">{estado.puntoVenta ?? "—"}</strong></span>
-          <span>Ambiente: <strong className="text-strong">{estado.homologacion ? "homologación" : "producción"}</strong></span>
+          {/* Homologación en tono warning (fix 22, mismo criterio que ArcaPill). */}
+          <span>Ambiente: <strong className={estado.homologacion ? "text-warning" : "text-strong"}>{estado.homologacion ? "homologación" : "producción"}</strong></span>
         </div>
         {estado.modo === "stub" && (
           <p className="mt-2 text-xs text-muted">
             En modo prueba se obtiene un CAE simulado (sin red). Para probar contra ARCA de verdad sin
-            arriesgar nada, el dueño carga el certificado de PRUEBA y prende <code>ARCA_MODO=homologacion</code>;
-            para facturar de verdad, certificado productivo + <code>ARCA_MODO=real</code>.
+            arriesgar nada, el dueño carga el certificado de prueba y activa el modo homologación (lo
+            hace Gestión Studio Grow); para facturar de verdad, se activa el modo real con el certificado productivo.
           </p>
         )}
         {estado.modo === "homologacion" && (
           <p className="mt-2 text-xs text-muted">
-            Corriendo contra el ambiente de testing oficial de ARCA con el certificado de PRUEBA — el
-            CAE es válido solo para homologación, no es una factura real.
+            Corriendo contra las pruebas oficiales de ARCA con el certificado de prueba — el CAE vale
+            solo para homologación, no es una factura real.
           </p>
         )}
       </div>
 
-      {/* Acción: procesar pendientes */}
+      {/* Acción: procesar pendientes — botones del sistema (fix 11) */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <button
+        <Button
           type="button"
+          size="sm"
           disabled={procesando || estado.pendientes === 0}
           onClick={async () => {
             setProcesando(true);
             try {
               const r = await procesarFacturacionPendiente();
               showSuccess(
-                `Procesadas ${r.procesados}: ${r.autorizados} autorizada(s), ${r.rechazados} rechazada(s), ${r.fallidos} con error.`,
+                `Procesadas ${r.procesados}: ${r.autorizados} autorizada${r.autorizados === 1 ? "" : "s"}, ${r.rechazados} rechazada${r.rechazados === 1 ? "" : "s"}, ${r.fallidos} con error.`,
               );
             } catch (e) {
               showError(e instanceof Error ? e.message : "No se pudo procesar la facturación.");
@@ -114,22 +116,16 @@ export default function FacturasSection({
               setProcesando(false);
             }
           }}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
           {procesando ? "Procesando…" : `Procesar pendientes (${estado.pendientes})`}
-        </button>
+        </Button>
         {estado.pendientes === 0 && (
           <span className="text-sm text-muted">No hay facturas pendientes de autorización.</span>
         )}
         {estado.modo !== "real" && (
-          <button
-            type="button"
-            disabled={probando}
-            onClick={probarFactura}
-            className="rounded-md border border-line px-3 py-1.5 text-sm text-muted disabled:opacity-60"
-          >
-            {probando ? "Probando…" : "🧪 Banco de pruebas: emitir factura de prueba"}
-          </button>
+          <Button type="button" variant="outline" size="sm" disabled={probando} onClick={probarFactura}>
+            {probando ? "Probando…" : "Modo prueba: emitir factura de prueba"}
+          </Button>
         )}
       </div>
 
@@ -137,12 +133,12 @@ export default function FacturasSection({
       <div className="sm:overflow-x-auto sm:rounded-lg sm:border sm:border-line">
         <table className="block w-full text-left sm:table">
           <thead className="hidden sm:table-header-group">
-            <tr className="border-b bg-surface-sunken text-xs uppercase tracking-wide text-muted">
-              <th className="px-4 py-2 font-medium">Fecha</th>
-              <th className="px-4 py-2 font-medium">Estado</th>
-              <th className="px-4 py-2 font-medium text-right">Total</th>
-              <th className="px-4 py-2 font-medium">CAE</th>
-              <th className="px-4 py-2 font-medium">Nº</th>
+            <tr className="border-b border-line bg-surface-sunken text-[11px] uppercase tracking-[.06em] text-muted">
+              <th className="px-4 py-2 font-semibold sm:px-[22px]">Fecha</th>
+              <th className="px-4 py-2 font-semibold sm:px-[22px]">Estado</th>
+              <th className="px-4 py-2 font-semibold text-right sm:px-[22px]">Total</th>
+              <th className="px-4 py-2 font-semibold sm:px-[22px]">CAE</th>
+              <th className="px-4 py-2 font-semibold sm:px-[22px]">Nº</th>
             </tr>
           </thead>
           <tbody className="block sm:table-row-group">
@@ -150,16 +146,16 @@ export default function FacturasSection({
               const e = ESTADO_LABEL[f.status];
               return (
                 <tr key={f.id} className="block border-b border-line sm:table-row">
-                  <td className="block px-4 py-2 text-sm sm:table-cell">{fechaAr(f.fecha)}</td>
-                  <td className="block px-4 py-2 sm:table-cell">
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${e.clase}`}>{e.label}</span>
+                  <td className="block px-4 py-2 text-sm tabular-nums sm:table-cell sm:px-[22px] sm:py-[13px]">{fechaAr(f.fecha)}</td>
+                  <td className="block px-4 py-2 sm:table-cell sm:px-[22px] sm:py-[13px]">
+                    <Badge tone={e.tone} dot>{e.label}</Badge>
                     {f.status === "REJECTED" && f.rechazoMotivo && (
                       <span className="ml-2 text-xs text-danger">{f.rechazoMotivo}</span>
                     )}
                   </td>
-                  <td className="block px-4 py-2 text-sm sm:table-cell sm:text-right">{ars(f.total)}</td>
-                  <td className="block px-4 py-2 text-sm text-muted sm:table-cell">{f.cae ?? "—"}</td>
-                  <td className="block px-4 py-2 text-sm text-muted sm:table-cell">{f.numero ?? "—"}</td>
+                  <td className="block px-4 py-2 text-sm tabular-nums sm:table-cell sm:px-[22px] sm:py-[13px] sm:text-right">{fmtMoneyARS(f.total)}</td>
+                  <td className="block px-4 py-2 font-mono text-sm text-muted sm:table-cell sm:px-[22px] sm:py-[13px]">{f.cae ?? "—"}</td>
+                  <td className="block px-4 py-2 text-sm tabular-nums text-muted sm:table-cell sm:px-[22px] sm:py-[13px]">{f.numero ?? "—"}</td>
                 </tr>
               );
             })}

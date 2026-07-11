@@ -11,7 +11,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
 import { UMBRAL_IDENTIFICACION_DEFAULT, CAP_FACTURAS_MES_DEFAULT } from "@/plugins/bancos";
-import { PageHeader, buttonClasses } from "@/components/ui";
+import { PageContainer, PageHeader, buttonClasses } from "@/components/ui";
 import ConfigForm from "./ConfigForm";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,7 @@ export default async function ConfiguracionBancosPage() {
       : null;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
+    <PageContainer width="narrow">
       <PageHeader
         title="Configuración de facturación automática"
         description="Las reglas con las que el módulo decide qué facturar solo y cuándo pedirte una mano."
@@ -79,6 +79,6 @@ export default async function ConfiguracionBancosPage() {
       <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">
         Con tecnología de Gestión Studio Grow
       </footer>
-    </main>
+    </PageContainer>
   );
 }

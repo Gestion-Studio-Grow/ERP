@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { KpiTile, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
-import type { KpisFacturacionBancaria } from "@/lib/bancos-actions";
+import type { KpisFacturacionBancaria } from "@/lib/bancos-glue";
 
 // Ícono de línea, mismo lenguaje que AdminShell (stroke 1.85, currentColor).
 function Icono({ path }: { path: React.ReactNode }) {
@@ -41,7 +41,7 @@ function GoalBar({ usado, tope }: { usado: number; tope: number }) {
     return () => window.clearTimeout(t);
   }, [pct]);
 
-  const color = pct >= 100 ? "bg-danger" : pct >= 90 ? "bg-warning" : "bg-accent";
+  const color = pct >= 100 ? "bg-danger-fill" : pct >= 90 ? "bg-warning-fill" : "bg-accent";
 
   return (
     <span className="block">
@@ -51,7 +51,7 @@ function GoalBar({ usado, tope }: { usado: number; tope: number }) {
         aria-valuemin={0}
         aria-valuemax={tope}
         aria-label={`Facturas del mes: ${usado} de ${tope}`}
-        className="mt-1 block h-1 overflow-hidden rounded-full bg-surface-sunken"
+        className="mt-1 block h-1 overflow-hidden rounded-full bg-bar-track"
       >
         <span
           className={`block h-full rounded-full ${color} motion-reduce:transition-none`}
@@ -80,17 +80,18 @@ export default function KpisBancos({ kpis }: { kpis: KpisFacturacionBancaria }) 
   const capLleno = kpis.capRestante === 0;
 
   return (
-    <section aria-label="Indicadores del mes" className="grid grid-cols-1 gap-sm sm:grid-cols-2 xl:grid-cols-4">
+    // 4-up desde lg con gap 14px (fix 28); KpiTile ya trae tabular-nums (fix 7).
+    <section aria-label="Indicadores del mes" className="grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-4">
       <KpiTile
         label="Facturado del mes"
-        value={<span className="tabular-nums">{fmtMoneyARS(kpis.montoFacturadoMes)}</span>}
+        value={fmtMoneyARS(kpis.montoFacturadoMes, 0)}
         sub="Todas las vías: banco, cobros y turnos."
         icon={<Icono path={<path d="M4 17l5-6 4 3 7-9" />} />}
       />
       <KpiTile
         label="Facturas emitidas"
         value={
-          <span className={`tabular-nums ${capLleno ? "text-danger" : ""}`}>
+          <span className={capLleno ? "text-danger" : undefined}>
             {fmtNumberAR(kpis.facturasMes)}
             <span className="text-base font-semibold text-muted"> / {fmtNumberAR(kpis.capFacturasMes)}</span>
           </span>
@@ -106,7 +107,7 @@ export default function KpisBancos({ kpis }: { kpis: KpisFacturacionBancaria }) 
         <KpiTile
           className="cursor-pointer hover:shadow-raised"
           label="Pendientes de revisión"
-          value={<span className="tabular-nums">{fmtNumberAR(kpis.pendientesRevision)}</span>}
+          value={fmtNumberAR(kpis.pendientesRevision)}
           sub={
             kpis.pendientesRevision > 0
               ? "Ventas que necesitan datos del comprador · tocá para revisarlas"
@@ -117,7 +118,7 @@ export default function KpisBancos({ kpis }: { kpis: KpisFacturacionBancaria }) 
       </a>
       <KpiTile
         label="Últimas importaciones"
-        value={<span className="tabular-nums">{fmtNumberAR(kpis.ultimasImportaciones.length)}</span>}
+        value={fmtNumberAR(kpis.ultimasImportaciones.length)}
         sub={
           ultima
             ? `Última: ${ultima.nombreArchivo} · ${fmtNumberAR(ultima.totalMovimientos)} movimientos`

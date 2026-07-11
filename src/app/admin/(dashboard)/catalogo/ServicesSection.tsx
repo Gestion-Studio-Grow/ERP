@@ -99,7 +99,7 @@ function RecursosEditor({ service, resources }: { service: Service; resources: R
           <p className="text-sm font-medium mb-1 text-strong">Recursos que ocupa este servicio</p>
           {resources.length === 0 && (
             <p className="text-sm text-muted">
-              Cargá recursos en la sección "Recursos" primero.
+              Cargá recursos en la sección “Recursos” primero.
             </p>
           )}
           <div className="space-y-1.5">
@@ -214,7 +214,7 @@ function ServiceRow({
               </div>
             </div>
             <label className="sm:col-span-4 flex items-center gap-2 text-xs text-muted">
-              Precio vecino/a de La Alameda (opcional — dejalo vacío si este servicio no tiene diferencial):
+              Precio local / de la zona (opcional — dejalo vacío si este servicio no tiene diferencial):
               <input
                 name="residentPrice"
                 type="number"
@@ -252,7 +252,7 @@ function ServiceRow({
             <textarea
               name="description"
               defaultValue={service.description ?? ""}
-              placeholder="Descripción para la web: qué incluye, beneficios, para quién es..."
+              placeholder="Descripción para la web: qué incluye, beneficios, para quién es…"
               rows={3}
               className="sm:col-span-4 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
             />
@@ -339,7 +339,7 @@ function ServiceRow({
                 if (!confirm(`¿Eliminar "${service.name}"? Esta acción no se puede deshacer.`)) return;
                 try {
                   await deleteService(fd);
-                  showSuccess(`"${service.name}" eliminado.`);
+                  showSuccess(`“${service.name}” eliminado.`);
                 } catch (err) {
                   showError(err instanceof Error ? err.message : "No se pudo eliminar.");
                 }
@@ -433,7 +433,7 @@ export default function ServicesSection({
     <section>
       <h2 className="text-lg font-medium mb-1 text-strong">Servicios</h2>
       <p className="text-sm text-muted mb-3">
-        Duración y precio determinan los horarios disponibles y el monto a cobrar. "Insumos" define
+        Duración y precio determinan los horarios disponibles y el monto a cobrar. “Insumos” define
         qué productos de stock consume cada vez que se realiza. La categoría agrupa el servicio en la
         web pública. El precio vecino/a es opcional: se lo ves solo a los servicios donde lo cargues,
         y se muestra siempre en la web como beneficio, nunca como recargo al resto.
@@ -521,7 +521,7 @@ export default function ServicesSection({
           type="number"
           min={0}
           step={100}
-          placeholder="Precio vecino/a (opcional)"
+          placeholder="Precio local (opcional)"
         />
         <Input
           name="depositAmount"
@@ -544,7 +544,7 @@ export default function ServicesSection({
         </Select>
         <Textarea
           name="description"
-          placeholder="Descripción para la web (opcional): qué incluye, beneficios, para quién es..."
+          placeholder="Descripción para la web (opcional): qué incluye, beneficios, para quién es…"
           rows={2}
           className="col-span-2 sm:col-span-4"
         />

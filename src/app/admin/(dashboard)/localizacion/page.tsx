@@ -28,7 +28,7 @@ const FIELDS: {
   { key: "addressLine", label: "Dirección" },
   { key: "city", label: "Ciudad / provincia" },
   { key: "hoursLabel", label: "Horarios (texto)", hint: "Leyenda que se muestra en la web. Los horarios reales por profesional siguen en Catálogo." },
-  { key: "whatsapp", label: "WhatsApp", type: "tel", hint: "Con característica, sin +. Ej: 54911…" },
+  { key: "whatsapp", label: "WhatsApp", type: "tel", hint: "Con característica, sin +. Ej.: 54911…" },
   { key: "email", label: "Email de contacto", type: "email" },
   { key: "instagram", label: "Instagram", hint: "@usuario o link completo." },
   { key: "mapsUrl", label: "Link de Google Maps", type: "url", wide: true, hint: "Opcional. Si lo dejás vacío, el botón “Cómo llegar” arma una búsqueda con la dirección." },

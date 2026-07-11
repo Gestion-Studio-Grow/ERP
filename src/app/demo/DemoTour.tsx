@@ -296,7 +296,7 @@ export default function DemoTour({ showBackofficeEntry = false }: { showBackoffi
                 inputMode="numeric"
                 autoFocus
                 autoComplete="tel"
-                placeholder="54 9 11...."
+                placeholder="Ej.: 54 9 11…"
                 value={waDraft}
                 onChange={(e) => setWaDraft(e.target.value)}
                 onKeyDown={(e) => {

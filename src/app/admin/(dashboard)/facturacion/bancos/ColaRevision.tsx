@@ -137,15 +137,15 @@ function PanelDetalle({
   );
 
   return (
-    <div className="rounded-lg border border-line bg-surface-raised p-4 shadow-card sm:p-5 lg:sticky lg:top-4">
-      <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold tracking-wide text-faint">
+    <div className="rounded-lg border border-line bg-surface-raised p-5 shadow-card xl:sticky xl:top-6">
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold tracking-wide text-muted">
         <span className="tabular-nums">{fechaAr(propuesta.fecha)}</span>
         <Badge tone={motivo.tone} dot>{motivo.label}</Badge>
       </div>
       <h3
         ref={headingRef}
         tabIndex={-1}
-        className="text-base font-bold tracking-tight text-strong outline-none"
+        className="break-words text-base font-bold tracking-tight text-strong outline-none line-clamp-2"
       >
         {propuesta.descripcion}
       </h3>
@@ -239,7 +239,7 @@ function PanelDetalle({
                 label="Descripción del servicio o venta"
                 htmlFor={`desc-${propuesta.id}`}
                 required
-                hint="En criollo: qué se vendió o qué servicio se prestó."
+                hint="Contalo simple: qué se vendió o qué servicio se prestó."
               >
                 <Input
                   id={`desc-${propuesta.id}`}
@@ -271,7 +271,7 @@ function PanelDetalle({
               onClick={() => void noFacturable()}
               className="w-full"
             >
-              {marcando ? "Marcando…" : "No facturable"}
+              {marcando ? "Marcando…" : "Marcar no facturable"}
             </Button>
           </div>
         </form>
@@ -314,23 +314,25 @@ export default function ColaRevision({ propuestas }: { propuestas: PropuestaVist
             <circle cx="12" cy="12" r="8.5" />
           </svg>
         }
-        title="No hay nada para revisar."
+        title="No hay nada para revisar"
         description="Cuando una venta supere el umbral de identificación o parezca duplicada, va a aparecer acá para que la mires antes de facturar."
       />
     );
   }
 
   return (
-    <div className="grid grid-cols-1 items-start gap-sm lg:grid-cols-[minmax(0,1fr)_340px]">
+    // Master-detail unificado con CarteraPanel (fixes 3/31): dos columnas
+    // recién desde xl (1280px) — en notebooks 13" iba apretado con lg.
+    <div className="grid grid-cols-1 items-start gap-md xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised shadow-card">
         <table className="w-full min-w-[520px] border-collapse text-left text-sm">
           <caption className="sr-only">Ventas pendientes de revisión antes de facturar</caption>
           <thead>
-            <tr className="border-b border-line bg-surface-sunken text-xs uppercase tracking-wide text-muted">
-              <th scope="col" className="px-4 py-2.5 font-medium">Fecha</th>
-              <th scope="col" className="px-4 py-2.5 font-medium">Movimiento del banco</th>
-              <th scope="col" className="px-4 py-2.5 font-medium">Por qué está acá</th>
-              <th scope="col" className="px-4 py-2.5 text-right font-medium">Monto</th>
+            <tr className="border-b border-line bg-surface-sunken text-[11px] uppercase tracking-[.06em] text-muted">
+              <th scope="col" className="px-[22px] py-2.5 font-semibold">Fecha</th>
+              <th scope="col" className="px-[22px] py-2.5 font-semibold">Movimiento del banco</th>
+              <th scope="col" className="px-[22px] py-2.5 font-semibold">Por qué está acá</th>
+              <th scope="col" className="px-[22px] py-2.5 text-right font-semibold">Monto</th>
             </tr>
           </thead>
           <tbody>
@@ -348,10 +350,10 @@ export default function ColaRevision({ propuestas }: { propuestas: PropuestaVist
                       : "hover:bg-surface-sunken"
                   }`}
                 >
-                  <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted">
+                  <td className="whitespace-nowrap px-[22px] py-[13px] tabular-nums text-muted">
                     {fechaAr(p.fecha)}
                   </td>
-                  <td className="max-w-64 px-4 py-3">
+                  <td className="max-w-64 px-[22px] py-[13px]">
                     {/* Botón real: la selección es alcanzable por teclado, no solo con click. */}
                     <button
                       type="button"
@@ -361,13 +363,13 @@ export default function ColaRevision({ propuestas }: { propuestas: PropuestaVist
                       {p.descripcion}
                     </button>
                     {p.contraparte && (
-                      <span className="block truncate text-xs text-faint">{p.contraparte}</span>
+                      <span className="block truncate text-xs text-muted">{p.contraparte}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-[22px] py-[13px]">
                     <Badge tone={motivo.tone} dot>{motivo.label}</Badge>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-strong">
+                  <td className="whitespace-nowrap px-[22px] py-[13px] text-right font-semibold tabular-nums text-strong">
                     {fmtMoneyARS(Math.abs(p.monto))}
                   </td>
                 </tr>

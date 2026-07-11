@@ -33,7 +33,7 @@ export default function ClientsList({ clients }: { clients: Client[] }) {
     <>
       <Input
         type="text"
-        placeholder="Buscar por nombre o teléfono..."
+        placeholder="Buscar por nombre o teléfono…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="mb-4"

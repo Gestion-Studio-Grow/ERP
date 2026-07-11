@@ -32,7 +32,7 @@ export function Badge({ tone = "neutral", dot, className, children, ...props }: 
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5",
-        "text-xs font-medium leading-5 tracking-wide",
+        "text-xs font-medium leading-5 tracking-wide tabular-nums",
         tones[tone],
         className,
       )}

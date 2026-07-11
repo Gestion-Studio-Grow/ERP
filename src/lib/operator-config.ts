@@ -81,4 +81,4 @@ export type TenantStatusId = (typeof TENANT_STATUSES)[number]["id"];
 
 // Presets de acento disponibles (espejo de ACCENT_PRESETS en branding.ts, sin
 // arrastrar Prisma/React.cache a un módulo de dato puro).
-export const ACCENT_PRESET_IDS = ["petroleo", "oxblood", "rosa", "celeste", "verde", "ambar"] as const;
+export const ACCENT_PRESET_IDS = ["petroleo", "oxblood", "rosa", "celeste", "verde", "ambar", "azul"] as const;

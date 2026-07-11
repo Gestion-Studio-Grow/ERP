@@ -3,12 +3,11 @@ import { requireCapability } from "@/lib/authz";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { getLibroIva } from "@/lib/libros/libro-iva-loader";
 import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
-import { PageHeader, EmptyState, buttonClasses } from "@/components/ui";
+import { PageHeader, EmptyState, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import LibrosClient from "./LibrosClient";
 
 export const dynamic = "force-dynamic";
 
-const money = (n: number) => "$" + n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Tarjeta de resumen fiscal (número grande + contexto). `tone` tiñe el saldo.
 function Stat({ label, value, hint, tone = "neutral" }: { label: string; value: string; hint?: string; tone?: "neutral" | "danger" | "success" }) {
@@ -83,12 +82,12 @@ export default async function LibrosPage({ searchParams }: { searchParams: Promi
 
       {/* Resumen fiscal: IVA débito (ventas) − crédito (compras) = saldo. */}
       <div className="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Ventas (neto)" value={money(r.ventasNeto)} hint={`${r.ventasCount} ${r.ventasCount === 1 ? "venta" : "ventas"}`} />
-        <Stat label="IVA débito" value={money(r.ivaDebito)} hint="IVA de ventas" />
-        <Stat label="IVA crédito" value={money(r.ivaCredito)} hint="IVA de compras" />
+        <Stat label="Ventas (neto)" value={fmtMoneyARS(r.ventasNeto)} hint={`${r.ventasCount} ${r.ventasCount === 1 ? "venta" : "ventas"}`} />
+        <Stat label="IVA débito" value={fmtMoneyARS(r.ivaDebito)} hint="IVA de ventas" />
+        <Stat label="IVA crédito" value={fmtMoneyARS(r.ivaCredito)} hint="IVA de compras" />
         <Stat
           label={saldoAPagar ? "Saldo IVA a pagar" : "Saldo IVA a favor"}
-          value={money(Math.abs(r.ivaSaldo))}
+          value={fmtMoneyARS(Math.abs(r.ivaSaldo))}
           tone={saldoAPagar ? "danger" : "success"}
           hint="débito − crédito"
         />

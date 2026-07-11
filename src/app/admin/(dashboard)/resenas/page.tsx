@@ -39,16 +39,18 @@ export default async function ResenasPage() {
                 </p>
               </div>
               <div className="flex flex-col gap-2 items-stretch sm:items-end whitespace-nowrap">
+                <span
+                  className={`inline-flex w-full items-center justify-center rounded-full px-3 py-1 text-xs font-medium sm:w-auto ${
+                    r.published ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
+                  }`}
+                >
+                  {r.published ? "Publicada" : "Oculta"}
+                </span>
                 <form action={togglePublished}>
                   <input type="hidden" name="id" value={r.id} />
                   <input type="hidden" name="published" value={String(r.published)} />
-                  <button
-                    type="submit"
-                    className={`w-full sm:w-auto rounded-full px-3 py-1.5 text-xs font-medium ${
-                      r.published ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
-                    }`}
-                  >
-                    {r.published ? "Publicada" : "Oculta"}
+                  <button type="submit" className="chip-btn w-full text-xs min-h-8 sm:w-auto">
+                    {r.published ? "Ocultar" : "Publicar"}
                   </button>
                 </form>
                 <form action={deleteReview}>

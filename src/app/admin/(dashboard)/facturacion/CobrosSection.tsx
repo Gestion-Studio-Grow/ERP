@@ -11,11 +11,11 @@ import { generarCobro, type GenerarCobroResult } from "@/lib/cobros-actions";
 import { generarCobroDePruebaAction } from "@/lib/mercadopago-pruebas-actions";
 import type { ModoCobros } from "@/lib/mercadopago-cobros-dispatch";
 import { useToast } from "../ToastProvider";
-import { Input } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 
 const ETIQUETA_MODO: Record<ModoCobros, string> = {
-  stub: "modo prueba (sandbox) — el link no cobra de verdad",
-  test: "modo TEST — Checkout Pro real con credenciales de prueba, no cobra de verdad",
+  stub: "modo prueba — el link no cobra de verdad",
+  test: "modo prueba (credenciales de prueba) — Checkout Pro real, no cobra de verdad",
   real: "",
 };
 
@@ -23,6 +23,7 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
   const [link, setLink] = useState<Extract<GenerarCobroResult, { ok: true }> | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [probando, setProbando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
   const { showError, showSuccess } = useToast();
 
   async function probarCobro() {
@@ -44,6 +45,9 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
     try {
       await navigator.clipboard.writeText(texto);
       showSuccess("Link copiado. Pegalo en el WhatsApp del cliente.");
+      // Feedback visible en el propio botón (fix 12): "¡Copiado!" por 2 s.
+      setCopiado(true);
+      window.setTimeout(() => setCopiado(false), 2000);
     } catch {
       showError("No se pudo copiar. Copialo a mano.");
     }
@@ -78,31 +82,24 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
             setEnviando(false);
           }
         }}
-        className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+        // Gap del form en la escala --space-* (fix 35 del gate): token-driven,
+        // respira más en densidad lite sin tocar el componente.
+        className="grid grid-cols-2 gap-sm sm:grid-cols-4"
       >
         <Input name="concepto" required placeholder="Concepto (qué cobrás)" className="col-span-2" />
         <Input name="monto" type="number" step="0.01" min="0" required placeholder="Monto $" />
         <Input name="referenciaExterna" placeholder="Ref. (turno/pedido, opcional)" />
         <Input name="emailPagador" type="email" placeholder="Email del cliente (opcional)" className="col-span-2" />
-        <button
-          type="submit"
-          disabled={enviando}
-          className="col-span-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
+        <Button type="submit" disabled={enviando} className="col-span-2">
           {enviando ? "Generando…" : "Generar link de cobro"}
-        </button>
+        </Button>
       </form>
 
       {modo !== "real" && (
         <div className="mt-3">
-          <button
-            type="button"
-            disabled={probando}
-            onClick={probarCobro}
-            className="rounded-md border border-line px-3 py-1.5 text-sm text-muted disabled:opacity-60"
-          >
-            {probando ? "Probando…" : "🧪 Banco de pruebas: generar cobro de prueba"}
-          </button>
+          <Button type="button" variant="outline" size="sm" disabled={probando} onClick={probarCobro}>
+            {probando ? "Probando…" : "Modo prueba: generar cobro de prueba"}
+          </Button>
         </div>
       )}
 
@@ -110,14 +107,27 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
         <div className="mt-4 rounded-lg border border-line bg-surface-sunken p-4">
           <p className="mb-1 text-sm font-medium text-strong">Link de cobro listo</p>
           <p className="mb-2 break-all text-sm text-muted">{link.initPoint}</p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => copiar(link.initPoint)}
-              className="text-sm font-medium"
-            >
-              Copiar link
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Affordance real de copia (fix 12): botón del sistema con ícono
+                + feedback "¡Copiado!" en el propio botón. */}
+            <Button type="button" variant="outline" size="sm" onClick={() => copiar(link.initPoint)}>
+              {copiado ? (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden>
+                    <path d="M5 13l4 4 10-10" />
+                  </svg>
+                  ¡Copiado!
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden>
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15V5a2 2 0 012-2h10" />
+                  </svg>
+                  Copiar link
+                </>
+              )}
+            </Button>
             <a
               href={link.initPoint}
               target="_blank"

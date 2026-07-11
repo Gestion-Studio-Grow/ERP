@@ -4,7 +4,28 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fmtMoneyARS, fmtNumberAR } from "./format";
+import { fmtMoneyARS, fmtNumberAR, fmtCuit } from "./format";
+
+test("fmtMoneyARS: decimals=0 para KPIs headline (tablas siguen en 2)", () => {
+  assert.equal(fmtMoneyARS(1234567.89, 0), "$1.234.568");
+  assert.equal(fmtMoneyARS(-1234.5, 0), "-$1.235");
+});
+
+test("fmtCuit: 11 dígitos -> XX-XXXXXXXX-X", () => {
+  assert.equal(fmtCuit("20376833098"), "20-37683309-8");
+});
+
+test("fmtCuit: acepta guiones/espacios de entrada y normaliza", () => {
+  assert.equal(fmtCuit("20-37683309-8"), "20-37683309-8");
+  assert.equal(fmtCuit("20 37683309 8"), "20-37683309-8");
+});
+
+test("fmtCuit: largo distinto de 11 -> tal cual; vacío/null -> em dash", () => {
+  assert.equal(fmtCuit("12345678"), "12345678");
+  assert.equal(fmtCuit(null), "—");
+  assert.equal(fmtCuit(undefined), "—");
+  assert.equal(fmtCuit(""), "—");
+});
 
 test("fmtMoneyARS: entero positivo fuerza 2 decimales", () => {
   assert.equal(fmtMoneyARS(9900), "$9.900,00");

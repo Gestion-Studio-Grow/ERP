@@ -51,7 +51,7 @@ export default async function AltaPage({
             <Field label="Nombre del negocio" required>
               <Input name="name" required placeholder="Estética Norte" />
             </Field>
-            <Field label="Slug (identificador único, URL-safe)" required hint="minúsculas, números y guiones">
+            <Field label="Slug (identificador único, URL-safe)" required hint="Minúsculas, números y guiones.">
               <Input name="slug" required placeholder="estetica-norte" />
             </Field>
             <Field label="Nombre del dueño (OWNER)">
@@ -67,7 +67,7 @@ export default async function AltaPage({
           <h2 className="font-medium">Rubro y vertical</h2>
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Rubro (texto libre)" hint="Se resuelve al blueprint del rubro, o al comodín genérico si no matchea.">
-              <Input name="rubro" placeholder="p. ej. ferretería, spa, carnicería…" />
+              <Input name="rubro" placeholder="Ej.: ferretería, spa, carnicería…" />
             </Field>
             <Field label="…o blueprint explícito" hint="Si lo elegís, tiene prioridad sobre el rubro.">
               <Select name="blueprint" defaultValue="">

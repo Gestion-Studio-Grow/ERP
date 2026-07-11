@@ -25,12 +25,12 @@ export default async function CuentasACobrarPage() {
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
       <PageHeader
         title="Cuentas a cobrar"
-        description="Fiado y saldos de clientes: quién te debe, cuánto y desde cuándo. Con vencimiento y aviso de vencimiento en la edición Empresa."
+        description="Fiado y saldos de clientes: quién te debe, cuánto y desde cuándo. Con vencimiento y aviso automático en la edición Empresa."
       />
       <DebtSummaryCards resumen={resumen} totalLabel="Adeudado por clientes" />
       {rows.length === 0 ? (
         <EmptyState
-          title="Sin cuentas por cobrar"
+          title="Sin cuentas a cobrar"
           description="Cuando anotes un fiado a un cliente va a aparecer acá con su saldo, su vencimiento y el historial de cobros."
         />
       ) : (

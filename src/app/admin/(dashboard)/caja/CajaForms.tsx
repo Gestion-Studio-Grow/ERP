@@ -16,12 +16,11 @@ import {
   type CajaActionState,
 } from "@/lib/caja-actions";
 import { round2 } from "@/lib/round";
-import { Field, Input, Select, buttonClasses } from "@/components/ui";
+import { Field, Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 
 // Formateador de pesos para el preview del arqueo en el cliente (mismo estilo que
 // la pantalla server). Vive acá para no acoplar el client component al server.
-const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 
 // Mensaje de error del formulario. `role="alert"` → el lector de pantalla lo
 // anuncia apenas aparece, sin robar el foco.
@@ -131,8 +130,8 @@ function previewArqueo(countedRaw: string, expected: number): ArqueoPreview | nu
   if (!Number.isFinite(counted) || counted < 0) return null;
   const diff = round2(counted - expected);
   if (diff === 0) return { diff, label: "Cuadra", tone: "neutral" };
-  if (diff < 0) return { diff, label: `Faltante ${money.format(Math.abs(diff))}`, tone: "danger" };
-  return { diff, label: `Sobrante ${money.format(diff)}`, tone: "success" };
+  if (diff < 0) return { diff, label: `Faltante ${fmtMoneyARS(Math.abs(diff))}`, tone: "danger" };
+  return { diff, label: `Sobrante ${fmtMoneyARS(diff)}`, tone: "success" };
 }
 
 // --- Cierre / arqueo del turno ---
@@ -157,7 +156,7 @@ export function CloseCajaForm({ expected }: { expected: number }) {
           label="Efectivo contado"
           htmlFor="counted"
           required
-          hint={`Se compara con el esperado (${money.format(expected)}).`}
+          hint={`Se compara con el esperado (${fmtMoneyARS(expected)}).`}
         >
           <Input
             id="counted"

@@ -25,16 +25,10 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { createInvoice } from "@/lib/invoice-core";
-import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
-import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
-import { logger } from "@/lib/logger";
 import {
   ClasificadorBancarioPorReglas,
   procesarExtracto,
   registrarCorreccionBanco,
-  CAP_FACTURAS_MES_DEFAULT,
-  DOC_TIPO_CONSUMIDOR_FINAL,
   type AlertaBancos,
   type ArchivoExtracto,
   type MapeoColumnas,
@@ -44,16 +38,27 @@ import {
   AprendizajeBancoPrisma,
   armarFilasMovimientos,
   configBancosDesdeTenant,
+  contarFacturasDelMes,
   crearDeteccionCruzadaInvoices,
   crearYaProcesado,
-  rangoMesActual,
+  emitirPropuestas,
+  kpisFacturacionBancaria,
   resumirPropuestas,
   toNum,
   validarDatosRevision,
   type DatosRevision,
   type EstadoPropuestaDb,
   type ResumenPropuestas,
+  type ResultadoEmision,
+  type KpisFacturacionBancaria,
+  type ImportacionVista,
 } from "@/lib/bancos-glue";
+
+// NOTA (refactor de reuso, producto Contador): los tipos ResultadoEmision,
+// KpisFacturacionBancaria e ImportacionVista se movieron a bancos-glue junto con
+// sus cores. No se re-exportan desde acá: Turbopack registra CUALQUIER re-export
+// de un módulo "use server" como Server Action y rompe el build — los
+// consumidores los importan de "@/lib/bancos-glue" (import type, cero runtime).
 
 const FACTURACION_PATH = "/admin/facturacion";
 
@@ -97,15 +102,6 @@ export interface FiltroPropuestas {
   importacionId?: string;
 }
 
-export interface ImportacionVista {
-  id: string;
-  nombreArchivo: string;
-  origen: string;
-  estado: string;
-  totalMovimientos: number;
-  createdAt: string; // ISO
-}
-
 export interface DetalleImportacion extends ImportacionVista {
   mapeo: MapeoColumnas | null;
   /** Conteo de movimientos por estado de propuesta. */
@@ -114,26 +110,6 @@ export interface DetalleImportacion extends ImportacionVista {
 }
 
 export type ResultadoSimple = { ok: true } | { ok: false; error: string };
-
-export interface ResultadoEmision {
-  emitidas: number;
-  bloqueadasPorCap: number;
-  capAlcanzado: boolean;
-  mensaje?: string;
-  errores: { movimientoId: string; error: string }[];
-  /** Resumen del despacho a ARCA (solo si ARCA_INVOICING_ENABLED está prendido). */
-  despachoArca?: DispatchResumen;
-}
-
-export interface KpisFacturacionBancaria {
-  /** Facturas del tenant creadas este mes (todas las vías: banco, MP, turnos). */
-  facturasMes: number;
-  capFacturasMes: number;
-  capRestante: number;
-  montoFacturadoMes: number;
-  pendientesRevision: number;
-  ultimasImportaciones: ImportacionVista[];
-}
 
 // ── Helpers internos (no exportados: "use server" solo exporta async actions) ─
 
@@ -177,10 +153,6 @@ function aPropuestaVista(m: {
   };
 }
 
-async function contarFacturasDelMes(tenantId: string): Promise<number> {
-  return prisma.invoice.count({ where: { tenantId, createdAt: rangoMesActual() } });
-}
-
 /**
  * Corre el pipeline del plugin y persiste el lote. Compartido por la
  * importación inicial y el re-proceso con mapeo confirmado (`reproceso`
@@ -201,7 +173,7 @@ async function procesarYPersistir(
       arcaCuit: true,
     },
   });
-  if (!tenant) return { ok: false, error: "No se encontró el tenant.", alertas: [] };
+  if (!tenant) return { ok: false, error: "No se encontró el negocio.", alertas: [] };
 
   const cfg = configBancosDesdeTenant(tenant);
   const facturasEmitidasEsteMes = await contarFacturasDelMes(tenantId);
@@ -311,7 +283,7 @@ export async function procesarExtractoAction(
 
   const archivo = formData.get("archivo");
   if (!(archivo instanceof File) || archivo.size === 0) {
-    return { ok: false, error: "Subí el extracto del banco (CSV o XLSX).", alertas: [] };
+    return { ok: false, error: "Subí el extracto del banco (CSV o Excel).", alertas: [] };
   }
   if (archivo.size > MAX_BYTES_EXTRACTO) {
     return {
@@ -352,7 +324,7 @@ export async function confirmarMapeoAction(
     return {
       ok: false,
       error:
-        "Esta importación ya tiene facturas emitidas: no se puede re-procesar con otro mapeo.",
+        "Esta importación ya tiene facturas emitidas: no se puede reprocesar con otro mapeo.",
       alertas: [],
     };
   }
@@ -488,123 +460,12 @@ export async function emitirPropuestasAction(
   await requireCapability("billing:manage");
   const tenantId = await getCurrentTenantId();
 
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { bancosCapFacturasMes: true, arcaPuntoVenta: true },
-  });
-  const cap = tenant?.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
-  const facturasMes = await contarFacturasDelMes(tenantId);
-
-  const movimientos = await prisma.movimientoImportado.findMany({
-    where: {
-      tenantId,
-      estadoPropuesta: "auto",
-      ...(seleccion === "auto" ? {} : { id: { in: seleccion } }),
-    },
-    orderBy: [{ fecha: "asc" }, { createdAt: "asc" }],
-  });
-  if (movimientos.length === 0) {
-    return { emitidas: 0, bloqueadasPorCap: 0, capAlcanzado: false, errores: [] };
-  }
-
-  const perfil = getFiscalProfile(tenantId);
-  const puntoVenta = tenant?.arcaPuntoVenta ?? perfil.puntoVenta;
-
-  let emitidas = 0;
-  let bloqueadas = 0;
-  const errores: { movimientoId: string; error: string }[] = [];
-
-  for (const mov of movimientos) {
-    // Cap de facturas del mes (regla comercial del dueño): al 100% se BLOQUEA.
-    if (facturasMes + emitidas >= cap) {
-      bloqueadas++;
-      continue;
-    }
-
-    // CLAIM idempotente: solo el que pasa auto→emitida factura. Un doble clic o
-    // dos sesiones simultáneas no generan dos comprobantes del mismo movimiento.
-    const claim = await tenantTransaction(
-      (tx) =>
-        tx.movimientoImportado.updateMany({
-          where: { id: mov.id, tenantId, estadoPropuesta: "auto" },
-          data: { estadoPropuesta: "emitida" },
-        }),
-      { tenantId },
-    );
-    if (claim.count === 0) continue; // otro lo agarró (o cambió de estado)
-
-    try {
-      // El monto del banco es TOTAL IVA-incluido; el Core calcula neto/IVA (ADR-006).
-      const montoTotal = Math.abs(toNum(mov.monto));
-      const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
-      const invoiceId = await createInvoice({
-        tenantId,
-        // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
-        // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
-        concepto: 1,
-        fecha: mov.fecha,
-        emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta },
-        receptor: {
-          docTipo: mov.docTipo ?? DOC_TIPO_CONSUMIDOR_FINAL,
-          docNro: Number(mov.docNro ?? 0) || 0,
-          condicionIva: "CONSUMIDOR_FINAL",
-        },
-        neto,
-        iva,
-        total,
-      });
-      await tenantTransaction(
-        (tx) =>
-          tx.movimientoImportado.updateMany({
-            where: { id: mov.id, tenantId },
-            data: { invoiceId },
-          }),
-        { tenantId },
-      );
-      emitidas++;
-    } catch (err) {
-      // Falló la creación: soltar el claim para que se pueda reintentar.
-      await tenantTransaction(
-        (tx) =>
-          tx.movimientoImportado.updateMany({
-            where: { id: mov.id, tenantId, invoiceId: null },
-            data: { estadoPropuesta: "auto" },
-          }),
-        { tenantId },
-      );
-      const mensaje = err instanceof Error ? err.message : String(err);
-      errores.push({ movimientoId: mov.id, error: mensaje });
-      logger.error("bancos", "no se pudo emitir la factura del movimiento", err, {
-        tenantId,
-        movimientoId: mov.id,
-      });
-    }
-  }
-
-  // Con la facturación encendida, drenar el outbox → plugin ARCA → CAE (stub en dev).
-  let despachoArca: DispatchResumen | undefined;
-  if (emitidas > 0 && isInvoicingEnabled()) {
-    despachoArca = await processArcaOutbox();
-  }
-
-  const capAlcanzado = bloqueadas > 0 || facturasMes + emitidas >= cap;
+  // Core movido a bancos-glue (`emitirPropuestas`, tenantId explícito) para que el
+  // panel del contador lo reuse sobre los clientes de su cartera. Acá el tenant es
+  // el AMBIENTAL de siempre → comportamiento idéntico.
+  const resultado = await emitirPropuestas(tenantId, seleccion);
   revalidatePath(FACTURACION_PATH);
-  return {
-    emitidas,
-    bloqueadasPorCap: bloqueadas,
-    capAlcanzado,
-    ...(capAlcanzado
-      ? {
-          mensaje:
-            `Se alcanzó el tope de ${cap} facturas del mes` +
-            (bloqueadas > 0
-              ? `: ${bloqueadas} propuesta(s) quedaron SIN emitir. Se emiten recién el mes próximo (o subiendo el tope en la configuración del módulo).`
-              : "."),
-        }
-      : {}),
-    errores,
-    ...(despachoArca ? { despachoArca } : {}),
-  };
+  return resultado;
 }
 
 /**
@@ -636,7 +497,7 @@ export async function marcarNoFacturableAction(
   if (mov.estadoPropuesta === "emitida") {
     return {
       ok: false,
-      error: "Este movimiento ya tiene factura emitida: no se puede marcar no facturable.",
+      error: "Este movimiento ya tiene factura emitida: no se puede marcar como no facturable.",
     };
   }
 
@@ -646,7 +507,7 @@ export async function marcarNoFacturableAction(
         where: { id: movimientoId, tenantId },
         data: {
           estadoPropuesta: "no_facturable",
-          motivoRevision: "Marcado no facturable por el usuario.",
+          motivoRevision: "Marcado como no facturable por el usuario.",
         },
       }),
     { tenantId },
@@ -734,48 +595,7 @@ export async function guardarConfigBancosAction(
 export async function kpisFacturacionAction(): Promise<KpisFacturacionBancaria> {
   await requireCapability("billing:manage");
   const tenantId = await getCurrentTenantId();
-  const rango = rangoMesActual();
-
-  const [tenant, facturasMes, montoAgg, pendientesRevision, ultimas] = await Promise.all([
-    prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { bancosCapFacturasMes: true },
-    }),
-    prisma.invoice.count({ where: { tenantId, createdAt: rango } }),
-    prisma.invoice.aggregate({
-      _sum: { total: true },
-      where: { tenantId, createdAt: rango, status: { not: "REJECTED" } },
-    }),
-    prisma.movimientoImportado.count({ where: { tenantId, estadoPropuesta: "revision" } }),
-    prisma.importacionBancaria.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: {
-        id: true,
-        nombreArchivo: true,
-        origen: true,
-        estado: true,
-        totalMovimientos: true,
-        createdAt: true,
-      },
-    }),
-  ]);
-
-  const capFacturasMes = tenant?.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
-  return {
-    facturasMes,
-    capFacturasMes,
-    capRestante: Math.max(0, capFacturasMes - facturasMes),
-    montoFacturadoMes: toNum(montoAgg._sum.total ?? 0),
-    pendientesRevision,
-    ultimasImportaciones: ultimas.map((u) => ({
-      id: u.id,
-      nombreArchivo: u.nombreArchivo,
-      origen: u.origen,
-      estado: u.estado,
-      totalMovimientos: u.totalMovimientos,
-      createdAt: u.createdAt.toISOString(),
-    })),
-  };
+  // Core movido a bancos-glue (`kpisFacturacionBancaria`, tenantId explícito) para
+  // que el panel del contador lo reuse por cada cliente de su cartera.
+  return kpisFacturacionBancaria(tenantId);
 }

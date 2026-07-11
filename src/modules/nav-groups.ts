@@ -145,6 +145,7 @@ export const NAV_ITEM_GROUPS: Readonly<Record<string, NavGroupId>> = {
   "/admin/auditoria": "configuracion",
   "/admin/usuarios": "configuracion",
   "/admin/localizacion": "configuracion",
+  "/admin/apariencia": "configuracion", // tema claro/oscuro + color del equipo (skin Fable)
   "/admin/modulos": "configuracion",
 };
 
