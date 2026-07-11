@@ -17,8 +17,14 @@
 //   4. build          — `next build` compila la app entera (rutas, RSC, client
 //                       bundles). Cierra el Gate de Excelencia (tsc+build+test) de
 //                       CLAUDE.md: atrapa lo que tsc/lint solos no ven (errores de
-//                       build de Next, uso de server en client, etc.). Es la valla
-//                       más lenta → va última.
+//                       build de Next, uso de server en client, etc.).
+//   5. visual         — RENDER REAL: levanta la app y la mira en un navegador de
+//                       verdad (Chromium/Playwright, desktop + mobile). Atrapa lo
+//                       que NINGUNA valla anterior ve: CSS que no aplica, layout
+//                       colapsado ("una palabra por línea"), overflow horizontal.
+//                       Nace del incidente 2026-07-11 (login de /operador roto en
+//                       prod que pasó tsc+build+test). Va última (usa la build).
+//                       Regla: si no puede renderizar, FALLA (no se saltea).
 //
 // Exit 0 = todas verdes (seguro pushear). Exit 1 = alguna roja.
 // ============================================================================
@@ -44,6 +50,14 @@ const GATES = [
     shell: false,
   },
   { name: "build (next build)", cmd: "npm", args: ["run", "build"], shell: isWin },
+  // 6. visual — RENDER REAL: levanta la app buildeada y la mira en un navegador
+  //    de verdad (Chromium/Playwright, desktop + mobile). Atrapa la clase de bug
+  //    que tsc/build/test NO ven: CSS que no aplica, layout colapsado ("una
+  //    palabra por línea"), overflow. Va DESPUÉS de build porque usa su salida.
+  //    Requiere Chromium de Playwright (`npx playwright install chromium`); si
+  //    falta, la valla FALLA (no se saltea — un gate que no puede renderizar es
+  //    un gate rojo, no un permiso para publicar a ciegas).
+  { name: "visual (render real)", cmd: "npm", args: ["run", "gate:visual"], shell: isWin },
 ];
 
 console.log("🚧 Corriendo vallas de pre-push…\n");

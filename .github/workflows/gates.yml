@@ -1,8 +1,14 @@
 # Vallas de CI — Célula 2 (Confiabilidad). Corre `npm run gates` (tsc + lint +
-# tests + regresión de aislamiento RLS) en cada push y PR. NO toca prod ni Neon:
-# ninguna valla necesita base de datos (la coverage de RLS es estática sobre el
-# schema; los tests son unitarios). El cliente Prisma se genera en el postinstall
-# (`prisma generate`, sin DB). Es seguro por diseño.
+# tests + regresión de aislamiento RLS + build + RENDER VISUAL) en cada push y PR.
+# NO toca prod ni Neon: ninguna valla necesita base de datos (la coverage de RLS es
+# estática sobre el schema; los tests son unitarios; la valla visual corre el subset
+# SIN DB — login de operador/admin + vidriera con branding fail-open). El cliente
+# Prisma se genera en el postinstall (`prisma generate`, sin DB). Seguro por diseño.
+#
+# La valla VISUAL renderiza rutas críticas en Chromium real (Playwright) y falla si
+# el layout está roto (CSS que no aplica, "una palabra por línea", overflow). Nace
+# del incidente 2026-07-11 (login de /operador roto en prod que pasó tsc+build+test).
+# Deja los screenshots como artefacto del run.
 name: gates
 
 on:
@@ -21,4 +27,13 @@ jobs:
       # npm ci corre el postinstall → prisma generate (genera src/generated/prisma
       # sin conectar a ninguna base).
       - run: npm ci
+      # Chromium para la valla visual (render real). --with-deps trae las libs de SO.
+      - run: npx playwright install --with-deps chromium
       - run: npm run gates
+      # Screenshots del render como artefacto (siempre, para poder mirar cuando falla).
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-gate-screenshots
+          path: qa-shots/visual/
+          if-no-files-found: warn

@@ -23,6 +23,8 @@
     "adr:linkcheck": "node scripts/adr-linkcheck.mjs",
     "adr:context": "node scripts/adr-context.mjs",
     "gates": "node scripts/verify-gates.mjs",
+    "gate:visual": "node scripts/visual-gate.mjs",
+    "gate:visual:full": "node scripts/visual-gate.mjs --full",
     "load-test": "node scripts/load-test.mjs",
     "postinstall": "prisma generate"
   },
@@ -49,6 +51,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"
