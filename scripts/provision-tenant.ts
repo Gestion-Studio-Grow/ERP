@@ -103,6 +103,13 @@ export interface ProvisionParams {
     modules?: string[];
     accentPreset?: string;
     frontTheme?: string;
+    /**
+     * Edición del negocio mapeada al eje GROW-AR (`Tenant.profile`: `lite`=Comercio /
+     * `enterprise`=Empresa, ADR-058/059). Como el resto de `platform`, solo se fija al CREAR
+     * el tenant; en re-provisioning NO se pisa (la edición se cambia luego desde la consola, no
+     * re-corriendo el alta). Si no se pasa, la columna cae a su default de schema (`lite`).
+     */
+    profile?: "lite" | "enterprise";
   };
 }
 
@@ -237,6 +244,9 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
         modules: plat.modules ?? defaultModulesForBlueprint(blueprint.id),
         ...(plat.accentPreset !== undefined ? { accentPreset: plat.accentPreset } : {}),
         ...(plat.frontTheme !== undefined ? { frontTheme: plat.frontTheme } : {}),
+        // Edición Comercio/Empresa → Tenant.profile (RFC-003 P1). Solo al crear; si no viene,
+        // la columna cae a su default de schema (`lite`). Cierra la deuda anotada en adr019Committer.
+        ...(plat.profile !== undefined ? { profile: plat.profile } : {}),
       },
     });
     const tenantId = tenant.id;

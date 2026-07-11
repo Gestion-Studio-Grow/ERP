@@ -16,6 +16,7 @@ import { provisionTenant } from "../../../scripts/provision-tenant";
 import type { ProvisionTenantInput, ProvisionPlan, BlueprintResolution, CommitResult } from "./types";
 import type { PlanDeps, CollisionChecker, TenantCommitter } from "./ports";
 import { EMPRESA_MODULE_IDS } from "./stubs";
+import { editionToProfile } from "./console-input";
 
 /** Resuelve el blueprint efectivo con la misma precedencia del CLI/consola: explícito › rubro › default. */
 export function resolveBlueprintReal(input: ProvisionTenantInput): BlueprintResolution {
@@ -64,10 +65,9 @@ export function realPlanDeps(prisma: PrismaClient): PlanDeps {
 
 /**
  * Committer real: envuelve el core de ADR-019 (`provisionTenant`) — el ÚNICO paso transaccional.
- * Mapea `ProvisionTenantInput → ProvisionParams`. NOTA: el core de ADR-019 todavía NO persiste
- * `profile`/`edicion` (RFC-003 P1); esta iteración lo transporta pero su persistencia es la
- * extensión aditiva de la próxima iteración (definir ≠ construir). El resto (nombre, slug, OWNER,
- * branding, plataforma, catálogo del blueprint) sí se persiste hoy.
+ * Mapea `ProvisionTenantInput → ProvisionParams`. La edición Comercio/Empresa se persiste como
+ * `Tenant.profile` (`lite`/`enterprise`) vía `editionToProfile` (RFC-003 P1 — deuda cerrada en
+ * Fase 2). El resto (nombre, slug, OWNER, branding, plataforma, catálogo del blueprint) también.
  */
 export function adr019Committer(prisma: PrismaClient): TenantCommitter {
   return {
@@ -96,6 +96,7 @@ export function adr019Committer(prisma: PrismaClient): TenantCommitter {
           subdomain: b.subdomain,
           accentPreset: b.accentPreset,
           frontTheme: b.frontTheme,
+          profile: editionToProfile(input.edicion),
         },
       });
       return {

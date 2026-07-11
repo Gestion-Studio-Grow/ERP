@@ -11,6 +11,7 @@ import {
   buildProvisionInput,
   consoleIdempotencyKey,
   normalizeEdition,
+  editionToProfile,
   suggestMonogram,
   type RawWizardForm,
 } from "./console-input";
@@ -115,6 +116,11 @@ test("normalizeEdition: default comercio; sólo 'empresa' sube a empresa", () =>
   assert.equal(normalizeEdition(""), "comercio");
   assert.equal(normalizeEdition("empresa"), "empresa");
   assert.equal(normalizeEdition("Empresa"), "comercio"); // exacto, no fuzzy
+});
+
+test("editionToProfile: comercio→lite, empresa→enterprise (RFC-003 P1)", () => {
+  assert.equal(editionToProfile("comercio"), "lite");
+  assert.equal(editionToProfile("empresa"), "enterprise");
 });
 
 test("consoleIdempotencyKey: determinística por slug, prefijo console:", () => {

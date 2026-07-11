@@ -61,6 +61,16 @@ export function normalizeEdition(value: string | undefined): ProvisionEdition {
 }
 
 /**
+ * Mapea la edición del negocio (canal neutro Comercio/Empresa) al `Tenant.profile` del schema
+ * (`lite`/`enterprise`, ADR-058/059). Es la traducción que el committer persiste en el alta
+ * (RFC-003 P1). Pura y client-safe (los valores son los del enum `TenantProfile`, no se muestran
+ * al cliente — el cliente ve "Comercio"/"Empresa", C-004).
+ */
+export function editionToProfile(edicion: ProvisionEdition): "lite" | "enterprise" {
+  return edicion === "empresa" ? "enterprise" : "lite";
+}
+
+/**
  * Clave de idempotencia de la ORQUESTACIÓN (ADR-074 §4). Determinística por slug: reintentar el
  * alta del MISMO slug (doble click, reintento tras timeout) devuelve el outcome cacheado en vez
  * de re-ejecutar la saga. Es coherente con la idempotencia por slug del core de ADR-019, y distinta
