@@ -94,6 +94,8 @@ const BASE_MODULES = ["catalog", "clients", "pos", "reports"];
 const EXPLICIT_BLUEPRINT_MODULES: Record<string, string[]> = {
   servicios: [...AGENDA_MODULES, "commissions"],
   generico: ["catalog", "clients", "pos", "agenda", "reports"],
+  // Producto C de la suite (ADR-076): tenant liviano SOLO facturación + receptores.
+  facturita: ["arca", "clients"],
 };
 
 /**
