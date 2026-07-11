@@ -36,7 +36,7 @@ function CouponRow({ c }: { c: Coupon }) {
           <input type="hidden" name="active" value={String(c.active)} />
           <button
             type="submit"
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            className={`inline-flex items-center min-h-6 rounded-full px-2.5 py-1 text-xs font-medium ${
               c.active ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
             }`}
           >

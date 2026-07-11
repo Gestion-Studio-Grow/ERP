@@ -32,7 +32,9 @@ export default function Header({ hasNews, brandName }: { hasNews?: boolean; bran
     >
       <div style={{ maxWidth: 1152, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Link href="/#top" aria-label={`${label} — inicio`} style={{ display: "flex", alignItems: "baseline", gap: 8, textDecoration: "none" }}>
-          <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 22, color: "var(--accent)", lineHeight: 1 }}>{label}</span>
+          {/* 24px = "texto grande" WCAG 1.4.3 → umbral 3:1 (el acento del tenant sobre
+              el hueso da 4.26:1, AA de texto grande sobrado) sin tocar el color de marca. */}
+          <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)", lineHeight: 1 }}>{label}</span>
         </Link>
         <nav style={{ display: "flex", alignItems: "center", gap: 24 }} aria-label="Principal">
           <Link href="/#novedades" style={{ ...navLink, position: "relative" }} className="hidden sm:inline">

@@ -99,7 +99,7 @@ function SiteReplicaContent({
             <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 520, marginTop: 16 }}>{site.heroText}</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
               <a href="#comprar" style={btn(accent, "var(--text-on-accent)")}>{site.ctaPrimary}</a>
-              <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={btn("#fff", "#128C4B", "1px solid #25D366")}>{site.ctaSecondary}</button>
+              <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={btn("#fff", "#118648", "1px solid #25D366")}>{site.ctaSecondary}</button>
             </div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}

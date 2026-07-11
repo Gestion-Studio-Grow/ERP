@@ -110,7 +110,7 @@ export default function AppointmentRow({
             </form>
             <form action={cancelAppointment}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Cancelando…" className="text-sm text-muted hover:text-danger transition-colors">
+              <SubmitButton pendingText="Cancelando…" className="inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-danger transition-colors">
                 Cancelar turno
               </SubmitButton>
             </form>
@@ -136,14 +136,14 @@ export default function AppointmentRow({
             {canManage && (
               <form action={cancelAppointment}>
                 <input type="hidden" name="appointmentId" value={appointment.id} />
-                <SubmitButton pendingText="Cancelando…" className="text-sm text-muted hover:text-danger transition-colors">
+                <SubmitButton pendingText="Cancelando…" className="inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-danger transition-colors">
                   Cancelar turno
                 </SubmitButton>
               </form>
             )}
             <form action={markNoShow}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Guardando…" className="text-sm text-muted hover:text-danger transition-colors">
+              <SubmitButton pendingText="Guardando…" className="inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-danger transition-colors">
                 No se presentó
               </SubmitButton>
             </form>

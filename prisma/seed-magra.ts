@@ -30,7 +30,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/auth-password";
 import { defaultModulesForBlueprint } from "../src/blueprints/presets-meta";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: Number(process.env.SEED_DB_MAX ?? 0) || undefined });
 const prisma = new PrismaClient({ adapter });
 
 const SLUG = "magra-demo";

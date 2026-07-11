@@ -157,7 +157,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
                   type="button"
                   onClick={() => removeLine(l.key)}
                   aria-label="Quitar línea"
-                  className="text-lg leading-none text-muted px-1 hover:text-danger"
+                  className="inline-flex items-center justify-center min-h-6 min-w-6 text-lg leading-none text-muted px-1 hover:text-danger"
                 >
                   ×
                 </button>

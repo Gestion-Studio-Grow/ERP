@@ -72,7 +72,7 @@ export function ThemeSelector() {
               <span>
                 <span className="block text-sm font-semibold text-strong">
                   {o.label}
-                  {activo && <span className="ml-2 text-xs font-medium text-accent">En uso</span>}
+                  {activo && <span className="ml-2 text-xs font-medium text-accent-ink">En uso</span>}
                 </span>
                 <span className="block text-xs text-muted">{o.detalle}</span>
               </span>

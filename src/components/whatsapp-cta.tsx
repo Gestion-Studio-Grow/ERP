@@ -150,7 +150,7 @@ export function WhatsAppCtaProvider({
                 border: "1px solid #25D366",
                 borderRadius: 12,
                 background: "#fff",
-                color: "#128C4B",
+                color: "#118648",
                 fontWeight: 700,
                 fontSize: 14.5,
                 cursor: "pointer",

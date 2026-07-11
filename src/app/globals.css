@@ -56,7 +56,7 @@
   --text-strong: #1f1b14;      /* títulos, texto principal */
   --text: #413b31;             /* cuerpo */
   --text-muted: #736a58;       /* secundario, labels, metadatos */
-  --text-faint: #a79c87;       /* placeholders, deshabilitado, timestamps */
+  --text-faint: #7c7364;       /* AA≥4.5 (gate contraste): antes #a79c87 = 2.7:1 sobre blanco → ilegible */
   --text-on-accent: #ffffff;   /* FALLBACK; los layouts inyectan el real por tema+acento */
 
   /* Líneas y bordes — cálidos */
@@ -70,6 +70,11 @@
   --accent: #2c6e77;
   --accent-hover: color-mix(in srgb, var(--accent) 86%, #000);
   --accent-soft: color-mix(in srgb, var(--accent) 12%, #ffffff);
+  /* Acento afinado para uso COMO TEXTO/link sobre superficie (gate contraste): el
+     acento crudo del tenant sobre el hueso suele dar ~4.2:1 (bajo AA 4.5 en texto
+     chico). En claro se oscurece; en oscuro (abajo) se aclara. Derivado de --accent,
+     así respeta la marca de cada tenant. Los fills/botones siguen usando --accent. */
+  --accent-ink: color-mix(in srgb, var(--accent) 76%, #000);
 
   /* Estados semánticos (contraste AA sobre superficie clara). Los *-fill son
      la variante para SUPERFICIES no textuales (dots, goal bars) — en esta piel
@@ -83,7 +88,7 @@
   --success-fill: #4e6b4a;
   --warning-fill: #8a6a1f;
   --danger-fill: #b23b2b;
-  --info: var(--accent);
+  --info: var(--accent-ink); /* text-info AA como texto (badges "Confirmado"): accent-ink en vez de accent crudo */
   --info-soft: var(--accent-soft);
   --bar-track: #e4e4e9; /* track de goal bars (fix 32) — visible sobre card blanca */
 
@@ -202,7 +207,7 @@
 /* — Servicios / estética: blush-rosé, serif Playfair, con aire — */
 [data-brand="servicios-spa"] {
   --surface-sunken: #efe2e5; --surface: #f8f1f2; --surface-raised: #fffdfd; --surface-inverted: #241a1d;
-  --text-strong: #2a1e22; --text: #4c3b41; --text-muted: #8a727a; --text-faint: #b6a1a8;
+  --text-strong: #2a1e22; --text: #4c3b41; --text-muted: #8a727a; --text-faint: #7e6f74; /* faint AA≥4.5 (era #b6a1a8) */
   --line: #ecdde1; --line-strong: #dcc6cc;
   --font-display: var(--font-spa-serif); --font-body: var(--font-geist-sans);
   --density: 1.14; --radius: 0.875rem;
@@ -210,14 +215,14 @@
 [data-brand="servicios-spa"] [data-theme="dark"],
 [data-brand="servicios-spa"][data-theme="dark"] {
   --surface-sunken: #150e10; --surface: #1d1418; --surface-raised: #271b20; --surface-inverted: #f8f1f2;
-  --text-strong: #f6ecef; --text: #dcc9d0; --text-muted: #a98f98; --text-faint: #7a626b;
+  --text-strong: #f6ecef; --text: #dcc9d0; --text-muted: #a98f98; --text-faint: #96838a; /* faint AA≥4.5 (era #7a626b) */
   --line: rgba(255, 225, 235, 0.10); --line-strong: rgba(255, 225, 235, 0.18);
 }
 
 /* — Velas & deco: cream cálido, serif Fraunces, aireado — */
 [data-brand="boutique-velas"] {
   --surface-sunken: #eee6d6; --surface: #f7f2e9; --surface-raised: #fffdf7; --surface-inverted: #221d14;
-  --text-strong: #241f16; --text: #4c4433; --text-muted: #8b7f66; --text-faint: #b8ac92;
+  --text-strong: #241f16; --text: #4c4433; --text-muted: #8b7f66; --text-faint: #7b7362; /* faint AA≥4.5 (era #b8ac92) */
   --line: #e9dfcd; --line-strong: #d8cab0;
   --font-display: var(--font-fraunces); --font-body: var(--font-hanken);
   --density: 1.2; --radius: 1rem;
@@ -225,14 +230,14 @@
 [data-brand="boutique-velas"] [data-theme="dark"],
 [data-brand="boutique-velas"][data-theme="dark"] {
   --surface-sunken: #14100a; --surface: #1c1710; --surface-raised: #272117; --surface-inverted: #f7f2e9;
-  --text-strong: #f7f0e2; --text: #ddd0b8; --text-muted: #a99a7c; --text-faint: #7a6d54;
+  --text-strong: #f7f0e2; --text: #ddd0b8; --text-muted: #a99a7c; --text-faint: #938974; /* faint AA≥4.5 (era #7a6d54) */
   --line: rgba(255, 240, 210, 0.10); --line-strong: rgba(255, 240, 210, 0.18);
 }
 
 /* — Pádel / retail deportivo: slate frío, grotesca Hanken, denso — */
 [data-brand="retail-deporte"] {
   --surface-sunken: #e1e6ea; --surface: #eef1f3; --surface-raised: #ffffff; --surface-inverted: #10161a;
-  --text-strong: #101619; --text: #333d44; --text-muted: #5f6a72; --text-faint: #93a0a7;
+  --text-strong: #101619; --text: #333d44; --text-muted: #5f6a72; --text-faint: #6d767c; /* faint AA≥4.5 (era #93a0a7) */
   --line: #d6dee2; --line-strong: #bdc8ce;
   --font-display: var(--font-hanken); --font-body: var(--font-geist-sans);
   --density: 1.0; --radius: 0.375rem;
@@ -240,14 +245,14 @@
 [data-brand="retail-deporte"] [data-theme="dark"],
 [data-brand="retail-deporte"][data-theme="dark"] {
   --surface-sunken: #0b0f12; --surface: #111820; --surface-raised: #1a232b; --surface-inverted: #eef1f3;
-  --text-strong: #eef4f7; --text: #c3ced4; --text-muted: #85939c; --text-faint: #5c6a73;
+  --text-strong: #eef4f7; --text: #c3ced4; --text-muted: #85939c; --text-faint: #818c93; /* faint AA≥4.5 (era #5c6a73) */
   --line: rgba(200, 225, 240, 0.10); --line-strong: rgba(200, 225, 240, 0.18);
 }
 
 /* — Carnicería / Magra: bone cálido profundo, serif Playfair, sobrio — */
 [data-brand="boutique-carne"] {
   --surface-sunken: #eae0d4; --surface: #f4efe8; --surface-raised: #fffdf9; --surface-inverted: #1c1613;
-  --text-strong: #1d1611; --text: #42352d; --text-muted: #7f6f62; --text-faint: #b0a292;
+  --text-strong: #1d1611; --text: #42352d; --text-muted: #7f6f62; --text-faint: #7b7166; /* faint AA≥4.5 (era #b0a292) */
   --line: #e5d9cb; --line-strong: #d5c5b1;
   --font-display: var(--font-spa-serif); --font-body: var(--font-geist-sans);
   --density: 1.08; --radius: 0.5rem;
@@ -255,14 +260,14 @@
 [data-brand="boutique-carne"] [data-theme="dark"],
 [data-brand="boutique-carne"][data-theme="dark"] {
   --surface-sunken: #120d0a; --surface: #1a1410; --surface-raised: #241c16; --surface-inverted: #f4efe8;
-  --text-strong: #f6efe6; --text: #dccabb; --text-muted: #a89283; --text-faint: #79655a;
+  --text-strong: #f6efe6; --text: #dccabb; --text-muted: #a89283; --text-faint: #94847b; /* faint AA≥4.5 (era #79655a) */
   --line: rgba(255, 235, 215, 0.10); --line-strong: rgba(255, 235, 215, 0.18);
 }
 
 /* — Base neutra GSG (no-CH): papel técnico frío-tibio para tenants sin ficha — */
 [data-brand="gsg-base"] {
   --surface-sunken: #e2e3e2; --surface: #f4f5f4; --surface-raised: #ffffff; --surface-inverted: #17181a;
-  --text-strong: #191b1c; --text: #35363a; --text-muted: #6a6b70; --text-faint: #9c9da3;
+  --text-strong: #191b1c; --text: #35363a; --text-muted: #6a6b70; --text-faint: #737479; /* faint AA≥4.5 (era #9c9da3) */
   --line: #e2e2df; --line-strong: #c8c8c4;
   --font-display: var(--font-geist-sans); --font-body: var(--font-geist-sans);
   --density: 1.0; --radius: 0.5rem;
@@ -270,7 +275,7 @@
 [data-brand="gsg-base"] [data-theme="dark"],
 [data-brand="gsg-base"][data-theme="dark"] {
   --surface-sunken: #101113; --surface: #17181a; --surface-raised: #212327; --surface-inverted: #f2f3f4;
-  --text-strong: #f2f3f4; --text: #cbccd0; --text-muted: #8d8e94; --text-faint: #616268;
+  --text-strong: #f2f3f4; --text: #cbccd0; --text-muted: #8d8e94; --text-faint: #8a8b8f; /* faint AA≥4.5 (era #616268) */
   --line: rgba(255, 255, 255, 0.09); --line-strong: rgba(255, 255, 255, 0.16);
 }
 
@@ -291,7 +296,7 @@
   --text-strong: #f0ebde;
   --text: #c9c3b4;
   --text-muted: #928b7b;
-  --text-faint: #6a6558;
+  --text-faint: #8b877d;       /* AA≥4.5 (gate contraste): antes #6a6558 = 2.9:1 */
   --text-on-accent: #15140f;
 
   --line: rgba(255, 255, 255, 0.08);
@@ -301,6 +306,8 @@
   --accent: #5fb0bc;
   --accent-hover: color-mix(in srgb, var(--accent) 88%, #fff);
   --accent-soft: color-mix(in srgb, var(--accent) 16%, #15140f);
+  /* En oscuro el acento-texto se ACLARA para AA sobre superficie oscura. */
+  --accent-ink: color-mix(in srgb, var(--accent) 82%, #fff);
 
   --success: #86a97f;
   --success-soft: rgba(134, 169, 127, 0.15);
@@ -311,7 +318,7 @@
   --success-fill: #86a97f;
   --warning-fill: #c2724a;
   --danger-fill: #e08472;
-  --info: var(--accent);
+  --info: var(--accent-ink); /* text-info AA como texto (badges "Confirmado"): accent-ink en vez de accent crudo */
   --info-soft: var(--accent-soft);
   --bar-track: #2a2a30; /* track de goal bars (fix 32), tema oscuro */
 
@@ -359,7 +366,7 @@
   --text-strong: #1d1d1f;      /* --ink */
   --text: #3a3a3c;             /* DERIVADO: cuerpo entre --ink y --ink-2 (el mockup usa --ink directo) */
   --text-muted: #6e6e73;       /* --ink-2 */
-  --text-faint: #aeaeb2;       /* --ink-3 */
+  --text-faint: #6f6f71;       /* --ink-3 subido a AA≥4.5 sobre el canvas #f5f5f7 (gate contraste): antes #aeaeb2 = 2.0:1 */
   --text-on-accent: var(--tenant-on-accent-light, #ffffff); /* --accent-ink */
 
   --line: rgba(0, 0, 0, 0.08);        /* --line */
@@ -368,18 +375,26 @@
   --accent: var(--tenant-accent-light, #0071e3);
   --accent-hover: color-mix(in srgb, var(--accent) 86%, #000);
   --accent-soft: color-mix(in srgb, var(--accent) 9%, transparent); /* mockup: alpha .09 */
+  /* accent-ink RE-declarado acá (no solo en :root) para que compute con el acento
+     del TENANT (no el fallback de :root): las custom props con var() se computan en
+     el bloque donde se declaran. Así text-info/badges del admin quedan AA con el color
+     de marca del tenant. */
+  --accent-ink: color-mix(in srgb, var(--accent) 76%, #000);
 
   /* Semánticos: TEXTO ≠ FILL (fix 2 del gate). Los hex del mockup (#34c759 /
      #ff9f0a / #ff3b30) NO pasan AA como texto sobre blanco (2.2–3.0:1) — se
      quedan como *-fill para superficies no textuales (dots, goal bars) y el
      TEXTO usa variantes oscurecidas AA (≥4.5:1 sobre --surface-raised). */
-  --success: #1a7f37;  --success-soft: rgba(52, 199, 89, 0.12);  /* --ok-soft */
-  --warning: #8a6a1f;  --warning-soft: rgba(255, 159, 10, 0.14); /* --warn-soft */
-  --danger: #d70015;   --danger-soft: rgba(255, 59, 48, 0.10);   /* --alert-soft */
+  /* Texto AA≥4.5 sobre su *-soft (gate contraste): los originales #1a7f37/#8a6a1f/#d70015
+     daban 4.2–4.4:1 sobre el soft (píldoras "Activo"/"A cobrar"/"Stock bajo") — apenas
+     bajo AA. Oscurecidos lo justo; siguen AA sobradísimo sobre card blanca. */
+  --success: #197934;  --success-soft: rgba(52, 199, 89, 0.12);  /* --ok-soft */
+  --warning: #83651d;  --warning-soft: rgba(255, 159, 10, 0.14); /* --warn-soft */
+  --danger: #d10014;   --danger-soft: rgba(255, 59, 48, 0.10);   /* --alert-soft */
   --success-fill: #34c759; /* --ok del mockup */
   --warning-fill: #ff9f0a; /* --warn del mockup */
   --danger-fill: #ff3b30;  /* --alert del mockup */
-  --info: var(--accent);
+  --info: var(--accent-ink); /* text-info AA como texto (badges "Confirmado"): accent-ink en vez de accent crudo */
   --info-soft: var(--accent-soft);
   --bar-track: #e4e4e9; /* --bar-dim del mockup: track visible de las goal bars (fix 32) */
   --focus-ring: var(--accent);
@@ -417,7 +432,7 @@
   --text-strong: #f5f5f7;      /* --ink */
   --text: #d0d0d5;             /* DERIVADO: cuerpo entre --ink y --ink-2 */
   --text-muted: #a1a1a6;       /* --ink-2 — 7.5:1 sobre #17171a, AA sobrado */
-  --text-faint: #66666d;       /* --ink-3 — decorativo/placeholder, no texto esencial */
+  --text-faint: #828287;       /* --ink-3 subido a AA≥4.5 (gate contraste): antes #66666d = 3.1:1 */
   --text-on-accent: var(--tenant-on-accent-dark, #ffffff);
 
   --line: rgba(255, 255, 255, 0.09);         /* --line */
@@ -426,6 +441,9 @@
   --accent: var(--tenant-accent-dark, #0a84ff);
   --accent-hover: color-mix(in srgb, var(--accent) 88%, #fff);
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent); /* mockup: alpha .16 */
+  /* En oscuro el acento-texto se ACLARA para AA sobre la card grafito (mismo motivo
+     que el bloque claro: re-declarado para tomar el acento del tenant). */
+  --accent-ink: color-mix(in srgb, var(--accent) 82%, #fff);
 
   /* El tema OSCURO ya cumple AA como texto (fix 2: no se toca) — acá los
      *-fill coinciden con el texto; --bar-track = --bar-dim oscuro del mockup. */
@@ -435,7 +453,7 @@
   --success-fill: #30d158;
   --warning-fill: #ff9f0a;
   --danger-fill: #ff453a;
-  --info: var(--accent);
+  --info: var(--accent-ink); /* text-info AA como texto (badges "Confirmado"): accent-ink en vez de accent crudo */
   --info-soft: var(--accent-soft);
   --bar-track: #2a2a30; /* --bar-dim oscuro del mockup (fix 32) */
   --focus-ring: var(--accent);
@@ -492,6 +510,7 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink); /* text-accent-ink: acento AA como texto */
 
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
