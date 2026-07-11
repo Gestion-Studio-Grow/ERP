@@ -4,7 +4,15 @@
 // facturable / a revisar / rechazado), y quién se acerca al tope de su categoría
 // (alerta de recategorización). Datos SIMULADOS por el pipeline end-to-end; en
 // producción salen de la conciliación real por tenant (Gate 2).
+//
+// 🔒 SEGURIDAD (auditoría fiscal): esta vista muestra cartera CROSS-TENANT, así que
+// vive bajo /operador/(console) — gateada por el portón del proxy (matcher
+// `/operador/:path*`, src/proxy.ts) Y por el requireOperator() del layout de la
+// consola. Además llamamos requireOperator() acá como defensa en profundidad: si
+// alguien quitara el guard del layout, la página sigue cerrada. Antes vivía en
+// `/contador` (top-level, SIN guard) → era públicamente accesible en prod.
 
+import { requireOperator } from "@/lib/operator-session";
 import { getCarteraSimulada } from "@/lib/contador-panel";
 
 const ars = (n: number) =>
@@ -12,11 +20,18 @@ const ars = (n: number) =>
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 export default async function ContadorPage() {
+  // Guard duro, independiente del layout (defensa en profundidad).
+  await requireOperator();
+
   const { filas, resumen } = await getCarteraSimulada();
   const conRevisar = filas.filter((f) => f.itemsRevisar.length > 0);
 
+  // Hoja "clara" autocontenida sobre el shell oscuro de la consola: el panel trae su
+  // propia superficie blanca para que los colores del scaffold sigan legibles y no
+  // dependan del tema del control-plane. Es un <div> (no <main>): el layout de la
+  // consola ya aporta el landmark <main> — anidar otro rompería accesibilidad.
   return (
-    <main style={{ maxWidth: 1080, margin: "0 auto", padding: "2rem 1.25rem", fontFamily: "system-ui, sans-serif", color: "#0f172a" }}>
+    <div style={{ background: "#fff", borderRadius: 12, padding: "2rem 1.5rem", fontFamily: "system-ui, sans-serif", color: "#0f172a" }}>
       <header style={{ marginBottom: "1.5rem" }}>
         <p style={{ fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: "#64748b", margin: 0 }}>
           arca · panel del contador
@@ -31,7 +46,7 @@ export default async function ContadorPage() {
       </header>
 
       {resumen.enAlerta > 0 && (
-        <div style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>
+        <div role="alert" style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>
           ⚠ <strong>{resumen.enAlerta}</strong> cliente(s) cerca o por encima del tope de facturación de su categoría de monotributo. Revisá recategorización.
         </div>
       )}
@@ -129,6 +144,6 @@ export default async function ContadorPage() {
       <p style={{ marginTop: 18, fontSize: 12, color: "#94a3b8" }}>
         ⚠ = cerca del tope de recategorización de monotributo (≥ 80%). Acciones en lote: scaffold (requieren la conciliación en DB, Gate 2).
       </p>
-    </main>
+    </div>
   );
 }
