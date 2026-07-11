@@ -5,7 +5,24 @@
 > `docs/estrategia/fundacional-DEFINITIVO-v2.md` (síntesis fundacional), `docs/estrategia/fundacional-index.md`
 > (las 12+2 ADRs), `docs/PRACTICA-DE-GUARDADO.md` (que no se pierda nada).
 >
-> **Fecha:** 2026-07-10 · **Autor:** GSG (PMO) · **Regla:** si algo choca con el repo, gana el repo.
+> **Fecha:** 2026-07-11 · **Autor:** GSG (PMO) · **Regla:** si algo choca con el repo, gana el repo.
+
+> **🆕 Consolidación 2026-07-11 — todo lo del día escrito como ADR-082…088** (INDEX `docs/adr/INDEX.md`,
+> `adr:linkcheck` verde). Lo esencial:
+> - **ADR-082 (la más importante):** gate de **render visual real** — *"lo cosmético para el cliente es
+>   crítico"*. Ninguna página se publica sin verificar render (Chromium desktop+mobile, 4 temas, contraste AA
+>   computado, touch, sin overflow); *"verificado por DOM" no es verificado*; si no se puede renderizar, el gate
+>   **falla**. **Ya en `main`** (`scripts/qa/visual-*`, wired en `verify-gates.mjs`). Corrida inaugural: **324
+>   defectos** corregidos por token.
+> - **ADR-083:** **`main` auto-deploya a prod** (Vercel) — la doc decía lo contrario y era falso. **Migración
+>   SIEMPRE antes del merge**; rollback = revert + redeploy.
+> - **ADR-084/086/087/088:** cert fiscal por tenant (implementación), alta honesta+aceitada, ensayo/cutover de
+>   RLS, y auditoría fiscal (estado SIMULADO + corrección: **TFactura = Tango/Axoft, un ERP**). ADR-085: imágenes
+>   por IA como capacidad compartida (gratis por default).
+> - **🔒 Los 2 bloqueos del dueño para encender ARCA real con >1 cliente:** (1) **branch de Neon** para el ensayo
+>   RLS en vivo (la sesión no tiene `psql`/`neonctl`/`NEON_API_KEY`, ADR-087) y (2) **`FISCAL_MASTER_KEY`** +
+>   aplicar la migración `TenantFiscalCredential` (ADR-084, Gate 2). Ambos son actos del dueño (ADR-041).
+> - **📌 Numeración:** 081 **reservado** para el ADR de dropshipping (renumera al mergear `spec/dropshipping`).
 
 ---
 
@@ -45,7 +62,8 @@
 | Aislamiento de tenant en crons async | 🟢 `reminders`+`arca-outbox` cerrados (`1036b2c`); webhook MP con TODO |
 | Rol legacy `app_user` con `BYPASSRLS` | 🔴 revocar (`0002_app_role.sql` fuerza NOBYPASSRLS) |
 | Rotación de secretos + **PITR** (ADR-067) | 🔴 pendiente (pre-cobros) |
-| Credenciales fiscales por tenant (ADR-066) | 🟢 decidido (siembra en la fábrica) |
+| Credenciales fiscales por tenant (ADR-066) | 🟡 **implementado en rama** `seguridad/cert-por-tenant` (ADR-084: cifrado en sobre + guard CUIT↔cert); falta **aplicar migración + `FISCAL_MASTER_KEY`** (Gate 2, dueño). Hoy `main` usa **cert por env único** (Riesgo #1, ADR-088) |
+| Gate de render visual (ADR-082) | 🟢 **en `main`** (`gate:visual` + `gate:visual:aa`, wired en `verify-gates.mjs`) — 324 defectos de la corrida inaugural corregidos por token |
 
 ### 2.3 Diseño (ADR-072 / ADR-073)
 | Ítem | Estado |
@@ -75,7 +93,7 @@
 | 3 | **Correr `check-rls-live.mjs`** + revocar `app_user` BYPASSRLS + rotar secretos + PITR | Seguridad |
 | 4 | **Proteger `main` en GitHub** (branch protection) + **mirror/backup** (workflow ya listo, falta activar) | GitHub |
 | 5 | Deploy de sitios Magra/Shine/ADM (Gate 1) + datos reales de Magra (Gate 2) | Gate 1/2 |
-| 6 | ARCA real (cert + homologación + `ARCA_INVOICING_ENABLED`) | Gate 4 |
+| 6 | ARCA real (cert + homologación + `ARCA_INVOICING_ENABLED`) — **requiere los 2 bloqueos:** (a) **`FISCAL_MASTER_KEY`** + aplicar migración `TenantFiscalCredential` (ADR-084), (b) **branch de Neon** para ensayo RLS en vivo + cutover (ADR-087) | Gate 4 |
 | 7 | Aportar los 4 HTML de diseño que faltan (Fable claro/oscuro, Editorial, Nítido) | Material |
 | 8 | Confirmar rol/pricing de Mariano y validar números comerciales | Comercial |
 

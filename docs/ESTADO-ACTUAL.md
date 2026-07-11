@@ -56,6 +56,31 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 
 ## 🚦 HANDOFF — próximo paso real (2026-07-07)
 
+> **🆕 Consolidación de ADRs 2026-07-11 (`docs/adrs-consolidacion-0711`) — todo lo del día como decisión
+> formal (ADR-082…088), `adr:linkcheck` verde.** *"Escribí todo en ADRs; nada depende de la memoria de nadie."*
+> - **ADR-082 — LA MÁS IMPORTANTE:** gate de **render visual real** — *"lo que es cosmético para el cliente es
+>   crítico"*. Ninguna página se publica sin render verificado (Chromium desktop+mobile, 4 temas, **contraste
+>   WCAG AA computado**, touch ≥24px, sin overflow). **"Verificado por DOM" NO es verificado**; si el entorno no
+>   puede renderizar, **el gate FALLA**. Origen: tsc+929 tests+build verdes con el **login roto en prod**
+>   (colisión Tailwind v4 `--spacing`↔`max-w`). **Ya en `main`** (`scripts/qa/visual-*`, wired en
+>   `verify-gates.mjs`, `npm run gate:visual` / `gate:visual:aa`). Corrida inaugural: **324 defectos** (191
+>   contraste + 133 touch) corregidos **por token**.
+> - **ADR-083:** **`main` auto-deploya a PROD** (Vercel `erp-ch`, 4 tenants por `TENANT_HOST_MAP`) — la doc
+>   decía lo contrario y era **falso**. **La migración va SIEMPRE antes del merge** (causa raíz del incidente CH
+>   09-07); rollback = revert del merge + redeploy. **Deroga el §2 de abajo** ("no publica") y la lección PD-2.
+> - **ADR-084** cert fiscal por tenant (implementación, rama `seguridad/cert-por-tenant`) · **ADR-085** imágenes
+>   por IA compartida (gratis por default, rama `feat/imagen-ia`) · **ADR-086** alta honesta+aceitada (rama
+>   `fase2/aceitar-alta`) · **ADR-087** ensayo/cutover RLS (rama `seguridad/levantar-rls`) · **ADR-088**
+>   auditoría fiscal (estado **SIMULADO**; corrección: **TFactura = Tango/Axoft, un ERP completo**).
+> - **🔒 Los 2 bloqueos del dueño** para ARCA real con >1 cliente: (1) **branch de Neon** para el ensayo RLS en
+>   vivo + cutover (ADR-087; la sesión no tiene `psql`/`neonctl`/`NEON_API_KEY`); (2) **`FISCAL_MASTER_KEY`** +
+>   aplicar migración `TenantFiscalCredential` (ADR-084, Gate 2). Ambos = actos del dueño (ADR-041).
+> - **📌 Numeración:** máximo en `main` = 080; **081 reservado** para el ADR de dropshipping (renumera al
+>   mergear `spec/dropshipping`, hoy mal-numerado 075 colisionando con facturación bancaria); por eso arranca en
+>   082. **Deuda de lint:** 52 problemas **pre-existentes** en `celula-negocios-digitales/productos/*`
+>   (no-explicit-any, no-html-link-for-pages) — el gate visual NO los introduce; es deuda explícita, no tolerada
+>   en silencio.
+
 > **🆕 Novedad 2026-07-11 — Suite de facturación (frente `producto-contador`):** módulo bancos EN MAIN y
 > deployado (merge `6735716`) + decisión estructural **UN motor, TRES productos** (A·Comerciante /
 > B·Contador / C·Facturita, empaquetados de módulos, nunca forks) + pricing con unit economics + gates
