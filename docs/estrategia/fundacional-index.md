@@ -1,4 +1,8 @@
-# 🏛️ Índice maestro de la FUNDACIÓN estratégica (ADR 060-071)
+# 🏛️ Índice maestro de la FUNDACIÓN estratégica (ADR 060-072)
+
+> **📌 Síntesis decisoria:** este índice es el mapa; la lectura consolidada de los **seis frentes** (incluido
+> **Diseño**, ADR-072) vive en **[`fundacional-DEFINITIVO-v2.md`](fundacional-DEFINITIVO-v2.md)** (2026-07-10).
+
 
 > **Qué es:** el mapa navegable de la **fundación estratégica** landeada el **2026-07-10** — las 12 decisiones
 > que ordenan producto, arquitectura y gobernanza para escalar a dos productos. Cada una vive como **ADR en
@@ -19,6 +23,7 @@
 | **060** | Segmentación en DOS productos ("Comercio Micro" / "PyME-Empresa") con **bases separadas** | [ADR-060](../adr/ADR-060-segmentacion-dos-productos-bases-separadas.md) |
 | **061** | Plataforma / **motor invisible compartido** (config-sobre-código): qué se comparte vs. qué difiere 100% | [ADR-061](../adr/ADR-061-plataforma-motor-invisible-compartido.md) |
 | **069** | Norte de diseño **Apple×SAP** ("un SAP que diseñó Apple") + UX/UI como **pilar** (puntero §11) | [ADR-069](../adr/ADR-069-norte-diseno-apple-por-sap-ux-pilar.md) |
+| **072** | **Enfoque de diseño** operable: filosofía del front + **backoffice "Fable" congelado** (⌘K) + alcance a todas las plantillas + catálogo de assets | [ADR-072](../adr/ADR-072-enfoque-de-diseno.md) |
 
 ### 🏗️ Arquitectura y núcleo técnico
 | ADR | Decisión | Enlace |
