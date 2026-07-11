@@ -5,7 +5,14 @@
 // Puro: cero imports de Prisma o de la app → los tests corren sin DB. Los adaptadores REALES
 // (que pegan contra `operatorPrisma` y el core de ADR-019) viven en `adapters.ts`.
 
-import type { ProvisionOutcome, ProvisionTenantInput, ProvisionPlan, CommitResult } from "./types";
+import type {
+  ProvisionOutcome,
+  ProvisionTenantInput,
+  ProvisionPlan,
+  CommitResult,
+  HostBindOutcome,
+  InviteOutcome,
+} from "./types";
 import type { IdempotencyStore, CollisionChecker, HostBinder, Inviter, TenantCommitter } from "./ports";
 
 /** Los 5 módulos que suma la edición Empresa. Fuente: `MODULOS_NATIVOS` (src/modules/descriptors/nativos.ts). */
@@ -42,26 +49,39 @@ export class InMemoryCollisionChecker implements CollisionChecker {
   }
 }
 
-/** Host binder no-op: registra las llamadas para poder afirmar en tests. */
+/**
+ * Host binder no-op: registra las llamadas para poder afirmar en tests. Por defecto liga OK
+ * (`bound=true`). Opciones para probar los caminos honestos: `skipNote` simula "no configurado"
+ * (`bound=false`+note, no registra), `failOnBind` simula un fallo real (lanza → compensación).
+ */
 export class NoopHostBinder implements HostBinder {
   readonly bound: string[] = [];
   readonly unbound: string[] = [];
-  async bind(subdomain: string): Promise<void> {
+  constructor(private readonly opts: { skipNote?: string; failOnBind?: boolean } = {}) {}
+  async bind(subdomain: string): Promise<HostBindOutcome> {
+    if (this.opts.failOnBind) throw new Error("bind falló (stub)");
+    if (this.opts.skipNote) return { bound: false, note: this.opts.skipNote };
     this.bound.push(subdomain);
+    return { bound: true };
   }
   async unbind(subdomain: string): Promise<void> {
     this.unbound.push(subdomain);
   }
 }
 
-/** Inviter no-op: registra las llamadas. Se le puede inyectar un fallo para probar la compensación. */
+/**
+ * Inviter no-op: registra las llamadas. `failOnInvite` inyecta un fallo (lanza → compensación);
+ * `skipNote` simula "no configurado" (`sent=false`+note, no registra).
+ */
 export class NoopInviter implements Inviter {
   readonly invited: string[] = [];
   readonly revoked: string[] = [];
-  constructor(private readonly failOnInvite = false) {}
-  async invite(email: string): Promise<void> {
+  constructor(private readonly failOnInvite = false, private readonly skipNote?: string) {}
+  async invite(email: string): Promise<InviteOutcome> {
     if (this.failOnInvite) throw new Error("invite falló (stub)");
+    if (this.skipNote) return { sent: false, note: this.skipNote };
     this.invited.push(email);
+    return { sent: true };
   }
   async revoke(email: string): Promise<void> {
     this.revoked.push(email);

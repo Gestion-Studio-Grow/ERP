@@ -127,6 +127,22 @@ export interface CommitResult {
   generatedPassword?: string;
 }
 
+/**
+ * Resultado de un efecto externo compensable. `ok=false` con `note` = el paso se SALTÓ a propósito
+ * (el adaptador no está configurado en este entorno): no es un fallo, pero deja un pendiente manual.
+ * Un fallo REAL (el servicio existe pero rechazó) se propaga como excepción → dispara compensación.
+ */
+export interface HostBindOutcome {
+  bound: boolean;
+  /** Si `bound=false`: por qué se saltó (p. ej. falta VERCEL_TOKEN) — se muestra como followup. */
+  note?: string;
+}
+export interface InviteOutcome {
+  sent: boolean;
+  /** Si `sent=false`: por qué se saltó (p. ej. falta proveedor de email) — se muestra como followup. */
+  note?: string;
+}
+
 /** Resultado terminal de la fábrica. */
 export interface ProvisionOutcome {
   idempotencyKey: string;
@@ -134,10 +150,16 @@ export interface ProvisionOutcome {
   plan: ProvisionPlan;
   /** Presente si se llegó al menos a DB_COMMITTED. */
   commit?: CommitResult;
-  /** Efecto externo: host ligado (stub en esta iteración). */
-  host?: { bound: boolean; subdomain?: string };
-  /** Efecto externo: invitación enviada (stub en esta iteración). */
-  invited?: { sent: boolean; email: string };
+  /** Efecto externo: host ligado. `bound=false`+`note` = se saltó (no configurado) → ver followups. */
+  host?: { bound: boolean; subdomain?: string; note?: string };
+  /** Efecto externo: invitación enviada. `sent=false`+`note` = se saltó (no configurado) → followups. */
+  invited?: { sent: boolean; email: string; note?: string };
+  /**
+   * Pasos externos que quedaron PENDIENTES de hacer a mano porque su adaptador no está configurado
+   * en este entorno (host sin VERCEL_TOKEN, invitación sin proveedor de email). El alta igual quedó
+   * ACTIVE (el tenant existe y opera); esto le dice al operador qué rematar para "terminar de verdad".
+   */
+  followups?: string[];
   /** Si el estado terminal es FAILED_COMPENSATED: qué se compensó y por qué. */
   failure?: { atState: import("./state-machine").ProvisionState; reason: string; compensated: string[] };
 }

@@ -8,14 +8,16 @@
 //           → [invite] → INVITED → [activate] → ACTIVE
 //   cualquier fallo externo → compensa en orden inverso → FAILED_COMPENSATED
 //
-// Idempotencia doble: por slug (DB, ADR-019) y por idempotencyKey (toda la saga). Reintentar
-// con la misma idempotencyKey devuelve el outcome cacheado, no re-ejecuta. Todo lo externo va
-// STUBBEADO tras puertos en esta iteración (no llama Vercel/DNS/email, no toca prod).
+// Idempotencia doble: por slug (DB, ADR-019) y por idempotencyKey (toda la saga). Un alta que ya
+// quedó ACTIVE se devuelve cacheada, no se re-ejecuta. Un intento previo FAILED_COMPENSATED SÍ se
+// puede reintentar (el commit es idempotente por slug y lo externo ya se compensó) → no se
+// short-circuitea. Los efectos externos van tras puertos (host/DNS, email): sus adaptadores reales
+// (Vercel, email) se saltan HONESTAMENTE si no están configurados (`bound/sent=false`+note→followup),
+// en vez de mentir "hecho"; un fallo real dispara compensación.
 
 import type { ProvisionTenantInput, ProvisionOutcome, ProvisionPlan } from "./types";
 import type { SagaDeps } from "./ports";
 import type { ProvisionState } from "./state-machine";
-import { externalStepsCompletedAt } from "./state-machine";
 import { planProvision } from "./dry-run";
 
 /** El commit de DB requiere un plan sin colisiones. Se lanza si se intenta commitear un plan roto. */
@@ -28,15 +30,18 @@ export class ProvisionBlockedError extends Error {
 
 /**
  * Ejecuta la fábrica. `mode: "dry-run"` devuelve el plan sin escribir. `mode: "commit"` corre
- * la saga completa. Idempotente por `idempotencyKey`.
+ * la saga completa. Idempotente por `idempotencyKey` (terminal solo sobre un alta EXITOSA).
  */
 export async function runTenantProvisioning(
   input: ProvisionTenantInput,
   deps: SagaDeps,
 ): Promise<ProvisionOutcome> {
-  // Idempotencia de la orquestación: si esta clave ya se resolvió, devolvé el mismo outcome.
+  // Idempotencia de la orquestación: un alta que YA llegó a ACTIVE se devuelve tal cual, sin
+  // re-ejecutar. Un intento previo FAILED_COMPENSATED NO se short-circuitea: reintentar es seguro
+  // (el commit de ADR-019 es idempotente por slug; los efectos externos aplicados ya se compensaron)
+  // y necesario ("reintentar sin duplicar" — el operador corrige el problema transitorio y reintenta).
   const cached = await deps.idempotency.get(input.idempotencyKey);
-  if (cached) return cached;
+  if (cached && cached.state === "ACTIVE") return cached;
 
   const plan = await planProvision(input, deps);
 
@@ -58,14 +63,19 @@ export async function runTenantProvisioning(
   state = "DB_COMMITTED";
   outcome.state = state;
 
-  // --- Pasos externos: compensables. Si uno falla, deshacemos en orden inverso. ---
+  // --- Pasos externos: compensables. Si uno falla, deshacemos en orden inverso SOLO lo aplicado. ---
   const subdomain = input.brandSheet?.subdomain?.trim();
   const adminEmail = input.admin.email.trim().toLowerCase();
+  // Registramos qué efecto se aplicó DE VERDAD (no lo que se saltó): la compensación solo deshace eso.
+  const applied: Array<"host" | "invite"> = [];
+  const followups: string[] = [];
   try {
     // DB_COMMITTED → HOST_BOUND
     if (subdomain) {
-      await deps.host.bind(subdomain, commit.tenantId);
-      outcome.host = { bound: true, subdomain };
+      const r = await deps.host.bind(subdomain, commit.tenantId);
+      outcome.host = { bound: r.bound, subdomain, note: r.note };
+      if (r.bound) applied.push("host");
+      else if (r.note) followups.push(`Link/host: ${r.note}`);
     } else {
       outcome.host = { bound: false };
     }
@@ -73,8 +83,10 @@ export async function runTenantProvisioning(
     outcome.state = state;
 
     // HOST_BOUND → INVITED
-    await deps.inviter.invite(adminEmail, commit.tenantId);
-    outcome.invited = { sent: true, email: adminEmail };
+    const inv = await deps.inviter.invite(adminEmail, commit.tenantId);
+    outcome.invited = { sent: inv.sent, email: adminEmail, note: inv.note };
+    if (inv.sent) applied.push("invite");
+    else if (inv.note) followups.push(`Invitación al dueño: ${inv.note}`);
     state = "INVITED";
     outcome.state = state;
 
@@ -83,33 +95,32 @@ export async function runTenantProvisioning(
     outcome.state = state;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    const compensated = await compensate(state, input, commit.tenantId, deps);
+    const compensated = await compensate(applied, subdomain, adminEmail, commit.tenantId, deps);
     outcome.state = "FAILED_COMPENSATED";
     outcome.failure = { atState: state, reason, compensated };
   }
 
+  if (followups.length > 0) outcome.followups = followups;
   await deps.idempotency.set(input.idempotencyKey, outcome);
   return outcome;
 }
 
 /**
- * Compensa los pasos externos ya aplicados al llegar a `reachedState`, en orden INVERSO.
- * El commit de DB NO se compensa (aditivo/idempotente — no se borra el tenant). Devuelve la
- * lista de compensaciones ejecutadas (para el outcome/auditoría).
+ * Compensa los efectos externos EFECTIVAMENTE aplicados (`applied`), en orden INVERSO. Un paso que
+ * se saltó (adaptador no configurado) NO está en `applied` → no se intenta deshacer algo que nunca
+ * se hizo. El commit de DB NO se compensa (aditivo/idempotente — no se borra el tenant). Devuelve la
+ * lista de compensaciones ejecutadas (para el outcome/auditoría). Una compensación que falla se anota
+ * best-effort y no tapa el fallo original.
  */
 async function compensate(
-  reachedState: ProvisionState,
-  input: ProvisionTenantInput,
+  applied: Array<"host" | "invite">,
+  subdomain: string | undefined,
+  adminEmail: string,
   tenantId: string,
   deps: SagaDeps,
 ): Promise<string[]> {
   const done: string[] = [];
-  const steps = externalStepsCompletedAt(reachedState); // en orden de aplicación
-  const subdomain = input.brandSheet?.subdomain?.trim();
-  const adminEmail = input.admin.email.trim().toLowerCase();
-
-  // Orden inverso.
-  for (const step of [...steps].reverse()) {
+  for (const step of [...applied].reverse()) {
     try {
       if (step === "invite") {
         await deps.inviter.revoke(adminEmail, tenantId);
@@ -119,7 +130,6 @@ async function compensate(
         done.push("unbind-host");
       }
     } catch {
-      // Una compensación que falla no debe tapar el fallo original; se anota como best-effort.
       done.push(`${step}-compensation-failed`);
     }
   }

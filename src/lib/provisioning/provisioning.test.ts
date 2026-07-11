@@ -230,3 +230,51 @@ test("saga: fallo del commit transaccional → propaga y no compensa (no hubo sa
   assert.equal((deps.host as NoopHostBinder).bound.length, 0);
   assert.equal((deps.host as NoopHostBinder).unbound.length, 0);
 });
+
+// --- Efectos externos HONESTOS: saltar (no configurado) ≠ mentir "hecho" ---
+
+test("saga: host no configurado → bound=false + note + followup, pero igual ACTIVE (no es fallo)", async () => {
+  const host = new NoopHostBinder({ skipNote: "sin VERCEL_TOKEN" });
+  const deps = makeSagaDeps({ host });
+  const out = await runTenantProvisioning(baseInput({ mode: "commit" }), deps);
+  assert.equal(out.state, "ACTIVE"); // saltar un efecto no configurado NO aborta el alta
+  assert.equal(out.host!.bound, false);
+  assert.match(out.host!.note!, /VERCEL_TOKEN/);
+  assert.ok(out.followups!.some((f) => /Link\/host/.test(f)));
+  assert.equal(host.bound.length, 0); // no se "aplicó" nada → nada que compensar
+});
+
+test("saga: invitación no configurada → sent=false + note + followup, igual ACTIVE", async () => {
+  const inviter = new NoopInviter(false, "sin proveedor de email");
+  const deps = makeSagaDeps({ inviter });
+  const out = await runTenantProvisioning(baseInput({ mode: "commit" }), deps);
+  assert.equal(out.state, "ACTIVE");
+  assert.equal(out.invited!.sent, false);
+  assert.match(out.invited!.note!, /email/);
+  assert.ok(out.followups!.some((f) => /Invitaci/.test(f)));
+  assert.equal(inviter.invited.length, 0);
+});
+
+test("saga: reintento tras FAILED_COMPENSATED RE-EJECUTA (no short-circuit del cacheado)", async () => {
+  // Inviter que falla la 1ª vez (fallo transitorio) y anda la 2ª — modela "reintentar sin duplicar".
+  let attempts = 0;
+  const flakyInviter = {
+    invited: [] as string[],
+    revoked: [] as string[],
+    async invite(email: string) {
+      attempts++;
+      if (attempts === 1) throw new Error("smtp caído (transitorio)");
+      this.invited.push(email);
+      return { sent: true };
+    },
+    async revoke() {},
+  };
+  const deps = makeSagaDeps({ inviter: flakyInviter });
+  const first = await runTenantProvisioning(baseInput({ mode: "commit" }), deps);
+  assert.equal(first.state, "FAILED_COMPENSATED");
+  // 2º intento con la MISMA idempotencyKey: no devuelve el fallo cacheado, re-ejecuta y ahora sí sale.
+  const second = await runTenantProvisioning(baseInput({ mode: "commit" }), deps);
+  assert.equal(second.state, "ACTIVE");
+  assert.equal(attempts, 2);
+  assert.equal((deps.committer as EchoCommitter).commits.length, 2); // re-commit (idempotente por slug)
+});

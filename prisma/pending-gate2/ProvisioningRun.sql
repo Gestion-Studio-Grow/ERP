@@ -13,10 +13,15 @@
 -- irreversible (CLAUDE.md → Gate 2 / ADR-018). Este archivo vive FUERA de `prisma/migrations/`
 -- a propósito: `prisma migrate deploy` NO lo ve. Aplicarlo es una decisión del dueño.
 --
--- CÓMO APLICARLO (cuando el dueño lo autorice):
---   1. Agregar el modelo `ProvisioningRun` a `prisma/schema.prisma` (snippet abajo).
---   2. `npx prisma migrate dev --name provisioning_run` (genera la migración versionada real).
---   3. Reemplazar `sharedIdempotencyStore` (in-memory) por un `IdempotencyStore` sobre esta tabla.
+-- ✅ YA ESTÁ CABLEADA (Fase 2): `ProvisioningRunStore` (src/lib/provisioning/idempotency-store.ts)
+-- lee/escribe esta tabla por SQL crudo (sin modelo Prisma → cero cambio en schema.prisma → cero
+-- riesgo de deploy schema-ahead). MIENTRAS la tabla NO exista, el store DEGRADA a in-memory solo
+-- (mismo comportamiento que antes), así que este archivo se puede aplicar sin tocar código.
+--
+-- CÓMO APLICARLO (cuando el dueño lo autorice — Gate 2):
+--   psql "$OPERATOR_DATABASE_URL" -f prisma/pending-gate2/ProvisioningRun.sql
+--   (idempotente: CREATE TABLE/INDEX IF NOT EXISTS). Desde ese momento la idempotencia de la saga
+--   persiste entre procesos automáticamente — sin re-deploy ni cambio de código.
 --
 -- NOTA RLS (ADR-018): `ProvisioningRun` es del CONTROL-PLANE (cross-tenant, como `Tenant`), NO lleva
 -- policy de aislamiento por `tenantId` — sólo la toca `operatorPrisma`. `tenantId` es NULLABLE porque

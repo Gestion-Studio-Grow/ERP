@@ -5,7 +5,14 @@
 // llama a Vercel/DNS/email de verdad ni escribe en Neon. El día del wiring real sólo se
 // cambian los adaptadores, no el orquestador.
 
-import type { ProvisionTenantInput, CommitResult, ProvisionPlan, BlueprintResolution } from "./types";
+import type {
+  ProvisionTenantInput,
+  CommitResult,
+  ProvisionPlan,
+  BlueprintResolution,
+  HostBindOutcome,
+  InviteOutcome,
+} from "./types";
 
 /**
  * Paso transaccional (PENDING → DB_COMMITTED). El adaptador default (`adr019Committer`)
@@ -18,20 +25,23 @@ export interface TenantCommitter {
 
 /**
  * Efecto externo: ligar el subdominio/host del tenant (DNS/Vercel). Compensable.
- * `bind` puede ser no-op si el input no trae subdominio.
+ * `bind` devuelve `{bound, note}`: `bound=false`+`note` = se saltó (adaptador no configurado),
+ * NO es un fallo; un fallo real (el servicio rechazó) se lanza como excepción → compensa.
+ * Sólo se compensa (`unbind`) lo que efectivamente se ligó (`bound=true`).
  */
 export interface HostBinder {
-  bind(subdomain: string, tenantId: string): Promise<void>;
-  /** Compensación de `bind` (se llama si un paso POSTERIOR falla). */
+  bind(subdomain: string, tenantId: string): Promise<HostBindOutcome>;
+  /** Compensación de `bind` (se llama si un paso POSTERIOR falla y el host SÍ se había ligado). */
   unbind(subdomain: string, tenantId: string): Promise<void>;
 }
 
 /**
  * Efecto externo: invitar al usuario admin (email de bootstrap). Compensable.
+ * `invite` devuelve `{sent, note}` con la misma semántica saltado/fallo que `HostBinder.bind`.
  */
 export interface Inviter {
-  invite(email: string, tenantId: string): Promise<void>;
-  /** Compensación de `invite`. */
+  invite(email: string, tenantId: string): Promise<InviteOutcome>;
+  /** Compensación de `invite` (se llama si un paso POSTERIOR falla y la invitación SÍ se envió). */
   revoke(email: string, tenantId: string): Promise<void>;
 }
 
