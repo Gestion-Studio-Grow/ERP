@@ -1,11 +1,25 @@
 # Estado de frentes — mapa vivo (bajo la metodología de reporte)
 
+> **🔄 RECONCILIACIÓN 2026-07-10 (Arquitecto de Solución).** Este tablero traía drift fuerte: describía un
+> **sprint pausado al 2026-07-07 con `main` en `29e9dcb`**. **`main` real hoy = `93eae5f`** (2026-07-10) —
+> **124 commits adelante**. Lo verificado por git: **GROW-AR / ADR-060 Empresa mergeado a `main`** (schema con
+> `Tenant.profile` + `AccountPayable`/`AccountReceivable`; consola deriva MODULES del catálogo canónico + los 5
+> módulos Empresa; densidad por perfil ADR-059 D4; GEP Etapa 1), el **fix de login de staging** (seed-magra crea
+> OWNER + fiado sin doble-conteo, `7ccee77`) y **dos hotfixes de CH prod** (`ad3202c`/`93eae5f`: loaders de
+> facturación y del layout público toleran el schema viejo — "sitio CH caído", defensivos y reversibles).
+> **El bloque "SPRINT PAUSADO 07-07" de abajo quedó SUPERADO** (su historia F1/F3 vive en `ESTADO-ACTUAL.md`
+> §7-bis). **Fuente de verdad viva = `docs/ESTADO-ACTUAL.md`** (más actual que este tablero). Esta pasada
+> **sólo reconcilia el encabezado** — no toca worktrees ni ramas.
+
 ---
 
-## ⏸️ SPRINT PAUSADO — cierre 2026-07-07 (el dueño reabre después)
+## ⏸️ ~~SPRINT PAUSADO — cierre 2026-07-07~~ → **SUPERADO (ver reconciliación 2026-07-10 arriba)**
 
-**Estado:** ambos frentes **pararon en punto seguro** (árbol limpio, verde, pusheado, **SIN merge a `main`**).
-`main` sigue en `29e9dcb`. **Al reabrir:** PMO corre Gate en Opus **F1 → F3** y mergea (ver `ESTADO-ACTUAL.md`
+> _Bloque histórico. `main` ya avanzó a `93eae5f`; F1 se mergeó y la ventana GROW-AR/ADR-060 landeó. Se deja
+> como registro; para el estado vigente ir a `ESTADO-ACTUAL.md`._
+
+**Estado (histórico):** ambos frentes **pararon en punto seguro** (árbol limpio, verde, pusheado, **SIN merge a `main`**).
+`main` estaba en `29e9dcb`. **Al reabrir:** PMO corre Gate en Opus **F1 → F3** y mergea (ver `ESTADO-ACTUAL.md`
 HANDOFF + §7-bis). Backup del cierre: tag `snapshot/2026-07-07-cierre`.
 
 | Frente | Rama · HEAD · tag WIP | Vallas | Resumen |
