@@ -1,14 +1,36 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import forge from "node-forge";
 
 import { crearClientePara, type LeerConfigFiscal } from "./arca-dispatch";
-import { StubAfipClient } from "@/plugins/arca";
+import { StubAfipClient, SoapAfipClient, type CredencialEmisor } from "@/plugins/arca";
 
 // Lector fake: no toca la DB. El seam es justamente para testear offline.
 const leerFijo =
   (cfg: { cuit: number; homologacion: boolean } | null): LeerConfigFiscal =>
   async () =>
     cfg;
+
+// Cert de test con el CUIT en el subject (como ARCA), para el camino real.
+function credencialDeTest(cuit: number): CredencialEmisor {
+  const keys = forge.pki.rsa.generateKeyPair(1024);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = "01";
+  cert.validity.notBefore = new Date(2020, 0, 1);
+  cert.validity.notAfter = new Date(2035, 0, 1);
+  const attrs = [
+    { name: "commonName", value: "test" },
+    { name: "serialNumber", value: `CUIT ${cuit}` },
+  ];
+  cert.setSubject(attrs);
+  cert.setIssuer(attrs);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+  return {
+    certPem: forge.pki.certificateToPem(cert),
+    keyPem: forge.pki.privateKeyToPem(keys.privateKey),
+  };
+}
 
 test("clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant", async () => {
   const clientePara = crearClientePara(
@@ -25,10 +47,47 @@ test("clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)", 
   assert.ok(cliente instanceof StubAfipClient);
 });
 
-test("clientePara: ARCA_MODO=real sin credenciales lanza error de acción humana (no emite falso)", async () => {
+test("clientePara: stub NO resuelve credencial (ni toca el store)", async () => {
+  let llamado = false;
+  const clientePara = crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: true }),
+    {}, // stub
+    async () => {
+      llamado = true;
+      return credencialDeTest(20111111112);
+    },
+  );
+  await clientePara("tenant-1");
+  assert.equal(llamado, false, "en stub no debe pedir la credencial del tenant");
+});
+
+test("clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)", async () => {
   const clientePara = crearClientePara(
     leerFijo({ cuit: 20111111112, homologacion: false }),
-    { ARCA_MODO: "real" }, // real pero sin ARCA_CERT_PEM / ARCA_KEY_PEM
+    { ARCA_MODO: "real" },
+    async () => {
+      throw new Error("El tenant no tiene credencial fiscal cargada");
+    },
   );
-  await assert.rejects(() => clientePara("tenant-1"), /ARCA_CERT_PEM|ARCA_KEY_PEM/);
+  await assert.rejects(() => clientePara("tenant-1"), /credencial fiscal/);
+});
+
+test("🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant", async () => {
+  const cuit = 20111111112;
+  const clientePara = crearClientePara(
+    leerFijo({ cuit, homologacion: false }),
+    { ARCA_MODO: "real" },
+    async () => credencialDeTest(cuit),
+  );
+  const cliente = await clientePara("tenant-1");
+  assert.ok(cliente instanceof SoapAfipClient);
+});
+
+test("🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)", async () => {
+  const clientePara = crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: false }),
+    { ARCA_MODO: "real" },
+    async () => credencialDeTest(27999999993), // credencial de otro contribuyente
+  );
+  await assert.rejects(() => clientePara("tenant-1"), /no corresponde al CUIT|ADR-066/);
 });

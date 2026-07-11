@@ -25,11 +25,14 @@ import {
   ArcaRechazoError,
   ComprobanteInvalidoError,
   crearAfipClient,
+  modoDesdeEnv,
   CondicionIva,
   type AfipClient,
   type EmisorConfig,
+  type CredencialEmisor,
   type InvoiceCreatedEvent,
 } from "@/plugins/arca";
+import { credencialParaTenant } from "@/lib/fiscal/tenant-cert";
 
 /**
  * Config fiscal no sensible del tenant (lo que la DB SÍ guarda). El cert/clave
@@ -83,11 +86,18 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
 export function crearClientePara(
   leer: LeerConfigFiscal = leerConfigFiscalPrisma,
   env: Record<string, string | undefined> = process.env,
+  resolverCredencial: (tenantId: string) => Promise<CredencialEmisor> = credencialParaTenant,
 ): (tenantId: string) => Promise<AfipClient> {
   return async (tenantId) => {
     const cfg = await leer(tenantId);
     const config: EmisorConfig = cfg ?? { cuit: 0, homologacion: true };
-    return crearAfipClient(config, env);
+    // 🔒 ADR-066: la credencial se resuelve POR TENANT (cifrada en la DB), NUNCA de un env
+    // compartido. Solo se necesita en real/homologación (en stub no se firma nada). Si el
+    // tenant no tiene credencial cargada, `credencialParaTenant` lanza → fail-closed.
+    const modo = modoDesdeEnv(env);
+    const credencial =
+      modo === "real" || modo === "homologacion" ? await resolverCredencial(tenantId) : null;
+    return crearAfipClient(config, { env, credencial });
   };
 }
 
