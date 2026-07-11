@@ -76,6 +76,10 @@ export async function facturarAppointment(
     servicioDesde: fecha,
     servicioHasta: fecha,
     vencimientoPago: fecha,
+    // I2 (ADR-064): enlace al turno = idempotencia DB-level por venta, complementaria a la
+    // guarda $0 de `decidirFacturacion` (Payment.comprobanteNro). Un webhook MP duplicado NO
+    // crea un segundo comprobante ni siquiera si escapara a la guarda del Payment.
+    origin: { type: "APPOINTMENT", id: appointmentId },
   });
 
   // Marca durable de idempotencia: deja el comprobante en el `Payment` del turno

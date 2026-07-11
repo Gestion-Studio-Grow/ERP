@@ -24,6 +24,11 @@ import { tenantTransaction } from "@/lib/rls";
 import { round2 } from "@/lib/round";
 import { buildInvoiceOriginLink, type InvoiceOriginType } from "@/lib/settlement/invoice-origin";
 
+/** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
+ *  `createInvoiceInTx` corre DENTRO de una tx ya abierta por el llamador → componible y
+ *  testeable con un doble de test (se castea un mock a este tipo, como en audit-retention). */
+export type InvoiceTx = Prisma.TransactionClient;
+
 /** Desglose de IVA por alícuota (calculado por el Core, ADR-006). */
 export interface SubtotalIva {
   alicuotaId: number;
@@ -88,67 +93,15 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
   const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
   const hasOrigin = "orderId" in originLink || "appointmentId" in originLink;
   try {
-    return await tenantTransaction(async (tx) => {
-      // IDEMPOTENCIA POR VENTA (I2, ADR-064): si ya existe una factura para este origen,
-      // devolverla — nunca DOS comprobantes para la misma venta. Sin outbox nuevo (no
-      // re-despacha).
-      if (hasOrigin) {
-        const existing = await tx.invoice.findFirst({
-          where: { tenantId: input.tenantId, ...originLink },
-          select: { id: true },
-        });
-        if (existing) return existing.id;
-      }
-
-      const invoice = await tx.invoice.create({
-        data: {
-          tenantId: input.tenantId,
-          ...originLink, // enlace a la venta (D10) = clave de idempotencia
-          puntoVenta: input.emisor.puntoVenta,
-          concepto: input.concepto,
-          docTipo: input.receptor.docTipo,
-          docNro: String(input.receptor.docNro),
-          fecha: input.fecha,
-          neto: input.neto,
-          // Total de IVA = suma de las alícuotas, redondeada a 2 decimales (ADR-057): cada
-          // `importe` ya viene redondeado del Core, pero la SUMA puede arrastrar deriva binaria.
-          iva: round2(input.iva.reduce((s, x) => s + x.importe, 0)),
-          ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
-          total: input.total,
-          status: "PENDING",
-        },
-        select: { id: true },
-      });
-
-      const payload: InvoiceCreatedPayload = {
-        invoiceId: invoice.id,
-        tenantId: input.tenantId,
-        concepto: input.concepto,
-        fecha: input.fecha,
-        emisor: input.emisor,
-        receptor: input.receptor,
-        neto: input.neto,
-        iva: input.iva,
-        total: input.total,
-        servicioDesde: input.servicioDesde,
-        servicioHasta: input.servicioHasta,
-        vencimientoPago: input.vencimientoPago,
-      };
-
-      await tx.outboxEvent.create({
-        data: {
-          tenantId: input.tenantId,
-          type: OUTBOX_INVOICE_CREATED,
-          payload: payload as unknown as object,
-        },
-      });
-
-      return invoice.id;
-    }, { tenantId: input.tenantId });
+    return await tenantTransaction((tx) => createInvoiceInTx(tx, input), {
+      tenantId: input.tenantId,
+    });
   } catch (e) {
-    // CARRERA: dos createInvoice simultáneos para la MISMA venta pasan el check y ambos
-    // crean → el índice único (tenantId, orderId/appointmentId) hace fallar al 2º (P2002).
-    // La tx aborta; refetcheamos (query nueva) y devolvemos el ganador → idempotente igual.
+    // CARRERA: dos createInvoice simultáneos para la MISMA venta pasan el check-then-create
+    // y ambos crean → el índice único (tenantId, orderId/appointmentId) hace fallar al 2º
+    // (P2002). La tx aborta; refetcheamos (query nueva, fuera de la tx abortada) y devolvemos
+    // el ganador → idempotente igual. Sin el @@unique del schema (Gate 2) esto NO dispara: la
+    // guarda a nivel DB es la que cierra la ventana de carrera (el check solo cubre el caso secuencial).
     if (hasOrigin && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       const existing = await prisma.invoice.findFirst({
         where: { tenantId: input.tenantId, ...originLink },
@@ -158,6 +111,76 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
     }
     throw e;
   }
+}
+
+/**
+ * Cuerpo transaccional de `createInvoice`, extraído para poder testear la ORQUESTACIÓN
+ * (idempotencia por venta + outbox) con un doble de test sin DB (ADR-026). Corre SIEMPRE
+ * dentro de la tx del llamador — nunca abre la suya. Devuelve el id de la factura.
+ *
+ * IDEMPOTENCIA POR VENTA (I2, ADR-064): si ya existe una factura para este origen, la
+ * devuelve — nunca DOS comprobantes para la misma venta — y NO encola un outbox nuevo
+ * (no re-despacha). Sin origen, crea siempre (facturas MP standalone / previas a D10).
+ */
+export async function createInvoiceInTx(
+  tx: InvoiceTx,
+  input: CreateInvoiceInput,
+): Promise<string> {
+  const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
+  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink;
+
+  if (hasOrigin) {
+    const existing = await tx.invoice.findFirst({
+      where: { tenantId: input.tenantId, ...originLink },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+  }
+
+  const invoice = await tx.invoice.create({
+    data: {
+      tenantId: input.tenantId,
+      ...originLink, // enlace a la venta (D10) = clave de idempotencia
+      puntoVenta: input.emisor.puntoVenta,
+      concepto: input.concepto,
+      docTipo: input.receptor.docTipo,
+      docNro: String(input.receptor.docNro),
+      fecha: input.fecha,
+      neto: input.neto,
+      // Total de IVA = suma de las alícuotas, redondeada a 2 decimales (ADR-057): cada
+      // `importe` ya viene redondeado del Core, pero la SUMA puede arrastrar deriva binaria.
+      iva: round2(input.iva.reduce((s, x) => s + x.importe, 0)),
+      ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
+      total: input.total,
+      status: "PENDING",
+    },
+    select: { id: true },
+  });
+
+  const payload: InvoiceCreatedPayload = {
+    invoiceId: invoice.id,
+    tenantId: input.tenantId,
+    concepto: input.concepto,
+    fecha: input.fecha,
+    emisor: input.emisor,
+    receptor: input.receptor,
+    neto: input.neto,
+    iva: input.iva,
+    total: input.total,
+    servicioDesde: input.servicioDesde,
+    servicioHasta: input.servicioHasta,
+    vencimientoPago: input.vencimientoPago,
+  };
+
+  await tx.outboxEvent.create({
+    data: {
+      tenantId: input.tenantId,
+      type: OUTBOX_INVOICE_CREATED,
+      payload: payload as unknown as object,
+    },
+  });
+
+  return invoice.id;
 }
 
 /**
