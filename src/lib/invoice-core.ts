@@ -19,8 +19,15 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { round2 } from "@/lib/round";
+import { buildInvoiceOriginLink, type InvoiceOriginType } from "@/lib/settlement/invoice-origin";
+
+/** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
+ *  `createInvoiceInTx` corre DENTRO de una tx ya abierta por el llamador → componible y
+ *  testeable con un doble de test (se castea un mock a este tipo, como en audit-retention). */
+export type InvoiceTx = Prisma.TransactionClient;
 
 /** Desglose de IVA por alícuota (calculado por el Core, ADR-006). */
 export interface SubtotalIva {
@@ -28,6 +35,14 @@ export interface SubtotalIva {
   base: number;
   importe: number;
 }
+
+/**
+ * Origen (VENTA) de una factura — enlace 1:1 (D10). Es la CLAVE DE IDEMPOTENCIA por venta
+ * (I2, ADR-064): una factura por Order/Appointment, un reintento devuelve la misma. El
+ * traductor origen→FK es el helper puro `buildInvoiceOriginLink` (settlement/invoice-origin),
+ * la MISMA fuente que usa el settlement — no se duplica la lógica.
+ */
+export type InvoiceOrigin = { type: InvoiceOriginType; id: string };
 
 /** Datos que se guardan en el payload del evento `InvoiceCreated`. */
 export interface CreateInvoiceInput {
@@ -42,10 +57,12 @@ export interface CreateInvoiceInput {
   servicioDesde?: string;
   servicioHasta?: string;
   vencimientoPago?: string;
+  /** Venta de la que sale la factura (I2). Si se pasa, la creación es IDEMPOTENTE por venta. */
+  origin?: InvoiceOrigin;
 }
 
 /** Forma del payload del evento `InvoiceCreated` que viaja por el outbox. */
-export interface InvoiceCreatedPayload extends Omit<CreateInvoiceInput, "tenantId"> {
+export interface InvoiceCreatedPayload extends Omit<CreateInvoiceInput, "tenantId" | "origin"> {
   invoiceId: string;
   tenantId: string;
 }
@@ -71,51 +88,99 @@ export const OUTBOX_INVOICE_CREATED = "InvoiceCreated";
  * ARCA, ADR-022) y lo escribe `registerFiscalDocument`.
  */
 export async function createInvoice(input: CreateInvoiceInput): Promise<string> {
-  return tenantTransaction(async (tx) => {
-    const invoice = await tx.invoice.create({
-      data: {
-        tenantId: input.tenantId,
-        puntoVenta: input.emisor.puntoVenta,
-        concepto: input.concepto,
-        docTipo: input.receptor.docTipo,
-        docNro: String(input.receptor.docNro),
-        fecha: input.fecha,
-        neto: input.neto,
-        // Total de IVA = suma de las alícuotas, redondeada a 2 decimales (ADR-057): cada
-        // `importe` ya viene redondeado del Core, pero la SUMA puede arrastrar deriva binaria.
-        iva: round2(input.iva.reduce((s, x) => s + x.importe, 0)),
-        ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
-        total: input.total,
-        status: "PENDING",
-      },
+  // Enlace a la venta (D10) vía el helper puro compartido; `hasOrigin` = la creación es
+  // idempotente por venta. Sin origen (MP standalone/histórico) no hay dedupe → crea siempre.
+  const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
+  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink;
+  try {
+    return await tenantTransaction((tx) => createInvoiceInTx(tx, input), {
+      tenantId: input.tenantId,
+    });
+  } catch (e) {
+    // CARRERA: dos createInvoice simultáneos para la MISMA venta pasan el check-then-create
+    // y ambos crean → el índice único (tenantId, orderId/appointmentId) hace fallar al 2º
+    // (P2002). La tx aborta; refetcheamos (query nueva, fuera de la tx abortada) y devolvemos
+    // el ganador → idempotente igual. Sin el @@unique del schema (Gate 2) esto NO dispara: la
+    // guarda a nivel DB es la que cierra la ventana de carrera (el check solo cubre el caso secuencial).
+    if (hasOrigin && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const existing = await prisma.invoice.findFirst({
+        where: { tenantId: input.tenantId, ...originLink },
+        select: { id: true },
+      });
+      if (existing) return existing.id;
+    }
+    throw e;
+  }
+}
+
+/**
+ * Cuerpo transaccional de `createInvoice`, extraído para poder testear la ORQUESTACIÓN
+ * (idempotencia por venta + outbox) con un doble de test sin DB (ADR-026). Corre SIEMPRE
+ * dentro de la tx del llamador — nunca abre la suya. Devuelve el id de la factura.
+ *
+ * IDEMPOTENCIA POR VENTA (I2, ADR-064): si ya existe una factura para este origen, la
+ * devuelve — nunca DOS comprobantes para la misma venta — y NO encola un outbox nuevo
+ * (no re-despacha). Sin origen, crea siempre (facturas MP standalone / previas a D10).
+ */
+export async function createInvoiceInTx(
+  tx: InvoiceTx,
+  input: CreateInvoiceInput,
+): Promise<string> {
+  const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
+  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink;
+
+  if (hasOrigin) {
+    const existing = await tx.invoice.findFirst({
+      where: { tenantId: input.tenantId, ...originLink },
       select: { id: true },
     });
+    if (existing) return existing.id;
+  }
 
-    const payload: InvoiceCreatedPayload = {
-      invoiceId: invoice.id,
+  const invoice = await tx.invoice.create({
+    data: {
       tenantId: input.tenantId,
+      ...originLink, // enlace a la venta (D10) = clave de idempotencia
+      puntoVenta: input.emisor.puntoVenta,
       concepto: input.concepto,
+      docTipo: input.receptor.docTipo,
+      docNro: String(input.receptor.docNro),
       fecha: input.fecha,
-      emisor: input.emisor,
-      receptor: input.receptor,
       neto: input.neto,
-      iva: input.iva,
+      // Total de IVA = suma de las alícuotas, redondeada a 2 decimales (ADR-057): cada
+      // `importe` ya viene redondeado del Core, pero la SUMA puede arrastrar deriva binaria.
+      iva: round2(input.iva.reduce((s, x) => s + x.importe, 0)),
+      ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
       total: input.total,
-      servicioDesde: input.servicioDesde,
-      servicioHasta: input.servicioHasta,
-      vencimientoPago: input.vencimientoPago,
-    };
+      status: "PENDING",
+    },
+    select: { id: true },
+  });
 
-    await tx.outboxEvent.create({
-      data: {
-        tenantId: input.tenantId,
-        type: OUTBOX_INVOICE_CREATED,
-        payload: payload as unknown as object,
-      },
-    });
+  const payload: InvoiceCreatedPayload = {
+    invoiceId: invoice.id,
+    tenantId: input.tenantId,
+    concepto: input.concepto,
+    fecha: input.fecha,
+    emisor: input.emisor,
+    receptor: input.receptor,
+    neto: input.neto,
+    iva: input.iva,
+    total: input.total,
+    servicioDesde: input.servicioDesde,
+    servicioHasta: input.servicioHasta,
+    vencimientoPago: input.vencimientoPago,
+  };
 
-    return invoice.id;
-  }, { tenantId: input.tenantId });
+  await tx.outboxEvent.create({
+    data: {
+      tenantId: input.tenantId,
+      type: OUTBOX_INVOICE_CREATED,
+      payload: payload as unknown as object,
+    },
+  });
+
+  return invoice.id;
 }
 
 /**

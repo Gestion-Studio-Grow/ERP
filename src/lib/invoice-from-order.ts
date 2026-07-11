@@ -70,6 +70,9 @@ export async function facturarOrden(
     total,
     // Concepto Productos no exige fechas de servicio; sí vencimiento de pago.
     vencimientoPago: fecha,
+    // I2 (ADR-064): enlace a la venta = idempotencia por pedido. Un reintento de facturación
+    // del MISMO pedido devuelve el comprobante ya emitido, no crea un duplicado.
+    origin: { type: "ORDER", id: orderId },
   });
 
   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
