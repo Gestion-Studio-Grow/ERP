@@ -1,12 +1,44 @@
 # ESTADO ACTUAL — la foto completa (para retomar sin perderse)
 
+> **👉 Documento de entrada:** para la foto rápida + roadmap + semáforos + decisiones pendientes, empezá por
+> **[`docs/ESTADO-Y-ROADMAP.md`](ESTADO-Y-ROADMAP.md)**. Este doc es el detalle operativo completo.
+
 **Qué es:** la foto viva del sistema para arrancar cualquier sesión/sprint sin re-descubrir el
 contexto. La **produce/actualiza el PMO en la FASE 0 (Exploración)** y se **re-taggea en la FASE
 FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nueva y pegás tu prompt,
 este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
-- **Actualizado:** 2026-07-08 (FASE 0 reconciliación de drift, PMO) · **Autor:** PMO (sesión autónoma)
+> **🏛️ Fundación vigente (2026-07-10):** las decisiones fundacionales son los **ADR-060–071** — índice
+> maestro en [`docs/estrategia/fundacional-index.md`](estrategia/fundacional-index.md): **dos productos**
+> (Comercio Micro / PyME-Empresa) sobre un **motor compartido** (ADR-060/061), **RLS como línea base**
+> (ADR-062), **refactorizar-no-reconstruir** (ADR-063), **núcleo transaccional I1–I7** (ADR-064). Si algo
+> más abajo contradice esa fundación, **gana la fundación** y esta foto se corrige.
+>
+> **🔎 Estado de RLS — corrección 2026-07-10 (ADR-062):** el `gate:rls` es una cobertura **estática** de
+> **38 tablas** de-tenant (no 33; verificado en `prisma/rls/check-coverage.mjs`). Que el gate estático pase
+> **NO** prueba enforced en vivo → el estado *enforced en producción* es **A CONFIRMAR** (correr
+> `prisma/rls/check-rls-live.mjs`). Donde abajo se lea "RLS vivo/enforced 33/33", léase **38 cobertura
+> estática + enforced en vivo A CONFIRMAR**. Gaps abiertos: crons sin contexto de tenant + revocar el
+> `app_user` legacy con `BYPASSRLS` (ADR-062).
+
+> **🔁 Reconciliación 2026-07-10 (recuperación de estado, PMO).** Foto corregida al repo real:
+> - **`main` real = `93eae5f`** (no `7ccee77`): main lleva **2 hotfixes** por encima que esta foto no reflejaba.
+>   Donde abajo se lea "main HEAD `7ccee77`", léase **`93eae5f`**.
+> - **🔴 Incidente CH prod (2026-07-09) — resuelto con 2 hotfixes:** el sitio de CH cayó (vidriera pública +
+>   `/admin/facturacion`) porque `main` quedó **schema-ahead** de la DB de CH (columnas `Tenant.arca*` /
+>   `Invoice` Decimal no migradas, §5). Hotfixes **defensivos y reversibles** (tsc + 729 tests): `ad3202c`
+>   (`getFacturacion` tolera schema viejo, number-o-Decimal) + `93eae5f` (loaders del layout público con
+>   `select` explícito + try/catch → nunca disparan el error boundary). **Mitigado, causa raíz abierta:**
+>   aplicar migraciones §C (Gate 2) antes de cualquier deploy de `main` a CH, o vuelve a romper.
+> - **🔎 RLS — enforced en vivo = A CONFIRMAR** (no darlo por hecho): correr `prisma/rls/check-rls-live.mjs`
+>   contra prod. El fix de aislamiento de crons (`reminders`+`arca-outbox`) ya está en la línea fundacional
+>   (`1036b2c`); el rol legacy `app_user` con `BYPASSRLS` + rotación de secretos + PITR siguen pendientes (§C·I4).
+> - **Consolidación fundacional:** ADR-072 (enfoque de diseño) + `fundacional-DEFINITIVO-v2` + comercial/Mariano
+>   + resumen ejecutivo + ingesta del bundle de recuperación viven en la rama `fundacion/consolidacion-diseno`
+>   (sacada de `rf6x0m`, en `origin`), pendiente de merge a `main` (Gate del dueño).
+
+- **Actualizado:** 2026-07-10 (recuperación de estado + reconciliación, PMO) · **Autor:** PMO (sesión autónoma)
 - **Método:** barrido del repo (`git log`, `git worktree list`, `prisma/migrations/`, `.claude/`,
   `docs/`) + reconciliación del drift acumulado. **NO se consultó Neon prod** (política: diagnóstico,
   no tocar prod/DB) → el estado de migraciones *aplicadas* se deriva de docs y se marca "a confirmar".
@@ -70,7 +102,7 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 > - **⏸️ MERGE A MAIN = decisión del dueño** con la lista de §C resuelta (ver retro `docs/retro/retro-sprint-grow-ar-pr2-2026-07-08.md`). La rama queda verde y pusheada; nada se mergeó a `main`. **Próximo paso recomendado tras el OK del dueño:** PR-3/M2 (set `lite` por rubro + `KpiTile`/`EmptyState`) y `DataTable` como hito propio (ADR-059 D6, fix #5).
 
 > **🆕 Sprint 2026-07-08 (Balde B en Opus) — WIP en rama `claude/sprint-startup-generic-rf6x0m`, verde, Gate-pendiente para merge a `main`.** Foco del dueño: **ARCA · Facturador · Módulos del backoffice**. Entregado:
-> - **Módulos del backoffice (ADR-054/055):** vidriera **`/admin/modulos`** (el OWNER prende/apaga las apps, variante + dependencias, cap `modules:manage`) **+ gating de navegación** (`src/modules/gating.ts` + `src/lib/module-gating.ts`): con `MODULE_REGISTRY_ENABLED` on, apagar un módulo lo saca del menú; default off = nav legada intacta (reversible). Primer consumidor del backoffice para la fundación de módulos. Vallas verdes (tsc + **572 tests** + build + gate:rls 33/33 + lint).
+> - **Módulos del backoffice (ADR-054/055):** vidriera **`/admin/modulos`** (el OWNER prende/apaga las apps, variante + dependencias, cap `modules:manage`) **+ gating de navegación** (`src/modules/gating.ts` + `src/lib/module-gating.ts`): con `MODULE_REGISTRY_ENABLED` on, apagar un módulo lo saca del menú; default off = nav legada intacta (reversible). Primer consumidor del backoffice para la fundación de módulos. Vallas verdes (tsc + **572 tests** + build + gate:rls 38/38 cobertura estática + lint).
 > - **ARCA — decisión de dinero (ADR-057):** cierra Float vs `Decimal(14,2)` (§5) + R4. `number` con redondeo único ahora (reversible); `Decimal(14,2)` al borde del repo de `Invoice` al encender ARCA real (**§C·I2/Gate 2**). Desbloquea la integración.
 > - **Metodología:** pool fijo de **5 sesiones reutilizables** (reuse-first; overflow espera slot) — `CLAUDE.md → CONCURRENCIA`.
 > - **ARCA — reversible cerrado (ADR-057 follow-through):** **redondeo único** EPSILON-safe unificado POS+fiscal (R4 cerrado; `round2` en `src/lib/round.ts`, suma de IVA redondeada en `invoice-core`) + **worker del outbox** (`/api/cron/arca-outbox`, fail-closed con `CRON_SECRET`, dormido hasta deploy+ARCA real). Vallas verdes (tsc + 568 tests + build + lint).
@@ -95,8 +127,8 @@ criterio del dueño **80% AFINAR / 20% otros**, **Sonnet por defecto** (Opus sol
 en Sonnet · 🔴 **B** = NO tocar, reingeniería MAÑANA en Opus (cockpit operador, módulos ARCA/MP reales,
 repo de plugins ADR-054/055 bajo principio de VARIANTE).
 
-**Prod intacto y estable:** CH Estética vivo en **Vercel**, **RLS enforced** (`app_rls`), 4 tenants
-provisionados en Neon con aislamiento verificado. Nada rojo bloqueante en `main`.
+**Prod intacto y estable:** CH Estética vivo en **Vercel**, **RLS cableado** (`app_rls`; enforced en vivo
+**A CONFIRMAR**, ADR-062), 4 tenants provisionados en Neon con aislamiento verificado. Nada rojo bloqueante en `main`.
 
 **▶️ OLA 1 DEL HANDOFF CERRADA (2026-07-07).** **F1 mergeado a `main`** tras rebase + Gate (Opus) pasado.
 **`main` ahora en `debb3c5`** (era `fa94440`). F3 sigue en punto seguro, sin mergear (espera su Gate). Detalle
@@ -185,7 +217,7 @@ Magra/Shine/ADM esperan deploy (Gate 1). Migración `control_plane_tenant` (colu
 
 | # | Gate | Estado |
 |---|---|---|
-| 1 | **RLS a prod** | ✅ **HECHO** — RLS **vivo y enforced** (`app_rls` NOBYPASSRLS, `RLS_ENFORCEMENT=on`, 33/33 sin drift). Ya no es pendiente. |
+| 1 | **RLS a prod** | 🟡 **Cableado, enforced en vivo A CONFIRMAR** (ADR-062) — cobertura estática **38/38** (`gate:rls`), rol `app_rls` NOBYPASSRLS + `RLS_ENFORCEMENT=on` **configurados**; falta **confirmar enforced en prod** (correr `check-rls-live`) y cerrar gaps (crons sin contexto de tenant + revocar `app_user` legacy `BYPASSRLS`). |
 | 2 | **Alta de los tenants** | ✅ **HECHO** — los 4 tenants provisionados con aislamiento verificado. |
 | 3 | **Deploy de sitios** (Magra/Shine/ADM) | 🔑 **Gate 1** — CH ya live; los otros 3 esperan deploy en Vercel. → §C·I1 |
 | 4 | **Migraciones inventario/fiscal + datos reales Magra** | 🔒 **Gate 2** — 9 migraciones sin aplicar (§5) + Branding/catálogo real de Magra (M-2/M-3). → §C·I2 |

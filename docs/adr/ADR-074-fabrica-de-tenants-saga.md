@@ -12,6 +12,9 @@ llama Vercel/DNS/email). Todo efecto externo entra **stubbeado detrás de una in
 **Depende de:** ADR-019 (alta de tenant / core transaccional idempotente), ADR-018 (gate RLS previo al 2º
 tenant), ADR-021 (plano de operador / control-plane), ADR-002 (Core/Blueprint/Plugin — config sobre código),
 ADR-055 (VARIANTE: el objeto se crea una vez y se reusa — acá reusamos el core, no lo reimplementamos)
+**Relacionado:** ADR-065 (fundación — *fábrica de tenants + fábrica de módulos*): ADR-074 es la
+**implementación concreta** (saga + máquina de estados + motor de dry-run) de la fábrica de tenants que
+ADR-065 declara a nivel de fundamento. *(Renumerado desde ADR-061 al consolidar con la fundación 060–073.)*
 **Relacionado:** RFC-003 (`docs/rfc/RFC-003-consola-alta-tenants.md` — la consola de operador que **consume**
 este motor: el dry-run alimenta el wizard con preview en vivo) · ADR-040 (Gate) · ADR-030/041 (secretos los
 pega el dueño) · el blueprint maestro Comercio/Empresa (`docs/estrategia/estructura-consolidada-producto.md`).

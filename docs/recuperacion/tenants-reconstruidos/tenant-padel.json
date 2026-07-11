@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "tenant": "padel",
+    "rubro": "padel_proshop",
+    "deployment": "https://gsg-erp-padel.vercel.app",
+    "rutas": ["/", "/tienda"],
+    "stack": "Next.js App Router (Turbopack)",
+    "fuente_datos": "reconstruido desde el deployment en vivo (contenido publico), 2026-07-10"
+  },
+  "sitio": {
+    "titulo": "Pádel DEMO",
+    "descripcion": "Comprá online en Pádel DEMO.",
+    "hero": "Elegí lo que necesitás y hacé tu pedido. Pasá a buscarlo o te lo acercamos.",
+    "cta": ["Enviar pedido", "Pedir por WhatsApp"],
+    "seccion_productos_titulo": "Nuestros productos"
+  },
+  "categorias": [
+    {
+      "nombre": "Palas",
+      "descripcion": "El corazón de tu juego: potencia, control y todo lo que hay en el medio.",
+      "productos": [
+        { "nombre": "Pala Adidas RX Series", "precio": 129900, "unidad": "unidad" }
+      ]
+    },
+    {
+      "nombre": "Calzado",
+      "descripcion": "Zapatillas con el agarre y la amortiguación que la pista te pide.",
+      "productos": [
+        { "nombre": "Zapatillas Asics Gel-Padel Pro", "precio": 189900, "unidad": "unidad" }
+      ]
+    },
+    {
+      "nombre": "Pelotas",
+      "descripcion": "Presión y durabilidad para que cada partido rinda de principio a fin.",
+      "productos": [
+        { "nombre": "Tubo de pelotas Head Padel Pro (x3)", "precio": 12900, "unidad": "unidad" }
+      ]
+    },
+    {
+      "nombre": "Grips y accesorios",
+      "descripcion": "Los detalles que cuidan tu pala y tu mano: grips, protectores y más.",
+      "productos": [
+        { "nombre": "Overgrips Bullpadel (pack x3)", "precio": 7900, "unidad": "unidad" }
+      ]
+    }
+  ],
+  "contacto": { "canal_pedido": "WhatsApp" }
+}

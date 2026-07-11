@@ -8,14 +8,24 @@ conviene confiar en la seguridad de los proveedores de base de datos.
 (performance + free plan), `docs/seguridad/PLAN-HARDENING-PRE-COBROS.md`, `docs/ESTADO-ACTUAL.md`,
 `prisma/rls/`. **Fuentes externas:** ver §8.
 
+> **🔄 Alineación 2026-07-10 (ADR-062/067):** este análisis es **vigente en su tesis** (seguridad
+> multi-tenant en capas, tiers como producto, Neon confiable), pero **dos afirmaciones se corrigen** a la
+> luz de la fundación y del ground-truth: **(1)** RLS no se afirma "enforced en prod" — es **cobertura
+> estática 38/38** (`gate:rls`, no 33) **+ enforced en vivo A CONFIRMAR** (correr `check-rls-live`);
+> **(2)** el `app_user` legacy con `BYPASSRLS` **sigue existiendo** (inerte) y su revocación es **gap
+> pendiente**, no cerrado. El plan pago + PITR + Ley 25.326 se formaliza en **ADR-067**. Lo de abajo se
+> lee con esa corrección.
+
 ---
 
 ## 0. Resumen ejecutivo (para el dueño, 8 líneas)
 
-1. **El candado está puesto.** El aislamiento entre clientes ya no es una promesa de diseño: **RLS de
-   Postgres está ACTIVO y enforced en producción** (rol `app_rls` sin `BYPASSRLS`), con un **2º tenant
-   real (Magra) conviviendo con CH y aislamiento verificado en prod**. Estamos operando multi-tenant de
-   verdad, no simulándolo.
+1. **El candado está cableado** (enforced en vivo **A CONFIRMAR** — ADR-062). El aislamiento entre
+   clientes ya no es solo promesa de diseño: RLS de Postgres está **implementado** (rol `app_rls` sin
+   `BYPASSRLS`, policies en **38 tablas**, cobertura estática verde), con un **2º tenant real (Magra)
+   conviviendo con CH**. Falta **confirmar enforced en producción en vivo** (`check-rls-live`) y cerrar
+   los gaps de ADR-062 (crons sin contexto de tenant + revocar el `app_user` legacy). No lo demos por
+   cerrado hasta ese check.
 2. **La arquitectura elegida es la correcta y la que usa el mundo:** *shared schema + `tenant_id` + RLS*,
    con **camino de escape a aislamiento dedicado para enterprise** (modelo híbrido "pool + silo"). Es
    exactamente lo que hacen las plataformas SaaS maduras y lo que permite **vender la seguridad como un
@@ -39,8 +49,8 @@ La seguridad multi-tenant no es un candado, son varios en serie. Estado real rel
 |---|---|---|
 | **1. Resolución de tenant fail-closed** | `getCurrentTenantId()` lanza error si hay ≠1 tenant resoluble, en vez de agarrar "el más viejo" (ADR-015) | ✅ vivo |
 | **2. Filtro app-level** | `tenantId` en **toda** tabla de negocio; toda query pasa por el helper de tenant | ✅ vivo (110 usos de `tenantId` en el schema) |
-| **3. RLS de Postgres (backstop del motor)** | `CREATE POLICY tenant_isolation` (USING + WITH CHECK) en **33/33** tablas con `tenantId`; `set_config('app.current_tenant_id', …, true)` por transacción, pooling-safe | ✅ **ACTIVO y enforced en prod** |
-| **4. Rol de DB sin bypass** | App conecta como `app_rls` (`NOBYPASSRLS`, no-owner, solo DML). El `app_user` legacy con `BYPASSRLS` quedó inerte (nadie conecta con él) | ✅ vivo |
+| **3. RLS de Postgres (backstop del motor)** | `CREATE POLICY tenant_isolation` (USING + WITH CHECK) en **38/38** tablas con `tenantId`; `set_config('app.current_tenant_id', …, true)` por transacción, pooling-safe | 🟡 cobertura estática ✅; **enforced en vivo A CONFIRMAR** (`check-rls-live`, ADR-062) |
+| **4. Rol de DB sin bypass** | App conecta como `app_rls` (`NOBYPASSRLS`, no-owner, solo DML) | 🟡 `app_rls` configurado; **gap:** el `app_user` legacy con `BYPASSRLS` **sigue existiendo** (inerte) → **revocar** (ADR-062) |
 | **5. Rate limiting** | 5 fallos/15min en logins `/admin` y `/operador`; 60 req/min en API pública `/public/v1/*` (429 + Retry-After) | ✅ vivo |
 | **6. Auth** | api-key por tenant (timing-safe, fail-closed) en API pública; HMAC edge-safe + cookie firmada en operador/admin | ✅ sólido |
 | **7. Webhook de pagos** | Mercado Pago con firma HMAC-SHA256, fail-closed (sin secreto → 503; firma mala → 401) antes de tocar DB | ✅ código listo (falta secreto en prod) |
