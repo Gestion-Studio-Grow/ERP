@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { getAvailableSlots, createBookingFromModal } from "@/lib/actions";
+import { getAvailableSlots, getAvailableSlotsRange, createBookingFromModal } from "@/lib/actions";
 import { checkCoupon } from "@/lib/coupon-actions";
 import { fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import { useWhatsAppCta } from "@/components/whatsapp-cta";
@@ -128,12 +128,15 @@ export default function BookingModal({
     setPrefetchingAvailability(true);
     let cancelled = false;
     (async () => {
-      const entries = await Promise.all(
-        data.days.map(async (d) => [d.value, await getAvailableSlots(pro.id, svc.id, d.value)] as const)
+      // Una sola llamada batch por los 14 días — antes era una server action por
+      // día (~7 queries × 14). El motor lee los datos compartidos una vez y trae
+      // los turnos/bloqueos del rango completo de una (getAvailableSlotsRange).
+      const map = await getAvailableSlotsRange(
+        pro.id,
+        svc.id,
+        data.days.map((d) => d.value)
       );
       if (cancelled) return;
-      const map: Record<string, string[]> = {};
-      for (const [k, v] of entries) map[k] = v;
       setDayAvailability(map);
       setPrefetchingAvailability(false);
       // Si todavía no eligió día, saltar directo al primero con lugar.
