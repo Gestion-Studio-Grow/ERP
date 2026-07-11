@@ -56,7 +56,7 @@
   --text-strong: #1f1b14;      /* títulos, texto principal */
   --text: #413b31;             /* cuerpo */
   --text-muted: #736a58;       /* secundario, labels, metadatos */
-  --text-faint: #7c7364;       /* AA≥4.5 (gate contraste): antes #a79c87 = 2.7:1 sobre blanco → ilegible */
+  --text-faint: #766d5f;       /* AA≥4.5 sobre el hueso #f6f3ec (4.6:1) — no solo sobre blanco; antes #a79c87 = 2.7:1 (verificado en prod: "Trabajamos con") */
   --text-on-accent: #ffffff;   /* FALLBACK; los layouts inyectan el real por tema+acento */
 
   /* Líneas y bordes — cálidos */
