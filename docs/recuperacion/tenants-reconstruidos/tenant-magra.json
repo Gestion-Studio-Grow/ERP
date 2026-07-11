@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "tenant": "magra",
+    "rubro": "carniceria",
+    "deployment": "https://gsg-erp-magra.vercel.app",
+    "rutas": ["/", "/tienda", "/admin (login requerido)"],
+    "stack": "Next.js App Router (Turbopack) + fuente Geist",
+    "fuente_datos": "reconstruido desde el deployment en vivo (contenido publico), 2026-07-10",
+    "nota": "Datos DEMO/ficticios para QA segun el propio sitio."
+  },
+  "sitio": {
+    "titulo": "Magra — DEMO (carnicería) · Canning, Buenos Aires",
+    "descripcion": "Carnicería DEMO — datos ficticios para QA.",
+    "hero": "Elegí lo que necesitás y hacé tu pedido. Pasá a buscarlo o te lo acercamos.",
+    "cta": ["Enviar pedido", "Pedir por WhatsApp"],
+    "seccion_productos_titulo": "Nuestros productos"
+  },
+  "categorias": [
+    {
+      "nombre": "Más productos",
+      "productos": [
+        { "nombre": "Asado de tira", "precio": 11500, "unidad": "kg" },
+        { "nombre": "Bife de chorizo", "precio": 15900, "unidad": "kg" },
+        { "nombre": "Carne picada especial", "precio": 9500, "unidad": "kg" },
+        { "nombre": "Lomo", "precio": 18900, "unidad": "kg" },
+        { "nombre": "Milanesas de nalga", "precio": 12900, "unidad": "kg" },
+        { "nombre": "Ojo de bife", "precio": 16900, "unidad": "kg" },
+        { "nombre": "Pollo entero", "precio": 4200, "unidad": "kg" },
+        { "nombre": "Vacío", "precio": 12500, "unidad": "kg" }
+      ]
+    }
+  ],
+  "contacto": {
+    "direccion": "Av. Ficticia 1234, Canning",
+    "ciudad": "Canning, Buenos Aires",
+    "horario": "Lun a Sáb 9–20h",
+    "canal_pedido": "WhatsApp"
+  },
+  "marca_real_referencia": {
+    "_nota": "identidad real de magrameatmarket.com.ar (para el tenant), ver 04-magra-identidad.md",
+    "paleta": { "carbon": "#1D1D1B", "crema": "#F2E6D7", "oro": "#C5AE86", "acero": "#CCD6DF", "gris": "#69727D", "negro": "#000000" },
+    "tipografia": { "display": "Bebas Neue", "texto": "Open Sans" }
+  }
+}

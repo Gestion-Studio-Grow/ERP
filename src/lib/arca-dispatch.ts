@@ -12,7 +12,8 @@
  * cron todavía a propósito: la emisión de facturas reales es un follow-up.
  */
 
-import { prisma } from "@/lib/prisma";
+import { operatorPrisma } from "@/lib/operator-db";
+import { tenantTransaction } from "@/lib/rls";
 import {
   markInvoiceRejected,
   registerFiscalDocument,
@@ -44,12 +45,23 @@ export type LeerConfigFiscal = (
   tenantId: string,
 ) => Promise<ConfigFiscalTenant | null>;
 
-/** Lector real: toma la metadata fiscal del `Tenant` (ADR-022 §5, opción B). */
+/**
+ * Lector real: toma la metadata fiscal del `Tenant` (ADR-022 §5, opción B).
+ * `tenantId` EXPLÍCITO vía `tenantTransaction`, no ambiental: lo llama el
+ * worker (`processArcaOutbox`), sin request/host — con RLS_ENFORCEMENT on,
+ * `getCurrentTenantId()` ambiental rompería con >1 tenant. `Tenant` no tiene
+ * policy propia (excluida de RLS, ADR-018), pero la resolución del tenant
+ * pasa igual por acá, así que se le da el contexto explícito de todas formas.
+ */
 const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
-  const t = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { arcaCuit: true, arcaHomologacion: true },
-  });
+  const t = await tenantTransaction(
+    (tx) =>
+      tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { arcaCuit: true, arcaHomologacion: true },
+      }),
+    { tenantId },
+  );
   if (!t) return null;
   // `arcaCuit` es texto en DB (no entra en Int32); el emisor lo maneja como número.
   return {
@@ -124,9 +136,18 @@ export interface DispatchResumen {
  * - Éxito → `registerFiscalDocument` (lo hace el handler) + marca procesado.
  * - Rechazo de ARCA → marca la factura REJECTED + marca el evento procesado.
  * - Otro error → deja el evento pendiente, incrementa `attempts` y guarda el error.
+ *
+ * AISLAMIENTO DE TENANT (fix async/cron, ADR-018 §4): este worker corre sin
+ * request/host — `getCurrentTenantId()` ambiental rompe apenas hay >1 tenant
+ * bajo RLS. El barrido CROSS-TENANT (todos los tenants, una sola pasada) usa
+ * `operatorPrisma` (rol dueño, bypassa RLS por diseño — nunca el `prisma`
+ * conmutado por RLS para esto, ver ADR-021). Cada fila procesada queda atada a
+ * SU tenant vía `tenantTransaction(fn, { tenantId: evento.tenantId })` — el
+ * dato ya está en la fila del outbox, se lo pasamos explícito en vez de dejar
+ * que se intente resolver ambientalmente.
  */
 export async function processArcaOutbox(limit = 20): Promise<DispatchResumen> {
-  const pendientes = await prisma.outboxEvent.findMany({
+  const pendientes = await operatorPrisma.outboxEvent.findMany({
     where: { type: OUTBOX_INVOICE_CREATED, processedAt: null },
     orderBy: { createdAt: "asc" },
     take: limit,
@@ -146,10 +167,10 @@ export async function processArcaOutbox(limit = 20): Promise<DispatchResumen> {
         clientePara,
         registrar: registerFiscalDocument,
       });
-      await prisma.outboxEvent.update({
-        where: { id: evento.id },
-        data: { processedAt: new Date() },
-      });
+      await tenantTransaction(
+        (tx) => tx.outboxEvent.update({ where: { id: evento.id }, data: { processedAt: new Date() } }),
+        { tenantId: payload.tenantId },
+      );
       resumen.autorizados++;
       resumen.procesados++;
     } catch (err) {
@@ -161,21 +182,29 @@ export async function processArcaOutbox(limit = 20): Promise<DispatchResumen> {
             ? err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")
             : err.errores.map((e) => `${e.campo}: ${e.mensaje}`).join("; ");
         await markInvoiceRejected(payload.invoiceId, payload.tenantId, motivo);
-        await prisma.outboxEvent.update({
-          where: { id: evento.id },
-          data: { processedAt: new Date(), lastError: motivo },
-        });
+        await tenantTransaction(
+          (tx) =>
+            tx.outboxEvent.update({
+              where: { id: evento.id },
+              data: { processedAt: new Date(), lastError: motivo },
+            }),
+          { tenantId: payload.tenantId },
+        );
         resumen.rechazados++;
         resumen.procesados++;
       } else {
         // Error transitorio (red, ARCA caído): dejar pendiente para reintento.
-        await prisma.outboxEvent.update({
-          where: { id: evento.id },
-          data: {
-            attempts: { increment: 1 },
-            lastError: err instanceof Error ? err.message : String(err),
-          },
-        });
+        await tenantTransaction(
+          (tx) =>
+            tx.outboxEvent.update({
+              where: { id: evento.id },
+              data: {
+                attempts: { increment: 1 },
+                lastError: err instanceof Error ? err.message : String(err),
+              },
+            }),
+          { tenantId: payload.tenantId },
+        );
         resumen.fallidos++;
       }
     }

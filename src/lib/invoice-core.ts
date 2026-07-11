@@ -191,17 +191,26 @@ export async function createInvoiceInTx(
 export async function registerFiscalDocument(
   input: RegisterFiscalDocumentInput,
 ): Promise<void> {
-  const res = await prisma.invoice.updateMany({
-    where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
-    data: {
-      status: "AUTHORIZED",
-      cae: input.cae,
-      caeVencimiento: input.caeVencimiento,
-      numero: input.numero,
-      tipoComprobante: input.tipoComprobante,
-      authorizedAt: new Date(),
-    },
-  });
+  // `tenantTransaction` con `tenantId` EXPLÍCITO (no ambiental): este comando lo
+  // invoca el worker/dispatcher (processArcaOutbox), sin request/host — con
+  // RLS_ENFORCEMENT on, resolverlo ambientalmente (getCurrentTenantId) rompería
+  // apenas hubiera >1 tenant. El `tenantId` ya lo trae el caller (viene del
+  // payload del outbox), así que se lo pasamos directo (ADR-018 §4).
+  const res = await tenantTransaction(
+    (tx) =>
+      tx.invoice.updateMany({
+        where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
+        data: {
+          status: "AUTHORIZED",
+          cae: input.cae,
+          caeVencimiento: input.caeVencimiento,
+          numero: input.numero,
+          tipoComprobante: input.tipoComprobante,
+          authorizedAt: new Date(),
+        },
+      }),
+    { tenantId: input.tenantId },
+  );
   if (res.count === 0) {
     // No estaba PENDING: ya autorizada (reintento del evento) o no existe / otro
     // tenant. No es error del flujo; el dispatcher lo trata como procesado.
@@ -215,10 +224,16 @@ export async function markInvoiceRejected(
   tenantId: string,
   motivo: string,
 ): Promise<void> {
-  await prisma.invoice.updateMany({
-    where: { id: invoiceId, tenantId, status: "PENDING" },
-    data: { status: "REJECTED", rechazoMotivo: motivo },
-  });
+  // Mismo criterio que registerFiscalDocument: tenantId explícito, sin depender
+  // de la resolución ambiental (worker sin request).
+  await tenantTransaction(
+    (tx) =>
+      tx.invoice.updateMany({
+        where: { id: invoiceId, tenantId, status: "PENDING" },
+        data: { status: "REJECTED", rechazoMotivo: motivo },
+      }),
+    { tenantId },
+  );
 }
 
 /** Consulta una factura del tenant. */

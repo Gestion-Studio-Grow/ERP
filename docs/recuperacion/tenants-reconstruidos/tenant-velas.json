@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "tenant": "velas",
+    "rubro": "velas_y_aromas",
+    "deployment": "https://gsg-erp-velas.vercel.app",
+    "rutas": ["/", "/tienda"],
+    "stack": "Next.js App Router (Turbopack)",
+    "fuente_datos": "reconstruido desde el deployment en vivo (contenido publico), 2026-07-10"
+  },
+  "sitio": {
+    "titulo": "Velas DEMO",
+    "descripcion": "Comprá online en Velas DEMO.",
+    "hero": "Elegí lo que necesitás y hacé tu pedido. Pasá a buscarlo o te lo acercamos.",
+    "cta": ["Enviar pedido", "Pedir por WhatsApp"],
+    "seccion_productos_titulo": "Nuestros productos"
+  },
+  "categorias": [
+    {
+      "nombre": "Velas",
+      "descripcion": "Aromáticas, decorativas y artesanales — el corazón de tu ambiente.",
+      "productos": [
+        { "nombre": "Vela Sándalo", "precio": 9000, "unidad": "unidad" },
+        { "nombre": "Vela Vainilla y Canela", "precio": 8500, "unidad": "unidad" }
+      ]
+    },
+    {
+      "nombre": "Aromas",
+      "descripcion": "Difusores, sahumerios y textiles para perfumar cada rincón.",
+      "productos": [
+        { "nombre": "Difusor Coco y Vainilla", "precio": 11000, "unidad": "unidad" },
+        { "nombre": "Sahumerios de sándalo (x6)", "precio": 3200, "unidad": "unidad" }
+      ]
+    }
+  ],
+  "contacto": { "canal_pedido": "WhatsApp" }
+}

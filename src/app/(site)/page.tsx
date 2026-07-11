@@ -4,7 +4,9 @@ import { getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { getPublishedReviews } from "@/lib/reviews-actions";
 import { getLocation } from "@/lib/settings";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
-import { resolveRubroIdBySlug } from "@/blueprints/retail";
+import { resolveRubroIdBySlug, RETAIL_RUBRO_IDS } from "@/blueprints/retail";
+import { getBrandSheet } from "@/lib/brand-sheet";
+import { tenantBrandSheetEnabled } from "@/lib/identity";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
@@ -51,7 +53,14 @@ export default async function Home() {
   // rubro no-retail cae a la landing histórica de CH, el comportamiento por defecto de siempre.
   // El día que exista `Tenant.blueprintId`, este chequeo pasa a leer esa columna (un solo punto de cambio).
   const slug = await getCurrentTenantSlug();
-  if (resolveRubroIdBySlug(slug)) redirect("/tienda");
+  // FICHA DE MARCA (RFC-004-D, frente A): con el flag ON, la landing vs vidriera se decide por
+  // el `blueprintId` del tenant (DATO), no por un slug hardcodeado que no tiene los slugs demo
+  // (por eso velas-demo caía a la landing de CH). Flag OFF → camino legado por slug (idéntico).
+  const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
+  const isRetail = sheet
+    ? sheet.blueprintId != null && RETAIL_RUBRO_IDS.includes(sheet.blueprintId)
+    : Boolean(resolveRubroIdBySlug(slug));
+  if (isRetail) redirect("/tienda");
 
   // `professionals` sale de getPublicBookingData() (loader PÚBLICO, ya filtra
   // active/deletedAt server-side) — antes se pisaba con getCatalog(), un loader
@@ -83,10 +92,12 @@ export default async function Home() {
         <div style={{ flex: "1 1 440px", minWidth: 300 }}>
           <p style={{ ...eyebrow, margin: "0 0 16px" }}>{location.shortLabel}</p>
           <h1 style={display({ fontSize: "clamp(2.2rem,5vw + 1rem,3.9rem)", lineHeight: 1.05, letterSpacing: "-.01em", fontWeight: 480, margin: 0 })}>
-            Tu tiempo, cuidado a metros de casa.
+            {sheet ? "Tu momento, reservado." : "Tu tiempo, cuidado a metros de casa."}
           </h1>
           <p style={{ margin: "20px 0 0", fontSize: "1.0625rem", color: "var(--text-muted)", maxWidth: "28rem", lineHeight: 1.65 }}>
-            Estética y spa dentro del barrio, con Carolina. Reservás en un minuto.
+            {sheet
+              ? `Turnos y atención en ${sheet.name}. Reservás en un minuto.`
+              : "Estética y spa dentro del barrio, con Carolina. Reservás en un minuto."}
           </p>
           <div style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
             <ReserveButton />
@@ -126,7 +137,7 @@ export default async function Home() {
           <div style={{ maxWidth: 896, margin: "0 auto", padding: "clamp(40px,7vw,72px) 24px" }}>
             <p style={{ ...eyebrow, margin: "0 0 12px" }}>Novedades</p>
             <h2 style={display({ fontSize: "clamp(1.6rem,3vw,2rem)", fontWeight: 520, margin: "0 0 32px" })}>
-              Lo nuevo en CH
+              {sheet ? `Lo nuevo en ${sheet.name}` : "Lo nuevo en CH"}
             </h2>
             <div>
               {news.map((n) => (
