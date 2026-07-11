@@ -62,7 +62,7 @@ export default function RescheduleForm({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="text-sm text-muted hover:text-strong text-left transition-colors"
+        className="inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-strong text-left transition-colors"
       >
         Reprogramar
       </button>

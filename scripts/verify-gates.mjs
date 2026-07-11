@@ -58,6 +58,12 @@ const GATES = [
   //    falta, la valla FALLA (no se saltea — un gate que no puede renderizar es
   //    un gate rojo, no un permiso para publicar a ciegas).
   { name: "visual (render real)", cmd: "npm", args: ["run", "gate:visual"], shell: isWin },
+  // 7. visual-aa — CALIDAD VISUAL (contraste WCAG AA + touch targets + overflow) en
+  //    los 4 temas de color, sobre /admin + flujo de reserva + vidriera, con base
+  //    efímera en RAM (PGlite, sin Neon). Atrapa lo cosmético-crítico que el smoke de
+  //    layout no ve: texto gris sobre fondo oscuro (bajo AA), botones intocables en
+  //    mobile, scroll horizontal. Va DESPUÉS de build (usa `next start`).
+  { name: "visual-aa (contraste/touch/overflow)", cmd: "npm", args: ["run", "gate:visual:aa"], shell: isWin },
 ];
 
 console.log("🚧 Corriendo vallas de pre-push…\n");

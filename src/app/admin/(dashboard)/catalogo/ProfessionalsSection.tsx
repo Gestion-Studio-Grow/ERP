@@ -389,7 +389,7 @@ function ProfessionalRow({
         <span className={p.active ? "font-medium" : "font-medium text-faint line-through"}>
           {p.name}
         </span>
-        <button onClick={() => setEditing(true)} className="text-sm text-muted hover:underline shrink-0">
+        <button onClick={() => setEditing(true)} className="inline-flex items-center min-h-6 text-sm text-muted hover:underline shrink-0">
           Editar
         </button>
       </div>

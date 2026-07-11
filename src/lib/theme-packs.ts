@@ -57,12 +57,12 @@ const serviciosSpa: ThemePack = {
   radius: "0.875rem",
   light: {
     surfaceSunken: "#efe2e5", surface: "#f8f1f2", surfaceRaised: "#fffdfd", surfaceInverted: "#241a1d",
-    textStrong: "#2a1e22", text: "#4c3b41", textMuted: "#8a727a", textFaint: "#b6a1a8",
+    textStrong: "#2a1e22", text: "#4c3b41", textMuted: "#8a727a", textFaint: "#7e6f74",
     line: "#ecdde1", lineStrong: "#dcc6cc",
   },
   dark: {
     surfaceSunken: "#150e10", surface: "#1d1418", surfaceRaised: "#271b20", surfaceInverted: "#f8f1f2",
-    textStrong: "#f6ecef", text: "#dcc9d0", textMuted: "#a98f98", textFaint: "#7a626b",
+    textStrong: "#f6ecef", text: "#dcc9d0", textMuted: "#a98f98", textFaint: "#96838a",
     line: "rgba(255,225,235,0.10)", lineStrong: "rgba(255,225,235,0.18)",
   },
 };
@@ -77,12 +77,12 @@ const boutiqueVelas: ThemePack = {
   radius: "1rem",
   light: {
     surfaceSunken: "#eee6d6", surface: "#f7f2e9", surfaceRaised: "#fffdf7", surfaceInverted: "#221d14",
-    textStrong: "#241f16", text: "#4c4433", textMuted: "#8b7f66", textFaint: "#b8ac92",
+    textStrong: "#241f16", text: "#4c4433", textMuted: "#8b7f66", textFaint: "#7b7362",
     line: "#e9dfcd", lineStrong: "#d8cab0",
   },
   dark: {
     surfaceSunken: "#14100a", surface: "#1c1710", surfaceRaised: "#272117", surfaceInverted: "#f7f2e9",
-    textStrong: "#f7f0e2", text: "#ddd0b8", textMuted: "#a99a7c", textFaint: "#7a6d54",
+    textStrong: "#f7f0e2", text: "#ddd0b8", textMuted: "#a99a7c", textFaint: "#938974",
     line: "rgba(255,240,210,0.10)", lineStrong: "rgba(255,240,210,0.18)",
   },
 };
@@ -97,12 +97,12 @@ const retailDeporte: ThemePack = {
   radius: "0.375rem",
   light: {
     surfaceSunken: "#e1e6ea", surface: "#eef1f3", surfaceRaised: "#ffffff", surfaceInverted: "#10161a",
-    textStrong: "#101619", text: "#333d44", textMuted: "#5f6a72", textFaint: "#93a0a7",
+    textStrong: "#101619", text: "#333d44", textMuted: "#5f6a72", textFaint: "#6d767c",
     line: "#d6dee2", lineStrong: "#bdc8ce",
   },
   dark: {
     surfaceSunken: "#0b0f12", surface: "#111820", surfaceRaised: "#1a232b", surfaceInverted: "#eef1f3",
-    textStrong: "#eef4f7", text: "#c3ced4", textMuted: "#85939c", textFaint: "#5c6a73",
+    textStrong: "#eef4f7", text: "#c3ced4", textMuted: "#85939c", textFaint: "#818c93",
     line: "rgba(200,225,240,0.10)", lineStrong: "rgba(200,225,240,0.18)",
   },
 };
@@ -117,12 +117,12 @@ const boutiqueCarne: ThemePack = {
   radius: "0.5rem",
   light: {
     surfaceSunken: "#eae0d4", surface: "#f4efe8", surfaceRaised: "#fffdf9", surfaceInverted: "#1c1613",
-    textStrong: "#1d1611", text: "#42352d", textMuted: "#7f6f62", textFaint: "#b0a292",
+    textStrong: "#1d1611", text: "#42352d", textMuted: "#7f6f62", textFaint: "#7b7166",
     line: "#e5d9cb", lineStrong: "#d5c5b1",
   },
   dark: {
     surfaceSunken: "#120d0a", surface: "#1a1410", surfaceRaised: "#241c16", surfaceInverted: "#f4efe8",
-    textStrong: "#f6efe6", text: "#dccabb", textMuted: "#a89283", textFaint: "#79655a",
+    textStrong: "#f6efe6", text: "#dccabb", textMuted: "#a89283", textFaint: "#94847b",
     line: "rgba(255,235,215,0.10)", lineStrong: "rgba(255,235,215,0.18)",
   },
 };
@@ -138,12 +138,12 @@ const gsgBase: ThemePack = {
   radius: "0.5rem",
   light: {
     surfaceSunken: "#e2e3e2", surface: "#f4f5f4", surfaceRaised: "#ffffff", surfaceInverted: "#17181a",
-    textStrong: "#191b1c", text: "#35363a", textMuted: "#6a6b70", textFaint: "#9c9da3",
+    textStrong: "#191b1c", text: "#35363a", textMuted: "#6a6b70", textFaint: "#737479",
     line: "#e2e2df", lineStrong: "#c8c8c4",
   },
   dark: {
     surfaceSunken: "#101113", surface: "#17181a", surfaceRaised: "#212327", surfaceInverted: "#f2f3f4",
-    textStrong: "#f2f3f4", text: "#cbccd0", textMuted: "#8d8e94", textFaint: "#616268",
+    textStrong: "#f2f3f4", text: "#cbccd0", textMuted: "#8d8e94", textFaint: "#8a8b8f",
     line: "rgba(255,255,255,0.09)", lineStrong: "rgba(255,255,255,0.16)",
   },
 };

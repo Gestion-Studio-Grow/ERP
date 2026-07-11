@@ -58,7 +58,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           <div style={{ maxWidth: 1152, margin: "0 auto", padding: "48px 24px", display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 24, fontSize: ".875rem" }}>
             <div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
-                <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 22, color: "var(--accent)" }}>{brandName}</span>
+                <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)" }}>{brandName}</span>
               </div>
               <p style={{ margin: 0 }}>{location.addressLine} · {location.city}</p>
             </div>

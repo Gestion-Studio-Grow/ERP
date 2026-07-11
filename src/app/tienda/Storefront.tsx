@@ -199,7 +199,7 @@ function StorefrontContent({
       {intro && <p style={{ fontSize: 17, lineHeight: 1.6, color: T.muted, maxWidth: 620, marginLeft: center ? "auto" : undefined, marginRight: center ? "auto" : undefined }}>{intro}</p>}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28, justifyContent: center ? "center" : "flex-start" }}>
         <a href="#seleccion" style={cta("var(--accent)", "var(--text-on-accent)")}>{wording.orderCta}</a>
-        <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={cta("#fff", "#128C4B", "1px solid #25D366")}>
+        <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={cta("#fff", "#118648", "1px solid #25D366")}>
           Pedir por WhatsApp
         </button>
       </div>
@@ -278,7 +278,7 @@ function StorefrontContent({
               <p style={{ margin: "6px 0 0", color: T.muted, fontSize: 14 }}>
                 En un rato vas a poder comprar online. Mientras tanto, escribinos por WhatsApp y te tomamos el pedido.
               </p>
-              <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={{ ...cta("#fff", "#128C4B", "1px solid #25D366"), display: "inline-flex", marginTop: 16 }}>
+              <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), display: "inline-flex", marginTop: 16 }}>
                 Pedir por WhatsApp
               </button>
             </div>
@@ -424,7 +424,7 @@ function StorefrontContent({
                 <label style={{ ...lbl, gridColumn: "1 / -1" }}><span style={lblT}>Nota</span><input name="notes" style={inp} placeholder={wording.notesPlaceholder} /></label>
               </div>
               <button type="submit" style={{ ...cta("var(--accent)", "var(--text-on-accent)"), height: 48 }}>{wording.orderCta}</button>
-              <button type="button" onClick={() => requestWhatsApp(cartMessage)} style={{ ...cta("#fff", "#128C4B", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
+              <button type="button" onClick={() => requestWhatsApp(cartMessage)} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
               <p style={{ fontSize: 11, color: T.faint, textAlign: "center" }}>Te contactamos para confirmar. El pago se coordina al recibirlo.</p>
             </form>
           )}
@@ -611,7 +611,10 @@ function SectionHead({ kicker, title }: { kicker: string; title: string }) {
     </div>
   );
 }
-const eyebrowStyle: CSSProperties = { fontSize: 12, letterSpacing: 3, textTransform: "uppercase", color: "var(--accent)", fontWeight: 600 };
+// Acento OSCURECIDO para el eyebrow/kicker (12px, texto chico → AA 4.5): el acento
+// crudo del tenant sobre el hueso da 4.26:1; color-mix con negro lo sube a ≥4.5 sin
+// perder el color de marca (gate contraste).
+const eyebrowStyle: CSSProperties = { fontSize: 12, letterSpacing: 3, textTransform: "uppercase", color: "color-mix(in srgb, var(--accent) 78%, #000)", fontWeight: 600 };
 function cta(bg: string, color: string, border?: string): CSSProperties {
   return { display: "grid", placeItems: "center", padding: "0 22px", borderRadius: 12, border: border ?? "none", background: bg, color, fontWeight: 700, fontSize: 15, cursor: "pointer", textDecoration: "none", height: 46 };
 }

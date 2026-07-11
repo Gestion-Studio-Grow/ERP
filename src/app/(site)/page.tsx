@@ -27,10 +27,13 @@ const display = (extra?: React.CSSProperties): React.CSSProperties => ({
   ...extra,
 });
 const linkAccent: React.CSSProperties = {
-  color: "var(--accent)",
+  // Acento OSCURECIDO para uso como texto/link (16px, no "grande"): el acento crudo
+  // del tenant sobre el hueso da 4.26:1 (bajo AA 4.5). color-mix con negro lo lleva a
+  // ≥4.5:1 sin perder el color de marca; el subrayado mantiene el mismo tono.
+  color: "color-mix(in srgb, var(--accent) 78%, #000)",
   textDecoration: "underline",
   textUnderlineOffset: 4,
-  textDecorationColor: "var(--accent)",
+  textDecorationColor: "color-mix(in srgb, var(--accent) 78%, #000)",
   textDecorationThickness: 1,
 };
 

@@ -25,6 +25,7 @@
     "gates": "node scripts/verify-gates.mjs",
     "gate:visual": "node scripts/visual-gate.mjs",
     "gate:visual:full": "node scripts/visual-gate.mjs --full",
+    "gate:visual:aa": "node scripts/qa/visual-audit-gate.mjs",
     "load-test": "node scripts/load-test.mjs",
     "postinstall": "prisma generate"
   },
