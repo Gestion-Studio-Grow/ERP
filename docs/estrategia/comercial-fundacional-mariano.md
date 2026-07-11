@@ -10,6 +10,12 @@
 >
 > **Método de honestidad:** los **números** (TAM/SAM/SOM, pricing, unit economics) se marcan **[SUPUESTO]** hasta
 > que Mariano los valide con fuentes; los **puntos abiertos** que decide él, **[DECISIÓN DE MARIANO]**.
+>
+> **📎 Fuentes completas (bundle 2026-07-10):** este documento es la **síntesis anclada**; los originales
+> decision-grade viven en `docs/estrategia/comercial/`: **`documento-fundacional-comercial.md`** (v1 completo,
+> 408 líneas) y **`onboarding-director.md`** (guía en criollo para el socio nuevo). Inteligencia competitiva
+> (18 competidores) en `docs/sectores/agencia-digital/analisis-mercado/2026-07-10-*`. **No se duplica**: acá va
+> el mapa; el detalle vive en esas fuentes.
 
 ---
 
