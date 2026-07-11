@@ -1,4 +1,4 @@
-// Fábrica de tenants — MOTOR DE DRY-RUN (ADR-061).
+// Fábrica de tenants — MOTOR DE DRY-RUN (ADR-074).
 //
 // `planProvision(input, deps)` resuelve el blueprint, deriva los módulos de la edición,
 // lista los objetos a crear, detecta colisiones de slug/host y advertencias de brand sheet

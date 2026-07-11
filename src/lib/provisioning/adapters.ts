@@ -1,4 +1,4 @@
-// Fábrica de tenants — ADAPTADORES REALES (ADR-061).
+// Fábrica de tenants — ADAPTADORES REALES (ADR-074).
 //
 // El único archivo del módulo que se acopla a la app: resuelve blueprints reales (ADR-002),
 // consulta colisiones contra `operatorPrisma` (control-plane, ADR-021) y —el corazón del

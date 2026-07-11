@@ -1,4 +1,4 @@
-// Fábrica de tenants — normalización y validación de slug/host (ADR-061).
+// Fábrica de tenants — normalización y validación de slug/host (ADR-074).
 //
 // El slug es el identificador de direccionamiento del tenant y la clave de idempotencia
 // de DB (ADR-019 §5.2). Regla de ADR-019: NO se auto-corrige en silencio — si no matchea,

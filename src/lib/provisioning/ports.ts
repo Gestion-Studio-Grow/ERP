@@ -1,4 +1,4 @@
-// Fábrica de tenants — PUERTOS (ADR-061).
+// Fábrica de tenants — PUERTOS (ADR-074).
 //
 // Todo lo que toca el mundo exterior (DB, DNS, email) entra por una interfaz. En esta
 // iteración (spec + scaffold) todas se implementan con STUBS (`stubs.ts`): el motor no

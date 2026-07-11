@@ -1,4 +1,4 @@
-// Fábrica de tenants — CONTRATO DE TIPOS (ADR-061).
+// Fábrica de tenants — CONTRATO DE TIPOS (ADR-074).
 //
 // Superset del `ProvisionParams` de ADR-019 (`scripts/provision-tenant.ts`): agrega el eje
 // `edicion` Comercio/Empresa (RFC-003 P1), la hoja de marca, el `mode` dry-run/commit de
@@ -42,7 +42,7 @@ export interface AdminUser {
   password?: string;
 }
 
-/** Entrada única de la fábrica de tenants (ADR-061). */
+/** Entrada única de la fábrica de tenants (ADR-074). */
 export interface ProvisionTenantInput {
   slug: string;
   name: string;

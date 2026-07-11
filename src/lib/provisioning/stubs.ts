@@ -1,4 +1,4 @@
-// Fábrica de tenants — STUBS en memoria (ADR-061).
+// Fábrica de tenants — STUBS en memoria (ADR-074).
 //
 // Implementaciones sin efectos externos reales de los puertos: idempotencia in-memory,
 // checker de colisiones sobre sets, host/inviter no-op, y un committer "echo" para tests.

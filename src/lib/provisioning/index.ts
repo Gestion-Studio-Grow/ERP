@@ -1,4 +1,4 @@
-// Fábrica de tenants (ADR-061) — barrel público del módulo.
+// Fábrica de tenants (ADR-074) — barrel público del módulo.
 //
 // La saga que envuelve el core de ADR-019: contrato de entrada, máquina de estados, motor de
 // dry-run y orquestador con compensación. Todo lo externo entra por puertos (stubs en esta

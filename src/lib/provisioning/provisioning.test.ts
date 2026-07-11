@@ -1,5 +1,5 @@
 // ============================================================================
-// TESTS de la FÁBRICA DE TENANTS (ADR-061) — dry-run + saga (idempotencia/atomicidad).
+// TESTS de la FÁBRICA DE TENANTS (ADR-074) — dry-run + saga (idempotencia/atomicidad).
 // ============================================================================
 //
 // Cubre el motor de dry-run (resolución de blueprint, edición→módulos, colisiones, warnings)

@@ -1,4 +1,4 @@
-// Fábrica de tenants — MÁQUINA DE ESTADOS de la saga (ADR-061).
+// Fábrica de tenants — MÁQUINA DE ESTADOS de la saga (ADR-074).
 //
 //   PENDING ─commit(tx ADR-019)→ DB_COMMITTED ─bindHost→ HOST_BOUND ─invite→ INVITED ─activate→ ACTIVE
 //                                     │              │            │

@@ -1,10 +1,10 @@
 ---
-id: ADR-061
+id: ADR-074
 nivel: evolutiva
 dominio: [Plataforma, Multi-tenant]
 depends_on: [ADR-019, ADR-018, ADR-021, ADR-002, ADR-055]
 ---
-# ADR-061: Fábrica de tenants — `provisionTenant` como saga (commit transaccional + efectos externos compensables)
+# ADR-074: Fábrica de tenants — `provisionTenant` como saga (commit transaccional + efectos externos compensables)
 
 **Estado:** Aceptado — **spec + scaffold** (esta iteración NO ejecuta provisioning real, NO toca prod, NO
 llama Vercel/DNS/email). Todo efecto externo entra **stubbeado detrás de una interfaz**.
