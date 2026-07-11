@@ -23,7 +23,6 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { createHmac } from "node:crypto";
 import net from "node:net";
 import http from "node:http";
 import path from "node:path";

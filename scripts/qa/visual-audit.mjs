@@ -244,7 +244,6 @@ async function main() {
 
   const browser = await chromium.launch();
   const report = [];
-  let hardFails = 0;
 
   for (const t of tenants) {
     // Origin explícito (prod: URL plana `https://<slug>-erp.vercel.app`) o derivado
@@ -302,7 +301,6 @@ async function main() {
           const nO = entry.overflow ? 1 : 0;
           const structural = (httpFail ? 1 : 0) + (blankFail ? 1 : 0) + (entry.redirectedToLogin ? 1 : 0);
           const hard = nC + nT + nO + structural;
-          if (hard > 0) hardFails += hard;
           const mark = hard > 0 ? "✗" : "✓";
           process.stdout.write(
             `  ${mark} ${id.padEnd(38)} contraste:${nC}  touch:${nT}  overflow:${nO}` +
@@ -317,7 +315,6 @@ async function main() {
         } catch (e) {
           entry.error = String(e?.message ?? e);
           process.stdout.write(`  ✗ ${id}: ${entry.error}\n`);
-          hardFails++;
         } finally {
           await ctx.close();
         }
@@ -335,10 +332,11 @@ async function main() {
   const totHttp = report.filter((e) => e.httpError).length;
   const totBlank = report.filter((e) => e.blank).length;
   const totLogin = report.filter((e) => e.redirectedToLogin).length;
+  const totErr = report.filter((e) => e.error).length; // navegación/excepción = fallo duro
   process.stdout.write(`\n──────── Resumen auditoría visual ────────\n`);
-  process.stdout.write(`Contraste AA: ${totC} · Touch: ${totT} · Overflow: ${totO} · HTTP≥400: ${totHttp} · En blanco: ${totBlank} · Rebote a login: ${totLogin}\n`);
+  process.stdout.write(`Contraste AA: ${totC} · Touch: ${totT} · Overflow: ${totO} · HTTP≥400: ${totHttp} · En blanco: ${totBlank} · Rebote a login: ${totLogin} · Errores: ${totErr}\n`);
   process.stdout.write(`Report: ${path.join(OUT_DIR, "report.json")}\n`);
-  const total = totC + totT + totO + totHttp + totBlank + totLogin;
+  const total = totC + totT + totO + totHttp + totBlank + totLogin + totErr;
   if (total > 0) {
     process.stderr.write(`\n❌ ${total} defecto(s)/fallo(s) de calidad visual — NO publicar.\n`);
     process.exit(1);
