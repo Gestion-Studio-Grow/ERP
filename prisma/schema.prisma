@@ -189,6 +189,9 @@ model Tenant {
   accountsPayable    AccountPayable[] // D2 — cuentas a pagar (ADR-060 Fase D)
   payableCheques     PayableCheque[] // D2 — cheques diferidos
   accountsReceivable AccountReceivable[] // D3 — fiado / cuentas a cobrar (ADR-060 Fase E)
+  importacionesBancarias   ImportacionBancaria[] // módulo BANCOS — extractos importados
+  movimientosImportados    MovimientoImportado[] // módulo BANCOS — movimientos del extracto
+  reglasClasificacionBanco ReglaClasificacionBancoTenant[] // módulo BANCOS — aprendizaje del clasificador
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -221,6 +224,14 @@ model Tenant {
   arcaCuit         String? // CUIT del emisor (11 dígitos, sin guiones)
   arcaPuntoVenta   Int? // punto de venta habilitado en ARCA
   arcaHomologacion Boolean @default(true) // true = testing ARCA (seguro por default); false = producción
+
+  // --- Config del módulo BANCOS por tenant (mismo patrón que `arca*`: ADR-022 §5 opción B) ---
+  // SOLO metadata no sensible. Nulos = defaults del producto (umbral $600.000, cap 159 —
+  // ver src/plugins/bancos/domain/reglas.ts, reglas comerciales del dueño). Aditivo/nullable,
+  // sin backfill. Migración ESCRITA y SIN aplicar a Neon (Gate 2).
+  bancosUmbralIdentificacion Decimal? @db.Decimal(14, 2) // pesos desde los cuales se exige identificar al receptor
+  bancosCapFacturasMes       Int? // tope de facturas automáticas por mes
+  bancosDomicilioEmisor      String? // domicilio comercial del emisor (obligatorio en el comprobante)
 }
 
 // Estado de un tenant en la plataforma (control-plane, ADR-021). TRIAL = en
@@ -898,6 +909,134 @@ model OutboxEvent {
 
   @@index([tenantId])
   @@index([processedAt])
+}
+
+// --- Módulo BANCOS (plugin src/plugins/bancos + glue src/lib/bancos-*) ---
+// Persistencia de la importación de extractos bancarios: el comerciante sube su
+// CSV/XLSX, el plugin detecta columnas y clasifica, y esto guarda el lote + cada
+// movimiento con su propuesta de factura. Migración ESCRITA y SIN aplicar a Neon
+// (Gate 2). Las tres tablas tienen `tenantId` → las cubre la policy data-driven
+// de RLS (re-ejecutar prisma/rls/0001_enable_rls.sql en el mismo deploy).
+
+// De dónde salió el extracto (espeja `OrigenMovimiento` del plugin).
+enum OrigenImportacionBancaria {
+  banco
+  mercadopago // export de actividad de MP importado por el mismo pipeline
+}
+
+enum EstadoImportacionBancaria {
+  procesada // procesada automáticamente (el mapeo puede requerir confirmación)
+  confirmada // el usuario confirmó/corrigió el mapeo y se re-procesó
+  descartada // descartada por el usuario
+}
+
+// Clasificación de negocio del movimiento (proyección de las reglas del
+// clasificador del plugin a vocabulario de producto — ver mapearClasificacion
+// en src/lib/bancos-glue.ts).
+enum ClasificacionMovimientoBancario {
+  venta
+  comision
+  impuesto
+  transferencia_propia
+  reverso
+  prestamo
+  egreso
+  otro
+}
+
+// Estado de la propuesta de factura (espeja `EstadoPropuesta` del plugin y suma
+// `emitida`, que es un estado de PERSISTENCIA: ya se llamó a createInvoice).
+enum EstadoPropuestaMovimiento {
+  auto // lista para emitir sin intervención (consumidor final genérico)
+  revision // espera datos/decisión humana (identificación, duplicado, cap)
+  no_facturable // no es una venta (comisión/impuesto/transferencia/etc.)
+  descartado // duplicado de una corrida anterior (queda solo como rastro)
+  emitida // factura creada en el Core (ver invoiceId)
+}
+
+// Un extracto importado (el lote). Guarda el ARCHIVO crudo para poder
+// re-procesarlo cuando el usuario confirma/corrige el mapeo (confianza < 0.8)
+// sin pedirle que lo vuelva a subir — un extracto pesa KB, no compromete la DB.
+model ImportacionBancaria {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  nombreArchivo    String
+  origen           OrigenImportacionBancaria
+  archivo          Bytes // contenido crudo (CSV/XLSX) para re-proceso y auditoría
+  mapeoJson        Json // MapeoColumnas detectado/confirmado (incluye confianza)
+  estado           EstadoImportacionBancaria @default(procesada)
+  totalMovimientos Int                       @default(0)
+
+  movimientos MovimientoImportado[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+}
+
+// Un movimiento del extracto con su propuesta de factura. `hash` es el id
+// idempotente del plugin (sha-256 de fecha|monto|descripción): el unique
+// [tenantId, hash] hace que re-importar el mismo extracto (o dos extractos
+// solapados) NO duplique movimientos entre corridas (ADR-025 §3).
+model MovimientoImportado {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  importacion   ImportacionBancaria @relation(fields: [importacionId], references: [id], onDelete: Cascade)
+  importacionId String
+
+  hash        String // hash idempotente del plugin (hashMovimiento)
+  fecha       String // AAAAMMDD (mismo formato que Invoice.fecha, camino fiscal)
+  monto       Decimal @db.Decimal(14, 2) // con signo: + crédito / − débito (ADR-057)
+  descripcion String
+  contraparte String?
+  referencia  String?
+
+  clasificacion   ClasificacionMovimientoBancario
+  estadoPropuesta EstadoPropuestaMovimiento
+
+  // Datos de la propuesta (los completa la revisión cuando aplica el umbral).
+  requiereIdentificacion Boolean @default(false)
+  motivoRevision         String?
+  docTipo                Int? // catálogo ARCA: 80=CUIT, 86=CUIL, 96=DNI, 99=consumidor final
+  docNro                 String? // como texto (11 dígitos no entran en Int32, mismo criterio que Invoice.docNro)
+  nombreReceptor         String?
+  descripcionServicio    String?
+
+  // Rastro a la factura emitida (sin FK a propósito: rastro débil, como el
+  // resto del camino fiscal — borrar jamás una Invoice es regla aparte).
+  invoiceId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, hash])
+  @@index([tenantId, estadoPropuesta])
+  @@index([tenantId, importacionId])
+}
+
+// Aprendizaje del clasificador POR TENANT (persistencia real del
+// `AprendizajeBancoPort` del plugin, que su propio contrato define como
+// "real = tabla por tenant; stub = en memoria"). Una fila = una corrección
+// del comercio/contador: "este patrón se clasifica así". Empareja por
+// contraparte (prioritario) o por descripción normalizada exacta.
+model ReglaClasificacionBancoTenant {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  contraparte            String? // match prioritario (lo más confiable)
+  descripcionNormalizada String? // match por leyenda bancaria exacta (normalizada)
+  clasificacion          String // ClasificacionBanco del plugin: FACTURABLE | NO_FACTURABLE | REVISAR
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
 }
 
 // --- Capability POS / Orden (ADR-003 "Orden/Venta", Fase 2 POS) ---
