@@ -32,7 +32,21 @@ AUTOSAVE_REPO="C:\\Users\\mlloveras2\\Documents\\Claude\\estetica-erp" node scri
 node scripts/auto-save.mjs --no-push
 ```
 
-Salidas: `0` ok/nada-que-hacer · `2` abortado por estar en `main` · `3` push falló (commit local quedó hecho).
+Salidas: `0` ok/nada-que-hacer · `2` abortado por estar en `main` · `3` push a origin falló (commit local quedó hecho).
+
+**Cinturón extra — mirror opcional al backup (OFF por default):** con `AUTOSAVE_MIRROR=1`, además del push a
+`origin` el script **espeja `main` al remoto de backup** con `--force-with-lease` (seguro ante divergencia). Es
+**best-effort**: si no hay credenciales o el remoto no existe, avisa y **no bloquea** el guardado (no cambia el
+exit code). El destino es el remoto `backup` (configurar con `git remote add backup <url>`) o una URL directa vía
+`AUTOSAVE_MIRROR_URL`.
+
+```bash
+# activar el mirror en la corrida (requiere remoto 'backup' o AUTOSAVE_MIRROR_URL)
+AUTOSAVE_MIRROR=1 node scripts/auto-save.mjs
+AUTOSAVE_MIRROR=1 AUTOSAVE_MIRROR_URL="https://github.com/Gestion-Studio-Grow/backup.git" node scripts/auto-save.mjs
+```
+No se activa por default: el mirror principal es el workflow `.github/workflows/mirror-backup.yml` (§5); esto es
+solo un respaldo adicional para quien quiera espejar en cada guardado local.
 
 ## 3. Hook opcional — auto-push tras cada commit
 

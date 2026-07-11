@@ -9,13 +9,20 @@
 //   3. NUNCA auto-commitea sobre `main` (el merge a main pasa por Gate) salvo --allow-main.
 //   4. cwd-independiente: opera sobre el repo derivado de la ubicación del script,
 //      o el que indique la variable de entorno AUTOSAVE_REPO (para programarlo).
+//   5. MIRROR opcional (cinturón extra, OFF por default): con AUTOSAVE_MIRROR=1, además
+//      del push a origin espeja `main` a un 2º remoto de backup con --force-with-lease.
+//      NO bloquea el guardado si no hay credenciales/remoto (solo avisa).
 //
 // Uso:
 //   node scripts/auto-save.mjs                 # guarda el repo de este script
 //   AUTOSAVE_REPO=C:\ruta\repo node auto-save.mjs   # guarda otro repo/worktree
 //   node scripts/auto-save.mjs --no-push       # commitea local, no pushea
 //   node scripts/auto-save.mjs --allow-main    # permite guardar estando en main
-// Salidas: 0 ok/nada-que-hacer · 2 abortado en main · 3 push falló (commit local OK)
+//   AUTOSAVE_MIRROR=1 node auto-save.mjs       # además espeja main al remoto de backup
+//   AUTOSAVE_MIRROR=1 AUTOSAVE_MIRROR_URL=<url> node auto-save.mjs   # backup por URL directa
+// Env del mirror: AUTOSAVE_MIRROR (1=activar) · AUTOSAVE_MIRROR_URL (URL o remoto; default "backup").
+// Salidas: 0 ok/nada-que-hacer · 2 abortado en main · 3 push a origin falló (commit local OK)
+//   (el mirror NUNCA cambia el código de salida — es best-effort).
 // -----------------------------------------------------------------------------
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -55,12 +62,25 @@ try {
   process.exit(0);
 }
 
-// 5. push
+// 5. push a origin
 if (NO_PUSH) { console.log(`auto-save: commit hecho en ${branch}, push omitido (--no-push).`); process.exit(0); }
 try {
   run('push origin HEAD');
   console.log(`auto-save: guardado + pusheado a origin (${branch} @ ${stamp}).`);
 } catch {
-  console.error('auto-save: commit LOCAL OK pero el PUSH FALLÓ. Reintentá manualmente: git push origin HEAD');
+  console.error('auto-save: commit LOCAL OK pero el PUSH a origin FALLÓ. Reintentá manualmente: git push origin HEAD');
   process.exit(3);
 }
+
+// 6. MIRROR opcional (cinturón extra) — solo si AUTOSAVE_MIRROR=1. Best-effort: NO cambia el exit code.
+if (process.env.AUTOSAVE_MIRROR === '1') {
+  const dest = process.env.AUTOSAVE_MIRROR_URL || 'backup'; // remoto configurado (git remote add backup <url>) o URL directa
+  try {
+    // espeja SOLO main al backup, idempotente y seguro ante divergencia (aborta en vez de pisar)
+    run(`push --force-with-lease ${q(dest)} main`);
+    console.log(`auto-save: mirror de main → ${dest} OK (--force-with-lease).`);
+  } catch {
+    console.error(`auto-save: mirror a "${dest}" omitido/falló (sin credenciales o remoto no configurado) — NO bloquea el guardado.`);
+  }
+}
+process.exit(0);
