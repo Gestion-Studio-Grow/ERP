@@ -24,6 +24,7 @@
 | **061** | Plataforma / **motor invisible compartido** (config-sobre-código): qué se comparte vs. qué difiere 100% | [ADR-061](../adr/ADR-061-plataforma-motor-invisible-compartido.md) |
 | **069** | Norte de diseño **Apple×SAP** ("un SAP que diseñó Apple") + UX/UI como **pilar** (puntero §11) | [ADR-069](../adr/ADR-069-norte-diseno-apple-por-sap-ux-pilar.md) |
 | **072** | **Enfoque de diseño** operable: filosofía del front + **backoffice "Fable" congelado** (⌘K) + alcance a todas las plantillas + catálogo de assets | [ADR-072](../adr/ADR-072-enfoque-de-diseno.md) |
+| **073** | **Personalización por tenant = config, nunca fork** (3 niveles A/B/C) + monetización **Creative Grow** | [ADR-073](../adr/ADR-073-personalizacion-diseno-por-tenant.md) |
 
 ### 🏗️ Arquitectura y núcleo técnico
 | ADR | Decisión | Enlace |

@@ -89,6 +89,57 @@ El catálogo vivo de plantillas de referencia está en **`docs/estrategia/diseno
 - **Frontends:** Tema A "Editorial" (Almacén Nuevo) · Tema B "Nítido" (Bazar Central) · front **MAGRA** ("Esto
   no es una carnicería") · réplica **MAGRA** ("Boutique de carnes envasadas al vacío · Canning") → **referencia**.
 
+## Fundamento creativo — el challenge y las 3 direcciones (recuperado del bundle 2026-07-10)
+
+> Estos materiales **fundan** este ADR y viven completos en `docs/estrategia/diseno/fuentes/`
+> (`01-challenge-diseno-actual.md`, `02-direccion-creativa.md`, `04-magra-identidad.md`) + los mockups en
+> `docs/estrategia/diseno/assets/`.
+
+### 6 · El challenge honesto — *"todo se ve igual / hecho por IA"*
+El diagnóstico que motiva este ADR (fuente `01-challenge-diseno-actual.md`): el rediseño cambió la **piel**
+(color, copy, ícono por rubro) pero **no el esqueleto**, y el esqueleto es el que un modelo genera *por defecto*
+("hero H1 + 2 botones", Inter neutra, cards suaves, grilla segura) → **el promedio del buen gusto, correcto e
+invisible**. Prueba: **3 de 4 comercios (velas, pádel, magra) compartían la misma frase-hero y la misma pantalla**
+("dos plantillas, no cuatro identidades"). **Mandato:** matar el molde único; retirar el hero genérico; tipografía
+con tensión; layout con postura; darle **tesis al operativo** (no un formulario `− +`); **convertir la restricción
+multi-tenant en marca**. *El objetivo no es "verse menos como IA": es tener una opinión de diseño tan fuerte que
+ningún modelo la habría generado por promedio.*
+
+### 7 · Las 3 direcciones creativas (fuente `02-direccion-creativa.md`)
+- **Dirección 1 — "VIDRIERA + MOSTRADOR" (RECOMENDADA, materializada en los mockups):** el comercio tiene dos
+  caras y merecen **dos lenguajes hermanos**. **Vidriera** (front público) = editorial retail maximalista
+  (fotografía full-bleed, grilla asimétrica, escala tipográfica dramática, pareja con tensión, "scroll editorial
+  con riel de pedido permanente" — *el producto es el héroe, no el titular*). **Mostrador** (backoffice/POS) =
+  **brutalismo operativo cálido**: números tabulares monoespaciados, metáfora de ticket/comanda, tablero kanban
+  `Nuevo→En preparación→Listo→Cobrado`, teclado sin recargar — *la velocidad es el lujo*. **Es "Fable" (§3)
+  llevado a tesis.**
+- **Dirección 2 — "TERMINAL CÁLIDA" (la más SAP, horizonte del operativo):** el corazón es el instrumento de
+  operación (Bloomberg/Linear/Superhuman cálido), **paleta de comandos ⌘K** ("cobrar", "nueva venta", "cierre de
+  caja" a un atajo), un lienzo vivo sin recargas. **Es de acá que sale la tesis del ⌘K como centro de la UX (§3).**
+- **Dirección 3 — "ADN DE MARCA" (el motor anti-plantilla, capa transversal):** del input mínimo del comerciante
+  (logo + 1 foto + 1 color + rubro) el sistema **deriva determinísticamente** pareja tipográfica, motivo, ritmo de
+  grilla y firma de movimiento → **dos comercios no pueden verse iguales ni queriendo**. Es la respuesta estructural
+  al challenge y el motor que hace escalar la Dirección 1 sin caer en molde. **Se cruza con ADR-073** (personalización
+  = config, nunca fork) y con RFC-004 (detección de marca por IA).
+
+> **Recomendación ejecutiva (fuente):** Dirección 1 como lenguaje central, sobre el motor de Dirección 3, con
+> Dirección 2 como profundización del operativo. *Una es la cara, otra el motor, otra el fierro.*
+
+### 8 · Paleta MAGRA verificada (fuente `04-magra-identidad.md`, extraída del sitio en vivo)
+Primer tenant de referencia con identidad **real y opinada** (no el rojo carnicería obvio → **carbón + hueso + oro**,
+código boutique/delicatessen):
+
+| Rol | HEX | Uso |
+|---|---|---|
+| Carbón (base) | `#1D1D1B` | superficies oscuras, texto |
+| Crema hueso | `#F2E6D7` | claro / texto sobre oscuro |
+| **Oro cálido (ACENTO)** | `#C5AE86` | botones, títulos H1 — **el color de marca** |
+| Acero claro | `#CCD6DF` | texto secundario s/oscuro |
+
+Tipografía: **Bebas Neue** (display condensado, H1 ~52px, mayúsculas) **+ Open Sans** (texto) — pareja con tensión
+real. Voz: asertiva con guiño (*"Esto no es una carnicería!"*), premium accesible. Materializado en
+`assets/mockup-magra-vidriera.html` (Vidriera) y `assets/mockup-magra-mostrador.html` (Mostrador).
+
 ## Consecuencias
 
 - **(+)** El diseño deja de re-litigarse: hay un **norte único** y un **backoffice congelado** que el Gate puede

@@ -24,8 +24,8 @@ ruta (a confirmar que es EL aprobado) · 🔴 falta (pendiente de aportar).
 | 2 | **Backoffice Fable — oscuro** | Backoffice | ✅ **APROBADO · CONGELADO** | 🔴 **falta** | → `docs/estrategia/diseno/assets/fable-backoffice-oscuro.html` |
 | 3 | **Tema A "Editorial" (Almacén Nuevo)** | Frontend/tienda | Referencia | 🔴 **falta** | → `docs/estrategia/diseno/assets/frontend-tema-a-editorial.html` |
 | 4 | **Tema B "Nítido" (Bazar Central)** | Frontend/tienda | Referencia | 🔴 **falta** | → `docs/estrategia/diseno/assets/frontend-tema-b-nitido.html` |
-| 5 | **Front MAGRA — "Esto no es una carnicería"** | Frontend/tienda | Referencia | ⚠️ **candidato** | `docs/artefactos/magra-preview.html` · `ch-estetica-mockups/magra-front-claro.html` |
-| 6 | **Réplica MAGRA — "Boutique de carnes envasadas al vacío · Canning"** | Frontend/tienda | Referencia | ⚠️ **candidato** | `ch-estetica-mockups/magra-back-oscuro.html` (a confirmar) |
+| 5 | **Front MAGRA — Vidriera ("Esto no es una carnicería")** | Frontend/tienda | Referencia | ✅ **en repo** (bundle 07-10) | **`assets/mockup-magra-vidriera.html`** (paleta real verificada) · candidatos previos: `docs/artefactos/magra-preview.html` |
+| 6 | **MAGRA — Mostrador (backoffice/POS operativo)** | Backoffice | Referencia | ✅ **en repo** (bundle 07-10) | **`assets/mockup-magra-mostrador.html`** (Dirección 1 "Mostrador") |
 
 ---
 
@@ -55,6 +55,15 @@ Estos HTML **no están en el repo** y el dueño ofreció conseguirlos. Al recibi
 **Acción:** el dueño confirma si estos candidatos son los aprobados (y si hay que **moverlos/renombrarlos** a
 `docs/estrategia/diseno/assets/`) o si aporta los HTML definitivos. Hasta esa confirmación quedan como
 **candidatos**, no como assets aprobados.
+
+## 📚 Fuentes de diseño (fundamento de ADR-072 / ADR-073)
+
+Recuperadas del bundle `_recuperacion_inbox_20260710` (2026-07-10), en `fuentes/`:
+- **`01-challenge-diseno-actual.md`** — el challenge honesto ("todo se ve igual / hecho por IA"); la evidencia del molde único.
+- **`02-direccion-creativa.md`** — las 3 direcciones: **VIDRIERA + MOSTRADOR** (recomendada) · TERMINAL CÁLIDA (⌘K) · ADN DE MARCA (anti-plantilla).
+- **`04-magra-identidad.md`** — paleta y tipografía **verificadas** del sitio real de MAGRA (carbón `#1D1D1B` + hueso `#F2E6D7` + oro `#C5AE86`; Bebas Neue + Open Sans).
+- **`GSG_Decision_Personalizacion_Diseno.md`** — la decisión de frontera **config-vs-fork** + monetización **"Creative Grow"** → formalizada en **[ADR-073](../../adr/ADR-073-personalizacion-diseno-por-tenant.md)**.
+- **`00-README-INDICE.md`** — índice original del paquete de diseño.
 
 ## Mockups históricos relacionados (no son los 6 aprobados)
 
