@@ -181,7 +181,7 @@ test("validarDatosRevision: CUIT con dígito verificador incorrecto → error", 
     descripcionServicio: "Y",
   });
   assert.equal(v.ok, false);
-  assert.match((v as { error: string }).error, /verificador/i);
+  assert.match((v as { error: string }).error, /revisá los 11 números/i);
 });
 
 test("validarDatosRevision: identificación sin nombre o sin descripción → error", () => {

@@ -128,7 +128,7 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
           placeholder={
             noteNeeded
               ? "Explicá el motivo del ajuste"
-              : "ej: recuento mensual, cierre de caja"
+              : "Ej.: recuento mensual, cierre de caja"
           }
         />
       </label>

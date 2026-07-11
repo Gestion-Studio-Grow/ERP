@@ -48,7 +48,7 @@ export default async function RecordatoriosPage() {
       <section>
         <h2 className="text-lg font-medium mb-1">Novedades por profesional</h2>
         <p className="text-sm text-muted mb-3">
-          Al cargarla queda publicada en la sección «Novedades» de la web (30 días). «Difundir»
+          Al cargarla queda publicada en la sección “Novedades” de la web (30 días). “Difundir”
           además la envía por WhatsApp a la base de clientes (hoy simulado).
         </p>
         <form action={createProfessionalNews} className="rounded-lg border border-line p-4 flex flex-wrap gap-2 mb-4">
@@ -64,7 +64,7 @@ export default async function RecordatoriosPage() {
             name="message"
             required
             aria-label="Novedad a publicar"
-            placeholder="Ej: Carolina suma horario los sábados por la tarde"
+            placeholder="Ej.: Carolina suma horario los sábados por la tarde"
             className="flex-1 min-w-[220px] rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
           />
           <SubmitButton pendingText="Cargando…" className={buttonClasses("solid", "sm")}>

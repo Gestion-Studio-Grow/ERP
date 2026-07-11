@@ -1,11 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DataTable, type DataTableColumn, type DataTableSort } from "@/components/ui";
+import { DataTable, fmtMoneyARS, type DataTableColumn, type DataTableSort } from "@/components/ui";
 import type { VentaRow, CompraRow } from "@/lib/libros/libro-iva";
 
-const money = (n: number) =>
-  "$" + n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (f: number) => (f * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "%";
 
 // Origen de la fila: comprobante fiscal (exacto) vs estimado 21% (derivado del bruto).
@@ -46,10 +44,10 @@ export default function LibrosClient({ ventas, compras }: { ventas: VentaRow[]; 
     { key: "numero", header: "Número", cell: (r) => r.numero },
     { key: "cliente", header: "Cliente", cell: (r) => r.cliente },
     { key: "doc", header: "Documento", cell: (r) => r.doc },
-    { key: "neto", header: "Neto", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{money(r.neto)}</span> },
+    { key: "neto", header: "Neto", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{fmtMoneyARS(r.neto)}</span> },
     { key: "alicuota", header: "Alíc.", align: "right", cell: (r) => <span className="tabular-nums">{pct(r.alicuota)}</span> },
-    { key: "iva", header: "IVA", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{money(r.iva)}</span> },
-    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => <span className="tabular-nums font-medium">{money(r.total)}</span> },
+    { key: "iva", header: "IVA", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{fmtMoneyARS(r.iva)}</span> },
+    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => <span className="tabular-nums font-medium">{fmtMoneyARS(r.total)}</span> },
     { key: "fuente", header: "Origen", cell: (r) => <OrigenBadge fuente={r.fuente} /> },
   ];
 
@@ -58,10 +56,10 @@ export default function LibrosClient({ ventas, compras }: { ventas: VentaRow[]; 
     { key: "proveedor", header: "Proveedor", cell: (r) => r.proveedor },
     { key: "doc", header: "Documento", cell: (r) => r.doc },
     { key: "numero", header: "Número", cell: (r) => r.numero },
-    { key: "neto", header: "Neto", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{money(r.neto)}</span> },
+    { key: "neto", header: "Neto", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{fmtMoneyARS(r.neto)}</span> },
     { key: "alicuota", header: "Alíc.", align: "right", cell: (r) => <span className="tabular-nums">{pct(r.alicuota)}</span> },
-    { key: "iva", header: "IVA", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{money(r.iva)}</span> },
-    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => <span className="tabular-nums font-medium">{money(r.total)}</span> },
+    { key: "iva", header: "IVA", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{fmtMoneyARS(r.iva)}</span> },
+    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => <span className="tabular-nums font-medium">{fmtMoneyARS(r.total)}</span> },
     { key: "fuente", header: "Origen", cell: (r) => <OrigenBadge fuente={r.fuente} /> },
   ];
 

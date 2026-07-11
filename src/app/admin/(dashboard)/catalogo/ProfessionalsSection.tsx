@@ -163,7 +163,7 @@ function NovedadesEditor({ professional: p }: { professional: Professional }) {
         <input
           name="reason"
           required
-          placeholder="Motivo (vacaciones, franco...)"
+          placeholder="Motivo (vacaciones, franco…)"
           className="col-span-2 sm:col-span-1 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
         />
         <button
@@ -440,7 +440,7 @@ function ProfessionalRow({
             if (!confirm(`¿Eliminar a "${p.name}"? Esta acción no se puede deshacer.`)) return;
             try {
               await deleteProfessional(fd);
-              showSuccess(`"${p.name}" eliminado.`);
+              showSuccess(`“${p.name}” eliminado.`);
             } catch (err) {
               showError(err instanceof Error ? err.message : "No se pudo eliminar.");
             }
@@ -547,7 +547,7 @@ export default function ProfessionalsSection({
           )}
         </div>
         <p className="text-xs text-faint">
-          El horario semanal se configura después de crear el profesional, con el botón "Horario".
+          El horario semanal se configura después de crear el profesional, con el botón “Horario”.
         </p>
         <button
           type="submit"

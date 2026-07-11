@@ -20,8 +20,11 @@ export const metadata: Metadata = {
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   await requireOperator();
 
+  // Skin Fable en OSCURO fijo (grafito): la consola es nuestra, sin tenant → el
+  // acento cae al azul del mockup (fallback del skin). Sin toggle acá a propósito:
+  // control-plane, siempre "sala de control".
   return (
-    <div className="min-h-screen bg-surface text-strong" data-theme="dark">
+    <div className="min-h-screen bg-surface text-strong" data-skin="fable" data-theme="dark">
       <header className="border-b border-line bg-elevated">
         <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-6">

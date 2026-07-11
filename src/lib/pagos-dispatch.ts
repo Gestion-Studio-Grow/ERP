@@ -54,17 +54,19 @@ const registroPorDefecto = construirRegistroCobros();
 /**
  * Config de cobros por defecto de un tenant.
  *
- * PROVISIONAL (a confirmar con PMO): hoy todo tenant cobra por Mercado Pago y sin
- * credenciales en config ⇒ la fábrica devuelve el STUB. Es seguro: en prod el
- * webhook está detrás del flag de facturación (OFF) y no hay pagos sembrados.
- *
- * La versión real leerá del tenant (columna `Tenant.proveedorCobros` + store de
- * config de plugin con las credenciales cifradas at-rest). Ese cambio de schema
- * es del PMO — acá queda el asiento (`ConfigCobrosPort`) para enchufarlo sin
- * tocar la ingesta ni el handler.
+ * Credenciales por ENV (ADR-041: el token lo pega SIEMPRE el dueño en Vercel,
+ * nunca el agente ni el repo): con `MP_ACCESS_TOKEN` presente, la fábrica arma
+ * el adapter HTTP REAL de Mercado Pago; sin él, el stub (dev/test, inerte).
+ * Hoy el token es único (una integración activa); el paso a token-por-tenant
+ * (OAuth, store cifrado at-rest) queda asentado en `ConfigCobrosPort` y no
+ * cambia la ingesta ni el handler.
  */
 export const configCobrosPorDefecto: ConfigCobrosPort = {
   configDe(_tenantId: string): ConfigCobros {
+    const accessToken = process.env.MP_ACCESS_TOKEN;
+    if (accessToken) {
+      return { proveedor: CLAVE_MERCADOPAGO, config: { credenciales: { accessToken } } };
+    }
     return { proveedor: CLAVE_MERCADOPAGO };
   },
 };

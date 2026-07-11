@@ -9,6 +9,7 @@ const control =
   "text-sm text-strong placeholder:text-faint " +
   "transition-colors focus:border-accent focus-visible:outline-2 " +
   "focus-visible:outline-offset-2 focus-visible:outline-focus " +
+  "aria-invalid:border-danger " +
   "disabled:opacity-60 disabled:bg-surface-sunken";
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {

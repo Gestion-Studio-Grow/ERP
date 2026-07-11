@@ -4,7 +4,7 @@ import { confirmPayment, cancelAppointment, completeAppointment, markNoShow } fr
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import { fmtDateTime } from "@/lib/datetime";
-import { buttonClasses } from "@/components/ui";
+import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 
 type Appointment = {
   id: string;
@@ -78,12 +78,12 @@ export default function AppointmentRow({
               label={statusLabel[appointment.status] ?? appointment.status}
             />
             <span className="text-sm font-medium text-strong">
-              ${(appointment.priceAtBooking ?? appointment.service.price).toLocaleString("es-AR")}
+              {fmtMoneyARS(appointment.priceAtBooking ?? appointment.service.price, 0)}
             </span>
           </div>
           {appointment.notes && (
             <p className="text-sm text-body mt-2 rounded-md bg-warning-soft px-2 py-1">
-              📝 {appointment.notes}
+              {appointment.notes}
             </p>
           )}
         </div>
@@ -97,7 +97,7 @@ export default function AppointmentRow({
                 className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
                 required
               >
-                <option value="MERCADOPAGO">MercadoPago</option>
+                <option value="MERCADOPAGO">Mercado Pago</option>
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="TRANSFERENCIA">Transferencia</option>
               </select>

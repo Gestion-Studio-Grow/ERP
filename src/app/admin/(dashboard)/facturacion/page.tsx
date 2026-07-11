@@ -8,7 +8,7 @@ import Link from "next/link";
 import { getFacturacion } from "@/lib/facturacion-actions";
 import { estadoCobros } from "@/lib/cobros-actions";
 import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
-import { buttonClasses } from "@/components/ui";
+import { PageContainer, PageHeader, buttonClasses } from "@/components/ui";
 import FacturasSection from "./FacturasSection";
 import CobrosSection from "./CobrosSection";
 
@@ -26,11 +26,11 @@ export default async function FacturacionPage() {
   const bancosActivo = moduleGateAllows("bancos", activos);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="mb-1 text-2xl font-semibold">Facturación y cobros</h1>
-      <p className="mb-8 text-muted">
-        Emití facturas electrónicas ante ARCA y generá links de cobro por Mercado Pago.
-      </p>
+    <PageContainer>
+      <PageHeader
+        title="Facturación y cobros"
+        description="Emití facturas electrónicas ante ARCA y generá links de cobro por Mercado Pago."
+      />
 
       <div className="space-y-10">
         {/* Facturación automática desde el extracto del banco (módulo BANCOS) —
@@ -56,6 +56,6 @@ export default async function FacturacionPage() {
         <CobrosSection modo={modo} />
         <FacturasSection facturas={facturas} estado={estado} />
       </div>
-    </main>
+    </PageContainer>
   );
 }

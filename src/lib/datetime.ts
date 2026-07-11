@@ -75,6 +75,28 @@ export function fmtDateTime(instant: Date | string): string {
   }).format(new Date(instant));
 }
 
+// dd/mm/aaaa hh:mm en horario argentino — EL formatter de fecha+hora corta del
+// producto (gate UX/UI, fix 1). TZ explícita SIEMPRE: en Netlify/Vercel el
+// server corre en UTC y `new Date().getDate()` da la fecha corrida de día.
+// Reemplaza a las copias locales que había en bancos/helpers.ts y CarteraPanel.
+export function fmtDateTimeAr(instant: Date | string): string {
+  const d = new Date(instant);
+  if (Number.isNaN(d.getTime())) return String(instant);
+  const parts = new Intl.DateTimeFormat("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    hour12: false,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(d);
+  const map: Record<string, string> = {};
+  for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
+  const hour = map.hour === "24" ? "00" : map.hour; // "24" = medianoche en algunos ICU
+  return `${map.day}/${map.month}/${map.year} ${hour}:${map.minute}`;
+}
+
 export function fmtTime(instant: Date | string): string {
   return new Intl.DateTimeFormat("es-AR", {
     timeZone: BUSINESS_TIMEZONE,

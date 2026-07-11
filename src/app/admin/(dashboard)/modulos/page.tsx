@@ -86,21 +86,33 @@ export default async function ModulosPage({
               <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-faint">
                 <span>{f.kind === "plugin" ? "Integración" : "Nativo"}</span>
                 {f.dependeDe.length > 0 && <span>Necesita: {f.dependeDe.join(", ")}</span>}
-                {bloqueado && <span>Lo usa: {f.requeridoPor.join(", ")}</span>}
+                {bloqueado && <span>Lo está usando: {f.requeridoPor.join(", ")}</span>}
               </div>
 
               <div className="mt-4 flex items-center gap-2">
                 {f.activo ? (
-                  <form action={toggleModulo}>
-                    <input type="hidden" name="id" value={f.id} />
-                    <input type="hidden" name="accion" value="desactivar" />
-                    <SubmitButton
-                      pendingText="Apagando…"
+                  bloqueado ? (
+                    // Bloqueado: botón deshabilitado de verdad (no un label entre
+                    // paréntesis); el motivo vive en el hint "Lo está usando: …".
+                    <button
+                      type="button"
+                      disabled
                       className={buttonClasses("outline", "sm")}
                     >
-                      {bloqueado ? "Apagar (bloqueado)" : "Apagar"}
-                    </SubmitButton>
-                  </form>
+                      Apagar
+                    </button>
+                  ) : (
+                    <form action={toggleModulo}>
+                      <input type="hidden" name="id" value={f.id} />
+                      <input type="hidden" name="accion" value="desactivar" />
+                      <SubmitButton
+                        pendingText="Apagando…"
+                        className={buttonClasses("outline", "sm")}
+                      >
+                        Apagar
+                      </SubmitButton>
+                    </form>
+                  )
                 ) : (
                   <form action={toggleModulo}>
                     <input type="hidden" name="id" value={f.id} />

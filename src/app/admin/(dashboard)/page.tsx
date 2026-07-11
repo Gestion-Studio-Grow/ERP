@@ -6,7 +6,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { getActiveModuleIds } from "@/lib/module-gating";
 import { dashboardModeForModules } from "@/lib/dashboard-mode";
-import { buttonClasses, KpiTile } from "@/components/ui";
+import { buttonClasses, KpiTile, fmtMoneyARS } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +20,6 @@ const KPI_ICONS: Record<string, React.ReactNode> = {
   caja: (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M8 15h3" /></>),
   alerta: (<><path d="M12 3l9 16H3z" /><path d="M12 10v4M12 17h.01" /></>),
 };
-
-const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 function KpiIcon({ name }: { name: keyof typeof KPI_ICONS }) {
   return (
@@ -42,7 +40,7 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   PENDING: { label: "Pendiente", cls: "bg-warning-soft text-warning" },
   CONFIRMED: { label: "Confirmado", cls: "bg-success-soft text-success" },
   COMPLETED: { label: "Completado", cls: "bg-info-soft text-info" },
-  NO_SHOW: { label: "No vino", cls: "bg-danger-soft text-danger" },
+  NO_SHOW: { label: "No se presentó", cls: "bg-danger-soft text-danger" },
 };
 
 function StatusBadge({ status }: { status?: string }) {
@@ -60,7 +58,7 @@ async function RetailHome({ canSeeRevenue }: { canSeeRevenue: boolean }) {
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Inicio</h1>
           <p className="text-muted text-sm">Resumen del mostrador.</p>
         </div>
         <Link href="/admin/pedidos" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
@@ -70,15 +68,15 @@ async function RetailHome({ canSeeRevenue }: { canSeeRevenue: boolean }) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Ventas hoy" value={String(d.todaySalesCount)} href="/admin/pedidos" icon="caja"
-          sub={d.cashOpen ? "caja abierta" : "caja cerrada"} />
+          sub={d.cashOpen ? "Caja abierta." : "Caja cerrada."} />
         {canSeeRevenue && (
-          <Kpi label="Ingresos hoy" value={money.format(d.todayRevenue)} href="/admin/reportes" icon="barras" />
+          <Kpi label="Ingresos hoy" value={fmtMoneyARS(d.todayRevenue, 0)} href="/admin/reportes" icon="barras" />
         )}
         {canSeeRevenue && (
-          <Kpi label="Ingresos 7 días" value={money.format(d.weekRevenue)} href="/admin/reportes" icon="barras" />
+          <Kpi label="Ingresos 7 días" value={fmtMoneyARS(d.weekRevenue, 0)} href="/admin/reportes" icon="barras" />
         )}
         <Kpi label="Stock bajo" value={String(d.lowStockCount)} href="/admin/inventario" icon="alerta"
-          sub={d.lowStockCount > 0 ? "reponer" : "todo ok"} />
+          sub={d.lowStockCount > 0 ? "Hay que reponer." : "Todo en orden."} />
         <Kpi label="Clientes" value={String(d.clientsCount)} href="/admin/clientes" icon="cliente" />
       </div>
 
@@ -88,7 +86,7 @@ async function RetailHome({ canSeeRevenue }: { canSeeRevenue: boolean }) {
           <Link href="/admin/compras" className="text-[13px] font-medium text-accent hover:underline">Ir a compras →</Link>
         </div>
         {d.lowStock.length === 0 && (
-          <p className="text-sm text-muted px-5 py-6">No hay productos por debajo del umbral. 👍</p>
+          <p className="text-sm text-muted px-5 py-6">No hay productos por debajo del umbral.</p>
         )}
         {d.lowStock.slice(0, 8).map((p, i) => (
           <Link key={p.id} href="/admin/inventario"
@@ -138,7 +136,7 @@ export default async function DashboardPage() {
     <main className="mx-auto max-w-5xl px-6 py-8">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Inicio</h1>
           <p className="text-muted text-sm">
             {analytical ? "Vista analítica del negocio." : "Resumen del día."}
           </p>
@@ -158,7 +156,7 @@ export default async function DashboardPage() {
         // Panel analítico Empresa: lidera lo financiero + un indicador derivado
         // (% de confirmación de hoy), sobre los mismos datos del día.
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Kpi label="Ingresos 7 días" value={`$${data.weekRevenue.toLocaleString("es-AR")}`} href="/admin/reportes" icon="barras" sub="ver rentabilidad" />
+          <Kpi label="Ingresos 7 días" value={fmtMoneyARS(data.weekRevenue, 0)} href="/admin/reportes" icon="barras" sub="ver rentabilidad" />
           <Kpi label="Confirmación hoy" value={confirmedPct} href="/admin/turnos" icon="reloj"
             sub={data.todayAppointments.length > 0 ? `${confirmedToday} de ${data.todayAppointments.length} turnos` : undefined} />
           <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" icon="agenda" />
@@ -173,7 +171,7 @@ export default async function DashboardPage() {
           {canSeeRevenue && (
             <Kpi
               label="Ingresos 7 días"
-              value={`$${data.weekRevenue.toLocaleString("es-AR")}`}
+              value={fmtMoneyARS(data.weekRevenue, 0)}
               href="/admin/reportes"
               icon="barras"
             />
@@ -186,7 +184,7 @@ export default async function DashboardPage() {
         <div className="mb-6 flex items-center gap-2.5 rounded-lg bg-warning-soft border border-warning/25 px-4 py-2.5 text-sm text-warning">
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 9v4M12 16h.01" /></svg>
           <span>
-            <span className="font-semibold">Hoy no está: </span>
+            <span className="font-semibold">Ausencias de hoy: </span>
             {data.blocksToday.map((b, i) => (
               <span key={i}>
                 {b.professional.name} ({b.reason})

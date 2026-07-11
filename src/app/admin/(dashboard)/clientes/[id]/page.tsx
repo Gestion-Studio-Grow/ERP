@@ -1,4 +1,5 @@
 import { getClient } from "@/lib/actions";
+import { fmtMoneyARS } from "@/components/ui";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
@@ -40,7 +41,7 @@ export default async function ClienteDetailPage({
               client.isResident ? "bg-accent-soft text-accent" : "bg-surface-sunken text-muted"
             }`}
           >
-            {client.isResident ? "Vecino/a de La Alameda" : "No es vecino/a de La Alameda"}
+            {client.isResident ? "Cliente de la zona (precio local)" : "Sin precio local"}
           </span>
         )}
       </p>
@@ -52,7 +53,7 @@ export default async function ClienteDetailPage({
         </div>
         <div className="rounded-lg border border-line bg-surface-raised shadow-xs p-4">
           <p className="text-sm text-muted">Total gastado</p>
-          <p className="text-2xl font-semibold text-strong">${totalGastado.toLocaleString("es-AR")}</p>
+          <p className="text-2xl font-semibold text-strong">{fmtMoneyARS(totalGastado, 0)}</p>
         </div>
       </div>
 

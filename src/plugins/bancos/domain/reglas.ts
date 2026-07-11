@@ -16,6 +16,7 @@
  * (src/lib/fiscal.ts) — acá NO se calcula IVA (ADR-006).
  */
 
+import { fmtMoneyARS } from "@/components/ui/format"; // formato canonico de moneda (puro, sin React)
 import type { MovimientoBancario, PropuestaFactura } from "../core-contract";
 import type { ResultadoClasificacionBanco } from "./clasificador";
 
@@ -190,7 +191,7 @@ export async function generarPropuestas(
         montoTotal,
         requiereIdentificacion: true,
         estado: "revision",
-        motivo: `Monto igual o mayor al umbral de identificación ($${config.umbralIdentificacion.toLocaleString("es-AR")}): requiere CUIL/CUIT, nombre y descripción del servicio.`,
+        motivo: `Monto igual o mayor al umbral de identificación (${fmtMoneyARS(config.umbralIdentificacion, 0)}): requiere CUIL/CUIT, nombre y descripción del servicio.`,
       });
       continue;
     }
@@ -206,7 +207,7 @@ export async function generarPropuestas(
         docTipo: DOC_TIPO_CONSUMIDOR_FINAL,
         docNro: DOC_NRO_CONSUMIDOR_FINAL,
         estado: "revision",
-        motivo: `Cap de ${config.capFacturasMes} facturas automáticas del mes alcanzado: emisión solo manual con confirmación.`,
+        motivo: `Se alcanzó el tope de ${config.capFacturasMes} facturas automáticas del mes: esta venta se emite solo a mano, con tu confirmación.`,
       });
       continue;
     }
@@ -233,7 +234,7 @@ export async function generarPropuestas(
   } else if (proyectadas >= config.capFacturasMes * 0.9) {
     alertas.push({
       tipo: "cap-90",
-      mensaje: `Atención: van ${proyectadas} de ${config.capFacturasMes} facturas automáticas del mes (más del 90% del cap).`,
+      mensaje: `Atención: van ${proyectadas} de ${config.capFacturasMes} facturas automáticas del mes (más del 90% del tope del mes).`,
     });
   }
 

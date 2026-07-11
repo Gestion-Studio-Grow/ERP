@@ -11,13 +11,9 @@ export function fechaAr(aaaammdd: string): string {
   return `${aaaammdd.slice(6, 8)}/${aaaammdd.slice(4, 6)}/${aaaammdd.slice(0, 4)}`;
 }
 
-/** ISO → DD/MM/AAAA HH:mm (para createdAt de importaciones). */
-export function fechaHoraAr(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
+// Fecha+hora corta (createdAt de importaciones): usar fmtDateTimeAr de
+// `@/lib/datetime` — la copia local que vivía acá usaba la TZ del server
+// (getDate/getHours) y mostraba la fecha corrida de día (fix 1 del gate).
 
 /** Catálogo ARCA de tipos de documento que acepta la revisión (glue: validarDatosRevision). */
 export const DOC_TIPOS = [

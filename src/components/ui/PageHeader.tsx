@@ -31,7 +31,8 @@ export function PageHeader({ title, description, badge, actions, className }: Pa
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-sm">
-          <h1 className="text-2xl font-semibold tracking-tight text-strong">{title}</h1>
+          {/* Spec del mockup (fix 6): 27px / 700 / letter-spacing -.02em. */}
+          <h1 className="text-[27px] font-bold leading-tight tracking-[-0.02em] text-strong">{title}</h1>
           {badge}
         </div>
         {description && (

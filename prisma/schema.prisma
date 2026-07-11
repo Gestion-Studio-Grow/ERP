@@ -192,6 +192,8 @@ model Tenant {
   importacionesBancarias   ImportacionBancaria[] // módulo BANCOS — extractos importados
   movimientosImportados    MovimientoImportado[] // módulo BANCOS — movimientos del extracto
   reglasClasificacionBanco ReglaClasificacionBancoTenant[] // módulo BANCOS — aprendizaje del clasificador
+  carteraClientes          CarteraCliente[]                @relation("CarteraDelEstudio") // módulo CARTERA — clientes que administra este estudio
+  carteraComoCliente       CarteraCliente[]                @relation("CarteraComoCliente") // módulo CARTERA — carteras donde este tenant es el cliente
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -1516,4 +1518,57 @@ model AccountReceivable {
   @@index([tenantId, status])
   @@index([tenantId, clientId])
   @@index([tenantId, dueDate])
+}
+
+// ============================================================================
+// Módulo CARTERA (producto Contador, ADR-025 §12 + ADR-045) — ASIGNACIÓN explícita
+// estudio contable → cliente administrado (patrón VARIANTE, ADR-055).
+// ============================================================================
+//
+// Cada cliente del contador ES un Tenant del ERP (aislamiento RLS gratis, módulos
+// asignables, upgrade natural al producto completo sin migrar datos). El estudio
+// contable TAMBIÉN es un Tenant. Esta tabla es la relación explícita con su ABM
+// propio (nunca "todos con todo").
+//
+// RLS — decisión deliberada: la columna del ESTUDIO se llama `tenantId` (el estudio
+// es el DUEÑO de la fila: su cartera es SU dato). Así la policy data-driven de
+// `prisma/rls/0001_enable_rls.sql` (que cubre toda tabla de `public` con columna
+// `tenantId`) la protege SOLA, sin caso especial: con el GUC del estudio se ven solo
+// sus filas; el cliente (GUC = clienteTenantId) NO ve la cartera de nadie. El código
+// además filtra SIEMPRE por `tenantId` explícito (defensa en profundidad, ADR-018).
+// `clienteTenantId` es la referencia asignada; NO da acceso por sí sola — los datos
+// del cliente se leen únicamente vía tenantTransaction(clienteTenantId) tras
+// verificar la pertenencia a la cartera (src/lib/cartera-core.ts).
+
+// Estado de la asignación estudio→cliente. `baja` conserva la fila (historial +
+// idempotencia del alta); solo `activa` permite operar sobre el cliente.
+enum EstadoCarteraCliente {
+  activa
+  pausada
+  baja
+}
+
+model CarteraCliente {
+  id String @id @default(cuid())
+
+  // El ESTUDIO contable dueño de la fila (por eso `tenantId`: la policy RLS
+  // data-driven cubre esta tabla igual que a cualquier otra tabla de tenant).
+  tenant   Tenant @relation("CarteraDelEstudio", fields: [tenantId], references: [id])
+  tenantId String
+
+  // El CLIENTE administrado (también un Tenant). Restrict: no se borra un tenant
+  // que está en una cartera.
+  clienteTenant   Tenant @relation("CarteraComoCliente", fields: [clienteTenantId], references: [id])
+  clienteTenantId String
+
+  // Nombre corto con el que el contador conoce al cliente ("Kiosco de Marta").
+  alias  String
+  estado EstadoCarteraCliente @default(activa)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, clienteTenantId]) // un cliente entra UNA vez a la cartera de un estudio
+  @@index([tenantId])
+  @@index([clienteTenantId]) // lookup inverso: ¿en qué carteras está este tenant?
 }

@@ -4,17 +4,17 @@ import {
   setOrderPaid,
   cancelOrder,
 } from "@/lib/order-actions";
+import { fmtMoneyARS } from "@/components/ui";
 import { fmtShortDate } from "@/lib/datetime";
 import PosForm from "./PosForm";
 
 export const dynamic = "force-dynamic";
 
-const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 
 // Etiqueta + verbo del botón que avanza al siguiente estado. null = terminal.
 const STATUS: Record<string, { label: string; badge: string; next?: string }> = {
   PENDING: { label: "Pendiente", badge: "bg-warning-soft text-warning", next: "Confirmar" },
-  CONFIRMED: { label: "Confirmado", badge: "bg-info-soft text-info", next: "A preparar" },
+  CONFIRMED: { label: "Confirmado", badge: "bg-info-soft text-info", next: "Pasar a preparación" },
   PREPARING: { label: "En preparación", badge: "bg-info-soft text-info", next: "Marcar listo" },
   READY: { label: "Listo", badge: "bg-success-soft text-success", next: "Entregar" },
   DELIVERED: { label: "Entregado", badge: "bg-surface-sunken text-muted" },
@@ -79,14 +79,14 @@ export default async function PedidosPage() {
                       <li key={it.id}>
                         {it.quantity}
                         {it.saleUnit === "WEIGHT" ? " kg" : " u"} · {it.name} —{" "}
-                        {money.format(it.lineTotal)}
+                        {fmtMoneyARS(it.lineTotal)}
                       </li>
                     ))}
                   </ul>
                   {o.address && <p className="text-xs text-faint mt-1">Envío a: {o.address}</p>}
                   {o.notes && <p className="text-xs text-faint mt-0.5">Nota: {o.notes}</p>}
                   <p className="text-xs text-faint mt-1">
-                    {money.format(o.total)} · {fmtShortDate(o.createdAt)}
+                    {fmtMoneyARS(o.total)} · {fmtShortDate(o.createdAt)}
                   </p>
                 </div>
 
@@ -108,8 +108,8 @@ export default async function PedidosPage() {
                         className="rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-xs"
                       >
                         <option value="EFECTIVO">Efectivo</option>
-                        <option value="MERCADOPAGO">MP</option>
-                        <option value="TRANSFERENCIA">Transf.</option>
+                        <option value="MERCADOPAGO">Mercado Pago</option>
+                        <option value="TRANSFERENCIA">Transferencia</option>
                       </select>
                       <button type="submit" className="chip-btn text-xs min-h-8">
                         Cobrar
@@ -154,7 +154,7 @@ export default async function PedidosPage() {
                     {s.label}
                   </span>
                   <span className="text-body">{o.customerName}</span>
-                  <span className="ml-auto tabular-nums text-muted">{money.format(o.total)}</span>
+                  <span className="ml-auto tabular-nums text-muted">{fmtMoneyARS(o.total)}</span>
                   <span className="text-xs text-faint">{fmtShortDate(o.createdAt)}</span>
                 </div>
               );

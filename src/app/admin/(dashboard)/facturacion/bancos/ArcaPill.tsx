@@ -5,11 +5,12 @@
 // pantalla de Facturación — consistencia, no un semáforo paralelo).
 
 import type { EstadoFiscal } from "@/lib/facturacion-actions";
+import { fmtCuit } from "@/components/ui";
 
 const MODO_UI = {
-  real: { texto: "ARCA · CAE en línea", dot: "bg-success", pulsa: true },
-  homologacion: { texto: "ARCA · homologación (pruebas oficiales)", dot: "bg-warning", pulsa: false },
-  stub: { texto: "ARCA · modo prueba (sin red)", dot: "bg-warning", pulsa: false },
+  real: { texto: "ARCA · CAE en línea", dot: "bg-success-fill", pulsa: true },
+  homologacion: { texto: "ARCA · homologación (pruebas oficiales)", dot: "bg-warning-fill", pulsa: false },
+  stub: { texto: "ARCA · modo prueba (sin red)", dot: "bg-warning-fill", pulsa: false },
 } as const;
 
 export default function ArcaPill({ estado }: { estado: EstadoFiscal }) {
@@ -19,7 +20,7 @@ export default function ArcaPill({ estado }: { estado: EstadoFiscal }) {
       className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-line bg-surface-raised px-3 py-1 text-xs font-medium text-muted shadow-xs"
       title={
         estado.cuit
-          ? `CUIT ${estado.cuit} · punto de venta ${estado.puntoVenta ?? "—"}`
+          ? `CUIT ${fmtCuit(estado.cuit)} · punto de venta ${estado.puntoVenta ?? "—"}`
           : "Sin CUIT cargado todavía"
       }
     >

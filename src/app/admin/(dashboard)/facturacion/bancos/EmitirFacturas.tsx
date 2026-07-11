@@ -8,7 +8,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { emitirPropuestasAction, type ResultadoEmision } from "@/lib/bancos-actions";
+import { emitirPropuestasAction } from "@/lib/bancos-actions";
+import type { ResultadoEmision } from "@/lib/bancos-glue";
 import { Badge, Button, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { useToast } from "../../ToastProvider";
 
@@ -114,7 +115,7 @@ export default function EmitirFacturas({
                 Despacho a ARCA: {fmtNumberAR(resultado.despachoArca.autorizados)} autorizada
                 {resultado.despachoArca.autorizados === 1 ? "" : "s"} con CAE
                 {resultado.despachoArca.rechazados > 0 &&
-                  ` · ${fmtNumberAR(resultado.despachoArca.rechazados)} rechazada(s)`}
+                  ` · ${fmtNumberAR(resultado.despachoArca.rechazados)} rechazada${resultado.despachoArca.rechazados === 1 ? "" : "s"}`}
                 {resultado.despachoArca.fallidos > 0 &&
                   ` · ${fmtNumberAR(resultado.despachoArca.fallidos)} con falla (se reintenta)`}
                 . El detalle queda en{" "}

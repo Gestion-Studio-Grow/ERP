@@ -6,12 +6,11 @@ import {
   type CashMovementLike,
   type CashMovementType,
 } from "@/lib/caja/cash-register";
-import { Card, CardHeader, CardTitle, CardDescription, Badge, type BadgeProps } from "@/components/ui";
+import { Card, CardHeader, CardTitle, CardDescription, Badge, fmtMoneyARS, type BadgeProps } from "@/components/ui";
 import { OpenCajaForm, AddMovementForm, CloseCajaForm } from "./CajaForms";
 
 export const dynamic = "force-dynamic";
 
-const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 
 const MOVEMENT_LABEL: Record<string, string> = {
   APERTURA: "Apertura",
@@ -67,12 +66,12 @@ export default async function CajaPage() {
                     {s.closedAt ? fmtShortDate(s.closedAt) : "—"}
                   </span>
                   <span className="text-body">
-                    Esperado {money.format(s.closingExpected ?? 0)} · Contado{" "}
-                    {money.format(s.closingCounted ?? 0)}
+                    Esperado {fmtMoneyARS(s.closingExpected ?? 0)} · Contado{" "}
+                    {fmtMoneyARS(s.closingCounted ?? 0)}
                   </span>
                   <Badge tone={tone} className="ml-auto tabular-nums">
                     {label}
-                    {diff !== 0 && ` ${money.format(Math.abs(diff))}`}
+                    {diff !== 0 && ` ${fmtMoneyARS(Math.abs(diff))}`}
                   </Badge>
                 </Card>
               );
@@ -123,7 +122,7 @@ function OpenSession({
   // Esperado EN VIVO (mismo cálculo que usa el cierre) + desglose por categoría.
   const expected = expectedCash(session.openingFloat, movs);
   const breakdown = summarizeMovements(movs);
-  const expectedLabel = money.format(expected);
+  const expectedLabel = fmtMoneyARS(expected);
 
   // Filas del desglose: se muestran solo las categorías con monto (el fondo y el
   // esperado van siempre).
@@ -145,7 +144,7 @@ function OpenSession({
             </Badge>
             <p className="text-xs text-faint mt-2">
               Abierta {fmtShortDate(session.openedAt)} · fondo inicial{" "}
-              {money.format(session.openingFloat)}
+              {fmtMoneyARS(session.openingFloat)}
             </p>
           </div>
           {/* aria-live: al registrar un movimiento, la revalidación re-renderiza
@@ -160,13 +159,13 @@ function OpenSession({
         <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-line pt-4 text-sm sm:max-w-[28rem]">
           <div className="flex justify-between">
             <dt className="text-muted">Fondo inicial</dt>
-            <dd className="tabular-nums text-body">{money.format(session.openingFloat)}</dd>
+            <dd className="tabular-nums text-body">{fmtMoneyARS(session.openingFloat)}</dd>
           </div>
           {rows.map((r) => (
             <div key={r.label} className="flex justify-between">
               <dt className="text-muted">{r.label}</dt>
               <dd className={`tabular-nums ${r.sign === "+" ? "text-success" : "text-danger"}`}>
-                {r.sign} {money.format(r.value)}
+                {r.sign} {fmtMoneyARS(r.value)}
               </dd>
             </div>
           ))}
@@ -197,7 +196,7 @@ function OpenSession({
                       }`}
                     >
                       {sign && `${sign} `}
-                      {money.format(m.amount)}
+                      {fmtMoneyARS(m.amount)}
                     </span>
                   </li>
                 );

@@ -61,7 +61,12 @@ export type DataTableProps<T> = {
   className?: string;
 };
 
-const SKELETON_ROWS = ["sk-1", "sk-2", "sk-3"];
+// Las filas fantasma viven en data-table-skeleton.ts (módulo sin "use client")
+// para que los loading.tsx de ruta —server components— las importen sin cruzar
+// la frontera RSC (importarlas desde acá les llegaba como client-reference y
+// `.map` reventaba en runtime). Se re-exporta para los consumidores client.
+import { SKELETON_ROWS } from "./data-table-skeleton";
+export { SKELETON_ROWS } from "./data-table-skeleton";
 
 export function DataTable<T>({
   columns,
@@ -100,14 +105,15 @@ export function DataTable<T>({
         <table className="block sm:table w-full border-collapse text-left text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead className="hidden sm:table-header-group">
-            <tr className="border-b border-line bg-surface-sunken text-xs uppercase tracking-wide text-muted">
+            {/* Header del mockup (fix 17): 11px / 600 / tracking .06em / uppercase. */}
+            <tr className="border-b border-line bg-surface-sunken text-[11px] uppercase tracking-[.06em] text-muted">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
                   aria-sort={col.sortable ? ariaSortFor(sort, col.key) : undefined}
                   className={cn(
-                    "px-sm py-xs font-medium",
+                    "px-[22px] py-xs font-semibold",
                     col.align === "right" && "text-right",
                     col.className,
                   )}
@@ -137,7 +143,7 @@ export function DataTable<T>({
               SKELETON_ROWS.map((skeletonKey) => (
                 <tr key={skeletonKey} className="block sm:table-row border-t border-line first:border-t-0 sm:first:border-t">
                   {columns.map((col) => (
-                    <td key={col.key} className="block sm:table-cell px-sm py-2xs sm:py-xs">
+                    <td key={col.key} className="block sm:table-cell px-sm py-2xs sm:px-[22px] sm:py-[13px]">
                       <span
                         aria-hidden="true"
                         className="block h-4 w-full max-w-32 rounded bg-surface-sunken motion-safe:animate-pulse"
@@ -151,7 +157,7 @@ export function DataTable<T>({
               <tr className="block sm:table-row">
                 <td colSpan={columns.length} className="block sm:table-cell p-0">
                   {emptyState ?? (
-                    <EmptyState title="No hay datos para mostrar." className="rounded-none border-0 bg-transparent" />
+                    <EmptyState title="No hay datos para mostrar" className="rounded-none border-0 bg-transparent" />
                   )}
                 </td>
               </tr>
@@ -171,7 +177,8 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className={cn(
-                        "block sm:table-cell px-0 py-3xs sm:px-sm sm:py-xs text-body",
+                        // Densidad de celda del mockup (fix 18): 22px / 13px en desktop.
+                        "block sm:table-cell px-0 py-3xs sm:px-[22px] sm:py-[13px] text-body",
                         col.align === "right" && "text-right",
                         col.className,
                       )}

@@ -129,7 +129,7 @@ export default function ImportarExtracto() {
         setResultado(res);
         setMapeoListo(true);
         showSuccess(
-          `Mapeo confirmado — el extracto se re-procesó: ${res.resumen.importados} movimientos.`,
+          `Mapeo confirmado — el extracto se volvió a procesar: ${res.resumen.importados} movimientos.`,
         );
         router.refresh();
       } else {

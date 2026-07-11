@@ -5,7 +5,7 @@ import { createManualAppointment } from "@/lib/actions";
 import { getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtTime } from "@/lib/datetime";
-import { Input, Select, Textarea, Field, buttonClasses, cn } from "@/components/ui";
+import { Input, Select, Textarea, Field, buttonClasses, cn, fmtMoneyARS } from "@/components/ui";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
@@ -58,7 +58,7 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
   return (
     <div className="rounded-lg border border-line bg-surface-raised shadow-xs p-4 mb-8">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-medium text-strong">Nuevo turno (llamada / walk-in)</p>
+        <p className="text-sm font-medium text-strong">Nuevo turno (por teléfono o en el local)</p>
         <button
           onClick={() => {
             setOpen(false);
@@ -120,8 +120,8 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
               <option value="">Elegí un servicio</option>
               {professional?.services.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.durationMin} min) — ${s.price.toLocaleString("es-AR")}
-                  {s.residentPrice != null ? ` · vecino/a $${s.residentPrice.toLocaleString("es-AR")}` : ""}
+                  {s.name} ({s.durationMin} min) — {fmtMoneyARS(s.price, 0)}
+                  {s.residentPrice != null ? ` · precio local ${fmtMoneyARS(s.residentPrice, 0)}` : ""}
                 </option>
               ))}
             </Select>
@@ -184,7 +184,7 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
             </div>
             <label className="flex items-center gap-2 text-sm text-body">
               <input type="checkbox" name="isResident" className="accent-accent" />
-              Vecino/a de La Alameda
+              Cliente de la zona (precio local)
             </label>
             <Field label="Cupón (opcional)" htmlFor="na-coupon">
               <Input

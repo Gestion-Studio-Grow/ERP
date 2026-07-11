@@ -12,19 +12,24 @@ const base =
   "inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap " +
   "rounded-md transition-colors duration-150 select-none " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus " +
-  "disabled:opacity-50 disabled:pointer-events-none";
+  // Fix 20 del gate: cursor honesto en disabled (sin pointer-events-none, que
+  // lo escondía). El atributo `disabled` ya bloquea el click.
+  "disabled:opacity-50 disabled:cursor-not-allowed";
 
 const variants: Record<Variant, string> = {
-  // Acción principal — acento sólido, texto claro.
-  solid: "bg-accent text-on-accent hover:bg-accent-hover active:translate-y-px shadow-xs",
+  // Acción principal — acento sólido, texto claro. Disabled por TOKENS (fix 20),
+  // no por opacity-50 (el acento lavado del tenant quedaba ilegible).
+  solid:
+    "bg-accent text-on-accent hover:bg-accent-hover active:translate-y-px shadow-xs " +
+    "disabled:opacity-100 disabled:bg-surface-sunken disabled:text-faint disabled:shadow-none",
   // Acción secundaria — borde de línea, se rellena tenue en hover.
-  outline: "border border-line-strong text-strong bg-surface-raised hover:bg-accent-soft",
+  outline: "border border-line-strong text-strong bg-surface-raised hover:bg-accent-soft active:translate-y-px",
   // Terciaria — sin caja hasta el hover.
-  ghost: "text-body hover:bg-surface-sunken",
+  ghost: "text-body hover:bg-surface-sunken active:translate-y-px",
   // Destructiva.
   danger: "bg-danger text-on-accent hover:opacity-90 active:translate-y-px shadow-xs",
   // Chip suave sobre superficies claras (filtros, toggles).
-  subtle: "bg-surface-sunken text-strong hover:bg-line-strong/50",
+  subtle: "bg-surface-sunken text-strong hover:bg-line-strong/50 active:translate-y-px",
 };
 
 const sizes: Record<Size, string> = {

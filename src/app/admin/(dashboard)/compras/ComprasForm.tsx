@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createStockPurchase } from "@/lib/stock-actions";
-import { Input, Select, buttonClasses } from "@/components/ui";
+import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
 // Producto reponible que llega del loader (getStockData): con stock/unidad actuales.
 type ReplenishableProduct = {
@@ -17,7 +17,6 @@ type ReplenishableProduct = {
 // del producto); `unitCost` es el costo de compra unitario (opcional en reposición).
 type Line = { key: number; productId: string; qty: number; unitCost: number };
 
-const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 const qtyFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
 // `formal` (perfil Empresa): muestra la cabecera de ORDEN FORMAL a proveedor —
@@ -107,7 +106,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
               <span className="block text-muted mb-1">Razón social del proveedor {isCompra ? "" : "(opcional)"}</span>
-              <Input name="supplier" placeholder="ej: Distribuidora Norte S.A." />
+              <Input name="supplier" placeholder="Ej.: Distribuidora Norte S.A." />
             </label>
             <label className="text-sm">
               <span className="block text-muted mb-1">CUIT</span>
@@ -117,11 +116,11 @@ export default function ComprasForm({ products, formal = false }: { products: Re
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
               <span className="block text-muted mb-1">N° de orden de compra</span>
-              <Input name="orderNumber" placeholder="ej: A-0042" />
+              <Input name="orderNumber" placeholder="Ej.: A-0042" />
             </label>
             <label className="text-sm">
               <span className="block text-muted mb-1">Nota</span>
-              <Input name="notes" placeholder="ej: entrega parcial" />
+              <Input name="notes" placeholder="Ej.: entrega parcial" />
             </label>
           </div>
           <p className="text-xs text-faint">
@@ -137,7 +136,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
           </label>
           <label className="text-sm">
             <span className="block text-muted mb-1">Nota</span>
-            <Input name="notes" placeholder="ej: remito 0001-00042, entrega parcial" />
+            <Input name="notes" placeholder="Ej.: remito 0001-00042, entrega parcial" />
           </label>
         </div>
       )}
@@ -194,7 +193,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
                   min="0"
                   step="0.01"
                   value={l.unitCost || ""}
-                  placeholder={isCompra ? "Costo u." : "Costo (opt)"}
+                  placeholder={isCompra ? "Costo u." : "Costo (opcional)"}
                   onChange={(e) => setLine(l.key, { unitCost: Number(e.target.value) })}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -211,7 +210,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
               </div>
               <div className="flex items-center gap-2 whitespace-nowrap">
                 <span className="w-24 text-right text-sm tabular-nums text-body">
-                  {lineTotal > 0 ? money.format(lineTotal) : "—"}
+                  {lineTotal > 0 ? fmtMoneyARS(lineTotal) : "—"}
                 </span>
                 <button
                   type="button"
@@ -248,7 +247,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
         <div className="text-sm text-muted">
           Costo total{" "}
           <span className="ml-1 text-2xl font-semibold tabular-nums text-strong">
-            {money.format(totalCost)}
+            {fmtMoneyARS(totalCost)}
           </span>
         </div>
         <button type="submit" disabled={!hasValidLine} className={buttonClasses("solid", "lg")}>

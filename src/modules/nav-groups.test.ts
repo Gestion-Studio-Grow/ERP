@@ -24,8 +24,9 @@ import {
   type NavGroupedItem,
 } from "./nav-groups";
 
-// Los 17 ítems reales de `AdminShell.ALL_ITEMS`, con la asignación de grupo aplicada
+// Los 18 ítems reales de `AdminShell.ALL_ITEMS`, con la asignación de grupo aplicada
 // (mismos hrefs/caps/módulos; ver docs/estrategia/mapa-rol-perfil-nav-grupos.md).
+// +1 (2026-07-11): "/admin/apariencia" — tema + color del equipo (skin Fable).
 const ALL_17: NavGroupedItem[] = [
   { href: "/admin", cap: "dashboard:read", grupo: NAV_ITEM_GROUPS["/admin"] },
   { href: "/admin/turnos", cap: "agenda:read", module: "agenda", grupo: NAV_ITEM_GROUPS["/admin/turnos"] },
@@ -43,6 +44,7 @@ const ALL_17: NavGroupedItem[] = [
   { href: "/admin/auditoria", cap: "audit:read", grupo: NAV_ITEM_GROUPS["/admin/auditoria"] },
   { href: "/admin/usuarios", cap: "users:manage", grupo: NAV_ITEM_GROUPS["/admin/usuarios"] },
   { href: "/admin/localizacion", cap: "location:manage", grupo: NAV_ITEM_GROUPS["/admin/localizacion"] },
+  { href: "/admin/apariencia", cap: "appearance:manage", grupo: NAV_ITEM_GROUPS["/admin/apariencia"] },
   { href: "/admin/modulos", cap: "modules:manage", grupo: NAV_ITEM_GROUPS["/admin/modulos"] },
 ];
 
@@ -64,8 +66,8 @@ test("NAV_GROUPS: labels profesionales en español neutro, sin lunfardo", () => 
   );
 });
 
-test("NAV_ITEM_GROUPS: asigna grupo a los 17 ítems existentes de AdminShell", () => {
-  assert.equal(Object.keys(NAV_ITEM_GROUPS).length, 17);
+test("NAV_ITEM_GROUPS: asigna grupo a los 18 ítems existentes de AdminShell", () => {
+  assert.equal(Object.keys(NAV_ITEM_GROUPS).length, 18);
   for (const item of ALL_17) {
     assert.ok(item.grupo, `"${item.href}" sin grupo asignado`);
     assert.ok(VALID_IDS.has(item.grupo), `"${item.href}" con grupo inválido: ${item.grupo}`);

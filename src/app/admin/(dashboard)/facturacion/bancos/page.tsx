@@ -17,13 +17,15 @@ import {
   listarPropuestasAction,
 } from "@/lib/bancos-actions";
 import { getFacturacion } from "@/lib/facturacion-actions";
-import { Badge, PageHeader, SectionGroup, buttonClasses, fmtNumberAR } from "@/components/ui";
+import { Badge, PageContainer, PageHeader, SectionGroup, buttonClasses, fmtNumberAR } from "@/components/ui";
 import ArcaPill from "./ArcaPill";
 import KpisBancos from "./KpisBancos";
 import ImportarExtracto from "./ImportarExtracto";
+import MercadoPagoSync from "./MercadoPagoSync";
 import EmitirFacturas from "./EmitirFacturas";
 import ColaRevision from "./ColaRevision";
-import { fechaHoraAr } from "./helpers";
+import { estadoMercadoPagoAction } from "@/lib/mercadopago-actions";
+import { fmtDateTimeAr } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -65,13 +67,14 @@ export default async function FacturacionBancosPage() {
       listarPropuestasAction({ estadoPropuesta: "revision" }),
       listarPropuestasAction({ estadoPropuesta: "auto" }),
       getFacturacion(), // mismo estado fiscal que la pantalla de Facturación (consistencia)
+      estadoMercadoPagoAction(),
     ]);
   } catch (e) {
     // P2021/P2022: la tabla o columna no existe todavía (migración sin aplicar).
     const code = (e as { code?: string })?.code;
     if (code === "P2021" || code === "P2022") {
       return (
-        <main className="mx-auto max-w-4xl px-6 py-8">
+        <PageContainer>
           <PageHeader
             title="Facturación automática"
             description="El módulo está instalado pero falta el último paso de base de datos."
@@ -83,15 +86,14 @@ export default async function FacturacionBancosPage() {
           />
           <div role="alert" className="rounded-xl border border-line bg-surface-raised p-5 text-sm text-muted shadow-card">
             Falta aplicar la migración <code className="text-strong">20260711120000_add_bancos_importacion</code>{" "}
-            (paso del dueño — ver <span className="text-strong">docs/runbooks/facturacion-bancaria-golive.md §4</span>).
-            Cuando se aplique, esta pantalla se enciende sola.
+            (paso del dueño). Cuando se aplique, esta pantalla se enciende sola.
           </div>
-        </main>
+        </PageContainer>
       );
     }
     throw e;
   }
-  const [kpis, enRevision, listas, { estado }] = datos;
+  const [kpis, enRevision, listas, { estado }, estadoMP] = datos;
 
   // % de confianza del mapeo por importación: lectura liviana del mapeoJson
   // (solo los 5 ids del KPI, tenantId explícito — ADR-018). No hay action de
@@ -111,7 +113,7 @@ export default async function FacturacionBancosPage() {
   const totalListas = listas.reduce((acc, p) => acc + Math.abs(p.monto), 0);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+    <PageContainer>
       <PageHeader
         title="Facturación automática"
         badge={<ArcaPill estado={estado} />}
@@ -143,6 +145,13 @@ export default async function FacturacionBancosPage() {
         description="El archivo tal cual lo baja el homebanking. Los movimientos repetidos se detectan solos: podés subir el mismo extracto dos veces sin miedo."
       >
         <ImportarExtracto />
+      </SectionGroup>
+
+      <SectionGroup
+        title="Cobros de Mercado Pago"
+        description="Lo que cobrás por Mercado Pago entra al mismo tablero y se factura por las mismas reglas. Si el mismo cobro aparece también en el extracto del banco, se detecta y no se duplica."
+      >
+        <MercadoPagoSync estado={estadoMP} />
       </SectionGroup>
 
       <SectionGroup
@@ -197,7 +206,7 @@ export default async function FacturacionBancosPage() {
                       {imp.nombreArchivo}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted">
-                      {fechaHoraAr(imp.createdAt)}
+                      {fmtDateTimeAr(imp.createdAt)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-strong">
                       {fmtNumberAR(imp.totalMovimientos)}
@@ -216,6 +225,6 @@ export default async function FacturacionBancosPage() {
       <footer className="mt-2xl border-t border-line pt-4 text-center text-xs text-faint">
         Con tecnología de Gestión Studio Grow
       </footer>
-    </main>
+    </PageContainer>
   );
 }

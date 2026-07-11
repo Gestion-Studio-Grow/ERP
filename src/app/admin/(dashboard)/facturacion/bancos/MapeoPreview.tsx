@@ -232,7 +232,7 @@ export default function MapeoPreview({
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button onClick={confirmar} disabled={!valido || confirmando}>
-          {confirmando ? "Re-procesando…" : "Confirmar mapeo"}
+          {confirmando ? "Procesando de nuevo…" : "Confirmar mapeo"}
         </Button>
         <span className="text-xs text-muted">
           Al confirmar, el extracto se vuelve a procesar con estas columnas. No hace falta subirlo

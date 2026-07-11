@@ -23,6 +23,10 @@ function fmt(d: Date) {
 function BoxRow({ box }: { box: Box }) {
   const [editing, setEditing] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  // Confirmación en dos pasos (patrón GSG, como EmitirFacturas) — nada de
+  // confirm() nativo del navegador. Aplica a quitar bloqueos Y a eliminar el box.
+  const [confirmandoBloqueoId, setConfirmandoBloqueoId] = useState<string | null>(null);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
   const { showError, showSuccess } = useToast();
 
   return (
@@ -68,22 +72,43 @@ function BoxRow({ box }: { box: Box }) {
                 {box.active ? "Desactivar" : "Activar"}
               </button>
             </form>
-            <form
-              action={async (fd) => {
-                if (!confirm(`¿Eliminar "${box.name}"? Esta acción no se puede deshacer.`)) return;
-                try {
-                  await deleteBox(fd);
-                  showSuccess(`"${box.name}" eliminado.`);
-                } catch (err) {
-                  showError(err instanceof Error ? err.message : "No se pudo eliminar.");
-                }
-              }}
-            >
-              <input type="hidden" name="id" value={box.id} />
-              <button type="submit" className="chip-btn chip-btn-danger">
+            {confirmandoEliminar ? (
+              <span className="flex items-center gap-2 text-xs text-danger" role="group" aria-label="Confirmar eliminación">
+                <span className="font-medium">¿Eliminar “{box.name}”? No se puede deshacer.</span>
+                <form
+                  className="inline"
+                  action={async (fd) => {
+                    setConfirmandoEliminar(false);
+                    try {
+                      await deleteBox(fd);
+                      showSuccess(`“${box.name}” eliminado.`);
+                    } catch (err) {
+                      showError(err instanceof Error ? err.message : "No se pudo eliminar.");
+                    }
+                  }}
+                >
+                  <input type="hidden" name="id" value={box.id} />
+                  <button type="submit" className="font-semibold underline">
+                    Sí, eliminar
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  className="hover:underline"
+                  onClick={() => setConfirmandoEliminar(false)}
+                >
+                  No
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmandoEliminar(true)}
+                className="chip-btn chip-btn-danger"
+              >
                 Eliminar
               </button>
-            </form>
+            )}
           </div>
         </div>
       )}
@@ -98,17 +123,38 @@ function BoxRow({ box }: { box: Box }) {
               <span>
                 {fmt(b.startsAt)} – {fmt(b.endsAt)} · {b.reason}
               </span>
-              <form
-                action={async (fd) => {
-                  if (!confirm("¿Cancelar este bloqueo? El box vuelve a estar disponible.")) return;
-                  await deleteBoxBlock(fd);
-                }}
-              >
-                <input type="hidden" name="id" value={b.id} />
-                <button type="submit" className="hover:underline">
+              {confirmandoBloqueoId === b.id ? (
+                <span className="flex items-center gap-2">
+                  <span className="font-medium">¿Cancelar el bloqueo?</span>
+                  <form
+                    className="inline"
+                    action={async (fd) => {
+                      setConfirmandoBloqueoId(null);
+                      await deleteBoxBlock(fd);
+                    }}
+                  >
+                    <input type="hidden" name="id" value={b.id} />
+                    <button type="submit" className="font-semibold underline">
+                      Sí, cancelar
+                    </button>
+                  </form>
+                  <button
+                    type="button"
+                    className="hover:underline"
+                    onClick={() => setConfirmandoBloqueoId(null)}
+                  >
+                    No
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="hover:underline"
+                  onClick={() => setConfirmandoBloqueoId(b.id)}
+                >
                   quitar
                 </button>
-              </form>
+              )}
             </div>
           ))}
         </div>
@@ -141,7 +187,7 @@ function BoxRow({ box }: { box: Box }) {
             <input
               name="reason"
               required
-              placeholder="Ej: reservado para depilación láser"
+              placeholder="Ej.: reservado para depilación láser"
               className="w-full rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
             />
           </div>
@@ -165,7 +211,7 @@ export default function BoxesSection({ boxes }: { boxes: Box[] }) {
       <h2 className="text-lg font-medium mb-1">Boxes</h2>
       <p className="text-sm text-muted mb-3">
         Cantidad de espacios físicos de atención. Podés agregar, editar, desactivar o bloquear
-        fechas puntuales (ej. reservado para un servicio especial) sin reasignar profesionales.
+        fechas puntuales (Ej.: reservado para un servicio especial) sin reasignar profesionales.
       </p>
       <div className="space-y-2 mb-3">
         {boxes.map((b) => (
@@ -179,7 +225,7 @@ export default function BoxesSection({ boxes }: { boxes: Box[] }) {
         <input
           name="name"
           required
-          placeholder="Ej: Box 4"
+          placeholder="Ej.: Box 4"
           className="flex-1 rounded-md border border-line-strong bg-surface-raised px-3 py-2 text-sm text-strong focus:border-accent"
         />
         <button type="submit" className={buttonClasses("solid", "md")}>

@@ -66,7 +66,7 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
             if (!confirm(`¿Eliminar el recurso "${r.name}"?`)) return;
             try {
               await deleteResource(fd);
-              showSuccess(`"${r.name}" eliminado.`);
+              showSuccess(`“${r.name}” eliminado.`);
             } catch (err) {
               showError(err instanceof Error ? err.message : "No se pudo eliminar.");
             }
@@ -87,7 +87,7 @@ export default function ResourcesSection({ resources }: { resources: Resource[] 
     <section>
       <h2 className="text-lg font-medium mb-1">Recursos (máquinas y gabinetes)</h2>
       <p className="text-sm text-muted mb-3">
-        Equipos o espacios con cantidad limitada que varios servicios comparten (ej. 2
+        Equipos o espacios con cantidad limitada que varios servicios comparten (Ej.: 2
         radiofrecuencias, 3 gabinetes). La cantidad define cuántos turnos que lo usan pueden
         coincidir en el mismo horario. En cada servicio elegís qué recursos consume.
       </p>
@@ -105,7 +105,7 @@ export default function ResourcesSection({ resources }: { resources: Resource[] 
         <input
           name="name"
           required
-          placeholder="Nombre (ej. Radiofrecuencia, Gabinete)"
+          placeholder="Nombre (Ej.: Radiofrecuencia, Gabinete)"
           className="flex-1 min-w-[180px] rounded-md border border-line-strong bg-surface-raised px-3 py-2 text-sm text-strong focus:border-accent"
         />
         <input

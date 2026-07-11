@@ -71,15 +71,21 @@
   --accent-hover: color-mix(in srgb, var(--accent) 86%, #000);
   --accent-soft: color-mix(in srgb, var(--accent) 12%, #ffffff);
 
-  /* Estados semánticos (contraste AA sobre superficie clara). */
+  /* Estados semánticos (contraste AA sobre superficie clara). Los *-fill son
+     la variante para SUPERFICIES no textuales (dots, goal bars) — en esta piel
+     coinciden con el texto; el skin Fable los separa (fix 2 del gate). */
   --success: #4e6b4a;
   --success-soft: #e7eee4;
   --warning: #8a6a1f;
   --warning-soft: #f5ebd7;
   --danger: #b23b2b;
   --danger-soft: #f6e3de;
+  --success-fill: #4e6b4a;
+  --warning-fill: #8a6a1f;
+  --danger-fill: #b23b2b;
   --info: var(--accent);
   --info-soft: var(--accent-soft);
+  --bar-track: #e4e4e9; /* track de goal bars (fix 32) — visible sobre card blanca */
 
   /* Foco accesible — anillo de acento del tenant */
   --focus-ring: var(--accent);
@@ -302,8 +308,12 @@
   --warning-soft: rgba(194, 114, 74, 0.15);
   --danger: #e08472;
   --danger-soft: rgba(224, 132, 114, 0.15);
+  --success-fill: #86a97f;
+  --warning-fill: #c2724a;
+  --danger-fill: #e08472;
   --info: var(--accent);
   --info-soft: var(--accent-soft);
+  --bar-track: #2a2a30; /* track de goal bars (fix 32), tema oscuro */
 
   --focus-ring: var(--accent);
 
@@ -311,6 +321,129 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* ═════════ SKIN "FABLE" — backoffice admin (+ login y consola de operador) ═════════
+   Fuente de verdad: los DOS mockups aprobados por el dueño (UX UI/blacklight.html =
+   CLARO y UX UI/fablebackofficedark.html = OSCURO grafito profundo). Apple en la piel,
+   SAP en la profundidad. Los valores son EXACTOS del mockup; lo que el mockup no trae
+   (cuerpo de texto, line-strong, radios chicos) se DERIVA y queda anotado al lado.
+
+   SCOPE: solo los contenedores con `data-skin="fable"` (layout del admin, login del
+   admin, consola de operador). Las vidrieras públicas de los tenants NO llevan el
+   atributo → conservan su piel (Nocturne / theme packs / palette por tenant).
+
+   ACENTO: sigue siendo DEL TENANT (regla del mockup: "acento re-tematizable en
+   --accent"). El layout inyecta los DOS tonos del preset (--tenant-accent-light/dark
+   + on-accent) y este bloque elige el del tema activo — así el toggle claro/oscuro
+   flipa también el acento sin re-render. Fallback: el azul del mockup (superficies
+   sin tenant, ej. la consola de operador).
+
+   TEMA: lo decide el usuario, no la regla front/back — prefers-color-scheme como
+   default (script inline anti-flash: AdminThemeScript) + toggle manual persistente
+   (ThemeToggle, localStorage `gsg-admin-theme`).
+
+   ORDEN A PROPÓSITO: este bloque va DESPUÉS de los theme packs y de la Nocturne
+   oscura — a igual specificity gana el último, y el back tiene que ser Fable aunque
+   el contenedor traiga también `data-brand` (que sí conserva tipografía y densidad). */
+[data-skin="fable"] {
+  /* — CLARO (blacklight.html :root, hex exactos) — */
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+
+  --surface-sunken: #f5f5f7;   /* = --bg del mockup: los insets (seg/kbd/zebra/hover) usan el canvas */
+  --surface: #f5f5f7;          /* --bg */
+  --surface-raised: #ffffff;   /* --surface (cards) */
+  --surface-inverted: #1d1d1f; /* el toast del mockup: tinta invertida */
+
+  --text-strong: #1d1d1f;      /* --ink */
+  --text: #3a3a3c;             /* DERIVADO: cuerpo entre --ink y --ink-2 (el mockup usa --ink directo) */
+  --text-muted: #6e6e73;       /* --ink-2 */
+  --text-faint: #aeaeb2;       /* --ink-3 */
+  --text-on-accent: var(--tenant-on-accent-light, #ffffff); /* --accent-ink */
+
+  --line: rgba(0, 0, 0, 0.08);        /* --line */
+  --line-strong: rgba(0, 0, 0, 0.15); /* DERIVADO: ~2× --line (el mockup no trae borde fuerte) */
+
+  --accent: var(--tenant-accent-light, #0071e3);
+  --accent-hover: color-mix(in srgb, var(--accent) 86%, #000);
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, transparent); /* mockup: alpha .09 */
+
+  /* Semánticos: TEXTO ≠ FILL (fix 2 del gate). Los hex del mockup (#34c759 /
+     #ff9f0a / #ff3b30) NO pasan AA como texto sobre blanco (2.2–3.0:1) — se
+     quedan como *-fill para superficies no textuales (dots, goal bars) y el
+     TEXTO usa variantes oscurecidas AA (≥4.5:1 sobre --surface-raised). */
+  --success: #1a7f37;  --success-soft: rgba(52, 199, 89, 0.12);  /* --ok-soft */
+  --warning: #8a6a1f;  --warning-soft: rgba(255, 159, 10, 0.14); /* --warn-soft */
+  --danger: #d70015;   --danger-soft: rgba(255, 59, 48, 0.10);   /* --alert-soft */
+  --success-fill: #34c759; /* --ok del mockup */
+  --warning-fill: #ff9f0a; /* --warn del mockup */
+  --danger-fill: #ff3b30;  /* --alert del mockup */
+  --info: var(--accent);
+  --info-soft: var(--accent-soft);
+  --bar-track: #e4e4e9; /* --bar-dim del mockup: track visible de las goal bars (fix 32) */
+  --focus-ring: var(--accent);
+
+  /* Radios: el --radius:12px del mockup manda. lg y xl valen LO MISMO a propósito:
+     Card usa rounded-lg y KpiTile/DataTable rounded-xl, y en el mockup todas las
+     cards son 12px — se igualan. sm/md derivados (nav 8px / botones 10px). */
+  --radius-sm: 0.5rem;
+  --radius: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.75rem;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);   /* --shadow-1 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);   /* --shadow-1 (cards en reposo) */
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.1);  /* --shadow-2 (hover de KPI) */
+  --shadow-lg: 0 24px 80px rgba(0, 0, 0, 0.28); /* --shadow-pal (overlays) */
+
+  /* Tipografía del mockup: system-first (Inter no está cargada en el repo; Geist,
+     que ya viene en el layout raíz, es su gemela). En Windows -apple-system no
+     resuelve y cae a Geist — mismo carácter. Los headings con clase explícita
+     (font-display de un theme pack) no se pisan: esto solo cambia lo heredado. */
+  font-family: -apple-system, BlinkMacSystemFont, var(--font-geist-sans), "Inter", sans-serif;
+}
+
+[data-skin="fable"][data-theme="dark"] {
+  /* — OSCURO grafito profundo (fablebackofficedark.html :root, hex exactos) — */
+  --background: #0d0d0f;
+  --foreground: #f5f5f7;
+
+  --surface-sunken: #1c1c20;   /* = --surface-2/--kbd-bg: en dark el inset ACLARA (elevación) */
+  --surface: #0d0d0f;          /* --bg */
+  --surface-raised: #17171a;   /* --surface (cards) */
+  --surface-inverted: #f5f5f7;
+
+  --text-strong: #f5f5f7;      /* --ink */
+  --text: #d0d0d5;             /* DERIVADO: cuerpo entre --ink y --ink-2 */
+  --text-muted: #a1a1a6;       /* --ink-2 — 7.5:1 sobre #17171a, AA sobrado */
+  --text-faint: #66666d;       /* --ink-3 — decorativo/placeholder, no texto esencial */
+  --text-on-accent: var(--tenant-on-accent-dark, #ffffff);
+
+  --line: rgba(255, 255, 255, 0.09);         /* --line */
+  --line-strong: rgba(255, 255, 255, 0.16);  /* DERIVADO: ~2× --line */
+
+  --accent: var(--tenant-accent-dark, #0a84ff);
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, #fff);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent); /* mockup: alpha .16 */
+
+  /* El tema OSCURO ya cumple AA como texto (fix 2: no se toca) — acá los
+     *-fill coinciden con el texto; --bar-track = --bar-dim oscuro del mockup. */
+  --success: #30d158;  --success-soft: rgba(48, 209, 88, 0.16);
+  --warning: #ff9f0a;  --warning-soft: rgba(255, 159, 10, 0.18);
+  --danger: #ff453a;   --danger-soft: rgba(255, 69, 58, 0.15); /* 5.3:1 sobre card — AA */
+  --success-fill: #30d158;
+  --warning-fill: #ff9f0a;
+  --danger-fill: #ff453a;
+  --info: var(--accent);
+  --info-soft: var(--accent-soft);
+  --bar-track: #2a2a30; /* --bar-dim oscuro del mockup (fix 32) */
+  --focus-ring: var(--accent);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);   /* --shadow-1 */
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.5);  /* --shadow-2 */
+  --shadow-lg: 0 32px 100px rgba(0, 0, 0, 0.7); /* --shadow-pal */
 }
 
 @theme inline {
@@ -342,6 +475,10 @@
   --color-surface-sunken: var(--surface-sunken);
   --color-surface-raised: var(--surface-raised);
   --color-surface-inverted: var(--surface-inverted);
+  /* Alias: `bg-elevated` ya se usaba en /operador pero el token no existía → la
+     clase no generaba nada y esos paneles quedaban transparentes. Se mapea a
+     surface-raised (mismo rol: superficie elevada). */
+  --color-elevated: var(--surface-raised);
 
   --color-strong: var(--text-strong);
   --color-body: var(--text);
@@ -364,6 +501,12 @@
   --color-danger-soft: var(--danger-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  /* Variantes FILL (fix 2): superficies no textuales (dots, goal bars). */
+  --color-success-fill: var(--success-fill);
+  --color-warning-fill: var(--warning-fill);
+  --color-danger-fill: var(--danger-fill);
+  /* Track de goal bars (fix 32) — el sunken era invisible en claro (1.02:1). */
+  --color-bar-track: var(--bar-track);
 
   --color-focus: var(--focus-ring);
 
@@ -388,6 +531,25 @@
   --spacing-lg: var(--space-lg);
   --spacing-xl: var(--space-xl);
   --spacing-2xl: var(--space-2xl);
+
+  /* 🔧 FIX CRÍTICO (2026-07-11) — los `--spacing-*` de arriba PISABAN los anchos
+     con nombre: en Tailwind v4, `max-w-*` resuelve por [--max-width, --spacing,
+     --container] (en ese orden), así que `max-w-sm` medía 12px (el spacing sm),
+     no 24rem — el card del login quedaba de 12px de ancho, Localización de 48px,
+     y toasts/EmptyState/PageHeader aplastados ("el campo del login mal"). Se
+     re-declaran los anchos ESTÁNDAR de Tailwind en el namespace --max-width-*
+     (que gana la resolución) para que `max-w-{xs..2xl}` vuelva a medir lo que
+     todo el código siempre asumió. De 3xl para arriba no hay colisión (no existe
+     --spacing-3xl+) y ya resolvían bien por --container-*.
+     Nota del gate UX/UI (verificado): esto funciona en un build limpio — si en
+     `next dev` se ve el login aplastado, es la CACHÉ VIEJA de `.next/dev`
+     (anterior a este fix); se cura borrando `.next` y levantando de nuevo. */
+  --max-width-xs: 20rem;
+  --max-width-sm: 24rem;
+  --max-width-md: 28rem;
+  --max-width-lg: 32rem;
+  --max-width-xl: 36rem;
+  --max-width-2xl: 42rem;
 }
 
 /* ═══ FIX colisión escala densidad ↔ escala t-shirt de max-width (2026-07-11) ═══
@@ -433,6 +595,25 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   min-height: 100%;
+}
+
+/* Selección de texto con el acento del tenant (fix 33 del gate): la marca
+   acompaña hasta en el highlight. `--text-on-accent` garantiza el contraste
+   (es el par AA del acento que inyecta cada layout). */
+::selection {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+/* Headings de sección del mockup (fix 34 del gate): h2/h3 del backoffice con
+   letter-spacing -.01em (spec exacta del h2 del mockup blacklight). En @layer
+   base para que cualquier utilidad tracking-* puntual (ej. el -.02em del
+   detalle de Cartera o del PageHeader) le siga ganando. Solo skin Fable: las
+   vidrieras públicas conservan su tipografía editorial. */
+@layer base {
+  [data-skin="fable"] :is(h2, h3) {
+    letter-spacing: -0.01em;
+  }
 }
 
 /* Foco visible en color de marca (petróleo), no negro genérico. Doble anillo:

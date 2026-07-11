@@ -15,7 +15,7 @@
 import { cache } from "react";
 import { basePrisma } from "@/lib/prisma-base";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { invertTheme, resolveAccent, type AccentPreset, type Theme } from "@/lib/branding";
+import { ACCENT_PRESETS, invertTheme, resolveAccent, type AccentPreset, type Theme } from "@/lib/branding";
 import { themeIdForBlueprint, themePack, type ThemeId, type ThemePack } from "@/lib/theme-packs";
 
 // Datos mínimos del Tenant que alimentan la ficha (los que ya existen en el schema).
@@ -38,7 +38,9 @@ export type BrandSheet = {
   pack: ThemePack;
 };
 
-const VALID_PRESETS = new Set<AccentPreset>(["petroleo", "oxblood", "rosa", "celeste", "verde", "ambar"]);
+// Derivado de ACCENT_PRESETS (fuente de verdad única): un preset nuevo en
+// branding.ts (ej. "azul", el de los mockups del backoffice) queda válido acá solo.
+const VALID_PRESETS = new Set<AccentPreset>(Object.keys(ACCENT_PRESETS) as AccentPreset[]);
 
 // Preset por defecto cuando el Tenant no declara uno: NO petróleo (CH) → un neutro celeste
 // sobrio. Un tenant sin ficha nunca más hereda el acento de CH.

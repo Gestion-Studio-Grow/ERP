@@ -23,7 +23,9 @@ export type { EmptyStateProps } from "./EmptyState";
 export { DataTable } from "./DataTable";
 export type { DataTableProps, DataTableColumn, DataTableSort, SortDirection } from "./DataTable";
 export { nextSort, ariaSortFor } from "./data-table-sort";
-export { fmtMoneyARS, fmtNumberAR } from "./format";
+export { fmtMoneyARS, fmtNumberAR, fmtCuit } from "./format";
+export { PageContainer } from "./PageContainer";
+export type { PageContainerProps } from "./PageContainer";
 export {
   textColumn,
   moneyColumn,

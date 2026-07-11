@@ -23,11 +23,18 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
+import { runInTenantContext } from "@/lib/tenant-context";
+import { createInvoice } from "@/lib/invoice-core";
+import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
+import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
+import { logger } from "@/lib/logger";
 import {
   CAP_FACTURAS_MES_DEFAULT,
   cuitValido,
   normalizarCuit,
   normalizarTexto,
+  DOC_TIPO_CONSUMIDOR_FINAL,
   type AprendizajeBancoPort,
   type ClasificacionBanco,
   type ConfigBancos,
@@ -203,7 +210,7 @@ export function validarDatosRevision(datos: DatosRevision): ValidacionRevision {
 
   if (datos.docTipo === DOC_CONSUMIDOR_FINAL) {
     if (docNro !== "" && docNro !== "0") {
-      return { ok: false, error: "Consumidor final (DocTipo 99) va con documento 0." };
+      return { ok: false, error: "Consumidor final se confirma sin número de documento: dejá el campo vacío." };
     }
     return { ok: true, docNro: "0" };
   }
@@ -220,14 +227,14 @@ export function validarDatosRevision(datos: DatosRevision): ValidacionRevision {
 
   if (datos.docTipo === DOC_CUIT || datos.docTipo === DOC_CUIL) {
     if (!cuitValido(docNro)) {
-      return { ok: false, error: "El CUIT/CUIL no es válido (falla el dígito verificador)." };
+      return { ok: false, error: "El CUIT no es válido: revisá los 11 números." };
     }
     return { ok: true, docNro };
   }
 
   if (datos.docTipo === DOC_DNI) {
     if (!/^\d{7,8}$/.test(docNro)) {
-      return { ok: false, error: "El DNI debe tener 7 u 8 dígitos." };
+      return { ok: false, error: "El DNI lleva 7 u 8 dígitos." };
     }
     return { ok: true, docNro };
   }
@@ -395,4 +402,246 @@ export function crearYaProcesado(
     });
     return visto !== null;
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORES con tenantId EXPLÍCITO (refactor de reuso para el producto Contador).
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Antes vivían dentro de las Server Actions (bancos-actions.ts), atados al tenant
+// AMBIENTAL (getCurrentTenantId). El panel del contador (src/lib/cartera-*) opera
+// sobre los clientes de su cartera —otros tenants— así que necesita llamarlos con
+// el tenantId del CLIENTE, sin evadir RLS: todo corre vía tenantTransaction /
+// runInTenantContext con ese id (jamás operatorPrisma). Las actions existentes
+// quedan como wrappers finos (capability + tenant actual + revalidate) con el
+// MISMO comportamiento de siempre.
+
+/** Facturas del tenant creadas este mes (todas las vías). tenantId explícito. */
+export async function contarFacturasDelMes(tenantId: string): Promise<number> {
+  return tenantTransaction(
+    (tx) => tx.invoice.count({ where: { tenantId, createdAt: rangoMesActual() } }),
+    { tenantId },
+  );
+}
+
+export interface ImportacionVista {
+  id: string;
+  nombreArchivo: string;
+  origen: string;
+  estado: string;
+  totalMovimientos: number;
+  createdAt: string; // ISO
+}
+
+export interface KpisFacturacionBancaria {
+  /** Facturas del tenant creadas este mes (todas las vías: banco, MP, turnos). */
+  facturasMes: number;
+  capFacturasMes: number;
+  capRestante: number;
+  montoFacturadoMes: number;
+  pendientesRevision: number;
+  /** Propuestas en estado `auto`, listas para emitir en lote (aditivo, lo usa la cartera). */
+  listasParaEmitir: number;
+  ultimasImportaciones: ImportacionVista[];
+}
+
+/**
+ * KPIs de facturación bancaria de UN tenant, con tenantId EXPLÍCITO. Todas las
+ * queries corren dentro de una única tenantTransaction (GUC = tenantId) → seguras
+ * bajo RLS aunque el llamador sea el panel del contador operando otro tenant.
+ */
+export async function kpisFacturacionBancaria(tenantId: string): Promise<KpisFacturacionBancaria> {
+  const rango = rangoMesActual();
+
+  const [tenant, facturasMes, montoAgg, pendientesRevision, listasParaEmitir, ultimas] =
+    await tenantTransaction(
+      (tx) =>
+        Promise.all([
+          tx.tenant.findUnique({
+            where: { id: tenantId },
+            select: { bancosCapFacturasMes: true },
+          }),
+          tx.invoice.count({ where: { tenantId, createdAt: rango } }),
+          tx.invoice.aggregate({
+            _sum: { total: true },
+            where: { tenantId, createdAt: rango, status: { not: "REJECTED" } },
+          }),
+          tx.movimientoImportado.count({ where: { tenantId, estadoPropuesta: "revision" } }),
+          tx.movimientoImportado.count({ where: { tenantId, estadoPropuesta: "auto" } }),
+          tx.importacionBancaria.findMany({
+            where: { tenantId },
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            select: {
+              id: true,
+              nombreArchivo: true,
+              origen: true,
+              estado: true,
+              totalMovimientos: true,
+              createdAt: true,
+            },
+          }),
+        ]),
+      { tenantId },
+    );
+
+  const capFacturasMes = tenant?.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
+  return {
+    facturasMes,
+    capFacturasMes,
+    capRestante: Math.max(0, capFacturasMes - facturasMes),
+    montoFacturadoMes: toNum(montoAgg._sum.total ?? 0),
+    pendientesRevision,
+    listasParaEmitir,
+    ultimasImportaciones: ultimas.map((u) => ({
+      id: u.id,
+      nombreArchivo: u.nombreArchivo,
+      origen: u.origen,
+      estado: u.estado,
+      totalMovimientos: u.totalMovimientos,
+      createdAt: u.createdAt.toISOString(),
+    })),
+  };
+}
+
+export interface ResultadoEmision {
+  emitidas: number;
+  bloqueadasPorCap: number;
+  capAlcanzado: boolean;
+  mensaje?: string;
+  errores: { movimientoId: string; error: string }[];
+  /** Resumen del despacho a ARCA (solo si ARCA_INVOICING_ENABLED está prendido). */
+  despachoArca?: DispatchResumen;
+}
+
+/**
+ * Emite las propuestas `auto` de UN tenant, con tenantId EXPLÍCITO. Es el core de
+ * `emitirPropuestasAction` (mismo claim idempotente auto→emitida, mismo cap del
+ * mes, mismo despacho a ARCA); el cuerpo entero corre bajo `runInTenantContext`
+ * para que TODA operación Prisma —incluidas las lecturas sueltas— resuelva el GUC
+ * al tenant pedido y no al ambiental (clave cuando lo llama el contador sobre un
+ * cliente de su cartera).
+ */
+export async function emitirPropuestas(
+  tenantId: string,
+  seleccion: string[] | "auto",
+): Promise<ResultadoEmision> {
+  return runInTenantContext(tenantId, async () => {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { bancosCapFacturasMes: true, arcaPuntoVenta: true },
+    });
+    const cap = tenant?.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
+    const facturasMes = await contarFacturasDelMes(tenantId);
+
+    const movimientos = await prisma.movimientoImportado.findMany({
+      where: {
+        tenantId,
+        estadoPropuesta: "auto",
+        ...(seleccion === "auto" ? {} : { id: { in: seleccion } }),
+      },
+      orderBy: [{ fecha: "asc" }, { createdAt: "asc" }],
+    });
+    if (movimientos.length === 0) {
+      return { emitidas: 0, bloqueadasPorCap: 0, capAlcanzado: false, errores: [] };
+    }
+
+    const perfil = getFiscalProfile(tenantId);
+    const puntoVenta = tenant?.arcaPuntoVenta ?? perfil.puntoVenta;
+
+    let emitidas = 0;
+    let bloqueadas = 0;
+    const errores: { movimientoId: string; error: string }[] = [];
+
+    for (const mov of movimientos) {
+      // Cap de facturas del mes (regla comercial del dueño): al 100% se BLOQUEA.
+      if (facturasMes + emitidas >= cap) {
+        bloqueadas++;
+        continue;
+      }
+
+      // CLAIM idempotente: solo el que pasa auto→emitida factura. Un doble clic o
+      // dos sesiones simultáneas no generan dos comprobantes del mismo movimiento.
+      const claim = await tenantTransaction(
+        (tx) =>
+          tx.movimientoImportado.updateMany({
+            where: { id: mov.id, tenantId, estadoPropuesta: "auto" },
+            data: { estadoPropuesta: "emitida" },
+          }),
+        { tenantId },
+      );
+      if (claim.count === 0) continue; // otro lo agarró (o cambió de estado)
+
+      try {
+        // El monto del banco es TOTAL IVA-incluido; el Core calcula neto/IVA (ADR-006).
+        const montoTotal = Math.abs(toNum(mov.monto));
+        const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
+        const invoiceId = await createInvoice({
+          tenantId,
+          // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
+          // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
+          concepto: 1,
+          fecha: mov.fecha,
+          emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta },
+          receptor: {
+            docTipo: mov.docTipo ?? DOC_TIPO_CONSUMIDOR_FINAL,
+            docNro: Number(mov.docNro ?? 0) || 0,
+            condicionIva: "CONSUMIDOR_FINAL",
+          },
+          neto,
+          iva,
+          total,
+        });
+        await tenantTransaction(
+          (tx) =>
+            tx.movimientoImportado.updateMany({
+              where: { id: mov.id, tenantId },
+              data: { invoiceId },
+            }),
+          { tenantId },
+        );
+        emitidas++;
+      } catch (err) {
+        // Falló la creación: soltar el claim para que se pueda reintentar.
+        await tenantTransaction(
+          (tx) =>
+            tx.movimientoImportado.updateMany({
+              where: { id: mov.id, tenantId, invoiceId: null },
+              data: { estadoPropuesta: "auto" },
+            }),
+          { tenantId },
+        );
+        const mensaje = err instanceof Error ? err.message : String(err);
+        errores.push({ movimientoId: mov.id, error: mensaje });
+        logger.error("bancos", "no se pudo emitir la factura del movimiento", err, {
+          tenantId,
+          movimientoId: mov.id,
+        });
+      }
+    }
+
+    // Con la facturación encendida, drenar el outbox → plugin ARCA → CAE (stub en dev).
+    let despachoArca: DispatchResumen | undefined;
+    if (emitidas > 0 && isInvoicingEnabled()) {
+      despachoArca = await processArcaOutbox();
+    }
+
+    const capAlcanzado = bloqueadas > 0 || facturasMes + emitidas >= cap;
+    return {
+      emitidas,
+      bloqueadasPorCap: bloqueadas,
+      capAlcanzado,
+      ...(capAlcanzado
+        ? {
+            mensaje:
+              `Se alcanzó el tope de ${cap} facturas del mes` +
+              (bloqueadas > 0
+                ? `: ${bloqueadas} ${bloqueadas === 1 ? "propuesta quedó" : "propuestas quedaron"} SIN emitir. Se emiten recién el mes próximo (o subiendo el tope en la configuración del módulo).`
+                : "."),
+          }
+        : {}),
+      errores,
+      ...(despachoArca ? { despachoArca } : {}),
+    };
+  });
 }

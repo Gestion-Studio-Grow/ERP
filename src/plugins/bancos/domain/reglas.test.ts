@@ -115,7 +115,7 @@ test("al 100% del cap se bloquea la emisión automática (baja a revisión)", as
   );
   assert.equal(propuestas[0].estado, "auto"); // 159/159, la última permitida
   assert.equal(propuestas[1].estado, "revision"); // bloqueada: solo manual
-  assert.match(propuestas[1].motivo ?? "", /cap de 159/i);
+  assert.match(propuestas[1].motivo ?? "", /tope de 159/i);
   assert.deepEqual(
     alertas.map((a) => a.tipo),
     ["cap-100"],

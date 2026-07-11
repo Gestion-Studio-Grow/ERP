@@ -39,7 +39,7 @@ const TYPE_HELP: Record<Slot["type"], string> = {
   APPOINTMENT_REMINDER:
     "Se envía automáticamente antes de cada turno confirmado, con la anticipación configurada en el servicio.",
   PROFESSIONAL_NEWS_BROADCAST:
-    "Se envía a la base de clientes cuando tocás «Difundir» en una novedad.",
+    "Se envía a la base de clientes cuando tocás “Difundir” en una novedad.",
 };
 
 // Variables que aplican a cada tipo de plantilla, con su explicación en humano.

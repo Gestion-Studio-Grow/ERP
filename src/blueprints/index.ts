@@ -4,6 +4,7 @@
 import type { Blueprint } from "./types";
 import { serviciosBlueprint } from "./servicios";
 import { genericoBlueprint } from "./generico";
+import { facturitaBlueprint } from "./facturita";
 import { RETAIL_BLUEPRINTS, RETAIL_RUBRO_HINTS } from "./retail";
 import { FAMILY_BLUEPRINTS, FAMILY_RUBRO_HINTS } from "./families";
 
@@ -31,6 +32,8 @@ const REGISTRY: Record<string, Blueprint> = {
   ...FAMILY_BLUEPRINTS,
   [serviciosBlueprint.id]: serviciosBlueprint,
   [genericoBlueprint.id]: genericoBlueprint,
+  // Producto C de la suite de facturación (ADR-076): tenant liviano solo-facturación.
+  [facturitaBlueprint.id]: facturitaBlueprint,
 };
 
 export const BLUEPRINT_IDS = Object.keys(REGISTRY);
