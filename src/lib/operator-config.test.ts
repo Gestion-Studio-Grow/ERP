@@ -34,5 +34,5 @@ test("el catálogo de la consola incluye reviews (drift viejo) + los 5 módulos 
 
 test("los plugins (integraciones externas) quedan marcados", () => {
   const plugins = MODULES.filter((m) => m.plugin).map((m) => m.id).sort();
-  assert.deepEqual(plugins, ["arca", "mercadopago"]);
+  assert.deepEqual(plugins, ["arca", "bancos", "mercadopago"]);
 });

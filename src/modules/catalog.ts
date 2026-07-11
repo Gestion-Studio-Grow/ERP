@@ -13,17 +13,21 @@
 //     (src/plugins/arca/module.ts), como manda la convención.
 //   - Mercado Pago (plugin): src/modules/descriptors/mercadopago.ts (hasta su
 //     reingeniería a real, ahí se muda a su propio dir).
+//   - Bancos (plugin): su fuente de verdad vive junto al plugin
+//     (src/plugins/bancos/module.ts), misma convención que ARCA.
 
 import { ModuleRegistry } from "./registry";
 import { MODULOS_NATIVOS } from "./descriptors/nativos";
 import { mercadopagoModule } from "./descriptors/mercadopago";
 import { arcaModule } from "@/plugins/arca/module";
+import { bancosModule } from "@/plugins/bancos/module";
 
 /** Todos los descriptores del catálogo del producto (el "qué hay disponible"). */
 export const DESCRIPTORES_CATALOGO = [
   ...MODULOS_NATIVOS,
   arcaModule,
   mercadopagoModule,
+  bancosModule,
 ];
 
 /**
