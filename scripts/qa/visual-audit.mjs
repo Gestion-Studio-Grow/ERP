@@ -233,7 +233,10 @@ function auditInPage() {
 async function main() {
   const fixture = JSON.parse(await readFile(FIXTURE, "utf8"));
   const { authSecret, operatorSecret } = fixture;
-  let tenants = fixture.tenants.filter((t) => t.userId); // con OWNER
+  // Sin filtro por userId: un tenant sin OWNER (ej. verificación contra PRODUCCIÓN,
+  // donde no tenemos ni debemos tener la sesión de admin) igual audita sus superficies
+  // PÚBLICAS + login; las rutas `auth:"admin"` se saltan si no hay userId (abajo).
+  let tenants = fixture.tenants;
   if (ONLY.length) tenants = tenants.filter((t) => ONLY.includes(t.subdomain));
 
   await mkdir(OUT_DIR, { recursive: true });
@@ -244,11 +247,14 @@ async function main() {
   let hardFails = 0;
 
   for (const t of tenants) {
-    const host = `${t.subdomain}.${BASE_HOST}`;
-    const origin = `http://${host}:${PORT}`;
+    // Origin explícito (prod: URL plana `https://<slug>-erp.vercel.app`) o derivado
+    // del subdominio (local: `http://<sub>.localhost:PORT`).
+    const origin = t.origin ?? `http://${t.subdomain}.${BASE_HOST}:${PORT}`;
     const routes = ROUTES.filter((r) => {
       if (!GROUPS.includes(r.group)) return false;
       if (r.blueprints && !r.blueprints.includes(t.blueprintId)) return false;
+      // Sin sesión de admin (prod) → saltar rutas autenticadas (no fallar por rebote).
+      if (r.auth === "admin" && !t.userId) return false;
       return true;
     });
     for (const route of routes) {
