@@ -461,7 +461,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  // La fábrica de tenants es una operación de OWNER: escribe cross-tenant al bootstrapear
+  // el tenant nuevo (Client/Service/BusinessSettings/… con su tenantId). Post-RLS (ADR-018)
+  // DATABASE_URL apunta a `app_rls` (sin BYPASSRLS) y NO podría crear esas filas (WITH CHECK
+  // exige el GUC del tenant nuevo, que el provisioning no setea). Por eso conectamos con
+  // OPERATOR_DATABASE_URL (rol owner) y caemos a DATABASE_URL solo si no está — idéntico
+  // patrón que src/lib/operator-db.ts, y coherente con que la consola ya usa operatorPrisma.
+  const connectionString = process.env.OPERATOR_DATABASE_URL ?? process.env.DATABASE_URL;
+  const adapter = new PrismaPg({ connectionString });
   const prisma = new PrismaClient({ adapter });
   try {
     const result = await provisionTenant(prisma, {
