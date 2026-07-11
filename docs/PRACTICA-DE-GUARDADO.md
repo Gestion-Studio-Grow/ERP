@@ -57,19 +57,35 @@ node "C:\Users\mlloveras2\Documents\Claude\estetica-erp\scripts\auto-save.mjs"
 - **Nota:** hoy el script vive en la rama fundacional (`fundacion/consolidacion-diseno`); estará en `main`
   (`estetica-erp\scripts\auto-save.mjs`) recién **tras el merge**. Hasta entonces, apuntá `AUTOSAVE_REPO` al
   worktree fundacional o corré la copia que está ahí.
-- Cadencia sugerida: **cada 5–10 min** mientras se trabaja, y **al cerrar sesión**. (La tarea programada la
-  engancha el dueño / el asistente; ver el comando de arriba.)
+- Cadencia sugerida: **cada 10–15 min** mientras se trabaja, y **al cerrar sesión**.
+
+**Comando listo para Windows Task Scheduler (cada 15 min):**
+
+```
+schtasks /Create /TN "GSG-AutoSave" /TR "node \"C:\Users\mlloveras2\Documents\Claude\estetica-erp\scripts\auto-save.mjs\"" /SC MINUTE /MO 15 /F
+```
+
+- Para "al cerrar sesión", agregar una segunda tarea con `/SC ONLOGOFF` (o correr el mismo comando en el script
+  de cierre de la sesión de trabajo).
+- Para apuntar a **otro** worktree (p. ej. el fundacional, antes del merge), setear la variable en el `/TR`:
+  `cmd /c set AUTOSAVE_REPO=<ruta> ^&^& node "<ruta>\scripts\auto-save.mjs"`.
 
 ## 5. 🔒 Política de seguridad del repo (de `00-GUIA-RECUPERACION.md`)
+
+**La política, en cuatro puntos:**
+- **(a)** Nada vive solo en una sesión → todo avance se commitea y se **pushea a `origin`** (§1–2).
+- **(b)** **Proteger `main`** en GitHub (branch protection: sin force-push ni borrado) — **acción del dueño** (§6).
+- **(c)** **Mirror/backup automático** a un segundo remoto — workflow ya listo (abajo).
+- **(d)** **`--force-with-lease` siempre, nunca `--force`** sobre `main`.
 
 Para que el repo no dependa de una sola copia ni pueda destruirse por error:
 
 - **Proteger `main` (branch protection):** prohibir **force-push** y **borrado** de `main`; exigir PR + al menos
   una revisión antes de merge. **→ acción del dueño en GitHub** (yo no puedo configurarlo por vos; ver §6).
-- **Mirror / backup automático:** mantener un **espejo** del repo (segundo remoto o mirror programado) para no
-  depender solo de GitHub. Comando de mirror manual:
-  `git clone --mirror https://github.com/Gestion-Studio-Grow/ERP.git` y `git remote update` periódico; o un
-  segundo remoto `git remote add backup <url>` + `git push backup --all --tags`. **→ el dueño elige destino.**
+- **Mirror / backup automático:** **workflow ya listo** en **`.github/workflows/mirror-backup.yml`** — espeja el
+  repo a un segundo remoto cada 6 h + en cada push. **Inerte hasta que el dueño configure el secret**
+  `MIRROR_REPO_URL` (ver instrucciones en el propio archivo). Alternativa manual:
+  `git clone --mirror https://github.com/Gestion-Studio-Grow/ERP.git` + `git push --mirror <backup-url>` periódico.
 - **`--force-with-lease` en vez de `--force`:** si alguna vez hay que reescribir historia (raro), usar
   **`git push --force-with-lease`** (aborta si el remoto avanzó desde tu última vista) — nunca `--force` a secas.
   El auto-save **nunca** fuerza: hace push normal.
@@ -80,7 +96,9 @@ Para que el repo no dependa de una sola copia ni pueda destruirse por error:
 
 1. **GitHub → Settings → Branches → Branch protection rule para `main`:** marcar *"Require a pull request before
    merging"*, *"Do not allow force pushes"*, *"Do not allow deletions"*. (Requiere permisos de admin del repo.)
-2. **Configurar el mirror/backup** (elegir destino: 2º remoto, o clon `--mirror` programado).
-3. **Programar el auto-save** con el comando de §4 (o pedírmelo para engancharlo a una tarea).
+2. **Activar el mirror/backup:** crear el repo de backup vacío y setear el secret `MIRROR_REPO_URL` en
+   *Settings → Secrets and variables → Actions*. El workflow `.github/workflows/mirror-backup.yml` **ya está** —
+   solo falta el secret (hasta entonces corre inerte).
+3. **Programar el auto-save** con el comando `schtasks` de §4 (o pedírmelo para engancharlo a una tarea).
 
 — Elaborado por GSG (PMO)
