@@ -1,5 +1,8 @@
 # ESTADO ACTUAL — la foto completa (para retomar sin perderse)
 
+> **👉 Documento de entrada:** para la foto rápida + roadmap + semáforos + decisiones pendientes, empezá por
+> **[`docs/ESTADO-Y-ROADMAP.md`](ESTADO-Y-ROADMAP.md)**. Este doc es el detalle operativo completo.
+
 **Qué es:** la foto viva del sistema para arrancar cualquier sesión/sprint sin re-descubrir el
 contexto. La **produce/actualiza el PMO en la FASE 0 (Exploración)** y se **re-taggea en la FASE
 FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nueva y pegás tu prompt,
