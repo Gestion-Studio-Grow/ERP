@@ -100,17 +100,21 @@ export function estiloATexto(e: EstiloBase): string {
   return `Estilo: ${e.mood}. Paleta: ${e.paleta}. Iluminación: ${e.iluminacion}. Cámara: ${e.camara}.`;
 }
 
-// Sugerencias de terminación por aspect ratio (ayudan a encuadrar el hero).
+// Sugerencias de terminación por aspect ratio (ayudan a encuadrar el hero). El
+// ratio se nombra explícito porque algunos proveedores (Gemini) toman la relación
+// desde el propio texto del prompt, no por parámetro.
 function pistaAspecto(aspectRatio: AspectRatio): string {
   switch (aspectRatio) {
     case "16:9":
+    case "5:4":
     case "4:3":
-      return "Composición horizontal apta para banner/hero, con zona de aire para texto.";
+      return `Composición horizontal (${aspectRatio}) apta para banner/hero, con zona de aire para texto.`;
     case "9:16":
     case "3:4":
-      return "Composición vertical apta para mobile/story.";
+    case "4:5":
+      return `Composición vertical (${aspectRatio}) apta para mobile/story/hero editorial.`;
     default:
-      return "Composición cuadrada equilibrada.";
+      return "Composición cuadrada (1:1) equilibrada.";
   }
 }
 

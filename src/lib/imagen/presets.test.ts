@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { estiloParaRubro, estiloATexto, componerPrompt, ESTILO_GENERICO, ESTILOS } from "./presets";
+import { dimsFor, ASPECT_RATIOS } from "./types";
 
 test("estiloParaRubro: mapea rubros afines al mismo estilo", () => {
   const estetica = estiloParaRubro("estetica");
@@ -35,6 +36,20 @@ test("componerPrompt: incluye pedido + direccion de arte + baranda de calidad", 
 test("componerPrompt: aspecto horizontal agrega pista de banner/hero", () => {
   const p = componerPrompt({ prompt: "hero", rubro: "estetica", aspectRatio: "16:9" });
   assert.match(p, /banner\/hero/);
+});
+
+test("componerPrompt: aspecto 4:5 nombra el ratio y lo marca vertical", () => {
+  const p = componerPrompt({ prompt: "hero editorial", rubro: "estetica", aspectRatio: "4:5" });
+  assert.match(p, /vertical \(4:5\)/);
+});
+
+test("dimsFor: 4:5 -> 1024x1280 y todos los ratios tienen dims validas", () => {
+  assert.deepEqual(dimsFor("4:5"), { width: 1024, height: 1280 });
+  for (const r of ASPECT_RATIOS) {
+    const d = dimsFor(r);
+    assert.ok(d.width > 0 && d.height > 0, `dims invalidas para ${r}`);
+    assert.ok(d.width % 8 === 0 && d.height % 8 === 0, `${r} deberia ser multiplo de 8`);
+  }
 });
 
 test("componerPrompt: estiloOverride reemplaza la direccion del rubro", () => {
