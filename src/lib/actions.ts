@@ -9,6 +9,7 @@ import {
   businessWallTimeToUtc,
   todayInBusinessTz,
   dateStrInBusinessTz,
+  dayOfWeekForDate,
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -16,7 +17,7 @@ import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
-import { generateSlots, intervalsOverlap, withBuffer } from "@/lib/booking-slots";
+import { generateSlotsForDays } from "@/lib/booking-slots";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
@@ -36,6 +37,9 @@ export async function getProfessionalsWithServices() {
   });
 }
 
+// Franjas libres de UN día. Es azúcar sobre `getAvailableSlotsRange` (una sola
+// fecha) para no duplicar la lógica de choques/recursos: el motor de verdad es
+// el batch. Mismo resultado que antes, mismos bordes y buffer.
 export async function getAvailableSlots(
   professionalId: string,
   serviceId: string,
@@ -44,21 +48,65 @@ export async function getAvailableSlots(
   // franjas libres: su horario actual (y el buffer alrededor) no debe contar
   // como ocupado contra sí mismo. Vacío en el alta normal.
   excludeAppointmentId?: string
-) {
-  const [service, professional, window] = await Promise.all([
+): Promise<string[]> {
+  const byDay = await getAvailableSlotsRange(professionalId, serviceId, [date], excludeAppointmentId);
+  return byDay[date] ?? [];
+}
+
+// Franjas libres de VARIOS días de una sola pasada (perf ADR-023 F-agenda).
+// El calendario del funnel de reserva precalienta 14 días de golpe: hacerlo con
+// `getAvailableSlots` por día disparaba ~7 queries × 14 = ~100 round-trips a Neon
+// (service/professional/serviceResources se repetían idénticos cada día). Acá los
+// datos compartidos se leen UNA vez y los turnos/bloqueos del RANGO completo se
+// traen en una query cada uno y se reparten por día en memoria: ~7 queries totales
+// para todo el rango, sin cambiar qué franjas se ofrecen. Devuelve fecha → franjas.
+export async function getAvailableSlotsRange(
+  professionalId: string,
+  serviceId: string,
+  dates: string[],
+  excludeAppointmentId?: string
+): Promise<Record<string, string[]>> {
+  const result: Record<string, string[]> = {};
+  const uniqueDates = [...new Set(dates)];
+  if (uniqueDates.length === 0) return result;
+
+  // Datos compartidos por TODOS los días: no cambian de una fecha a otra, así que
+  // se leen una sola vez (antes se re-leían por día). Los horarios del profesional
+  // son ≤7 filas (una por día de semana) → una query cubre las 14 fechas.
+  const [service, professional, workingHours, serviceResources] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
     prisma.professional.findUniqueOrThrow({ where: { id: professionalId } }),
-    getWorkingWindow(professionalId, date),
+    prisma.workingHours.findMany({ where: { professionalId } }),
+    prisma.serviceResource.findMany({ where: { serviceId }, include: { resource: true } }),
   ]);
-  if (!window) return [];
-  const { dayStart, dayEnd } = window;
-
-  // Recursos que consume este servicio (G17): máquinas/gabinetes con capacidad.
-  const serviceResources = await prisma.serviceResource.findMany({
-    where: { serviceId },
-    include: { resource: true },
-  });
+  const hoursByDow = new Map(workingHours.map((h) => [h.dayOfWeek, h]));
   const resourceIds = serviceResources.map((sr) => sr.resourceId);
+
+  // Ventana de trabajo (UTC) de cada fecha pedida; los días sin horario quedan
+  // con [] y no entran al rango de búsqueda de ocupación.
+  const windows = new Map<string, { dayStart: Date; dayEnd: Date }>();
+  for (const date of uniqueDates) {
+    result[date] = [];
+    const hours = hoursByDow.get(dayOfWeekForDate(date));
+    if (!hours) continue;
+    windows.set(date, {
+      dayStart: businessWallTimeToUtc(date, hours.startTime),
+      dayEnd: businessWallTimeToUtc(date, hours.endTime),
+    });
+  }
+  if (windows.size === 0) return result;
+
+  // Cota global del rango: la unión de todas las ventanas. Una sola query por
+  // tabla la cubre, y después se reparte por día con el MISMO predicado que
+  // usaba la versión por-día (mismos bordes gte/lt y solape estricto).
+  let rangeStart = Infinity;
+  let rangeEnd = -Infinity;
+  for (const { dayStart, dayEnd } of windows.values()) {
+    rangeStart = Math.min(rangeStart, dayStart.getTime());
+    rangeEnd = Math.max(rangeEnd, dayEnd.getTime());
+  }
+  const minStart = new Date(rangeStart);
+  const maxEnd = new Date(rangeEnd);
 
   // Turno a ignorar (el que se está reprogramando), si lo hay.
   const notSelf = excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {};
@@ -68,34 +116,30 @@ export async function getAvailableSlots(
       where: {
         ...notSelf,
         status: { in: ["PENDING", "CONFIRMED"] },
-        startsAt: { gte: dayStart, lt: dayEnd },
+        startsAt: { gte: minStart, lt: maxEnd },
         OR: [{ professionalId }, ...(professional.boxId ? [{ boxId: professional.boxId }] : [])],
       },
       select: { startsAt: true, endsAt: true },
     }),
     professional.boxId
       ? prisma.boxBlock.findMany({
-          where: {
-            boxId: professional.boxId,
-            startsAt: { lt: dayEnd },
-            endsAt: { gt: dayStart },
-          },
+          where: { boxId: professional.boxId, startsAt: { lt: maxEnd }, endsAt: { gt: minStart } },
           select: { startsAt: true, endsAt: true },
         })
       : Promise.resolve([]),
-    // Bloqueos del profesional ese día (G9): franco / vacaciones / novedad.
+    // Bloqueos del profesional en el rango (G9): franco / vacaciones / novedad.
     prisma.professionalBlock.findMany({
-      where: { professionalId, startsAt: { lt: dayEnd }, endsAt: { gt: dayStart } },
+      where: { professionalId, startsAt: { lt: maxEnd }, endsAt: { gt: minStart } },
       select: { startsAt: true, endsAt: true },
     }),
-    // Turnos del día que usan alguno de los recursos que necesita este servicio,
+    // Turnos del rango que usan alguno de los recursos que necesita este servicio,
     // con las unidades que consume cada uno (para medir ocupación por franja).
     resourceIds.length > 0
       ? prisma.appointment.findMany({
           where: {
             ...notSelf,
             status: { in: ["PENDING", "CONFIRMED"] },
-            startsAt: { gte: dayStart, lt: dayEnd },
+            startsAt: { gte: minStart, lt: maxEnd },
             service: { resources: { some: { resourceId: { in: resourceIds } } } },
           },
           select: {
@@ -108,39 +152,30 @@ export async function getAvailableSlots(
         })
       : Promise.resolve([]),
   ]);
-  // Los turnos reales suman un margen de limpieza/preparación antes y
-  // después; los bloqueos de box/profesional ya son rangos explícitos y no
-  // necesitan margen extra.
-  const busy = [
-    ...existing.map((a) => withBuffer(a.startsAt, a.endsAt, BUFFER_MIN)),
-    ...boxBlocks,
-    ...professionalBlocks,
-  ];
 
-  // Capacidad de recursos (G17): para cada recurso requerido, la suma de unidades
-  // de los turnos que se solapan más lo que este turno consume no puede superar la
-  // cantidad disponible. Predicado por-franja (sólo si el servicio usa recursos).
-  const capacityOk = (slotStart: Date, slotEnd: Date) => {
-    for (const sr of serviceResources) {
-      const overlapUnits = resourceUsage
-        .filter((a) => intervalsOverlap(slotStart, slotEnd, a.startsAt, a.endsAt))
-        .reduce((sum, a) => {
-          const link = a.service.resources.find((r) => r.resourceId === sr.resourceId);
-          return sum + (link?.units ?? 0);
-        }, 0);
-      if (overlapUnits + sr.units > sr.resource.quantity) return false;
-    }
-    return true;
-  };
-
-  return generateSlots({
-    dayStart,
-    dayEnd,
+  // Reparto por día + generación de franjas: lógica PURA y testeable (mismos
+  // predicados que la versión por-día). El buffer de limpieza se aplica dentro.
+  const computed = generateSlotsForDays({
+    windows: [...windows].map(([date, w]) => ({ date, dayStart: w.dayStart, dayEnd: w.dayEnd })),
     durationMin: service.durationMin,
     stepMin: 30,
-    busy,
-    capacityOk: serviceResources.length > 0 ? capacityOk : undefined,
+    bufferMin: BUFFER_MIN,
+    busyAppointments: existing,
+    boxBlocks,
+    professionalBlocks,
+    resourceUsage: resourceUsage.map((a) => ({
+      startsAt: a.startsAt,
+      endsAt: a.endsAt,
+      resources: a.service.resources,
+    })),
+    requiredResources: serviceResources.map((sr) => ({
+      resourceId: sr.resourceId,
+      units: sr.units,
+      quantity: sr.resource.quantity,
+    })),
   });
+
+  return { ...result, ...computed };
 }
 
 type BookingStatus = "PENDING" | "CONFIRMED";
