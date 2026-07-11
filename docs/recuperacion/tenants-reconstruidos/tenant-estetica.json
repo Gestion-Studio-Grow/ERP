@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "tenant": "estetica",
+    "rubro": "estetica_turnos",
+    "deployment": "https://gsg-erp-estetica.vercel.app",
+    "rutas": ["/", "/admin (login: 'Mi negocio' / 'Ingresar al panel')"],
+    "stack": "Next.js App Router (Turbopack)",
+    "fuente_datos": "reconstruido desde el deployment en vivo (contenido publico), 2026-07-10",
+    "nota": "Este tenant usa el molde 'landing' completo (distinto de las tiendas por catalogo) y reservas por turno."
+  },
+  "sitio": {
+    "titulo": "Estética DEMO",
+    "descripcion": "Gestión del negocio y reservas online.",
+    "ubicacion_eyebrow": "La Alameda · Canning",
+    "hero": { "titulo": "Tu momento, reservado.", "bajada": "Turnos y atención en Estética DEMO. Reservás en un minuto.", "cta": ["Reservar", "Ver servicios"] },
+    "beneficios": [
+      { "titulo": "Tiempo", "texto": "Entrás, te atienden, seguís tu día." },
+      { "titulo": "Cercanía", "texto": "Dentro del barrio. Sin salir, sin tránsito." },
+      { "titulo": "Cuidado", "texto": "Protocolos serios, piel que ya conocemos." }
+    ]
+  },
+  "servicios": [
+    { "categoria": "Estética", "items": [
+      { "nombre": "Coloración", "duracion_min": 90, "precio": 28000 },
+      { "nombre": "Corte y peinado", "duracion_min": 45, "precio": 12000 }
+    ]}
+  ],
+  "equipo": [
+    { "nombre": "Ana (DEMO)", "rol": "Estética integral" }
+  ],
+  "como_reservar": ["Elegí el servicio.", "Elegí día y profesional.", "Confirmás y listo."],
+  "detalles": {
+    "diferencial": "Un espacio dentro del barrio, pensado para pocos. Turnos que no se pisan.",
+    "sellos": ["Material esterilizado", "Turnos espaciados", "Productos con trazabilidad"]
+  },
+  "contacto": {
+    "direccion": "Barrio La Alameda, Canning · Buenos Aires",
+    "horario": "Lun a sáb · 9 a 19 h",
+    "reservas": "Online, en un minuto",
+    "acceso_admin": "/admin"
+  }
+}

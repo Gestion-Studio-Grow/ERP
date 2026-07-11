@@ -1,0 +1,226 @@
+<!-- Procedencia: recuperado del bundle _recuperacion_inbox_20260710 (2026-07-10). Mockup de referencia GSG, sin alterar. -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAGRA · Mostrador — GSG Backoffice / POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Open+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --carbon:#1D1D1B; --panel:#232320; --panel2:#2b2b27; --line:rgba(242,230,215,.10);
+    --crema:#F2E6D7; --oro:#C5AE86; --oro-hi:#D8C39C; --acero:#CCD6DF; --gris:#847d72;
+    --verde:#4FB477; --ambar:#E0A93B; --sangre:#B0483C;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--carbon);color:var(--crema);font-family:'Open Sans',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;height:100vh;overflow:hidden}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+  .display{font-family:'Bebas Neue',sans-serif;letter-spacing:.03em}
+  .eyebrow{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gris);font-weight:700}
+  button{font-family:inherit;cursor:pointer}
+
+  .app{display:grid;grid-template-columns:74px 1fr 400px;height:100vh}
+
+  /* ---- SIDEBAR ---- */
+  .side{background:#161614;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:6px}
+  .side .mk{width:42px;height:42px;border-radius:11px;background:var(--oro);color:var(--carbon);display:grid;place-items:center;font-family:'Bebas Neue';font-size:26px;margin-bottom:14px}
+  .side .ic{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;color:var(--gris);position:relative;transition:.15s}
+  .side .ic svg{width:21px;height:21px}
+  .side .ic:hover{color:var(--crema);background:var(--panel)}
+  .side .ic.on{color:var(--carbon);background:var(--oro)}
+  .side .sp{flex:1}
+  .side .av{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#5c4a2e,#C5AE86);display:grid;place-items:center;font-weight:700;color:var(--carbon);font-size:13px}
+
+  /* ---- CENTER ---- */
+  .center{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1f1f1c,#1a1a18)}
+  .topbar .l{display:flex;align-items:baseline;gap:14px}
+  .topbar h1{font-family:'Bebas Neue';font-size:30px;color:var(--crema);letter-spacing:.04em}
+  .topbar .date{font-size:12px;color:var(--gris)}
+  .cmdk{display:flex;align-items:center;gap:10px;background:#141412;border:1px solid var(--line);border-radius:9px;padding:9px 14px;color:var(--gris);min-width:300px}
+  .cmdk .kbd{margin-left:auto;font-family:'JetBrains Mono';font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:2px 7px;color:var(--acero)}
+  .live{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--verde);font-weight:600}
+  .live .dot{width:8px;height:8px;border-radius:50%;background:var(--verde);box-shadow:0 0 0 0 rgba(79,180,119,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(79,180,119,.5)}70%{box-shadow:0 0 0 9px rgba(79,180,119,0)}100%{box-shadow:0 0 0 0 rgba(79,180,119,0)}}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+  .kpi{background:var(--carbon);padding:16px 22px}
+  .kpi .k{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gris);font-weight:700;margin-bottom:8px}
+  .kpi .v{font-family:'Bebas Neue';font-size:38px;color:var(--crema);line-height:.9}
+  .kpi .v.oro{color:var(--oro)}
+  .kpi .d{font-size:11px;margin-top:6px;font-weight:600}
+  .kpi .d.up{color:var(--verde)} .kpi .d.dn{color:var(--sangre)}
+
+  /* KANBAN LANES */
+  .lanes-head{display:flex;align-items:center;justify-content:space-between;padding:16px 24px 10px}
+  .lanes-head .eyebrow{font-size:11px}
+  .seg{display:flex;gap:2px;background:#141412;border:1px solid var(--line);border-radius:8px;padding:3px}
+  .seg button{border:none;background:transparent;color:var(--gris);font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px}
+  .seg button.on{background:var(--oro);color:var(--carbon)}
+  .lanes{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:4px 24px 20px;overflow:hidden;min-height:0}
+  .lane{background:#1a1a18;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:0}
+  .lane-h{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--line)}
+  .lane-h .nm{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:8px}
+  .lane-h .bd{width:8px;height:8px;border-radius:50%}
+  .lane-h .ct{font-family:'JetBrains Mono';font-size:12px;color:var(--gris);background:#141412;border-radius:6px;padding:2px 8px}
+  .lane-b{padding:10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto}
+  .tk{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 12px;transition:.15s;cursor:grab}
+  .tk:hover{border-color:rgba(197,174,134,.5);transform:translateY(-2px)}
+  .tk .r1{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+  .tk .id{font-family:'JetBrains Mono';font-size:11px;color:var(--oro)}
+  .tk .clock{font-family:'JetBrains Mono';font-size:11px;color:var(--gris)}
+  .tk .cust{font-weight:700;font-size:13px;color:var(--crema)}
+  .tk .items{font-size:12px;color:var(--acero);margin:3px 0 9px;line-height:1.35}
+  .tk .r2{display:flex;align-items:center;justify-content:space-between}
+  .tk .tot{font-family:'JetBrains Mono';font-weight:700;font-size:14px;color:var(--crema)}
+  .chip{font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:3px 8px;border-radius:20px}
+  .chip.wa{background:rgba(79,180,119,.16);color:var(--verde)}
+  .chip.loc{background:rgba(197,174,134,.16);color:var(--oro)}
+  .chip.env{background:rgba(224,169,59,.16);color:var(--ambar)}
+  .lane-b::-webkit-scrollbar{width:6px}.lane-b::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+
+  /* ---- RIGHT: TICKET / COBRO ---- */
+  .rightp{background:#161614;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .rp-h{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .rp-h .t{font-family:'Bebas Neue';font-size:26px;color:var(--crema)}
+  .rp-h .id{font-family:'JetBrains Mono';font-size:12px;color:var(--oro)}
+  .rp-cust{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  .rp-cust .av{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#3a1512,#7a221b);display:grid;place-items:center;font-weight:700;color:var(--crema)}
+  .rp-cust .nm{font-weight:700} .rp-cust .meta{font-size:12px;color:var(--gris)}
+  .rp-cust .chip{margin-left:auto}
+  .receipt{flex:1;overflow-y:auto;padding:6px 0}
+  .line{display:flex;align-items:center;gap:12px;padding:11px 22px;border-bottom:1px dashed rgba(242,230,215,.07)}
+  .line .q{font-family:'JetBrains Mono';font-size:12px;color:var(--oro);width:34px;flex:none}
+  .line .nm{flex:1}.line .nm .s{display:block;font-size:11px;color:var(--gris)}
+  .line .pr{font-family:'JetBrains Mono';font-weight:700;font-size:13px}
+  .rp-foot{border-top:1px solid var(--line);padding:16px 22px 20px;background:#131311}
+  .tr{display:flex;justify-content:space-between;font-size:13px;color:var(--acero);margin-bottom:7px}
+  .tr.big{margin-top:10px;padding-top:12px;border-top:1px solid var(--line);align-items:baseline}
+  .tr.big .k{font-family:'Bebas Neue';font-size:24px;color:var(--crema);letter-spacing:.04em}
+  .tr.big .v{font-family:'Bebas Neue';font-size:44px;color:var(--oro);line-height:.8}
+  .tr .v{font-family:'JetBrains Mono';font-weight:700;color:var(--crema)}
+  .pays{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:14px 0}
+  .pay{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 4px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--acero);transition:.15s}
+  .pay:hover{border-color:var(--oro);color:var(--crema)}
+  .pay.on{background:var(--oro);color:var(--carbon);border-color:var(--oro)}
+  .pay svg{display:block;margin:0 auto 5px;width:18px;height:18px}
+  .cobrar{width:100%;background:var(--verde);color:#0c1a10;border:none;border-radius:11px;padding:17px;font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:12px;transition:.15s}
+  .cobrar:hover{background:#5fca88;transform:translateY(-2px)}
+  .cobrar .kbd{font-family:'JetBrains Mono';font-size:12px;background:rgba(0,0,0,.22);border-radius:6px;padding:3px 9px}
+
+  @media(max-width:1200px){.app{grid-template-columns:64px 1fr 340px}.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <nav class="side">
+    <div class="mk">M</div>
+    <div class="ic on" title="Mostrador"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11h14V8M9 12h6"/></svg></div>
+    <div class="ic" title="Ventas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5m0 14h16M4 15l4-4 3 3 5-6 4 4"/></svg></div>
+    <div class="ic" title="Stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4Zm0 5l9 4 9-4M3 17l9 4 9-4"/></svg></div>
+    <div class="ic" title="Clientes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M4 20c0-3 2-5 5-5s5 2 5 5M16 6a3 3 0 0 1 0 6"/></svg></div>
+    <div class="ic" title="Caja"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></div>
+    <div class="sp"></div>
+    <div class="ic" title="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></div>
+    <div class="av">GS</div>
+  </nav>
+
+  <!-- CENTER -->
+  <main class="center">
+    <div class="topbar">
+      <div class="l">
+        <h1>MOSTRADOR</h1>
+        <span class="date">Viernes 10 jul · 14:32</span>
+        <span class="live"><span class="dot"></span>En vivo</span>
+      </div>
+      <div class="cmdk"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Buscar o ejecutar acción…<span class="kbd">⌘K</span></div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi"><div class="k">Ventas hoy</div><div class="v oro mono">$412.900</div><div class="d up">▲ 18% vs. ayer</div></div>
+      <div class="kpi"><div class="k">Tickets</div><div class="v mono">37</div><div class="d up">▲ 6 en la última hora</div></div>
+      <div class="kpi"><div class="k">Ticket promedio</div><div class="v mono">$11.159</div><div class="d up">▲ 4%</div></div>
+      <div class="kpi"><div class="k">Stock crítico</div><div class="v mono" style="color:var(--ambar)">3</div><div class="d dn">Lomo · Vacío · Pollo</div></div>
+    </div>
+
+    <!-- LANES -->
+    <div class="lanes-head">
+      <span class="eyebrow">Comandas del día · arrastrá para avanzar</span>
+      <div class="seg"><button class="on">Todos</button><button>WhatsApp</button><button>Local</button><button>Envío</button></div>
+    </div>
+    <div class="lanes">
+      <!-- Nuevo -->
+      <div class="lane">
+        <div class="lane-h"><span class="nm"><span class="bd" style="background:var(--acero)"></span>Nuevo</span><span class="ct">4</span></div>
+        <div class="lane-b">
+          <div class="tk"><div class="r1"><span class="id">#1042</span><span class="clock">◷ 2 min</span></div><div class="cust">Julieta P.</div><div class="items">1× Ojo de bife · 2× Asado de tira</div><div class="r2"><span class="tot mono">$40.400</span><span class="chip wa">WhatsApp</span></div></div>
+          <div class="tk"><div class="r1"><span class="id">#1041</span><span class="clock">◷ 5 min</span></div><div class="cust">Mostrador</div><div class="items">1× Vacío · 1× Pollo entero</div><div class="r2"><span class="tot mono">$16.700</span><span class="chip loc">Local</span></div></div>
+          <div class="tk"><div class="r1"><span class="id">#1040</span><span class="clock">◷ 8 min</span></div><div class="cust">Sotavento 4B</div><div class="items">2× Bife de chorizo · 1× Picada</div><div class="r2"><span class="tot mono">$41.300</span><span class="chip env">Envío</span></div></div>
+          <div class="tk"><div class="r1"><span class="id">#1039</span><span class="clock">◷ 11 min</span></div><div class="cust">Ramiro T.</div><div class="items">1× Milanesas de nalga</div><div class="r2"><span class="tot mono">$12.900</span><span class="chip wa">WhatsApp</span></div></div>
+        </div>
+      </div>
+      <!-- Preparando -->
+      <div class="lane">
+        <div class="lane-h"><span class="nm"><span class="bd" style="background:var(--ambar)"></span>Preparando</span><span class="ct">3</span></div>
+        <div class="lane-b">
+          <div class="tk"><div class="r1"><span class="id">#1038</span><span class="clock">◷ 6 min</span></div><div class="cust">Familia Gómez</div><div class="items">3× Asado de tira · 1× Vacío</div><div class="r2"><span class="tot mono">$47.000</span><span class="chip env">Envío</span></div></div>
+          <div class="tk"><div class="r1"><span class="id">#1037</span><span class="clock">◷ 9 min</span></div><div class="cust">Carla M.</div><div class="items">2× Ojo de bife</div><div class="r2"><span class="tot mono">$33.800</span><span class="chip wa">WhatsApp</span></div></div>
+          <div class="tk"><div class="r1"><span class="id">#1036</span><span class="clock">◷ 14 min</span></div><div class="cust">Mostrador</div><div class="items">1× Lomo · 1× Picada</div><div class="r2"><span class="tot mono">$28.400</span><span class="chip loc">Local</span></div></div>
+        </div>
+      </div>
+      <!-- Listo -->
+      <div class="lane">
+        <div class="lane-h"><span class="nm"><span class="bd" style="background:var(--oro)"></span>Listo</span><span class="ct">2</span></div>
+        <div class="lane-b">
+          <div class="tk" style="border-color:rgba(197,174,134,.4)"><div class="r1"><span class="id">#1035</span><span class="clock">◷ listo</span></div><div class="cust">Nicolás R.</div><div class="items">2× Bife de chorizo · 1× Pollo</div><div class="r2"><span class="tot mono">$36.000</span><span class="chip wa">WhatsApp</span></div></div>
+          <div class="tk" style="border-color:rgba(197,174,134,.4)"><div class="r1"><span class="id">#1034</span><span class="clock">◷ listo</span></div><div class="cust">Sotavento 2A</div><div class="items">1× Vacío · 2× Milanesas</div><div class="r2"><span class="tot mono">$38.300</span><span class="chip env">Envío</span></div></div>
+        </div>
+      </div>
+      <!-- Cobrado -->
+      <div class="lane">
+        <div class="lane-h"><span class="nm"><span class="bd" style="background:var(--verde)"></span>Cobrado</span><span class="ct">28</span></div>
+        <div class="lane-b">
+          <div class="tk" style="opacity:.72"><div class="r1"><span class="id">#1033</span><span class="clock" style="color:var(--verde)">✓ 14:20</span></div><div class="cust">Valentina S.</div><div class="items">1× Ojo de bife · 1× Picada</div><div class="r2"><span class="tot mono">$26.400</span><span class="chip loc">Efectivo</span></div></div>
+          <div class="tk" style="opacity:.72"><div class="r1"><span class="id">#1032</span><span class="clock" style="color:var(--verde)">✓ 14:11</span></div><div class="cust">Diego A.</div><div class="items">2× Asado de tira</div><div class="r2"><span class="tot mono">$23.000</span><span class="chip loc">M. Pago</span></div></div>
+          <div class="tk" style="opacity:.55"><div class="r1"><span class="id">#1031</span><span class="clock" style="color:var(--verde)">✓ 13:58</span></div><div class="cust">Mostrador</div><div class="items">1× Pollo entero</div><div class="r2"><span class="tot mono">$8.400</span><span class="chip loc">Débito</span></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT: TICKET ABIERTO -->
+  <aside class="rightp">
+    <div class="rp-h"><span class="t">Ticket abierto</span><span class="id">#1042</span></div>
+    <div class="rp-cust">
+      <div class="av">JP</div>
+      <div><div class="nm">Julieta P.</div><div class="meta">Cliente frecuente · 12 compras</div></div>
+      <span class="chip wa">WhatsApp</span>
+    </div>
+    <div class="receipt">
+      <div class="line"><span class="q mono">1×</span><span class="nm">Ojo de bife<span class="s">± 1 kg · Estancia Don Ramón</span></span><span class="pr mono">$16.900</span></div>
+      <div class="line"><span class="q mono">2×</span><span class="nm">Asado de tira<span class="s">± 1.5 kg c/u</span></span><span class="pr mono">$23.000</span></div>
+      <div class="line"><span class="q mono">1×</span><span class="nm">Chimichurri artesanal<span class="s">Sugerido · +$1.500</span></span><span class="pr mono" style="color:var(--oro)">+ Agregar</span></div>
+    </div>
+    <div class="rp-foot">
+      <div class="tr"><span>Subtotal</span><span class="v mono">$39.900</span></div>
+      <div class="tr"><span>Envío · Canning</span><span class="v" style="color:var(--verde)">Gratis</span></div>
+      <div class="tr"><span>Descuento fidelidad (5%)</span><span class="v mono" style="color:var(--oro)">−$1.995</span></div>
+      <div class="tr big"><span class="k">Total</span><span class="v mono">$37.905</span></div>
+      <div class="pays">
+        <div class="pay on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/></svg>Débito</div>
+        <div class="pay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M6 6h9a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h9"/></svg>Efectivo</div>
+        <div class="pay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 9h20M6 15h4"/></svg>Crédito</div>
+        <div class="pay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H4zM8 20h8M12 16v4"/></svg>M. Pago</div>
+      </div>
+      <button class="cobrar">Cobrar $37.905 <span class="kbd">⌘↵</span></button>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

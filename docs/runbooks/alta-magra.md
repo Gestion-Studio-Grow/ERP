@@ -1,5 +1,12 @@
 # Runbook — Alta de Magra en producción (2º tenant + activación de RLS)
 
+> **🔄 Alineación 2026-07-10 (ADR-062):** este runbook es **vigente como procedimiento**, pero el número
+> **"33/33"** que aparece abajo quedó **desactualizado**: hoy la cobertura RLS es **38 tablas** (crecieron
+> con ADR-060 — Supplier/Collection/AccountPayable/AccountReceivable/PayableCheque, etc.). El registro
+> histórico "BLOQUE A 2026-07-05 → 33/33 sin drift" **se preserva como historia** (fue 33 en esa fecha).
+> **Acción vigente:** re-correr `check-rls-live.mjs` para confirmar **enforced en vivo de las 38** (las 5
+> nuevas aún **A CONFIRMAR**) + revocar el `app_user` legacy con `BYPASSRLS`.
+>
 > **Estado:** PLAN APROBADO PARA PREPARAR — **no ejecutar todavía.** Cada paso
 > irreversible (migración/rotación en prod, DNS, secrets) requiere **OK explícito del
 > dueño** en el momento. Este documento es el guion; no dispara nada solo.

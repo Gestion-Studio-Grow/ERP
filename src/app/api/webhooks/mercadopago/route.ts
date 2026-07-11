@@ -12,6 +12,19 @@
 // firma inválida → 401). El secreto vive en env (no en DB, no depende de migración);
 // hoy es único (un MP activo), mañana por-tenant (getCurrentTenantId ya resuelve el
 // tenant). Resolución de tenant por URL/subdominio: follow-up.
+//
+// 🔧 TODO (ADR-018 §4, aislamiento de tenant en webhooks) — NO implementado a
+// propósito en esta pasada (riesgoso sin poder probarlo contra credenciales
+// reales de MP): `getCurrentTenantId()` (línea de abajo) resuelve por
+// host/subdominio y, sin eso, cae al fallback "single-tenant" que ARROJA si
+// hay ≥2 tenants activos (`src/lib/tenant.ts`). Funciona HOY porque hay una
+// sola integración de MP activa (cae en la rama de 1-tenant). El día que haya
+// ≥2 tenants con Mercado Pago activo simultáneamente, este endpoint necesita
+// resolver el tenant desde la propia notificación (ej. `external_reference`
+// o una `notification_url` distinta por integración/tenant al conectar el
+// OAuth de MP) y envolver el trabajo en `runInTenantContext(tenantId, …)`
+// (patrón ya probado en `src/app/api/public/v1/orders/route.ts`) — no alcanza
+// con llamar a `getCurrentTenantId()` a secas como se hace hoy.
 
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { getCurrentTenantId } from "@/lib/tenant";

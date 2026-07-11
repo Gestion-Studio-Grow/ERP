@@ -1,9 +1,11 @@
-import { getDashboardData } from "@/lib/actions";
+import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
 import Link from "next/link";
 import { fmtTime } from "@/lib/datetime";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
+import { getActiveModuleIds } from "@/lib/module-gating";
+import { dashboardModeForModules } from "@/lib/dashboard-mode";
 import { buttonClasses, KpiTile } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +17,11 @@ const KPI_ICONS: Record<string, React.ReactNode> = {
   reloj: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
   barras: (<path d="M5 20V10M12 20V4M19 20v-7" />),
   cliente: (<><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" /></>),
+  caja: (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M8 15h3" /></>),
+  alerta: (<><path d="M12 3l9 16H3z" /><path d="M12 10v4M12 17h.01" /></>),
 };
+
+const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 function KpiIcon({ name }: { name: keyof typeof KPI_ICONS }) {
   return (
@@ -45,11 +51,71 @@ function StatusBadge({ status }: { status?: string }) {
   return <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${b.cls}`}>{b.label}</span>;
 }
 
+// Home de MOSTRADOR/retail (Wave B): ventas del día, ingresos, stock bajo, caja.
+// Lenguaje de mostrador (no "turnos/agenda"); CTA "+ Nueva venta". Se muestra cuando el
+// tenant es retail (POS activo, sin agenda) — ver `dashboardModeForModules`.
+async function RetailHome({ canSeeRevenue }: { canSeeRevenue: boolean }) {
+  const d = await getRetailDashboardData();
+  return (
+    <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-strong tracking-tight mb-1">Dashboard</h1>
+          <p className="text-muted text-sm">Resumen del mostrador.</p>
+        </div>
+        <Link href="/admin/pedidos" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
+          + Nueva venta
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Kpi label="Ventas hoy" value={String(d.todaySalesCount)} href="/admin/pedidos" icon="caja"
+          sub={d.cashOpen ? "caja abierta" : "caja cerrada"} />
+        {canSeeRevenue && (
+          <Kpi label="Ingresos hoy" value={money.format(d.todayRevenue)} href="/admin/reportes" icon="barras" />
+        )}
+        {canSeeRevenue && (
+          <Kpi label="Ingresos 7 días" value={money.format(d.weekRevenue)} href="/admin/reportes" icon="barras" />
+        )}
+        <Kpi label="Stock bajo" value={String(d.lowStockCount)} href="/admin/inventario" icon="alerta"
+          sub={d.lowStockCount > 0 ? "reponer" : "todo ok"} />
+        <Kpi label="Clientes" value={String(d.clientsCount)} href="/admin/clientes" icon="cliente" />
+      </div>
+
+      <section className="rounded-xl border border-line bg-surface-raised shadow-xs overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
+          <h2 className="text-[15px] font-semibold text-strong">Stock bajo — reponer</h2>
+          <Link href="/admin/compras" className="text-[13px] font-medium text-accent hover:underline">Ir a compras →</Link>
+        </div>
+        {d.lowStock.length === 0 && (
+          <p className="text-sm text-muted px-5 py-6">No hay productos por debajo del umbral. 👍</p>
+        )}
+        {d.lowStock.slice(0, 8).map((p, i) => (
+          <Link key={p.id} href="/admin/inventario"
+            className={`flex items-center gap-4 px-5 py-3 text-sm hover:bg-surface-sunken transition-colors ${i > 0 ? "border-t border-line" : ""}`}>
+            <span className="flex-1 min-w-0 font-semibold text-strong truncate">{p.name}</span>
+            <span className="text-danger font-semibold whitespace-nowrap">{p.stock} {p.unit}</span>
+            <span className="text-faint text-[13px] whitespace-nowrap">umbral {p.lowStockAt}</span>
+          </Link>
+        ))}
+      </section>
+    </main>
+  );
+}
+
 export default async function DashboardPage() {
   const user = await requireCapability("dashboard:read");
   // Ingresos = dato financiero: solo quien puede ver reportes (OWNER). La
   // recepción ve el resto del dashboard sin la cifra de facturación.
   const canSeeRevenue = roleHasCapability(user.role, "reports:read");
+
+  // Home adaptado al RUBRO (Wave B): mostrador/retail → ventas/caja/stock; servicios →
+  // turnos/agenda (legado). La señal son los módulos activos; con `MODULE_REGISTRY_ENABLED`
+  // OFF, `getActiveModuleIds` es null → modo "servicios" → byte-idéntico al home de hoy.
+  const activeModules = await getActiveModuleIds();
+  if (dashboardModeForModules(activeModules) === "retail") {
+    return <RetailHome canSeeRevenue={canSeeRevenue} />;
+  }
   // Home ANALÍTICO por rol (ADR-059 D8, P1.c del set Empresa): el tenant perfil
   // "Empresa" con rol de visión financiera (OWNER) ve un panel analítico/ejecutivo
   // —lidera lo financiero + un indicador derivado—; el Comercio y los roles

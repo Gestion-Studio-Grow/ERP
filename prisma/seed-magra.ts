@@ -28,16 +28,20 @@ import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/auth-password";
+import { defaultModulesForBlueprint } from "../src/blueprints/presets-meta";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 const SLUG = "magra-demo";
+const SUBDOMAIN = "magra"; // resolución por host (TENANT_HOST_MAP / subdominio)
 const ACTOR = "system:seed";
-// Usuario OWNER para poder ENTRAR al backoffice en el preview (un tenant sin usuario no es
-// operable). Credenciales de DEMO, conocidas, SOLO para la dev branch de QA.
-const OWNER_EMAIL = "dueno@magra-demo.test";
-const OWNER_PASSWORD = "magra1234";
+// Login FIJO de QA (autorizado por el dueño, NO es secreto): admin@<slug> / ERP, rol OWNER.
+const OWNER_EMAIL = "admin@magra-demo";
+const OWNER_PASSWORD = "ERP";
+// Módulos por rubro desde la FUENTE CANÓNICA (FU1). Carnicería → pos/catalog/clients/reports/arca.
+// Con MODULE_REGISTRY_ENABLED=on, esto hace que la nav muestre SU rubro (no estética).
+const MODULES = defaultModulesForBlueprint("carniceria");
 const PROFILE = process.env.MAGRA_PROFILE === "enterprise" ? "enterprise" : "lite";
 
 // Fechas relativas para el aging (calculadas al correr el seed — es un script, no un workflow).
@@ -72,11 +76,11 @@ async function main() {
     );
   }
 
-  // 1) Tenant (upsert por slug) + perfil desde env.
+  // 1) Tenant (upsert por slug) + perfil + módulos por rubro + subdomain.
   const tenant = await prisma.tenant.upsert({
     where: { slug: SLUG },
-    update: { name: "Magra — DEMO (carnicería)", profile: PROFILE, blueprintId: "carniceria", status: "TRIAL", accentPreset: "oxblood", frontTheme: "light" },
-    create: { slug: SLUG, name: "Magra — DEMO (carnicería)", profile: PROFILE, blueprintId: "carniceria", status: "TRIAL", accentPreset: "oxblood", frontTheme: "light" },
+    update: { name: "Magra — DEMO (carnicería)", profile: PROFILE, blueprintId: "carniceria", status: "TRIAL", accentPreset: "oxblood", frontTheme: "light", subdomain: SUBDOMAIN, modules: MODULES },
+    create: { slug: SLUG, name: "Magra — DEMO (carnicería)", profile: PROFILE, blueprintId: "carniceria", status: "TRIAL", accentPreset: "oxblood", frontTheme: "light", subdomain: SUBDOMAIN, modules: MODULES },
   });
   const tenantId = tenant.id;
 

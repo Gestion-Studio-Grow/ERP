@@ -1,0 +1,465 @@
+<!-- Procedencia: recuperado del bundle _recuperacion_inbox_20260710 (2026-07-10). Mockup de referencia GSG, sin alterar. -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAGRA · Vidriera — GSG Comercio Micro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Open+Sans:wght@300;400;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --carbon:#1D1D1B; --negro:#000; --crema:#F2E6D7; --oro:#C5AE86;
+    --oro-hi:#D8C39C; --acero:#CCD6DF; --gris:#69727D; --sangre:#7A1F19;
+    --rail:380px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--carbon); color:var(--crema);
+    font-family:'Open Sans',sans-serif; font-weight:300; line-height:1.5;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  .display{font-family:'Bebas Neue',sans-serif; font-weight:400; letter-spacing:.01em; line-height:.86;}
+  .eyebrow{font-family:'Open Sans'; font-weight:700; font-size:11px; letter-spacing:.34em; text-transform:uppercase; color:var(--oro);}
+  .serif{font-family:'Fraunces',serif;}
+  .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum";}
+  a{color:inherit;text-decoration:none}
+
+  /* ---------- TOP BAR ---------- */
+  header{
+    position:fixed; top:0; left:0; right:0; z-index:60;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px clamp(20px,4vw,56px);
+    background:linear-gradient(180deg,rgba(29,29,27,.92),rgba(29,29,27,0));
+    backdrop-filter:blur(6px);
+  }
+  .brand{display:flex;align-items:baseline;gap:12px}
+  .brand .logo{font-family:'Bebas Neue';font-size:30px;letter-spacing:.18em;color:var(--crema)}
+  .brand .logo b{color:var(--oro)}
+  .brand small{font-size:9px;letter-spacing:.32em;color:var(--gris);text-transform:uppercase}
+  nav{display:flex;gap:34px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:600}
+  nav a{opacity:.72;transition:.2s} nav a:hover{opacity:1;color:var(--oro)}
+  @media(max-width:900px){nav{display:none}}
+
+  /* ---------- LAYOUT SHELL WITH PERSISTENT RAIL ---------- */
+  .shell{display:grid;grid-template-columns:1fr var(--rail)}
+  @media(max-width:1080px){.shell{grid-template-columns:1fr}}
+  main{min-width:0}
+
+  /* ---------- HERO ---------- */
+  .hero{position:relative;min-height:100vh;display:grid;grid-template-columns:1.15fr .85fr;align-items:end;overflow:hidden}
+  @media(max-width:760px){.hero{grid-template-columns:1fr;min-height:92vh}}
+  .hero-copy{padding:0 0 8vh clamp(20px,4vw,56px);position:relative;z-index:3}
+  .hero-copy .eyebrow{display:block;margin-bottom:26px}
+  .hero h1{color:var(--crema);font-size:clamp(74px,13vw,220px);text-transform:uppercase;margin-bottom:4px}
+  .hero h1 .hl{color:var(--oro);display:block}
+  .hero .lede{max-width:30ch;margin:30px 0 34px;font-size:17px;font-weight:300;color:var(--acero);line-height:1.6}
+  .hero .lede b{color:var(--crema);font-weight:600}
+  .cta-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .btn{display:inline-flex;align-items:center;gap:10px;font-weight:700;font-size:13px;letter-spacing:.14em;text-transform:uppercase;padding:16px 26px;border-radius:4px;transition:.2s;cursor:pointer;border:1px solid transparent}
+  .btn-oro{background:var(--oro);color:var(--carbon)} .btn-oro:hover{background:var(--oro-hi);transform:translateY(-2px)}
+  .btn-ghost{border-color:rgba(242,230,215,.28);color:var(--crema)} .btn-ghost:hover{border-color:var(--oro);color:var(--oro)}
+  .scrollcue{position:absolute;left:clamp(20px,4vw,56px);bottom:24px;font-size:10px;letter-spacing:.3em;color:var(--gris);text-transform:uppercase;display:flex;align-items:center;gap:10px;z-index:3}
+  .scrollcue::before{content:"";width:34px;height:1px;background:var(--oro)}
+
+  /* hero visual (art-directed, pure CSS/SVG) */
+  .hero-visual{position:relative;align-self:stretch;min-height:60vh}
+  .hero-visual .frame{position:absolute;inset:0}
+  .steak-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .vig{position:absolute;inset:0;background:radial-gradient(60% 60% at 62% 42%,rgba(122,31,25,.22),rgba(29,29,27,0) 70%),linear-gradient(90deg,var(--carbon),rgba(29,29,27,0) 22%)}
+  .grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .tag-vac{position:absolute;top:16%;right:8%;border:1px solid rgba(242,230,215,.3);color:var(--crema);font-size:10px;letter-spacing:.28em;text-transform:uppercase;padding:8px 14px;border-radius:2px;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);z-index:4}
+
+  /* ---------- MARQUEE ---------- */
+  .marquee{border-top:1px solid rgba(242,230,215,.12);border-bottom:1px solid rgba(242,230,215,.12);overflow:hidden;padding:14px 0;background:var(--negro)}
+  .marquee .track{display:flex;gap:52px;white-space:nowrap;animation:slide 26s linear infinite;font-family:'Bebas Neue';font-size:24px;letter-spacing:.14em;color:var(--oro)}
+  .marquee .track span{opacity:.55}.marquee .track b{color:var(--crema);font-weight:400}
+  @keyframes slide{to{transform:translateX(-50%)}}
+
+  /* ---------- EDITORIAL PRODUCT SECTIONS ---------- */
+  section.ed{padding:clamp(70px,11vh,150px) clamp(20px,4vw,56px);position:relative}
+  .kicker{display:flex;align-items:center;gap:16px;margin-bottom:34px}
+  .kicker .n{font-family:'Bebas Neue';font-size:15px;color:var(--oro);letter-spacing:.1em}
+  .kicker .l{height:1px;flex:1;background:rgba(242,230,215,.14)}
+  .kicker .t{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--acero);font-weight:600}
+
+  .featured{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,4vw,64px);align-items:center}
+  @media(max-width:820px){.featured{grid-template-columns:1fr}}
+  .featured.rev{direction:rtl}.featured.rev>*{direction:ltr}
+  .fe-copy h2{font-size:clamp(52px,8vw,120px);text-transform:uppercase;color:var(--crema);margin:4px 0 6px}
+  .fe-copy h2 em{color:var(--oro);font-style:normal}
+  .fe-copy .p{max-width:38ch;color:var(--acero);margin:18px 0 26px;font-size:16px;line-height:1.65}
+  .fe-copy .meta{display:flex;gap:26px;margin-bottom:28px;flex-wrap:wrap}
+  .fe-copy .meta div{border-left:2px solid var(--oro);padding-left:12px}
+  .fe-copy .meta .k{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gris)}
+  .fe-copy .meta .v{font-family:'Bebas Neue';font-size:26px;color:var(--crema)}
+  .price-add{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .price{font-family:'Bebas Neue';font-size:40px;color:var(--crema)} .price small{font-size:14px;color:var(--gris);font-family:'Open Sans'}
+  .add{background:var(--oro);color:var(--carbon);border:none;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:12px;padding:14px 22px;border-radius:4px;cursor:pointer;transition:.2s}
+  .add:hover{background:var(--oro-hi);transform:translateY(-2px)}
+
+  .fe-visual{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:var(--negro)}
+  .fe-visual .lbl{position:absolute;left:16px;bottom:16px;z-index:3;font-family:'Bebas Neue';font-size:34px;color:var(--crema);letter-spacing:.06em;text-shadow:0 2px 20px #000}
+  .fe-visual .price-tag{position:absolute;top:16px;right:16px;background:var(--carbon);color:var(--oro);font-family:'Bebas Neue';font-size:22px;padding:6px 14px;border-radius:3px;z-index:3;border:1px solid rgba(197,174,134,.4)}
+
+  /* ---------- TRIPLE GRID ---------- */
+  .triple{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(16px,2.5vw,32px)}
+  @media(max-width:820px){.triple{grid-template-columns:1fr}}
+  .pcard{position:relative;aspect-ratio:3/4;border-radius:6px;overflow:hidden;background:var(--negro);cursor:pointer;transition:.3s}
+  .pcard:hover{transform:translateY(-6px)}
+  .pcard .body{position:absolute;inset:auto 0 0 0;padding:22px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.82) 60%);z-index:3}
+  .pcard h3{font-family:'Bebas Neue';font-size:32px;color:var(--crema);letter-spacing:.04em;line-height:.9}
+  .pcard .sub{font-size:12px;color:var(--acero);margin-top:6px}
+  .pcard .row{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+  .pcard .pr{font-family:'Bebas Neue';font-size:24px;color:var(--oro)}
+  .mini-add{width:38px;height:38px;border-radius:50%;background:var(--oro);color:var(--carbon);border:none;font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center;transition:.2s}
+  .mini-add:hover{background:var(--crema)}
+
+  /* ---------- QUOTE / REVIEWS ---------- */
+  .quote{padding:clamp(70px,12vh,160px) clamp(20px,4vw,56px);text-align:center;border-top:1px solid rgba(242,230,215,.1)}
+  .quote .big{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(28px,4.4vw,52px);line-height:1.15;max-width:20ch;margin:0 auto 28px;color:var(--crema)}
+  .quote .big em{color:var(--oro);font-style:italic}
+  .stars{color:var(--oro);letter-spacing:3px;font-size:15px}
+  .quote .who{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--gris);margin-top:12px}
+
+  /* ---------- FOOTER ---------- */
+  footer{background:var(--negro);padding:clamp(56px,9vh,120px) clamp(20px,4vw,56px) 40px;border-top:1px solid rgba(242,230,215,.1)}
+  .foot-top{display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap;align-items:flex-end;margin-bottom:60px}
+  .foot-top .big{font-family:'Bebas Neue';font-size:clamp(48px,9vw,140px);color:var(--crema);text-transform:uppercase;line-height:.82}
+  .foot-top .big span{color:var(--oro)}
+  .foot-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;border-top:1px solid rgba(242,230,215,.1);padding-top:34px}
+  @media(max-width:760px){.foot-cols{grid-template-columns:1fr 1fr}}
+  .foot-cols h4{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--oro);margin-bottom:14px}
+  .foot-cols p,.foot-cols a{font-size:13px;color:var(--acero);display:block;margin-bottom:7px;opacity:.85}
+  .foot-legal{margin-top:44px;font-size:11px;color:var(--gris);letter-spacing:.05em;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  .foot-legal .gsg{color:var(--oro);opacity:.7}
+
+  /* ---------- PERSISTENT ORDER RAIL ---------- */
+  aside.rail{position:sticky;top:0;height:100vh;background:linear-gradient(180deg,#141412,#0b0b0a);border-left:1px solid rgba(197,174,134,.22);display:flex;flex-direction:column;z-index:40}
+  @media(max-width:1080px){aside.rail{position:fixed;inset:auto 0 0 0;height:auto;top:auto;border-left:none;border-top:1px solid rgba(197,174,134,.3);flex-direction:row;align-items:center;justify-content:space-between;padding:12px 18px}
+    .rail .rail-head,.rail .rail-items,.rail .rail-foot .muted{display:none}}
+  .rail-head{padding:26px 24px 18px;border-bottom:1px solid rgba(242,230,215,.08)}
+  .rail-head .eyebrow{display:block;margin-bottom:8px}
+  .rail-head .t{font-family:'Bebas Neue';font-size:34px;color:var(--crema);letter-spacing:.04em;display:flex;align-items:center;justify-content:space-between}
+  .rail-head .t .cnt{font-size:14px;font-family:'Open Sans';font-weight:700;background:var(--oro);color:var(--carbon);border-radius:20px;padding:3px 10px}
+  .rail-items{flex:1;overflow:auto;padding:8px 0}
+  .ri{display:flex;align-items:center;gap:12px;padding:15px 24px;border-bottom:1px solid rgba(242,230,215,.06)}
+  .ri .thumb{width:46px;height:46px;border-radius:5px;flex:none;background:linear-gradient(135deg,#3a1512,#7A1F19)}
+  .ri .thumb.b{background:linear-gradient(135deg,#2a2622,#5c4a2e)}
+  .ri .thumb.c{background:linear-gradient(135deg,#3a2f1e,#C5AE86)}
+  .ri .info{flex:1;min-width:0}
+  .ri .nm{font-size:13px;color:var(--crema);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ri .qt{font-size:11px;color:var(--gris)}
+  .ri .amt{font-family:'Bebas Neue';font-size:20px;color:var(--oro)}
+  .stepper{display:flex;align-items:center;gap:8px}
+  .stepper button{width:24px;height:24px;border-radius:5px;border:1px solid rgba(242,230,215,.2);background:transparent;color:var(--crema);cursor:pointer;font-size:15px;line-height:1;display:grid;place-items:center}
+  .stepper button:hover{border-color:var(--oro);color:var(--oro)}
+  .stepper .q{font-family:'Bebas Neue';font-size:18px;min-width:18px;text-align:center;color:var(--crema)}
+  .rail-foot{padding:20px 24px 24px;border-top:1px solid rgba(242,230,215,.1);background:rgba(0,0,0,.35)}
+  .totrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .totrow .k{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--gris)}
+  .totrow.big .k{color:var(--crema);font-weight:600}
+  .totrow .v{font-family:'Bebas Neue';color:var(--crema)}
+  .totrow.big .v{font-size:38px;color:var(--oro)}
+  .rail-foot .muted{font-size:11px;color:var(--gris);margin:8px 0 16px}
+  .wa{width:100%;justify-content:center;background:#1FA855;color:#fff;border:none;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:13px;padding:16px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:.2s}
+  .wa:hover{background:#178a45;transform:translateY(-2px)}
+  .rail-foot .mini-total{display:none}
+  @media(max-width:1080px){.rail-foot{border:none;background:none;padding:0;display:flex;align-items:center;gap:14px}
+    .rail-foot .mini-total{display:block;font-family:'Bebas Neue';font-size:26px;color:var(--oro)}
+    .wa{width:auto;padding:13px 22px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="logo">MA<b>G</b>RA</span>
+    <small>Meat&nbsp;Market · Canning</small>
+  </div>
+  <nav>
+    <a href="#cortes">Cortes</a>
+    <a href="#gourmet">Gourmet</a>
+    <a href="#nosotros">La casa</a>
+    <a href="#contacto">Cómo llegar</a>
+  </nav>
+  <a class="btn btn-ghost" href="#" style="padding:11px 20px">Lista de precios</a>
+</header>
+
+<div class="shell">
+  <main>
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Productos gourmet premium · Envasado al vacío</span>
+        <h1>Esto no es<span class="hl">una carnicería.</span></h1>
+        <p class="lede"><b>Estilo, practicidad y sabor premium</b> en un solo pack. No hace falta saber de cortes. Solo tener buen gusto — y hambre.</p>
+        <div class="cta-row">
+          <a class="btn btn-oro" href="#cortes">Armar mi pedido &nbsp;→</a>
+          <a class="btn btn-ghost" href="#cortes">Ver la vidriera</a>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="frame">
+          <div class="steak-wrap">
+            <svg width="100%" height="100%" viewBox="0 0 520 640" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <radialGradient id="bg" cx="60%" cy="40%" r="80%">
+                  <stop offset="0%" stop-color="#241512"/><stop offset="55%" stop-color="#150c0b"/><stop offset="100%" stop-color="#0a0706"/>
+                </radialGradient>
+                <radialGradient id="meat" cx="45%" cy="40%" r="70%">
+                  <stop offset="0%" stop-color="#9e3b30"/><stop offset="45%" stop-color="#7a221b"/><stop offset="100%" stop-color="#4a1310"/>
+                </radialGradient>
+                <linearGradient id="fat" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#f0e2c8"/><stop offset="100%" stop-color="#cdb388"/>
+                </linearGradient>
+              </defs>
+              <rect width="520" height="640" fill="url(#bg)"/>
+              <!-- board -->
+              <ellipse cx="270" cy="470" rx="240" ry="60" fill="#000" opacity="0.5"/>
+              <!-- steak body -->
+              <path d="M150 250 C140 190 230 150 300 165 C400 185 420 250 405 320 C395 385 320 415 250 405 C165 393 160 320 150 250 Z" fill="url(#meat)"/>
+              <!-- marbling -->
+              <g stroke="url(#fat)" stroke-width="3" fill="none" opacity="0.85" stroke-linecap="round">
+                <path d="M200 250 C230 240 260 265 300 255"/>
+                <path d="M195 300 C240 285 280 315 340 300"/>
+                <path d="M215 340 C255 330 290 350 350 335"/>
+                <path d="M240 210 C270 205 300 220 330 210"/>
+              </g>
+              <!-- fat cap -->
+              <path d="M300 165 C360 172 405 200 405 250 C380 235 340 230 315 240 C300 210 300 185 300 165Z" fill="url(#fat)" opacity="0.9"/>
+              <!-- highlight -->
+              <ellipse cx="250" cy="240" rx="60" ry="34" fill="#fff" opacity="0.08"/>
+            </svg>
+          </div>
+          <div class="vig"></div>
+          <div class="grain"></div>
+          <div class="tag-vac">● Envasado al vacío</div>
+        </div>
+      </div>
+      <div class="scrollcue">Distribuidor oficial · Estancia Don Ramón</div>
+    </section>
+
+    <!-- MARQUEE -->
+    <div class="marquee">
+      <div class="track">
+        <b>Vacío</b><span>·</span><b>Ojo de bife</b><span>·</span><b>Bife de chorizo</b><span>·</span><b>Lomo</b><span>·</span><b>Asado de tira</b><span>·</span><b>Milanesas de nalga</b><span>·</span>
+        <b>Vacío</b><span>·</span><b>Ojo de bife</b><span>·</span><b>Bife de chorizo</b><span>·</span><b>Lomo</b><span>·</span><b>Asado de tira</b><span>·</span><b>Milanesas de nalga</b><span>·</span>
+      </div>
+    </div>
+
+    <!-- FEATURED 1 -->
+    <section class="ed" id="cortes">
+      <div class="kicker"><span class="n">01</span><span class="l"></span><span class="t">El corte de la casa</span></div>
+      <div class="featured">
+        <div class="fe-copy">
+          <span class="eyebrow">Vacuno · Estancia Don Ramón</span>
+          <h2>Ojo de<br><em>bife.</em></h2>
+          <p class="p">Marmoleo justo, terneza que no se discute. Madurado y envasado al vacío el mismo día. Llega a tu casa listo para la parrilla — vos solo ponés el fuego.</p>
+          <div class="meta">
+            <div><div class="k">Terneza</div><div class="v">9.4</div></div>
+            <div><div class="k">Origen</div><div class="v">Don Ramón</div></div>
+            <div><div class="k">Peso pack</div><div class="v">± 1 kg</div></div>
+          </div>
+          <div class="price-add">
+            <div class="price num">$16.900 <small>/ kg</small></div>
+            <button class="add" onclick="addItem('Ojo de bife',16900,'a')">Agregar al pedido +</button>
+          </div>
+        </div>
+        <div class="fe-visual">
+          <svg width="100%" height="100%" viewBox="0 0 480 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+            <defs><radialGradient id="m1" cx="50%" cy="45%" r="65%"><stop offset="0%" stop-color="#a53f33"/><stop offset="60%" stop-color="#7a221b"/><stop offset="100%" stop-color="#3c100d"/></radialGradient></defs>
+            <rect width="480" height="600" fill="#0c0908"/>
+            <ellipse cx="240" cy="420" rx="210" ry="46" fill="#000" opacity=".55"/>
+            <circle cx="240" cy="280" r="150" fill="url(#m1)"/>
+            <path d="M240 130 a150 150 0 0 1 110 55 c-30 8-70 4-92 26 c-14-30-18-58-18-81Z" fill="#e8d8ba" opacity=".92"/>
+            <g stroke="#e8d8ba" stroke-width="3" fill="none" opacity=".8" stroke-linecap="round">
+              <path d="M170 250 C210 238 260 262 320 250"/><path d="M165 300 C215 288 275 312 330 296"/><path d="M190 340 C235 330 285 348 330 336"/>
+            </g>
+            <ellipse cx="205" cy="240" rx="52" ry="28" fill="#fff" opacity=".09"/>
+          </svg>
+          <div class="price-tag num">$16.900</div>
+          <div class="lbl">OJO DE BIFE</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURED 2 (reversed) -->
+    <section class="ed" style="padding-top:0">
+      <div class="kicker"><span class="n">02</span><span class="l"></span><span class="t">Para la parrilla del domingo</span></div>
+      <div class="featured rev">
+        <div class="fe-copy">
+          <span class="eyebrow">Vacuno · Clásico</span>
+          <h2>Asado<br><em>de tira.</em></h2>
+          <p class="p">El domingo no se negocia. Tira ancha, hueso justo, ese sabor que junta a la familia. Envasado al vacío para que llegue como recién cortado.</p>
+          <div class="meta">
+            <div><div class="k">Ideal para</div><div class="v">4–6 pers.</div></div>
+            <div><div class="k">Corte</div><div class="v">Ancho</div></div>
+            <div><div class="k">Peso pack</div><div class="v">± 1.5 kg</div></div>
+          </div>
+          <div class="price-add">
+            <div class="price num">$11.500 <small>/ kg</small></div>
+            <button class="add" onclick="addItem('Asado de tira',11500,'a')">Agregar al pedido +</button>
+          </div>
+        </div>
+        <div class="fe-visual">
+          <svg width="100%" height="100%" viewBox="0 0 480 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+            <defs><linearGradient id="m2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8f3428"/><stop offset="100%" stop-color="#4a1310"/></linearGradient></defs>
+            <rect width="480" height="600" fill="#0c0908"/>
+            <ellipse cx="240" cy="430" rx="200" ry="44" fill="#000" opacity=".5"/>
+            <g transform="translate(0,20)">
+              <rect x="90" y="200" width="300" height="70" rx="14" fill="url(#m2)"/>
+              <rect x="90" y="285" width="300" height="70" rx="14" fill="url(#m2)"/>
+              <!-- bones -->
+              <circle cx="140" cy="235" r="15" fill="#efe3cb"/><circle cx="235" cy="235" r="15" fill="#efe3cb"/><circle cx="330" cy="235" r="15" fill="#efe3cb"/>
+              <circle cx="140" cy="320" r="15" fill="#efe3cb"/><circle cx="235" cy="320" r="15" fill="#efe3cb"/><circle cx="330" cy="320" r="15" fill="#efe3cb"/>
+              <rect x="90" y="200" width="300" height="18" rx="9" fill="#e8d8ba" opacity=".55"/>
+            </g>
+          </svg>
+          <div class="price-tag num">$11.500</div>
+          <div class="lbl">ASADO DE TIRA</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRIPLE GRID -->
+    <section class="ed" id="gourmet" style="padding-top:0">
+      <div class="kicker"><span class="n">03</span><span class="l"></span><span class="t">Más de la vidriera</span></div>
+      <div class="triple">
+        <div class="pcard">
+          <svg width="100%" height="100%" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="360" height="480" fill="#0c0908"/><circle cx="180" cy="200" r="120" fill="#7a221b"/><path d="M180 90 a120 120 0 0 1 80 40 c-24 8-52 6-66 22 c-10-24-14-44-14-62Z" fill="#e8d8ba" opacity=".9"/><g stroke="#e8d8ba" stroke-width="2.5" fill="none" opacity=".75"><path d="M120 190 C160 180 210 200 250 190"/><path d="M120 230 C165 220 220 240 250 228"/></g></svg>
+          <div class="body">
+            <h3>Bife de<br>chorizo</h3>
+            <div class="sub">Vacuno · ± 1 kg</div>
+            <div class="row"><span class="pr num">$15.900/kg</span><button class="mini-add" onclick="addItem('Bife de chorizo',15900,'a')">+</button></div>
+          </div>
+        </div>
+        <div class="pcard">
+          <svg width="100%" height="100%" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="360" height="480" fill="#0c0908"/><ellipse cx="180" cy="210" rx="130" ry="95" fill="#b0554a"/><ellipse cx="180" cy="210" rx="90" ry="60" fill="#8f3428"/><g stroke="#e8d8ba" stroke-width="2.5" fill="none" opacity=".7"><path d="M110 210 C150 195 210 225 250 205"/></g></svg>
+          <div class="body">
+            <h3>Carne<br>picada</h3>
+            <div class="sub">Especial · ± 1 kg</div>
+            <div class="row"><span class="pr num">$9.500/kg</span><button class="mini-add" onclick="addItem('Carne picada especial',9500,'a')">+</button></div>
+          </div>
+        </div>
+        <div class="pcard">
+          <svg width="100%" height="100%" viewBox="0 0 360 480" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="360" height="480" fill="#0c0908"/><ellipse cx="180" cy="220" rx="120" ry="130" fill="#c98f52"/><ellipse cx="180" cy="200" rx="88" ry="96" fill="#e0b473"/><ellipse cx="150" cy="170" rx="30" ry="34" fill="#fff" opacity=".14"/></svg>
+          <div class="body">
+            <h3>Pollo<br>orgánico</h3>
+            <div class="sub">Entero · ± 2 kg</div>
+            <div class="row"><span class="pr num">$4.200/kg</span><button class="mini-add" onclick="addItem('Pollo entero',4200,'c')">+</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUOTE -->
+    <section class="quote" id="nosotros">
+      <div class="stars">★★★★★</div>
+      <p class="big" style="margin-top:22px">“Altísima calidad. Todo llegó perfecto, bien envasado y con pinta <em>gourmet</em>. La atención, de primera.”</p>
+      <div class="who">Matías R. · Cliente MAGRA</div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer id="contacto">
+      <div class="foot-top">
+        <div class="big">PROBADAS POR<br>NOSOTROS,<br><span>ELEGIDAS PARA VOS.</span></div>
+        <a class="btn btn-oro" href="#">Pedir por WhatsApp →</a>
+      </div>
+      <div class="foot-cols">
+        <div><h4>Dónde estamos</h4><p>José Champagnat 4351 — Local 1</p><p>Sotavento Point, Canning</p><p>Buenos Aires</p></div>
+        <div><h4>Horarios</h4><p>Lun a sáb · 10 a 20 h</p><p>Domingos · 9 a 13 h</p></div>
+        <div><h4>Llegamos a</h4><p>Canning · San Vicente</p><p>Guernica · Ezeiza · Monte Grande</p></div>
+        <div><h4>Contacto</h4><a href="#">WhatsApp +54 9 11 6135 4042</a><a href="#">Instagram @tiendamagra</a><a href="#">hola@magrameatmarket.com.ar</a></div>
+      </div>
+      <div class="foot-legal">
+        <span>© 2026 MAGRA Meat Market. Todos los derechos reservados.</span>
+        <span class="gsg">Tienda potenciada por GSG · Comercio Micro</span>
+      </div>
+    </footer>
+  </main>
+
+  <!-- PERSISTENT ORDER RAIL -->
+  <aside class="rail">
+    <div class="rail-head">
+      <span class="eyebrow">Tu pedido</span>
+      <div class="t">Mi bolsa <span class="cnt" id="count">3</span></div>
+    </div>
+    <div class="rail-items" id="items">
+      <div class="ri">
+        <div class="thumb"></div>
+        <div class="info"><div class="nm">Ojo de bife</div><div class="qt num">$16.900/kg</div>
+          <div class="stepper"><button>−</button><span class="q">1</span><button>+</button></div></div>
+        <div class="amt num">$16.900</div>
+      </div>
+      <div class="ri">
+        <div class="thumb"></div>
+        <div class="info"><div class="nm">Asado de tira</div><div class="qt num">$11.500/kg</div>
+          <div class="stepper"><button>−</button><span class="q">2</span><button>+</button></div></div>
+        <div class="amt num">$23.000</div>
+      </div>
+      <div class="ri">
+        <div class="thumb c"></div>
+        <div class="info"><div class="nm">Pollo entero</div><div class="qt num">$4.200/kg</div>
+          <div class="stepper"><button>−</button><span class="q">1</span><button>+</button></div></div>
+        <div class="amt num">$4.200</div>
+      </div>
+    </div>
+    <div class="rail-foot">
+      <div class="totrow"><span class="k">Subtotal</span><span class="v num">$44.100</span></div>
+      <div class="totrow"><span class="k">Envío · Canning</span><span class="v" style="color:var(--oro)">Gratis</span></div>
+      <div class="totrow big"><span class="k">Total</span><span class="v num">$44.100</span></div>
+      <p class="muted">Pagás al recibir: efectivo, débito, crédito, transferencia o Mercado Pago.</p>
+      <span class="mini-total num">$44.100</span>
+      <button class="wa">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.4-.1.7.2.3.9 1.4 1.9 2 1.3.8 1.6.7 1.9.6.2-.1.6-.6.8-.9.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.5.3.1.2.1.9-.1 1.5Z"/></svg>
+        Enviar pedido
+      </button>
+    </div>
+  </aside>
+</div>
+
+<script>
+  // Minimal live cart to make the mockup feel real (demo only)
+  const cart={};
+  document.querySelectorAll('.ri').forEach(ri=>{
+    const nm=ri.querySelector('.nm').textContent;
+    const q=parseInt(ri.querySelector('.q').textContent);
+    const amt=parseInt(ri.querySelector('.amt').textContent.replace(/\D/g,''));
+    cart[nm]={qty:q,line:amt,unit:amt/q,el:ri};
+  });
+  function addItem(name,unit,type){
+    if(cart[name]){cart[name].qty++;}
+    else{cart[name]={qty:1,unit:unit,line:0,el:null};buildRow(name,type);}
+    cart[name].line=cart[name].qty*cart[name].unit; render();
+    const rail=document.querySelector('.rail-items'); if(rail) rail.scrollTop=rail.scrollHeight;
+  }
+  function buildRow(name,type){
+    const items=document.getElementById('items');
+    const div=document.createElement('div'); div.className='ri';
+    div.innerHTML=`<div class="thumb ${type==='c'?'c':type==='b'?'b':''}"></div>
+      <div class="info"><div class="nm">${name}</div><div class="qt num">$${(cart[name].unit).toLocaleString('es-AR')}/kg</div>
+      <div class="stepper"><button data-a="-1">−</button><span class="q">1</span><button data-a="1">+</button></div></div>
+      <div class="amt num"></div>`;
+    items.appendChild(div); cart[name].el=div; wire(name,div);
+  }
+  document.querySelectorAll('.ri').forEach(ri=>{const nm=ri.querySelector('.nm').textContent;wire(nm,ri);});
+  function wire(name,ri){
+    ri.querySelectorAll('.stepper button').forEach((b,i)=>{
+      b.onclick=()=>{cart[name].qty+=(i===0?-1:1); if(cart[name].qty<=0){delete cart[name];ri.remove();render();return;} cart[name].line=cart[name].qty*cart[name].unit; render();};
+    });
+  }
+  function render(){
+    let sub=0,cnt=0;
+    for(const k in cart){const c=cart[k];sub+=c.line;cnt+=c.qty;
+      if(c.el){c.el.querySelector('.q').textContent=c.qty;c.el.querySelector('.amt').textContent='$'+c.line.toLocaleString('es-AR');}}
+    document.getElementById('count').textContent=cnt;
+    document.querySelectorAll('.totrow .num').forEach(el=>el.textContent='$'+sub.toLocaleString('es-AR'));
+    const mt=document.querySelector('.mini-total'); if(mt)mt.textContent='$'+sub.toLocaleString('es-AR');
+  }
+  render();
+</script>
+</body>
+</html>

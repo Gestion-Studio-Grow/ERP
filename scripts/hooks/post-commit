@@ -1,0 +1,10 @@
+#!/bin/sh
+# post-commit (OPCIONAL) — auto-push a origin tras cada commit.
+# Instalar:  cp scripts/hooks/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+# Desinstalar:  rm .git/hooks/post-commit
+# NUNCA auto-pushea sobre main (el merge a main pasa por Gate).
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+[ "$branch" = "main" ] && exit 0
+# push en background para no bloquear el commit; errores silenciosos (revisá con `git status`/`git log @{u}..`)
+( git push origin HEAD >/dev/null 2>&1 & )
+exit 0

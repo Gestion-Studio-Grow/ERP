@@ -38,35 +38,108 @@ export const ACCENT_PRESETS = {
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
 
+// ESTRUCTURA de la vidriera por tenant (RFC-004-A §3, "romper el molde único").
+// El Sesgo A del diagnóstico: la estructura estaba hardcodeada (mismo header/hero para
+// todos → "todas las webs salen iguales"). Estos campos declaran la IDENTIDAD DE LAYOUT
+// real de cada negocio, no un molde:
+//   - `logoPosition`: el logo va CENTRADO (marca-crest, tipo boutique: Magra, Shine) o a
+//     la IZQUIERDA con nav al lado (tipo tienda/retail clásico: A Dos Manos, CH).
+//   - `banner`: texto del anuncio superior, o `null` si el negocio NO usa banner (el Magra
+//     real no tiene banner; ponérselo era exactamente el sesgo que marcó el dueño).
+//   - `hero`: "editorial" (centrado, aire, foco en la marca) vs "standard" (a la izquierda,
+//     foco en el CTA/producto).
+// La vidriera solo los aplica con `TENANT_FIDELITY_ENABLED` ON (ver src/lib/identity.ts);
+// con el flag OFF renderiza el molde de hoy. `resolveTenantLayout` completa los defaults.
+// Los tipos + helpers de LAYOUT (hero/tipografía/paleta/orden) viven en el leaf CLIENT-SAFE
+// `./tenant-layout` — para que un componente `"use client"` (Storefront) los importe sin
+// arrastrar Prisma/pg (que este módulo sí importa vía tenant-site). Se re-exportan acá para
+// los callers de SERVIDOR que ya importan de `@/lib/branding`.
+export type {
+  LogoPosition, HeroLayout, FontKey, StorefrontTypography, StorefrontPalette, SectionKey, TenantLayout,
+} from "./tenant-layout";
+export {
+  DEFAULT_LAYOUT, resolveTenantLayout, FONT_VAR, DEFAULT_SECTION_ORDER, resolveSectionOrder,
+} from "./tenant-layout";
+import type { TenantLayout } from "./tenant-layout";
+
 // Branding declarado por tenant. `frontTheme` es el tema de su vidriera; el back
-// se deriva con la regla. `monogram` es el logo (reemplazable por un SVG/asset
-// real más adelante; hoy monograma sobre el acento, con contraste AA garantizado
-// por el par accent/onAccent del preset).
+// se deriva con la regla. `monogram` es el logo textual de respaldo; `logoAsset` es
+// el LOGO REAL del tenant (URL/data-URI de SVG/PNG) cuando existe — la fidelidad de
+// marca pasa de "monograma sobre el acento" a "el logo del cliente". `layout` declara
+// su estructura real de vidriera (ver TenantLayout); ausente → DEFAULT_LAYOUT.
 export type TenantBrand = {
   name: string;
   monogram: string;
   preset: AccentPreset;
   frontTheme: Theme;
+  /** Logo real del tenant (URL o data-URI). Ausente → se usa el monograma sobre el acento. */
+  logoAsset?: string;
+  /** Estructura de vidriera real (parcial; se completa con DEFAULT_LAYOUT). */
+  layout?: Partial<TenantLayout>;
 };
 
 // Asignación por tenant (por slug). Cambiar el acento o el tema de un tenant es
 // una línea acá — sin tocar componentes ni tokens.
+// LAYOUT DEMO POR TENANT (RFC-004-A §3): seteado a mano para que cada vidriera se vea
+// DISTINTA entre sí y de CH — el material real entra por el preset-IA/provisioning
+// (RFC-004-B) o se persiste en DB (§C, Gate 2). Cada uno espeja la identidad real del
+// negocio, no un molde:
 const TENANTS: Record<string, TenantBrand> = {
-  // Salón: vidriera clara → admin oscuro (Nocturne). Acento petróleo de marca.
-  "beauty-spa": { name: "CH Estética", monogram: "CH", preset: "petroleo", frontTheme: "light" },
-  // Magra (carnicería): vidriera clara → admin oscuro. Acento oxblood de marca.
-  "magra": { name: "Magra", monogram: "M", preset: "oxblood", frontTheme: "light" },
-  // Shine (velas de soja): vidriera clara cálida → admin oscuro. Acento ámbar/dorado,
-  // el "shine" de una llama de vela. Ver src/tenants/storefront.ts (copy) y rubro `velas`.
-  "shinevelas": { name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light" },
-  // A Dos Manos (tienda de pádel): vidriera clara → admin oscuro. Acento verde cancha.
-  "adosmanos": { name: "A Dos Manos", monogram: "AM", preset: "verde", frontTheme: "light" },
+  // CH Estética — salón/spa: logo a la izquierda + nav, banner de anuncio (su sitio real
+  // lo usa), hero estándar. El molde "de siempre" ES, correctamente, el de CH.
+  "beauty-spa": {
+    name: "CH Estética", monogram: "CH", preset: "petroleo", frontTheme: "light",
+    layout: { logoPosition: "left", banner: "Reservá online · La Alameda, Canning", hero: "standard" },
+  },
+  // Magra — carnicería boutique premium: crest CENTRADO, SIN banner, hero EDITORIAL, serif
+  // Playfair de alto contraste sobre papel bone cálido. Exactamente lo que pidió el dueño
+  // (logo al medio, sin banner) y una voz gastronómica-editorial que NO es la de CH.
+  "magra": {
+    name: "Magra", monogram: "M", preset: "oxblood", frontTheme: "light",
+    layout: {
+      logoPosition: "centered", banner: null, hero: "editorial",
+      typography: { display: "playfair", body: "geist", headingWeight: 600, headingTracking: "-0.02em" },
+      palette: { surface: "#f7f3ee", surfaceRaised: "#fffdfa", surfaceSunken: "#efe8df", textStrong: "#1f1a17", textMuted: "#6f665e", line: "#e6ddd2" },
+      // Cuenta primero la historia del producto (envasados) y luego vende.
+      sectionOrder: ["lines", "catalog", "cart", "gourmet", "providers", "reviews"],
+    },
+  },
+  // Shine — velas & deco: boutique experiencial. Crest CENTRADO, banner de envío gratis
+  // (umbral real $25.000), hero POSTER con lavado cálido del ámbar, serif Fraunces suave
+  // sobre papel blush. La experiencia (ritual) va ARRIBA del catálogo.
+  "shinevelas": {
+    name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light",
+    layout: {
+      logoPosition: "centered", banner: "Envío gratis desde $25.000 · CABA y GBA", hero: "poster",
+      typography: { display: "fraunces", body: "hanken", headingWeight: 500 },
+      palette: { surface: "#f6f1f0", surfaceRaised: "#fffafa", surfaceSunken: "#efe6e6", textStrong: "#241d20", textMuted: "#726167", line: "#e8dcdd" },
+      sectionOrder: ["ritual", "lines", "catalog", "gifts", "cart", "gourmet", "reviews"],
+    },
+  },
+  // A Dos Manos — tienda de pádel: retail. Logo a la IZQUIERDA + nav, sin banner, hero SPLIT
+  // (titular + panel de acento), grotesca Hanken en MAYÚSCULAS sobre slate frío. El catálogo
+  // LIDERA (product-first). Se ve "tienda deportiva", ni boutique ni spa.
+  "adosmanos": {
+    name: "A Dos Manos", monogram: "AM", preset: "verde", frontTheme: "light",
+    layout: {
+      logoPosition: "left", banner: null, hero: "split",
+      typography: { display: "hanken", body: "geist", headingTransform: "uppercase", headingWeight: 800, headingTracking: "-0.01em" },
+      palette: { surface: "#eef1f3", surfaceRaised: "#ffffff", surfaceSunken: "#e2e7ea", textStrong: "#141a1e", textMuted: "#5c676e", line: "#d7dee2" },
+      sectionOrder: ["catalog", "cart", "lines", "gourmet", "providers", "reviews"],
+    },
+  },
 };
 
+// (resolveTenantLayout / FONT_VAR / DEFAULT_SECTION_ORDER / resolveSectionOrder ahora viven
+//  en el leaf client-safe `./tenant-layout` y se re-exportan arriba.)
+
+// DEFAULT NEUTRO (RFC-004-D): un tenant SIN ficha ya NO hereda la marca de CH. Nombre
+// genérico + acento neutro (celeste, NO el petróleo de CH). beauty-spa/CH tiene su entrada
+// propia en TENANTS, así que este cambio no lo toca. Cierra el "todo cae a CH" del branding.
 const DEFAULT_BRAND: TenantBrand = {
-  name: "ERP",
-  monogram: "◆",
-  preset: "petroleo",
+  name: "Mi negocio",
+  monogram: "•",
+  preset: "celeste",
   frontTheme: "light",
 };
 

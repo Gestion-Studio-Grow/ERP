@@ -9,6 +9,7 @@
     "lint": "eslint",
     "seed": "tsx prisma/seed.ts",
     "seed:magra": "tsx prisma/seed-magra.ts",
+    "seed:qa-tenants": "tsx prisma/seed-qa-tenants.ts",
     "flip:magra": "tsx prisma/flip-magra-profile.ts",
     "provision": "tsx scripts/provision-tenant.ts",
     "demo": "tsx scripts/demo.mts",
