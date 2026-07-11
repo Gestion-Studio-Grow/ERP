@@ -19,7 +19,23 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 > estática + enforced en vivo A CONFIRMAR**. Gaps abiertos: crons sin contexto de tenant + revocar el
 > `app_user` legacy con `BYPASSRLS` (ADR-062).
 
-- **Actualizado:** 2026-07-08 (FASE 0 reconciliación de drift, PMO) · **Autor:** PMO (sesión autónoma)
+> **🔁 Reconciliación 2026-07-10 (recuperación de estado, PMO).** Foto corregida al repo real:
+> - **`main` real = `93eae5f`** (no `7ccee77`): main lleva **2 hotfixes** por encima que esta foto no reflejaba.
+>   Donde abajo se lea "main HEAD `7ccee77`", léase **`93eae5f`**.
+> - **🔴 Incidente CH prod (2026-07-09) — resuelto con 2 hotfixes:** el sitio de CH cayó (vidriera pública +
+>   `/admin/facturacion`) porque `main` quedó **schema-ahead** de la DB de CH (columnas `Tenant.arca*` /
+>   `Invoice` Decimal no migradas, §5). Hotfixes **defensivos y reversibles** (tsc + 729 tests): `ad3202c`
+>   (`getFacturacion` tolera schema viejo, number-o-Decimal) + `93eae5f` (loaders del layout público con
+>   `select` explícito + try/catch → nunca disparan el error boundary). **Mitigado, causa raíz abierta:**
+>   aplicar migraciones §C (Gate 2) antes de cualquier deploy de `main` a CH, o vuelve a romper.
+> - **🔎 RLS — enforced en vivo = A CONFIRMAR** (no darlo por hecho): correr `prisma/rls/check-rls-live.mjs`
+>   contra prod. El fix de aislamiento de crons (`reminders`+`arca-outbox`) ya está en la línea fundacional
+>   (`1036b2c`); el rol legacy `app_user` con `BYPASSRLS` + rotación de secretos + PITR siguen pendientes (§C·I4).
+> - **Consolidación fundacional:** ADR-072 (enfoque de diseño) + `fundacional-DEFINITIVO-v2` + comercial/Mariano
+>   + resumen ejecutivo + ingesta del bundle de recuperación viven en la rama `fundacion/consolidacion-diseno`
+>   (sacada de `rf6x0m`, en `origin`), pendiente de merge a `main` (Gate del dueño).
+
+- **Actualizado:** 2026-07-10 (recuperación de estado + reconciliación, PMO) · **Autor:** PMO (sesión autónoma)
 - **Método:** barrido del repo (`git log`, `git worktree list`, `prisma/migrations/`, `.claude/`,
   `docs/`) + reconciliación del drift acumulado. **NO se consultó Neon prod** (política: diagnóstico,
   no tocar prod/DB) → el estado de migraciones *aplicadas* se deriva de docs y se marca "a confirmar".
