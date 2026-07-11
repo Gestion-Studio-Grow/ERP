@@ -390,6 +390,37 @@
   --spacing-2xl: var(--space-2xl);
 }
 
+/* ═══ FIX colisión escala densidad ↔ escala t-shirt de max-width (2026-07-11) ═══
+   El bloque @theme de arriba define la escala de densidad en el namespace
+   `--spacing-*` (para p-md, gap-sm, mb-lg…). En Tailwind v4 ese MISMO namespace
+   alimenta `max-w-<key>`, así que `--spacing-sm/md/lg/xl/2xl` HIJACKEARON
+   `max-w-sm/md/lg/xl/2xl`: se compilaban como `max-width: var(--space-sm)` (≈12px)
+   en vez de los anchos de contenedor (24rem…). Efecto: cualquier tarjeta con
+   `max-w-sm` (login de operador, login de admin, probador, flujo de reserva,
+   PageHeader/EmptyState/Heading) colapsaba a "una palabra por línea".
+   `max-w-6xl` se salvó porque `6xl` no está en la escala de densidad.
+
+   Fix: restauramos la escala t-shirt de max-width a los anchos default de Tailwind
+   con reglas SIN CAPA (unlayered). En la cascada de CSS, las declaraciones sin
+   `@layer` ganan a las de CUALQUIER capa → estas pisan de forma determinista a la
+   utilidad `.max-w-*` que Tailwind emite dentro de `@layer utilities` con el valor
+   de densidad (el `@utility` merge dejaba la declaración rota ÚLTIMA y perdíamos).
+   NO tocamos `--spacing-*` → p-md/gap-sm/… siguen intactos.
+
+   Nota (deuda anotada): al ser una regla base sin capa, un `md:max-w-lg` sobre un
+   elemento que ya tiene `max-w-sm` NO podría pisarla. Hoy no existe ese combo en el
+   código; para max-width responsive con estas keys usar valor arbitrario
+   (`sm:max-w-[28rem]`). La solución de fondo es renombrar la escala de densidad para
+   que no comparta keys con la escala de contenedor de Tailwind (follow-up). */
+.max-w-3xs { max-width: 16rem; }
+.max-w-2xs { max-width: 18rem; }
+.max-w-xs  { max-width: 20rem; }
+.max-w-sm  { max-width: 24rem; }
+.max-w-md  { max-width: 28rem; }
+.max-w-lg  { max-width: 32rem; }
+.max-w-xl  { max-width: 36rem; }
+.max-w-2xl { max-width: 42rem; }
+
 body {
   background: var(--background);
   color: var(--foreground);

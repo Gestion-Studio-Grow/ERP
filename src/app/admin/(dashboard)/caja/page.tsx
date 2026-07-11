@@ -157,7 +157,7 @@ function OpenSession({
         </CardHeader>
 
         {/* Desglose del esperado */}
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-line pt-4 text-sm sm:max-w-md">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-line pt-4 text-sm sm:max-w-[28rem]">
           <div className="flex justify-between">
             <dt className="text-muted">Fondo inicial</dt>
             <dd className="tabular-nums text-body">{money.format(session.openingFloat)}</dd>

@@ -57,3 +57,6 @@ docs/internal/
 
 # PDFs generados por los generadores del panel de la célula (artefactos, no versionar)
 celula-negocios-digitales/panel/*.pdf
+
+# Screenshots del gate visual (artefactos, no se commitean)
+qa-shots/
