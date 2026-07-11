@@ -17,6 +17,12 @@
 // abierta, blindar la idempotencia, insertar) vive en `recordCashSaleMovement`.
 
 import { tenantTransaction } from "@/lib/rls";
+import type { Prisma } from "@/generated/prisma/client";
+
+// Cliente de transacción interactiva (mismo patrón que `LedgerTx`): la variante `-InTx`
+// corre DENTRO de la tx del llamador para componer con la venta (I7, ADR-064) — así el
+// asiento de caja es ATÓMICO con la orden+stock, no una segunda tx que puede fallar suelta.
+export type CashSaleTx = Prisma.TransactionClient;
 
 // Solo la venta cobrada EN EFECTIVO genera efectivo en el cajón. MERCADOPAGO y
 // TRANSFERENCIA entran por otra vía (no tocan la caja física), así que no mueven
@@ -68,51 +74,74 @@ export type RecordCashSaleResult =
 // No lanza por "no corresponde": esos casos vuelven como { recorded: false }. Sí
 // puede propagar un error real de DB —el llamador decide si eso debe abortar o no
 // (para el mostrador, una venta cobrada NO se revierte por un fallo de caja).
-export async function recordCashSaleMovement(
+export type CashSaleInput = {
+  orderId: string;
+  orderCode: number;
+  paid: boolean;
+  paymentMethod: string | null;
+  total: number;
+  actor: string;
+};
+
+// Cuerpo tx-scoped (I7): registra la VENTA en efectivo DENTRO de la transacción del
+// llamador, para que el asiento de caja sea ATÓMICO con la orden+stock (si algo de la
+// venta falla, no queda un movimiento de caja huérfano; si la caja falla, no queda una
+// venta sin asiento → el arqueo nunca descuadra). No abre su propia tx: compone con la
+// del llamador (mismo criterio que `recordMovement` del ledger de stock).
+//
+// NO lanza por "no corresponde" (no efectivo / sin caja abierta / ya imputada): esos
+// vuelven como { recorded: false }, y el llamador decide (una venta con caja cerrada se
+// concreta igual). Sí propaga un error real de DB → aborta la tx del llamador (la venta
+// entera se revierte), que es justamente la atomicidad de I7.
+export async function recordCashSaleMovementInTx(
+  tx: CashSaleTx,
   tenantId: string,
-  input: {
-    orderId: string;
-    orderCode: number;
-    paid: boolean;
-    paymentMethod: string | null;
-    total: number;
-    actor: string;
-  },
+  input: CashSaleInput,
 ): Promise<RecordCashSaleResult> {
   const elig = cashSaleEligibility(input);
   if (!elig.eligible) return { recorded: false, reason: elig.reason };
 
-  return tenantTransaction<RecordCashSaleResult>(async (tx) => {
-    const session = await tx.cashSession.findFirst({
-      where: { tenantId, status: "OPEN" },
-      select: { id: true },
-    });
-    if (!session) return { recorded: false, reason: "no-open-session" };
+  const session = await tx.cashSession.findFirst({
+    where: { tenantId, status: "OPEN" },
+    select: { id: true },
+  });
+  if (!session) return { recorded: false, reason: "no-open-session" };
 
-    // Idempotencia: la referencia débil `orderId` es la clave natural de "esta
-    // venta ya está imputada a la caja". Se chequea DENTRO de la transacción para
-    // cerrar la ventana check-then-insert (el mostrador es un solo cajero por
-    // tenant — MVP, ver nota del modelo CashSession—; con multi-caja haría falta
-    // un índice único parcial). Se busca en CUALQUIER sesión, no solo la abierta:
-    // si la venta ya se imputó en un turno anterior, no se duplica al re-cobrar.
-    const existing = await tx.cashMovement.findFirst({
-      where: { tenantId, orderId: input.orderId, type: "VENTA" },
-      select: { id: true },
-    });
-    if (existing) return { recorded: false, reason: "already-recorded" };
+  // Idempotencia: la referencia débil `orderId` es la clave natural de "esta venta ya
+  // está imputada a la caja". Se chequea DENTRO de la transacción para cerrar la ventana
+  // check-then-insert (el mostrador es un solo cajero por tenant — MVP, ver nota del
+  // modelo CashSession—; con multi-caja haría falta un índice único parcial). Se busca en
+  // CUALQUIER sesión, no solo la abierta: si la venta ya se imputó en un turno anterior,
+  // no se duplica al re-cobrar.
+  const existing = await tx.cashMovement.findFirst({
+    where: { tenantId, orderId: input.orderId, type: "VENTA" },
+    select: { id: true },
+  });
+  if (existing) return { recorded: false, reason: "already-recorded" };
 
-    const mov = await tx.cashMovement.create({
-      data: {
-        tenantId,
-        sessionId: session.id,
-        type: "VENTA",
-        amount: elig.amount,
-        reason: `Venta #${input.orderCode}`,
-        orderId: input.orderId,
-        createdBy: input.actor,
-      },
-      select: { id: true },
-    });
-    return { recorded: true, movementId: mov.id, sessionId: session.id };
-  }, { tenantId });
+  const mov = await tx.cashMovement.create({
+    data: {
+      tenantId,
+      sessionId: session.id,
+      type: "VENTA",
+      amount: elig.amount,
+      reason: `Venta #${input.orderCode}`,
+      orderId: input.orderId,
+      createdBy: input.actor,
+    },
+    select: { id: true },
+  });
+  return { recorded: true, movementId: mov.id, sessionId: session.id };
+}
+
+// Variante STANDALONE: abre su propia tx. Para llamadores que imputan caja de forma
+// independiente (no dentro de la tx de una venta). Delega en la variante tx-scoped.
+export async function recordCashSaleMovement(
+  tenantId: string,
+  input: CashSaleInput,
+): Promise<RecordCashSaleResult> {
+  return tenantTransaction<RecordCashSaleResult>(
+    (tx) => recordCashSaleMovementInTx(tx, tenantId, input),
+    { tenantId },
+  );
 }

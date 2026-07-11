@@ -884,8 +884,13 @@ model Invoice {
 
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
   @@index([tenantId, status])
-  @@index([tenantId, orderId]) // D10 — "la factura de este pedido"
-  @@index([tenantId, appointmentId]) // D10 — "la factura de este turno"
+  // I2 (ADR-064) — IDEMPOTENCIA comprobante↔venta 1:1: UNA factura por Order/Appointment.
+  // El @@unique es la guarda a nivel DB que cierra la ventana de carrera del check-then-create
+  // en `createInvoice` (dos disparos simultáneos → el 2º choca P2002 → se refetchea el ganador).
+  // NULLs no colisionan en Postgres → las facturas sin origen (MP standalone / previas a D10)
+  // conviven sin límite. También sirve de índice para "la factura de este pedido/turno" (D10).
+  @@unique([tenantId, orderId]) // I2/D10 — 1:1 pedido↔comprobante
+  @@unique([tenantId, appointmentId]) // I2/D10 — 1:1 turno↔comprobante
 }
 
 // Outbox transaccional (ADR-002): el Core escribe el evento de dominio en la
