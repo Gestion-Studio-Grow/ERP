@@ -294,6 +294,15 @@ async function procesarYPersistir(
  * lote + las propuestas. Idempotente entre corridas: un movimiento ya visto
  * (mismo hash) cuenta como duplicado y no se re-crea.
  */
+/**
+ * Tope de tamaño del extracto (OBS-4 del Gate): un extracto mensual real pesa
+ * KB; 10 MB ya es holgadísimo. Corta antes de leer el archivo a memoria y de
+ * persistir los bytes (cuida la RAM del server y el storage de Neon free).
+ * (No se exporta: un archivo "use server" solo puede exportar funciones async;
+ * el cliente ImportarExtracto repite el mismo tope inline.)
+ */
+const MAX_BYTES_EXTRACTO = 10 * 1024 * 1024;
+
 export async function procesarExtractoAction(
   formData: FormData,
 ): Promise<ResultadoProcesarExtracto> {
@@ -303,6 +312,14 @@ export async function procesarExtractoAction(
   const archivo = formData.get("archivo");
   if (!(archivo instanceof File) || archivo.size === 0) {
     return { ok: false, error: "Subí el extracto del banco (CSV o XLSX).", alertas: [] };
+  }
+  if (archivo.size > MAX_BYTES_EXTRACTO) {
+    return {
+      ok: false,
+      error:
+        "El archivo pesa más de 10 MB — un extracto bancario normal pesa mucho menos. Revisá que sea el extracto y no otra cosa.",
+      alertas: [],
+    };
   }
   const contenido = new Uint8Array(await archivo.arrayBuffer());
   return procesarYPersistir(tenantId, { nombre: archivo.name, contenido });

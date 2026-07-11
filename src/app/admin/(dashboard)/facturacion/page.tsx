@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { getFacturacion } from "@/lib/facturacion-actions";
 import { estadoCobros } from "@/lib/cobros-actions";
+import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
 import { buttonClasses } from "@/components/ui";
 import FacturasSection from "./FacturasSection";
 import CobrosSection from "./CobrosSection";
@@ -14,7 +15,15 @@ import CobrosSection from "./CobrosSection";
 export const dynamic = "force-dynamic";
 
 export default async function FacturacionPage() {
-  const [{ facturas, estado }, { modo }] = await Promise.all([getFacturacion(), estadoCobros()]);
+  const [{ facturas, estado }, { modo }, activos] = await Promise.all([
+    getFacturacion(),
+    estadoCobros(),
+    getActiveModuleIds(),
+  ]);
+  // Gate por módulo (ADR-054/055): la entrada al tablero de BANCOS solo se
+  // muestra si el tenant tiene el módulo asignado (con el registry apagado,
+  // `activos` es null y el predicado deja pasar — navegación legada intacta).
+  const bancosActivo = moduleGateAllows("bancos", activos);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
@@ -25,22 +34,24 @@ export default async function FacturacionPage() {
 
       <div className="space-y-10">
         {/* Facturación automática desde el extracto del banco (módulo BANCOS) —
-            sección hermana con tablero propio. */}
-        <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-5 shadow-card sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-medium text-strong">Facturación automática</h2>
-            <p className="mt-1 text-sm text-muted">
-              Subí el extracto de tu banco y el sistema arma las facturas solo — vos revisás
-              únicamente las ventas que necesitan los datos del comprador.
-            </p>
-          </div>
-          <Link
-            href="/admin/facturacion/bancos"
-            className={buttonClasses("outline", "md", "shrink-0")}
-          >
-            Abrir el tablero →
-          </Link>
-        </section>
+            sección hermana con tablero propio, gateada por el módulo. */}
+        {bancosActivo && (
+          <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-5 shadow-card sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-medium text-strong">Facturación automática</h2>
+              <p className="mt-1 text-sm text-muted">
+                Subí el extracto de tu banco y el sistema arma las facturas solo — vos revisás
+                únicamente las ventas que necesitan los datos del comprador.
+              </p>
+            </div>
+            <Link
+              href="/admin/facturacion/bancos"
+              className={buttonClasses("outline", "md", "shrink-0")}
+            >
+              Abrir el tablero →
+            </Link>
+          </section>
+        )}
 
         <CobrosSection modo={modo} />
         <FacturasSection facturas={facturas} estado={estado} />

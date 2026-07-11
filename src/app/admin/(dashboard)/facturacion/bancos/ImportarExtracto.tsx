@@ -85,6 +85,13 @@ export default function ImportarExtracto() {
       showError("Ese archivo no parece un extracto: subí un .csv, .xlsx o .xls del banco.");
       return;
     }
+    // Tope de tamaño (OBS-4 del Gate) — corta acá, antes de viajar al server.
+    if (archivo.size > 10 * 1024 * 1024) {
+      showError(
+        "El archivo pesa más de 10 MB — un extracto bancario normal pesa mucho menos. Revisá que sea el extracto y no otra cosa.",
+      );
+      return;
+    }
     setProcesando(true);
     setResultado(null);
     setMatrizPreview(null);

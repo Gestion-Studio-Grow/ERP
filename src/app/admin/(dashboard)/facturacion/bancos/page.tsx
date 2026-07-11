@@ -7,9 +7,11 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
+import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
 import {
   kpisFacturacionAction,
   listarPropuestasAction,
@@ -47,14 +49,49 @@ function chipMapeo(estado: string, confianza: number | null) {
 export default async function FacturacionBancosPage() {
   // Guarda de rol de la página (las actions la repiten server-side por acción).
   await requireCapability("billing:manage");
+  // Gate por módulo (ADR-054/055, OBS-1 del Gate): un tenant sin el módulo
+  // `bancos` asignado no ve esta pantalla (con el registry apagado pasa todo).
+  const activos = await getActiveModuleIds();
+  if (!moduleGateAllows("bancos", activos)) notFound();
   const tenantId = await getCurrentTenantId();
 
-  const [kpis, enRevision, listas, { estado }] = await Promise.all([
-    kpisFacturacionAction(),
-    listarPropuestasAction({ estadoPropuesta: "revision" }),
-    listarPropuestasAction({ estadoPropuesta: "auto" }),
-    getFacturacion(), // mismo estado fiscal que la pantalla de Facturación (consistencia)
-  ]);
+  // Defensa Gate 2 (OBS-1): si el código llegó a prod ANTES que su migración
+  // (tablas de bancos inexistentes), no reventamos con un 500 — mostramos el
+  // estado honesto y el camino (runbook). Cualquier otro error re-lanza.
+  let datos;
+  try {
+    datos = await Promise.all([
+      kpisFacturacionAction(),
+      listarPropuestasAction({ estadoPropuesta: "revision" }),
+      listarPropuestasAction({ estadoPropuesta: "auto" }),
+      getFacturacion(), // mismo estado fiscal que la pantalla de Facturación (consistencia)
+    ]);
+  } catch (e) {
+    // P2021/P2022: la tabla o columna no existe todavía (migración sin aplicar).
+    const code = (e as { code?: string })?.code;
+    if (code === "P2021" || code === "P2022") {
+      return (
+        <main className="mx-auto max-w-4xl px-6 py-8">
+          <PageHeader
+            title="Facturación automática"
+            description="El módulo está instalado pero falta el último paso de base de datos."
+            actions={
+              <Link href="/admin/facturacion" className={buttonClasses("ghost", "sm")}>
+                ← Facturación y cobros
+              </Link>
+            }
+          />
+          <div role="alert" className="rounded-xl border border-line bg-surface-raised p-5 text-sm text-muted shadow-card">
+            Falta aplicar la migración <code className="text-strong">20260711120000_add_bancos_importacion</code>{" "}
+            (paso del dueño — ver <span className="text-strong">docs/runbooks/facturacion-bancaria-golive.md §4</span>).
+            Cuando se aplique, esta pantalla se enciende sola.
+          </div>
+        </main>
+      );
+    }
+    throw e;
+  }
+  const [kpis, enRevision, listas, { estado }] = datos;
 
   // % de confianza del mapeo por importación: lectura liviana del mapeoJson
   // (solo los 5 ids del KPI, tenantId explícito — ADR-018). No hay action de
