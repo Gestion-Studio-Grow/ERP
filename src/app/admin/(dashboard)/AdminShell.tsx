@@ -39,6 +39,11 @@ function Icon({ name }: { name: string }) {
     "cuentas-a-pagar": (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M12 17v-4M10 15l2-2 2 2" /></>),
     contabilidad: (<><path d="M6 4h11a2 2 0 012 2v14H8a2 2 0 01-2-2z" /><path d="M9 8h7M9 12h7M9 16h4" /></>),
     devoluciones: (<><path d="M9 14l-4-4 4-4" /><path d="M5 10h9a5 5 0 010 10h-2" /></>),
+    // Rubro carnicería (retail): inventario (cajas apiladas), lotes/vacío (etiqueta),
+    // despiece (cuchilla). Mismo lenguaje de línea.
+    inventario: (<><path d="M3 7l9-4 9 4-9 4-9-4z" /><path d="M3 7v10l9 4 9-4V7M12 11v10" /></>),
+    lotes: (<><path d="M20.6 13.4 13.4 20.6a2 2 0 01-2.8 0l-6.2-6.2a2 2 0 01-.6-1.4V5a1 1 0 011-1h7.6a2 2 0 011.4.6l6.4 6.4a2 2 0 010 2.8z" /><circle cx="8.5" cy="8.5" r="1.2" /></>),
+    despiece: (<><path d="M4 4l9 9M13 13l-2 2-3-3 2-2M13 13l6 6" /><path d="M14 6a3 3 0 104 4z" /></>),
   };
   return (
     <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -49,8 +54,9 @@ function Icon({ name }: { name: string }) {
 
 // `ALL_ITEMS` + el tipo `ShellItem` viven en `@/lib/admin-nav-items` (dato puro,
 // una sola fuente de verdad): esta nav los pinta filtrados por rol × módulo ×
-// perfil, y el gating por-URL del producto Comerciante (server) mapea ruta →
-// módulo con la MISMA lista, sin duplicarla.
+// perfil × rubro, y el gating por-URL del producto Comerciante (server) mapea ruta →
+// módulo con la MISMA lista, sin duplicarla. Los ítems de rubro (retailOnly/
+// carniceriaOnly, Magra) viven ahí también y se filtran acá por isRetail/carniceriaReady.
 
 const ROLE_LABEL: Record<Role, string> = {
   OWNER: "Dueño/a",
@@ -189,6 +195,8 @@ export default function AdminShell({
   navGrouping = false,
   activeProfile = null,
   showPublicSite = true,
+  isRetail = false,
+  carniceriaReady = false,
 }: {
   children: React.ReactNode;
   role: Role;
@@ -198,6 +206,12 @@ export default function AdminShell({
   // ¿El producto tiene vidriera pública en "/"? Vertical → sí (default). Productos de
   // facturación (Comerciante) → false: se oculta el link "Ver sitio público" del footer.
   showPublicSite?: boolean;
+  // ¿El tenant es de rubro retail/mostrador (Magra)? Habilita los ítems `retailOnly`
+  // (Inventario). Default false → servicios (CH) nunca los ve → nav byte-idéntica.
+  isRetail?: boolean;
+  // ¿Está aplicada la migración cárnica (Gate 2)? Habilita `carniceriaOnly` (Lotes /
+  // Despiece). Default false → sin schema, los ítems ni aparecen. Lo resuelve el layout.
+  carniceriaReady?: boolean;
   // Ids de módulos activos del tenant, o `null` si el gating está apagado (flag OFF)
   // → no se gatea por módulo. Se resuelve server-side en el layout.
   activeModules?: string[] | null;
@@ -230,7 +244,12 @@ export default function AdminShell({
     (item) =>
       roleHasCapability(role, item.cap) &&
       moduleGateAllows(item.module, activeSet) &&
-      perfilGateAllows(item.perfilMin, activeProfile),
+      perfilGateAllows(item.perfilMin, activeProfile) &&
+      // Eje RUBRO: los ítems de mostrador/carnicería solo en un tenant retail; los que
+      // dependen del schema cárnico, solo si está aplicado. En servicios (CH) todo esto
+      // es false → los ítems se filtran → nav idéntica a la legada.
+      (!item.retailOnly || isRetail) &&
+      (!item.carniceriaOnly || (isRetail && carniceriaReady)),
   );
   const roleLabel = ROLE_LABEL[role];
 

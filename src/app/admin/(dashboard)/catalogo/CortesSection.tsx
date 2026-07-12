@@ -19,7 +19,9 @@ import { useState } from "react";
 import { createProduct, updateProduct, toggleProductActive, deleteProduct } from "@/lib/catalog-actions";
 import { Badge, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import {
-  groupCortesByCategoria,
+  CORTE_CATEGORIAS,
+  categoriaMeta,
+  effectiveCategoria,
   margenCorte,
   type CorteCategoria,
 } from "@/lib/carniceria/cortes";
@@ -34,9 +36,19 @@ export type Corte = {
   saleUnit: "UNIT" | "WEIGHT";
   price: number | null;
   pricePerKg: number | null;
-  /** Último costo de compra conocido (para el margen). null = sin costo cargado. */
+  /** Costo de referencia (Product.cost) o último costo de compra — para el margen. */
   cost: number | null;
+  /** Góndola explícita (Product.category) o null → se deriva del nombre. */
+  category: string | null;
 };
+
+/** Agrupa por categoría EFECTIVA (explícita si está, si no derivada del nombre). */
+function groupCortes(cortes: Corte[]): { categoria: (typeof CORTE_CATEGORIAS)[number]; items: Corte[] }[] {
+  return CORTE_CATEGORIAS.map((categoria) => ({
+    categoria,
+    items: cortes.filter((c) => effectiveCategoria(c.name, c.category) === categoria.id),
+  })).filter((g) => g.items.length > 0);
+}
 
 const sellPrice = (c: Corte): number | null => (c.saleUnit === "WEIGHT" ? c.pricePerKg : c.price);
 
@@ -48,12 +60,16 @@ function VentaFields({
   price,
   pricePerKg,
   unit,
+  category,
+  cost,
   idPrefix,
 }: {
   saleUnit: "UNIT" | "WEIGHT";
   price: number | null;
   pricePerKg: number | null;
   unit: string;
+  category: string | null;
+  cost: number | null;
   idPrefix: string;
 }) {
   const [modo, setModo] = useState<"UNIT" | "WEIGHT">(saleUnit);
@@ -65,6 +81,33 @@ function VentaFields({
 
   return (
     <>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${idPrefix}-category`} className="text-xs font-medium text-muted">
+          Góndola
+        </label>
+        <select id={`${idPrefix}-category`} name="category" defaultValue={category ?? ""} className={inputClass}>
+          <option value="">Auto (por nombre)</option>
+          {CORTE_CATEGORIAS.map((c) => (
+            <option key={c.id} value={c.id}>{c.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${idPrefix}-cost`} className="text-xs font-medium text-muted">
+          Costo (para margen)
+        </label>
+        <input
+          id={`${idPrefix}-cost`}
+          name="cost"
+          type="number"
+          step="1"
+          min="0"
+          inputMode="numeric"
+          defaultValue={cost ?? ""}
+          placeholder="$ costo"
+          className={inputClass}
+        />
+      </div>
       <div className="flex flex-col gap-1">
         <label htmlFor={selectId} className="text-xs font-medium text-muted">
           Forma de venta
@@ -193,6 +236,8 @@ function CorteRow({ corte }: { corte: Corte }) {
               price={corte.price}
               pricePerKg={corte.pricePerKg}
               unit={corte.unit}
+              category={corte.category}
+              cost={corte.cost}
               idPrefix={`edit-${corte.id}`}
             />
             <div className="flex flex-col gap-1">
@@ -304,7 +349,7 @@ const GONDOLA_HINT: Partial<Record<CorteCategoria, string>> = {
 };
 
 export default function CortesSection({ cortes, catalogHeading }: { cortes: Corte[]; catalogHeading: string }) {
-  const grupos = groupCortesByCategoria(cortes);
+  const grupos = groupCortes(cortes);
   const lowStockCount = cortes.filter((c) => c.active && c.stock <= c.lowStockAt).length;
 
   return (
@@ -380,7 +425,7 @@ export default function CortesSection({ cortes, catalogHeading }: { cortes: Cort
               className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
             />
           </div>
-          <VentaFields saleUnit="WEIGHT" price={null} pricePerKg={null} unit="kg" idPrefix="new-corte" />
+          <VentaFields saleUnit="WEIGHT" price={null} pricePerKg={null} unit="kg" category={null} cost={null} idPrefix="new-corte" />
           <div className="flex flex-col gap-1">
             <label htmlFor="new-corte-stock" className="text-xs font-medium text-muted">
               Stock inicial

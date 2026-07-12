@@ -32,8 +32,10 @@ test("navItemForPath: query/hash no rompen el match", () => {
 });
 
 test("navItemForPath: ruta fuera del set del backoffice no matchea", () => {
-  assert.equal(navItemForPath("/admin/inventario"), undefined);
+  // Nota: /admin/inventario·/lotes·/despiece SÍ existen (ítems de rubro carnicería, ADR-096),
+  // así que no sirven de "ruta inexistente". Usamos rutas realmente ausentes del set.
   assert.equal(navItemForPath("/admin/libros"), undefined);
+  assert.equal(navItemForPath("/admin/inexistente"), undefined);
 });
 
 // ── rutaPermitidaParaModulos: whitelist derivada de ALL_ITEMS ────────────────

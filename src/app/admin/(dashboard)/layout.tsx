@@ -10,6 +10,8 @@ import { roleHasCapability } from "@/lib/capabilities";
 import { getProductoContexto } from "@/lib/producto";
 import { getActiveModuleIds } from "@/lib/module-gating";
 import { getActiveProfile } from "@/lib/profile-gating";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { hasCarniceriaSchema } from "@/lib/carniceria/schema-probe";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
@@ -41,7 +43,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // El portón grueso (¿hay sesión?) lo hace `proxy.ts`; acá resolvemos el
   // usuario para adaptar la navegación a su rol (ADR-017 §2.e — ocultar lo que
   // no puede es UX; la seguridad real son los guardas server-side por acción).
-  const [user, brand, activeModuleIds, activeProfile, productoCtx] = await Promise.all([
+  const [user, brand, activeModuleIds, activeProfile, productoCtx, rubro, carniceriaReady] = await Promise.all([
     requireUser(),
     getTenantBrand(),
     // Gating por módulo (ADR-054/055): set activo del tenant, o null si el flag está
@@ -53,6 +55,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     // IDENTIDAD POR PRODUCTO (frente identidad-por-producto): producto derivado del tenant
     // (blueprint + módulos), su identidad y su set de módulos asignados.
     getProductoContexto(),
+    // Rubro del tenant (Magra = carnicería/retail): habilita los ítems de mostrador
+    // (Inventario) y cárnicos (Lotes/Despiece). En servicios (CH) queda todo apagado.
+    getCurrentTenantRubro(),
+    // ¿Migración cárnica (Gate 2) aplicada? Gatea Lotes/Despiece. Degrada a false.
+    hasCarniceriaSchema(),
   ]);
 
   // RUTEO POR PRODUCTO: Contador y Facturita NO viven en el shell del negocio — su casa es
@@ -166,7 +173,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={shellModules ? [...shellModules] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"}>
+          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={shellModules ? [...shellModules] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} isRetail={rubro.isRetail} carniceriaReady={carniceriaReady}>
             {children}
           </AdminShell>
         </ToastProvider>

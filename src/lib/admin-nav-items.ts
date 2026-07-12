@@ -36,6 +36,13 @@ export type ShellItem = {
   module?: string;
   perfilMin?: Perfil;
   grupo?: NavGroupId;
+  // Eje RUBRO (Magra carnicería/retail). `retailOnly`: solo tenants retail/mostrador →
+  // NO se muestra en servicios (CH byte-idéntico). `carniceriaOnly`: además exige la
+  // migración cárnica aplicada (hasCarniceriaSchema). AdminShell los filtra por
+  // isRetail/carniceriaReady; el gating por-URL los trata como su `module` (catalog).
+  // Ambos default undefined → los ítems base no cambian.
+  retailOnly?: boolean;
+  carniceriaOnly?: boolean;
 };
 
 export const ALL_ITEMS: ShellItem[] = [
@@ -47,6 +54,9 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read", module: "pos" },
   { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog" },
   { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog" },
+  { href: "/admin/inventario", label: "Inventario", icon: "inventario", cap: "catalog:read", module: "catalog", retailOnly: true },
+  { href: "/admin/lotes", label: "Lotes / Vacío", icon: "lotes", cap: "catalog:manage", module: "catalog", carniceriaOnly: true },
+  { href: "/admin/despiece", label: "Despiece", icon: "despiece", cap: "catalog:manage", module: "catalog", carniceriaOnly: true },
   { href: "/admin/ajustes", label: "Ajustes", icon: "ajustes", cap: "catalog:manage", module: "catalog" },
   { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage", module: "reviews" },
   { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders" },

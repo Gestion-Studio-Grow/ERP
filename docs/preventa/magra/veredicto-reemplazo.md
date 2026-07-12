@@ -1,8 +1,14 @@
 # Veredicto — ¿nuestro backoffice reemplaza a Bistrosoft para MAGRA hoy?
 
+> **Actualización 2026-07-12 (2ª iteración):** los **4 ítems** que faltaban están **CONSTRUIDOS** (código +
+> tests + pantallas renderizadas), con la **migración preparada y sin aplicar** (Gate 2). Con la migración
+> aplicada + ARCA real, **MAGRA puede dejar Bistrosoft**. Detalle abajo.
+
 **Respuesta corta:** **SÍ para operar el día a día** (vender, cobrar, stock, pedidos, compras, fiado,
-reportes) **y ya lo superamos** en catálogo cárnico, margen por corte y finanzas. **NO todavía para el
-reemplazo "sin perder nada"**: faltan 4 cosas acotadas, 3 de ellas detrás del **OK del dueño** (Gate 2/4).
+reportes) **y lo superamos** en catálogo cárnico, margen por corte, **inventario por góndola, lotes/
+trazabilidad de vacío y despiece con rendimiento** — esto último Bistrosoft **no lo tiene**. Para el
+reemplazo "sin perder nada" queda **aplicar la migración (Gate 2)** y **encender ARCA real (Gate 4)**, ambos
+acción del dueño.
 
 Contexto y detalle en `analisis-brecha-bistrosoft.md` y `backoffice-carniceria-spec.md`.
 
@@ -19,19 +25,30 @@ Contexto y detalle en `analisis-brecha-bistrosoft.md` y `backoffice-carniceria-s
 - **Vidriera con marca propia** (dominio + identidad + WhatsApp), muy por encima de la carta genérica sin
   fotos en `borders.bistrosoft.com`.
 
-## Lo que falta para el reemplazo TOTAL (y cuánto es)
+## Los 4 ítems — estado tras esta iteración
 
-| # | Falta | Tamaño | Depende de |
+| # | Ítem | Estado | Falta para encender |
 |---|---|---|---|
-| 1 | **Encender `/admin/inventario`** (valuación + stock bajo ya existen, hoy gateado por flag) | **Chico** — 1 flag, reversible, sin schema | Nosotros |
-| 2 | **`category` + `cost` en Product** (góndola editable + margen desde el día 1 sin cargar compras) | **Chico** — migración aditiva de 2 columnas | **Dueño (Gate 2)** |
-| 3 | **Lotes / envasado al vacío** (fecha envasado, vencimiento, peso variable, trazabilidad, FEFO) + pantalla | **Mediano** — 1 tabla + `/admin/lotes` | **Dueño (Gate 2)** |
-| 4 | **Despiece / rendimiento / merma** (media res → cortes, rentabilidad real) + pantalla | **Mediano** — 2 tablas + `/admin/despiece` | **Dueño (Gate 2)** |
-| — | **ARCA en real** (cert emisor + homologación; hoy sandbox) | Config | **Dueño (Gate 4)** |
-| — | **Multi-canal de precios** (mostrador/delivery/web distinto) — Bistrosoft lo tiene, nosotros no | Mediano | Nosotros (no bloqueante: MAGRA hoy usa 1 precio) |
+| 1 | **Inventario por góndola** (stock por corte + valuación + acceso a ajustes/mermas) | ✅ **Construido**, rende­riza para retail (CH intacto) | Nada — ya funciona (no requiere schema) |
+| 2 | **`category` + `cost` en Product** (góndola editable + margen sin depender de compras) | ✅ **Construido** (SQL crudo tolerante) + migración preparada | Aplicar migración (Gate 2) |
+| 3 | **Lotes / envasado al vacío** (`/admin/lotes`: peso variable, vencimiento, trazabilidad, FEFO) | ✅ **Construido** + tests + pantalla | Aplicar migración (Gate 2) |
+| 4 | **Despiece / rendimiento / merma** (`/admin/despiece`: media res → cortes, costo real/kg) | ✅ **Construido** + tests + pantalla | Aplicar migración (Gate 2) |
 
-**Los ítems 3 y 4 no son "para igualar" — son para SUPERAR:** Bistrosoft **no tiene** lotes/trazabilidad de
-vacío ni despiece con rendimiento. Construirlos nos deja por encima en el rubro cárnico, no solo a la par.
+**Cómo se comporta hoy (schema-ahead safe):** el código de los ítems 2–4 **tolera que las tablas no
+existan** — sin la migración aplicada, las pantallas nuevas muestran "En preparación" y **nada rompe en
+prod**. Al aplicar la migración (Gate 2), se encienden solas. Es el mismo patrón que evitó el incidente
+schema-ahead de CH. Verificado renderizando con la migración aplicada en una base local efímera (screenshots).
+
+**Los ítems 3 y 4 no igualan a Bistrosoft: lo SUPERAN.** Bistrosoft no tiene lotes/trazabilidad de vacío ni
+despiece con rendimiento — son diferenciales duros del rubro cárnico.
+
+## Lo único que queda (acción del dueño)
+
+| Falta | Tamaño | Gate |
+|---|---|---|
+| **Aplicar la migración** `prisma/pending-gate2/CarniceriaRubro.sql` (crea las 3 tablas + 2 columnas + RLS) | Chico (aditiva, idempotente, con rollback) | **Gate 2** |
+| **ARCA en real** (cert emisor + homologación; hoy sandbox) | Config | **Gate 4** |
+| **Multi-canal de precios** (mostrador/delivery/web distinto) — Bistrosoft lo tiene, nosotros no | Mediano | Nosotros (no bloqueante: MAGRA hoy usa 1 precio) |
 
 ## Riesgo de migración honesto
 
