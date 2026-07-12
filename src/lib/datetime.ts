@@ -67,11 +67,14 @@ export function dateStrInBusinessTz(instant: Date): string {
 // --- Formateo para mostrar (siempre en la zona del negocio) ---
 // Evita depender de la zona del navegador de quien mira la pantalla.
 
+// 24h argentino (ADR-044/046): es-AR por default rinde 12h con "a. m./p. m." — se fuerza
+// `hour12: false` para el reloj de 24 horas que espera la pyme argentina.
 export function fmtDateTime(instant: Date | string): string {
   return new Intl.DateTimeFormat("es-AR", {
     timeZone: BUSINESS_TIMEZONE,
     dateStyle: "full",
     timeStyle: "short",
+    hour12: false,
   }).format(new Date(instant));
 }
 
@@ -102,6 +105,7 @@ export function fmtTime(instant: Date | string): string {
     timeZone: BUSINESS_TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   }).format(new Date(instant));
 }
 

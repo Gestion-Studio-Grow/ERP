@@ -37,9 +37,11 @@ export default function Header({ hasNews, brandName }: { hasNews?: boolean; bran
           <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)", lineHeight: 1 }}>{label}</span>
         </Link>
         <nav style={{ display: "flex", alignItems: "center", gap: 24 }} aria-label="Principal">
-          <Link href="/#novedades" style={{ ...navLink, position: "relative" }} className="hidden sm:inline">
-            Novedades
-            {hasNews && (
+          {/* El link a Novedades se muestra SOLO si hay novedades cargadas: si no, era un ancla
+              muerta a una sección vacía (el caso de CH, que no publica novedades). */}
+          {hasNews && (
+            <Link href="/#novedades" style={{ ...navLink, position: "relative" }} className="hidden sm:inline">
+              Novedades
               <span
                 aria-hidden
                 style={{
@@ -53,8 +55,8 @@ export default function Header({ hasNews, brandName }: { hasNews?: boolean; bran
                   animation: "ch-pulse 2s ease-in-out infinite",
                 }}
               />
-            )}
-          </Link>
+            </Link>
+          )}
           <Link href="/#servicios" style={navLink} className="hidden sm:inline">Servicios</Link>
           <Link href="/#equipo" style={navLink} className="hidden sm:inline">Equipo</Link>
           <Link href="/#contacto" style={navLink} className="hidden sm:inline">Cómo llegar</Link>

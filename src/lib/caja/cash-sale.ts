@@ -17,6 +17,7 @@
 // abierta, blindar la idempotencia, insertar) vive en `recordCashSaleMovement`.
 
 import { tenantTransaction } from "@/lib/rls";
+import { isUniqueViolation } from "@/lib/prisma-errors";
 import type { Prisma } from "@/generated/prisma/client";
 
 // Cliente de transacción interactiva (mismo patrón que `LedgerTx`): la variante `-InTx`
@@ -107,12 +108,13 @@ export async function recordCashSaleMovementInTx(
   });
   if (!session) return { recorded: false, reason: "no-open-session" };
 
-  // Idempotencia: la referencia débil `orderId` es la clave natural de "esta venta ya
-  // está imputada a la caja". Se chequea DENTRO de la transacción para cerrar la ventana
-  // check-then-insert (el mostrador es un solo cajero por tenant — MVP, ver nota del
-  // modelo CashSession—; con multi-caja haría falta un índice único parcial). Se busca en
-  // CUALQUIER sesión, no solo la abierta: si la venta ya se imputó en un turno anterior,
-  // no se duplica al re-cobrar.
+  // Idempotencia (dos capas): la referencia débil `orderId` es la clave natural de "esta venta
+  // ya está imputada a la caja". (1) PRE-CHECK dentro de la tx — cubre el caso secuencial y es la
+  // única guarda mientras el @@unique(tenantId,orderId,type) no esté migrado. (2) El @@unique de
+  // A-5 es el árbitro a nivel DB que cierra la carrera del doble-click: si dos submits pasan el
+  // pre-check antes de que cualquiera commitee, el `create` de abajo choca P2002 y el LLAMADOR
+  // (setOrderPaid / recordCashSaleMovement) lo trata como "ya imputado". Se busca en CUALQUIER
+  // sesión: si ya se imputó en un turno anterior, no se duplica al re-cobrar.
   const existing = await tx.cashMovement.findFirst({
     where: { tenantId, orderId: input.orderId, type: "VENTA" },
     select: { id: true },
@@ -136,12 +138,21 @@ export async function recordCashSaleMovementInTx(
 
 // Variante STANDALONE: abre su propia tx. Para llamadores que imputan caja de forma
 // independiente (no dentro de la tx de una venta). Delega en la variante tx-scoped.
+//
+// A-5: si el @@unique de A-5 ya está migrado y otra imputación concurrente ganó la carrera, el
+// `create` interno choca P2002 y aborta ESTA tx. Se traduce a la condición benigna
+// `already-recorded` (idempotente) en vez de propagar un 500 — el asiento ya existe, no falta nada.
 export async function recordCashSaleMovement(
   tenantId: string,
   input: CashSaleInput,
 ): Promise<RecordCashSaleResult> {
-  return tenantTransaction<RecordCashSaleResult>(
-    (tx) => recordCashSaleMovementInTx(tx, tenantId, input),
-    { tenantId },
-  );
+  try {
+    return await tenantTransaction<RecordCashSaleResult>(
+      (tx) => recordCashSaleMovementInTx(tx, tenantId, input),
+      { tenantId },
+    );
+  } catch (e) {
+    if (isUniqueViolation(e, "orderId")) return { recorded: false, reason: "already-recorded" };
+    throw e;
+  }
 }

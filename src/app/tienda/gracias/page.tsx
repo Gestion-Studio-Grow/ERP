@@ -3,9 +3,22 @@
 // `searchParams` es una Promise. Usa el acento del tenant para la marca.
 
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getTenantAccent } from "@/lib/branding";
+import { getStorefront } from "@/lib/order-actions";
 
 export const dynamic = "force-dynamic";
+
+// Título POR TENANT (no el "Panel de gestión" del layout raíz, que el CLIENTE veía en la pestaña
+// de su propia página de gracias). Sale del nombre del storefront, igual que /tienda.
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const { name } = await getStorefront();
+    return { title: `Pedido recibido · ${name}` };
+  } catch {
+    return { title: "Pedido recibido" };
+  }
+}
 
 export default async function GraciasPage({
   searchParams,

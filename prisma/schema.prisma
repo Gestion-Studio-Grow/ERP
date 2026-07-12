@@ -921,7 +921,15 @@ model Invoice {
   appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   appointmentId String?
 
+  // A-6 — origen MP_PAYMENT: id del pago de Mercado Pago que originó la factura. Clave de
+  // idempotencia del webhook (MP reintenta notificaciones): un pago duplicado NO factura dos
+  // veces. Nullable (las facturas de ORDER/APPOINTMENT o previas lo dejan null; NULLs no
+  // colisionan). Migración ESCRITA y SIN aplicar (Gate 2); la escritura ya está detrás de
+  // `isInvoicingEnabled()` (OFF en prod) → schema-ahead contenido.
+  mpPaymentId String?
+
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
+  @@unique([tenantId, mpPaymentId]) // A-6 — 1 factura por pago MP (dedupe del webhook; NULLs no colisionan)
   @@index([tenantId, status])
   // I2 (ADR-064) — IDEMPOTENCIA comprobante↔venta 1:1: UNA factura por Order/Appointment.
   // El @@unique es la guarda a nivel DB que cierra la ventana de carrera del check-then-create
@@ -1119,6 +1127,13 @@ model Order {
   paymentMethod PaymentMethod?
   paid          Boolean        @default(false)
 
+  // A-1 — clave de idempotencia del alta de vidriera (la genera el cliente por carrito). Dos
+  // envíos con la misma clave (doble-submit / reintento) resuelven al MISMO pedido en vez de
+  // crear dos y descontar stock dos veces. Nullable: el POS y la API externa no la usan (NULLs
+  // distintos en Postgres → no colisionan). Aditiva: migración ESCRITA y SIN aplicar (Gate 2);
+  // el código tolera que la columna no exista aún (schema-ahead).
+  idempotencyKey String?
+
   items         OrderItem[]
   cashMovements CashMovement[]
   collections   Collection[] // D9 — cobros (parciales/total) imputados a este pedido
@@ -1127,6 +1142,7 @@ model Order {
   updatedAt DateTime    @updatedAt
 
   @@unique([tenantId, code])
+  @@unique([tenantId, idempotencyKey]) // A-1 — idempotencia del alta de vidriera (NULLs no colisionan)
   @@index([tenantId, status])
 }
 
@@ -1223,6 +1239,13 @@ model CashMovement {
   createdBy String // actor "user:<id>"
   createdAt DateTime @default(now())
 
+  // A-5 — un SOLO movimiento por (pedido, tipo): cierra la carrera del doble-click en "Marcar
+  // cobrado" (dos asientos VENTA para el mismo pedido → arqueo con plata de más). El check-then-
+  // insert de `recordCashSaleMovementInTx` no cerraba la ventana; este @@unique es el árbitro a
+  // nivel DB. Los movimientos sin pedido (APERTURA/INGRESO/EGRESO/RETIRO, orderId NULL) NO
+  // colisionan (NULLs distintos en Postgres). Migración ESCRITA y SIN aplicar (Gate 2); el
+  // código tolera que el índice no exista todavía (schema-ahead).
+  @@unique([tenantId, orderId, type])
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])

@@ -21,6 +21,7 @@ import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
+import { Prisma } from "@/generated/prisma/client";
 import { reconcileCash, type CashMovementLike, type CashMovementType } from "@/lib/caja/cash-register";
 import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 
@@ -81,6 +82,15 @@ export async function getCajaData() {
 // APERTURA (para que el ledger del turno arranque completo). Falla si ya hay una
 // sesión abierta: un solo mostrador por tenant (invariante de dominio, no de
 // schema). Todo dentro de una transacción tenant-aware.
+//
+// M-1 · CONCURRENCIA: el check-then-insert (leer "no hay OPEN" → crear OPEN) en
+// ReadCommitted deja pasar DOS aperturas simultáneas —ambas leen "no hay" antes de que
+// cualquiera inserte→ y quedan dos turnos OPEN, con lo que el arqueo no cuadra. Se cierra
+// con el MISMO patrón que el overbooking (ADR-004/023, `bookingTransaction`): nivel
+// SERIALIZABLE + reintento. Postgres SSI detecta la dependencia lectura↔escritura de las
+// dos aperturas y aborta una con serialization_failure (P2034); `tenantTransaction`
+// reintenta, y en la 2ª pasada la apertura ya commiteada es visible → el check dispara el
+// error de dominio "ya hay una caja abierta". Sin índice ni migración: efectivo ya.
 export async function openCashSession(
   _prev: CajaActionState,
   formData: FormData,
@@ -122,7 +132,7 @@ export async function openCashSession(
         },
         select: { id: true },
       });
-    }, { tenantId });
+    }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
     return toActionError(err);
   }

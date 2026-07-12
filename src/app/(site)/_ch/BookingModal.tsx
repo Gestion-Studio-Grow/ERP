@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getAvailableSlots, getAvailableSlotsRange, createBookingFromModal } from "@/lib/actions";
 import { checkCoupon } from "@/lib/coupon-actions";
+import { isValidEmail, isValidArgentinePhone } from "@/lib/contact-validation";
 import { fmtTime, wallHourMinuteInBusinessTz } from "@/lib/datetime";
 import { useWhatsAppCta } from "@/components/whatsapp-cta";
 import type { BookingData, BookingGroup, BookingProfessional, BookingService } from "./types";
@@ -168,12 +169,20 @@ export default function BookingModal({
     return { mañana, tarde };
   }, [slots]);
 
+  // CH-A1: el "Confirmar" del paso 4 se habilita SOLO con teléfono válido (canal del recordatorio)
+  // y, si se cargó email, con email válido. Antes bastaba con que no estuvieran vacíos → entraba un
+  // turno con datos de contacto rotos y el aviso nunca llegaba.
+  const telValid = isValidArgentinePhone(tel);
+  const mailValid = mail.trim() === "" || isValidEmail(mail);
+  const telError = tel.trim() !== "" && !telValid ? "Teléfono inválido (ej: 11 2345 6789)." : null;
+  const mailError = mail.trim() !== "" && !mailValid ? "Ese email no parece válido." : null;
+
   const canNext = [
     false,
     !!svc,
     !!pro,
     !!(day && slot),
-    !!(name.trim() && tel.trim()),
+    !!(name.trim() && telValid && mailValid),
     true,
   ][step];
 
@@ -254,6 +263,7 @@ export default function BookingModal({
       month: "long",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false, // 24h argentino (ADR-044/046) — es-AR por default rinde "a. m./p. m."
     }).format(new Date(confirmedStartsAt));
 
   const icsHref = useMemo(() => {
@@ -330,7 +340,25 @@ export default function BookingModal({
               Reservar
             </span>
           </div>
-          <button type="button" onClick={onClose} aria-label="Cerrar" style={{ background: "none", border: 0, color: "var(--text-muted)", fontSize: 22, lineHeight: 1, cursor: "pointer" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            style={{
+              background: "none",
+              border: 0,
+              color: "var(--text-muted)",
+              fontSize: 22,
+              lineHeight: 1,
+              cursor: "pointer",
+              // Touch target ≥ 44px (Gate SAP §accesibilidad): antes la × medía ~12×22px.
+              width: 44,
+              height: 44,
+              display: "grid",
+              placeItems: "center",
+              margin: "-10px -10px 0 0", // compensa el área extra para no descolocar el header
+            }}
+          >
             ×
           </button>
         </div>
@@ -487,8 +515,8 @@ export default function BookingModal({
               <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 16px" }}>Solo lo necesario para confirmarte.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <Field label="Nombre" value={name} onChange={setName} type="text" />
-                <Field label="Teléfono" value={tel} onChange={setTel} type="tel" />
-                <Field label="Email (opcional)" value={mail} onChange={setMail} type="email" />
+                <Field label="Teléfono" value={tel} onChange={setTel} type="tel" error={telError} />
+                <Field label="Email (opcional)" value={mail} onChange={setMail} type="email" error={mailError} />
               </div>
 
               {/* Cupón de descuento (ADR-014) */}
@@ -613,7 +641,7 @@ export default function BookingModal({
             type="button"
             onClick={back}
             disabled={step === 1 || step === 5}
-            style={{ background: "none", border: 0, fontSize: 14, color: "var(--text-muted)", cursor: step === 1 || step === 5 ? "default" : "pointer", opacity: step === 1 || step === 5 ? 0.4 : 1 }}
+            style={{ background: "none", border: 0, fontSize: 14, color: "var(--text-muted)", cursor: step === 1 || step === 5 ? "default" : "pointer", opacity: step === 1 || step === 5 ? 0.4 : 1, minHeight: 44, padding: "0 8px" }}
           >
             Volver
           </button>
@@ -622,7 +650,9 @@ export default function BookingModal({
             onClick={next}
             disabled={!canNext || submitting}
             style={{
-              padding: "8px 20px",
+              // Touch target ≥ 44px (Gate SAP §accesibilidad): antes ~38.5px de alto.
+              minHeight: 44,
+              padding: "10px 24px",
               border: 0,
               fontSize: 15,
               color: "var(--text-on-accent)",
@@ -775,11 +805,13 @@ function Field({
   value,
   onChange,
   type,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type: string;
+  error?: string | null;
 }) {
   return (
     <label style={{ display: "block" }}>
@@ -788,12 +820,14 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        inputMode={type === "tel" ? "tel" : type === "email" ? "email" : undefined}
+        aria-invalid={error ? true : undefined}
         style={{
           marginTop: 4,
           width: "100%",
           boxSizing: "border-box",
           background: "var(--surface-sunken)",
-          border: "1px solid var(--line-strong)",
+          border: `1px solid ${error ? "var(--danger)" : "var(--line-strong)"}`,
           padding: "8px 12px",
           borderRadius: 0,
           fontSize: 15,
@@ -801,6 +835,11 @@ function Field({
           color: "var(--text-strong)",
         }}
       />
+      {error && (
+        <span role="alert" style={{ display: "block", marginTop: 4, fontSize: 12, color: "var(--danger)" }}>
+          {error}
+        </span>
+      )}
     </label>
   );
 }

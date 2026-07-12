@@ -8,13 +8,20 @@
 // origen (tipo + id) al fragmento de datos que consume `prisma.invoice.create/update`,
 // para que el borde fiscal no arme el link a mano en cada llamador.
 
-/** Orígenes fiscales de una factura (subset de CollectionOriginType: la deuda AR no factura). */
-export type InvoiceOriginType = "ORDER" | "APPOINTMENT";
+/**
+ * Orígenes fiscales de una factura. ORDER/APPOINTMENT son ventas del ERP (subset de
+ * CollectionOriginType: la deuda AR no factura). MP_PAYMENT (A-6) es un origen INVOICE-only:
+ * un pago de Mercado Pago facturado directo (ADR-025), cuya clave de idempotencia es el
+ * `payment_id` del gateway → un webhook duplicado NO genera una segunda factura.
+ */
+export type InvoiceOriginType = "ORDER" | "APPOINTMENT" | "MP_PAYMENT";
 
-/** Fragmento de FK para `prisma.invoice.{create,update}`. A lo sumo una de las dos. */
+/** Fragmento de FK/clave para `prisma.invoice.{create,update}`. A lo sumo una. */
 export interface InvoiceOriginLink {
   orderId?: string;
   appointmentId?: string;
+  /** A-6 — id del pago en el gateway (Mercado Pago). Clave de dedupe del webhook. */
+  mpPaymentId?: string;
 }
 
 /**
@@ -32,6 +39,8 @@ export function buildInvoiceOriginLink(
       return { orderId: id };
     case "APPOINTMENT":
       return { appointmentId: id };
+    case "MP_PAYMENT":
+      return { mpPaymentId: id };
     default:
       return {};
   }
