@@ -22,6 +22,7 @@ import type { CSSProperties } from "react";
 import { getSiteReplica } from "@/tenants/site-replica";
 import Storefront from "./Storefront";
 import SiteReplica from "./SiteReplica";
+import MagraFront from "./MagraFront";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,16 @@ export async function generateMetadata(): Promise<Metadata> {
 // En ambos casos, el backoffice (pedidos/POS/stock/facturación) es el mismo, detrás.
 export default async function TiendaPage() {
   const [data, accent, slug] = await Promise.all([loadStorefront(), loadAccent(), getCurrentTenantSlug()]);
+
+  // MAGRA — front público editorial propio (ADR-072 §8, mockup aprobado). Rompe el molde
+  // genérico: identidad real de MAGRA (carbón+hueso+oro, Bebas Neue, riel de pedido) con el
+  // catálogo + carrito del ERP detrás. Se resuelve por slug (`magra` en prod, `magra-demo` en
+  // el seed de QA) y se sirve DIRECTO — su piel es autocontenida (no depende del theme del
+  // brand-sheet). Copy TEXTUAL autorizado (magra-content.ts), imágenes generadas por IA.
+  if (slug === "magra" || slug === "magra-demo") {
+    return <MagraFront products={data.products} branding={data.branding} tenantKey={slug} />;
+  }
+
   const replica = getSiteReplica(slug);
   // tenantKey namespacea el WhatsApp que un visitante complete cuando el tenant
   // no tiene su número real configurado (ver WhatsAppCtaProvider) — sin slug

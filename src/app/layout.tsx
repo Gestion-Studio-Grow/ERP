@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk } from "next/font/google";
+import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk, Bebas_Neue, Open_Sans } from "next/font/google";
 import { getTenantBrand, resolveAccent, tenantFaviconDataUri } from "@/lib/branding";
 import { gsgIdentityEnabled, identityAttr, tenantBrandSheetEnabled } from "@/lib/identity";
 import { getBrandSheet } from "@/lib/brand-sheet";
@@ -43,6 +43,22 @@ const hanken = Hanken_Grotesk({
   display: "swap",
 });
 
+// Identidad MAGRA (ADR-072 §8): Bebas Neue (display condensado, cartelería premium) +
+// Open Sans (cuerpo/UI). Familias cargadas acá una sola vez; la vidriera de magra las
+// consume por `--font-bebas` / `--font-open-sans`. Sin descargas por-pantalla.
+const bebasNeue = Bebas_Neue({
+  variable: "--font-bebas",
+  subsets: ["latin"],
+  weight: "400",
+  display: "swap",
+});
+
+const openSans = Open_Sans({
+  variable: "--font-open-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 // Favicon POR TENANT (no más "CH" hardcodeado para toda la app): el ícono de la
 // pestaña sale del monograma + acento del tenant activo, resuelto en cada request
 // (getTenantBrand cachea por request; fail-open al brand por defecto sin DB). Las
@@ -80,7 +96,7 @@ export default function RootLayout({
     <html
       lang="es"
       data-identity={identity}
-      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${fraunces.variable} ${hanken.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${fraunces.variable} ${hanken.variable} ${bebasNeue.variable} ${openSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

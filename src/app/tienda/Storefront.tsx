@@ -569,6 +569,14 @@ function StorefrontContent({
             {copy && copy.paymentMethods.length > 0 && (<><div style={{ ...foothead, marginTop: 14 }}>Pagos</div><div style={{ opacity: 0.85 }}>{copy.paymentMethods.join(" · ")}</div></>)}
           </div>
         </div>
+        {/* Acceso al backoffice — la vidriera de retail (/tienda) no hereda el layout del
+            spa (site), donde vivía el link a /admin; sin esto el dueño del tenant no tenía
+            puerta de entrada al panel desde su propio sitio (mismo fix que MagraFront). */}
+        <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 24px 28px" }}>
+          <a href="/admin" style={{ fontSize: 12.5, opacity: 0.7, textDecoration: "underline", textUnderlineOffset: 3, color: "inherit" }}>
+            Acceso administrador
+          </a>
+        </div>
       </footer>
     </div>
   );
