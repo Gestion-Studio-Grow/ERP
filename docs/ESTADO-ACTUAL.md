@@ -9,6 +9,23 @@ FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nue
 este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
+> **🔁 Reconciliación 2026-07-12 (consolidación multi-rama + productos, la más reciente — gana sobre lo de abajo).**
+> - **`main` real = `0a279cf`** (donde abajo se lea `93eae5f`/`7ccee77`, léase esto). Prod: **8 superficies en 200**
+>   (4 apps `*-erp` + consola `gsg-erp` + 3 productos `comerciante/contador/facturita-gsg`).
+> - **Suite de facturación de 3 productos VIVA** sobre un motor (ADR-076): identidad por producto (login/nav/Inicio
+>   distintos) + **Tienda de módulos** (ADR-089: núcleo + plugins instalables por producto, `/admin/modulos`,
+>   candado del núcleo; `src/lib/admin-nav-items.ts` = fuente única de la nav). UAT verde.
+> - **Consolidación de las 7 ramas del `handoff-core-diseño` = 100% ejecutada** (olas 0-3): consola-CUIT (ADR-066),
+>   3 fronts (CH v4 / Shine / Magra editorial + fix acceso admin), backoffice carnicería Magra (ADR-096, resuelto a
+>   favor de la arquitectura nueva), y guardas de concurrencia sprint-entregable.
+> - **🟢 Gate 2 APLICADO (con OK explícito del dueño):** migración `20260712120000_sprint_entregable_concurrency_guards`
+>   a Neon (Invoice.mpPaymentId + Order.idempotencyKey + 3 índices únicos → cierra doble-cobro/webhook-MP-dup/doble-submit).
+>   `prisma migrate status` = **"up to date"**. CashMovement 0 filas (pre-prod) → aplicada sin riesgo.
+> - **Regla de gobierno (dueño):** ante incongruencia entre sesiones, **gana la sesión de productos nuevos**; obsoletar
+>   lo viejo duplicado. Clientes **reales pero PRE-PROD** configurando datos; reset futuro solo transaccional, NUNCA
+>   maestros/servicios. **Pendiente (no bloqueante):** reconciliar `order-core.ts` con el rediseño del core de Dispatch
+>   cuando aterrice (gana el core; preservar las 3 guardas). Handoff: `docs/producto/HANDOFF-consolidacion-a-core-0712.md`.
+
 > **🏛️ Fundación vigente (2026-07-10):** las decisiones fundacionales son los **ADR-060–071** — índice
 > maestro en [`docs/estrategia/fundacional-index.md`](estrategia/fundacional-index.md): **dos productos**
 > (Comercio Micro / PyME-Empresa) sobre un **motor compartido** (ADR-060/061), **RLS como línea base**
