@@ -80,7 +80,8 @@ test("resolveTenantLayout: tenant sin layout declarado cae al molde de hoy (DEFA
 
 test("Ola1: los 3 retail tienen HERO distinto entre sí (no el mismo molde)", () => {
   const heros = ["magra", "shinevelas", "adosmanos"].map((s) => resolveTenantLayout(brandForSlug(s)).hero);
-  assert.deepEqual(heros, ["editorial", "poster", "split"]);
+  // Shine usa `photo` (fotografía full-bleed de marca); Magra editorial; ADM split.
+  assert.deepEqual(heros, ["editorial", "photo", "split"]);
   assert.equal(new Set(heros).size, 3, "cada retail debería tener un hero propio");
 });
 
@@ -102,9 +103,12 @@ test("Ola1: cada retail tiene su propio PAPEL (surface distinto) — no el bone 
   assert.ok(surfaces.every((c) => typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c!)));
 });
 
-test("Ola1: A Dos Manos lidera con el catálogo; Shine con la experiencia (ritual)", () => {
+test("Ola1: A Dos Manos lidera con el catálogo; Shine con los mundos y la experiencia antes de la góndola", () => {
+  const shine = resolveSectionOrder(resolveTenantLayout(brandForSlug("shinevelas")).sectionOrder);
   assert.equal(resolveSectionOrder(resolveTenantLayout(brandForSlug("adosmanos")).sectionOrder)[0], "catalog");
-  assert.equal(resolveSectionOrder(resolveTenantLayout(brandForSlug("shinevelas")).sectionOrder)[0], "ritual");
+  // Shine abre con los "mundos" fotográficos (lines) y pone el ritual antes del catálogo.
+  assert.equal(shine[0], "lines");
+  assert.ok(shine.indexOf("ritual") < shine.indexOf("catalog"), "la experiencia va antes que la góndola");
 });
 
 test("resolveSectionOrder: completa las claves faltantes (nunca pierde secciones) y no duplica", () => {

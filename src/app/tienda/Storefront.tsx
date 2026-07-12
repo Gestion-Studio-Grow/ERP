@@ -103,7 +103,13 @@ function StorefrontContent({
   const centered = showFidelity && layout?.logoPosition === "centered";
   // Identidad genuina (Ola 1): variante de hero + tipografía + paleta + orden de secciones.
   const heroVariant = showFidelity ? layout!.hero : "standard";
-  const heroCentered = heroVariant === "editorial" || heroVariant === "poster";
+  // Fotografía de marca (config-driven, ADR-073 Nivel B): presente → la vidriera usa foto real;
+  // ausente → cae al render sin foto (halo/gradiente). Sólo con fidelidad.
+  const imagery = showFidelity ? layout?.imagery : undefined;
+  const heroImage = imagery?.heroImage ?? null;
+  // "photo" sólo aplica si además hay imagen; sin foto, un hero editorial centrado.
+  const heroPhoto = heroVariant === "photo" && Boolean(heroImage);
+  const heroCentered = heroVariant === "editorial" || heroVariant === "poster" || (heroVariant === "photo" && !heroImage);
   const typo = showFidelity ? layout?.typography : undefined;
   const palette = showFidelity ? layout?.palette : undefined;
   // Orden de secciones: reordena los ítems de la grilla vía CSS `order` (no mueve el DOM);
@@ -220,20 +226,46 @@ function StorefrontContent({
         <Masthead name={name} logoAsset={logoAsset} monogram={initials(name)} centered={centered} wording={wording} />
       )}
 
-      {/* ── Hero ── 4 variantes: standard (izq, molde), editorial (centrado), poster
-          (banda con lavado del acento), split (titular + panel de acento a la derecha). */}
-      <header style={{ borderBottom: `1px solid ${T.line}`, ...(heroVariant === "poster" ? { background: "color-mix(in srgb, var(--accent) 12%, var(--surface))" } : {}) }}>
-        {heroVariant === "split" ? (
-          <div style={{ maxWidth: 1080, margin: "0 auto", padding: "64px 24px", display: "flex", gap: 44, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 380px", minWidth: 280 }}>{heroInner(false)}</div>
-            <div aria-hidden style={{ flex: "1 1 300px", minWidth: 240, alignSelf: "stretch", minHeight: 260, borderRadius: 18, background: "linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 45%, #101314))", boxShadow: "inset 0 0 0 1px var(--line)" }} />
+      {/* ── Hero ── 5 variantes: photo (fotografía full-bleed con velo cálido), standard
+          (izq, molde), editorial (centrado), poster (banda con lavado del acento), split
+          (titular + panel de acento a la derecha). */}
+      {heroPhoto ? (
+        <header style={{ position: "relative", borderBottom: `1px solid ${T.line}`, minHeight: "clamp(460px, 62vh, 660px)", display: "flex", alignItems: "flex-end", backgroundImage: `url(${heroImage})`, backgroundSize: "cover", backgroundPosition: "center 40%" }}>
+          {/* Velo cálido: garantiza contraste AA del titular claro sobre la foto. */}
+          <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(28,17,14,0.12) 0%, rgba(28,17,14,0.34) 46%, rgba(28,17,14,0.82) 100%)" }} />
+          <div style={{ position: "relative", maxWidth: 1080, margin: "0 auto", width: "100%", padding: "0 24px 54px", color: "#fdf6ef" }}>
+            <div style={{ ...eyebrowStyle, color: "rgba(253,246,239,0.90)", textShadow: "0 1px 10px rgba(0,0,0,0.4)" }}>{eyebrow}</div>
+            <h1 style={{ fontSize: "clamp(44px, 7vw, 78px)", lineHeight: 1.02, letterSpacing: -1.8, fontWeight: 600, margin: "14px 0 0", maxWidth: 800, color: "#ffffff", textShadow: "0 2px 26px rgba(0,0,0,0.42)", ...headingStyle }}>
+              {tagline}
+            </h1>
+            {copy?.pitch && (
+              <div style={{ fontSize: "clamp(18px, 2.4vw, 24px)", fontWeight: 600, letterSpacing: -0.3, marginTop: 14, color: "#fdf6ef", textShadow: "0 1px 14px rgba(0,0,0,0.5)" }}>
+                {copy.pitch}
+              </div>
+            )}
+            {intro && <p style={{ fontSize: 16.5, lineHeight: 1.6, color: "rgba(253,246,239,0.94)", maxWidth: 560, marginTop: 16, textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}>{intro}</p>}
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
+              <a href="#seleccion" style={cta("var(--accent)", "var(--text-on-accent)")}>{wording.orderCta}</a>
+              <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={cta("#ffffff", "#118648", "1px solid #ffffff")}>
+                Pedir por WhatsApp
+              </button>
+            </div>
           </div>
-        ) : (
-          <div style={{ maxWidth: 1080, margin: "0 auto", padding: "76px 24px 56px", textAlign: heroCentered ? "center" : "left" }}>
-            {heroInner(heroCentered)}
-          </div>
-        )}
-      </header>
+        </header>
+      ) : (
+        <header style={{ borderBottom: `1px solid ${T.line}`, ...(heroVariant === "poster" ? { background: "color-mix(in srgb, var(--accent) 12%, var(--surface))" } : {}) }}>
+          {heroVariant === "split" ? (
+            <div style={{ maxWidth: 1080, margin: "0 auto", padding: "64px 24px", display: "flex", gap: 44, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 380px", minWidth: 280 }}>{heroInner(false)}</div>
+              <div aria-hidden style={{ flex: "1 1 300px", minWidth: 240, alignSelf: "stretch", minHeight: 260, borderRadius: 18, background: "linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 45%, #101314))", boxShadow: "inset 0 0 0 1px var(--line)" }} />
+            </div>
+          ) : (
+            <div style={{ maxWidth: 1080, margin: "0 auto", padding: "76px 24px 56px", textAlign: heroCentered ? "center" : "left" }}>
+              {heroInner(heroCentered)}
+            </div>
+          )}
+        </header>
+      )}
 
       {/* ── Propuestas de valor ── */}
       {copy && copy.valueProps.length > 0 && (
@@ -256,15 +288,25 @@ function StorefrontContent({
           <section style={secStyle("lines")}>
             <SectionHead kicker="Nuestras líneas" title={copy.vacioTitle} />
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-              {vacioLines.map((l, i) => (
-                <div key={i} style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontWeight: 800, fontSize: 17 }}>{l.title}</div>
-                  <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.55, flex: 1 }}>{l.text}</div>
-                  <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido de ${l.title}.`)} style={{ ...linkCta, color: "var(--accent)", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
-                    Hacer pedido →
-                  </button>
-                </div>
-              ))}
+              {vacioLines.map((l, i) => {
+                // Foto del "mundo" (config-driven): abre cada línea con su fotografía real.
+                const lineImg = l.section ? imagery?.sectionImages?.[l.section] : undefined;
+                return (
+                  <div key={i} style={{ background: T.surface, border: `1px solid ${T.line}`, borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                    {lineImg && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={lineImg} alt={l.title} loading="lazy" style={{ width: "100%", aspectRatio: "4 / 3", objectFit: "cover", display: "block" }} />
+                    )}
+                    <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: 17 }}>{l.title}</div>
+                      <div style={{ color: T.muted, fontSize: 14, lineHeight: 1.55, flex: 1 }}>{l.text}</div>
+                      <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido de ${l.title}.`)} style={{ ...linkCta, color: "var(--accent)", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
+                        Hacer pedido →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
@@ -325,6 +367,18 @@ function StorefrontContent({
         {/* ── Armá tu ritual (narrativa experiencial) ── */}
         {copy?.ritual && (
           <section style={secStyle("ritual")}>
+            {/* Banda de ambiente (config-driven): fotografía editorial de la escena que
+                arma la marca. Con velo cálido para el pie de foto. */}
+            {imagery?.ambianceImage && (
+              <div style={{ position: "relative", borderRadius: 18, overflow: "hidden", marginBottom: 22, height: "clamp(170px, 27vw, 320px)", backgroundImage: `url(${imagery.ambianceImage})`, backgroundSize: "cover", backgroundPosition: "center 55%" }}>
+                <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(28,17,14,0.74) 0%, rgba(28,17,14,0.40) 52%, rgba(28,17,14,0.08) 100%)" }} />
+                <div style={{ position: "relative", height: "100%", display: "flex", alignItems: "flex-end", padding: "22px 24px" }}>
+                  <span style={{ color: "#fdf6ef", fontFamily: "var(--font-display), Georgia, serif", fontSize: "clamp(20px, 3.2vw, 30px)", fontWeight: 600, letterSpacing: -0.3, maxWidth: 520, lineHeight: 1.15, textShadow: "0 1px 16px rgba(0,0,0,0.55)" }}>
+                    {copy.about.title}
+                  </span>
+                </div>
+              </div>
+            )}
             <SectionHead kicker="La experiencia" title={copy.ritual.title} />
             <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 620, marginTop: -6, marginBottom: 18 }}>{copy.ritual.intro}</p>
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
@@ -342,7 +396,18 @@ function StorefrontContent({
         {/* ── Sets de regalo (experiencias armadas) ── */}
         {copy?.giftSets && copy.giftSets.sets.length > 0 && (
           <section style={secStyle("gifts")}>
-            <SectionHead kicker="Para regalar" title={copy.giftSets.title} />
+            {/* Banda de la sección con la foto del packaging de regalo (config-driven). */}
+            {imagery?.giftImage ? (
+              <div style={{ position: "relative", borderRadius: 18, overflow: "hidden", marginBottom: 20, height: "clamp(150px, 21vw, 260px)", backgroundImage: `url(${imagery.giftImage})`, backgroundSize: "cover", backgroundPosition: "center 60%" }}>
+                <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(28,17,14,0.76) 0%, rgba(28,17,14,0.40) 55%, rgba(28,17,14,0.08) 100%)" }} />
+                <div style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "20px 24px", gap: 4 }}>
+                  <div style={{ ...eyebrowStyle, color: "rgba(253,246,239,0.92)", textShadow: "0 1px 10px rgba(0,0,0,0.5)" }}>Para regalar</div>
+                  <div style={{ color: "#ffffff", fontFamily: "var(--font-display), Georgia, serif", fontSize: "clamp(22px, 3.4vw, 32px)", fontWeight: 600, letterSpacing: -0.4, textShadow: "0 1px 16px rgba(0,0,0,0.55)" }}>{copy.giftSets.title}</div>
+                </div>
+              </div>
+            ) : (
+              <SectionHead kicker="Para regalar" title={copy.giftSets.title} />
+            )}
             {copy.giftSets.intro && <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 620, marginTop: -6, marginBottom: 18 }}>{copy.giftSets.intro}</p>}
             <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
               {copy.giftSets.sets.map((g, i) => (

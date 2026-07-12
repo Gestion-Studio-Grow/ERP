@@ -128,10 +128,24 @@ const TENANTS: Record<string, TenantBrand> = {
   "shinevelas": {
     name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light",
     layout: {
-      logoPosition: "centered", banner: "Envío gratis desde $25.000 · CABA y GBA", hero: "poster",
+      logoPosition: "centered", banner: "Envío gratis desde $25.000 · CABA y GBA", hero: "photo",
       typography: { display: "fraunces", body: "hanken", headingWeight: 500 },
       palette: { surface: "#f6f1f0", surfaceRaised: "#fffafa", surfaceSunken: "#efe6e6", textStrong: "#241d20", textMuted: "#726167", line: "#e8dcdd" },
-      sectionOrder: ["ritual", "lines", "catalog", "gifts", "cart", "gourmet", "reviews"],
+      // Recorrido editorial: los "mundos" (con foto) abren, luego el ritual con la banda de
+      // ambiente, después el catálogo y los sets. La experiencia va antes que la góndola.
+      sectionOrder: ["lines", "ritual", "catalog", "gifts", "cart", "gourmet", "reviews"],
+      // Fotografía real de marca (generada con scripts/genera-imagen.mjs · pollinations).
+      imagery: {
+        heroImage: "/tenants/shinevelas/hero.jpg",
+        ambianceImage: "/tenants/shinevelas/ambiance.jpg",
+        giftImage: "/tenants/shinevelas/gift.jpg",
+        sectionImages: {
+          velas: "/tenants/shinevelas/mundo-velas.jpg",
+          aromas: "/tenants/shinevelas/mundo-aromas.jpg",
+          decoracion: "/tenants/shinevelas/mundo-decoracion.jpg",
+          accesorios: "/tenants/shinevelas/mundo-accesorios.jpg",
+        },
+      },
     },
   },
   // A Dos Manos — tienda de pádel: retail. Logo a la IZQUIERDA + nav, sin banner, hero SPLIT
