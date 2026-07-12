@@ -157,7 +157,7 @@ const shinevelas: StorefrontCopy = {
   tagline: "No es una vela. Es un ambiente.",
   pitch: "Velas, aromas y decoración para vivir tu casa distinto.",
   intro:
-    "Cera de soja natural, mecha de algodón y fragancias que cambian cómo se siente un espacio —más objetos de decoración elegidos con el mismo criterio. No vendemos productos sueltos: armamos el ambiente de tu casa. Elegí, encendé y habitá el momento.",
+    "Cera de soja, mecha de algodón y fragancias que cambian cómo se siente un espacio. No vendemos productos sueltos: armamos el ambiente de tu casa. Elegí, encendé y habitá el momento.",
   valueProps: [
     { icon: "✿", title: "Cera de soja natural", text: "Vegetal, biodegradable y de combustión limpia: sin humo ni hollín." },
     { icon: "❖", title: "Velas + deco para el hogar", text: "Velas, difusores, objetos deco y accesorios que combinan entre sí." },

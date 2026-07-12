@@ -10,6 +10,8 @@
 // los callers de servidor. (Fix build: "chunking context does not support external modules
 // (request: node:module)" al bundlear Storefront para el cliente.)
 
+import type { ProductSectionId } from "./storefront-visual";
+
 export type LogoPosition = "centered" | "left";
 
 // Variante de HERO (Ola 1 — identidad genuina, no "template con otro color"):
@@ -17,7 +19,9 @@ export type LogoPosition = "centered" | "left";
 //   - editorial: centrado, serif, mucho aire (boutique — Magra).
 //   - poster   : banda con lavado del acento detrás del titular (vidriera cálida — Shine).
 //   - split    : titular a la izquierda + panel de acento a la derecha (retail — A Dos Manos).
-export type HeroLayout = "standard" | "editorial" | "poster" | "split";
+//   - photo    : fotografía full-bleed con velo cálido y titular encima (Shine con foto real).
+// Nota: `photo` sólo cambia el hero cuando además hay `heroImage`; sin imagen cae a `editorial`.
+export type HeroLayout = "standard" | "editorial" | "poster" | "split" | "photo";
 
 // TIPOGRAFÍA por tenant — familias YA cargadas por el layout raíz (next/font). Reasigna
 // `--font-display`/`--font-body`; sin descargas nuevas.
@@ -46,6 +50,21 @@ export type StorefrontPalette = {
 export type SectionKey =
   | "lines" | "catalog" | "ritual" | "gifts" | "cart" | "gourmet" | "providers" | "reviews";
 
+// FOTOGRAFÍA de marca por tenant (RFC-004 / ADR-085 imágenes por IA). Primitiva
+// COMPARTIDA (config, no fork por cliente — ADR-073 Nivel B): cualquier tenant que
+// declare estas imágenes las usa; ausentes → la vidriera cae al render sin foto
+// (halo/gradiente), byte-idéntico. Las rutas son assets versionados bajo /public.
+export type TenantImagery = {
+  /** Foto full-bleed del hero (con velo cálido para contraste AA del titular). */
+  heroImage?: string;
+  /** Foto editorial de ambiente para la banda "ritual/ambiente". */
+  ambianceImage?: string;
+  /** Foto de la sección de sets de regalo. */
+  giftImage?: string;
+  /** Foto por SECCIÓN de catálogo (velas/aromas/decoración/…): abre cada "mundo". */
+  sectionImages?: Partial<Record<ProductSectionId, string>>;
+};
+
 export type TenantLayout = {
   logoPosition: LogoPosition;
   banner: string | null;
@@ -53,6 +72,7 @@ export type TenantLayout = {
   typography?: StorefrontTypography;
   palette?: StorefrontPalette;
   sectionOrder?: SectionKey[];
+  imagery?: TenantImagery;
 };
 
 // Default = el molde de hoy. Un tenant sin `layout` se ve como hasta ahora → aditivo.
