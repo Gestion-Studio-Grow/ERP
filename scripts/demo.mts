@@ -59,6 +59,85 @@ async function applyMigrations(pg: PGlite) {
   log(`migraciones aplicadas in-process: ${n}`);
 }
 
+// Proveedores + una COMPRA con costos reales (media res / línea), directo por Prisma.
+// Da de qué valuar el inventario y de qué calcular el MARGEN por corte (el panel lee el
+// último `unitCost` de `StockPurchaseItem`). Sin esto todo sale "sin costo" — poco demo.
+// Costos ~63–68 % del precio de venta (realista para carnicería). Local, efímero.
+async function seedPurchases(prisma: PrismaClient, tenantId: string) {
+  const prods = await prisma.product.findMany({
+    where: { tenantId },
+    select: { id: true, name: true, pricePerKg: true, price: true, saleUnit: true },
+  });
+  const pick = (needle: string) => prods.find((p) => p.name.toLowerCase().includes(needle));
+
+  // Proveedores reales de MAGRA (de su web).
+  const donRamon = await prisma.supplier.create({
+    data: { tenantId, name: "Estancia Don Ramón", taxId: "30-71234567-0", phone: "11-4000-1001" },
+  });
+  const paladini = await prisma.supplier.create({
+    data: { tenantId, name: "Paladini", taxId: "30-50012345-6", phone: "11-4000-1002" },
+  });
+
+  // Costo por corte (ARS/kg o ARS/u). Realista: ~63–68 % del precio de venta.
+  const costs: { needle: string; cost: number }[] = [
+    { needle: "lomo", cost: 12200 },
+    { needle: "ojo de bife", cost: 11000 },
+    { needle: "bife de chorizo", cost: 10300 },
+    { needle: "entraña", cost: 11800 },
+    { needle: "cuadril", cost: 8300 },
+    { needle: "asado de tira", cost: 7400 },
+    { needle: "vacío", cost: 8100 },
+    { needle: "picada", cost: 6200 },
+    { needle: "bondiola", cost: 7000 },
+    { needle: "pechuga de pollo", cost: 5700 },
+  ];
+
+  const supplierFor = (name: string) =>
+    /cerdo|bondiola|pollo|pechuga/i.test(name) ? paladini : donRamon;
+
+  const items = costs
+    .map(({ needle, cost }) => {
+      const p = pick(needle);
+      if (!p) return null;
+      const qty = 20;
+      return {
+        tenantId,
+        productId: p.id,
+        name: p.name,
+        unit: p.saleUnit === "WEIGHT" ? "kg" : "u",
+        quantity: qty,
+        unitCost: cost,
+        lineTotal: round2(qty * cost),
+        _supplier: supplierFor(p.name),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  // Dos compras (una por proveedor) para que la valuación tenga procedencia clara.
+  let code = 0;
+  for (const supplier of [donRamon, paladini]) {
+    const mine = items.filter((it) => it._supplier.id === supplier.id);
+    if (mine.length === 0) continue;
+    code++;
+    const totalCost = round2(mine.reduce((s, it) => s + it.lineTotal, 0));
+    await prisma.stockPurchase.create({
+      data: {
+        tenantId,
+        code,
+        kind: "COMPRA",
+        supplier: supplier.name,
+        supplierId: supplier.id,
+        totalCost,
+        createdBy: "system:demo",
+        items: {
+          create: mine.map(({ _supplier, ...it }) => it),
+        },
+      },
+    });
+  }
+  log(`proveedores + compras sembradas: 2 (${items.length} cortes con costo)`);
+}
+
 // Pedidos de ejemplo (venta real de carnicería), directo por Prisma. Snapshot de
 // precio y correlativo por tenant, igual criterio que la acción real del POS.
 async function seedOrders(prisma: PrismaClient, tenantId: string) {
@@ -202,6 +281,7 @@ async function main() {
     },
     platform: { status: "ACTIVE", plan: "demo" },
   });
+  await seedPurchases(prisma, res.tenantId);
   await seedOrders(prisma, res.tenantId);
   await prisma.$disconnect();
 
