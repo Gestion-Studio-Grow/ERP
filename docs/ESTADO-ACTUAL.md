@@ -9,6 +9,18 @@ FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nue
 este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
+> ## 🔁 RECONCILIACIÓN 2026-07-12 (consolidación 0712) — LEER PRIMERO
+> Correcciones grandes al repo/prod real. Donde algo más abajo (foto 07-07/07-10) contradiga esto, **gana esto**:
+> - **`main` real = `aacd640`** (era `93eae5f`). Landearon: **I2/I7 cerrados** (índice único aplicado), **suite de facturación** (ADR-075–080), **producto por módulos** ([ADR-089](adr/ADR-089-nucleo-mas-modulos-instalables-por-producto.md)), **cert fiscal por tenant** aplicado.
+> - **RLS ENFORCED en prod = CONFIRMADO** (ya NO "A CONFIRMAR"): flag on + **43/43 policies** + `app_rls` NOBYPASSRLS ([ADR-092](adr/ADR-092-rls-enforced-en-prod.md)). Donde abajo se lea "RLS A CONFIRMAR / 38 tablas", léase **enforced 43/43**.
+> - **🔓 Gate del 2º tenant CUMPLIDO → ALTA DE CLIENTES DESBLOQUEADA** (candado 1 abierto).
+> - **`main` AUTO-DEPLOYA a producción** ([ADR-091](adr/ADR-091-main-auto-deploya-a-produccion.md)) — corrige toda mención de "push a main no publica / no gasta créditos". Cada push a `main` publica a **4 apps vivas** → **migración SIEMPRE antes del merge**.
+> - **Credenciales fiscales por tenant** implementadas, **migración aplicada a prod** (cifrado en sobre + guard fail-closed) — [ADR-093](adr/ADR-093-credenciales-fiscales-por-tenant-implementacion.md); ARCA homologación fail-safe, runbook `docs/runbooks/arca-homologacion.md`. **Candado 2 (facturación):** homologación lista; falta que el dueño cargue cert + setee `ARCA_MODO`.
+> - **Gate de render visual + AA bloqueante** ([ADR-090](adr/ADR-090-gate-de-render-visual-y-calidad-de-superficie.md)): 324 defectos hallados; "lo cosmético es crítico".
+> - **Imagen por IA** como capacidad compartida multi-proveedor ([ADR-094](adr/ADR-094-generacion-de-imagenes-por-ia.md)); **fábrica de altas honesta** ([ADR-095](adr/ADR-095-fabrica-de-altas-estado-honesto.md)); **carnicería vs Bistrosoft** ([ADR-096](adr/ADR-096-rubro-carniceria-magra-vs-bistrosoft.md)).
+> - **🤝 Sesión que rediseña el core en paralelo:** el mapa completo (ramas en vuelo + invariantes que no se rompen + orden de merge) está en **[`docs/HANDOFF-CORE-REDISEÑO.md`](HANDOFF-CORE-REDISEÑO.md)**.
+> - **Deuda conocida hoy:** bugs de doble-click cerrados en `fix/sprint-entregable` (sin mergear) · loaders `/admin` sin filtro `tenantId` (A-3 latente, RLS los cubre) · lint rojo heredado · `app_user` legacy BYPASSRLS · `.env` local usa owner de PROD · colisión de timestamp `20260711140000` (cartera+fiscal).
+
 > **🏛️ Fundación vigente (2026-07-10):** las decisiones fundacionales son los **ADR-060–071** — índice
 > maestro en [`docs/estrategia/fundacional-index.md`](estrategia/fundacional-index.md): **dos productos**
 > (Comercio Micro / PyME-Empresa) sobre un **motor compartido** (ADR-060/061), **RLS como línea base**

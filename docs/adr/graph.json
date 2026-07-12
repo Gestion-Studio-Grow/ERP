@@ -7,8 +7,8 @@
     "Se re-genera como subproducto del ritual (Gate/retro): node scripts/adr-graph.mjs."
   ],
   "query": "dependents[X] responde '¿qué se cae / qué depende si cambio X?'",
-  "count": 77,
-  "adrCount": 71,
+  "count": 94,
+  "adrCount": 88,
   "amendmentCount": 6,
   "nodes": [
     {
@@ -39,7 +39,8 @@
         "ADR-058",
         "ADR-060",
         "ADR-062",
-        "ADR-067"
+        "ADR-067",
+        "ADR-092"
       ]
     },
     {
@@ -70,7 +71,9 @@
         "ADR-058",
         "ADR-059",
         "ADR-061",
-        "ADR-064"
+        "ADR-064",
+        "ADR-073",
+        "ADR-074"
       ]
     },
     {
@@ -169,7 +172,8 @@
       "dependents": [
         "ADR-010",
         "ADR-060",
-        "ADR-067"
+        "ADR-067",
+        "ADR-078"
       ]
     },
     {
@@ -189,7 +193,8 @@
         "ADR-039",
         "ADR-045",
         "ADR-047",
-        "ADR-071"
+        "ADR-071",
+        "ADR-094"
       ]
     },
     {
@@ -210,7 +215,8 @@
         "ADR-012",
         "ADR-034",
         "ADR-040",
-        "ADR-069"
+        "ADR-069",
+        "ADR-072"
       ]
     },
     {
@@ -377,7 +383,10 @@
         "ADR-036",
         "ADR-041",
         "ADR-054",
-        "ADR-062"
+        "ADR-062",
+        "ADR-074",
+        "ADR-077",
+        "ADR-092"
       ]
     },
     {
@@ -397,7 +406,10 @@
         "ADR-021",
         "ADR-028",
         "ADR-034",
-        "ADR-065"
+        "ADR-065",
+        "ADR-074",
+        "ADR-077",
+        "ADR-095"
       ]
     },
     {
@@ -435,7 +447,10 @@
         "ADR-019"
       ],
       "dependents": [
-        "ADR-065"
+        "ADR-065",
+        "ADR-074",
+        "ADR-077",
+        "ADR-095"
       ]
     },
     {
@@ -459,7 +474,9 @@
         "ADR-025",
         "ADR-057",
         "ADR-064",
-        "ADR-066"
+        "ADR-066",
+        "ADR-075",
+        "ADR-093"
       ]
     },
     {
@@ -492,7 +509,8 @@
       ],
       "dependents": [
         "ADR-025",
-        "ADR-064"
+        "ADR-064",
+        "ADR-075"
       ]
     },
     {
@@ -510,7 +528,8 @@
         "ADR-024"
       ],
       "dependents": [
-        "ADR-066"
+        "ADR-066",
+        "ADR-075"
       ]
     },
     {
@@ -567,7 +586,9 @@
       ],
       "dependents": [
         "ADR-028",
-        "ADR-070"
+        "ADR-070",
+        "ADR-076",
+        "ADR-091"
       ]
     },
     {
@@ -584,7 +605,8 @@
       ],
       "dependents": [
         "ADR-038",
-        "ADR-060"
+        "ADR-060",
+        "ADR-078"
       ]
     },
     {
@@ -633,7 +655,9 @@
         "Operaciones"
       ],
       "depends_on": [],
-      "dependents": []
+      "dependents": [
+        "ADR-073"
+      ]
     },
     {
       "id": "ADR-034",
@@ -651,7 +675,10 @@
       "dependents": [
         "ADR-035",
         "ADR-042",
-        "ADR-065"
+        "ADR-065",
+        "ADR-073",
+        "ADR-094",
+        "ADR-095"
       ]
     },
     {
@@ -679,7 +706,9 @@
         "ADR-015",
         "ADR-018"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-096"
+      ]
     },
     {
       "id": "ADR-037",
@@ -740,7 +769,10 @@
         "ADR-048",
         "ADR-068",
         "ADR-070",
-        "ADR-071"
+        "ADR-071",
+        "ADR-072",
+        "ADR-079",
+        "ADR-090"
       ]
     },
     {
@@ -755,7 +787,9 @@
       ],
       "dependents": [
         "ADR-048",
-        "ADR-066"
+        "ADR-066",
+        "ADR-091",
+        "ADR-093"
       ]
     },
     {
@@ -769,7 +803,9 @@
       "depends_on": [
         "ADR-034"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-073"
+      ]
     },
     {
       "id": "ADR-043",
@@ -783,7 +819,9 @@
         "ADR-040"
       ],
       "dependents": [
-        "ADR-044"
+        "ADR-044",
+        "ADR-072",
+        "ADR-080"
       ]
     },
     {
@@ -801,7 +839,11 @@
       "dependents": [
         "ADR-046",
         "ADR-058",
-        "ADR-069"
+        "ADR-069",
+        "ADR-072",
+        "ADR-079",
+        "ADR-080",
+        "ADR-090"
       ]
     },
     {
@@ -833,7 +875,8 @@
         "ADR-044"
       ],
       "dependents": [
-        "ADR-052"
+        "ADR-052",
+        "ADR-080"
       ]
     },
     {
@@ -967,7 +1010,12 @@
         "ADR-058",
         "ADR-059",
         "ADR-061",
-        "ADR-065"
+        "ADR-065",
+        "ADR-073",
+        "ADR-075",
+        "ADR-076",
+        "ADR-089",
+        "ADR-096"
       ]
     },
     {
@@ -984,7 +1032,14 @@
       "dependents": [
         "ADR-058",
         "ADR-059",
-        "ADR-065"
+        "ADR-065",
+        "ADR-073",
+        "ADR-074",
+        "ADR-075",
+        "ADR-076",
+        "ADR-077",
+        "ADR-089",
+        "ADR-096"
       ]
     },
     {
@@ -1033,7 +1088,10 @@
       "dependents": [
         "ADR-059",
         "ADR-060",
-        "ADR-061"
+        "ADR-061",
+        "ADR-072",
+        "ADR-076",
+        "ADR-089"
       ]
     },
     {
@@ -1051,7 +1109,9 @@
         "ADR-058"
       ],
       "dependents": [
-        "ADR-069"
+        "ADR-069",
+        "ADR-072",
+        "ADR-089"
       ]
     },
     {
@@ -1070,7 +1130,8 @@
         "ADR-058"
       ],
       "dependents": [
-        "ADR-061"
+        "ADR-061",
+        "ADR-076"
       ]
     },
     {
@@ -1088,7 +1149,10 @@
         "ADR-058",
         "ADR-060"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-076",
+        "ADR-094"
+      ]
     },
     {
       "id": "ADR-062",
@@ -1104,7 +1168,9 @@
         "ADR-018",
         "ADR-023"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-092"
+      ]
     },
     {
       "id": "ADR-063",
@@ -1152,7 +1218,9 @@
         "ADR-054",
         "ADR-055"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-095"
+      ]
     },
     {
       "id": "ADR-066",
@@ -1167,7 +1235,10 @@
         "ADR-025",
         "ADR-041"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-077",
+        "ADR-093"
+      ]
     },
     {
       "id": "ADR-067",
@@ -1214,7 +1285,11 @@
         "ADR-044",
         "ADR-059"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-072",
+        "ADR-079",
+        "ADR-090"
+      ]
     },
     {
       "id": "ADR-070",
@@ -1229,7 +1304,9 @@
         "ADR-039",
         "ADR-040"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-091"
+      ]
     },
     {
       "id": "ADR-071",
@@ -1243,6 +1320,300 @@
         "ADR-008",
         "ADR-040",
         "ADR-047"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-072",
+      "title": "ADR-072: Enfoque de diseño — la filosofía del front (Apple×SAP), el sistema tematizable y el backoffice \"Fable\" congelado",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-009",
+        "ADR-040",
+        "ADR-043",
+        "ADR-044",
+        "ADR-058",
+        "ADR-059",
+        "ADR-069"
+      ],
+      "dependents": [
+        "ADR-073",
+        "ADR-079",
+        "ADR-090"
+      ]
+    },
+    {
+      "id": "ADR-073",
+      "title": "ADR-073: Personalización de diseño por tenant — SOLO configuración, nunca fork (+ \"Creative Grow\")",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-033",
+        "ADR-034",
+        "ADR-042",
+        "ADR-054",
+        "ADR-055",
+        "ADR-072"
+      ],
+      "dependents": [
+        "ADR-094"
+      ]
+    },
+    {
+      "id": "ADR-074",
+      "title": "ADR-074: Fábrica de tenants — `provisionTenant` como saga (commit transaccional + efectos externos compensables)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-018",
+        "ADR-019",
+        "ADR-021",
+        "ADR-055"
+      ],
+      "dependents": [
+        "ADR-077",
+        "ADR-095"
+      ]
+    },
+    {
+      "id": "ADR-075",
+      "title": "ADR-075: Producto Facturación Bancaria — módulo `bancos` (extracto → clasificación → factura)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-022",
+        "ADR-024",
+        "ADR-025",
+        "ADR-054",
+        "ADR-055"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-076",
+      "title": "ADR-076: Suite de facturación — UN motor, TRES productos empaquetados (A·Comerciante / B·Contador / C·Facturita)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-029",
+        "ADR-054",
+        "ADR-055",
+        "ADR-058",
+        "ADR-060",
+        "ADR-061"
+      ],
+      "dependents": [
+        "ADR-077",
+        "ADR-078",
+        "ADR-089"
+      ]
+    },
+    {
+      "id": "ADR-077",
+      "title": "ADR-077: Producto B·Contador — cartera multi-cliente (cada cliente ES un tenant + delegación ARCA)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-018",
+        "ADR-019",
+        "ADR-021",
+        "ADR-055",
+        "ADR-066",
+        "ADR-074",
+        "ADR-076"
+      ],
+      "dependents": [
+        "ADR-093"
+      ]
+    },
+    {
+      "id": "ADR-078",
+      "title": "ADR-078: Pricing y unit economics de la suite de facturación (lista 2026-07-11, revisión trimestral)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-007",
+        "ADR-030",
+        "ADR-076"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-079",
+      "title": "ADR-079: Gate UX/UI de craft mundial — las 7 lentes (permanente, se suma al Gate de Excelencia)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-040",
+        "ADR-044",
+        "ADR-069",
+        "ADR-072",
+        "ADR-080"
+      ],
+      "dependents": [
+        "ADR-080",
+        "ADR-090"
+      ]
+    },
+    {
+      "id": "ADR-080",
+      "title": "ADR-080: Guía de estilo de textos del producto (permanente — sale de la auditoría del editor 2026-07-11)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-043",
+        "ADR-044",
+        "ADR-046",
+        "ADR-079"
+      ],
+      "dependents": [
+        "ADR-079"
+      ]
+    },
+    {
+      "id": "ADR-089",
+      "title": "ADR-089 — Núcleo mínimo + módulos instalables (App Store por tenant) para productos de facturación",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-054",
+        "ADR-055",
+        "ADR-058",
+        "ADR-059",
+        "ADR-076"
+      ],
+      "dependents": [
+        "ADR-096"
+      ]
+    },
+    {
+      "id": "ADR-090",
+      "title": "ADR-090 — Gate de render visual + calidad de superficie del cliente (\"lo cosmético es crítico\")",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-040",
+        "ADR-044",
+        "ADR-069",
+        "ADR-072",
+        "ADR-079"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-091",
+      "title": "ADR-091 — `main` auto-deploya a producción (la verdad operativa)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-029",
+        "ADR-041",
+        "ADR-070"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-092",
+      "title": "ADR-092 — RLS está enforced en producción (corrige la creencia anterior) + gate del 2º tenant CUMPLIDO",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-001",
+        "ADR-018",
+        "ADR-062"
+      ],
+      "dependents": [
+        "ADR-093"
+      ]
+    },
+    {
+      "id": "ADR-093",
+      "title": "ADR-093 — Credenciales fiscales por tenant: implementación (cifrado en sobre + guard fail-closed)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-022",
+        "ADR-041",
+        "ADR-066",
+        "ADR-077",
+        "ADR-092"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-094",
+      "title": "ADR-094 — Generación de imágenes por IA como capacidad compartida (multi-proveedor)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-008",
+        "ADR-034",
+        "ADR-061",
+        "ADR-073"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-095",
+      "title": "ADR-095 — Fábrica de altas: estado honesto (los stubs mentían; ahora no)",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-019",
+        "ADR-021",
+        "ADR-034",
+        "ADR-065",
+        "ADR-074"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-096",
+      "title": "ADR-096 — Rubro carnicería (MAGRA) vs Bistrosoft — brecha y diferenciales",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-036",
+        "ADR-054",
+        "ADR-055",
+        "ADR-089"
       ],
       "dependents": []
     },
