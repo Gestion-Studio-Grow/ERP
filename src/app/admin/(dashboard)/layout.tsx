@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
 import ToastProvider from "./ToastProvider";
@@ -11,6 +12,7 @@ import { getActiveModuleIds } from "@/lib/module-gating";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
+import { rutaPermitidaComerciante } from "@/lib/admin-nav-items";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import AdminThemeScript from "../AdminThemeScript";
@@ -64,6 +66,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   if (productoCtx.producto === "facturita" && roleHasCapability(user.role, "billing:manage")) {
     redirect("/facturita/app");
+  }
+
+  // GATING POR-URL DEL COMERCIANTE (ADR-054/055): la nav ya se le muestra focalizada a su
+  // set de módulos (arca/bancos/mercadopago/clients/reports), pero ESO es UX — un OWNER
+  // podía teclear /admin/turnos · /admin/caja · /admin/catalogo y aterrizar en una pantalla
+  // vacía de un módulo que no tiene. Acá lo cerramos server-side: si la ruta pide un módulo
+  // fuera de su set (o cae fuera del backoffice), lo devolvemos a su Inicio (/admin, que
+  // SIEMPRE puede ver → sin loop). El pathname llega por header desde el proxy (los layouts
+  // no lo reciben por props). Solo Comerciante — el ERP vertical NO se toca (chestetica/
+  // magra conservan su backoffice completo). Fail-open: sin header, no gatea (no rompe render).
+  if (productoCtx.producto === "comerciante") {
+    const pathname = (await headers()).get("x-pathname");
+    if (pathname && !rutaPermitidaComerciante(pathname, productoCtx.modules)) {
+      redirect("/admin");
+    }
   }
 
   // SKIN "FABLE" (mockups aprobados por el dueño, 2026-07): el backoffice ya NO
@@ -146,7 +163,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={shellModules ? [...shellModules] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile}>
+          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={shellModules ? [...shellModules] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"}>
             {children}
           </AdminShell>
         </ToastProvider>
