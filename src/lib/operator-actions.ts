@@ -22,6 +22,7 @@ import { resolveBlueprint, getBlueprint } from "@/blueprints";
 import { defaultModulesForBlueprint, suggestedAccentForBlueprint, isModuleId } from "@/lib/operator-config";
 import { requestIp } from "@/lib/audit";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
+import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -169,6 +170,34 @@ export async function setTenantSubdomain(formData: FormData) {
   }
   await updateTenant(tenantId, { subdomain });
   redirect(`/operador/tenants/${tenantId}?ok=link`);
+}
+
+// --- Credencial fiscal ARCA por tenant (ADR-066) ------------------------------
+// Carga/rota el certificado del emisor, CIFRADO en reposo (envelope). Acción de
+// operador, AUDITADA. El material lo pega el operador (nunca el agente); acá NUNCA se
+// loguea ni se persiste en claro. Requiere la migración `TenantFiscalCredential`
+// aplicada (Gate 2) y `FISCAL_MASTER_KEY` seteada.
+export async function cargarCredencialFiscal(formData: FormData) {
+  const op = await requireOperator();
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const certPem = String(formData.get("certPem") || "").trim();
+  const keyPem = String(formData.get("keyPem") || "").trim();
+
+  if (!tenantId || !certPem || !keyPem) {
+    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent("Pegá el certificado y la clave (PEM).")}`);
+  }
+
+  // El trabajo va en try/catch; el redirect de éxito queda AFUERA (redirect() lanza por
+  // diseño y no debe caer en el catch de error).
+  let mensajeOk: string;
+  try {
+    const r = await cargarCredencialTenant({ tenantId, certPem, keyPem, actor: `operator:${op}` });
+    mensajeOk = `credencial fiscal ${r.rotada ? "rotada" : "cargada"} (CUIT ${r.certCuit})`;
+  } catch (e) {
+    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`);
+  }
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(mensajeOk)}`);
 }
 
 export async function toggleTenantModule(formData: FormData) {

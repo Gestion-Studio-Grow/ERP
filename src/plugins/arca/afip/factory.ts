@@ -1,27 +1,40 @@
 /**
  * Factory del cliente de ARCA: resuelve STUB vs adapter SOAP real (producción u
  * HOMOLOGACIÓN) según el entorno, sin que el llamador (el `clientePara` del
- * handler) tenga que saber de certificados ni endpoints.
+ * handler) tenga que saber de endpoints.
+ *
+ * 🔒 CREDENCIAL POR TENANT (ADR-066): la credencial del emisor entra EXPLÍCITA
+ * (`opts.credencial`), resuelta por `credencialParaTenant(tenantId)` (cifrada por
+ * tenant, `src/lib/fiscal/tenant-cert.ts`). El factory YA NO lee el certificado de
+ * un env único compartido: hacerlo firmaría las facturas de todos los tenants con
+ * la misma clave (contaminación fiscal cruzada). En modo real/homologación la
+ * credencial es OBLIGATORIA — sin ella no se emite (fail-closed).
  *
  * Contrato de encendido ("encender, no construir"):
- *   - `ARCA_MODO=real` + `ARCA_CERT_PEM` + `ARCA_KEY_PEM`          → SOAP real,
- *     endpoint según `EmisorConfig.homologacion` (lo decide el Tenant).
- *   - `ARCA_MODO=homologacion` + `ARCA_CERT_PEM` + `ARCA_KEY_PEM`  → SOAP real,
- *     pero SIEMPRE contra el ambiente de homologación (testing oficial de ARCA)
- *     — el banco de pruebas (`docs/lecciones-aprendidas` SEC-1) fuerza el
- *     endpoint de test sin importar qué diga el Tenant, así un certificado de
- *     PRUEBA nunca puede terminar facturando de verdad.
- *   - cualquier otro caso                                          → `StubAfipClient`.
- * Setear el modo y las credenciales (de prueba o de producción) es acción
- * humana; el código ya está.
+ *   - `ARCA_MODO=real` + `opts.credencial` del tenant          → SOAP real, endpoint
+ *     según `EmisorConfig.homologacion` (lo decide el Tenant). GUARD FAIL-CLOSED:
+ *     el CUIT del subject del cert debe coincidir con `config.cuit`, o aborta.
+ *   - `ARCA_MODO=homologacion` + `opts.credencial`             → SOAP real, pero
+ *     SIEMPRE contra homologación (testing oficial de ARCA) — el endpoint de test se
+ *     fuerza sin importar el Tenant, así un cert de PRUEBA nunca factura de verdad.
+ *   - cualquier otro caso                                       → `StubAfipClient`.
  */
 
 import { AfipClient, EmisorConfig } from './port';
 import { SoapAfipClient } from './soap';
 import { StubAfipClient } from './stub';
-import { Pkcs7TraSigner, credencialDesdeEnv } from './signer';
+import { Pkcs7TraSigner, type CredencialEmisor } from './signer';
+import { assertCertCoincideConCuit } from './cert-inspect';
 
 export type ModoArca = 'stub' | 'homologacion' | 'real';
+
+/** Opciones del factory. `credencial` es OBLIGATORIA en real/homologación (por tenant). */
+export interface CrearAfipClientOpts {
+  /** Entorno del que se lee `ARCA_MODO`. Default `process.env`. */
+  env?: Record<string, string | undefined>;
+  /** Credencial del emisor del tenant (cifrada en reposo, resuelta por tenant). */
+  credencial?: CredencialEmisor | null;
+}
 
 /** Modo de ARCA declarado por entorno. Default `stub` (seguro). */
 export function modoDesdeEnv(
@@ -43,23 +56,36 @@ export function configParaModo(config: EmisorConfig, modo: ModoArca): EmisorConf
 }
 
 /**
- * Devuelve el `AfipClient` para un emisor. En modo real u homologación exige
- * credenciales: si faltan los PEM, lanza un error explícito de acción humana
- * (no cae silenciosamente al stub, que emitiría comprobantes falsos).
+ * Devuelve el `AfipClient` para un emisor. En modo real u homologación exige la
+ * credencial del tenant EXPLÍCITA (`opts.credencial`): si falta, lanza un error de
+ * acción humana (no cae al stub, que emitiría comprobantes falsos, ni a un env
+ * compartido, que firmaría con el cert de otro tenant — ADR-066).
+ *
+ * GUARD FAIL-CLOSED (modo real): antes de construir el firmante, exige que el CUIT del
+ * subject del cert coincida con `config.cuit` (el CUIT del tenant). Si no coincide,
+ * ABORTA — nunca firma una factura real con el certificado de otro contribuyente. En
+ * homologación el endpoint está forzado al ambiente de test (no hay registros fiscales
+ * reales), así que el guard estricto no aplica: ahí se usa un cert de PRUEBA.
  */
 export function crearAfipClient(
   config: EmisorConfig,
-  env: Record<string, string | undefined> = process.env,
+  opts: CrearAfipClientOpts = {},
 ): AfipClient {
+  const env = opts.env ?? process.env;
   const modo = modoDesdeEnv(env);
   if (modo === 'real' || modo === 'homologacion') {
-    const cred = credencialDesdeEnv(env);
+    const cred = opts.credencial ?? null;
     if (!cred) {
       throw new Error(
-        `ARCA_MODO=${modo} pero faltan ARCA_CERT_PEM / ARCA_KEY_PEM. ` +
-          'Cargá el certificado y la clave del emisor (de PRUEBA para homologación, de producción para ' +
-          'real) — acción humana — o dejá ARCA_MODO sin setear para usar el stub.',
+        `ARCA_MODO=${modo} pero no se pasó la credencial del emisor. La credencial sale de ` +
+          '`credencialParaTenant(tenantId)` (cifrada por tenant) — NUNCA de un env compartido ' +
+          '(ADR-066). Cargá el certificado del tenant desde el plano de operador, o dejá ' +
+          'ARCA_MODO sin setear para usar el stub.',
       );
+    }
+    // Guard fail-closed: en modo real, el cert tiene que ser del CUIT del tenant.
+    if (modo === 'real') {
+      assertCertCoincideConCuit(cred.certPem, String(config.cuit));
     }
     return new SoapAfipClient(configParaModo(config, modo), { signer: new Pkcs7TraSigner(cred) });
   }

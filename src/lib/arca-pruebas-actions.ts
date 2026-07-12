@@ -18,6 +18,7 @@ import { logger } from "@/lib/logger";
 import {
   crearAfipClient,
   modoDesdeEnv,
+  credencialDesdeEnv,
   emitirFacturaDePrueba,
   CUIT_DE_PRUEBA,
   type ModoArca,
@@ -85,7 +86,11 @@ export async function emitirFacturaDePruebaAction(): Promise<ResultadoBancoPrueb
   logger.info("arca.prueba", "Emitiendo factura de prueba", { tenantId, modo, cuit, puntoVenta });
 
   try {
-    const client = crearAfipClient({ cuit, homologacion: true });
+    // Banco de pruebas: usa el cert de PRUEBA de env (`ARCA_CERT_PEM`/`ARCA_KEY_PEM`),
+    // aislado del camino REAL (que resuelve la credencial cifrada por tenant, ADR-066).
+    // Bloqueado en modo real arriba: acá solo corre stub (no firma) u homologación (cert
+    // de test, endpoint forzado a homologación — sin registros fiscales reales).
+    const client = crearAfipClient({ cuit, homologacion: true }, { credencial: credencialDesdeEnv() });
     const resultado = await emitirFacturaDePrueba(client, { puntoVenta });
 
     if (resultado.ok) {
