@@ -23,6 +23,17 @@ export const carteraModule: ModuleDescriptor = {
   kind: "capability",
   capability: "cartera:manage",
   rubros: "todos",
+  // Núcleo del producto CONTADOR y su DISCRIMINADOR (derivarProducto lo detecta por cartera):
+  // por eso NO se ofrece en la tienda del Comerciante (visibleEnTienda lo filtra fuera de Contador).
+  nucleoPara: ["contador"],
+  grupo: "facturacion-cobros",
+  resumen: "El panel del estudio: la cartera de clientes, cada uno con su facturación al día.",
+  fit: "Estudios contables que administran la facturación de varios clientes.",
+  scopeItems: [
+    { label: "Alta/pausa/baja de clientes", ruta: "/contador" },
+    { label: "Resumen fiscal por cliente (facturas vs. tope)" },
+    { label: "Emisión de facturas automáticas en lote" },
+  ],
   // La emisión en lote reusa el core de bancos → termina en CreateInvoice del Core.
   llamaComandos: ["CreateInvoice"],
   migraciones: [

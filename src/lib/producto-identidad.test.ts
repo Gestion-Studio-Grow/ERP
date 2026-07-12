@@ -12,6 +12,7 @@ import {
   derivarProducto,
   identidadProducto,
   productoHome,
+  productoUsaTienda,
   rutaPermitidaParaProducto,
   type Producto,
 } from "./producto-identidad";
@@ -99,4 +100,14 @@ test("el match de área es por segmento (no por prefijo de string) y tolera quer
   assert.equal(rutaPermitidaParaProducto("vertical", "/administracion"), false);
   assert.equal(rutaPermitidaParaProducto("contador", "/contador/"), true);
   assert.equal(rutaPermitidaParaProducto("contador", "/contador?tab=x"), true);
+});
+
+// ── Tienda de módulos por producto (ADR-089) ─────────────────────────────────
+
+test("productoUsaTienda: solo los productos de facturación (Comerciante/Contador); vertical y Facturita NO", () => {
+  assert.equal(productoUsaTienda("comerciante"), true);
+  assert.equal(productoUsaTienda("contador"), true);
+  // Facturita (commodity) y verticales conservan su comportamiento legado, byte-idéntico.
+  assert.equal(productoUsaTienda("facturita"), false);
+  assert.equal(productoUsaTienda("vertical"), false);
 });

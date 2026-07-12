@@ -20,6 +20,8 @@ export {
   type ConfigFieldSchema,
   type ModuleDependency,
   type MigrationRef,
+  type ModuleGroupId,
+  type ScopeItem,
   type ModuleDescriptor,
   type ProblemaCatalogo,
   type PluginManifest,
@@ -69,3 +71,11 @@ export {
   planActivar,
   planDesactivar,
 } from "./vista";
+
+export { nucleoParaProducto } from "./nucleo";
+
+export {
+  type TiendaGrupoMeta,
+  TIENDA_GRUPOS,
+  TIENDA_GRUPO_OTROS,
+} from "./tienda-grupos";

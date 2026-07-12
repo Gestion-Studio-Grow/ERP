@@ -12,7 +12,8 @@ import { getActiveModuleIds } from "@/lib/module-gating";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
-import { rutaPermitidaComerciante } from "@/lib/admin-nav-items";
+import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
+import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import AdminThemeScript from "../AdminThemeScript";
@@ -68,17 +69,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/facturita/app");
   }
 
-  // GATING POR-URL DEL COMERCIANTE (ADR-054/055): la nav ya se le muestra focalizada a su
-  // set de módulos (arca/bancos/mercadopago/clients/reports), pero ESO es UX — un OWNER
-  // podía teclear /admin/turnos · /admin/caja · /admin/catalogo y aterrizar en una pantalla
-  // vacía de un módulo que no tiene. Acá lo cerramos server-side: si la ruta pide un módulo
-  // fuera de su set (o cae fuera del backoffice), lo devolvemos a su Inicio (/admin, que
-  // SIEMPRE puede ver → sin loop). El pathname llega por header desde el proxy (los layouts
-  // no lo reciben por props). Solo Comerciante — el ERP vertical NO se toca (chestetica/
-  // magra conservan su backoffice completo). Fail-open: sin header, no gatea (no rompe render).
-  if (productoCtx.producto === "comerciante") {
+  // GATING POR-URL POR PRODUCTO (ADR-054/055/089): la nav ya se muestra focalizada al set de
+  // módulos del producto, pero ESO es UX — un OWNER podía teclear /admin/turnos · /admin/caja ·
+  // /admin/catalogo y aterrizar en una pantalla vacía de un módulo que no tiene. Acá lo
+  // cerramos server-side: si la ruta pide un módulo fuera de su set (o cae fuera del
+  // backoffice), lo devolvemos a su Inicio (/admin, que SIEMPRE puede ver → sin loop). El
+  // pathname llega por header desde el proxy (los layouts no lo reciben por props).
+  // Generalizado de "comerciante" a cualquier producto de facturación con tienda (Comerciante
+  // hoy; Pyme a futuro); Contador/Facturita ya salieron por su redirect de casa arriba, y el
+  // ERP vertical → `productoUsaTienda` false, NO se toca (chestetica/magra conservan su
+  // backoffice completo). Fail-open: sin header, no gatea (no rompe render).
+  if (productoUsaTienda(productoCtx.producto)) {
     const pathname = (await headers()).get("x-pathname");
-    if (pathname && !rutaPermitidaComerciante(pathname, productoCtx.modules)) {
+    if (pathname && !rutaPermitidaParaModulos(pathname, productoCtx.modules)) {
       redirect("/admin");
     }
   }
@@ -131,7 +134,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Si el flag global ya está ON, `activeModuleIds` manda (misma fuente, sin doble verdad).
   const shellModules =
     activeModuleIds ??
-    (productoCtx.producto === "comerciante" ? productoCtx.modules : null);
+    (productoUsaTienda(productoCtx.producto) ? productoCtx.modules : null);
 
   // DENSIDAD por perfil (ADR-059 D4): el MISMO design system en dos densidades. Comercio
   // (lite) → `data-density="lite"` (espacioso, --density 1.32); Empresa (enterprise) y motor

@@ -137,6 +137,21 @@ export function productoHome(p: Producto): string {
   return identidadProducto(p)?.home ?? "/admin";
 }
 
+/**
+ * ¿El producto es de FACTURACIÓN con TIENDA de módulos (ADR-089)? De Comerciante para
+ * arriba: Comerciante, Contador y —a futuro— Pyme. Facturita (commodity de una pantalla) y
+ * los verticales tradicionales quedan FUERA → conservan su comportamiento legado, byte-
+ * idéntico. Es la señal ÚNICA de "encendido por producto": foco de nav + gating por-URL en
+ * `/admin` (Comerciante; Contador y Facturita ya se van por su redirect de casa) y la
+ * vidriera agrupada de `/admin/modulos`. Se enciende por identidad de producto, NO por el
+ * flag global `MODULE_REGISTRY_ENABLED` (que tocaría a los verticales).
+ */
+export function productoUsaTienda(p: Producto): boolean {
+  // Nota: "pyme" todavía no es un valor de `Producto` (no hay derivación); cuando se sume,
+  // entra acá sin más cambios. Facturita y vertical → false (legado intacto).
+  return p === "comerciante" || p === "contador";
+}
+
 /** Normaliza un path (saca query/hash y colapsa trailing slash) para comparar áreas. */
 function normalizarPath(path: string): string {
   const sinQuery = path.split(/[?#]/, 1)[0];

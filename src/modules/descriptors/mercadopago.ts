@@ -23,6 +23,16 @@ export const mercadopagoModule: ModuleDescriptor = {
   kind: "plugin",
   capability: "payments:manage", // habilita la pantalla de Cobros del backoffice (RBAC)
   rubros: "todos",
+  grupo: "facturacion-cobros",
+  // Núcleo de facturación del Comerciante: cobrar online por MP (ADR-089 §Decisión 1).
+  nucleoPara: ["comerciante", "pyme"],
+  resumen: "Cobrás online con un link de Mercado Pago y, cuando se acredita, se factura solo.",
+  fit: "El que cobra online por Mercado Pago.",
+  scopeItems: [
+    { label: "Generar link de pago (Checkout Pro)" },
+    { label: "Recibir la notificación del pago" },
+    { label: "Auto-facturar el pago acreditado" },
+  ],
   consumeEventos: [], // entrada real: webhook externo de MP, no el outbox.
   // "crearPreferencia" = generar link de pago (Checkout Pro, salida); "facturarAppointment"
   // = auto-factura al acreditarse (ingesta). Ambas superficies del módulo de cobros.

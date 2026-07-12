@@ -82,17 +82,21 @@ export function navItemForPath(path: string): ShellItem | undefined {
 }
 
 /**
- * ¿Puede el producto COMERCIANTE entrar a `path`? Whitelist derivada de `ALL_ITEMS` (la
- * MISMA lista que pinta la nav — sin segunda verdad):
+ * ¿Un producto con su set de `modules` asignado puede entrar a `path`? Whitelist derivada de
+ * `ALL_ITEMS` (la MISMA lista que pinta la nav — sin segunda verdad):
  *   - ruta fuera del set del backoffice (sin ítem que la cubra) → NO (p.ej. /admin/inventario);
  *   - ruta core/config (ítem sin `module`: Inicio, Auditoría, Usuarios, Localización,
  *     Apariencia, Módulos) → SÍ;
  *   - ruta con `module` → SÍ solo si ese módulo está ASIGNADO al tenant (`modules`).
- * Así un OWNER de Comerciante que teclea /admin/turnos · /admin/caja · /admin/catalogo cae
- * de nuevo en su Inicio en vez de ver una pantalla vacía de un módulo que no tiene. Inicio
- * (`/admin`) SIEMPRE pasa (no tiene módulo) → el redirect a /admin nunca hace loop.
+ * Así un OWNER que teclea /admin/turnos · /admin/caja · /admin/catalogo sin tener ese módulo
+ * cae de nuevo en su Inicio en vez de ver una pantalla vacía. Inicio (`/admin`) SIEMPRE pasa
+ * (no tiene módulo) → el redirect a /admin nunca hace loop.
+ *
+ * Antes se llamaba `rutaPermitidaComerciante` (hardcodeado al Comerciante); se generalizó a
+ * CUALQUIER producto de facturación que focaliza su nav por módulos (ADR-089): la lógica ya
+ * era genérica (solo mira `modules`), el rename lo hace explícito.
  */
-export function rutaPermitidaComerciante(path: string, modules: readonly string[]): boolean {
+export function rutaPermitidaParaModulos(path: string, modules: readonly string[]): boolean {
   const item = navItemForPath(path);
   if (!item) return false;
   if (!item.module) return true;

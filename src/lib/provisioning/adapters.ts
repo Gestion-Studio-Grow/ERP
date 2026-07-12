@@ -12,6 +12,8 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { getBlueprint, resolveBlueprint as resolveRubro, DEFAULT_BLUEPRINT_ID } from "@/blueprints";
 import { defaultModulesForBlueprint } from "@/blueprints/presets-meta";
+import { derivarProducto } from "@/lib/producto-identidad";
+import { nucleoParaProducto } from "@/modules";
 import { provisionTenant } from "../../../scripts/provision-tenant";
 import type { ProvisionTenantInput, ProvisionPlan, BlueprintResolution, CommitResult } from "./types";
 import type { PlanDeps, CollisionChecker, TenantCommitter } from "./ports";
@@ -52,11 +54,25 @@ export class PrismaCollisionChecker implements CollisionChecker {
   }
 }
 
+/**
+ * Módulos base del alta según el PRODUCTO que deriva del blueprint (ADR-089). Si el
+ * blueprint hace un producto de facturación con núcleo (Comerciante ⇐ "generico"), el alta
+ * nace con ese NÚCLEO (bancos/arca/mercadopago/clients/reports) — deriva de `nucleoPara`, no
+ * de una lista hardcodeada, y NO trae "Agregar turno". Para cualquier vertical (núcleo vacío)
+ * cae al default legado por blueprint → verticales byte-idénticos. Exportada para reusar en
+ * el alta de la consola de operador (misma regla, una sola verdad).
+ */
+export function modulosBaseParaAlta(blueprintId: string): string[] {
+  const producto = derivarProducto({ blueprintId, modules: [] });
+  const nucleo = nucleoParaProducto(producto);
+  return nucleo.length > 0 ? nucleo : defaultModulesForBlueprint(blueprintId);
+}
+
 /** Dependencias reales del dry-run (las que inyectaría la consola de operador). */
 export function realPlanDeps(prisma: PrismaClient): PlanDeps {
   return {
     resolveBlueprint: resolveBlueprintReal,
-    baseModulesFor: (blueprintId) => defaultModulesForBlueprint(blueprintId),
+    baseModulesFor: (blueprintId) => modulosBaseParaAlta(blueprintId),
     empresaModules: [...EMPRESA_MODULE_IDS],
     collisions: new PrismaCollisionChecker(prisma),
   };

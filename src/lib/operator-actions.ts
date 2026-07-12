@@ -19,7 +19,8 @@ import {
 } from "@/lib/operator-auth";
 import { provisionTenant } from "../../scripts/provision-tenant";
 import { resolveBlueprint, getBlueprint } from "@/blueprints";
-import { defaultModulesForBlueprint, suggestedAccentForBlueprint, isModuleId } from "@/lib/operator-config";
+import { suggestedAccentForBlueprint, isModuleId } from "@/lib/operator-config";
+import { modulosBaseParaAlta } from "@/lib/provisioning/adapters";
 import { requestIp } from "@/lib/audit";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
@@ -87,9 +88,11 @@ export async function provisionFromConsole(formData: FormData) {
     blueprintId = "servicios";
   }
 
-  // Módulos: los tildados en el form, o los default del blueprint si no se eligió nada.
+  // Módulos: los tildados en el form, o el set base del PRODUCTO que deriva del blueprint
+  // si no se eligió nada (ADR-089: Comerciante nace con su núcleo de facturación, no con el
+  // default de "generico" que traía "Agregar turno"; verticales caen al default legado).
   const picked = formData.getAll("modules").map(String).filter(isModuleId);
-  const modules = picked.length > 0 ? picked : defaultModulesForBlueprint(blueprintId);
+  const modules = picked.length > 0 ? picked : modulosBaseParaAlta(blueprintId);
 
   // Acento/tema: si el operador no eligió, cae al sugerido por el preset del rubro.
   const suggested = suggestedAccentForBlueprint(blueprintId);

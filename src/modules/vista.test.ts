@@ -110,3 +110,66 @@ test("planDesactivar: apagar algo que no estaba activo es no-op", () => {
   assert.equal(plan.error, undefined);
   assert.deepEqual(plan.modules, ["agenda"]);
 });
+
+// ── TIENDA (ADR-089): metadata de tienda + badge núcleo + visibleEnTienda + candado ──
+
+// Catálogo con núcleo declarado por producto y un discriminador (cartera-like).
+function catalogoTienda(): ModuleRegistry {
+  return new ModuleRegistry().registrarTodos([
+    cap("arca", { nucleoPara: ["comerciante", "contador"], grupo: "facturacion-cobros" }),
+    cap("clients", { nucleoPara: ["comerciante", "contador"] }),
+    cap("catalog", { grupo: "ventas-mostrador" }), // instalable común (sin nucleoPara)
+    cap("cartera", { nucleoPara: ["contador"] }), // discriminador del Contador
+  ]);
+}
+
+test("vistaModulos(producto): marca esNucleo según nucleoPara del producto actual", () => {
+  const filas = vistaModulos(
+    { tenantId: "t1", blueprintId: "generico", modules: ["arca", "clients"] },
+    catalogoTienda(),
+    "comerciante",
+  );
+  assert.equal(filas.find((f) => f.id === "arca")?.esNucleo, true);
+  assert.equal(filas.find((f) => f.id === "clients")?.esNucleo, true);
+  assert.equal(filas.find((f) => f.id === "catalog")?.esNucleo, false);
+});
+
+test("vistaModulos(comerciante): esconde el discriminador de OTRO producto (cartera fuera de Contador)", () => {
+  const ids = vistaModulos(
+    { tenantId: "t1", blueprintId: "generico", modules: [] },
+    catalogoTienda(),
+    "comerciante",
+  ).map((f) => f.id);
+  assert.ok(!ids.includes("cartera"), "cartera es núcleo solo de Contador → no va en la tienda del Comerciante");
+  assert.ok(ids.includes("arca") && ids.includes("catalog"));
+});
+
+test("vistaModulos(contador): sí muestra cartera (es su núcleo)", () => {
+  const filas = vistaModulos(
+    { tenantId: "t1", blueprintId: "generico", modules: ["cartera"] },
+    catalogoTienda(),
+    "contador",
+  );
+  assert.equal(filas.find((f) => f.id === "cartera")?.esNucleo, true);
+});
+
+test("vistaModulos sin producto (legado): no filtra ni marca núcleo — vidriera plana", () => {
+  const filas = vistaModulos(
+    { tenantId: "t1", blueprintId: "generico", modules: [] },
+    catalogoTienda(),
+  );
+  assert.ok(filas.find((f) => f.id === "cartera"), "sin producto, cartera se lista (comportamiento legado)");
+  assert.equal(filas.every((f) => f.esNucleo === false), true);
+});
+
+test("planDesactivar: CANDADO del núcleo — un módulo del plan no se desinstala", () => {
+  const plan = planDesactivar(["arca", "clients"], "arca", catalogoTienda(), "comerciante");
+  assert.match(plan.error ?? "", /viene con tu plan/i);
+  assert.deepEqual(new Set(plan.modules), new Set(["arca", "clients"])); // intacto
+});
+
+test("planDesactivar: un módulo NO-núcleo del producto sí se desinstala", () => {
+  const plan = planDesactivar(["arca", "catalog"], "catalog", catalogoTienda(), "comerciante");
+  assert.equal(plan.error, undefined);
+  assert.deepEqual(plan.modules, ["arca"]);
+});
