@@ -1,0 +1,22 @@
+{
+  "desktop": {
+    "contrast": [],
+    "touch": [],
+    "overflow": {
+      "scrollW": 1280,
+      "clientW": 1280,
+      "over": 0
+    },
+    "textCount": 256
+  },
+  "mobile": {
+    "contrast": [],
+    "touch": [],
+    "overflow": {
+      "scrollW": 390,
+      "clientW": 390,
+      "over": 0
+    },
+    "textCount": 232
+  }
+}
