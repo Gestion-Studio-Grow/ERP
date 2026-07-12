@@ -23,6 +23,14 @@ export const agendaModule: ModuleDescriptor = {
   kind: "capability",
   capability: "agenda:manage",
   rubros: "todos",
+  grupo: "agenda-turnos",
+  resumen: "Los turnos de tu negocio: quién atiende, en qué box y a qué hora.",
+  fit: "Servicios con reserva (estética, oficios, consultorios).",
+  scopeItems: [
+    { label: "Turnos por profesional y box", ruta: "/admin/turnos" },
+    { label: "Horarios y disponibilidad" },
+    { label: "Calendario del día y la semana" },
+  ],
 };
 
 export const posModule: ModuleDescriptor = {
@@ -33,6 +41,14 @@ export const posModule: ModuleDescriptor = {
   kind: "capability",
   capability: "orders:manage",
   rubros: "todos",
+  grupo: "ventas-mostrador",
+  resumen: "Cobrás en el mostrador y tomás pedidos, con venta por unidad o por kilo.",
+  fit: "Retail, gastronomía y mostrador (no servicios puros).",
+  scopeItems: [
+    { label: "Caja y cobro de mostrador", ruta: "/admin/caja" },
+    { label: "Toma de pedidos", ruta: "/admin/pedidos" },
+    { label: "Venta por unidad o por kg" },
+  ],
 };
 
 export const catalogModule: ModuleDescriptor = {
@@ -43,6 +59,14 @@ export const catalogModule: ModuleDescriptor = {
   kind: "capability",
   capability: "catalog:manage",
   rubros: "todos",
+  grupo: "ventas-mostrador",
+  resumen: "El ABM de lo que vendés: productos o servicios, precios y categorías.",
+  fit: "Quien vende ítems catalogados (base de stock y compras).",
+  scopeItems: [
+    { label: "Alta de productos y servicios", ruta: "/admin/catalogo" },
+    { label: "Precios y categorías", ruta: "/admin/ajustes" },
+    { label: "Compras y reposición", ruta: "/admin/compras" },
+  ],
 };
 
 export const clientsModule: ModuleDescriptor = {
@@ -53,6 +77,16 @@ export const clientsModule: ModuleDescriptor = {
   kind: "capability",
   capability: "clients:manage",
   rubros: "todos",
+  grupo: "clientes-fidelizacion",
+  // Núcleo de facturación: ARCA y Bancos necesitan identificar al receptor arriba del umbral.
+  nucleoPara: ["comerciante", "pyme", "contador"],
+  resumen: "La ficha de cada cliente: contacto, historial y datos para facturarle.",
+  fit: "Todos los negocios (es la base de la facturación y el fiado).",
+  scopeItems: [
+    { label: "Ficha de cliente y contacto", ruta: "/admin/clientes" },
+    { label: "Historial de compras y turnos" },
+    { label: "Datos de receptor para la factura" },
+  ],
 };
 
 export const waitlistModule: ModuleDescriptor = {
@@ -66,6 +100,13 @@ export const waitlistModule: ModuleDescriptor = {
   // La lista de espera es una cola de huecos de la AGENDA: sin agenda no tiene sentido.
   // Dependencia real → el resolver no la activa si el tenant no tiene "agenda".
   dependencias: [{ id: "agenda", rango: "^1.0" }],
+  grupo: "agenda-turnos",
+  resumen: "Cuando se libera un turno, avisás a la cola de espera para no perder la hora.",
+  fit: "Servicios con agenda saturada (cancelaciones y no-shows).",
+  scopeItems: [
+    { label: "Cola de cancelaciones y no-shows", ruta: "/admin/espera" },
+    { label: "Avisar el hueco liberado" },
+  ],
 };
 
 export const remindersModule: ModuleDescriptor = {
@@ -76,6 +117,13 @@ export const remindersModule: ModuleDescriptor = {
   kind: "capability",
   capability: "reminders:manage",
   rubros: "todos",
+  grupo: "clientes-fidelizacion",
+  resumen: "Recordás turnos y mandás promos por WhatsApp cuando lo conectás.",
+  fit: "Quien recuerda turnos o hace difusión de promociones.",
+  scopeItems: [
+    { label: "Avisos de turno", ruta: "/admin/recordatorios" },
+    { label: "Difusión por WhatsApp (al conectarse)" },
+  ],
 };
 
 export const reportsModule: ModuleDescriptor = {
@@ -86,6 +134,16 @@ export const reportsModule: ModuleDescriptor = {
   kind: "capability",
   capability: "reports:read",
   rubros: "todos",
+  grupo: "facturacion-cobros",
+  // Núcleo: los reportes básicos (ingresos vs tope de facturación) vienen de fábrica.
+  nucleoPara: ["comerciante", "pyme", "contador"],
+  resumen: "Cuánto entra, cuánto facturaste y cuánto te falta para el tope del mes.",
+  fit: "Todos: es el tablero básico de ingresos y topes.",
+  scopeItems: [
+    { label: "Ingresos del período", ruta: "/admin/reportes" },
+    { label: "Facturado vs. tope del mes" },
+    { label: "Métricas del negocio" },
+  ],
 };
 
 export const commissionsModule: ModuleDescriptor = {
@@ -101,6 +159,13 @@ export const commissionsModule: ModuleDescriptor = {
   // `incompatibles` (no rompe: se rechaza y avisa).
   rubros: ["servicios"],
   dependencias: [{ id: "reports", rango: "^1.0" }],
+  grupo: "personal-comisiones",
+  resumen: "Liquidás lo que le corresponde a cada profesional por lo que trabajó.",
+  fit: "Servicios que pagan comisión por profesional.",
+  scopeItems: [
+    { label: "Liquidación por profesional" },
+    { label: "Cálculo sobre lo facturado" },
+  ],
 };
 
 export const reviewsModule: ModuleDescriptor = {
@@ -111,6 +176,13 @@ export const reviewsModule: ModuleDescriptor = {
   kind: "capability",
   capability: "reviews:manage",
   rubros: "todos",
+  grupo: "clientes-fidelizacion",
+  resumen: "Pedís y mostrás las opiniones de tus clientes para trabajar la reputación.",
+  fit: "Quien trabaja su reputación y quiere reseñas.",
+  scopeItems: [
+    { label: "Pedir opiniones a clientes", ruta: "/admin/resenas" },
+    { label: "Mostrar calificaciones" },
+  ],
 };
 
 // ── Módulos Empresa de ADR-060 (D2/D3/D4/D5/D7) — capabilities del Core ──────────
@@ -129,6 +201,14 @@ export const inventarioModule: ModuleDescriptor = {
   capability: "catalog:read",
   rubros: "todos",
   dependencias: [{ id: "catalog", rango: "^1.0" }],
+  grupo: "compras-stock",
+  resumen: "Cuánto tenés de cada cosa y cuánto vale tu stock, sin vender de más.",
+  fit: "Retail o carnicería que maneja stock (necesita Catálogo).",
+  scopeItems: [
+    { label: "Niveles de stock", ruta: "/admin/inventario" },
+    { label: "Valuación a costo" },
+    { label: "Freno anti-sobreventa" },
+  ],
 };
 
 export const cuentasAPagarModule: ModuleDescriptor = {
@@ -140,6 +220,14 @@ export const cuentasAPagarModule: ModuleDescriptor = {
   capability: "billing:manage",
   rubros: "todos",
   dependencias: [{ id: "catalog", rango: "^1.0" }],
+  grupo: "compras-stock",
+  resumen: "Qué le debés a cada proveedor y cuándo vence, incluidos cheques diferidos.",
+  fit: "Pyme con proveedores (necesita Catálogo).",
+  scopeItems: [
+    { label: "Deudas a proveedores", ruta: "/admin/cuentas-a-pagar" },
+    { label: "Cheque diferido" },
+    { label: "Vencimientos" },
+  ],
 };
 
 export const cuentasACobrarModule: ModuleDescriptor = {
@@ -151,6 +239,14 @@ export const cuentasACobrarModule: ModuleDescriptor = {
   capability: "billing:manage",
   rubros: "todos",
   dependencias: [{ id: "clients", rango: "^1.0" }],
+  grupo: "clientes-fidelizacion",
+  resumen: "El fiado del negocio: quién te debe, cuánto y desde cuándo, con cobros parciales.",
+  fit: "Comercio de barrio que vende fiado (necesita Clientes).",
+  scopeItems: [
+    { label: "Saldo por cliente", ruta: "/admin/cuentas-a-cobrar" },
+    { label: "Vencimientos del fiado" },
+    { label: "Cobros parciales" },
+  ],
 };
 
 export const librosModule: ModuleDescriptor = {
@@ -162,6 +258,14 @@ export const librosModule: ModuleDescriptor = {
   capability: "reports:read",
   rubros: "todos",
   dependencias: [{ id: "reports", rango: "^1.0" }, { id: "arca", rango: "^0.1" }],
+  grupo: "facturacion-cobros",
+  resumen: "El Libro IVA de ventas y compras, listo para mandarle al contador.",
+  fit: "Pyme o quien manda todo al estudio (necesita Reportes y ARCA).",
+  scopeItems: [
+    { label: "Libro IVA Ventas", ruta: "/admin/libros" },
+    { label: "Libro IVA Compras" },
+    { label: "Exportar al contador" },
+  ],
 };
 
 export const devolucionesProveedorModule: ModuleDescriptor = {
@@ -173,6 +277,14 @@ export const devolucionesProveedorModule: ModuleDescriptor = {
   capability: "catalog:manage",
   rubros: "todos",
   dependencias: [{ id: "catalog", rango: "^1.0" }],
+  grupo: "compras-stock",
+  resumen: "Devolvés mercadería al proveedor: baja el stock y te queda el crédito a favor.",
+  fit: "Retail que devuelve mercadería a proveedor (necesita Catálogo).",
+  scopeItems: [
+    { label: "Devolución de mercadería", ruta: "/admin/devoluciones-proveedor" },
+    { label: "Baja de stock" },
+    { label: "Crédito en cuentas a pagar" },
+  ],
 };
 
 /** Todos los módulos nativos del catálogo (fuente única — ADR-054/055). */

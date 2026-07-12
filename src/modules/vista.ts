@@ -18,7 +18,7 @@
 //   - activar uno arrastra sus DEPENDENCIAS (deliberado, en cascada), y
 //   - desactivar uno se BLOQUEA si otro módulo activo lo necesita.
 
-import type { ModuleDescriptor } from "./contract";
+import type { ModuleDescriptor, ModuleGroupId, ScopeItem } from "./contract";
 import { ModuleRegistry, rubroCompatible } from "./registry";
 import type { TenantModuleState } from "./activation";
 
@@ -37,19 +37,56 @@ export interface FilaModulo {
   dependeDe: string[];
   /** Ids de módulos ACTIVOS que dependen de éste (bloquean su desactivación). */
   requeridoPor: string[];
+  // ── Metadata de TIENDA (ADR-089), copiada del descriptor + derivada del producto ──
+  /** Grupo de proceso para agrupar la tienda. */
+  grupo?: ModuleGroupId;
+  /** Pantallas/acciones concretas que trae (chips en la tarjeta). */
+  scopeItems: ScopeItem[];
+  /** "Para qué sirve" (subtítulo de la tarjeta). */
+  resumen?: string;
+  /** "A quién le hace fit" (línea de decisión). */
+  fit?: string;
+  /** ¿Es NÚCLEO del producto actual? Viene con el plan, no se desinstala. */
+  esNucleo: boolean;
+  /**
+   * ¿Trae migraciones propias (tablas nuevas) que quizá no estén aplicadas en prod?
+   * Guardarraíl de ADR-089: se muestra "Próximamente" para no ofrecer instalar una
+   * pantalla que después explota por falta de tabla (Gate 2 sigue siendo del dueño).
+   */
+  proximamente: boolean;
+}
+
+/**
+ * ¿El módulo `d` se muestra en la tienda del `producto`? Filtra los DISCRIMINADORES de
+ * OTROS productos: un módulo con `nucleoPara` que NO incluye al producto actual es núcleo
+ * ajeno (p.ej. `cartera` es núcleo solo de Contador → no aparece en la tienda del
+ * Comerciante). Los módulos sin `nucleoPara` (instalables comunes) y los del propio núcleo
+ * siempre se muestran. Sin `producto` (llamador legado) → no filtra.
+ */
+function visibleEnTienda(d: ModuleDescriptor, producto: string | undefined): boolean {
+  if (!producto) return true;
+  const nucleo = d.nucleoPara ?? [];
+  return nucleo.length === 0 || nucleo.includes(producto);
 }
 
 /**
  * La vidriera: los módulos COMPATIBLES con el rubro del tenant, marcando cuáles
  * están activos y sus relaciones de dependencia. No inventa la asignación —la lee de
  * `state.modules`— solo la presenta filtrada por la variante.
+ *
+ * `producto` (opcional) enciende la metadata de TIENDA (ADR-089): marca el badge de núcleo
+ * (`esNucleo = nucleoPara.includes(producto)`) y esconde los discriminadores de otros
+ * productos (`visibleEnTienda`). Sin él, se comporta como la vidriera plana legada.
  */
 export function vistaModulos(
   state: TenantModuleState,
   registry: ModuleRegistry,
+  producto?: string,
 ): FilaModulo[] {
   const activos = new Set(state.modules);
-  const compatibles = registry.compatiblesConRubro(state.blueprintId);
+  const compatibles = registry
+    .compatiblesConRubro(state.blueprintId)
+    .filter((d) => visibleEnTienda(d, producto));
   const activosCompat = compatibles.filter((d) => activos.has(d.id));
 
   return compatibles.map((d) => ({
@@ -65,6 +102,12 @@ export function vistaModulos(
     requeridoPor: activosCompat
       .filter((o) => (o.dependencias ?? []).some((dep) => dep.id === d.id))
       .map((o) => o.id),
+    grupo: d.grupo,
+    scopeItems: d.scopeItems ?? [],
+    resumen: d.resumen,
+    fit: d.fit,
+    esNucleo: !!producto && (d.nucleoPara ?? []).includes(producto),
+    proximamente: (d.migraciones ?? []).length > 0,
   }));
 }
 
@@ -125,17 +168,32 @@ export function planActivar(
 }
 
 /**
- * Plan de DESACTIVAR un módulo: lo saca, salvo que algún módulo ACTIVO dependa de él
- * (en ese caso se BLOQUEA con el motivo, para no dejar dependencias colgadas). Sacar
- * uno que no estaba activo es un no-op silencioso.
+ * Plan de DESACTIVAR un módulo: lo saca, salvo que (a) sea NÚCLEO del producto —viene con
+ * el plan, no se desinstala (candado ADR-089)— o (b) algún módulo ACTIVO dependa de él (se
+ * BLOQUEA con el motivo, para no dejar dependencias colgadas). Sacar uno que no estaba
+ * activo es un no-op silencioso. `producto` opcional: sin él no se aplica el candado del
+ * núcleo (llamador legado/vertical), byte-idéntico a antes.
  */
 export function planDesactivar(
   modules: string[],
   id: string,
   registry: ModuleRegistry,
+  producto?: string,
 ): PlanToggle {
   const set = new Set(modules);
   if (!set.has(id)) return { modules, incluidos: [] };
+
+  // Candado del núcleo: un módulo que viene con el plan del producto no se puede desinstalar.
+  if (producto) {
+    const d = registry.buscar(id);
+    if ((d?.nucleoPara ?? []).includes(producto)) {
+      return {
+        modules,
+        incluidos: [],
+        error: `“${d?.nombre ?? id}” viene con tu plan y no se puede desinstalar.`,
+      };
+    }
+  }
 
   const dependientes = [...set]
     .filter((m) => m !== id)

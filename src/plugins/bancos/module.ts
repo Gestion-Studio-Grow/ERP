@@ -27,6 +27,17 @@ export const bancosModule: ModuleDescriptor = {
   kind: "plugin",
   capability: "billing:manage", // misma pantalla de Facturación del backoffice que ARCA (RBAC)
   rubros: "todos",
+  grupo: "facturacion-cobros",
+  // Núcleo de facturación del Comerciante: subir el extracto y facturar desde ahí (ADR-089 §Decisión 1).
+  nucleoPara: ["comerciante", "pyme"],
+  resumen: "Subís el extracto de tu banco y salen las facturas solas, sin cargar a mano.",
+  fit: "Todo comercio que cobra por banco o transferencia.",
+  scopeItems: [
+    { label: "Subir extracto CSV/XLSX", ruta: "/admin/facturacion" },
+    { label: "Detectar las columnas solo" },
+    { label: "Separar ventas de comisiones e impuestos" },
+    { label: "Proponer las facturas para confirmar" },
+  ],
   consumeEventos: [], // entrada real: archivo subido por el usuario, no el outbox.
   llamaComandos: ["CreateInvoice"],
   configSchema: {

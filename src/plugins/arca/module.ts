@@ -25,6 +25,16 @@ export const arcaModule: ModuleDescriptor = {
   kind: "plugin",
   capability: "billing:manage", // habilita la pantalla de Facturación del backoffice (RBAC)
   rubros: "todos",
+  grupo: "facturacion-cobros",
+  // Núcleo de facturación: emitir con validez ARCA es el corazón de Comerciante/Pyme/Contador.
+  nucleoPara: ["comerciante", "pyme", "contador"],
+  resumen: "Le pedís el CAE a ARCA y emitís tus facturas A, B o C con validez fiscal.",
+  fit: "Todo el que factura electrónico en Argentina.",
+  scopeItems: [
+    { label: "Pedir CAE a ARCA (WSAA + WSFEv1)", ruta: "/admin/facturacion" },
+    { label: "Emitir factura A / B / C" },
+    { label: "Anular y nota de crédito" },
+  ],
   consumeEventos: ["InvoiceCreated"],
   llamaComandos: ["RegisterFiscalDocument"],
   configSchema: {

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { derivarProducto, productoUsaTienda, type Producto } from "@/lib/producto-identidad";
 import {
   catalogo,
   moduleRegistryEnabled,
@@ -37,6 +38,8 @@ export interface ModulosAdminData {
   filas: FilaModulo[];
   /** Rubro del tenant (blueprintId) — determina qué módulos aplican (variante). */
   rubro: string | null;
+  /** Producto derivado del tenant (comerciante/contador/facturita/vertical) — decide la piel de la tienda. */
+  producto: Producto;
   /**
    * ¿La fundación de módulos está ENFORCED por flag (MODULE_REGISTRY_ENABLED)? Si es
    * false, los cambios se guardan igual (la asignación es real), pero el gating del
@@ -60,12 +63,21 @@ export async function getModulosForAdmin(): Promise<ModulosAdminData> {
     blueprintId: tenant?.blueprintId ?? null,
     modules: tenant?.modules ?? [],
   };
+  const producto = derivarProducto({ blueprintId: state.blueprintId, modules: state.modules });
 
   return {
-    filas: vistaModulos(state, catalogo()),
+    // Para productos de facturación (con tienda) la vista trae la metadata de tienda +
+    // badge núcleo + esconde discriminadores; para verticales, vidriera plana legada.
+    filas: vistaModulos(state, catalogo(), tiendaProducto(producto)),
     rubro: state.blueprintId,
+    producto,
     enforced: moduleRegistryEnabled(),
   };
+}
+
+/** El id de producto que activa la piel de tienda en `vistaModulos`, o `undefined` (vertical → vidriera plana). */
+function tiendaProducto(producto: Producto): string | undefined {
+  return productoUsaTienda(producto) ? producto : undefined;
 }
 
 /**
@@ -90,10 +102,12 @@ export async function toggleModulo(formData: FormData) {
   if (!tenant) backWith("error", "No se encontró el negocio.");
 
   const registry = catalogo();
+  // Producto → activa el candado del núcleo al desinstalar (un módulo del plan no se apaga).
+  const producto = derivarProducto({ blueprintId: tenant.blueprintId, modules: tenant.modules });
   const plan =
     accion === "activar"
       ? planActivar(tenant.modules, id, registry, tenant.blueprintId)
-      : planDesactivar(tenant.modules, id, registry);
+      : planDesactivar(tenant.modules, id, registry, tiendaProducto(producto));
 
   if (plan.error) backWith("error", plan.error);
 

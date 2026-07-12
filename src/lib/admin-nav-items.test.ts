@@ -8,7 +8,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { navItemForPath, rutaPermitidaComerciante } from "./admin-nav-items";
+import { navItemForPath, rutaPermitidaParaModulos } from "./admin-nav-items";
 
 // Set de módulos REAL del Comerciante (arca/bancos/mercadopago/clients/reports).
 const COMERCIANTE = ["arca", "bancos", "mercadopago", "clients", "reports"];
@@ -36,28 +36,28 @@ test("navItemForPath: ruta fuera del set del backoffice no matchea", () => {
   assert.equal(navItemForPath("/admin/libros"), undefined);
 });
 
-// ── rutaPermitidaComerciante: whitelist derivada de ALL_ITEMS ────────────────
+// ── rutaPermitidaParaModulos: whitelist derivada de ALL_ITEMS ────────────────
 
 test("Comerciante: Inicio y config (sin módulo) SIEMPRE permitidos", () => {
   for (const p of ["/admin", "/admin/auditoria", "/admin/usuarios", "/admin/localizacion", "/admin/apariencia", "/admin/modulos"]) {
-    assert.equal(rutaPermitidaComerciante(p, COMERCIANTE), true, p);
+    assert.equal(rutaPermitidaParaModulos(p, COMERCIANTE), true, p);
   }
 });
 
 test("Comerciante: rutas de SUS módulos permitidas (facturación/clientes/reportes)", () => {
-  assert.equal(rutaPermitidaComerciante("/admin/facturacion", COMERCIANTE), true);
-  assert.equal(rutaPermitidaComerciante("/admin/facturacion/bancos", COMERCIANTE), true);
-  assert.equal(rutaPermitidaComerciante("/admin/clientes", COMERCIANTE), true);
-  assert.equal(rutaPermitidaComerciante("/admin/reportes", COMERCIANTE), true);
+  assert.equal(rutaPermitidaParaModulos("/admin/facturacion", COMERCIANTE), true);
+  assert.equal(rutaPermitidaParaModulos("/admin/facturacion/bancos", COMERCIANTE), true);
+  assert.equal(rutaPermitidaParaModulos("/admin/clientes", COMERCIANTE), true);
+  assert.equal(rutaPermitidaParaModulos("/admin/reportes", COMERCIANTE), true);
 });
 
 test("Comerciante: módulos que NO tiene → bloqueados (la deuda del UAT)", () => {
   for (const p of ["/admin/turnos", "/admin/caja", "/admin/pedidos", "/admin/catalogo", "/admin/compras", "/admin/espera", "/admin/resenas", "/admin/recordatorios"]) {
-    assert.equal(rutaPermitidaComerciante(p, COMERCIANTE), false, p);
+    assert.equal(rutaPermitidaParaModulos(p, COMERCIANTE), false, p);
   }
 });
 
 test("Comerciante: ruta fuera del backoffice (inventario/libros) → bloqueada", () => {
-  assert.equal(rutaPermitidaComerciante("/admin/inventario", COMERCIANTE), false);
-  assert.equal(rutaPermitidaComerciante("/admin/libros", COMERCIANTE), false);
+  assert.equal(rutaPermitidaParaModulos("/admin/inventario", COMERCIANTE), false);
+  assert.equal(rutaPermitidaParaModulos("/admin/libros", COMERCIANTE), false);
 });

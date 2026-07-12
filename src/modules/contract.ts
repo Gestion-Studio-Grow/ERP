@@ -58,6 +58,28 @@ export type CommandName = string;
  */
 export type RubroCompat = "todos" | ModuleId[];
 
+/**
+ * Grupo de PROCESO para ordenar la tienda de módulos (ADR-089 §Decisión 3). Es un eje
+ * DISTINTO de los 5 grupos de NAV (`src/modules/nav-groups.ts`): el grupo de tienda ordena
+ * la vidriera `/admin/modulos` por proceso comercial (para evaluar el fit antes de instalar);
+ * la nav agrupa PANTALLAS por área. Se pueden mapear, pero no son lo mismo.
+ */
+export type ModuleGroupId =
+  | "facturacion-cobros"
+  | "ventas-mostrador"
+  | "agenda-turnos"
+  | "clientes-fidelizacion"
+  | "compras-stock"
+  | "personal-comisiones";
+
+/** Un "scope item": una pantalla o acción concreta que trae el módulo, en criollo. */
+export interface ScopeItem {
+  /** Qué hace, en lenguaje del comerciante: "Emitir factura A/B/C". */
+  label: string;
+  /** Ruta del backoffice que abre, si tiene pantalla propia (para deep-link/preview). */
+  ruta?: string;
+}
+
 /** Un campo del schema de configuración por tenant. */
 export interface ConfigFieldSchema {
   tipo: "string" | "number" | "boolean";
@@ -134,6 +156,30 @@ export interface ModuleDescriptor {
    * corre además detrás de `MODULE_REGISTRY_ENABLED` (src/modules/flags.ts).
    */
   flag?: string;
+
+  // ── Metadata de TIENDA (ADR-089, aditiva/opcional — no altera la validación) ──
+  //
+  // Enriquece la vidriera `/admin/modulos` para que el implementador/cliente evalúe el
+  // FIT antes de instalar. Todo opcional: los descriptores que no la traen siguen válidos
+  // (caen a un grupo "otros" y sin scope/resumen/fit). No la mira `validarDescriptor`.
+
+  /** Grupo de proceso en la tienda. Ausente = cae en "otros" (red de seguridad). */
+  grupo?: ModuleGroupId;
+  /** Pantallas/acciones concretas que trae — para evaluar el scope antes de instalar. */
+  scopeItems?: ScopeItem[];
+  /** "Para qué sirve", 1–2 líneas (más largo que `descripcion`, orientado a la decisión). */
+  resumen?: string;
+  /** "A quién le hace fit" — el criterio de decisión, en criollo. */
+  fit?: string;
+  /**
+   * Productos donde el módulo viene INSTALADO de fábrica (núcleo). Declarativo y
+   * PER-PRODUCTO: un módulo puede ser núcleo de Comerciante y opcional en otro (el núcleo
+   * es del PRODUCTO, no del módulo — ADR-055). NO es un boolean. Se derivan de acá tanto el
+   * default del alta (`nucleoParaProducto`) como el badge "Núcleo" de la tienda: única
+   * fuente, sin doble verdad. Se mantiene decoupled de `Producto` (ids string) para que
+   * `contract.ts` no arrastre dependencias. Ej.: arca → ["comerciante","pyme","contador"].
+   */
+  nucleoPara?: string[];
 }
 
 // ── Validación PURA del descriptor (fail-closed, sin dependencias) ────────────
