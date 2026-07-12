@@ -17,6 +17,7 @@ import { getStorefrontCopy } from "@/tenants/storefront";
 import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
 import { recordCashSaleMovementInTx } from "@/lib/caja/cash-sale";
 import { tenantTransaction } from "@/lib/rls";
+import { isUniqueViolation } from "@/lib/prisma-errors";
 import type { $Enums } from "@/generated/prisma/client";
 
 type OrderStatus = $Enums.OrderStatus;
@@ -39,8 +40,13 @@ const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
 
 export async function getPosData() {
   await requireCapability("orders:read");
+  // Endurecimiento defensivo (cinturón-y-tiradores sobre RLS): filtro `tenantId` EXPLÍCITO en
+  // cada read del backoffice. RLS ya aísla en prod, pero el predicado explícito no depende de que
+  // el flag esté ON y además ENCIENDE los índices `@@index([tenantId, ...])` que ya existen.
+  const tenantId = await getCurrentTenantId();
   const [orders, products] = await Promise.all([
     prisma.order.findMany({
+      where: { tenantId },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { items: true },
@@ -48,6 +54,7 @@ export async function getPosData() {
     // Solo productos vendibles: activos, no borrados, con algún precio cargado.
     prisma.product.findMany({
       where: {
+        tenantId,
         deletedAt: null,
         active: true,
         OR: [{ price: { not: null } }, { pricePerKg: { not: null } }],
@@ -156,6 +163,11 @@ export async function placeOnlineOrder(formData: FormData) {
     throw new Error("Necesitamos tu nombre y un teléfono de contacto para tomar el pedido.");
   }
 
+  // A-1: clave de idempotencia del carrito (la genera el cliente por pedido). Con el doble
+  // submit del mobile —el camino infeliz #1— los dos envíos traen la MISMA clave → `insertOrder`
+  // devuelve el mismo pedido en vez de crear otro y volver a descontar stock.
+  const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
+
   const result = await insertOrder(tenantId, {
     channel: "ONLINE",
     fulfillment,
@@ -167,17 +179,21 @@ export async function placeOnlineOrder(formData: FormData) {
     paid: false,
     paymentMethod: null,
     items: parseItems(formData),
-  });
+  }, { idempotencyKey });
 
-  await auditPublic({
-    action: "create",
-    entity: "Order",
-    entityId: result.id,
-    clientPhone: customerPhone,
-    changes: { code: result.code, channel: "ONLINE", fulfillment, total: result.subtotal },
-  });
-  // El backoffice ve el pedido nuevo en su bandeja al revalidar.
-  revalidatePath(ORDERS_PATH);
+  // Solo se audita el ALTA real: si `dedup` es true, el pedido ya existía (reintento) y ya se
+  // auditó en el primer envío → no se duplica el rastro.
+  if (!result.dedup) {
+    await auditPublic({
+      action: "create",
+      entity: "Order",
+      entityId: result.id,
+      clientPhone: customerPhone,
+      changes: { code: result.code, channel: "ONLINE", fulfillment, total: result.subtotal },
+    });
+    // El backoffice ve el pedido nuevo en su bandeja al revalidar.
+    revalidatePath(ORDERS_PATH);
+  }
   redirect(`/tienda/gracias?pedido=${result.code}`);
 }
 
@@ -215,25 +231,38 @@ export async function setOrderPaid(formData: FormData) {
   // movimiento (arqueo descuadrado). Ahora, si el asiento de caja falla por un error de DB, el
   // "cobrado" también se revierte. El asiento es idempotente por orderId (no duplica si ya se
   // imputó al crear la venta) y benigno si no hay caja abierta / no es efectivo (recorded:false).
-  const order = await tenantTransaction(
-    async (tx) => {
-      const updated = await tx.order.update({
-        where: { id },
-        data: { paid: true, paymentMethod: method },
-        select: { id: true, code: true, total: true },
-      });
-      await recordCashSaleMovementInTx(tx, tenantId, {
-        orderId: updated.id,
-        orderCode: updated.code,
-        paid: true,
-        paymentMethod: method,
-        total: updated.total,
-        actor: `user:${user.id}`,
-      });
-      return updated;
-    },
-    { tenantId },
-  );
+  let order: { id: string; code: number; total: number } | null;
+  try {
+    order = await tenantTransaction(
+      async (tx) => {
+        const updated = await tx.order.update({
+          where: { id },
+          data: { paid: true, paymentMethod: method },
+          select: { id: true, code: true, total: true },
+        });
+        await recordCashSaleMovementInTx(tx, tenantId, {
+          orderId: updated.id,
+          orderCode: updated.code,
+          paid: true,
+          paymentMethod: method,
+          total: updated.total,
+          actor: `user:${user.id}`,
+        });
+        return updated;
+      },
+      { tenantId },
+    );
+  } catch (e) {
+    // A-5: doble-click en "Marcar cobrado" → dos tx concurrentes. Con el @@unique de A-5 migrado,
+    // la 2ª choca P2002 al crear el 2º asiento VENTA y esta tx aborta (su update de `paid` también
+    // revierte, pero la 1ª ya lo dejó cobrado + imputado). Es idempotente: no hay nada que reparar,
+    // no se re-audita ni se muestra un 500. Cualquier otro error se propaga.
+    if (isUniqueViolation(e, "orderId")) {
+      revalidatePath(ORDERS_PATH);
+      return;
+    }
+    throw e;
+  }
 
   await auditAdmin({ action: "update", entity: "Order", entityId: order.id, changes: { paid: true, method } });
 

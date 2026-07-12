@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { recordSupplierReturn } from "@/lib/stock/supplier-return";
-import { validateReturnLine } from "@/lib/devoluciones/return-validation";
+import { recordSupplierReturn, alreadyReturnedByProduct } from "@/lib/stock/supplier-return";
+import { validateReturnLine, remainingReturnable } from "@/lib/devoluciones/return-validation";
 
 // Registrar una DEVOLUCIÓN a proveedor (D4). Cada línea (producto + cantidad) se asienta con
 // el servicio ATÓMICO de S1 (`recordSupplierReturn`): saca del stock (DEVOLUCION_PROVEEDOR) y
@@ -39,10 +39,20 @@ export async function registerReturn(formData: FormData): Promise<void> {
   const productIds = formData.getAll("productId").map(String);
   const qtys = formData.getAll("qty").map((v) => Number(String(v).replace(",", ".")));
 
+  // A-4 · AUTORIDAD SERVER: el tope es comprado − ya_devuelto de esa compra+producto, no lo
+  // comprado a secas. Sin descontar lo ya devuelto, dos devoluciones de 8 sobre una compra de
+  // 10 pasaban ambas. Se leen las devoluciones previas del ledger antes de validar cada línea.
+  const alreadyReturned = await alreadyReturnedByProduct(
+    tenantId,
+    purchaseId,
+    productIds.map((id) => itemByProduct.get(id)?.productId ?? "").filter(Boolean),
+  );
+
   for (let i = 0; i < productIds.length; i++) {
     const item = itemByProduct.get(productIds[i]);
     if (!item) continue;
-    const v = validateReturnLine(qtys[i], item.quantity);
+    const cap = remainingReturnable(item.quantity, alreadyReturned.get(productIds[i]) ?? 0);
+    const v = validateReturnLine(qtys[i], cap);
     if (!v.ok) continue;
     await recordSupplierReturn(tenantId, {
       productId: productIds[i],

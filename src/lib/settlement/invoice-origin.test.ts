@@ -12,6 +12,11 @@ test("origen APPOINTMENT → { appointmentId }", () => {
   assert.deepEqual(buildInvoiceOriginLink("APPOINTMENT", "apt_1"), { appointmentId: "apt_1" });
 });
 
+test("A-6 · origen MP_PAYMENT → { mpPaymentId } (clave de dedupe del webhook)", () => {
+  assert.deepEqual(buildInvoiceOriginLink("MP_PAYMENT", "mp_pay_1"), { mpPaymentId: "mp_pay_1" });
+  assert.deepEqual(buildInvoiceOriginLink("MP_PAYMENT", ""), {});
+});
+
 test("sin id o sin tipo → objeto vacío (factura sin origen, válido)", () => {
   assert.deepEqual(buildInvoiceOriginLink("ORDER", ""), {});
   assert.deepEqual(buildInvoiceOriginLink("ORDER", null), {});

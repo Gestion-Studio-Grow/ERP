@@ -18,6 +18,7 @@ import { requireCapability } from "@/lib/authz";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { generateSlotsForDays } from "@/lib/booking-slots";
+import { validateBookingContact } from "@/lib/contact-validation";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
@@ -297,6 +298,11 @@ export async function createAppointment(formData: FormData) {
   const isResident = formData.get("isResident") === "on";
   const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
 
+  // CH-A1 · AUTORIDAD SERVER: el teléfono (canal del recordatorio) y el email —si viene— tienen
+  // que ser válidos, o el turno entra pero el aviso nunca llega. No se confía en el cliente.
+  const contact = validateBookingContact(clientPhone, clientEmail);
+  if (!contact.ok) throw new Error(contact.error);
+
   let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
   if (!client) {
     client = await prisma.client.create({
@@ -438,6 +444,9 @@ export async function createBookingFromModal(input: {
   if (!clientName || !clientPhone) {
     throw new Error("Nombre y teléfono son obligatorios.");
   }
+  // CH-A1 · AUTORIDAD SERVER (modal de reserva): teléfono con formato + email válido si viene.
+  const contact = validateBookingContact(clientPhone, input.clientEmail);
+  if (!contact.ok) throw new Error(contact.error);
 
   let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
   if (!client) {
@@ -617,11 +626,21 @@ export async function rescheduleAppointment(formData: FormData) {
   revalidatePath("/admin/turnos/lista");
 }
 
-export async function getAppointments() {
-  // Devuelve TODOS los turnos sin scoping por profesional (historial completo,
-  // pantalla /admin/turnos/lista) → gestión, no lectura de agenda propia.
+// Ventana por defecto del historial de turnos (días hacia atrás). Los turnos FUTUROS siempre
+// entran; se acota solo el pasado para no escanear todo el histórico con 5 joins/fila.
+const APPOINTMENTS_DEFAULT_RANGE_DAYS = 365;
+
+export async function getAppointments(rangeDays: number = APPOINTMENTS_DEFAULT_RANGE_DAYS) {
+  // Devuelve los turnos sin scoping por profesional (historial de gestión, /admin/turnos/lista)
+  // → gestión, no lectura de agenda propia.
   await requireCapability("agenda:manage");
+  // Endurecimiento defensivo: (1) filtro `tenantId` EXPLÍCITO además de RLS (enciende el índice
+  // por tenant); (2) COTA DE RANGO — antes traía TODO el histórico con 5 joins por fila; ahora se
+  // acota al último año + todo el futuro (parametrizable), que es lo que la pantalla realmente usa.
+  const tenantId = await getCurrentTenantId();
+  const since = new Date(Date.now() - Math.max(1, rangeDays) * 24 * 60 * 60 * 1000);
   return prisma.appointment.findMany({
+    where: { tenantId, startsAt: { gte: since } },
     orderBy: { startsAt: "asc" },
     include: { client: true, professional: true, service: true, box: true, payment: true },
   });

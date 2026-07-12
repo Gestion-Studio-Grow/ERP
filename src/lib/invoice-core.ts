@@ -91,7 +91,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
   // Enlace a la venta (D10) vía el helper puro compartido; `hasOrigin` = la creación es
   // idempotente por venta. Sin origen (MP standalone/histórico) no hay dedupe → crea siempre.
   const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
-  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink;
+  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink || "mpPaymentId" in originLink;
   try {
     return await tenantTransaction((tx) => createInvoiceInTx(tx, input), {
       tenantId: input.tenantId,
@@ -127,7 +127,7 @@ export async function createInvoiceInTx(
   input: CreateInvoiceInput,
 ): Promise<string> {
   const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
-  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink;
+  const hasOrigin = "orderId" in originLink || "appointmentId" in originLink || "mpPaymentId" in originLink;
 
   if (hasOrigin) {
     const existing = await tx.invoice.findFirst({

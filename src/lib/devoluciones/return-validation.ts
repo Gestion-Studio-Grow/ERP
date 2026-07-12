@@ -34,3 +34,15 @@ export function hasValidReturnLine(
 ): boolean {
   return lines.some((l) => validateReturnLine(l.qty, l.purchased).ok);
 }
+
+/**
+ * A-4 — Tope REAL de lo devolvible de una línea de compra: lo comprado MENOS lo ya devuelto
+ * de esa misma compra+producto. PURA. Sin esto, el tope era siempre `comprado` y se podía
+ * devolver de a poco hasta superar lo comprado (de 10 kg: 8 + 8 = 16). Clamp a 0 (nunca
+ * negativo) y redondeo a 2 (kg/unidades). Es el `purchased` que se le pasa a
+ * `validateReturnLine`, tanto en el loader (feedback) como en la acción (autoridad server).
+ */
+export function remainingReturnable(purchased: number, alreadyReturned: number): number {
+  const rem = round2(round2(purchased) - round2(Math.max(0, alreadyReturned)));
+  return rem > 0 ? rem : 0;
+}

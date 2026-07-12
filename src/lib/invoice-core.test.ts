@@ -23,6 +23,7 @@ interface StoredInvoice {
   tenantId: string;
   orderId: string | null;
   appointmentId: string | null;
+  mpPaymentId: string | null; // A-6 — origen MP_PAYMENT
 }
 
 function makeMockTx() {
@@ -40,7 +41,7 @@ function makeMockTx() {
   const tx = {
     invoice: {
       findFirst: async (args: {
-        where: { tenantId: string; orderId?: string; appointmentId?: string };
+        where: { tenantId: string; orderId?: string; appointmentId?: string; mpPaymentId?: string };
       }) => {
         const w = args.where;
         const found = invoices.find(
@@ -48,17 +49,19 @@ function makeMockTx() {
             i.tenantId === w.tenantId &&
             (w.orderId !== undefined ? i.orderId === w.orderId : true) &&
             (w.appointmentId !== undefined ? i.appointmentId === w.appointmentId : true) &&
+            (w.mpPaymentId !== undefined ? i.mpPaymentId === w.mpPaymentId : true) &&
             // al menos una condición de origen tuvo que matchear (no devolver una sin origen)
-            (w.orderId !== undefined || w.appointmentId !== undefined),
+            (w.orderId !== undefined || w.appointmentId !== undefined || w.mpPaymentId !== undefined),
         );
         return found ? { id: found.id } : null;
       },
       create: async (args: {
-        data: { tenantId: string; orderId?: string; appointmentId?: string };
+        data: { tenantId: string; orderId?: string; appointmentId?: string; mpPaymentId?: string };
       }) => {
         const d = args.data;
         const orderId = d.orderId ?? null;
         const appointmentId = d.appointmentId ?? null;
+        const mpPaymentId = d.mpPaymentId ?? null;
         // Guarda UNIQUE (NULLs no colisionan, como en Postgres).
         if (orderId !== null && invoices.some((i) => i.tenantId === d.tenantId && i.orderId === orderId)) {
           throw p2002("Invoice_tenantId_orderId_key");
@@ -69,7 +72,13 @@ function makeMockTx() {
         ) {
           throw p2002("Invoice_tenantId_appointmentId_key");
         }
-        const inv: StoredInvoice = { id: `inv_${++seq}`, tenantId: d.tenantId, orderId, appointmentId };
+        if (
+          mpPaymentId !== null &&
+          invoices.some((i) => i.tenantId === d.tenantId && i.mpPaymentId === mpPaymentId)
+        ) {
+          throw p2002("Invoice_tenantId_mpPaymentId_key");
+        }
+        const inv: StoredInvoice = { id: `inv_${++seq}`, tenantId: d.tenantId, orderId, appointmentId, mpPaymentId };
         invoices.push(inv);
         return { id: inv.id };
       },
@@ -133,13 +142,43 @@ test("I2 · ventas DISTINTAS generan comprobantes distintos", async () => {
   assert.equal(invoices.length, 2);
 });
 
-test("I2 · SIN origen (MP standalone / previa a D10) NO dedupe: crea siempre", async () => {
+test("I2 · SIN origen (previa a D10) NO dedupe: crea siempre", async () => {
   const { tx, invoices } = makeMockTx();
   const id1 = await createInvoiceInTx(tx, baseInput()); // sin origin
   const id2 = await createInvoiceInTx(tx, baseInput()); // sin origin
 
   assert.notEqual(id1, id2, "sin venta enlazada no hay 1:1 → dos facturas legítimas");
   assert.equal(invoices.length, 2);
+});
+
+// --- A-6 · Doble factura por webhook MP duplicado (origen MP_PAYMENT). ---
+
+test("A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante", async () => {
+  const { tx, invoices, outbox } = makeMockTx();
+  const input = baseInput({ origin: { type: "MP_PAYMENT", id: "mp_pay_123" } });
+
+  const id1 = await createInvoiceInTx(tx, input);
+  const id2 = await createInvoiceInTx(tx, input); // MP reintenta la notificación
+
+  assert.equal(id1, id2, "el reintento del webhook devuelve la MISMA factura");
+  assert.equal(invoices.length, 1, "un solo comprobante por pago MP");
+  assert.equal(outbox.length, 1, "no re-despacha");
+});
+
+test("A-6 · pagos MP distintos → facturas distintas", async () => {
+  const { tx, invoices } = makeMockTx();
+  const a = await createInvoiceInTx(tx, baseInput({ origin: { type: "MP_PAYMENT", id: "mp_A" } }));
+  const b = await createInvoiceInTx(tx, baseInput({ origin: { type: "MP_PAYMENT", id: "mp_B" } }));
+  assert.notEqual(a, b);
+  assert.equal(invoices.length, 2);
+});
+
+test("A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces", async () => {
+  // Antes del fix, facturarPagoMP llamaba createInvoice SIN origin → hasOrigin=false → sin dedupe.
+  const { tx, invoices } = makeMockTx();
+  await createInvoiceInTx(tx, baseInput()); // sin origin (comportamiento viejo)
+  await createInvoiceInTx(tx, baseInput()); // sin origin
+  assert.equal(invoices.length, 2, "sin la clave MP_PAYMENT el webhook duplicado facturaba de más");
 });
 
 test("I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)", async () => {

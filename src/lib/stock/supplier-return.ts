@@ -112,6 +112,38 @@ export async function recordSupplierReturn(
   );
 }
 
+/**
+ * A-4 — Cuánto se DEVOLVIÓ YA de cada producto de una compra (magnitud positiva), leyendo el
+ * ledger (movimientos `DEVOLUCION_PROVEEDOR` con ese `purchaseId`). El ledger guarda `qty`
+ * FIRMADA (negativa en salidas), así que se suma y se toma el valor absoluto. Es el insumo del
+ * tope real de devolución (`comprado − ya_devuelto`) que usan el loader y la acción de S1.
+ * La granularidad del ledger es (purchaseId, productId) — misma que la línea de compra.
+ */
+export async function alreadyReturnedByProduct(
+  tenantId: string,
+  purchaseId: string,
+  productIds: string[],
+): Promise<Map<string, number>> {
+  const ids = productIds.filter((id): id is string => !!id);
+  if (ids.length === 0) return new Map();
+  const grouped = await prisma.stockMovement.groupBy({
+    by: ["productId"],
+    where: {
+      tenantId,
+      type: "DEVOLUCION_PROVEEDOR",
+      purchaseId,
+      productId: { in: ids },
+    },
+    _sum: { qty: true },
+  });
+  const out = new Map<string, number>();
+  for (const g of grouped) {
+    if (!g.productId) continue;
+    out.set(g.productId, Math.abs(g._sum.qty ?? 0));
+  }
+  return out;
+}
+
 export interface SupplierReturnRow {
   id: string;
   productId: string | null;

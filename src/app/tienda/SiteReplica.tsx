@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import type { CSSProperties } from "react";
 import { placeOnlineOrder } from "@/lib/order-actions";
 import type { SiteReplicaData } from "@/tenants/site-replica";
@@ -60,6 +61,12 @@ function SiteReplicaContent({
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  // A-1: clave de idempotencia estable por carga del carrito. El bloque del carrito se renderiza
+  // recién cuando el visitante suma productos (interacción de cliente, post-hidratación) → no hay
+  // HTML de servidor para esta clave, así que `crypto.randomUUID()` no genera mismatch de hidratación.
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+  );
 
   function bump(p: Product, d: 1 | -1) {
     const step = p.saleUnit === "WEIGHT" ? 0.25 : 1;
@@ -188,14 +195,27 @@ function SiteReplicaContent({
                     <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${T.line}`, paddingTop: 8, fontWeight: 800 }}>
                       <span>Total</span><span style={{ color: accent }}>{money2.format(total)}</span>
                     </div>
-                    <input name="customerName" required placeholder="Nombre *" style={inp} />
-                    <input name="customerPhone" required placeholder="WhatsApp *" style={inp} />
-                    <select name="fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")} style={inp}>
-                      <option value="PICKUP">Retiro en el local</option>
-                      <option value="DELIVERY">Envío a domicilio</option>
-                    </select>
-                    {fulfillment === "DELIVERY" && <input name="address" required placeholder="Dirección *" style={inp} />}
-                    <button type="submit" style={{ ...btn(accent, "var(--text-on-accent)"), height: 44 }}>Enviar pedido</button>
+                    {/* A-1: la clave viaja con el form → dos envíos del mismo carrito = un solo pedido. */}
+                    <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+                    {/* Accesibilidad (Gate SAP §accesibilidad): cada campo con su <label> real asociado. */}
+                    <label style={fieldLabel}>Nombre
+                      <input name="customerName" required placeholder="Tu nombre" style={inp} />
+                    </label>
+                    <label style={fieldLabel}>WhatsApp
+                      <input name="customerPhone" type="tel" inputMode="tel" required placeholder="Tu WhatsApp" style={inp} />
+                    </label>
+                    <label style={fieldLabel}>Entrega
+                      <select name="fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")} style={inp}>
+                        <option value="PICKUP">Retiro en el local</option>
+                        <option value="DELIVERY">Envío a domicilio</option>
+                      </select>
+                    </label>
+                    {fulfillment === "DELIVERY" && (
+                      <label style={fieldLabel}>Dirección
+                        <input name="address" required placeholder="Calle y número" style={inp} />
+                      </label>
+                    )}
+                    <OrderSubmit accent={accent} />
                     <div style={{ fontSize: 10.5, color: T.faint, textAlign: "center" }}>El pedido entra a nuestro sistema (bandeja + stock + facturación).</div>
                   </>
                 )}
@@ -267,6 +287,28 @@ function SiteReplicaContent({
   );
 }
 
+// A-1 (capa del botón): mientras el pedido se envía, el botón se DESHABILITA y cambia a
+// "Enviando…". Corta el doble-click del mobile (el camino infeliz #1) antes de que salga un
+// segundo submit; la clave de idempotencia server-side es la segunda capa por si igual sale.
+function OrderSubmit({ accent }: { accent: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      style={{
+        ...btn(accent, "var(--text-on-accent)"),
+        height: 46,
+        opacity: pending ? 0.65 : 1,
+        cursor: pending ? "progress" : "pointer",
+      }}
+    >
+      {pending ? "Enviando…" : "Enviar pedido"}
+    </button>
+  );
+}
+
 function Head({ title, sub }: { title: string; sub?: string }) {
   return (
     <div style={{ marginBottom: 18 }}>
@@ -282,9 +324,12 @@ function btn(bg: string, color: string, border?: string): CSSProperties {
   return { display: "grid", placeItems: "center", padding: "0 20px", height: 46, borderRadius: 11, border: border ?? "none", background: bg, color, fontWeight: 700, fontSize: 14.5, textDecoration: "none", cursor: "pointer" };
 }
 function qbtn(bg: string, color: string): CSSProperties {
-  return { height: 32, minWidth: 32, borderRadius: 9, border: "none", background: bg, color, fontWeight: 700, fontSize: 15, cursor: "pointer" };
+  // Touch target ≥ 44px (Gate SAP §accesibilidad): antes 32px, chico para el dedo en mobile.
+  return { height: 44, minWidth: 44, borderRadius: 10, border: "none", background: bg, color, fontWeight: 700, fontSize: 17, cursor: "pointer", touchAction: "manipulation" };
 }
-const inp: CSSProperties = { border: "1px solid var(--line-strong)", borderRadius: 9, padding: "9px 11px", fontSize: 13.5, background: "var(--surface-raised)", color: "var(--text-strong)" };
+const inp: CSSProperties = { width: "100%", border: "1px solid var(--line-strong)", borderRadius: 9, padding: "10px 11px", fontSize: 13.5, background: "var(--surface-raised)", color: "var(--text-strong)", minHeight: 44 };
+// Label real por campo (accesibilidad): texto arriba + su input asociado (el input es hijo del <label>).
+const fieldLabel: CSSProperties = { display: "grid", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--text-muted)" };
 const navlink: CSSProperties = { color: "var(--text-strong)", textDecoration: "none", fontWeight: 600 };
 const foot: CSSProperties = { fontSize: 13, lineHeight: 1.9, opacity: 0.82 };
 const foothead: CSSProperties = { fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.55, marginBottom: 8, fontWeight: 600 };
