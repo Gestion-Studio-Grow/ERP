@@ -23,6 +23,7 @@ import { getSiteReplica } from "@/tenants/site-replica";
 import Storefront from "./Storefront";
 import SiteReplica from "./SiteReplica";
 import MagraFront from "./MagraFront";
+import ShineFront from "./ShineFront";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,23 @@ export default async function TiendaPage() {
   // brand-sheet). Copy TEXTUAL autorizado (magra-content.ts), imágenes generadas por IA.
   if (slug === "magra" || slug === "magra-demo") {
     return <MagraFront products={data.products} branding={data.branding} tenantKey={slug} />;
+  }
+
+  // SHINE — front público editorial LUMINOSO propio (manual de marca Shine 2026). La
+  // contracara de Magra: crema+burdeos+malva, serif delicada (Cormorant~The Seasons) +
+  // Kumbh Sans, la LLAMA como isotipo. Rompe el molde genérico con la identidad real de
+  // Shine + el catálogo/carrito del ERP detrás (placeOnlineOrder). Copy real (storefront.ts),
+  // fotos de marca (public/tenants/shinevelas). Piel autocontenida (no depende del brand-sheet).
+  if (slug === "shinevelas" && data.copy) {
+    return (
+      <ShineFront
+        products={data.products}
+        branding={data.branding}
+        copy={data.copy}
+        imagery={resolveTenantLayout(brandForSlug(slug)).imagery ?? null}
+        tenantKey={slug}
+      />
+    );
   }
 
   const replica = getSiteReplica(slug);

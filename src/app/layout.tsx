@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk, Bebas_Neue, Open_Sans } from "next/font/google";
+import { Geist, Geist_Mono, Playfair_Display, Fraunces, Hanken_Grotesk, Bebas_Neue, Open_Sans, Cormorant, Kumbh_Sans } from "next/font/google";
 import { getTenantBrand, resolveAccent, tenantFaviconDataUri } from "@/lib/branding";
 import { gsgIdentityEnabled, identityAttr, tenantBrandSheetEnabled } from "@/lib/identity";
 import { getBrandSheet } from "@/lib/brand-sheet";
@@ -59,6 +59,24 @@ const openSans = Open_Sans({
   display: "swap",
 });
 
+// Identidad SHINE (manual de marca 2026): serif display DELICADA de alto contraste
+// (Cormorant — sustituto libre de "The Seasons", la primaria del manual) + Kumbh Sans
+// (cuerpo, exactamente la del manual). Cargadas acá una vez; el front de shinevelas las
+// consume por `--font-cormorant` / `--font-kumbh`. Sin descargas por-pantalla, cero CLS.
+const cormorant = Cormorant({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+const kumbhSans = Kumbh_Sans({
+  variable: "--font-kumbh",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 // Favicon POR TENANT (no más "CH" hardcodeado para toda la app): el ícono de la
 // pestaña sale del monograma + acento del tenant activo, resuelto en cada request
 // (getTenantBrand cachea por request; fail-open al brand por defecto sin DB). Las
@@ -96,7 +114,7 @@ export default function RootLayout({
     <html
       lang="es"
       data-identity={identity}
-      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${fraunces.variable} ${hanken.variable} ${bebasNeue.variable} ${openSans.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${fraunces.variable} ${hanken.variable} ${bebasNeue.variable} ${openSans.variable} ${cormorant.variable} ${kumbhSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
