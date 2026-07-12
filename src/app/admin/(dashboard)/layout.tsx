@@ -6,6 +6,8 @@ import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
 import { getActiveModuleIds } from "@/lib/module-gating";
 import { getActiveProfile } from "@/lib/profile-gating";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { hasCarniceriaSchema } from "@/lib/carniceria/schema-probe";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
@@ -35,7 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // El portón grueso (¿hay sesión?) lo hace `proxy.ts`; acá resolvemos el
   // usuario para adaptar la navegación a su rol (ADR-017 §2.e — ocultar lo que
   // no puede es UX; la seguridad real son los guardas server-side por acción).
-  const [user, brand, activeModuleIds, activeProfile] = await Promise.all([
+  const [user, brand, activeModuleIds, activeProfile, rubro, carniceriaReady] = await Promise.all([
     requireUser(),
     getTenantBrand(),
     // Gating por módulo (ADR-054/055): set activo del tenant, o null si el flag está
@@ -44,6 +46,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     // Perfil activo (ADR-058/059): "lite"/"enterprise" o null si `PROFILES_ENABLED`
     // está OFF (default) → AdminShell no gatea por perfil ni suma ítems Empresa. Reversible.
     getActiveProfile(),
+    // Rubro del tenant (Magra = carnicería/retail): habilita los ítems de mostrador
+    // (Inventario) y cárnicos (Lotes/Despiece). En servicios (CH) queda todo apagado.
+    getCurrentTenantRubro(),
+    // ¿Migración cárnica (Gate 2) aplicada? Gatea Lotes/Despiece. Degrada a false.
+    hasCarniceriaSchema(),
   ]);
 
   // SKIN "FABLE" (mockups aprobados por el dueño, 2026-07): el backoffice ya NO
@@ -109,7 +116,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={activeModuleIds ? [...activeModuleIds] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile}>
+          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={activeModuleIds ? [...activeModuleIds] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} isRetail={rubro.isRetail} carniceriaReady={carniceriaReady}>
             {children}
           </AdminShell>
         </ToastProvider>

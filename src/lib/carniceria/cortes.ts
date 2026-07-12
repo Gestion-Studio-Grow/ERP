@@ -119,6 +119,21 @@ export function categoriaMeta(id: CorteCategoria): CategoriaMeta {
   return CATEGORIA_BY_ID[id];
 }
 
+const VALID_CATEGORIAS = new Set<CorteCategoria>(CORTE_CATEGORIAS.map((c) => c.id));
+
+/** ¿Es `v` una categoría de corte válida? (para validar la categoría explícita). */
+export function isCorteCategoria(v: string | null | undefined): v is CorteCategoria {
+  return !!v && VALID_CATEGORIAS.has(v as CorteCategoria);
+}
+
+/**
+ * Categoría EFECTIVA de un corte: la explícita (Product.category, editable) si es válida;
+ * si no, la DERIVADA del nombre. Único punto donde se resuelve la góndola de un corte.
+ */
+export function effectiveCategoria(name: string, explicit?: string | null): CorteCategoria {
+  return isCorteCategoria(explicit) ? explicit : classifyCorte(name);
+}
+
 /**
  * Agrupa cortes en categorías ordenadas (sólo las no vacías). Genérico sobre
  * cualquier objeto con `name`. Puro → testeable.

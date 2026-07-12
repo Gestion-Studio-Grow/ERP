@@ -7,6 +7,7 @@ import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
+import { writeProductExtras } from "@/lib/carniceria/product-extras";
 
 const CATALOG_PATH = "/admin/catalogo";
 
@@ -295,6 +296,24 @@ function parseRetailFields(formData: FormData): {
   return { saleUnit, price, pricePerKg };
 }
 
+// Extras del rubro cárnico (Product.category/cost) — columnas de la migración Gate 2,
+// NO en schema.prisma. Se escriben por SQL crudo tolerante (writeProductExtras): si las
+// columnas no existen todavía (pre-migración), es no-op y el ABM del catálogo no rompe.
+// `undefined` = el form no trae el campo → no tocar (no pisa lo que ya había).
+function parseCarniceriaExtras(formData: FormData): { category?: string | null; cost?: number | null } {
+  const out: { category?: string | null; cost?: number | null } = {};
+  if (formData.has("category")) {
+    const c = String(formData.get("category") || "").trim();
+    out.category = c || null;
+  }
+  if (formData.has("cost")) {
+    const raw = String(formData.get("cost") || "").trim();
+    const n = raw ? Number(raw) : null;
+    out.cost = n && Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return out;
+}
+
 export async function createProduct(formData: FormData) {
   await requireCapability("catalog:manage");
   const name = String(formData.get("name") || "").trim();
@@ -302,7 +321,7 @@ export async function createProduct(formData: FormData) {
   const stock = Number(formData.get("stock"));
   const lowStockAt = Number(formData.get("lowStockAt"));
   if (!name || Number.isNaN(stock)) return;
-  await prisma.product.create({
+  const created = await prisma.product.create({
     data: {
       tenantId: await getCurrentTenantId(),
       name,
@@ -312,6 +331,7 @@ export async function createProduct(formData: FormData) {
       ...parseRetailFields(formData),
     },
   });
+  await writeProductExtras(created.id, parseCarniceriaExtras(formData));
   revalidatePath(CATALOG_PATH);
 }
 
@@ -327,6 +347,7 @@ export async function updateProduct(formData: FormData) {
     where: { id },
     data: { name, unit, stock, lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt, ...parseRetailFields(formData) },
   });
+  await writeProductExtras(id, parseCarniceriaExtras(formData));
   revalidatePath(CATALOG_PATH);
 }
 

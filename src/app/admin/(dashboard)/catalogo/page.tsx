@@ -1,6 +1,7 @@
 import { getCatalog } from "@/lib/catalog-actions";
 import { getCoupons } from "@/lib/coupon-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { getProductExtras } from "@/lib/carniceria/product-extras";
 import { getInventoryValuation } from "@/lib/inventory/inventory-loader";
 import BoxesSection from "./BoxesSection";
 import ServicesSection from "./ServicesSection";
@@ -21,23 +22,30 @@ export default async function CatalogoPage() {
   // hacía sentir el panel "genérico". Para retail renderizamos la góndola de cortes con
   // precio por kilo, stock y margen, más los cupones (promos, útiles a cualquier tienda).
   if (rubro.isRetail) {
-    const [{ products }, valuation] = await Promise.all([
+    const [{ products }, valuation, extras] = await Promise.all([
       getCatalog(),
       getInventoryValuation(),
+      getProductExtras(),
     ]);
     const costByProduct = new Map(valuation.rows.map((r) => [r.id, r.unitCost ?? null]));
-    const cortes: Corte[] = products.map((p) => ({
-      id: p.id,
-      name: p.name,
-      unit: p.unit,
-      stock: p.stock,
-      lowStockAt: p.lowStockAt,
-      active: p.active,
-      saleUnit: p.saleUnit === "WEIGHT" ? "WEIGHT" : "UNIT",
-      price: p.price ?? null,
-      pricePerKg: p.pricePerKg ?? null,
-      cost: costByProduct.get(p.id) ?? null,
-    }));
+    const cortes: Corte[] = products.map((p) => {
+      const ex = extras.get(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        unit: p.unit,
+        stock: p.stock,
+        lowStockAt: p.lowStockAt,
+        active: p.active,
+        saleUnit: p.saleUnit === "WEIGHT" ? "WEIGHT" : "UNIT",
+        price: p.price ?? null,
+        pricePerKg: p.pricePerKg ?? null,
+        // Costo de referencia explícito (Product.cost) si está; si no, el último costo de compra.
+        cost: ex?.cost ?? costByProduct.get(p.id) ?? null,
+        // Góndola explícita (Product.category) si está; null → CortesSection deriva del nombre.
+        category: ex?.category ?? null,
+      };
+    });
     const heading = rubro.rubro?.wording.catalogHeading ?? "Catálogo de cortes";
 
     return (

@@ -37,9 +37,17 @@ encenderla es reversible, no requiere schema).
 
 ## Parte B — Requiere schema (Gate 2 · migración preparada `prisma/pending-gate2/CarniceriaRubro.sql`)
 
-Todo lo de acá está **especificado y con la migración escrita, NO aplicada**. Aplicar = `prisma migrate
-deploy` sobre Neon = **irreversible = OK del dueño** (ADR-018). Es **aditiva** (2 columnas nullable en
-`Product` + 3 tablas + 2 enums; no toca nada vivo).
+> **✅ Construido (2026-07-12, 2ª iteración):** todo lo de esta parte ya está **implementado en el código**
+> (pantallas `/admin/lotes`, `/admin/despiece`, `/admin/inventario` por góndola, `category`/`cost` en el
+> catálogo), con acceso por **SQL crudo tolerante a schema** (`src/lib/carniceria/*` + `hasCarniceriaSchema()`):
+> **sin la migración aplicada, las pantallas muestran "En preparación" y prod NO rompe**; al aplicarla se
+> encienden solas. La migración incluye las **policies RLS** de las 3 tablas. Lógica pura testeada
+> (`cortes`/`lotes`/`despiece`.test.ts). Renderizado y verificado en base local efímera (screenshots en
+> `docs/preventa/magra/`). **Falta solo aplicar la migración** (Gate 2, OK del dueño).
+
+Todo lo de acá está **especificado, IMPLEMENTADO y con la migración escrita, NO aplicada**. Aplicar =
+`prisma migrate deploy` sobre Neon = **irreversible = OK del dueño** (ADR-018). Es **aditiva** (2 columnas
+nullable en `Product` + 3 tablas + 2 enums; no toca nada vivo).
 
 ### §1 · `Product.category` (góndola explícita)
 - **Hoy:** la góndola se **deriva del nombre** (`classifyCorte`) — funciona (ver screenshots) pero es una

@@ -19,6 +19,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { provisionTenant } from "./provision-tenant";
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,6 +58,18 @@ async function applyMigrations(pg: PGlite) {
     n++;
   }
   log(`migraciones aplicadas in-process: ${n}`);
+
+  // Migraciones PREPARADAS (Gate 2) — SOLO en esta base local efímera, para poder
+  // renderizar las pantallas nuevas (Lotes/Despiece + category/cost). NO tocan Neon.
+  const pendingDir = path.join(REPO, "prisma", "pending-gate2");
+  for (const f of readdirSync(pendingDir).filter((f) => f.endsWith(".sql")).sort()) {
+    try {
+      await pg.exec(readFileSync(path.join(pendingDir, f), "utf8"));
+      log(`pending-gate2 aplicada (local): ${f}`);
+    } catch (e) {
+      log(`pending-gate2 omitida (${f}): ${(e as Error).message}`);
+    }
+  }
 }
 
 // Proveedores + una COMPRA con costos reales (media res / línea), directo por Prisma.
@@ -235,6 +248,63 @@ async function seedOrders(prisma: PrismaClient, tenantId: string) {
   log(`pedidos de ejemplo sembrados: ${code}`);
 }
 
+// Datos del rubro CÁRNICO que dependen de la migración Gate 2 (aplicada arriba solo en
+// esta base local): categoría/costo explícito de algunos cortes, lotes de envasado al
+// vacío (con vencimientos y peso variable) y un despiece de ejemplo con su rendimiento.
+// Todo por SQL crudo (las tablas no están en schema.prisma, igual que en la app).
+async function seedCarniceria(prisma: PrismaClient, tenantId: string) {
+  const prods = await prisma.product.findMany({ where: { tenantId }, select: { id: true, name: true } });
+  const idOf = (needle: string) => prods.find((p) => p.name.toLowerCase().includes(needle))?.id ?? null;
+  const now = new Date();
+  const day = (d: number) => new Date(now.getTime() + d * 24 * 60 * 60 * 1000);
+
+  // Categoría explícita + costo de referencia para cortes sin compra (para que el margen no
+  // salga "sin costo"). El resto queda con góndola derivada del nombre.
+  const cat: { needle: string; category: string; cost: number | null }[] = [
+    { needle: "colita de cuadril", category: "vaca", cost: 8800 },
+    { needle: "solomillo de cerdo", category: "cerdo", cost: 7400 },
+    { needle: "milanesas de nalga", category: "preparados", cost: 8100 },
+  ];
+  for (const c of cat) {
+    const id = idOf(c.needle);
+    if (!id) continue;
+    await prisma.$executeRaw`UPDATE "Product" SET "category" = ${c.category}, "cost" = ${c.cost} WHERE "id" = ${id} AND "tenantId" = ${tenantId}`;
+  }
+
+  // Lotes de envasado al vacío: uno por vencer, uno OK, uno sin fecha. Peso variable
+  // (peso neto + paquetes → promedio por paquete).
+  const batches = [
+    { code: "L-2026-014", needle: "vacío", supplier: null, packedAt: day(-2), expiresAt: day(2), netWeightKg: 12.34, packages: 8, unitCost: 8100 },
+    { code: "L-2026-015", needle: "asado de tira", supplier: null, packedAt: day(-1), expiresAt: day(9), netWeightKg: 24.9, packages: 15, unitCost: 7400 },
+    { code: "L-2026-016", needle: "bife de chorizo", supplier: null, packedAt: day(-3), expiresAt: null, netWeightKg: 9.87, packages: 6, unitCost: 10300 },
+  ];
+  for (const b of batches) {
+    await prisma.$executeRaw`
+      INSERT INTO "ProductBatch"
+        ("id","tenantId","productId","supplierId","code","packedAt","expiresAt","netWeightKg","packages","unitCost","status","createdBy","updatedAt")
+      VALUES (${randomUUID()}, ${tenantId}, ${idOf(b.needle)}, ${b.supplier}, ${b.code}, ${b.packedAt}, ${b.expiresAt}, ${b.netWeightKg}, ${b.packages}, ${b.unitCost}, 'AVAILABLE', 'system:demo', CURRENT_TIMESTAMP)`;
+  }
+
+  // Despiece de ejemplo: media res 120 kg / $900.000 → cortes (con merma ~16,7%).
+  const runId = randomUUID();
+  await prisma.$executeRaw`
+    INSERT INTO "ProcessingRun"
+      ("id","tenantId","code","inputName","inputWeightKg","inputCost","status","createdBy","updatedAt")
+    VALUES (${runId}, ${tenantId}, 1, 'Media res novillo', 120, 900000, 'DONE', 'system:demo', CURRENT_TIMESTAMP)`;
+  const outputs = [
+    { needle: "asado de tira", name: "Asado de tira", kg: 30 },
+    { needle: "vacío", name: "Vacío", kg: 12 },
+    { needle: "milanesas de nalga", name: "Nalga (milanesas)", kg: 18 },
+    { needle: "picada", name: "Carne picada", kg: 40 },
+  ];
+  for (const o of outputs) {
+    await prisma.$executeRaw`
+      INSERT INTO "ProcessingOutput" ("id","tenantId","runId","productId","name","weightKg")
+      VALUES (${randomUUID()}, ${tenantId}, ${runId}, ${idOf(o.needle)}, ${o.name}, ${o.kg})`;
+  }
+  log(`carnicería sembrada: ${batches.length} lotes + 1 despiece + categorías/costos`);
+}
+
 async function shutdown(codeExit = 0) {
   try {
     next?.kill();
@@ -283,6 +353,7 @@ async function main() {
   });
   await seedPurchases(prisma, res.tenantId);
   await seedOrders(prisma, res.tenantId);
+  await seedCarniceria(prisma, res.tenantId);
   await prisma.$disconnect();
 
   log("arrancando la app (next dev)…");
