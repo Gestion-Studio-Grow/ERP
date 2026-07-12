@@ -8,10 +8,12 @@ import {
   setTenantBranding,
   setTenantSubdomain,
   toggleTenantModule,
+  setTenantArcaCuit,
   cargarCredencialFiscal,
 } from "@/lib/operator-actions";
 import { MODULES, PLANS, TENANT_STATUSES, ACCENT_PRESET_IDS } from "@/lib/operator-config";
-import { Card, Field, Input, Select, Textarea, Button, Badge } from "@/components/ui";
+import { Card, Field, Input, Select, Textarea, Button, Badge, fmtCuit } from "@/components/ui";
+import { modoDesdeEnv } from "@/plugins/arca";
 
 // Estado de la credencial fiscal del tenant (metadata NO sensible). Tolerante a que la
 // migración `TenantFiscalCredential` no esté aplicada aún (Gate 2): si la tabla no existe,
@@ -35,6 +37,31 @@ export const dynamic = "force-dynamic";
 function blueprintLabel(id: string | null): string {
   if (!id) return "—";
   try { return getBlueprint(id).label; } catch { return id; }
+}
+
+const MODO_ARCA_LABEL: Record<string, string> = {
+  stub: "Stub (apagado)",
+  homologacion: "Homologación (test)",
+  real: "Real (producción)",
+};
+
+// Fila del "estado fiscal de un vistazo". El ✓/✗ va acompañado de texto (no solo
+// color) para accesibilidad. `ok === null` = dato neutro (sin aplicar / no aplica).
+function EstadoFiscalRow({ label, ok, valor }: { label: string; ok: boolean | null; valor: string }) {
+  const tone = ok === null ? "neutral" : ok ? "success" : "warning";
+  const estado = ok === null ? "sin dato" : ok ? "listo" : "falta";
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2">
+      <dt className="text-muted">{label}</dt>
+      <dd className="flex items-center gap-2 font-medium text-strong">
+        <span>{valor}</span>
+        <Badge tone={tone} dot>
+          <span className="sr-only">{estado}: </span>
+          {ok === null ? "—" : ok ? "✓" : "✗"}
+        </Badge>
+      </dd>
+    </div>
+  );
 }
 
 // CONFIGURACIÓN POR TENANT (control-plane, ADR-021). Cross-tenant vía operatorPrisma.
@@ -61,6 +88,15 @@ export default async function TenantConfigPage({
 
   const active = new Set(tenant!.modules);
   const credFiscal = await credencialFiscalDe(tenant!.id);
+
+  // Estado fiscal derivado (para el resumen "de un vistazo" y el semáforo).
+  const modoArca = modoDesdeEnv();
+  const credLoaded = credFiscal && credFiscal !== "pendiente" ? credFiscal : null;
+  const cuitOk = !!tenant!.arcaCuit;
+  const certOk = !!credLoaded;
+  const certVence = credLoaded?.certNotAfter ? credLoaded.certNotAfter.toISOString().slice(0, 10) : null;
+  const cuitCertMismatch = !!(credLoaded && cuitOk && credLoaded.certCuit !== tenant!.arcaCuit);
+  const listoParaFacturar = cuitOk && certOk && !cuitCertMismatch && modoArca !== "stub";
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -157,68 +193,142 @@ export default async function TenantConfigPage({
         </form>
       </Card>
 
-      {/* Credencial fiscal ARCA (cifrada por tenant, ADR-066) */}
-      <Card className="p-5 space-y-3">
-        <h2 className="font-medium">Credencial fiscal · ARCA</h2>
-        <p className="text-sm text-muted">
-          Certificado del emisor <b>por tenant</b>, cifrado en reposo (ADR-066). El sistema firma con
-          este cert, y solo si su CUIT coincide con el del tenant. Cargalo/rotalo pegando los PEM.
-          El material nunca se muestra ni se loguea.
-        </p>
+      {/* Facturación electrónica · ARCA (CUIT + credencial por tenant, ADR-066) */}
+      <Card className="p-5 space-y-4">
+        <div>
+          <h2 className="font-medium">Facturación electrónica · ARCA</h2>
+          <p className="text-sm text-muted">
+            Para emitir hacen falta dos cosas, <b>en este orden</b>: <b>1)</b> el CUIT del emisor y{" "}
+            <b>2)</b> su certificado ARCA. El sistema firma <b>solo</b> si el CUIT del certificado coincide
+            con el del tenant (guard fail-closed, ADR-066). El material nunca se muestra ni se loguea.
+          </p>
+        </div>
 
-        {credFiscal === "pendiente" ? (
-          <div className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2">
-            La tabla de credenciales fiscales todavía no está en la base (migración pendiente · Gate 2).
-            Aplicá <code>TenantFiscalCredential</code> para poder cargar certificados.
-          </div>
-        ) : credFiscal ? (
-          <div className="rounded-md border border-line px-3 py-2 text-sm">
-            <Badge tone="success" dot>Cargada</Badge>{" "}
-            CUIT del cert: <code>{credFiscal.certCuit}</code>
-            {credFiscal.certNotAfter && (
-              <> · vence {credFiscal.certNotAfter.toISOString().slice(0, 10)}</>
-            )}
-            <span className="block text-xs text-muted mt-1">
-              Actualizada {credFiscal.updatedAt.toISOString().slice(0, 10)}.
-            </span>
+        {/* Estado fiscal de un vistazo */}
+        <dl className="grid sm:grid-cols-2 gap-2 text-sm">
+          <EstadoFiscalRow
+            label="CUIT del emisor"
+            ok={cuitOk}
+            valor={cuitOk ? fmtCuit(tenant!.arcaCuit) : "sin cargar"}
+          />
+          <EstadoFiscalRow
+            label="Certificado"
+            ok={credFiscal === "pendiente" ? null : certOk}
+            valor={credFiscal === "pendiente" ? "tabla pendiente" : certOk ? "cargado" : "sin cargar"}
+          />
+          <EstadoFiscalRow
+            label="Vence el certificado"
+            ok={certVence ? true : null}
+            valor={certVence ?? "—"}
+          />
+          <EstadoFiscalRow
+            label="Modo ARCA (plataforma)"
+            ok={modoArca !== "stub"}
+            valor={MODO_ARCA_LABEL[modoArca]}
+          />
+        </dl>
+
+        {/* Semáforo: ¿listo para facturar? */}
+        {listoParaFacturar ? (
+          <div role="status" className="rounded-md bg-success-soft text-success text-sm px-3 py-2">
+            ✓ Listo para facturar en modo <b>{MODO_ARCA_LABEL[modoArca]}</b>.
           </div>
         ) : (
-          <div className="rounded-md border border-line px-3 py-2 text-sm text-muted">
-            <Badge tone="info" dot>Sin credencial</Badge> Este tenant todavía no puede emitir facturas reales.
+          <div role="status" className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2">
+            Todavía no está listo para facturar
+            {!cuitOk && " — falta el CUIT del emisor"}
+            {cuitOk && !certOk && " — falta el certificado"}
+            {cuitOk && certOk && cuitCertMismatch && " — el CUIT no coincide con el del certificado"}
+            {cuitOk && certOk && !cuitCertMismatch && modoArca === "stub" && " — ARCA está en modo stub (apagado)"}
+            .
           </div>
         )}
 
-        {!tenant!.arcaCuit && (
-          <div className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2" role="alert">
-            El tenant no tiene <b>CUIT (arcaCuit)</b> configurado. Cargalo antes del certificado: el guard
-            compara el CUIT del cert contra el del tenant.
+        {cuitCertMismatch && (
+          <div role="alert" className="rounded-md bg-danger-soft text-danger text-sm px-3 py-2">
+            El CUIT del tenant (<code>{fmtCuit(tenant!.arcaCuit)}</code>) no coincide con el del certificado
+            cargado (<code>{fmtCuit(credLoaded!.certCuit)}</code>). La firma lo va a rechazar: corregí el CUIT
+            o volvé a cargar el certificado del CUIT correcto.
           </div>
         )}
 
-        <form action={cargarCredencialFiscal} className="space-y-3">
+        {/* Paso 1 — CUIT del emisor */}
+        <form action={setTenantArcaCuit} className="space-y-2 border-t border-line pt-4">
           <input type="hidden" name="tenantId" value={tenant!.id} />
-          <Field label="Certificado (PEM)">
-            <Textarea
-              name="certPem"
-              rows={4}
-              required
-              placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
-              className="font-mono text-xs"
-            />
+          <Field label="Paso 1 · CUIT del emisor">
+            <div className="flex items-end gap-2">
+              <Input
+                name="arcaCuit"
+                defaultValue={tenant!.arcaCuit ?? ""}
+                placeholder="20-30405060-7"
+                inputMode="numeric"
+                autoComplete="off"
+                className="flex-1 font-mono"
+                aria-describedby="cuit-hint"
+              />
+              <Button type="submit" variant="outline" size="sm">Guardar CUIT</Button>
+            </div>
           </Field>
-          <Field label="Clave privada (PEM)">
-            <Textarea
-              name="keyPem"
-              rows={4}
-              required
-              placeholder={"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"}
-              className="font-mono text-xs"
-            />
-          </Field>
-          <Button type="submit" variant="outline" size="sm">
-            {credFiscal && credFiscal !== "pendiente" ? "Rotar credencial" : "Cargar credencial"}
-          </Button>
+          <p id="cuit-hint" className="text-xs text-muted">
+            11 números (con o sin guiones/puntos). Se valida el dígito verificador. Dejalo vacío para borrarlo.
+          </p>
         </form>
+
+        {/* Paso 2 — Certificado ARCA */}
+        <div className="space-y-3 border-t border-line pt-4">
+          <h3 className="text-sm font-medium">Paso 2 · Certificado ARCA</h3>
+
+          {credFiscal === "pendiente" ? (
+            <div role="alert" className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2">
+              La tabla de credenciales fiscales todavía no está en la base (migración pendiente · Gate 2).
+              Aplicá <code>TenantFiscalCredential</code> para poder cargar certificados.
+            </div>
+          ) : credLoaded ? (
+            <div className="rounded-md border border-line px-3 py-2 text-sm">
+              <Badge tone="success" dot>Cargada</Badge>{" "}
+              CUIT del cert: <code>{fmtCuit(credLoaded.certCuit)}</code>
+              {certVence && <> · vence {certVence}</>}
+              <span className="block text-xs text-muted mt-1">
+                Actualizada {credLoaded.updatedAt.toISOString().slice(0, 10)}.
+              </span>
+            </div>
+          ) : (
+            <div className="rounded-md border border-line px-3 py-2 text-sm text-muted">
+              <Badge tone="info" dot>Sin credencial</Badge> Cargá primero el CUIT (Paso 1), después el certificado.
+            </div>
+          )}
+
+          {!cuitOk && credFiscal !== "pendiente" && (
+            <div role="alert" className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2">
+              Cargá el <b>CUIT (Paso 1)</b> antes del certificado: el guard compara el CUIT del cert contra el del tenant.
+            </div>
+          )}
+
+          <form action={cargarCredencialFiscal} className="space-y-3">
+            <input type="hidden" name="tenantId" value={tenant!.id} />
+            <Field label="Certificado (PEM)">
+              <Textarea
+                name="certPem"
+                rows={4}
+                required
+                placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
+                className="font-mono text-xs"
+              />
+            </Field>
+            <Field label="Clave privada (PEM)">
+              <Textarea
+                name="keyPem"
+                rows={4}
+                required
+                placeholder={"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"}
+                className="font-mono text-xs"
+              />
+            </Field>
+            <Button type="submit" variant="outline" size="sm">
+              {credLoaded ? "Rotar credencial" : "Cargar credencial"}
+            </Button>
+          </form>
+        </div>
       </Card>
 
       {/* Módulos */}
