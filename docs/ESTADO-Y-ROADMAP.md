@@ -87,7 +87,7 @@
 | 3 | **Candado 2 (facturación):** de homologación → real requiere cert productivo por tenant + `ARCA_MODO=real` | Gate 4 |
 | 4 | Revocar `app_user` BYPASSRLS + rotar secretos + PITR (pre-cobros) | Seguridad |
 | 5 | **Proteger `main` en GitHub** (branch protection) + **mirror/backup** | GitHub |
-| 6 | Deploy de sitios Magra/Shine/ADM (Gate 1) + datos reales de Magra (Gate 2) | Gate 1/2 |
+| 6 | **Cutover a producción por tenant** (salida a vivo UAT→prod): accesos reales + reset de datos de UAT + ARCA real + `TRIAL`→`ACTIVE`. Checklist: `docs/runbooks/CUTOVER-POR-TENANT.md` | Proceso |
 | 7 | Aportar los 4 HTML de diseño que faltan (Fable claro/oscuro, Editorial, Nítido) | Material |
 | 8 | Confirmar rol/pricing de Mariano y validar números comerciales | Comercial |
 

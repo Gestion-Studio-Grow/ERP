@@ -200,5 +200,6 @@ Objetivo: **minimizar conflicto** y que el core parta de una base con los invari
 - Invariantes: [ADR-064](adr/ADR-064-nucleo-transaccional-ledger-invariantes.md) · RLS: [ADR-062](adr/ADR-062-rls-pool-shared-schema-linea-base.md)/[ADR-092](adr/ADR-092-rls-enforced-en-prod.md).
 - Módulos: [ADR-054](adr/ADR-054-repositorio-de-plugins-catalogo-de-modulos.md)/[ADR-055](adr/ADR-055-principio-de-variante-objeto-maestro-asignacion.md)/[ADR-089](adr/ADR-089-nucleo-mas-modulos-instalables-por-producto.md).
 - Fiscal por tenant: [ADR-066](adr/ADR-066-credenciales-fiscales-por-tenant.md)/[ADR-093](adr/ADR-093-credenciales-fiscales-por-tenant-implementacion.md) + runbook [`docs/runbooks/arca-homologacion.md`](runbooks/arca-homologacion.md).
+- **Salida a vivo por cliente:** [`docs/runbooks/CUTOVER-POR-TENANT.md`](runbooks/CUTOVER-POR-TENANT.md) — checklist de cutover UAT→prod (accesos reales, reset de datos, ARCA real, verificación). Los 4 tenants están en **UAT**, no en prod operativa.
 
 — Elaborado por GSG

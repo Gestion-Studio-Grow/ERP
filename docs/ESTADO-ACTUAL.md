@@ -19,7 +19,7 @@ el repo/prod, gana el repo y este doc se corrige en el acto.
 > - **Gate de render visual + AA bloqueante** ([ADR-090](adr/ADR-090-gate-de-render-visual-y-calidad-de-superficie.md)): 324 defectos hallados; "lo cosmético es crítico".
 > - **Imagen por IA** como capacidad compartida multi-proveedor ([ADR-094](adr/ADR-094-generacion-de-imagenes-por-ia.md)); **fábrica de altas honesta** ([ADR-095](adr/ADR-095-fabrica-de-altas-estado-honesto.md)); **carnicería vs Bistrosoft** ([ADR-096](adr/ADR-096-rubro-carniceria-magra-vs-bistrosoft.md)).
 > - **🏛️ Gobernanza (decisión del dueño 2026-07-12):** ante incongruencia entre el modelo viejo y el **rediseño del core**, **gana SIEMPRE el core**. Única excepción **a confirmar**: no *eliminar* las garantías de integridad plata/stock (I1–I7) ni el aislamiento entre clientes (RLS) — sí cambiar su implementación. Detalle en el HANDOFF §0.bis.
-> - **👥 MAGRA, Shine y A Dos Manos son CLIENTES REALES, no trials** (igual que CH): ya tienen acceso y **están cargando datos de su ERP** (aún no en producción operativa). El `TRIAL` de la base es técnico. → los bugs de concurrencia son **severidad ALTA**, no hipotéticos (§3, §6).
+> - **👥 MAGRA, Shine y A Dos Manos son CLIENTES REALES, no trials** (igual que CH), pero el ambiente es **STAGING/UAT**, no prod operativa: ya cargan datos de su ERP. El `TRIAL` de la base es técnico. Emails ficticios/cuentas compartidas en UAT son **decisión de etapa, NO deuda**; se regularizan en el **cutover** (`docs/runbooks/CUTOVER-POR-TENANT.md`). Los bugs de concurrencia son **severidad ALTA**, no hipotéticos (§3, §6).
 > - **🖥️ La consola de operador es su propia app: `gsg-erp`** — `https://gsg-erp.vercel.app/operador/login` (200). `gsg-erp` es además el tenant propio de GSG (§3).
 > - **🔄 Reset futuro:** se resetean tablas de clientes/transaccionales; **NO** los datos maestros/config (catálogo, servicios, profesionales, branding). Transaccional reseteable; maestro sagrado (§3).
 > - **🤝 Sesión que rediseña el core en paralelo:** el mapa completo (ramas en vuelo + invariantes que no se rompen + orden de merge + regla de gobernanza) está en **[`docs/HANDOFF-CORE-REDISEÑO.md`](HANDOFF-CORE-REDISEÑO.md)**.
@@ -221,22 +221,27 @@ go-to-market + WhatsApp por capas.
 
 ## 3. Tenants
 
-> **⚠️ CORRECCIÓN DEL DUEÑO (2026-07-12): los 4 son CLIENTES REALES, no trials.** MAGRA, Shine Velas y A Dos
-> Manos **no son pruebas** — son **clientes**, igual que CH. Todavía **no están en producción operativa** pero
-> **ya tienen acceso al ambiente y están configurando los datos de su ERP**. El campo `TRIAL` en la base es
-> **técnico, no la realidad comercial** — no lo trates como "descartable". **Consecuencia dura:** los bugs de
-> concurrencia (pedido duplicado por doble-click, doble asiento de caja, sobre-devolución) **NO son
-> hipotéticos** — hay clientes cargando datos reales adentro (severidad ALTA; ver HANDOFF §5).
+> **⚠️ CORRECCIÓN DEL DUEÑO (2026-07-12): los 4 son CLIENTES REALES, no trials — pero el ambiente actual es
+> STAGING / UAT, no producción operativa.** MAGRA, Shine Velas y A Dos Manos **no son pruebas** — son
+> **clientes**, igual que CH. Todavía **no salieron en vivo**: **ya tienen acceso al ambiente de UAT y están
+> configurando los datos de su ERP**. El campo `TRIAL` en la base es **técnico, no la realidad comercial**.
+> **Consecuencia dura:** los bugs de concurrencia (pedido duplicado por doble-click, doble asiento de caja,
+> sobre-devolución) **NO son hipotéticos** — hay clientes cargando datos reales adentro (severidad ALTA; HANDOFF §5).
+>
+> **🟢 Decisión de etapa (NO es deuda ni riesgo):** en UAT los **emails ficticios** (`dueno@magra.com.ar`), las
+> **cuentas compartidas** y la **gestión informal de contraseñas** son **intencionales y correctos**. Las
+> cuentas reales, los emails reales del cliente y los datos productivos entran **en el cutover de cada tenant**
+> — checklist ejecutable en **[`docs/runbooks/CUTOVER-POR-TENANT.md`](runbooks/CUTOVER-POR-TENANT.md)**.
 
-| Tenant | Slug | Subdomain | Blueprint | Estado |
+| Tenant | Slug | Subdomain | Blueprint | Estado (UAT) |
 |---|---|---|---|---|
-| **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `chestetica` | `servicios` | ✅ **VIVO en prod** (Vercel) — `app_rls` + RLS enforced. Vidriera real sirviendo. ⚠️ **OWNER loguea con `macarenaarias21@gmail.com`** pero la titular es Carolina Haponiuk → **verificar** (§C). |
-| **Magra** (carnicería boutique) | `magra` | `magra` | `carniceria` | ✅ **Cliente real**, alta en Neon (`cmr8nncxj0000aoh7cqpn7yyg`), aislamiento verificado. **Falta deploy del sitio** (I1) + **datos reales** (Gate 2). ⚠️ **Email OWNER provisional inventado** (`dueno@magra.com.ar`) que **nunca inició sesión** → inconsistencia con "el cliente ya carga datos" (§C). |
-| **Shine Velas** | `shinevelas` | `shinevelas` | `velas` (retail) | ✅ **Cliente real**, alta en Neon (`cmr9b3b5a0000m8h7913rkvf3`), aislamiento verificado. Falta deploy + alinear vidriera (F1). ⚠️ **Email OWNER provisional, sin login** (§C). |
-| **A Dos Manos** (pádel) | `adosmanos` | `adosmanos` | `padel` (retail) | ✅ **Cliente real**, alta + conversión en Neon (`cmr9b3kij0000fkh73ax0d85h`, 20 productos), aislamiento verificado. Falta deploy + alinear vidriera (F1). ⚠️ **Email OWNER provisional, sin login** (§C). |
+| **CH Estética** (Carolina Haponiuk) | `beauty-spa` | `chestetica` | `servicios` | ✅ Sitio sirviendo en Vercel — `app_rls` + RLS enforced. OWNER de UAT `macarenaarias21@gmail.com` (se pasa al email real de la titular en el cutover). |
+| **Magra** (carnicería boutique) | `magra` | `magra` | `carniceria` | ✅ **Cliente en UAT**, alta en Neon (`cmr8nncxj0000aoh7cqpn7yyg`), aislamiento verificado. Falta deploy del sitio (I1). OWNER de UAT provisional (real en el cutover). |
+| **Shine Velas** | `shinevelas` | `shinevelas` | `velas` (retail) | ✅ **Cliente en UAT**, alta en Neon (`cmr9b3b5a0000m8h7913rkvf3`), aislamiento verificado. Falta deploy + alinear vidriera (F1). OWNER de UAT provisional. |
+| **A Dos Manos** (pádel) | `adosmanos` | `adosmanos` | `padel` (retail) | ✅ **Cliente en UAT**, alta + conversión en Neon (`cmr9b3kij0000fkh73ax0d85h`, 20 productos), aislamiento verificado. Falta deploy + alinear vidriera (F1). OWNER de UAT provisional. |
 
-**4 tenants provisionados** con aislamiento (policy + RLS 43/43) verificado. **Solo CH tiene sitio deployado**;
-Magra/Shine/ADM esperan deploy (Gate 1). Migración `control_plane_tenant` (columna `subdomain`) aplicada.
+**4 tenants provisionados** con aislamiento (policy + RLS 43/43) verificado, **en UAT**. Solo CH tiene sitio
+deployado; Magra/Shine/ADM esperan deploy (Gate 1). La salida a vivo de cada uno = **cutover** (runbook).
 
 **🖥️ Consola de operador (plano de plataforma) = su propia app `gsg-erp`** (verificado en vivo 2026-07-12):
 `https://gsg-erp.vercel.app/operador/login` → 200; `/operador/alta` → 307 → login (bien gateada). `gsg-erp`
@@ -300,9 +305,8 @@ sandbox). No se toca unilateralmente — requiere decisión de arquitectura ante
   (coordinar con el rediseño del core — ver `docs/HANDOFF-CORE-REDISEÑO.md` §5).
 - **Loaders `/admin` sin filtro `tenantId` explícito (A-3):** latente, RLS los cubre (no es fuga viva);
   agregar el predicado al reescribir loaders.
-- **Cuentas OWNER inconsistentes** (§C·I9): CH loguea con `macarenaarias21@gmail.com` (titular = Carolina);
-  MAGRA/Shine/ADM con emails provisionales que nunca loguearon. Sin cuenta real por cliente, la auditoría no
-  identifica **quién** hizo cada cosa.
+- **(NO es deuda) Cuentas/emails provisionales en UAT** = decisión de etapa; se regularizan en el **cutover**
+  (`docs/runbooks/CUTOVER-POR-TENANT.md`), no antes.
 - **QA end-to-end 2026-07-07 (`docs/calidad/reporte-qa-productos-2026-07-07.md`):**
   - **A-1** (CH: equipo con servicios idénticos) → ✅ **RESUELTO** (fix de dato en prod con OK, patrón DX-7).
   - **M-1** (Magra: footer genérico) → ✅ **RESUELTO** (código, reversible).
@@ -432,7 +436,7 @@ elevan** (§C), no se corren.
 | **I6** | ~~Destino del oversell fix de `calidad`~~ → ✅ **CERRADO, VERIFICADO (2026-07-08):** ya estaba cherry-pickeado en la rama desde el 2026-07-05 (`a290cb8`/`82b1a00`) y sobrevivió intacto el refactor de ledger F1b (único mutador de `Product.stock`, misma guarda anti-oversell). No había nada que recuperar ni decidir — el ítem era un remanente desactualizado del doc. | — (cerrado, sin acción) | stock-lite destrabado para "M2 terminado" |
 | **I7** | **Material real de Shine y A Dos Manos** (bio/about, catálogo+precios reales, testimonios reales de IG/WhatsApp) o **acceso IG** — hoy el copy DX-5 quedó **provisional** (fuentes IG login-walled; sin web/TiendaNube pública) | acción dueño (aportar material) | cierra el copy DX-5 exacto de Shine/ADM (hoy provisional) + repone reseñas reales; con la autorización I8 ya otorgada, esto es lo único que falta para "forma final" |
 | **I8** | ~~Autorización de marca (ADR-042) de Shine/ADM~~ → ✅ **OTORGADA por el dueño 2026-07-07**. **Gap que detectó F1:** el copy de Shine ya está en `main` **landeado antes** de la verificación y con reviews aparentemente inventadas → regularizar con material real (I7). | acción dueño (autorización) — **hecha** | desbloqueó el A2; el DX-5 fiel queda ahora atado solo a I7 (material real). Ver `docs/estrategia/F1-vidrieras-calibracion-y-gate-adr042.md` |
-| **I9** ⚠️ **NUEVO** | **Cuentas OWNER reales por cliente (trazabilidad/auditoría).** (a) **CH:** el OWNER loguea con `macarenaarias21@gmail.com` pero la titular es **Carolina Haponiuk** → verificar de quién es la cuenta. (b) **MAGRA/Shine/ADM:** los OWNER tienen **emails provisionales inventados** (`dueno@magra.com.ar`) que **nunca iniciaron sesión** — pero el dueño dice que los clientes **ya cargan datos**: **inconsistencia** (si cargan, es con otra cuenta). | acción dueño (verificar/crear cuentas) | **cada cliente con su email real y su propia cuenta**, o la auditoría (`actor` en el audit trail, ADR-017) no sirve — no se sabe **quién** hizo cada cosa |
+| **I9** | **Cutover a producción por tenant** (salida a vivo). No es deuda: es la **etapa siguiente** del ciclo UAT→prod. Incluye email/cuentas reales del cliente, reset de datos de UAT (transaccional, no maestro), CUIT + cert real + ARCA `real`, `TRIAL`→`ACTIVE`, plan/precio, y verificación final. | proceso dueño+sistema (irreversibles marcados) | convierte "4 clientes en UAT" en "salida a vivo sin romper nada" — checklist ejecutable en **`docs/runbooks/CUTOVER-POR-TENANT.md`** |
 
 > Los secretos los **pega SIEMPRE el dueño** (FASE 2, ADR-041); las migraciones quedan como **carpeta sin
 > aplicar**; nada de §C se corre solo.
