@@ -3,6 +3,7 @@ import { login } from "@/lib/auth-actions";
 import { Field, Input, buttonClasses } from "@/components/ui";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
+import { getProductoContexto } from "@/lib/producto";
 import AdminThemeScript from "../AdminThemeScript";
 import type { CSSProperties } from "react";
 
@@ -25,13 +26,26 @@ export default async function LoginPage({
 }) {
   const { next, error } = await searchParams;
   const brand = await getTenantBrand();
+  // IDENTIDAD POR PRODUCTO (frente identidad-por-producto): el login debe CORRESPONDER
+  // al producto, no caer en el "Mi negocio" genérico. Para Comerciante/Contador/Facturita
+  // la marca, el copy y el acento salen de la identidad del producto; para el ERP vertical
+  // (chestetica/magra) `identidad` es null → todo cae a la marca del tenant, byte-idéntico
+  // a lo de antes.
+  const { identidad } = await getProductoContexto();
   // Skin Fable (mismo criterio que el layout del admin): el tema lo decide el
   // usuario/sistema, no la regla front/back. Se inyectan los DOS tonos del acento
   // del tenant (nunca `--accent` inline: le ganaría al CSS y el tema no fliparía).
-  // El color del equipo elegido en /admin/apariencia también aplica acá.
-  const preset = (await getTeamAccentPreset()) ?? brand.preset;
+  // El color del equipo elegido en /admin/apariencia SIEMPRE gana; si no, el del
+  // producto; si tampoco (vertical), el del branding del tenant.
+  const preset = (await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset;
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
+
+  // Marca + copy de la pantalla: del producto si lo hay; del tenant (legado) si no.
+  const marcaNombre = identidad?.nombre ?? brand.name;
+  const marcaMonograma = identidad?.monograma ?? brand.monogram;
+  const tituloLogin = identidad?.login.titulo ?? "Ingresá a tu panel";
+  const subtituloLogin = identidad?.login.subtitulo ?? "Con el email y la contraseña de tu cuenta.";
 
   return (
     <main
@@ -52,15 +66,28 @@ export default async function LoginPage({
       <AdminThemeScript />
 
       <div className="w-full max-w-sm">
-        {/* Marca del tenant: monograma sobre su acento + nombre. Centrado, con aire. */}
+        {/* Marca del producto (o del tenant, en verticales): monograma sobre su acento,
+            con un halo suave del acento detrás — primera impresión a la altura del producto,
+            sin ruido. Eyebrow + tagline solo cuando hay identidad de producto. */}
         <div className="mb-6 flex flex-col items-center text-center">
-          <span
-            aria-hidden
-            className="grid h-12 w-12 place-items-center rounded-xl bg-accent text-lg font-bold text-on-accent shadow-sm"
-          >
-            {brand.monogram}
+          {identidad && (
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.14em] text-accent">
+              {identidad.login.eyebrow}
+            </p>
+          )}
+          <span className="relative grid h-12 w-12 place-items-center">
+            <span
+              aria-hidden
+              className="absolute inset-0 rounded-xl bg-accent opacity-20 blur-lg"
+            />
+            <span
+              aria-hidden
+              className="relative grid h-12 w-12 place-items-center rounded-xl bg-accent text-lg font-bold text-on-accent shadow-sm"
+            >
+              {marcaMonograma}
+            </span>
           </span>
-          <p className="mt-3 text-sm font-medium text-muted">{brand.name}</p>
+          <p className="mt-3 text-sm font-medium text-muted">{marcaNombre}</p>
         </div>
 
         {/* Card del login: superficie elevada sobre el canvas, borde --line,
@@ -70,10 +97,10 @@ export default async function LoginPage({
           className="rounded-xl border border-line bg-surface-raised p-6 shadow-sm sm:p-8"
         >
           <h1 id="login-titulo" className="text-xl font-semibold tracking-tight text-strong">
-            Ingresá a tu panel
+            {tituloLogin}
           </h1>
           <p className="mt-1 mb-6 text-sm text-muted">
-            Con el email y la contraseña de tu cuenta.
+            {subtituloLogin}
           </p>
 
           {error === "throttled" ? (
@@ -122,6 +149,11 @@ export default async function LoginPage({
             </button>
           </form>
         </section>
+
+        {/* Tagline del producto — cierra la primera impresión. Solo con identidad. */}
+        {identidad && (
+          <p className="mt-5 text-center text-sm text-muted">{identidad.tagline}</p>
+        )}
 
         {/* Sello GSG, discreto: el tenant conserva su marca; GSG firma detrás. */}
         <p className="mt-6 text-center text-xs text-faint">

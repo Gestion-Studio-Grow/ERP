@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requestIp } from "@/lib/audit";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
+import { getProductoContexto } from "@/lib/producto";
+import { productoHome, rutaPermitidaParaProducto } from "@/lib/producto-identidad";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -52,7 +54,14 @@ export async function login(formData: FormData) {
     maxAge: 60 * 60 * 8,
   });
 
-  redirect(next.startsWith("/admin") ? next : "/admin");
+  // RUTEO POST-LOGIN POR PRODUCTO (frente identidad-por-producto): cada producto entra a
+  // SU casa (Comerciante → /admin, Contador → /contador, Facturita → /facturita/app; el ERP
+  // vertical → /admin, como siempre). Se honra un `next` explícito SOLO si cae en el área
+  // del producto (no se manda un usuario de Facturita al /admin de otro producto).
+  const { producto } = await getProductoContexto();
+  const home = productoHome(producto);
+  const dest = next !== "/admin" && rutaPermitidaParaProducto(producto, next) ? next : home;
+  redirect(dest);
 }
 
 export async function logout() {

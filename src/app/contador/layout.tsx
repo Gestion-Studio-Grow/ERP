@@ -10,6 +10,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
+import { getProductoContexto } from "@/lib/producto";
 import AdminThemeScript from "../admin/AdminThemeScript";
 
 export const metadata: Metadata = {
@@ -22,7 +23,9 @@ export const metadata: Metadata = {
 
 export default async function ContadorLayout({ children }: { children: React.ReactNode }) {
   const brand = await getTenantBrand();
-  const preset = (await getTeamAccentPreset()) ?? brand.preset;
+  // Acento del producto Contador (verde) salvo que el estudio haya elegido color de equipo.
+  const { identidad } = await getProductoContexto();
+  const preset = (await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset;
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
 

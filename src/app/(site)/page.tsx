@@ -7,6 +7,7 @@ import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { resolveRubroIdBySlug, RETAIL_RUBRO_IDS } from "@/blueprints/retail";
 import { getBrandSheet } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
+import { getProductoActual } from "@/lib/producto";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
@@ -49,6 +50,16 @@ const TEAM_PHOTOS: Record<string, { src: string; rotate?: number }> = {
 };
 
 export default async function Home() {
+  // ENTRADA POR PRODUCTO (frente identidad-por-producto): los productos de facturación NO
+  // tienen vidriera pública — su raíz no debe mostrar la landing de estética de CH (que estaba
+  // "hardcodeada", como marcó el dueño). Comerciante y Contador entran por un LOGIN diseñado
+  // que corresponde al producto (/admin/login ya resuelve su identidad); Facturita tiene su
+  // propia landing de marketing (/facturita). El ERP vertical (chestetica/magra/retail) NO
+  // entra acá → sigue con su vidriera de siempre. Fail-open dentro de getProductoActual.
+  const producto = await getProductoActual();
+  if (producto === "comerciante" || producto === "contador") redirect("/admin/login");
+  if (producto === "facturita") redirect("/facturita");
+
   // Root `/` consciente del blueprint del tenant (runbook alta-magra.md §Paso 4 · ESTADO-ACTUAL §6):
   // un tenant Retail/Mostrador (Magra y rubros de src/blueprints/retail) NO debe ver la landing de
   // estética de CH — su home ES la vidriera (`/tienda`). Se resuelve por el mismo mapa slug→rubro que

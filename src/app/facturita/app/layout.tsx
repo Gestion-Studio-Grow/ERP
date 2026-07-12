@@ -8,6 +8,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
+import { getProductoContexto } from "@/lib/producto";
 import AdminThemeScript from "../../admin/AdminThemeScript";
 import ThemeToggle from "../../admin/(dashboard)/ThemeToggle";
 
@@ -26,9 +27,13 @@ const TABS = [
 
 export default async function FacturitaLayout({ children }: { children: React.ReactNode }) {
   const brand = await getTenantBrand();
-  const preset = (await getTeamAccentPreset()) ?? brand.preset;
+  // Identidad del producto Facturita: el nombre/acento salen del producto, no del branding
+  // legado (que caería en "Mi negocio"). Si el tenant eligió color de equipo, ese gana.
+  const { identidad } = await getProductoContexto();
+  const preset = (await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset;
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
+  const nombreProducto = identidad?.nombre ?? brand.name ?? "Facturita";
 
   return (
     <div
@@ -49,7 +54,7 @@ export default async function FacturitaLayout({ children }: { children: React.Re
       <header className="sticky top-0 z-40 border-b border-line bg-surface/80 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-3 sm:px-6">
           <span className="text-sm font-semibold tracking-tight text-strong">
-            {brand.name || "Facturita"}
+            {nombreProducto}
           </span>
           <nav aria-label="Secciones" className="flex gap-1">
             {TABS.map((t) => (
