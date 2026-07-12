@@ -7,7 +7,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { bookingTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
-import { getAvailableSlots } from "@/lib/actions";
+import { getAvailableSlotsForProfessionals } from "@/lib/actions";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 
 const WAITLIST_PATH = "/admin/espera";
@@ -154,15 +154,19 @@ export async function findSlotsForWaitlistEntry(entryId: string, date: string) {
     select: { id: true, name: true },
   });
 
-  const results = await Promise.all(
-    professionals.map(async (p) => ({
-      professionalId: p.id,
-      professionalName: p.name,
-      slots: await getAvailableSlots(p.id, entry.serviceId, date),
-    }))
+  // Disponibilidad de TODOS los candidatos en una sola pasada batcheada (perf):
+  // antes se llamaba `getAvailableSlots` por profesional (~7 queries × N); ahora
+  // los datos compartidos se leen una vez y turnos/bloqueos de todos se traen con
+  // un `IN` → ~8 queries constantes, mismas franjas ofrecidas.
+  const byPro = await getAvailableSlotsForProfessionals(
+    professionals.map((p) => p.id),
+    entry.serviceId,
+    date
   );
   // Solo devolvemos profesionales que tienen al menos un hueco ese día.
-  return results.filter((r) => r.slots.length > 0);
+  return professionals
+    .map((p) => ({ professionalId: p.id, professionalName: p.name, slots: byPro[p.id] ?? [] }))
+    .filter((r) => r.slots.length > 0);
 }
 
 // Convierte un anotado en un turno real. Hace el upsert del Client por teléfono

@@ -178,6 +178,148 @@ export async function getAvailableSlotsRange(
   return { ...result, ...computed };
 }
 
+// Franjas libres de VARIOS profesionales para UNA fecha, de una sola pasada (perf).
+// Mismo espíritu que `getAvailableSlotsRange` pero batcheando la dimensión
+// PROFESIONAL en vez de la dimensión DÍA: la lista de espera ("buscar huecos para
+// un anotado sin profesional fijo") llamaba `getAvailableSlots` por profesional →
+// ~7 queries × N profesionales. Acá los datos compartidos por todos (servicio +
+// recursos del servicio) se leen UNA vez, y turnos/bloqueos/horarios de TODOS los
+// profesionales se traen en una query cada uno (predicado `IN`) y se reparten por
+// profesional en memoria con EXACTAMENTE los mismos predicados que la versión
+// por-profesional. Resultado: ~8 queries constantes en vez de ~7·N, sin cambiar
+// qué franjas se ofrecen. Devuelve professionalId → franjas ISO.
+export async function getAvailableSlotsForProfessionals(
+  professionalIds: string[],
+  serviceId: string,
+  date: string,
+  excludeAppointmentId?: string
+): Promise<Record<string, string[]>> {
+  const result: Record<string, string[]> = {};
+  const uniquePros = [...new Set(professionalIds)];
+  for (const id of uniquePros) result[id] = [];
+  if (uniquePros.length === 0) return result;
+
+  // Datos compartidos por TODOS los profesionales: el servicio y los recursos que
+  // consume no dependen del profesional → una sola lectura. Los profesionales se
+  // traen juntos (necesitamos su `boxId`) y los horarios de todos en una query.
+  const [service, serviceResources, professionals, workingHours] = await Promise.all([
+    prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
+    prisma.serviceResource.findMany({ where: { serviceId }, include: { resource: true } }),
+    prisma.professional.findMany({ where: { id: { in: uniquePros } }, select: { id: true, boxId: true } }),
+    prisma.workingHours.findMany({ where: { professionalId: { in: uniquePros } } }),
+  ]);
+  const resourceIds = serviceResources.map((sr) => sr.resourceId);
+  const dow = dayOfWeekForDate(date);
+  const hoursByPro = new Map<string, { startTime: string; endTime: string }>();
+  for (const h of workingHours) {
+    if (h.dayOfWeek === dow) hoursByPro.set(h.professionalId, { startTime: h.startTime, endTime: h.endTime });
+  }
+  const boxIds = professionals.map((p) => p.boxId).filter((b): b is string => !!b);
+
+  // Ventana (UTC) de cada profesional ESE día; los que no trabajan quedan con [].
+  const proWindow = new Map<string, { dayStart: Date; dayEnd: Date }>();
+  for (const p of professionals) {
+    const hours = hoursByPro.get(p.id);
+    if (!hours) continue;
+    proWindow.set(p.id, {
+      dayStart: businessWallTimeToUtc(date, hours.startTime),
+      dayEnd: businessWallTimeToUtc(date, hours.endTime),
+    });
+  }
+  if (proWindow.size === 0) return result;
+
+  // Cota global (unión de las ventanas de los profesionales que trabajan ese día).
+  let rangeStart = Infinity;
+  let rangeEnd = -Infinity;
+  for (const { dayStart, dayEnd } of proWindow.values()) {
+    rangeStart = Math.min(rangeStart, dayStart.getTime());
+    rangeEnd = Math.max(rangeEnd, dayEnd.getTime());
+  }
+  const minStart = new Date(rangeStart);
+  const maxEnd = new Date(rangeEnd);
+  const notSelf = excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {};
+
+  const [existing, boxBlocks, professionalBlocks, resourceUsage] = await Promise.all([
+    // Turnos del rango de CUALQUIER profesional consultado o de sus boxes. Se
+    // reparten por profesional en memoria (profesional propio + su box).
+    prisma.appointment.findMany({
+      where: {
+        ...notSelf,
+        status: { in: ["PENDING", "CONFIRMED"] },
+        startsAt: { gte: minStart, lt: maxEnd },
+        OR: [
+          { professionalId: { in: uniquePros } },
+          ...(boxIds.length > 0 ? [{ boxId: { in: boxIds } }] : []),
+        ],
+      },
+      select: { startsAt: true, endsAt: true, professionalId: true, boxId: true },
+    }),
+    boxIds.length > 0
+      ? prisma.boxBlock.findMany({
+          where: { boxId: { in: boxIds }, startsAt: { lt: maxEnd }, endsAt: { gt: minStart } },
+          select: { boxId: true, startsAt: true, endsAt: true },
+        })
+      : Promise.resolve([]),
+    prisma.professionalBlock.findMany({
+      where: { professionalId: { in: uniquePros }, startsAt: { lt: maxEnd }, endsAt: { gt: minStart } },
+      select: { professionalId: true, startsAt: true, endsAt: true },
+    }),
+    // Uso de recursos compartidos: es global al tenant (no por profesional), igual
+    // que en la versión por-profesional → se lee una sola vez.
+    resourceIds.length > 0
+      ? prisma.appointment.findMany({
+          where: {
+            ...notSelf,
+            status: { in: ["PENDING", "CONFIRMED"] },
+            startsAt: { gte: minStart, lt: maxEnd },
+            service: { resources: { some: { resourceId: { in: resourceIds } } } },
+          },
+          select: {
+            startsAt: true,
+            endsAt: true,
+            service: {
+              select: { resources: { where: { resourceId: { in: resourceIds } }, select: { resourceId: true, units: true } } },
+            },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const requiredResources = serviceResources.map((sr) => ({
+    resourceId: sr.resourceId,
+    units: sr.units,
+    quantity: sr.resource.quantity,
+  }));
+  const sharedResourceUsage = resourceUsage.map((a) => ({
+    startsAt: a.startsAt,
+    endsAt: a.endsAt,
+    resources: a.service.resources,
+  }));
+
+  // Genera franjas por profesional reusando EXACTAMENTE la lógica pura por-día,
+  // con los turnos/bloqueos ya filtrados a ese profesional (propio + su box).
+  for (const p of professionals) {
+    const window = proWindow.get(p.id);
+    if (!window) continue;
+    const proExisting = existing.filter((a) => a.professionalId === p.id || (p.boxId && a.boxId === p.boxId));
+    const proBoxBlocks = p.boxId ? boxBlocks.filter((b) => b.boxId === p.boxId) : [];
+    const proBlocks = professionalBlocks.filter((b) => b.professionalId === p.id);
+    const computed = generateSlotsForDays({
+      windows: [{ date, dayStart: window.dayStart, dayEnd: window.dayEnd }],
+      durationMin: service.durationMin,
+      stepMin: 30,
+      bufferMin: BUFFER_MIN,
+      busyAppointments: proExisting.map((a) => ({ startsAt: a.startsAt, endsAt: a.endsAt })),
+      boxBlocks: proBoxBlocks.map((b) => ({ startsAt: b.startsAt, endsAt: b.endsAt })),
+      professionalBlocks: proBlocks.map((b) => ({ startsAt: b.startsAt, endsAt: b.endsAt })),
+      resourceUsage: sharedResourceUsage,
+      requiredResources,
+    });
+    result[p.id] = computed[date] ?? [];
+  }
+  return result;
+}
+
 type BookingStatus = "PENDING" | "CONFIRMED";
 
 async function bookAppointment({
