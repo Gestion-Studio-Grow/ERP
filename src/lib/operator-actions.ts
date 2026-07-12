@@ -24,6 +24,7 @@ import { modulosBaseParaAlta } from "@/lib/provisioning/adapters";
 import { requestIp } from "@/lib/audit";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
+import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -173,6 +174,54 @@ export async function setTenantSubdomain(formData: FormData) {
   }
   await updateTenant(tenantId, { subdomain });
   redirect(`/operador/tenants/${tenantId}?ok=link`);
+}
+
+// --- CUIT del emisor por tenant (ADR-066) -------------------------------------
+// Setea/limpia `Tenant.arcaCuit`. Va ANTES del certificado: el guard fail-closed
+// compara el CUIT del subject del cert contra este valor (al cargar el cert y al
+// firmar). Acción de operador, AUDITADA. Valida dígito verificador (no solo forma).
+export async function setTenantArcaCuit(formData: FormData) {
+  const op = await requireOperator();
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const raw = String(formData.get("arcaCuit") || "");
+
+  const parsed = interpretarCuitInput(raw);
+  if (parsed.accion === "error") {
+    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(parsed.motivo)}`);
+  }
+  const nuevoCuit = parsed.accion === "set" ? parsed.cuit : null;
+
+  // Coherencia con el guard: si ya hay un cert cargado de OTRO CUIT, ese cert queda
+  // inservible (la firma lo va a rechazar). Se avisa en el mensaje, sin romper.
+  let aviso = "";
+  try {
+    const cred = await operatorPrisma.tenantFiscalCredential.findUnique({
+      where: { tenantId },
+      select: { certCuit: true },
+    });
+    if (cred && nuevoCuit && cred.certCuit !== nuevoCuit) {
+      aviso =
+        ` — ojo: el certificado cargado es del CUIT ${cred.certCuit}. ` +
+        `Volvé a cargar el cert de ${nuevoCuit} o no va a poder firmar.`;
+    }
+  } catch {
+    // Tabla de credenciales todavía sin aplicar (Gate 2): no hay cert que chequear.
+  }
+
+  await operatorPrisma.tenant.update({ where: { id: tenantId }, data: { arcaCuit: nuevoCuit } });
+  await operatorPrisma.auditLog.create({
+    data: {
+      tenantId,
+      actor: `operator:${op}`,
+      action: nuevoCuit ? "fiscal.cuit.set" : "fiscal.cuit.clear",
+      entity: "Tenant",
+      entityId: tenantId,
+      changes: { arcaCuit: nuevoCuit },
+    },
+  });
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  const msg = nuevoCuit ? `CUIT del emisor guardado (${nuevoCuit})${aviso}` : "CUIT del emisor borrado";
+  redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(msg)}`);
 }
 
 // --- Credencial fiscal ARCA por tenant (ADR-066) ------------------------------
