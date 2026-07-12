@@ -1,12 +1,25 @@
 import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
 import Link from "next/link";
-import { fmtTime } from "@/lib/datetime";
+import { fmtTime, fmtDateTimeAr } from "@/lib/datetime";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability } from "@/lib/capabilities";
+import { roleHasCapability, type Role } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { getActiveModuleIds } from "@/lib/module-gating";
 import { dashboardModeForModules } from "@/lib/dashboard-mode";
-import { buttonClasses, KpiTile, fmtMoneyARS } from "@/components/ui";
+import { getProductoActual } from "@/lib/producto";
+import { kpisFacturacionAction } from "@/lib/bancos-actions";
+import type { KpisFacturacionBancaria } from "@/lib/bancos-glue";
+import { getFacturacion, type EstadoFiscal } from "@/lib/facturacion-actions";
+import ArcaPill from "./facturacion/bancos/ArcaPill";
+import {
+  buttonClasses,
+  KpiTile,
+  fmtMoneyARS,
+  fmtNumberAR,
+  PageContainer,
+  PageHeader,
+  SectionGroup,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +32,7 @@ const KPI_ICONS: Record<string, React.ReactNode> = {
   cliente: (<><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" /></>),
   caja: (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M8 15h3" /></>),
   alerta: (<><path d="M12 3l9 16H3z" /><path d="M12 10v4M12 17h.01" /></>),
+  factura: (<><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6M9 11h6M9 15h4" /></>),
 };
 
 function KpiIcon({ name }: { name: keyof typeof KPI_ICONS }) {
@@ -101,7 +115,27 @@ async function RetailHome({ canSeeRevenue }: { canSeeRevenue: boolean }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// INICIO POR PRODUCTO (frente identidad-por-producto). El Inicio del backoffice
+// deja de ser SIEMPRE la vidriera de estética/agenda: cada producto ve un Inicio
+// COHERENTE con lo que es. La `page` elige por producto (getProductoActual):
+//   - "comerciante" → Inicio de FACTURACIÓN (KPIs de facturación + estado ARCA +
+//                     accesos a la facturación automática). Sin turnos ni agenda.
+//   - "vertical"    → el dashboard de agenda de siempre (`InicioVertical`), BYTE-
+//                     idéntico para chestetica/magra/etc.
+//   - "contador"/"facturita" → el layout ya los redirigió a su casa; si por algún
+//                     borde llegan acá, caen al Inicio vertical (genérico y seguro).
+// ─────────────────────────────────────────────────────────────────────────────
 export default async function DashboardPage() {
+  const producto = await getProductoActual();
+  if (producto === "comerciante") return <InicioComerciante />;
+  return <InicioVertical />;
+}
+
+// Inicio del ERP VERTICAL (servicios/agenda o mostrador/retail) — el dashboard de
+// SIEMPRE, movido tal cual a su propia función para no tocar su comportamiento. La
+// salida es byte-idéntica a la anterior para los verticales.
+async function InicioVertical() {
   const user = await requireCapability("dashboard:read");
   // Ingresos = dato financiero: solo quien puede ver reportes (OWNER). La
   // recepción ve el resto del dashboard sin la cifra de facturación.
@@ -220,5 +254,128 @@ export default async function DashboardPage() {
         ))}
       </section>
     </main>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INICIO DEL COMERCIANTE — Inicio de FACTURACIÓN, no la vidriera de un spa.
+// Reusa la MISMA data que la pantalla de Facturación automática (kpisFacturacionAction
+// / kpisFacturacionBancaria) y el MISMO estado ARCA (getFacturacion + ArcaPill),
+// sin consultas nuevas ni tocar la lógica del motor (bancos/MP/ARCA) — solo lectura.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ORIGEN_IMPORTACION_LABEL: Record<string, string> = {
+  banco: "Extracto del banco",
+  mercadopago: "Mercado Pago",
+};
+
+async function InicioComerciante() {
+  const user = await requireCapability("dashboard:read");
+  // Solo quien puede facturar (OWNER) carga estado fiscal + KPIs: las actions exigen
+  // `billing:manage` y su redirect, estando ya en /admin, haría loop. Una recepción de
+  // Comerciante (borde raro) ve un Inicio simple, sin las cifras de facturación.
+  const canBill = roleHasCapability(user.role, "billing:manage");
+
+  let estado: EstadoFiscal | null = null;
+  let kpis: KpisFacturacionBancaria | null = null;
+  // La migración de bancos puede no estar aplicada todavía (Gate 2): sus tablas de
+  // importación no existen y los KPIs no cargan. En ese caso mostramos el estado honesto
+  // + el camino, sin tumbar el Inicio (mismo criterio defensivo que la pantalla de bancos).
+  let baseSinAplicar = false;
+  if (canBill) {
+    estado = (await getFacturacion()).estado;
+    try {
+      kpis = await kpisFacturacionAction();
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code === "P2021" || code === "P2022") baseSinAplicar = true;
+      else throw e;
+    }
+  }
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Inicio"
+        badge={estado ? <ArcaPill estado={estado} /> : undefined}
+        description="Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo."
+        actions={
+          canBill ? (
+            <Link href="/admin/facturacion/bancos" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
+              Subir extracto
+            </Link>
+          ) : undefined
+        }
+      />
+
+      {!canBill ? (
+        <p className="text-sm text-muted">
+          Tu usuario no tiene permiso de facturación. Pedile al dueño del negocio que te habilite
+          para ver el tablero de facturación.
+        </p>
+      ) : baseSinAplicar || !kpis ? (
+        <div role="status" className="rounded-xl border border-line bg-surface-raised p-5 text-sm text-muted shadow-xs">
+          <p className="mb-2 font-semibold text-strong">Tu facturación automática está por arrancar.</p>
+          <p className="mb-4">
+            Subí el extracto de tu banco o conectá Mercado Pago y el sistema arma las facturas solo:
+            detecta las columnas, separa lo que no se factura y te pide una mano solo cuando hace falta.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/facturacion/bancos" className={buttonClasses("solid", "sm")}>Subir extracto</Link>
+            <Link href="/admin/facturacion/bancos" className={buttonClasses("outline", "sm")}>Conectar Mercado Pago</Link>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-xl">
+            <Kpi label="Facturado del mes" value={fmtMoneyARS(kpis.montoFacturadoMes, 0)} href="/admin/facturacion" icon="barras" />
+            <Kpi label="Facturas emitidas" value={`${fmtNumberAR(kpis.facturasMes)} / ${fmtNumberAR(kpis.capFacturasMes)}`} href="/admin/facturacion" icon="factura"
+              sub={`${fmtNumberAR(kpis.capRestante)} disponibles este mes`} />
+            <Kpi label="Pendientes de revisión" value={fmtNumberAR(kpis.pendientesRevision)} href="/admin/facturacion/bancos#cola-revision" icon="alerta"
+              sub={kpis.pendientesRevision > 0 ? "necesitan tus datos" : "todo al día"} />
+            <Kpi label="Listas para emitir" value={fmtNumberAR(kpis.listasParaEmitir)} href="/admin/facturacion/bancos" icon="reloj"
+              sub={kpis.listasParaEmitir > 0 ? "en un clic" : undefined} />
+          </div>
+
+          <SectionGroup
+            title="Facturación automática"
+            description="Subí el extracto de tu banco o conectá Mercado Pago: el sistema detecta las columnas, separa lo que no se factura y arma las facturas solo."
+          >
+            <div className="flex flex-wrap gap-2">
+              <Link href="/admin/facturacion/bancos" className={buttonClasses("solid", "sm")}>Subir extracto</Link>
+              <Link href="/admin/facturacion/bancos" className={buttonClasses("outline", "sm")}>Conectar Mercado Pago</Link>
+              <Link href="/admin/facturacion" className={buttonClasses("ghost", "sm")}>Ver facturas emitidas</Link>
+            </div>
+          </SectionGroup>
+
+          <section className="rounded-xl border border-line bg-surface-raised shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
+              <h2 className="text-[15px] font-semibold text-strong">Últimas importaciones</h2>
+              <Link href="/admin/facturacion/bancos" className="text-[13px] font-medium text-accent hover:underline">Ver facturación automática →</Link>
+            </div>
+            {kpis.ultimasImportaciones.length === 0 ? (
+              <p className="text-sm text-muted px-5 py-6">
+                Todavía no subiste ningún extracto. El primero se importa desde “Subir extracto”.
+              </p>
+            ) : (
+              kpis.ultimasImportaciones.map((imp, i) => (
+                <Link
+                  key={imp.id}
+                  href="/admin/facturacion/bancos"
+                  className={`flex items-center gap-4 px-5 py-3.5 text-sm hover:bg-surface-sunken transition-colors ${i > 0 ? "border-t border-line" : ""}`}
+                >
+                  <span className="flex-1 min-w-0">
+                    <span className="block truncate font-semibold text-strong">{imp.nombreArchivo}</span>
+                    <span className="text-[13px] text-muted">{ORIGEN_IMPORTACION_LABEL[imp.origen] ?? imp.origen}</span>
+                  </span>
+                  <span className="whitespace-nowrap text-[13px] tabular-nums text-muted">{fmtNumberAR(imp.totalMovimientos)} mov.</span>
+                  <span className="whitespace-nowrap text-[13px] tabular-nums text-faint">{fmtDateTimeAr(imp.createdAt)}</span>
+                </Link>
+              ))
+            )}
+          </section>
+        </>
+      )}
+    </PageContainer>
   );
 }

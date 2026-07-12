@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
-import { roleHasCapability, type Capability, type Role } from "@/lib/capabilities";
+import { roleHasCapability, type Role } from "@/lib/capabilities";
 import { moduleGateAllows } from "@/modules/gating";
 import { perfilGateAllows, type Perfil } from "@/modules/perfil";
-import { NAV_ITEM_GROUPS, readyEnterpriseNavItems, groupNavItems, type NavGroupId } from "@/modules/nav-groups";
+import { NAV_ITEM_GROUPS, readyEnterpriseNavItems, groupNavItems } from "@/modules/nav-groups";
+import { ALL_ITEMS, type ShellItem } from "@/lib/admin-nav-items";
 import { ProfileBadge } from "@/components/ui";
 import ThemeToggle from "./ThemeToggle";
 
@@ -46,37 +47,10 @@ function Icon({ name }: { name: string }) {
   );
 }
 
-// Cada ítem declara la capacidad que lo habilita; se filtra por el rol del
-// usuario. Ocultar acá es UX (ADR-017 §2.e) — la seguridad real la aplican los
-// guardas server-side (`requireCapability`) en cada loader/acción.
-// `module` (opcional) ata el ítem a un módulo del catálogo (src/modules): cuando el
-// gating está encendido (flag), el ítem se esconde si ese módulo está apagado para el
-// tenant. Los ítems SIN `module` son core/config (Dashboard, Ajustes, Usuarios, la
-// propia vidriera de Módulos…) y nunca se gatean por módulo — solo por rol.
-// `perfilMin`/`grupo` son opcionales: los 17 ítems base no los traen (viven en el set
-// Comercio y su grupo lo resuelve `NAV_ITEM_GROUPS`); los ítems Empresa
-// (`ENTERPRISE_NAV_ITEMS`) sí, para gatearse por perfil y caer en su grupo.
-type ShellItem = { href: string; label: string; icon: string; exact?: boolean; cap: Capability; module?: string; perfilMin?: Perfil; grupo?: NavGroupId };
-const ALL_ITEMS: ShellItem[] = [
-  { href: "/admin", label: "Inicio", icon: "dashboard", exact: true, cap: "dashboard:read" },
-  { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda" },
-  { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read", module: "clients" },
-  { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist" },
-  { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read", module: "pos" },
-  { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read", module: "pos" },
-  { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog" },
-  { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog" },
-  { href: "/admin/ajustes", label: "Ajustes", icon: "ajustes", cap: "catalog:manage", module: "catalog" },
-  { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage", module: "reviews" },
-  { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders" },
-  { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca" },
-  { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports" },
-  { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read" },
-  { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage" },
-  { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage" },
-  { href: "/admin/apariencia", label: "Apariencia", icon: "apariencia", cap: "appearance:manage" },
-  { href: "/admin/modulos", label: "Módulos", icon: "modulos", cap: "modules:manage" },
-];
+// `ALL_ITEMS` + el tipo `ShellItem` viven en `@/lib/admin-nav-items` (dato puro,
+// una sola fuente de verdad): esta nav los pinta filtrados por rol × módulo ×
+// perfil, y el gating por-URL del producto Comerciante (server) mapea ruta →
+// módulo con la MISMA lista, sin duplicarla.
 
 const ROLE_LABEL: Record<Role, string> = {
   OWNER: "Dueño/a",
@@ -166,10 +140,15 @@ function NavGroups({ items, onNavigate }: { items: ShellItem[]; onNavigate?: () 
 function NavFooter({
   userName,
   roleLabel,
+  showPublicSite,
   onNavigate,
 }: {
   userName: string;
   roleLabel: string;
+  // ¿Mostrar el link "Ver sitio público →"? Solo el ERP vertical tiene vidriera en "/";
+  // los productos de facturación (Comerciante…) NO tienen sitio público → el link
+  // llevaría al login. El layout lo resuelve por producto y lo pasa acá.
+  showPublicSite: boolean;
   onNavigate?: () => void;
 }) {
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
@@ -182,13 +161,15 @@ function NavFooter({
           <p className="text-xs text-faint">{roleLabel}</p>
         </div>
       </div>
-      <Link
-        href="/"
-        onClick={onNavigate}
-        className="block rounded-md px-2 py-1.5 text-xs text-muted hover:text-accent hover:bg-surface-sunken"
-      >
-        Ver sitio público →
-      </Link>
+      {showPublicSite && (
+        <Link
+          href="/"
+          onClick={onNavigate}
+          className="block rounded-md px-2 py-1.5 text-xs text-muted hover:text-accent hover:bg-surface-sunken"
+        >
+          Ver sitio público →
+        </Link>
+      )}
       <form action={logout}>
         <button type="submit" className="w-full text-left rounded-md px-2 py-1.5 text-xs text-muted hover:text-accent hover:bg-surface-sunken">
           Cerrar sesión
@@ -207,12 +188,16 @@ export default function AdminShell({
   activeModules = null,
   navGrouping = false,
   activeProfile = null,
+  showPublicSite = true,
 }: {
   children: React.ReactNode;
   role: Role;
   userName: string;
   brandName: string;
   monogram: string;
+  // ¿El producto tiene vidriera pública en "/"? Vertical → sí (default). Productos de
+  // facturación (Comerciante) → false: se oculta el link "Ver sitio público" del footer.
+  showPublicSite?: boolean;
   // Ids de módulos activos del tenant, o `null` si el gating está apagado (flag OFF)
   // → no se gatea por módulo. Se resuelve server-side en el layout.
   activeModules?: string[] | null;
@@ -265,7 +250,7 @@ export default function AdminShell({
       <nav className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5">
         <div className="px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
         {navGrouping ? <NavGroups items={items} /> : <NavLinks items={items} />}
-        <div className="mt-auto"><NavFooter userName={userName} roleLabel={roleLabel} /></div>
+        <div className="mt-auto"><NavFooter userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} /></div>
       </nav>
 
       {/* Cajón móvil */}
@@ -296,6 +281,7 @@ export default function AdminShell({
               <NavFooter
                 userName={userName}
                 roleLabel={roleLabel}
+                showPublicSite={showPublicSite}
                 onNavigate={() => setDrawerOpen(false)}
               />
             </div>

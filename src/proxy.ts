@@ -6,6 +6,14 @@ import { isDemoSandbox } from "@/lib/demo-flag";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Reenvía la ruta actual como header al server (upstream, no expuesto al cliente):
+  // los layouts/páginas de /admin no reciben el pathname por props, y el gating por-URL
+  // del producto Comerciante (layout del dashboard) lo necesita para mapear ruta → módulo.
+  // Ver `NextResponse.next({ request: { headers } })` (proxy de Next 16).
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
+  const pass = () => NextResponse.next({ request: { headers: requestHeaders } });
+
   // --- Plano de OPERADOR (control-plane, ADR-021) — portón separado del de tenant.
   // Cookie propia y secreto propio; nunca comparte llavero con la sesión de un tenant.
   if (pathname.startsWith("/operador")) {
@@ -24,7 +32,7 @@ export async function proxy(request: NextRequest) {
   // DB real (nunca un tenant real la tiene seteada) — deja pasar /admin sin cookie.
   // NO toca /operador (consola super-admin, siempre gateada).
   if (pathname.startsWith("/admin") && isDemoSandbox()) {
-    return NextResponse.next();
+    return pass();
   }
 
   if (pathname === "/admin/login") {
@@ -40,7 +48,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return pass();
 }
 
 export const config = {
