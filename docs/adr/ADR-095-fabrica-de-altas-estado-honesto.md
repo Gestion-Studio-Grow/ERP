@@ -22,7 +22,7 @@ Esto encaja con la regla de cierre de ADR-071: **"nada se marca listo sin ARTEFA
 1. **Efectos externos HONESTOS:** el alta declara explícitamente qué es real (commit de DB, transaccional, reusa ADR-019) y qué está **stubbeado/diferido** (host/DNS, invitación) — la UI **no** afirma que un paso stubbeado se completó. Un dry-run se muestra como dry-run; un commit auditado se muestra como tal.
 2. **`edicion → profile` en el alta:** el alta persiste el perfil (Comercio/Empresa) derivado de la edición, no lo simula.
 3. **Idempotencia persistente:** se persiste la corrida de la saga (`ProvisioningRun`) **por SQL crudo, NO en `schema.prisma`** — decisión deliberada para **no repetir el schema-ahead** que nos mordió con CH (mantener el schema de Prisma alineado con lo aplicado, y llevar la tabla de auditoría de provisioning fuera del modelo de negocio hasta que amerite migración formal).
-4. **La consola interna es `/operador/(console)`, no `/admin`** (plano de plataforma, ADR-021): el alta se opera desde ahí.
+4. **La consola interna es `/operador/(console)`, no `/admin`** (plano de plataforma, ADR-021), y vive en **su propia app `gsg-erp`** (`https://gsg-erp.vercel.app/operador/login`, verificado 2026-07-12; `/operador/alta` gateada 307→login). `gsg-erp` es además el tenant propio de GSG. El alta se opera desde ahí.
 5. **No es greenfield:** el provisioning **ya existe** (ADR-019 core + ADR-021 consola + RFC-003) — se construye **encima**, no se reinventa.
 
 ## Consecuencias

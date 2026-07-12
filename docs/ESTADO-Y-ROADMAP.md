@@ -13,7 +13,10 @@
 > - **`main` AUTO-DEPLOYA a producción** ([ADR-091](adr/ADR-091-main-auto-deploya-a-produccion.md)) — corrige la creencia anterior; cada push a `main` publica a 4 apps. Migración SIEMPRE antes del merge.
 > - **Credenciales fiscales por tenant** implementadas y **migración aplicada a prod** ([ADR-093](adr/ADR-093-credenciales-fiscales-por-tenant-implementacion.md)); ARCA en homologación fail-safe (runbook `arca-homologacion.md`).
 > - **Gate de render visual + AA** ahora bloqueante ([ADR-090](adr/ADR-090-gate-de-render-visual-y-calidad-de-superficie.md)).
-> - **🤝 Para la sesión que rediseña el core:** leer **[`docs/HANDOFF-CORE-REDISEÑO.md`](HANDOFF-CORE-REDISEÑO.md)** (inventario de ramas + invariantes + orden de merge).
+> - **🏛️ Gobernanza (dueño 2026-07-12):** ante incongruencia modelo viejo ↔ **rediseño del core**, **gana el core**; única excepción a confirmar: no eliminar las garantías de integridad (I1–I7) ni el aislamiento (RLS).
+> - **👥 MAGRA/Shine/A Dos Manos son CLIENTES reales (no trials)** — ya cargan datos; el `TRIAL` de la base es técnico. Bugs de concurrencia = severidad ALTA.
+> - **🖥️ Consola de operador = app propia `gsg-erp`** (`gsg-erp.vercel.app/operador/login`).
+> - **🤝 Para la sesión que rediseña el core:** leer **[`docs/HANDOFF-CORE-REDISEÑO.md`](HANDOFF-CORE-REDISEÑO.md)** (inventario de ramas + invariantes + orden de merge + regla de gobernanza).
 
 ---
 

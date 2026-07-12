@@ -13,8 +13,13 @@
 
 ## 0. TL;DR (leé esto aunque no leas nada más)
 
-1. **`main` auto-deploya a producción** (4 apps en vivo). Cada merge a `main` es un deploy real. **Migración
-   SIEMPRE antes del merge; nada entra sin Gate verde.** Ver [ADR-091](adr/ADR-091-main-auto-deploya-a-produccion.md).
+0. **🏛️ Ante incongruencia entre el modelo viejo y el rediseño del core, GANA SIEMPRE el core / el modelo
+   nuevo** (decisión del dueño, 2026-07-12). Vos tenés vía libre para cambiar estructura. **Única excepción a
+   confirmar con el dueño:** no *eliminar* las **garantías** de integridad de plata/stock (I1–I7) ni el
+   **aislamiento entre clientes** (RLS) — podés cambiar **cómo** se implementan, no **que** protejan. Detalle
+   en §0.bis.
+1. **`main` auto-deploya a producción** (4 apps en vivo, **clientes reales adentro**). Cada merge a `main` es
+   un deploy real. **Migración SIEMPRE antes del merge; nada entra sin Gate verde.** Ver [ADR-091](adr/ADR-091-main-auto-deploya-a-produccion.md).
 2. **El core NO puede romper los invariantes I1–I7** ([ADR-064](adr/ADR-064-nucleo-transaccional-ledger-invariantes.md)).
    **I2** (comprobante↔venta 1:1) e **I7** (venta+caja atómica) **ya se cerraron con una migración aplicada
    en prod** — el índice único existe (`20260710120000_invoice_origin_idempotency_unique`). Si tocás
@@ -27,6 +32,35 @@
 5. **Orden de merge propuesto en §4.** Resumen: los fixes de core (`fix/sprint-entregable`) **antes** que el
    rediseño (o el rediseño los absorbe); los fronts entran cuando quieran (no tocan core); el backoffice de
    carnicería entra **después** del core, rebasado.
+
+---
+
+## 0.bis 🏛️ Regla de gobernanza — quién gana ante incongruencia (decisión del dueño, 2026-07-12)
+
+**Regla:** cuando el **modelo viejo** (lo que hay hoy en `main` y en estas ramas) **choca** con el **rediseño
+del core / el modelo nuevo**, **GANA SIEMPRE el core.** No tenés que pedir permiso para cambiar tablas,
+nombres, estructura o flujos: la dirección de producto es tuya. El resto de este handoff es **contexto para
+que no rompas lo que no querés romper**, no una atadura a la implementación vieja.
+
+**Única excepción — hay que CONFIRMARLA con el dueño, no asumirla:** el core puede cambiar **cómo** se
+implementan, pero **no debería *eliminar*** estas dos **protecciones** (distinto de su implementación):
+
+1. **Integridad de plata y stock** — que una venta no deje la caja/el stock/el comprobante en estado
+   inconsistente (el *espíritu* de los invariantes I1–I7, ADR-064). Cambiá libremente las tablas y el
+   mecanismo; **conservá la garantía**.
+2. **Aislamiento entre clientes** — que un tenant **nunca** vea datos de otro (RLS, ADR-062/092). Cambiá el
+   esquema; **conservá el aislamiento**.
+
+**Cómo tratar el borde:**
+- Si tu rediseño cambia la **implementación** de una garantía (otras tablas, otro nombre, otra estructura) →
+  **adelante, gana el core**, sin discusión.
+- Si tu rediseño **obsoleta la protección misma** (p. ej. "ya no hace falta RLS porque…", "la atomicidad
+  venta+caja ya no aplica porque…") → **eso NO se asume: se eleva al dueño y se discute.** Ante la duda de si
+  estás tocando *implementación* o *protección*, tratalo como protección y preguntá.
+
+**Regla práctica no negociable mientras la excepción no se confirme:** **toda tabla nueva con `tenantId`
+necesita su policy de RLS en el mismo release**, o el chequeo de cobertura (`prisma/rls/check-coverage.mjs`)
+falla **y se abre una fuga entre clientes reales**. Es barato y es la red de seguridad — no lo dejes para "después".
 
 ---
 
@@ -149,8 +183,12 @@ Objetivo: **minimizar conflicto** y que el core parta de una base con los invari
 - **`.env` local apunta al owner de PROD** (footgun): el `DATABASE_URL` de desarrollo del dueño usa el rol
   owner contra la base productiva. Cuidado con correr scripts que escriban.
 - **`app_user` legacy con BYPASSRLS** sigue existiendo; revocarlo es pendiente pre-cobros (§2.2).
-- **Bugs de doble click** en flujos de escritura: los cerró `fix/sprint-entregable` (doble-submit, colisión de
-  `code`, idempotencia caja/MP, sobre-devolución). Si el core reescribe esos flujos, **portá las guardas**.
+- **🔴 Bugs de concurrencia en flujos de escritura (severidad ALTA — hay CLIENTES REALES adentro, no es
+  hipotético):** pedido duplicado por doble-click, doble asiento de caja, sobre-devolución. Los cerró
+  `fix/sprint-entregable` (doble-submit, colisión de `code`, idempotencia caja/MP, sobre-devolución) pero esa
+  rama **no está en `main`**. MAGRA/Shine/A Dos Manos **ya están cargando datos** (son clientes, no trials — ver
+  ESTADO §3): un doble-click hoy puede duplicar una venta real. Si el core reescribe estos flujos, **portá las
+  guardas sí o sí**; si no reescribe, hay que mergear `fix/sprint-entregable` igual.
 - **Lint rojo heredado** en `main` (deuda pre-existente, no bloquea el build de Turbopack).
 
 ---
