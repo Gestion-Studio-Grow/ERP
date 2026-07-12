@@ -8,6 +8,7 @@ decisión del dueño.
 | Archivo | Qué agrega | Origen | Estado |
 |---|---|---|---|
 | `ProvisioningRun.sql` | Tabla `ProvisioningRun` — persiste la saga de la fábrica de tenants (idempotencia entre procesos, reanudación, auditoría de plataforma) | ADR-074 "Próxima iteración" · consola de operador (Fase 2) | **Preparada, sin aplicar** |
+| `CarniceriaRubro.sql` | `Product.category` + `Product.cost` (nullable) · tabla `ProductBatch` (lotes/envasado al vacío: fecha envasado, vencimiento, peso variable, trazabilidad, FEFO) · tablas `ProcessingRun`/`ProcessingOutput` (despiece con rendimiento y merma) · enums `BatchStatus`/`ProcessingStatus` | Rubro carnicería MAGRA · `docs/preventa/magra/backoffice-carniceria-spec.md` | **Preparada, sin aplicar** · ⚠️ requiere sumar RLS de las 3 tablas de-tenant al aplicar |
 
 Mientras no se aplique, la consola de operador funciona con la idempotencia de la saga **en memoria**
 (`src/lib/provisioning/runtime.ts` → `sharedIdempotencyStore`): sobrevive entre requests del mismo
