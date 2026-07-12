@@ -194,6 +194,7 @@ model Tenant {
   reglasClasificacionBanco ReglaClasificacionBancoTenant[] // módulo BANCOS — aprendizaje del clasificador
   carteraClientes          CarteraCliente[]                @relation("CarteraDelEstudio") // módulo CARTERA — clientes que administra este estudio
   carteraComoCliente       CarteraCliente[]                @relation("CarteraComoCliente") // módulo CARTERA — carteras donde este tenant es el cliente
+  fiscalCredential         TenantFiscalCredential? // cert/clave ARCA del emisor, CIFRADOS (ADR-066)
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -245,6 +246,42 @@ model Tenant {
 enum TenantProfile {
   lite
   enterprise
+}
+
+// Credencial fiscal (certificado X.509 + clave privada del emisor ARCA) POR TENANT,
+// CIFRADA EN REPOSO (ADR-066: aislamiento fiscal por tenant). Cierra la violación de
+// tener el cert en un env único compartido (`ARCA_CERT_PEM`/`ARCA_KEY_PEM`), que haría
+// firmar las facturas de TODOS los tenants con la misma clave → contaminación cruzada.
+//
+// ENVELOPE ENCRYPTION (src/lib/fiscal/cert-crypto.ts): nada legible sin la master key
+// (`FISCAL_MASTER_KEY`, por env/secret store — NUNCA al repo ni a esta tabla). Cada
+// credencial tiene su DEK aleatoria que cifra el material; la DEK se guarda envuelta
+// por la KEK (master). Rotar la KEK = re-envolver solo las DEK, no el material.
+//
+// Plano de OPERADOR: la gestiona/lee la conexión cross-tenant (`operatorPrisma`), no el
+// backoffice del tenant — el material NUNCA se expone a la app del tenant. Igual lleva
+// `tenantId` (la policy RLS data-driven la aísla como defensa en profundidad, ADR-018).
+// 1:1 con Tenant. Aditivo/nullable → sin backfill. Migración ESCRITA y SIN aplicar (Gate 2).
+model TenantFiscalCredential {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String @unique
+
+  // --- Metadata NO secreta (sí legible; base de guards y alertas) ---
+  // CUIT del subject del certificado, extraído al cargar. El guard fail-closed compara
+  // esto (y el CUIT del cert al descifrar) contra `Tenant.arcaCuit` ANTES de firmar:
+  // si no coinciden, ABORTA — nunca emite con el cert de otro tenant (ADR-066).
+  certCuit     String
+  certNotAfter DateTime? // vencimiento del cert (alertas de rotación)
+
+  // --- Material CIFRADO (envelope). Ilegible sin FISCAL_MASTER_KEY ---
+  kekId      String // id/versión de la master key (KEK) que envolvió la DEK — para rotar la KEK
+  wrappedDek String // DEK envuelta por la KEK — base64("iv.tag.ciphertext")
+  sealed     String // {certPem,keyPem} cifrados con la DEK — base64("iv.tag.ciphertext")
+
+  loadedBy  String // subject del operador que cargó/rotó la credencial (auditoría)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum TenantStatus {

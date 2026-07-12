@@ -52,5 +52,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/operador/:path*"],
+  // `/contador` es la superficie propia del producto CONTADOR (estudio contable,
+  // módulo CARTERA) — vive FUERA de `/admin` pero es una superficie de TENANT, así
+  // que va bajo el portón grueso de tenant (fallthrough → /admin/login). Antes NO
+  // estaba en el matcher → el panel de cartera CROSS-TENANT respondía sin sesión en
+  // prod (regresión de auditoría fiscal, cerrada acá). El chequeo fino (capability
+  // `cartera:manage` + módulo `cartera` asignado) sigue en la página y las actions.
+  matcher: ["/admin/:path*", "/operador/:path*", "/contador/:path*"],
 };

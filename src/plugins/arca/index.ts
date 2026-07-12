@@ -55,7 +55,19 @@ export {
   credencialDesdeEnv,
   type CredencialEmisor,
 } from './afip/signer';
-export { crearAfipClient, modoDesdeEnv, configParaModo, type ModoArca } from './afip/factory';
+export {
+  crearAfipClient,
+  modoDesdeEnv,
+  configParaModo,
+  type ModoArca,
+  type CrearAfipClientOpts,
+} from './afip/factory';
+export {
+  cuitDesdeCertPem,
+  vencimientoDesdeCertPem,
+  assertCertCoincideConCuit,
+  CredencialCuitMismatchError,
+} from './afip/cert-inspect';
 export {
   comprobanteDePrueba,
   emitirFacturaDePrueba,
