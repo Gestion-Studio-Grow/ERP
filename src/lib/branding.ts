@@ -124,16 +124,21 @@ const TENANTS: Record<string, TenantBrand> = {
   },
   // Shine — velas & deco: boutique experiencial. Crest CENTRADO, banner de envío gratis
   // (umbral real $25.000), hero POSTER con lavado cálido del ámbar, serif Fraunces suave
-  // sobre papel blush. La experiencia (ritual) va ARRIBA del catálogo.
+  // sobre papel blush.
+  // NOTA: el tenant `shinevelas` se sirve con un front BESPOKE (ShineFront.tsx), que
+  // hardcodea su propio orden y NO consume `sectionOrder`. Tras la edición de densidad,
+  // ese front LIDERA con el catálogo (producto+precio primero) y deja mundos/ritual
+  // debajo. `sectionOrder`/`hero` de acá solo aplicarían si cayera al Storefront genérico
+  // (hoy no pasa); se dejan alineados a catalog-first para no mentir sobre el layout real.
   "shinevelas": {
     name: "Shine", monogram: "S", preset: "ambar", frontTheme: "light",
     layout: {
       logoPosition: "centered", banner: "Envío gratis desde $25.000 · CABA y GBA", hero: "photo",
       typography: { display: "fraunces", body: "hanken", headingWeight: 500 },
       palette: { surface: "#f6f1f0", surfaceRaised: "#fffafa", surfaceSunken: "#efe6e6", textStrong: "#241d20", textMuted: "#726167", line: "#e8dcdd" },
-      // Recorrido editorial: los "mundos" (con foto) abren, luego el ritual con la banda de
-      // ambiente, después el catálogo y los sets. La experiencia va antes que la góndola.
-      sectionOrder: ["lines", "ritual", "catalog", "gifts", "cart", "gourmet", "reviews"],
+      // Catálogo primero: el cliente ve producto+precio sin scrollear (edición de densidad).
+      // Luego los "mundos" con foto, el ritual, los sets y el resto del recorrido editorial.
+      sectionOrder: ["catalog", "lines", "ritual", "gifts", "cart", "gourmet", "reviews"],
       // Fotografía real de marca (generada con scripts/genera-imagen.mjs · pollinations).
       imagery: {
         heroImage: "/tenants/shinevelas/hero.jpg",

@@ -177,9 +177,9 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
           <small>velas · aromas · deco</small>
         </a>
         <nav className="sh-nav" aria-label="Secciones">
+          <a href="#coleccion">Colección</a>
           <a href="#mundos">Mundos</a>
           <a href="#ritual">Ritual</a>
-          <a href="#coleccion">Colección</a>
           <a href="#regalos">Regalos</a>
         </nav>
         <a className="sh-btn sh-btn-vino sh-top-cta" href="#coleccion">Ver la colección</a>
@@ -225,9 +225,51 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
             ))}
           </section>
 
+          {/* ── COLECCIÓN (catálogo comprable) — el producto y el precio PRIMERO, apenas
+              pasado el hero + las propuestas de valor. Antes vivía debajo de mundos+ritual
+              (a ~3 pantallas de scroll); subirla es el corazón de la edición de densidad. ── */}
+          <section className="sh-sec sh-sec-coleccion" id="coleccion">
+            <Kicker n="01" t="La colección · comprá online" />
+            {products.length === 0 ? (
+              <div className="sh-empty">
+                <Flame size={34} />
+                <p className="sh-empty-t">Estamos encendiendo la vidriera</p>
+                <p className="sh-empty-s">En un rato vas a poder comprar online. Mientras tanto, escribinos y te armamos el pedido.</p>
+                <button type="button" className="sh-btn sh-btn-wa" onClick={() => requestWhatsApp("¡Hola Shine! Quiero hacer un pedido.")}>
+                  <WaIcon /> Pedir por WhatsApp
+                </button>
+              </div>
+            ) : (
+              <div className="sh-grid">
+                {products.map((p) => {
+                  const q = cart[p.id] ?? 0;
+                  return (
+                    <Reveal key={p.id} className={`sh-pcard${q > 0 ? " on" : ""}`}>
+                      <div aria-hidden className="sh-pcard-visual">
+                        <div className="sh-pcard-halo" style={haloStyle(p.name)} />
+                        <Flame size={26} tone="cream" />
+                      </div>
+                      <div className="sh-pcard-body">
+                        <h3 className="sh-pcard-h3">{p.name}</h3>
+                        <div className="sh-pcard-row">
+                          <span className="sh-pcard-pr sh-num">{money.format(unitPrice(p))}</span>
+                          <div className="sh-stepper" role="group" aria-label={`Cantidad de ${p.name}`}>
+                            <button type="button" onClick={() => bump(p, -1)} disabled={q === 0} aria-label={`Quitar ${p.name}`}>−</button>
+                            <span className="sh-q sh-num" aria-live="polite">{q}</span>
+                            <button type="button" onClick={() => bump(p, 1)} aria-label={`Agregar ${p.name}`}>+</button>
+                          </div>
+                        </div>
+                      </div>
+                    </Reveal>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           {/* ── MUNDOS PARA TU CASA ── */}
           <section className="sh-sec" id="mundos">
-            <Kicker n="01" t={copy.vacioTitle} />
+            <Kicker n="02" t={copy.vacioTitle} />
             <div className="sh-mundos">
               {mundos.map((m, i) => {
                 const img = m.section ? imagery?.sectionImages?.[m.section] ?? null : null;
@@ -278,46 +320,6 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
               </div>
             </section>
           )}
-
-          {/* ── COLECCIÓN (catálogo comprable) ── */}
-          <section className="sh-sec" id="coleccion">
-            <Kicker n="02" t="La colección · comprá online" />
-            {products.length === 0 ? (
-              <div className="sh-empty">
-                <Flame size={34} />
-                <p className="sh-empty-t">Estamos encendiendo la vidriera</p>
-                <p className="sh-empty-s">En un rato vas a poder comprar online. Mientras tanto, escribinos y te armamos el pedido.</p>
-                <button type="button" className="sh-btn sh-btn-wa" onClick={() => requestWhatsApp("¡Hola Shine! Quiero hacer un pedido.")}>
-                  <WaIcon /> Pedir por WhatsApp
-                </button>
-              </div>
-            ) : (
-              <div className="sh-grid">
-                {products.map((p) => {
-                  const q = cart[p.id] ?? 0;
-                  return (
-                    <Reveal key={p.id} className={`sh-pcard${q > 0 ? " on" : ""}`}>
-                      <div aria-hidden className="sh-pcard-visual">
-                        <div className="sh-pcard-halo" style={haloStyle(p.name)} />
-                        <Flame size={26} tone="cream" />
-                      </div>
-                      <div className="sh-pcard-body">
-                        <h3 className="sh-pcard-h3">{p.name}</h3>
-                        <div className="sh-pcard-row">
-                          <span className="sh-pcard-pr sh-num">{money.format(unitPrice(p))}</span>
-                          <div className="sh-stepper" role="group" aria-label={`Cantidad de ${p.name}`}>
-                            <button type="button" onClick={() => bump(p, -1)} disabled={q === 0} aria-label={`Quitar ${p.name}`}>−</button>
-                            <span className="sh-q sh-num" aria-live="polite">{q}</span>
-                            <button type="button" onClick={() => bump(p, 1)} aria-label={`Agregar ${p.name}`}>+</button>
-                          </div>
-                        </div>
-                      </div>
-                    </Reveal>
-                  );
-                })}
-              </div>
-            )}
-          </section>
 
           {/* ── SETS DE REGALO ── */}
           {copy.giftSets && (
@@ -601,11 +603,16 @@ const CSS = `
 @media(max-width:1080px){.shine .sh-shell{grid-template-columns:1fr}}
 .shine .sh-main{min-width:0}
 
-/* HERO */
-.shine .sh-hero{position:relative;min-height:100vh;display:grid;grid-template-columns:.92fr 1.08fr;align-items:stretch}
-@media(max-width:900px){.shine .sh-hero{grid-template-columns:1fr;min-height:auto}}
-.shine .sh-hero-visual{position:relative;order:2;min-height:100vh;background:var(--blush)}
-@media(max-width:900px){.shine .sh-hero-visual{order:1;min-height:56vh;aspect-ratio:4/3}}
+/* HERO — capado a ~80vh (antes 100vh, una pantalla entera): así la tira de valor
+   y el arranque de la colección asoman en el primer viewport y el cliente entiende
+   qué + cuánto + cómo sin scrollear una pantalla completa de puro hero. */
+/* minmax(0,…) evita que el track de grilla crezca al min-content de sus hijos (era
+   la causa del overflow: en mobile el visual con aspect-ratio+min-height medía 515px
+   y empujaba la columna más ancha que el viewport → el texto del lede se cortaba). */
+.shine .sh-hero{position:relative;min-height:80vh;display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);align-items:stretch}
+@media(max-width:900px){.shine .sh-hero{grid-template-columns:minmax(0,1fr);min-height:auto}}
+.shine .sh-hero-visual{position:relative;order:2;min-width:0;min-height:80vh;background:var(--blush)}
+@media(max-width:900px){.shine .sh-hero-visual{order:1;min-height:0;width:100%;aspect-ratio:16/11}}
 .shine .sh-hero-img{object-fit:cover}
 .shine .sh-hero-fallback{position:absolute;inset:0;background:radial-gradient(60% 55% at 55% 42%,var(--nude),var(--malva) 60%,var(--vino))}
 .shine .sh-hero-veil{position:absolute;inset:0;background:linear-gradient(90deg,rgba(243,235,225,.9),rgba(243,235,225,.15) 30%,transparent 55%),linear-gradient(0deg,rgba(103,17,40,.16),transparent 40%)}
@@ -619,50 +626,57 @@ const CSS = `
 @keyframes sh-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.shine .sh-seal{animation:none}}
 @media(max-width:900px){.shine .sh-seal{left:auto;right:14px;bottom:14px;width:84px;height:84px}}
-.shine .sh-hero-copy{order:1;position:relative;z-index:3;align-self:center;padding:120px clamp(20px,4vw,64px) 9vh;max-width:640px}
-@media(max-width:900px){.shine .sh-hero-copy{order:2;padding:32px 22px 48px;margin-top:-8vh}}
-.shine .sh-hero-h1{font-size:clamp(46px,7vw,88px);color:var(--vino);margin:18px 0 0;max-width:14ch;font-weight:500}
-.shine .sh-hero-pitch{margin:18px 0 0;font-size:clamp(17px,2.4vw,21px);color:var(--malva-d);font-weight:500;max-width:34ch;line-height:1.4}
-.shine .sh-lede{margin:20px 0 0;font-size:16px;line-height:1.7;color:var(--tinta);max-width:46ch}
-.shine .sh-cta-row{display:flex;gap:13px;flex-wrap:wrap;align-items:center;margin-top:30px}
-.shine .sh-slogan{display:inline-flex;align-items:center;gap:9px;margin-top:34px;font-family:var(--f-display);font-style:italic;font-size:19px;color:var(--malva-d);letter-spacing:.01em}
+.shine .sh-hero-copy{order:1;position:relative;z-index:3;align-self:center;min-width:0;padding:92px clamp(20px,4vw,56px) 5vh;max-width:640px}
+@media(max-width:900px){.shine .sh-hero-copy{order:2;max-width:100%;padding:26px 22px 34px;margin-top:-6vh}}
+.shine .sh-hero-h1{font-size:clamp(44px,6.4vw,80px);color:var(--vino);margin:14px 0 0;max-width:14ch;font-weight:500}
+.shine .sh-hero-pitch{margin:14px 0 0;font-size:clamp(17px,2.4vw,21px);color:var(--malva-d);font-weight:500;max-width:34ch;line-height:1.4}
+.shine .sh-lede{margin:14px 0 0;font-size:16px;line-height:1.62;color:var(--tinta);max-width:46ch}
+.shine .sh-cta-row{display:flex;gap:13px;flex-wrap:wrap;align-items:center;margin-top:24px}
+.shine .sh-slogan{display:inline-flex;align-items:center;gap:9px;margin-top:24px;font-family:var(--f-display);font-style:italic;font-size:19px;color:var(--malva-d);letter-spacing:.01em}
 
 /* VALUES */
-.shine .sh-values{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(16px,2.4vw,34px);padding:clamp(40px,6vh,72px) clamp(18px,4vw,64px);border-top:1px solid var(--blush);border-bottom:1px solid var(--blush);background:var(--papel)}
-@media(max-width:900px){.shine .sh-values{grid-template-columns:1fr 1fr;gap:26px 22px}}
-@media(max-width:460px){.shine .sh-values{grid-template-columns:1fr}}
+.shine .sh-values{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(14px,2vw,28px);padding:clamp(26px,4vh,48px) clamp(18px,4vw,64px);border-top:1px solid var(--blush);border-bottom:1px solid var(--blush);background:var(--papel)}
+@media(max-width:900px){.shine .sh-values{grid-template-columns:1fr 1fr;gap:20px 22px}}
 .shine .sh-value-icon{display:block;width:34px;height:34px;object-fit:contain;object-position:left;margin-bottom:14px}
 .shine .sh-value-title{font-weight:600;font-size:15px;margin-bottom:6px;color:var(--vino)}
 .shine .sh-value-text{color:var(--malva-d);font-size:13.5px;line-height:1.55}
 
-/* SECTIONS */
-.shine .sh-sec{padding:clamp(56px,9vh,120px) clamp(18px,4vw,64px);position:relative}
-.shine .sh-kicker{display:flex;align-items:center;gap:14px;margin-bottom:40px}
-.shine .sh-kicker-n{font-size:18px;color:var(--malva);letter-spacing:.02em}
+/* SECTIONS — ritmo vertical comprimido (antes clamp 56–120px): menos aire decorativo,
+   más densidad útil, sin tocar tipografía ni color de marca. */
+.shine .sh-sec{padding:clamp(40px,6vh,80px) clamp(18px,4vw,64px);position:relative}
+/* La colección abre apenas más ajustada arriba: pega con la tira de valor. */
+.shine .sh-sec-coleccion{padding-top:clamp(32px,4.5vh,60px)}
+.shine .sh-kicker{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+/* malva-d (no malva): el número decorativo pasa contraste AA sobre crema/papel (2.5→4.7:1). */
+.shine .sh-kicker-n{font-size:18px;color:var(--malva-d);letter-spacing:.02em}
 .shine .sh-kicker-l{height:1px;flex:0 0 46px;background:var(--nude)}
 .shine .sh-kicker-t{font-size:clamp(26px,4vw,40px);color:var(--vino);font-weight:500}
 
 /* MUNDOS */
 .shine .sh-mundos{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(16px,2vw,26px)}
-@media(max-width:900px){.shine .sh-mundos{grid-template-columns:1fr 1fr}}
-@media(max-width:520px){.shine .sh-mundos{grid-template-columns:1fr}}
+/* Mantengo 2 columnas en mobile (antes colapsaba a 1 → 4 fotos altísimas apiladas). */
+@media(max-width:900px){.shine .sh-mundos{grid-template-columns:1fr 1fr;gap:14px}}
 .shine .sh-mundo-a{display:block;height:100%}
 .shine .sh-mundo-visual{position:relative;aspect-ratio:4/5;border-radius:14px;overflow:hidden;background:var(--blush);box-shadow:var(--shadow-warm)}
+@media(max-width:900px){.shine .sh-mundo-visual{aspect-ratio:1/1}}
 .shine .sh-mundo-img{object-fit:cover;transition:transform .6s cubic-bezier(.22,.61,.36,1)}
 .shine .sh-mundo-a:hover .sh-mundo-img{transform:scale(1.05)}
 .shine .sh-mundo-fallback{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(70% 60% at 50% 40%,var(--nude),var(--malva) 65%,var(--vino))}
+/* Scrim inferior: garantiza que el tag blanco se lea sobre CUALQUIER foto (las de mundos
+   varían de claras a oscuras), sin oscurecer la imagen entera. Robustez AA sobre imagen. */
+.shine .sh-mundo-visual::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(transparent 52%,rgba(58,17,25,.62));pointer-events:none}
 .shine .sh-mundo-tag{position:absolute;left:14px;bottom:14px;z-index:2;font-family:var(--f-display);font-weight:600;font-size:26px;color:#fff;text-shadow:0 2px 16px rgba(58,17,25,.6)}
 .shine .sh-mundo-text{margin:16px 2px 0;font-size:14px;line-height:1.55;color:var(--malva-d)}
 .shine .sh-mundo-link{display:inline-block;margin:12px 2px 0;font-size:13px;font-weight:600;color:var(--vino);letter-spacing:.02em}
 .shine .sh-mundo-a:hover .sh-mundo-link{text-decoration:underline;text-underline-offset:3px}
 
 /* RITUAL */
-.shine .sh-ritual{position:relative;overflow:hidden;padding:clamp(64px,11vh,150px) clamp(18px,4vw,64px);color:#fff}
+.shine .sh-ritual{position:relative;overflow:hidden;padding:clamp(48px,8vh,104px) clamp(18px,4vw,64px);color:#fff}
 .shine .sh-ritual-band{position:absolute;inset:0;z-index:0}
 .shine .sh-ritual-img{object-fit:cover}
 .shine .sh-ritual-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(58,17,25,.8),rgba(58,17,25,.64)),radial-gradient(60% 50% at 30% 30%,rgba(232,217,213,.16),transparent 60%)}
 .shine .sh-ritual-inner{position:relative;z-index:1;max-width:1000px;margin:0 auto}
-.shine .sh-ritual-head{text-align:center;max-width:640px;margin:0 auto 48px}
+.shine .sh-ritual-head{text-align:center;max-width:640px;margin:0 auto 36px}
 .shine .sh-ritual-h2{font-size:clamp(34px,5.5vw,60px);margin:14px 0 0;color:#fff;font-weight:500}
 .shine .sh-ritual-intro{margin:16px auto 0;font-size:16.5px;line-height:1.65;color:rgba(255,255,255,.86);max-width:52ch}
 .shine .sh-steps{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(20px,3vw,40px);counter-reset:none}
@@ -675,8 +689,8 @@ const CSS = `
 /* COLECCIÓN grid */
 .shine .sh-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(14px,2vw,24px)}
 @media(max-width:980px){.shine .sh-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:680px){.shine .sh-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:420px){.shine .sh-grid{grid-template-columns:1fr}}
+/* 2 columnas hasta pantallas chicas (antes 1 col <420 → catálogo larguísimo en mobile). */
+@media(max-width:680px){.shine .sh-grid{grid-template-columns:1fr 1fr;gap:12px}}
 .shine .sh-pcard{background:var(--papel);border:1px solid var(--blush);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transition:.25s}
 .shine .sh-pcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-warm);border-color:var(--nude)}
 .shine .sh-pcard.on{border-color:var(--vino);box-shadow:0 0 0 1.5px var(--vino),var(--shadow-warm)}
@@ -702,7 +716,7 @@ const CSS = `
 
 /* GIFTS */
 .shine .sh-gifts{background:var(--papel);border-top:1px solid var(--blush)}
-.shine .sh-gifts-intro{margin:-24px 0 34px;color:var(--malva-d);font-size:15.5px;max-width:52ch}
+.shine .sh-gifts-intro{margin:-16px 0 28px;color:var(--malva-d);font-size:15.5px;max-width:52ch}
 .shine .sh-giftgrid{display:grid;grid-template-columns:.9fr 1.1fr;gap:clamp(20px,3vw,44px);align-items:stretch}
 @media(max-width:900px){.shine .sh-giftgrid{grid-template-columns:1fr}}
 .shine .sh-gift-hero{position:relative;border-radius:18px;overflow:hidden;min-height:340px;background:var(--malva);box-shadow:var(--shadow-warm)}
@@ -722,15 +736,15 @@ const CSS = `
 .shine .sh-linkcta:hover{color:var(--vino-hi);text-decoration:underline;text-underline-offset:3px}
 
 /* AROMAS */
-.shine .sh-aromas{padding:clamp(48px,7vh,90px) clamp(18px,4vw,64px);text-align:center}
-.shine .sh-aromas .sh-eyebrow{display:block;margin-bottom:22px}
+.shine .sh-aromas{padding:clamp(32px,5vh,60px) clamp(18px,4vw,64px);text-align:center}
+.shine .sh-aromas .sh-eyebrow{display:block;margin-bottom:18px}
 .shine .sh-aromas-list{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 30px}
 .shine .sh-aroma-item{display:inline-flex;align-items:center;gap:20px}
 .shine .sh-aroma{font-size:clamp(22px,3.4vw,34px);color:var(--malva-d);font-style:italic;font-weight:500}
 .shine .sh-aroma-sep{opacity:.65;flex:none}
 
 /* ABOUT — con la TRAMA de marca como textura tenue de fondo */
-.shine .sh-about{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--crema),var(--blush));padding:clamp(64px,11vh,140px) clamp(18px,4vw,64px);text-align:center}
+.shine .sh-about{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--crema),var(--blush));padding:clamp(44px,7vh,92px) clamp(18px,4vw,64px);text-align:center}
 .shine .sh-about::before{content:"";position:absolute;inset:0;background:url(/tenants/shinevelas/brand/trama.png) center/cover no-repeat;opacity:.07;pointer-events:none}
 .shine .sh-about-inner{position:relative;z-index:1;max-width:60ch;margin:0 auto;display:flex;flex-direction:column;align-items:center}
 .shine .sh-about-flame{margin-bottom:20px}
@@ -738,8 +752,8 @@ const CSS = `
 .shine .sh-about-p{margin-top:20px;font-size:17px;line-height:1.8;color:var(--tinta)}
 
 /* FOOTER */
-.shine .sh-foot{background:var(--vino);color:var(--crema);padding:clamp(52px,8vh,110px) clamp(18px,4vw,64px) 34px}
-.shine .sh-foot-top{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;align-items:flex-end;margin-bottom:48px}
+.shine .sh-foot{background:var(--vino);color:var(--crema);padding:clamp(40px,6vh,80px) clamp(18px,4vw,64px) 30px}
+.shine .sh-foot-top{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;align-items:flex-end;margin-bottom:36px}
 .shine .sh-foot-lead{display:flex;align-items:flex-start;gap:20px}
 .shine .sh-foot-flame{margin-top:8px}
 @media(max-width:560px){.shine .sh-foot-flame{display:none}}
@@ -784,7 +798,7 @@ const CSS = `
 .shine .sh-field input,.shine .sh-field select{border:1px solid var(--nude);background:var(--crema);color:var(--tinta);border-radius:9px;padding:11px 12px;font-size:14px;font-family:var(--f-body);min-height:44px}
 .shine .sh-field input::placeholder{color:var(--bruma)}
 .shine .sh-field input:focus,.shine .sh-field select:focus{outline:2px solid var(--vino);outline-offset:1px;border-color:var(--vino)}
-.shine .sh-rail-muted{font-size:11.5px;color:var(--bruma);margin:12px 0 14px;line-height:1.5}
+.shine .sh-rail-muted{font-size:11.5px;color:var(--malva-d);margin:12px 0 14px;line-height:1.5}
 .shine .sh-rail-submit{width:100%;margin-bottom:10px}
 .shine .sh-rail-wa{width:100%}
 @media(max-width:1080px){.shine .sh-rail{position:static;height:auto;border-left:none;border-top:1px solid var(--nude)}}
