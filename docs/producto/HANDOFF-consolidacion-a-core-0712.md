@@ -19,8 +19,12 @@
    versiones. Cuando tu rediseño del core aterrice, **gana el core** sobre lo que toque; se re-verifica.
 3. **Contexto de datos (guardarraíl duro):** son **clientes reales pero PRE-PROD**, ya configurando datos.
    El reset futuro será solo de **tablas transaccionales**; **NUNCA** de **servicios ni datos maestros duros**.
-4. **Lo único que te queda reconciliar: `order-core.ts`** (ver §2). Sprint lo reescribió (+274) y su
-   migración de concurrencia **ya está aplicada a Neon**. Tu core gana, pero **preservá las 3 guardas**.
+4. **Pendiente: reconciliar las guardas de concurrencia con tu core (4 superficies, ver §2).** ⚠️ NO es solo
+   `order-core.ts`: A-1 está ahí, pero **A-5 es atomicidad en `caja/cash-sale.ts` (I7)** y **A-6 vive en
+   `invoice-core.ts`** — reconciliar solo order-core PIERDE A-6 (vuelve la doble factura MP). La migración ya está
+   en Neon. Tu core gana, pero **preservá las 3 guardas en sus 4 superficies**.
+   **NOTA (Dispatch, 2026-07-12): la rama del rediseño del core NO existe todavía** en local ni en origin →
+   este ítem no es accionable hasta que esa rama se pushee o se defina su alcance. Nada más está bloqueado.
 
 ---
 
@@ -44,21 +48,25 @@
 
 ---
 
-## 2. LO QUE TENÉS QUE RECONCILIAR — `order-core.ts` (lo crítico para vos)
+## 2. LO QUE TENÉS QUE RECONCILIAR — 4 SUPERFICIES (no solo `order-core.ts`)
 
-`fix/sprint-entregable` (ya en `main`, `018eeaa`) **reescribió `order-core.ts` (+274)** e introdujo guardas de
-concurrencia a nivel DB. Tu rediseño del core probablemente reformule esta misma superficie. **Por la regla de
-gobierno, gana tu core** — pero **estas 3 guardas deben SOBREVIVIR** (cierran plata/stock real del primer día):
+`fix/sprint-entregable` (ya en `main`, `018eeaa`) introdujo guardas de concurrencia. Tu rediseño del core
+probablemente reformule esta zona. **Por la regla de gobierno, gana tu core** — pero **las 3 guardas deben
+SOBREVIVIR** (cierran plata real del primer día). ⚠️ **CORRECCIÓN (Dispatch, verificado en código): las guardas
+NO viven todas en `order-core.ts`.** Reconciliar solo ese archivo PIERDE A-6 en silencio → vuelve la doble
+factura del webhook MP. Son **4 superficies de reconciliación, cada una con su checklist**:
 
-- **A-1 · `Order.idempotencyKey` + `@@unique([tenantId, idempotencyKey])`** — doble-submit de vidriera → un
-  solo pedido. El código escribe la clave **solo** en el camino vidriera; POS/API omiten el campo.
-- **A-5 · `@@unique(CashMovement[tenantId, orderId, type])`** — doble-click en "cobrado" → un solo asiento de
-  caja (antes duplicaba y el arqueo quedaba con plata de más). `orderId` NULL no colisiona.
-- **A-6 · `Invoice.mpPaymentId` + `@@unique([tenantId, mpPaymentId])`** — webhook MP duplicado → una sola factura.
+| Guarda | Superficie a preservar | Qué NO romper |
+|---|---|---|
+| **A-1** doble-submit vidriera | `src/lib/order-core.ts` (+ `order-actions.ts`) | `Order.idempotencyKey` + `@@unique([tenantId,idempotencyKey])`. La clave se escribe **solo** en el camino vidriera; POS/API omiten el campo. |
+| **A-5** doble-cobro / caja | `src/lib/caja/cash-sale.ts` | El enforcer es el índice DB `@@unique(CashMovement[tenantId,orderId,type])`, PERO en código lo que hay que preservar es que **el asiento de caja quede DENTRO de la misma transacción que la venta (I7 · atomicidad)**. Si el core saca la caja a una tx aparte, rompés I7 aunque el índice exista. |
+| **A-6** webhook MP duplicado | **`src/lib/invoice-core.ts`** (NO order-core) | `Invoice.mpPaymentId` + `@@unique([tenantId,mpPaymentId])` — dedup por payment_id. **Superficie separada: es fácil perderla si solo mirás order-core.** |
+| schema | `prisma/schema.prisma` | Los campos/índices ya están en la DB (migración `20260712120000` aplicada). Si tu core cambia el modelo, mantené las columnas e índices o su equivalente. |
 
-> **Los índices YA existen en Neon.** Si tu rediseño cambia el modelo de Order/Invoice/CashMovement,
-> **mantené estas columnas e índices** (o su equivalente) o reintroducís las carreras. Corré
-> `order-core-guards.test.ts` / `invoice-core.test.ts` / `cash-sale-unique.test.ts` antes de mergear.
+> **Los índices YA existen en Neon.** Tests obligatorios antes de mergear, uno por superficie:
+> `order-core-guards.test.ts` · `caja/cash-sale-atomic.test.ts` + `cash-sale-unique.test.ts` · `invoice-core.test.ts`
+> · `invoice-idempotency.test.ts`. Y `npm run gates` (ojo: hoy lint rojo = deuda pre-existente, y visual/visual-aa
+> rojos = falta Playwright en el worktree = entorno, no regresión; verificá que no sea código tuyo).
 
 ---
 
