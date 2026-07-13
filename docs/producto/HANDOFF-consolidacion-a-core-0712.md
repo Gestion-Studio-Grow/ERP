@@ -19,12 +19,14 @@
    versiones. Cuando tu rediseño del core aterrice, **gana el core** sobre lo que toque; se re-verifica.
 3. **Contexto de datos (guardarraíl duro):** son **clientes reales pero PRE-PROD**, ya configurando datos.
    El reset futuro será solo de **tablas transaccionales**; **NUNCA** de **servicios ni datos maestros duros**.
-4. **Pendiente: reconciliar las guardas de concurrencia con tu core (4 superficies, ver §2).** ⚠️ NO es solo
-   `order-core.ts`: A-1 está ahí, pero **A-5 es atomicidad en `caja/cash-sale.ts` (I7)** y **A-6 vive en
-   `invoice-core.ts`** — reconciliar solo order-core PIERDE A-6 (vuelve la doble factura MP). La migración ya está
-   en Neon. Tu core gana, pero **preservá las 3 guardas en sus 4 superficies**.
-   **NOTA (Dispatch, 2026-07-12): la rama del rediseño del core NO existe todavía** en local ni en origin →
-   este ítem no es accionable hasta que esa rama se pushee o se defina su alcance. Nada más está bloqueado.
+4. **⚠️ ACLARACIÓN DEL DUEÑO (2026-07-12): NO hay un "rediseño del core" pendiente ni una rama aparte.** La
+   "reformulación del modelo" a la que se refería el dueño **ES lo que YA se construyó y está en `main`**: la
+   consola nueva (`gsg-erp`) para abrir tenants, el **modelo núcleo + plugins instalables** (cómo se concibe un
+   tenant nuevo, ADR-089) y la **suite de los 3 productos de facturación**. Todo eso está vivo y deployado.
+   Por lo tanto **no queda reconciliación pendiente**: las guardas de concurrencia de sprint (§2) son del motor
+   transaccional, que la reformulación NO tocó → están landeadas, coherentes y con su migración aplicada. La §2
+   queda como **referencia técnica dormida** (por si algún día se reescribe el motor de venta/factura), no como
+   tarea activa. Estado neto: **la suite está terminada; no hay ítem bloqueante abierto.**
 
 ---
 
