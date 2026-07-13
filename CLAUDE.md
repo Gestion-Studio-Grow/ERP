@@ -11,10 +11,21 @@ gestión correcta del proyecto.** Es obligatorio siempre, en Claude Code (deskto
 - **`git status`** + tip de `main` y ramas/worktrees — WIP sin commitear y en qué estado está el árbol.
 - **Migraciones pendientes** — `prisma/migrations/` vs lo aplicado (según docs; no golpear Neon),
   incluidas **colisiones de timestamp**.
+- **🚧 `docs/lecciones-aprendidas/GUARDARRAILES.md` — LAS REGLAS DURAS DE UNA PÁGINA, LECTURA INNEGOCIABLE.**
+  La destilación operativa de lo que ya pagamos con incidentes: render real ("verificado por DOM NO es
+  verificado"), `push a main` = deploy, migración antes del merge, RLS 43/43, I1–I7, secretos, pathspec,
+  worktree corto. **Ningún agente puede romperlas.** Está **cableada sola** en el Paso 0 del charter genérico
+  y embebida en los 3 validadores → una sesión nueva **no puede ignorarlas aunque quiera**.
 - **📓 `docs/lecciones-aprendidas/registro.md` — LECTURA OBLIGATORIA DE CALIBRACIÓN** para el **PMO**
   (autor) y el **Arquitecto de Solución** (ejecutor), y para **cualquier célula ANTES de tocar un área de
-  riesgo** (Prod/Deploy · Datos/DB · Multi-tenant · Seguridad). Son los **guardarraíles de lo que ya nos
-  pasó**; se **alimenta de la retro** (ADR-047: cada cierre de sprint suma/actualiza una entrada).
+  riesgo** (Prod/Deploy · Datos/DB · Multi-tenant · Seguridad). Es el relato completo (síntoma→causa→fix→
+  guardarraíl) detrás de cada regla de `GUARDARRAILES.md`; se **alimenta de la retro** (ADR-047: cada cierre
+  de sprint suma/actualiza una entrada).
+- **🧾 Los 3 VALIDADORES son SIEMPRE los mismos** (definición fija en `.claude/agents/`, aprenden de su
+  propio feedback en `docs/lecciones-aprendidas/veredictos/`): **`auditoria-gsg-gate`** (el Gate, Opus
+  siempre) · **`challenger`** (desafía el fundamento, rúbrica de scoring fija, ADR-045) · **`verificador-visual`**
+  (renderiza de verdad y mira el screenshot; sin render real, o si no se puede rendir, el gate **FALLA**). No
+  se improvisan por sesión: se **convocan** estos.
 
 Sin esa foto no se despacha ni se ejecuta nada. Cuando la sesión se abre con `sprint`, esto es su
 **FASE 0 Exploración** (Paso 0 no salteable en `.claude/commands/sprint.md`); cuando no, igual aplica.

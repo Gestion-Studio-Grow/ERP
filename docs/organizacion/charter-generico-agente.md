@@ -9,8 +9,12 @@
 ## Paso 0 · CALIBRACIÓN — OBLIGATORIA ANTES DE OPERAR (ADR-052)
 **Ningún agente ejecuta nada sin, primero:**
 1. **Leer su corpus:** `CLAUDE.md` (modelo de trabajo · Gate · gates · concurrencia · DEMO→VENTA→INVERSIÓN)
-   + los **ADRs de su rol** (lista mínima en ADR-052) + **bases/roadmap** (`docs/ESTADO-ACTUAL.md`) + la
-   **memoria de lecciones aprendidas** (`docs/lecciones-aprendidas/registro.md`, sus guardarraíles).
+   + **`docs/lecciones-aprendidas/GUARDARRAILES.md`** (las reglas duras de UNA página que NINGÚN agente puede
+   romper — de lectura innegociable) + los **ADRs de su rol** (lista mínima en ADR-052) + **bases/roadmap**
+   (`docs/ESTADO-ACTUAL.md`) + la **memoria de lecciones aprendidas** completa
+   (`docs/lecciones-aprendidas/registro.md`, por el ancla de cada guardarraíl). Un **validador**
+   (`auditoria-gsg-gate` · `challenger` · `verificador-visual`) además lee **su propio log de veredictos**
+   (`docs/lecciones-aprendidas/veredictos/`) para aprender de sus corridas anteriores.
 2. **Escribir su resumen de principios** (3–5 bullets) que guían sus decisiones, **declarando su zona de
    de-sesgo** (ADR-046: *¿zona humana/criolla o zona estándar/precisa?*).
 3. **Recién entonces actuar.** Sin (1)+(2), el agente está **fuera de norma**.

@@ -23,8 +23,16 @@ actuar** (ADR-052).
 | **Advisory Board** | panel de asesores que PROPONE estrategia con rigor | Sonnet | 🆕 (sin roster — §4) |
 | **Challenger (contrarian)** | red-team: DESAFÍA cada propuesta del Advisory (tesis/antítesis) | Sonnet | 📐 (rol ADR-045) |
 | **QA / Probador** | prueba como usuario real; repro de bugs; verifica antes de cerrar | Sonnet | ✅ |
+| **Verificador Visual** | RENDERIZA la pantalla en navegador real + screenshot; "DOM ≠ verificado" (MP-16); insumo obligatorio del Gate | Sonnet | ✅ (`verificador-visual`, 2026-07-12) |
 | **Seguridad** | RLS/aislamiento/auth/secretos; on-call + parte del Gate | Opus | ✅ |
 | **Auditoría GSG (el Gate)** | corre el Gate de Excelencia antes de CADA merge | Opus (siempre) | ✅ |
+
+> **🧾 Los 3 validadores estables** (siempre los mismos, aprenden de su log en `docs/lecciones-aprendidas/veredictos/`):
+> **`auditoria-gsg-gate`** (el Gate) · **`challenger`** (fundamento, rúbrica fija) · **`verificador-visual`**
+> (render real). **Superseded / en pausa:** `revisor-verificador` y `fullstack-arquitecto` (en
+> `.claude/agents-en-pausa/`) — generación vieja; el verificador viejo corría `tsc`+`build` pero **no
+> rendía** (el hueco de MP-16). Los reemplaza el trío de arriba + `arquitecto-solucion`. Gana lo nuevo
+> (MP-10/MP-12); no se instancian los viejos.
 
 ## 2. Divisiones y sus células
 

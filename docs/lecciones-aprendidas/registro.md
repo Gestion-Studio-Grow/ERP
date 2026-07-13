@@ -17,8 +17,8 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
-- **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
+- **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · **DX-8 no existe el "defecto visual menor" + colisión `--spacing`↔`max-w` Tailwind v4**
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir) · MP-15 desviarse de un ADR citando autoridad no trazable · **MP-16 "verificado por DOM" ≠ verificado → render real obligatorio o el gate FALLA**
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
 ---
@@ -253,6 +253,28 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Refs:** ADR-018 (aislamiento `tenantId`), ADR-019 (provisioning aditivo/idempotente), DB-1 (seed
   destructivo), DX-5, DX-6; `docs/tenants/magra/provisioning-magra.md`.
 
+**[DX-8] "No existe el defecto visual menor" + colisión `--spacing`↔`max-w` de Tailwind v4**
+- **Síntoma:** (1) defectos de layout tratados como "cosmética para después" que igual llegaban a la vidriera
+  del cliente; (2) un contenedor colapsado a **"una palabra por línea"** en varias vistas — el reflejo fue
+  "no cargó el CSS", pero el CSS estaba.
+- **Causa raíz:** (1) confundir "lo que el cliente ve" con adorno; para el dueño **lo que el cliente ve ES el
+  producto**. (2) La **escala de densidad** custom `--spacing-*` de Tailwind v4 **hijackea** los tokens
+  `max-w-sm/md/lg/xl/2xl` (que se resuelven contra `--spacing`), así que un `max-w-md` termina valiendo un
+  ancho ridículo → el texto se apila de a una palabra. No es "no cargó el CSS": es el CSS **peleándose consigo
+  mismo**.
+- **Fix:** tratar todo defecto visible como **bloqueante** (entra al Gate como falla, no como nota); ante el
+  colapso de ancho, **sospechar de la colisión `--spacing`↔`max-w` ANTES** que de un fallo de carga —
+  verificar el valor computado de `max-width` en el navegador real, no a ojo.
+- **Lección:** **no existe el "defecto visual menor"** (regla textual del dueño): un overflow, un contraste
+  pobre o un layout colapsado son bugs de producto, no de estética. Y el síntoma "una palabra por línea"
+  tiene una causa técnica concreta y repetida en v4, no es un misterio de carga.
+- **Guardarraíl:** **(a)** ningún defecto visible se cierra como "menor" — o se arregla o el Gate lo rechaza;
+  **(b)** ante ancho colapsado, chequear la colisión `--spacing`↔`max-w` (valor computado en render real)
+  antes de asumir CSS no cargado; **(c)** el **`verificador-visual`** mira el render real (no el DOM), así
+  que estos defectos se cazan **antes** de `main` (ver MP-16).
+- **Refs:** memoria `tailwind-spacing-maxw-colision`, `gate-visual-render`, `gate-visual-aa-y-runtime-local`;
+  MP-16 (render real); ADR-040 (Gate, ángulo adaptable/accesibilidad).
+
 ## MP — Metodología / Proceso
 
 **[MP-1] Archivos corrompidos al editar**
@@ -411,6 +433,28 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   commit** (nota fechada en el ADR/ESTADO-ACTUAL) **o** lo marca como **propuesta para el Gate** — nunca lo
   commitea como hecho consumado. El integrador (Gate) trata toda deviación sin rastro como observación a elevar.
 - **Refs:** ADR-059 D3, ADR-008 (repo como memoria), ADR-047; retro `docs/retro/retro-sprint-grow-ar-pr2-2026-07-08.md`.
+
+**[MP-16] "Verificado por DOM" NO es verificado — un login roto llegó a prod con las vallas en verde**
+- **Síntoma:** una página de **login rota** llegó a **producción** teniendo `tsc` + **929 tests** + `build`
+  en **verde**. Todas las vallas pasaron; la página no funcionaba para un humano.
+- **Causa raíz:** se dio por "verificado" algo que solo se había chequeado por vallas y a lo sumo por el
+  **DOM/accessibility tree** — ninguna de esas señales **renderiza la página como la ve el usuario**. Un
+  árbol de accesibilidad correcto o un test que monta un componente **no prueban** que la pantalla real
+  cargue, pinte y responda. El verificador viejo (`revisor-verificador`, hoy en pausa) corría `tsc`+`build`+
+  diff pero **no renderizaba** — justo el hueco por el que se coló el bug.
+- **Fix:** se crea el rol **`verificador-visual`** (`.claude/agents/verificador-visual.md`), cuya **regla #1**
+  es: **ninguna página se publica sin RENDER REAL** (Chromium/Playwright) **+ screenshot** que alguien mira.
+  Y su regla #2: **si el entorno no puede sacar el screenshot, el gate FALLA — no se saltea** ("no pude
+  renderizar" es un rechazo, nunca un "pasó igual").
+- **Lección:** verde de vallas ≠ funciona. `tsc`/tests/build protegen tipos y lógica, **no** el hecho de que
+  la pantalla exista para el usuario. El único que verifica eso es un **render real mirado por alguien**.
+- **Guardarraíl:** **toda superficie visible se rinde en un navegador real y se le saca screenshot antes de
+  `main`**; el `verificador-visual` es insumo **obligatorio** del Gate para cualquier cambio con superficie
+  visible; **si no hay screenshot posible, el Gate rechaza** (no publica "a ciegas"). Empareja con DX-8
+  (no hay defecto visual menor) y con la memoria `gate-visual-render` (Playwright que falla si el layout
+  está roto).
+- **Refs:** memoria `gate-visual-render`, `gate-visual-aa-y-runtime-local`; DX-8; ADR-040 (Gate);
+  `.claude/agents/verificador-visual.md`; `.claude/agents-en-pausa/revisor-verificador.md` (el que NO rendía).
 
 ---
 
