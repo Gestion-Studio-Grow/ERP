@@ -103,12 +103,13 @@ test("Ola1: cada retail tiene su propio PAPEL (surface distinto) — no el bone 
   assert.ok(surfaces.every((c) => typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c!)));
 });
 
-test("Ola1: A Dos Manos lidera con el catálogo; Shine con los mundos y la experiencia antes de la góndola", () => {
+test("Ola1: A Dos Manos y Shine lideran con el catálogo (producto+precio primero)", () => {
   const shine = resolveSectionOrder(resolveTenantLayout(brandForSlug("shinevelas")).sectionOrder);
   assert.equal(resolveSectionOrder(resolveTenantLayout(brandForSlug("adosmanos")).sectionOrder)[0], "catalog");
-  // Shine abre con los "mundos" fotográficos (lines) y pone el ritual antes del catálogo.
-  assert.equal(shine[0], "lines");
-  assert.ok(shine.indexOf("ritual") < shine.indexOf("catalog"), "la experiencia va antes que la góndola");
+  // Edición de densidad: Shine abre con la góndola (producto+precio sin scroll) y deja
+  // los "mundos" fotográficos y el ritual DEBAJO. La góndola va antes que la experiencia.
+  assert.equal(shine[0], "catalog");
+  assert.ok(shine.indexOf("catalog") < shine.indexOf("ritual"), "la góndola va antes que la experiencia");
 });
 
 test("resolveSectionOrder: completa las claves faltantes (nunca pierde secciones) y no duplica", () => {
