@@ -154,12 +154,14 @@ export const ADM_SECTIONS: AdmSection[] = [
 ];
 
 // Clasifica un producto por su nombre (el Core no tiene campo `category` todavía).
+// `\bpala` matchea "Pala" y "Palas" (singular/plural) SIN comerse "paletero" (pale≠pala).
+// El orden importa: paleteros/mochilas se resuelven antes que el fallback de accesorios.
 export function admSectionOf(name: string): AdmSectionId {
   const n = name.toLowerCase();
-  if (/pala\b|pala /.test(n)) return "palas";
+  if (/paletero|mochila|bolso/.test(n)) return "bolsos";
+  if (/\bpala/.test(n)) return "palas";
   if (/zapatilla/.test(n)) return "zapatillas";
   if (/pelota/.test(n)) return "pelotas";
-  if (/paletero|mochila|bolso/.test(n)) return "bolsos";
   return "accesorios"; // overgrips, grips, muñequeras, protectores
 }
 

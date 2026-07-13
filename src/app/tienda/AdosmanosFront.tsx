@@ -189,7 +189,7 @@ function AdmContentView({ products, content: c }: { products: Product[]; content
               </button>
             </div>
           </div>
-          <a href="#manifiesto" className="adm-scroll-hint" aria-hidden>Scrolleá</a>
+          <span className="adm-scroll-hint" aria-hidden>Scrolleá</span>
         </section>
 
         {/* ── MANIFIESTO (tesis de marca) ── */}

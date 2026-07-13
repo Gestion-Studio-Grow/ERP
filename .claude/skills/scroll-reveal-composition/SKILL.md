@@ -102,30 +102,35 @@ Todas las recetas están pensadas para **degradar bien**: contenido visible sin 
 
 ### 3.1 · El componente `Reveal` (IntersectionObserver, no-JS-safe, reduced-motion-safe)
 
-La clave del "no-JS-safe": **el estado oculto se aplica SOLO cuando una clase `reveal-ready` está en
-`<html>`**, y esa clase la agrega el propio JS. Sin JS → nunca se oculta nada → contenido íntegro.
+La clave del "no-JS-safe": **el estado oculto se aplica SOLO cuando el contenedor raíz lleva la clase
+`reveal-ready`**, y esa clase la agrega el propio JS al montar (`useEffect`). Sin JS → el contenedor
+nunca la lleva → nunca se oculta nada → contenido íntegro. (Se prefiere un `useEffect` scopeado a la
+raíz del bloque antes que un side-effect a nivel de módulo: es SSR-safe, testeable y sin globales.)
 
 ```tsx
 // components/Reveal.tsx
 "use client";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-// Marca <html> como "JS listo": recién entonces el CSS puede ocultar para revelar.
-// Sin este flag (sin JS), todo queda visible. Se corre una sola vez.
-if (typeof document !== "undefined") document.documentElement.classList.add("reveal-ready");
+// RevealRoot: envolvé tu página/sección con esto. Marca la raíz como "JS listo" recién al
+// montar → el CSS de abajo puede ocultar-para-revelar. Sin JS, `ready` nunca es true → todo visible.
+export function RevealRoot({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
+  return <div className={`${className}${ready ? " reveal-ready" : ""}`.trim()}>{children}</div>;
+}
 
 export function Reveal({
   children, as: Tag = "div", delay = 0, y = 16, style, className,
-}: { children: ReactNode; as?: any; delay?: number; y?: number; style?: CSSProperties; className?: string; }) {
-  const ref = useRef<HTMLElement>(null);
+}: { children: ReactNode; as?: "div" | "section" | "li" | "article"; delay?: number; y?: number; style?: CSSProperties; className?: string; }) {
+  const ref = useRef<HTMLDivElement>(null);
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     // Respeta reduced-motion: sin animación, se muestra ya.
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { setShown(true); return; }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setShown(true); return; }
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) if (e.isIntersecting) { setShown(true); io.disconnect(); }
     }, { rootMargin: "0px 0px -10% 0px", threshold: 0.15 }); // dispara un toque antes del borde
@@ -133,22 +138,19 @@ export function Reveal({
     return () => io.disconnect();
   }, []);
 
+  const T = Tag as "div";
   return (
-    <Tag
-      ref={ref}
-      data-reveal={shown ? "in" : "out"}
-      className={className}
-      style={{ ["--reveal-y" as string]: `${y}px`, ["--reveal-delay" as string]: `${delay}ms`, ...style }}
-    >
+    <T ref={ref} data-reveal={shown ? "in" : "out"} className={className}
+       style={{ ["--reveal-y" as string]: `${y}px`, ["--reveal-delay" as string]: `${delay}ms`, ...style }}>
       {children}
-    </Tag>
+    </T>
   );
 }
 ```
 
 ```css
-/* globals.css — el estado oculto SOLO aplica con JS listo (reveal-ready) */
-:root.reveal-ready [data-reveal="out"] {
+/* globals.css — el estado oculto SOLO aplica con JS listo (reveal-ready en la raíz) */
+.reveal-ready [data-reveal="out"] {
   opacity: 0;
   transform: translateY(var(--reveal-y, 16px));
 }
@@ -162,7 +164,7 @@ export function Reveal({
 
 /* NO negociable: si el usuario pidió menos movimiento, nada se mueve ni se oculta */
 @media (prefers-reduced-motion: reduce) {
-  :root.reveal-ready [data-reveal] { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .reveal-ready [data-reveal] { opacity: 1 !important; transform: none !important; transition: none !important; }
 }
 ```
 
@@ -192,6 +194,15 @@ El delay incremental encadena la entrada. Mantenelo corto (60–90ms) o se sient
 Requiere una **fuente variable** para que el peso 450 se vea bien (Inter var, Google Sans Flex,
 o la que traiga el proyecto). Con una estática, usá 400–500 y no fuerces intermedios.
 
+> **Variante "display atlético" (calibración por marca).** El peso 450 liviano es el **default calmo**
+> —lo que hace premium a Antigravity—. Pero la técnica es la composición (aire + reveal + ritmo +
+> color-por-materia), no un peso sagrado: una marca de **impacto/energía** (deporte, música, motor)
+> puede legítimamente subir a **600–700 y/o mayúscula con tracking apretado** para sonar atlética, sin
+> perder la técnica. Es una **desviación consciente por identidad**, no un descuido — declarala. Lo que
+> sí sigue siendo anti-patrón es el **800+ "grito"** que ahoga el aire, y mezclar pesos sin criterio.
+> (Ej. real: el front de A Dos Manos Pádel usa Hanken 600 en mayúscula sobre lienzo oscuro — variante
+> atlética — conservando reveal, ritmo de 120px, vacío y color-por-materia.)
+
 ### 3.4 · El lienzo ancho + ritmo de 120px
 
 ```css
@@ -205,17 +216,43 @@ o la que traiga el proyecto). Con una estática, usá 400–500 y no fuerces int
 ### 3.5 · Sección "pineada" que el scroll explora (el pico de atención)
 
 Con CSS `position: sticky` — barato, sin JS de scroll. El contenedor alto crea el "tiempo de scroll";
-el hijo sticky se queda fijo mientras el índice de paso cambia por IntersectionObserver.
+el hijo sticky se queda fijo mientras el índice de paso cambia por IntersectionObserver. Snippet
+autocontenido y compilable (no depende del `Reveal` de §3.1 — usa su propio observer por paso):
 
 ```tsx
-<section style={{ position: "relative" }}>
-  <div style={{ position: "sticky", top: 0, minHeight: "100vh", display: "grid", placeItems: "center" }}>
-    <FeatureStage active={step} />           {/* lo que queda fijo y va cambiando */}
-  </div>
-  {steps.map((s, i) => (
-    <Reveal key={i} as="div" style={{ minHeight: "70vh" }} onSeen={() => setStep(i)}>{/* marca de paso */}</Reveal>
-  ))}
-</section>
+"use client";
+import { useEffect, useRef, useState } from "react";
+
+function PinnedExplorer({ steps }: { steps: { title: string; body: string }[] }) {
+  const [active, setActive] = useState(0);
+  const markers = useRef<(HTMLDivElement | null)[]>([]);
+  useEffect(() => {
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            const i = markers.current.indexOf(e.target as HTMLDivElement);
+            if (i >= 0) setActive(i);
+          }
+        }
+      },
+      { rootMargin: "-45% 0px -45% 0px" }, // "activo" = el que cruza el centro del viewport
+    );
+    markers.current.forEach((m) => m && io.observe(m));
+    return () => io.disconnect();
+  }, []);
+  return (
+    <section style={{ position: "relative" }}>
+      <div style={{ position: "sticky", top: 0, minHeight: "100vh", display: "grid", placeItems: "center" }}>
+        {/* lo que queda FIJO y va cambiando según `active` */}
+        <FeatureStage step={steps[active]} />
+      </div>
+      {steps.map((_, i) => (
+        <div key={i} ref={(el) => { markers.current[i] = el; }} style={{ minHeight: "80vh" }} aria-hidden />
+      ))}
+    </section>
+  );
+}
 ```
 
 > **Regla de honestidad UX:** en un **e-commerce**, la sección pineada NO puede estar entre el
