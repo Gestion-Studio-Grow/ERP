@@ -50,8 +50,10 @@ function tenantInitials(name: string): string {
 // ("CH Estética…"), así que el storefront de Magra decía "CH Estética" en la
 // pestaña, al compartir en redes y en buscadores. Ahora sale del tenant.
 export async function generateMetadata(): Promise<Metadata> {
-  const [data, accent] = await Promise.all([loadStorefront(), loadAccent()]);
+  const [data, accent, metaSlug] = await Promise.all([loadStorefront(), loadAccent(), getCurrentTenantSlug()]);
   const name = data.name;
+  // SHINE: favicon = isotipo REAL de marca (manual), no las iniciales genéricas.
+  const iconUri = metaSlug === "shinevelas" ? "/tenants/shinevelas/brand/favicon.png" : tenantFaviconDataUri(tenantInitials(name), accent);
   const suffix = data.copy?.tagline ?? data.branding?.city ?? null;
   const title = suffix ? `${name} · ${suffix}` : name;
   const raw =
@@ -64,7 +66,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     openGraph: { title, description, type: "website" },
-    icons: { icon: tenantFaviconDataUri(tenantInitials(name), accent) },
+    icons: { icon: iconUri },
   };
 }
 

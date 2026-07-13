@@ -93,6 +93,25 @@ function Flame({ size = 22, tone = "malva", className = "" }: { size?: number; t
   return <span className={`sh-flame sh-flame-${tone} ${className}`.trim()} style={{ width: size, height: size * 1.7 }} aria-hidden />;
 }
 
+// Sello/sticker OFICIAL del manual (pág. 15): el slogan en círculo alrededor de un destello
+// de 4 puntas. SVG recolorable (currentColor via CSS). Gira lento (respeta reduced-motion).
+function Seal({ size = 112 }: { size?: number }) {
+  return (
+    <svg className="sh-seal" viewBox="0 0 100 100" width={size} height={size} aria-hidden focusable="false">
+      <defs>
+        <path id="sh-seal-path" d="M50,50 m-33,0 a33,33 0 1,1 66,0 a33,33 0 1,1 -66,0" fill="none" />
+      </defs>
+      <circle cx="50" cy="50" r="49" className="sh-seal-disc" />
+      <text className="sh-seal-txt">
+        <textPath href="#sh-seal-path" startOffset="0">
+          QUE TU LUZ NUNCA SE APAGUE · QUE TU LUZ NUNCA SE APAGUE ·
+        </textPath>
+      </text>
+      <path className="sh-seal-star" d="M50 35 L53.4 46.6 L65 50 L53.4 53.4 L50 65 L46.6 53.4 L35 50 L46.6 46.6 Z" />
+    </svg>
+  );
+}
+
 export default function ShineFront({ products, branding, copy, imagery, tenantKey }: Props) {
   const configured = branding?.whatsapp ?? null;
   return (
@@ -178,6 +197,7 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
               )}
               <div aria-hidden className="sh-hero-veil" />
               <div aria-hidden className="sh-hero-halo" />
+              <Seal size={116} />
             </div>
             <div className="sh-hero-copy">
               <span className="sh-eyebrow">{copy.eyebrow}</span>
@@ -340,7 +360,12 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
                 <span className="sh-eyebrow">{copy.gourmetTitle}</span>
                 <div className="sh-aromas-list">
                   {copy.gourmetItems.map((a, i) => (
-                    <span key={i} className="sh-aroma sh-display">{a}</span>
+                    <span key={i} className="sh-aroma-item">
+                      <span className="sh-aroma sh-display">{a}</span>
+                      {i < copy.gourmetItems.length - 1 && (
+                        <Image src="/tenants/shinevelas/brand/icon-sparkle-o.png" alt="" width={15} height={15} className="sh-aroma-sep" />
+                      )}
+                    </span>
                   ))}
                 </div>
               </Reveal>
@@ -586,6 +611,14 @@ const CSS = `
 .shine .sh-hero-veil{position:absolute;inset:0;background:linear-gradient(90deg,rgba(243,235,225,.9),rgba(243,235,225,.15) 30%,transparent 55%),linear-gradient(0deg,rgba(103,17,40,.16),transparent 40%)}
 @media(max-width:900px){.shine .sh-hero-veil{background:linear-gradient(0deg,var(--crema),rgba(243,235,225,.1) 45%,transparent),linear-gradient(0deg,rgba(103,17,40,.14),transparent 50%)}}
 .shine .sh-hero-halo{position:absolute;left:10%;top:36%;width:46%;height:46%;background:radial-gradient(50% 50% at 50% 50%,rgba(208,174,172,.55),rgba(184,138,137,.22) 45%,transparent 72%);filter:blur(8px);pointer-events:none}
+/* Sello oficial girando en el borde del hero */
+.shine .sh-seal{position:absolute;left:-52px;bottom:11%;z-index:5;transform-origin:50% 50%;animation:sh-spin 30s linear infinite;filter:drop-shadow(0 10px 24px rgba(103,17,40,.22))}
+.shine .sh-seal-disc{fill:var(--crema)}
+.shine .sh-seal-txt{font-family:var(--f-body);font-size:6px;font-weight:600;letter-spacing:.1em;fill:var(--vino)}
+.shine .sh-seal-star{fill:var(--vino)}
+@keyframes sh-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.shine .sh-seal{animation:none}}
+@media(max-width:900px){.shine .sh-seal{left:auto;right:14px;bottom:14px;width:84px;height:84px}}
 .shine .sh-hero-copy{order:1;position:relative;z-index:3;align-self:center;padding:120px clamp(20px,4vw,64px) 9vh;max-width:640px}
 @media(max-width:900px){.shine .sh-hero-copy{order:2;padding:32px 22px 48px;margin-top:-8vh}}
 .shine .sh-hero-h1{font-size:clamp(46px,7vw,88px);color:var(--vino);margin:18px 0 0;max-width:14ch;font-weight:500}
@@ -692,8 +725,9 @@ const CSS = `
 .shine .sh-aromas{padding:clamp(48px,7vh,90px) clamp(18px,4vw,64px);text-align:center}
 .shine .sh-aromas .sh-eyebrow{display:block;margin-bottom:22px}
 .shine .sh-aromas-list{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 30px}
+.shine .sh-aroma-item{display:inline-flex;align-items:center;gap:20px}
 .shine .sh-aroma{font-size:clamp(22px,3.4vw,34px);color:var(--malva-d);font-style:italic;font-weight:500}
-.shine .sh-aroma:not(:last-child)::after{content:"·";margin-left:30px;color:var(--nude);font-style:normal}
+.shine .sh-aroma-sep{opacity:.65;flex:none}
 
 /* ABOUT — con la TRAMA de marca como textura tenue de fondo */
 .shine .sh-about{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--crema),var(--blush));padding:clamp(64px,11vh,140px) clamp(18px,4vw,64px);text-align:center}
