@@ -377,24 +377,26 @@ export interface ProvisionHandoff {
 export function toProvisionHandoff(m: MaterialDeMarca): ProvisionHandoff {
   const provisionales: string[] = [];
   // Devuelve el valor sólo si existe; registra si era provisional.
-  const use = <T>(path: string, f: Field<T>): T | undefined => {
+  // NB: se llama `pick` (no `use`) a propósito — un helper local con nombre `use*`
+  // dispara un FALSO POSITIVO de react-hooks/rules-of-hooks (lo confunde con un Hook).
+  const pick = <T>(path: string, f: Field<T>): T | undefined => {
     if (!fieldHasValue(f)) return undefined;
     if (f.provenance === "provisional") provisionales.push(path);
     return f.value as T;
   };
 
   const flags: ProvisionHandoff["flags"] = {};
-  const nombre = use("identidad.nombrePublico", m.identidad.nombrePublico);
+  const nombre = pick("identidad.nombrePublico", m.identidad.nombrePublico);
   if (nombre) flags.nombre = nombre;
-  const whatsapp = use("contacto.whatsapp", m.contacto.whatsapp);
+  const whatsapp = pick("contacto.whatsapp", m.contacto.whatsapp);
   if (whatsapp) flags.whatsapp = whatsapp;
-  const city = use("contacto.ciudad", m.contacto.ciudad);
+  const city = pick("contacto.ciudad", m.contacto.ciudad);
   if (city) flags.city = city;
-  const tagline = use("identidad.tagline", m.identidad.tagline);
+  const tagline = pick("identidad.tagline", m.identidad.tagline);
   if (tagline) flags.contactNote = tagline;
-  const accent = use("identidad.accentPreset", m.identidad.accentPreset);
+  const accent = pick("identidad.accentPreset", m.identidad.accentPreset);
   if (accent) flags.accentPreset = accent;
-  const theme = use("identidad.theme", m.identidad.theme);
+  const theme = pick("identidad.theme", m.identidad.theme);
   if (theme) flags.theme = theme;
 
   const { missingForProd } = completenessScore(m);
