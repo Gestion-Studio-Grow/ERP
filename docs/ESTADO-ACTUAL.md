@@ -9,9 +9,14 @@ FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nue
 este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
-> **🔁 Reconciliación 2026-07-12 (consolidación multi-rama + productos, la más reciente — gana sobre lo de abajo).**
-> - **`main` real = `0a279cf`** (donde abajo se lea `93eae5f`/`7ccee77`, léase esto). Prod: **8 superficies en 200**
+> **🔁 Reconciliación 2026-07-12 (consolidación multi-rama + productos + rediseño Shine, la más reciente — gana sobre lo de abajo).**
+> - **`main` real = `49c695c`** (donde abajo se lea `93eae5f`/`7ccee77`/`0a279cf`, léase esto). Prod: **8 superficies en 200**
 >   (4 apps `*-erp` + consola `gsg-erp` + 3 productos `comerciante/contador/facturita-gsg`).
+> - **Front de SHINE rediseñado con FIDELIDAD DE MARCA** (manual oficial 2026): `src/app/tienda/ShineFront.tsx`
+>   dedicado (ruteado por slug), con los activos REALES extraídos del PDF en `public/tenants/shinevelas/brand/`
+>   (logo con llama-i, isotipo taupe como máscara recolorable, sistema de 9 íconos, trama, sello, favicon).
+>   Red-team Challenger (ADR-045) subió de 4.5 a ~8.5/10. Erradicado el glow ámbar (sesgo de modelo). Fuentes
+>   Cormorant+Kumbh vía next/font. Deuda opcional: The Seasons real + fotos reales del cliente.
 > - **Suite de facturación de 3 productos VIVA** sobre un motor (ADR-076): identidad por producto (login/nav/Inicio
 >   distintos) + **Tienda de módulos** (ADR-089: núcleo + plugins instalables por producto, `/admin/modulos`,
 >   candado del núcleo; `src/lib/admin-nav-items.ts` = fuente única de la nav). UAT verde.
