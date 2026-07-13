@@ -22,6 +22,12 @@ principios antes de diseñar.
 - Usa **design tokens + primitivos** existentes (no duplica patrones); responsive + branding por tenant.
 - **Sello GSG discreto en backoffice, nunca sobre la vitrina del cliente** (no-colisión, ADR-043).
 - En modo réplica, **fidelidad a la marca del cliente** por encima del gusto GSG.
+- Para vidrieras públicas que tienen que **impresionar** (premium/editorial, "se arma al scrollear"),
+  invocá la skill **`scroll-reveal-composition`** (`.claude/skills/scroll-reveal-composition/SKILL.md`):
+  técnica destilada de antigravity.google — tipografía grande y liviana, lienzo ancho + vacío, revelado
+  por scroll con `opacity+translateY(16px)`, stagger y easing de desaceleración, color por la materia.
+  Trae recetas React/CSS + umbrales (AA, reduced-motion, sin-JS, 60fps) y **cuándo NO usarla** (backoffice,
+  catálogos enormes, urgencia/precio). No reemplaza el Gate: lo alimenta.
 
 ## Zona de de-sesgo (ADR-046)
 Copy, vidriera, experiencia → **HUMANA, criolla, cálida**; sistema de diseño/tokens → **ESTÁNDAR**.
