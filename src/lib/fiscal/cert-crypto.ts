@@ -48,20 +48,53 @@ export interface CredentialPlaintext {
 }
 
 /**
+ * Fingerprint del entorno de EJECUCIÓN — SOLO para diagnóstico, NUNCA expone ningún valor.
+ * Reporta si el runtime ve otras variables (para distinguir "no llegó NADA del entorno" de
+ * "esta variable puntual falta/está mal nombrada/mal targeteada en Vercel"). Los nombres de
+ * infra (DATABASE_URL, etc.) y `VERCEL_ENV` (production|preview|development) no son secretos.
+ */
+function fingerprintEntornoRuntime(env: Record<string, string | undefined>): string {
+  const presente = (k: string) => (env[k] != null && env[k] !== "" ? "sí" : "no");
+  const total = Object.keys(env).length;
+  const vercelEnv = env.VERCEL_ENV ?? (env.VERCEL ? "vercel(sin VERCEL_ENV)" : "no-vercel");
+  // Boolean-only: ¿hay ALGUNA clave que contenga FISCAL/MASTER? (no imprime el nombre ni el valor)
+  const hayVecina = Object.keys(env).some((k) => /FISCAL|MASTER/i.test(k)) ? "sí" : "no";
+  return (
+    `[diagnóstico runtime — sin exponer valores] entorno=${vercelEnv} · ` +
+    `vars visibles=${total} · DATABASE_URL=${presente("DATABASE_URL")} · ` +
+    `OPERATOR_DATABASE_URL=${presente("OPERATOR_DATABASE_URL")} · ` +
+    `alguna clave FISCAL/MASTER=${hayVecina}`
+  );
+}
+
+/**
  * Resuelve la master key desde `FISCAL_MASTER_KEY` (base64 de 32 bytes). Falla fuerte si
  * no está o no mide 32 bytes: preferimos NO poder cifrar/emitir antes que hacerlo con una
  * clave débil o ausente (fail-closed). Generá una con:
  *   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+ *
+ * IMPORTANTE (runtime, no build): se lee `process.env` EN CADA LLAMADA (el default del
+ * parámetro se evalúa al invocar, no al cargar el módulo). En Vercel esto corre en la
+ * función Node (server action/route) donde las env vars — incluidas las "Sensitive" — están
+ * disponibles en runtime. Nunca se lee en top-level de módulo (build) ni en Edge. Si aún así
+ * falta, el error trae un fingerprint del entorno para diagnosticar desde el propio runtime.
  */
 export function masterKeyDesdeEnv(
   env: Record<string, string | undefined> = process.env,
 ): MasterKey {
-  const raw = env.FISCAL_MASTER_KEY;
+  // `.trim()`: robusto ante el pegado con newline/espacios finales (evita un decode a 33
+  // bytes que confundiría "mal seteada" con "no seteada").
+  const raw = env.FISCAL_MASTER_KEY?.trim();
   if (!raw) {
     throw new Error(
-      "FISCAL_MASTER_KEY no está seteada. Es la master key (KEK) que cifra las credenciales " +
-        "fiscales por tenant — acción humana (secreto de entorno). Sin ella no se puede cargar " +
-        "ni usar ningún certificado ARCA. Generá 32 bytes base64 y seteala en el entorno.",
+      "FISCAL_MASTER_KEY no está seteada en el entorno de EJECUCIÓN (runtime). Es la master " +
+        "key (KEK) que cifra las credenciales fiscales por tenant — acción humana (secreto de " +
+        "entorno). Sin ella no se puede cargar ni usar ningún certificado ARCA. Se lee en " +
+        "runtime (servidor Node), NO en build ni en Edge: si el diagnóstico muestra otras vars " +
+        "presentes (p.ej. DATABASE_URL=sí) pero esta ausente, la variable NO está inyectada en " +
+        "ESTE deployment — revisá proyecto/entorno correcto en Vercel y volvé a desplegar. " +
+        "Generá 32 bytes base64 y seteala en el entorno. " +
+        fingerprintEntornoRuntime(env),
     );
   }
   let key: Buffer;
