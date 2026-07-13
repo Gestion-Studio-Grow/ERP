@@ -24,6 +24,7 @@ import Storefront from "./Storefront";
 import SiteReplica from "./SiteReplica";
 import MagraFront from "./MagraFront";
 import ShineFront from "./ShineFront";
+import AdosmanosFront from "./AdosmanosFront";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,19 @@ export default async function TiendaPage() {
         tenantKey={slug}
       />
     );
+  }
+
+  // A DOS MANOS — front público editorial "cancha de noche" propio. Aplica la técnica
+  // scroll-reveal-composition (.claude/skills/): tipografía grande y liviana, lienzo ancho
+  // + vacío, revelado por scroll, color por la materia — sobre lienzo carbón + acento
+  // verde-teal del tenant. Rompe el molde genérico con la identidad de A Dos Manos + el
+  // catálogo/carrito del ERP detrás (placeOnlineOrder). Copy honesto (adosmanos-content.ts),
+  // imágenes IA (public/tenants/adosmanos/gen). Piel autocontenida (no depende del brand-sheet).
+  // `padel-demo` es el tenant de rubro pádel del seed de QA (gate:visual:aa) → se rutea
+  // acá para que la vidriera bespoke quede CUBIERTA por el gate visual (mismo patrón que
+  // MagraFront con `magra-demo`). En prod solo existe el slug real `adosmanos`.
+  if (slug === "adosmanos" || slug === "padel-demo") {
+    return <AdosmanosFront products={data.products} branding={data.branding} tenantKey={slug} />;
   }
 
   const replica = getSiteReplica(slug);
