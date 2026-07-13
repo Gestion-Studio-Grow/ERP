@@ -15,7 +15,11 @@ const tones: Record<Tone, string> = {
   // (hex de marca de CH Estética) como default de TODOS los tenants —
   // filtraba la marca de un tenant a cualquier otro (bug real, corregido).
   neutral: "bg-surface-sunken text-muted",
-  accent: "bg-accent-soft text-accent",
+  // text-accent-ink (no `text-accent` crudo): el acento de marca crudo sobre
+  // accent-soft puede caer bajo AA como texto chico (ej. badge "Por kg" del tenant
+  // velas = 4.33:1 < 4.5). accent-ink es el acento AFINADO para texto (mismo tono,
+  // AA garantizado) — el mismo patrón que ya usa el tono `info` (--info = accent-ink).
+  accent: "bg-accent-soft text-accent-ink",
   success: "bg-success-soft text-success",
   warning: "bg-warning-soft text-warning",
   danger: "bg-danger-soft text-danger",

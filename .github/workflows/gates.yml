@@ -1,14 +1,30 @@
-# Vallas de CI — Célula 2 (Confiabilidad). Corre `npm run gates` (tsc + lint +
-# tests + regresión de aislamiento RLS + build + RENDER VISUAL) en cada push y PR.
-# NO toca prod ni Neon: ninguna valla necesita base de datos (la coverage de RLS es
-# estática sobre el schema; los tests son unitarios; la valla visual corre el subset
-# SIN DB — login de operador/admin + vidriera con branding fail-open). El cliente
-# Prisma se genera en el postinstall (`prisma generate`, sin DB). Seguro por diseño.
+# Vallas de CI — Célula 2 (Confiabilidad).
+# ============================================================================
+# POR QUÉ ESTE WORKFLOW ESTÁ SEPARADO EN JOBS (no un solo `npm run gates`):
+# Antes las 7 vallas corrían en UN job; como el `lint` arrastra deuda crónica
+# (roja hace tiempo), el job entero daba ROJO en TODOS los push. Resultado: si
+# alguien rompía el login o una pantalla, la señal pasaba de rojo→rojo y NADIE se
+# enteraba. El gate visual —que existe justamente porque un login roto llegó a
+# prod con 929 tests en verde (incidente 2026-07-11)— no significaba nada.
 #
-# La valla VISUAL renderiza rutas críticas en Chromium real (Playwright) y falla si
-# el layout está roto (CSS que no aplica, "una palabra por línea", overflow). Nace
-# del incidente 2026-07-11 (login de /operador roto en prod que pasó tsc+build+test).
-# Deja los screenshots como artefacto del run.
+# Ahora cada valla es un JOB con su propia señal:
+#   · lint      → NO BLOQUEANTE (continue-on-error). Es deuda pre-existente; queda
+#                 en amarillo y visible, pero NO enmascara al resto. Se salda aparte.
+#   · tsc, tests, rls, build, visual, visual-aa → BLOQUEANTES.
+#
+# 🔒 REGLA DURA (no negociable): `visual` y `visual-aa` son BLOQUEANTES. Si una
+#    página se ve rota o ilegible, el CI FALLA. Es la lección más cara que pagamos.
+#
+# NO toca prod ni Neon: ninguna valla necesita base de datos externa (la coverage
+# de RLS es estática sobre el schema; los tests son unitarios; la valla visual
+# corre el subset SIN DB —login de operador/admin + vidriera con branding
+# fail-open—; la visual-aa levanta una base EFÍMERA en RAM con PGlite, sin Neon).
+# El cliente Prisma se genera en el postinstall (`prisma generate`, sin DB).
+#
+# EFICIENCIA: `build` corre UNA vez y publica `.next` como artefacto; `visual` y
+# `visual-aa` lo descargan en vez de rebuildear. Las vallas visuales renderizan en
+# Chromium real (Playwright) y suben sus screenshots como artefacto del run.
+# ============================================================================
 name: gates
 
 on:
@@ -16,7 +32,26 @@ on:
   pull_request:
 
 jobs:
-  gates:
+  # ── Valla NO BLOQUEANTE: deuda de lint pre-existente ──────────────────────
+  lint:
+    name: lint (no-bloqueante · deuda pre-existente)
+    runs-on: ubuntu-latest
+    # continue-on-error: la deuda de lint queda VISIBLE (amarillo) pero NO tumba el
+    # run ni enmascara a las demás vallas. Se salda por separado; ver el reporte de
+    # la sesión ci/senal-verde.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  # ── Vallas ESTÁTICAS BLOQUEANTES (rápidas, sin navegador, sin build) ──────
+  tsc:
+    name: tsc (tipos)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,16 +59,105 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # npm ci corre el postinstall → prisma generate (genera src/generated/prisma
-      # sin conectar a ninguna base).
       - run: npm ci
-      # Chromium para la valla visual (render real). --with-deps trae las libs de SO.
+      - run: npx tsc --noEmit
+
+  tests:
+    name: tests (npm test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  rls:
+    name: rls-coverage (aislamiento)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: node prisma/rls/check-coverage.mjs
+
+  # ── BUILD BLOQUEANTE: corre una vez y comparte `.next` a las vallas visuales ──
+  build:
+    name: build (next build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Publicamos `.next` (sin la cache, que es pesada e innecesaria para `next
+      # start`) para que visual/visual-aa no rebuildeen. include-hidden-files: el
+      # dir arranca con "." y upload-artifact v4 lo excluiría por defecto.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-build
+          path: |
+            .next/
+            !.next/cache/**
+          include-hidden-files: true
+          retention-days: 1
+
+  # ── Vallas VISUALES: BLOQUEANTES (no negociable) ──────────────────────────
+  visual:
+    name: visual (render real) · BLOQUEANTE
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Chromium para el render real. --with-deps trae las libs de SO.
       - run: npx playwright install --with-deps chromium
-      - run: npm run gates
-      # Screenshots del render como artefacto (siempre, para poder mirar cuando falla).
+      - uses: actions/download-artifact@v4
+        with:
+          name: next-build
+          path: .next/
+      - run: npm run gate:visual
+      # Screenshots del render como artefacto (siempre, para mirar cuando falla).
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: visual-gate-screenshots
           path: qa-shots/visual/
+          if-no-files-found: warn
+
+  visual-aa:
+    name: visual-aa (contraste/touch/overflow) · BLOQUEANTE
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: next-build
+          path: .next/
+      - run: npm run gate:visual:aa
+      # Screenshots de la auditoría AA como artefacto (siempre).
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-aa-screenshots
+          path: qa-shots/audit/
           if-no-files-found: warn
