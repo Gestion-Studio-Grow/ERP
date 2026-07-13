@@ -18,6 +18,17 @@ Integraciones externas del ERP. Definidas por **ADR-002** (Core/Blueprint/Plugin
 |--------|-------------|--------|-----|
 | [`arca/`](./arca) | Facturación electrónica ARCA (ex-AFIP) — autorización fiscal (CAE) | Scaffold contra stub; lado Core diferido | ADR-022 |
 
+## Verticales de primera parte (no integraciones)
+
+No todo lo que vive bajo `plugins/` es una integración externa. Un **vertical de primera parte** es un
+producto propio con su dominio y su schema, empaquetado acá para encajar en el catálogo de módulos
+(ADR-054) sin ser un injerto. Se declara como `ModuleDescriptor` con `kind: "capability"` (no `"plugin"`)
+y **sí** puede tener su propio schema (con su RLS por tenant), a diferencia de las integraciones.
+
+| Vertical | Qué es | Estado | ADR |
+|----------|--------|--------|-----|
+| [`torneos/`](./torneos) | Torneos de pádel (Circuito WPE): motor determinístico (76 tests) + persistencia JSONB por tenant | FASE 1+2 (motor+persistencia); flag OFF, migración Gate 2 sin aplicar | ADR-097 |
+
 ## Convención de estructura (fijada por `arca/`, el primero)
 
 ```
