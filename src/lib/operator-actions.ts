@@ -10,6 +10,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import { operatorPrisma } from "@/lib/operator-db";
 import { requireOperator } from "@/lib/operator-session";
 import {
@@ -25,6 +26,12 @@ import { requestIp } from "@/lib/audit";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
+import { operatorSetMustChange } from "@/lib/must-change-password";
+import {
+  resetOwnerPasswordCore,
+  type OwnerResetPort,
+  type OwnerResetResult,
+} from "@/lib/owner-password-reset";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -250,6 +257,45 @@ export async function cargarCredencialFiscal(formData: FormData) {
   }
   revalidatePath(`/operador/tenants/${tenantId}`);
   redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(mensajeOk)}`);
+}
+
+// --- Reset de contraseña del OWNER (revelado único) ---------------------------
+// El dueño necesita entrar por primera vez al backoffice de un tenant y anotarse la
+// contraseña. Esta acción:
+//  1) genera una contraseña temporal fuerte (`generateStrongPassword`, alta entropía);
+//  2) guarda SOLO el hash (`hashPassword`, mismo scrypt del login) — el claro NUNCA se
+//     persiste, NUNCA se loguea, NUNCA se manda por email;
+//  3) marca al OWNER para cambio forzado en el próximo ingreso (`mustChangePassword`);
+//  4) audita quién/a-quién/cuándo, SIN el valor.
+// Devuelve el claro UNA vez para que la ficha lo muestre con revelado único (BootstrapReveal):
+// no va por la URL ni queda en ningún lado. Si se pierde, se resetea de nuevo.
+// Guardada por `requireOperator()` como el resto del control-plane.
+export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetResult> {
+  const op = await requireOperator();
+
+  // PORT armado sobre el control-plane (operatorPrisma, cross-tenant / BYPASSRLS). El núcleo
+  // (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un doble en memoria.
+  const port: OwnerResetPort = {
+    findOwner: (tid) =>
+      operatorPrisma.user.findFirst({
+        where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, email: true },
+      }),
+    setPasswordHash: async (userId, passwordHash) => {
+      await operatorPrisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    },
+    setMustChange: (userId, value) => operatorSetMustChange(operatorPrisma, userId, value),
+    audit: async (entry) => {
+      await operatorPrisma.auditLog.create({
+        data: { ...entry, changes: entry.changes as Prisma.InputJsonValue },
+      });
+    },
+  };
+
+  const result = await resetOwnerPasswordCore(port, { tenantId, operatorSubject: op });
+  if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
+  return result;
 }
 
 export async function toggleTenantModule(formData: FormData) {
