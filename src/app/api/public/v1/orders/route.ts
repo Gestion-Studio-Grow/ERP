@@ -18,10 +18,23 @@ import { runInTenantContext } from "@/lib/tenant-context";
 import { withRequestId, setRequestContext } from "@/lib/request-context";
 import { auditPublic } from "@/lib/audit";
 import { logger } from "@/lib/logger";
+import { checkPublicApiRate, clientIpFromRequest } from "@/lib/rate-limit";
 import {
   parseExternalOrder,
   createExternalOrder,
 } from "@/lib/external-orders";
+
+// 429 con Retry-After si la IP superó el límite de la API pública. Protege el
+// brute-force de la api-key (auth por tenant) y el flood de creación de pedidos
+// (consumo de compute de Neon, plan free) — el limiter existía pero no se cableaba.
+function rateLimited(request: Request): Response | null {
+  const retryAfter = checkPublicApiRate(clientIpFromRequest(request));
+  if (retryAfter === null) return null;
+  return Response.json(
+    { ok: false, error: { code: "rate_limited", message: "Demasiadas solicitudes. Reintentá en un momento." } },
+    { status: 429, headers: { "Retry-After": String(retryAfter) } },
+  );
+}
 
 // Node runtime: usa Prisma + node:crypto (no Edge).
 export const runtime = "nodejs";
@@ -39,6 +52,9 @@ function errorResponse(err: unknown): Response {
 }
 
 export const POST = withRequestId(async (request: Request) => {
+  const limited = rateLimited(request);
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await request.json();

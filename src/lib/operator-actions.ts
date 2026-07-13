@@ -132,9 +132,13 @@ export async function provisionFromConsole(formData: FormData) {
   }
 
   revalidatePath("/operador");
-  // La contraseña de bootstrap se muestra UNA vez en la ficha del tenant (si se generó).
-  const pw = result.generatedPassword ? `&bootstrap=${encodeURIComponent(result.generatedPassword)}` : "";
-  redirect(`/operador/tenants/${result.tenantId}?created=1${pw}`);
+  // 🔒 SEGURIDAD: la contraseña de bootstrap NUNCA viaja por la URL — quedaría en el
+  // historial del navegador y en los access-logs de Vercel/CDN/proxies (fuga de secreto).
+  // La entrega segura del bootstrap la hace el wizard de alta (`operador/(console)/alta`,
+  // RFC-003 P10: BootstrapReveal, fuera de la URL). Si hiciera falta (re)generar la clave
+  // del OWNER, usar el reset de contraseña, que revela una sola vez por el valor de retorno
+  // del Server Action (`resetOwnerPassword`/`ResetOwnerPasswordCard`), nunca por la URL.
+  redirect(`/operador/tenants/${result.tenantId}?created=1`);
 }
 
 // --- Configuración por tenant (control-plane) ---------------------------------

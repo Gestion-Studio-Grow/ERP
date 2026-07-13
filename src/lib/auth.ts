@@ -15,8 +15,21 @@ function toHex(buffer: ArrayBuffer) {
     .join("");
 }
 
+function resolveAuthSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (secret) return secret;
+  // 🔒 Fail-closed en producción: sin AUTH_SECRET, firmar con el string PÚBLICO conocido
+  // "dev-secret" dejaría forjar una cookie `admin_session` válida para cualquier userId
+  // (HMAC con clave conocida) → bypass total de auth. En dev aceptamos el fallback para
+  // poder probar local sin configurar nada. (Riesgo I2 de ESTADO-ACTUAL, ahora cerrado.)
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("AUTH_SECRET es obligatorio en producción (no hay fallback seguro).");
+  }
+  return "dev-secret";
+}
+
 async function sign(value: string) {
-  const secret = process.env.AUTH_SECRET ?? "dev-secret";
+  const secret = resolveAuthSecret();
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),

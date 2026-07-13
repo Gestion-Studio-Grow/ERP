@@ -21,7 +21,16 @@ function toHex(buffer: ArrayBuffer) {
 function operatorSecret(): string {
   // Secreto propio del plano; cae a AUTH_SECRET solo en dev. En prod debe setearse
   // OPERATOR_SECRET distinto del de la app del tenant (separación de llaveros).
-  return process.env.OPERATOR_SECRET ?? process.env.AUTH_SECRET ?? "dev-operator-secret";
+  const secret = process.env.OPERATOR_SECRET ?? process.env.AUTH_SECRET;
+  if (secret) return secret;
+  // 🔒 Fail-closed en producción: este secreto protege el PLANO CROSS-TENANT del operador.
+  // Sin él, el string público conocido "dev-operator-secret" dejaría forjar una cookie
+  // `operator_session` válida → acceso al control-plane de TODOS los tenants. En dev cae al
+  // fallback para poder probar la consola local sin configurar nada.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("OPERATOR_SECRET (o AUTH_SECRET) es obligatorio en producción.");
+  }
+  return "dev-operator-secret";
 }
 
 async function sign(value: string): Promise<string> {

@@ -22,23 +22,14 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { isDemoSandbox } from "@/lib/demo-sandbox";
+import { Prisma } from "@/generated/prisma/client";
+import { resolvePct, settleCommissionsInTx } from "@/lib/commission-core";
 
 const REPORTES_PATH = "/admin/reportes";
 
 // Vuelve a Reportes con un código de feedback (banner). No filtra detalle crudo.
 function backWith(status: string): never {
   redirect(`${REPORTES_PATH}?status=${encodeURIComponent(status)}`);
-}
-
-// Resuelve el % de comisión de un turno: si hay override por (profesional,
-// servicio) usa ese; si no, cae al % general del profesional (G18). Misma regla
-// que `getReportData`.
-function resolvePct(
-  professionalCommissionPercent: number,
-  overrideByService: Map<string, number>,
-  serviceId: string,
-): number {
-  return overrideByService.get(serviceId) ?? professionalCommissionPercent;
 }
 
 export type PendingCommission = {
@@ -158,64 +149,21 @@ export async function settleCommissions(formData: FormData) {
   if (!professionalId) backWith("error_prof");
   const note = String(formData.get("note") ?? "").trim() || null;
 
-  const result = await tenantTransaction(async (tx) => {
-    const professional = await tx.professional.findFirst({
-      where: { id: professionalId, tenantId },
-    });
-    if (!professional) return { count: 0, amount: 0 };
-
-    const [appointments, overrides] = await Promise.all([
-      tx.appointment.findMany({
-        where: {
-          tenantId,
-          professionalId,
-          status: "COMPLETED",
-          commissionPayoutId: null,
-          payment: { status: "APPROVED" },
-        },
-        include: { payment: true },
-      }),
-      tx.professionalServiceCommission.findMany({ where: { tenantId, professionalId } }),
-    ]);
-
-    const overrideByService = new Map(overrides.map((o) => [o.serviceId, o.commissionPercent]));
-
-    let amount = 0;
-    let periodStart: Date | null = null;
-    let periodEnd: Date | null = null;
-    const ids: string[] = [];
-    for (const a of appointments) {
-      if (!a.payment) continue;
-      const pct = resolvePct(professional.commissionPercent, overrideByService, a.serviceId);
-      if (pct <= 0) continue; // turno sin comisión: no forma parte de la liquidación
-      amount += (a.payment.amount * pct) / 100;
-      ids.push(a.id);
-      if (!periodStart || a.startsAt < periodStart) periodStart = a.startsAt;
-      if (!periodEnd || a.startsAt > periodEnd) periodEnd = a.startsAt;
-    }
-
-    if (ids.length === 0 || !periodStart || !periodEnd) return { count: 0, amount: 0 };
-
-    const payout = await tx.commissionPayout.create({
-      data: {
+  const result = await tenantTransaction(
+    (tx) =>
+      settleCommissionsInTx(tx, {
         tenantId,
         professionalId,
-        amount,
-        appointmentCount: ids.length,
-        periodStart,
-        periodEnd,
         note,
         settledBy: `user:${user.id}`,
-      },
-    });
-
-    await tx.appointment.updateMany({
-      where: { id: { in: ids } },
-      data: { commissionPayoutId: payout.id },
-    });
-
-    return { count: ids.length, amount, payoutId: payout.id, professionalName: professional.name };
-  });
+      }),
+    // 🔒 SERIALIZABLE (fix del Gate de dinero): dos liquidaciones concurrentes del MISMO
+    // profesional (doble-click / dos pestañas) leerían el mismo set pendiente y crearían
+    // DOS CommissionPayout con el mismo monto. En Serializable, Postgres aborta una con
+    // conflicto y `tenantTransaction` la reintenta; en el reintento el pendiente ya está
+    // estampado → cuenta 0. Va junto con el compare-and-set de `settleCommissionsInTx`.
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 
   if (result.count === 0) backWith("error_nada");
 

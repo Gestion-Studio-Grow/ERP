@@ -11,6 +11,7 @@ import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withRequestId, setRequestContext } from "@/lib/request-context";
+import { checkPublicApiRate, clientIpFromRequest } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,15 @@ export const GET = withRequestId(async (
   request: Request,
   { params }: { params: Promise<{ code: string }> },
 ) => {
+  // Rate-limit por IP: protege el brute-force de la api-key también en la consulta de estado.
+  const retryAfter = checkPublicApiRate(clientIpFromRequest(request));
+  if (retryAfter !== null) {
+    return Response.json(
+      { ok: false, error: { code: "rate_limited", message: "Demasiadas solicitudes. Reintentá en un momento." } },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
+
   try {
     const { tenantId } = await authenticatePublicApi(request);
     setRequestContext({ tenantId });

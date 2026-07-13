@@ -72,10 +72,10 @@ export default async function TenantConfigPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; bootstrap?: string; ok?: string; error?: string }>;
+  searchParams: Promise<{ created?: string; ok?: string; error?: string }>;
 }) {
   const { id } = await params;
-  const { created, bootstrap, ok, error } = await searchParams;
+  const { created, ok, error } = await searchParams;
 
   const tenant = await operatorPrisma.tenant.findUnique({
     where: { id },
@@ -129,13 +129,8 @@ export default async function TenantConfigPage({
 
       {created && (
         <div className="rounded-md bg-success-soft text-success text-sm px-3 py-2">
-          Tenant provisionado.
-          {bootstrap && (
-            <span className="block mt-1">
-              🔑 Contraseña de bootstrap del OWNER (se muestra <b>una sola vez</b>, comunicala por canal seguro):{" "}
-              <code className="font-mono">{bootstrap}</code>
-            </span>
-          )}
+          Tenant provisionado. La contraseña del OWNER se entrega de forma segura por el
+          wizard de alta o por el reset de contraseña — nunca por la URL.
         </div>
       )}
       {ok && <div className="rounded-md bg-success-soft text-success text-sm px-3 py-2">Guardado ({ok}).</div>}
