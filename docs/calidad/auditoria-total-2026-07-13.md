@@ -76,7 +76,7 @@ Neon, plan free). El patrón MP-13 (construido ≠ consumido) aplicado a un cont
 
 | # | Dónde | Qué | Estado |
 |---|---|---|---|
-| M-1 | 3 `-core` importaban CUIT de `plugins/bancos/domain/cuit.ts` | Acoplamiento core→plugin (ADR-002) | ✅ **arreglado** (movido a `src/lib/fiscal/cuit.ts`) |
+| M-1 | 3 `-core` importaban CUIT de `plugins/bancos/domain/cuit.ts` | Acoplamiento core→plugin (ADR-002) | 🟡 **parcial**: la arista del CUIT cerrada (movido a `src/lib/fiscal/cuit.ts`); queda un residual `cartera-core.ts:22` que importa `CAP_FACTURAS_MES_DEFAULT` de `@/plugins/bancos` (constante bancos, no CUIT) → §4 |
 | M-2 | `src/lib/cartera-actions.ts` (alta) | Devolvía `e.message` crudo al panel | ✅ **arreglado** (curado + log) |
 | M-3 | `src/plugins/mercadopago/handler.ts`, `capabilities.ts`, `facturacion-actions.ts`, `stock/ledger.ts` (recordMovement) | Sin test que proteja el invariante | ✅ **parcial**: RBAC + webhook MP + I3 anti-oversell cubiertos; `getFacturacion` queda anotado (§5) |
 | M-4 | `webhooks/mercadopago/route.ts:16` | Resuelve el tenant vía `getCurrentTenantId()` ambiental (fallback 1-tenant) → bomba de tiempo con un 2º tenant con MP | 📌 **anotado** (§5) |
@@ -126,7 +126,16 @@ Neon, plan free). El patrón MP-13 (construido ≠ consumido) aplicado a un cont
 - **`getFacturacion` sin test de degradación:** es el hardening del incidente CH prod 2026-07-09; hoy sin test
   de regresión. **Razón:** el test necesita simular schema-ahead (columna faltante), más laborioso; priorizar
   en la próxima pasada de tests.
+- **CUIT residual (O-1 del Gate):** `cartera-core.ts:22` sigue importando `CAP_FACTURAS_MES_DEFAULT` de
+  `@/plugins/bancos` — un borde core→plugin que NO cerré (es una constante bancos, no CUIT). **Razón:** moverla
+  bien exige decidir si es concepto de bancos, de cartera o de pricing; no forcé un 2º refactor sin ese criterio.
+  Follow-up: mover la constante a config del Core o documentar `cartera-core` como plugin-tier.
 - **B-3/B-4/B-5:** bajo impacto; cota de rango y drift de doc.
+
+### Deuda a registrar en `docs/ESTADO-ACTUAL.md` al mergear (pedido del Gate)
+Antes de habilitar un **2º tenant con Mercado Pago** o **cobros masivos**, abrir frente con dueño para:
+M-4 (webhook MP resuelve tenant ambiental — bomba de tiempo con 2 MP), M-5 (rate-limiter en memoria — débil en
+serverless con 8 tenants), M-6 (loaders `/admin` dependen solo de RLS), `getFacturacion` sin test de schema-ahead.
 
 ---
 
@@ -158,7 +167,13 @@ revisar). ~44 worktrees, muchos apuntando a ramas ya mergeadas. Método no destr
   `tone="accent"` usaba el acento crudo del tenant (`text-accent`), que para el preset ambar da 4.33:1 (< 4.5)
   a 12px. Fix systémico en `src/components/ui/Badge.tsx` → `text-accent-ink` (el acento AA-safe que ya usaba el
   tono `info`). Verificado en los 4 tenants (estética/magra/padel/velas): 0 defectos.
-- **Gate de Excelencia (Opus):** auditoría GSG sobre el resultado (bloque final).
+- **Gate de Excelencia (Opus):** **APROBADO CON OBSERVACIONES** — habilitado para merge (el deploy lo
+  autorizás vos, Gate 1). El Gate verificó de forma independiente tsc + los 35 tests nuevos y cada claim
+  archivo:línea. Observaciones no bloqueantes: **O-1** el fix M-1 CUIT es parcial (residual `cartera-core.ts:22`,
+  ya corregido arriba); **O-2** HSTS `includeSubDomains` aplica a todo el sitio — inocuo en Vercel, revisar antes
+  de un dominio propio que sirva HTTP. Pidió registrar la deuda diferida en ESTADO-ACTUAL y sumar la lección a la
+  retro (ADR-047: rate-limiter/CUIT construidos-no-consumidos = patrón MP-13; compare-and-set de comisiones como
+  par del de caja/cheques).
 
 > Nada de esto tocó prod/Neon. Migraciones sin aplicar. Rama sin mergear — espera tu OK.
 
