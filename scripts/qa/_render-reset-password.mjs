@@ -160,6 +160,15 @@ async function main() {
       await page.getByRole("heading", { name: "Contraseña del OWNER" }).scrollIntoViewIfNeeded();
       await page.screenshot({ path: path.join(OUT, "02-ficha-revelado.png"), fullPage: true });
       log("02-ficha-revelado.png");
+
+      // 04 — reset MASIVO (todos los OWNER) → tabla revelada una sola vez + copiar todo
+      await page.goto(`${BASE}/operador`, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: "Resetear TODOS los OWNER (primer uso)" }).click();
+      await page.getByRole("button", { name: /Sí, resetear los/ }).click();
+      await page.getByText("se muestran", { exact: false }).first().waitFor({ timeout: 20000 });
+      await page.getByRole("button", { name: "Copiar todo" }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(OUT, "04-reset-todos.png"), fullPage: true });
+      log("04-reset-todos.png");
     } else {
       // Marca el flag directo en la DB (en la pasada admin no usamos operatorPrisma) y entra a
       // /admin como el OWNER → el portón de cambio forzado redirige a /admin/cambiar-password.

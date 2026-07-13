@@ -62,3 +62,34 @@ export async function resetOwnerPasswordCore(
 
   return { ok: true, password, email: owner.email, flagPending: !persisted };
 }
+
+// --- Reset MASIVO (primer uso de los 8 tenants) ------------------------------
+// Una fila por tenant, para mostrar la tabla "tenant → email → temporal" con revelado único. El
+// claro vive sólo en el retorno (nunca se persiste ni se loguea). Los tenants sin OWNER activo no
+// abortan el lote: se listan con `error` y sin contraseña.
+export type OwnerResetRow = {
+  tenantId: string;
+  tenantName: string;
+  email: string | null;
+  password: string | null;
+  flagPending: boolean;
+  error?: string;
+};
+
+export async function resetManyOwnerPasswordsCore(
+  port: OwnerResetPort,
+  tenants: { id: string; name: string }[],
+  operatorSubject: string,
+): Promise<OwnerResetRow[]> {
+  const rows: OwnerResetRow[] = [];
+  // Secuencial a propósito: no saturar la conexión y mantener el orden estable de la tabla.
+  for (const t of tenants) {
+    const r = await resetOwnerPasswordCore(port, { tenantId: t.id, operatorSubject });
+    rows.push(
+      r.ok
+        ? { tenantId: t.id, tenantName: t.name, email: r.email, password: r.password, flagPending: r.flagPending }
+        : { tenantId: t.id, tenantName: t.name, email: null, password: null, flagPending: false, error: r.error },
+    );
+  }
+  return rows;
+}

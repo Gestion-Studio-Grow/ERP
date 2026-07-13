@@ -29,8 +29,10 @@ import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { operatorSetMustChange } from "@/lib/must-change-password";
 import {
   resetOwnerPasswordCore,
+  resetManyOwnerPasswordsCore,
   type OwnerResetPort,
   type OwnerResetResult,
+  type OwnerResetRow,
 } from "@/lib/owner-password-reset";
 
 // --- Sesión de operador -------------------------------------------------------
@@ -270,12 +272,10 @@ export async function cargarCredencialFiscal(formData: FormData) {
 // Devuelve el claro UNA vez para que la ficha lo muestre con revelado único (BootstrapReveal):
 // no va por la URL ni queda en ningún lado. Si se pierde, se resetea de nuevo.
 // Guardada por `requireOperator()` como el resto del control-plane.
-export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetResult> {
-  const op = await requireOperator();
-
-  // PORT armado sobre el control-plane (operatorPrisma, cross-tenant / BYPASSRLS). El núcleo
-  // (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un doble en memoria.
-  const port: OwnerResetPort = {
+// PORT armado sobre el control-plane (operatorPrisma, cross-tenant / BYPASSRLS). El núcleo
+// (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un doble en memoria.
+function operatorResetPort(): OwnerResetPort {
+  return {
     findOwner: (tid) =>
       operatorPrisma.user.findFirst({
         where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null },
@@ -292,10 +292,33 @@ export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetRe
       });
     },
   };
+}
 
-  const result = await resetOwnerPasswordCore(port, { tenantId, operatorSubject: op });
+export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetResult> {
+  const op = await requireOperator();
+  const result = await resetOwnerPasswordCore(operatorResetPort(), { tenantId, operatorSubject: op });
   if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
   return result;
+}
+
+// Reset MASIVO de los OWNER (primer uso de los 8 tenants). Devuelve una fila por tenant con la
+// temporal REVELADA UNA vez (sólo en el retorno; nunca se persiste en claro, nunca se loguea, no
+// se escribe a ningún archivo). Cada reset queda auditado (lo hace el núcleo). Guardado por
+// `requireOperator()`. Incluye TODOS los tenants (ninguno tiene un cliente real usándolo hoy).
+export async function resetAllOwnerPasswords(): Promise<
+  { ok: true; rows: OwnerResetRow[] } | { ok: false; error: string }
+> {
+  const op = await requireOperator();
+  const tenants = await operatorPrisma.tenant.findMany({
+    select: { id: true, name: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (tenants.length === 0) return { ok: false, error: "No hay tenants." };
+
+  const rows = await resetManyOwnerPasswordsCore(operatorResetPort(), tenants, op);
+  revalidatePath("/operador");
+  for (const r of rows) revalidatePath(`/operador/tenants/${r.tenantId}`);
+  return { ok: true, rows };
 }
 
 export async function toggleTenantModule(formData: FormData) {
