@@ -171,54 +171,87 @@ export async function processArcaOutbox(limit = 20): Promise<DispatchResumen> {
   };
 
   for (const evento of pendientes) {
-    const payload = evento.payload as unknown as InvoiceCreatedPayload;
-    try {
-      await procesarInvoiceCreated(aEventoPlugin(payload), {
-        clientePara,
-        registrar: registerFiscalDocument,
-      });
-      await tenantTransaction(
-        (tx) => tx.outboxEvent.update({ where: { id: evento.id }, data: { processedAt: new Date() } }),
-        { tenantId: payload.tenantId },
-      );
-      resumen.autorizados++;
-      resumen.procesados++;
-    } catch (err) {
-      if (err instanceof ArcaRechazoError || err instanceof ComprobanteInvalidoError) {
-        // Rechazo determinístico: no tiene sentido reintentar. Marca la factura
-        // rechazada y el evento como procesado.
-        const motivo =
-          err instanceof ArcaRechazoError
-            ? err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")
-            : err.errores.map((e) => `${e.campo}: ${e.mensaje}`).join("; ");
-        await markInvoiceRejected(payload.invoiceId, payload.tenantId, motivo);
-        await tenantTransaction(
-          (tx) =>
-            tx.outboxEvent.update({
-              where: { id: evento.id },
-              data: { processedAt: new Date(), lastError: motivo },
-            }),
-          { tenantId: payload.tenantId },
-        );
-        resumen.rechazados++;
-        resumen.procesados++;
-      } else {
-        // Error transitorio (red, ARCA caído): dejar pendiente para reintento.
-        await tenantTransaction(
-          (tx) =>
-            tx.outboxEvent.update({
-              where: { id: evento.id },
-              data: {
-                attempts: { increment: 1 },
-                lastError: err instanceof Error ? err.message : String(err),
-              },
-            }),
-          { tenantId: payload.tenantId },
-        );
-        resumen.fallidos++;
-      }
-    }
+    await procesarEvento(evento, resumen);
   }
 
   return resumen;
+}
+
+/**
+ * Reintenta el despacho de UN comprobante pendiente (acción del OPERADOR desde el
+ * Monitor de Soporte). IDEMPOTENTE / SIN DUPLICAR (guardarraíl del pedido del dueño):
+ *
+ *   1. Solo toca eventos con `processedAt IS NULL` — un evento YA procesado (autorizado
+ *      o rechazado) NUNCA se re-despacha. Si el id no está pendiente, no hace nada.
+ *   2. Aunque se dispare dos veces en carrera, `registerFiscalDocument` solo autoriza
+ *      facturas en PENDING (updateMany count 0 en el 2º) → nunca un segundo CAE.
+ *
+ * Devuelve el resumen (0/0/0/0 si no había nada pendiente con ese id).
+ */
+export async function reintentarEventoOutbox(eventId: string): Promise<DispatchResumen> {
+  const resumen: DispatchResumen = { procesados: 0, autorizados: 0, rechazados: 0, fallidos: 0 };
+  const evento = await operatorPrisma.outboxEvent.findFirst({
+    // El filtro `processedAt: null` ES la guarda de idempotencia: no re-despacha lo ya despachado.
+    where: { id: eventId, type: OUTBOX_INVOICE_CREATED, processedAt: null },
+  });
+  if (!evento) return resumen;
+  await procesarEvento(evento, resumen);
+  return resumen;
+}
+
+/**
+ * Despacha UN evento del outbox y actualiza el resumen. Extraído del loop para poder
+ * reutilizarlo en el reintento puntual (mismo comportamiento, misma idempotencia).
+ */
+async function procesarEvento(
+  evento: { id: string; payload: unknown },
+  resumen: DispatchResumen,
+): Promise<void> {
+  const payload = evento.payload as unknown as InvoiceCreatedPayload;
+  try {
+    await procesarInvoiceCreated(aEventoPlugin(payload), {
+      clientePara,
+      registrar: registerFiscalDocument,
+    });
+    await tenantTransaction(
+      (tx) => tx.outboxEvent.update({ where: { id: evento.id }, data: { processedAt: new Date() } }),
+      { tenantId: payload.tenantId },
+    );
+    resumen.autorizados++;
+    resumen.procesados++;
+  } catch (err) {
+    if (err instanceof ArcaRechazoError || err instanceof ComprobanteInvalidoError) {
+      // Rechazo determinístico: no tiene sentido reintentar. Marca la factura
+      // rechazada y el evento como procesado.
+      const motivo =
+        err instanceof ArcaRechazoError
+          ? err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")
+          : err.errores.map((e) => `${e.campo}: ${e.mensaje}`).join("; ");
+      await markInvoiceRejected(payload.invoiceId, payload.tenantId, motivo);
+      await tenantTransaction(
+        (tx) =>
+          tx.outboxEvent.update({
+            where: { id: evento.id },
+            data: { processedAt: new Date(), lastError: motivo },
+          }),
+        { tenantId: payload.tenantId },
+      );
+      resumen.rechazados++;
+      resumen.procesados++;
+    } else {
+      // Error transitorio (red, ARCA caído): dejar pendiente para reintento.
+      await tenantTransaction(
+        (tx) =>
+          tx.outboxEvent.update({
+            where: { id: evento.id },
+            data: {
+              attempts: { increment: 1 },
+              lastError: err instanceof Error ? err.message : String(err),
+            },
+          }),
+        { tenantId: payload.tenantId },
+      );
+      resumen.fallidos++;
+    }
+  }
 }

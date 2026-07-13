@@ -26,14 +26,15 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   return (
     <div className="min-h-screen bg-surface text-strong" data-skin="fable" data-theme="dark">
       <header className="border-b border-line bg-elevated">
-        <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-6">
+        <div className="mx-auto max-w-6xl px-6 py-3 flex flex-wrap items-center justify-between gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link href="/operador" className="font-semibold tracking-tight">
               ◆ Control-plane
             </Link>
-            <nav className="flex items-center gap-4 text-sm text-muted">
+            <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
               <Link href="/operador" className="hover:text-strong">Tenants</Link>
               <Link href="/operador/alta" className="hover:text-strong">Alta de tenant</Link>
+              <Link href="/operador/monitor" className="hover:text-strong">Monitor</Link>
               {cockpitNavEnabled() && (
                 <Link href="/operador/cockpit" className="hover:text-strong">Cockpit</Link>
               )}
