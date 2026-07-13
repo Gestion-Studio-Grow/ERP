@@ -34,10 +34,9 @@
 // operador la comunique por canal seguro y la retire del entorno.
 
 import "dotenv/config";
-import { randomBytes } from "node:crypto";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { hashPassword } from "../src/lib/auth-password";
+import { hashPassword, generateStrongPassword } from "../src/lib/auth-password";
 import {
   getBlueprint,
   resolveBlueprint,
@@ -142,12 +141,6 @@ export function assertValidEmail(email: string): void {
   }
 }
 
-// Password de bootstrap fuerte y legible (base64url ~ 24 chars). Solo se usa si
-// el operador no pasó una; se imprime una vez y no se persiste en claro.
-function generatePassword(): string {
-  return randomBytes(18).toString("base64url");
-}
-
 // ¿Está activo RLS (ADR-018) sobre las tablas de negocio? pg_class.relrowsecurity
 // es true cuando la tabla tiene ENABLE ROW LEVEL SECURITY. Requerimos que TODAS
 // las centinela lo tengan; si falta una, el aislamiento no está garantizado.
@@ -184,7 +177,7 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
   // transacción, así un blueprint inválido no llega a tocar la base.
   const blueprint = getBlueprint(params.blueprint ?? DEFAULT_BLUEPRINT_ID);
 
-  const generatedPassword = params.owner.password ? undefined : generatePassword();
+  const generatedPassword = params.owner.password ? undefined : generateStrongPassword();
   const ownerPassword = params.owner.password ?? generatedPassword!;
 
   return prisma.$transaction(async (tx) => {

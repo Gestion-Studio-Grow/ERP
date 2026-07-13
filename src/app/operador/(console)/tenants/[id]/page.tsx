@@ -14,6 +14,8 @@ import {
 import { MODULES, PLANS, TENANT_STATUSES, ACCENT_PRESET_IDS } from "@/lib/operator-config";
 import { Card, Field, Input, Select, Textarea, Button, Badge, fmtCuit } from "@/components/ui";
 import { modoDesdeEnv } from "@/plugins/arca";
+import { operatorReadMustChange } from "@/lib/must-change-password";
+import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
 
 // Estado de la credencial fiscal del tenant (metadata NO sensible). Tolerante a que la
 // migración `TenantFiscalCredential` no esté aplicada aún (Gate 2): si la tabla no existe,
@@ -88,6 +90,17 @@ export default async function TenantConfigPage({
 
   const active = new Set(tenant!.modules);
   const credFiscal = await credencialFiscalDe(tenant!.id);
+
+  // OWNER del tenant + estado de su contraseña temporal (para la tarjeta de reset). Cross-tenant
+  // vía operatorPrisma; el estado del flag tolera que la migración Gate 2 no esté aplicada.
+  const owner = await operatorPrisma.user.findFirst({
+    where: { tenantId: tenant!.id, role: "OWNER", active: true, deletedAt: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, email: true },
+  });
+  const ownerTempPending = owner
+    ? await operatorReadMustChange(operatorPrisma, owner.id)
+    : (false as const);
 
   // Estado fiscal derivado (para el resumen "de un vistazo" y el semáforo).
   const modoArca = modoDesdeEnv();
@@ -330,6 +343,13 @@ export default async function TenantConfigPage({
           </form>
         </div>
       </Card>
+
+      {/* Contraseña del OWNER — reset con revelado único */}
+      <ResetOwnerPasswordCard
+        tenantId={tenant!.id}
+        ownerEmail={owner?.email ?? null}
+        tempPending={ownerTempPending}
+      />
 
       {/* Módulos */}
       <Card className="p-5 space-y-3">

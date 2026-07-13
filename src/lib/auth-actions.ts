@@ -10,6 +10,7 @@ import { requestIp } from "@/lib/audit";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { getProductoContexto } from "@/lib/producto";
 import { productoHome, rutaPermitidaParaProducto } from "@/lib/producto-identidad";
+import { mustChangePasswordFor } from "@/lib/must-change-password";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -53,6 +54,14 @@ export async function login(formData: FormData) {
     path: "/",
     maxAge: 60 * 60 * 8,
   });
+
+  // CONTRASEÑA TEMPORAL: si el OWNER entra con una contraseña marcada para cambio forzado
+  // (reset del operador), lo mandamos derecho a definir una nueva ANTES de cualquier ruteo por
+  // producto. Fail-safe: si la columna no existe todavía (Gate 2 sin aplicar), devuelve false y
+  // el login sigue normal.
+  if (await mustChangePasswordFor({ id: user.id, tenantId: user.tenantId })) {
+    redirect("/admin/cambiar-password");
+  }
 
   // RUTEO POST-LOGIN POR PRODUCTO (frente identidad-por-producto): cada producto entra a
   // SU casa (Comerciante → /admin, Contador → /contador, Facturita → /facturita/app; el ERP

@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Card, Field, Input, Select, Button, Badge } from "@/components/ui";
+import { BootstrapReveal } from "@/components/BootstrapReveal";
 import { planTenantAction, commitTenantAction } from "@/lib/operator-provisioning-actions";
 import {
   buildProvisionInput,
@@ -543,7 +544,12 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
       )}
 
       {/* Entrega segura del bootstrap (P10): fuera de la URL, copiar al portapapeles, se muestra una vez. */}
-      {result.generatedPassword && <BootstrapPanel password={result.generatedPassword} />}
+      {result.generatedPassword && (
+        <BootstrapReveal
+          password={result.generatedPassword}
+          label={<>Contraseña de bootstrap del OWNER (se muestra <b>una sola vez</b>, comunicala por canal seguro):</>}
+        />
+      )}
 
       {tenantId && (
         <Link href={`/operador/tenants/${tenantId}`} className="inline-block">
@@ -551,27 +557,6 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
         </Link>
       )}
     </Card>
-  );
-}
-
-function BootstrapPanel({ password }: { password: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="rounded-md border border-line p-3 space-y-2">
-      <p className="text-sm">🔑 Contraseña de bootstrap del OWNER (se muestra <b>una sola vez</b>, comunicala por canal seguro):</p>
-      <div className="flex items-center gap-2">
-        <code className="font-mono text-sm bg-surface-sunken rounded px-2 py-1 select-all break-all">{password}</code>
-        <Button
-          variant="subtle"
-          size="sm"
-          onClick={async () => {
-            try { await navigator.clipboard.writeText(password); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* sin portapapeles: el código es select-all */ }
-          }}
-        >
-          {copied ? "Copiado ✓" : "Copiar"}
-        </Button>
-      </div>
-    </div>
   );
 }
 

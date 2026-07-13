@@ -4,6 +4,7 @@ import { getBlueprint } from "@/blueprints";
 import { defaultModulesForBlueprint } from "@/blueprints/presets-meta";
 import { Badge, Card, ButtonLink } from "@/components/ui";
 import type { BadgeProps } from "@/components/ui";
+import { ResetAllOwnersPanel } from "./ResetAllOwnersPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,10 @@ export default async function OperatorHome() {
           </div>
         </Card>
       )}
+
+      {/* Primer uso de la plataforma: darle al dueño las 8 contraseñas temporales de una vez,
+          reveladas una sola vez (no quedan en ningún documento filtrable). */}
+      {total > 0 && <ResetAllOwnersPanel tenantCount={total} />}
     </div>
   );
 }

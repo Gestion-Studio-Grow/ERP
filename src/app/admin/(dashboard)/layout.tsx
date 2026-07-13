@@ -6,6 +6,7 @@ import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
+import { mustChangePasswordFor } from "@/lib/must-change-password";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getProductoContexto } from "@/lib/producto";
 import { getActiveModuleIds } from "@/lib/module-gating";
@@ -61,6 +62,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     // ¿Migración cárnica (Gate 2) aplicada? Gatea Lotes/Despiece. Degrada a false.
     hasCarniceriaSchema(),
   ]);
+
+  // PORTÓN DE CAMBIO FORZADO: si la contraseña del usuario está marcada como temporal (reset del
+  // operador), no lo dejamos usar el backoffice hasta que defina una nueva. La pantalla de cambio
+  // vive FUERA de (dashboard) → no hereda este layout → sin loop de redirect. Fail-safe: sin la
+  // columna (Gate 2 sin aplicar) devuelve false y no gatea nada.
+  if (await mustChangePasswordFor({ id: user.id, tenantId: user.tenantId })) {
+    redirect("/admin/cambiar-password");
+  }
 
   // RUTEO POR PRODUCTO: Contador y Facturita NO viven en el shell del negocio — su casa es
   // /contador y /facturita/app. Este layout envuelve TODO /admin/(dashboard)/*, así que es el

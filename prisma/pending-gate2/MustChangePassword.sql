@@ -1,0 +1,40 @@
+-- ============================================================================
+-- GATE 2 — MIGRACIÓN PREPARADA, **NO APLICADA** (reset de contraseña con revelado único)
+-- ============================================================================
+--
+-- Agrega la columna `User.mustChangePassword` (BOOLEAN NOT NULL DEFAULT false): marca a un
+-- usuario para que, en su PRÓXIMO ingreso al backoffice (/admin), se le OBLIGUE a definir una
+-- contraseña nueva antes de dejarlo entrar. La usa el flujo de "Resetear contraseña del OWNER"
+-- de la consola de operador (ficha del tenant) + el portón de cambio forzado en /admin.
+--
+-- ⚠️ POR QUÉ NO SE APLICA ACÁ: cambiar el schema de la DB de producción (Neon) es lo ÚNICO
+-- irreversible (CLAUDE.md → Gate 2 / ADR-018). Este archivo vive FUERA de `prisma/migrations/`
+-- a propósito: `prisma migrate deploy` NO lo ve. Aplicarlo es una decisión del dueño.
+--
+-- ⚠️ POR QUÉ NO ESTÁ EN schema.prisma (lección CH, memoria `fase2-alta-aceitado`): si se agregara
+-- la columna al modelo `User` de Prisma y se corriera `prisma generate` ANTES de aplicar esta
+-- migración a Neon, el cliente generado empezaría a SELECT-earla en cada `user.findFirst({where})`
+-- sin `select` (p. ej. el LOGIN) → "column does not exist" → **caída de login en prod** (mismo
+-- patrón schema-ahead que tiró CH). Por eso el flag se lee/escribe con SQL crudo DEFENSIVO
+-- (`src/lib/must-change-password.ts`): si la columna todavía no existe, la lectura devuelve
+-- `false` (fail-safe: nadie queda trabado) y el reset del operador avisa "flag pendiente de
+-- migración" en vez de romper. El schema de Prisma queda intacto → blast radius CERO sobre las
+-- ~decenas de queries existentes de `User`.
+--
+-- NOTA RLS (ADR-018): `User` es tabla DE-TENANT y ya tiene su policy de aislamiento. Esta columna
+-- viaja dentro de la MISMA fila del usuario → NO agrega superficie RLS nueva (nada que sumar a
+-- `prisma/rls/`). La lectura desde la app corre dentro de `tenantTransaction` (GUC seteado); la
+-- del operador va por `operatorPrisma` (control-plane, BYPASSRLS).
+--
+-- CÓMO APLICARLO (cuando el dueño lo autorice, nombrando la base de producción):
+--   1. (opción A, recomendada) correr este SQL tal cual contra Neon (idempotente: `IF NOT EXISTS`).
+--   2. (opción B, versionada) agregar `mustChangePassword Boolean @default(false)` al modelo `User`
+--      en `prisma/schema.prisma` y `npx prisma migrate dev --name add_user_must_change_password`
+--      (genera la migración real). Si se toma esta vía, AUDITAR que ninguna query de `User` sin
+--      `select` corra schema-ahead antes del deploy (o desplegar recién DESPUÉS de aplicar).
+--
+-- ROLLBACK: `ALTER TABLE "User" DROP COLUMN IF EXISTS "mustChangePassword";`
+
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "mustChangePassword" BOOLEAN NOT NULL DEFAULT false;
+
+-- Elaborado por GSG

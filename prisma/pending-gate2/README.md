@@ -8,6 +8,7 @@ decisión del dueño.
 | Archivo | Qué agrega | Origen | Estado |
 |---|---|---|---|
 | `ProvisioningRun.sql` | Tabla `ProvisioningRun` — persiste la saga de la fábrica de tenants (idempotencia entre procesos, reanudación, auditoría de plataforma) | ADR-074 "Próxima iteración" · consola de operador (Fase 2) | **Preparada, sin aplicar** |
+| `MustChangePassword.sql` | Columna `User.mustChangePassword` (bool, default false) — marca al OWNER para cambio forzado de contraseña en el próximo ingreso a `/admin`. La usa "Resetear contraseña del OWNER" (consola de operador) + el portón de cambio forzado. Leída/escrita con SQL crudo DEFENSIVO (no en `schema.prisma`, para no repetir el schema-ahead de CH → login se cae). | Reset de contraseña con revelado único · consola de operador | **Preparada, sin aplicar** |
 | `CarniceriaRubro.sql` | `Product.category` + `Product.cost` (nullable) · tabla `ProductBatch` (lotes/envasado al vacío: fecha envasado, vencimiento, peso variable, trazabilidad, FEFO) · tablas `ProcessingRun`/`ProcessingOutput` (despiece con rendimiento y merma) · enums `BatchStatus`/`ProcessingStatus` | Rubro carnicería MAGRA · `docs/preventa/magra/backoffice-carniceria-spec.md` | **Preparada, sin aplicar** · ⚠️ requiere sumar RLS de las 3 tablas de-tenant al aplicar |
 
 Mientras no se aplique, la consola de operador funciona con la idempotencia de la saga **en memoria**

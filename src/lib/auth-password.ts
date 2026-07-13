@@ -27,3 +27,12 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
   if (expected.length !== derived.length) return false;
   return timingSafeEqual(derived, expected);
 }
+
+// Contraseña temporal fuerte y legible (base64url ~ 24 chars de 18 bytes = 144 bits de
+// entropía). FUENTE ÚNICA — la reusan tanto el alta de tenant (bootstrap del OWNER,
+// `provisionTenant`) como el reset de contraseña del operador. NUNCA se persiste en claro:
+// se hashea con `hashPassword` y se muestra UNA vez al operador (revelado único). Al ser
+// aleatoria de alta entropía, satisface `validatePasswordStrength` por construcción.
+export function generateStrongPassword(): string {
+  return randomBytes(18).toString("base64url");
+}
