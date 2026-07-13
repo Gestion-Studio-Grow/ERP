@@ -41,6 +41,11 @@ type Props = {
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const unitPrice = (p: Product) => (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
 
+// Íconos del SISTEMA OFICIAL del manual (pág. 15) mapeados a cada propuesta de valor,
+// en orden: cera de soja → vela · velas+deco → racimo · hecho a mano → mano · envío → sol ·
+// sets de regalo → destello. Assets en public/tenants/shinevelas/brand/icon-*.png.
+const VALUE_ICONS = ["candle", "cluster", "hand", "sun", "sparkle"];
+
 // Reveal-on-scroll: fade + rise cuando el elemento entra en viewport. Respeta
 // prefers-reduced-motion (muestra directo). Un solo observer compartido por instancia.
 function useReveal<T extends HTMLElement>() {
@@ -80,17 +85,12 @@ function Reveal({ children, as = "div", className = "" }: { children: ReactNode;
   );
 }
 
-// Isotipo de marca: la LLAMA. Cuerpo de fuego (teardrop) + núcleo claro + halo cálido.
-// Parpadeo sutil (flicker) desactivado con prefers-reduced-motion vía CSS.
-function Flame({ size = 22, glow = false, className = "" }: { size?: number; glow?: boolean; className?: string }) {
-  return (
-    <span className={`sh-flame ${glow ? "sh-flame-glow" : ""} ${className}`.trim()} style={{ width: size, height: size * 1.4 }} aria-hidden>
-      <svg viewBox="0 0 24 34" width={size} height={size * 1.4} fill="none">
-        <path d="M12 1c1.6 5 6.8 7.2 6.8 14.2 0 6-4 10.8-6.8 10.8s-6.8-4.8-6.8-10.8C5.2 8.9 9.9 7 12 1Z" fill="var(--sh-flame-outer)" />
-        <path d="M12 9c1 3 3.6 4.3 3.6 8.4 0 3.6-2.1 6.4-3.6 6.4s-3.6-2.8-3.6-6.4C8.4 13.6 10.7 12 12 9Z" fill="var(--sh-flame-inner)" />
-      </svg>
-    </span>
-  );
+// Isotipo de marca REAL (manual pág. 12/15): la LLAMA orgánica en taupe/malva. Se pinta
+// como MÁSCARA CSS de la silueta oficial → recolorable a cualquier tono de la paleta
+// (el manual lo permite explícitamente). Sólida y quieta como en el manual — sin glow
+// ámbar ni flicker (eso era sesgo "vela cozy", fuera de marca). `tone` elige el color.
+function Flame({ size = 22, tone = "malva", className = "" }: { size?: number; tone?: "malva" | "vino" | "cream" | "nude"; className?: string }) {
+  return <span className={`sh-flame sh-flame-${tone} ${className}`.trim()} style={{ width: size, height: size * 1.7 }} aria-hidden />;
 }
 
 export default function ShineFront({ products, branding, copy, imagery, tenantKey }: Props) {
@@ -154,8 +154,7 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
       {/* ── TOP BAR ── */}
       <header className="sh-top">
         <a href="#top" className="sh-brand" aria-label="Shine · velas, aromas y deco">
-          <Flame size={18} glow />
-          <span className="sh-logo">Shine</span>
+          <Image src="/tenants/shinevelas/brand/logo.png" alt="Shine" width={128} height={40} priority className="sh-logo-img" />
           <small>velas · aromas · deco</small>
         </a>
         <nav className="sh-nav" aria-label="Secciones">
@@ -195,11 +194,11 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
             </div>
           </section>
 
-          {/* ── PROPUESTAS DE VALOR ── */}
+          {/* ── PROPUESTAS DE VALOR (íconos del sistema oficial del manual, no glifos) ── */}
           <section className="sh-values" aria-label="Por qué Shine">
             {copy.valueProps.map((v, i) => (
               <Reveal key={i} className="sh-value">
-                <span aria-hidden className="sh-value-glyph">{v.icon}</span>
+                <Image src={`/tenants/shinevelas/brand/icon-${VALUE_ICONS[i] ?? "sparkle"}.png`} alt="" width={34} height={34} className="sh-value-icon" />
                 <div className="sh-value-title">{v.title}</div>
                 <div className="sh-value-text">{v.text}</div>
               </Reveal>
@@ -219,7 +218,7 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
                         {img ? (
                           <Image src={img} alt={m.title} fill sizes="(max-width: 900px) 50vw, 24vw" className="sh-mundo-img" />
                         ) : (
-                          <div aria-hidden className="sh-mundo-fallback"><Flame size={30} glow /></div>
+                          <div aria-hidden className="sh-mundo-fallback"><Flame size={30} tone="cream" /></div>
                         )}
                         <span className="sh-mundo-tag">{m.title}</span>
                       </div>
@@ -265,7 +264,7 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
             <Kicker n="02" t="La colección · comprá online" />
             {products.length === 0 ? (
               <div className="sh-empty">
-                <Flame size={34} glow />
+                <Flame size={34} />
                 <p className="sh-empty-t">Estamos encendiendo la vidriera</p>
                 <p className="sh-empty-s">En un rato vas a poder comprar online. Mientras tanto, escribinos y te armamos el pedido.</p>
                 <button type="button" className="sh-btn sh-btn-wa" onClick={() => requestWhatsApp("¡Hola Shine! Quiero hacer un pedido.")}>
@@ -280,7 +279,7 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
                     <Reveal key={p.id} className={`sh-pcard${q > 0 ? " on" : ""}`}>
                       <div aria-hidden className="sh-pcard-visual">
                         <div className="sh-pcard-halo" style={haloStyle(p.name)} />
-                        <Flame size={26} />
+                        <Flame size={26} tone="cream" />
                       </div>
                       <div className="sh-pcard-body">
                         <h3 className="sh-pcard-h3">{p.name}</h3>
@@ -351,7 +350,7 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
           {/* ── ABOUT ── */}
           <section className="sh-about">
             <Reveal className="sh-about-inner">
-              <Flame size={30} glow className="sh-about-flame" />
+              <Flame size={34} className="sh-about-flame" />
               <h2 className="sh-display sh-about-h2">{copy.about.title}</h2>
               <p className="sh-about-p">{copy.about.body}</p>
             </Reveal>
@@ -360,7 +359,10 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
           {/* ── FOOTER ── */}
           <footer className="sh-foot" id="contacto">
             <div className="sh-foot-top">
-              <div className="sh-display sh-foot-big">Que tu luz<br /><span>nunca se apague.</span></div>
+              <div className="sh-foot-lead">
+                <Flame size={40} tone="cream" className="sh-foot-flame" />
+                <div className="sh-display sh-foot-big">Que tu luz<br /><span>nunca se apague.</span></div>
+              </div>
               <button type="button" className="sh-btn sh-btn-vino" onClick={() => requestWhatsApp("¡Hola Shine! Quería hacer un pedido.")}>
                 Escribinos por WhatsApp →
               </button>
@@ -415,7 +417,7 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
             </div>
             <div className="sh-rail-foot">
               {missingForFree > 0 && (
-                <p className="sh-nudge"><Flame size={13} /> Te faltan <b>{money.format(missingForFree)}</b> para el envío gratis</p>
+                <p className="sh-nudge"><Flame size={12} tone="vino" /> Te faltan <b>{money.format(missingForFree)}</b> para el envío gratis</p>
               )}
               <div className="sh-totrow">
                 <span className="sh-k">Subtotal</span>
@@ -520,7 +522,6 @@ const CSS = `
   --rail:360px;
   --f-display:var(--font-cormorant),'Cormorant Garamond',Georgia,serif;
   --f-body:var(--font-kumbh),system-ui,-apple-system,sans-serif;
-  --sh-flame-outer:#c98a4e;--sh-flame-inner:#f6e2a8;
   --shadow-warm:0 18px 46px -22px rgba(103,17,40,.32);
   background:var(--crema);color:var(--tinta);font-family:var(--f-body);font-weight:400;line-height:1.55;
   -webkit-font-smoothing:antialiased;position:relative;overflow-x:hidden}
@@ -536,20 +537,13 @@ const CSS = `
   .shine .sh-rise.sh-in{opacity:1;transform:none}
 }
 
-/* Llama */
-.shine .sh-flame{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none}
-.shine .sh-flame svg{position:relative;z-index:2}
-.shine .sh-flame-glow::before{content:"";position:absolute;inset:-60% -80%;z-index:1;border-radius:50%;
-  background:radial-gradient(50% 50% at 50% 55%,rgba(246,210,120,.62),rgba(201,138,78,.28) 45%,transparent 72%)}
-/* La animación (flicker + glow) es OPT-IN: solo las llamas de acento (con glow) laten,
-   y son POCAS y singulares (hero, about, nudge). Las llamas repetidas (tarjetas de
-   producto, kickers) son estáticas → cero coste de compositing continuo en listas largas. */
-@media(prefers-reduced-motion:no-preference){
-  .shine .sh-flame-glow svg{animation:sh-flick 3.6s ease-in-out infinite;transform-origin:50% 85%}
-  .shine .sh-flame-glow::before{animation:sh-glow 3.6s ease-in-out infinite}
-}
-@keyframes sh-flick{0%,100%{transform:scale(1) rotate(-.5deg)}50%{transform:scale(1.05,1.08) rotate(.5deg)}}
-@keyframes sh-glow{0%,100%{opacity:.85}50%{opacity:1}}
+/* Llama = ISOTIPO OFICIAL (máscara de la silueta real del manual), recolorable por tono.
+   Sólida y quieta como en el manual — nada de glow ámbar ni flicker (era sesgo de modelo). */
+.shine .sh-flame{display:inline-block;flex:none;-webkit-mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat;mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat}
+.shine .sh-flame-malva{background:var(--malva-d)}
+.shine .sh-flame-vino{background:var(--vino)}
+.shine .sh-flame-cream{background:var(--crema)}
+.shine .sh-flame-nude{background:var(--nude)}
 
 /* Eyebrow */
 .shine .sh-eyebrow{font-family:var(--f-body);font-weight:600;font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:var(--vino)}
@@ -568,9 +562,8 @@ const CSS = `
 /* TOP BAR */
 .shine .sh-top{position:fixed;top:0;left:0;right:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px clamp(16px,4vw,52px);background:linear-gradient(180deg,rgba(243,235,225,.92),rgba(243,235,225,.7) 65%,rgba(243,235,225,0));backdrop-filter:blur(8px)}
 .shine .sh-brand{display:flex;align-items:baseline;gap:9px;min-width:0}
-.shine .sh-brand .sh-flame{align-self:center}
-.shine .sh-logo{font-family:var(--f-display);font-weight:600;font-size:30px;letter-spacing:.02em;color:var(--vino);line-height:1}
-.shine .sh-brand small{font-size:9.5px;letter-spacing:.24em;color:var(--malva-d);text-transform:uppercase;white-space:nowrap}
+.shine .sh-logo-img{height:38px;width:auto;object-fit:contain;display:block}
+.shine .sh-brand small{font-size:9.5px;letter-spacing:.24em;color:var(--malva-d);text-transform:uppercase;white-space:nowrap;align-self:center}
 .shine .sh-nav{display:flex;gap:26px;font-size:12.5px;letter-spacing:.06em;font-weight:500;color:var(--malva-d)}
 .shine .sh-nav a{opacity:.9;transition:.2s;display:inline-flex;align-items:center;min-height:26px;border-bottom:1px solid transparent}
 .shine .sh-nav a:hover{color:var(--vino);opacity:1;border-bottom-color:var(--vino)}
@@ -592,7 +585,7 @@ const CSS = `
 .shine .sh-hero-fallback{position:absolute;inset:0;background:radial-gradient(60% 55% at 55% 42%,var(--nude),var(--malva) 60%,var(--vino))}
 .shine .sh-hero-veil{position:absolute;inset:0;background:linear-gradient(90deg,rgba(243,235,225,.9),rgba(243,235,225,.15) 30%,transparent 55%),linear-gradient(0deg,rgba(103,17,40,.16),transparent 40%)}
 @media(max-width:900px){.shine .sh-hero-veil{background:linear-gradient(0deg,var(--crema),rgba(243,235,225,.1) 45%,transparent),linear-gradient(0deg,rgba(103,17,40,.14),transparent 50%)}}
-.shine .sh-hero-halo{position:absolute;left:12%;top:38%;width:42%;height:42%;background:radial-gradient(50% 50% at 50% 50%,rgba(246,210,120,.4),transparent 70%);filter:blur(6px);pointer-events:none}
+.shine .sh-hero-halo{position:absolute;left:10%;top:36%;width:46%;height:46%;background:radial-gradient(50% 50% at 50% 50%,rgba(208,174,172,.55),rgba(184,138,137,.22) 45%,transparent 72%);filter:blur(8px);pointer-events:none}
 .shine .sh-hero-copy{order:1;position:relative;z-index:3;align-self:center;padding:120px clamp(20px,4vw,64px) 9vh;max-width:640px}
 @media(max-width:900px){.shine .sh-hero-copy{order:2;padding:32px 22px 48px;margin-top:-8vh}}
 .shine .sh-hero-h1{font-size:clamp(46px,7vw,88px);color:var(--vino);margin:18px 0 0;max-width:14ch;font-weight:500}
@@ -605,7 +598,7 @@ const CSS = `
 .shine .sh-values{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(16px,2.4vw,34px);padding:clamp(40px,6vh,72px) clamp(18px,4vw,64px);border-top:1px solid var(--blush);border-bottom:1px solid var(--blush);background:var(--papel)}
 @media(max-width:900px){.shine .sh-values{grid-template-columns:1fr 1fr;gap:26px 22px}}
 @media(max-width:460px){.shine .sh-values{grid-template-columns:1fr}}
-.shine .sh-value-glyph{color:var(--malva);font-size:24px;line-height:1;display:block;margin-bottom:12px}
+.shine .sh-value-icon{display:block;width:34px;height:34px;object-fit:contain;object-position:left;margin-bottom:14px}
 .shine .sh-value-title{font-weight:600;font-size:15px;margin-bottom:6px;color:var(--vino)}
 .shine .sh-value-text{color:var(--malva-d);font-size:13.5px;line-height:1.55}
 
@@ -634,7 +627,7 @@ const CSS = `
 .shine .sh-ritual{position:relative;overflow:hidden;padding:clamp(64px,11vh,150px) clamp(18px,4vw,64px);color:#fff}
 .shine .sh-ritual-band{position:absolute;inset:0;z-index:0}
 .shine .sh-ritual-img{object-fit:cover}
-.shine .sh-ritual-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(58,17,25,.78),rgba(58,17,25,.62)),radial-gradient(60% 50% at 30% 30%,rgba(246,210,120,.2),transparent 60%)}
+.shine .sh-ritual-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(58,17,25,.8),rgba(58,17,25,.64)),radial-gradient(60% 50% at 30% 30%,rgba(232,217,213,.16),transparent 60%)}
 .shine .sh-ritual-inner{position:relative;z-index:1;max-width:1000px;margin:0 auto}
 .shine .sh-ritual-head{text-align:center;max-width:640px;margin:0 auto 48px}
 .shine .sh-ritual-h2{font-size:clamp(34px,5.5vw,60px);margin:14px 0 0;color:#fff;font-weight:500}
@@ -642,7 +635,7 @@ const CSS = `
 .shine .sh-steps{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(20px,3vw,40px);counter-reset:none}
 @media(max-width:820px){.shine .sh-steps{grid-template-columns:1fr;gap:24px}}
 .shine .sh-step{background:rgba(253,248,242,.1);border:1px solid rgba(253,248,242,.22);border-radius:16px;padding:30px 26px;backdrop-filter:blur(3px)}
-.shine .sh-step-n{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:rgba(246,210,120,.2);color:#f6e2a8;font-size:24px;font-weight:600;margin-bottom:16px}
+.shine .sh-step-n{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:rgba(232,217,213,.16);border:1px solid rgba(232,217,213,.34);color:var(--crema);font-size:24px;font-weight:600;margin-bottom:16px}
 .shine .sh-step-t{font-size:19px;font-weight:600;color:#fff;margin:0 0 8px}
 .shine .sh-step-p{font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.82)}
 
@@ -702,9 +695,10 @@ const CSS = `
 .shine .sh-aroma{font-size:clamp(22px,3.4vw,34px);color:var(--malva-d);font-style:italic;font-weight:500}
 .shine .sh-aroma:not(:last-child)::after{content:"·";margin-left:30px;color:var(--nude);font-style:normal}
 
-/* ABOUT */
-.shine .sh-about{background:linear-gradient(180deg,var(--crema),var(--blush));padding:clamp(64px,11vh,140px) clamp(18px,4vw,64px);text-align:center}
-.shine .sh-about-inner{max-width:60ch;margin:0 auto;display:flex;flex-direction:column;align-items:center}
+/* ABOUT — con la TRAMA de marca como textura tenue de fondo */
+.shine .sh-about{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--crema),var(--blush));padding:clamp(64px,11vh,140px) clamp(18px,4vw,64px);text-align:center}
+.shine .sh-about::before{content:"";position:absolute;inset:0;background:url(/tenants/shinevelas/brand/trama.png) center/cover no-repeat;opacity:.07;pointer-events:none}
+.shine .sh-about-inner{position:relative;z-index:1;max-width:60ch;margin:0 auto;display:flex;flex-direction:column;align-items:center}
 .shine .sh-about-flame{margin-bottom:20px}
 .shine .sh-about-h2{font-size:clamp(30px,5vw,54px);color:var(--vino);font-weight:500;line-height:1.08}
 .shine .sh-about-p{margin-top:20px;font-size:17px;line-height:1.8;color:var(--tinta)}
@@ -712,6 +706,9 @@ const CSS = `
 /* FOOTER */
 .shine .sh-foot{background:var(--vino);color:var(--crema);padding:clamp(52px,8vh,110px) clamp(18px,4vw,64px) 34px}
 .shine .sh-foot-top{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;align-items:flex-end;margin-bottom:48px}
+.shine .sh-foot-lead{display:flex;align-items:flex-start;gap:20px}
+.shine .sh-foot-flame{margin-top:8px}
+@media(max-width:560px){.shine .sh-foot-flame{display:none}}
 .shine .sh-foot-big{font-size:clamp(38px,7vw,86px);color:#fff;line-height:1.02;font-weight:500}
 .shine .sh-foot-big span{color:var(--nude);font-style:italic}
 .shine .sh-foot-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;border-top:1px solid rgba(243,235,225,.2);padding-top:34px}
