@@ -26,6 +26,7 @@ import { basePrisma } from "@/lib/prisma-base";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { logger } from "@/lib/logger";
 import { provisionTenant } from "../../scripts/provision-tenant";
 import {
   emitirPropuestas,
@@ -272,8 +273,14 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
       },
     );
   } catch (e) {
-    // Acá cae, entre otros, el gate ADR-018 (no crear tenant sin RLS activa).
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    // Acá cae, entre otros, el gate ADR-018 (no crear tenant sin RLS activa). No
+    // devolvemos el mensaje crudo (podría exponer detalle interno del gate/DB al panel):
+    // se loguea server-side y se responde un mensaje curado, como en cobros-actions.
+    logger.error("cartera-actions", "alta de cliente de cartera falló", e);
+    return {
+      ok: false,
+      error: "No se pudo dar de alta el cliente. Verificá los datos e intentá de nuevo.",
+    };
   }
 
   // Config fiscal del cliente + módulos garantizados (aditivo, idempotente).

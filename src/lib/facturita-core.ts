@@ -5,7 +5,7 @@
  * `facturita-actions`.
  */
 
-import { cuitValido, normalizarCuit } from "@/plugins/bancos/domain/cuit";
+import { cuitValido, normalizarCuit } from "@/lib/fiscal/cuit";
 
 /** Tope del plan gratis: 5 facturas por mes (el gancho de upgrade a Comerciante). */
 export const LIMITE_FACTURAS_FACTURITA = 5;

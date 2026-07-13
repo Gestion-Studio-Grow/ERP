@@ -7,7 +7,7 @@
 
 import { useState, useTransition } from "react";
 import { Badge, Button, Field, Input, fmtMoneyARS } from "@/components/ui";
-import { cuitValido, normalizarCuit } from "@/plugins/bancos/domain/cuit";
+import { cuitValido, normalizarCuit } from "@/lib/fiscal/cuit";
 import {
   emitirFacturitaAction,
   type ResultadoEmisionFacturita,

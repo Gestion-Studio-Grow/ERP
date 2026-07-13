@@ -8,7 +8,7 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Field, Input, SectionGroup } from "@/components/ui";
-import { cuitValido, normalizarCuit } from "@/plugins/bancos/domain/cuit";
+import { cuitValido, normalizarCuit } from "@/lib/fiscal/cuit";
 import { altaClienteCarteraAction, type ResultadoAlta } from "@/lib/cartera-actions";
 
 export default function AltaCliente() {

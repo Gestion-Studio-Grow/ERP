@@ -8,7 +8,7 @@
  * mismo criterio que bancos/contador/facturita) — NO se revalida la forma a mano.
  */
 
-import { cuitValido, normalizarCuit } from "@/plugins/bancos/domain/cuit";
+import { cuitValido, normalizarCuit } from "@/lib/fiscal/cuit";
 
 export type CuitInput =
   | { accion: "limpiar" }

@@ -19,7 +19,8 @@
  * Prisma/RLS viven en `cartera-actions.ts`.
  */
 
-import { CAP_FACTURAS_MES_DEFAULT, cuitValido, normalizarCuit } from "@/plugins/bancos";
+import { CAP_FACTURAS_MES_DEFAULT } from "@/plugins/bancos";
+import { cuitValido, normalizarCuit } from "@/lib/fiscal/cuit";
 import { isValidEmail, suggestSlug } from "@/lib/provisioning/slug";
 
 // ── Vocabulario (espejo del enum EstadoCarteraCliente del schema) ────────────

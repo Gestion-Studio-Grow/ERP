@@ -14,6 +14,7 @@
 
 import { basePrisma } from "@/lib/prisma-base";
 import { withRequestId } from "@/lib/request-context";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,10 +27,13 @@ export const GET = withRequestId(async () => {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (err) {
+    // No filtrar el detalle crudo de Postgres (hostname/tipo de error) a un caller
+    // anónimo: se loguea server-side y se responde un mensaje genérico.
+    logger.error("api/ready", "readiness check falló", err);
     return Response.json(
       {
         status: "not-ready",
-        error: err instanceof Error ? err.message : "db-unreachable",
+        error: "db-unreachable",
         ts: new Date().toISOString(),
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
