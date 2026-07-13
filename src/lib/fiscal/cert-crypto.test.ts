@@ -17,6 +17,36 @@ test("masterKeyDesdeEnv: sin FISCAL_MASTER_KEY → falla fuerte (fail-closed)", 
   assert.throws(() => masterKeyDesdeEnv({}), /FISCAL_MASTER_KEY/);
 });
 
+test("masterKeyDesdeEnv: cadena vacía o solo espacios → tratada como ausente (fail-closed)", () => {
+  assert.throws(() => masterKeyDesdeEnv({ FISCAL_MASTER_KEY: "" }), /no está seteada/);
+  assert.throws(() => masterKeyDesdeEnv({ FISCAL_MASTER_KEY: "   \n" }), /no está seteada/);
+});
+
+test("masterKeyDesdeEnv: el error de ausencia trae diagnóstico de runtime SIN exponer valores", () => {
+  // El diagnóstico distingue "el runtime no ve NADA" de "falta esta var puntual".
+  let msg = "";
+  try {
+    masterKeyDesdeEnv({ DATABASE_URL: "postgres://secreto", VERCEL_ENV: "production" });
+  } catch (e) {
+    msg = e instanceof Error ? e.message : String(e);
+  }
+  assert.match(msg, /diagnóstico runtime/);
+  assert.match(msg, /entorno=production/);
+  assert.match(msg, /DATABASE_URL=sí/);
+  // NUNCA debe filtrar el valor de ninguna variable (ni siquiera el de una var vecina).
+  assert.ok(!msg.includes("postgres://secreto"), "el error no debe contener el valor de ninguna var");
+});
+
+test("masterKeyDesdeEnv: el diagnóstico reporta la master key como ausente cuando falta", () => {
+  let msg = "";
+  try {
+    masterKeyDesdeEnv({ OTRA: "x" });
+  } catch (e) {
+    msg = e instanceof Error ? e.message : String(e);
+  }
+  assert.match(msg, /alguna clave FISCAL\/MASTER=no/);
+});
+
 test("masterKeyDesdeEnv: longitud incorrecta → error explícito", () => {
   const corta = Buffer.alloc(16, 1).toString("base64");
   assert.throws(() => masterKeyDesdeEnv({ FISCAL_MASTER_KEY: corta }), /32 bytes/);
@@ -27,6 +57,12 @@ test("masterKeyDesdeEnv: 32 bytes base64 → ok, con id por default", () => {
   const mk = masterKeyDesdeEnv({ FISCAL_MASTER_KEY: key });
   assert.equal(mk.key.length, 32);
   assert.match(mk.id, /FISCAL_MASTER_KEY/);
+});
+
+test("masterKeyDesdeEnv: valor con newline/espacios finales (pegado) → trim y ok", () => {
+  const key = randomBytes(32).toString("base64");
+  const mk = masterKeyDesdeEnv({ FISCAL_MASTER_KEY: `  ${key}\n` });
+  assert.equal(mk.key.length, 32);
 });
 
 test("seal → open: round-trip devuelve el mismo material", () => {
