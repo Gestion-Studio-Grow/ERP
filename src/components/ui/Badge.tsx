@@ -15,7 +15,10 @@ const tones: Record<Tone, string> = {
   // (hex de marca de CH Estética) como default de TODOS los tenants —
   // filtraba la marca de un tenant a cualquier otro (bug real, corregido).
   neutral: "bg-surface-sunken text-muted",
-  accent: "bg-accent-soft text-accent",
+  // `text-accent-ink` (no `text-accent` crudo): el acento crudo de algunos tenants
+  // (ej. ambar #9a6a1f) da 4.33:1 sobre accent-soft = falla AA a 12px. accent-ink es
+  // el acento oscurecido "AA como texto" (globals.css:513) — mismo hue, contraste ≥4.5.
+  accent: "bg-accent-soft text-accent-ink",
   success: "bg-success-soft text-success",
   warning: "bg-warning-soft text-warning",
   danger: "bg-danger-soft text-danger",
