@@ -14,6 +14,8 @@ import {
   Concepto,
   TipoComprobante,
   TipoDocumento,
+  discriminaIva,
+  informaIvaWsfe,
 } from "./catalogos";
 
 // Evento base del Core: emisor RI, receptor consumidor final, concepto Productos,
@@ -188,4 +190,24 @@ test("totalIva suma los importes de todas las alícuotas", () => {
 test("totalIva de un comprobante sin IVA es 0", () => {
   const comp = construirComprobante(evento({ iva: [], neto: 0, total: 0 }));
   assert.equal(totalIva(comp), 0);
+});
+
+// ── informaIvaWsfe: A y B informan IVA en WSFEv1; solo C no (fix Factura B) ───
+
+test("informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no", () => {
+  // A y B (emisor Responsable Inscripto) → informan IVA en el payload de WSFEv1.
+  for (const t of [TipoComprobante.FacturaA, TipoComprobante.NotaDebitoA, TipoComprobante.NotaCreditoA,
+                   TipoComprobante.FacturaB, TipoComprobante.NotaDebitoB, TipoComprobante.NotaCreditoB]) {
+    assert.equal(informaIvaWsfe(t), true, `${TipoComprobante[t]} debe informar IVA`);
+  }
+  // C (emisor Monotributo/Exento) → NO informa IVA.
+  for (const t of [TipoComprobante.FacturaC, TipoComprobante.NotaDebitoC, TipoComprobante.NotaCreditoC]) {
+    assert.equal(informaIvaWsfe(t), false, `${TipoComprobante[t]} NO informa IVA`);
+  }
+});
+
+test("informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)", () => {
+  // El bug latente: usar discriminaIva (solo A) para armar el <Iva> dejaba a B sin IVA.
+  assert.equal(discriminaIva(TipoComprobante.FacturaB), false);
+  assert.equal(informaIvaWsfe(TipoComprobante.FacturaB), true);
 });

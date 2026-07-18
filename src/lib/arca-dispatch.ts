@@ -30,9 +30,12 @@ import {
   type AfipClient,
   type EmisorConfig,
   type CredencialEmisor,
+  type HandlerDeps,
   type InvoiceCreatedEvent,
+  type TicketAcceso,
 } from "@/plugins/arca";
 import { credencialParaTenant } from "@/lib/fiscal/tenant-cert";
+import { leerTicketAcceso, guardarTicketAcceso } from "@/lib/fiscal/arca-ta-store";
 
 /**
  * Config fiscal no sensible del tenant (lo que la DB SÍ guarda). El cert/clave
@@ -87,17 +90,34 @@ export function crearClientePara(
   leer: LeerConfigFiscal = leerConfigFiscalPrisma,
   env: Record<string, string | undefined> = process.env,
   resolverCredencial: (tenantId: string) => Promise<CredencialEmisor> = credencialParaTenant,
+  leerTicket: (tenantId: string) => Promise<TicketAcceso | undefined> = leerTicketAcceso,
+  guardarTicket: (tenantId: string, ta: TicketAcceso) => Promise<void> = guardarTicketAcceso,
 ): (tenantId: string) => Promise<AfipClient> {
   return async (tenantId) => {
     const cfg = await leer(tenantId);
     const config: EmisorConfig = cfg ?? { cuit: 0, homologacion: true };
-    // 🔒 ADR-066: la credencial se resuelve POR TENANT (cifrada en la DB), NUNCA de un env
-    // compartido. Solo se necesita en real/homologación (en stub no se firma nada). Si el
-    // tenant no tiene credencial cargada, `credencialParaTenant` lanza → fail-closed.
     const modo = modoDesdeEnv(env);
-    const credencial =
-      modo === "real" || modo === "homologacion" ? await resolverCredencial(tenantId) : null;
-    return crearAfipClient(config, { env, credencial });
+
+    // En stub NO se firma ni se autentica → no se toca la credencial ni el TA.
+    if (modo !== "real" && modo !== "homologacion") {
+      return crearAfipClient(config, { env });
+    }
+
+    // 🔒 ADR-066: la credencial se resuelve POR TENANT (cifrada en la DB), NUNCA de un env
+    // compartido. Si el tenant no tiene credencial cargada, `credencialParaTenant` lanza →
+    // fail-closed.
+    const credencial = await resolverCredencial(tenantId);
+    // Reutilización del TA (ADR-022 §6): si hay un TA vigente persistido, se lo damos al
+    // cliente para que NO re-loguee (WSAA bloquea `alreadyAuthenticated` ~10-15 min). Cuando
+    // el cliente acuña uno nuevo, `alRenovarTicket` lo persiste (cifrado) para la próxima
+    // invocación — el seam que cierra el ciclo en serverless.
+    const ticketInicial = await leerTicket(tenantId);
+    return crearAfipClient(config, {
+      env,
+      credencial,
+      ticketInicial,
+      alRenovarTicket: (ta) => guardarTicket(tenantId, ta),
+    });
   };
 }
 
@@ -156,7 +176,10 @@ export interface DispatchResumen {
  * dato ya está en la fila del outbox, se lo pasamos explícito en vez de dejar
  * que se intente resolver ambientalmente.
  */
-export async function processArcaOutbox(limit = 20): Promise<DispatchResumen> {
+export async function processArcaOutbox(
+  limit = 20,
+  deps: HandlerDeps = { clientePara, registrar: registerFiscalDocument },
+): Promise<DispatchResumen> {
   const pendientes = await operatorPrisma.outboxEvent.findMany({
     where: { type: OUTBOX_INVOICE_CREATED, processedAt: null },
     orderBy: { createdAt: "asc" },
@@ -173,10 +196,7 @@ export async function processArcaOutbox(limit = 20): Promise<DispatchResumen> {
   for (const evento of pendientes) {
     const payload = evento.payload as unknown as InvoiceCreatedPayload;
     try {
-      await procesarInvoiceCreated(aEventoPlugin(payload), {
-        clientePara,
-        registrar: registerFiscalDocument,
-      });
+      await procesarInvoiceCreated(aEventoPlugin(payload), deps);
       await tenantTransaction(
         (tx) => tx.outboxEvent.update({ where: { id: evento.id }, data: { processedAt: new Date() } }),
         { tenantId: payload.tenantId },

@@ -8,9 +8,11 @@
 import { InvoiceCreatedEvent } from '../core-contract';
 import {
   AlicuotaIvaId,
+  CondicionIvaReceptorId,
   Concepto,
   TipoComprobante,
   TipoDocumento,
+  condicionIvaReceptorArca,
   tipoFacturaCorrespondiente,
 } from './catalogos';
 
@@ -43,6 +45,11 @@ export interface ComprobanteArca {
   vencimientoPago?: string;
   /** Correlativo. Si se omite, lo resuelve el cliente contra ARCA. */
   numero?: number;
+  /**
+   * Condición frente al IVA del receptor (código ARCA). OBLIGATORIO desde la
+   * RG 5616 — sin este campo ARCA rechaza con la observación 10246.
+   */
+  condicionIvaReceptorId?: CondicionIvaReceptorId;
   /** Trazabilidad hacia el Core. */
   invoiceId: string;
   tenantId: string;
@@ -67,6 +74,7 @@ export function construirComprobante(ev: InvoiceCreatedEvent): ComprobanteArca {
     concepto: ev.concepto as Concepto,
     docTipo: ev.receptor.docTipo as TipoDocumento,
     docNro: ev.receptor.docNro,
+    condicionIvaReceptorId: condicionIvaReceptorArca(ev.receptor.condicionIva),
     fecha: ev.fecha,
     neto: ev.neto,
     iva: ev.iva.map((s) => ({

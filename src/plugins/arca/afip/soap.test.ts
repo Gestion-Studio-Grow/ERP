@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 
 import {
   AlicuotaIvaId,
+  CondicionIvaReceptorId,
   Concepto,
   TipoComprobante,
   TipoDocumento,
@@ -304,6 +305,20 @@ test('armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y
   assert.match(body, /<ar:FchVtoPago>20260710<\/ar:FchVtoPago>/);
 });
 
+test('armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz', () => {
+  // Sin el campo en el comprobante → default seguro Consumidor Final (5).
+  const body = armarFECAESolicitarRequest(TA, 20111111112, comprobanteFacturaCServicios(), 10);
+  assert.match(body, /<ar:CondicionIVAReceptorId>5<\/ar:CondicionIVAReceptorId>/);
+  // Orden XSD: CondicionIVAReceptorId va después de MonCotiz.
+  assert.match(body, /<\/ar:MonCotiz><ar:CondicionIVAReceptorId>/);
+});
+
+test('armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene', () => {
+  const comp = { ...comprobanteFacturaCServicios(), condicionIvaReceptorId: 6 as const };
+  const body = armarFECAESolicitarRequest(TA, 20111111112, comp, 10);
+  assert.match(body, /<ar:CondicionIVAReceptorId>6<\/ar:CondicionIVAReceptorId>/);
+});
+
 // ── WSFEv1: FECAESolicitar (parseo) ──────────────────────────────────────────
 
 test('parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado', () => {
@@ -420,4 +435,102 @@ test('SoapAfipClient cachea el ticket: no reautentica en la 2da operación', asy
 test('El signer por defecto exige credencial (acción humana)', async () => {
   const signer = new CredencialRequeridaSigner();
   await assert.rejects(() => signer.firmarCms('<tra/>'), /credencial requerida/);
+});
+
+// ── Factura B: informa IVA en WSFEv1 (fix del bug latente) ───────────────────
+
+/** Factura B (emisor Responsable Inscripto → receptor no-RI). DEBE informar IVA. */
+function comprobanteFacturaB(): ComprobanteArca {
+  return {
+    puntoVenta: 3,
+    tipo: TipoComprobante.FacturaB,
+    concepto: Concepto.Productos,
+    docTipo: TipoDocumento.ConsumidorFinal,
+    docNro: 0,
+    condicionIvaReceptorId: CondicionIvaReceptorId.ConsumidorFinal,
+    fecha: '20260705',
+    neto: 1000,
+    iva: [{ id: AlicuotaIvaId.VeintiUno, baseImponible: 1000, importe: 210 }],
+    total: 1210,
+    invoiceId: 'inv-b',
+    tenantId: 't-1',
+  };
+}
+
+test('armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente', () => {
+  const body = armarFECAESolicitarRequest(TA, 20111111112, comprobanteFacturaB(), 50);
+  assert.match(body, /<ar:CbteTipo>6<\/ar:CbteTipo>/);
+  assert.match(body, /<ar:ImpNeto>1000\.00<\/ar:ImpNeto>/);
+  // Antes del fix esto salía 0.00 (usaba discriminaIva = solo A) → ImpTotal ≠ ImpNeto → rechazo.
+  assert.match(body, /<ar:ImpIVA>210\.00<\/ar:ImpIVA>/);
+  assert.match(body, /<ar:ImpTotal>1210\.00<\/ar:ImpTotal>/);
+  // El bloque <Iva> con la alícuota 21% (Id=5) debe estar presente en B.
+  assert.match(body, /<ar:AlicIva><ar:Id>5<\/ar:Id>/);
+  assert.match(body, /<ar:BaseImp>1000\.00<\/ar:BaseImp>/);
+  assert.match(body, /<ar:Importe>210\.00<\/ar:Importe>/);
+});
+
+// ── Seam del TA: reutilización + persistencia (alRenovarTicket) ───────────────
+
+test('SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA', async () => {
+  let logins = 0;
+  const transport = new FakeTransport((action) => {
+    if (action === '') {
+      logins++;
+      return LOGIN_RESPONSE_OK;
+    }
+    return ULTIMO_RESPONSE_OK;
+  });
+  const taVigente: TicketAcceso = {
+    token: 'T-PERSIST',
+    sign: 'S-PERSIST',
+    expiration: '2026-07-06T02:00:00.000-03:00',
+  };
+  let renovaciones = 0;
+  const client = new SoapAfipClient(
+    { cuit: 20111111112, homologacion: true },
+    {
+      transport,
+      signer: signerFake,
+      ticketInicial: taVigente,
+      alRenovarTicket: () => {
+        renovaciones++;
+      },
+      ahora: () => new Date('2026-07-05T12:00:00Z'),
+    },
+  );
+  await client.ultimoAutorizado(3, TipoComprobante.FacturaA);
+  assert.equal(logins, 0, 'con un TA vigente persistido NO debe re-loguear (evita alreadyAuthenticated)');
+  assert.equal(renovaciones, 0, 'si reusa el TA, no lo re-persiste');
+  // La 1ra llamada fue directo a WSFEv1, sin pasar por WSAA.
+  assert.equal(transport.llamadas[0].url, ENDPOINTS_HOMOLOGACION.wsfev1);
+  // Y usó el token persistido en el bloque Auth.
+  assert.match(transport.llamadas[0].body, /<ar:Token>T-PERSIST<\/ar:Token>/);
+});
+
+test('SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)', async () => {
+  const transport = new FakeTransport((action) =>
+    action === '' ? LOGIN_RESPONSE_OK : ULTIMO_RESPONSE_OK,
+  );
+  const taVencido: TicketAcceso = {
+    token: 'viejo',
+    sign: 'viejo',
+    expiration: '2026-07-04T00:00:00.000Z', // vencido respecto de `ahora`
+  };
+  const persistidos: TicketAcceso[] = [];
+  const client = new SoapAfipClient(
+    { cuit: 20111111112, homologacion: true },
+    {
+      transport,
+      signer: signerFake,
+      ticketInicial: taVencido,
+      alRenovarTicket: (ta) => {
+        persistidos.push(ta);
+      },
+      ahora: () => new Date('2026-07-05T12:00:00Z'),
+    },
+  );
+  await client.ultimoAutorizado(3, TipoComprobante.FacturaA);
+  assert.equal(persistidos.length, 1, 'renovó el TA vencido → debe persistir el nuevo una vez');
+  assert.equal(persistidos[0].token, 'VE9LRU4tQUJD', 'persiste exactamente el TA que devolvió WSAA');
 });

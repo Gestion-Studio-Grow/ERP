@@ -137,6 +137,27 @@ function decryptWith(key: Buffer, packed: string): Buffer {
 // --- API de envelope ----------------------------------------------------------
 
 /**
+ * Envelope GENÉRICO: cierra un string arbitrario (UTF-8) con una DEK aleatoria y
+ * envuelve la DEK con la KEK. Mismo esquema que `sealCredential`, para material
+ * sensible que NO son los PEM del cert — p.ej. el TA de ARCA (token+sign), un
+ * bearer de ~12h que igual conviene guardar cifrado (defensa en profundidad;
+ * nunca en claro en la DB). El plaintext NO se retiene ni se loguea.
+ */
+export function sealSecret(plaintext: string, master: MasterKey): SealedCredential {
+  const dek = randomBytes(KEY_BYTES);
+  const sealed = encryptWith(dek, Buffer.from(plaintext, "utf8"));
+  const wrappedDek = encryptWith(master.key, dek);
+  return { kekId: master.id, wrappedDek, sealed };
+}
+
+/** Abre un sobre genérico creado por `sealSecret` → el string original. Fail-closed. */
+export function openSecret(sealed: SealedCredential, master: MasterKey): string {
+  const dek = decryptWith(master.key, sealed.wrappedDek);
+  const payload = decryptWith(dek, sealed.sealed);
+  return payload.toString("utf8");
+}
+
+/**
  * Cierra el material del emisor: genera una DEK aleatoria, cifra los PEM con la DEK, y
  * envuelve la DEK con la KEK (master). Devuelve el sobre listo para persistir. El
  * plaintext NO se retiene ni se loguea.
@@ -145,11 +166,10 @@ export function sealCredential(
   plaintext: CredentialPlaintext,
   master: MasterKey,
 ): SealedCredential {
-  const dek = randomBytes(KEY_BYTES);
-  const payload = Buffer.from(JSON.stringify({ certPem: plaintext.certPem, keyPem: plaintext.keyPem }), "utf8");
-  const sealed = encryptWith(dek, payload);
-  const wrappedDek = encryptWith(master.key, dek);
-  return { kekId: master.id, wrappedDek, sealed };
+  return sealSecret(
+    JSON.stringify({ certPem: plaintext.certPem, keyPem: plaintext.keyPem }),
+    master,
+  );
 }
 
 /**

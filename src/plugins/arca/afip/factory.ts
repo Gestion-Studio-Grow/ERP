@@ -21,7 +21,7 @@
  */
 
 import { AfipClient, EmisorConfig } from './port';
-import { SoapAfipClient } from './soap';
+import { SoapAfipClient, type TicketAcceso } from './soap';
 import { StubAfipClient } from './stub';
 import { Pkcs7TraSigner, type CredencialEmisor } from './signer';
 import { assertCertCoincideConCuit } from './cert-inspect';
@@ -34,6 +34,14 @@ export interface CrearAfipClientOpts {
   env?: Record<string, string | undefined>;
   /** Credencial del emisor del tenant (cifrada en reposo, resuelta por tenant). */
   credencial?: CredencialEmisor | null;
+  /**
+   * TA persistido del tenant (cacheado, cifrado) para REUSAR en vez de re-loguear
+   * contra WSAA. Si sigue vigente, el cliente lo usa; si no, re-autentica. Clave en
+   * serverless: sin esto, cada invocación re-loguea y falla con `alreadyAuthenticated`.
+   */
+  ticketInicial?: TicketAcceso;
+  /** Callback para PERSISTIR el TA cuando el cliente lo renueva contra WSAA. */
+  alRenovarTicket?: (ta: TicketAcceso) => void | Promise<void>;
 }
 
 /** Modo de ARCA declarado por entorno. Default `stub` (seguro). */
@@ -87,7 +95,11 @@ export function crearAfipClient(
     if (modo === 'real') {
       assertCertCoincideConCuit(cred.certPem, String(config.cuit));
     }
-    return new SoapAfipClient(configParaModo(config, modo), { signer: new Pkcs7TraSigner(cred) });
+    return new SoapAfipClient(configParaModo(config, modo), {
+      signer: new Pkcs7TraSigner(cred),
+      ticketInicial: opts.ticketInicial,
+      alRenovarTicket: opts.alRenovarTicket,
+    });
   }
   return new StubAfipClient(config);
 }

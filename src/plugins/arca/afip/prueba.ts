@@ -10,7 +10,13 @@
  * comprobante y el mapeo del resultado (nunca lanza).
  */
 
-import { AlicuotaIvaId, Concepto, TipoComprobante, TipoDocumento } from '../domain/catalogos';
+import {
+  AlicuotaIvaId,
+  CondicionIvaReceptorId,
+  Concepto,
+  TipoComprobante,
+  TipoDocumento,
+} from '../domain/catalogos';
 import { ComprobanteArca } from '../domain/comprobante';
 import { ArcaRechazoError, type AfipClient, type ObservacionArca } from './port';
 
@@ -41,6 +47,8 @@ export function comprobanteDePrueba(
     concepto: Concepto.Productos,
     docTipo: TipoDocumento.ConsumidorFinal,
     docNro: 0,
+    // RG 5616: obligatorio informar la condición de IVA del receptor.
+    condicionIvaReceptorId: CondicionIvaReceptorId.ConsumidorFinal,
     fecha,
     neto: monto,
     // FacturaC no discrimina IVA: se informa el monto en la alícuota "0%" (no
