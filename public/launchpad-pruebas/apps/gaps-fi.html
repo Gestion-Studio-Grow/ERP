@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script>if(sessionStorage.getItem("gsg_auth")!=="1"){location.replace("../login.html");}</script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Análisis de gaps de FI</title>
+<style>
+:root{--navy:#0b2a4a;--gray:#6a7886;--border:#e3e9ef;}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#1b2733;background:#f4f7fa;padding:22px;max-width:920px;margin:0 auto;}
+a.back{font-size:12px;color:#0a6ed1;text-decoration:none;}
+.h{font-size:20px;font-weight:700;color:var(--navy);margin:10px 0 4px;}
+.s{font-size:12.5px;color:var(--gray);margin-bottom:18px;line-height:1.5;}
+h2.sec{font-size:15px;color:var(--navy);border-bottom:1px solid var(--border);padding-bottom:6px;margin:26px 0 12px;}
+.card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:11px;box-shadow:0 1px 3px rgba(11,42,74,.05);}
+.card h3{margin:0 0 5px;font-size:13.8px;color:var(--navy);}
+.card p{margin:0;font-size:12.6px;color:#5b6b7a;line-height:1.55;}
+.chip{display:inline-block;font-size:10px;font-weight:700;border-radius:10px;padding:2px 8px;margin-left:6px;}
+.acc{color:#276742;background:#e6f6ec;border:1px solid #b7e0c6;}
+.dud{color:#8a5a00;background:#fdf3e0;border:1px solid #f0d6a2;}
+.nov{color:#a52a2a;background:#fce9e9;border:1px solid #f0bcbc;}
+.hl{background:#f2f7fc;border-left:3px solid #0a6ed1;padding:12px 14px;border-radius:0 8px 8px 0;font-size:12.8px;color:#33475b;line-height:1.6;margin-bottom:12px;}
+table{width:100%;border-collapse:collapse;font-size:11.6px;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:6px;}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid #eef2f6;vertical-align:top;}
+th{background:#f0f4f8;color:var(--navy);font-size:11px;}
+td .r{font-weight:700;}
+.rA{color:#a52a2a;}.rM{color:#8a5a00;}.rB{color:#276742;}
+.foot{font-size:11px;color:#9aa4ad;margin-top:20px;line-height:1.5;}
+</style></head>
+<body>
+<a class="back" href="../index.html">&larr; Volver a la consola</a>
+<div class="h">Análisis de gaps de FI — Proyecto ACERO</div>
+<div class="s">"Gap" = algo que el cliente necesita y el sistema estándar no trae de fábrica, así que hay que resolverlo con configuración especial, un desarrollo o un proceso por fuera. Acá están separados los que ya están reconocidos en el contrato (DDA / propuesta) de los que todavía no se verificaron. Lenguaje simple.</div>
+
+<div class="hl"><b>En una línea:</b> lo mecánico funciona, pero hay dos frentes que todavía no están cerrados y pegan fuerte en el cierre mensual: la conexión con los bancos (Interbanking) y la nómina (Nucleus). Y varias cosas fiscales de Argentina que el estándar no cubre.</div>
+
+<h2 class="sec">1. Gaps ya reconocidos en el contrato (DDA / propuesta)</h2>
+
+<div class="card"><h3>Contabilidad y Cierre — Ajuste por inflación contable (RECPAM) <span class="chip acc">Aceptado</span></h3><p>La norma argentina obliga a ajustar por inflación, y el sistema en la nube no lo trae. Se resuelve con un desarrollo/proceso por fuera. Falta el aval del auditor y no cubre la parte impositiva.</p></div>
+<div class="card"><h3>Cuentas por Cobrar — Percepciones de IIBB por provincia <span class="chip acc">Aceptado (parcial)</span></h3><p>Cobrar por cuenta del fisco en muchas provincias, con padrones que cambian todos los meses. El estándar no trae padrones ni alícuotas: es desarrollo propio + una tarea mensual que alguien tiene que mantener siempre.</p></div>
+<div class="card"><h3>Cuentas a Pagar — Circuito de retenciones <span class="chip acc">Aceptado</span></h3><p>Retener IVA, Ganancias y SUSS al pagar. El motor existe pero el circuito completo hubo que diseñarlo; el formato de presentación (SICORE) es el punto flojo.</p></div>
+<div class="card"><h3>Bancos — Formatos de los 9 bancos <span class="chip acc">Aceptado</span></h3><p>Cada banco entrega el extracto en su propio formato; conectarse con cada uno es desarrollo, no estándar.</p></div>
+<div class="card"><h3>Activos Fijos — Revaluación por inflación integrada <span class="chip acc">Aceptado (parcial)</span></h3><p>La revaluación de bienes de uso por índice es estándar; la integración completa con contabilidad para el ajuste por inflación es lo que falta terminar.</p></div>
+<div class="card"><h3>Reportes Fiscales — ARCA, SIFERE, Convenio Multilateral <span class="chip acc">Aceptado (parte fuera de alcance)</span></h3><p>Factura electrónica: estándar (con una licencia extra a confirmar). Los reportes provinciales (SIFERE, CM03/CM05, e-ARCIBA) son desarrollo; parte quedó fuera de alcance.</p></div>
+
+<h2 class="sec">2. Gaps que la propuesta subestimó o dejó dudosos</h2>
+
+<div class="card"><h3>Interbanking: son DOS archivos, no uno <span class="chip dud">Subestimado</span></h3><p>La conciliación bancaria por Interbanking necesita bajar los extractos <b>y</b> subir los pagos: dos desarrollos distintos. La propuesta calculó uno. Además, la integración bancaria estándar está pensada para pocos bancos y acá son 9 — puede no alcanzar.</p></div>
+<div class="card"><h3>e-cheq sin plan B <span class="chip dud">Condicionado</span></h3><p>El cheque electrónico se ofreció condicionado a que cada banco pueda conectarse, sin una alternativa definida si alguno no puede. Conviene resolverlo antes de firmar.</p></div>
+<div class="card"><h3>SICORE y mantenimiento de padrones <span class="chip dud">Dudoso</span></h3><p>SICORE aparece como cubierto y como desarrollo a la vez: hay que definirlo. Y nadie cotizó quién mantiene los padrones provinciales todos los meses después del proyecto.</p></div>
+
+<h2 class="sec">3. Gaps NO verificados que más urgen (integraciones)</h2>
+
+<div class="card"><h3>Nucleus (nómina) — la interfaz de ida y vuelta <span class="chip nov">No verificado</span></h3>
+<p><b>Cómo debería ser:</b> el sistema le <b>manda</b> a Nucleus los vales y anticipos de los empleados (registrados como préstamo a recuperar), y Nucleus le <b>devuelve</b> el asiento de sueldos: el gasto, las cargas sociales, las retenciones, las provisiones de aguinaldo y vacaciones, el descuento de los anticipos y el neto a pagar. <b>Cómo está hoy:</b> el asiento de sueldos se carga <b>a mano</b> (llega tarde y con errores) y los anticipos quedan abiertos sin descontar. Hasta que sueldos no cuadra, no cierra el mes. Es el gap que más pega en el cierre.</p></div>
+
+<div class="card"><h3>Recepción de mercadería sin orden de compra <span class="chip nov">No verificado</span></h3><p>Sin orden de compra no hay control cruzado: la mercadería entra contra una cuenta que alguien concilia a mano todos los meses y la factura llega sin referencia. Riesgo de contar dos veces. Hay que ver si se puede pasar al circuito con orden de compra.</p></div>
+
+<div class="card"><h3>Mercado Pago y COT provincial <span class="chip nov">No verificado / parcial</span></h3><p>Mercado Pago descuenta comisiones del cobro y eso rompe la conciliación en silencio. Y el remito electrónico COT de ARBA cubre solo Buenos Aires; faltan Santa Fe, Córdoba, Mendoza y Entre Ríos, donde también hay planta.</p></div>
+
+<h2 class="sec">Tabla resumen</h2>
+<table>
+<tr><th>Área</th><th>Gap</th><th>¿En el contrato?</th><th>Estándar / Desarrollo</th><th>Riesgo</th></tr>
+<tr><td>GL / Cierre</td><td>Ajuste por inflación contable (RECPAM)</td><td>Sí</td><td>Desarrollo / proceso externo</td><td class="r rA">Alto</td></tr>
+<tr><td>GL / Cierre</td><td>Ajuste por inflación impositivo</td><td>No (omitido)</td><td>Desarrollo</td><td class="r rA">Alto</td></tr>
+<tr><td>AR</td><td>Percepciones IIBB por provincia + padrones</td><td>Parcial</td><td>Desarrollo + tarea mensual</td><td class="r rA">Alto</td></tr>
+<tr><td>AP</td><td>Circuito de retenciones</td><td>Sí</td><td>Config. diseñada</td><td class="r rM">Medio</td></tr>
+<tr><td>AP</td><td>SICORE (formato de presentación)</td><td>Dudoso</td><td>Desarrollo probable</td><td class="r rA">Alto</td></tr>
+<tr><td>Bancos</td><td>Interbanking (2 archivos) + 9 bancos</td><td>Subestimado</td><td>Desarrollo</td><td class="r rM">Medio-Alto</td></tr>
+<tr><td>Bancos</td><td>e-cheq</td><td>Condicionado</td><td>Desarrollo sin plan B</td><td class="r rA">Alto</td></tr>
+<tr><td>Nómina/AP</td><td>Nucleus ida y vuelta (vales / asiento de sueldos)</td><td>No verificado</td><td>Desarrollo (API) o manual blindado</td><td class="r rA">Alto</td></tr>
+<tr><td>AP/Inventario</td><td>Recepción sin orden de compra</td><td>No verificado</td><td>Rediseño de circuito</td><td class="r rA">Alto</td></tr>
+<tr><td>AA</td><td>Revaluación inflación integrada AA+GL</td><td>Parcial</td><td>Estándar parcial + desarrollo</td><td class="r rA">Alto</td></tr>
+<tr><td>Fiscal / DRC</td><td>SIFERE, e-ARCIBA, CM03/CM05, COT provincial</td><td>Parcial</td><td>Desarrollo</td><td class="r rA">Alto</td></tr>
+<tr><td>Fiscal</td><td>Facturación electrónica ARCA</td><td>Sí</td><td>Estándar (licencia a confirmar)</td><td class="r rM">Medio</td></tr>
+<tr><td>Transversal</td><td>Mantenimiento fiscal por cada actualización trimestral</td><td>No cotizado</td><td>Servicio recurrente</td><td class="r rA">Alto</td></tr>
+<tr><td>Planificación</td><td>Sin gaps declarados</td><td>Sí</td><td>Estándar</td><td class="r rB">Bajo</td></tr>
+</table>
+
+<div class="foot">Análisis producido por el equipo (líder funcional FI, líder de integraciones/tesorería, consultor de activos fijos y jefe de proyecto/riesgos) sobre los documentos del proyecto: análisis del DDA, consolidado de Finanzas, re-análisis con la propuesta, impacto de integraciones, registro de riesgos y decisiones por módulo. Entorno de demostración — no es un sistema productivo.</div>
+
+</body></html>

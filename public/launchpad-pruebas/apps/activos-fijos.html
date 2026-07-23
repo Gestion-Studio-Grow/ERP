@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script>if(sessionStorage.getItem("gsg_auth")!=="1"){location.replace("../login.html");}</script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Activos Fijos · preparación del workshop</title>
+<style>
+:root{--navy:#0b2a4a;--gray:#6a7886;--border:#e3e9ef;}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#1b2733;background:#f4f7fa;padding:22px;max-width:900px;margin:0 auto;}
+a.back{font-size:12px;color:#0a6ed1;text-decoration:none;}
+.banner{background:#fdf3e0;border:1px solid #f0d6a2;color:#8a5a00;font-size:12px;font-weight:600;border-radius:8px;padding:8px 12px;margin:10px 0 14px;}
+.h{font-size:20px;font-weight:700;color:var(--navy);margin:6px 0 4px;}
+.s{font-size:12.5px;color:var(--gray);margin-bottom:18px;}
+.card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:15px 17px;margin-bottom:12px;box-shadow:0 1px 3px rgba(11,42,74,.05);}
+.card h3{margin:0 0 8px;font-size:14.5px;color:var(--navy);}
+.card p{margin:0 0 6px;font-size:12.8px;color:#5b6b7a;line-height:1.55;}
+ul{margin:6px 0 0;padding-left:18px;}
+li{font-size:12.8px;color:#5b6b7a;line-height:1.6;margin-bottom:3px;}
+.ok{color:#276742;font-weight:600;}
+.gap{color:#a52a2a;font-weight:600;}
+.q{background:#f2f7fc;border-left:3px solid #0a6ed1;padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:6px;font-size:12.8px;color:#33475b;}
+</style></head>
+<body>
+<a class="back" href="../index.html">&larr; Volver a la consola</a>
+<div class="banner">Workshop de mañana · WS05 — Activos Fijos (J62)</div>
+<div class="h">Activos Fijos — preparación del workshop</div>
+<div class="s">Lo que ya encaja con el estándar, lo que va a necesitar solución especial en Argentina, qué se probó y las preguntas para llevar mañana. En lenguaje simple.</div>
+
+<div class="card">
+  <h3>Qué ya funciona con el estándar</h3>
+  <ul>
+    <li><span class="ok">Altas, bajas, transferencias y depreciación</span> — el ciclo completo del bien de uso está cubierto (scope item J62).</li>
+    <li><span class="ok">Revaluación por índice</span> — el ajuste por inflación de los bienes de uso <b>sí es estándar</b> y ya quedó cargado con índices argentinos (mensual y anual). Es el punto fuerte del proyecto.</li>
+    <li><span class="ok">Varios libros a la vez</span> — contable local, IFRS y US GAAP, cada uno con su valoración.</li>
+    <li><span class="ok">Reportes</span> — cuadro de bienes de uso, movimientos del ejercicio y listados de amortización.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Lo que va a necesitar atención (gaps y decisiones)</h3>
+  <ul>
+    <li><span class="gap">Ajuste por inflación de las cuentas de mayor (RECPAM)</span> — esto es distinto del ajuste de los bienes de uso y <b>no viene en el estándar</b>; se resuelve por fuera. Conviene decirlo mañana, no en la salida a producción.</li>
+    <li><span class="gap">Área impositiva y vida útil de Ganancias</span> — la diferencia entre lo contable y lo impositivo genera impuesto diferido; validar con el contador.</li>
+    <li><span class="gap">Áreas de valoración</span> — se definen <b>después</b> de decidir los ledgers; es una decisión difícil de revertir.</li>
+    <li><span class="gap">Obras en curso y bajas con resultado</span> — confirmar el circuito de la obra que todavía no se habilita, y a qué cuenta va el resultado de una venta de maquinaria usada.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Qué se probó (prueba J62)</h3>
+  <p><b>Probado:</b> maestros (49 activos, 4 áreas visibles), simulación de una compra con las partidas correctas en los tres libros, índices de revaluación cargados, y las apps de depreciación, bajas y reportes presentes. Veredicto: <span class="ok">encaja</span>.</p>
+  <p><b>Pendiente de probar en vivo:</b> contabilizar una compra real, correr la depreciación, ejecutar la revaluación con el índice, una baja con y sin ingreso, y conciliar el cuadro de bienes de uso contra el mayor.</p>
+  <p><b>A limpiar antes de la demo:</b> nombres de los libros, moneda de la sociedad argentina, datos de prueba "sucios" y formato de importes.</p>
+</div>
+
+<div class="card">
+  <h3>Preguntas para llevar mañana</h3>
+  <div class="q">¿Qué tipos de bien necesitan (inmuebles, maquinaria, rodados, obra en curso, intangibles) y con qué vidas útiles?</div>
+  <div class="q">¿Qué índice y con qué frecuencia se revalúa? ¿Quién mantiene la serie?</div>
+  <div class="q">¿Las altas entran por orden de compra o directas? ¿Cómo capitalizan hoy la obra en curso?</div>
+  <div class="q">¿Cómo tratan el ajuste impositivo por inflación y el impuesto diferido? (con el contador)</div>
+  <div class="q">¿Venden maquinaria usada? ¿A qué cuenta va el resultado?</div>
+  <div class="q">¿Hacen inventario físico de bienes de uso y con qué frecuencia?</div>
+</div>
+
+<div class="card">
+  <h3>Checklist "listo para mañana"</h3>
+  <ul>
+    <li>Nombres de libros y moneda de la sociedad verificados en la demo.</li>
+    <li>Datos de prueba limpios (sin activos "PRUEBA" ni índices de test).</li>
+    <li>Mensaje del RECPAM (se resuelve por fuera) ensayado y explícito.</li>
+    <li>Estado de la decisión de ledgers a mano — condiciona las áreas de valoración.</li>
+    <li>Las 6 decisiones de Activos Fijos con dueño y fecha en la planilla de salida.</li>
+  </ul>
+</div>
+
+</body></html>

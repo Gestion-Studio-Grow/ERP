@@ -1,19 +1,69 @@
 <!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Fit-to-Standard · Finanzas</title>
+<html lang="es"><head>
+<script>if(sessionStorage.getItem("gsg_auth")!=="1"){location.replace("../login.html");}</script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fit to Standard · Finanzas</title>
 <style>
-body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#1b2733;background:#f4f7fa;padding:22px;}
-.h{font-size:18px;font-weight:700;color:#0b2a4a;margin:0 0 4px;}
-.s{font-size:12px;color:#6a7886;margin-bottom:16px;}
-.card{background:#fff;border:1px solid #e3e9ef;border-radius:8px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(11,42,74,.05);}
-.card h3{margin:0 0 4px;font-size:14px;color:#0b2a4a;}
-.card p{margin:0;font-size:12.5px;color:#5b6b7a;line-height:1.5;}
-.tag{display:inline-block;font-size:10px;font-weight:700;color:#2e8b57;border:1px solid #b7e0c6;background:#eafaf0;border-radius:10px;padding:2px 8px;margin-left:6px;}
+:root{--navy:#0b2a4a;--gray:#6a7886;--border:#e3e9ef;}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#1b2733;background:#f4f7fa;padding:22px;max-width:900px;margin:0 auto;}
+a.back{font-size:12px;color:#0a6ed1;text-decoration:none;}
+.h{font-size:20px;font-weight:700;color:var(--navy);margin:10px 0 4px;}
+.s{font-size:12.5px;color:var(--gray);margin-bottom:18px;}
+.card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:15px 17px;margin-bottom:12px;box-shadow:0 1px 3px rgba(11,42,74,.05);}
+.card h3{margin:0 0 6px;font-size:14.5px;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.card p{margin:0;font-size:12.8px;color:#5b6b7a;line-height:1.55;}
+.card .dec{margin:8px 0 0;font-size:12px;color:#8a5a00;}
+.chip{display:inline-block;font-size:10px;font-weight:700;border-radius:10px;padding:2px 9px;}
+.done{color:#276742;background:#e6f6ec;border:1px solid #b7e0c6;}
+.now{color:#8a5a00;background:#fdf3e0;border:1px solid #f0d6a2;}
+.next{color:#0a5aa8;background:#e7f1fb;border:1px solid #bcd9f3;}
 </style></head>
 <body>
-<div class="h">Fit-to-Standard · Finanzas <span class="tag">Contexto de la Factory</span></div>
-<div class="s">Paquetes de workshop preparados con la metodología asistida por IA (S/4HANA Cloud Public Edition).</div>
-<div class="card"><h3>Contabilidad General y Cierre (RTR · scope item J58)</h3><p>Deck FTS branded, propuesta de plan de cuentas (543 cuentas), tipo de cambio, línea de tiempo de cierre, estados del documento, valuación en moneda extranjera y adelanto de ajuste por inflación. Con guía de apoyo al presentador y guía de demo verificada en el sistema.</p></div>
-<div class="card"><h3>Activos Fijos (scope item J62)</h3><p>Recorrido y validación del proceso: plan de amortización AR, áreas de valoración por ledger (0L/2L/3L), adquisición, revaluación por índice (inflación, estándar) y reportes. Test Results con observaciones detectadas.</p></div>
-<div class="card"><h3>Impuestos (scope item posterior)</h3><p>Encuadre de IIBB provincial multi-jurisdicción, percepciones/retenciones y Convenio Multilateral — cubierto por la extensión propia (ver tile "IIBB Provincial").</p></div>
+<a class="back" href="../index.html">&larr; Volver a la consola</a>
+<div class="h">Fit to Standard · Finanzas</div>
+<div class="s">Recorrido de los talleres donde se compara cómo trabaja hoy el cliente contra el estándar de SAP, y se anota qué encaja y qué necesita una solución especial. Proyecto ACERO.</div>
+
+<div class="card">
+  <h3>WS01 · Contabilidad General y Cierre <span class="chip done">Hecho</span></h3>
+  <p>El corazón contable: plan de cuentas, tipos de cambio, cierre mensual, valuación en moneda extranjera y el encuadre del ajuste por inflación. Los "ledgers" (libros paralelos) se deciden acá y la decisión es difícil de revertir.</p>
+  <p class="dec">Punto de atención: el ajuste por inflación contable no viene en el estándar; se resuelve por fuera (ver Gaps de FI).</p>
+</div>
+
+<div class="card">
+  <h3>WS02 · Cuentas por Cobrar (AR) <span class="chip done">Hecho</span></h3>
+  <p>La venta y la factura: numeración, puntos de venta, y sobre todo el dato fiscal del cliente que habilita la factura electrónica (CAE). Si el dato entra incompleto desde otro sistema, la factura se rechaza.</p>
+  <p class="dec">Punto de atención: percepciones de IIBB en muchas provincias — cubierto por el desarrollo propio.</p>
+</div>
+
+<div class="card">
+  <h3>WS03 · Cuentas a Pagar (AP) <span class="chip done">Hecho</span></h3>
+  <p>El pago a proveedores: retenciones (IVA, Ganancias, SUSS), recepción de mercadería y el circuito de pagos. Aparecen dos temas sensibles: recepción sin orden de compra y el asiento de sueldos cargado a mano.</p>
+  <p class="dec">Punto de atención: sueldos manual y anticipos a empleados sin conciliar (Nucleus) — ver Gaps de FI.</p>
+</div>
+
+<div class="card">
+  <h3>WS04 · Bancos y Caja <span class="chip now">En curso</span></h3>
+  <p>Cómo entra y sale la plata: 9 bancos, conciliación por Interbanking, cheques electrónicos (e-cheq) y Mercado Pago. La conciliación automática es estándar, pero conectarse con cada banco es desarrollo.</p>
+  <p class="dec">Punto de atención: Interbanking son dos archivos (no uno) y el e-cheq depende de que cada banco pueda conectarse.</p>
+</div>
+
+<div class="card">
+  <h3>WS05 · Activos Fijos <span class="chip now">Mañana</span></h3>
+  <p>Los bienes de uso: altas, bajas, transferencias, depreciación y la revaluación por inflación (que acá sí es estándar). Las áreas de valoración —contable vs. impositiva— se deciden después de los ledgers.</p>
+  <p class="dec">Preparado en detalle: abrir la tarjeta "Activos Fijos" de la consola.</p>
+</div>
+
+<div class="card">
+  <h3>WS06 · Reportes Fiscales · DRC <span class="chip next">Próximo</span></h3>
+  <p>Los reportes que pide el fisco: factura electrónica ARCA, IIBB, SIFERE, Convenio Multilateral y el remito electrónico (COT). Se separa lo nacional (más cubierto) de lo provincial (más desarrollo).</p>
+  <p class="dec">Punto de atención: el COT de ARBA cubre solo Buenos Aires; faltan las otras provincias con planta.</p>
+</div>
+
+<div class="card">
+  <h3>WS07 · Planificación (FP&amp;A) <span class="chip next">Próximo</span></h3>
+  <p>El presupuesto y las proyecciones. Con inflación alta, planificar solo en pesos nominales pierde sentido rápido: el tema es más de método que de sistema.</p>
+  <p class="dec">Punto de atención: definir moneda de referencia y frecuencia (recomendado: proyección continua).</p>
+</div>
+
 </body></html>
