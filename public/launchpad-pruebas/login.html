@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acceso · Consola del Consultor (demo)</title>
+<style>
+  :root{ --navy:#0a2233; --blue:#3857A3; --cyan:#16b0c9; }
+  *{box-sizing:border-box;}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+       background:linear-gradient(135deg,#0a2233 0%,#203864 55%,#3857A3 100%);}
+  .card{width:350px;background:#fff;border-radius:14px;padding:30px 28px;
+        box-shadow:0 12px 40px rgba(0,0,0,.35);}
+  .logo{width:40px;height:40px;border-radius:9px;background:var(--cyan);
+        display:flex;align-items:center;justify-content:center;color:var(--navy);
+        font-weight:800;font-size:20px;margin-bottom:16px;}
+  h1{font-size:17px;color:var(--navy);margin:0 0 2px;}
+  .sub{font-size:12px;color:#6a7886;margin:0 0 20px;}
+  label{display:block;font-size:11px;font-weight:600;color:#5b6b7a;margin:12px 0 5px;}
+  input{width:100%;padding:10px 12px;border:1px solid #d8e2ea;border-radius:8px;
+        font-size:14px;outline:none;}
+  input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(56,87,163,.15);}
+  button{width:100%;margin-top:18px;padding:11px;border:none;border-radius:8px;
+         background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer;}
+  button:hover{background:#2c4585;}
+  .err{color:#c0392b;font-size:12px;margin-top:10px;min-height:16px;}
+  .demo{margin-top:16px;font-size:10.5px;color:#98a3ad;text-align:center;line-height:1.5;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">G</div>
+    <h1>Consola del Consultor</h1>
+    <p class="sub">Entorno de demostración · Factory SAP</p>
+    <form id="f" autocomplete="off">
+      <label for="us">Usuario</label>
+      <input type="text" id="us" placeholder="usuario" autofocus>
+      <label for="pw">Contraseña</label>
+      <input type="password" id="pw" placeholder="••••••••">
+      <button type="submit">Ingresar</button>
+      <div class="err" id="err"></div>
+    </form>
+    <div class="demo">Construido con tecnología SAPUI5.<br>Datos ficticios — no es un sistema productivo.</div>
+  </div>
+
+<script>
+  // Usuario en claro (no es secreto) + hash SHA-256 de la contraseña dummy.
+  // Cambiar clave:  printf '%s' 'NUEVA' | sha256sum   → pegá el hash acá.
+  var USER = "consultor";
+  var HASH = "1ee46a250bc74829aad581f60985fea7c62f53ddd04b296cb1e2c5f44fe7d4c8";
+
+  async function sha256(str){
+    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0");}).join("");
+  }
+  document.getElementById("f").addEventListener("submit", async function(e){
+    e.preventDefault();
+    var us = document.getElementById("us").value.trim();
+    var pw = document.getElementById("pw").value;
+    var ok = false;
+    try { ok = (us === USER && (await sha256(pw)) === HASH); } catch(_){ ok=false; }
+    if (ok){
+      try{ sessionStorage.setItem("gsg_auth","1"); }catch(_){}
+      location.replace("index.html");
+    } else {
+      document.getElementById("err").textContent = "Usuario o contraseña incorrectos.";
+      document.getElementById("pw").value = "";
+      document.getElementById("pw").focus();
+    }
+  });
+</script>
+</body>
+</html>
