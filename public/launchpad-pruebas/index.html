@@ -74,7 +74,9 @@ window["sap-ushell-config"] = {
 </script>
 
 <script>
-    sap.ui.getCore().attachInit(function () {
+    function __bootFLP(){
+      if(!(window.sap && sap.ui && sap.ui.getCore)){ return setTimeout(__bootFLP, 120); }
+      sap.ui.getCore().attachInit(function () {
         sap.ushell.Container.createRenderer(null, true).then(function (content) {
             content.placeAt("content");
             try {
@@ -84,7 +86,9 @@ window["sap-ushell-config"] = {
                 document.body.appendChild(b);
             } catch (e) {}
         });
-    });
+      });
+    }
+    __bootFLP();
 </script>
 
 <style>
