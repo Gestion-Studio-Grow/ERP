@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RECPAM — Ajuste por Inflación (RT 6) · Extensión BTP · GSG / ACERO</title>
+<style>
+  body{margin:0;background:#f2f6f9;padding:24px 16px;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;background:#fff;border:1px solid #e3e9ef;border-radius:12px;padding:22px 24px;box-shadow:0 1px 4px rgba(11,42,74,.06);}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section id="recpam-app" style="font-family:inherit;color:#1b2733;">
+  <h2 class="sr-only">Tablero de la extensión RECPAM: calcula el ajuste por inflación RT 6, reexpresa las cuentas por índice, obtiene el RECPAM como partida balanceante y arma el asiento de ajuste destinado a un extension ledger.</h2>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:2px solid #e3e9ef;padding-bottom:10px;">
+    <div>
+      <div style="font-size:17px;font-weight:700;color:#0b2a4a;">Ajuste por Inflación · RECPAM <span style="font-weight:500;color:#6a7886;font-size:13px;">(RT 6 · FACPCE)</span></div>
+      <div style="font-size:11.5px;color:#6a7886;margin-top:2px;">Extensión BTP side-by-side · lee el balance de S/4 · no toca el core · asiento a extension ledger · GSG / ACERO</div>
+    </div>
+    <div style="font-size:11px;color:#0e7c86;font-weight:600;border:1px solid #16b0c9;border-radius:12px;padding:3px 10px;">GAP de S/4HANA Cloud Public</div>
+  </div>
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin:14px 0;">
+    <div><div style="font-size:10.5px;color:#6a7886;font-weight:600;margin-bottom:4px;">SOCIEDAD</div><div style="font-size:14px;font-weight:600;padding:6px 12px;background:#eef3f7;border-radius:6px;">1000</div></div>
+    <div><div style="font-size:10.5px;color:#6a7886;font-weight:600;margin-bottom:4px;">PERÍODO</div><div id="per-pills" style="display:flex;gap:4px;"></div></div>
+    <div><div style="font-size:10.5px;color:#6a7886;font-weight:600;margin-bottom:4px;">IMPUESTO DIFERIDO (esbozo)</div><div id="dif-pills" style="display:flex;gap:4px;"></div></div>
+    <button id="calc-btn" style="margin-left:auto;background:#0b2a4a;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;">Calcular ajuste</button>
+  </div>
+
+  <div id="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;"></div>
+
+  <div style="display:flex;gap:6px;border-bottom:1px solid #e3e9ef;">
+    <button class="tabbtn" data-tab="reex" style="background:none;border:none;border-bottom:2px solid #0b2a4a;color:#0b2a4a;font-weight:600;font-size:13px;padding:8px 12px;cursor:pointer;">Reexpresión por cuenta</button>
+    <button class="tabbtn" data-tab="asi" style="background:none;border:none;border-bottom:2px solid transparent;color:#6a7886;font-weight:600;font-size:13px;padding:8px 12px;cursor:pointer;">Asiento de ajuste</button>
+  </div>
+  <div id="tab-reex"></div>
+  <div id="tab-asi" style="display:none;"></div>
+
+  <div style="margin-top:12px;background:#fbf3e2;border:1px solid #e5c879;border-radius:6px;padding:9px 12px;font-size:11px;color:#7a5b12;line-height:1.5;">
+    <b>Salvedades:</b> los índices IPC, la clasificación monetaria/no monetaria, el anclaje, las capas y la alícuota de diferido son <b>placeholder — se validan con el auditor</b>. El asiento se destina a un <b>extension ledger (ZI), no al 0L</b>, y no se postea a S/4 (clean core): es una salida para revisión de Finance. Datos sobre S/4 <b>simulado</b>. Prototipo verificado con 60 tests en verde.
+  </div>
+</section>
+</div>
+
+<script>
+(function(){
+  var nf = new Intl.NumberFormat('es-AR');
+  function m(x){ if(x===0||x==null) return '—'; return nf.format(Math.round(x)); }
+  var reex06 = [
+    ['1010','Caja y bancos','MONETARIA',1.000,8000000,8000000,0,''],
+    ['1020','Créditos por ventas','MONETARIA',1.000,25000000,25000000,0,''],
+    ['1030','Otros créditos','MONETARIA',1.000,3000000,3000000,0,''],
+    ['1100','Bienes de cambio','NO_MONETARIA',1.200,40000000,48000000,8000000,'por capas + tope de valuación'],
+    ['1200','Maquinarias y equipos','NO_MONETARIA',1.500,60000000,90000000,30000000,''],
+    ['1210','Rodados','NO_MONETARIA',1.500,6000000,9000000,3000000,''],
+    ['1250','Inmuebles','NO_MONETARIA',1.500,50000000,75000000,25000000,''],
+    ['1290','Amortizaciones acumuladas','NO_MONETARIA',1.500,-18000000,-27000000,-9000000,''],
+    ['2010','Deudas comerciales','MONETARIA',1.000,-22000000,-22000000,0,''],
+    ['2020','Deudas bancarias','MONETARIA',1.000,-35000000,-35000000,0,''],
+    ['2030','Cargas fiscales a pagar','MONETARIA',1.000,-6000000,-6000000,0,''],
+    ['2040','Remuneraciones a pagar','MONETARIA',1.000,-4000000,-4000000,0,''],
+    ['3000','Capital social','NO_MONETARIA',1.500,-70000000,-105000000,-35000000,'anclaje a fecha de aporte'],
+    ['3100','Resultados no asignados','NO_MONETARIA',1.500,-10000000,-15000000,-5000000,''],
+    ['4100','Ventas','RESULTADO',1.120,-125000000,-140000000,-15000000,'por devengamiento'],
+    ['5100','Costo de mercaderías vendidas','RESULTADO',1.120,75000000,84000000,9000000,'por devengamiento'],
+    ['5200','Gastos comercialización y adm.','RESULTADO',1.130,23000000,26000000,3000000,'por devengamiento']
+  ];
+  var asiBase = [
+    ['1100','Bienes de cambio',8000000,0],['1200','Maquinarias y equipos',30000000,0],
+    ['1210','Rodados',3000000,0],['1250','Inmuebles',25000000,0],
+    ['1290','Amortizaciones acumuladas',0,9000000],['3000','Capital social',0,35000000],
+    ['3100','Resultados no asignados',0,5000000],['4100','Ventas',0,15000000],
+    ['4900','RECPAM (ganancia)',0,14000000],['5100','Costo de mercaderías vendidas',9000000,0],
+    ['5200','Gastos comercialización y adm.',3000000,0]
+  ];
+  var asiDif = [['1800','Impuesto diferido — activo/pasivo',0,19950000],['5900','Impuesto diferido — resultado (esbozo)',19950000,0]];
+  var state = { periodo:'2026-06', diferido:true, tab:'reex' };
+  function scenario(){
+    if(state.periodo==='2025-12'){
+      var reex = reex06.map(function(r){ return [r[0],r[1],r[2],1.000,r[4],r[4],0,'período base · sin inflación']; });
+      return { reex:reex, asiento:[], recpam:0, resultado:'NEUTRO', totalAjustes:0, cuentas:17 };
+    }
+    var asiento = asiBase.slice(); if(state.diferido){ asiento = asiento.concat(asiDif); }
+    return { reex:reex06, asiento:asiento, recpam:-14000000, resultado:'GANANCIA', totalAjustes:14000000, cuentas:17 };
+  }
+  function kpi(label,val,sub,color){
+    return '<div style="background:#f5f8fb;border:1px solid #e3e9ef;border-radius:8px;padding:10px 12px;">'
+      +'<div style="font-size:10.5px;color:#6a7886;font-weight:600;">'+label+'</div>'
+      +'<div style="font-size:19px;font-weight:700;color:'+(color||'#0b2a4a')+';margin-top:3px;">'+val+'</div>'
+      +(sub?'<div style="font-size:10.5px;color:#6a7886;margin-top:1px;">'+sub+'</div>':'')+'</div>';
+  }
+  function render(){
+    var s = scenario();
+    var rColor = s.recpam<0 ? '#2e8b57' : (s.recpam>0 ? '#c0392b' : '#6a7886');
+    document.getElementById('kpis').innerHTML =
+      kpi('RECPAM', (s.recpam===0?'$ 0':'$ '+m(s.recpam)), s.resultado, rColor)
+      + kpi('Total ajustes', '$ '+m(s.totalAjustes), null)
+      + kpi('Cuentas procesadas', s.cuentas, 'clasificadas 100%')
+      + kpi('Asiento', (s.asiento.length?'Balanceado ✓':'—'), 'extension ledger ZI');
+    var rows = s.reex.map(function(r){
+      var cls = r[2]==='MONETARIA'?'#6a7886':(r[2]==='RESULTADO'?'#0e7c86':'#1c7fc0');
+      var aj = r[6]; var ajTxt = aj===0?'<span style="color:#b9c2cb;">—</span>':(aj>0?'+':'')+m(aj);
+      return '<tr style="border-bottom:1px solid #eef3f7;">'
+        +'<td style="padding:5px 8px;font-variant-numeric:tabular-nums;color:#6a7886;">'+r[0]+'</td>'
+        +'<td style="padding:5px 8px;">'+r[1]+(r[7]?' <span style="color:#a0a9b2;font-size:10px;">· '+r[7]+'</span>':'')+'</td>'
+        +'<td style="padding:5px 8px;"><span style="font-size:10px;font-weight:600;color:'+cls+';">'+r[2].replace('_',' ')+'</span></td>'
+        +'<td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+r[3].toFixed(3)+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(r[4])+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">'+m(r[5])+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:'+(aj===0?'#b9c2cb':'#0b2a4a')+';">'+ajTxt+'</td></tr>';
+    }).join('');
+    document.getElementById('tab-reex').innerHTML =
+      '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">'
+      +'<thead><tr style="background:#0b2a4a;color:#fff;text-align:left;">'
+      +['Cta','Cuenta','Clasificación','Coef.','Saldo nominal','Reexpresado','Ajuste'].map(function(h,i){return '<th style="padding:6px 8px;'+(i>=3?'text-align:right;':'')+'font-weight:600;font-size:11px;">'+h+'</th>';}).join('')
+      +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var td=0,th=0; s.asiento.forEach(function(a){td+=a[2];th+=a[3];});
+    var arows = s.asiento.map(function(a){
+      return '<tr style="border-bottom:1px solid #eef3f7;"><td style="padding:5px 8px;color:#6a7886;font-variant-numeric:tabular-nums;">'+a[0]+'</td>'
+        +'<td style="padding:5px 8px;">'+a[1]+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(a[2])+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(a[3])+'</td></tr>';
+    }).join('');
+    var asiInner = s.asiento.length ?
+      ('<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">'
+      +'<thead><tr style="background:#0b2a4a;color:#fff;text-align:left;"><th style="padding:6px 8px;font-size:11px;">Cta</th><th style="padding:6px 8px;font-size:11px;">Concepto</th><th style="padding:6px 8px;text-align:right;font-size:11px;">Debe</th><th style="padding:6px 8px;text-align:right;font-size:11px;">Haber</th></tr></thead>'
+      +'<tbody>'+arows+'</tbody>'
+      +'<tfoot><tr style="border-top:2px solid #0b2a4a;font-weight:700;"><td colspan="2" style="padding:6px 8px;">TOTAL · Debe = Haber</td><td style="padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(td)+'</td><td style="padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(th)+'</td></tr></tfoot>'
+      +'</table></div>')
+      : '<div style="padding:20px;text-align:center;color:#6a7886;font-size:13px;">Período base (índice = 100): coeficiente 1 en todas las cuentas → sin reexpresión → <b>RECPAM 0</b>, sin asiento.</div>';
+    document.getElementById('tab-asi').innerHTML = asiInner;
+    document.getElementById('tab-reex').style.display = state.tab==='reex'?'block':'none';
+    document.getElementById('tab-asi').style.display = state.tab==='asi'?'block':'none';
+  }
+  function pill(txt,active){
+    return '<span style="cursor:pointer;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:6px;border:1px solid '+(active?'#0b2a4a':'#d8e2ea')+';background:'+(active?'#0b2a4a':'#fff')+';color:'+(active?'#fff':'#3e4a57')+';">'+txt+'</span>';
+  }
+  function renderPills(){
+    var pp=document.getElementById('per-pills'); pp.innerHTML='';
+    [['2026-06','Jun 2026'],['2025-12','Dic 2025 (base)']].forEach(function(o){
+      var el=document.createElement('span'); el.innerHTML=pill(o[1],state.periodo===o[0]);
+      el.firstChild.onclick=function(){state.periodo=o[0];renderPills();render();}; pp.appendChild(el.firstChild);
+    });
+    var dp=document.getElementById('dif-pills'); dp.innerHTML='';
+    [[true,'Sí · 35%'],[false,'No']].forEach(function(o){
+      var el=document.createElement('span'); el.innerHTML=pill(o[1],state.diferido===o[0]);
+      el.firstChild.onclick=function(){state.diferido=o[0];renderPills();render();}; dp.appendChild(el.firstChild);
+    });
+  }
+  document.querySelectorAll('.tabbtn').forEach(function(b){
+    b.onclick=function(){ state.tab=b.getAttribute('data-tab');
+      document.querySelectorAll('.tabbtn').forEach(function(x){x.style.borderBottomColor='transparent';x.style.color='#6a7886';});
+      b.style.borderBottomColor='#0b2a4a'; b.style.color='#0b2a4a'; render(); };
+  });
+  document.getElementById('calc-btn').onclick=function(){ var self=this; self.textContent='Calculando…'; setTimeout(function(){ render(); self.textContent='Calcular ajuste'; },250); };
+  renderPills(); render();
+})();
+</script>
+</body>
+</html>

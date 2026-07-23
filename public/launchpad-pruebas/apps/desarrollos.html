@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GSG · Factory SAP — Desarrollos ACERO</title>
+<style>
+  body{margin:0;background:#dfe6ec;padding:24px;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;}
+</style>
+</head>
+<body>
+<section id="flp" style="font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#1b2733;max-width:1000px;margin:0 auto;">
+  <div style="background:#0a2233;border-radius:10px 10px 0 0;padding:11px 18px;display:flex;align-items:center;gap:12px;">
+    <span id="flp-back" style="display:none;color:#cfe0ee;font-size:18px;cursor:pointer;user-select:none;">‹</span>
+    <div style="width:22px;height:22px;border-radius:5px;background:#16b0c9;display:flex;align-items:center;justify-content:center;color:#0a2233;font-weight:800;font-size:12px;">G</div>
+    <div style="color:#fff;font-weight:600;font-size:14px;" id="flp-title">GSG · Factory SAP — Desarrollos ACERO</div>
+    <div style="margin-left:auto;color:#9fb4c4;font-size:11px;">S/4HANA Cloud Public · BTP side-by-side</div>
+    <div style="width:26px;height:26px;border-radius:50%;background:#16b0c9;color:#0a2233;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;">ML</div>
+  </div>
+  <div style="background:#eef2f6;border:1px solid #e3e9ef;border-top:none;border-radius:0 0 10px 10px;padding:18px;min-height:340px;">
+    <div id="view-home">
+      <div style="font-size:12px;font-weight:700;color:#5b6b7a;letter-spacing:.4px;text-transform:uppercase;margin:2px 0 12px;">Desarrollos de localización (gaps de S/4HANA Cloud Public)</div>
+      <div id="tiles" style="display:flex;gap:14px;flex-wrap:wrap;"></div>
+    </div>
+    <div id="view-recpam" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #dbe3ea;padding-bottom:8px;margin-bottom:12px;">
+        <div><div style="font-size:15px;font-weight:700;color:#0b2a4a;">Ajuste por Inflación · RECPAM <span style="font-weight:500;color:#6a7886;font-size:12px;">(RT 6 · FACPCE)</span></div>
+        <div style="font-size:11px;color:#6a7886;">RICEF-FI-001 · FI-GL · extensión BTP · lee S/4, no toca el core, asiento a extension ledger</div></div>
+        <div style="font-size:10.5px;color:#2e8b57;font-weight:700;border:1px solid #b7e0c6;background:#eafaf0;border-radius:12px;padding:3px 10px;">Prototipo validado · 60 tests ✓</div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+        <div><div style="font-size:10px;color:#6a7886;font-weight:600;margin-bottom:4px;">SOCIEDAD</div><div style="font-size:13px;font-weight:600;padding:6px 12px;background:#eef3f7;border-radius:6px;">1000</div></div>
+        <div><div style="font-size:10px;color:#6a7886;font-weight:600;margin-bottom:4px;">PERÍODO</div><div id="per-pills" style="display:flex;gap:4px;"></div></div>
+        <div><div style="font-size:10px;color:#6a7886;font-weight:600;margin-bottom:4px;">DIFERIDO (esbozo)</div><div id="dif-pills" style="display:flex;gap:4px;"></div></div>
+      </div>
+      <div id="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:6px;border-bottom:1px solid #dbe3ea;">
+        <button class="tabbtn" data-tab="reex" style="background:none;border:none;border-bottom:2px solid #0b2a4a;color:#0b2a4a;font-weight:600;font-size:12.5px;padding:7px 11px;cursor:pointer;">Reexpresión por cuenta</button>
+        <button class="tabbtn" data-tab="asi" style="background:none;border:none;border-bottom:2px solid transparent;color:#6a7886;font-weight:600;font-size:12.5px;padding:7px 11px;cursor:pointer;">Asiento de ajuste</button>
+      </div>
+      <div id="tab-reex"></div><div id="tab-asi" style="display:none;"></div>
+      <div style="margin-top:10px;background:#fbf3e2;border:1px solid #e5c879;border-radius:6px;padding:8px 11px;font-size:10.5px;color:#7a5b12;line-height:1.5;"><b>Salvedades:</b> índices, clasificación, anclaje y alícuota son placeholder — se validan con el auditor. Asiento al extension ledger (no 0L), no se postea (clean core). Datos sobre S/4 simulado.</div>
+    </div>
+    <div id="view-iibb" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #dbe3ea;padding-bottom:8px;margin-bottom:14px;">
+        <div><div style="font-size:15px;font-weight:700;color:#0b2a4a;">IIBB Provincial · Percepción / Retención</div>
+        <div style="font-size:11px;color:#6a7886;">RICEF-FI-002 · FI · extensión BTP · multi-jurisdicción, agente de recaudación, Convenio Multilateral, padrones</div></div>
+        <div style="font-size:10.5px;color:#2e8b57;font-weight:700;border:1px solid #b7e0c6;background:#eafaf0;border-radius:12px;padding:3px 10px;">Prototipo validado · 35 tests ✓</div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="flex:1;min-width:210px;background:#fff;border:1px solid #e3e9ef;border-radius:8px;padding:12px;"><div style="font-weight:700;color:#0b2a4a;font-size:13px;">Cálculos IIBB</div><div style="font-size:11.5px;color:#6a7886;margin-top:4px;line-height:1.5;">Percepción/retención por jurisdicción, con alícuota por padrón. Determina el importe y la cuenta por provincia.</div></div>
+        <div style="flex:1;min-width:210px;background:#fff;border:1px solid #e3e9ef;border-radius:8px;padding:12px;"><div style="font-weight:700;color:#0b2a4a;font-size:13px;">Padrones (ARBA / AGIP / otros)</div><div style="font-size:11.5px;color:#6a7886;margin-top:4px;line-height:1.5;">Carga de padrones con alícuota por cliente. <b>Proceso operativo recurrente</b> (actualización quincenal/mensual), no solo un desarrollo.</div></div>
+        <div style="flex:1;min-width:210px;background:#fff;border:1px solid #e3e9ef;border-radius:8px;padding:12px;"><div style="font-weight:700;color:#0b2a4a;font-size:13px;">Archivo del agente + Convenio Multilateral</div><div style="font-size:11.5px;color:#6a7886;margin-top:4px;line-height:1.5;">Genera el archivo del agente de recaudación y apoya CM (régimen general).</div></div>
+      </div>
+      <div style="background:#eef3f7;border-radius:8px;padding:12px 14px;font-size:11.5px;color:#3e4a57;line-height:1.6;">Cubre el gap de <b>percepciones IIBB multi-jurisdicción con padrones</b> (24 jurisdicciones de Convenio Multilateral). Extensión side-by-side (CAP), clean core, consume S/4 por OData released. <b>Estado:</b> prototipo validado (35 tests), pendientes los puntos de integración con S/4 real y la operación recurrente de padrones.</div>
+    </div>
+  </div>
+</section>
+<script>
+(function(){
+  var nf=new Intl.NumberFormat('es-AR'); function m(x){return (x===0||x==null)?'—':nf.format(Math.round(x));}
+  var reex06=[['1010','Caja y bancos','MONETARIA',1,8e6,8e6,0,''],['1020','Créditos por ventas','MONETARIA',1,25e6,25e6,0,''],['1030','Otros créditos','MONETARIA',1,3e6,3e6,0,''],['1100','Bienes de cambio','NO_MONETARIA',1.2,40e6,48e6,8e6,'capas + tope'],['1200','Maquinarias y equipos','NO_MONETARIA',1.5,60e6,90e6,30e6,''],['1210','Rodados','NO_MONETARIA',1.5,6e6,9e6,3e6,''],['1250','Inmuebles','NO_MONETARIA',1.5,50e6,75e6,25e6,''],['1290','Amort. acumuladas','NO_MONETARIA',1.5,-18e6,-27e6,-9e6,''],['2010','Deudas comerciales','MONETARIA',1,-22e6,-22e6,0,''],['2020','Deudas bancarias','MONETARIA',1,-35e6,-35e6,0,''],['2030','Cargas fiscales','MONETARIA',1,-6e6,-6e6,0,''],['2040','Remuneraciones','MONETARIA',1,-4e6,-4e6,0,''],['3000','Capital social','NO_MONETARIA',1.5,-70e6,-105e6,-35e6,'a fecha de aporte'],['3100','Result. no asignados','NO_MONETARIA',1.5,-10e6,-15e6,-5e6,''],['4100','Ventas','RESULTADO',1.12,-125e6,-140e6,-15e6,'devengamiento'],['5100','CMV','RESULTADO',1.12,75e6,84e6,9e6,'devengamiento'],['5200','Gastos comerc. y adm.','RESULTADO',1.13,23e6,26e6,3e6,'devengamiento']];
+  var asiBase=[['1100','Bienes de cambio',8e6,0],['1200','Maquinarias y equipos',30e6,0],['1210','Rodados',3e6,0],['1250','Inmuebles',25e6,0],['1290','Amort. acumuladas',0,9e6],['3000','Capital social',0,35e6],['3100','Result. no asignados',0,5e6],['4100','Ventas',0,15e6],['4900','RECPAM (ganancia)',0,14e6],['5100','CMV',9e6,0],['5200','Gastos comerc. y adm.',3e6,0]];
+  var asiDif=[['1800','Impuesto diferido — act/pas',0,19.95e6],['5900','Impuesto diferido — resultado',19.95e6,0]];
+  var st={periodo:'2026-06',diferido:true,tab:'reex'};
+  function scen(){ if(st.periodo==='2025-12'){return{reex:reex06.map(function(r){return[r[0],r[1],r[2],1,r[4],r[4],0,'base'];}),asiento:[],recpam:0,res:'NEUTRO',tot:0,ctas:17};} var a=asiBase.slice(); if(st.diferido)a=a.concat(asiDif); return{reex:reex06,asiento:a,recpam:-14e6,res:'GANANCIA',tot:14e6,ctas:17}; }
+  function kpi(l,v,s,c){return '<div style="background:#f5f8fb;border:1px solid #e3e9ef;border-radius:8px;padding:9px 11px;"><div style="font-size:10px;color:#6a7886;font-weight:600;">'+l+'</div><div style="font-size:18px;font-weight:700;color:'+(c||'#0b2a4a')+';margin-top:2px;">'+v+'</div>'+(s?'<div style="font-size:10px;color:#6a7886;">'+s+'</div>':'')+'</div>';}
+  function renderRecpam(){ var s=scen(); var rc=s.recpam<0?'#2e8b57':(s.recpam>0?'#c0392b':'#6a7886');
+    document.getElementById('kpis').innerHTML=kpi('RECPAM',(s.recpam===0?'$ 0':'$ '+m(s.recpam)),s.res,rc)+kpi('Total ajustes','$ '+m(s.tot),null)+kpi('Cuentas',s.ctas,'clasif. 100%')+kpi('Asiento',(s.asiento.length?'Balanceado ✓':'—'),'extension ledger ZI');
+    var rows=s.reex.map(function(r){var cl=r[2]==='MONETARIA'?'#6a7886':(r[2]==='RESULTADO'?'#0e7c86':'#1c7fc0');var aj=r[6];var at=aj===0?'<span style="color:#b9c2cb;">—</span>':(aj>0?'+':'')+m(aj);return '<tr style="border-bottom:1px solid #eef3f7;"><td style="padding:4px 8px;color:#6a7886;font-variant-numeric:tabular-nums;">'+r[0]+'</td><td style="padding:4px 8px;">'+r[1]+(r[7]?' <span style="color:#a7b0b8;font-size:9.5px;">· '+r[7]+'</span>':'')+'</td><td style="padding:4px 8px;"><span style="font-size:9.5px;font-weight:600;color:'+cl+';">'+r[2].replace('_',' ')+'</span></td><td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+r[3].toFixed(3)+'</td><td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(r[4])+'</td><td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;">'+m(r[5])+'</td><td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:'+(aj===0?'#b9c2cb':'#0b2a4a')+';">'+at+'</td></tr>';}).join('');
+    document.getElementById('tab-reex').innerHTML='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:8px;"><thead><tr style="background:#0b2a4a;color:#fff;text-align:left;">'+['Cta','Cuenta','Clasif.','Coef.','Nominal','Reexpresado','Ajuste'].map(function(h,i){return '<th style="padding:5px 8px;'+(i>=3?'text-align:right;':'')+'font-size:10.5px;font-weight:600;">'+h+'</th>';}).join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var td=0,th=0; s.asiento.forEach(function(a){td+=a[2];th+=a[3];});
+    var ar=s.asiento.map(function(a){return '<tr style="border-bottom:1px solid #eef3f7;"><td style="padding:4px 8px;color:#6a7886;font-variant-numeric:tabular-nums;">'+a[0]+'</td><td style="padding:4px 8px;">'+a[1]+'</td><td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(a[2])+'</td><td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(a[3])+'</td></tr>';}).join('');
+    document.getElementById('tab-asi').innerHTML=s.asiento.length?('<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:8px;"><thead><tr style="background:#0b2a4a;color:#fff;text-align:left;"><th style="padding:5px 8px;font-size:10.5px;">Cta</th><th style="padding:5px 8px;font-size:10.5px;">Concepto</th><th style="padding:5px 8px;text-align:right;font-size:10.5px;">Debe</th><th style="padding:5px 8px;text-align:right;font-size:10.5px;">Haber</th></tr></thead><tbody>'+ar+'</tbody><tfoot><tr style="border-top:2px solid #0b2a4a;font-weight:700;"><td colspan="2" style="padding:5px 8px;">TOTAL · Debe = Haber</td><td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(td)+'</td><td style="padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums;">'+m(th)+'</td></tr></tfoot></table></div>'):'<div style="padding:18px;text-align:center;color:#6a7886;font-size:12.5px;">Período base (índice 100): coeficiente 1 → sin reexpresión → <b>RECPAM 0</b>, sin asiento.</div>';
+    document.getElementById('tab-reex').style.display=st.tab==='reex'?'block':'none'; document.getElementById('tab-asi').style.display=st.tab==='asi'?'block':'none';
+  }
+  function pill(t,a){return '<span style="cursor:pointer;font-size:12px;font-weight:600;padding:5px 11px;border-radius:6px;border:1px solid '+(a?'#0b2a4a':'#d8e2ea')+';background:'+(a?'#0b2a4a':'#fff')+';color:'+(a?'#fff':'#3e4a57')+';">'+t+'</span>';}
+  function pills(){var pp=document.getElementById('per-pills');pp.innerHTML='';[['2026-06','Jun 2026'],['2025-12','Dic 2025 (base)']].forEach(function(o){var e=document.createElement('span');e.innerHTML=pill(o[1],st.periodo===o[0]);e.firstChild.onclick=function(){st.periodo=o[0];pills();renderRecpam();};pp.appendChild(e.firstChild);});var dp=document.getElementById('dif-pills');dp.innerHTML='';[[true,'Sí 35%'],[false,'No']].forEach(function(o){var e=document.createElement('span');e.innerHTML=pill(o[1],st.diferido===o[0]);e.firstChild.onclick=function(){st.diferido=o[0];pills();renderRecpam();};dp.appendChild(e.firstChild);});}
+  document.querySelectorAll('.tabbtn').forEach(function(b){b.onclick=function(){st.tab=b.getAttribute('data-tab');document.querySelectorAll('.tabbtn').forEach(function(x){x.style.borderBottomColor='transparent';x.style.color='#6a7886';});b.style.borderBottomColor='#0b2a4a';b.style.color='#0b2a4a';renderRecpam();};});
+  var devs=[
+    {id:'recpam',ic:'📈',t:'Ajuste por Inflación · RECPAM',s:'RT 6 · reexpresión y asiento',k:'RICEF-FI-001',st:'60 tests ✓',c:'#0e7c86'},
+    {id:'iibb',ic:'🧾',t:'IIBB Provincial',s:'Percepción/retención · padrones',k:'RICEF-FI-002',st:'35 tests ✓',c:'#1c7fc0'},
+    {id:'mapa',ic:'🗺️',t:'Mapa de Cobertura Fiscal AR',s:'Requisito → capa (a/b/c/d/e)',k:'Referencia',st:'Vivo',c:'#8a6d1e'}
+  ];
+  function tile(d){return '<div data-dev="'+d.id+'" style="cursor:pointer;width:210px;background:#fff;border:1px solid #e0e7ee;border-radius:8px;padding:14px;box-shadow:0 1px 2px rgba(11,42,74,.05);" onmouseover="this.style.boxShadow=\'0 3px 10px rgba(11,42,74,.12)\'" onmouseout="this.style.boxShadow=\'0 1px 2px rgba(11,42,74,.05)\'">'
+    +'<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">'+d.ic+'</span><span style="font-size:10px;font-weight:700;color:'+d.c+';border:1px solid '+d.c+'33;border-radius:10px;padding:2px 7px;">'+d.st+'</span></div>'
+    +'<div style="font-weight:700;color:#0b2a4a;font-size:13.5px;margin-top:10px;line-height:1.25;">'+d.t+'</div>'
+    +'<div style="font-size:11.5px;color:#6a7886;margin-top:3px;">'+d.s+'</div>'
+    +'<div style="font-size:10px;color:#98a3ad;margin-top:10px;">'+d.k+'</div></div>';}
+  document.getElementById('tiles').innerHTML=devs.map(tile).join('');
+  function show(v){ ['home','recpam','iibb'].forEach(function(x){document.getElementById('view-'+x).style.display=(x===v?'block':'none');});
+    var back=document.getElementById('flp-back'); var ti=document.getElementById('flp-title');
+    if(v==='home'){back.style.display='none';ti.textContent='GSG · Factory SAP — Desarrollos ACERO';}
+    else{back.style.display='inline';ti.textContent=(v==='recpam'?'RECPAM — Ajuste por Inflación':'IIBB Provincial');}
+    if(v==='recpam'){pills();renderRecpam();} }
+  document.getElementById('flp-back').onclick=function(){show('home');};
+  document.getElementById('tiles').addEventListener('click',function(e){var t=e.target.closest('[data-dev]');if(!t)return;var d=t.getAttribute('data-dev');if(d==='mapa'){alert('Mapa de cobertura fiscal AR — tile de referencia (requisito → capa: estándar / DRC / roadmap / desarrollo / add-on).');return;}show(d);});
+  show('home');
+})();
+</script>
+</body>
+</html>
