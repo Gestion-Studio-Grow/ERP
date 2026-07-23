@@ -1,102 +1,213 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<meta charset="utf-8">
+<script>if(sessionStorage.getItem("gsg_auth")!=="1"){location.replace("login.html");}</script>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SAP S/4HANA Cloud</title>
-
-<!-- Guardián de acceso -->
-<script>if (sessionStorage.getItem("gsg_auth") !== "1") { location.replace("login.html"); }</script>
-
-<!-- Config del Fiori Launchpad sandbox (tiles de la Factory) -->
-<script>
-window["sap-ushell-config"] = {
-    defaultRenderer: "fiori2",
-    renderers: { fiori2: { componentData: { config: { enableSearch: false, rootIntent: "Shell-home" } } } },
-    services: {
-        LaunchPage: {
-            adapter: {
-                config: {
-                    groups: [
-                        {
-                            id: "grpDesarrollos",
-                            title: "Desarrollos de la Factory",
-                            isPreset: true, isVisible: true, isGroupLocked: false,
-                            tiles: [
-                                { id: "t-recpam", tileType: "sap.ushell.ui.tile.StaticTile",
-                                  properties: { title: "RECPAM", subtitle: "Ajuste por inflación (RT 6)", icon: "sap-icon://line-chart", targetURL: "#RECPAM-display" } },
-                                { id: "t-iibb", tileType: "sap.ushell.ui.tile.StaticTile",
-                                  properties: { title: "IIBB Provincial", subtitle: "Percepción / retención · padrones", icon: "sap-icon://money-bills", targetURL: "#IIBB-display" } },
-                                { id: "t-tablero", tileType: "sap.ushell.ui.tile.StaticTile",
-                                  properties: { title: "Tablero de desarrollos", subtitle: "RECPAM + IIBB", icon: "sap-icon://business-objects-experience", targetURL: "#Tablero-display" } }
-                            ]
-                        },
-                        {
-                            id: "grpFTS",
-                            title: "Fit-to-Standard · Finanzas",
-                            isPreset: true, isVisible: true, isGroupLocked: false,
-                            tiles: [
-                                { id: "t-fts", tileType: "sap.ushell.ui.tile.StaticTile",
-                                  properties: { title: "Contabilidad y Cierre", subtitle: "RTR · J58", icon: "sap-icon://accounting-document-verification", targetURL: "#FTS-display" } },
-                                { id: "t-aa", tileType: "sap.ushell.ui.tile.StaticTile",
-                                  properties: { title: "Activos Fijos", subtitle: "J62 · revaluación por índice", icon: "sap-icon://building", targetURL: "#FTS-display" } }
-                            ]
-                        }
-                    ]
-                }
-            }
-        },
-        NavTargetResolution: {
-            config: {
-                allowTestUrlComponentConfig: true,
-                runStandaloneAppFolderWhitelist: { "*": true }
-            }
-        }
-    },
-    applications: {
-        "RECPAM-display":  { additionalInformation: "", applicationType: "URL", url: "apps/recpam.html",       title: "RECPAM — Ajuste por inflación", description: "Reexpresión y asiento (RT 6)" },
-        "IIBB-display":    { additionalInformation: "", applicationType: "URL", url: "apps/desarrollos.html",  title: "IIBB Provincial",               description: "Percepción / retención multi-jurisdicción" },
-        "Tablero-display": { additionalInformation: "", applicationType: "URL", url: "apps/desarrollos.html",  title: "Tablero de desarrollos",        description: "RECPAM + IIBB" },
-        "FTS-display":     { additionalInformation: "", applicationType: "URL", url: "apps/fts.html",          title: "Fit-to-Standard · Finanzas",    description: "Paquetes de workshop" }
-    }
-};
-</script>
-
-<!-- SAPUI5 (LTS) + FLP sandbox, tema Horizon -->
-<script src="https://ui5.sap.com/1.120.20/test-resources/sap/ushell/bootstrap/sandbox.js" id="sap-ushell-bootstrap"></script>
-<script id="sap-ui-bootstrap"
-    src="https://ui5.sap.com/1.120.20/resources/sap-ui-core.js"
-    data-sap-ui-libs="sap.m, sap.ushell, sap.ui.layout"
-    data-sap-ui-theme="sap_horizon"
-    data-sap-ui-compat-version="edge"
-    data-sap-ui-frame-options="allow"
-    data-sap-ui-binding-syntax="complex">
-</script>
-
-<script>
-    function __bootFLP(){
-      if(!(window.sap && sap.ui && sap.ui.getCore)){ return setTimeout(__bootFLP, 120); }
-      sap.ui.getCore().attachInit(function () {
-        sap.ushell.Container.createRenderer(null, true).then(function (content) {
-            content.placeAt("content");
-            try {
-                var b = document.createElement("div");
-                b.textContent = "ENTORNO DE DEMOSTRACIÓN — datos ficticios · construido con tecnología SAPUI5";
-                b.style.cssText = "position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:100000;background:#b8860b;color:#fff;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;font-size:11px;font-weight:700;letter-spacing:.3px;padding:3px 14px;border-radius:0 0 8px 8px;box-shadow:0 1px 4px rgba(0,0,0,.25);";
-                document.body.appendChild(b);
-            } catch (e) {}
-        });
-      });
-    }
-    __bootFLP();
-</script>
-
+<title>Consola de Desarrollos — Factory</title>
 <style>
-    html, body { height: 100%; margin: 0; }
-    #content { height: 100%; }
+  :root{
+    --sap-blue:#0a6ed1;
+    --sap-navy:#354a5f;
+    --sap-shell:#1d2d3e;
+    --sap-bg:#f5f6f7;
+    --sap-amber:#b8860b;
+    --sap-teal:#16b0c9;
+    --sap-text:#354a5f;
+    --sap-gray:#6a6d70;
+    --sap-border:#e5e5e5;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    font-family:"72","72full",system-ui,-apple-system,"Segoe UI",Arial,Helvetica,sans-serif;
+    background:var(--sap-bg);
+    color:var(--sap-text);
+    padding-top:22px;
+  }
+
+  .demo-banner{
+    position:fixed;top:0;left:0;right:0;height:22px;
+    background:var(--sap-amber);color:#fff;
+    font-size:11px;font-weight:600;letter-spacing:.4px;
+    display:flex;align-items:center;justify-content:center;
+    z-index:1000;text-align:center;padding:0 8px;
+  }
+
+  .shell-header{
+    height:52px;
+    background:var(--sap-shell);
+    display:flex;align-items:center;
+    padding:0 16px;
+    position:sticky;top:22px;z-index:900;
+    box-shadow:0 1px 4px rgba(0,0,0,.25);
+  }
+  .shell-left{display:flex;align-items:baseline;gap:8px;flex:1;min-width:0;}
+  .shell-logo{color:#fff;font-weight:800;font-size:19px;letter-spacing:.5px;font-style:italic;}
+  .shell-product{color:#cdd6de;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .shell-center{flex:1;text-align:center;color:#fff;font-size:15px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .shell-right{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:4px;}
+  .shell-btn{
+    width:36px;height:36px;border:none;background:transparent;color:#dfe6ec;
+    border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;
+  }
+  .shell-btn:hover{background:rgba(255,255,255,.12);}
+  .shell-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .avatar{
+    width:32px;height:32px;border-radius:50%;background:var(--sap-teal);color:#fff;
+    font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    margin-left:6px;cursor:pointer;border:none;box-shadow:0 0 0 1px rgba(255,255,255,.25);
+  }
+
+  .spaces-nav{
+    background:#fff;border-bottom:1px solid var(--sap-border);
+    display:flex;gap:4px;padding:0 24px;position:sticky;top:74px;z-index:800;overflow-x:auto;
+  }
+  .space-tab{
+    background:none;border:none;cursor:pointer;font-family:inherit;font-size:13px;color:var(--sap-gray);
+    padding:12px 14px 10px;border-bottom:3px solid transparent;white-space:nowrap;transition:color .15s;
+  }
+  .space-tab:hover{color:var(--sap-blue);}
+  .space-tab.active{color:var(--sap-blue);font-weight:600;border-bottom-color:var(--sap-blue);}
+
+  .page{max-width:1200px;margin:0 auto;padding:24px 24px 64px;}
+
+  .welcome{
+    background:linear-gradient(120deg,#1d2d3e 0%,#0a6ed1 65%,#16b0c9 110%);
+    border-radius:14px;color:#fff;padding:28px 32px;margin-bottom:32px;box-shadow:0 4px 14px rgba(29,45,62,.25);
+  }
+  .welcome h1{font-size:24px;font-weight:600;margin-bottom:6px;}
+  .welcome p{font-size:13px;color:rgba(255,255,255,.85);}
+
+  .section{margin-bottom:36px;}
+  .section-title{font-size:16px;font-weight:600;color:var(--sap-navy);margin-bottom:14px;padding-bottom:6px;border-bottom:1px solid var(--sap-border);}
+  .tile-grid{display:flex;flex-wrap:wrap;gap:16px;}
+  .tile{
+    width:200px;min-height:120px;background:#fff;border-radius:12px;border:1px solid rgba(0,0,0,.04);
+    box-shadow:0 2px 6px rgba(29,45,62,.08);padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .tile:hover{transform:translateY(-3px);box-shadow:0 8px 18px rgba(29,45,62,.16);}
+  .tile:active{transform:translateY(-1px);}
+  .tile-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;background:rgba(10,110,209,.10);}
+  .tile-icon svg{width:19px;height:19px;fill:none;stroke:var(--sap-blue);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+  .tile-title{font-size:14px;font-weight:700;color:var(--sap-navy);margin-bottom:3px;line-height:1.25;}
+  .tile-sub{font-size:12px;color:var(--sap-gray);line-height:1.35;flex:1;}
+  .tile-foot{font-size:10.5px;color:#9aa4ad;margin-top:10px;letter-spacing:.2px;}
+
+  @media (max-width:520px){
+    .tile{width:100%;}
+    .shell-center{display:none;}
+    .welcome{padding:22px;}
+    .page{padding:16px 14px 48px;}
+  }
 </style>
 </head>
-<body class="sapUiBody">
-    <div id="content"></div>
+<body>
+
+  <div class="demo-banner">ENTORNO DE DEMOSTRACIÓN — datos ficticios</div>
+
+  <header class="shell-header">
+    <div class="shell-left">
+      <span class="shell-logo">GSG</span>
+      <span class="shell-product">Consola de Desarrollos</span>
+    </div>
+    <div class="shell-center">Página de inicio</div>
+    <div class="shell-right">
+      <button class="shell-btn" title="Buscar" aria-label="Buscar">
+        <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.3" y1="15.3" x2="21" y2="21"/></svg>
+      </button>
+      <button class="shell-btn" title="Notificaciones" aria-label="Notificaciones">
+        <svg viewBox="0 0 24 24"><path d="M18 16v-5a6 6 0 0 0-12 0v5l-1.8 2.5h15.6L18 16z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>
+      </button>
+      <button class="shell-btn" title="Ayuda" aria-label="Ayuda">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 1 1 3.6 2.4c-.9.4-1.1 1-1.1 1.8"/><line x1="12" y1="16.6" x2="12" y2="16.7"/></svg>
+      </button>
+      <button class="shell-btn" title="Aplicaciones" aria-label="Aplicaciones">
+        <svg viewBox="0 0 24 24"><circle cx="5.5" cy="5.5" r="1.6"/><circle cx="12" cy="5.5" r="1.6"/><circle cx="18.5" cy="5.5" r="1.6"/><circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/><circle cx="5.5" cy="18.5" r="1.6"/><circle cx="12" cy="18.5" r="1.6"/><circle cx="18.5" cy="18.5" r="1.6"/></svg>
+      </button>
+      <button class="avatar" title="Perfil de usuario" aria-label="Perfil de usuario">ML</button>
+    </div>
+  </header>
+
+  <nav class="spaces-nav">
+    <button class="space-tab active">Mi página de inicio</button>
+    <button class="space-tab">Contable de contabilidad general</button>
+    <button class="space-tab">Gestión de documentos</button>
+  </nav>
+
+  <main class="page">
+
+    <section class="welcome">
+      <h1>Hola — Consola del Consultor</h1>
+      <p>Consola de Desarrollos · Entorno de demostración</p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Desarrollos de la Factory</h2>
+      <div class="tile-grid">
+
+        <div class="tile" onclick="location.href='apps/recpam.html'" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')location.href='apps/recpam.html'">
+          <div class="tile-icon">
+            <svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"/><polyline points="15 6 21 6 21 12"/></svg>
+          </div>
+          <div class="tile-title">RECPAM</div>
+          <div class="tile-sub">Ajuste por inflación (RT 6)</div>
+          <div class="tile-foot">Desarrollo Z · Finanzas</div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/desarrollos.html'" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')location.href='apps/desarrollos.html'">
+          <div class="tile-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="20"/></svg>
+          </div>
+          <div class="tile-title">IIBB Provincial</div>
+          <div class="tile-sub">Percepción/retención · padrones</div>
+          <div class="tile-foot">Desarrollo Z · Impuestos</div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/desarrollos.html'" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')location.href='apps/desarrollos.html'">
+          <div class="tile-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+          </div>
+          <div class="tile-title">Tablero de desarrollos</div>
+          <div class="tile-sub">RECPAM + IIBB</div>
+          <div class="tile-foot">Vista consolidada</div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Fit-to-Standard · Finanzas</h2>
+      <div class="tile-grid">
+
+        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
+          <div class="tile-icon">
+            <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+          </div>
+          <div class="tile-title">Contabilidad y Cierre</div>
+          <div class="tile-sub">RTR · J58</div>
+          <div class="tile-foot">Scope item estándar</div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
+          <div class="tile-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+          </div>
+          <div class="tile-title">Activos Fijos</div>
+          <div class="tile-sub">J62 · revaluación por índice</div>
+          <div class="tile-foot">Scope item estándar</div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
 </body>
 </html>
