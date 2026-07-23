@@ -66,7 +66,10 @@
   .space-tab{
     background:none;border:none;cursor:pointer;font-family:inherit;font-size:13px;color:var(--sap-gray);
     padding:12px 14px 10px;border-bottom:3px solid transparent;white-space:nowrap;transition:color .15s;
+    text-decoration:none;display:inline-block;
   }
+  html{scroll-behavior:smooth;}
+  section[id]{scroll-margin-top:130px;}
   .space-tab:hover{color:var(--sap-blue);}
   .space-tab.active{color:var(--sap-blue);font-weight:600;border-bottom-color:var(--sap-blue);}
 
@@ -95,11 +98,33 @@
   .tile-sub{font-size:12px;color:var(--sap-gray);line-height:1.35;flex:1;}
   .tile-foot{font-size:10.5px;color:#9aa4ad;margin-top:10px;letter-spacing:.2px;}
 
+  /* chips de estado */
+  .chip{display:inline-block;font-size:10.5px;font-weight:700;border-radius:10px;padding:2px 9px;letter-spacing:.2px;}
+  .chip-done{color:#276742;background:#e6f6ec;border:1px solid #b7e0c6;}
+  .chip-now{color:#8a5a00;background:#fdf3e0;border:1px solid #f0d6a2;}
+  .chip-next{color:#0a5aa8;background:#e7f1fb;border:1px solid #bcd9f3;}
+  .chip-gap{color:#a52a2a;background:#fce9e9;border:1px solid #f0bcbc;}
+
+  /* agenda */
+  .agenda{display:flex;flex-direction:column;gap:0;background:#fff;border:1px solid rgba(0,0,0,.05);border-radius:12px;overflow:hidden;box-shadow:0 2px 6px rgba(29,45,62,.08);}
+  .ag-row{display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--sap-border);cursor:pointer;transition:background .12s;}
+  .ag-row:last-child{border-bottom:none;}
+  .ag-row:hover{background:#f7fafd;}
+  .ag-when{width:96px;flex-shrink:0;font-size:11.5px;font-weight:700;color:var(--sap-navy);}
+  .ag-when small{display:block;font-weight:400;color:#9aa4ad;font-size:10px;}
+  .ag-body{flex:1;min-width:0;}
+  .ag-body .t{font-size:13.5px;font-weight:600;color:var(--sap-navy);}
+  .ag-body .d{font-size:12px;color:var(--sap-gray);margin-top:2px;}
+  .ag-chip{flex-shrink:0;}
+  .tile.wide{width:100%;max-width:none;}
+  .tile-status{margin-top:8px;}
+
   @media (max-width:520px){
     .tile{width:100%;}
     .shell-center{display:none;}
     .welcome{padding:22px;}
     .page{padding:16px 14px 48px;}
+    .ag-when{width:74px;}
   }
 </style>
 </head>
@@ -131,47 +156,151 @@
   </header>
 
   <nav class="spaces-nav">
-    <button class="space-tab active">Mi página de inicio</button>
-    <button class="space-tab">Contable de contabilidad general</button>
-    <button class="space-tab">Gestión de documentos</button>
+    <a href="#inicio" class="space-tab active">Inicio</a>
+    <a href="#agenda" class="space-tab">Proyectos en curso</a>
+    <a href="#fts" class="space-tab">Fit to Standard</a>
+    <a href="#desarrollos" class="space-tab">Desarrollos</a>
+    <a href="#gaps" class="space-tab">Gaps de FI</a>
   </nav>
 
   <main class="page">
 
-    <section class="welcome">
-      <h1>Hola — Consola del Consultor</h1>
-      <p>Consola de Desarrollos · Entorno de demostración</p>
+    <section class="welcome" id="inicio">
+      <h1>Hola — Consola de Desarrollos</h1>
+      <p>Proyecto ACERO · Finanzas · Entorno de demostración</p>
     </section>
 
-    <section class="section">
+    <!-- ===== PROYECTOS EN CURSO / AGENDA ===== -->
+    <section class="section" id="agenda">
+      <h2 class="section-title">Proyectos en curso · Agenda de workshops</h2>
+      <div class="agenda">
+
+        <div class="ag-row" onclick="location.href='apps/activos-fijos.html'">
+          <div class="ag-when">Mañana<small>WS05</small></div>
+          <div class="ag-body">
+            <div class="t">Activos Fijos (J62)</div>
+            <div class="d">Revaluación por índice (estándar) · áreas de valoración por ledger · ajuste por inflación de bienes de uso. Toca decidir áreas después de los ledgers.</div>
+          </div>
+          <span class="chip chip-now ag-chip">Próximo · mañana</span>
+        </div>
+
+        <div class="ag-row" onclick="location.href='apps/fts.html'">
+          <div class="ag-when">En curso<small>WS04</small></div>
+          <div class="ag-body">
+            <div class="t">Bancos y Caja</div>
+            <div class="d">9 bancos + Interbanking, e-cheq y Mercado Pago. Cerrando la salida de decisiones.</div>
+          </div>
+          <span class="chip chip-now ag-chip">En curso</span>
+        </div>
+
+        <div class="ag-row" onclick="location.href='apps/fts.html'">
+          <div class="ag-when">Luego<small>WS06</small></div>
+          <div class="ag-body">
+            <div class="t">Reportes Fiscales · DRC</div>
+            <div class="d">Factura electrónica ARCA, IIBB / SIFERE / COT provincial. Frontera nacional vs. provincial.</div>
+          </div>
+          <span class="chip chip-next ag-chip">Próximo</span>
+        </div>
+
+        <div class="ag-row" onclick="location.href='apps/fts.html'">
+          <div class="ag-when">Luego<small>WS07</small></div>
+          <div class="ag-body">
+            <div class="t">Planificación (FP&amp;A)</div>
+            <div class="d">Planificar con inflación: base y moneda de referencia, rolling forecast.</div>
+          </div>
+          <span class="chip chip-next ag-chip">Próximo</span>
+        </div>
+
+        <div class="ag-row" onclick="location.href='apps/fts.html'">
+          <div class="ag-when">Hechos<small>WS01–03</small></div>
+          <div class="ag-body">
+            <div class="t">Contabilidad y Cierre · Cuentas por Cobrar · Cuentas a Pagar</div>
+            <div class="d">Ya realizados. Decisiones registradas; gaps identificados (ver Gaps de FI).</div>
+          </div>
+          <span class="chip chip-done ag-chip">Hecho</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===== FIT TO STANDARD ===== -->
+    <section class="section" id="fts">
+      <h2 class="section-title">Fit to Standard · Finanzas</h2>
+      <div class="tile-grid">
+
+        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg></div>
+          <div class="tile-title">Contabilidad y Cierre</div>
+          <div class="tile-sub">WS01 · J58 · RTR</div>
+          <div class="tile-status"><span class="chip chip-done">Hecho</span></div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="2"/></svg></div>
+          <div class="tile-title">Cuentas por Cobrar</div>
+          <div class="tile-sub">WS02 · J59 · AR</div>
+          <div class="tile-status"><span class="chip chip-done">Hecho</span></div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><path d="M20 6H4v12h16z"/><path d="M4 10h16"/></svg></div>
+          <div class="tile-title">Cuentas a Pagar</div>
+          <div class="tile-sub">WS03 · J60 · AP</div>
+          <div class="tile-status"><span class="chip chip-done">Hecho</span></div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></div>
+          <div class="tile-title">Bancos y Caja</div>
+          <div class="tile-sub">WS04 · Interbanking · e-cheq</div>
+          <div class="tile-status"><span class="chip chip-now">En curso</span></div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/activos-fijos.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/activos-fijos.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg></div>
+          <div class="tile-title">Activos Fijos</div>
+          <div class="tile-sub">WS05 · J62 · revaluación</div>
+          <div class="tile-status"><span class="chip chip-now">Mañana</span></div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><path d="M6 2h9l3 3v17H6z"/><path d="M9 12h6M9 16h6"/></svg></div>
+          <div class="tile-title">Reportes Fiscales · DRC</div>
+          <div class="tile-sub">WS06 · ARCA · IIBB · COT</div>
+          <div class="tile-status"><span class="chip chip-next">Próximo</span></div>
+        </div>
+
+        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6"/></svg></div>
+          <div class="tile-title">Planificación (FP&amp;A)</div>
+          <div class="tile-sub">WS07 · plan con inflación</div>
+          <div class="tile-status"><span class="chip chip-next">Próximo</span></div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===== DESARROLLOS ===== -->
+    <section class="section" id="desarrollos">
       <h2 class="section-title">Desarrollos de la Factory</h2>
       <div class="tile-grid">
 
-        <div class="tile" onclick="location.href='apps/recpam.html'" role="button" tabindex="0"
-             onkeydown="if(event.key==='Enter')location.href='apps/recpam.html'">
-          <div class="tile-icon">
-            <svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"/><polyline points="15 6 21 6 21 12"/></svg>
-          </div>
+        <div class="tile" onclick="location.href='apps/recpam.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/recpam.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"/><polyline points="15 6 21 6 21 12"/></svg></div>
           <div class="tile-title">RECPAM</div>
           <div class="tile-sub">Ajuste por inflación (RT 6)</div>
-          <div class="tile-foot">Desarrollo Z · Finanzas</div>
+          <div class="tile-foot">Desarrollo propio · Finanzas</div>
         </div>
 
-        <div class="tile" onclick="location.href='apps/desarrollos.html'" role="button" tabindex="0"
-             onkeydown="if(event.key==='Enter')location.href='apps/desarrollos.html'">
-          <div class="tile-icon">
-            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="20"/></svg>
-          </div>
+        <div class="tile" onclick="location.href='apps/desarrollos.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/desarrollos.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="20"/></svg></div>
           <div class="tile-title">IIBB Provincial</div>
           <div class="tile-sub">Percepción/retención · padrones</div>
-          <div class="tile-foot">Desarrollo Z · Impuestos</div>
+          <div class="tile-foot">Desarrollo propio · Impuestos</div>
         </div>
 
-        <div class="tile" onclick="location.href='apps/desarrollos.html'" role="button" tabindex="0"
-             onkeydown="if(event.key==='Enter')location.href='apps/desarrollos.html'">
-          <div class="tile-icon">
-            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
-          </div>
+        <div class="tile" onclick="location.href='apps/desarrollos.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/desarrollos.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></div>
           <div class="tile-title">Tablero de desarrollos</div>
           <div class="tile-sub">RECPAM + IIBB</div>
           <div class="tile-foot">Vista consolidada</div>
@@ -180,28 +309,16 @@
       </div>
     </section>
 
-    <section class="section">
-      <h2 class="section-title">Fit-to-Standard · Finanzas</h2>
+    <!-- ===== GAPS DE FI ===== -->
+    <section class="section" id="gaps">
+      <h2 class="section-title">Gaps de FI · análisis del equipo</h2>
       <div class="tile-grid">
 
-        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0"
-             onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
-          <div class="tile-icon">
-            <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
-          </div>
-          <div class="tile-title">Contabilidad y Cierre</div>
-          <div class="tile-sub">RTR · J58</div>
-          <div class="tile-foot">Scope item estándar</div>
-        </div>
-
-        <div class="tile" onclick="location.href='apps/fts.html'" role="button" tabindex="0"
-             onkeydown="if(event.key==='Enter')location.href='apps/fts.html'">
-          <div class="tile-icon">
-            <svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>
-          </div>
-          <div class="tile-title">Activos Fijos</div>
-          <div class="tile-sub">J62 · revaluación por índice</div>
-          <div class="tile-foot">Scope item estándar</div>
+        <div class="tile wide" onclick="location.href='apps/gaps-fi.html'" role="button" tabindex="0" onkeydown="if(event.key==='Enter')location.href='apps/gaps-fi.html'">
+          <div class="tile-icon"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+          <div class="tile-title">Análisis de gaps de FI</div>
+          <div class="tile-sub">Aceptados en el DDA / propuesta + no verificados (Interbanking, Nucleus, e-cheq, GR sin OC)</div>
+          <div class="tile-status"><span class="chip chip-gap">7 áreas · 14 gaps</span></div>
         </div>
 
       </div>
