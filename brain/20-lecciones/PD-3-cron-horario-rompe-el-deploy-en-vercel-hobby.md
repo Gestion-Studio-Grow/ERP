@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/pd]
 - **Guardarraíl:** en Hobby, **cron diario**; si hace falta sub-diario → **parar y avisar** (es gasto).
 - **Refs:** `docs/metodologia/demo-publica-costo-cero.md` (errores típicos).
 
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

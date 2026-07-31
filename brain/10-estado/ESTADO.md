@@ -1,26 +1,33 @@
 ---
 tipo: estado
 generado: true
+generado_el: 2026-07-31 22:02 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> Esto **no se escribe a mano**: sale de `git` + `prisma/migrations/` + `docs/`. Por eso no puede
-> driftear (la causa de la lección **MP-12**). Es el arranque de la **Fase 0** de `CLAUDE.md`:
-> leé esto en vez de `docs/ESTADO-ACTUAL.md` salvo que necesites el detalle narrativo.
+> ⏱️ **Foto tomada el 2026-07-31 22:02 UTC sobre `84f4126`.**
+> No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
+> de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
+> vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
+> mirá la fecha de arriba**. Para tenerla fresca: `npm run brain`.
 
 ## Git
 
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/token-saving-brain-clients-5rur0j` |
-| HEAD | `f2e8670` (2026-07-31) |
-| Árbol | **123 archivo(s) sin commitear** |
+| HEAD | `84f4126` (2026-07-31) |
+| Árbol | **3 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| Tip de `main` | d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor |
+
+**Ramas locales (2, más reciente primero):** `claude/token-saving-brain-clients-5rur0j` · `main`
 
 **Últimos commits**
 
+- 84f4126 · 2026-07-31 · feat(brain): el grafo de verdad — un nodo por decisión, dependencias como enlaces reales
 - f2e8670 · 2026-07-31 · feat(brain): abrir el cerebro desde el móvil + arreglar la semántica de brain:check
 - 7341ae2 · 2026-07-31 · feat(brain): segundo cerebro — vault de notas atómicas derivado del repo (Fase 0 a ~15% del costo)
 - d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
@@ -32,7 +39,6 @@ tags: [brain/estado, fase-0]
 - eb60f0c · 2026-07-13 · ci(gates): destrabar la señal — vallas en jobs separados; visual/visual-aa BLOQUEANTES
 - a6b96a5 · 2026-07-13 · Merge operador/reset-password — reset de contraseña del OWNER con revelado único + cambio forzado + modo masivo
 - 5a4dd41 · 2026-07-13 · feat(operador): modo "Resetear TODOS los OWNER (primer uso)" con tabla revelada una sola vez
-- ef5b81a · 2026-07-13 · feat(operador): reset de contraseña del OWNER con revelado único + cambio forzado
 
 ## Migraciones (Prisma)
 
@@ -51,14 +57,24 @@ tags: [brain/estado, fase-0]
 | Fuente | Volumen |
 |---|---:|
 | Documentos en `docs/` | 297 |
-| Palabras en `docs/` | 425.865 |
+| Palabras en `docs/` | 426.189 |
 | ADRs | 81 |
-| Nodos en el grafo | 87 |
+| Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
 
 ## Superficies con front propio
 
 - `Magra`
 - `Shine`
+
+## Lo que esta foto NO puede cubrir
+
+Se deriva del repo, así que **solo sabe lo que el repo sabe**. Estos ítems de la Fase 0 no son
+derivables y siguen viviendo en el documento narrativo — leelos ahí cuando el frente los toque:
+
+- **Tenants vivos y su estado de publicación** → `docs/ESTADO-ACTUAL.md` §1
+- **Gates abiertos y decisiones pendientes del dueño** → `docs/ESTADO-ACTUAL.md` (HANDOFF)
+- **Bugs conocidos y frentes en curso** → `docs/ESTADO-ACTUAL.md` §7
+- **Qué migraciones corrieron REALMENTE en Neon** → solo lo confirma el dueño (Gate 2)
 
 ---
 

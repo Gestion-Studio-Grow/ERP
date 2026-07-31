@@ -12,9 +12,9 @@ tags: [brain/leccion, leccion/dx]
 **Categoría:** Demo / UX
 
 > 🛡️ **Guardarraíl (la regla verificable):**
-> en todo cliente "réplica exacta" — **(a)** extraer el sitio real con navegador (tree +
+> en todo cliente "réplica exacta" — **(a)** extraer el sitio real con navegador (tree + `innerText` de header/footer), no solo `WebFetch`; **(b)** correr el checklist de réplica exacta (`auditoria-sap-fiori.md` §Excepción) ítem por ítem contra el sitio real, no de memoria; **(c)** un préstamo de pool (ADR-053) que toca un tenant existente **primero verifica si el gap es código o dato de Neon** antes de asumir que hay que reescribir el front.
 
-**Lección:** "copia exacta" no es relevar a ojo ni un `WebFetch` superficial del texto principal — hay que
+**Lección:** "copia exacta" no es relevar a ojo ni un `WebFetch` superficial del texto principal — hay que extraer el DOM real completo (header/footer suelen quedar fuera de lo que agarra un fetch de texto) y **separar dos capas que se confunden fácil**: contenido de marketing (literal, vive versionado en el archivo réplica del tenant) vs. **dato de negocio** (Branding en DB, lo carga el alta/Adaptador — si el front está bien pero se ve "genérico" en producción, revisar esto ANTES de tocar el código).
 
 ## Detalle
 
@@ -43,6 +43,7 @@ tags: [brain/leccion, leccion/dx]
   de asumir que hay que reescribir el front.
 - **Refs:** ADR-042, ADR-043, ADR-053 (este caso = ejemplo canónico del ADR), `docs/metodologia/auditoria-sap-fiori.md`
   §Excepción réplica exacta, `docs/tenants/magra/provisioning-magra.md`.
+
 
 ## Decisiones relacionadas
 

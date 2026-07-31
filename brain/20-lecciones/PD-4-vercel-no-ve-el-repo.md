@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/pd]
 - **Guardarraíl:** instalar la GitHub App en el **scope de la org**, no en la cuenta personal.
 - **Refs:** `docs/metodologia/demo-publica-costo-cero.md`.
 
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

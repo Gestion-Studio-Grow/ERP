@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** **cada célula etiqueta su modelo explícito**; **subagentes nunca Opus**; Gate GSG siempre Opus.
 - **Refs:** ADR-032, `docs/organizacion/factory-reforzada.md`.
 
+
 ## Decisiones relacionadas
 
 - [ADR-032](../30-decisiones/ADR-032.md)

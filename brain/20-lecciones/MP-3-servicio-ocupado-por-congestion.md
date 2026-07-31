@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** **≤ 4 corriendo**; en congestión **solo P1** (demos/venta); P2 espera, P3 pausado.
 - **Refs:** ADR-032.
 
+
 ## Decisiones relacionadas
 
 - [ADR-032](../30-decisiones/ADR-032.md)

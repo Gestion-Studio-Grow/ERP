@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/db]
 - **Guardarraíl:** verificar pendientes con `predeploy-check`; **Gate 2** (owner) antes de `migrate deploy`.
 - **Refs:** `docs/metodologia/demo-publica-costo-cero.md`, ADR-018.
 
+
 ## Decisiones relacionadas
 
 - [ADR-018](../30-decisiones/ADR-018.md)

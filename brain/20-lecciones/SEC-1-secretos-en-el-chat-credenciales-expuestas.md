@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/sec]
 - **Guardarraíl:** **el agente NUNCA toca secretos**; si un secreto se **expuso, se ROTA** de inmediato; el repo lleva solo la **plantilla** (`.env.vercel.template`).
 - **Refs:** ADR-041, ADR-031.
 
+
 ## Decisiones relacionadas
 
 - [ADR-031](../30-decisiones/ADR-031.md)

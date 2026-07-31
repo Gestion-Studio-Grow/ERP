@@ -59,7 +59,11 @@ El repo pesa ~57 MB (34 de árbol + 23 de historia): entra sin drama en un telé
 después a `docs/` desde una sesión, no a mano desde el teléfono.
 
 ### Los agentes, en cada sesión
-Fase 0 de `CLAUDE.md` arranca acá:
+> ⚖️ **Estatus:** esto lo **propone** RFC-005, que está **en revisión del dueño**. `CLAUDE.md` todavía
+> no menciona el vault, así que hoy el cerebro es el camino **barato y equivalente**, no el oficial.
+> Ante conflicto entre el vault y la norma, **gana la norma**.
+
+El arranque propuesto:
 
 1. **[Estado](10-estado/ESTADO.md)** — foto derivada de git + migraciones + corpus. Reemplaza la
    lectura completa de `ESTADO-ACTUAL.md` salvo que necesites el detalle narrativo.
@@ -73,9 +77,9 @@ Fase 0 de `CLAUDE.md` arranca acá:
 ## El grafo — qué vas a ver
 
 Cada decisión tiene su **nodo** en `30-decisiones/` con sus dependencias como enlaces reales, así que
-el grafo de Obsidian dibuja la arquitectura de verdad: 87 decisiones y quién depende de quién. Los
-nodos con muchas flechas entrando son los que **no se tocan sin Advisory + Challenger** (ADR-045) —
-se ven a simple vista.
+el grafo de Obsidian dibuja la arquitectura de verdad: **81 ADR + 6 enmiendas = 87 nodos**, y quién
+depende de quién. Los nodos con muchas flechas entrando son los que **no se tocan sin Advisory +
+Challenger** (ADR-045) — se ven a simple vista.
 
 Las lecciones enlazan a los ADR que citan. Eso conecta los dos grupos y deja ver algo que en una lista
 no aparece: **qué decisión nos costó qué cicatriz**. Un ADR con varias lecciones colgando es una zona
@@ -112,4 +116,8 @@ vault lo indexa solo. Así hay una sola fuente de verdad y el mapa no puede cont
 
 ---
 
-— Elaborado por GSG
+**Sello GSG:** este mapa y el RFC llevan la firma. Las notas de la zona generada **no la llevan (N/A)**:
+son vistas derivadas de documentos que ya están sellados en `docs/`, y estampar 128 archivos generados
+sería ruido, no trazabilidad. La marca `<!-- GENERADO... -->` cumple ahí la función de trazar el origen.
+
+— Elaborado por Gestión Studio Grow (GSG)

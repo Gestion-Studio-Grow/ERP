@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mt]
 - **Guardarraíl:** **toda** query lleva predicado `tenantId`; **prohibido `findFirst` sin `where`**; RLS como backstop.
 - **Refs:** QA J-2; ADR-015, ADR-018, ADR-023.
 
+
 ## Decisiones relacionadas
 
 - [ADR-015](../30-decisiones/ADR-015.md)

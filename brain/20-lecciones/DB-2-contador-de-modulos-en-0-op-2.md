@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/db]
 - **Guardarraíl:** el alta/preset **valida `modules` no vacío**; el probador **falla ruidoso** si faltan.
 - **Refs:** QA `docs/calidad/` OP-2; ADR-034 (preset).
 
+
 ## Decisiones relacionadas
 
 - [ADR-034](../30-decisiones/ADR-034.md)

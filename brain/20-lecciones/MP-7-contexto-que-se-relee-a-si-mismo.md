@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** acotar el contexto por célula; compactar/cerrar sesiones largas; el repo es la memoria (no el chat).
 - **Refs:** ADR-008, `docs/organizacion/factory-reforzada.md`.
 
+
 ## Decisiones relacionadas
 
 - [ADR-008](../30-decisiones/ADR-008.md)

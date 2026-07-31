@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/dx]
 - **Guardarraíl:** **sin sello no se integra** (Gate bloque 2); sello **en el backoffice/metadatos**, nunca sobre la vidriera del tenant.
 - **Refs:** QA OP-3; ADR-043, ADR-040.
 
+
 ## Decisiones relacionadas
 
 - [ADR-040](../30-decisiones/ADR-040.md)

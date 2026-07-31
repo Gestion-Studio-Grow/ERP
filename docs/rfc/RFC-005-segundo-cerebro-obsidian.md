@@ -151,6 +151,23 @@ que es donde está el 86%.
    de sesión es el renglón individual más caro que queda). Es delicado porque son **normas duras** —
    se propone como frente aparte, con el criterio de *mover texto, nunca debilitar una regla*.
 
+---
+
+## 7. Deuda conocida (auditada, no cerrada) — para el próximo tramo
+
+El vault pasó una auditoría de tres frentes (robustez del generador · cobertura · SAP Fiori +
+argentino). Los defectos encontrados se arreglaron; **esto es lo que quedó abierto a propósito**, con
+el porqué:
+
+| # | Deuda | Por qué no se cerró acá |
+|---|---|---|
+| D1 | **Playbooks de `docs/metodologia/` sin indexar** (16 archivos, ~136 KB). El Gate obliga a leer `auditoria-sap-fiori.md` + `estandar-marca-gsg.md` en **cada push** y hoy eso se paga entero. | Es el hueco de cobertura más caro y el próximo a cerrar. Es alcance nuevo, no un defecto de lo construido. |
+| D2 | **Corpus de calibración ADR-052 sin indexar**: `docs/fundamentos/bases-gsg.md` y `docs/organizacion/` (roster, charters). Se lee en cada instanciación de célula. | Ídem D1. |
+| D3 | **Fase 0 sectorial** (Agencia Digital / Grow) no cubierta por el vault. | Mitigado por ahora: `/brain` manda explícitamente a los documentos del sector. |
+| D4 | **10 ADR sin dominio** en el frontmatter (ADR-072..080, 089) → caen en el balde "⚠️ sin dominio asignado" y `adr:context` no los encuentra por dominio. | Asignar dominio es **juicio de arquitectura**, no derivación: lo decide el Arquitecto de Solución, no un script. El índice lo expone en vez de taparlo. |
+| D5 | **Contradicción en la fuente:** la lección **MP-3** dice "≤ 4 sesiones en simultáneo"; `CLAUDE.md` fija **pool de 5**. El vault es fiel a su fuente y propaga el conflicto. | El arreglo va en `registro.md` vía retro (ADR-047), no en el mapa. **Se eleva al dueño**: son dos normas vigentes que no coinciden. |
+| D6 | **`CLAUDE.md` no menciona el vault.** Un agente que se calibra por la norma está obligado a ignorarlo. | Es exactamente lo que decide este RFC. **No se toca `CLAUDE.md` sin OK del dueño** — sería que la propuesta se apruebe a sí misma. |
+
 > **Una línea:** *el segundo cerebro no es una app — es bajar la unidad de lectura de "documento de
 > 40 KB" a "nota de 1 KB" y derivar la foto de estado del repo en vez de narrarla a mano; Obsidian es
 > la ventana humana sobre esos mismos archivos, y el ahorro sale de la forma de las notas, no de la app.*

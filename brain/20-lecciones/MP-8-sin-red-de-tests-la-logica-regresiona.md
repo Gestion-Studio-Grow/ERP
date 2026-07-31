@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** la lógica de **mayor riesgo** (reserva/fiscal/retención/tenant) va **con tests**; verde antes de commitear.
 - **Refs:** ADR-026.
 
+
 ## Decisiones relacionadas
 
 - [ADR-026](../30-decisiones/ADR-026.md)

@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/sec]
 - **Guardarraíl:** verificar **firma** de todo webhook; **rate-limit** en endpoints de auth y API pública.
 - **Refs:** memoria Célula 2 hardening.
 
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

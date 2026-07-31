@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** conflicto en una tabla/lista con IDs → **antes de resolver, leer qué concepto describe cada lado**; si son distintos, **conservar ambos y renumerar** (como la colisión de ADR de MP-10); actualizar las referencias cruzadas. Nunca `checkout --ours/--theirs` sobre filas de `§C`.
 - **Refs:** MP-10 (renumerar en colisión), ADR-040 (Gate), ADR-048 (irreversibles); `docs/estrategia/F1-vidrieras-calibracion-y-gate-adr042.md`.
 
+
 ## Decisiones relacionadas
 
 - [ADR-040](../30-decisiones/ADR-040.md)

@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** **`npm install` una vez por worktree**; no copiar `node_modules` ni depender de junctions para el build.
 - **Refs:** ADR-039; memoria worktree.
 
+
 ## Decisiones relacionadas
 
 - [ADR-039](../30-decisiones/ADR-039.md)

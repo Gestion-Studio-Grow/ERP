@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/dx]
 - **Guardarraíl:** demo = **FASE 1 sin secretos**; **toggle de persistencia** separa demo de operación; **nunca datos reales** en demo.
 - **Refs:** ADR-031, ADR-041; QA J-1/J-3.
 
+
 ## Decisiones relacionadas
 
 - [ADR-031](../30-decisiones/ADR-031.md)

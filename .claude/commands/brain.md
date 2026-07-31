@@ -25,10 +25,11 @@ Sos la sesión que arranca. Este comando reemplaza la Fase 0 cara (leer `ESTADO-
    - tocás prod/deploy → `PD-*`
    - tocás DB/migraciones → `DB-*`
    - tocás multi-tenant → `MT-*`
+   - **tocás demos, vidrieras o fronts de cliente → `DX-*`** (es el trabajo P1 de la casa)
    - tocás auth/secretos/RLS → `SEC-*`
    - planificás/orquestás → `MP-*`
 
-4. **Si el frente necesita decisiones**, no leas los 87 ADR: pedí la lista acotada.
+4. **Si el frente necesita decisiones**, no leas los 81 ADR: pedí la lista acotada.
 
    ```bash
    npm run adr:context -- <keywords del frente>
@@ -40,6 +41,26 @@ Sos la sesión que arranca. Este comando reemplaza la Fase 0 cara (leer `ESTADO-
 5. **Escalá al territorio solo si hace falta.** `brain/` es el mapa. Si necesitás el detalle
    narrativo (el porqué histórico, el estado de un tenant, un handoff), ahí sí abrí
    `docs/ESTADO-ACTUAL.md` o el doc puntual — pero sabiendo qué buscás, no de barrido.
+
+## Lo que el cerebro NO reemplaza (y sigue siendo obligatorio)
+
+El vault abarata la Fase 0; **no la deroga**. Estos cuatro ítems de `CLAUDE.md` no son derivables
+del repo y hay que hacerlos igual:
+
+- **Declarar el modelo.** Fijalo explícito (`/model opus` | `/model sonnet`) según la capa del
+  frente. Una sesión que arranca sin modelo declarado está **fuera de norma** (§4 del Modelo de
+  trabajo) — y el default de la cuenta no cuenta como declaración.
+- **Escribir tus 3-5 principios** antes de actuar (ADR-052, paso 2). Sin eso la calibración está
+  incompleta por definición del propio `CLAUDE.md`, por más que hayas leído el mapa.
+- **Fase 0 sectorial**, si el frente es de un sector: Agencia Digital →
+  `docs/sectores/agencia-digital/FUNDAMENTO.md`; negocios propios del grupo →
+  `docs/sectores/agencia-grow.md`. El cerebro cubre la Fase 0 del ERP, no la de los sectores.
+- **Estado que no es derivable**: tenants vivos, gates abiertos, bugs conocidos. `ESTADO.md` te
+  dice a qué sección de `docs/ESTADO-ACTUAL.md` ir; no los inventa.
+
+> **Estatus normativo:** este comando lo propone **RFC-005**, que está **en revisión del dueño**.
+> Mientras no se acepte, `CLAUDE.md` manda: si hay conflicto entre lo que dice el vault y lo que
+> dice la norma, **gana la norma**.
 
 ## Si el usuario pasó una pregunta como argumento
 

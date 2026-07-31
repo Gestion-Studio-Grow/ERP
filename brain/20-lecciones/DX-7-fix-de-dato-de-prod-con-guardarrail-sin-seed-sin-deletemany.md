@@ -12,9 +12,9 @@ tags: [brain/leccion, leccion/dx]
 **Categoría:** Demo / UX
 
 > 🛡️ **Guardarraíl (la regla verificable):**
-> todo fix de dato de prod (no-migración) usa **script versionado** con dry-run default +
+> todo fix de dato de prod (no-migración) usa **script versionado** con dry-run default + `--apply` explícito; el diff se imprime **campo por campo** antes de escribir; **scope por `tenantId`** de un único tenant, nunca loop entre tenants; lo no confirmado se **desactiva**, nunca se borra; tras aplicar, **correr el mismo script en dry-run de nuevo** (debe dar 0 cambios) y **verificar el resultado final por una vía independiente** (preview/DB), no solo el log del script.
 
-**Lección:** un guardarraíl "nunca seed/nunca deleteMany" no alcanza solo, necesita **su propio patrón**
+**Lección:** un guardarraíl "nunca seed/nunca deleteMany" no alcanza solo, necesita **su propio patrón** (dry-run con diff explícito → apply → re-dry-run de verificación) y un **relevamiento exhaustivo del estado actual vía DB**, no vía una vista parcial (preview/UI truncada) — mismo espíritu que DX-6: lo que "carga bien" puede no representar lo real si el mapeo de origen quedó incompleto.
 
 ## Detalle
 
@@ -45,6 +45,7 @@ tags: [brain/leccion, leccion/dx]
   una vía independiente** (preview/DB), no solo el log del script.
 - **Refs:** ADR-018 (aislamiento `tenantId`), ADR-019 (provisioning aditivo/idempotente), DB-1 (seed
   destructivo), DX-5, DX-6; `docs/tenants/magra/provisioning-magra.md`.
+
 
 ## Decisiones relacionadas
 

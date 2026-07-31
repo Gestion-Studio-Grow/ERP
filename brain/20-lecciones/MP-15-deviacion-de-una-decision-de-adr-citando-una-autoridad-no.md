@@ -12,9 +12,9 @@ tags: [brain/leccion, leccion/mp]
 **Categoría:** Metodología / Proceso
 
 > 🛡️ **Guardarraíl (la regla verificable):**
-> si una sesión se desvía de un ADR aceptado, **trae la confirmación del dueño al mismo
+> si una sesión se desvía de un ADR aceptado, **trae la confirmación del dueño al mismo commit** (nota fechada en el ADR/ESTADO-ACTUAL) **o** lo marca como **propuesta para el Gate** — nunca lo commitea como hecho consumado. El integrador (Gate) trata toda deviación sin rastro como observación a elevar.
 
-**Lección:** un cambio a una decisión de ADR aceptado necesita **rastro de autoridad en el repo**, no una
+**Lección:** un cambio a una decisión de ADR aceptado necesita **rastro de autoridad en el repo**, no una cita verbal; si no, el Gate no puede validarlo como "aprobado".
 
 ## Detalle
 
@@ -34,7 +34,8 @@ tags: [brain/leccion, leccion/mp]
   commit** (nota fechada en el ADR/ESTADO-ACTUAL) **o** lo marca como **propuesta para el Gate** — nunca lo
   commitea como hecho consumado. El integrador (Gate) trata toda deviación sin rastro como observación a elevar.
 - **Refs:** ADR-059 D3, ADR-008 (repo como memoria), ADR-047; retro `docs/retro/retro-sprint-grow-ar-pr2-2026-07-08.md`.
----
+
+
 
 ## Decisiones relacionadas
 

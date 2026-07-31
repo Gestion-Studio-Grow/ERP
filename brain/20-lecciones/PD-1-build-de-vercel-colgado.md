@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/pd]
 - **Guardarraíl:** rutas públicas/demo **`force-static` sin DB**; **no matar** un build por lento — revisar logs antes.
 - **Refs:** ADR-031, `docs/metodologia/demo-publica-costo-cero.md`.
 
+
 ## Decisiones relacionadas
 
 - [ADR-031](../30-decisiones/ADR-031.md)

@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/sec]
 - **Guardarraíl:** la app conecta **siempre** con un rol **sin `BYPASSRLS`**; verificar aislamiento antes del go-live.
 - **Refs:** ADR-018; memoria RLS go-live.
 
+
 ## Decisiones relacionadas
 
 - [ADR-018](../30-decisiones/ADR-018.md)

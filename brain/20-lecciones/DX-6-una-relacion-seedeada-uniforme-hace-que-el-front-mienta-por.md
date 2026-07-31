@@ -12,9 +12,9 @@ tags: [brain/leccion, leccion/dx]
 **Categoría:** Demo / UX
 
 > 🛡️ **Guardarraíl (la regla verificable):**
-> (1) el **provisioning/import de catálogo real**
+> (1) el **provisioning/import de catálogo real** **captura y aplica la asignación por profesional** (nunca `connect`-a-todo ni dejar vacío) — es parte del relevamiento, no un default; si el mapeo real no está, sembrar una **asignación diferenciada por categoría**, jamás uniforme. (2) El **alta/preset valida** que las relaciones N–N por entidad sean **reales y distintas** (no todas iguales, no todas vacías). (3) **QA valida por-entidad** (equipo, catálogo por profesional) **caso por caso** contra lo esperado del rubro — chequeo explícito "¿los sets por profesional son distintos y coherentes?" —, no solo que la sección aparezca.
 
-**Lección:** que una entidad "cargue" no implica que **su relación refleje lo real**; un **import que
+**Lección:** que una entidad "cargue" no implica que **su relación refleje lo real**; un **import que conecta todo-con-todo** (o un seed uniforme) produce entidades **idénticas y falsas** sin ningún error (primo de DB-2 "array vacío" y DX-5 "front no refleja lo real"). Verificar **por entidad**, no en agregado. Cuando no hay mapeo real, una asignación **diferenciada y coherente** ya evita que el front mienta; el relevamiento exacto puede afinarse después sin bloquear el fix.
 
 ## Detalle
 
@@ -46,6 +46,7 @@ tags: [brain/leccion, leccion/dx]
   por profesional son distintos y coherentes?" —, no solo que la sección aparezca.
 - **Refs:** QA `docs/calidad/reporte-qa-productos-2026-07-07.md` A-1 (RESUELTO); DX-7 (patrón del fix),
   DB-2, DX-5.
+
 
 ---
 

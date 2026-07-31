@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mt]
 - **Guardarraíl:** separar **data pública** de **data admin-gated** en las home de tenant; el Gate (role-based §1) lo chequea.
 - **Refs:** QA C-1; ADR-040 (Gate, role-based).
 
+
 ## Decisiones relacionadas
 
 - [ADR-040](../30-decisiones/ADR-040.md)

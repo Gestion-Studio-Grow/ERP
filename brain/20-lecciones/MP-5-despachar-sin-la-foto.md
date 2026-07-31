@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** **"sin la foto no se despacha"**; FASE 0 no salteable.
 - **Refs:** ADR-039.
 
+
 ## Decisiones relacionadas
 
 - [ADR-039](../30-decisiones/ADR-039.md)

@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** al reportar % de una fundación/flag, distinguir **construido** de **consumido**; no contar "listo" una capa sin al menos un consumidor real cableado y verde.
 - **Refs:** ADR-054 (repo de módulos), ADR-055 (variante), ADR-040 (Gate), ADR-047 (retro).
 
+
 ## Decisiones relacionadas
 
 - [ADR-040](../30-decisiones/ADR-040.md)

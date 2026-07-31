@@ -21,12 +21,13 @@
 //   npm run brain              # regenera la zona generada del vault
 //   npm run brain -- --check   # no escribe; falla si el vault está desactualizado
 //
-// Abrir `brain/` como vault de Obsidian: markdown plano + frontmatter + wikilinks.
+// Se abre como vault de Obsidian apuntando a la RAÍZ del repo (no a `brain/`): las notas
+// enlazan a `docs/`, y con el vault acotado a `brain/` esos enlaces quedan afuera y mueren.
 // Mismos archivos para las dos puntas — el dueño los navega, los agentes los leen.
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -38,22 +39,54 @@ const MARCA = "<!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 // --- helpers -----------------------------------------------------------------
 
+/** Aborta con un mensaje accionable. Regla del generador: ante la duda, FALLAR RUIDOSO. */
+function abortar(motivo, comoArreglarlo) {
+  console.error(`\n✗ brain-sync abortó: ${motivo}`);
+  if (comoArreglarlo) console.error(`  → ${comoArreglarlo}`);
+  console.error("  No se tocó el vault: prefiere quedar viejo antes que quedar mintiendo.\n");
+  process.exit(1);
+}
+
+/**
+ * `git` devuelve null —no ""— cuando el comando falla, para poder distinguir
+ * "el repo dice que está limpio" de "no pude preguntarle al repo". Confundir esas dos
+ * cosas hacía que ESTADO afirmara "Árbol | limpio" fuera de un repo git: mentir en la
+ * dirección peligrosa (tranquilizar sin saber).
+ */
 const git = (...args) => {
   try {
     return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
   } catch {
-    return "";
+    return null;
   }
 };
 
-const slug = (s) =>
-  s
+// El recorte va DESPUÉS de limpiar los guiones de borde; al revés dejaba muñones como
+// `...-sin-deletemany-.md`. Además corta en palabra entera: un nombre de archivo con
+// media palabra final se lee como un archivo corrupto.
+const slug = (s) => {
+  const base = s
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60);
+    .replace(/[^a-z0-9]+/g, "-");
+  const corto = base.length > 60 ? base.slice(0, 60).replace(/-[^-]*$/, "") : base;
+  return corto.replace(/^-+|-+$/g, "");
+};
+
+/**
+ * Saca el ID del principio del título. En `graph.json` conviven dos formatos —
+ * "ADR-001: Título" y "ADR-023 — Título"— y contemplar solo el primero producía
+ * líneas de índice que decían el ID dos veces ("ADR-023 — ADR-023 — Check de…").
+ */
+const limpiarTitulo = (t) => (t ?? "").replace(/^ADR-\d+\s*[—–:-]\s*/, "").trim();
+
+/** Recorta para una línea de índice sin cortar a mitad de palabra y avisando que hay más. */
+const resumir = (s, max = 200) => {
+  const limpio = s.replace(/\s+/g, " ").trim();
+  if (limpio.length <= max) return limpio;
+  return limpio.slice(0, max).replace(/\s+\S*$/, "") + " […]";
+};
 
 /**
  * Escribe si cambió. En --check solo marca la diferencia.
@@ -84,12 +117,31 @@ function emit(relPath, body, { volatil = false } = {}) {
 
 function buildEstado() {
   const head = git("rev-parse", "--short", "HEAD");
+  if (head === null) {
+    abortar(
+      "no pude leer el repo con git (¿estás fuera del repo, o .git está roto?)",
+      "corré el script desde la raíz del repo",
+    );
+  }
   const branch = git("rev-parse", "--abbrev-ref", "HEAD");
   const headDate = git("log", "-1", "--format=%cs");
-  const commits = git("log", "-12", "--format=%h · %cs · %s")
+  const commits = (git("log", "-12", "--format=%h · %cs · %s") ?? "").split("\n").filter(Boolean);
+
+  // `brain/` se excluye del conteo: el propio sync ensucia el árbol al escribir, así
+  // que incluirlo hacía que dos corridas seguidas dieran números distintos.
+  const sucios = (git("status", "--porcelain") ?? "")
+    .split("\n")
+    .filter(Boolean)
+    .filter((l) => !/\sbrain\//.test(l));
+
+  // La Fase 0 de CLAUDE.md pide el tip de `main` y las ramas con trabajo, no solo la
+  // rama donde estás parado. Si no hay `main` local (clon de una sola rama), se dice
+  // "no disponible" en vez de inventar.
+  const mainRef = ["main", "origin/main"].find((r) => git("rev-parse", "--verify", "-q", r));
+  const mainHead = mainRef ? git("log", "-1", "--format=%h · %cs · %s", mainRef) : null;
+  const ramas = (git("for-each-ref", "--format=%(refname:short)", "--sort=-committerdate", "refs/heads") ?? "")
     .split("\n")
     .filter(Boolean);
-  const dirty = git("status", "--porcelain").split("\n").filter(Boolean).length;
 
   // Migraciones: el orden lo da el nombre (timestamp). Las COLISIONES de timestamp
   // son un riesgo real de orden de aplicación → la Fase 0 de CLAUDE.md las pide.
@@ -130,23 +182,32 @@ function buildEstado() {
         .map((f) => f.replace(/Front\.tsx$/, ""))
     : [];
 
+  // Sello de generación en UTC: sin esto, quien lee la foto commiteada desde GitHub o
+  // el celular no puede saber si es de hace una hora o de hace dos semanas.
+  const sello = new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
+
   const L = [];
   L.push("---");
   L.push("tipo: estado");
   L.push("generado: true");
+  L.push(`generado_el: ${sello}`);
   L.push("tags: [brain/estado, fase-0]");
   L.push("---");
   L.push(MARCA);
   L.push("");
   L.push("# 🧠 Estado — la foto derivada del repo");
   L.push("");
+  L.push(`> ⏱️ **Foto tomada el ${sello} sobre \`${head}\`.**`);
   L.push(
-    "> Esto **no se escribe a mano**: sale de `git` + `prisma/migrations/` + `docs/`. Por eso no puede",
+    "> No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento",
   );
   L.push(
-    "> driftear (la causa de la lección **MP-12**). Es el arranque de la **Fase 0** de `CLAUDE.md`:",
+    "> de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una",
   );
-  L.push("> leé esto en vez de `docs/ESTADO-ACTUAL.md` salvo que necesites el detalle narrativo.");
+  L.push(
+    "> vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,",
+  );
+  L.push("> mirá la fecha de arriba**. Para tenerla fresca: `npm run brain`.");
   L.push("");
   L.push("## Git");
   L.push("");
@@ -155,9 +216,16 @@ function buildEstado() {
   L.push(`| Rama actual | \`${branch}\` |`);
   L.push(`| HEAD | \`${head}\` (${headDate}) |`);
   L.push(
-    `| Árbol | ${dirty === 0 ? "limpio" : `**${dirty} archivo(s) sin commitear**`} |`,
+    `| Árbol | ${sucios.length === 0 ? "limpio" : `**${sucios.length} archivo(s) sin commitear**`} _(sin contar \`brain/\`)_ |`,
+  );
+  L.push(
+    `| Tip de \`main\` | ${mainHead ? mainHead : "_no disponible (este clon no trae `main` local)_"} |`,
   );
   L.push("");
+  if (ramas.length > 1) {
+    L.push(`**Ramas locales (${ramas.length}, más reciente primero):** ${ramas.map((r) => `\`${r}\``).join(" · ")}`);
+    L.push("");
+  }
   L.push("**Últimos commits**");
   L.push("");
   for (const c of commits) L.push(`- ${c}`);
@@ -187,7 +255,9 @@ function buildEstado() {
   L.push(`| Documentos en \`docs/\` | ${docsMd.length} |`);
   L.push(`| Palabras en \`docs/\` | ${palabras.toLocaleString("es-AR")} |`);
   L.push(`| ADRs | ${adrFiles.length} |`);
-  L.push(`| Nodos en el grafo | ${(graph?.nodes ?? []).length} |`);
+  L.push(
+    `| Nodos en el grafo | ${(graph?.nodes ?? []).length} _(los ${adrFiles.length} ADR + ${Math.max(0, (graph?.nodes ?? []).length - adrFiles.length)} enmiendas)_ |`,
+  );
   if (huerfanos.length) {
     L.push("");
     L.push(
@@ -198,6 +268,18 @@ function buildEstado() {
   L.push("## Superficies con front propio");
   L.push("");
   L.push(fronts.length ? fronts.map((f) => `- \`${f}\``).join("\n") : "- (ninguna detectada)");
+  L.push("");
+  L.push("## Lo que esta foto NO puede cubrir");
+  L.push("");
+  L.push(
+    "Se deriva del repo, así que **solo sabe lo que el repo sabe**. Estos ítems de la Fase 0 no son",
+  );
+  L.push("derivables y siguen viviendo en el documento narrativo — leelos ahí cuando el frente los toque:");
+  L.push("");
+  L.push("- **Tenants vivos y su estado de publicación** → `docs/ESTADO-ACTUAL.md` §1");
+  L.push("- **Gates abiertos y decisiones pendientes del dueño** → `docs/ESTADO-ACTUAL.md` (HANDOFF)");
+  L.push("- **Bugs conocidos y frentes en curso** → `docs/ESTADO-ACTUAL.md` §7");
+  L.push("- **Qué migraciones corrieron REALMENTE en Neon** → solo lo confirma el dueño (Gate 2)");
   L.push("");
   L.push("---");
   L.push("");
@@ -215,7 +297,15 @@ function buildEstado() {
 
 function parseLecciones() {
   const src = join(ROOT, "docs/lecciones-aprendidas/registro.md");
-  if (!existsSync(src)) return [];
+  // Sin fuente NO se regenera: la limpieza de la zona generada correría igual y
+  // dejaría un índice que dice "0 lecciones" con exit 0. Una sesión que se calibrara
+  // contra eso concluiría que no hay guardarraíles — el peor fallo posible acá.
+  if (!existsSync(src)) {
+    abortar(
+      "no encuentro docs/lecciones-aprendidas/registro.md (la fuente de las lecciones)",
+      "si el archivo se movió, actualizá la ruta en scripts/brain-sync.mjs",
+    );
+  }
   const lineas = readFileSync(src, "utf8").split("\n");
 
   const CATS = {
@@ -229,7 +319,14 @@ function parseLecciones() {
 
   const out = [];
   let actual = null;
+  let campoAbierto = null; // campo que puede continuar en las líneas siguientes
   let enIndice = false;
+
+  const cerrar = () => {
+    if (actual) out.push(actual);
+    actual = null;
+    campoAbierto = null;
+  };
 
   for (const linea of lineas) {
     if (/^## Índice/.test(linea)) { enIndice = true; continue; }
@@ -239,24 +336,51 @@ function parseLecciones() {
     // Entrada: **[PD-1] Título**
     const m = linea.match(/^\*\*\[([A-Z]{2,3}-\d+)\]\s*(.+?)\*\*\s*$/);
     if (m) {
-      if (actual) out.push(actual);
+      cerrar();
       const [, id, titulo] = m;
       actual = { id, titulo, cat: id.split("-")[0], campos: {}, cuerpo: [] };
       continue;
     }
     if (!actual) continue;
-    if (/^## /.test(linea)) { out.push(actual); actual = null; continue; }
+    if (/^## /.test(linea)) { cerrar(); continue; }
 
     // Campo: - **Guardarraíl:** ...
     const f = linea.match(/^-\s*\*\*(.+?):\*\*\s*(.*)$/);
     if (f) {
-      actual.campos[f[1].replace(/\s*\(.*\)\s*$/, "").trim()] = f[2].trim();
+      campoAbierto = f[1].replace(/\s*\(.*\)\s*$/, "").trim();
+      actual.campos[campoAbierto] = f[2].trim();
       actual.cuerpo.push(linea);
-    } else if (linea.trim()) {
-      actual.cuerpo.push(linea);
+      continue;
     }
+
+    // Continuación: en el registro los campos largos se envuelven en líneas indentadas.
+    // Quedarse con la primera línea dejaba guardarraíles cortados a mitad de frase
+    // JUSTO en el índice, que es lo único que la sesión lee de las lecciones. Una regla
+    // a medias es peor que no tenerla: parece completa y dice otra cosa.
+    if (campoAbierto && /^\s{2,}\S/.test(linea)) {
+      actual.campos[campoAbierto] = `${actual.campos[campoAbierto]} ${linea.trim()}`.trim();
+      actual.cuerpo.push(linea);
+      continue;
+    }
+
+    // Una línea nueva sin indentar cierra el campo abierto (pero sigue la entrada).
+    campoAbierto = null;
+    // El separador de sección del registro no es parte de la lección.
+    if (/^-{3,}\s*$/.test(linea)) continue;
+    actual.cuerpo.push(linea); // se preservan las líneas en blanco: son los párrafos
   }
-  if (actual) out.push(actual);
+  cerrar();
+
+  // Red de seguridad: si el formato del registro cambia, las entradas que no matcheen
+  // desaparecen SIN AVISO y el vault publica un corpus incompleto que parece completo.
+  // Contamos las candidatas por su marca de apertura y exigimos que cierre el número.
+  const candidatas = lineas.filter((l) => /^\*\*\[/.test(l)).length;
+  if (out.length !== candidatas) {
+    abortar(
+      `el registro tiene ${candidatas} entradas pero se parsearon ${out.length}`,
+      "revisá el formato `**[ID] Título**` de las que faltan en docs/lecciones-aprendidas/registro.md",
+    );
+  }
 
   return out.map((l) => ({ ...l, catNombre: CATS[l.cat] ?? l.cat }));
 }
@@ -265,13 +389,7 @@ function buildLecciones(lecciones) {
   let cambio = false;
   const dir = join(BRAIN, "20-lecciones");
 
-  // La zona generada se limpia antes de regenerar: si una lección se renombra en
-  // el registro, no queda una nota huérfana mintiendo.
-  if (!CHECK && existsSync(dir)) {
-    for (const f of readdirSync(dir)) {
-      if (f.endsWith(".md")) rmSync(join(dir, f));
-    }
-  }
+  limpiarZonaGenerada(dir);
 
   for (const l of lecciones) {
     const nombre = `${l.id}-${slug(l.titulo)}.md`;
@@ -355,7 +473,9 @@ function buildLecciones(lecciones) {
     I.push("");
     for (const l of items) {
       const g = l.campos["Guardarraíl"] ?? l.campos["Guardarrail"] ?? l.titulo;
-      I.push(`- **[${l.id}](${l.id}-${slug(l.titulo)}.md)** — ${g.replace(/\*\*/g, "")}`);
+      // `resumir` corta en palabra entera y marca el recorte con […]: media frase sin
+      // aviso se lee como la regla completa y dice otra cosa.
+      I.push(`- **[${l.id}](${l.id}-${slug(l.titulo)}.md)** — ${resumir(g.replace(/\*\*/g, ""))}`);
     }
     I.push("");
   }
@@ -374,19 +494,14 @@ function buildDecisiones() {
 
   const nodes = [...graph.nodes].sort((a, b) => a.id.localeCompare(b.id));
 
-  // Limpieza de la zona generada (ver buildLecciones): una decisión que desaparece
-  // del grafo no puede dejar una nota huérfana enlazando a la nada.
-  const dir = join(BRAIN, "30-decisiones");
-  if (!CHECK && existsSync(dir)) {
-    for (const f of readdirSync(dir)) {
-      if (f.endsWith(".md")) rmSync(join(dir, f));
-    }
-  }
+  // Una decisión que desaparece del grafo no puede dejar una nota huérfana
+  // enlazando a la nada (ver limpiarZonaGenerada).
+  limpiarZonaGenerada(join(BRAIN, "30-decisiones"));
   const fundacionales = nodes.filter((n) => n.nivel === "fundacional");
 
   const porDominio = new Map();
   for (const n of nodes) {
-    for (const d of n.dominio?.length ? n.dominio : ["(sin dominio)"]) {
+    for (const d of n.dominio?.length ? n.dominio : ["⚠️ sin dominio asignado"]) {
       porDominio.set(d, [...(porDominio.get(d) ?? []), n]);
     }
   }
@@ -400,11 +515,11 @@ function buildDecisiones() {
   // El índice enlaza al NODO del vault (que a su vez enlaza al ADR real). Así el
   // índice también es parte del grafo en vez de un callejón sin salida.
   const linea = (n) => {
-    const t = n.title.replace(/^ADR-\d+:\s*/, "");
+    const t = limpiarTitulo(n.title);
     const f = archivoDe(n.id);
     const marca = n.nivel === "fundacional" ? " 🏛️" : "";
     const deps = n.dependents?.length ? ` _(${n.dependents.length} dependientes)_` : "";
-    const fuente = f ? ` · [ADR](../../docs/adr/${f})` : "";
+    const fuente = f ? ` · [fuente ${n.id}](../../docs/adr/${f})` : "";
     return `- **[${n.id}](${n.id}.md)**${marca} — ${t}${deps}${fuente}`;
   };
 
@@ -417,7 +532,7 @@ function buildDecisiones() {
   // el grafo funcione en Obsidian Y las notas sigan navegables en GitHub.
   let cambio = false;
   const porId = new Map(nodes.map((n) => [n.id, n]));
-  const tituloDe = (id) => porId.get(id)?.title.replace(/^ADR-\d+:\s*/, "") ?? id;
+  const tituloDe = (id) => (porId.has(id) ? limpiarTitulo(porId.get(id).title) : id);
   const ref = (id) => `[${id}](${id}.md)${porId.has(id) ? ` — ${tituloDe(id)}` : ""}`;
 
   for (const n of nodes) {
@@ -528,8 +643,11 @@ function buildDecisiones() {
     L.push("```");
     L.push("");
     L.push(
-      "_La flecha se lee **\"depende de\"**. Solo el núcleo fundacional: el grafo completo (87 nodos) " +
-        "se navega en Obsidian, donde podés filtrar por tag._",
+      `_La flecha se lee **"depende de"**. Solo el núcleo fundacional; el grafo completo `+
+        `(${nodes.length} nodos) se navega en Obsidian, filtrando por tag._\n\n` +
+        "**El mismo grafo, en texto:** cada nodo de arriba tiene su nota con las secciones " +
+        "*\"Depende de\"* y *\"Lo que se cae si esto cambia\"* — la misma información que las " +
+        "flechas, en listas de enlaces. Si no podés ver el diagrama, no te estás perdiendo nada.",
     );
     L.push("");
   }
@@ -565,13 +683,36 @@ function walk(dir, ext) {
   return out;
 }
 
+/**
+ * Borra la zona generada antes de reescribirla, PERO solo lo que generó este script
+ * (lo que lleva la MARCA). Antes borraba todo `.md` del directorio: una nota propia
+ * guardada ahí por error desaparecía sin aviso y sin vuelta atrás si no estaba
+ * commiteada. La convención "tus notas van en 90-notas/" ahora está enforced, no
+ * solo documentada.
+ */
+function limpiarZonaGenerada(dir) {
+  if (CHECK || !existsSync(dir)) return;
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith(".md")) continue;
+    const full = join(dir, f);
+    if (readFileSync(full, "utf8").includes(MARCA)) rmSync(full);
+    else console.error(`⚠ conservo brain/${basename(dir)}/${f}: no lo generé yo (movelo a brain/90-notas/)`);
+  }
+}
+
+/**
+ * `null` = no existe (caso previsto). Un JSON corrupto NO devuelve null: aborta.
+ * Tragarse el error de parseo dejaba el vault stale en silencio y hacía que ESTADO
+ * dijera "0 nodos en el grafo → correr npm run adr:graph", una receta equivocada
+ * para un archivo roto.
+ */
 function readJson(rel) {
   const full = join(ROOT, rel);
   if (!existsSync(full)) return null;
   try {
     return JSON.parse(readFileSync(full, "utf8"));
-  } catch {
-    return null;
+  } catch (e) {
+    abortar(`${rel} no es JSON válido (${e.message})`, "regeneralo con: npm run adr:graph");
   }
 }
 
@@ -584,12 +725,39 @@ desactualizado = buildLecciones(lecciones) || desactualizado;
 desactualizado = buildDecisiones() || desactualizado;
 
 if (CHECK) {
+  // Comparar solo CONTENIDO dejaba dos agujeros: un archivo intruso en la zona
+  // generada daba "al día" y después el sync lo borraba (o sea, el check decía verde
+  // sobre una corrida que NO era no-op), y una nota borrada a mano tampoco se notaba.
+  // El check compara además el LISTADO real contra lo que el script emitiría.
+  const esperados = new Set(written);
+  for (const zona of ["20-lecciones", "30-decisiones"]) {
+    const dir = join(BRAIN, zona);
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir).filter((x) => x.endsWith(".md"))) {
+      const rel = `${zona}/${f}`;
+      if (esperados.has(rel)) continue;
+      const propio = readFileSync(join(dir, f), "utf8").includes(MARCA);
+      console.error(
+        propio
+          ? `✗ sobra (el sync lo borraría): brain/${rel}`
+          : `✗ nota ajena en zona generada: brain/${rel} → movela a brain/90-notas/`,
+      );
+      desactualizado = true;
+    }
+  }
+  for (const rel of written) {
+    if (!existsSync(join(BRAIN, rel))) {
+      console.error(`✗ falta: brain/${rel}`);
+      desactualizado = true;
+    }
+  }
+
   if (desactualizado) {
     console.error("\n✗ El vault está desactualizado. Corré: npm run brain");
     process.exit(1);
   }
-  console.log("✓ brain/ al día");
+  console.log(`✓ brain/ al día — ${written.length} notas verificadas`);
 } else {
   console.log(`✓ brain/ regenerado — ${written.length} notas (${lecciones.length} lecciones atómicas)`);
-  console.log("  Abrí la carpeta `brain/` como vault en Obsidian, o leé brain/000-MAPA.md.");
+  console.log("  Entrada: brain/000-MAPA.md · En Obsidian: abrí la RAÍZ del repo como vault (no brain/).");
 }

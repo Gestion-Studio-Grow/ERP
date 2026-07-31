@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/mt]
 - **Guardarraíl:** mapear cada host; **nunca `APP_BASE_DOMAIN=vercel.app`**; home pelada solo para `/demo`.
 - **Refs:** ADR-029, ADR-015.
 
+
 ## Decisiones relacionadas
 
 - [ADR-015](../30-decisiones/ADR-015.md)

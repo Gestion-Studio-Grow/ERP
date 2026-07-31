@@ -25,6 +25,7 @@ tags: [brain/leccion, leccion/dx]
 - **Guardarraíl:** **cero placeholders de WhatsApp**; el link/intent sale del **helper único** (una fuente de verdad).
 - **Refs:** ADR-037.
 
+
 ## Decisiones relacionadas
 
 - [ADR-037](../30-decisiones/ADR-037.md)
