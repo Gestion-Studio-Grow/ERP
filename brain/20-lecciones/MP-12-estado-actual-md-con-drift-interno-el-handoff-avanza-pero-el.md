@@ -25,6 +25,11 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** en FASE 0, **verificar contra git (no contra el propio doc)** los 3 anclas duras — `main HEAD` (§1), estado de frentes (§7-bis) y `.claude/agents/` (§8) — y reconciliar TODAS las secciones que citen esos hechos, no solo el banner. "Gana el repo" aplica también a las contradicciones internas.
 - **Refs:** MP-5 (sin la foto no se despacha), ADR-039 (FASE 0), ADR-047 (retro).
 
+## Decisiones relacionadas
+
+- [ADR-039](../30-decisiones/ADR-039.md)
+- [ADR-047](../30-decisiones/ADR-047.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

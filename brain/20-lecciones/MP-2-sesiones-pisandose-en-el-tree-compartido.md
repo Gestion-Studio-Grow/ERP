@@ -25,6 +25,10 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** **pathspec siempre, nunca `-A`**; editar sobre `origin/main` en worktree descartable; una vez en `origin/main` es permanente.
 - **Refs:** ADR-039; memoria commit-race.
 
+## Decisiones relacionadas
+
+- [ADR-039](../30-decisiones/ADR-039.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

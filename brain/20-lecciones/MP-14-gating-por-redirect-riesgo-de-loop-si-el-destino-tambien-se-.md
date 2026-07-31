@@ -25,6 +25,12 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** antes de enforcar gating con `redirect()`, mapear el destino para CADA rol y CADA combinación de módulos apagados; si algún destino puede estar gateado, no redirigir — usar 404/estado neutro o esconder. Nunca redirigir a la home del rol si esa home es gateable.
 - **Refs:** ADR-017 (ocultar nav = UX; rol = seguridad), ADR-054/055, ADR-047 (retro).
 
+## Decisiones relacionadas
+
+- [ADR-017](../30-decisiones/ADR-017.md)
+- [ADR-047](../30-decisiones/ADR-047.md)
+- [ADR-054](../30-decisiones/ADR-054.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

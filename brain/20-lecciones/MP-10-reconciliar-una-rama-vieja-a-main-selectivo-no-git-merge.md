@@ -26,6 +26,13 @@ tags: [brain/leccion, leccion/mp]
 - **Gotcha de infra:** `robocopy` desde Git Bash **necesita `MSYS_NO_PATHCONV=1`** — sin eso, MSYS convierte `/E` en `E:/` y el copiado falla en silencio (exit 0, 0 archivos). Materializar `node_modules` real (no junction) para el build de Turbopack sigue vigente (MP-6).
 - **Refs:** ADR-039, ADR-049; ADR-056 (renumerado desde ADR-028 de la rama); memoria worktree/robocopy.
 
+## Decisiones relacionadas
+
+- [ADR-028](../30-decisiones/ADR-028.md)
+- [ADR-039](../30-decisiones/ADR-039.md)
+- [ADR-049](../30-decisiones/ADR-049.md)
+- [ADR-056](../30-decisiones/ADR-056.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

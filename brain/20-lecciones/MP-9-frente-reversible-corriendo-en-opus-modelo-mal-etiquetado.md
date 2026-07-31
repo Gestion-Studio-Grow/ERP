@@ -25,6 +25,11 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** **ningún frente arranca sin modelo declarado**; reversible → Sonnet; una sesión sin modelo etiquetado está **fuera de norma** y se corrige antes de trabajar.
 - **Refs:** ADR-032, ADR-049; `docs/organizacion/asignacion-modelos-sprint.md`; Plan de Ventana 2026-07-08.
 
+## Decisiones relacionadas
+
+- [ADR-032](../30-decisiones/ADR-032.md)
+- [ADR-049](../30-decisiones/ADR-049.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

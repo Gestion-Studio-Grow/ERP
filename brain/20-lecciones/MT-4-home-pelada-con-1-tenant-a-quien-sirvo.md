@@ -25,6 +25,11 @@ tags: [brain/leccion, leccion/mt]
 - **Guardarraíl:** mapear cada host; **nunca `APP_BASE_DOMAIN=vercel.app`**; home pelada solo para `/demo`.
 - **Refs:** ADR-029, ADR-015.
 
+## Decisiones relacionadas
+
+- [ADR-015](../30-decisiones/ADR-015.md)
+- [ADR-029](../30-decisiones/ADR-029.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

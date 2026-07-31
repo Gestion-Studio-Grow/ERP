@@ -25,6 +25,11 @@ tags: [brain/leccion, leccion/mt]
 - **Guardarraíl:** resolución de tenant **fail-closed**; el alta del 2º tenant **dispara RLS** (Gate).
 - **Refs:** ADR-015, ADR-018.
 
+## Decisiones relacionadas
+
+- [ADR-015](../30-decisiones/ADR-015.md)
+- [ADR-018](../30-decisiones/ADR-018.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

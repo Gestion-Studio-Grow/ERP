@@ -305,6 +305,18 @@ function buildLecciones(lecciones) {
     L.push("");
     L.push(...l.cuerpo);
     L.push("");
+
+    // Puente entre los dos clusters del grafo: la lección enlaza a las decisiones que
+    // cita. Es lo que deja ver de un vistazo QUÉ DECISIÓN nos costó qué cicatriz —
+    // un ADR con muchas lecciones colgando es una zona de riesgo, no una casualidad.
+    const adrs = [...new Set((l.cuerpo.join(" ").match(/ADR-\d{3}/g) ?? []))].sort();
+    if (adrs.length) {
+      L.push("## Decisiones relacionadas");
+      L.push("");
+      for (const a of adrs) L.push(`- [${a}](../30-decisiones/${a}.md)`);
+      L.push("");
+    }
+
     L.push("---");
     L.push("");
     L.push(
@@ -361,6 +373,15 @@ function buildDecisiones() {
   if (!graph?.nodes) return false;
 
   const nodes = [...graph.nodes].sort((a, b) => a.id.localeCompare(b.id));
+
+  // Limpieza de la zona generada (ver buildLecciones): una decisión que desaparece
+  // del grafo no puede dejar una nota huérfana enlazando a la nada.
+  const dir = join(BRAIN, "30-decisiones");
+  if (!CHECK && existsSync(dir)) {
+    for (const f of readdirSync(dir)) {
+      if (f.endsWith(".md")) rmSync(join(dir, f));
+    }
+  }
   const fundacionales = nodes.filter((n) => n.nivel === "fundacional");
 
   const porDominio = new Map();
@@ -376,14 +397,83 @@ function buildDecisiones() {
     : [];
   const archivoDe = (id) => archivos.find((f) => f.startsWith(id));
 
+  // El índice enlaza al NODO del vault (que a su vez enlaza al ADR real). Así el
+  // índice también es parte del grafo en vez de un callejón sin salida.
   const linea = (n) => {
     const t = n.title.replace(/^ADR-\d+:\s*/, "");
     const f = archivoDe(n.id);
-    const ref = f ? `[${n.id}](../../docs/adr/${f})` : n.id;
     const marca = n.nivel === "fundacional" ? " 🏛️" : "";
     const deps = n.dependents?.length ? ` _(${n.dependents.length} dependientes)_` : "";
-    return `- **${ref}**${marca} — ${t}${deps}`;
+    const fuente = f ? ` · [ADR](../../docs/adr/${f})` : "";
+    return `- **[${n.id}](${n.id}.md)**${marca} — ${t}${deps}${fuente}`;
   };
+
+  // --- Una nota por decisión, con las dependencias como ENLACES REALES.
+  //
+  // Esto es lo que hace visible el grafo: `depends_on` vive en el frontmatter y en
+  // graph.json, pero Obsidian arma el grafo con los ENLACES del cuerpo, no con el
+  // frontmatter. Sin estas notas, el vault se ve como cuatro nodos sueltos en vez de
+  // la arquitectura real. Se usan enlaces markdown relativos (no wikilinks) para que
+  // el grafo funcione en Obsidian Y las notas sigan navegables en GitHub.
+  let cambio = false;
+  const porId = new Map(nodes.map((n) => [n.id, n]));
+  const tituloDe = (id) => porId.get(id)?.title.replace(/^ADR-\d+:\s*/, "") ?? id;
+  const ref = (id) => `[${id}](${id}.md)${porId.has(id) ? ` — ${tituloDe(id)}` : ""}`;
+
+  for (const n of nodes) {
+    const f = archivoDe(n.id);
+    const N = [];
+    N.push("---");
+    N.push(`id: ${n.id}`);
+    N.push(`nivel: ${n.nivel ?? "evolutiva"}`);
+    N.push(`dominio: [${(n.dominio ?? []).join(", ")}]`);
+    N.push("tipo: decision");
+    N.push("generado: true");
+    N.push(
+      `tags: [brain/decision, adr/${n.nivel ?? "evolutiva"}${(n.dominio ?? [])
+        .map((d) => `, dominio/${slug(d)}`)
+        .join("")}]`,
+    );
+    N.push("---");
+    N.push(MARCA);
+    N.push("");
+    N.push(`# ${n.id} — ${tituloDe(n.id)}`);
+    N.push("");
+    if (n.nivel === "fundacional") {
+      N.push("> 🏛️ **Fundacional** — de las que no se tocan sin Advisory + Challenger (ADR-045).");
+      N.push("");
+    }
+    N.push(
+      `**El razonamiento completo está en ${f ? `[\`docs/adr/${f}\`](../../docs/adr/${f})` : "`docs/adr/`"}** — ` +
+        "esta nota es solo el nodo del mapa (ADR-008: el *porqué* no se resume).",
+    );
+    N.push("");
+    if (n.dominio?.length) {
+      N.push(`**Dominio:** ${n.dominio.join(" · ")}`);
+      N.push("");
+    }
+    N.push(`## Depende de (${n.depends_on?.length ?? 0})`);
+    N.push("");
+    N.push(
+      n.depends_on?.length
+        ? n.depends_on.map((d) => `- ${ref(d)}`).join("\n")
+        : "_Ninguna: es raíz._",
+    );
+    N.push("");
+    N.push(`## Lo que se cae si esto cambia (${n.dependents?.length ?? 0})`);
+    N.push("");
+    N.push(
+      n.dependents?.length
+        ? n.dependents.map((d) => `- ${ref(d)}`).join("\n")
+        : "_Nada depende de esta decisión todavía._",
+    );
+    N.push("");
+    N.push("---");
+    N.push("");
+    N.push("[Índice de decisiones](000-INDICE.md) · [Guardarraíles](../20-lecciones/000-INDICE.md)");
+
+    cambio = emit(join("30-decisiones", `${n.id}.md`), N.join("\n")) || cambio;
+  }
 
   const L = [];
   L.push("---");
@@ -407,6 +497,42 @@ function buildDecisiones() {
   L.push("");
   for (const n of fundacionales) L.push(linea(n));
   L.push("");
+  // Diagrama del núcleo fundacional: se limita a las aristas entre fundacionales
+  // (incluir las 200+ del grafo entero da una madeja ilegible). Mermaid lo renderiza
+  // tanto GitHub como Obsidian → hay dibujo aunque no uses Obsidian.
+  const idsFund = new Set(fundacionales.map((n) => n.id));
+  const nAristas = fundacionales.reduce(
+    (acc, n) => acc + (n.depends_on ?? []).filter((d) => idsFund.has(d)).length,
+    0,
+  );
+  if (nAristas > 0) {
+    L.push("### El núcleo, dibujado");
+    L.push("");
+    L.push("```mermaid");
+    L.push("graph RL");
+    // Las etiquetas van entre comillas: una comilla en el título (ADR-060, ADR-069)
+    // rompe el parser de Mermaid y el diagrama no renderiza. Se escapan como entidad.
+    const etiqueta = (id) => {
+      const t = tituloDe(id);
+      const corto = t.length > 34 ? t.slice(0, 34).replace(/\s+\S*$/, "") + "…" : t;
+      return corto.replace(/"/g, "#quot;");
+    };
+    for (const n of fundacionales) {
+      L.push(`  ${n.id.replace("-", "")}["${n.id}<br/>${etiqueta(n.id)}"]`);
+    }
+    for (const n of fundacionales) {
+      for (const d of n.depends_on ?? []) {
+        if (idsFund.has(d)) L.push(`  ${n.id.replace("-", "")} --> ${d.replace("-", "")}`);
+      }
+    }
+    L.push("```");
+    L.push("");
+    L.push(
+      "_La flecha se lee **\"depende de\"**. Solo el núcleo fundacional: el grafo completo (87 nodos) " +
+        "se navega en Obsidian, donde podés filtrar por tag._",
+    );
+    L.push("");
+  }
   L.push("## Vistas por dominio");
   L.push("");
   L.push("_Solo los IDs: buscá el detalle en la lista completa de abajo (no se repite el título)._");
@@ -423,7 +549,7 @@ function buildDecisiones() {
   L.push("");
   L.push("Fuente: `docs/adr/graph.json` (`npm run adr:graph`) · Detalle: `docs/adr/INDEX.md`.");
 
-  return emit("30-decisiones/000-INDICE.md", L.join("\n"));
+  return emit("30-decisiones/000-INDICE.md", L.join("\n")) || cambio;
 }
 
 // --- utilidades ---------------------------------------------------------------

@@ -25,6 +25,10 @@ tags: [brain/leccion, leccion/dx]
 - **Guardarraíl:** el entregable **es la app real**; no mantener láminas paralelas; retirar el preview al servir el producto real.
 - **Refs:** ADR-028, `docs/PLAN-RECONVERSION-CLIENTES.md`.
 
+## Decisiones relacionadas
+
+- [ADR-028](../30-decisiones/ADR-028.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

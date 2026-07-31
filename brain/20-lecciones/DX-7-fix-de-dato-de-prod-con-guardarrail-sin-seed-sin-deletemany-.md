@@ -46,6 +46,11 @@ tags: [brain/leccion, leccion/dx]
 - **Refs:** ADR-018 (aislamiento `tenantId`), ADR-019 (provisioning aditivo/idempotente), DB-1 (seed
   destructivo), DX-5, DX-6; `docs/tenants/magra/provisioning-magra.md`.
 
+## Decisiones relacionadas
+
+- [ADR-018](../30-decisiones/ADR-018.md)
+- [ADR-019](../30-decisiones/ADR-019.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

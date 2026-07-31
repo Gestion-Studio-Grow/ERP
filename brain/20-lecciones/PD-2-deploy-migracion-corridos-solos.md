@@ -25,6 +25,11 @@ tags: [brain/leccion, leccion/pd]
 - **Guardarraíl:** **nunca** deploy ni `migrate deploy` sin OK explícito; lo irreversible se **eleva** (ADR-048/049).
 - **Refs:** ADR-048, ADR-049, `CLAUDE.md` → "Autorización y gates".
 
+## Decisiones relacionadas
+
+- [ADR-048](../30-decisiones/ADR-048.md)
+- [ADR-049](../30-decisiones/ADR-049.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

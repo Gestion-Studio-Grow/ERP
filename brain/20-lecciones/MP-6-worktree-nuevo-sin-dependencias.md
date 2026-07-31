@@ -25,6 +25,10 @@ tags: [brain/leccion, leccion/mp]
 - **Guardarraíl:** **`npm install` una vez por worktree**; no copiar `node_modules` ni depender de junctions para el build.
 - **Refs:** ADR-039; memoria worktree.
 
+## Decisiones relacionadas
+
+- [ADR-039](../30-decisiones/ADR-039.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

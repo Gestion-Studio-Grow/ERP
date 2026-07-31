@@ -16,11 +16,12 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/token-saving-brain-clients-5rur0j` |
-| HEAD | `7341ae2` (2026-07-31) |
-| Árbol | **4 archivo(s) sin commitear** |
+| HEAD | `f2e8670` (2026-07-31) |
+| Árbol | **123 archivo(s) sin commitear** |
 
 **Últimos commits**
 
+- f2e8670 · 2026-07-31 · feat(brain): abrir el cerebro desde el móvil + arreglar la semántica de brain:check
 - 7341ae2 · 2026-07-31 · feat(brain): segundo cerebro — vault de notas atómicas derivado del repo (Fase 0 a ~15% del costo)
 - d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
 - ee25ed2 · 2026-07-13 · fix(fiscal): endurecer lectura runtime de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
@@ -32,7 +33,6 @@ tags: [brain/estado, fase-0]
 - a6b96a5 · 2026-07-13 · Merge operador/reset-password — reset de contraseña del OWNER con revelado único + cambio forzado + modo masivo
 - 5a4dd41 · 2026-07-13 · feat(operador): modo "Resetear TODOS los OWNER (primer uso)" con tabla revelada una sola vez
 - ef5b81a · 2026-07-13 · feat(operador): reset de contraseña del OWNER con revelado único + cambio forzado
-- b276a28 · 2026-07-12 · docs(handoff): aclaración del dueño — NO hay core-redesign pendiente
 
 ## Migraciones (Prisma)
 
@@ -51,7 +51,7 @@ tags: [brain/estado, fase-0]
 | Fuente | Volumen |
 |---|---:|
 | Documentos en `docs/` | 297 |
-| Palabras en `docs/` | 425.827 |
+| Palabras en `docs/` | 425.865 |
 | ADRs | 81 |
 | Nodos en el grafo | 87 |
 

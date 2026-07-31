@@ -25,6 +25,11 @@ tags: [brain/leccion, leccion/mt]
 - **Guardarraíl:** toda query con predicado `tenantId` / `tenantTransaction`; RLS enforced en prod (Gate 2).
 - **Refs:** ADR-023, ADR-018.
 
+## Decisiones relacionadas
+
+- [ADR-018](../30-decisiones/ADR-018.md)
+- [ADR-023](../30-decisiones/ADR-023.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

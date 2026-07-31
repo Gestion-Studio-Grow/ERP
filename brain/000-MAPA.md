@@ -70,6 +70,29 @@ Fase 0 de `CLAUDE.md` arranca acá:
 
 ---
 
+## El grafo — qué vas a ver
+
+Cada decisión tiene su **nodo** en `30-decisiones/` con sus dependencias como enlaces reales, así que
+el grafo de Obsidian dibuja la arquitectura de verdad: 87 decisiones y quién depende de quién. Los
+nodos con muchas flechas entrando son los que **no se tocan sin Advisory + Challenger** (ADR-045) —
+se ven a simple vista.
+
+Las lecciones enlazan a los ADR que citan. Eso conecta los dos grupos y deja ver algo que en una lista
+no aparece: **qué decisión nos costó qué cicatriz**. Un ADR con varias lecciones colgando es una zona
+de riesgo, no una casualidad.
+
+**Filtros útiles** en la barra de búsqueda del grafo:
+
+| Escribí esto | Ves |
+|---|---|
+| `tag:#adr/fundacional` | solo el núcleo no negociable |
+| `tag:#dominio/seguridad` | el subsistema de seguridad y sus dependencias |
+| `tag:#brain/leccion` | el mapa de cicatrices |
+| `path:brain/` | el cerebro sin el ruido del resto del repo |
+
+Y si no tenés Obsidian a mano, el **núcleo fundacional está dibujado en Mermaid** dentro de
+[el índice de decisiones](30-decisiones/000-INDICE.md) — GitHub lo renderiza solo, también en el celular.
+
 ## Las dos zonas (regla dura)
 
 | Zona | Carpetas | Quién escribe | Qué pasa si escribís ahí |

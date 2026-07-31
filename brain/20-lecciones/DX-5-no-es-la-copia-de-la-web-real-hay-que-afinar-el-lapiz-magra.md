@@ -44,6 +44,12 @@ tags: [brain/leccion, leccion/dx]
 - **Refs:** ADR-042, ADR-043, ADR-053 (este caso = ejemplo canónico del ADR), `docs/metodologia/auditoria-sap-fiori.md`
   §Excepción réplica exacta, `docs/tenants/magra/provisioning-magra.md`.
 
+## Decisiones relacionadas
+
+- [ADR-042](../30-decisiones/ADR-042.md)
+- [ADR-043](../30-decisiones/ADR-043.md)
+- [ADR-053](../30-decisiones/ADR-053.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

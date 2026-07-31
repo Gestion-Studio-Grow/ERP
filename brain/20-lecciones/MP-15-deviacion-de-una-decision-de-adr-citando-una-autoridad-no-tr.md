@@ -36,6 +36,12 @@ tags: [brain/leccion, leccion/mp]
 - **Refs:** ADR-059 D3, ADR-008 (repo como memoria), ADR-047; retro `docs/retro/retro-sprint-grow-ar-pr2-2026-07-08.md`.
 ---
 
+## Decisiones relacionadas
+
+- [ADR-008](../30-decisiones/ADR-008.md)
+- [ADR-047](../30-decisiones/ADR-047.md)
+- [ADR-059](../30-decisiones/ADR-059.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

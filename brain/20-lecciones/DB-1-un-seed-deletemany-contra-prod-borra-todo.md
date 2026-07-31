@@ -25,6 +25,11 @@ tags: [brain/leccion, leccion/db]
 - **Guardarraíl:** **NUNCA seed contra prod**; `deleteMany` **siempre** con `where { tenantId }`; migraciones = **carpeta SIN aplicar** (Gate 2); **destructivo bloqueado** por config.
 - **Refs:** ADR-036, ADR-019, `CLAUDE.md` (gates).
 
+## Decisiones relacionadas
+
+- [ADR-019](../30-decisiones/ADR-019.md)
+- [ADR-036](../30-decisiones/ADR-036.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)

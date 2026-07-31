@@ -25,6 +25,11 @@ tags: [brain/leccion, leccion/db]
 - **Guardarraíl:** invariantes de unicidad/exclusión **en la BD** (constraint/serializable), no en la app.
 - **Refs:** ADR-004, ADR-023.
 
+## Decisiones relacionadas
+
+- [ADR-004](../30-decisiones/ADR-004.md)
+- [ADR-023](../30-decisiones/ADR-023.md)
+
 ---
 
 Fuente: [registro.md](../../docs/lecciones-aprendidas/registro.md) · Índice: [guardarraíles](000-INDICE.md) · Estado: [foto del repo](../10-estado/ESTADO.md)
