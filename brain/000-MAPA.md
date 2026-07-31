@@ -70,7 +70,12 @@ El arranque propuesto:
 2. **[Guardarraíles](20-lecciones/000-INDICE.md)** — una línea por lección. Abrís **solo la que
    aplica** al área que vas a tocar (ADR-052).
 3. **[Decisiones](30-decisiones/000-INDICE.md)** — una línea por ADR, con link al ADR real.
-4. Para una lista de lectura acotada por tema: `npm run adr:context -- <keywords>`.
+4. **[Gate](40-metodologia/GATE-CHECKLIST.md)** — el checklist tildable, copia literal de la fuente.
+   Índice de playbooks en [40-metodologia](40-metodologia/000-INDICE.md).
+5. **[Calibración](50-calibracion/000-INDICE.md)** — qué leer según tu rol (ADR-052), las bases y la
+   tabla de agentes derivada de `.claude/agents/`.
+6. **[Código ↔ decisión](30-decisiones/000-CODIGO.md)** — dónde se cita cada ADR en el código.
+7. Para una lista de lectura acotada por tema: `npm run adr:context -- <keywords>`.
 
 ---
 
@@ -101,7 +106,7 @@ Y si no tenés Obsidian a mano, el **núcleo fundacional está dibujado en Merma
 
 | Zona | Carpetas | Quién escribe | Qué pasa si escribís ahí |
 |---|---|---|---|
-| **Generada** | `10-estado/`, `20-lecciones/`, `30-decisiones/` | `npm run brain` | **Se pisa** en el próximo sync. Nunca escribas acá. |
+| **Generada** | `10-estado/`, `20-lecciones/`, `30-decisiones/`, `40-metodologia/`, `50-calibracion/` | `npm run brain` | **Se pisa** en el próximo sync. Nunca escribas acá. |
 | **Humana** | `90-notas/` | vos (o el agente, a pedido) | Se conserva. Captura rápida, ideas, pendientes. |
 
 Conocimiento que tiene que durar **no vive en el vault**: va a `docs/` (ADR, lección, playbook) y el

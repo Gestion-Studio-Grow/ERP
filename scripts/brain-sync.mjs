@@ -608,6 +608,8 @@ function buildDecisiones() {
   );
   L.push("> Para armar una lista de lectura acotada por tema: `npm run adr:context -- <keywords>`.");
   L.push("");
+  L.push("**¿Dónde vive esto en el código?** → [mapa código ↔ decisión](000-CODIGO.md).");
+  L.push("");
   L.push(`## 🏛️ Fundacionales (${fundacionales.length}) — lo no negociable`);
   L.push("");
   for (const n of fundacionales) L.push(linea(n));
@@ -667,7 +669,443 @@ function buildDecisiones() {
   L.push("");
   L.push("Fuente: `docs/adr/graph.json` (`npm run adr:graph`) · Detalle: `docs/adr/INDEX.md`.");
 
-  return emit("30-decisiones/000-INDICE.md", L.join("\n")) || cambio;
+  cambio = emit("30-decisiones/000-INDICE.md", L.join("\n")) || cambio;
+  return buildMapaCodigo(escanearCodigo(), nodes) || cambio;
+}
+
+// --- 4. MAPA CÓDIGO ↔ DECISIÓN -------------------------------------------------
+//
+// RFC-001 Etapa 2. Se deriva de las citas `ADR-NNN` que el código YA tiene: 287 de los
+// 577 archivos de `src/` citan al menos un ADR (83% en `src/modules/`), así que no es
+// un mapa vacío.
+//
+// LÍMITE DECLARADO, no disimulado: esto son **CITAS, no autoridad**. Que un archivo
+// cite un ADR no prueba que lo implemente, y que no lo cite no prueba lo contrario —
+// el caso testigo es `src/plugins/bancos/`, que implementa ADR-075 y cita nueve ADR
+// vecinos menos ese. Por eso el mapa se llama "citas", etiqueta la posición de cada
+// referencia (cabecera ≈ gobierna · inline ≈ mención) y MUESTRA SUS AGUJEROS. Un mapa
+// que aparenta completitud es peor que no tener mapa.
+
+const ZONAS_CODIGO = ["src", "prisma", "scripts"];
+const EXT_CODIGO = [".ts", ".tsx", ".js", ".mjs", ".mts", ".sql", ".prisma"];
+const LINEAS_CABECERA = 10;
+
+function escanearCodigo() {
+  const porAdr = new Map(); // ADR-NNN → [{ archivo, tipo }]
+  const archivos = ZONAS_CODIGO.flatMap((z) =>
+    EXT_CODIGO.flatMap((e) => walk(join(ROOT, z), e)),
+  );
+
+  for (const full of archivos) {
+    const rel = full.slice(ROOT.length + 1);
+    const lineas = readFileSync(full, "utf8").split("\n");
+    const vistos = new Map(); // ADR → tipo (gana "cabecera")
+    lineas.forEach((linea, i) => {
+      for (const m of linea.matchAll(/ADR-\d{3}/g)) {
+        const tipo = i < LINEAS_CABECERA ? "cabecera" : "inline";
+        if (vistos.get(m[0]) !== "cabecera") vistos.set(m[0], tipo);
+      }
+    });
+    for (const [adr, tipo] of vistos) {
+      porAdr.set(adr, [...(porAdr.get(adr) ?? []), { archivo: rel, tipo }]);
+    }
+  }
+
+  // Camino inverso: los ADR que citan rutas concretas del código.
+  const rutasPorAdr = new Map();
+  const dirAdr = join(ROOT, "docs/adr");
+  if (existsSync(dirAdr)) {
+    for (const f of readdirSync(dirAdr).filter((x) => /^ADR-\d+.*\.md$/.test(x))) {
+      const id = f.match(/^(ADR-\d+)/)[1];
+      const rutas = [
+        ...new Set(
+          (readFileSync(join(dirAdr, f), "utf8").match(/\b(?:src|prisma)\/[\w./[\]()-]+/g) ?? [])
+            .map((r) => r.replace(/[.,;)]+$/, "")),
+        ),
+      ];
+      if (rutas.length) rutasPorAdr.set(id, rutas);
+    }
+  }
+
+  return { porAdr, rutasPorAdr, totalArchivos: archivos.length };
+}
+
+function buildMapaCodigo(codigo, nodes) {
+  const { porAdr, rutasPorAdr, totalArchivos } = codigo;
+  const idsAdr = new Set(nodes.filter((n) => /^ADR-/.test(n.id)).map((n) => n.id));
+
+  // Los tres agujeros que el mapa tiene que mostrar en vez de tapar.
+  const huerfanas = [...porAdr.keys()].filter((a) => !idsAdr.has(a)).sort();
+  const sinVinculo = [...idsAdr].filter((a) => !porAdr.has(a) && !rutasPorAdr.has(a)).sort();
+  const conVinculo = [...idsAdr].filter((a) => porAdr.has(a) || rutasPorAdr.has(a));
+
+  const archivosConCita = new Set([...porAdr.values()].flat().map((v) => v.archivo)).size;
+
+  const L = [];
+  L.push("---");
+  L.push("tipo: indice");
+  L.push("generado: true");
+  L.push("tags: [brain/indice, brain/codigo]");
+  L.push("---");
+  L.push(MARCA);
+  L.push("");
+  L.push("# 🔗 Mapa código ↔ decisión");
+  L.push("");
+  L.push("> ⚠️ **Esto son CITAS, no autoridad.** Se deriva de las referencias `ADR-NNN` que el código");
+  L.push("> ya tiene escritas. Que un archivo cite un ADR **no prueba que lo implemente**, y que no lo");
+  L.push("> cite **no prueba lo contrario**: `src/plugins/bancos/` implementa ADR-075 y cita nueve ADR");
+  L.push("> vecinos menos ese. Usalo para orientarte rápido, no para concluir.");
+  L.push("");
+  L.push("**Cómo leer el tipo de vínculo:**");
+  L.push("");
+  L.push(
+    `- **cabecera** — la cita está en las primeras ${LINEAS_CABECERA} líneas del archivo. Por convención de facto del repo, eso suele declarar la decisión que lo gobierna.`,
+  );
+  L.push("- **inline** — la cita está en el cuerpo: casi siempre justifica una línea puntual.");
+  L.push("- **el ADR cita la ruta** — camino inverso: la decisión nombra el archivo.");
+  L.push("");
+  L.push("## Cobertura");
+  L.push("");
+  L.push("| Métrica | Valor |");
+  L.push("|---|---:|");
+  // Desglosado por zona a propósito: mezclarlas infla la señal. Que un script de
+  // mantenimiento nombre un ADR no es lo mismo que el core de dominio citándolo.
+  for (const z of ZONAS_CODIGO) {
+    const de = [...porAdr.values()].flat().filter((v) => v.archivo.startsWith(z + "/"));
+    const arch = new Set(de.map((v) => v.archivo)).size;
+    const tot = EXT_CODIGO.flatMap((e) => walk(join(ROOT, z), e)).length;
+    L.push(`| Archivos de \`${z}/\` que citan un ADR | ${arch} de ${tot} |`);
+  }
+  L.push(`| Archivos escaneados en total | ${totalArchivos} |`);
+  L.push(`| Archivos que citan algún ADR | ${archivosConCita} |`);
+  L.push(`| ADR con vínculo (cita desde código **o** ruta citada por el ADR) | ${conVinculo.length} de ${idsAdr.size} |`);
+  L.push("");
+  L.push("## 🕳️ Los agujeros (a la vista, no tapados)");
+  L.push("");
+  if (huerfanas.length) {
+    L.push(
+      `- **Citas a ADR que no existen como documento:** ${huerfanas.join(", ")}. El código invoca una decisión que no está escrita — o el ADR falta, o la cita quedó mal.`,
+    );
+  }
+  L.push(
+    `- **${sinVinculo.length} ADR sin ningún vínculo al código.** Muchos son de proceso o negocio y ahí es correcto (N/A); los técnicos que aparezcan acá merecen una mirada: ${sinVinculo.join(", ") || "—"}`,
+  );
+  L.push(
+    "- **Un directorio puede no citar su propio ADR** (caso `bancos`/ADR-075). La ausencia en este mapa no es evidencia de nada.",
+  );
+  L.push("");
+  L.push("## Dónde se cita cada decisión");
+  L.push("");
+  for (const id of [...idsAdr].sort()) {
+    const refs = porAdr.get(id) ?? [];
+    const rutas = rutasPorAdr.get(id) ?? [];
+    if (!refs.length && !rutas.length) continue;
+    const cab = refs.filter((r) => r.tipo === "cabecera");
+    const inl = refs.filter((r) => r.tipo === "inline");
+    L.push(`### [${id}](${id}.md)`);
+    L.push("");
+    if (cab.length) L.push(`- **cabecera (${cab.length}):** ${cab.slice(0, 8).map((r) => `\`${r.archivo}\``).join(" · ")}${cab.length > 8 ? ` … y ${cab.length - 8} más` : ""}`);
+    if (inl.length) L.push(`- **inline (${inl.length}):** ${inl.slice(0, 5).map((r) => `\`${r.archivo}\``).join(" · ")}${inl.length > 5 ? ` … y ${inl.length - 5} más` : ""}`);
+    if (rutas.length) L.push(`- **el ADR cita:** ${rutas.slice(0, 5).map((r) => `\`${r}\``).join(" · ")}`);
+    L.push("");
+  }
+  L.push("---");
+  L.push("");
+  L.push("Derivado de `src/`, `prisma/` y `scripts/` por `npm run brain`. Índice: [decisiones](000-INDICE.md).");
+
+  return emit("30-decisiones/000-CODIGO.md", L.join("\n"));
+}
+
+// --- 5. METODOLOGÍA — el Gate y los playbooks que se pagan en CADA push --------
+
+/** Bloque de apertura de un doc: del H1 hasta el primer `---` o `##`. Ahí vive el lead. */
+function bloqueApertura(texto) {
+  const lineas = texto.split("\n");
+  const iH1 = lineas.findIndex((l) => /^# /.test(l));
+  if (iH1 < 0) return { titulo: null, bloque: [] };
+  const resto = lineas.slice(iH1 + 1);
+  const fin = resto.findIndex((l) => /^---\s*$/.test(l) || /^## /.test(l));
+  return { titulo: lineas[iH1].replace(/^#\s*/, "").trim(), bloque: fin < 0 ? resto : resto.slice(0, fin) };
+}
+
+/** Lead de un doc: cadena de patrones reales del repo; si ninguno matchea, NO se inventa. */
+function leerLead(bloque) {
+  const patrones = [
+    /^\s*>?\s*\*\*Qué es:\*\*\s*(.+)$/,
+    /^\s*>?\s*\*\*Para qué:\*\*\s*(.+)$/,
+    /^\s*>?\s*\*\*Regla dura:\*\*\s*(.+)$/,
+    /^\s*>?\s*\*\*Rubro \(texto libre\):\*\*\s*(.+)$/,
+  ];
+  for (let i = 0; i < bloque.length; i++) {
+    for (const p of patrones) {
+      const m = bloque[i].match(p);
+      if (!m) continue;
+      // Los leads vienen envueltos a ~100 columnas: sin juntar la continuación se corta
+      // la frase al medio (misma lección que el parser de guardarraíles).
+      let txt = m[1];
+      for (let j = i + 1; j < bloque.length && bloque[j].trim(); j++) {
+        txt += " " + bloque[j].replace(/^\s*>?\s*/, "").trim();
+      }
+      return txt.replace(/\*\*/g, "").trim();
+    }
+  }
+  return null;
+}
+
+/** Rebana una sección literal entre dos anclas. Verbatim: rebanar no es resumir. */
+function rebanar(texto, desde, hasta) {
+  const lineas = texto.split("\n");
+  const i = lineas.findIndex((l) => desde.test(l));
+  if (i < 0) return null;
+  const resto = lineas.slice(i + 1);
+  const f = resto.findIndex((l) => hasta.test(l));
+  return [lineas[i], ...(f < 0 ? resto : resto.slice(0, f))];
+}
+
+function buildMetodologia() {
+  limpiarZonaGenerada(join(BRAIN, "40-metodologia"));
+
+  const dir = join(ROOT, "docs/metodologia");
+  const docs = [
+    ...(existsSync(dir) ? walk(dir, ".md") : []),
+    join(ROOT, "docs/METODOLOGIA-SPRINT.md"),
+  ].filter((f) => existsSync(f) && !basename(f).startsWith("_"));
+  if (!docs.length) abortar("no encontré playbooks en docs/metodologia/", "¿se movió la carpeta?");
+
+  const fichas = docs.map((full) => {
+    const texto = readFileSync(full, "utf8");
+    const { titulo, bloque } = bloqueApertura(texto);
+    if (!titulo) abortar(`${full.slice(ROOT.length + 1)} no tiene H1`, "todo playbook arranca con `# Título`");
+    return {
+      rel: full.slice(ROOT.length + 1),
+      titulo,
+      lead: leerLead(bloque),
+      // Los playbooks que la norma marca obligatorios lo dicen en su propio encabezado.
+      obligatorio: /OBLIGATORI[OA]|PASO OBLIGATORIO/.test([titulo, ...bloque].join(" ")),
+      caso: /registro-casos\//.test(full),
+    };
+  });
+
+  const linea = (f) => {
+    const desde = join(BRAIN, "40-metodologia");
+    const rel = "../../" + f.rel;
+    const t = f.titulo.replace(/^[🔎🏷️🎬🤖🧭📓]\s*/u, "");
+    return `- ${f.obligatorio ? "🔒 " : ""}**[${t}](${rel})**${f.lead ? ` — ${resumir(f.lead)}` : ""}`;
+  };
+
+  const L = ["---", "tipo: indice", "generado: true", "tags: [brain/indice, brain/metodologia]", "---", MARCA, ""];
+  L.push("# 🧰 Metodología — índice de playbooks y del Gate");
+  L.push("");
+  L.push("> Recetas probadas del repo. **Antes de reinventar un flujo, fijate si ya hay una.** Esto es el");
+  L.push("> índice: cada línea enlaza al playbook completo, que es donde está el método y su porqué.");
+  L.push("> 🔒 = la norma lo marca obligatorio.");
+  L.push("");
+  L.push("**El checklist del Gate, tildable:** [GATE-CHECKLIST.md](GATE-CHECKLIST.md) — copia literal de la fuente.");
+  L.push("");
+  L.push("## Playbooks");
+  L.push("");
+  for (const f of fichas.filter((x) => !x.caso)) L.push(linea(f));
+  L.push("");
+  const casos = fichas.filter((x) => x.caso);
+  if (casos.length) {
+    L.push(`## Registro de casos (${casos.length}) — entrenamiento de la célula de extracción`);
+    L.push("");
+    for (const f of casos) L.push(linea(f));
+    L.push("");
+  }
+  L.push("---");
+  L.push("");
+  L.push("Derivado de `docs/metodologia/` + `docs/METODOLOGIA-SPRINT.md` por `npm run brain`.");
+  let cambio = emit("40-metodologia/000-INDICE.md", L.join("\n"));
+
+  // --- El checklist, rebanado literal de sus dos fuentes canónicas.
+  const sprint = readFileSync(join(ROOT, "docs/METODOLOGIA-SPRINT.md"), "utf8");
+  const gate = rebanar(sprint, /^## .*GATE DE EXCELENCIA/i, /^## /);
+  if (!gate) abortar("no encontré la sección del Gate en docs/METODOLOGIA-SPRINT.md", "¿cambió el encabezado?");
+  const bloques = gate.filter((l) => /^\*\*[1-4]\./.test(l)).length;
+  if (bloques !== 4) {
+    abortar(`el Gate debería tener 4 bloques y encontré ${bloques}`, "revisá docs/METODOLOGIA-SPRINT.md");
+  }
+
+  const sap = join(ROOT, "docs/metodologia/auditoria-sap-fiori.md");
+  const argentino = existsSync(sap) ? rebanar(readFileSync(sap, "utf8"), /^###?\s*8\./, /^---\s*$/) : null;
+
+  const G = ["---", "tipo: checklist", "generado: true", "tags: [brain/gate, brain/metodologia]", "---", MARCA, ""];
+  G.push("# 🛡️ Gate de Excelencia — el checklist para tildar");
+  G.push("");
+  G.push("> **Copia literal, no resumen.** Se rebana de las fuentes canónicas en cada `npm run brain`, así");
+  G.push("> que no puede divergir de ellas. **Ante cualquier duda manda la fuente**, citada en cada bloque.");
+  G.push("> Sirve para no pagar 45 KB de lectura en cada push solo para llegar a los ítems.");
+  G.push("");
+  G.push("_Fuente: `docs/METODOLOGIA-SPRINT.md` → GATE DE EXCELENCIA_");
+  G.push("");
+  G.push(...gate);
+  if (argentino) {
+    G.push("");
+    G.push("---");
+    G.push("");
+    G.push("_Fuente: `docs/metodologia/auditoria-sap-fiori.md` §8_");
+    G.push("");
+    G.push(...argentino);
+  }
+  G.push("");
+  G.push("---");
+  G.push("");
+  G.push("> ⚠️ **Divergencia conocida en las fuentes:** `CLAUDE.md` define el bloque 1 como *7 ángulos +");
+  G.push("> ángulo argentino*, pero la versión corta del checklist trae solo los 7 —el argentino vive");
+  G.push("> aparte, en §8—. Esta nota **ensambla las dos fuentes** para que no se te escape, pero el");
+  G.push("> arreglo va en las fuentes (consolidación), no acá.");
+
+  return emit("40-metodologia/GATE-CHECKLIST.md", G.join("\n")) || cambio;
+}
+
+// --- 6. CALIBRACIÓN — el corpus que ADR-052 obliga a leer a TODO agente --------
+
+function buildCalibracion() {
+  limpiarZonaGenerada(join(BRAIN, "50-calibracion"));
+  let cambio = false;
+
+  // --- Roster derivado de .claude/agents/. La tabla manual del roster ya driftea
+  // (dice 7 charters materializados; hay 25) — por eso se deriva, no se copia.
+  const dirAg = join(ROOT, ".claude/agents");
+  const agentes = existsSync(dirAg)
+    ? readdirSync(dirAg)
+        .filter((f) => f.endsWith(".md"))
+        .map((f) => {
+          const txt = readFileSync(join(dirAg, f), "utf8");
+          const campo = (k) => (txt.match(new RegExp(`^${k}:\\s*(.+)$`, "m")) ?? [])[1]?.trim() ?? null;
+          // El modelo NO está en el frontmatter de ningún agente; la única declaración
+          // es prosa en el H1 ("· capa Opus SIEMPRE"). Se extrae de ahí y se marca.
+          const capa = (txt.match(/^#\s.*·\s*capa\s+(.+)$/m) ?? [])[1]?.trim() ?? null;
+          return { archivo: f, name: campo("name") ?? f.replace(/\.md$/, ""), desc: campo("description"), tools: campo("tools"), capa, declaraModelo: /^model:/m.test(txt) };
+        })
+    : [];
+
+  if (agentes.length) {
+    const sinModelo = agentes.filter((a) => !a.declaraModelo).length;
+    const A = ["---", "tipo: roster", "generado: true", "tags: [brain/calibracion, brain/roster]", "---", MARCA, ""];
+    A.push("# 👥 Agentes materializados — derivado de `.claude/agents/`");
+    A.push("");
+    A.push(`> ${agentes.length} agentes con charter real. Esta tabla **se deriva de los archivos**, no se`);
+    A.push("> mantiene a mano: el roster narrado (`docs/organizacion/roster-completo-gsg.md`) quedó viejo");
+    A.push("> respecto del repo, que es la enfermedad que el vault existe para curar.");
+    A.push("");
+    if (sinModelo) {
+      A.push(`> 🚨 **${sinModelo} de ${agentes.length} agentes NO declaran \`model:\` en su frontmatter.**`);
+      A.push("> La capa que ves abajo es **prosa del encabezado**, no una instrucción que el harness honre:");
+      A.push("> al despachar, el subagente **hereda el modelo del padre**. Es la causa exacta de la lección");
+      A.push("> **MP-4** (Opus por herencia) y **MP-9** (modelo mal etiquetado), y deja sin red la regla de");
+      A.push("> `CLAUDE.md` §3 de que el Gate **nunca** se degrada de modelo. **Se eleva al dueño.**");
+      A.push("");
+    }
+    A.push("| Agente | Capa declarada (prosa) | `model:` | Qué hace |");
+    A.push("|---|---|:---:|---|");
+    for (const a of agentes.sort((x, y) => x.name.localeCompare(y.name))) {
+      A.push(
+        `| [${a.name}](../../.claude/agents/${a.archivo}) | ${a.capa ?? "_sin declarar_"} | ${a.declaraModelo ? "✅" : "❌"} | ${resumir(a.desc ?? "", 120)} |`,
+      );
+    }
+    A.push("");
+    A.push("---");
+    A.push("");
+    A.push("Derivado de `.claude/agents/` por `npm run brain`. Organigrama y células propuestas:");
+    A.push("[roster-completo-gsg.md](../../docs/organizacion/roster-completo-gsg.md).");
+    cambio = emit("50-calibracion/AGENTES.md", A.join("\n")) || cambio;
+  }
+
+  // --- Bases: una nota por sección, con su regla núcleo citada verbatim.
+  const bases = join(ROOT, "docs/fundamentos/bases-gsg.md");
+  const secciones = [];
+  if (existsSync(bases)) {
+    const lineas = readFileSync(bases, "utf8").split("\n");
+    let actual = null;
+    for (const l of lineas) {
+      const m = l.match(/^##\s+(\d+)\.\s+(.+)$/);
+      if (m) {
+        if (actual) secciones.push(actual);
+        actual = { n: m[1], titulo: m[2].trim(), cuerpo: [] };
+      } else if (actual) actual.cuerpo.push(l);
+    }
+    if (actual) secciones.push(actual);
+  }
+
+  for (const s of secciones) {
+    const cita = s.cuerpo.filter((l) => /^>\s*\S/.test(l));
+    const B = ["---", `seccion: ${s.n}`, "tipo: base", "generado: true", "tags: [brain/calibracion, brain/bases]", "---", MARCA, ""];
+    B.push(`# Bases GSG §${s.n} — ${s.titulo}`);
+    B.push("");
+    if (cita.length) {
+      B.push("**La regla, en las palabras de la fuente:**");
+      B.push("");
+      B.push(...cita.slice(0, 12));
+      B.push("");
+    }
+    B.push(
+      `**Texto completo:** [\`docs/fundamentos/bases-gsg.md\` §${s.n}](../../docs/fundamentos/bases-gsg.md) — esta nota es el nodo del mapa, no la base.`,
+    );
+    B.push("");
+    B.push("---");
+    B.push("");
+    B.push("[Índice de calibración](000-INDICE.md)");
+    cambio = emit(`50-calibracion/BASES-${s.n}-${slug(s.titulo)}.md`, B.join("\n")) || cambio;
+  }
+
+  // --- Índice: los pasos de ADR-052 + a dónde ir por tipo de rol.
+  const I = ["---", "tipo: indice", "generado: true", "tags: [brain/indice, brain/calibracion]", "---", MARCA, ""];
+  I.push("# 🎓 Calibración — qué leer antes de actuar (ADR-052)");
+  I.push("");
+  I.push("> **Ningún agente empieza a operar sin calibrarse.** Este índice te dice *qué* leer para que no");
+  I.push("> tengas que leer los cuatro documentos de gobernanza solo para averiguarlo.");
+  I.push("");
+  I.push("## Los tres pasos (ADR-052)");
+  I.push("");
+  I.push("1. **Leer el corpus de tu rol** — abajo, por tipo de rol.");
+  I.push("2. **Escribir 3-5 bullets** con los principios que van a guiar tus decisiones, declarando tu");
+  I.push("   **zona de de-sesgo** (ADR-046: humano/criollo para copy y venta · estándar/preciso para");
+  I.push("   código, fiscal e infra). **Sin este paso la calibración no cuenta**, por más que hayas leído.");
+  I.push("3. **Recién entonces actuar.**");
+  I.push("");
+  I.push("## Base para todos");
+  I.push("");
+  I.push("- `CLAUDE.md` — modelo de trabajo, Gate, gates de deploy/DB, ciclo DEMO→VENTA→INVERSIÓN");
+  I.push("- [Guardarraíles de tu área](../20-lecciones/000-INDICE.md) — abrí solo tus categorías");
+  I.push("- [Estado del repo](../10-estado/ESTADO.md) — la foto derivada (Fase 0)");
+  I.push("");
+  I.push("## Por tipo de rol");
+  I.push("");
+  I.push("| Si sos… | Sumá a la base |");
+  I.push("|---|---|");
+  I.push("| **Gobernanza** (PMO · Arquitecto · Advisory · Challenger) | ADR-032/039/045/048/049/050/051 · `factory-reforzada.md` · `asignacion-modelos-sprint.md` |");
+  I.push("| **Core de Pagos/Fiscal** | ADR-022/024/025 |");
+  I.push("| **Core de Plataforma** | ADR-001/015/018/023/029 |");
+  I.push("| **Core de Diseño** | ADR-009/043/044 |");
+  I.push("| **Core de Inventario** | ADR-002/036 |");
+  I.push("| **Seguridad** | ADR-018/041 + lecciones `SEC-*` |");
+  I.push("| **Data / DBA** | ADR-018/019/023 + lecciones `DB-*` |");
+  I.push("| **Preset IA** | ADR-034/033/042/044 · `generador-preset-ia.md` |");
+  I.push("| **QA / Probador** | [Gate](../40-metodologia/GATE-CHECKLIST.md) + lecciones de defectos |");
+  I.push("| **Agencia** (Digital/Grow/Growth/Pricing) | charter del sector + análisis de mercado + ADR-027/044 |");
+  I.push("");
+  I.push("_Los ADR se abren desde [el índice de decisiones](../30-decisiones/000-INDICE.md)._");
+  I.push("");
+  if (secciones.length) {
+    I.push(`## Las bases (${secciones.length} secciones)`);
+    I.push("");
+    for (const s of secciones) I.push(`- [§${s.n} — ${s.titulo}](BASES-${s.n}-${slug(s.titulo)}.md)`);
+    I.push("");
+  }
+  I.push("## Quién es quién");
+  I.push("");
+  I.push("- [Agentes materializados](AGENTES.md) — tabla derivada de `.claude/agents/`");
+  I.push("- [Roster completo](../../docs/organizacion/roster-completo-gsg.md) — organigrama y células propuestas");
+  I.push("");
+  I.push("---");
+  I.push("");
+  I.push("> **Nota de fidelidad:** ADR-052 no incluye `bases-gsg.md` ni ADR-046 en su lista mínima, aunque");
+  I.push("> `CLAUDE.md` los trata como base y el paso 2 exige declarar la zona de de-sesgo de ADR-046. Acá");
+  I.push("> se enlazan igual —apuntar no es normar—, pero el texto del ADR merece un fix por la retro.");
+
+  return emit("50-calibracion/000-INDICE.md", I.join("\n")) || cambio;
 }
 
 // --- utilidades ---------------------------------------------------------------
@@ -723,6 +1161,8 @@ let desactualizado = false;
 desactualizado = buildEstado() || desactualizado;
 desactualizado = buildLecciones(lecciones) || desactualizado;
 desactualizado = buildDecisiones() || desactualizado;
+desactualizado = buildMetodologia() || desactualizado;
+desactualizado = buildCalibracion() || desactualizado;
 
 if (CHECK) {
   // Comparar solo CONTENIDO dejaba dos agujeros: un archivo intruso en la zona

@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-07-31 22:02 UTC
+generado_el: 2026-07-31 22:11 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-07-31 22:02 UTC sobre `84f4126`.**
+> ⏱️ **Foto tomada el 2026-07-31 22:11 UTC sobre `27586ed`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,14 +19,15 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/token-saving-brain-clients-5rur0j` |
-| HEAD | `84f4126` (2026-07-31) |
-| Árbol | **3 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| HEAD | `27586ed` (2026-07-31) |
+| Árbol | **1 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor |
 
 **Ramas locales (2, más reciente primero):** `claude/token-saving-brain-clients-5rur0j` · `main`
 
 **Últimos commits**
 
+- 27586ed · 2026-07-31 · fix(brain): pasada de excelencia — 10 defectos encontrados por auditoría de 3 frentes
 - 84f4126 · 2026-07-31 · feat(brain): el grafo de verdad — un nodo por decisión, dependencias como enlaces reales
 - f2e8670 · 2026-07-31 · feat(brain): abrir el cerebro desde el móvil + arreglar la semántica de brain:check
 - 7341ae2 · 2026-07-31 · feat(brain): segundo cerebro — vault de notas atómicas derivado del repo (Fase 0 a ~15% del costo)
@@ -38,7 +39,6 @@ tags: [brain/estado, fase-0]
 - c14f2c7 · 2026-07-13 · feat(shine): edición de densidad del front — el producto y el precio, primero
 - eb60f0c · 2026-07-13 · ci(gates): destrabar la señal — vallas en jobs separados; visual/visual-aa BLOQUEANTES
 - a6b96a5 · 2026-07-13 · Merge operador/reset-password — reset de contraseña del OWNER con revelado único + cambio forzado + modo masivo
-- 5a4dd41 · 2026-07-13 · feat(operador): modo "Resetear TODOS los OWNER (primer uso)" con tabla revelada una sola vez
 
 ## Migraciones (Prisma)
 

@@ -11,6 +11,8 @@ tags: [brain/indice, brain/decisiones]
 > en `docs/adr/ADR-NNN-*.md` y **no se resume** (ADR-008: el *porqué* es lo que evita rediscutir).
 > Para armar una lista de lectura acotada por tema: `npm run adr:context -- <keywords>`.
 
+**¿Dónde vive esto en el código?** → [mapa código ↔ decisión](000-CODIGO.md).
+
 ## 🏛️ Fundacionales (20) — lo no negociable
 
 - **[ADR-001](ADR-001.md)** 🏛️ — Estrategia de Aislamiento Multi-Tenant _(19 dependientes)_ · [fuente ADR-001](../../docs/adr/ADR-001-multi-tenant-strategy.md)
