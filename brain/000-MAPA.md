@@ -35,10 +35,28 @@ convierte eso en: **una foto derivada de 3 KB + el índice de la lección que ap
 
 ### Vos, en Obsidian
 Abrí **la raíz del repo** como vault (no solo `brain/`) — así navegás el mapa *y* saltás al documento
-real de `docs/` con un click. Graph view y backlinks funcionan sobre los enlaces markdown de siempre;
-no hace falta ningún plugin ni sintaxis rara, y todo sigue leyéndose bien en GitHub.
+real de `docs/` con un click. Si abrís solo `brain/`, los enlaces a `docs/` quedan fuera del vault y
+no resuelven. Graph view y backlinks funcionan sobre enlaces markdown de siempre; no hace falta
+ningún plugin ni sintaxis rara, y todo sigue leyéndose bien en GitHub.
 
-En el celular: Obsidian mobile + git = el cerebro en el bolsillo, sin servidor ni suscripción.
+La config del vault está versionada en `.obsidian/app.json`: ignora `node_modules/` y `.next/` (si no,
+el grafo es ilegible), y manda **toda nota nueva a `brain/90-notas/`** — así una captura rápida desde
+el celular nunca cae en la zona generada, que se pisa en el próximo sync.
+
+### Desde el celular
+El repo pesa ~57 MB (34 de árbol + 23 de historia): entra sin drama en un teléfono.
+
+- **Solo leer, cero setup:** abrí este archivo en la app de GitHub. Los enlaces son markdown estándar,
+  así que navegás el mapa igual — sin grafo, pero sin instalar nada.
+- **Android:** Obsidian (gratis) + plugin de comunidad **Obsidian Git** → clonás el repo y sincronizás
+  con un botón. La config de arriba viaja en el clone: se abre ya configurado.
+- **iOS:** **Working Copy** (cliente git) para clonar, y desde Obsidian abrís esa carpeta como vault.
+  Es el camino estándar en iPhone porque iOS no deja que Obsidian hable git por sí solo.
+- **Sin git:** Obsidian Sync (pago) o poner el vault en iCloud/Drive. Anda, pero perdés el historial y
+  se desincroniza de lo que hacen las sesiones — no lo recomiendo para este vault.
+
+**Regla en el celular:** capturá en `brain/90-notas/` y sincronizá. Lo que tenga que durar se muda
+después a `docs/` desde una sesión, no a mano desde el teléfono.
 
 ### Los agentes, en cada sesión
 Fase 0 de `CLAUDE.md` arranca acá:

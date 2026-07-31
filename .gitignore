@@ -60,3 +60,11 @@ celula-negocios-digitales/panel/*.pdf
 
 # Screenshots del gate visual (artefactos, no se commitean)
 qa-shots/
+
+# Obsidian: la config del vault SÍ se versiona (.obsidian/app.json) para que el
+# cerebro se abra igual en desktop y móvil. Lo que NO se versiona es el estado de
+# UI por dispositivo (qué panel tenías abierto), que genera ruido en cada commit.
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.obsidian/plugins/*/data.json

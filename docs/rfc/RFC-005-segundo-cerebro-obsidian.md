@@ -141,7 +141,10 @@ que es donde está el 86%.
 
 1. **Adoptar el vault y `/brain` como Fase 0 por defecto** de toda sesión, dejando la lectura de
    `ESTADO-ACTUAL.md` para cuando se necesite el detalle narrativo (handoffs, historia de un tenant).
-2. **Sumar `npm run brain:check` al Gate** — barato y evita que el mapa envejezca.
+2. **Sumar `npm run brain:check` al Gate** — barato y evita que el mapa envejezca. El check valida solo
+   lo derivado de material **ya commiteado** (lecciones, decisiones); la foto de estado es volátil por
+   naturaleza (árbol sucio, último commit) y se saltea, para que no falle en toda sesión con trabajo
+   en curso.
 3. **Atar la retro (ADR-047) al vault:** la lección se sigue escribiendo en `registro.md` (fuente); el
    sync la atomiza sola. Cero trabajo extra por sprint.
 4. **Pendiente propuesto, NO ejecutado en este RFC:** poner a dieta `CLAUDE.md` (23 KB × cada arranque

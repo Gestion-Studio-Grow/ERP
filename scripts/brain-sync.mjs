@@ -55,8 +55,17 @@ const slug = (s) =>
     .replace(/^-|-$/g, "")
     .slice(0, 60);
 
-/** Escribe si cambió. En --check solo marca la diferencia. */
-function emit(relPath, body) {
+/**
+ * Escribe si cambió. En --check solo marca la diferencia.
+ *
+ * `volatil: true` = la nota es una foto del AHORA (árbol sucio, últimos commits) y por
+ * definición queda vieja apenas tocás un archivo. Chequear su frescura no significa nada
+ * y haría fallar el Gate en toda sesión con trabajo en curso: en --check se saltea.
+ * Lo que sí tiene sentido chequear es lo derivado de material YA COMMITEADO (lecciones,
+ * decisiones): si eso quedó viejo, el mapa contradice al territorio.
+ */
+function emit(relPath, body, { volatil = false } = {}) {
+  if (CHECK && volatil) return false;
   const full = join(BRAIN, relPath);
   const content = body.endsWith("\n") ? body : body + "\n";
   const prev = existsSync(full) ? readFileSync(full, "utf8") : null;
@@ -199,7 +208,7 @@ function buildEstado() {
       "**Guardarraíles:** [índice](../20-lecciones/000-INDICE.md)",
   );
 
-  return emit("10-estado/ESTADO.md", L.join("\n"));
+  return emit("10-estado/ESTADO.md", L.join("\n"), { volatil: true });
 }
 
 // --- 2. LECCIONES — 38 casos en un doc de 38 KB → 38 notas atómicas ------------
