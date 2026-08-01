@@ -153,6 +153,44 @@ que es donde está el 86%.
 
 ---
 
+## 6-bis. Cómo se activa (el parche exacto, para aprobar o rechazar)
+
+El vault **no se activa solo**: no hay proceso corriendo. Hay tres niveles, y el salto de cada uno es
+una decisión distinta:
+
+| Nivel | Qué hace falta | Efecto | Quién decide |
+|---|---|---|---|
+| **0 — hoy** | nada | solo sirve en la rama donde vive | — |
+| **1 — disponible** | mergear la rama a `main` | todo worktree lo tiene; cada sesión lo usa **si tipea `/brain`** | dueño (merge) |
+| **2 — por defecto** | 3 líneas en `CLAUDE.md` | **toda** sesión lo usa sin acordarse | **dueño (este RFC)** |
+
+**Nota operativa:** `scripts/brain-sync.mjs` no tiene dependencias — corre con `node` puro aunque el
+worktree no tenga `node_modules` (lección MP-6). No hay nada que instalar en cada frente.
+
+### El parche del Nivel 2, textual
+
+En `CLAUDE.md`, sección *"Arranque de sesión — OBLIGATORIO SIEMPRE"*, agregar como **primer** ítem de
+la lista de lo que hay que revisar:
+
+```markdown
+- **🧠 `npm run brain` y después `brain/000-MAPA.md`** — el mapa derivado del repo (estado, guardarraíles,
+  decisiones, Gate, calibración). Es el camino **barato** para la foto: ~12 KB en vez de ~82 KB. Lo que el
+  mapa NO deriva (tenants, gates abiertos, bugs conocidos) sigue estando en `ESTADO-ACTUAL.md`, y el mapa
+  te dice a qué sección ir. **Ante conflicto entre el mapa y esta norma, gana esta norma.**
+```
+
+**Lo que ese parche NO hace, a propósito:** no deroga ni debilita ningún ítem de la Fase 0. El vault
+*abarata* la lectura; los cuatro ítems no derivables siguen siendo obligatorios y `/brain` los enumera
+explícitamente (declarar modelo · escribir los principios de ADR-052 · Fase 0 sectorial · estado no
+derivable). Si el dueño rechaza el Nivel 2, el vault sigue funcionando en Nivel 1 sin tocar la norma.
+
+### Complemento opcional (barato, independiente)
+
+Sumar `npm run brain:check` a las vallas del Gate: cuesta milisegundos y evita que el mapa envejezca
+sin que nadie lo note. Ver §6.2 para el detalle de qué valida y qué saltea.
+
+---
+
 ## 7. Deuda conocida (auditada, no cerrada) — para el próximo tramo
 
 El vault pasó una auditoría de tres frentes (robustez del generador · cobertura · SAP Fiori +
