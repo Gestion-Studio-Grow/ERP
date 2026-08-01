@@ -90,6 +90,22 @@ Las lecciones enlazan a los ADR que citan. Eso conecta los dos grupos y deja ver
 no aparece: **qué decisión nos costó qué cicatriz**. Un ADR con varias lecciones colgando es una zona
 de riesgo, no una casualidad.
 
+**Los colores vienen configurados** (`.obsidian/graph.json`, versionado — se abre así en cualquier
+dispositivo):
+
+| Color | Qué es |
+|---|---|
+| 🟡 ámbar | decisiones **fundacionales** — el núcleo que no se toca sin Advisory + Challenger |
+| 🔵 azul | el resto de las decisiones |
+| 🔴 rojo | **lecciones** — las cicatrices |
+| 🟢 verde | metodología y el Gate |
+| 🟣 violeta | calibración y bases |
+| ⚪ gris | `docs/` — el territorio al que todo apunta |
+
+Con eso el grafo se lee de un vistazo: **el núcleo ámbar en el medio**, el rojo colgando de las
+decisiones que costaron caro, y el gris alrededor como la masa de documentos que el mapa te evita
+leer. Están apagados los nodos huérfanos y los enlaces sin resolver, que son puro ruido.
+
 **Filtros útiles** en la barra de búsqueda del grafo:
 
 | Escribí esto | Ves |
