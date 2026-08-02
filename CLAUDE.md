@@ -6,6 +6,11 @@
 gestión correcta del proyecto.** Es obligatorio siempre, en Claude Code (desktop) y en Dispatch
 (móvil), se use o no el comando `sprint`. Antes de tocar nada, revisá como mínimo:
 
+- **🧠 `npm run brain` y después `brain/000-MAPA.md`** — el mapa DERIVADO del repo (estado, guardarraíles,
+  decisiones, Gate, calibración). Es el camino **barato** para la foto: ~12 KB en vez de ~82 KB, y cuesta
+  cero tokens porque lo genera Node, no el modelo. Lo que el mapa **no** deriva (tenants, gates abiertos,
+  bugs conocidos) sigue en `ESTADO-ACTUAL.md`, y el mapa te dice a qué sección ir. **Ante conflicto entre
+  el mapa y esta norma, gana esta norma.** No deroga ningún ítem de abajo: los abarata. (RFC-005)
 - **`docs/ESTADO-ACTUAL.md`** — la foto viva del sistema (main/prod, tenants, gates, migraciones,
   bugs conocidos, core→sesión). Si no existe o está desactualizada, **actualizala primero**.
 - **`git status`** + tip de `main` y ramas/worktrees — WIP sin commitear y en qué estado está el árbol.

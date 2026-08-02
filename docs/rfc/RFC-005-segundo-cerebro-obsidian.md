@@ -1,6 +1,8 @@
 # 📄 RFC-005 — Segundo cerebro: vault de notas atómicas sobre el corpus existente
 
-> **Tipo:** RFC (propuesta, **NO decisión** — no crea ni modifica ADRs). **Estado:** en revisión del dueño.
+> **Tipo:** RFC. **Estado: ✅ ACEPTADO por el dueño (2026-08-02) — activación Nivel 2.**
+> El dueño aprobó explícitamente *"que se use siempre en todas las sesiones"*: la rama se mergeó a `main`
+> y el parche de §6-bis se aplicó a la Fase 0 de `CLAUDE.md`. Lo que sigue abierto es la deuda de §7.
 > **Fecha:** 2026-07-31. **Disparador:** pedido del dueño — *"un brain para ahorrar tokens, tipo Jarvis"*,
 > con referencia a los sistemas de **segundo cerebro en Obsidian**.
 > **Relación:** continuación directa de **RFC-001** (Etapas 0/1) y de **ADR-008** (economía de tokens).

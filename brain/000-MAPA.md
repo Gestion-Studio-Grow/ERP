@@ -59,11 +59,11 @@ El repo pesa ~57 MB (34 de árbol + 23 de historia): entra sin drama en un telé
 después a `docs/` desde una sesión, no a mano desde el teléfono.
 
 ### Los agentes, en cada sesión
-> ⚖️ **Estatus:** esto lo **propone** RFC-005, que está **en revisión del dueño**. `CLAUDE.md` todavía
-> no menciona el vault, así que hoy el cerebro es el camino **barato y equivalente**, no el oficial.
-> Ante conflicto entre el vault y la norma, **gana la norma**.
+> ⚖️ **Estatus: vigente.** RFC-005 fue **aceptado** y la Fase 0 de `CLAUDE.md` arranca por acá. El mapa
+> **abarata** la Fase 0, no la deroga: los ítems que no son derivables siguen siendo obligatorios (ver
+> abajo). **Ante conflicto entre el mapa y `CLAUDE.md`, gana `CLAUDE.md`.**
 
-El arranque propuesto:
+El arranque:
 
 1. **[Estado](10-estado/ESTADO.md)** — foto derivada de git + migraciones + corpus. Reemplaza la
    lectura completa de `ESTADO-ACTUAL.md` salvo que necesites el detalle narrativo.
