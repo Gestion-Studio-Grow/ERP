@@ -1,0 +1,16 @@
+{
+  "userIgnoreFilters": [
+    "node_modules/",
+    ".next/",
+    "coverage/",
+    "test-results/",
+    "playwright-report/"
+  ],
+  "newFileLocation": "folder",
+  "newFileFolderPath": "brain/90-notas",
+  "attachmentFolderPath": "brain/90-notas/adjuntos",
+  "useMarkdownLinks": true,
+  "newLinkFormat": "relative",
+  "alwaysUpdateLinks": true,
+  "showUnsupportedFiles": false
+}

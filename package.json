@@ -22,6 +22,8 @@
     "adr:graph": "node scripts/adr-graph.mjs",
     "adr:linkcheck": "node scripts/adr-linkcheck.mjs",
     "adr:context": "node scripts/adr-context.mjs",
+    "brain": "node scripts/brain-sync.mjs",
+    "brain:check": "node scripts/brain-sync.mjs --check",
     "gates": "node scripts/verify-gates.mjs",
     "gate:visual": "node scripts/visual-gate.mjs",
     "gate:visual:full": "node scripts/visual-gate.mjs --full",
