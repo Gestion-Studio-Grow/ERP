@@ -11,12 +11,13 @@ from PIL import Image, ImageDraw, ImageFont, ImageChops, ImageFilter
 
 import sys
 TITLE_MODE = sys.argv[1] if len(sys.argv) > 1 else 'dos-lineas'
+TITLE_FONT = sys.argv[2] if len(sys.argv) > 2 else 'Allura'
 
 SRC = 'flyer-ch-original.jpg'
 F = 'fonts/'
 SS = 4  # supersample
 
-INK_TITLE = (16, 14, 13)   # trazo fino: necesita contraste maximo
+INK_TITLE = (24, 22, 20)   # #181614: con contraste 2.5:1 los gruesos ya dan la masa
 INK_TEXT = (26, 25, 23)
 GOLD_SOFT = (150, 121, 74)
 
@@ -147,9 +148,11 @@ def solve_tracking(text, font, target_w, ss=SS):
 
 
 # ================================================================ 1. TITULAR
-# Ms Madi: script monolineal fino, del mismo espiritu que "Evento petfriendly"
+# Allura: script caligrafico ligero. Su modulacion de trazo (~2.5:1) imita como
+# el raso del mono se ensancha en plano y se afina en el giro; un monolineal puro
+# contradice ese material. Un escalon mas formal que Ms Madi, sin volver al didone.
 wipe(0, 215, W, 536)
-SCRIPT = 'MsMadi.ttf'
+SCRIPT = TITLE_FONT + '.ttf'
 
 
 def word_alpha(size, txt):
@@ -159,10 +162,12 @@ def word_alpha(size, txt):
     return m.crop(m.getbbox())
 
 
-def title_block(mode, size=420, lead=0.45):
+def title_block(mode, size=420, lead=0.34, sc2=1.12):
+    """Dos lineas centradas con interlock LEVE: solo se cruzan el swash de la G
+    y la O de "Opening", no los cuerpos. "Opening" va 12% mayor que "Grand"."""
     if mode == 'una-linea':
         return word_alpha(size, 'Grand Opening')
-    a1, a2 = word_alpha(size, 'Grand'), word_alpha(size, 'Opening')
+    a1, a2 = word_alpha(size, 'Grand'), word_alpha(int(size * sc2), 'Opening')
     gap = int(-lead * size)                       # negativo: las lineas se anidan
     tw, th = max(a1.width, a2.width) + 60, a1.height + gap + a2.height + 60
     c = Image.new('L', (tw, th), 0)
@@ -275,6 +280,6 @@ for name, y0, y1 in [('titular', 215, 536), ('fecha', 652, 750), ('inferior', 92
     ys = [y for y in range(y0, y1) for x in range(0, W, 3) if ink(x, y)]
     print(f'  banda {name}: tinta y={min(ys)}..{max(ys)}' if ys else f'  banda {name}: vacia')
 
-out.save(f'flyer_{TITLE_MODE}.jpg', quality=95, subsampling=0)
-out.save(f'flyer_{TITLE_MODE}.png')
+out.save(f'flyer_{TITLE_FONT}_{TITLE_MODE}.jpg', quality=95, subsampling=0)
+out.save(f'flyer_{TITLE_FONT}_{TITLE_MODE}.png')
 print('OK ->', out.size)

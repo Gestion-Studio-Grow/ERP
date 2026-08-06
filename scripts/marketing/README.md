@@ -10,7 +10,7 @@ original para todo lo demás (íconos, moño, "AGOSTO", bloque petfriendly).
 
 | Zona | Antes | Después |
 |---|---|---|
-| Titular | `GRAND OPENING` en serif didone | `Grand Opening` en script monolineal fino (Ms Madi), dos líneas anidadas |
+| Titular | `GRAND OPENING` en serif didone | `Grand Opening` en script caligráfico ligero (Allura), dos líneas con interlock leve |
 | Fecha | `DOMINGO · 25 AGOSTO` | `SÁBADO · 15 AGOSTO` |
 | Petfriendly | — | línea nueva `TAMBIÉN HAY SORPRESAS PARA ELLOS` en dorado suave |
 
@@ -42,12 +42,19 @@ publicó) o `una-linea` (variante firma, 830×159 — más aire, pero el trazo b
 - **Cormorant Garamond 600** para el `1` del `15`: el `5` del original no tiene
   terminal de bola en el brazo superior (Playfair sí), y Cormorant lo replica.
   El `5` y `AGOSTO` no se redibujan: se mueven desde el original.
-- **Ms Madi** para el titular: el cliente pidió que el titular tuviera el estilo de
-  la fuente de "Evento petfriendly", que es un script **monolineal** (contraste casi
-  nulo, trazo parejo de firma). Contra 18 scripts de Google Fonts renderizando el
-  mismo texto al mismo ancho, Ms Madi es la que replica ese trazo uniforme; Whisper
-  quedó segunda pero tiene contraste visible y sus dos líneas colisionan. Corinthia
-  y Great Vibes se descartaron por lo contrario: son de alto contraste.
+- **Allura** para el titular, después de dos iteraciones con el cliente:
+  1. Corinthia Bold (alto contraste) → rechazada: pesada, no delicada.
+  2. Ms Madi (monolineal puro, ganadora entre 18 scripts por parecerse al trazo de
+     "Evento petfriendly") → rechazada: demasiado informal, es un script de firma.
+  3. Allura: contraste 2,5:1 contra 2,2:1 de Ms Madi. Es el escalón intermedio, y
+     el que **dialoga con el moño**: el raso se ensancha cuando la cinta está plana
+     y se afina cuando gira, así que una modulación suave imita el material — un
+     monolineal puro lo contradice. Sus lazadas amplias en la G y la g riman con
+     las del lazo.
+
+  Descartadas por no llegar al piso de trazo: Italianno (4 px), Mrs Saint Delafield
+  (5 px), Herr Von Muellerhoff (4 px). Parisienne llega a 6 px pero su contraste
+  (2,3:1) es casi el de Ms Madi — el cambio no se vería.
 
 ### Dos detalles que importan si se toca el script
 
@@ -62,7 +69,11 @@ publicó) o `una-linea` (variante firma, 830×159 — más aire, pero el trazo b
 - **Un monolineal fino se corta al escalar.** A 320 px de ancho (preview de
   WhatsApp) la pieza se ve al 31 %: un trazo de 5 px queda en 1,6 px y el antialias
   lo lava. El script mide el trazo fino (percentil 12 de las corridas de tinta por
-  fila) y lo imprime junto al equivalente a 320 px. Piso: **6 px**. Por eso el
-  bloque va a 571×300 y no más chico — el alto de la caja es lo que fija el ancho.
+  fila) y lo imprime junto al equivalente a 320 px. Piso: **6 px**.
+- **El alto de la caja es lo que fija el ancho, no al revés.** El bloque se encuadra
+  por bounding box de tinta real y sus extremos están genuinamente ocupados (no hay
+  ascendentes vacíos que recortar), así que con el techo de 300 px entre el filete y
+  el kicker el bloque queda en 560 px. Para llevarlo a 680–730 px habría que subir el
+  bloque del logo, y eso aprieta el margen superior de la pieza.
 
 — Elaborado por GSG
