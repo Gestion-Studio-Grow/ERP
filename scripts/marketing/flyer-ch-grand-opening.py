@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """Reedicion del flyer GRAND OPENING - CH Estetica & Spa.
 
-Cambios: fecha SABADO 15 AGOSTO, titular en script (Corinthia),
-linea nueva bajo el bloque petfriendly.
+Cambios: fecha SABADO 15 AGOSTO, titular en script monolineal fino (Ms Madi,
+el mismo espiritu que "Evento petfriendly"), linea nueva bajo el bloque pet.
+
+Uso: python3 flyer-ch-grand-opening.py [dos-lineas|una-linea]
 """
 import statistics
 from PIL import Image, ImageDraw, ImageFont, ImageChops, ImageFilter
+
+import sys
+TITLE_MODE = sys.argv[1] if len(sys.argv) > 1 else 'dos-lineas'
 
 SRC = 'flyer-ch-original.jpg'
 F = 'fonts/'
 SS = 4  # supersample
 
-INK_TITLE = (24, 22, 20)
+INK_TITLE = (16, 14, 13)   # trazo fino: necesita contraste maximo
 INK_TEXT = (26, 25, 23)
 GOLD_SOFT = (150, 121, 74)
 
@@ -142,35 +147,59 @@ def solve_tracking(text, font, target_w, ss=SS):
 
 
 # ================================================================ 1. TITULAR
-# Corinthia Bold, dos lineas desplazadas (Grand arriba-izq / Opening abajo-der)
+# Ms Madi: script monolineal fino, del mismo espiritu que "Evento petfriendly"
 wipe(0, 215, W, 536)
+SCRIPT = 'MsMadi.ttf'
 
 
-def script_block(size, overlap, dx):
-    def word(txt):
-        m = Image.new('L', (size * 8, size * 5), 0)
-        ImageDraw.Draw(m).text((size, size * 3), txt, fill=255, anchor='ls',
-                               font=ImageFont.truetype(F + 'Corinthia-Bold.ttf', size))
-        return m.crop(m.getbbox())
+def word_alpha(size, txt):
+    m = Image.new('L', (size * 12, size * 6), 0)
+    ImageDraw.Draw(m).text((size, size * 4), txt, fill=255, anchor='ls',
+                           font=ImageFont.truetype(F + SCRIPT, size))
+    return m.crop(m.getbbox())
 
-    a1, a2 = word('Grand'), word('Opening')
-    gap = int(-overlap * size)
-    tw = max(a1.width, a2.width) + 2 * dx + 80
-    th = a1.height + gap + a2.height + 80
+
+def title_block(mode, size=420, lead=0.45):
+    if mode == 'una-linea':
+        return word_alpha(size, 'Grand Opening')
+    a1, a2 = word_alpha(size, 'Grand'), word_alpha(size, 'Opening')
+    gap = int(-lead * size)                       # negativo: las lineas se anidan
+    tw, th = max(a1.width, a2.width) + 60, a1.height + gap + a2.height + 60
     c = Image.new('L', (tw, th), 0)
-    c.paste(a1, ((tw - a1.width) // 2 - dx, 40), a1)
+    c.paste(a1, ((tw - a1.width) // 2, 30), a1)
     l = Image.new('L', c.size, 0)
-    l.paste(a2, ((tw - a2.width) // 2 + dx, 40 + a1.height + gap))
-    return ImageChops.lighter(c, l).crop(ImageChops.lighter(c, l).getbbox())
+    l.paste(a2, ((tw - a2.width) // 2, 30 + a1.height + gap))
+    r = ImageChops.lighter(c, l)
+    return r.crop(r.getbbox())
 
 
-title = script_block(560, 0.34, 150)
-BOX_W, BOX_H = 660, 272
+def hairline(mask):
+    """Percentil 12 de las corridas de tinta por fila = grosor del trazo fino."""
+    import numpy as np
+    a = np.array(mask) > 110
+    runs = []
+    for row in a:
+        n = 0
+        for v in row:
+            if v:
+                n += 1
+            elif n:
+                runs.append(n)
+                n = 0
+        if n:
+            runs.append(n)
+    return float(np.percentile(runs, 12)) if runs else 0.0
+
+
+BOX_W, BOX_H = 830, 300                            # hueco util entre filete y kicker
+title = title_block(TITLE_MODE)
 s = min(BOX_W / title.width, BOX_H / title.height)
 title = title.resize((round(title.width * s), round(title.height * s)), Image.LANCZOS)
-TY = 375 - title.height // 2            # centro optico del hueco 218..532
-stamp(title, (W - title.width) // 2, TY, INK_TITLE, blur=0.35)
-print(f'titular {title.width}x{title.height} @ y={TY}..{TY + title.height}')
+TY = 376 - title.height // 2
+stamp(title, (W - title.width) // 2, TY, INK_TITLE, blur=0.3)
+hl = hairline(title)
+print(f'titular[{TITLE_MODE}] {title.width}x{title.height} @ y={TY}..{TY + title.height} '
+      f'| trazo fino {hl:.1f}px (a 320px de ancho: {hl * 0.3125:.2f}px)')
 
 # ================================================================ 2. FECHA
 # DOMINGO -> SABADO   |   25 -> 15 (el "5" se reusa del original)
@@ -246,6 +275,6 @@ for name, y0, y1 in [('titular', 215, 536), ('fecha', 652, 750), ('inferior', 92
     ys = [y for y in range(y0, y1) for x in range(0, W, 3) if ink(x, y)]
     print(f'  banda {name}: tinta y={min(ys)}..{max(ys)}' if ys else f'  banda {name}: vacia')
 
-out.save('flyer_ch_15agosto.jpg', quality=95, subsampling=0)
-out.save('flyer_ch_15agosto.png')
+out.save(f'flyer_{TITLE_MODE}.jpg', quality=95, subsampling=0)
+out.save(f'flyer_{TITLE_MODE}.png')
 print('OK ->', out.size)
