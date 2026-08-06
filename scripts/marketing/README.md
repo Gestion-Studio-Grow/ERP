@@ -14,8 +14,21 @@ original para todo lo demás (íconos, moño, "AGOSTO", bloque petfriendly).
 | Fecha | `DOMINGO · 25 AGOSTO` | `SÁBADO · 15 AGOSTO` |
 | Petfriendly | — | línea nueva `TAMBIÉN HAY SORPRESAS PARA ELLOS` en dorado suave |
 
-**Salida:** `flyer_dos-lineas.jpg` (1024×1536, mismo formato que el original) →
+**Salida:** `flyer_Allura_dos-lineas.jpg` (1024×1536, mismo formato que el original) →
 publicado en `public/tenants/ch-grand-opening-15ago.jpg`.
+
+### Opciones que vio el cliente
+
+Las tres variantes de titular que se descartaron quedan en `opciones/`, para no
+tener que regenerarlas si el cliente vuelve sobre alguna. Sólo cambia el titular;
+la fecha y la línea pet son iguales en las cuatro.
+
+| Archivo | Titular |
+|---|---|
+| `opciones/ch-grand-opening-1-corinthia.jpg` | Corinthia Bold, alto contraste, dos líneas desplazadas |
+| `opciones/ch-grand-opening-2-msmadi-dos-lineas.jpg` | Ms Madi monolineal, dos líneas anidadas |
+| `opciones/ch-grand-opening-3-msmadi-una-linea.jpg` | Ms Madi en una línea, tipo firma |
+| `public/tenants/ch-grand-opening-15ago.jpg` | **Allura — la publicada** |
 
 ### Cómo correrlo
 
