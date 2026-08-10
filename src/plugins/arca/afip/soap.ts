@@ -18,6 +18,7 @@
  */
 
 import {
+  CondicionIvaReceptorId,
   Concepto,
   MONEDA_PESOS,
   TipoComprobante,
@@ -363,6 +364,7 @@ export function armarFECAESolicitarRequest(
     fechasServicio +
     `<ar:MonId>${MONEDA_PESOS}</ar:MonId>` +
     `<ar:MonCotiz>1</ar:MonCotiz>` +
+    `<ar:CondicionIVAReceptorId>${condicionIvaReceptor(comp)}</ar:CondicionIVAReceptorId>` +
     detalleIva +
     `</ar:FECAEDetRequest>`;
 
@@ -384,6 +386,16 @@ export function armarFECAESolicitarRequest(
 /** Formatea un monto a 2 decimales (formato de WSFEv1). */
 function fmt(n: number): string {
   return n.toFixed(2);
+}
+
+/**
+ * Resuelve el `CondicionIVAReceptorId` (obligatorio, RG 5616). Usa el del
+ * comprobante si vino resuelto (lo setea `construirComprobante` desde la
+ * condición real del receptor); si no, cae a Consumidor Final — el default
+ * seguro para el comprobante a consumidor final sin identificar.
+ */
+function condicionIvaReceptor(comp: ComprobanteArca): CondicionIvaReceptorId {
+  return comp.condicionIvaReceptorId ?? CondicionIvaReceptorId.ConsumidorFinal;
 }
 
 /**
@@ -504,6 +516,13 @@ export interface SoapAfipClientDeps {
   signer?: TraSigner;
   /** Reloj inyectable (para tests de expiración). */
   ahora?: () => Date;
+  /**
+   * TA previamente obtenido y persistido (p.ej. cacheado por tenant en la DB).
+   * Si sigue vigente, el cliente lo reusa en vez de re-loguear contra WSAA
+   * (WSAA rechaza un segundo login mientras haya un TA válido:
+   * `coe.alreadyAuthenticated`). Clave para procesos efímeros/serverless.
+   */
+  ticketInicial?: TicketAcceso;
 }
 
 /**
@@ -526,10 +545,16 @@ export class SoapAfipClient implements AfipClient {
     this.transport = deps.transport ?? new FetchSoapTransport();
     this.signer = deps.signer ?? new CredencialRequeridaSigner();
     this.ahora = deps.ahora ?? (() => new Date());
+    this.ticket = deps.ticketInicial;
   }
 
   private get endpoints(): EndpointsArca {
     return endpointsPara(this.config);
+  }
+
+  /** TA vigente en caché (para persistirlo y reusarlo entre procesos). */
+  get ticketActual(): TicketAcceso | undefined {
+    return this.ticket;
   }
 
   /**

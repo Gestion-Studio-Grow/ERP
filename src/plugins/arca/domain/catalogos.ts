@@ -52,6 +52,36 @@ export enum CondicionIva {
 }
 
 /**
+ * Código ARCA de la "Condición Frente al IVA del receptor" (campo
+ * `CondicionIVAReceptorId` de WSFEv1). OBLIGATORIO desde la RG 5616 (2024): sin
+ * este campo, ARCA rechaza el comprobante con la observación 10246. Códigos del
+ * método `FEParamGetCondicionIvaReceptor`.
+ */
+export enum CondicionIvaReceptorId {
+  ResponsableInscripto = 1,
+  SujetoExento = 4,
+  ConsumidorFinal = 5,
+  ResponsableMonotributo = 6,
+  SujetoNoCategorizado = 7,
+  MonotributistaSocial = 13,
+  IvaNoAlcanzado = 15,
+}
+
+/** Mapea la condición de IVA del dominio al código ARCA del receptor (RG 5616). */
+export function condicionIvaReceptorArca(c: CondicionIva): CondicionIvaReceptorId {
+  switch (c) {
+    case CondicionIva.ResponsableInscripto:
+      return CondicionIvaReceptorId.ResponsableInscripto;
+    case CondicionIva.Monotributo:
+      return CondicionIvaReceptorId.ResponsableMonotributo;
+    case CondicionIva.Exento:
+      return CondicionIvaReceptorId.SujetoExento;
+    case CondicionIva.ConsumidorFinal:
+      return CondicionIvaReceptorId.ConsumidorFinal;
+  }
+}
+
+/**
  * Porcentaje (0..1) de cada alícuota. Referencia para **verificar** los montos
  * que manda el Core (no para calcularlos — el cálculo vive en el Core, ADR-006).
  */

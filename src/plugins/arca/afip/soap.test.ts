@@ -304,6 +304,20 @@ test('armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y
   assert.match(body, /<ar:FchVtoPago>20260710<\/ar:FchVtoPago>/);
 });
 
+test('armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz', () => {
+  // Sin el campo en el comprobante → default seguro Consumidor Final (5).
+  const body = armarFECAESolicitarRequest(TA, 20111111112, comprobanteFacturaCServicios(), 10);
+  assert.match(body, /<ar:CondicionIVAReceptorId>5<\/ar:CondicionIVAReceptorId>/);
+  // Orden XSD: CondicionIVAReceptorId va después de MonCotiz.
+  assert.match(body, /<\/ar:MonCotiz><ar:CondicionIVAReceptorId>/);
+});
+
+test('armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene', () => {
+  const comp = { ...comprobanteFacturaCServicios(), condicionIvaReceptorId: 6 as const };
+  const body = armarFECAESolicitarRequest(TA, 20111111112, comp, 10);
+  assert.match(body, /<ar:CondicionIVAReceptorId>6<\/ar:CondicionIVAReceptorId>/);
+});
+
 // ── WSFEv1: FECAESolicitar (parseo) ──────────────────────────────────────────
 
 test('parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado', () => {
