@@ -1,0 +1,16 @@
+{
+  "aesthetic-ilustrado": {
+    "descripcion": "Foto → ilustración editorial aesthetic, paleta cálida neutra, con frase manuscrita. Pieza para redes de negocios de estética/belleza.",
+    "prompt": "Convertí esta foto en una ilustración aesthetic de estilo editorial: line art digital de trazo fino, sombreado plano y suave, paleta cálida y neutra (marrón chocolate, crema, blanco roto, verde oliva, rosa empolvado), luz cálida difusa y una textura sutil de papel. Mantené EXACTAMENTE la composición original: las mismas personas, en las mismas posiciones y poses, con la misma ropa y los mismos colores de ropa, y el mismo espacio de fondo. No agregues ni quites personas ni objetos. Conservá los rasgos faciales de cada persona de forma reconocible, sin caricaturizarlos. Estética prolija y minimalista, tipo referencia de Pinterest para identidad de marca femenina. Agregá la frase manuscrita en español \"los sueños se trabajan\" en caligrafía cursiva fina y elegante, en color crema con una sombra muy leve, ubicada en el área superior derecha de la composición, integrada con naturalidad a la escena y perfectamente legible, sin errores de ortografía y sin repetir el texto."
+  },
+
+  "aesthetic-sin-texto": {
+    "descripcion": "Igual que aesthetic-ilustrado pero SIN frase. Preferido si después vas a poner la tipografía en Canva (control total y cero riesgo de texto mal escrito).",
+    "prompt": "Convertí esta foto en una ilustración aesthetic de estilo editorial: line art digital de trazo fino, sombreado plano y suave, paleta cálida y neutra (marrón chocolate, crema, blanco roto, verde oliva, rosa empolvado), luz cálida difusa y una textura sutil de papel. Mantené EXACTAMENTE la composición original: las mismas personas, en las mismas posiciones y poses, con la misma ropa y los mismos colores de ropa, y el mismo espacio de fondo. No agregues ni quites personas ni objetos. Conservá los rasgos faciales de cada persona de forma reconocible, sin caricaturizarlos. Estética prolija y minimalista, tipo referencia de Pinterest para identidad de marca femenina. No incluyas ningún texto, letra ni palabra en la imagen. Dejá aire limpio en el área superior derecha para poder sobreimprimir una frase después."
+  },
+
+  "vidriera-tenant": {
+    "descripcion": "Foto de local/servicio → pieza limpia para la vidriera pública de un tenant del ERP. Respeta la marca del cliente (ADR-033/043): no inventa logos ni colores de marca.",
+    "prompt": "Retocá esta foto para usarla como imagen de portada de una tienda online profesional: luz pareja y cálida, colores fieles y naturales, fondo ordenado y sin distracciones, encuadre limpio con aire alrededor del sujeto principal. Mantené el producto, el espacio y las personas exactamente como están, sin agregar ni quitar elementos. No agregues texto, logos, marcas de agua ni carteles de ningún tipo. Resultado nítido, sobrio y creíble, apto para e-commerce."
+  }
+}

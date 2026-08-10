@@ -24,6 +24,8 @@
     "adr:context": "node scripts/adr-context.mjs",
     "brain": "node scripts/brain-sync.mjs",
     "brain:check": "node scripts/brain-sync.mjs --check",
+    "ilustrar": "node scripts/ilustrar.mjs",
+    "ilustrar:modelos": "node scripts/ilustrar.mjs --list-models",
     "gates": "node scripts/verify-gates.mjs",
     "gate:visual": "node scripts/visual-gate.mjs",
     "gate:visual:full": "node scripts/visual-gate.mjs --full",
