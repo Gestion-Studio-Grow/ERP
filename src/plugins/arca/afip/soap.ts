@@ -21,7 +21,7 @@ import {
   Concepto,
   MONEDA_PESOS,
   TipoComprobante,
-  discriminaIva,
+  comprobanteLlevaIva,
 } from '../domain/catalogos';
 import { ComprobanteArca } from '../domain/comprobante';
 import {
@@ -300,6 +300,66 @@ export function parsearUltimoAutorizadoResponse(xml: string): number {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// WSFEv1 — FECompConsultar (PURO) — idempotencia / recuperación
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Arma el request de `FECompConsultar` (PtoVta, CbteTipo, CbteNro). Sirve para
+ * consultar un comprobante puntual: la base de la idempotencia ante un timeout
+ * DESPUÉS de `FECAESolicitar` — antes de reintentar, se consulta el número; si ya
+ * tiene CAE, se adopta en vez de re-solicitar (evita saltar números / doble CAE).
+ */
+export function armarFECompConsultarRequest(
+  ta: TicketAcceso,
+  cuit: number,
+  puntoVenta: number,
+  tipo: TipoComprobante,
+  numero: number,
+): string {
+  return sobreWsfe(
+    `<ar:FECompConsultar>` +
+      bloqueAuth(ta, cuit) +
+      `<ar:FeCompConsReq>` +
+      `<ar:CbteTipo>${tipo}</ar:CbteTipo>` +
+      `<ar:CbteNro>${numero}</ar:CbteNro>` +
+      `<ar:PtoVta>${puntoVenta}</ar:PtoVta>` +
+      `</ar:FeCompConsReq>` +
+      `</ar:FECompConsultar>`,
+  );
+}
+
+/** Resultado de consultar un comprobante: existe (con CAE) o no está autorizado. */
+export interface ConsultaComprobante {
+  existe: boolean;
+  cae?: string;
+  caeVencimiento?: string;
+  numero?: number;
+}
+
+/**
+ * Parsea la respuesta de `FECompConsultar`. Si el comprobante no está autorizado
+ * ARCA devuelve `<Errors>` (código 602 "no existe") → `{ existe: false }`. Si
+ * existe, extrae el CAE y su vencimiento del `ResultGet`.
+ */
+export function parsearFECompConsultarResponse(xml: string): ConsultaComprobante {
+  const bloqueErrors = extraerTag(xml, 'Errors');
+  if (bloqueErrors) return { existe: false };
+
+  const cae = extraerTag(xml, 'CodAutorizacion') ?? extraerTag(xml, 'CAE');
+  if (!cae) return { existe: false };
+
+  const caeVencimiento =
+    extraerTag(xml, 'FchVto') ?? extraerTag(xml, 'CAEFchVto');
+  const cbteNro = extraerTag(xml, 'CbteDesde') ?? extraerTag(xml, 'CbteHasta');
+  return {
+    existe: true,
+    cae,
+    caeVencimiento,
+    numero: cbteNro !== undefined ? Number(cbteNro) : undefined,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // WSFEv1 — FECAESolicitar (PURO)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -315,15 +375,16 @@ export function armarFECAESolicitarRequest(
   numero: number,
 ): string {
   const importeIva = comp.iva.reduce((s, x) => s + x.importe, 0);
-  const discrimina = discriminaIva(comp.tipo);
+  const llevaIva = comprobanteLlevaIva(comp.tipo);
 
-  // Comprobantes que discriminan IVA (tipo A) informan ImpNeto + ImpIVA y el
-  // array <Iva>. Los que no (B/C) mandan el importe en ImpNeto sin <Iva>.
+  // Clases A/B/M (emisor RI) informan ImpNeto + ImpIVA y el array <Iva> — aunque
+  // la B no discrimine en el impreso, ARCA exige el IVA en el payload. La clase C
+  // (Monotributo/Exento) manda el importe en ImpNeto sin <Iva>.
   const impNeto = comp.neto;
-  const impIva = discrimina ? importeIva : 0;
+  const impIva = llevaIva ? importeIva : 0;
   const impTotal = comp.total;
 
-  const detalleIva = discrimina
+  const detalleIva = llevaIva
     ? `<ar:Iva>` +
       comp.iva
         .map(
@@ -346,6 +407,25 @@ export function armarFECAESolicitarRequest(
         `<ar:FchVtoPago>${escaparXml(comp.vencimientoPago ?? comp.fecha)}</ar:FchVtoPago>`
       : '';
 
+  // Comprobantes asociados (`CbtesAsoc`): obligatorio en notas de crédito para
+  // referenciar la factura origen que reversan.
+  const asociados = comp.comprobantesAsociados ?? [];
+  const detalleAsociados =
+    asociados.length > 0
+      ? `<ar:CbtesAsoc>` +
+        asociados
+          .map(
+            (a) =>
+              `<ar:CbteAsoc>` +
+              `<ar:Tipo>${a.tipo}</ar:Tipo>` +
+              `<ar:PtoVta>${a.puntoVenta}</ar:PtoVta>` +
+              `<ar:Nro>${a.numero}</ar:Nro>` +
+              `</ar:CbteAsoc>`,
+          )
+          .join('') +
+        `</ar:CbtesAsoc>`
+      : '';
+
   const detalle =
     `<ar:FECAEDetRequest>` +
     `<ar:Concepto>${comp.concepto}</ar:Concepto>` +
@@ -363,6 +443,9 @@ export function armarFECAESolicitarRequest(
     fechasServicio +
     `<ar:MonId>${MONEDA_PESOS}</ar:MonId>` +
     `<ar:MonCotiz>1</ar:MonCotiz>` +
+    // CondicionIVAReceptorId (RG 5616): OBLIGATORIO — ARCA rechaza si falta.
+    `<ar:CondicionIVAReceptorId>${comp.condicionReceptorId}</ar:CondicionIVAReceptorId>` +
+    detalleAsociados +
     detalleIva +
     `</ar:FECAEDetRequest>`;
 
@@ -565,6 +648,32 @@ export class SoapAfipClient implements AfipClient {
       body,
     );
     return parsearUltimoAutorizadoResponse(respuesta);
+  }
+
+  /**
+   * Consulta un comprobante puntual (`FECompConsultar`). Base de la idempotencia
+   * ante timeout post-emisión: antes de reintentar un `solicitarCae` que no se
+   * sabe si llegó, se consulta el número; si ya tiene CAE, se adopta.
+   */
+  async consultarComprobante(
+    puntoVenta: number,
+    tipo: TipoComprobante,
+    numero: number,
+  ): Promise<ConsultaComprobante> {
+    const ta = await this.autenticar();
+    const body = armarFECompConsultarRequest(
+      ta,
+      this.config.cuit,
+      puntoVenta,
+      tipo,
+      numero,
+    );
+    const respuesta = await this.transport.post(
+      this.endpoints.wsfev1,
+      `${WSFE_NS}FECompConsultar`,
+      body,
+    );
+    return parsearFECompConsultarResponse(respuesta);
   }
 
   async solicitarCae(comp: ComprobanteArca): Promise<ResultadoCae> {

@@ -11,7 +11,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { createInvoice } from "@/lib/invoice-core";
-import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
+import {
+  calcularImpuestos,
+  condicionReceptorId,
+  resolverPerfilFiscal,
+} from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
@@ -50,7 +54,7 @@ export async function facturarOrden(
   const monto = order.total;
   if (!(monto > 0)) return null;
 
-  const perfil = getFiscalProfile(tenantId);
+  const perfil = await resolverPerfilFiscal(tenantId);
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, monto);
   const fecha = fechaHoy();
 
@@ -65,6 +69,7 @@ export async function facturarOrden(
     },
     // La Orden no captura CUIT/DNI del comprador todavía → Consumidor Final.
     receptor: { docTipo: DOC_CONSUMIDOR_FINAL, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
+    condicionIvaReceptorId: condicionReceptorId("CONSUMIDOR_FINAL"),
     neto,
     iva,
     total,

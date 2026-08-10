@@ -208,6 +208,10 @@ model Tenant {
   arcaCuit         String? // CUIT del emisor (11 dígitos, sin guiones)
   arcaPuntoVenta   Int? // punto de venta habilitado en ARCA
   arcaHomologacion Boolean @default(true) // true = testing ARCA (seguro por default); false = producción
+  // Condición del emisor frente al IVA: define la RAMA de facturación por tipo de
+  // contribuyente (Monotributo→C · Exento→C · RESPONSABLE_INSCRIPTO→A/B). Nullable:
+  // sin cargar cae al perfil provisional (Monotributo) de `resolverPerfilFiscal`.
+  arcaCondicionIva String? // "MONOTRIBUTO" | "RESPONSABLE_INSCRIPTO" | "EXENTO"
 }
 
 // Estado de un tenant en la plataforma (control-plane, ADR-021). TRIAL = en
@@ -809,7 +813,15 @@ model Invoice {
   concepto Int // 1=Productos, 2=Servicios, 3=ambos
   docTipo  Int // 80=CUIT, 96=DNI, 99=Consumidor Final
   docNro   String
+  // Condición de IVA del receptor codificada para ARCA (`CondicionIVAReceptorId`,
+  // RG 5616): 1=RI, 4=Exento, 5=Consumidor Final, 6=Monotributo. Se persiste para
+  // auditoría/reimpresión. Nullable: facturas previas a RG 5616 no lo tienen.
+  condicionIvaReceptorId Int?
   fecha    String // AAAAMMDD
+
+  // Nota de crédito: id de la factura ORIGEN que esta NC reversa (soft-link para
+  // auditoría; el CbtesAsoc real lo arma el plugin). Nulo en facturas.
+  comprobanteAsociadoId String?
 
   // Montos calculados por el Core (ADR-006).
   // NOTA (divergencia consciente con CORE-SCHEMA-SPEC §1): el spec pide `Decimal(14,2)`

@@ -28,6 +28,13 @@ export interface SubtotalIva {
   importe: number;
 }
 
+/** Referencia al comprobante origen que una nota de crédito reversa (CbtesAsoc). */
+export interface ComprobanteAsociadoInput {
+  tipo: number; // TipoComprobante ARCA del origen
+  puntoVenta: number;
+  numero: number;
+}
+
 /** Datos que se guardan en el payload del evento `InvoiceCreated`. */
 export interface CreateInvoiceInput {
   tenantId: string;
@@ -41,6 +48,20 @@ export interface CreateInvoiceInput {
   servicioDesde?: string;
   servicioHasta?: string;
   vencimientoPago?: string;
+  /**
+   * Condición de IVA del receptor codificada para ARCA (`CondicionIVAReceptorId`,
+   * RG 5616). La calcula el llamador con `fiscal.condicionReceptorId`; se persiste
+   * para auditoría/reimpresión.
+   */
+  condicionIvaReceptorId?: number;
+  /** FACTURA (default) o NOTA_CREDITO. Define la rama fiscal de la operación. */
+  operacion?: "FACTURA" | "NOTA_CREDITO";
+  /** Coordenadas ARCA del comprobante origen (obligatorio si NOTA_CREDITO). */
+  comprobanteAsociado?: ComprobanteAsociadoInput;
+  /** Id de la factura origen en el Core (soft-link de trazabilidad para la NC). */
+  comprobanteAsociadoId?: string;
+  /** Emisor RI en riesgo fiscal → emite M en lugar de A. Default false. */
+  emisorRiesgoFiscal?: boolean;
 }
 
 /** Forma del payload del evento `InvoiceCreated` que viaja por el outbox. */
@@ -78,11 +99,13 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
         concepto: input.concepto,
         docTipo: input.receptor.docTipo,
         docNro: String(input.receptor.docNro),
+        condicionIvaReceptorId: input.condicionIvaReceptorId ?? null,
         fecha: input.fecha,
         neto: input.neto,
         iva: input.iva.reduce((s, x) => s + x.importe, 0),
         ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
         total: input.total,
+        comprobanteAsociadoId: input.comprobanteAsociadoId ?? null,
         status: "PENDING",
       },
       select: { id: true },
@@ -101,6 +124,11 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string> 
       servicioDesde: input.servicioDesde,
       servicioHasta: input.servicioHasta,
       vencimientoPago: input.vencimientoPago,
+      condicionIvaReceptorId: input.condicionIvaReceptorId,
+      operacion: input.operacion,
+      comprobanteAsociado: input.comprobanteAsociado,
+      comprobanteAsociadoId: input.comprobanteAsociadoId,
+      emisorRiesgoFiscal: input.emisorRiesgoFiscal,
     };
 
     await tx.outboxEvent.create({

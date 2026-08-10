@@ -9,7 +9,11 @@
  */
 
 import { createInvoice } from "@/lib/invoice-core";
-import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
+import {
+  calcularImpuestos,
+  condicionReceptorId,
+  resolverPerfilFiscal,
+} from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
 import type { PagoMP } from "@/plugins/mercadopago";
 
@@ -32,7 +36,7 @@ export async function facturarPagoMP(
 ): Promise<string | null> {
   if (pago.estado !== "approved" || !(pago.monto > 0)) return null;
 
-  const perfil = getFiscalProfile(tenantId);
+  const perfil = await resolverPerfilFiscal(tenantId);
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, pago.monto);
   const fecha = pago.fechaAcreditacion ?? fechaHoy();
 
@@ -43,6 +47,7 @@ export async function facturarPagoMP(
     emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta: perfil.puntoVenta },
     // Venta MP a consumidor final (el pagador no está identificado con CUIT).
     receptor: { docTipo: DOC_CONSUMIDOR_FINAL, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
+    condicionIvaReceptorId: condicionReceptorId("CONSUMIDOR_FINAL"),
     neto,
     iva,
     total,

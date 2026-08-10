@@ -7,6 +7,7 @@
  * config por tenant del manifiesto del plugin + el flag por tenant de ADR-006.
  */
 
+import { prisma } from "@/lib/prisma";
 import type { SubtotalIva } from "@/lib/invoice-core";
 
 /**
@@ -39,9 +40,57 @@ export interface FiscalProfile {
 const IVA_0 = 3; // 0%
 const IVA_21 = 5; // 21%
 
+/** Condiciones válidas de un EMISOR (Consumidor Final no puede facturar). */
+const CONDICIONES_EMISOR: readonly CondicionIva[] = [
+  "MONOTRIBUTO",
+  "RESPONSABLE_INSCRIPTO",
+  "EXENTO",
+];
+
 /**
- * Perfil fiscal por tenant. Hoy: ch estética = Monotributo (Factura C).
- * PROVISIONAL — CUIT y punto de venta son placeholder hasta el alta real.
+ * Códigos `CondicionIVAReceptorId` de ARCA (RG 5616). Copia local del Core
+ * (parallel al catálogo del plugin, ADR-002: el Core no importa el plugin) para
+ * poder PERSISTIR la condición del receptor en la factura. Se mantiene en sync
+ * con `src/plugins/arca/domain/catalogos.ts::condicionReceptorId`.
+ */
+export function condicionReceptorId(cond: CondicionIva): number {
+  switch (cond) {
+    case "RESPONSABLE_INSCRIPTO":
+      return 1;
+    case "EXENTO":
+      return 4;
+    case "CONSUMIDOR_FINAL":
+      return 5;
+    case "MONOTRIBUTO":
+      return 6;
+    default:
+      return 5; // fallback conservador: Consumidor Final
+  }
+}
+
+/**
+ * Inverso de `condicionReceptorId`: del código ARCA a la condición del Core. Se
+ * usa al emitir una nota de crédito, que reconstruye el receptor de la factura
+ * origen (que persiste el código, no el string). Fallback: Consumidor Final.
+ */
+export function condicionDesdeReceptorId(codigo: number | null | undefined): CondicionIva {
+  switch (codigo) {
+    case 1:
+      return "RESPONSABLE_INSCRIPTO";
+    case 4:
+      return "EXENTO";
+    case 6:
+      return "MONOTRIBUTO";
+    case 5:
+    default:
+      return "CONSUMIDOR_FINAL";
+  }
+}
+
+/**
+ * Perfil fiscal PROVISIONAL (fallback): Monotributo (Factura C), CUIT y punto de
+ * venta placeholder. Se usa cuando el tenant no tiene cargada su condición fiscal
+ * real. PURO (sin DB) — la variante que lee el tenant es `resolverPerfilFiscal`.
  */
 export function getFiscalProfile(_tenantId: string): FiscalProfile {
   return {
@@ -49,6 +98,43 @@ export function getFiscalProfile(_tenantId: string): FiscalProfile {
     condicionIva: "MONOTRIBUTO",
     puntoVenta: 1,
     provisional: true,
+  };
+}
+
+/**
+ * Resuelve el perfil fiscal REAL del emisor leyendo la config del tenant
+ * (`arcaCondicionIva`/`arcaCuit`/`arcaPuntoVenta`, migración fiscal). Es lo que
+ * define la RAMA de facturación por tipo de contribuyente: un tenant Monotributo
+ * emite C; uno Responsable Inscripto emite A/B. Si el tenant no tiene la
+ * condición cargada, cae al perfil PROVISIONAL (`getFiscalProfile`) — así el
+ * comportamiento no cambia hasta que el dueño complete el alta fiscal.
+ */
+export async function resolverPerfilFiscal(
+  tenantId: string,
+): Promise<FiscalProfile> {
+  const t = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      arcaCuit: true,
+      arcaPuntoVenta: true,
+      arcaCondicionIva: true,
+    },
+  });
+
+  const condicion = t?.arcaCondicionIva as CondicionIva | null | undefined;
+  const condicionValida =
+    condicion && CONDICIONES_EMISOR.includes(condicion) ? condicion : null;
+
+  if (!t || !condicionValida || !t.arcaCuit) {
+    // Sin alta fiscal completa → perfil provisional (no cambia el comportamiento).
+    return getFiscalProfile(tenantId);
+  }
+
+  return {
+    cuit: Number(t.arcaCuit),
+    condicionIva: condicionValida,
+    puntoVenta: t.arcaPuntoVenta ?? 1,
+    provisional: false,
   };
 }
 

@@ -109,6 +109,9 @@ function aEventoPlugin(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
     servicioDesde: p.servicioDesde,
     servicioHasta: p.servicioHasta,
     vencimientoPago: p.vencimientoPago,
+    operacion: p.operacion,
+    comprobanteAsociado: p.comprobanteAsociado,
+    emisorRiesgoFiscal: p.emisorRiesgoFiscal,
   };
 }
 

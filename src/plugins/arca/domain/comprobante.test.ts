@@ -11,6 +11,7 @@ import type { InvoiceCreatedEvent } from "../core-contract";
 import {
   AlicuotaIvaId,
   CondicionIva,
+  CondicionIvaReceptor,
   Concepto,
   TipoComprobante,
   TipoDocumento,
@@ -123,6 +124,34 @@ test("emisor exento ⇒ Factura C", () => {
     }),
   );
   assert.equal(c.tipo, TipoComprobante.FacturaC);
+});
+
+test("deriva CondicionIVAReceptorId del receptor (RG 5616)", () => {
+  const cf = construirComprobante(evento());
+  assert.equal(cf.condicionReceptorId, CondicionIvaReceptor.ConsumidorFinal);
+  const ri = construirComprobante(
+    evento({
+      receptor: {
+        docTipo: TipoDocumento.CUIT,
+        docNro: 27111222333,
+        condicionIva: CondicionIva.ResponsableInscripto,
+      },
+    }),
+  );
+  assert.equal(ri.condicionReceptorId, CondicionIvaReceptor.ResponsableInscripto);
+});
+
+test("operación NOTA_CREDITO ⇒ nota de la clase + CbtesAsoc del origen", () => {
+  const c = construirComprobante(
+    evento({
+      operacion: "NOTA_CREDITO",
+      comprobanteAsociado: { tipo: TipoComprobante.FacturaB, puntoVenta: 3, numero: 7 },
+    }),
+  );
+  assert.equal(c.tipo, TipoComprobante.NotaCreditoB); // emisor RI + CF ⇒ clase B
+  assert.deepEqual(c.comprobantesAsociados, [
+    { tipo: TipoComprobante.FacturaB, puntoVenta: 3, numero: 7 },
+  ]);
 });
 
 test("emisor consumidor final no puede emitir: lanza", () => {

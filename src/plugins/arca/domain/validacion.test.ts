@@ -10,6 +10,7 @@ import type { ComprobanteArca } from "./comprobante";
 import {
   AlicuotaIvaId,
   Concepto,
+  CondicionIvaReceptor,
   TipoComprobante,
   TipoDocumento,
 } from "./catalogos";
@@ -23,6 +24,7 @@ function compValido(over: Partial<ComprobanteArca> = {}): ComprobanteArca {
     concepto: Concepto.Productos,
     docTipo: TipoDocumento.ConsumidorFinal,
     docNro: 0,
+    condicionReceptorId: CondicionIvaReceptor.ConsumidorFinal,
     fecha: "20260705",
     neto: 100,
     iva: [{ id: AlicuotaIvaId.VeintiUno, baseImponible: 100, importe: 21 }],
@@ -277,4 +279,40 @@ test("acumula todos los errores en una pasada (no corta en el primero)", () => {
   );
   assert.equal(r.ok, false);
   assert.ok(r.errores.length >= 3);
+});
+
+// --- RG 5616 (CondicionIVAReceptorId) + notas de crédito --------------------
+
+test("condicionReceptorId faltante/desconocida es rechazada (RG 5616)", () => {
+  assert.ok(
+    tieneError(
+      validarComprobante(compValido({ condicionReceptorId: 0 as never })),
+      "condicionReceptorId",
+    ),
+  );
+  assert.ok(
+    tieneError(
+      validarComprobante(compValido({ condicionReceptorId: 99 as never })),
+      "condicionReceptorId",
+    ),
+  );
+});
+
+test("nota de crédito SIN comprobante asociado es rechazada (CbtesAsoc)", () => {
+  const r = validarComprobante(
+    compValido({ tipo: TipoComprobante.NotaCreditoB, comprobantesAsociados: [] }),
+  );
+  assert.ok(tieneError(r, "comprobantesAsociados"));
+});
+
+test("nota de crédito CON comprobante asociado válido pasa", () => {
+  const r = validarComprobante(
+    compValido({
+      tipo: TipoComprobante.NotaCreditoB,
+      comprobantesAsociados: [
+        { tipo: TipoComprobante.FacturaB, puntoVenta: 1, numero: 7 },
+      ],
+    }),
+  );
+  assert.equal(r.ok, true);
 });

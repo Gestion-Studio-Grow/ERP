@@ -9,6 +9,7 @@
  */
 
 import { CondicionIva } from './domain/catalogos';
+import type { Operacion } from './domain/politica-contribuyente';
 
 /** Desglose de IVA calculado por el Core (el plugin NO lo calcula, ADR-006). */
 export interface SubtotalIvaCore {
@@ -18,6 +19,18 @@ export interface SubtotalIvaCore {
   base: number;
   /** Importe de IVA de esa alícuota, ya calculado por el Core. */
   importe: number;
+}
+
+/**
+ * Referencia al comprobante ORIGEN que una nota de crédito corrige (`CbtesAsoc`
+ * de WSFEv1). Obligatorio cuando la operación es NOTA_CREDITO: ARCA exige asociar
+ * la nota a la factura autorizada que reversa.
+ */
+export interface ComprobanteAsociado {
+  /** Tipo de comprobante ARCA del origen (`TipoComprobante`). */
+  tipo: number;
+  puntoVenta: number;
+  numero: number;
 }
 
 /** Datos del emisor tal como el Core los conoce (por tenant). */
@@ -59,6 +72,22 @@ export interface InvoiceCreatedEvent {
   servicioDesde?: string;
   servicioHasta?: string;
   vencimientoPago?: string;
+  /**
+   * Operación fiscal. `FACTURA` (default, si se omite) o `NOTA_CREDITO` (reversa
+   * de una factura ya autorizada). La política por contribuyente resuelve el
+   * tipo de comprobante concreto a partir de esto.
+   */
+  operacion?: Operacion;
+  /**
+   * Comprobante origen que esta nota de crédito corrige. OBLIGATORIO si
+   * `operacion === 'NOTA_CREDITO'`; ignorado para facturas.
+   */
+  comprobanteAsociado?: ComprobanteAsociado;
+  /**
+   * Emisor RI marcado en riesgo fiscal / sin CBU: emite Factura M en lugar de A.
+   * Default false. No aplica a Monotributo/Exento.
+   */
+  emisorRiesgoFiscal?: boolean;
 }
 
 /**

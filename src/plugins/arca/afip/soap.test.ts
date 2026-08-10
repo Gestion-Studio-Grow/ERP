@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import {
   AlicuotaIvaId,
   Concepto,
+  CondicionIvaReceptor,
   TipoComprobante,
   TipoDocumento,
 } from '../domain/catalogos';
@@ -21,6 +22,7 @@ import {
   SoapTransport,
   TicketAcceso,
   armarFECAESolicitarRequest,
+  armarFECompConsultarRequest,
   armarLoginTicketRequest,
   armarUltimoAutorizadoRequest,
   desescaparXml,
@@ -29,6 +31,7 @@ import {
   extraerTag,
   extraerTags,
   parsearFECAESolicitarResponse,
+  parsearFECompConsultarResponse,
   parsearLoginTicketResponse,
   parsearObservaciones,
   parsearUltimoAutorizadoResponse,
@@ -50,6 +53,7 @@ function comprobanteFacturaA(): ComprobanteArca {
     concepto: Concepto.Productos,
     docTipo: TipoDocumento.CUIT,
     docNro: 20111111112,
+    condicionReceptorId: CondicionIvaReceptor.ResponsableInscripto,
     fecha: '20260705',
     neto: 1000,
     iva: [{ id: AlicuotaIvaId.VeintiUno, baseImponible: 1000, importe: 210 }],
@@ -66,6 +70,7 @@ function comprobanteFacturaCServicios(): ComprobanteArca {
     concepto: Concepto.Servicios,
     docTipo: TipoDocumento.ConsumidorFinal,
     docNro: 0,
+    condicionReceptorId: CondicionIvaReceptor.ConsumidorFinal,
     fecha: '20260705',
     neto: 500,
     iva: [{ id: AlicuotaIvaId.Cero, baseImponible: 500, importe: 0 }],
@@ -420,4 +425,80 @@ test('SoapAfipClient cachea el ticket: no reautentica en la 2da operación', asy
 test('El signer por defecto exige credencial (acción humana)', async () => {
   const signer = new CredencialRequeridaSigner();
   await assert.rejects(() => signer.firmarCms('<tra/>'), /credencial requerida/);
+});
+
+// ── RG 5616 · CbtesAsoc · Factura B lleva IVA · FECompConsultar ──────────────
+
+test('FECAESolicitar SIEMPRE informa CondicionIVAReceptorId (RG 5616)', () => {
+  const xml = armarFECAESolicitarRequest(TA, 20111111112, comprobanteFacturaA(), 10);
+  assert.match(xml, /<ar:CondicionIVAReceptorId>1<\/ar:CondicionIVAReceptorId>/);
+});
+
+test('Factura B informa ImpIVA + array <Iva> al WS (aunque no discrimine impreso)', () => {
+  const compB: ComprobanteArca = {
+    puntoVenta: 1,
+    tipo: TipoComprobante.FacturaB,
+    concepto: Concepto.Productos,
+    docTipo: TipoDocumento.ConsumidorFinal,
+    docNro: 0,
+    condicionReceptorId: CondicionIvaReceptor.ConsumidorFinal,
+    fecha: '20260708',
+    neto: 100,
+    iva: [{ id: AlicuotaIvaId.VeintiUno, baseImponible: 100, importe: 21 }],
+    total: 121,
+    invoiceId: 'inv-b',
+    tenantId: 't-1',
+  };
+  const xml = armarFECAESolicitarRequest(TA, 20111111112, compB, 5);
+  assert.match(xml, /<ar:ImpIVA>21\.00<\/ar:ImpIVA>/);
+  assert.match(xml, /<ar:AlicIva>/);
+  assert.match(xml, /<ar:ImpNeto>100\.00<\/ar:ImpNeto>/);
+});
+
+test('Nota de crédito informa CbtesAsoc con la factura origen', () => {
+  const nc: ComprobanteArca = {
+    puntoVenta: 1,
+    tipo: TipoComprobante.NotaCreditoB,
+    concepto: Concepto.Productos,
+    docTipo: TipoDocumento.ConsumidorFinal,
+    docNro: 0,
+    condicionReceptorId: CondicionIvaReceptor.ConsumidorFinal,
+    fecha: '20260708',
+    neto: 100,
+    iva: [{ id: AlicuotaIvaId.VeintiUno, baseImponible: 100, importe: 21 }],
+    total: 121,
+    comprobantesAsociados: [{ tipo: TipoComprobante.FacturaB, puntoVenta: 1, numero: 7 }],
+    invoiceId: 'nc-1',
+    tenantId: 't-1',
+  };
+  const xml = armarFECAESolicitarRequest(TA, 20111111112, nc, 3);
+  assert.match(xml, /<ar:CbtesAsoc>/);
+  assert.match(xml, /<ar:Tipo>6<\/ar:Tipo>/);
+  assert.match(xml, /<ar:Nro>7<\/ar:Nro>/);
+});
+
+test('FECompConsultar arma el request con PtoVta/CbteTipo/CbteNro', () => {
+  const xml = armarFECompConsultarRequest(TA, 20111111112, 3, TipoComprobante.FacturaA, 42);
+  assert.match(xml, /<ar:FECompConsultar>/);
+  assert.match(xml, /<ar:CbteNro>42<\/ar:CbteNro>/);
+  assert.match(xml, /<ar:PtoVta>3<\/ar:PtoVta>/);
+});
+
+test('FECompConsultar: comprobante inexistente (Errors) → existe:false', () => {
+  const xml = `<?xml version="1.0"?><s:Envelope><s:Body><FECompConsultarResponse>` +
+    `<FECompConsultarResult><Errors><Err><Code>602</Code><Msg>No existe</Msg></Err></Errors>` +
+    `</FECompConsultarResult></FECompConsultarResponse></s:Body></s:Envelope>`;
+  assert.deepEqual(parsearFECompConsultarResponse(xml), { existe: false });
+});
+
+test('FECompConsultar: comprobante autorizado → existe con CAE', () => {
+  const xml = `<?xml version="1.0"?><s:Envelope><s:Body><FECompConsultarResponse>` +
+    `<FECompConsultarResult><ResultGet>` +
+    `<CbteDesde>42</CbteDesde><CodAutorizacion>75123456789012</CodAutorizacion><FchVto>20260718</FchVto>` +
+    `</ResultGet></FECompConsultarResult></FECompConsultarResponse></s:Body></s:Envelope>`;
+  const r = parsearFECompConsultarResponse(xml);
+  assert.equal(r.existe, true);
+  assert.equal(r.cae, '75123456789012');
+  assert.equal(r.caeVencimiento, '20260718');
+  assert.equal(r.numero, 42);
 });

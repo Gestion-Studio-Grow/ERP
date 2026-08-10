@@ -17,6 +17,7 @@ export type {
   SubtotalIvaCore,
   EmisorEvento,
   ReceptorEvento,
+  ComprobanteAsociado,
 } from './core-contract';
 export {
   TipoComprobante,
@@ -24,12 +25,37 @@ export {
   Concepto,
   AlicuotaIvaId,
   CondicionIva,
+  CondicionIvaReceptor,
   PORCENTAJE_IVA,
   MONEDA_PESOS,
   conceptoRequiereFechasServicio,
+  condicionReceptorId,
   tipoFacturaCorrespondiente,
+  tipoNotaCreditoPara,
+  esNotaCredito,
+  esClaseC,
   discriminaIva,
+  comprobanteLlevaIva,
 } from './domain/catalogos';
+export {
+  politicaDe,
+  comprobantePara,
+  receptorRequiereCuit,
+  esOperacionReversa,
+  todasLasPoliticas,
+  type Operacion,
+  type ClaseComprobante,
+  type PoliticaContribuyente,
+  type ContextoComprobante,
+} from './domain/politica-contribuyente';
+export {
+  urlQrAfip,
+  payloadQrAfip,
+  base64QrAfip,
+  URL_QR_AFIP,
+  type DatosQrAfip,
+  type PayloadQrAfip,
+} from './domain/qr-afip';
 export {
   construirComprobante,
   totalIva,
@@ -49,7 +75,14 @@ export {
   ArcaRechazoError,
 } from './afip/port';
 export { StubAfipClient } from './afip/stub';
-export { SoapAfipClient, type SoapAfipClientDeps, type TraSigner } from './afip/soap';
+export {
+  SoapAfipClient,
+  armarFECompConsultarRequest,
+  parsearFECompConsultarResponse,
+  type SoapAfipClientDeps,
+  type TraSigner,
+  type ConsultaComprobante,
+} from './afip/soap';
 export {
   Pkcs7TraSigner,
   credencialDesdeEnv,
