@@ -18,10 +18,11 @@
  */
 
 import {
+  CondicionIvaReceptorId,
   Concepto,
   MONEDA_PESOS,
   TipoComprobante,
-  discriminaIva,
+  informaIvaWsfe,
 } from '../domain/catalogos';
 import { ComprobanteArca } from '../domain/comprobante';
 import {
@@ -315,15 +316,17 @@ export function armarFECAESolicitarRequest(
   numero: number,
 ): string {
   const importeIva = comp.iva.reduce((s, x) => s + x.importe, 0);
-  const discrimina = discriminaIva(comp.tipo);
+  const informaIva = informaIvaWsfe(comp.tipo);
 
-  // Comprobantes que discriminan IVA (tipo A) informan ImpNeto + ImpIVA y el
-  // array <Iva>. Los que no (B/C) mandan el importe en ImpNeto sin <Iva>.
+  // Comprobantes que informan IVA (tipo A y B, emisor Responsable Inscripto)
+  // mandan ImpNeto + ImpIVA y el array <Iva>. Los que no (C) mandan el importe
+  // en ImpNeto sin <Iva>. (Antes esto miraba `discriminaIva` = solo A, y dejaba
+  // la Factura B sin <Iva> con ImpIVA=0 → ImpTotal ≠ ImpNeto → rechazo de ARCA.)
   const impNeto = comp.neto;
-  const impIva = discrimina ? importeIva : 0;
+  const impIva = informaIva ? importeIva : 0;
   const impTotal = comp.total;
 
-  const detalleIva = discrimina
+  const detalleIva = informaIva
     ? `<ar:Iva>` +
       comp.iva
         .map(
@@ -363,6 +366,7 @@ export function armarFECAESolicitarRequest(
     fechasServicio +
     `<ar:MonId>${MONEDA_PESOS}</ar:MonId>` +
     `<ar:MonCotiz>1</ar:MonCotiz>` +
+    `<ar:CondicionIVAReceptorId>${condicionIvaReceptor(comp)}</ar:CondicionIVAReceptorId>` +
     detalleIva +
     `</ar:FECAEDetRequest>`;
 
@@ -384,6 +388,16 @@ export function armarFECAESolicitarRequest(
 /** Formatea un monto a 2 decimales (formato de WSFEv1). */
 function fmt(n: number): string {
   return n.toFixed(2);
+}
+
+/**
+ * Resuelve el `CondicionIVAReceptorId` (obligatorio, RG 5616). Usa el del
+ * comprobante si vino resuelto (lo setea `construirComprobante` desde la
+ * condición real del receptor); si no, cae a Consumidor Final — el default
+ * seguro para el comprobante a consumidor final sin identificar.
+ */
+function condicionIvaReceptor(comp: ComprobanteArca): CondicionIvaReceptorId {
+  return comp.condicionIvaReceptorId ?? CondicionIvaReceptorId.ConsumidorFinal;
 }
 
 /**
@@ -504,6 +518,22 @@ export interface SoapAfipClientDeps {
   signer?: TraSigner;
   /** Reloj inyectable (para tests de expiración). */
   ahora?: () => Date;
+  /**
+   * TA previamente obtenido y persistido (p.ej. cacheado por tenant en la DB).
+   * Si sigue vigente, el cliente lo reusa en vez de re-loguear contra WSAA
+   * (WSAA rechaza un segundo login mientras haya un TA válido:
+   * `coe.alreadyAuthenticated`). Clave para procesos efímeros/serverless.
+   */
+  ticketInicial?: TicketAcceso;
+  /**
+   * Callback que se dispara cuando el cliente OBTIENE un TA nuevo de WSAA (no
+   * cuando reusa el `ticketInicial` vigente). Es el seam para PERSISTIR el TA
+   * (cifrado, por tenant) apenas se acuña, así la próxima invocación —incluso en
+   * otro proceso serverless— lo reusa en vez de re-loguear (evita el bloqueo
+   * `alreadyAuthenticated` de ~10-15 min). No debe lanzar: un fallo al persistir
+   * no puede tumbar la emisión (se ignora; a lo sumo se re-loguea la próxima).
+   */
+  alRenovarTicket?: (ta: TicketAcceso) => void | Promise<void>;
 }
 
 /**
@@ -517,6 +547,7 @@ export class SoapAfipClient implements AfipClient {
   private readonly transport: SoapTransport;
   private readonly signer: TraSigner;
   private readonly ahora: () => Date;
+  private readonly alRenovarTicket?: (ta: TicketAcceso) => void | Promise<void>;
   private ticket?: TicketAcceso;
 
   constructor(
@@ -526,10 +557,17 @@ export class SoapAfipClient implements AfipClient {
     this.transport = deps.transport ?? new FetchSoapTransport();
     this.signer = deps.signer ?? new CredencialRequeridaSigner();
     this.ahora = deps.ahora ?? (() => new Date());
+    this.alRenovarTicket = deps.alRenovarTicket;
+    this.ticket = deps.ticketInicial;
   }
 
   private get endpoints(): EndpointsArca {
     return endpointsPara(this.config);
+  }
+
+  /** TA vigente en caché (para persistirlo y reusarlo entre procesos). */
+  get ticketActual(): TicketAcceso | undefined {
+    return this.ticket;
   }
 
   /**
@@ -545,6 +583,15 @@ export class SoapAfipClient implements AfipClient {
     const sobre = armarSobreLoginCms(cms);
     const respuesta = await this.transport.post(this.endpoints.wsaa, '', sobre);
     this.ticket = parsearLoginTicketResponse(respuesta);
+    // Persistir el TA recién acuñado (seam de caché por tenant). Best-effort: si
+    // falla, no debe tumbar la emisión — a lo sumo la próxima invocación re-loguea.
+    if (this.alRenovarTicket) {
+      try {
+        await this.alRenovarTicket(this.ticket);
+      } catch {
+        // Ignorado a propósito: persistir el TA es una optimización, no un requisito.
+      }
+    }
     return this.ticket;
   }
 

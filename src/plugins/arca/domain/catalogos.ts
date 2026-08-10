@@ -52,6 +52,36 @@ export enum CondicionIva {
 }
 
 /**
+ * Código ARCA de la "Condición Frente al IVA del receptor" (campo
+ * `CondicionIVAReceptorId` de WSFEv1). OBLIGATORIO desde la RG 5616 (2024): sin
+ * este campo, ARCA rechaza el comprobante con la observación 10246. Códigos del
+ * método `FEParamGetCondicionIvaReceptor`.
+ */
+export enum CondicionIvaReceptorId {
+  ResponsableInscripto = 1,
+  SujetoExento = 4,
+  ConsumidorFinal = 5,
+  ResponsableMonotributo = 6,
+  SujetoNoCategorizado = 7,
+  MonotributistaSocial = 13,
+  IvaNoAlcanzado = 15,
+}
+
+/** Mapea la condición de IVA del dominio al código ARCA del receptor (RG 5616). */
+export function condicionIvaReceptorArca(c: CondicionIva): CondicionIvaReceptorId {
+  switch (c) {
+    case CondicionIva.ResponsableInscripto:
+      return CondicionIvaReceptorId.ResponsableInscripto;
+    case CondicionIva.Monotributo:
+      return CondicionIvaReceptorId.ResponsableMonotributo;
+    case CondicionIva.Exento:
+      return CondicionIvaReceptorId.SujetoExento;
+    case CondicionIva.ConsumidorFinal:
+      return CondicionIvaReceptorId.ConsumidorFinal;
+  }
+}
+
+/**
  * Porcentaje (0..1) de cada alícuota. Referencia para **verificar** los montos
  * que manda el Core (no para calcularlos — el cálculo vive en el Core, ADR-006).
  */
@@ -101,5 +131,30 @@ export function discriminaIva(tipo: TipoComprobante): boolean {
     tipo === TipoComprobante.FacturaA ||
     tipo === TipoComprobante.NotaDebitoA ||
     tipo === TipoComprobante.NotaCreditoA
+  );
+}
+
+/**
+ * ¿El comprobante INFORMA IVA en el payload de WSFEv1 (ImpIVA + array `<Iva>`)?
+ *
+ * Tanto Factura **A** como **B** lo informan: ambos salen de un emisor Responsable
+ * Inscripto, así que WSFEv1 exige `ImpNeto` + `ImpIVA` + el bloque `<Iva>` con
+ * `ImpTotal = ImpNeto + ImpIVA`. La diferencia entre A y B es solo si el IVA se
+ * MUESTRA discriminado al receptor en el impreso (`discriminaIva`, regla del
+ * receptor-CUIT) — NO el payload que se manda a ARCA. Solo **C** (emisor
+ * Monotributo/Exento) no informa IVA (manda el importe en `ImpNeto`, sin `<Iva>`).
+ *
+ * ⚠️ Bug latente que cierra: usar `discriminaIva` (solo A) para armar el `<Iva>`
+ * dejaba la Factura B sin bloque de IVA y con `ImpIVA=0` → `ImpTotal ≠ ImpNeto`,
+ * y ARCA la rechazaba. Emitir el `<Iva>` para A **y** B lo corrige.
+ */
+export function informaIvaWsfe(tipo: TipoComprobante): boolean {
+  return (
+    tipo === TipoComprobante.FacturaA ||
+    tipo === TipoComprobante.NotaDebitoA ||
+    tipo === TipoComprobante.NotaCreditoA ||
+    tipo === TipoComprobante.FacturaB ||
+    tipo === TipoComprobante.NotaDebitoB ||
+    tipo === TipoComprobante.NotaCreditoB
   );
 }

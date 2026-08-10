@@ -5,6 +5,8 @@ import {
   masterKeyDesdeEnv,
   sealCredential,
   openCredential,
+  sealSecret,
+  openSecret,
   type MasterKey,
 } from "./cert-crypto";
 
@@ -99,4 +101,28 @@ test("open sobre tampereado → lanza (GCM detecta el cambio)", () => {
   buf[0] ^= 0xff;
   const tampereado = { ...sobre, sealed: `${iv}.${tag}.${buf.toString("base64")}` };
   assert.throws(() => openCredential(tampereado, master()));
+});
+
+// ── Envelope genérico (sealSecret/openSecret) — usado para el TA de ARCA ──────
+
+test("sealSecret → openSecret: round-trip de un string arbitrario", () => {
+  const secreto = JSON.stringify({ token: "VE9LRU4=", sign: "U0lHTg==" });
+  const sobre = sealSecret(secreto, master());
+  assert.equal(openSecret(sobre, master()), secreto);
+});
+
+test("sealSecret: el sobre no contiene el secreto en claro", () => {
+  const sobre = sealSecret("token-super-secreto-123", master());
+  const serial = JSON.stringify(sobre);
+  assert.ok(!serial.includes("token-super-secreto-123"), "el secreto no debe aparecer en claro");
+});
+
+test("openSecret con master key equivocada → lanza (no devuelve el secreto)", () => {
+  const sobre = sealSecret("x", master());
+  assert.throws(() => openSecret(sobre, otra()));
+});
+
+test("sealCredential sigue funcionando (delega en sealSecret)", () => {
+  const sobre = sealCredential(plano, master());
+  assert.deepEqual(openCredential(sobre, master()), plano);
 });

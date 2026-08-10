@@ -24,11 +24,14 @@ export {
   Concepto,
   AlicuotaIvaId,
   CondicionIva,
+  CondicionIvaReceptorId,
   PORCENTAJE_IVA,
   MONEDA_PESOS,
   conceptoRequiereFechasServicio,
   tipoFacturaCorrespondiente,
+  condicionIvaReceptorArca,
   discriminaIva,
+  informaIvaWsfe,
 } from './domain/catalogos';
 export {
   construirComprobante,
@@ -49,7 +52,13 @@ export {
   ArcaRechazoError,
 } from './afip/port';
 export { StubAfipClient } from './afip/stub';
-export { SoapAfipClient, type SoapAfipClientDeps, type TraSigner } from './afip/soap';
+export {
+  SoapAfipClient,
+  ticketVigente,
+  type SoapAfipClientDeps,
+  type TraSigner,
+  type TicketAcceso,
+} from './afip/soap';
 export {
   Pkcs7TraSigner,
   credencialDesdeEnv,

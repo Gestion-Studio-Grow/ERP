@@ -18,6 +18,7 @@
     "purge-audit": "tsx scripts/purge-audit-logs.ts",
     "publicar:direccion": "node celula-negocios-digitales/panel/publicar-a-app.mjs",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test:arca-e2e": "tsx scripts/qa/arca-emision-e2e.mjs",
     "gate:rls": "node prisma/rls/check-coverage.mjs",
     "adr:graph": "node scripts/adr-graph.mjs",
     "adr:linkcheck": "node scripts/adr-linkcheck.mjs",

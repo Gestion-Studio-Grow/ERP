@@ -91,3 +91,36 @@ test("🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-
   );
   await assert.rejects(() => clientePara("tenant-1"), /no corresponde al CUIT|ADR-066/);
 });
+
+// ── Seam del TA por tenant (reutilización entre invocaciones) ─────────────────
+
+test("clientePara (stub): NO toca el store del TA", async () => {
+  let leerLlamado = false;
+  const clientePara = crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: true }),
+    {}, // stub
+    async () => credencialDeTest(20111111112),
+    async () => {
+      leerLlamado = true;
+      return undefined;
+    },
+  );
+  await clientePara("tenant-1");
+  assert.equal(leerLlamado, false, "en stub no hay autenticación → no se lee el TA");
+});
+
+test("clientePara (homologación): carga el TA persistido del tenant (ticketInicial)", async () => {
+  const tenants: string[] = [];
+  const clientePara = crearClientePara(
+    leerFijo({ cuit: 20111111112, homologacion: true }),
+    { ARCA_MODO: "homologacion" },
+    async () => credencialDeTest(20111111112),
+    async (tenantId) => {
+      tenants.push(tenantId); // el store se consulta con el tenantId correcto
+      return undefined;
+    },
+  );
+  const cliente = await clientePara("tenant-1");
+  assert.ok(cliente instanceof SoapAfipClient);
+  assert.deepEqual(tenants, ["tenant-1"], "debe leer el TA persistido del tenant que emite");
+});
