@@ -27,17 +27,45 @@ import { basePrisma } from "@/lib/prisma-base";
 // con contexto explícito (runInTenantContext) — ver la API pública (public-api-auth).
 
 /**
- * Extrae el subdominio del host respecto de `APP_BASE_DOMAIN`. PURO y testeable.
- * - Sin APP_BASE_DOMAIN, sin host, apex (`base`/`www.base`), o host no relacionado
- *   (localhost, previews de Netlify) → `null` (→ fallback single-tenant).
+ * Parsea `TENANT_HOST_MAP` ("host1=sub1;host2=sub2") a un mapa host→subdomain.
+ * PURO y testeable — no toca `process.env` directamente.
+ */
+export function parseTenantHostMap(raw: string | null | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!raw) return map;
+  for (const entry of raw.split(";")) {
+    const [rawHost, rawSub] = entry.split("=");
+    const h = rawHost?.trim().toLowerCase();
+    const s = rawSub?.trim().toLowerCase();
+    if (h && s) map.set(h, s);
+  }
+  return map;
+}
+
+/**
+ * Extrae el subdominio/tenant-slug del host del request. PURO y testeable.
+ * - Primero consulta `TENANT_HOST_MAP` (mapeo explícito host→subdomain): imprescindible
+ *   para URLs `.vercel.app` gratis, donde no hay dominio propio y por lo tanto no se puede
+ *   tratar el host entero como "subdominio de APP_BASE_DOMAIN" (documentado en
+ *   `docs/runbooks/recuperar-chestetica.md`; antes de este fix la variable se documentaba
+ *   pero no se leía en ningún lado → cargarla en Vercel no tenía ningún efecto).
+ * - Si no matchea ahí, cae al recorte por `APP_BASE_DOMAIN` (dominio propio real).
+ * - Sin ninguno de los dos, sin host, apex (`base`/`www.base`), o host no relacionado
+ *   (localhost, previews) → `null` (→ fallback single-tenant).
  * - `caro.base.com` → `"caro"`.
  */
 export function extractSubdomain(host: string | null | undefined): string | null {
-  const base = process.env.APP_BASE_DOMAIN?.trim().toLowerCase();
-  if (!base || !host) return null;
+  if (!host) return null;
   let h = host.split(",")[0].trim().toLowerCase();
   h = h.split(":")[0]; // sacar puerto
-  if (!h || h === base || h === `www.${base}`) return null;
+  if (!h) return null;
+
+  const mapped = parseTenantHostMap(process.env.TENANT_HOST_MAP).get(h);
+  if (mapped) return mapped;
+
+  const base = process.env.APP_BASE_DOMAIN?.trim().toLowerCase();
+  if (!base) return null;
+  if (h === base || h === `www.${base}`) return null;
   if (h.endsWith(`.${base}`)) {
     const sub = h.slice(0, h.length - base.length - 1).split(".")[0];
     return sub || null;
