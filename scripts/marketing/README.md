@@ -30,6 +30,33 @@ la fecha y la línea pet son iguales en las cuatro.
 | `opciones/ch-grand-opening-3-msmadi-una-linea.jpg` | Ms Madi en una línea, tipo firma |
 | `public/tenants/ch-grand-opening-15ago.jpg` | **Allura — la publicada** |
 
+## `qr-chestetica-instagram.py`
+
+QR del Instagram de CH (`@chestetica.c`) y su colocación en el flyer.
+
+| Archivo | Qué es |
+|---|---|
+| `qr-chestetica-instagram.png` | 1480×1480, fondo transparente — para cualquier fondo claro |
+| `qr-chestetica-instagram-fondo.png` | 1480×1480, sobre el papel de la pieza (`#F7F5F2`) |
+| `public/tenants/ch-grand-opening-15ago-qr.jpg` | el flyer con el QR al pie, abajo a la derecha |
+
+**La URL se limpió.** La que pasó el cliente traía `?igsh=…`, que es un token de
+sesión de "compartir" de Instagram: no identifica al perfil, caduca, y solo alarga
+el QR — lo lleva de versión 3 a versión 4, o sea más módulos en el mismo espacio y
+por lo tanto más difícil de escanear. Se usa `https://instagram.com/chestetica.c`,
+que resuelve al mismo perfil.
+
+**Se verifica decodificando, no a ojo.** El script lee cada símbolo que genera y
+comprueba que devuelva exactamente la URL: los dos PNG, el recorte del JPEG ya
+comprimido (que es lo que la gente escanea) y ese mismo recorte reducido a 320 px
+de ancho, el preview de WhatsApp. Los cuatro pasan.
+
+> **No uses OpenCV para verificar QRs.** `cv2.QRCodeDetector` falla incluso con el
+> PNG de referencia que genera segno, a cualquier escala — da falsos negativos y te
+> manda a debuggear un QR que está bien. El script usa **zbar** (`pyzbar`), que es el
+> mismo motor de los lectores reales. Necesita la librería del sistema:
+> `apt-get install libzbar0`.
+
 ### Cómo correrlo
 
 ```bash
