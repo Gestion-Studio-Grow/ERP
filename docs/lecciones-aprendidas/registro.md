@@ -282,10 +282,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 **[MP-4] Subagentes gastando de más (Opus por herencia)**
 - **Síntoma:** subagentes corriendo en **Opus por herencia** → gasto tirado (US$ ~37 medidos).
 - **Causa raíz:** el subagente hereda el modelo del padre por default.
-- **Fix:** subagentes en **Sonnet/Haiku**; Opus solo para el alto juicio y el Gate.
-- **Lección:** el grunt work paralelo **no necesita Opus**.
-- **Guardarraíl:** **cada célula etiqueta su modelo explícito**; **subagentes nunca Opus**; Gate GSG siempre Opus.
-- **Refs:** ADR-032, `docs/organizacion/factory-reforzada.md`.
+- **Fix (original, 2026-07):** subagentes en **Sonnet/Haiku**; Opus solo para el alto juicio y el Gate.
+- **Lección:** el grunt work paralelo **no necesita Opus** — sigue siendo cierto.
+- **Guardarraíl (actualizado 2026-08-11, enmienda ADR-032):** **todo subagente declara su modelo
+  explícitamente al despacharlo**; **Opus 5 está habilitado** para subagentes de juicio (investigación,
+  síntesis, auditoría); Sonnet/Haiku sigue siendo el default para volumen; Gate GSG siempre Opus.
+  ⚠️ Ojo con la relectura fácil: lo que costó los US$ ~37 fue el modelo **accidental** (herencia sin que
+  nadie lo eligiera), no el tier. La prohibición total curaba el síntoma y de paso mataba el caso legítimo.
+- **Refs:** ADR-032 (+ enmienda 2026-08-11), `docs/organizacion/factory-reforzada.md`.
 
 **[MP-5] Despachar sin la foto**
 - **Síntoma:** errores de migración, cosas dejadas afuera, pérdida de contexto entre sprints.

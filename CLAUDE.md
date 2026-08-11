@@ -67,7 +67,7 @@ economiza donde no duele y se paga Opus solo donde un error es caro o irreversib
 ### 1. Estructura de células por capa (se auto-abren al decir `sprint`)
 La factory tiene **dos capas**. Al invocar `sprint` se **abren automáticamente** las células, **cada una
 con su modelo asignado** (1 frente = 1 worktree = 1 sesión):
-- **Capa OPUS 4.8 — alto juicio** (caro de revertir · seguridad · plata · arquitectura · el gate):
+- **Capa OPUS 5 — alto juicio** (caro de revertir · seguridad · plata · arquitectura · el gate):
   **PMO / Arquitecto jefe · Auditoría GSG (el Gate) · Seguridad · Preset IA (Ingesta + Adaptación).**
 - **Capa SONNET 5 — ejecución** (volumen · reversible · criterio acotado):
   **Probador interactivo · Adaptador para cliente · Plataforma/Deploy/Infra · Productos por rubro ·
@@ -75,17 +75,24 @@ con su modelo asignado** (1 frente = 1 worktree = 1 sesión):
 
 ### 2. Economía de modelos por defecto (regla dura)
 **Default = Sonnet 5** (`claude-sonnet-5`) para TODA la ejecución (implementación acotada, docs, UI de
-rubro, tests, exploración, provisioning). **Opus 4.8** (`claude-opus-4-8`) se reserva **solo** para la
+rubro, tests, exploración, provisioning). **Opus 5** (`claude-opus-5`) se reserva para la
 capa de alto juicio de arriba. Criterio: *¿un error acá es caro/difícil de revertir, o toca seguridad,
 plata, arquitectura o prod/Neon/deploy?* **Sí → Opus; no (la mayoría) → Sonnet.** Comandos: **`/economia`**
 (default, Sonnet) y **`/boost`** (todo Opus, sprints críticos de punta a punta) — ver
 `.claude/commands/economia.md` y `.claude/commands/boost.md`. Coherente con la prioridad de **costo sobre
-velocidad** del dueño. Los **subagentes** (Task/Workflow) corren en **Sonnet o Haiku, nunca Opus por
-herencia**.
+velocidad** del dueño.
+
+**Subagentes (Task/Workflow) — HABILITADOS en Opus 5** (enmienda 2026-08-11, decisión del dueño; deroga la
+prohibición original de ADR-032 §2). Un subagente **puede correr en Opus 5** cuando la tarea lo amerita —
+juicio, síntesis, investigación, auditoría, cualquier cosa donde un resultado flojo se paga caro después.
+Para **volumen mecánico** (grep masivo, leer N archivos, verificar un finding acotado) el default sigue
+siendo **Sonnet o Haiku**: no es una prohibición, es que ahí Opus no compra nada. **Lo que sigue prohibido
+es el modelo ACCIDENTAL:** todo subagente **declara su modelo explícitamente** al despacharlo. Ese, y no el
+tier, era el verdadero hallazgo de MP-4 (US$ ~37 tirados por *herencia*, no por elección).
 
 ### 3. 🛡️ La Auditoría GSG corre SIEMPRE en Opus (excepción dura, no negociable)
 El **Gate de Excelencia completo** (Auditoría SAP Fiori en **TODOS** sus ángulos + sello/estándar GSG)
-corre **SIEMPRE en Opus 4.8**, sin excepción, **incluso en modo `economia`** y aunque la ejecución del
+corre **SIEMPRE en Opus 5**, sin excepción, **incluso en modo `economia`** y aunque la ejecución del
 frente haya sido Sonnet. El control de calidad GSG **nunca se degrada de modelo**: al auditar/aprobar un
 entregable (incluidos los presets del generador por IA) se **escala a Opus** para la auditoría y se
 vuelve a Sonnet para ejecutar. Auditar con un modelo degradado sería ahorrar justo donde no se debe.
@@ -253,7 +260,7 @@ TODO desarrollo.** Checklist corto que cada frente tilda **antes de pushear**:
 
 Ítem que no aplica → **N/A + por qué**. Si no tilda los **4 bloques**, **no se integra**. Detalle completo
 en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el handoff de PR/commit). La
-**Auditoría GSG que corre este Gate va SIEMPRE en Opus 4.8** (ver §3 del Modelo de trabajo, arriba).
+**Auditoría GSG que corre este Gate va SIEMPRE en Opus 5** (ver §3 del Modelo de trabajo, arriba).
 
 ## 💸 CICLO DEMO → VENTA → INVERSIÓN — regla de gasto (OBLIGATORIA)
 

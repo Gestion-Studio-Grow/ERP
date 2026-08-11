@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-08-02 01:53 UTC
+generado_el: 2026-08-11 02:13 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-08-02 01:53 UTC sobre `e078f64`.**
+> ⏱️ **Foto tomada el 2026-08-11 02:13 UTC sobre `1a70a4c`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,15 +18,18 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `claude/token-saving-brain-clients-5rur0j` |
-| HEAD | `e078f64` (2026-08-01) |
-| Árbol | **2 archivo(s) sin commitear** _(sin contar `brain/`)_ |
-| Tip de `main` | d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor |
+| Rama actual | `claude/aesthetic-illustrated-photo-xyfsbe` |
+| HEAD | `1a70a4c` (2026-08-10) |
+| Árbol | **8 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| Tip de `main` | 57ab9e4 · 2026-08-02 · Merge claude/token-saving-brain-clients — segundo cerebro: vault derivado del repo + Fase 0 barata |
 
-**Ramas locales (2, más reciente primero):** `claude/token-saving-brain-clients-5rur0j` · `main`
+**Ramas locales (2, más reciente primero):** `claude/aesthetic-illustrated-photo-xyfsbe` · `main`
 
 **Últimos commits**
 
+- 1a70a4c · 2026-08-10 · feat(ilustrar): puente a la API de imagen de Google para piezas visuales de marca
+- 57ab9e4 · 2026-08-02 · Merge claude/token-saving-brain-clients — segundo cerebro: vault derivado del repo + Fase 0 barata
+- 22d1354 · 2026-08-02 · feat(brain): activación Nivel 2 — el cerebro entra en la Fase 0 de CLAUDE.md
 - e078f64 · 2026-08-01 · docs(rfc-005): el parche exacto de activación, para aprobar o rechazar
 - 5080895 · 2026-08-01 · feat(brain): configurar el grafo para que se lea como un cerebro, no como una madeja
 - 434f4ac · 2026-07-31 · feat(brain): tres zonas nuevas — metodología, calibración y mapa código↔decisión
@@ -36,9 +39,6 @@ tags: [brain/estado, fase-0]
 - 7341ae2 · 2026-07-31 · feat(brain): segundo cerebro — vault de notas atómicas derivado del repo (Fase 0 a ~15% del costo)
 - d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
 - ee25ed2 · 2026-07-13 · fix(fiscal): endurecer lectura runtime de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
-- 1d48135 · 2026-07-13 · test(shine): actualizar contrato de orden de secciones tras edición de densidad
-- 15a8ddd · 2026-07-13 · Merge diseno/shine-resumido — densidad del front de Shine: colección comprable primero (producto+precio a ~1.7 pantallas mobile) + fix overflow hero mobile
-- fc0dede · 2026-07-13 · Merge ci/senal-verde — vallas del gate en jobs separados (visual/visual-aa BLOQUEANTES; lint no-bloqueante) + fix contraste badge 'Por kg' (ADR-040)
 
 ## Migraciones (Prisma)
 
@@ -57,7 +57,7 @@ tags: [brain/estado, fase-0]
 | Fuente | Volumen |
 |---|---:|
 | Documentos en `docs/` | 297 |
-| Palabras en `docs/` | 426.576 |
+| Palabras en `docs/` | 427.152 |
 | ADRs | 81 |
 | Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
 

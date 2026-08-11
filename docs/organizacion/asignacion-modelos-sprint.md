@@ -83,10 +83,19 @@ Una sesión Sonnet **no cambia de dueño** cuando necesita juicio: **escala punt
 tramo crítico (arquitectura, seguridad, plata, metodología) y **vuelve a Sonnet** para ejecutar. La
 Auditoría GSG es el punto fijo de escalada: **todo entregable pasa por Opus antes de `main`**.
 
-### Subagentes (Task/Workflow) — nunca Opus por herencia
-El grunt work paralelo (grep masivo, verificar un finding, leer N archivos) corre en **Sonnet o Haiku**,
-**nunca Opus** (`factory-reforzada.md §2` + gap G4). El subagente devuelve dato estructurado; la síntesis
-de alto juicio la hace la capa Opus.
+### Subagentes (Task/Workflow) — Opus 5 habilitado, modelo siempre explícito
+*(Enmienda ADR-032 del 2026-08-11: deroga el "nunca Opus".)*
+
+El criterio ya no es el tier, es **qué hace el subagente**:
+
+| Tarea del subagente | Modelo |
+|---|---|
+| Grunt work paralelo (grep masivo, leer N archivos, verificar un finding acotado) | **Sonnet** o **Haiku** |
+| Juicio, síntesis, investigación de mercado, auditoría, red-team | **Opus 5** |
+
+Sonnet sigue siendo el default para volumen — no por prohibición, sino porque ahí Opus no compra nada.
+**Lo prohibido es el modelo accidental:** todo despacho declara el modelo (parámetro `model` del subagente).
+Ese era el defecto real de MP-4 (US$ ~37 tirados por *herencia*, no por elección).
 
 ---
 

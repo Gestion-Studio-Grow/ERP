@@ -48,7 +48,7 @@ tags: [brain/indice]
 - **[MP-1](MP-1-archivos-corrompidos-al-editar.md)** — no alternar file-tool ↔ bash en el mismo archivo; para shell usar heredoc.
 - **[MP-2](MP-2-sesiones-pisandose-en-el-tree-compartido.md)** — pathspec siempre, nunca `-A`; editar sobre `origin/main` en worktree descartable; una vez en `origin/main` es permanente.
 - **[MP-3](MP-3-servicio-ocupado-por-congestion.md)** — ≤ 4 corriendo; en congestión solo P1 (demos/venta); P2 espera, P3 pausado.
-- **[MP-4](MP-4-subagentes-gastando-de-mas-opus-por-herencia.md)** — cada célula etiqueta su modelo explícito; subagentes nunca Opus; Gate GSG siempre Opus.
+- **[MP-4](MP-4-subagentes-gastando-de-mas-opus-por-herencia.md)** — todo subagente declara su modelo explícitamente al despacharlo; Opus 5 está habilitado para subagentes de juicio (investigación, síntesis, auditoría); Sonnet/Haiku sigue siendo el default para […]
 - **[MP-5](MP-5-despachar-sin-la-foto.md)** — "sin la foto no se despacha"; FASE 0 no salteable.
 - **[MP-6](MP-6-worktree-nuevo-sin-dependencias.md)** — `npm install` una vez por worktree; no copiar `node_modules` ni depender de junctions para el build.
 - **[MP-7](MP-7-contexto-que-se-relee-a-si-mismo.md)** — acotar el contexto por célula; compactar/cerrar sesiones largas; el repo es la memoria (no el chat).

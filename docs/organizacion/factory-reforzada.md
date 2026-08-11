@@ -60,9 +60,12 @@ El caballo de batalla. Una célula por frente:
 Regla: la capa Sonnet **entrega borradores listos para auditar**, no mergea sola nada sensible (§3).
 
 ### Subagentes (Task/Workflow)
-Grunt work paralelo (grep masivo, verificación de un finding, lectura de N archivos). **Default Sonnet o
-Haiku, nunca Opus** — hoy corren Opus por herencia y es gasto tirado (ver gap G4). El subagente devuelve
-dato estructurado; la síntesis de alto juicio la hace la capa Opus.
+*(Enmienda ADR-032 del 2026-08-11: se deroga el "nunca Opus".)*
+
+**Default Sonnet o Haiku** para grunt work paralelo (grep masivo, verificación de un finding, lectura de N
+archivos) — ahí Opus no compra nada. **Opus 5 habilitado** cuando el subagente hace juicio: síntesis,
+investigación, auditoría, red-team. **El modelo se declara siempre de forma explícita al despacharlo**; lo
+que se prohíbe es el modelo *accidental* por herencia, que fue el gasto tirado del gap G4 / MP-4.
 
 ---
 
@@ -109,7 +112,7 @@ Roles/capacidades que hoy faltan o están implícitos, y que al agrandar **no de
 | **G1** | **QA / Testing dedicado** | Los tests los hace quien programa; no hay rol que *rompa a propósito* | Célula **QA** Sonnet (casos borde, regresión, repro de bugs) + verificación adversarial en el gate Opus | Sonnet + gate Opus |
 | **G2** | **Growth / Conversión** | Se construye producto sin dueño de embudo/activación/retención | Rol **Growth** que define métricas de conversión por vidriera/tenant y prioriza features por impacto | Opus (estrategia) + Sonnet (implementación de instrumentación) |
 | **G3** | **Observabilidad / Telemetría de COSTO** | El gasto se descubrió *a mano* recién ahora; no hay serie temporal | `scripts/finops/parse-claude-usage.mjs` versionado + corrida semanal + tablero de costo por célula/modelo. Dueño: PMO | Automatizado + Opus revisa |
-| **G4** | **Modelo de subagentes** | Subagentes corren **Opus por herencia** → gasto tirado (US$ 37 medidos) | Fijar Sonnet/Haiku como default de subagente; Opus solo si el subagente hace juicio | Config |
+| **G4** | **Modelo de subagentes** | Subagentes corren **Opus por herencia** → gasto tirado (US$ 37 medidos) | Sonnet/Haiku default para volumen; **Opus 5 habilitado si el subagente hace juicio** (enmienda ADR-032 2026-08-11); en todos los casos, **modelo declarado explícitamente**, nunca heredado | Config |
 | **G5** | **Higiene de contexto** | 86% del costo es acarreo de contexto; sesiones de 50 h que se releen a sí mismas | Política de `/compact`, cerrar sesiones largas, células de contexto acotado, evitar cache 1h innecesario | Método |
 | **G6** | **SRE / Reliability continuo** | Existe la célula pero es ad-hoc; sin runbook de guardia ni SLOs | Formalizar SLOs + runbook de incidentes; Sonnet ejecuta hardening, Opus decide arquitectura de resiliencia | Sonnet + Opus |
 | **G7** | **Data / Migraciones de prod** | Gate DB ya existe (migrate deploy pausado) pero sin rol dueño del ciclo de datos | Rol **Data** (Opus) dueño de migraciones, RLS, integridad; único que propone tocar Neon | Opus |

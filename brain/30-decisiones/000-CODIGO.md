@@ -24,8 +24,8 @@ tags: [brain/indice, brain/codigo]
 |---|---:|
 | Archivos de `src/` que citan un ADR | 287 de 577 |
 | Archivos de `prisma/` que citan un ADR | 35 de 68 |
-| Archivos de `scripts/` que citan un ADR | 10 de 26 |
-| Archivos escaneados en total | 671 |
+| Archivos de `scripts/` que citan un ADR | 10 de 27 |
+| Archivos escaneados en total | 672 |
 | Archivos que citan algún ADR | 332 |
 | ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 78 de 81 |
 
