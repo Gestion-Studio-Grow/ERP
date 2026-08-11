@@ -45,6 +45,14 @@ export {
   type ErrorValidacion,
 } from './domain/validacion';
 export {
+  urlQrAfip,
+  payloadQrAfip,
+  base64QrAfip,
+  URL_QR_AFIP,
+  type DatosQrAfip,
+  type PayloadQrAfip,
+} from './domain/qr-afip';
+export {
   type AfipClient,
   type EmisorConfig,
   type ResultadoCae,
