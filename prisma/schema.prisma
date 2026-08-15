@@ -151,49 +151,50 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  boxes           Box[]
-  boxBlocks       BoxBlock[]
-  professionals   Professional[]
-  workingHours    WorkingHours[]
-  services        Service[]
-  products        Product[]
-  serviceProducts ServiceProduct[]
-  clients         Client[]
-  appointments    Appointment[]
-  reviews         Review[]
-  payments        Payment[]
-  auditLogs       AuditLog[]
-  serviceCategories ServiceCategory[]
-  professionalBlocks ProfessionalBlock[]
-  serviceCommissions ProfessionalServiceCommission[]
-  resources          Resource[]
-  serviceResources   ServiceResource[]
-  messageTemplates   MessageTemplate[]
-  professionalNews   ProfessionalNews[]
-  coupons            Coupon[]
-  users              User[]
-  businessSettings   BusinessSettings?
-  commissionPayouts  CommissionPayout[]
-  waitlistEntries    WaitlistEntry[]
-  invoices           Invoice[]
-  outboxEvents       OutboxEvent[]
-  orders             Order[]
-  orderItems         OrderItem[]
-  cashSessions       CashSession[]
-  cashMovements      CashMovement[]
-  stockPurchases     StockPurchase[]
-  stockPurchaseItems StockPurchaseItem[]
-  stockMovements     StockMovement[]
-  suppliers          Supplier[] // D1 — proveedor maestro (ADR-060 Fase C)
-  collections        Collection[] // D9 — cobros/settlement (ADR-060 Fase C.5)
-  accountsPayable    AccountPayable[] // D2 — cuentas a pagar (ADR-060 Fase D)
-  payableCheques     PayableCheque[] // D2 — cheques diferidos
-  accountsReceivable AccountReceivable[] // D3 — fiado / cuentas a cobrar (ADR-060 Fase E)
+  boxes                    Box[]
+  boxBlocks                BoxBlock[]
+  professionals            Professional[]
+  workingHours             WorkingHours[]
+  services                 Service[]
+  products                 Product[]
+  serviceProducts          ServiceProduct[]
+  clients                  Client[]
+  appointments             Appointment[]
+  reviews                  Review[]
+  payments                 Payment[]
+  auditLogs                AuditLog[]
+  serviceCategories        ServiceCategory[]
+  professionalBlocks       ProfessionalBlock[]
+  serviceCommissions       ProfessionalServiceCommission[]
+  resources                Resource[]
+  serviceResources         ServiceResource[]
+  messageTemplates         MessageTemplate[]
+  professionalNews         ProfessionalNews[]
+  coupons                  Coupon[]
+  users                    User[]
+  businessSettings         BusinessSettings?
+  commissionPayouts        CommissionPayout[]
+  waitlistEntries          WaitlistEntry[]
+  invoices                 Invoice[]
+  outboxEvents             OutboxEvent[]
+  orders                   Order[]
+  orderItems               OrderItem[]
+  cashSessions             CashSession[]
+  cashMovements            CashMovement[]
+  stockPurchases           StockPurchase[]
+  stockPurchaseItems       StockPurchaseItem[]
+  stockMovements           StockMovement[]
+  suppliers                Supplier[] // D1 — proveedor maestro (ADR-060 Fase C)
+  collections              Collection[] // D9 — cobros/settlement (ADR-060 Fase C.5)
+  accountsPayable          AccountPayable[] // D2 — cuentas a pagar (ADR-060 Fase D)
+  payableCheques           PayableCheque[] // D2 — cheques diferidos
+  accountsReceivable       AccountReceivable[] // D3 — fiado / cuentas a cobrar (ADR-060 Fase E)
   importacionesBancarias   ImportacionBancaria[] // módulo BANCOS — extractos importados
   movimientosImportados    MovimientoImportado[] // módulo BANCOS — movimientos del extracto
   reglasClasificacionBanco ReglaClasificacionBancoTenant[] // módulo BANCOS — aprendizaje del clasificador
   carteraClientes          CarteraCliente[]                @relation("CarteraDelEstudio") // módulo CARTERA — clientes que administra este estudio
   carteraComoCliente       CarteraCliente[]                @relation("CarteraComoCliente") // módulo CARTERA — carteras donde este tenant es el cliente
+  leadsCampania            LeadCampania[] // captación de campañas presenciales (QR del evento)
   fiscalCredential         TenantFiscalCredential? // cert/clave ARCA del emisor, CIFRADOS (ADR-066)
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
@@ -343,14 +344,14 @@ model User {
 // Categoría de servicios (ADR-011 G16): agrupa el catálogo (Faciales, Masajes,
 // Spa, etc.). Ordenable para controlar cómo se muestra en la web y el admin.
 model ServiceCategory {
-  id       String    @id @default(cuid())
-  tenant   Tenant    @relation(fields: [tenantId], references: [id])
-  tenantId String
-  name     String
-  order    Int       @default(0)
-  services Service[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(cuid())
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  name      String
+  order     Int       @default(0)
+  services  Service[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([tenantId, order])
 }
@@ -389,29 +390,29 @@ model BoxBlock {
 }
 
 model Professional {
-  id                String        @id @default(cuid())
-  tenant            Tenant        @relation(fields: [tenantId], references: [id])
-  tenantId          String
-  name              String
-  email             String?
-  phone             String?
-  active            Boolean       @default(true)
-  box               Box?          @relation(fields: [boxId], references: [id])
-  boxId             String?
-  commissionPercent Float         @default(0)
-  deletedAt         DateTime?
-  services          Service[]     @relation("ProfessionalServices")
-  appointments      Appointment[]
-  reviews           Review[]
-  workingHours      WorkingHours[]
-  blocks            ProfessionalBlock[]
+  id                 String                          @id @default(cuid())
+  tenant             Tenant                          @relation(fields: [tenantId], references: [id])
+  tenantId           String
+  name               String
+  email              String?
+  phone              String?
+  active             Boolean                         @default(true)
+  box                Box?                            @relation(fields: [boxId], references: [id])
+  boxId              String?
+  commissionPercent  Float                           @default(0)
+  deletedAt          DateTime?
+  services           Service[]                       @relation("ProfessionalServices")
+  appointments       Appointment[]
+  reviews            Review[]
+  workingHours       WorkingHours[]
+  blocks             ProfessionalBlock[]
   serviceCommissions ProfessionalServiceCommission[]
-  news              ProfessionalNews[]
-  user              User?
-  commissionPayouts CommissionPayout[]
-  waitlistEntries   WaitlistEntry[]
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  news               ProfessionalNews[]
+  user               User?
+  commissionPayouts  CommissionPayout[]
+  waitlistEntries    WaitlistEntry[]
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
 
   @@index([tenantId])
 }
@@ -434,36 +435,36 @@ model WorkingHours {
 }
 
 model Service {
-  id            String           @id @default(cuid())
-  tenant        Tenant           @relation(fields: [tenantId], references: [id])
-  tenantId      String
-  category      ServiceCategory? @relation(fields: [categoryId], references: [id])
-  categoryId    String?
-  name          String
-  description   String?
-  durationMin   Int
-  price         Float
+  id                 String                          @id @default(cuid())
+  tenant             Tenant                          @relation(fields: [tenantId], references: [id])
+  tenantId           String
+  category           ServiceCategory?                @relation(fields: [categoryId], references: [id])
+  categoryId         String?
+  name               String
+  description        String?
+  durationMin        Int
+  price              Float
   // Precio preferencial para vecinos de La Alameda (ADR-013). Opcional a
   // propósito: no todos los servicios tienen diferencial — si es null, el
   // servicio cobra `price` para todos. Nunca se muestra como "recargo" al
   // resto, siempre como beneficio vecino.
-  residentPrice Float?
+  residentPrice      Float?
   // Seña obligatoria (ADR-014): monto fijo que hay que abonar para confirmar
   // el turno. Opcional por servicio, igual que residentPrice — null = no
   // exige seña. El cobro en sí sigue siendo manual (confirmPayment) hasta
   // que se conecte Mercado Pago Checkout; esto solo hace visible la
   // condición al cliente antes de reservar, como ya hace el negocio hoy.
-  depositAmount Float?
-  active        Boolean          @default(true)
-  deletedAt     DateTime?
-  professionals Professional[]   @relation("ProfessionalServices")
-  appointments  Appointment[]
-  products      ServiceProduct[]
-  resources     ServiceResource[]
+  depositAmount      Float?
+  active             Boolean                         @default(true)
+  deletedAt          DateTime?
+  professionals      Professional[]                  @relation("ProfessionalServices")
+  appointments       Appointment[]
+  products           ServiceProduct[]
+  resources          ServiceResource[]
   serviceCommissions ProfessionalServiceCommission[]
-  waitlistEntries WaitlistEntry[]
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  waitlistEntries    WaitlistEntry[]
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
 
   // Config de recordatorio por servicio (ADR-012 / panel de recordatorios).
   // Si reminderEnabled es false, el job de recordatorios se lo salta aunque
@@ -478,36 +479,36 @@ model Service {
 
 // Insumo de stock (ej. cera, crema, guantes).
 model Product {
-  id           String           @id @default(cuid())
-  tenant       Tenant           @relation(fields: [tenantId], references: [id])
-  tenantId     String
-  name         String
-  unit         String           @default("unidades")
-  stock        Float            @default(0)
-  lowStockAt   Float            @default(5)
-  active       Boolean          @default(true)
-  deletedAt    DateTime?
-  services     ServiceProduct[]
+  id         String           @id @default(cuid())
+  tenant     Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  name       String
+  unit       String           @default("unidades")
+  stock      Float            @default(0)
+  lowStockAt Float            @default(5)
+  active     Boolean          @default(true)
+  deletedAt  DateTime?
+  services   ServiceProduct[]
 
   // --- Extensión "venta al público / retail" (mec. A de ADR-002) ---
   // Campos aditivos, nullable/defaulted: el blueprint Servicios (spa) los ignora
   // y sigue igual; el blueprint Carnicería/Retail los usa para vender cortes por
   // peso. NO hay tabla nueva: es extensión del Producto existente (FUNDAMENTOS §2,
   // blueprint-carniceria-brief §2 y decisión 1).
-  saleUnit     ProductSaleUnit  @default(UNIT) // UNIT = por unidad, WEIGHT = por kg
-  price        Float? // precio de venta unitario (saleUnit=UNIT). Null = no se vende suelto
-  pricePerKg   Float? // precio por kilo (saleUnit=WEIGHT). Diferencial #1 vs Bistrosoft
+  saleUnit       ProductSaleUnit     @default(UNIT) // UNIT = por unidad, WEIGHT = por kg
+  price          Float? // precio de venta unitario (saleUnit=UNIT). Null = no se vende suelto
+  pricePerKg     Float? // precio por kilo (saleUnit=WEIGHT). Diferencial #1 vs Bistrosoft
   // trackStock: si true, vender por POS/vidriera DESCUENTA `stock` con guarda anti-oversell
   // (order-core.ts). Default false → los productos que no controlan existencias (insumos de
   // spa, o retail sin stock cargado) se siguen vendiendo sin bloqueo, como antes. El blueprint
   // Retail lo siembra en true. (POS/stock — 2026-07-05)
-  trackStock   Boolean          @default(false)
-  orderItems   OrderItem[]
-  purchaseItems StockPurchaseItem[] // entradas de stock (compras/reposiciones) que lo repusieron
-  stockMovements StockMovement[]   // ledger de movimientos de stock (entradas y salidas)
+  trackStock     Boolean             @default(false)
+  orderItems     OrderItem[]
+  purchaseItems  StockPurchaseItem[] // entradas de stock (compras/reposiciones) que lo repusieron
+  stockMovements StockMovement[] // ledger de movimientos de stock (entradas y salidas)
 
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId])
 }
@@ -529,8 +530,8 @@ model ServiceProduct {
 }
 
 model Client {
-  id           String        @id @default(cuid())
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  id           String              @id @default(cuid())
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
   tenantId     String
   name         String
   phone        String
@@ -543,46 +544,46 @@ model Client {
   appointments Appointment[]
   orders       Order[]
   receivables  AccountReceivable[] // D3 — fiado de este cliente (ADR-060 Fase E)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   @@index([tenantId])
 }
 
 model Appointment {
-  id             String            @id @default(cuid())
-  tenant         Tenant            @relation(fields: [tenantId], references: [id])
-  tenantId       String
-  client         Client            @relation(fields: [clientId], references: [id])
-  clientId       String
-  professional   Professional      @relation(fields: [professionalId], references: [id])
-  professionalId String
-  service        Service           @relation(fields: [serviceId], references: [id])
-  serviceId      String
-  box            Box               @relation(fields: [boxId], references: [id])
-  boxId          String
-  startsAt       DateTime
-  endsAt         DateTime
-  status         AppointmentStatus @default(PENDING)
+  id                 String            @id @default(cuid())
+  tenant             Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId           String
+  client             Client            @relation(fields: [clientId], references: [id])
+  clientId           String
+  professional       Professional      @relation(fields: [professionalId], references: [id])
+  professionalId     String
+  service            Service           @relation(fields: [serviceId], references: [id])
+  serviceId          String
+  box                Box               @relation(fields: [boxId], references: [id])
+  boxId              String
+  startsAt           DateTime
+  endsAt             DateTime
+  status             AppointmentStatus @default(PENDING)
   // Precio del servicio congelado al momento de reservar (AMD-003): el precio
   // del servicio puede cambiar entre la reserva y el cobro; esto evita la
   // discusión con el cliente. Nullable para los turnos previos a esta feature.
-  priceAtBooking Float?
+  priceAtBooking     Float?
   // Si el precio congelado arriba fue el preferencial de vecino (ADR-013) —
   // separado de Client.isResident porque el cliente puede cambiar de
   // respuesta entre turnos; esto es historial, no estado actual.
-  isResidentBooking Boolean @default(false)
+  isResidentBooking  Boolean           @default(false)
   // Cupón aplicado al reservar (ADR-014), si lo hubo — historial, no relación
   // fuerte a Coupon para que el turno no se rompa si el cupón se borra.
-  couponCode     String?
-  discountAmount Float             @default(0)
+  couponCode         String?
+  discountAmount     Float             @default(0)
   // Nota libre de la recepción (AMD-003): "quiere el mismo tono de la vez pasada".
-  notes          String?
-  payment        Payment?
-  review         Review?
-  collections    Collection[] // D9 — cobros (parciales/total) imputados a este turno
-  invoices       Invoice[] // D10 — facturas cuyo origen es este turno
-  reminderSentAt DateTime?
+  notes              String?
+  payment            Payment?
+  review             Review?
+  collections        Collection[] // D9 — cobros (parciales/total) imputados a este turno
+  invoices           Invoice[] // D10 — facturas cuyo origen es este turno
+  reminderSentAt     DateTime?
   // Liquidación de comisiones (BACKLOG "Alta prioridad"). La comisión de un turno
   // se devenga cuando está COMPLETED con pago APPROVED; queda "pendiente de pago"
   // mientras este campo es null. Al liquidar un período, el turno se estampa con
@@ -590,8 +591,8 @@ model Appointment {
   // commissionPayoutId null, y volver a liquidar no puede doble-pagar (structural).
   commissionPayout   CommissionPayout? @relation(fields: [commissionPayoutId], references: [id])
   commissionPayoutId String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   @@index([professionalId, startsAt])
   @@index([boxId, startsAt])
@@ -647,19 +648,19 @@ model Review {
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  tenant          Tenant        @relation(fields: [tenantId], references: [id])
-  tenantId        String
-  appointment     Appointment   @relation(fields: [appointmentId], references: [id])
-  appointmentId   String        @unique
-  amount          Float
-  method          PaymentMethod
-  status          PaymentStatus @default(PENDING)
-  mpPaymentId     String?
-  mpPreferenceId  String?
-  comprobanteNro  String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  appointment    Appointment   @relation(fields: [appointmentId], references: [id])
+  appointmentId  String        @unique
+  amount         Float
+  method         PaymentMethod
+  status         PaymentStatus @default(PENDING)
+  mpPaymentId    String?
+  mpPreferenceId String?
+  comprobanteNro String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([tenantId])
 }
@@ -751,15 +752,15 @@ model ProfessionalServiceCommission {
 // servicios comparten. quantity = cuántas unidades hay (2 radiofrecuencias,
 // 3 gabinetes). Al reservar se controla no superar la capacidad en el rango.
 model Resource {
-  id       String            @id @default(cuid())
-  tenant   Tenant            @relation(fields: [tenantId], references: [id])
-  tenantId String
-  name     String
-  quantity Int               @default(1)
-  active   Boolean           @default(true)
-  services ServiceResource[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id        String            @id @default(cuid())
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  name      String
+  quantity  Int               @default(1)
+  active    Boolean           @default(true)
+  services  ServiceResource[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 
   @@index([tenantId])
 }
@@ -832,24 +833,24 @@ model ProfessionalNews {
 // persona puede anotarse dos veces a propósito (dos servicios distintos); el
 // duplicado exacto lo evita la UI, no el schema.
 model WaitlistEntry {
-  id             String         @id @default(cuid())
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  tenantId       String
-  clientName     String
-  clientPhone    String
-  clientEmail    String?
-  service        Service        @relation(fields: [serviceId], references: [id])
-  serviceId      String
-  professional   Professional?  @relation(fields: [professionalId], references: [id])
-  professionalId String? // null = cualquier profesional
-  preferenceNote String? // "martes o jueves por la tarde", texto libre
-  notes          String? // nota interna de recepción
-  status         WaitlistStatus @default(WAITING)
-  notifiedAt     DateTime? // cuándo se le avisó que se liberó un hueco
-  resolvedAt     DateTime? // cuándo pasó a BOOKED o CANCELLED
+  id                  String         @id @default(cuid())
+  tenant              Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  clientName          String
+  clientPhone         String
+  clientEmail         String?
+  service             Service        @relation(fields: [serviceId], references: [id])
+  serviceId           String
+  professional        Professional?  @relation(fields: [professionalId], references: [id])
+  professionalId      String? // null = cualquier profesional
+  preferenceNote      String? // "martes o jueves por la tarde", texto libre
+  notes               String? // nota interna de recepción
+  status              WaitlistStatus @default(WAITING)
+  notifiedAt          DateTime? // cuándo se le avisó que se liberó un hueco
+  resolvedAt          DateTime? // cuándo pasó a BOOKED o CANCELLED
   bookedAppointmentId String? // turno con el que se resolvió (rastro, no FK)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   @@index([tenantId, status, createdAt])
   @@index([serviceId])
@@ -880,10 +881,10 @@ model Invoice {
   tipoComprobante Int? // TipoComprobante de WSFEv1 (1=A, 6=B, 11=C). Nulo hasta
   //                      la autorización: lo deriva el plugin ARCA (ADR-022) y
   //                      lo escribe `registerFiscalDocument`.
-  concepto Int // 1=Productos, 2=Servicios, 3=ambos
-  docTipo  Int // 80=CUIT, 96=DNI, 99=Consumidor Final
-  docNro   String
-  fecha    String // AAAAMMDD
+  concepto        Int // 1=Productos, 2=Servicios, 3=ambos
+  docTipo         Int // 80=CUIT, 96=DNI, 99=Consumidor Final
+  docNro          String
+  fecha           String // AAAAMMDD
 
   // Montos calculados por el Core (ADR-006). EXACTITUD FISCAL: Decimal(14,2) (spec §1).
   // Decisión ADR-057: el dinero se persiste en `Decimal(14,2)` (exactitud al centavo para
@@ -930,7 +931,6 @@ model Invoice {
 
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
   @@unique([tenantId, mpPaymentId]) // A-6 — 1 factura por pago MP (dedupe del webhook; NULLs no colisionan)
-  @@index([tenantId, status])
   // I2 (ADR-064) — IDEMPOTENCIA comprobante↔venta 1:1: UNA factura por Order/Appointment.
   // El @@unique es la guarda a nivel DB que cierra la ventana de carrera del check-then-create
   // en `createInvoice` (dos disparos simultáneos → el 2º choca P2002 → se refetchea el ganador).
@@ -938,6 +938,7 @@ model Invoice {
   // conviven sin límite. También sirve de índice para "la factura de este pedido/turno" (D10).
   @@unique([tenantId, orderId]) // I2/D10 — 1:1 pedido↔comprobante
   @@unique([tenantId, appointmentId]) // I2/D10 — 1:1 turno↔comprobante
+  @@index([tenantId, status])
 }
 
 // Outbox transaccional (ADR-002): el Core escribe el evento de dominio en la
@@ -1138,8 +1139,8 @@ model Order {
   cashMovements CashMovement[]
   collections   Collection[] // D9 — cobros (parciales/total) imputados a este pedido
   invoices      Invoice[] // D10 — facturas cuyo origen es este pedido
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@unique([tenantId, code])
   @@unique([tenantId, idempotencyKey]) // A-1 — idempotencia del alta de vidriera (NULLs no colisionan)
@@ -1296,7 +1297,7 @@ model StockPurchase {
 
   createdBy String // actor "user:<id>"
   items     StockPurchaseItem[]
-  createdAt DateTime @default(now())
+  createdAt DateTime            @default(now())
 
   @@unique([tenantId, code])
   @@index([tenantId, createdAt])
@@ -1309,8 +1310,8 @@ model StockPurchase {
 // `productId` es una referencia débil (SetNull): borrar el producto no rompe el
 // histórico de compras.
 model StockPurchaseItem {
-  id         String @id @default(cuid())
-  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  id         String        @id @default(cuid())
+  tenant     Tenant        @relation(fields: [tenantId], references: [id])
   tenantId   String
   purchase   StockPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   purchaseId String
@@ -1345,11 +1346,11 @@ model StockPurchaseItem {
 // columnas sueltas sin FK a propósito (audit trail), para no acoplar el ledger a los
 // ciclos de vida de Order/StockPurchase/Appointment ni inflar sus back-relations.
 enum StockMovementType {
-  VENTA                // salida por venta en el POS/vidriera (order-core)
-  COMPRA               // entrada por compra a proveedor
-  REPOSICION           // entrada por reposición interna
-  CONSUMO              // salida por consumo de insumo al completar un turno (ServiceProduct)
-  AJUSTE               // ajuste manual: recuento, merma, rotura, vencimiento (signo del delta)
+  VENTA // salida por venta en el POS/vidriera (order-core)
+  COMPRA // entrada por compra a proveedor
+  REPOSICION // entrada por reposición interna
+  CONSUMO // salida por consumo de insumo al completar un turno (ServiceProduct)
+  AJUSTE // ajuste manual: recuento, merma, rotura, vencimiento (signo del delta)
   DEVOLUCION_PROVEEDOR // salida: mercadería que se devuelve al proveedor (D4, ADR-060). Revierte COGS al costo original; rastro al StockPurchase. La pata financiera va en AccountPayable.
 }
 
@@ -1396,14 +1397,14 @@ model Supplier {
   tenant   Tenant @relation(fields: [tenantId], references: [id])
   tenantId String
 
-  name  String // razón social
+  name   String // razón social
   // CUIT de 11 dígitos sin guiones (mismo criterio que `Tenant.arcaCuit`/`Invoice.docNro`:
   // String, no Int — un CUIT no entra en Int32). Único por tenant cuando está presente;
   // varios NULL conviven (Postgres no colisiona NULLs en un UNIQUE).
-  taxId String?
-  email String?
-  phone String?
-  notes String?
+  taxId  String?
+  email  String?
+  phone  String?
+  notes  String?
   active Boolean @default(true) // baja lógica: nunca se borra un proveedor con historial
 
   purchases StockPurchase[] // back-relation de la FK nullable en StockPurchase (D6)
@@ -1514,8 +1515,8 @@ model AccountPayable {
 
   cheques   PayableCheque[]
   createdBy String // actor "user:<id>"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   @@index([tenantId, status])
   @@index([tenantId, supplierId])
@@ -1631,4 +1632,35 @@ model CarteraCliente {
   @@unique([tenantId, clienteTenantId]) // un cliente entra UNA vez a la cartera de un estudio
   @@index([tenantId])
   @@index([clienteTenantId]) // lookup inverso: ¿en qué carteras está este tenant?
+}
+
+// Contacto captado por una campaña presencial (QR en el local, formulario público).
+// Vive APARTE de `Client` a propósito: es un contacto de marketing, no una clienta
+// del negocio. Recién pasa a ser Client si algún día reserva un turno.
+//
+// `aceptaDifusion` + `consentimientoEn` son la prueba del consentimiento expreso
+// que exige la Ley 25.326 para poder contactarla después. Sin esa fecha no se
+// puede demostrar cuándo aceptó, así que se guardan juntos o no se guarda nada.
+model LeadCampania {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  /// Identificador de la acción, p.ej. "obsequio-apertura-2026-08".
+  campania  String
+  nombre    String
+  apellido  String
+  telefono  String
+  /// Sin la arroba: se guarda el handle limpio.
+  instagram String?
+
+  aceptaDifusion   Boolean   @default(false)
+  consentimientoEn DateTime?
+
+  createdAt DateTime @default(now())
+
+  /// Una inscripción por teléfono y campaña: hace el alta idempotente y evita
+  /// que un doble toque en el botón genere dos filas.
+  @@unique([tenantId, campania, telefono])
+  @@index([tenantId, campania])
 }
