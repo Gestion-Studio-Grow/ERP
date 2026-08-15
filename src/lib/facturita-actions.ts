@@ -12,7 +12,12 @@ import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { createInvoice } from "@/lib/invoice-core";
-import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
+import {
+  calcularImpuestos,
+  getFiscalProfile,
+  isInvoicingEnabled,
+  PerfilFiscalIncompletoError,
+} from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
 import { contarFacturasDelMes } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
@@ -73,7 +78,7 @@ export async function emitirFacturitaAction(
   }
 
   try {
-    const perfil = getFiscalProfile(tenantId);
+    const perfil = await getFiscalProfile(tenantId);
     const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, datos.total);
     const invoiceId = await createInvoice({
       tenantId,
@@ -104,6 +109,16 @@ export async function emitirFacturitaAction(
     return { ok: true, invoiceId, limite: estadoLimite(limite.usadas + 1) };
   } catch (err) {
     logger.error("facturita", "emisión falló", err, { tenantId });
+    // Perfil fiscal sin cargar: reintentar no lo arregla, hay que cargar el dato.
+    // Decirlo tal cual en vez del "probá en unos minutos" genérico.
+    if (err instanceof PerfilFiscalIncompletoError) {
+      return {
+        ok: false,
+        error:
+          "Faltan los datos fiscales del negocio (CUIT y punto de venta). " +
+          "Cargá el alta fiscal antes de emitir: no se emite con datos provisorios.",
+      };
+    }
     return {
       ok: false,
       error: "No se pudo emitir la factura. Probá de nuevo en unos minutos.",

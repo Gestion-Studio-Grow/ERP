@@ -124,3 +124,21 @@ test("clientePara (homologación): carga el TA persistido del tenant (ticketInic
   assert.ok(cliente instanceof SoapAfipClient);
   assert.deepEqual(tenants, ["tenant-1"], "debe leer el TA persistido del tenant que emite");
 });
+
+test("clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)", async () => {
+  const clientePara = crearClientePara(leerFijo({ cuit: 0, homologacion: false }), {
+    ARCA_MODO: "real",
+    ARCA_CERT_PEM: "x",
+    ARCA_KEY_PEM: "y",
+  });
+  await assert.rejects(() => clientePara("tenant-sin-cuit"), /no tiene un CUIT válido/);
+});
+
+test("clientePara: en modo homologación, tenant sin config fiscal también LANZA", async () => {
+  const clientePara = crearClientePara(leerFijo(null), {
+    ARCA_MODO: "homologacion",
+    ARCA_CERT_PEM: "x",
+    ARCA_KEY_PEM: "y",
+  });
+  await assert.rejects(() => clientePara("tenant-inexistente"), /no tiene un CUIT válido/);
+});

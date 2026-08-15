@@ -32,7 +32,7 @@ export async function facturarPagoMP(
 ): Promise<string | null> {
   if (pago.estado !== "approved" || !(pago.monto > 0)) return null;
 
-  const perfil = getFiscalProfile(tenantId);
+  const perfil = await getFiscalProfile(tenantId);
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, pago.monto);
   const fecha = pago.fechaAcreditacion ?? fechaHoy();
 

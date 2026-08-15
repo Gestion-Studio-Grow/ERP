@@ -14,6 +14,7 @@
 
 import { operatorPrisma } from "@/lib/operator-db";
 import { tenantTransaction } from "@/lib/rls";
+import { cuitValido, normalizarCuit } from "@/lib/cuit";
 import {
   markInvoiceRejected,
   registerFiscalDocument,
@@ -69,9 +70,10 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
     { tenantId },
   );
   if (!t) return null;
-  // `arcaCuit` es texto en DB (no entra en Int32); el emisor lo maneja como número.
+  // `arcaCuit` es texto en DB (no entra en Int32) y puede venir con guiones: se
+  // normaliza antes de pasarlo a número (`Number("20-11111111-2")` daba NaN).
   return {
-    cuit: t.arcaCuit ? Number(t.arcaCuit) : 0,
+    cuit: t.arcaCuit ? Number(normalizarCuit(t.arcaCuit)) : 0,
     homologacion: t.arcaHomologacion,
   };
 };
@@ -85,6 +87,11 @@ const leerConfigFiscalPrisma: LeerConfigFiscal = async (tenantId) => {
  * `ARCA_MODO`. Con `ARCA_MODO` sin setear (default), SIEMPRE devuelve el stub —
  * ARCA queda apagado aunque el enganche esté completo. Un tenant sin config
  * fiscal cargada cae a un stub `cuit:0` (inofensivo en modo stub).
+ *
+ * Pero SOLO en modo stub: apenas el modo habla con ARCA de verdad (real u
+ * homologación), un tenant sin CUIT válido LANZA en vez de mandar `cuit:0`. Es
+ * el mismo criterio que `getFiscalProfile` (src/lib/fiscal.ts) — no emitir es
+ * reversible, emitir con un CUIT inventado no.
  */
 export function crearClientePara(
   leer: LeerConfigFiscal = leerConfigFiscalPrisma,
@@ -95,6 +102,13 @@ export function crearClientePara(
 ): (tenantId: string) => Promise<AfipClient> {
   return async (tenantId) => {
     const cfg = await leer(tenantId);
+    if (modoDesdeEnv(env) !== "stub" && !cuitValido(cfg?.cuit ?? 0)) {
+      throw new Error(
+        `El tenant ${tenantId} no tiene un CUIT válido cargado (arcaCuit) y ARCA está en modo ` +
+          `${modoDesdeEnv(env)}. No se despacha: un comprobante emitido con un CUIT inventado no se ` +
+          `borra, se anula con nota de crédito. Cargá el CUIT del emisor — acción humana.`,
+      );
+    }
     const config: EmisorConfig = cfg ?? { cuit: 0, homologacion: true };
     const modo = modoDesdeEnv(env);
 

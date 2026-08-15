@@ -529,7 +529,7 @@ export async function emitirPropuestas(
   return runInTenantContext(tenantId, async () => {
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { bancosCapFacturasMes: true, arcaPuntoVenta: true },
+      select: { bancosCapFacturasMes: true },
     });
     const cap = tenant?.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
     const facturasMes = await contarFacturasDelMes(tenantId);
@@ -546,8 +546,10 @@ export async function emitirPropuestas(
       return { emitidas: 0, bloqueadasPorCap: 0, capAlcanzado: false, errores: [] };
     }
 
-    const perfil = getFiscalProfile(tenantId);
-    const puntoVenta = tenant?.arcaPuntoVenta ?? perfil.puntoVenta;
+    // El punto de venta ya viene del tenant dentro del perfil (`arcaPuntoVenta`,
+    // validado). Antes se releía acá con fallback al placeholder del hardcode.
+    const perfil = await getFiscalProfile(tenantId);
+    const puntoVenta = perfil.puntoVenta;
 
     let emitidas = 0;
     let bloqueadas = 0;

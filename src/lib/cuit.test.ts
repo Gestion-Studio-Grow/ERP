@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cuitValido, normalizarCuit } from "./cuit";
+import { cuitValido, normalizarCuit } from "@/lib/cuit";
 
 test("CUITs válidos (verificador correcto)", () => {
   // 20-11111111-2: suma = 42, resto 9, dv = 2 (mismo fixture que arca-dispatch.test).

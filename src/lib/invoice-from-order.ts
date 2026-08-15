@@ -50,7 +50,7 @@ export async function facturarOrden(
   const monto = order.total;
   if (!(monto > 0)) return null;
 
-  const perfil = getFiscalProfile(tenantId);
+  const perfil = await getFiscalProfile(tenantId);
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, monto);
   const fecha = fechaHoy();
 

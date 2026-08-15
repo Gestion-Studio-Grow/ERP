@@ -13,6 +13,7 @@ import {
   CondicionIva as CondicionArca,
   TipoDocumento,
   Concepto,
+  type AfipClient,
   type InvoiceCreatedEvent,
 } from "@/plugins/arca";
 import {
@@ -24,7 +25,12 @@ import {
   type FacturarPagoMP,
   type ResumenIngesta,
 } from "@/plugins/mercadopago";
-import { calcularImpuestos, getFiscalProfile, type CondicionIva } from "@/lib/fiscal";
+import {
+  calcularImpuestos,
+  getFiscalProfile,
+  type CondicionIva,
+  type FiscalProfile,
+} from "@/lib/fiscal";
 
 export interface FacturaSimulada {
   paymentId: string;
@@ -61,10 +67,20 @@ function aCondicionArca(c: CondicionIva): CondicionArca {
 export function crearFacturarConArcaStub(
   tenantId: string,
   facturas: FacturaSimulada[],
-  afip = new StubAfipClient({ cuit: getFiscalProfile(tenantId).cuit, homologacion: true }),
+  afipOverride?: AfipClient,
 ): FacturarPagoMP {
-  const perfil = getFiscalProfile(tenantId);
+  // El perfil fiscal ahora sale del tenant y es asíncrono (fix del rojo fiscal):
+  // se resuelve en la PRIMERA facturación y se memoiza, junto con el stub de ARCA
+  // que lo necesita para su CUIT. Así la factory sigue siendo síncrona (no rompe
+  // `crearEntornoSimulado`) y el stub sigue siendo UNO solo — instanciarlo por
+  // pago reiniciaría la numeración del comprobante simulado.
+  // Si el tenant no tiene CUIT cargado, esto LANZA: el simulador tampoco inventa
+  // datos fiscales, aunque su CAE sea de mentira.
+  let perfil: FiscalProfile | undefined;
+  let afip = afipOverride;
   return async (pago, tid) => {
+    perfil ??= await getFiscalProfile(tenantId);
+    afip ??= new StubAfipClient({ cuit: perfil.cuit, homologacion: perfil.homologacion });
     const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, pago.monto);
     const ev: InvoiceCreatedEvent = {
       invoiceId: `sim-${pago.id}`,
