@@ -65,7 +65,12 @@ export const ALL_CAPABILITIES: Capability[] = [
   "users:manage",
   "location:manage",
   "commissions:manage",
-  "modules:manage",
+  // "modules:manage" NO va acá a propósito. Aprovisionar módulos es decidir qué
+  // producto compró el cliente: es una decisión comercial y de implementación,
+  // no de operación diaria. Si el dueño puede prenderlos solo, se activa
+  // funcionalidad que no contrató ni nadie le explicó — y puede apagarse Agenda
+  // un martes a la mañana. Vive en la consola de operador, del lado del
+  // proveedor, igual que el alcance lo activa el partner y no el usuario final.
   "billing:manage",
   "payments:manage",
   "cartera:manage",

@@ -63,11 +63,16 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca" },
   { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports" },
   { href: "/admin/campania", label: "Campañas", icon: "clientes", cap: "clients:read", module: "campanias" },
+  // El ítem SIGUE declarado —la ruta necesita estar en el mapa para el gating por
+  // módulos— pero ya no lo ve nadie: `modules:manage` dejó de estar en las
+  // capacidades del dueño. Aprovisionar módulos es decidir qué producto compró
+  // el cliente, no operación diaria. Cuando exista el rol IMPLEMENTADOR, esa
+  // capacidad se le asigna a él y el ítem reaparece sólo para ese rol.
+  { href: "/admin/modulos", label: "Módulos", icon: "modulos", cap: "modules:manage" },
   { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage" },
   { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage" },
   { href: "/admin/apariencia", label: "Apariencia", icon: "apariencia", cap: "appearance:manage" },
-  { href: "/admin/modulos", label: "Módulos", icon: "modulos", cap: "modules:manage" },
 ];
 
 /** Normaliza un path: saca query/hash y colapsa trailing slash. */
