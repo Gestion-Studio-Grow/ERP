@@ -10,6 +10,10 @@ import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { writeProductExtras } from "@/lib/carniceria/product-extras";
 import { parseSaleFields } from "@/lib/stock/product-sale-fields";
+import {
+  clearCommissionOverride,
+  setCommissionOverride,
+} from "@/lib/commission-override-core";
 
 const CATALOG_PATH = "/admin/catalogo";
 
@@ -512,6 +516,11 @@ export async function deleteProfessionalBlock(formData: FormData) {
 
 // Guarda o borra el override de comisión de un servicio para un profesional.
 // Un valor vacío borra el override (vuelve a usar la comisión general).
+//
+// TODA escritura va acotada por `tenantId` además del par (professionalId,
+// serviceId): ese par es `@@unique` GLOBAL, no por tenant, así que por sí solo no
+// aísla nada. El aislamiento real lo da RLS, pero el predicado explícito es la
+// segunda capa (ver `commission-override-core.ts` para el detalle).
 export async function setProfessionalServiceCommission(formData: FormData) {
   await requireCapability("catalog:manage");
   const professionalId = String(formData.get("professionalId"));
@@ -519,8 +528,10 @@ export async function setProfessionalServiceCommission(formData: FormData) {
   const raw = String(formData.get("commissionPercent") || "").trim();
   if (!professionalId || !serviceId) return;
 
+  const scope = { tenantId: await getCurrentTenantId(), professionalId, serviceId };
+
   if (raw === "") {
-    await prisma.professionalServiceCommission.deleteMany({ where: { professionalId, serviceId } });
+    await clearCommissionOverride(prisma.professionalServiceCommission, scope);
     revalidatePath(CATALOG_PATH);
     return;
   }
@@ -530,16 +541,7 @@ export async function setProfessionalServiceCommission(formData: FormData) {
     throw new Error("La comisión debe ser un porcentaje entre 0 y 100.");
   }
 
-  await prisma.professionalServiceCommission.upsert({
-    where: { professionalId_serviceId: { professionalId, serviceId } },
-    create: {
-      tenantId: await getCurrentTenantId(),
-      professionalId,
-      serviceId,
-      commissionPercent,
-    },
-    update: { commissionPercent },
-  });
+  await setCommissionOverride(prisma.professionalServiceCommission, scope, commissionPercent);
   await auditAdmin({
     action: "update",
     entity: "ProfessionalServiceCommission",
