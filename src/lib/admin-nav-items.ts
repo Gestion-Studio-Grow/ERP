@@ -62,7 +62,7 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders" },
   { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca" },
   { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports" },
-  { href: "/admin/campania", label: "Anotados", icon: "clientes", cap: "clients:read" },
+  { href: "/admin/campania", label: "Campañas", icon: "clientes", cap: "clients:read", module: "campanias" },
   { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage" },
   { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage" },

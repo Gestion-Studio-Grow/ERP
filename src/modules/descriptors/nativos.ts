@@ -168,6 +168,25 @@ export const commissionsModule: ModuleDescriptor = {
   ],
 };
 
+export const campaniasModule: ModuleDescriptor = {
+  id: "campanias",
+  version: "1.0.0",
+  nombre: "Campañas",
+  descripcion: "Captación de contactos por QR en eventos y acciones presenciales.",
+  kind: "capability",
+  capability: "clients:read",
+  rubros: "todos",
+  grupo: "clientes-fidelizacion",
+  resumen:
+    "Ponés un QR en el local, la gente deja sus datos y te queda la lista para invitarlos después.",
+  fit: "Quien hace eventos, inauguraciones o promociones presenciales y quiere quedarse con el contacto.",
+  scopeItems: [
+    { label: "Formulario público por QR", ruta: "/obsequio" },
+    { label: "Lista de anotados y total en vivo", ruta: "/admin/campania" },
+    { label: "Consentimiento de difusión con su fecha" },
+  ],
+};
+
 export const reviewsModule: ModuleDescriptor = {
   id: "reviews",
   version: "1.0.0",
@@ -298,6 +317,7 @@ export const MODULOS_NATIVOS: ModuleDescriptor[] = [
   reportsModule,
   commissionsModule,
   reviewsModule,
+  campaniasModule,
   // Módulos Empresa (ADR-060):
   inventarioModule,
   cuentasAPagarModule,
