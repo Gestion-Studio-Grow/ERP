@@ -781,9 +781,22 @@ function Step1({
   // "masaje" no te importa en qué categoría cae cada uno.
   const [q, setQ] = useState("");
   const query = normalizar(q);
+  // Se busca por el nombre del servicio Y por el de su categoría. Sin esto,
+  // tipear "depilación" no encontraba NADA en CH: sus 16 servicios de depilación
+  // se llaman "Combo: bozo + axilas…", "Cavado", "Media pierna" — la palabra
+  // "depilación" está en la categoría, no en el nombre. Y la categoría es
+  // justamente como la busca la gente: primero el rubro, después la zona.
   const gruposVisibles = query
     ? groups
-        .map((g) => ({ ...g, services: g.services.filter((it) => normalizar(it.name).includes(query)) }))
+        .map((g) => {
+          const categoriaCoincide = normalizar(g.name).includes(query);
+          return {
+            ...g,
+            services: categoriaCoincide
+              ? g.services
+              : g.services.filter((it) => normalizar(it.name).includes(query)),
+          };
+        })
         .filter((g) => g.services.length > 0)
     : groups;
   const totalVisible = gruposVisibles.reduce((n, g) => n + g.services.length, 0);
