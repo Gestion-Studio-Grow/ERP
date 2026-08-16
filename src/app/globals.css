@@ -807,3 +807,92 @@ summary:focus-visible {
     opacity: 0.3;
   }
 }
+
+/* ============================================================================
+   PLATAFORMA WEB 2026 — interactividad nativa, sin JavaScript de por medio
+   ============================================================================
+
+   Tres capacidades que hoy están en los tres motores (Chromium, WebKit y
+   Gecko) y que acá reemplazan código que antes escribíamos a mano. Las tres
+   son MEJORA PROGRESIVA por construcción: el estado final es el que vale, y la
+   animación se agrega encima sólo donde el navegador la entiende. Un navegador
+   viejo ignora estas reglas y ve el sitio exactamente como hoy.
+
+   1. TRANSICIÓN ENTRE PÁGINAS (View Transitions cross-document).
+      Ir de la home a la carta de precios deja de ser un parpadeo en blanco:
+      el navegador funde una página con la otra. Son dos líneas de CSS, no un
+      framework de navegación — el sitio sigue siendo páginas de verdad, con
+      sus URLs, su botón atrás y su "abrir en pestaña nueva".
+   2. APARICIONES AL SCROLLEAR (scroll-driven animations).
+      Antes cada bloque montaba un IntersectionObserver y guardaba estado en
+      React para aparecer. Eso lo hace el navegador solo, en el hilo del
+      compositor, con `animation-timeline: view()`.
+   3. ALTO "AUTO" ANIMABLE (interpolate-size).
+      El acordeón de la carta abría con un `max-height: 2000px` inventado a
+      ojo: si una categoría tenía más servicios que ese tope, se cortaba. Con
+      `interpolate-size` el navegador sabe animar hasta el alto real.
+
+   Todo esto respeta `prefers-reduced-motion` al final del bloque. */
+
+@view-transition {
+  navigation: auto;
+}
+
+:root {
+  interpolate-size: allow-keywords;
+}
+
+/* La marca no debe "viajar" ni parpadear al cambiar de página: se declara como
+   el MISMO elemento en todas, y el navegador la deja quieta mientras el resto
+   se funde. Es lo que hace que el cambio se sienta una sola pantalla. */
+.ch-marca {
+  view-transition-name: ch-marca;
+}
+
+/* El fundido entre páginas usa el MISMO tiempo y la misma curva que el resto
+   del sitio: una sola transición para todo (nada de que la página se mueva a
+   una velocidad y el menú a otra). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--ch-transicion-tiempo);
+  animation-timing-function: var(--ch-transicion-curva);
+}
+
+/* --- Aparición al entrar en pantalla -------------------------------------
+   El estado por defecto es el VISIBLE (opacidad 1, sin desplazamiento): si el
+   navegador no soporta `animation-timeline`, ignora las dos últimas líneas y
+   el contenido se ve igual. Nunca puede quedar contenido invisible por una
+   animación que no corrió — el modo de fallar de las apariciones hechas con
+   JavaScript. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .ch-aparece {
+      animation: ch-aparecer linear both;
+      animation-timeline: view();
+      /* Arranca cuando al bloque le faltan 15% de pantalla para entrar y
+         termina apenas entró: la animación acompaña, no se hace esperar. */
+      animation-range: entry 5% cover 22%;
+    }
+  }
+}
+
+@keyframes ch-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Quien pidió menos movimiento no ve NADA de esto: ni el fundido entre
+   páginas ni las apariciones. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

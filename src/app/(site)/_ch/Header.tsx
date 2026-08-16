@@ -34,7 +34,7 @@ export default function Header({ hasNews, brandName }: { hasNews?: boolean; bran
         <Link href="/#top" aria-label={`${label} — inicio`} style={{ display: "flex", alignItems: "baseline", gap: 8, textDecoration: "none" }}>
           {/* 24px = "texto grande" WCAG 1.4.3 → umbral 3:1 (el acento del tenant sobre
               el hueso da 4.26:1, AA de texto grande sobrado) sin tocar el color de marca. */}
-          <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)", lineHeight: 1 }}>{label}</span>
+          <span className="ch-marca" style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 24, color: "var(--accent)", lineHeight: 1 }}>{label}</span>
         </Link>
         <nav style={{ display: "flex", alignItems: "center", gap: 24 }} aria-label="Principal">
           {/* El link a Novedades se muestra SOLO si hay novedades cargadas: si no, era un ancla

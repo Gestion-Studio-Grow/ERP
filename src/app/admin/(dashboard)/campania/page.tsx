@@ -24,13 +24,24 @@ export default async function CampaniaPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10 flex flex-col gap-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-serif text-3xl" style={{ color: "var(--text-strong)" }}>
-          Anotados del obsequio
-        </h1>
-        <p style={{ color: "var(--text-muted)" }}>
-          Quienes completaron el formulario del QR en el evento de apertura.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-serif text-3xl" style={{ color: "var(--text-strong)" }}>
+            Anotados del obsequio
+          </h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Quienes completaron el formulario del QR en el evento de apertura. La
+            inscripción ya está cerrada; esta lista queda acá.
+          </p>
+        </div>
+        {/* Los datos son de ella: que pueda bajarlos sin depender de nadie. */}
+        <a
+          href="/admin/campania/export"
+          download
+          className="shrink-0 rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-strong hover:bg-surface-sunken"
+        >
+          Descargar CSV
+        </a>
       </header>
 
       <div className="grid grid-cols-3 gap-3">
