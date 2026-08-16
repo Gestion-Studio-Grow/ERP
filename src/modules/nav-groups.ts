@@ -10,19 +10,18 @@
 // conceptuales son los mismos, solo cambia el rótulo). El naming al cliente sigue
 // siendo "Comercio"/"Empresa" (nunca lite/enterprise) y el tier en canal neutro.
 //
-// ⚠️ ESQUELETO, NO WIRED: este módulo no lo importa (todavía) ni `AdminShell.tsx`
-// ni ningún layout. Es código puro, sin efecto, hasta que otra sesión lo consuma
-// detrás de un flag (candado/flag = carril de Sesión 3) y lo renderice con los
-// primitivos nuevos (`SectionGroup` = carril de Sesión 2). Por construcción es
-// REVERSIBLE Y DEFAULT-OFF: no hay ningún import real todavía, así que no cambia
-// ningún comportamiento visible. Cero conflicto: no toca `AdminShell.tsx`,
-// `perfil.ts` ni `flags.ts` (carriles de otras sesiones del pool).
+// ESTADO (2026-08-15): YA WIRED. `AdminShell.tsx` importa `groupNavItems` +
+// `NAV_ITEM_GROUPS` y pinta la nav agrupada cuando la prop `navGrouping` viene en
+// true — que el layout resuelve con `navGroupingEnabled()` (env `NAV_GROUPING_ENABLED`,
+// default OFF). O sea: sigue siendo REVERSIBLE de un golpe (flag OFF → nav plana
+// legada, idéntica a la de siempre), pero ya no es un esqueleto sin consumidor.
+// La nota previa ("ESQUELETO, NO WIRED") quedó vieja y se corrige acá.
 //
 // Qué resuelve (asignación CERRADA sobre el mapa VALIDADO de S1 + revisión S5/Opus):
 // 1. Los 5 grupos de negocio (ADR-059 D3, renombrados), con ORDEN de aparición fijo.
 // 2. `groupNavItems`: selector puro que agrupa una lista de ítems YA filtrada por
 //    `visibleNavItems` (rol × módulo × perfil, `./perfil.ts`) en esos 5 grupos.
-// 3. `NAV_ITEM_GROUPS`: la asignación ítem→grupo de los 17 ítems HOY existentes.
+// 3. `NAV_ITEM_GROUPS`: la asignación ítem→grupo de los ítems HOY existentes.
 // 4. `BACKLOG_SCOPE_ITEM_NAV`: los scope items KEEP del mapa validado que se suman a
 //    la nav en M2, con su grupo + perfil mínimo + naturaleza de gating (rubro / OFF).
 //
@@ -110,7 +109,7 @@ export function groupNavItems<T extends NavGateItem>(
 }
 
 // ============================================================================
-// Asignación ítem→grupo de los 17 ítems HOY en `AdminShell.ALL_ITEMS` — CERRADA.
+// Asignación ítem→grupo de los ítems de `ALL_ITEMS` (@/lib/admin-nav-items) — CERRADA.
 // ============================================================================
 //
 // Clave = `href` de `AdminShell.ALL_ITEMS` (no se importa ese array acá para no
@@ -134,10 +133,20 @@ export const NAV_ITEM_GROUPS: Readonly<Record<string, NavGroupId>> = {
   "/admin/clientes": "clientes",
   "/admin/recordatorios": "clientes",
   "/admin/resenas": "clientes",
+  // Campañas (módulo `campanias`): captación — el obsequio de apertura y quién se
+  // anotó. Es trabajo sobre la base de clientes, no configuración.
+  "/admin/campania": "clientes",
   // Inventario y compras — lo que se vende, se repone y se ajusta.
   "/admin/catalogo": "inventario-y-compras",
   "/admin/compras": "inventario-y-compras",
   "/admin/ajustes": "inventario-y-compras", // "Ajustes y mermas" = stock
+  // Ítems de RUBRO (retail / carnicería, Magra). Sólo renderizan para su rubro
+  // (retailOnly/carniceriaOnly, filtrados en AdminShell), pero su grupo se
+  // declara igual: sin esta línea caerían en `ungrouped` y se pintarían al final
+  // sin título — la red de seguridad funcionando como parche permanente.
+  "/admin/inventario": "inventario-y-compras",
+  "/admin/lotes": "inventario-y-compras",
+  "/admin/despiece": "inventario-y-compras",
   // Finanzas — facturación y análisis de resultados.
   "/admin/facturacion": "finanzas",
   "/admin/reportes": "finanzas",

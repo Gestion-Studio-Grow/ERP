@@ -14,6 +14,24 @@ import "./globals.css";
 // build: es que el build no dependa de la DB. Aplica a todo el árbol de rutas.
 export const dynamic = "force-dynamic";
 
+// ============================================================================
+// FUENTES — una sola declaración para toda la app, PERO no todas se precargan.
+// ============================================================================
+//
+// Acá conviven las identidades de CUATRO negocios (spa genérico, CH Estética,
+// Magra, Shine Velas). Declararlas juntas está bien: `next/font` las auto-hospeda
+// y evita el salto de tipografía. El problema era `preload`, que viene en true por
+// defecto: Next inyectaba un <link rel="preload"> de las NUEVE familias en CADA
+// pantalla, así que el backoffice de CH se bajaba también las fuentes de Magra y
+// de Shine — 355 KB de tipografía por pantalla, más que todo el JavaScript.
+//
+// Regla que se aplica abajo: precargan SOLO las que la mayoría de las pantallas
+// usa de verdad (Geist como base + Fraunces/Hanken, la identidad de CH, el tenant
+// vivo en producción). Las de identidad de OTRAS superficies llevan
+// `preload: false`: siguen disponibles por su variable CSS y el navegador las baja
+// recién cuando una pantalla las usa. Con `display: "swap"` el texto se ve desde el
+// primer frame, así que la contrapartida es un cambio de tipografía tardío en la
+// vidriera de esos tenants, no una pantalla en blanco.
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -22,11 +40,15 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  // Monoespaciada: la usan pantallas puntuales (códigos, importes técnicos), no el
+  // grueso del panel → sin preload.
+  preload: false,
 });
 
 const playfair = Playfair_Display({
   variable: "--font-spa-serif",
   subsets: ["latin"],
+  preload: false, // identidad del spa genérico / vidriera, no del backoffice
 });
 
 // Identidad CH Estética (rediseño): display serif editorial + grotesque de cuerpo.
@@ -51,12 +73,14 @@ const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
   weight: "400",
   display: "swap",
+  preload: false, // identidad MAGRA: la baja su vidriera, no el resto de los tenants
 });
 
 const openSans = Open_Sans({
   variable: "--font-open-sans",
   subsets: ["latin"],
   display: "swap",
+  preload: false, // identidad MAGRA (cuerpo)
 });
 
 // Identidad SHINE (manual de marca 2026): serif display DELICADA de alto contraste
@@ -69,12 +93,16 @@ const cormorant = Cormorant({
   style: ["normal", "italic"],
   weight: ["400", "500", "600"],
   display: "swap",
+  // Identidad SHINE y la más cara de todas: 3 pesos × 2 estilos = 6 archivos. Sin
+  // preload no la toca nadie salvo la vidriera de shinevelas.
+  preload: false,
 });
 
 const kumbhSans = Kumbh_Sans({
   variable: "--font-kumbh",
   subsets: ["latin"],
   display: "swap",
+  preload: false, // identidad SHINE (cuerpo)
 });
 
 // Favicon POR TENANT (no más "CH" hardcodeado para toda la app): el ícono de la

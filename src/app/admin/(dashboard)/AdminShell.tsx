@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
 import { roleHasCapability, type Role } from "@/lib/capabilities";
 import { moduleGateAllows } from "@/modules/gating";
 import { perfilGateAllows, type Perfil } from "@/modules/perfil";
 import { NAV_ITEM_GROUPS, readyEnterpriseNavItems, groupNavItems } from "@/modules/nav-groups";
+import { searchNavItems } from "@/modules/nav-search";
 import { ALL_ITEMS, type ShellItem } from "@/lib/admin-nav-items";
 import { ProfileBadge } from "@/components/ui";
 import ThemeToggle from "./ThemeToggle";
@@ -143,6 +144,202 @@ function NavGroups({ items, onNavigate }: { items: ShellItem[]; onNavigate?: () 
   );
 }
 
+// ============================================================================
+// BARRA DE BÚSQUEDA DE LA NAV (patrón SAP) + la nav debajo.
+// ============================================================================
+//
+// El problema que resuelve: CH pasó de 3 a 14 módulos activos. Agrupar en 5
+// grupos ordena la barra para el que explora; el que YA SABE a dónde va quiere
+// escribir "fact" y apretar Enter. Los dos usos conviven acá: sin texto se ve la
+// nav de siempre (agrupada o plana), con texto la nav se reemplaza por la lista
+// de coincidencias — el mismo contrato del buscador de SAP.
+//
+// SEGURIDAD: busca sobre `items`, que YA vienen filtrados por rol × módulo ×
+// perfil × rubro. El buscador no puede hacer aparecer una pantalla que el rol no
+// ve, ni siquiera tipeando su nombre exacto (blindado en `nav-search.test.ts`).
+//
+// ACCESIBILIDAD (Gate, ángulo a11y): combobox + listbox con `aria-activedescendant`,
+// recorrible con ↑ ↓ Enter Escape, label real (sr-only), y el conteo de
+// resultados anunciado por `aria-live` para quien navega con lector de pantalla.
+function NavBuscable({
+  items,
+  navGrouping,
+  onNavigate,
+  atajoGlobal = false,
+}: {
+  items: ShellItem[];
+  navGrouping: boolean;
+  onNavigate?: () => void;
+  // ¿Esta instancia escucha Ctrl/⌘+K? Solo la del sidebar de escritorio: el cajón
+  // móvil monta un segundo <NavBuscable> y dos listeners se pelearían el foco.
+  atajoGlobal?: boolean;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [cursor, setCursor] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
+
+  const resultados = searchNavItems(items, query);
+  const buscando = query.trim().length > 0;
+  // El cursor puede quedar apuntando fuera de la lista al tipear una letra más
+  // (menos resultados): se acota al render, sin efecto ni estado derivado.
+  const seleccionado = resultados.length > 0 ? Math.min(cursor, resultados.length - 1) : -1;
+
+  useEffect(() => {
+    if (!atajoGlobal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [atajoGlobal]);
+
+  function limpiar() {
+    setQuery("");
+    setCursor(0);
+  }
+
+  function irA(href: string) {
+    limpiar();
+    onNavigate?.();
+    router.push(href);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCursor((c) =>
+        resultados.length === 0 ? 0 : (Math.min(c, resultados.length - 1) + 1) % resultados.length,
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCursor((c) =>
+        resultados.length === 0
+          ? 0
+          : (Math.min(c, resultados.length - 1) - 1 + resultados.length) % resultados.length,
+      );
+    } else if (e.key === "Enter") {
+      // Enter con la lista vacía no hace nada: mejor no moverse que caer en una
+      // pantalla que el usuario no pidió.
+      if (seleccionado >= 0) {
+        e.preventDefault();
+        irA(resultados[seleccionado].href);
+      }
+    } else if (e.key === "Escape") {
+      // Escape limpia la búsqueda; si ya estaba vacía, deja que burbujee para que
+      // el cajón móvil se cierre con la misma tecla.
+      if (buscando) {
+        e.preventDefault();
+        e.stopPropagation();
+        limpiar();
+      }
+    }
+  }
+
+  return (
+    <div className="flex flex-col min-h-0">
+      <div className="px-1 pb-3">
+        <label htmlFor={`${listboxId}-input`} className="sr-only">
+          Buscar en el menú
+        </label>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint">
+            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+          </span>
+          <input
+            id={`${listboxId}-input`}
+            ref={inputRef}
+            type="text"
+            role="combobox"
+            aria-expanded={buscando}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={seleccionado >= 0 ? `${listboxId}-op-${seleccionado}` : undefined}
+            autoComplete="off"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCursor(0);
+            }}
+            onKeyDown={onKeyDown}
+            placeholder="Buscar…"
+            className="w-full rounded-lg border border-line bg-surface-sunken pl-8 pr-7 py-[7px] text-sm text-strong placeholder:text-faint focus:border-accent focus:outline-none"
+          />
+          {buscando && (
+            <button
+              type="button"
+              onClick={() => {
+                limpiar();
+                inputRef.current?.focus();
+              }}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 px-1.5 text-lg leading-none text-faint hover:text-strong"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Conteo para lectores de pantalla: sin esto, quien no ve la lista no sabe
+          si lo que tipeó encontró algo. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {buscando
+          ? `${resultados.length} ${resultados.length === 1 ? "resultado" : "resultados"}`
+          : ""}
+      </p>
+
+      {buscando ? (
+        resultados.length > 0 ? (
+          <ul id={listboxId} role="listbox" aria-label="Resultados de la búsqueda" className="space-y-0.5">
+            {resultados.map((item, i) => (
+              <li key={item.href} role="none">
+                <Link
+                  id={`${listboxId}-op-${i}`}
+                  role="option"
+                  aria-selected={i === seleccionado}
+                  href={item.href}
+                  onClick={() => {
+                    limpiar();
+                    onNavigate?.();
+                  }}
+                  onMouseEnter={() => setCursor(i)}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-[7.5px] text-sm transition-colors ${
+                    i === seleccionado
+                      ? "bg-surface-sunken text-strong font-semibold"
+                      : "text-body font-medium hover:bg-surface-sunken"
+                  }`}
+                >
+                  <span className={i === seleccionado ? "text-accent" : "text-faint"}>
+                    <Icon name={item.icon} />
+                  </span>
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-3 py-2 text-sm text-muted">
+            Nada coincide con <span className="text-strong">&ldquo;{query.trim()}&rdquo;</span>.
+          </p>
+        )
+      ) : navGrouping ? (
+        <NavGroups items={items} onNavigate={onNavigate} />
+      ) : (
+        <NavLinks items={items} onNavigate={onNavigate} />
+      )}
+    </div>
+  );
+}
+
 function NavFooter({
   userName,
   roleLabel,
@@ -238,8 +435,17 @@ export default function AdminShell({
   // Garantiza `enterprise ⊇ lite`: el Comercio nunca ve MÁS que la nav de hoy, la
   // Empresa ve eso + lo aditivo YA construido. Hoy no hay ítems `ready` → Empresa día-1
   // = piso Comercio re-frameado, sin ítems nuevos (exactamente lo que valida S1).
-  const candidateItems: ShellItem[] =
-    activeProfile === null ? ALL_ITEMS : [...ALL_ITEMS, ...readyEnterpriseNavItems()];
+  // DEDUP por href: `/admin/inventario` está declarado en los DOS registros — en
+  // `ALL_ITEMS` como ítem de rubro retail (Magra) y en `ENTERPRISE_NAV_ITEMS` como
+  // shell del perfil Empresa. Es la MISMA pantalla encendida por dos vías. Sin esta
+  // deduplicación, un tenant retail con el motor de perfiles ON la vería dos veces
+  // en la barra (y React se quejaría por la key repetida). Gana el ítem base: es el
+  // que trae el rubro-gating (`retailOnly`), sin el cual la pantalla se le colaría
+  // a un tenant de servicios.
+  const vistos = new Set<string>();
+  const candidateItems: ShellItem[] = (
+    activeProfile === null ? ALL_ITEMS : [...ALL_ITEMS, ...readyEnterpriseNavItems()]
+  ).filter((item) => (vistos.has(item.href) ? false : (vistos.add(item.href), true)));
   const items = candidateItems.filter(
     (item) =>
       roleHasCapability(role, item.cap) &&
@@ -254,9 +460,16 @@ export default function AdminShell({
   const roleLabel = ROLE_LABEL[role];
 
   // Cerrar el cajón al navegar (cambia el pathname) y con Escape.
-  useEffect(() => {
-    setDrawerOpen(false);
-  }, [pathname]);
+  //
+  // El cierre por navegación se ajusta DURANTE el render comparándolo con el pathname
+  // anterior, no con un efecto: `setState` sincrónico dentro de un `useEffect` provoca
+  // un segundo render en cascada (y lo marca `react-hooks/set-state-in-effect`). Este es
+  // el patrón de React para "ajustar estado cuando cambia una prop".
+  const [pathAnterior, setPathAnterior] = useState(pathname);
+  if (pathAnterior !== pathname) {
+    setPathAnterior(pathname);
+    if (drawerOpen) setDrawerOpen(false);
+  }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
     window.addEventListener("keydown", onKey);
@@ -268,7 +481,7 @@ export default function AdminShell({
       {/* Sidebar fijo — solo desktop (lg+) */}
       <nav className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5">
         <div className="px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
-        {navGrouping ? <NavGroups items={items} /> : <NavLinks items={items} />}
+        <NavBuscable items={items} navGrouping={navGrouping} atajoGlobal />
         <div className="mt-auto"><NavFooter userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} /></div>
       </nav>
 
@@ -291,11 +504,11 @@ export default function AdminShell({
                 ×
               </button>
             </div>
-            {navGrouping ? (
-              <NavGroups items={items} onNavigate={() => setDrawerOpen(false)} />
-            ) : (
-              <NavLinks items={items} onNavigate={() => setDrawerOpen(false)} />
-            )}
+            <NavBuscable
+              items={items}
+              navGrouping={navGrouping}
+              onNavigate={() => setDrawerOpen(false)}
+            />
             <div className="mt-auto">
               <NavFooter
                 userName={userName}

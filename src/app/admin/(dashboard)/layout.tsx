@@ -44,7 +44,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // El portón grueso (¿hay sesión?) lo hace `proxy.ts`; acá resolvemos el
   // usuario para adaptar la navegación a su rol (ADR-017 §2.e — ocultar lo que
   // no puede es UX; la seguridad real son los guardas server-side por acción).
-  const [user, brand, activeModuleIds, activeProfile, productoCtx, rubro, carniceriaReady] = await Promise.all([
+  // PERFORMANCE: TODO lo que no depende de otra lectura viaja en UNA sola tanda. Antes
+  // `getBrandSheet()` y `getTeamAccentPreset()` se esperaban más abajo, ya con el
+  // Promise.all resuelto: eran dos viajes al pooler encadenados detrás del primero, en
+  // CADA pantalla del backoffice. Ninguno de los dos depende del usuario ni del otro, así
+  // que su lugar es acá. La lectura de la ficha sigue siendo condicional al flag: con el
+  // flag OFF no se consulta nada (`null` sin viaje).
+  const useSheet = tenantBrandSheetEnabled();
+  const [user, brand, activeModuleIds, activeProfile, productoCtx, rubro, carniceriaReady, sheet, teamPreset] = await Promise.all([
     requireUser(),
     getTenantBrand(),
     // Gating por módulo (ADR-054/055): set activo del tenant, o null si el flag está
@@ -61,6 +68,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     getCurrentTenantRubro(),
     // ¿Migración cárnica (Gate 2) aplicada? Gatea Lotes/Despiece. Degrada a false.
     hasCarniceriaSchema(),
+    // Ficha de marca (RFC-004-D) — solo si el flag está ON; si no, ni se consulta.
+    useSheet ? getBrandSheet() : Promise.resolve(null),
+    // Color del equipo elegido en /admin/apariencia (Tenant.accentPreset).
+    getTeamAccentPreset(),
   ]);
 
   // PORTÓN DE CAMBIO FORZADO: si la contraseña del usuario está marcada como temporal (reset del
@@ -120,8 +131,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // ON, la PIEL sale de la ficha del tenant leída de la DB (getBrandSheet: name/accentPreset/
   // frontTheme/blueprintId → theme pack) y `data-brand` inyecta tipografía+densidad propias
   // (los neutros en el admin los pisa el skin Fable, a propósito: mismo tema para todo back).
-  const useSheet = tenantBrandSheetEnabled();
-  const sheet = useSheet ? await getBrandSheet() : null;
 
   // COLOR DEL EQUIPO (/admin/apariencia): si el dueño eligió un preset, ese manda
   // en el back (Tenant.accentPreset — la MISMA columna que lee la ficha de marca,
@@ -133,7 +142,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // equipo elegido > acento del producto > branding legado. Para el ERP vertical `identidad`
   // es null → todo cae al camino de siempre, byte-idéntico.
   const identidad = productoCtx.identidad;
-  const teamPreset = await getTeamAccentPreset();
   const preset = teamPreset ?? identidad?.acento ?? brand.preset;
   const accentLight = sheet ? brandSheetAccent(sheet, "light") : resolveAccent(preset, "light");
   const accentDark = sheet ? brandSheetAccent(sheet, "dark") : resolveAccent(preset, "dark");

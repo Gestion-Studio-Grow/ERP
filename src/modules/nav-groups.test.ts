@@ -23,30 +23,19 @@ import {
   type NavGroupId,
   type NavGroupedItem,
 } from "./nav-groups";
+import { ALL_ITEMS } from "@/lib/admin-nav-items";
 
-// Los 18 ítems reales de `AdminShell.ALL_ITEMS`, con la asignación de grupo aplicada
-// (mismos hrefs/caps/módulos; ver docs/estrategia/mapa-rol-perfil-nav-grupos.md).
-// +1 (2026-07-11): "/admin/apariencia" — tema + color del equipo (skin Fable).
-const ALL_17: NavGroupedItem[] = [
-  { href: "/admin", cap: "dashboard:read", grupo: NAV_ITEM_GROUPS["/admin"] },
-  { href: "/admin/turnos", cap: "agenda:read", module: "agenda", grupo: NAV_ITEM_GROUPS["/admin/turnos"] },
-  { href: "/admin/clientes", cap: "clients:read", module: "clients", grupo: NAV_ITEM_GROUPS["/admin/clientes"] },
-  { href: "/admin/espera", cap: "waitlist:manage", module: "waitlist", grupo: NAV_ITEM_GROUPS["/admin/espera"] },
-  { href: "/admin/pedidos", cap: "orders:read", module: "pos", grupo: NAV_ITEM_GROUPS["/admin/pedidos"] },
-  { href: "/admin/caja", cap: "orders:read", module: "pos", grupo: NAV_ITEM_GROUPS["/admin/caja"] },
-  { href: "/admin/catalogo", cap: "catalog:manage", module: "catalog", grupo: NAV_ITEM_GROUPS["/admin/catalogo"] },
-  { href: "/admin/compras", cap: "catalog:manage", module: "catalog", grupo: NAV_ITEM_GROUPS["/admin/compras"] },
-  { href: "/admin/ajustes", cap: "catalog:manage", module: "catalog", grupo: NAV_ITEM_GROUPS["/admin/ajustes"] },
-  { href: "/admin/resenas", cap: "reviews:manage", module: "reviews", grupo: NAV_ITEM_GROUPS["/admin/resenas"] },
-  { href: "/admin/recordatorios", cap: "reminders:manage", module: "reminders", grupo: NAV_ITEM_GROUPS["/admin/recordatorios"] },
-  { href: "/admin/facturacion", cap: "billing:manage", module: "arca", grupo: NAV_ITEM_GROUPS["/admin/facturacion"] },
-  { href: "/admin/reportes", cap: "reports:read", module: "reports", grupo: NAV_ITEM_GROUPS["/admin/reportes"] },
-  { href: "/admin/auditoria", cap: "audit:read", grupo: NAV_ITEM_GROUPS["/admin/auditoria"] },
-  { href: "/admin/usuarios", cap: "users:manage", grupo: NAV_ITEM_GROUPS["/admin/usuarios"] },
-  { href: "/admin/localizacion", cap: "location:manage", grupo: NAV_ITEM_GROUPS["/admin/localizacion"] },
-  { href: "/admin/apariencia", cap: "appearance:manage", grupo: NAV_ITEM_GROUPS["/admin/apariencia"] },
-  { href: "/admin/modulos", cap: "modules:manage", grupo: NAV_ITEM_GROUPS["/admin/modulos"] },
-];
+// Los ítems reales de la nav, DERIVADOS de `ALL_ITEMS` (@/lib/admin-nav-items) con su
+// grupo aplicado. Antes acá vivía una copia a mano de esa lista, y la copia se
+// desincronizó: le faltaban Campañas y los ítems de rubro, así que los tests valídaban
+// una nav que ya no era la del producto. Derivarla es la única forma de que un ítem
+// nuevo entre automáticamente a todas las vallas de abajo.
+const ITEMS_NAV: NavGroupedItem[] = ALL_ITEMS.map((it) => ({
+  href: it.href,
+  cap: it.cap,
+  module: it.module,
+  grupo: NAV_ITEM_GROUPS[it.href],
+}));
 
 const VALID_IDS = new Set<NavGroupId>(NAV_GROUPS.map((g) => g.id));
 
@@ -66,12 +55,32 @@ test("NAV_GROUPS: labels profesionales en español neutro, sin lunfardo", () => 
   );
 });
 
-test("NAV_ITEM_GROUPS: asigna grupo a los 18 ítems existentes de AdminShell", () => {
-  assert.equal(Object.keys(NAV_ITEM_GROUPS).length, 18);
-  for (const item of ALL_17) {
+test("NAV_ITEM_GROUPS: TODO ítem de ALL_ITEMS tiene grupo — ninguno cae en 'ungrouped'", () => {
+  // Antes esto contaba ítems (18). El número se quedó viejo apenas entraron Campañas y
+  // los ítems de rubro, y esos 4 se pintaban sueltos al final de la barra sin título —
+  // la red de seguridad de `groupNavItems` tapando un olvido. Ahora la valla es la
+  // COBERTURA: cada href de la lista real tiene que estar asignado. Un ítem nuevo sin
+  // grupo rompe acá, no en la barra del cliente.
+  for (const item of ALL_ITEMS) {
+    const grupo = NAV_ITEM_GROUPS[item.href];
+    assert.ok(grupo, `"${item.href}" (${item.label}) sin grupo en NAV_ITEM_GROUPS`);
+    assert.ok(VALID_IDS.has(grupo), `"${item.href}" con grupo inválido: ${grupo}`);
+  }
+  for (const item of ITEMS_NAV) {
     assert.ok(item.grupo, `"${item.href}" sin grupo asignado`);
     assert.ok(VALID_IDS.has(item.grupo), `"${item.href}" con grupo inválido: ${item.grupo}`);
   }
+});
+
+test("ENTERPRISE_NAV_ITEMS ∩ ALL_ITEMS: la única superposición es /admin/inventario", () => {
+  // Superposición DELIBERADA y acotada: Inventario es una sola pantalla con dos vías de
+  // encendido (rubro retail en `ALL_ITEMS` · perfil Empresa en `ENTERPRISE_NAV_ITEMS`).
+  // El AdminShell deduplica por href para no pintarla dos veces. Si mañana aparece OTRA
+  // href en ambos registros, este test lo dice — que es justo cuando hay que decidir cuál
+  // de los dos registros manda, en vez de descubrirlo por un ítem repetido en la barra.
+  const baseHrefs = new Set(ALL_ITEMS.map((i) => i.href));
+  const compartidas = ENTERPRISE_NAV_ITEMS.filter((i) => baseHrefs.has(i.href)).map((i) => i.href);
+  assert.deepEqual(compartidas, ["/admin/inventario"]);
 });
 
 test("NAV_ITEM_GROUPS: 'Ajustes y mermas' cae en Inventario y compras (es stock, no config)", () => {
@@ -79,7 +88,7 @@ test("NAV_ITEM_GROUPS: 'Ajustes y mermas' cae en Inventario y compras (es stock,
 });
 
 test("groupNavItems: agrupa respetando el orden fijo de NAV_GROUPS", () => {
-  const { groups } = groupNavItems(ALL_17);
+  const { groups } = groupNavItems(ITEMS_NAV);
   const ids = groups.map((g) => g.id);
   const expectedOrder = NAV_GROUPS.map((g) => g.id).filter((id) => ids.includes(id));
   assert.deepEqual(ids, expectedOrder);
@@ -107,7 +116,7 @@ test("groupNavItems: manda a `ungrouped` los ítems sin `grupo` en vez de perder
 });
 
 test("groupNavItems: no muta el array de entrada", () => {
-  const input = [...ALL_17];
+  const input = [...ITEMS_NAV];
   const snapshot = JSON.stringify(input);
   groupNavItems(input);
   assert.equal(JSON.stringify(input), snapshot);
@@ -117,7 +126,7 @@ test("groupNavItems: compone con visibleNavItems (rol × módulo × perfil) sin 
   // RECEPTION solo tiene lo operativo de mostrador + alta de clientes (capabilities.ts):
   // ve Operación (dashboard/agenda/espera/pedidos/caja) y Clientes (solo /admin/clientes;
   // recordatorios y reseñas son OWNER). NO ve Inventario/Finanzas/Configuración.
-  const visible = visibleNavItems(ALL_17, {
+  const visible = visibleNavItems(ITEMS_NAV, {
     role: "RECEPTION",
     activeModules: null,
     activeProfile: null,
@@ -161,7 +170,12 @@ test("ENTERPRISE_NAV_ITEMS: 5 shells (3 enterprise + CxC/Inventario lite reconci
     assert.ok(it.perfilMin === "lite" || it.perfilMin === "enterprise", `perfilMin inválido en ${it.href}`);
     assert.equal(it.ready, true, `${it.href} debe estar 'ready' (su shell existe)`);
     assert.ok(VALID_IDS.has(it.grupo), `grupo inválido en ${it.href}`);
-    assert.ok(!baseHrefs.has(it.href), `${it.href} colisiona con un ítem base`);
+    // `/admin/inventario` es la excepción documentada (misma pantalla, dos vías de
+    // encendido: rubro retail o perfil Empresa) y el shell la deduplica por href. El
+    // test de arriba vigila que siga siendo la ÚNICA superposición.
+    if (it.href !== "/admin/inventario") {
+      assert.ok(!baseHrefs.has(it.href), `${it.href} colisiona con un ítem base`);
+    }
     assert.ok(it.label && it.icon && it.cap, `${it.href} sin label/icon/cap`);
     // Naming al cliente: la etiqueta NO filtra la palabra de ingeniería (ADR-059 D7).
     assert.ok(!/enterprise|lite/i.test(it.label), `label "${it.label}" filtra lite/enterprise`);
@@ -236,18 +250,32 @@ test("ENTERPRISE_NAV_ITEMS: cada shell 'ready' tiene su page.tsx en disco (anti 
 test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — OWNER Empresa los 5; Comercio CxC+Inventario (lite); RECEPTION/motor-OFF ninguno", () => {
   // Espeja la lógica de AdminShell: candidatos = base + los Empresa `ready`; luego
   // visibleNavItems (rol × módulo × perfil).
-  const shellMerge = (role: "OWNER" | "RECEPTION", profile: "lite" | "enterprise" | null) =>
-    visibleNavItems(
-      [
-        ...ALL_17,
-        ...(profile === null
-          ? []
-          : readyEnterpriseNavItems().map((it) => ({
-              href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo,
-            }))),
-      ] as NavGroupedItem[],
-      { role, activeModules: null, activeProfile: profile },
-    );
+  // `isRetail` y la DEDUP por href no son detalle: sin ellos el espejo miente. La lista
+  // base trae `/admin/inventario` como ítem de rubro (solo retail) y el registro Empresa
+  // lo trae otra vez como shell de perfil — el AdminShell filtra por rubro y deduplica,
+  // así que el test tiene que hacer lo mismo o valida una nav que nadie ve.
+  const shellMerge = (
+    role: "OWNER" | "RECEPTION",
+    profile: "lite" | "enterprise" | null,
+    isRetail = false,
+  ) => {
+    const vistos = new Set<string>();
+    const candidatos = [
+      ...ALL_ITEMS.filter((it) => !it.retailOnly || isRetail).map((it) => ({
+        href: it.href, cap: it.cap, module: it.module, grupo: NAV_ITEM_GROUPS[it.href],
+      })),
+      ...(profile === null
+        ? []
+        : readyEnterpriseNavItems().map((it) => ({
+            href: it.href, cap: it.cap, perfilMin: it.perfilMin, grupo: it.grupo,
+          }))),
+    ].filter((it) => (vistos.has(it.href) ? false : (vistos.add(it.href), true)));
+    return visibleNavItems(candidatos as NavGroupedItem[], {
+      role,
+      activeModules: null,
+      activeProfile: profile,
+    });
+  };
   const entHrefs = [...ENTERPRISE_NAV_ITEMS.map((i) => i.href)];
 
   // OWNER Empresa: ve los 5 shells (recorrible) + el piso (⊇).
@@ -265,6 +293,15 @@ test("ENTERPRISE_NAV_ITEMS: replica el filtro del shell — OWNER Empresa los 5;
   // Motor OFF (profile null): ninguno + nav idéntica al piso.
   const ownerOff = shellMerge("OWNER", null);
   assert.ok(!entHrefs.some((h) => ownerOff.some((i) => i.href === h)), "motor OFF no suma ítems Empresa");
+
+  // Un tenant RETAIL con el motor ON ve `/admin/inventario` UNA sola vez, no dos: está
+  // declarado en los dos registros y la dedup del shell lo resuelve.
+  const retailEnt = shellMerge("OWNER", "enterprise", true);
+  assert.equal(
+    retailEnt.filter((i) => i.href === "/admin/inventario").length,
+    1,
+    "Inventario duplicado en la barra (colisión base × Empresa sin deduplicar)",
+  );
 
   // RECEPTION Empresa: ninguno (caps billing/reports/catalog son solo OWNER).
   const recepEnt = shellMerge("RECEPTION", "enterprise");

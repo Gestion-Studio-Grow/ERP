@@ -40,15 +40,25 @@ function isMissingColumn(e: unknown): boolean {
 // Memoizado: una vez que da true, no vuelve a chequear (la columna no desaparece sin reinicio);
 // mientras dé false/errore, reintenta (cubre el momento justo tras aplicar la migración).
 let _columnPresent = false;
-async function userFlagColumnExists(): Promise<boolean> {
+// El NEGATIVO también se recuerda, pero con vencimiento. Mientras la migración no esté
+// aplicada (hoy, Gate 2 pendiente) la respuesta es "no existe" — y sin este recuerdo el
+// backoffice le preguntaba al catálogo en CADA request de CADA pantalla. Es una query
+// entera por pantalla para confirmar algo que cambia una sola vez en la vida del sistema.
+// Con el vencimiento corto se conserva la propiedad que import a: aplicada la migración, el
+// sistema se entera solo en menos de un minuto, sin reiniciar nada.
+const AUSENCIA_TTL_MS = 60_000;
+let _ausenciaHasta = 0;
+async function userFlagColumnExists(now: number = Date.now()): Promise<boolean> {
   if (_columnPresent) return true;
+  if (now < _ausenciaHasta) return false;
   const rows = await basePrisma
     .$queryRaw`SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'User' AND column_name = 'mustChangePassword'
       LIMIT 1`
     .catch(() => null);
-  if (rows === null) return false; // catálogo no disponible: reintentar luego, no cachear
+  if (rows === null) return false; // catálogo no disponible: reintentar ya, no cachear
   _columnPresent = Array.isArray(rows) && rows.length > 0;
+  if (!_columnPresent) _ausenciaHasta = now + AUSENCIA_TTL_MS;
   return _columnPresent;
 }
 

@@ -43,36 +43,42 @@ export type ShellItem = {
   // Ambos default undefined → los ítems base no cambian.
   retailOnly?: boolean;
   carniceriaOnly?: boolean;
+  // Palabras con las que el usuario REAL busca la pantalla, más allá del rótulo:
+  // "afip" para Facturación, "stock" para Inventario, "mermas" para Ajustes. Las
+  // consume el buscador de la barra (`@/modules/nav-search`) y NO afectan a la
+  // nav ni al gating por-URL: un alias no habilita nada, solo ayuda a encontrar
+  // lo que el rol YA puede ver.
+  alias?: readonly string[];
 };
 
 export const ALL_ITEMS: ShellItem[] = [
-  { href: "/admin", label: "Inicio", icon: "dashboard", exact: true, cap: "dashboard:read" },
-  { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda" },
-  { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read", module: "clients" },
-  { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist" },
-  { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read", module: "pos" },
-  { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read", module: "pos" },
-  { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog" },
-  { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog" },
-  { href: "/admin/inventario", label: "Inventario", icon: "inventario", cap: "catalog:read", module: "catalog", retailOnly: true },
-  { href: "/admin/lotes", label: "Lotes / Vacío", icon: "lotes", cap: "catalog:manage", module: "catalog", carniceriaOnly: true },
-  { href: "/admin/despiece", label: "Despiece", icon: "despiece", cap: "catalog:manage", module: "catalog", carniceriaOnly: true },
-  { href: "/admin/ajustes", label: "Ajustes", icon: "ajustes", cap: "catalog:manage", module: "catalog" },
-  { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage", module: "reviews" },
-  { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders" },
-  { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca" },
-  { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports" },
-  { href: "/admin/campania", label: "Campañas", icon: "clientes", cap: "clients:read", module: "campanias" },
+  { href: "/admin", label: "Inicio", icon: "dashboard", exact: true, cap: "dashboard:read", alias: ["tablero", "panel", "home", "resumen"] },
+  { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda", alias: ["turnos", "reservas", "calendario", "citas"] },
+  { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read", module: "clients", alias: ["fichas", "base de clientes", "historial del cliente"] },
+  { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist", alias: ["cola", "waitlist", "anotados para un hueco"] },
+  { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read", module: "pos", alias: ["ventas", "mostrador", "comandas"] },
+  { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read", module: "pos", alias: ["cobrar", "cierre", "arqueo", "efectivo", "cobros"] },
+  { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog", alias: ["servicios", "precios", "productos", "tratamientos", "profesionales", "horarios"] },
+  { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog", alias: ["proveedores", "reposicion", "remitos"] },
+  { href: "/admin/inventario", label: "Inventario", icon: "inventario", cap: "catalog:read", module: "catalog", retailOnly: true, alias: ["stock", "existencias"] },
+  { href: "/admin/lotes", label: "Lotes / Vacío", icon: "lotes", cap: "catalog:manage", module: "catalog", carniceriaOnly: true, alias: ["vencimientos", "envasado al vacio", "trazabilidad"] },
+  { href: "/admin/despiece", label: "Despiece", icon: "despiece", cap: "catalog:manage", module: "catalog", carniceriaOnly: true, alias: ["cortes", "media res", "rendimiento"] },
+  { href: "/admin/ajustes", label: "Ajustes", icon: "ajustes", cap: "catalog:manage", module: "catalog", alias: ["mermas", "rotura", "recuento", "vencidos"] },
+  { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage", module: "reviews", alias: ["opiniones", "comentarios", "estrellas"] },
+  { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders", alias: ["whatsapp", "avisos", "mensajes"] },
+  { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca", alias: ["arca", "afip", "comprobantes", "iva", "factura"] },
+  { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports", alias: ["informes", "estadisticas", "rentabilidad", "comisiones", "ingresos"] },
+  { href: "/admin/campania", label: "Campañas", icon: "clientes", cap: "clients:read", module: "campanias", alias: ["obsequio", "promociones", "leads", "anotados", "apertura"] },
   // El ítem SIGUE declarado —la ruta necesita estar en el mapa para el gating por
   // módulos— pero ya no lo ve nadie: `modules:manage` dejó de estar en las
   // capacidades del dueño. Aprovisionar módulos es decidir qué producto compró
   // el cliente, no operación diaria. Cuando exista el rol IMPLEMENTADOR, esa
   // capacidad se le asigna a él y el ítem reaparece sólo para ese rol.
-  { href: "/admin/modulos", label: "Módulos", icon: "modulos", cap: "modules:manage" },
-  { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read" },
-  { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage" },
-  { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage" },
-  { href: "/admin/apariencia", label: "Apariencia", icon: "apariencia", cap: "appearance:manage" },
+  { href: "/admin/modulos", label: "Módulos", icon: "modulos", cap: "modules:manage", alias: ["apps", "tienda de modulos", "activar"] },
+  { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read", alias: ["log", "historial", "quien hizo que", "registro"] },
+  { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage", alias: ["empleados", "permisos", "roles", "accesos", "contrasena"] },
+  { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage", alias: ["direccion", "ubicacion", "contacto", "sucursal", "telefono"] },
+  { href: "/admin/apariencia", label: "Apariencia", icon: "apariencia", cap: "appearance:manage", alias: ["tema", "color", "modo oscuro", "marca"] },
 ];
 
 /** Normaliza un path: saca query/hash y colapsa trailing slash. */
