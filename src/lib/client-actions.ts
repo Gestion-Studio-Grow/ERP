@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache";
 import { auditPublic } from "@/lib/audit";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
+import { getPublicBookingData } from "@/lib/actions";
+import { getLocation } from "@/lib/settings";
+import { nextBusinessDays } from "@/lib/datetime";
+import type { BookingData } from "@/app/(site)/_ch/types";
 
 export async function getMyAppointment(id: string) {
   return prisma.appointment.findUnique({
@@ -151,4 +155,35 @@ export async function rescheduleMyAppointment(formData: FormData) {
 
   revalidatePath(`/reserva/turno/${id}`);
   revalidatePath("/admin/turnos");
+}
+
+// ============================================================================
+// DATOS DEL MODAL DE RESERVA — se piden al abrirlo, no en cada página.
+// ============================================================================
+//
+// Antes el layout del sitio se los pasaba al `BookingProvider` como props. Eso
+// significaba serializar los ~70 servicios de CH con todos sus campos DENTRO DEL
+// HTML DE CADA PÁGINA —dos veces, por cómo viaja el payload de React— para
+// alimentar un modal que la mayoría de las visitas no abre. Eran unos 40 KB que
+// pagaba todo el mundo por las dudas.
+//
+// Ahora los trae esta acción cuando hace falta. Para que nadie espere, el botón
+// "Reservar" la dispara al pasarle el mouse por encima o al recibir el foco por
+// teclado: en el tiempo que tarda alguien en decidir el clic, los datos ya
+// llegaron. Si igual llega antes, el modal muestra que está cargando.
+//
+// PÚBLICA a propósito, como el resto de este archivo: son los mismos datos que
+// hasta ayer estaban embebidos en el HTML de la vidriera — precios y nombres de
+// servicios, sin nada de clientes ni de la agenda.
+export async function getBookingDataPublic(): Promise<BookingData> {
+  const [{ groups, professionals }, location] = await Promise.all([
+    getPublicBookingData(),
+    getLocation(),
+  ]);
+  return {
+    groups,
+    professionals,
+    days: nextBusinessDays(14),
+    whatsapp: location.whatsapp,
+  };
 }

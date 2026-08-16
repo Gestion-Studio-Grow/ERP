@@ -43,7 +43,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
 
   return (
     <WhatsAppCtaProvider tenantKey={slug ?? "ch-default"} configuredNumber={whatsapp}>
-      <BookingProvider data={{ groups, professionals, days, whatsapp }}>
+      {/* Sin `data`: los ~70 servicios ya no viajan en el HTML de cada página.
+          El provider los pide cuando alguien va a reservar (ver client-actions). */}
+      <BookingProvider>
       {/* Acento + tema del front por tenant, disponibles también en el sitio para
           cuando sus pantallas migren a los tokens de la base Nocturne. */}
       <div data-theme={frontTheme} data-brand={dataBrand} style={{ background: "var(--surface)", color: "var(--text-strong)", fontFamily: "var(--font-body), system-ui, sans-serif", "--accent": accent, "--text-on-accent": onAccent } as CSSProperties}>

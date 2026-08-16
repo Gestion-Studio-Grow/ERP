@@ -12,7 +12,7 @@ export default function ReserveButton({
   variant?: "solid" | "nav";
   style?: React.CSSProperties;
 }) {
-  const { open } = useBooking();
+  const { open, precargar } = useBooking();
   const base: React.CSSProperties =
     variant === "nav"
       ? { padding: "8px 16px", fontSize: 14 }
@@ -21,6 +21,12 @@ export default function ReserveButton({
     <button
       type="button"
       onClick={open}
+      // Los datos de la agenda se van a buscar apenas alguien se acerca al botón:
+      // con el mouse encima, o al recibir el foco por teclado. Entre ese gesto y
+      // el clic hay tiempo de sobra para que lleguen, así que el modal abre
+      // instantáneo aunque su contenido no viaje en el HTML de la página.
+      onPointerEnter={precargar}
+      onFocus={precargar}
       className="ch-reserve-btn"
       style={{
         background: "var(--text-strong)",

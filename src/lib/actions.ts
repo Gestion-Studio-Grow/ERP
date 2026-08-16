@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -379,7 +380,12 @@ export async function getMostBookedServiceIds(limit = 3, days = 90): Promise<str
   }
 }
 
-export async function getPublicBookingData() {
+// MEMOIZADA POR REQUEST (`cache` de React). La llaman el LAYOUT del sitio (para
+// el modal de reserva) y la HOME (para la vitrina): sin esto, cada visita a la
+// portada ejecutaba sus tres consultas DOS veces — seis viajes a la base para
+// traer exactamente lo mismo. `getLocation` ya se había deduplicado así; esto
+// cierra el mismo agujero en el loader más pesado del sitio público.
+export const getPublicBookingData = cache(async () => {
   // DEFENSIVO (incidente sitio público CH 2026-07-09): corre en el LAYOUT público → si
   // lanza, cae TODO el sitio. `select` explícito en serviceCategory (NO `include`, que
   // traería TODAS sus columnas y rompería si el schema tiene alguna que la DB del tenant
@@ -440,12 +446,14 @@ export async function getPublicBookingData() {
       professionals: [] as { id: string; name: string; boxName: string | null; serviceIds: string[]; serviceNames: string[] }[],
     };
   }
-}
+});
 
 // Novedades para la sección pública de la landing: las últimas cargadas en el
 // panel (últimos 30 días), de profesionales activos. Cargar la novedad ya la
 // publica acá; "Difundir" es solo el envío por WhatsApp (ver reminders-actions).
-export async function getPublicNews() {
+// Memoizada por request, mismo motivo que `getPublicBookingData`: la piden el
+// layout (para la franja de novedades de arriba) y la home (para la sección).
+export const getPublicNews = cache(async () => {
   // DEFENSIVO (corre en el layout público): ante cualquier fallo de lectura devuelve
   // vacío en vez de tumbar el sitio. Se mantiene el mismo shape (`include`) — no se cambia
   // el contrato, solo se blinda. Inerte con la DB sana.
@@ -461,7 +469,7 @@ export async function getPublicNews() {
     logger.error("public-news", "no se pudieron cargar las novedades", err);
     return [];
   }
-}
+});
 
 // Crea el turno desde el modal y DEVUELVE el turno (no redirige, a diferencia de
 // createAppointment). El modal muestra la confirmación en el paso 5.
