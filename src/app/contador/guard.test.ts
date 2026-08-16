@@ -49,9 +49,35 @@ test("guard /contador: con sesión de tenant válida → pasa (NextResponse.next
 });
 
 test("el matcher del proxy cubre /contador (regresión de configuración)", async () => {
+  // Antes este test buscaba la cadena literal "/contador/:path*" en el matcher. Eso
+  // dejó de servir cuando el matcher pasó a un patrón Único que cubre TODO el sitio
+  // (para poder cerrar la vidriera con `SITE_GATE_PASSWORD`): /contador sigue gateado,
+  // pero por otra vía, y el test literal daba rojo con el portón intacto. Ahora se
+  // comprueba lo que import a de verdad — que las rutas SENSIBLES entren al middleware
+  // y que los assets NO —, sea cual sea la forma que tome el matcher mañana.
   const { config } = await import("@/proxy");
-  assert.ok(
-    config.matcher.includes("/contador/:path*"),
-    "el matcher debe gatear /contador — si no, el panel cross-tenant queda expuesto",
-  );
+  const patrones = config.matcher.map((m) => new RegExp(`^${m}$`));
+  const entraAlMiddleware = (ruta: string) => patrones.some((re) => re.test(ruta));
+
+  for (const ruta of [
+    "/contador",
+    "/contador/clientes",
+    "/admin",
+    "/admin/turnos",
+    "/operador/cockpit",
+    "/", // la vidriera: la cubre el portón del sitio
+    "/servicios",
+  ]) {
+    assert.ok(entraAlMiddleware(ruta), `${ruta} debe pasar por el middleware`);
+  }
+
+  // Los assets NO: pasarlos por el middleware sólo agrega latencia a cada imagen.
+  for (const ruta of [
+    "/_next/static/chunks/main.js",
+    "/favicon.ico",
+    "/tenants/ch-hero-spa.jpg",
+    "/team/carolina.png",
+  ]) {
+    assert.ok(!entraAlMiddleware(ruta), `${ruta} NO debería pasar por el middleware`);
+  }
 });
