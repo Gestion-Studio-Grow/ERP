@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { getPublicBookingData, getPublicNews } from "@/lib/actions";
+import { getMostBookedServiceIds, getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { getPublishedReviews } from "@/lib/reviews-actions";
 import { getLocation } from "@/lib/settings";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
@@ -11,14 +11,14 @@ import { getProductoActual } from "@/lib/producto";
 import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
-import ServicesAccordion from "./_ch/ServicesAccordion";
+import FeaturedTreatments, { type FeaturedService } from "./_ch/FeaturedTreatments";
 
 export const dynamic = "force-dynamic";
 
 const eyebrow: React.CSSProperties = {
   fontFamily: "var(--font-body), system-ui, sans-serif",
   textTransform: "uppercase",
-  letterSpacing: ".22em",
+  letterSpacing: ".2em", // versalitas del flyer impreso de CH
   fontWeight: 600,
   fontSize: ".75rem",
   color: "var(--text-muted)",
@@ -81,12 +81,41 @@ export default async function Home() {
   // GATEADO por sesión (requireCapability → redirect a /admin/login). Cualquier
   // visitante anónimo a la raíz de CH disparaba ese redirect: la causa real de
   // C-1 (reporte QA 2026-07-06), no solo un tema de estado de deploy.
-  const [{ groups, professionals }, news, reviews, location] = await Promise.all([
+  const [{ groups, professionals }, news, reviews, location, masElegidos] = await Promise.all([
     getPublicBookingData(),
     getPublicNews(),
     getPublishedReviews(),
     getLocation(),
+    // Los tratamientos que más se reservaron (dato de la propia agenda) para la
+    // vitrina de la home. Viaja en la misma tanda: no agrega latencia en serie.
+    getMostBookedServiceIds(3),
   ]);
+
+  // VITRINA DE LA HOME: pocos tratamientos, con precio exacto. El orden lo decide
+  // la agenda — lo más elegido primero. Si el negocio todavía no tiene historial
+  // (tenant nuevo), caen los primeros de la carta: la vitrina nunca queda vacía.
+  const porId = new Map<string, FeaturedService>();
+  for (const g of groups) {
+    for (const sv of g.services) {
+      porId.set(sv.id, {
+        id: sv.id,
+        name: sv.name,
+        durationMin: sv.durationMin,
+        price: sv.price,
+        residentPrice: sv.residentPrice,
+        groupName: g.name,
+      });
+    }
+  }
+  const destacados: FeaturedService[] = masElegidos
+    .map((id) => porId.get(id))
+    .filter((sv): sv is FeaturedService => sv != null);
+  if (destacados.length < 3) {
+    for (const sv of porId.values()) {
+      if (destacados.length >= 3) break;
+      if (!destacados.some((d) => d.id === sv.id)) destacados.push(sv);
+    }
+  }
 
   // Localización (módulo Localización): datos del negocio ya resueltos (defaults
   // aplicados, mapsUrl derivado). Si la dueña no cargó nada, caen a los textos de
@@ -233,24 +262,25 @@ export default async function Home() {
         </section>
       )}
 
-      {/* SERVICIOS */}
+      {/* SERVICIOS — VITRINA (la carta completa vive en /servicios).
+          Antes acá se volcaba el menú entero en un acordeón: la home era folleto y
+          lista de precios a la vez. Ahora muestra POCOS tratamientos con su precio
+          exacto (referencia Aesop) y manda a la carta a quien la busque. */}
       <section id="servicios" style={{ maxWidth: 1152, margin: "0 auto", padding: "64px 24px" }}>
         <p style={{ ...eyebrow, margin: "0 0 12px" }}>Lo que hacemos</p>
-        <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 520, margin: "0 0 40px" })}>
+        <h2 style={display({ fontSize: "clamp(1.9rem,4vw,3rem)", fontWeight: 520, margin: "0 0 12px" })}>
           Servicios <em style={{ fontStyle: "italic", fontWeight: 340 }}>&amp;</em> tratamientos
         </h2>
-        {groups.length === 0 ? (
+        {destacados.length === 0 ? (
           <p style={{ color: "var(--text-muted)" }}>Próximamente publicamos el menú de servicios.</p>
         ) : (
-          <ServicesAccordion groups={groups} />
+          <>
+            <p style={{ margin: "0 0 40px", fontSize: "1.0625rem", color: "var(--text-muted)", maxWidth: "32rem", lineHeight: 1.72 }}>
+              Lo que más se elige en CH, con el precio exacto. La carta completa está a un clic.
+            </p>
+            <FeaturedTreatments services={destacados} />
+          </>
         )}
-        <div style={{ marginTop: 48 }}>
-          <PhotoPlaceholder
-            ratio="16 / 9"
-            gradient="linear-gradient(135deg,#C7B49C,#856B52 70%,#5b4636)"
-            caption="Macro de manos en un masaje · piel real, aceite, luz rasante · sin producto de vitrina, sin caras"
-          />
-        </div>
       </section>
 
       {/* EL RITUAL / SPA — el diferencial de CH: estética especializada + spa en

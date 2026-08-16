@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ReserveButton from "./ReserveButton";
 
-const navLink: React.CSSProperties = { color: "var(--text-strong)", textDecoration: "none", transition: "color .2s", fontSize: 14 };
+const navLink: React.CSSProperties = { color: "var(--text-strong)", textDecoration: "none", transition: "color var(--ch-transicion)", fontSize: 14 };
 
 // `brandName` viene del tenant (ficha de marca, RFC-004-D). Ausente → "CH Estética"
 // (compat con la prod de CH). Un tenant no-CH ya no muestra el logo de CH.
@@ -27,7 +27,7 @@ export default function Header({ hasNews, brandName }: { hasNews?: boolean; bran
         background: "color-mix(in srgb, var(--surface) 90%, transparent)",
         backdropFilter: "blur(8px)",
         borderBottom: `1px solid ${scrolled ? "var(--line)" : "transparent"}`,
-        transition: "border-color .3s",
+        transition: "border-color var(--ch-transicion)",
       }}
     >
       <div style={{ maxWidth: 1152, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -57,7 +57,9 @@ export default function Header({ hasNews, brandName }: { hasNews?: boolean; bran
               />
             </Link>
           )}
-          <Link href="/#servicios" style={navLink} className="hidden sm:inline">Servicios</Link>
+          {/* Va a la CARTA COMPLETA, no al ancla de la vitrina: quien abre "Servicios"
+              del menú casi siempre viene a mirar precios. */}
+          <Link href="/servicios" style={navLink} className="hidden sm:inline">Servicios</Link>
           <Link href="/#equipo" style={navLink} className="hidden sm:inline">Equipo</Link>
           <Link href="/#contacto" style={navLink} className="hidden sm:inline">Cómo llegar</Link>
           <ReserveButton variant="nav" />

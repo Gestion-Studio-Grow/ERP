@@ -8,28 +8,23 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { applyTheme, resolveTheme, setTheme, type Theme } from "../../theme-client";
+import { applyTheme, changeTheme, resolveTheme, useAdminTheme, type Theme } from "../../theme-client";
 import { updateAccentPresetAction } from "@/lib/apariencia-actions";
 
 // ── Tema claro/oscuro ─────────────────────────────────────────────────────────
 
 export function ThemeSelector() {
-  const [theme, setThemeState] = useState<Theme>("light");
+  // Misma lectura que el toggle de la topbar, con la MISMA mecánica compartida: los
+  // dos controles quedan en sincronía sin que ninguno tenga que copiar la del otro.
+  const theme = useAdminTheme();
 
+  // Re-aplicar al DOM si se llegó por navegación client-side (no toca estado).
   useEffect(() => {
-    const t = resolveTheme();
-    applyTheme(t);
-    setThemeState(t);
-    // Mantenerse en sincronía con el toggle de la topbar (y viceversa).
-    const onChange = (e: Event) => setThemeState((e as CustomEvent<Theme>).detail);
-    window.addEventListener("gsg-admin-theme-change", onChange);
-    return () => window.removeEventListener("gsg-admin-theme-change", onChange);
+    applyTheme(resolveTheme());
   }, []);
 
   const elegir = (t: Theme) => {
-    setTheme(t);
-    setThemeState(t);
-    window.dispatchEvent(new CustomEvent<Theme>("gsg-admin-theme-change", { detail: t }));
+    changeTheme(t);
   };
 
   const opciones: { id: Theme; label: string; detalle: string }[] = [

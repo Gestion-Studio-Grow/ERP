@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 // Franja de novedad, visible arriba de todo el sitio (no solo en la sección
 // #novedades a mitad de página) — es la forma en que marcas como Aesop/COS
@@ -11,12 +11,32 @@ import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "ch-news-dismissed";
 
-export default function AnnouncementBar({ id, message }: { id: string; message: string }) {
-  const [dismissed, setDismissed] = useState(true); // arranca oculta hasta chequear sessionStorage (evita parpadeo)
+// sessionStorage no avisa cuando cambia en la MISMA pestaña, así que el descarte
+// se anuncia a mano con este evento; el `subscribe` de abajo lo escucha para que la
+// franja desaparezca sin re-render forzado desde afuera.
+const EVENTO_DESCARTE = "ch-news-dismiss";
 
-  useEffect(() => {
-    setDismissed(sessionStorage.getItem(STORAGE_KEY) === id);
-  }, [id]);
+function subscribeDescarte(onChange: () => void): () => void {
+  window.addEventListener(EVENTO_DESCARTE, onChange);
+  return () => window.removeEventListener(EVENTO_DESCARTE, onChange);
+}
+
+function leerDescartada(): string | null {
+  try {
+    return sessionStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null; // storage bloqueado (incógnito): la franja se muestra, no rompe
+  }
+}
+
+export default function AnnouncementBar({ id, message }: { id: string; message: string }) {
+  // El descarte vive en sessionStorage — un store del navegador, no estado de React.
+  // Leído con `useSyncExternalStore` llega en el primer render del cliente; antes se
+  // leía en un efecto que llamaba `setState` en el acto (render extra en cada carga
+  // del sitio). En el server no hay storage: se asume DESCARTADA para que el HTML no
+  // muestre una franja que el cliente va a esconder un instante después.
+  const descartadaId = useSyncExternalStore(subscribeDescarte, leerDescartada, () => id);
+  const dismissed = descartadaId === id;
 
   if (dismissed) return null;
 
@@ -65,8 +85,12 @@ export default function AnnouncementBar({ id, message }: { id: string; message: 
           type="button"
           aria-label="Cerrar aviso"
           onClick={() => {
-            sessionStorage.setItem(STORAGE_KEY, id);
-            setDismissed(true);
+            try {
+              sessionStorage.setItem(STORAGE_KEY, id);
+            } catch {
+              /* storage bloqueado: igual se esconde en esta vista */
+            }
+            window.dispatchEvent(new Event(EVENTO_DESCARTE));
           }}
           style={{
             flexShrink: 0,

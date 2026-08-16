@@ -8,6 +8,7 @@ import { placeOnlineOrder } from "@/lib/order-actions";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantImagery } from "@/lib/tenant-layout";
+import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
 
 // ── VIDRIERA SHINE — front público editorial LUMINOSO (manual de marca Shine 2026).
 // "Que tu luz nunca se apague": velas aromáticas + aromas + deco. Es la CONTRACARA de
@@ -50,19 +51,21 @@ const VALUE_ICONS = ["candle", "cluster", "hand", "sun", "sparkle"];
 // prefers-reduced-motion (muestra directo). Un solo observer compartido por instancia.
 function useReveal<T extends HTMLElement>() {
   const ref = useRef<T>(null);
-  const [shown, setShown] = useState(false);
+  const [visto, setVisto] = useState(false);
+  // Preferencia del navegador leída como store externo (ver use-reduced-motion):
+  // llega en el primer render, sin el `setState` dentro del efecto que dispara un
+  // render extra por CADA bloque revelable — y esta vidriera tiene muchos.
+  const reduce = usePrefersReducedMotion();
+  const shown = reduce || visto;
   useEffect(() => {
+    if (reduce) return; // ya se muestra: no hay nada que observar
     const el = ref.current;
     if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(true);
-      return;
-    }
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (e.isIntersecting) {
-            setShown(true);
+            setVisto(true);
             io.disconnect();
           }
         }
@@ -71,7 +74,7 @@ function useReveal<T extends HTMLElement>() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [reduce]);
   return { ref, cls: shown ? "sh-rise sh-in" : "sh-rise" };
 }
 

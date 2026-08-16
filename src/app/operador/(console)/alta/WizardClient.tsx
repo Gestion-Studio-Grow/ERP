@@ -69,10 +69,18 @@ export function AltaWizard({ data }: { data: WizardData }) {
     accentPreset: form.accentPreset, monogram: form.monogram,
   });
   useEffect(() => {
-    if (!form.name && !form.slug) { setPlan(null); return; }
+    // Sin nombre ni slug no hay nada que planificar. Se limpia el plan DENTRO del
+    // timeout junto con el resto: hacerlo en el cuerpo del efecto era un setState
+    // síncrono — un render en cascada por cada tecla del formulario.
     const id = ++reqId.current;
-    setPlanPending(true);
+    const vacio = !form.name && !form.slug;
     const t = setTimeout(async () => {
+      if (vacio) {
+        setPlan(null);
+        setPlanPending(false);
+        return;
+      }
+      setPlanPending(true);
       try {
         const p = await planTenantAction(form);
         if (id === reqId.current) setPlan(p);

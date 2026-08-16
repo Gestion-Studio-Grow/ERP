@@ -139,7 +139,7 @@ export default function ServicesAccordion({ groups }: { groups: Group[] }) {
                   color: "var(--text-muted)",
                   fontSize: "1.4rem",
                   lineHeight: 1,
-                  transition: "transform .25s ease",
+                  transition: "transform var(--ch-transicion)",
                   transform: open ? "rotate(90deg)" : "none",
                 }}
               >
@@ -156,7 +156,7 @@ export default function ServicesAccordion({ groups }: { groups: Group[] }) {
                 overflow: "hidden",
                 maxHeight: open ? 2000 : 0,
                 opacity: open ? 1 : 0,
-                transition: "max-height .35s ease, opacity .25s ease",
+                transition: "max-height var(--ch-transicion), opacity var(--ch-transicion)",
               }}
             >
               <div style={{ paddingBottom: 12 }}>

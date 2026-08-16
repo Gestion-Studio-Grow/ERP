@@ -36,6 +36,18 @@
   --ch-brass: #9a8350; /* subrayado de links */
   --ch-hairline: rgba(199, 180, 156, 0.5);
 
+  /* UNA SOLA TRANSICIÓN para todo el sitio de CH.
+     Antes cada componente inventaba la suya: .2s en los links del menú, .3s en el
+     borde del header, .25s en el chevron, .35s en el desplegable, .6s en las
+     apariciones. Cinco velocidades distintas se perciben como cinco sitios
+     distintos — la sensación de "hecho por partes" que la referencia (Aesop)
+     justamente no tiene. Un solo tiempo y una sola curva: todo el sitio se mueve
+     igual. La curva sale despacio y frena suave, que es el gesto de una puerta
+     bien colgada, no el de un menú de aplicación. */
+  --ch-transicion-tiempo: 380ms;
+  --ch-transicion-curva: cubic-bezier(0.2, 0.65, 0.3, 1);
+  --ch-transicion: var(--ch-transicion-tiempo) var(--ch-transicion-curva);
+
   /* ————————————————————————————————————————————————————————————————
      CAPA SEMÁNTICA (design tokens) — 2026 UX/UI upgrade
      Nombres por ROL, no por color. Los componentes deben consumir estos,

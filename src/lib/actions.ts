@@ -342,6 +342,43 @@ export async function createAppointment(formData: FormData) {
 // Datos que consume el modal de reserva público (rediseño CH Estética):
 // categorías con sus servicios activos + profesionales activos con box, y los
 // ids de servicios que cada uno realiza (para filtrar el paso "profesional").
+// ============================================================================
+// LOS TRATAMIENTOS QUE MÁS SE ELIGEN — para la vitrina de la home.
+// ============================================================================
+//
+// La home dejó de volcar la carta entera (eso vive en /servicios). Muestra unos
+// pocos tratamientos con su PRECIO EXACTO, como hace Aesop: un tratamiento, sus
+// duraciones, el precio sin "desde". Para elegir cuáles, en vez de una lista
+// escrita a mano que envejece sola, se usa el dato que el propio sistema ya
+// tiene: los que más se reservaron en los últimos 90 días.
+//
+// Es honesto ("lo más elegido" lo dice la agenda, no el marketing) y se actualiza
+// solo. Sin historial — tenant nuevo, o negocio recién abierto — devuelve lista
+// vacía y la home cae a los primeros de la carta: nunca queda un hueco.
+//
+// DEFENSIVO como su vecina de arriba: corre en la vidriera PÚBLICA, así que un
+// error de schema/DB no puede tumbar la home. Falla → lista vacía.
+export async function getMostBookedServiceIds(limit = 3, days = 90): Promise<string[]> {
+  try {
+    const desde = new Date(Date.now() - days * 86400000);
+    const filas = await prisma.appointment.groupBy({
+      by: ["serviceId"],
+      where: {
+        startsAt: { gte: desde },
+        // Solo lo que efectivamente pasó o está en pie: un turno cancelado no es
+        // señal de que el tratamiento guste.
+        status: { in: ["COMPLETED", "CONFIRMED", "PENDING"] },
+      },
+      _count: { serviceId: true },
+      orderBy: { _count: { serviceId: "desc" } },
+      take: limit,
+    });
+    return filas.map((f) => f.serviceId);
+  } catch {
+    return [];
+  }
+}
+
 export async function getPublicBookingData() {
   // DEFENSIVO (incidente sitio público CH 2026-07-09): corre en el LAYOUT público → si
   // lanza, cae TODO el sitio. `select` explícito en serviceCategory (NO `include`, que

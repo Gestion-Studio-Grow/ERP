@@ -120,13 +120,19 @@ export default function BookingModal({
 
   // Precalienta la disponibilidad de todos los días visibles apenas hay
   // profesional+servicio — así el calendario del paso 3 llega listo.
-  useEffect(() => {
-    if (!pro || !svc) return;
-    const key = `${pro.id}:${svc.id}`;
-    if (availabilityKey === key) return;
-    setAvailabilityKey(key);
+  // Cambiar de profesional o de servicio INVALIDA la disponibilidad ya traída. Ese
+  // borrón se ajusta durante el render comparándolo con la combinación anterior — el
+  // patrón de React para "reiniciar estado cuando cambian las props". Antes vivía
+  // dentro del efecto, donde un `setState` síncrono provoca un render en cascada.
+  const claveActual = pro && svc ? `${pro.id}:${svc.id}` : null;
+  if (claveActual && availabilityKey !== claveActual) {
+    setAvailabilityKey(claveActual);
     setDayAvailability({});
     setPrefetchingAvailability(true);
+  }
+
+  useEffect(() => {
+    if (!pro || !svc) return;
     let cancelled = false;
     (async () => {
       // Una sola llamada batch por los 14 días — antes era una server action por
@@ -276,8 +282,12 @@ export default function BookingModal({
       "VERSION:2.0",
       "PRODID:-//CH Estetica//ES",
       "BEGIN:VEVENT",
-      `UID:${Date.now()}@ch-estetica`,
-      `DTSTAMP:${z(new Date())}`,
+      // UID y DTSTAMP salen del PROPIO turno, no del reloj: llamar a `Date.now()`
+      // durante el render es impuro (y React 19 lo marca). De paso el archivo queda
+      // estable — si el cliente lo agrega dos veces, el calendario reconoce el mismo
+      // evento en vez de duplicarle el turno.
+      `UID:${confirmedStartsAt}@ch-estetica`,
+      `DTSTAMP:${z(start)}`,
       `DTSTART:${z(start)}`,
       `DTEND:${z(end)}`,
       `SUMMARY:CH Estética — ${svc.name}`,
@@ -366,7 +376,7 @@ export default function BookingModal({
         {/* Progreso */}
         <div style={{ padding: "16px 24px 0" }}>
           <div style={{ height: 1, background: "var(--line)" }}>
-            <div style={{ height: 1, background: accent, width: `${step * 20}%`, transition: "width .3s" }} />
+            <div style={{ height: 1, background: accent, width: `${step * 20}%`, transition: "width var(--ch-transicion)" }} />
           </div>
           <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
             Paso {step} de 5 · {STEP_LABELS[step]}

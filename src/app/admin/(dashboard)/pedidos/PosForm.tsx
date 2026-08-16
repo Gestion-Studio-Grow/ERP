@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createOrder } from "@/lib/order-actions";
 import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
@@ -30,15 +30,19 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
   const [nextKey, setNextKey] = useState(2);
   // Foco dirigido: al elegir un producto saltamos a pesar/contar; con Enter saltamos
   // al próximo producto. Es lo que hace fluida la atención en mostrador (sin mouse).
-  const [focusTarget, setFocusTarget] = useState<string | null>(null);
+  // Cada pedido de foco lleva su número de orden: así el efecto sabe que hay uno
+  // NUEVO (aunque sea al mismo campo) sin tener que "consumirlo" borrándolo — que
+  // era un setState dentro del efecto, o sea un render de más en cada tecla.
+  const [focusPedido, setFocusPedido] = useState<{ id: string; n: number } | null>(null);
+  const focusN = useRef(0);
+  const pedirFoco = (id: string) => setFocusPedido({ id, n: ++focusN.current });
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   useEffect(() => {
-    if (!focusTarget) return;
-    document.getElementById(focusTarget)?.focus();
-    setFocusTarget(null);
-  }, [focusTarget]);
+    if (!focusPedido) return;
+    document.getElementById(focusPedido.id)?.focus();
+  }, [focusPedido]);
 
   function setLine(key: number, patch: Partial<Line>) {
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -112,7 +116,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
                 value={l.productId}
                 onChange={(e) => {
                   setLine(l.key, { productId: e.target.value, qty: 0 });
-                  if (e.target.value) setFocusTarget(`qty-${l.key}`); // saltar a pesar/contar
+                  if (e.target.value) pedirFoco(`qty-${l.key}`); // saltar a pesar/contar
                 }}
               >
                 <option value="">Elegí un producto…</option>
@@ -139,7 +143,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
                     // Enter = cerrar esta línea y saltar al próximo producto (flujo de caja).
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      if (l.qty > 0) setFocusTarget(`prod-${addLine()}`);
+                      if (l.qty > 0) pedirFoco(`prod-${addLine()}`);
                     }
                   }}
                   disabled={!p}
@@ -172,7 +176,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
             </div>
           );
         })}
-        <button type="button" onClick={() => setFocusTarget(`prod-${addLine()}`)} className="chip-btn text-sm">
+        <button type="button" onClick={() => pedirFoco(`prod-${addLine()}`)} className="chip-btn text-sm">
           + Agregar producto
         </button>
       </div>

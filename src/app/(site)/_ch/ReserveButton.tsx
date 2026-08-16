@@ -27,7 +27,7 @@ export default function ReserveButton({
         color: "var(--text-on-accent)",
         border: 0,
         cursor: "pointer",
-        transition: "opacity .2s ease, transform .1s ease",
+        transition: "opacity var(--ch-transicion), transform var(--ch-transicion)",
         ...base,
         ...style,
       }}

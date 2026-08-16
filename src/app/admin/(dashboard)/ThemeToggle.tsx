@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { applyTheme, resolveTheme, setTheme as persistTheme, type Theme } from "../theme-client";
+import { useEffect } from "react";
+import { applyTheme, changeTheme, resolveTheme, useAdminTheme, type Theme } from "../theme-client";
 
 // Toggle claro/oscuro del backoffice (skin Fable, mockups aprobados por el dueño).
 //
@@ -14,30 +14,21 @@ import { applyTheme, resolveTheme, setTheme as persistTheme, type Theme } from "
 // sin round-trip al server: es piel, no estado de negocio.
 
 export default function ThemeToggle() {
-  // SSR arranca en "light" (mismo fallback que manda el server); al montar se
-  // sincroniza con el tema real. El ícono puede corregirse un frame después del
-  // primer render — la PANTALLA nunca flashea (eso ya lo resolvió el script inline).
-  const [theme, setTheme] = useState<Theme>("light");
+  // El tema se LEE del store del navegador (ver `useAdminTheme`): llega en el primer
+  // render y se mantiene al día solo cuando lo cambia el selector de /admin/apariencia.
+  // La PANTALLA nunca flashea — eso ya lo resolvió el script inline antes del paint.
+  const theme = useAdminTheme();
 
+  // Lo ÚNICO que queda como efecto es lo que SÍ es un efecto: RE-APLICAR el tema al
+  // DOM cuando esta pantalla llegó por navegación client-side (ahí el script inline
+  // del HTML inicial no vuelve a correr). No toca estado de React.
   useEffect(() => {
-    // Doble función: leer el tema vigente para el ícono, y RE-APLICARLO por si
-    // esta pantalla llegó por navegación client-side (donde el script inline del
-    // HTML inicial no vuelve a correr).
-    const t = resolveTheme();
-    applyTheme(t);
-    setTheme(t);
-    // Si otro control (el selector de /admin/apariencia) cambia el tema, este
-    // botón se entera y corrige su ícono.
-    const onChange = (e: Event) => setTheme((e as CustomEvent<Theme>).detail);
-    window.addEventListener("gsg-admin-theme-change", onChange);
-    return () => window.removeEventListener("gsg-admin-theme-change", onChange);
+    applyTheme(resolveTheme());
   }, []);
 
   const toggle = () => {
     const next: Theme = theme === "dark" ? "light" : "dark";
-    persistTheme(next);
-    setTheme(next);
-    window.dispatchEvent(new CustomEvent<Theme>("gsg-admin-theme-change", { detail: next }));
+    changeTheme(next);
   };
 
   return (
