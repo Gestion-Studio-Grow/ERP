@@ -248,6 +248,16 @@ export default function BookingModal({
     }
     if (canNext) setStep(step + 1);
   }
+
+  // ELEGIR ES AVANZAR. Antes, tocar un servicio sólo lo pintaba de color: el botón
+  // "Continuar" quedaba al final de los 70 servicios, fuera de la pantalla, así que
+  // la sensación era que el clic no había hecho nada. Ahora la elección misma pasa
+  // al paso siguiente, que es lo que hace cualquier reserva moderna. "Atrás" sigue
+  // estando para cambiar de idea, y el paso 1 muestra igual el elegido si se vuelve.
+  function elegirYSeguir(fn: () => void) {
+    fn();
+    setStep((sActual) => (sActual < 4 ? sActual + 1 : sActual));
+  }
   function back() {
     if (step > 1) setStep(step - 1);
   }
@@ -389,7 +399,7 @@ export default function BookingModal({
             <Step1
               groups={data.groups}
               svc={svc}
-              onPick={setSvc}
+              onPick={(elegido) => elegirYSeguir(() => setSvc(elegido))}
               rowSelected={rowSelected}
               isResident={isResident}
               onResidentChange={setIsResident}
@@ -412,7 +422,7 @@ export default function BookingModal({
                         key={p.id}
                         type="button"
                         aria-pressed={on}
-                        onClick={() => setPro(p)}
+                        onClick={() => elegirYSeguir(() => setPro(p))}
                         style={{ border: "1px solid", padding: 12, borderRadius: 2, fontSize: 14, cursor: "pointer", ...rowSelected(on) }}
                       >
                         {p.name}
@@ -742,6 +752,13 @@ function ResidentToggle({
   );
 }
 
+// Normaliza para buscar: sin acentos, sin eñe, minúsculas. Misma regla que el
+// buscador del backoffice — quien tipea "depi" o "masaje relajante" no va a poner
+// los acentos.
+function normalizar(t: string): string {
+  return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
 function Step1({
   groups,
   svc,
@@ -757,11 +774,57 @@ function Step1({
   isResident: boolean;
   onResidentChange: (v: boolean) => void;
 }) {
+  // BUSCADOR DEL PASO 1. CH tiene 70 servicios en 9 categorías: sin filtro, elegir
+  // uno era scrollear una lista interminable dentro de una ventanita. Se tipean dos
+  // letras y quedan los que importan. Con la búsqueda activa se muestran todas las
+  // coincidencias en una sola lista (sin encabezados de categoría): cuando bus qués
+  // "masaje" no te importa en qué categoría cae cada uno.
+  const [q, setQ] = useState("");
+  const query = normalizar(q);
+  const gruposVisibles = query
+    ? groups
+        .map((g) => ({ ...g, services: g.services.filter((it) => normalizar(it.name).includes(query)) }))
+        .filter((g) => g.services.length > 0)
+    : groups;
+  const totalVisible = gruposVisibles.reduce((n, g) => n + g.services.length, 0);
+
   return (
     <>
       <StepTitle>Elegí el servicio</StepTitle>
       <ResidentToggle value={isResident} onChange={onResidentChange} />
-      {groups.map((g) => (
+      <div style={{ position: "relative", marginBottom: 10 }}>
+        <label htmlFor="ch-buscar-servicio" className="sr-only">
+          Buscar un servicio por nombre
+        </label>
+        <input
+          id="ch-buscar-servicio"
+          type="text"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar (ej.: masaje, depilación, facial)"
+          autoComplete="off"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: "var(--surface-sunken)",
+            border: "1px solid var(--line-strong)",
+            padding: "10px 12px",
+            borderRadius: 0,
+            fontSize: 15,
+            minHeight: 44,
+            fontFamily: "var(--font-body), system-ui, sans-serif",
+            color: "var(--text-strong)",
+          }}
+        />
+      </div>
+      {query && (
+        <p role="status" aria-live="polite" style={{ margin: "0 0 10px", fontSize: 13, color: "var(--text-muted)" }}>
+          {totalVisible === 0
+            ? "Ningún servicio coincide. Probá con otra palabra."
+            : `${totalVisible} ${totalVisible === 1 ? "servicio" : "servicios"}`}
+        </p>
+      )}
+      {gruposVisibles.map((g) => (
         <div key={g.id} style={{ marginBottom: 12 }}>
           <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-muted)", margin: "0 0 4px" }}>{g.name}</p>
           {g.services.map((it) => {

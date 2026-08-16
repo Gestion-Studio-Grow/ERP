@@ -1,26 +1,27 @@
-import Image from "next/image";
-import PhotoPlaceholder from "./PhotoPlaceholder";
 import ReserveButton from "./ReserveButton";
 import Reveal from "./Reveal";
 
 // ============================================================================
-// VITRINA DE TRATAMIENTOS — la home muestra POCOS, con el precio EXACTO.
+// VITRINA DE TRATAMIENTOS — los tres más elegidos, de un vistazo.
 // ============================================================================
 //
-// El cambio de fondo respecto de la versión anterior: la home volcaba la carta
-// entera en un acordeón. Eso obliga al visitante a leer una lista de precios
-// antes de entender qué se hace acá. La referencia validada es Aesop: un
-// tratamiento, sus duraciones, el precio sin rodeos y tres fotos. La carta
-// completa sigue existiendo — en /servicios, para quien la vaya a buscar.
+// Primera versión de esta vitrina: tres bloques a lo ancho, cada uno con su
+// panel de foto. Con fotos reales habría funcionado (es el formato de Aesop);
+// sin ellas eran tres rectángulos marrones de media pantalla cada uno, y ver los
+// tres tratamientos costaba cuatro scrolls. Se leía como un sitio sin terminar y
+// obligaba a trabajar para entender algo que se cuenta en dos líneas.
 //
-// INSIGNIA CON PRECIO EXACTO, no "desde": el "desde $X" es una promesa que se
-// rompe en el mostrador. Si el tratamiento cuesta $18.000, dice $18.000. Cuando
-// hay precio de vecino (ADR-013) va debajo, en el acento, porque es parte de lo
-// que convence de reservar y no una letra chica.
+// Ahora los tres entran en UNA pantalla, en tarjetas parejas: rótulo, nombre,
+// duración, precio exacto y el botón. El visitante ve de una qué se hace acá y
+// cuánto sale, que es exactamente lo que vino a averiguar. Las fotos vuelven
+// cuando existan, dentro de la tarjeta y sin robarle la mitad a la pantalla.
 //
-// TIPOGRAFÍA DEL FLYER: versalitas con 0.2em de espaciado para los rótulos y la
-// itálica del display para el número. Es la misma voz del flyer impreso de CH,
-// no una tipografía de web genérica.
+// PRECIO EXACTO, no "desde": el "desde $X" es una promesa que se rompe en el
+// mostrador. El precio de vecino/a (ADR-013), cuando existe, va debajo y en el
+// acento — es parte de lo que convence de reservar, no letra chica.
+//
+// TIPOGRAFÍA DEL FLYER: versalitas 0.2em en los rótulos, itálica del display
+// para el número.
 
 export type FeaturedService = {
   id: string;
@@ -28,7 +29,7 @@ export type FeaturedService = {
   durationMin: number;
   price: number;
   residentPrice: number | null;
-  /** Categoría a la que pertenece — se muestra como rótulo arriba del nombre. */
+  /** Categoría a la que pertenece — rótulo arriba del nombre. */
   groupName?: string;
 };
 
@@ -44,133 +45,95 @@ const versalitas: React.CSSProperties = {
 
 const pesos = (n: number) => `$${n.toLocaleString("es-AR")}`;
 
-// Paleta CH para los paneles de marca, en tonos distintos para que tres bloques
-// seguidos no se lean como el mismo rectángulo repetido.
-const GRADIENTES = [
-  "linear-gradient(135deg,#C7B49C,#856B52 70%,#5b4636)",
-  "linear-gradient(135deg,#D8CBBA,#A98F73 70%,#6d5540)",
-  "linear-gradient(135deg,#BFA88E,#7c6248 70%,#4e3c2d)",
-];
-
-function Insignia({ price, residentPrice }: { price: number; residentPrice: number | null }) {
+function Tarjeta({ s }: { s: FeaturedService }) {
   return (
-    <div
+    <article
       style={{
-        display: "inline-flex",
+        display: "flex",
         flexDirection: "column",
-        alignItems: "flex-end",
-        gap: 2,
-        padding: "8px 14px",
-        border: "1px solid var(--line-strong)",
-        borderRadius: 2,
+        gap: 10,
+        padding: "22px 22px 20px",
+        border: "1px solid var(--line)",
+        borderRadius: 3,
         background: "var(--surface)",
+        height: "100%",
       }}
     >
-      <span
+      {s.groupName && <p style={{ ...versalitas, margin: 0 }}>{s.groupName}</p>}
+      <h3
         style={{
           fontFamily: "var(--font-display), Georgia, serif",
-          fontStyle: "italic",
-          fontWeight: 420,
-          fontSize: "1.375rem",
-          lineHeight: 1.1,
+          // Los nombres reales de CH son largos ("Combo: bozo + axilas + piernas
+          // completas…"). Un display gigante los parte en cinco líneas: acá el
+          // tamaño es contenido y `balance` reparte las líneas parejas.
+          fontSize: "1.25rem",
+          fontWeight: 500,
+          lineHeight: 1.22,
+          textWrap: "balance",
+          margin: 0,
           color: "var(--text-strong)",
-          whiteSpace: "nowrap",
         }}
       >
-        {pesos(price)}
-      </span>
-      {residentPrice != null && (
-        <span style={{ ...versalitas, fontSize: ".625rem", color: "var(--accent)", letterSpacing: ".18em" }}>
-          Vecino/a {pesos(residentPrice)}
-        </span>
-      )}
-    </div>
+        {s.name}
+      </h3>
+      <p style={{ ...versalitas, margin: 0 }}>{s.durationMin} minutos</p>
+
+      {/* El precio empuja al fondo de la tarjeta para que las tres queden
+          alineadas entre sí aunque los nombres midan distinto. */}
+      <div style={{ marginTop: "auto", paddingTop: 14, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <span
+            style={{
+              display: "block",
+              fontFamily: "var(--font-display), Georgia, serif",
+              fontStyle: "italic",
+              fontWeight: 420,
+              fontSize: "1.5rem",
+              lineHeight: 1.1,
+              color: "var(--text-strong)",
+            }}
+          >
+            {pesos(s.price)}
+          </span>
+          {s.residentPrice != null && (
+            <span style={{ ...versalitas, display: "block", marginTop: 4, fontSize: ".625rem", color: "var(--accent)", letterSpacing: ".18em" }}>
+              Vecino/a {pesos(s.residentPrice)}
+            </span>
+          )}
+        </div>
+        <ReserveButton>Reservar</ReserveButton>
+      </div>
+    </article>
   );
 }
 
 export default function FeaturedTreatments({
   services,
-  photos,
   verTodoHref = "/servicios",
 }: {
   services: FeaturedService[];
-  /** Fotos de acompañamiento, en el mismo orden que los tratamientos. */
-  photos?: { src: string; alt: string }[];
   verTodoHref?: string;
 }) {
   if (services.length === 0) return null;
 
   return (
-    <div style={{ display: "grid", gap: "clamp(32px,5vw,56px)" }}>
-      {services.map((s, i) => {
-        const foto = photos?.[i];
-        // Alterna el lado de la foto: da ritmo editorial sin necesitar más assets.
-        const fotoDerecha = i % 2 === 0;
-        return (
-          <Reveal key={s.id}>
-            <article
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "clamp(20px,4vw,40px)",
-                alignItems: "center",
-                flexDirection: fotoDerecha ? "row" : "row-reverse",
-                borderTop: i === 0 ? "none" : "1px solid var(--line)",
-                paddingTop: i === 0 ? 0 : "clamp(24px,4vw,40px)",
-              }}
-            >
-              <div style={{ flex: "1 1 320px", minWidth: 260 }}>
-                {s.groupName && <p style={{ ...versalitas, margin: "0 0 10px" }}>{s.groupName}</p>}
-                <h3
-                  style={{
-                    fontFamily: "var(--font-display), Georgia, serif",
-                    fontSize: "clamp(1.5rem,2.6vw,2rem)",
-                    fontWeight: 500,
-                    lineHeight: 1.15,
-                    margin: "0 0 12px",
-                    color: "var(--text-strong)",
-                  }}
-                >
-                  {s.name}
-                </h3>
-                <p style={{ ...versalitas, margin: "0 0 20px", color: "var(--text-muted)" }}>
-                  {s.durationMin} minutos
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-                  <Insignia price={s.price} residentPrice={s.residentPrice} />
-                  <ReserveButton>Reservar</ReserveButton>
-                </div>
-              </div>
-              <div style={{ flex: "1 1 280px", minWidth: 240 }}>
-                {foto ? (
-                  <div style={{ position: "relative", aspectRatio: "4 / 3", borderRadius: 3, overflow: "hidden" }}>
-                    <Image
-                      src={foto.src}
-                      alt={foto.alt}
-                      fill
-                      sizes="(max-width: 800px) 100vw, 420px"
-                      style={{ objectFit: "cover" }}
-                    />
-                  </div>
-                ) : (
-                  // Todavía no hay foto de este tratamiento (CH tiene una sola imagen
-                  // propia, la de la cabina, y ya vive en el hero). El panel de marca
-                  // sostiene la composición de dos columnas sin que se lea como
-                  // "sitio sin terminar", y el caption deja escrito qué foto va acá
-                  // para cuando se saquen. PROVISIONAL: reemplazar por <Image>.
-                  <PhotoPlaceholder
-                    ratio="4 / 3"
-                    gradient={GRADIENTES[i % GRADIENTES.length]}
-                    caption={`Tratamiento "${s.name}" en curso: manos trabajando, piel real, luz de tarde. Sin producto de vitrina, sin caras posadas.`}
-                  />
-                )}
-              </div>
-            </article>
-          </Reveal>
-        );
-      })}
+    <div>
+      <Reveal>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: 20,
+            alignItems: "stretch",
+          }}
+        >
+          {services.map((s) => (
+            <Tarjeta key={s.id} s={s} />
+          ))}
+        </div>
+      </Reveal>
 
-      <div style={{ borderTop: "1px solid var(--line)", paddingTop: 28 }}>
+      <div style={{ marginTop: 28 }}>
         <a
           href={verTodoHref}
           style={{
