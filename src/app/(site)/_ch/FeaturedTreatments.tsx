@@ -1,3 +1,4 @@
+import Image from "next/image";
 import ReserveButton from "./ReserveButton";
 import Reveal from "./Reveal";
 
@@ -45,7 +46,44 @@ const versalitas: React.CSSProperties = {
 
 const pesos = (n: number) => `$${n.toLocaleString("es-AR")}`;
 
-function Tarjeta({ s }: { s: FeaturedService }) {
+// ILUSTRACIONES PROVISORIAS (2026-08-16). No son fotos: son piezas abstractas
+// construidas con la paleta de la marca — líneas que se afinan para depilación,
+// círculos concéntricos para los faciales, partículas en suspensión para exosomas.
+// Aluden al tratamiento sin ilustrarlo, que es lo único honesto mientras no haya
+// fotografía real: una foto de banco de imágenes con una modelo sonriendo sería
+// PEOR que no tener foto, porque promete un lugar que no es éste.
+//
+// Se eligen por CATEGORÍA, no por servicio: así el día que cambie cuál es el más
+// reservado, la vitrina sigue teniendo imágenes coherentes sin tocar código.
+// Cuando lleguen las fotos reales, se reemplaza el archivo y listo.
+const ILUSTRACIONES: { patron: RegExp; src: string }[] = [
+  { patron: /depilaci/i, src: "/tenants/ch/tratamiento-depilacion.svg" },
+  { patron: /facial|cejas|pesta/i, src: "/tenants/ch/tratamiento-facial.svg" },
+  { patron: /corporal|masaje|spa|pies|manos/i, src: "/tenants/ch/tratamiento-exosomas.svg" },
+];
+const ILUSTRACION_POR_DEFECTO = "/tenants/ch/tratamiento-facial.svg";
+
+const TODAS = [...new Set([...ILUSTRACIONES.map((i) => i.src), ILUSTRACION_POR_DEFECTO])];
+
+/**
+ * Ilustración de cada tarjeta, SIN repetir dos veces la misma en la fila. Los tres
+ * destacados salen de la agenda, así que es normal que dos caigan en la misma
+ * categoría (hoy pasa: dos faciales) — y dos tarjetas contiguas con el mismo dibujo
+ * se leen como un error de carga. Se reparte una vez, mirando las tres juntas: la
+ * que corresponde por categoría si está libre, la siguiente disponible si no.
+ */
+function repartirIlustraciones(services: FeaturedService[]): string[] {
+  const usadas = new Set<string>();
+  return services.map((s) => {
+    const texto = `${s.groupName ?? ""} ${s.name}`;
+    const propia = ILUSTRACIONES.find((i) => i.patron.test(texto))?.src ?? ILUSTRACION_POR_DEFECTO;
+    const elegida = usadas.has(propia) ? TODAS.find((src) => !usadas.has(src)) ?? propia : propia;
+    usadas.add(elegida);
+    return elegida;
+  });
+}
+
+function Tarjeta({ s, ilustracion }: { s: FeaturedService; ilustracion: string }) {
   return (
     <article
       style={{
@@ -59,6 +97,26 @@ function Tarjeta({ s }: { s: FeaturedService }) {
         height: "100%",
       }}
     >
+      {/* Franja superior: da identidad a la tarjeta sin comerse la pantalla como
+          hacía el bloque con foto al costado. Decorativa — `alt` vacío, porque no
+          aporta nada que el texto de al lado no diga. */}
+      <div
+        style={{
+          position: "relative",
+          margin: "-22px -22px 4px",
+          aspectRatio: "16 / 7",
+          overflow: "hidden",
+          borderRadius: "3px 3px 0 0",
+        }}
+      >
+        <Image
+          src={ilustracion}
+          alt=""
+          fill
+          sizes="(max-width: 700px) 100vw, 360px"
+          style={{ objectFit: "cover" }}
+        />
+      </div>
       {s.groupName && <p style={{ ...versalitas, margin: 0 }}>{s.groupName}</p>}
       <h3
         style={{
@@ -115,6 +173,7 @@ export default function FeaturedTreatments({
   verTodoHref?: string;
 }) {
   if (services.length === 0) return null;
+  const ilustraciones = repartirIlustraciones(services);
 
   return (
     <div>
@@ -127,8 +186,8 @@ export default function FeaturedTreatments({
             alignItems: "stretch",
           }}
         >
-          {services.map((s) => (
-            <Tarjeta key={s.id} s={s} />
+          {services.map((s, i) => (
+            <Tarjeta key={s.id} s={s} ilustracion={ilustraciones[i]} />
           ))}
         </div>
       </Reveal>

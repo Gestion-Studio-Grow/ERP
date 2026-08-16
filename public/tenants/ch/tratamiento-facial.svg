@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" role="img">
+  <defs>
+    <linearGradient id="f2" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#f4ece0"/>
+      <stop offset="60%" stop-color="#dccbb4"/>
+      <stop offset="100%" stop-color="#9c8468"/>
+    </linearGradient>
+  <filter id="grano">
+    <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="7"/>
+    <feColorMatrix type="saturate" values="0"/>
+  </filter>
+    <radialGradient id="vineta" cx="50%" cy="38%" r="78%">
+      <stop offset="55%" stop-color="#000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#2a1f18" stop-opacity="0.28"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#f2)"/>
+  <circle cx="648" cy="423" r="210" fill="#fff6e8" opacity="0.5"/>
+  <circle cx="648" cy="423" r="58" fill="none" stroke="#6f5a44" stroke-opacity="0.340" stroke-width="4.2"/>
+  <circle cx="648" cy="423" r="104" fill="none" stroke="#6f5a44" stroke-opacity="0.319" stroke-width="2.4"/>
+  <circle cx="648" cy="423" r="150" fill="none" stroke="#6f5a44" stroke-opacity="0.298" stroke-width="2.4"/>
+  <circle cx="648" cy="423" r="196" fill="none" stroke="#6f5a44" stroke-opacity="0.277" stroke-width="4.2"/>
+  <circle cx="648" cy="423" r="242" fill="none" stroke="#6f5a44" stroke-opacity="0.256" stroke-width="2.4"/>
+  <circle cx="648" cy="423" r="288" fill="none" stroke="#6f5a44" stroke-opacity="0.235" stroke-width="2.4"/>
+  <circle cx="648" cy="423" r="334" fill="none" stroke="#6f5a44" stroke-opacity="0.214" stroke-width="4.2"/>
+  <circle cx="648" cy="423" r="380" fill="none" stroke="#6f5a44" stroke-opacity="0.193" stroke-width="2.4"/>
+  <circle cx="648" cy="423" r="426" fill="none" stroke="#6f5a44" stroke-opacity="0.172" stroke-width="2.4"/>
+  <circle cx="648" cy="423" r="472" fill="none" stroke="#6f5a44" stroke-opacity="0.151" stroke-width="4.2"/>
+  <circle cx="648" cy="423" r="518" fill="none" stroke="#6f5a44" stroke-opacity="0.130" stroke-width="2.4"/>
+  <circle cx="648" cy="423" r="564" fill="none" stroke="#6f5a44" stroke-opacity="0.109" stroke-width="2.4"/>
+  <circle cx="648" cy="423" r="610" fill="none" stroke="#6f5a44" stroke-opacity="0.088" stroke-width="4.2"/>
+  <circle cx="648" cy="423" r="656" fill="none" stroke="#6f5a44" stroke-opacity="0.067" stroke-width="2.4"/>
+  <rect width="1200" height="900" fill="url(#vineta)"/>
+  <rect width="1200" height="900" filter="url(#grano)" opacity="0.055" style="mix-blend-mode:multiply"/>
+</svg>
