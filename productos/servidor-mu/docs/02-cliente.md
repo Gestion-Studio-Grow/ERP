@@ -52,8 +52,11 @@ revisá `RESOLVE_IP` en el `.env` (explicado en
 
 ## Primer login
 
-Con las cuentas de prueba activadas: usuario `test0`, contraseña `test0`. `testgm` te da
-comandos de GM. Si no las creaste, creá la cuenta desde el panel (**Accounts → Create**) —
-el cliente de S6 no tiene registro adentro del juego.
+Creá tu cuenta desde el panel (**Accounts → Create**): el cliente de S6 no tiene registro
+adentro del juego.
+
+Si en el Setup dejaste tildadas las cuentas de prueba, entrás con `test0`/`test0` y `testgm`
+te da comandos de GM — pero justamente por eso conviene **no** haberlas creado, o borrarlas
+apenas terminaste de probar. Son cuentas de GM con contraseña conocida por todo el mundo.
 
 — Elaborado por GSG

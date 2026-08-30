@@ -10,6 +10,12 @@ cp .env.example .env      # y cambiá los CAMBIAME
 
 Panel de administración: `http://127.0.0.1:8080` · El cliente se conecta al puerto `44405`.
 
+**Por defecto el panel de admin solo se ve desde la máquina donde corre el servidor**, y la
+base de datos no publica ningún puerto. Si querés entrar al panel desde otra máquina, la
+respuesta no es abrirlo: es Tailscale o un túnel SSH. Está todo en
+[`docs/04-operacion.md`](docs/04-operacion.md#seguridad-en-serio) — leelo **antes** de tocar
+`PANEL_BIND_ADDR`, sobre todo si esto va a un VPS.
+
 ---
 
 ## Antes que nada: qué es esto y qué NO es

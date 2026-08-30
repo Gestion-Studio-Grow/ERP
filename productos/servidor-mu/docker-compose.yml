@@ -5,7 +5,9 @@
 # Foco: Season 6 Episodio 3, protocolo inglés. Ver docs/05-seasons-nuevas.md sobre por qué
 # no hay "última season" en open source.
 #
-# Uso:  ./scripts/levantar.sh        (no invoques docker compose a mano: el script valida el .env)
+# Uso:  ./scripts/levantar.sh        (no invoques docker compose a mano: el script valida el
+#                                     .env Y genera la config de autenticación de nginx.
+#                                     Si levantás a mano, el panel puede quedar SIN esa capa.)
 
 # Un server de juego loguea MUCHO: sin rotación, los logs llenan el disco en semanas
 # y el server se muere de la forma más tonta posible. 30 MB por contenedor y listo.
@@ -16,14 +18,23 @@ x-logs: &logs
       max-size: "10m"
       max-file: "3"
 
+# no-new-privileges: si alguien logra ejecutar código adentro de un contenedor, no puede
+# escalar vía binarios setuid. Los tres contenedores bajan privilegios con su-exec/setuid()
+# directo (no con binarios setuid), así que esto no rompe nada. Barato y real.
+x-endurecido: &endurecido
+  security_opt:
+    - no-new-privileges:true
+
 services:
   # ── Base de datos ────────────────────────────────────────────────────────────
   # Sin puertos publicados a propósito: solo se habla con ella desde la red interna.
+  # Además vive en una red `interna` (sin salida a internet) y nginx NO está en esa red:
+  # si alguien rompe nginx, no llega a la base; si alguien rompe la base, no llama a casa.
   database:
     image: postgres:17-alpine
     container_name: mu-db
     restart: unless-stopped
-    <<: *logs
+    <<: [*logs, *endurecido]
     environment:
       POSTGRES_USER: ${DB_ADMIN_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_ADMIN_PW:?definí DB_ADMIN_PW en el .env}
@@ -31,7 +42,9 @@ services:
     volumes:
       - dbdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_ADMIN_USER:-postgres} -d openmu"]
+      # El usuario va entre comillas: sin ellas, un DB_ADMIN_USER con espacios o con ';'
+      # se ejecutaría como comando adentro del contenedor (CMD-SHELL corre en /bin/sh -c).
+      test: ["CMD-SHELL", "pg_isready -U \"${DB_ADMIN_USER:-postgres}\" -d openmu"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -42,7 +55,9 @@ services:
       resources:
         limits:
           memory: 1g
-    networks: [mu]
+          # Techo de procesos: contiene un fork-bomb / un runaway adentro del contenedor.
+          pids: 256
+    networks: [mudb]
 
   # ── El servidor ──────────────────────────────────────────────────────────────
   # Un solo contenedor con todos los subsistemas: connect server, game servers,
@@ -51,7 +66,7 @@ services:
     image: munique/openmu:${OPENMU_TAG:-latest}
     container_name: mu-server
     restart: unless-stopped
-    <<: *logs
+    <<: [*logs, *endurecido]
     depends_on:
       database:
         condition: service_healthy
@@ -59,8 +74,11 @@ services:
       DB_HOST: database
       DB_ADMIN_USER: ${DB_ADMIN_USER:-postgres}
       DB_ADMIN_PW: ${DB_ADMIN_PW:?definí DB_ADMIN_PW en el .env}
-      # Usuario admin sembrado en el primer arranque. Si NO los definís, el panel
-      # queda abierto sin login hasta que crees el primer usuario a mano: no lo dejes así.
+      # Usuario admin sembrado en el primer arranque. OJO: que estas variables estén
+      # definidas NO garantiza que la imagen las lea — si el nombre no coincide con el
+      # que espera tu versión, el panel puede arrancar SIN login y compose no se entera.
+      # Por eso el panel tiene una segunda capa de auth en nginx cuando lo exponés
+      # fuera de esta máquina (la genera ./scripts/levantar.sh). Ver docs/04-operacion.md.
       OPENMU_ADMIN_USER: ${OPENMU_ADMIN_USER:?definí OPENMU_ADMIN_USER en el .env}
       OPENMU_ADMIN_PASSWORD: ${OPENMU_ADMIN_PASSWORD:?definí OPENMU_ADMIN_PASSWORD en el .env}
       # Qué IP le anuncia el connect server al cliente para entrar al game server.
@@ -70,12 +88,15 @@ services:
       ASPNETCORE_URLS: http://+:8080
     ports:
       # Puertos del juego: los ve el cliente, van al host sí o sí.
+      # OJO en un VPS: BIND_ADDR=0.0.0.0 acá significa INTERNET ENTERA, sin port
+      # forwarding de por medio, y Docker se saltea ufw/firewalld. Ver docs/04.
       - "${BIND_ADDR:-0.0.0.0}:44405:44405"        # connect server (cliente original)
       - "${BIND_ADDR:-0.0.0.0}:44406:44406"        # connect server (cliente open source)
       # El Setup asigna un puerto por game server desde 55901; si creás más de 6
       # (no hace falta para jugar entre amigos), sumá puertos acá.
       - "${BIND_ADDR:-0.0.0.0}:55901-55906:55901-55906"  # game servers
       - "${BIND_ADDR:-0.0.0.0}:55980:55980"        # chat server
+      # El panel (8080) NO se publica acá a propósito: sale solo por nginx.
     volumes:
       # Mismo path que el deploy oficial de OpenMU: si esto no persiste, cada
       # recreación del contenedor invalida las sesiones/cookies del panel.
@@ -95,7 +116,9 @@ services:
       resources:
         limits:
           memory: 3g
-    networks: [mu]
+    # Está en las dos redes: `mu` para que nginx lo alcance, `mudb` para hablar con
+    # la base. Es el único contenedor que toca las dos.
+    networks: [mu, mudb]
 
   # ── Panel de administración (detrás de nginx) ────────────────────────────────
   # El panel NO se publica directo: sale por nginx, atado a loopback por defecto.
@@ -104,16 +127,21 @@ services:
     image: nginx:alpine
     container_name: mu-panel
     restart: unless-stopped
-    <<: *logs
+    <<: [*logs, *endurecido]
     depends_on: [openmu]
     ports:
       - "${PANEL_BIND_ADDR:-127.0.0.1}:${PANEL_PORT:-8080}:80"
     volumes:
       - ./nginx/openmu.conf:/etc/nginx/conf.d/default.conf:ro
+      # Carpeta generada por ./scripts/levantar.sh: trae el auth_basic (o su ausencia)
+      # y el archivo de usuarios. Se monta como carpeta para que el `include` del .conf
+      # nunca apunte a un archivo inexistente (eso sería nginx que no arranca).
+      - ./nginx/auth:/etc/nginx/auth:ro
     deploy:
       resources:
         limits:
           memory: 128m
+          pids: 128
     networks: [mu]
 
 volumes:
@@ -121,5 +149,10 @@ volumes:
   adminpanel-keys:
 
 networks:
+  # Red de "frente": openmu + nginx.
   mu:
     driver: bridge
+  # Red de la base: solo openmu + database, y sin salida a internet.
+  mudb:
+    driver: bridge
+    internal: true

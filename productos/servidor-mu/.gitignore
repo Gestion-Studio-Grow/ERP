@@ -1,6 +1,16 @@
+# Autosuficiente a propósito: esta carpeta está pensada para copiarse sola y hacerle
+# `git init` en la máquina del usuario. Si dependiera del .gitignore de la raíz del
+# repo padre, ahí se perdería la protección y el primer `git add .` subiría el .env.
 .env
-# El .gitignore de la raíz del repo ignora `.env*`, lo que se tragaba también el
-# ejemplo — y sin .env.example nadie puede hacer `cp .env.example .env`.
+.env.*
 !.env.example
+
+# Dumps de la base: adentro están TODAS las cuentas de tus jugadores.
 backups/*
 !backups/.gitkeep
+*.sql
+*.sql.gz
+*.dump
+
+# Archivo de usuarios que genera levantar.sh para el auth de nginx.
+nginx/auth/.htpasswd
