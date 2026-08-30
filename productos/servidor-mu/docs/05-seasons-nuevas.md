@@ -46,6 +46,11 @@ Es open source. Se puede aportar protocolo y sistemas de seasons posteriores, y 
 features nuevas portadas como plugins. Es un proyecto largo, pero si lo que te copa es la
 parte técnica, es el camino más interesante de los tres.
 
+**¿Qué tan largo es "largo"?** Está medido con números en
+[`06-viabilidad-season-nueva.md`](06-viabilidad-season-nueva.md): cuánto costó OpenMU llegar
+a S6, cuánto es el salto S6→S21, qué otro emulador open source apunta más alto, y la
+estimación en persona-años de construir una season nueva por el camino limpio.
+
 ## La recomendación
 
 **Arrancá con el punto 1.** Levantás el servidor hoy, jugás esta semana, y aprendés operando:

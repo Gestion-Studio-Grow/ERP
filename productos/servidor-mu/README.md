@@ -56,6 +56,7 @@ quieras, y si mañana comprás files de S20 ya vas a tener la infra armada y pro
 | [`docs/03-configuracion.md`](docs/03-configuracion.md) | Rates, drops, eventos, game servers, GMs |
 | [`docs/04-operacion.md`](docs/04-operacion.md) | Backups, updates, seguridad, jugar con amigos |
 | [`docs/05-seasons-nuevas.md`](docs/05-seasons-nuevas.md) | El camino honesto a S19/S20 |
+| [`docs/06-viabilidad-season-nueva.md`](docs/06-viabilidad-season-nueva.md) | ¿Crear los files de una season nueva? Estudio de viabilidad con números |
 
 ## Los comandos
 
