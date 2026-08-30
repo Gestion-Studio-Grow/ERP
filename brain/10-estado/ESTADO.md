@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-08-02 01:53 UTC
+generado_el: 2026-08-30 22:41 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-08-02 01:53 UTC sobre `e078f64`.**
+> ⏱️ **Foto tomada el 2026-08-30 22:41 UTC sobre `f7b0095`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,32 +18,32 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `claude/token-saving-brain-clients-5rur0j` |
-| HEAD | `e078f64` (2026-08-01) |
-| Árbol | **2 archivo(s) sin commitear** _(sin contar `brain/`)_ |
-| Tip de `main` | d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor |
+| Rama actual | `claude/private-music-server-k33eg9` |
+| HEAD | `f7b0095` (2026-08-16) |
+| Árbol | limpio _(sin contar `brain/`)_ |
+| Tip de `main` | f7b0095 · 2026-08-16 · refactor(ch): la poda — de 9 secciones a 4, y el hero deja de firmar como plantilla |
 
-**Ramas locales (2, más reciente primero):** `claude/token-saving-brain-clients-5rur0j` · `main`
+**Ramas locales (2, más reciente primero):** `claude/private-music-server-k33eg9` · `main`
 
 **Últimos commits**
 
-- e078f64 · 2026-08-01 · docs(rfc-005): el parche exacto de activación, para aprobar o rechazar
-- 5080895 · 2026-08-01 · feat(brain): configurar el grafo para que se lea como un cerebro, no como una madeja
-- 434f4ac · 2026-07-31 · feat(brain): tres zonas nuevas — metodología, calibración y mapa código↔decisión
-- 27586ed · 2026-07-31 · fix(brain): pasada de excelencia — 10 defectos encontrados por auditoría de 3 frentes
-- 84f4126 · 2026-07-31 · feat(brain): el grafo de verdad — un nodo por decisión, dependencias como enlaces reales
-- f2e8670 · 2026-07-31 · feat(brain): abrir el cerebro desde el móvil + arreglar la semántica de brain:check
-- 7341ae2 · 2026-07-31 · feat(brain): segundo cerebro — vault de notas atómicas derivado del repo (Fase 0 a ~15% del costo)
-- d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
-- ee25ed2 · 2026-07-13 · fix(fiscal): endurecer lectura runtime de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
-- 1d48135 · 2026-07-13 · test(shine): actualizar contrato de orden de secciones tras edición de densidad
-- 15a8ddd · 2026-07-13 · Merge diseno/shine-resumido — densidad del front de Shine: colección comprable primero (producto+precio a ~1.7 pantallas mobile) + fix overflow hero mobile
-- fc0dede · 2026-07-13 · Merge ci/senal-verde — vallas del gate en jobs separados (visual/visual-aa BLOQUEANTES; lint no-bloqueante) + fix contraste badge 'Por kg' (ADR-040)
+- f7b0095 · 2026-08-16 · refactor(ch): la poda — de 9 secciones a 4, y el hero deja de firmar como plantilla
+- d0199db · 2026-08-16 · fix(reserva): buscar "depilación" ya encuentra los servicios de depilación
+- 27c8583 · 2026-08-16 · perf(infra): las funciones pasan a correr en São Paulo, donde está la base
+- 9970ab5 · 2026-08-16 · perf(sitio): el modal de reserva deja de pesar en cada página; loaders sin trabajo duplicado
+- 6e72eea · 2026-08-16 · feat(ch): ilustraciones provisorias de marca en las tarjetas de la vitrina
+- 2e9d99c · 2026-08-16 · feat(ch): campaña dada de baja con sus datos a salvo + interactividad nativa del navegador
+- 47bec19 · 2026-08-16 · feat(sitio): portón con clave para el front público, apagado por defecto
+- e486b44 · 2026-08-16 · fix(ch): reservar deja de ser un trabajo — buscador, avance al elegir y vitrina compacta
+- 56cf44e · 2026-08-16 · feat(ch): la home muestra tratamientos con precio exacto y la carta se muda a /servicios
+- 59ff7a0 · 2026-08-16 · feat(nav): buscador en la barra + grupos completos, y menos peso por pantalla
+- 63cb63c · 2026-08-15 · fix(accesos): aprovisionar modulos deja de ser una capacidad del dueno
+- 2faaa3c · 2026-08-15 · feat(modulos): Campanias entra al catalogo de modulos
 
 ## Migraciones (Prisma)
 
-- **Total en el repo:** 40
-- **Últimas 5:** `20260710120000_invoice_origin_idempotency_unique` · `20260711120000_add_bancos_importacion` · `20260711140000_add_cartera_cliente` · `20260711140000_add_tenant_fiscal_credential` · `20260712120000_sprint_entregable_concurrency_guards`
+- **Total en el repo:** 41
+- **Últimas 5:** `20260711120000_add_bancos_importacion` · `20260711140000_add_cartera_cliente` · `20260711140000_add_tenant_fiscal_credential` · `20260712120000_sprint_entregable_concurrency_guards` · `20260815120000_lead_campania`
 
 > ⚠️ **Colisión de timestamp** — dos migraciones comparten prefijo, así que el orden de
 > aplicación depende del desempate alfabético. Revisar antes de cualquier Gate 2:
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 297 |
-| Palabras en `docs/` | 426.576 |
+| Documentos en `docs/` | 298 |
+| Palabras en `docs/` | 427.458 |
 | ADRs | 81 |
 | Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
 
