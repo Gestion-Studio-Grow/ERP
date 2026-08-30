@@ -45,10 +45,15 @@ netsh interface ipv4 add address "Loopback Pseudo-Interface 1" 127.0.0.2 255.0.0
 | Otra PC de tu casa | La IP LAN del servidor (`192.168.x.x`) |
 | Un amigo, por Tailscale | La IP `100.x.x.x` que le da Tailscale (ver [`04-operacion.md`](04-operacion.md)) |
 
+Ojo que hay una **segunda IP** en juego: la que el connect server **anuncia** para entrar al
+game server. Si el cliente lista los servers pero al elegir uno no entra, es casi seguro eso:
+revisá `RESOLVE_IP` en el `.env` (explicado en
+[`04-operacion.md`](04-operacion.md#la-ip-que-anuncia-el-server-resolve_ip)).
+
 ## Primer login
 
 Con las cuentas de prueba activadas: usuario `test0`, contraseña `test0`. `testgm` te da
-comandos de GM. Si no las creaste, registrá una cuenta desde el cliente (OpenMU la crea sola
-en el primer login) o desde el panel.
+comandos de GM. Si no las creaste, creá la cuenta desde el panel (**Accounts → Create**) —
+el cliente de S6 no tiene registro adentro del juego.
 
 — Elaborado por GSG

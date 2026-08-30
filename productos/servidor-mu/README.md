@@ -58,9 +58,10 @@ quieras, y si mañana comprás files de S20 ya vas a tener la infra armada y pro
 | `./scripts/levantar.sh` | Levanta todo (valida el `.env` antes) |
 | `./scripts/bajar.sh` | Apaga todo, sin tocar los datos |
 | `./scripts/estado.sh` | Qué está corriendo (`--logs` para ver logs en vivo) |
-| `./scripts/backup.sh` | Backup de la base, con retención de 14 |
+| `./scripts/backup.sh` | Backup de la base, verificado, con retención de 14 |
 | `./scripts/restaurar.sh <archivo>` | Restaura un backup (pide confirmación) |
 | `./scripts/actualizar.sh` | Backup + pull + recreate |
+| `./scripts/diagnostico.sh` | Cuando algo anda mal: junta estado, logs, disco y backups en una salida para pegar |
 
 ## Requisitos
 

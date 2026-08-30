@@ -7,6 +7,15 @@
 #
 # Uso:  ./scripts/levantar.sh        (no invoques docker compose a mano: el script valida el .env)
 
+# Un server de juego loguea MUCHO: sin rotación, los logs llenan el disco en semanas
+# y el server se muere de la forma más tonta posible. 30 MB por contenedor y listo.
+x-logs: &logs
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   # ── Base de datos ────────────────────────────────────────────────────────────
   # Sin puertos publicados a propósito: solo se habla con ella desde la red interna.
@@ -14,6 +23,7 @@ services:
     image: postgres:17-alpine
     container_name: mu-db
     restart: unless-stopped
+    <<: *logs
     environment:
       POSTGRES_USER: ${DB_ADMIN_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_ADMIN_PW:?definí DB_ADMIN_PW en el .env}
@@ -26,6 +36,12 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+    # Techo de memoria: si algo se descontrola, que se caiga un contenedor y no
+    # la máquina entera. Para uso privado sobra; docker-compose v1 lo ignora (ok).
+    deploy:
+      resources:
+        limits:
+          memory: 1g
     networks: [mu]
 
   # ── El servidor ──────────────────────────────────────────────────────────────
@@ -35,6 +51,7 @@ services:
     image: munique/openmu:${OPENMU_TAG:-latest}
     container_name: mu-server
     restart: unless-stopped
+    <<: *logs
     depends_on:
       database:
         condition: service_healthy
@@ -46,15 +63,38 @@ services:
       # queda abierto sin login hasta que crees el primer usuario a mano: no lo dejes así.
       OPENMU_ADMIN_USER: ${OPENMU_ADMIN_USER:?definí OPENMU_ADMIN_USER en el .env}
       OPENMU_ADMIN_PASSWORD: ${OPENMU_ADMIN_PASSWORD:?definí OPENMU_ADMIN_PASSWORD en el .env}
+      # Qué IP le anuncia el connect server al cliente para entrar al game server.
+      # El default de OpenMU es la IP PÚBLICA (la averigua con una API externa):
+      # para un server privado en LAN/Tailscale eso apunta a la nada. Ver .env.example.
+      RESOLVE_IP: ${RESOLVE_IP:-local}
       ASPNETCORE_URLS: http://+:8080
     ports:
       # Puertos del juego: los ve el cliente, van al host sí o sí.
       - "${BIND_ADDR:-0.0.0.0}:44405:44405"        # connect server (cliente original)
       - "${BIND_ADDR:-0.0.0.0}:44406:44406"        # connect server (cliente open source)
+      # El Setup asigna un puerto por game server desde 55901; si creás más de 6
+      # (no hace falta para jugar entre amigos), sumá puertos acá.
       - "${BIND_ADDR:-0.0.0.0}:55901-55906:55901-55906"  # game servers
       - "${BIND_ADDR:-0.0.0.0}:55980:55980"        # chat server
     volumes:
-      - adminpanel-keys:/root/.aspnet/DataProtection-Keys
+      # Mismo path que el deploy oficial de OpenMU: si esto no persiste, cada
+      # recreación del contenedor invalida las sesiones/cookies del panel.
+      - adminpanel-keys:/app/data-protection-keys
+    healthcheck:
+      # La imagen es Alpine: wget es el de busybox, viene incluido.
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # El primer arranque migra/siembra base: darle aire antes de declararlo enfermo.
+      start_period: 180s
+    # Al apagar, el server tiene que llegar a guardar personajes e inventarios;
+    # los 10s de gracia default de Docker pueden cortar ese guardado a la mitad.
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 3g
     networks: [mu]
 
   # ── Panel de administración (detrás de nginx) ────────────────────────────────
@@ -64,11 +104,16 @@ services:
     image: nginx:alpine
     container_name: mu-panel
     restart: unless-stopped
+    <<: *logs
     depends_on: [openmu]
     ports:
       - "${PANEL_BIND_ADDR:-127.0.0.1}:${PANEL_PORT:-8080}:80"
     volumes:
       - ./nginx/openmu.conf:/etc/nginx/conf.d/default.conf:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     networks: [mu]
 
 volumes:

@@ -5,7 +5,7 @@ exigir_docker
 exigir_env
 
 info "Backup previo (si esto falla, no actualizo nada)..."
-./scripts/backup.sh
+"$RAIZ/scripts/backup.sh"
 
 info "Bajando la imagen nueva..."
 "${DC[@]}" pull

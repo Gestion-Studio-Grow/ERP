@@ -16,8 +16,12 @@ cd productos/servidor-mu
 cp .env.example .env
 ```
 
-Abrí el `.env` y **cambiá los cuatro `CAMBIAME`**. Passwords largos, aunque sea "para vos
-nomás": el panel de admin controla el servidor entero, y esa base va a tener tus cuentas.
+Abrí el `.env` y **cambiá los dos `CAMBIAME`** (el password de la base y el del panel).
+Passwords largos — solo letras, números, `-` y `_` — aunque sea "para vos nomás": el panel
+de admin controla el servidor entero, y esa base va a tener tus cuentas.
+
+Si vas a jugar con amigos por Tailscale, ajustá también `RESOLVE_IP` (está explicado en el
+mismo `.env`). Para jugar en tu casa/LAN, el default ya está bien.
 
 Los scripts se niegan a levantar si quedó un `CAMBIAME` — a propósito.
 
@@ -41,12 +45,14 @@ Vas a caer en la página de **Setup**. Ahí elegís:
 - **Versión del juego:** `Season 6 Episode 3 (English)` — es la que está completa.
 - **Cantidad de game servers:** 1 alcanza y sobra para uso privado. Cada uno es un "canal"
   más en la lista y consume RAM.
-- **Cuentas de prueba:** dejalas tildadas para probar rápido (crea `test0`…`test9`,
-  `testgm`, etc., **con la contraseña igual al usuario**). Después borralas: son cuentas con
-  password conocido y algunas son GM. Si el server va a tener gente ajena, ni las crees.
+- **Cuentas de prueba:** dejalas tildadas para probar rápido (crea `test0`…`test9`, `test300`,
+  `test400`, `testgm`, `testgm2` y alguna más, **todas con la contraseña igual al usuario**).
+  Después borralas: son cuentas con password conocido y las `testgm*` son GM. Si el server va
+  a tener gente ajena, ni las crees.
 
 Dale **Install**. Tarda un rato largo (está sembrando miles de registros: monstruos, items,
-mapas, drops). No lo interrumpas.
+mapas, drops). No lo interrumpas. Ojo: correr el Setup de nuevo más adelante **borra todo lo
+que haya en la base** (cuentas, personajes, config) — es para instalar, no para reconfigurar.
 
 ## 5. Arrancar los servidores
 
@@ -63,6 +69,7 @@ Seguí con [`02-cliente.md`](02-cliente.md).
 | El panel no abre | `./scripts/estado.sh` — ¿está `mu-panel` arriba? Los logs de `mu-server` te dicen si murió al arrancar |
 | "port is already allocated" | Otro programa usa ese puerto. Cambiá `PANEL_PORT` en el `.env` |
 | El Setup se cuelga | Miralo con `./scripts/estado.sh --logs`: casi siempre es la base todavía inicializando |
+| No sé ni por dónde empezar | `./scripts/diagnostico.sh` junta todo (estado, logs, disco) en una salida para leer o pegar pidiendo ayuda |
 | Quiero empezar de cero | `docker compose down -v` borra los volúmenes. **No hay vuelta atrás**: hacé backup antes |
 
 — Elaborado por GSG

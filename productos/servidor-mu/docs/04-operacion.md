@@ -34,6 +34,28 @@ no cuando salga un commit.
 
 ## Jugar con amigos
 
+### La IP que anuncia el server (RESOLVE_IP)
+
+Conectarse tiene dos pasos: el cliente le pega al **connect server** (la IP que vos escribís
+en el cliente) y este le responde "el game server está en **tal IP**". Esa segunda IP la
+decide `RESOLVE_IP` en el `.env`, y si está mal, el síntoma es siempre el mismo: **la lista
+de servers aparece, pero al elegir uno no entra**.
+
+| Cómo juegan | `RESOLVE_IP` |
+|---|---|
+| En tu casa / LAN (incluida la misma máquina) | `local` (el default de este stack) |
+| Por Tailscale | Tu IP de Tailscale, ej. `RESOLVE_IP=100.101.102.103` |
+| Puertos abiertos en el router | `public` |
+
+Ojo: el default de OpenMU *sin* esta variable es `public` (averigua tu IP pública con una API
+externa) — por eso este stack la fija en `local`. Después de cambiarla: `./scripts/levantar.sh`
+recrea el contenedor con el valor nuevo.
+
+**Si la variable no te hace efecto**, el mismo ajuste está en el panel: **Configuration →
+System → IP Resolver** (con su parámetro al lado). Esa es la vía documentada por OpenMU y la
+que manda; la variable de entorno es el atajo para no tener que entrar al panel. Si tu versión
+de la imagen no la toma, cambialo desde ahí y listo.
+
 ### La opción buena: Tailscale (VPN, gratis)
 
 Instalás [Tailscale](https://tailscale.com/) en tu máquina y en la de cada amigo, todos
@@ -72,12 +94,17 @@ Y abrís `http://127.0.0.1:8080` en tu navegador local.
 ```bash
 ./scripts/estado.sh          # ¿está todo arriba?
 ./scripts/estado.sh --logs   # logs en vivo de los tres contenedores
+./scripts/diagnostico.sh     # TODO junto: estado, salud, logs, disco, backups
 ```
+
+`diagnostico.sh` está pensado para las 2 de la mañana: una sola corrida junta lo que un humano
+pediría para ayudarte, sin passwords, listo para pegar donde sea.
 
 | Síntoma | Causa habitual |
 |---|---|
 | El cliente no llega al connect server | El game server no está en **Start** en el panel, o el firewall del host |
 | El cliente conecta pero no lista servers | El connect server está arriba pero el game server no |
+| Lista los servers pero no entra al juego | `RESOLVE_IP` mal: el server anuncia una IP que ese jugador no alcanza (ver arriba) |
 | Desconexiones al entrar al juego | Mirá los logs de `mu-server`: suele ser data de la config que quedó inconsistente |
 | El panel carga y se congela | Reverse proxy sin WebSockets — el `nginx/openmu.conf` de este repo ya los tiene |
 | Todo lento | Fijate la RAM: cada game server pesa. Bajá la cantidad a uno |

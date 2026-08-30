@@ -1,3 +1,6 @@
 .env
+# El .gitignore de la raíz del repo ignora `.env*`, lo que se tragaba también el
+# ejemplo — y sin .env.example nadie puede hacer `cp .env.example .env`.
+!.env.example
 backups/*
 !backups/.gitkeep
