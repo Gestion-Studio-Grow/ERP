@@ -24,6 +24,32 @@ sniffear su tráfico, ni decompilar sus binarios. Además de dónde te deja para
 es un atajo que no sirve: lo que aprendés así queda atado a una versión y no te
 enseña el protocolo.
 
+## Paso 0 — Parseá el cliente primero (esto cambió después de investigar)
+
+**Este paso lo agregamos después, y va antes que todo lo demás.** El orden original
+de este documento arrancaba por el espía de protocolo. Estaba mal.
+
+Los datos del juego —items, skills, mapas, textos— **vienen adentro del cliente**, en
+archivos con formatos que la comunidad conoce hace veinte años. No hay que descubrirlos
+observando tráfico: hay que leerlos. Y el precedente está en nuestro propio stack:
+**OpenMU trae 76 archivos `.att` sacados del cliente**, commiteados en su repo. Los mapas
+de tu servidor de Season 6 ya salieron de ahí. `Terrain1.att` pesa 65.539 bytes = 3 de
+cabecera + una grilla de 256×256. Verificado.
+
+El cifrado de esos archivos es **ofuscación, no criptografía**: XOR con clave fija,
+documentado y con implementaciones open source en varios lenguajes que coinciden entre
+sí. No hay nada que investigar ahí.
+
+Y la sorpresa: **cuanto más nueva la season, más fácil el parsing.** Webzen movió unas 35
+tablas de binario a **texto tabulado** — se abren con un `split('\t')`.
+
+Bajá el cliente de la season que te interese y parsealo. **Es una tarde**, y te dice más
+que las dos primeras semanas de mirar tráfico. Detalle completo de formatos, herramientas
+open source y qué cubre cada una: [`10-datos-del-cliente.md`](10-datos-del-cliente.md).
+
+Esto **no reemplaza** al espía de protocolo: lo precede. Los datos y el protocolo son dos
+ejes independientes, y conviene atacar el fácil primero.
+
 ## Paso 1 — Aprendé a leer con un caso donde ya sabés la respuesta
 
 **No arranques por lo desconocido.** Primero poné el espía entre tu cliente de

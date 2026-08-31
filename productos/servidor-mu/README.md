@@ -60,6 +60,8 @@ quieras, y si mañana comprás files de S20 ya vas a tener la infra armada y pro
 | [`docs/07-evaluacion-muemu.md`](docs/07-evaluacion-muemu.md) | MuEmu por dentro: por qué su "soporte S17" no lo es |
 | [`docs/08-ecosistema-muemu.md`](docs/08-ecosistema-muemu.md) | El ecosistema de MuEmu: actividad, forks, el problema del cliente |
 | [`docs/09-camino-propio.md`](docs/09-camino-propio.md) | **Cómo empezar a construirla vos**, paso a paso |
+| [`docs/10-datos-del-cliente.md`](docs/10-datos-del-cliente.md) | Los datos del juego están en el cliente: formatos, cifrado y parsers |
+| [`docs/11-fuentes-confiables.md`](docs/11-fuentes-confiables.md) | De dónde sale mecánica confiable, y cómo triangularla |
 | [`lab-protocolo/`](lab-protocolo/) | El espía de protocolo: la herramienta del doc 09 |
 | [`docs/06-viabilidad-season-nueva.md`](docs/06-viabilidad-season-nueva.md) | ¿Crear los files de una season nueva? Estudio de viabilidad con números |
 
