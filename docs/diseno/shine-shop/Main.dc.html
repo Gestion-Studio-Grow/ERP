@@ -91,6 +91,8 @@
              text-align: left; border: 0; border-top: 1px solid rgba(232,217,213,.34); background: transparent;
              cursor: pointer; font: inherit; padding: 24px 0; transition: .2s; }
     .aroma:hover { padding-left: 8px; }
+    @keyframes sh-marquee { from { transform: translateX(0); } to { transform: translateX(-33.33%); } }
+    @media (prefers-reduced-motion: reduce) { [style*="sh-marquee"] { animation: none !important; } }
     .fam:hover .fam-img { transform: scale(1.04); }
     .fam:hover .fam-name { color: #7e1a35; }
     .col { position: absolute; top: 0; bottom: 0; width: 1px; background: #e4d7d0; }
@@ -120,68 +122,62 @@
 
   <div style="min-width: 0;">
 
-    <!-- ══ LA ESCENA — se entra por el MOMENTO, no por el producto ══ -->
-    <div style="display: grid; grid-template-columns: minmax(0, 58fr) minmax(0, 42fr); min-height: 860px;">
+    <!-- ══ HERO CENTRADO — la imagen del momento a sangre, todo al centro ══ -->
+    <div style="position: relative; overflow: hidden;">
+      <div style="position: relative; min-height: 780px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 70px 56px 210px;">
+        <img src="{{escenaImg}}" alt="{{escenaAlt}}" class="capa" style="width: 100%; height: 100%; object-fit: cover; filter: saturate(.92) contrast(.97);">
+        <div class="capa" style="background: radial-gradient(ellipse 72% 56% at 50% 44%, rgba(20,8,10,.34), transparent 74%), linear-gradient(180deg, rgba(20,8,10,.26), transparent 26%), linear-gradient(180deg, transparent 62%, rgba(243,235,225,.55) 88%, #f3ebe1 100%);"></div>
 
-      <div style="position: relative; overflow: hidden;">
-        <img src="{{escenaImg}}" alt="{{escenaAlt}}" class="capa" style="width: 100%; height: 100%; object-fit: cover;">
-        <div class="capa" style="background: linear-gradient(180deg, rgba(58,17,25,.18) 0%, rgba(58,17,25,.14) 42%, rgba(58,17,25,.72) 100%);"></div>
-        <div style="position: absolute; left: 56px; right: 56px; bottom: 52px; color: #fff;">
-          <div class="meta" style="color: rgba(243,235,225,.82);">{{escenaHora}}</div>
-          <h1 class="disp" style="font-size: 92px; margin: 16px 0 0; color: #fff; max-width: 12ch;">{{escenaTitulo}}</h1>
-          <p style="margin: 20px 0 0; font-size: 19px; line-height: 1.55; color: rgba(255,255,255,.9); max-width: 42ch;">{{escenaTexto}}</p>
+        <div style="position: relative; color: #f7f1e8; max-width: 760px;">
+          <div class="num meta" style="color: rgba(247,241,232,.85); display: flex; align-items: center; justify-content: center; gap: 14px;">
+            <span style="width: 34px; height: 1px; background: rgba(247,241,232,.5);"></span>
+            {{escenaLabel}} · {{escenaHora}}
+            <span style="width: 34px; height: 1px; background: rgba(247,241,232,.5);"></span>
+          </div>
+          <h1 class="disp" style="font-size: 104px; font-weight: 300; margin: 24px 0 0; color: #f7f1e8; line-height: 1.06;">{{escenaTitulo1}}<br><em style="font-weight: 300;">{{escenaTitulo2}}</em></h1>
+          <p style="margin: 26px auto 0; font-size: 17px; line-height: 1.62; color: rgba(247,241,232,.9); max-width: 44ch; text-wrap: balance;">{{escenaTexto}}</p>
+          <div aria-hidden style="width: 56px; height: 1px; background: rgba(184,138,137,.85); margin: 30px auto 0;"></div>
+          <a href="#lo-que-va" style="display: inline-flex; align-items: center; justify-content: center; margin-top: 30px; min-height: 50px; padding: 0 40px; border: 1px solid rgba(247,241,232,.85); border-radius: 999px; background: transparent; color: #f7f1e8; font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; transition: .4s;">Ver sus aromas</a>
         </div>
-        <div class="meta" style="position: absolute; left: 56px; top: 46px; color: rgba(243,235,225,.8);">{{escenaPaso}}</div>
-      </div>
+            </div>
 
-      <div style="position: relative; overflow: hidden; padding: 46px 48px 44px; display: flex; flex-direction: column; background: #3a2429; color: #f3ebe1;">
-        <svg class="capa" style="color: #f3ebe1; opacity: .05;" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
-        <div style="position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 16px;">
-          <h2 class="disp" style="font-size: 34px; margin: 0; color: #f3ebe1;">Lo que le va</h2>
-          <span class="meta" style="color: #c9a4a2;">{{escenaCuenta}}</span>
-        </div>
-        <div style="position: relative; margin-top: 22px;">
+      <!-- "Lo que le va": tres dípticos montados sobre el borde del hero -->
+      <div id="lo-que-va" style="position: relative; margin: -128px 56px 0; z-index: 2;">
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; max-width: 1120px; margin: 0 auto;">
           <sc-for list="{{aromas}}" as="a" hint-placeholder-count="3">
-            <button class="aroma" onClick="{{a.add}}" aria-label="{{a.aria}}" style="grid-template-columns: auto minmax(0, 1fr) auto;">
-              <span style="display: flex; gap: 10px; align-self: center;">
-                <span style="position: relative; width: 66px; height: 84px; overflow: hidden; border-radius: 3px; flex: none;"><img src="{{a.foto}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;"></span>
-                <span style="width: 9px; height: 84px; border-radius: 999px; flex: none; background: linear-gradient(180deg, {{a.c1}}, {{a.c2}});"></span>
-              </span>
-              <span>
-                <span class="disp" style="display: block; font-size: 34px; color: #f3ebe1;">{{a.name}}</span>
-                <span style="display: block; font-size: 13px; color: rgba(243,235,225,.62); margin-top: 8px;">{{a.notes}}</span>
-                <span style="display: flex; align-items: center; gap: 16px; margin-top: 12px;">
+            <div style="background: #fdf8f2; border: 1px solid #e8d9d5; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 26px 54px -30px rgba(58,17,25,.5);">
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 58px; height: 240px;">
+                <div style="position: relative; overflow: hidden;"><img src="{{a.foto}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;"></div>
+                <div style="position: relative; background: linear-gradient(180deg, {{a.c1}}, {{a.c2}});">
+                  <div style="position: absolute; left: 8px; right: 8px; top: 33%; height: 1px; background: rgba(58,17,25,.14);"></div>
+                  <div style="position: absolute; left: 8px; right: 8px; top: 66%; height: 1px; background: rgba(58,17,25,.14);"></div>
+                </div>
+              </div>
+              <div style="padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 10px; flex: 1;">
+                <div>
+                  <div class="disp" style="font-size: 24px; color: {{accent}};">{{a.name}}</div>
+                  <div style="font-size: 12px; color: #835c5b; margin-top: 5px;">{{a.notes}}</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 8px; border-top: 1px solid #eee3dd;">
                   <span style="display: flex; gap: 4px;">
-                    <span class="flame" style="width: 8px; height: 14px; background: #d0aeac; opacity: {{a.f1}};"></span>
-                    <span class="flame" style="width: 8px; height: 14px; background: #d0aeac; opacity: {{a.f2}};"></span>
-                    <span class="flame" style="width: 8px; height: 14px; background: #d0aeac; opacity: {{a.f3}};"></span>
+                    <span class="flame" style="width: 8px; height: 14px; background: {{accent}}; opacity: {{a.f1}};"></span>
+                    <span class="flame" style="width: 8px; height: 14px; background: {{accent}}; opacity: {{a.f2}};"></span>
+                    <span class="flame" style="width: 8px; height: 14px; background: {{accent}}; opacity: {{a.f3}};"></span>
                   </span>
-                  <span class="num" style="font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: rgba(243,235,225,.6);">{{a.duration}} · {{a.format}}</span>
-                </span>
-              </span>
-              <span style="text-align: right; align-self: center;">
-                <span class="num" style="display: block; font-size: 21px; font-weight: 600; color: #f3ebe1;">{{a.price}}</span>
-                <span style="display: inline-flex; align-items: center; justify-content: center; margin-top: 10px; min-height: 40px; padding: 0 18px; border-radius: 999px; border: 1px solid rgba(243,235,225,.4); font-size: 12px; font-weight: 600; letter-spacing: .06em; color: #f3ebe1;">Sumar</span>
-              </span>
-            </button>
+                  <span class="num" style="font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #835c5b;">{{a.duration}}</span>
+                  <span class="num" style="font-size: 17px; font-weight: 600; color: {{accent}}; margin-left: auto;">{{a.price}}</span>
+                  <button onClick="{{a.add}}" aria-label="{{a.aria}}" style="font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 11.5px; letter-spacing: .05em; padding: 0 15px; min-height: 38px; border-radius: 999px; border: 1px solid #b88a89; background: transparent; color: #835c5b; cursor: pointer;">Sumar</button>
+                </div>
+              </div>
+            </div>
           </sc-for>
         </div>
-        <div style="position: relative; margin-top: auto; padding-top: 26px; border-top: 1px solid rgba(232,217,213,.24);">
-          <div style="font-size: 13.5px; line-height: 1.6; color: rgba(243,235,225,.72);">{{escenaPorque}}</div>
-          <a href="#indice" style="display: inline-block; margin-top: 16px; font-size: 13px; font-weight: 600; color: #d0aeac; text-decoration: underline; text-underline-offset: 4px;">Prefiero ver los 12 aromas →</a>
-        </div>
+        <div style="text-align: center; margin-top: 22px; font-size: 13.5px; color: #835c5b; line-height: 1.6; max-width: 62ch; margin-left: auto; margin-right: auto;">{{escenaPorque}}</div>
       </div>
-    </div>
-
-    <!-- ══ LA CINTA DE MOMENTOS — dónde estás parado ══ -->
-    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid #e8d9d5;">
-      <sc-for list="{{cinta}}" as="c" hint-placeholder-count="4">
-        <button onClick="{{c.pick}}" aria-label="{{c.aria}}" style="text-align: left; border: 0; border-right: 1px solid #e8d9d5; background: {{c.bg}}; cursor: pointer; padding: 22px 26px; font-family: 'Kumbh Sans', sans-serif; transition: .2s;">
-          <span class="num meta" style="font-size: 10px; color: {{c.fg2}};">{{c.hora}}</span>
-          <span class="disp" style="display: block; font-size: 26px; margin-top: 8px; color: {{c.fg}};">{{c.titulo}}</span>
-          <span style="display: block; font-size: 12.5px; margin-top: 6px; color: {{c.fg2}};">{{c.cuenta}}</span>
-        </button>
-      </sc-for>
+      <div style="height: 58px;"></div>
+      <div aria-hidden style="overflow: hidden; border-top: 1px solid #e4d7d0; border-bottom: 1px solid #e4d7d0; padding: 13px 0; white-space: nowrap;">
+        <div class="num meta" style="display: inline-block; font-size: 10px; letter-spacing: .32em; color: #a0837c; animation: sh-marquee 38s linear infinite;">CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;</div>
+      </div>
     </div>
 
     <!-- ══ EL ÍNDICE COMPLETO — para quien ya sabe qué quiere ══ -->
@@ -289,22 +285,22 @@ class Component extends DCLogic {
   // Cada momento tiene su escena y los aromas que le van.
   momentos() {
     return [
-      { key: 'manana', label: 'Mañana', titulo: 'Que la casa arranque liviana', hora: '07 — 12 h',
+      { key: 'manana', label: 'Mañana', titulo1: 'Que la casa', titulo2: 'arranque liviana', hora: '07 — 12 h',
         img: 'mundo-decoracion.jpg', alt: 'Ambiente claro de mañana con flores y velas',
         texto: 'Con la ventana abierta y el mate hecho, la casa pide algo que se sienta limpio y no tape nada.',
         porque: 'A esta hora conviene un aroma suave: la casa todavía está fría y cualquier cosa intensa se vuelve pesada.',
         ids: ['v3', 'v5', 't1'] },
-      { key: 'tarde', label: 'Tarde', titulo: 'Que el día se ordene', hora: '12 — 19 h',
+      { key: 'tarde', label: 'Tarde', titulo1: 'Que el día', titulo2: 'se ordene', hora: '12 — 19 h',
         img: 'mundo-aromas.jpg', alt: 'Difusor y aromas sobre el escritorio a la tarde',
         texto: 'Las horas en que hay que concentrarse. Un aroma que acompañe sin distraer, y que dure toda la jornada.',
         porque: 'Los amaderados sostienen el foco: son serenos, no dulces, y no cansan después de tres horas.',
         ids: ['v6', 'v7', 'd1'] },
-      { key: 'noche', label: 'Noche', titulo: 'Que el día se termine', hora: '19 — 00 h',
+      { key: 'noche', label: 'Noche', titulo1: 'Que el día', titulo2: 'se termine', hora: '19 — 00 h',
         img: 'hero.jpg', alt: 'Velas de soja encendidas creando un ambiente cálido de noche',
         texto: 'Se baja la luz, se enciende una vela y la casa cambia de temperatura. Es el momento en que más se usa una vela.',
         porque: 'Los cálidos son los de la noche: dulces sin empalagar, se quedan en la casa después de apagar la vela.',
         ids: ['v1', 'v2', 'v9'] },
-      { key: 'gente', label: 'Viene gente', titulo: 'Que la casa reciba bien', hora: 'Cuando tocan el timbre',
+      { key: 'gente', label: 'Viene gente', titulo1: 'Que la casa', titulo2: 'reciba bien', hora: 'Cuando tocan el timbre',
         img: 'ambiance.jpg', alt: 'Living preparado con velas para recibir gente',
         texto: 'Se nota apenas se abre la puerta, antes de que nadie diga nada. Es lo primero que percibe quien llega.',
         porque: 'Para recibir conviene que se sienta desde la entrada: intensidad alta y algo que llene el ambiente rápido.',
@@ -343,10 +339,14 @@ class Component extends DCLogic {
     return t[id] || ['#ead7bc', '#b98a5e'];
   }
 
-  fotoDe(fam) {
-    if (fam === 'calidos') return 'mundo-velas.jpg';
-    if (fam === 'florales') return 'mundo-aromas.jpg';
-    return 'mundo-decoracion.jpg';
+  fotoDe(id) {
+    const t = {
+      v1: 'mundo-velas.jpg', v2: 'gift.jpg', v9: 'mundo-decoracion.jpg',
+      v3: 'mundo-aromas.jpg', v4: 'ambiance.jpg', v5: 'mundo-decoracion.jpg',
+      v6: 'ambiance.jpg', v7: 'mundo-decoracion.jpg', d1: 'mundo-aromas.jpg',
+      s1: 'mundo-aromas.jpg', t1: 'gift.jpg', v8: 'mundo-velas.jpg'
+    };
+    return t[id] || 'mundo-velas.jpg';
   }
 
   add(price) {
@@ -405,14 +405,16 @@ class Component extends DCLogic {
       escenaImg: mom.img,
       escenaAlt: mom.alt,
       escenaHora: mom.hora,
-      escenaTitulo: mom.titulo,
+      escenaLabel: mom.label,
+      escenaTitulo1: mom.titulo1,
+      escenaTitulo2: mom.titulo2,
       escenaTexto: mom.texto,
       escenaPorque: mom.porque,
       escenaCuenta: suyos.length + ' aromas',
       escenaPaso: (idx + 1) + ' / 4 · ' + mom.label,
 
       aromas: suyos.map((p) => ({
-        foto: this.fotoDe(p.fam),
+        foto: this.fotoDe(p.id),
         c1: this.duo(p.id)[0],
         c2: this.duo(p.id)[1],
         name: p.name,
