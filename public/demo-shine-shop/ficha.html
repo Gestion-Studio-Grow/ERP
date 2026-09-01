@@ -10,13 +10,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="image" href="/tenants/shinevelas/hero.jpg" fetchpriority="high">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Kumbh+Sans:wght@400;600;700&display=swap">
 <style>
   :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d9d5; --nude:#d0aeac; --malva:#b88a89;
           --malva-d:#835c5b; --vino:#671128; --tinta:#3a2429; --linea:#e4d7d0; }
   * { box-sizing:border-box; }
   body { margin:0; color:var(--tinta); font-family:'Kumbh Sans',system-ui,sans-serif; line-height:1.55;
-    -webkit-font-smoothing:antialiased;
+    -webkit-font-smoothing:antialiased; background:#f3ebe1; }
+  body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
     background-image:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.26'/%3E%3C/svg%3E"),
       linear-gradient(180deg,#f7f1e9 0%,#f3ebe1 44%,#efe5da 100%);
@@ -30,7 +31,11 @@
   .flame { display:inline-block; flex:none;
     -webkit-mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat;
     mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat; }
-  .barra-sup { display:flex; align-items:center; justify-content:space-between; gap:24px;
+  .aviso { position:fixed; right:14px; top:74px; z-index:60; background:rgba(58,17,25,.88); color:#f3ebe1;
+           font-size:10px; font-weight:600; letter-spacing:.18em; text-transform:uppercase;
+           padding:8px 14px; border-radius:999px; backdrop-filter:blur(4px); }
+  .barra-sup { position:sticky; top:0; z-index:50; background:var(--crema);
+               display:flex; align-items:center; justify-content:space-between; gap:24px;
                padding:16px 56px; border-bottom:1px solid var(--blush); }
   .grid-ficha { display:grid; grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr); gap:60px; padding:30px 56px 72px; align-items:start; }
   .dato { padding:18px 20px; border:1px solid var(--blush); border-radius:14px; background:rgba(253,248,242,.8); }
@@ -58,14 +63,19 @@
     .barra-sup { padding:14px 20px; }
     .grid-ficha { grid-template-columns:1fr; gap:30px; padding:20px 20px 50px; }
     .cross-zona { padding:40px 20px 60px !important; }
+    #cross { grid-template-columns:1fr !important; }
+    #thumbs { flex-wrap:wrap; }
+    .step { width:44px; height:44px; }
+    .aviso { top:auto; bottom:calc(16px + env(safe-area-inset-bottom)); backdrop-filter:none;
+             -webkit-backdrop-filter:none; background:rgba(58,17,25,.94); }
   }
 </style>
 </head>
 <body>
-<div role="note" aria-label="Aviso de prototipo" style="position:fixed;right:14px;top:74px;z-index:60;background:rgba(58,17,25,.88);color:#f3ebe1;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;padding:8px 14px;border-radius:999px;backdrop-filter:blur(4px)">Prototipo de diseño · datos de muestra</div>
+<div class="aviso" role="note" aria-label="Aviso de prototipo">Prototipo de diseño · datos de muestra</div>
 
 <header class="barra-sup">
-  <a href="index.html" aria-label="Volver a la tienda"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" style="height:32px;width:auto;display:block"></a>
+  <a href="index.html" aria-label="Volver a la tienda"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" width="2150" height="663" decoding="async" style="height:32px;width:auto;display:block"></a>
   <nav style="font-size:12.5px;color:var(--malva-d)"><a href="index.html">Tienda</a> · <a href="index.html#indice">Todo lo que hay</a></nav>
   <span id="carrito" class="num" role="status" aria-label="Piezas en el carrito" style="display:inline-flex;align-items:center;gap:9px;padding:10px 18px;border-radius:999px;background:var(--vino);color:#fff;font-size:12.5px;font-weight:600">0</span>
 </header>
@@ -77,7 +87,7 @@
 <main class="grid-ficha">
   <div>
     <div style="position:relative;overflow:hidden;border-radius:4px;background:var(--blush)">
-      <img id="foto-grande" src="/tenants/shinevelas/hero.jpg" alt="Vela de soja Vainilla y canela encendida" width="1024" height="576" fetchpriority="high" decoding="async" style="width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;display:block">
+      <img id="foto-grande" src="/tenants/shinevelas/hero.jpg" alt="Vela de soja Vainilla y canela encendida" width="1024" height="576" fetchpriority="high" decoding="async" style="width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;object-position:center 42%;display:block">
       <div style="position:absolute;left:20px;top:20px;display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:999px;background:rgba(253,248,242,.92);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--vino)">
         <span class="flame" style="width:10px;height:17px;background:var(--vino)"></span>Cálidos y dulces
       </div>
@@ -169,16 +179,23 @@ function pintarCarrito() {
   $('#envio-hint span:last-child').textContent = subtotal >= 25000 ? 'Tu envío es gratis'
     : 'Te faltan ' + money(25000 - subtotal) + ' para el envío gratis en CABA y GBA';
 }
-function pintarAcc() {
+function construirAcc() {
   $('#acordeones').innerHTML = ACC.map((a) => `
     <button class="acc-item" data-k="${a.k}" aria-expanded="${!!abiertos[a.k]}" aria-controls="acc-${a.k}">
       <span>${a.t}</span><span class="acc-ind num">${abiertos[a.k] ? '−' : '+'}</span>
     </button>
     <div class="acc-body${abiertos[a.k] ? ' open' : ''}" id="acc-${a.k}"><div><div class="acc-txt">${a.c}</div></div></div>`).join('');
-  document.querySelectorAll('.acc-item').forEach((b) =>
-    b.addEventListener('click', () => { abiertos[b.dataset.k] = !abiertos[b.dataset.k]; pintarAcc(); }));
+  $('#acordeones').addEventListener('click', (e) => {
+    const b = e.target.closest('.acc-item');
+    if (!b) return;
+    const k = b.dataset.k;
+    abiertos[k] = !abiertos[k];
+    b.setAttribute('aria-expanded', !!abiertos[k]);
+    b.querySelector('.acc-ind').textContent = abiertos[k] ? '−' : '+';
+    document.getElementById('acc-' + k).classList.toggle('open', !!abiertos[k]);
+  });
 }
-function pintarCross() {
+function construirCross() {
   $('#cross').innerHTML = CROSS.map((x) => `
     <article class="xcard">
       <div style="position:relative;aspect-ratio:4/3;overflow:hidden"><img src="${x.f}" alt="" width="886" height="665" loading="lazy" decoding="async" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></div>
@@ -191,8 +208,10 @@ function pintarCross() {
         </div>
       </div>
     </article>`).join('');
-  document.querySelectorAll('#cross [data-p]').forEach((b) =>
-    b.addEventListener('click', () => { cart += 1; subtotal += parseInt(b.dataset.p, 10); pintarCarrito(); }));
+  $('#cross').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-p]');
+    if (b) { cart += 1; subtotal += parseInt(b.dataset.p, 10); pintarCarrito(); }
+  });
 }
 $('#thumbs').innerHTML = THUMBS.map((t, i) =>
   `<button data-t="${t}" style="position:relative;width:96px;height:96px;overflow:hidden;border:${i===0?'2px solid var(--vino)':'1px solid var(--blush)'};background:transparent;padding:0;cursor:pointer"><img src="${t}" alt="" width="96" height="96" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></button>`).join('');
@@ -204,7 +223,7 @@ document.querySelectorAll('#thumbs button').forEach((b) => b.addEventListener('c
 $('#mas').addEventListener('click', () => { qty += 1; pintarQty(); });
 $('#menos').addEventListener('click', () => { qty = Math.max(1, qty - 1); pintarQty(); });
 $('#agregar').addEventListener('click', () => { cart += qty; subtotal += PRECIO * qty; pintarCarrito(); });
-pintarQty(); pintarAcc(); pintarCross();
+pintarQty(); construirAcc(); construirCross();
 </script>
 </body>
 </html>
