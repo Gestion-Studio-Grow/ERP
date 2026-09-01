@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Shine · Prototipo de diseño de la tienda</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="description" content="Prototipo de diseño de la tienda de Shine — datos de muestra.">
@@ -50,7 +50,7 @@
           align-items:center; justify-content:center; text-align:center; padding:70px 56px 200px; }
   .hero img.fondo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
           filter:blur(8px) saturate(1.06) contrast(1.02) brightness(.97); transform:scale(1.08);
-          transition:opacity .6s ease; }
+          transition:opacity .3s ease; }
   .hero .grano { position:absolute; inset:0; pointer-events:none; mix-blend-mode:overlay; opacity:.35;
           background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g2'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g2)' opacity='.5'/%3E%3C/svg%3E");
           background-size:120px 120px; }
@@ -89,7 +89,7 @@
   .marquee > div { display:inline-block; font-size:10px; letter-spacing:.32em; text-transform:uppercase;
                    color:var(--malva-d); animation:mq 38s linear infinite; }
   @keyframes mq { from { transform:translateX(0); } to { transform:translateX(-33.33%); } }
-  @media (prefers-reduced-motion:reduce) { .marquee > div { animation:none; } }
+  @media (prefers-reduced-motion:reduce) { .marquee > div { animation:none; } .hero img.fondo { transition:none; } }
 
   .indice { position:relative; padding:66px 56px 72px; }
   .acc-head { display:grid; grid-template-columns:46px minmax(0,1fr) auto 30px; align-items:center; gap:20px;
@@ -132,10 +132,13 @@
   .pie { padding:0 56px 46px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; }
 
   @media (max-width:900px) {
+    html { scroll-padding-top:68px; }
     .shell { display:block; }
     .riel { position:sticky; top:0; height:auto; z-index:40; background:#f5eee4;
             flex-direction:row; padding:10px 14px; gap:6px; overflow-x:auto;
-            border-right:0; border-bottom:1px solid var(--blush); scrollbar-width:none; }
+            border-right:0; border-bottom:1px solid var(--blush); scrollbar-width:none;
+            -webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);
+            mask-image:linear-gradient(90deg,#000 85%,transparent); }
     .riel::-webkit-scrollbar { display:none; }
     .riel .logo-riel { margin-right:10px; flex:none; }
     #riel-momentos { flex-direction:row; flex:none; }
@@ -185,7 +188,7 @@
       <div class="capa" aria-hidden="true" style="background:linear-gradient(160deg,#671128,#3a2429);opacity:.18;mix-blend-mode:soft-light"></div>
       <div class="velo"></div>
       <div class="hero-int">
-        <div class="num meta" id="hero-kicker" style="color:rgba(247,241,232,.85);display:flex;align-items:center;justify-content:center;gap:14px">
+        <div class="num meta" id="hero-kicker" style="color:#f7f1e8;display:flex;align-items:center;justify-content:center;gap:14px">
           <span style="width:34px;height:1px;background:rgba(247,241,232,.5)"></span><span id="hero-hora"></span><span style="width:34px;height:1px;background:rgba(247,241,232,.5)"></span>
         </div>
         <h1 class="disp" id="hero-titulo"></h1>
@@ -298,6 +301,7 @@ const $ = (s) => document.querySelector(s);
 const money = (n) => '$' + n.toLocaleString('es-AR');
 const byId = Object.fromEntries(CAT.map((p) => [p.id, p]));
 const state = { momento:'noche', fam:'calidos', cart:0, subtotal:0 };
+let heroSeq = 0;
 
 function flames(n, size) {
   return [1,2,3].map((k) =>
@@ -339,13 +343,22 @@ function construirRiel() {
 }
 function pintarMomento() {
   const m = MOMENTOS.find((x) => x.k === state.momento);
-  // el hero cruza en fundido: se decodifica la foto nueva antes de mostrarla
-  const hero = $('#hero-img'), tmp = new Image();
-  tmp.src = m.img;
-  tmp.decode().then(() => {
-    hero.style.opacity = 0;
-    setTimeout(() => { hero.src = m.img; hero.style.opacity = 1; }, 150);
-  }).catch(() => { hero.src = m.img; });
+  // el hero cruza en fundido solo si la foto realmente cambia;
+  // el token descarta decodes viejos si el usuario clickea rápido
+  const hero = $('#hero-img');
+  if (!hero.src.endsWith(m.img)) {
+    const t = ++heroSeq, tmp = new Image();
+    tmp.onload = () => {
+      if (t !== heroSeq) return;
+      hero.style.opacity = 0;
+      setTimeout(() => {
+        if (t !== heroSeq) return;
+        hero.src = m.img; hero.style.opacity = 1;
+      }, 300);
+    };
+    tmp.onerror = () => { if (t === heroSeq) hero.src = m.img; };
+    tmp.src = m.img;
+  }
   $('#hero-hora').textContent = m.label.toUpperCase() + ' · ' + m.hora.toUpperCase();
   $('#hero-titulo').innerHTML = m.t1 + '<br><em style="font-weight:300">' + m.t2 + '</em>';
   $('#hero-texto').textContent = m.texto;
