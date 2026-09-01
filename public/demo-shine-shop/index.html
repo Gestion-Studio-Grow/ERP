@@ -132,20 +132,25 @@
   .pie { padding:0 56px 46px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; }
 
   @media (max-width:900px) {
-    html { scroll-padding-top:68px; }
+    html { scroll-padding-top:76px; }
     .shell { display:block; }
     .riel { position:sticky; top:0; height:auto; z-index:40; background:#f5eee4;
-            flex-direction:row; padding:10px 14px; gap:6px; overflow-x:auto;
-            border-right:0; border-bottom:1px solid var(--blush); scrollbar-width:none;
-            -webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);
-            mask-image:linear-gradient(90deg,#000 85%,transparent); }
-    .riel::-webkit-scrollbar { display:none; }
+            flex-direction:row; gap:6px;
+            padding:10px calc(14px + env(safe-area-inset-right)) 10px calc(14px + env(safe-area-inset-left));
+            border-right:0; border-bottom:1px solid var(--blush); }
     .riel .logo-riel { margin-right:10px; flex:none; }
-    #riel-momentos { flex-direction:row; flex:none; }
+    /* el scroller es el nav (sin fondo propio): la máscara desvanece solo los chips,
+       nunca el fondo ni el borde de la barra; el carrito queda siempre a la vista */
+    #riel-momentos { flex-direction:row; flex:1 1 auto; min-width:0; overflow-x:auto;
+            scrollbar-width:none;
+            -webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);
+            mask-image:linear-gradient(90deg,#000 88%,transparent); }
+    #riel-momentos::-webkit-scrollbar { display:none; }
     .mom { writing-mode:horizontal-tb; padding:12px 14px; letter-spacing:.14em; min-height:44px; flex:none; }
     #btn-carrito { margin-left:auto; }
     .riel .sep, .riel .eslogan-riel, .riel .relleno { display:none; }
-    .aviso { top:auto; bottom:calc(78px + env(safe-area-inset-bottom)); backdrop-filter:none;
+    .aviso { top:auto; bottom:calc(78px + env(safe-area-inset-bottom));
+             right:calc(14px + env(safe-area-inset-right)); backdrop-filter:none;
              -webkit-backdrop-filter:none; background:rgba(58,17,25,.94); }
     .hero { padding:48px 20px 170px; min-height:min(84svh,640px); }
     .hero img.fondo { filter:blur(6px) saturate(1.05); transform:scale(1.06); }
@@ -343,20 +348,25 @@ function construirRiel() {
 }
 function pintarMomento() {
   const m = MOMENTOS.find((x) => x.k === state.momento);
-  // el hero cruza en fundido solo si la foto realmente cambia;
-  // el token descarta decodes viejos si el usuario clickea rápido
-  const hero = $('#hero-img');
-  if (!hero.src.endsWith(m.img)) {
-    const t = ++heroSeq, tmp = new Image();
+  // el hero cruza en fundido solo si la foto realmente cambia; el token se emite
+  // SIEMPRE para invalidar cualquier carga en vuelo, aunque esta rama no cargue nada
+  const hero = $('#hero-img'), t = ++heroSeq;
+  const destino = new URL(m.img, location.href).href;
+  if (hero.src === destino) {
+    hero.style.opacity = 1;
+  } else if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    hero.src = destino; hero.style.opacity = 1;
+  } else {
+    const tmp = new Image();
     tmp.onload = () => {
       if (t !== heroSeq) return;
       hero.style.opacity = 0;
       setTimeout(() => {
         if (t !== heroSeq) return;
-        hero.src = m.img; hero.style.opacity = 1;
+        hero.src = destino; hero.style.opacity = 1;
       }, 300);
     };
-    tmp.onerror = () => { if (t === heroSeq) hero.src = m.img; };
+    // si la foto nueva falla, se conserva la actual: no se toca nada
     tmp.src = m.img;
   }
   $('#hero-hora').textContent = m.label.toUpperCase() + ' · ' + m.hora.toUpperCase();
