@@ -268,11 +268,11 @@ const DUO = { v1:['#ead7bc','#b98a5e'], v2:['#f1e5d4','#c9b296'], v3:['#f4e7d2',
   d1:['#ddcbb6','#8a6c52'], s1:['#f4e7d2','#dca96e'], t1:['#e7dfe8','#a89ab5'], v9:['#f1e5d4','#c9b296'] };
 const MOMENTOS = [
   { k:'manana', label:'Mañana', hora:'07 — 12 h', t1:'Que la casa', t2:'arranque liviana', img:'/tenants/shinevelas/mundo-decoracion.jpg',
-    alt:'Jarrones de cerámica clara con flores frescas y una vela encendida, a la luz de la mañana.',
+    alt:'Jarrones de cerámica clara con flores frescas y unas velas encendidas, a la luz de la mañana.',
     texto:'Con la ventana abierta y el mate hecho, la casa pide algo que se sienta limpio y no tape nada.',
     porque:'A esta hora conviene un aroma suave: la casa todavía está fría y cualquier cosa intensa se vuelve pesada.', ids:['v3','v5','t1'] },
   { k:'tarde', label:'Tarde', hora:'12 — 19 h', t1:'Que el día', t2:'se ordene', img:'/tenants/shinevelas/mundo-aromas.jpg',
-    alt:'Velas encendidas sobre mantas y toallas en tonos cálidos, en un ambiente sereno de tarde.',
+    alt:'Un frasco de vidrio con aceite ámbar y una hebra de humo, sobre una mesa de madera con ramas.',
     texto:'Las horas en que hay que concentrarse. Un aroma que acompañe sin distraer, y que dure toda la jornada.',
     porque:'Los amaderados sostienen el foco: son serenos, no dulces, y no cansan después de tres horas.', ids:['v6','v7','d1'] },
   { k:'noche', label:'Noche', hora:'19 — 00 h', t1:'Que el día', t2:'se termine', img:'/tenants/shinevelas/hero.jpg',
@@ -345,9 +345,9 @@ function pintarMomento() {
   const hero = $('#hero-img'), t = ++heroSeq;
   const destino = new URL(m.img, location.href).href;
   if (hero.src === destino) {
-    hero.style.opacity = 1;
+    hero.style.opacity = 1; hero.alt = m.alt;
   } else if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    hero.src = destino; hero.style.opacity = 1;
+    hero.src = destino; hero.alt = m.alt; hero.style.opacity = 1;
   } else {
     const tmp = new Image();
     tmp.onload = () => {
@@ -355,14 +355,13 @@ function pintarMomento() {
       hero.style.opacity = 0;
       setTimeout(() => {
         if (t !== heroSeq) return;
-        hero.src = destino; hero.style.opacity = 1;
+        hero.src = destino; hero.alt = m.alt; hero.style.opacity = 1;
       }, 300);
     };
-    // si la foto nueva falla, se conserva la actual y se restaura la opacidad
+    // si la foto nueva falla, se conservan la actual y su alt, y se restaura la opacidad
     tmp.onerror = () => { if (t === heroSeq) hero.style.opacity = 1; };
     tmp.src = m.img;
   }
-  hero.alt = m.alt;
   $('#hero-hora').textContent = m.label.toUpperCase() + ' · ' + m.hora.toUpperCase();
   $('#hero-titulo').innerHTML = m.t1 + '<br><em style="font-weight:300">' + m.t2 + '</em>';
   $('#hero-texto').textContent = m.texto;
