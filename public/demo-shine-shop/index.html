@@ -9,6 +9,8 @@
 <meta name="generator" content="Gestión Studio Grow">
 <link rel="icon" href="/tenants/shinevelas/brand/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="image" href="/tenants/shinevelas/hero.jpg" fetchpriority="high">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
 <style>
   :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d9d5; --nude:#d0aeac; --malva:#b88a89;
@@ -19,7 +21,7 @@
     background-image:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.26'/%3E%3C/svg%3E"),
       linear-gradient(180deg,#f7f1e9 0%,#f3ebe1 44%,#efe5da 100%);
-    background-size:120px 120px,auto; background-repeat:repeat,no-repeat; background-attachment:fixed;
+    background-size:120px 120px,auto; background-repeat:repeat,no-repeat;
     background-blend-mode:multiply,normal; }
   a { color:var(--vino); text-decoration:none; }
   button { font-family:inherit; }
@@ -42,7 +44,11 @@
   .hero { position:relative; overflow:hidden; min-height:min(92svh,820px); display:flex; flex-direction:column;
           align-items:center; justify-content:center; text-align:center; padding:70px 56px 200px; }
   .hero img.fondo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-          filter:saturate(.92) contrast(.97); transition:opacity .6s ease; }
+          filter:saturate(.94) contrast(1.01) blur(6px); transform:scale(1.1);
+          transition:opacity .6s ease; }
+  .hero .grano { position:absolute; inset:0; pointer-events:none; mix-blend-mode:overlay; opacity:.35;
+          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g2'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g2)' opacity='.5'/%3E%3C/svg%3E");
+          background-size:120px 120px; }
   .hero .velo { position:absolute; inset:0;
     background: radial-gradient(ellipse 72% 56% at 50% 44%, rgba(20,8,10,.34), transparent 74%),
       linear-gradient(180deg, rgba(20,8,10,.26), transparent 26%),
@@ -126,7 +132,8 @@
     .riel .logo-riel { margin-right:10px; }
     .mom { writing-mode:horizontal-tb; padding:10px 12px; letter-spacing:.14em; }
     .riel .sep, .riel .eslogan-riel, .riel .relleno { display:none; }
-    .hero { padding:56px 20px 180px; }
+    .hero { padding:56px 20px 180px; min-height:min(86svh,700px); }
+    .hero img.fondo { filter:saturate(.94) contrast(1.01) blur(4px); transform:scale(1.08); }
     .cards { margin:-120px 18px 0; }
     .cards-grid { grid-template-columns:1fr; }
     .filas { grid-template-columns:1fr; }
@@ -159,7 +166,8 @@
 
   <main>
     <section class="hero" id="hero">
-      <img class="fondo" id="hero-img" src="/tenants/shinevelas/hero.jpg" alt="">
+      <img class="fondo" id="hero-img" src="/tenants/shinevelas/hero.jpg" alt="" width="1024" height="576" fetchpriority="high" decoding="async">
+      <div class="grano" aria-hidden="true"></div>
       <div class="velo"></div>
       <div class="hero-int">
         <div class="num meta" id="hero-kicker" style="color:rgba(247,241,232,.85);display:flex;align-items:center;justify-content:center;gap:14px">
@@ -192,7 +200,7 @@
     </section>
 
     <section class="regalo">
-      <div class="foto"><img src="/tenants/shinevelas/gift.jpg" alt="Set de regalo Shine en su caja"></div>
+      <div class="foto"><img src="/tenants/shinevelas/gift.jpg" alt="Set de regalo Shine en su caja" width="886" height="665" loading="lazy" decoding="async"></div>
       <div class="lado" style="padding:66px 56px 62px">
         <div class="meta">Para otra casa</div>
         <h2 class="disp" style="font-size:clamp(36px,4.6vw,52px);color:var(--vino);margin:14px 0 0">Se arma, se envuelve, se manda</h2>
@@ -315,7 +323,7 @@ function pintarMomento() {
     const p = byId[id], d = DUO[id];
     return `<article class="card">
       <div class="visual">
-        <div><img src="${p.foto}" alt="${p.nombre}"></div>
+        <div><img src="${p.foto}" alt="${p.nombre}" width="886" height="665" loading="lazy" decoding="async"></div>
         <div class="col-notas" style="background:linear-gradient(180deg,${d[0]},${d[1]})">
           <div class="hr" style="top:33%"></div><div class="hr" style="top:66%"></div>
           <div class="l" style="top:5%"><b>Salida</b><span>${p.trio[0]}</span></div>
@@ -386,6 +394,9 @@ $('#sets').innerHTML = SETS.map((s) => `<div class="set-row">
 document.querySelectorAll('#sets [data-precio]').forEach((b) =>
   b.addEventListener('click', () => sumar(parseInt(b.dataset.precio, 10))));
 
+addEventListener('load', () => {
+  MOMENTOS.forEach((m) => { if (m.k !== state.momento) { const i = new Image(); i.src = m.img; } });
+});
 document.querySelector('#btn-carrito').addEventListener('click', () =>
   document.querySelector('#barra').scrollIntoView({ behavior: 'smooth' }));
 pintarMomento();
