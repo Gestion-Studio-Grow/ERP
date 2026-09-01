@@ -6,8 +6,22 @@
 </head>
 <body>
 <x-dc>
+<svg width="0" height="0" style="position: absolute" aria-hidden focusable="false"><defs>
+  <pattern id="trama-shine" width="200" height="200" patternUnits="userSpaceOnUse">
+    <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M30 16 C31.6 24 34 26.4 42 28 C34 29.6 31.6 32 30 40 C28.4 32 26 29.6 18 28 C26 26.4 28.4 24 30 16 Z" fill="currentColor" stroke="none"></path>
+      <g transform="translate(126,30)"><circle r="6.5"></circle><path d="M0-12.5V-18M0 12.5v5.5M-12.5 0h-5.5M12.5 0h5.5M-8.8-8.8l-3.9-3.9M8.8 8.8l3.9 3.9M8.8-8.8l3.9-3.9M-8.8 8.8l-3.9 3.9"></path><path d="M-6.3-15.6l-1.9-4.8M6.3-15.6l1.9-4.8M-15.6-6.3l-4.8-1.9M15.6-6.3l4.8-1.9M-15.6 6.3l-4.8 1.9M15.6 6.3l4.8 1.9M-6.3 15.6l-1.9 4.8M6.3 15.6l1.9 4.8"></path></g>
+      <g transform="translate(64,96)"><path d="M-15 4 h30 v24 a4 4 0 0 1 -4 4 h-22 a4 4 0 0 1 -4 -4 Z"></path><path d="M0 4V-3"></path><path d="M0-3 C4-7 5-11 4-15 C3-12 1-12 0-14 C-1-11 -3-10 -4-13 C-5-9 -4-6 0-3 Z"></path></g>
+      <path d="M170 88 C177 96 180 101 180 106 A10 10 0 0 1 160 106 C160 101 164 96 170 88 Z" fill="currentColor" stroke="none" opacity=".8"></path>
+      <g transform="translate(38,158)"><path d="M-11 4 h22 v17 a4 4 0 0 1 -4 4 h-14 a4 4 0 0 1 -4 -4 Z"></path><path d="M-6 4 V0 h12 v4"></path><path d="M-6 0 l-5-17M0 0 l0-19M6 0 l5-17"></path></g>
+      <path d="M132 150 C133.4 156 136 158.6 142 160 C136 161.4 133.4 164 132 170 C130.6 164 128 161.4 122 160 C128 158.6 130.6 156 132 150 Z" fill="currentColor" stroke="none"></path>
+      <g transform="translate(184,166)"><circle r="4.5"></circle><path d="M0-9V-13M0 9v4M-9 0h-4M9 0h4"></path></g>
+      <path d="M96 62 C97 66 99 68 103 69 C99 70 97 72 96 76 C95 72 93 70 89 69 C93 68 95 66 96 62 Z" fill="currentColor" stroke="none"></path>
+    </g>
+  </pattern>
+</defs></svg>
 <helmet>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
   <style>
     body { margin: 0; background: #f3ebe1; color: #3a2429;
            font-family: 'Kumbh Sans', system-ui, -apple-system, sans-serif;
@@ -15,28 +29,51 @@
     * { box-sizing: border-box; }
     a { color: #671128; text-decoration: none; }
     a:hover { color: #7e1a35; }
-    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; letter-spacing: .005em; line-height: 1.04; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .96; }
+    .llama-img { -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+                 mask: url(./flame-mask.png) center/contain no-repeat; }
     .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    /* ── ATMÓSFERA: el papel de Shine ──────────────────────────────────────
+       Ya no es un relleno plano. Tres capas: un degradado tonal cálido con la
+       luz entrando desde arriba a la izquierda (la marca ES la luz), un grano
+       finísimo que le da tacto de papel, y la TRAMA OFICIAL del manual (pág. 15)
+       como recurso de fondo, sólo en los bordes de cada banda y nunca detrás
+       del texto que hay que leer. */
+    .paper { position: relative;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.26'/%3E%3C/svg%3E"),
+        radial-gradient(116% 74% at 8% -12%, #fdf9f2 0%, rgba(253,249,242,0) 54%),
+        radial-gradient(84% 56% at 92% 0%, #f9f0e6 0%, rgba(249,240,230,0) 58%),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 44%, #efe5da 100%);
+      background-size: 120px 120px, auto, auto, auto;
+      background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+      background-blend-mode: multiply, normal, normal, normal; }
+    .capa { position: absolute; inset: 0; pointer-events: none; }
+    .trama-borde { color: #b88a89; opacity: .075;
+      -webkit-mask-image: linear-gradient(90deg, #000 0, transparent 22%, transparent 78%, #000 100%);
+      mask-image: linear-gradient(90deg, #000 0, transparent 22%, transparent 78%, #000 100%); }
+    .trama-suave { color: #b88a89; opacity: .05; }
+    .sobre { position: relative; z-index: 1; }
     .flame { display: inline-block; flex: none;
              -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
              mask: url(./flame-mask.png) center/contain no-repeat; }
-    .trama { background-image: radial-gradient(circle at 50% 50%, rgba(131,92,91,.16) 1.1px, transparent 1.2px);
-             background-size: 14px 14px; }
     .lbl { font-size: 10.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: #835c5b; }
-    .panel { background: #fdf8f2; border: 1px solid #e8d9d5; border-radius: 16px; padding: 24px 26px; }
+    .panel { background: rgba(253,248,242,.78); border: 1px solid #e8d9d5; border-radius: 16px; padding: 24px 26px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; letter-spacing: .01em; }
   </style>
 </helmet>
 
-<div style="min-height: 100%; background: #f3ebe1; padding: 46px 48px 52px;">
+<div class="paper" style="min-height: 100%; padding: 46px 48px 52px;">
 
   <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; padding-bottom: 26px; border-bottom: 1px solid #e8d9d5;">
     <div>
       <div style="font-weight: 600; font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #671128;">Shop de Shine · sistema</div>
-      <h1 class="disp" style="font-size: 46px; color: #671128; margin: 14px 0 0; font-weight: 500;">Las piezas con las que está hecho</h1>
+      <h1 class="disp" style="font-size: 56px; color: #671128; margin: 16px 0 0;">Las piezas con las que está hecho</h1>
       <p style="margin: 12px 0 0; font-size: 15px; color: #835c5b; max-width: 72ch; line-height: 1.6;">
         Todo sale del manual de marca 2026 y de los tokens que ya corre la vidriera en producción.
-        No hay ningún color, radio ni tipografía inventada para esta tienda.
+        No hay ningún color, radio ni tipografía inventada para esta tienda: lo que se agregó
+        —el papel con grano, la trama oficial y la llama como contenedor de imagen— también
+        estaba en el manual, sin usar.
       </p>
     </div>
     <img src="logo.png" alt="Shine" style="height: 42px; width: auto; display: block;">
@@ -200,8 +237,9 @@
     <div class="lbl">La tarjeta de producto, pieza por pieza</div>
     <div style="display: grid; grid-template-columns: 268px minmax(0, 1fr); gap: 38px; margin-top: 20px; align-items: start;">
       <div style="background: #f3ebe1; border: 1px solid #e8d9d5; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column;">
-        <div class="trama" style="position: relative; aspect-ratio: 1/1; display: grid; place-items: center; background: radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1);">
-          <span class="flame" style="width: 44px; height: 75px; background: #b88a89; opacity: .9;"></span>
+        <div style="position: relative; aspect-ratio: 1/1; display: grid; place-items: center; overflow: hidden; background: linear-gradient(166deg, #f7ede1 0%, #ecd9c7 100%);">
+          <svg class="capa trama-suave" style="color: #b88a89;" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
+          <svg viewBox="-6 -6 112 112" style="position: relative; width: 58%; color: #b88a89;" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden><g stroke-linecap="round" stroke-linejoin="round"><path d="M22 44 h56 v42 a10 10 0 0 1 -10 10 h-36 a10 10 0 0 1 -10 -10 Z"></path><path d="M50 44 V30"></path><path d="M50 30 C61 20 65 9 61 -2 C58 6 52 7 50 2 C47 9 41 11 39 4 C35 14 39 23 50 30 Z"></path></g></svg>
           <div style="position: absolute; left: 14px; top: 14px; font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #835c5b; background: rgba(253,248,242,.86); padding: 5px 10px; border-radius: 999px;">Vela</div>
           <div style="position: absolute; right: 14px; top: 14px; font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #f3ebe1; background: #671128; padding: 5px 10px; border-radius: 999px;">Temporada</div>
         </div>
@@ -239,10 +277,53 @@
           <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Tres llamas y las horas que rinde. Dato duro que baja las devoluciones y las preguntas por WhatsApp.</div>
         </div>
         <div>
-          <div style="font-size: 14.5px; font-weight: 600; color: #671128;">La foto llega después</div>
-          <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Hoy la tarjeta se sostiene con la llama y el tinte. Cuando haya foto de cada producto, entra en el mismo cuadro sin tocar nada más.</div>
+          <div style="font-size: 14.5px; font-weight: 600; color: #671128;">El ícono dice el formato</div>
+          <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Vela, difusor, sahumerio o textil: cada uno con su motivo del manual. Cuando haya foto de cada producto, entra en el mismo cuadro sin tocar nada más.</div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- El fondo, explicado -->
+  <div class="panel" style="margin-top: 26px;">
+    <div class="lbl">El fondo — tres capas, ninguna decorativa porque sí</div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; margin-top: 20px;">
+      <div>
+        <div style="height: 130px; border-radius: 12px; border: 1px solid #e8d9d5; background: linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 44%, #efe5da 100%);"></div>
+        <div style="margin-top: 12px; font-size: 14.5px; font-weight: 600; color: #671128;">1 · El papel</div>
+        <div style="margin-top: 6px; font-size: 13px; color: #835c5b; line-height: 1.6;">Ya no es un relleno plano: un degradado tonal cálido con la luz entrando por arriba a la izquierda. La marca ES la luz, el fondo lo dice.</div>
+      </div>
+      <div>
+        <div class="paper" style="height: 130px; border-radius: 12px; border: 1px solid #e8d9d5;"></div>
+        <div style="margin-top: 12px; font-size: 14.5px; font-weight: 600; color: #671128;">2 · El grano</div>
+        <div style="margin-top: 6px; font-size: 13px; color: #835c5b; line-height: 1.6;">Una textura finísima encima. No se ve, se siente: es lo que separa un papel de un rectángulo de color.</div>
+      </div>
+      <div>
+        <div style="position: relative; height: 130px; border-radius: 12px; border: 1px solid #e8d9d5; overflow: hidden; background: #f3ebe1;">
+          <svg class="capa" style="color: #b88a89; opacity: .3;" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
+        </div>
+        <div style="margin-top: 12px; font-size: 14.5px; font-weight: 600; color: #671128;">3 · La trama</div>
+        <div style="margin-top: 6px; font-size: 13px; color: #835c5b; line-height: 1.6;">Los íconos del manual (pág. 15) redibujados en vector. Va al 7 %, sólo en los bordes de cada banda y nunca detrás del texto. Acá está al 30 % para que se vea.</div>
+      </div>
+      <div>
+        <div class="llama-img" style="height: 130px;">
+          <img src="hero.jpg" alt="La foto recortada dentro del isotipo de Shine" style="width: 100%; height: 100%; object-fit: cover;">
+        </div>
+        <div style="margin-top: 12px; font-size: 14.5px; font-weight: 600; color: #671128;">4 · La llama como marco</div>
+        <div style="margin-top: 6px; font-size: 13px; color: #835c5b; line-height: 1.6;">La foto vive adentro del isotipo. Es el recurso que ninguna otra marca de velas puede copiar, porque la forma es de Shine.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Los motivos por formato -->
+  <div class="panel" style="margin-top: 26px;">
+    <div class="lbl">Un ícono por formato — así la grilla no repite la misma silueta</div>
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; margin-top: 20px;">
+      <div style="text-align: center;"><div style="height: 116px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(166deg, #f7ede1 0%, #ecd9c7 100%);"><svg viewBox="-6 -6 112 112" style="width: 62%; color: #b88a89;" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden><g stroke-linecap="round" stroke-linejoin="round"><path d="M22 44 h56 v42 a10 10 0 0 1 -10 10 h-36 a10 10 0 0 1 -10 -10 Z"></path><path d="M50 44 V30"></path><path d="M50 30 C61 20 65 9 61 -2 C58 6 52 7 50 2 C47 9 41 11 39 4 C35 14 39 23 50 30 Z"></path></g></svg></div><div style="margin-top: 10px; font-size: 12.5px; color: #835c5b;">Vela</div></div>
+      <div style="text-align: center;"><div style="height: 116px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(166deg, #f7ede1 0%, #ecd9c7 100%);"><svg viewBox="-6 -6 112 112" style="width: 62%; color: #b88a89;" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden><g stroke-linecap="round" stroke-linejoin="round"><path d="M12 46 h76 v40 a11 11 0 0 1 -11 11 h-54 a11 11 0 0 1 -11 -11 Z"></path><path d="M34 46 V34M66 46 V34"></path><path d="M34 34 C43 26 46 17 43 8 C40 14 36 15 34 11 C32 16 27 18 25 12 C22 20 25 28 34 34 Z"></path><path d="M66 34 C75 26 78 17 75 8 C72 14 68 15 66 11 C64 16 59 18 57 12 C54 20 57 28 66 34 Z"></path></g></svg></div><div style="margin-top: 10px; font-size: 12.5px; color: #835c5b;">Vela grande</div></div>
+      <div style="text-align: center;"><div style="height: 116px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(166deg, #eee4d6 0%, #d6c3b2 100%);"><svg viewBox="-6 -6 112 112" style="width: 62%; color: #835c5b;" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden><g stroke-linecap="round" stroke-linejoin="round"><path d="M27 52 h46 v34 a10 10 0 0 1 -10 10 h-26 a10 10 0 0 1 -10 -10 Z"></path><path d="M38 52 V42 h24 v10"></path><path d="M38 42 L24 2M50 42 L50 -2M62 42 L76 2"></path></g></svg></div><div style="margin-top: 10px; font-size: 12.5px; color: #835c5b;">Difusor</div></div>
+      <div style="text-align: center;"><div style="height: 116px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(166deg, #fdf4f0 0%, #f0dcd9 100%);"><svg viewBox="-6 -6 112 112" style="width: 62%; color: #c9979a;" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden><g stroke-linecap="round" stroke-linejoin="round"><path d="M34 96 h32"></path><path d="M40 96 L36 34M50 96 L50 30M60 96 L64 34"></path><path d="M36 26 C29 18 34 12 30 4M50 22 C43 14 48 8 44 0M64 26 C57 18 62 12 58 4"></path></g></svg></div><div style="margin-top: 10px; font-size: 12.5px; color: #835c5b;">Sahumerio</div></div>
+      <div style="text-align: center;"><div style="height: 116px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(166deg, #fdf4f0 0%, #f0dcd9 100%);"><svg viewBox="-6 -6 112 112" style="width: 62%; color: #c9979a;" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden><g stroke-linecap="round" stroke-linejoin="round"><path d="M32 48 h36 v38 a10 10 0 0 1 -10 10 h-16 a10 10 0 0 1 -10 -10 Z"></path><path d="M42 48 V34 h16 v14"></path><path d="M58 40 h12 v-12"></path><path d="M76 22 h2M84 16 h2M78 32 h2M88 26 h2"></path></g></svg></div><div style="margin-top: 10px; font-size: 12.5px; color: #835c5b;">Textil</div></div>
     </div>
   </div>
 

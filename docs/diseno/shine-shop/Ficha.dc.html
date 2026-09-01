@@ -6,8 +6,22 @@
 </head>
 <body>
 <x-dc>
+<svg width="0" height="0" style="position: absolute" aria-hidden focusable="false"><defs>
+  <pattern id="trama-shine" width="200" height="200" patternUnits="userSpaceOnUse">
+    <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M30 16 C31.6 24 34 26.4 42 28 C34 29.6 31.6 32 30 40 C28.4 32 26 29.6 18 28 C26 26.4 28.4 24 30 16 Z" fill="currentColor" stroke="none"></path>
+      <g transform="translate(126,30)"><circle r="6.5"></circle><path d="M0-12.5V-18M0 12.5v5.5M-12.5 0h-5.5M12.5 0h5.5M-8.8-8.8l-3.9-3.9M8.8 8.8l3.9 3.9M8.8-8.8l3.9-3.9M-8.8 8.8l-3.9 3.9"></path><path d="M-6.3-15.6l-1.9-4.8M6.3-15.6l1.9-4.8M-15.6-6.3l-4.8-1.9M15.6-6.3l4.8-1.9M-15.6 6.3l-4.8 1.9M15.6 6.3l4.8 1.9M-6.3 15.6l-1.9 4.8M6.3 15.6l1.9 4.8"></path></g>
+      <g transform="translate(64,96)"><path d="M-15 4 h30 v24 a4 4 0 0 1 -4 4 h-22 a4 4 0 0 1 -4 -4 Z"></path><path d="M0 4V-3"></path><path d="M0-3 C4-7 5-11 4-15 C3-12 1-12 0-14 C-1-11 -3-10 -4-13 C-5-9 -4-6 0-3 Z"></path></g>
+      <path d="M170 88 C177 96 180 101 180 106 A10 10 0 0 1 160 106 C160 101 164 96 170 88 Z" fill="currentColor" stroke="none" opacity=".8"></path>
+      <g transform="translate(38,158)"><path d="M-11 4 h22 v17 a4 4 0 0 1 -4 4 h-14 a4 4 0 0 1 -4 -4 Z"></path><path d="M-6 4 V0 h12 v4"></path><path d="M-6 0 l-5-17M0 0 l0-19M6 0 l5-17"></path></g>
+      <path d="M132 150 C133.4 156 136 158.6 142 160 C136 161.4 133.4 164 132 170 C130.6 164 128 161.4 122 160 C128 158.6 130.6 156 132 150 Z" fill="currentColor" stroke="none"></path>
+      <g transform="translate(184,166)"><circle r="4.5"></circle><path d="M0-9V-13M0 9v4M-9 0h-4M9 0h4"></path></g>
+      <path d="M96 62 C97 66 99 68 103 69 C99 70 97 72 96 76 C95 72 93 70 89 69 C93 68 95 66 96 62 Z" fill="currentColor" stroke="none"></path>
+    </g>
+  </pattern>
+</defs></svg>
 <helmet>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
   <style>
     body { margin: 0; background: #f3ebe1; color: #3a2429;
            font-family: 'Kumbh Sans', system-ui, -apple-system, sans-serif;
@@ -15,13 +29,36 @@
     * { box-sizing: border-box; }
     a { color: #671128; text-decoration: none; }
     a:hover { color: #7e1a35; }
-    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; letter-spacing: .005em; line-height: 1.02; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .96; }
+    .llama-img { -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+                 mask: url(./flame-mask.png) center/contain no-repeat; }
+    .meta { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .col { position: absolute; top: 0; bottom: 0; width: 1px; background: #e4d7d0; }
     .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    /* ── ATMÓSFERA: el papel de Shine ──────────────────────────────────────
+       Ya no es un relleno plano. Tres capas: un degradado tonal cálido con la
+       luz entrando desde arriba a la izquierda (la marca ES la luz), un grano
+       finísimo que le da tacto de papel, y la TRAMA OFICIAL del manual (pág. 15)
+       como recurso de fondo, sólo en los bordes de cada banda y nunca detrás
+       del texto que hay que leer. */
+    .paper { position: relative;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.26'/%3E%3C/svg%3E"),
+        radial-gradient(116% 74% at 8% -12%, #fdf9f2 0%, rgba(253,249,242,0) 54%),
+        radial-gradient(84% 56% at 92% 0%, #f9f0e6 0%, rgba(249,240,230,0) 58%),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 44%, #efe5da 100%);
+      background-size: 120px 120px, auto, auto, auto;
+      background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+      background-blend-mode: multiply, normal, normal, normal; }
+    .capa { position: absolute; inset: 0; pointer-events: none; }
+    .trama-borde { color: #b88a89; opacity: .075;
+      -webkit-mask-image: linear-gradient(90deg, #000 0, transparent 22%, transparent 78%, #000 100%);
+      mask-image: linear-gradient(90deg, #000 0, transparent 22%, transparent 78%, #000 100%); }
+    .trama-suave { color: #b88a89; opacity: .05; }
+    .sobre { position: relative; z-index: 1; }
     .flame { display: inline-block; flex: none;
              -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
              mask: url(./flame-mask.png) center/contain no-repeat; }
-    .trama { background-image: radial-gradient(circle at 50% 50%, rgba(131,92,91,.16) 1.1px, transparent 1.2px);
-             background-size: 14px 14px; }
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px;
            font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: .08em;
            padding: 14px 26px; min-height: 48px; border-radius: 999px; border: 1px solid transparent;
@@ -39,10 +76,10 @@
   </style>
 </helmet>
 
-<div style="min-height: 100%; background: #f3ebe1;">
+<div class="paper" style="min-height: 100%;">
 
   <!-- ══ TOP BAR ══ -->
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 80px; background: #f3ebe1; border-bottom: 1px solid #e8d9d5;">
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 80px; border-bottom: 1px solid #e8d9d5;">
     <div style="display: flex; align-items: center; gap: 10px;">
       <img src="logo.png" alt="Shine" style="height: 34px; width: auto; display: block;">
       <small style="font-size: 9.5px; letter-spacing: .24em; color: #835c5b; text-transform: uppercase;">velas · aromas · deco</small>
@@ -67,29 +104,29 @@
   </div>
 
   <!-- ══ FICHA ══ -->
-  <div style="display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr); gap: 56px; padding: 30px 80px 62px; align-items: start;">
+  <div style="display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr); gap: 60px; padding: 30px 80px 72px; align-items: start;">
 
     <!-- Visual -->
-    <div>
-      <div style="position: relative; aspect-ratio: 4/5; border-radius: 18px; overflow: hidden; background: #e8d9d5; box-shadow: 0 18px 46px -22px rgba(103,17,40,.32);">
-        <img src="hero.jpg" alt="Vela de soja Vainilla y canela encendida" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
-        <div style="position: absolute; left: 20px; top: 20px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(253,248,242,.92); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #671128;">
+    <div style="position: relative; margin-left: -80px;">
+      <div style="position: relative; height: 760px; overflow: hidden; background: #e8d9d5;">
+        <img src="hero.jpg" alt="Vela de soja Vainilla y canela encendida" style="width: 100%; height: 100%; object-fit: cover;">
+        <div style="position: absolute; left: 100px; top: 26px; display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border-radius: 999px; background: rgba(253,248,242,.92); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #671128;">
           <span class="flame" style="width: 10px; height: 17px; background: #671128;"></span>
           Cálidos y dulces
         </div>
       </div>
-      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px;">
-        <div style="position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 2px solid #671128;">
-          <img src="hero.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+      <div style="display: flex; gap: 12px; margin: 12px 0 0 80px;">
+        <div style="position: relative; width: 118px; height: 118px; overflow: hidden; border: 2px solid #671128;">
+          <img src="hero.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
-        <div style="position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 1px solid #e8d9d5;">
-          <img src="mundo-velas.jpg" alt="Detalle de la cera y la mecha de algodón" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+        <div style="position: relative; width: 118px; height: 118px; overflow: hidden; border: 1px solid #e8d9d5;">
+          <img src="mundo-velas.jpg" alt="Detalle de la cera y la mecha de algodón" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
-        <div style="position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 1px solid #e8d9d5;">
-          <img src="ambiance.jpg" alt="La vela encendida en el ambiente" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+        <div style="position: relative; width: 118px; height: 118px; overflow: hidden; border: 1px solid #e8d9d5;">
+          <img src="ambiance.jpg" alt="La vela encendida en el ambiente" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
-        <div class="trama" style="position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 1px solid #e8d9d5; display: grid; place-items: center; background: radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1);">
-          <span class="flame" style="width: 22px; height: 38px; background: #b88a89;"></span>
+        <div class="llama-img" style="width: 118px; height: 118px;">
+          <img src="mundo-aromas.jpg" alt="El aroma en el ambiente" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
       </div>
     </div>
@@ -97,7 +134,7 @@
     <!-- Datos -->
     <div style="padding-top: 6px;">
       <div class="eyebrow">Vela de soja · 220 g</div>
-      <h1 class="disp" style="font-size: 54px; color: {{accent}}; margin: 14px 0 0; font-weight: 500; line-height: 1.04;">Vainilla y canela</h1>
+      <h1 class="disp" style="font-size: 72px; color: {{accent}}; margin: 16px 0 0;">Vainilla y canela</h1>
       <p style="margin: 16px 0 0; font-size: 17px; line-height: 1.62; color: #3a2429; max-width: 46ch;">
         Huele a cocina un domingo a la tarde, cuando algo se está horneando y todavía no
         sabés qué. Dulce, tibia, sin empalagar.
@@ -109,7 +146,7 @@
       </div>
 
       <!-- Pirámide olfativa -->
-      <div style="margin-top: 28px; border: 1px solid #e8d9d5; border-radius: 16px; background: #fdf8f2; overflow: hidden;">
+      <div style="margin-top: 28px; border: 1px solid #e8d9d5; border-radius: 16px; background: rgba(253,248,242,.8); overflow: hidden;">
         <div style="padding: 16px 22px; border-bottom: 1px solid #e8d9d5; font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #671128;">Cómo se abre el aroma</div>
         <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));">
           <div style="padding: 20px 22px; border-right: 1px solid #e8d9d5;">
@@ -132,7 +169,7 @@
 
       <!-- Datos duros -->
       <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px;">
-        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: #fdf8f2;">
+        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: rgba(253,248,242,.8);">
           <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #835c5b;">Intensidad</div>
           <div style="display: flex; align-items: center; gap: 6px; margin-top: 10px;">
             <span class="flame" style="width: 11px; height: 19px; background: #671128;"></span>
@@ -141,11 +178,11 @@
             <span style="font-size: 13px; color: #3a2429; font-weight: 600; margin-left: 4px;">Intensa</span>
           </div>
         </div>
-        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: #fdf8f2;">
+        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: rgba(253,248,242,.8);">
           <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #835c5b;">Dura</div>
           <div class="num" style="font-size: 20px; color: #3a2429; font-weight: 600; margin-top: 8px;">45 h</div>
         </div>
-        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: #fdf8f2;">
+        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: rgba(253,248,242,.8);">
           <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #835c5b;">Ambienta</div>
           <div class="num" style="font-size: 20px; color: #3a2429; font-weight: 600; margin-top: 8px;">hasta 20 m²</div>
         </div>
@@ -177,7 +214,7 @@
   </div>
 
   <!-- ══ CUIDADO ══ -->
-  <div style="background: #fdf8f2; border-top: 1px solid #e8d9d5; border-bottom: 1px solid #e8d9d5; padding: 54px 80px;">
+  <div style="border-top: 1px solid #e8d9d5; border-bottom: 1px solid #e8d9d5; padding: 60px 80px;">
     <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 26px;">
       <span style="height: 1px; flex: 0 0 46px; background: #d0aeac;"></span>
       <h2 class="disp" style="font-size: 32px; color: {{accent}}; font-weight: 500; margin: 0;">Para que rinda las 45 horas</h2>
@@ -215,9 +252,10 @@
     </div>
     <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px;">
       <sc-for list="{{cross}}" as="x" hint-placeholder-count="4">
-        <div class="xcard" style="background: #fdf8f2; border: 1px solid #e8d9d5; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: .25s;">
-          <div class="trama" style="position: relative; aspect-ratio: 4/3; display: grid; place-items: center; background: {{x.wash}};">
-            <span class="flame" style="width: 34px; height: 58px; background: {{x.tint}}; opacity: .9;"></span>
+        <div class="xcard" style="background: rgba(253,248,242,.86); border: 1px solid #e8d9d5; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: .25s;">
+          <div style="position: relative; aspect-ratio: 4/3; display: grid; place-items: center; overflow: hidden; background: {{x.wash}};">
+            <svg class="capa trama-suave" style="color: {{x.tint}};" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
+            <span class="flame" style="position: relative; width: 34px; height: 58px; background: {{x.tint}}; opacity: .9;"></span>
             <sc-if value="{{x.isIdea}}" hint-placeholder-val="{{true}}">
               <div style="position: absolute; right: 12px; top: 12px; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #f3ebe1; background: #835c5b; padding: 5px 10px; border-radius: 999px;">A proponer</div>
             </sc-if>
@@ -237,7 +275,7 @@
 
   <!-- ══ RESEÑAS (honestas: todavía no hay) ══ -->
   <div style="padding: 0 80px 62px;">
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30px; align-items: center; padding: 34px 38px; border: 1px dashed #d0aeac; border-radius: 18px; background: #fdf8f2;">
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30px; align-items: center; padding: 34px 38px; border: 1px dashed #d0aeac; border-radius: 18px; background: rgba(253,248,242,.7);">
       <div>
         <div class="eyebrow">Reseñas</div>
         <div class="disp" style="font-size: 27px; color: #671128; margin-top: 12px;">Todavía no publicamos reseñas de esta vela</div>
@@ -272,10 +310,10 @@ class Component extends DCLogic {
     const free = 25000;
 
     const crossDefs = [
-      { name: 'Difusor Vainilla y canela', why: 'La misma fragancia, encendida todo el mes.', price: 14900, tint: '#b88a89', wash: 'radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1)', isIdea: false },
-      { name: 'Fósforos largos', why: 'Para encenderla sin quemarte los dedos.', price: 3900, tint: '#835c5b', wash: 'radial-gradient(64% 58% at 50% 44%, #eadfd8, #ddcbc4 68%, #cdb5ae)', isIdea: false },
-      { name: 'Portavela de cerámica', why: 'Le da base y protege la mesa.', price: 9900, tint: '#d0aeac', wash: 'radial-gradient(64% 58% at 50% 44%, #fdf3ee, #f0e0dc 68%, #e3cdc9)', isIdea: false },
-      { name: 'Trío para descubrir · 3 minis', why: 'Un cálido, un floral y un amaderado para probar antes de elegir.', price: 9900, tint: '#671128', wash: 'radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e3cdc9 68%, #d0aeac)', isIdea: true }
+      { name: 'Difusor Vainilla y canela', why: 'La misma fragancia, encendida todo el mes.', price: 14900, tint: '#b88a89', wash: 'linear-gradient(166deg, #f7ede1 0%, #ecd9c7 100%)', isIdea: false },
+      { name: 'Fósforos largos', why: 'Para encenderla sin quemarte los dedos.', price: 3900, tint: '#835c5b', wash: 'linear-gradient(166deg, #eee4d6 0%, #d6c3b2 100%)', isIdea: false },
+      { name: 'Portavela de cerámica', why: 'Le da base y protege la mesa.', price: 9900, tint: '#c9979a', wash: 'linear-gradient(166deg, #fdf4f0 0%, #f0dcd9 100%)', isIdea: false },
+      { name: 'Trío para descubrir · 3 minis', why: 'Un cálido, un floral y un amaderado para probar antes de elegir.', price: 9900, tint: '#671128', wash: 'linear-gradient(166deg, #f6e9e3 0%, #e0c8c3 100%)', isIdea: true }
     ];
 
     return {

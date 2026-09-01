@@ -6,8 +6,22 @@
 </head>
 <body>
 <x-dc>
+<svg width="0" height="0" style="position: absolute" aria-hidden focusable="false"><defs>
+  <pattern id="trama-shine" width="200" height="200" patternUnits="userSpaceOnUse">
+    <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M30 16 C31.6 24 34 26.4 42 28 C34 29.6 31.6 32 30 40 C28.4 32 26 29.6 18 28 C26 26.4 28.4 24 30 16 Z" fill="currentColor" stroke="none"></path>
+      <g transform="translate(126,30)"><circle r="6.5"></circle><path d="M0-12.5V-18M0 12.5v5.5M-12.5 0h-5.5M12.5 0h5.5M-8.8-8.8l-3.9-3.9M8.8 8.8l3.9 3.9M8.8-8.8l3.9-3.9M-8.8 8.8l-3.9 3.9"></path><path d="M-6.3-15.6l-1.9-4.8M6.3-15.6l1.9-4.8M-15.6-6.3l-4.8-1.9M15.6-6.3l4.8-1.9M-15.6 6.3l-4.8 1.9M15.6 6.3l4.8 1.9M-6.3 15.6l-1.9 4.8M6.3 15.6l1.9 4.8"></path></g>
+      <g transform="translate(64,96)"><path d="M-15 4 h30 v24 a4 4 0 0 1 -4 4 h-22 a4 4 0 0 1 -4 -4 Z"></path><path d="M0 4V-3"></path><path d="M0-3 C4-7 5-11 4-15 C3-12 1-12 0-14 C-1-11 -3-10 -4-13 C-5-9 -4-6 0-3 Z"></path></g>
+      <path d="M170 88 C177 96 180 101 180 106 A10 10 0 0 1 160 106 C160 101 164 96 170 88 Z" fill="currentColor" stroke="none" opacity=".8"></path>
+      <g transform="translate(38,158)"><path d="M-11 4 h22 v17 a4 4 0 0 1 -4 4 h-14 a4 4 0 0 1 -4 -4 Z"></path><path d="M-6 4 V0 h12 v4"></path><path d="M-6 0 l-5-17M0 0 l0-19M6 0 l5-17"></path></g>
+      <path d="M132 150 C133.4 156 136 158.6 142 160 C136 161.4 133.4 164 132 170 C130.6 164 128 161.4 122 160 C128 158.6 130.6 156 132 150 Z" fill="currentColor" stroke="none"></path>
+      <g transform="translate(184,166)"><circle r="4.5"></circle><path d="M0-9V-13M0 9v4M-9 0h-4M9 0h4"></path></g>
+      <path d="M96 62 C97 66 99 68 103 69 C99 70 97 72 96 76 C95 72 93 70 89 69 C93 68 95 66 96 62 Z" fill="currentColor" stroke="none"></path>
+    </g>
+  </pattern>
+</defs></svg>
 <helmet>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
   <style>
     body { margin: 0; background: #fdf8f2; color: #3a2429;
            font-family: 'Kumbh Sans', system-ui, -apple-system, sans-serif;
@@ -15,13 +29,32 @@
     * { box-sizing: border-box; }
     a { color: #671128; text-decoration: none; }
     a:hover { color: #7e1a35; }
-    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; letter-spacing: .005em; line-height: 1.04; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .98; }
     .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    /* ── ATMÓSFERA: el papel de Shine ──────────────────────────────────────
+       Ya no es un relleno plano. Tres capas: un degradado tonal cálido con la
+       luz entrando desde arriba a la izquierda (la marca ES la luz), un grano
+       finísimo que le da tacto de papel, y la TRAMA OFICIAL del manual (pág. 15)
+       como recurso de fondo, sólo en los bordes de cada banda y nunca detrás
+       del texto que hay que leer. */
+    .paper { position: relative;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.26'/%3E%3C/svg%3E"),
+        radial-gradient(116% 74% at 8% -12%, #fdf9f2 0%, rgba(253,249,242,0) 54%),
+        radial-gradient(84% 56% at 92% 0%, #f9f0e6 0%, rgba(249,240,230,0) 58%),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 44%, #efe5da 100%);
+      background-size: 120px 120px, auto, auto, auto;
+      background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+      background-blend-mode: multiply, normal, normal, normal; }
+    .capa { position: absolute; inset: 0; pointer-events: none; }
+    .trama-borde { color: #b88a89; opacity: .075;
+      -webkit-mask-image: linear-gradient(90deg, #000 0, transparent 22%, transparent 78%, #000 100%);
+      mask-image: linear-gradient(90deg, #000 0, transparent 22%, transparent 78%, #000 100%); }
+    .trama-suave { color: #b88a89; opacity: .05; }
+    .sobre { position: relative; z-index: 1; }
     .flame { display: inline-block; flex: none;
              -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
              mask: url(./flame-mask.png) center/contain no-repeat; }
-    .trama { background-image: radial-gradient(circle at 50% 50%, rgba(131,92,91,.16) 1.1px, transparent 1.2px);
-             background-size: 11px 11px; }
     .step { width: 36px; height: 36px; border-radius: 10px; border: 1px solid #d0aeac; background: #f3ebe1;
             color: #671128; cursor: pointer; font-size: 17px; line-height: 1; display: grid; place-items: center;
             transition: .15s; font-family: 'Kumbh Sans', sans-serif; }
@@ -29,7 +62,7 @@
   </style>
 </helmet>
 
-<div style="min-height: 100%; background: #fdf8f2; display: flex; flex-direction: column;">
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
 
   <!-- Cabecera del panel -->
   <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 26px; border-bottom: 1px solid #e8d9d5;">
@@ -46,7 +79,7 @@
   </div>
 
   <!-- Barra de envío gratis -->
-  <div style="padding: 18px 26px; background: #f3ebe1; border-bottom: 1px solid #e8d9d5;">
+  <div style="padding: 18px 26px; background: rgba(232,217,213,.4); border-bottom: 1px solid #e8d9d5;">
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
       <span style="font-size: 13px; color: #835c5b;">{{shipLine}}</span>
       <span class="num" style="font-size: 12px; color: #835c5b;">{{pctLabel}}</span>
@@ -60,8 +93,9 @@
   <div style="flex: 1; padding: 8px 26px 0;">
     <sc-for list="{{lines}}" as="l" hint-placeholder-count="3">
       <div style="display: flex; gap: 15px; padding: 18px 0; border-bottom: 1px solid #e8d9d5;">
-        <div class="trama" style="width: 74px; height: 74px; flex: none; border-radius: 12px; display: grid; place-items: center; background: {{l.wash}};">
-          <span class="flame" style="width: 22px; height: 38px; background: {{l.tint}}; opacity: .9;"></span>
+        <div style="position: relative; width: 74px; height: 74px; flex: none; border-radius: 12px; overflow: hidden; display: grid; place-items: center; background: {{l.wash}};">
+          <svg class="capa trama-suave" style="color: {{l.tint}};" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
+          <span class="flame" style="position: relative; width: 22px; height: 38px; background: {{l.tint}}; opacity: .9;"></span>
         </div>
         <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
           <div>
@@ -135,9 +169,9 @@ class Component extends DCLogic {
 
   items() {
     return [
-      { id: 'v1', name: 'Vainilla y canela', notes: 'Vela de soja 220 g · 45 h', price: 12900, tint: '#b88a89', wash: 'radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1)' },
-      { id: 'v6', name: 'Sándalo', notes: 'Vela de soja 220 g · 50 h', price: 13900, tint: '#835c5b', wash: 'radial-gradient(64% 58% at 50% 44%, #eadfd8, #ddcbc4 68%, #cdb5ae)' },
-      { id: 's1', name: 'Sahumerios Flor de naranjo ×20', notes: 'Azahar · resina suave', price: 4900, tint: '#d0aeac', wash: 'radial-gradient(64% 58% at 50% 44%, #fdf3ee, #f0e0dc 68%, #e3cdc9)' }
+      { id: 'v1', name: 'Vainilla y canela', notes: 'Vela de soja 220 g · 45 h', price: 12900, tint: '#b88a89', wash: 'linear-gradient(166deg, #f7ede1 0%, #ecd9c7 100%)' },
+      { id: 'v6', name: 'Sándalo', notes: 'Vela de soja 220 g · 50 h', price: 13900, tint: '#835c5b', wash: 'linear-gradient(166deg, #eee4d6 0%, #d6c3b2 100%)' },
+      { id: 's1', name: 'Sahumerios Flor de naranjo ×20', notes: 'Azahar · resina suave', price: 4900, tint: '#c9979a', wash: 'linear-gradient(166deg, #fdf4f0 0%, #f0dcd9 100%)' }
     ];
   }
 

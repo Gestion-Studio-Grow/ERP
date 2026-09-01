@@ -16,6 +16,30 @@ Lienzo publicado: https://claude.ai/code/artifact/1e9f7ed3-1564-4cbd-9769-7f0e4f
   $25.000, CABA y GBA, medios de pago, sets de regalo, aromas de temporada).
 - **Fotos e isotipo:** `public/tenants/shinevelas/`.
 
+## El fondo y dónde va la imagen
+
+El primer corte tenía el fondo plano y la foto en el rectángulo de siempre (mitad texto,
+mitad imagen). Los dos eran el molde previsible. Se rehicieron:
+
+- **El papel (fondo).** Tres capas: un degradado tonal cálido con la luz entrando por arriba
+  a la izquierda —la marca ES la luz—, un grano finísimo que le da tacto de papel, y la
+  **trama oficial del manual (pág. 15)** redibujada en vector, al 7 %, sólo en los bordes de
+  cada banda y **nunca detrás del texto**. La trama estaba en el manual y no se usaba.
+- **La imagen vive DENTRO del isotipo.** La foto de apertura va recortada con la silueta de
+  la llama de Shine, con un eco corrido detrás para dar profundidad. Es el recurso que
+  ninguna otra tienda de velas puede copiar, porque la forma es de la marca. También se usa
+  en el teléfono y en una miniatura de la ficha.
+- **El resto de las imágenes salen de la grilla:** la fila de familias se escalona (alturas y
+  desfases distintos), la foto de sets sangra por el borde izquierdo de la página, y la foto
+  de la ficha sangra por el borde con las miniaturas en riel.
+- **Cada tarjeta lleva el ícono oficial de SU formato** (vela, vela grande, difusor,
+  sahumerio, textil) en vez de repetir la misma silueta doce veces. El baño de color dice la
+  familia; el ícono dice el formato.
+
+Todo esto se verificó renderizando en Chromium y mirando el resultado, no a ojo: se probaron
+tres intensidades de grano, tres de trama y tres composiciones distintas del hero antes de
+elegir.
+
 ## Qué resuelve
 
 El problema del rubro es que **no se puede oler por pantalla**. Todo el diseño ataca eso:
