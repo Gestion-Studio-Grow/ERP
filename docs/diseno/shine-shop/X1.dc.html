@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .96; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 18px 34px 24px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 18px 34px; overflow: hidden; }
+    /* Ondas de cera volcada: anillos concéntricos casi invisibles, como cuando
+       la cera se enfría en el frasco. Textura sin foto. */
+    .cera { background-image: repeating-radial-gradient(circle at 50% 38%,
+              rgba(255,252,246,.16) 0 2px, rgba(58,17,25,0) 2px 30px); }
+  </style>
+
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">11</span><span class="t">El muestrario de cera</span></div>
+  <div class="lienzo" style="flex: 1;">
+
+    <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+      <div class="meta" style="padding-bottom: 14px;">Cada aroma tiene su color, y el color sale de sus notas</div>
+      <div style="flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px;"><div style="border: 1px solid #e4d7d0; background: #fdf8f2; display: flex; flex-direction: column;">
+      <div class="cera" style="height: 150px; background-color: #b98a5e; background-image: linear-gradient(168deg, #ead7bc, #b98a5e), repeating-radial-gradient(circle at 50% 38%, rgba(255,252,246,.18) 0 2px, rgba(58,17,25,0) 2px 30px); background-blend-mode: normal, overlay;"></div>
+      <div style="padding: 14px 16px 16px;">
+        <div class="disp" style="font-size: 22px; color: #671128;">Vainilla y canela</div>
+        <div style="font-size: 11.5px; color: #835c5b; margin-top: 5px;">vainilla · canela · caramelo</div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; border-top: 1px solid #eee3dd; padding-top: 9px;">
+          <span class="meta" style="font-size: 9px;">Muestra Nº 01</span>
+          <span class="num" style="font-size: 14px; font-weight: 600; color: #671128;">$12.900</span>
+        </div>
+      </div>
+    </div><div style="border: 1px solid #e4d7d0; background: #fdf8f2; display: flex; flex-direction: column;">
+      <div class="cera" style="height: 150px; background-color: #dca96e; background-image: linear-gradient(168deg, #f4e7d2, #dca96e), repeating-radial-gradient(circle at 50% 38%, rgba(255,252,246,.18) 0 2px, rgba(58,17,25,0) 2px 30px); background-blend-mode: normal, overlay;"></div>
+      <div style="padding: 14px 16px 16px;">
+        <div class="disp" style="font-size: 22px; color: #671128;">Flor de naranjo</div>
+        <div style="font-size: 11.5px; color: #835c5b; margin-top: 5px;">azahar · neroli · miel</div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; border-top: 1px solid #eee3dd; padding-top: 9px;">
+          <span class="meta" style="font-size: 9px;">Muestra Nº 03</span>
+          <span class="num" style="font-size: 14px; font-weight: 600; color: #671128;">$11.900</span>
+        </div>
+      </div>
+    </div><div style="border: 1px solid #e4d7d0; background: #fdf8f2; display: flex; flex-direction: column;">
+      <div class="cera" style="height: 150px; background-color: #a89ab5; background-image: linear-gradient(168deg, #e7dfe8, #a89ab5), repeating-radial-gradient(circle at 50% 38%, rgba(255,252,246,.18) 0 2px, rgba(58,17,25,0) 2px 30px); background-blend-mode: normal, overlay;"></div>
+      <div style="padding: 14px 16px 16px;">
+        <div class="disp" style="font-size: 22px; color: #671128;">Lavanda</div>
+        <div style="font-size: 11.5px; color: #835c5b; margin-top: 5px;">lavanda · romero · lino</div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; border-top: 1px solid #eee3dd; padding-top: 9px;">
+          <span class="meta" style="font-size: 9px;">Muestra Nº 05</span>
+          <span class="num" style="font-size: 14px; font-weight: 600; color: #671128;">$11.900</span>
+        </div>
+      </div>
+    </div><div style="border: 1px solid #e4d7d0; background: #fdf8f2; display: flex; flex-direction: column;">
+      <div class="cera" style="height: 150px; background-color: #8a6c52; background-image: linear-gradient(168deg, #ddcbb6, #8a6c52), repeating-radial-gradient(circle at 50% 38%, rgba(255,252,246,.18) 0 2px, rgba(58,17,25,0) 2px 30px); background-blend-mode: normal, overlay;"></div>
+      <div style="padding: 14px 16px 16px;">
+        <div class="disp" style="font-size: 22px; color: #671128;">Sándalo</div>
+        <div style="font-size: 11.5px; color: #835c5b; margin-top: 5px;">sándalo · vetiver · cuero suave</div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; border-top: 1px solid #eee3dd; padding-top: 9px;">
+          <span class="meta" style="font-size: 9px;">Muestra Nº 06</span>
+          <span class="num" style="font-size: 14px; font-weight: 600; color: #671128;">$13.900</span>
+        </div>
+      </div>
+    </div><div style="border: 1px solid #e4d7d0; background: #fdf8f2; display: flex; flex-direction: column;">
+      <div class="cera" style="height: 150px; background-color: #7d5a3f; background-image: linear-gradient(168deg, #dcc4a5, #7d5a3f), repeating-radial-gradient(circle at 50% 38%, rgba(255,252,246,.18) 0 2px, rgba(58,17,25,0) 2px 30px); background-blend-mode: normal, overlay;"></div>
+      <div style="padding: 14px 16px 16px;">
+        <div class="disp" style="font-size: 22px; color: #671128;">Cedro y ámbar</div>
+        <div style="font-size: 11.5px; color: #835c5b; margin-top: 5px;">cedro · ámbar · incienso</div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; border-top: 1px solid #eee3dd; padding-top: 9px;">
+          <span class="meta" style="font-size: 9px;">Muestra Nº 07</span>
+          <span class="num" style="font-size: 14px; font-weight: 600; color: #671128;">$13.900</span>
+        </div>
+      </div>
+    </div><div style="border: 1px solid #e4d7d0; background: #fdf8f2; display: flex; flex-direction: column;">
+      <div class="cera" style="height: 150px; background-color: #c9b296; background-image: linear-gradient(168deg, #f1e5d4, #c9b296), repeating-radial-gradient(circle at 50% 38%, rgba(255,252,246,.18) 0 2px, rgba(58,17,25,0) 2px 30px); background-blend-mode: normal, overlay;"></div>
+      <div style="padding: 14px 16px 16px;">
+        <div class="disp" style="font-size: 22px; color: #671128;">Coco y vainilla</div>
+        <div style="font-size: 11.5px; color: #835c5b; margin-top: 5px;">coco · vainilla · leche tibia</div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; border-top: 1px solid #eee3dd; padding-top: 9px;">
+          <span class="meta" style="font-size: 9px;">Muestra Nº 02</span>
+          <span class="num" style="font-size: 14px; font-weight: 600; color: #671128;">$12.900</span>
+        </div>
+      </div>
+    </div></div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Por qué</b><span>El aroma se exhibe como se exhibe un material: una muestra de color con la textura de la cera volcada. Es un sistema, no una foto — cualquier aroma nuevo entra solo.</span></div>
+    <div><b>Qué cede</b><span>El color sugiere el aroma pero no muestra el producto físico. Conviene sumarle UNA foto real del frasco genérico en la ficha.</span></div>
+  </div>
+</div>
+</x-dc>
+
+</body>
+</html>

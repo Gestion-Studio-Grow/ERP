@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .96; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 18px 34px 24px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 18px 34px; overflow: hidden; }
+    /* Ondas de cera volcada: anillos concéntricos casi invisibles, como cuando
+       la cera se enfría en el frasco. Textura sin foto. */
+    .cera { background-image: repeating-radial-gradient(circle at 50% 38%,
+              rgba(255,252,246,.16) 0 2px, rgba(58,17,25,0) 2px 30px); }
+  </style>
+
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">14</span><span class="t">Columnas de notas</span></div>
+  <div class="lienzo" style="flex: 1;">
+
+    <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+      <div class="meta" style="padding-bottom: 16px;">La pirámide olfativa hecha color: arriba lo primero que olés, abajo lo que queda</div>
+      <div style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px 100px; padding-right: 100px;">
+        <div style="display: flex; flex-direction: column; align-items: stretch;">
+      <div class="disp" style="font-size: 21px; color: #671128; min-height: 46px;">Vainilla y canela</div>
+      <div style="flex: 1; position: relative; margin-top: 10px; border-radius: 999px; background: linear-gradient(180deg, #ead7bc 0%, #b98a5e 100%); min-height: 300px;">
+        <div style="position: absolute; left: calc(100% + 12px); top: 4%;"><div class="meta" style="font-size: 8.5px;">Salida</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Canela</div></div>
+        <div style="position: absolute; left: calc(100% + 12px); top: 44%;"><div class="meta" style="font-size: 8.5px;">Corazón</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Vainilla</div></div>
+        <div style="position: absolute; left: calc(100% + 12px); bottom: 4%;"><div class="meta" style="font-size: 8.5px;">Fondo</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Caramelo</div></div>
+        <div style="position: absolute; left: -6px; right: -6px; top: 33%; height: 1px; background: rgba(58,17,25,.14);"></div>
+        <div style="position: absolute; left: -6px; right: -6px; top: 66%; height: 1px; background: rgba(58,17,25,.14);"></div>
+      </div>
+      <div class="num" style="font-size: 15px; font-weight: 600; color: #671128; margin-top: 12px;">$12.900</div>
+    </div>
+        <div style="display: flex; flex-direction: column; align-items: stretch;">
+      <div class="disp" style="font-size: 21px; color: #671128; min-height: 46px;">Flor de naranjo</div>
+      <div style="flex: 1; position: relative; margin-top: 10px; border-radius: 999px; background: linear-gradient(180deg, #f4e7d2 0%, #dca96e 100%); min-height: 300px;">
+        <div style="position: absolute; left: calc(100% + 12px); top: 4%;"><div class="meta" style="font-size: 8.5px;">Salida</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Azahar</div></div>
+        <div style="position: absolute; left: calc(100% + 12px); top: 44%;"><div class="meta" style="font-size: 8.5px;">Corazón</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Neroli</div></div>
+        <div style="position: absolute; left: calc(100% + 12px); bottom: 4%;"><div class="meta" style="font-size: 8.5px;">Fondo</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Miel</div></div>
+        <div style="position: absolute; left: -6px; right: -6px; top: 33%; height: 1px; background: rgba(58,17,25,.14);"></div>
+        <div style="position: absolute; left: -6px; right: -6px; top: 66%; height: 1px; background: rgba(58,17,25,.14);"></div>
+      </div>
+      <div class="num" style="font-size: 15px; font-weight: 600; color: #671128; margin-top: 12px;">$11.900</div>
+    </div>
+        <div style="display: flex; flex-direction: column; align-items: stretch;">
+      <div class="disp" style="font-size: 21px; color: #671128; min-height: 46px;">Lavanda</div>
+      <div style="flex: 1; position: relative; margin-top: 10px; border-radius: 999px; background: linear-gradient(180deg, #e7dfe8 0%, #a89ab5 100%); min-height: 300px;">
+        <div style="position: absolute; left: calc(100% + 12px); top: 4%;"><div class="meta" style="font-size: 8.5px;">Salida</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Romero</div></div>
+        <div style="position: absolute; left: calc(100% + 12px); top: 44%;"><div class="meta" style="font-size: 8.5px;">Corazón</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Lavanda</div></div>
+        <div style="position: absolute; left: calc(100% + 12px); bottom: 4%;"><div class="meta" style="font-size: 8.5px;">Fondo</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Lino</div></div>
+        <div style="position: absolute; left: -6px; right: -6px; top: 33%; height: 1px; background: rgba(58,17,25,.14);"></div>
+        <div style="position: absolute; left: -6px; right: -6px; top: 66%; height: 1px; background: rgba(58,17,25,.14);"></div>
+      </div>
+      <div class="num" style="font-size: 15px; font-weight: 600; color: #671128; margin-top: 12px;">$11.900</div>
+    </div>
+        <div style="display: flex; flex-direction: column; align-items: stretch;">
+      <div class="disp" style="font-size: 21px; color: #671128; min-height: 46px;">Cedro y ámbar</div>
+      <div style="flex: 1; position: relative; margin-top: 10px; border-radius: 999px; background: linear-gradient(180deg, #dcc4a5 0%, #7d5a3f 100%); min-height: 300px;">
+        <div style="position: absolute; left: calc(100% + 12px); top: 4%;"><div class="meta" style="font-size: 8.5px;">Salida</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Cedro</div></div>
+        <div style="position: absolute; left: calc(100% + 12px); top: 44%;"><div class="meta" style="font-size: 8.5px;">Corazón</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Ámbar</div></div>
+        <div style="position: absolute; left: calc(100% + 12px); bottom: 4%;"><div class="meta" style="font-size: 8.5px;">Fondo</div><div style="font-size: 12px; color: #3a2429; margin-top: 2px; white-space: nowrap;">Incienso</div></div>
+        <div style="position: absolute; left: -6px; right: -6px; top: 33%; height: 1px; background: rgba(58,17,25,.14);"></div>
+        <div style="position: absolute; left: -6px; right: -6px; top: 66%; height: 1px; background: rgba(58,17,25,.14);"></div>
+      </div>
+      <div class="num" style="font-size: 15px; font-weight: 600; color: #671128; margin-top: 12px;">$13.900</div>
+    </div>
+      </div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Por qué</b><span>El dato más difícil de vender online —cómo se abre el aroma en el tiempo— se vuelve la imagen misma del producto. Nadie del rubro local lo muestra así.</span></div>
+    <div><b>Qué cede</b><span>Pide una leyenda la primera vez ("¿qué es salida?"). Y con 12 columnas juntas satura: mejor de a 4, por familia.</span></div>
+  </div>
+</div>
+</x-dc>
+
+</body>
+</html>

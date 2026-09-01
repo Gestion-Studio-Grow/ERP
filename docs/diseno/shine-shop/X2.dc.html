@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .96; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 18px 34px 24px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 18px 34px; overflow: hidden; }
+    /* Ondas de cera volcada: anillos concéntricos casi invisibles, como cuando
+       la cera se enfría en el frasco. Textura sin foto. */
+    .cera { background-image: repeating-radial-gradient(circle at 50% 38%,
+              rgba(255,252,246,.16) 0 2px, rgba(58,17,25,0) 2px 30px); }
+  </style>
+
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">12</span><span class="t">Encendida o apagada</span></div>
+  <div class="lienzo" style="flex: 1;">
+
+    <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+      <div class="meta" style="padding-bottom: 10px;">Una vela apagada es un frasco. Tocala.</div>
+      <div style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; align-items: end; padding-bottom: 6px;">
+        <sc-for list="{{velas}}" as="v" hint-placeholder-count="4">
+          <button onClick="{{v.toggle}}" aria-label="{{v.aria}}" style="border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; text-align: center; position: relative;">
+            <div style="position: relative; height: 240px; display: flex; align-items: flex-end; justify-content: center;">
+              <div aria-hidden style="position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); width: 220px; height: 220px; border-radius: 50%; pointer-events: none; background: radial-gradient(50% 50% at 50% 50%, rgba(233,192,120,.55), rgba(233,192,120,.14) 52%, transparent 74%); opacity: {{v.glow}}; transition: opacity .5s ease;"></div>
+              <span class="flame" style="position: absolute; left: 50%; bottom: 148px; transform: translateX(-50%); width: 13px; height: 24px; background: #b3702e; opacity: {{v.glow}}; transition: opacity .4s ease;"></span>
+              <div style="position: relative; width: 96px; height: 132px; border-radius: 6px 6px 14px 14px; border: 1.5px solid #c9b4ab; background: linear-gradient(180deg, rgba(253,248,242,.55) 0 26%, transparent 26%), linear-gradient(168deg, {{v.c1}}, {{v.c2}}); box-shadow: inset 0 -10px 22px rgba(58,17,25,.08);">
+                <span style="position: absolute; left: 50%; top: 24px; transform: translateX(-50%); width: 2px; height: 12px; background: #6f5648;"></span>
+              </div>
+            </div>
+            <div style="height: 1px; background: #c9b4ab; margin: 0 4px;"></div>
+            <div class="disp" style="font-size: 19px; color: #671128; margin-top: 12px;">{{v.name}}</div>
+            <div class="num meta" style="font-size: 9.5px; margin-top: 6px; color: {{v.metaColor}};">{{v.estado}}</div>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Por qué</b><span>La interacción ES el producto: la vela no se entiende apagada. Al encenderla aparece la llama y el halo — el cliente juega, y jugar retiene.</span></div>
+    <div><b>Qué cede</b><span>El dibujo del frasco tiene que ser fiel al frasco real de Shine, si no genera expectativa falsa. Y en foto fija (Instagram) se pierde la gracia.</span></div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { on: { vainilla: true, azahar: false, lavanda: false, sandalo: true } };
+  }
+  velas() {
+    return [
+      { id: 'vainilla', name: 'Vainilla y canela', c1: '#ead7bc', c2: '#b98a5e', hs: '45 h' },
+      { id: 'azahar', name: 'Flor de naranjo', c1: '#f4e7d2', c2: '#dca96e', hs: '40 h' },
+      { id: 'lavanda', name: 'Lavanda', c1: '#e7dfe8', c2: '#a89ab5', hs: '40 h' },
+      { id: 'sandalo', name: 'Sándalo', c1: '#ddcbb6', c2: '#8a6c52', hs: '50 h' }
+    ];
+  }
+  renderVals() {
+    return {
+      velas: this.velas().map((v) => {
+        const on = !!this.state.on[v.id];
+        return {
+          name: v.name, c1: v.c1, c2: v.c2,
+          glow: on ? '1' : '0',
+          estado: on ? 'encendida · ' + v.hs : 'apagada · tocá para encender',
+          metaColor: on ? '#671128' : '#a08c85',
+          aria: (on ? 'Apagar ' : 'Encender ') + v.name,
+          toggle: () => {
+            const s = Object.assign({}, this.state.on);
+            s[v.id] = !s[v.id];
+            this.setState({ on: s });
+          }
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -5,6 +5,10 @@
       "name": "10 estructuras"
     },
     {
+      "id": "page-3",
+      "name": "La exhibición"
+    },
+    {
       "id": "page-1",
       "name": "La tienda armada"
     },
@@ -183,6 +187,43 @@
       "y": 0,
       "w": 880,
       "h": 920
+    },
+    {
+      "file": "X1.dc.html",
+      "title": "11 · El muestrario de cera",
+      "page": "page-3",
+      "x": 0,
+      "y": 0,
+      "w": 1060,
+      "h": 760
+    },
+    {
+      "file": "X2.dc.html",
+      "title": "12 · Encendida o apagada",
+      "page": "page-3",
+      "x": 1180,
+      "y": 0,
+      "w": 1060,
+      "h": 760,
+      "is_interactive": true
+    },
+    {
+      "file": "X3.dc.html",
+      "title": "13 · Láminas de boticario",
+      "page": "page-3",
+      "x": 0,
+      "y": 900,
+      "w": 1060,
+      "h": 760
+    },
+    {
+      "file": "X4.dc.html",
+      "title": "14 · Columnas de notas",
+      "page": "page-3",
+      "x": 1180,
+      "y": 900,
+      "w": 1060,
+      "h": 760
     }
   ],
   "annotations": [
@@ -217,10 +258,18 @@
       "y": -220,
       "w": 620,
       "text": "Dos caminos que NO tomé, en boceto, para que se vea contra qué se decidió.\n\nB (el boticario) gana en relato y pierde en velocidad. C (el almacén) gana en velocidad y tira el precio para abajo.\n\nLo que está en la página 'El Shop' toma el relato de B en la ficha y la grilla escaneable de C en la tienda."
+    },
+    {
+      "id": "exhibir",
+      "page": "page-3",
+      "x": 0,
+      "y": -240,
+      "w": 880,
+      "text": "CÓMO EXHIBIR VELAS Y AROMAS SIN FOTO DE PRODUCTO — cuatro sistemas, todos minimalistas y combinables entre sí:\n\n11 el aroma como muestra de material (color + textura de cera) · 12 la vela que se enciende al tocarla (probala: la 12 es interactiva) · 13 el catálogo como láminas numeradas a línea · 14 la pirámide olfativa hecha color.\n\nEl color de cada aroma sale de sus notas, desaturado para que quede quieto. Recomendación: 12 para la tienda + 14 en la ficha + 13 para etiquetas y packaging."
     }
   ],
   "launch": {
     "view": "canvas",
-    "page": "page-0"
+    "page": "page-3"
   }
 }
