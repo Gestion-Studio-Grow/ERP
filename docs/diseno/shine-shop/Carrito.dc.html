@@ -37,7 +37,7 @@
       <span class="flame" style="width: 14px; height: 24px; background: #671128;"></span>
       <div>
         <div class="disp" style="font-size: 25px; color: #671128;">Tu pedido</div>
-        <div class="num" style="font-size: 12px; color: #8a7570; margin-top: 2px;">{{countLabel}}</div>
+        <div class="num" style="font-size: 12px; color: #835c5b; margin-top: 2px;">{{countLabel}}</div>
       </div>
     </div>
     <button aria-label="Cerrar el carrito" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid #e8d9d5; background: transparent; color: #835c5b; cursor: pointer; display: grid; place-items: center;">
@@ -49,7 +49,7 @@
   <div style="padding: 18px 26px; background: #f3ebe1; border-bottom: 1px solid #e8d9d5;">
     <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
       <span style="font-size: 13px; color: #835c5b;">{{shipLine}}</span>
-      <span class="num" style="font-size: 12px; color: #8a7570;">{{pctLabel}}</span>
+      <span class="num" style="font-size: 12px; color: #835c5b;">{{pctLabel}}</span>
     </div>
     <div style="height: 6px; border-radius: 999px; background: #e8d9d5; overflow: hidden; margin-top: 10px;">
       <div style="height: 100%; border-radius: 999px; background: #671128; width: {{progress}}; transition: width .3s ease;"></div>
@@ -66,7 +66,7 @@
         <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
           <div>
             <div style="font-size: 14.5px; font-weight: 600; color: #3a2429; line-height: 1.35;">{{l.name}}</div>
-            <div style="font-size: 12px; color: #8a7570; margin-top: 3px;">{{l.notes}}</div>
+            <div style="font-size: 12px; color: #835c5b; margin-top: 3px;">{{l.notes}}</div>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
             <div style="display: flex; align-items: center; gap: 5px;">
@@ -83,7 +83,7 @@
 
   <!-- Entrega -->
   <div style="padding: 22px 26px 0;">
-    <div style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #8a7570;">Cómo lo recibís</div>
+    <div style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #835c5b;">Cómo lo recibís</div>
     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px;">
       <sc-for list="{{modes}}" as="m" hint-placeholder-count="2">
         <button onClick="{{m.pick}}" style="text-align: left; padding: 14px 16px; border-radius: 12px; cursor: pointer; font-family: 'Kumbh Sans', sans-serif; min-height: 74px; border: 1px solid {{m.bd}}; background: {{m.bg}}; color: {{m.fg}};">
@@ -115,7 +115,7 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b7a3b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 20.5l1.3-4.2A8.2 8.2 0 1 1 8 19.4Z"></path></svg>
       Prefiero cerrarlo por WhatsApp
     </a>
-    <div style="margin-top: 16px; font-size: 12px; color: #8a7570; line-height: 1.65; text-align: center;">
+    <div style="margin-top: 16px; font-size: 12px; color: #835c5b; line-height: 1.65; text-align: center;">
       Mercado Pago · transferencia · débito y crédito<br>
       Envíos a CABA y GBA · retiro coordinado por WhatsApp
     </div>

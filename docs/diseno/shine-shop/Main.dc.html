@@ -57,7 +57,7 @@
     <div style="display: flex; align-items: center; gap: 14px;">
       <div style="display: flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1px solid #e8d9d5; border-radius: 999px; background: #fdf8f2; min-width: 190px;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b88a89" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
-        <span style="font-size: 12.5px; color: #8a7570;">Buscar un aroma…</span>
+        <span style="font-size: 12.5px; color: #835c5b;">Buscar un aroma…</span>
       </div>
       <div style="position: relative; display: flex; align-items: center; gap: 9px; padding: 11px 20px; border-radius: 999px; background: #671128; color: #fff; font-size: 12.5px; font-weight: 600; letter-spacing: .06em;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 12.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z"></path><path d="M9 7V5.5a3 3 0 0 1 6 0V7"></path></svg>
@@ -140,7 +140,7 @@
 
     <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 20px 26px; padding: 20px 24px; background: #fdf8f2; border: 1px solid #e8d9d5; border-radius: 16px;">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #8a7570;">Familia</span>
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #835c5b;">Familia</span>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <sc-for list="{{famChips}}" as="c" hint-placeholder-count="4">
             <button class="chip" onClick="{{c.pick}}" style="font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: .04em; padding: 9px 16px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: .2s; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}};">{{c.label}}</button>
@@ -149,7 +149,7 @@
       </div>
       <span style="width: 1px; align-self: stretch; background: #e8d9d5;"></span>
       <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #8a7570;">Formato</span>
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #835c5b;">Formato</span>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <sc-for list="{{formChips}}" as="c" hint-placeholder-count="5">
             <button class="chip" onClick="{{c.pick}}" style="font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: .04em; padding: 9px 16px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: .2s; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}};">{{c.label}}</button>
@@ -178,16 +178,16 @@
           <div style="padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 11px; flex: 1;">
             <div>
               <h3 style="font-size: 16px; font-weight: 600; color: #3a2429; line-height: 1.3; margin: 0;">{{p.name}}</h3>
-              <div style="margin-top: 6px; font-size: 12.5px; color: #8a7570; line-height: 1.5;">{{p.notes}}</div>
+              <div style="margin-top: 6px; font-size: 12.5px; color: #835c5b; line-height: 1.5;">{{p.notes}}</div>
             </div>
             <div style="display: flex; align-items: center; gap: 14px; padding: 9px 0; border-top: 1px solid #e8d9d5; border-bottom: 1px solid #e8d9d5;">
               <div style="display: flex; align-items: center; gap: 5px;" title="Intensidad">
                 <span class="flame" style="width: 9px; height: 15px; background: #671128; opacity: {{p.f1}};"></span>
                 <span class="flame" style="width: 9px; height: 15px; background: #671128; opacity: {{p.f2}};"></span>
                 <span class="flame" style="width: 9px; height: 15px; background: #671128; opacity: {{p.f3}};"></span>
-                <span style="font-size: 11px; color: #8a7570; margin-left: 3px;">{{p.intLabel}}</span>
+                <span style="font-size: 11px; color: #835c5b; margin-left: 3px;">{{p.intLabel}}</span>
               </div>
-              <span class="num" style="font-size: 11.5px; color: #8a7570; margin-left: auto;">{{p.duration}}</span>
+              <span class="num" style="font-size: 11.5px; color: #835c5b; margin-left: auto;">{{p.duration}}</span>
             </div>
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto;">
               <span class="num" style="font-size: 19px; font-weight: 600; color: {{accent}};">{{p.price}}</span>
@@ -306,7 +306,7 @@
 </div>
 </x-dc>
 
-<script data-dc-script data-props='{"accent":{"editor":"color","default":"#671128","options":["#671128","#835c5b","#b88a89","#d0aeac"],"section":"Marca"},"density":{"editor":"enum","options":["cómoda","compacta"],"default":"cómoda","section":"Grilla"}}'>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#671128","options":["#671128","#835c5b","#b88a89","#d0aeac"],"section":"Marca"}}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -358,7 +358,6 @@ class Component extends DCLogic {
 
   renderVals() {
     const all = this.catalog();
-    const compact = this.props.density === 'compacta';
     const shown = all.filter((p) => {
       const okFam = this.state.fam === 'todas' || p.fam === this.state.fam;
       const okFormat = this.state.format === 'todos' || p.format === this.state.format;
@@ -462,7 +461,7 @@ class Component extends DCLogic {
         : this.state.cart + (this.state.cart === 1 ? ' pieza · ' : ' piezas · ') + this.money(sub),
       progress: pct + '%',
       shipLine: shipLine,
-      resultLabel: shown.length + (shown.length === 1 ? ' pieza' : ' piezas') + (compact ? ' · vista compacta' : ''),
+      resultLabel: shown.length + (shown.length === 1 ? ' pieza' : ' piezas'),
       clearAll: () => this.setState({ fam: 'todas', format: 'todos' })
     };
   }
