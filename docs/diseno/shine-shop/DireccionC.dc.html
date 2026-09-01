@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #f7f2ec; color: #3a2429;
+           font-family: 'Kumbh Sans', system-ui, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; line-height: 1.04; }
+    .box { border: 1.5px solid #c2b3ab; border-radius: 10px; background: #ece4dc; }
+    .ln { height: 8px; border-radius: 4px; background: #d6cbc3; }
+    .ln-d { height: 8px; border-radius: 4px; background: #c2b3ab; }
+    .tag { display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; letter-spacing: .18em;
+           text-transform: uppercase; color: #671128; border: 1.5px solid #671128; border-radius: 999px; padding: 5px 11px; }
+    .note { font-size: 12.5px; color: #6f6259; line-height: 1.6; }
+  </style>
+</helmet>
+
+<div style="min-height: 100%; background: #f7f2ec; padding: 34px 36px 38px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+    <span class="tag">Dirección C</span>
+    <span style="font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #8a7d74;">Boceto · no es el entregable</span>
+  </div>
+
+  <h1 class="disp" style="font-size: 42px; color: #671128; margin: 18px 0 0; font-weight: 500;">El almacén</h1>
+  <p class="note" style="margin: 10px 0 0; max-width: 62ch; font-size: 14px;">
+    Todo a la vista y a un clic: buscador arriba, filtros al costado, grilla apretada de cinco
+    columnas con precio grande y botón de sumar en cada tarjeta. Pensada para el que ya sabe
+    qué quiere y para el pedido de souvenirs por cantidad.
+  </p>
+
+  <div style="display: grid; grid-template-columns: 158px minmax(0, 1fr); gap: 20px; margin-top: 24px;">
+    <!-- Filtros al costado -->
+    <div class="box" style="padding: 16px 15px; background: #fdfaf6; display: flex; flex-direction: column; gap: 16px;">
+      <div>
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #671128;">Familia</div>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+          <div class="ln-d" style="width: 84%;"></div>
+          <div class="ln" style="width: 70%;"></div>
+          <div class="ln" style="width: 76%;"></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #671128;">Formato</div>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+          <div class="ln" style="width: 66%;"></div>
+          <div class="ln" style="width: 80%;"></div>
+          <div class="ln" style="width: 58%;"></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #671128;">Precio</div>
+        <div class="ln" style="width: 100%; margin-top: 10px;"></div>
+      </div>
+    </div>
+
+    <!-- Grilla densa -->
+    <div>
+      <div class="box" style="height: 42px; display: flex; align-items: center; padding: 0 14px; background: #fdfaf6;">
+        <div class="ln" style="width: 190px;"></div>
+        <div class="ln" style="width: 74px; margin-left: auto;"></div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 12px;">
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 88%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 76%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 92%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 68%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 84%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 80%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 90%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 72%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 86%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+        <div class="box" style="padding: 9px; background: #fdfaf6;"><div class="box" style="aspect-ratio: 1/1;"></div><div class="ln" style="margin-top: 9px; width: 78%;"></div><div class="ln-d" style="margin-top: 7px; width: 52%; height: 11px;"></div><div class="box" style="margin-top: 9px; height: 26px; border-radius: 999px;"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; margin-top: 24px;">
+    <div>
+      <div style="font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #671128;">Por qué</div>
+      <div class="note" style="margin-top: 8px;">
+        Es la más rápida para comprar y la que mejor aguanta un catálogo grande con deco y
+        accesorios. Para el pedido de souvenirs, cumpleaños o casamiento —donde se compra por
+        cantidad y no por historia— es claramente la mejor.
+      </div>
+    </div>
+    <div>
+      <div style="font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #671128;">Qué se pierde</div>
+      <div class="note" style="margin-top: 8px;">
+        Se parece a cualquier Tiendanube y tira el precio para abajo: si todo es una miniatura
+        con precio, la vela artesanal compite contra la de supermercado. Y no queda lugar para
+        contar a qué huele, que es lo único que justifica pagar más.
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #f3ebe1; color: #3a2429;
+           font-family: 'Kumbh Sans', system-ui, -apple-system, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; letter-spacing: .005em; line-height: 1.02; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .trama { background-image: radial-gradient(circle at 50% 50%, rgba(131,92,91,.16) 1.1px, transparent 1.2px);
+             background-size: 14px 14px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+           font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: .08em;
+           padding: 14px 26px; min-height: 48px; border-radius: 999px; border: 1px solid transparent;
+           cursor: pointer; transition: .2s; text-align: center; }
+    .btn-vino { background: #671128; color: #fff; }
+    .btn-vino:hover { background: #7e1a35; color: #fff; transform: translateY(-2px); box-shadow: 0 18px 46px -22px rgba(103,17,40,.32); }
+    .btn-ghost { border-color: #b88a89; color: #835c5b; background: transparent; }
+    .btn-ghost:hover { border-color: #671128; color: #671128; background: rgba(184,138,137,.1); }
+    .eyebrow { font-weight: 600; font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #671128; }
+    .step { width: 40px; height: 40px; border-radius: 10px; border: 1px solid #d0aeac; background: #f3ebe1;
+            color: #671128; cursor: pointer; font-size: 19px; line-height: 1; display: grid; place-items: center;
+            transition: .15s; font-family: 'Kumbh Sans', sans-serif; }
+    .step:hover { background: #671128; color: #fff; border-color: #671128; }
+    .xcard:hover { transform: translateY(-3px); box-shadow: 0 18px 46px -22px rgba(103,17,40,.32); border-color: #d0aeac; }
+  </style>
+</helmet>
+
+<div style="min-height: 100%; background: #f3ebe1;">
+
+  <!-- ══ TOP BAR ══ -->
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 80px; background: #f3ebe1; border-bottom: 1px solid #e8d9d5;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <img src="logo.png" alt="Shine" style="height: 34px; width: auto; display: block;">
+      <small style="font-size: 9.5px; letter-spacing: .24em; color: #835c5b; text-transform: uppercase;">velas · aromas · deco</small>
+    </div>
+    <div style="display: flex; align-items: center; gap: 28px; font-size: 12.5px; letter-spacing: .06em; font-weight: 500; color: #835c5b;">
+      <a href="#" style="color: #835c5b;">Tienda</a>
+      <a href="#" style="color: #671128; font-weight: 600; border-bottom: 1px solid #671128; padding-bottom: 2px;">Velas</a>
+      <a href="#" style="color: #835c5b;">Aromas</a>
+      <a href="#" style="color: #835c5b;">Decoración</a>
+      <a href="#" style="color: #835c5b;">Accesorios</a>
+      <a href="#" style="color: #835c5b;">Sets de regalo</a>
+    </div>
+    <div style="display: flex; align-items: center; gap: 9px; padding: 11px 20px; border-radius: 999px; background: #671128; color: #fff; font-size: 12.5px; font-weight: 600; letter-spacing: .06em;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 12.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z"></path><path d="M9 7V5.5a3 3 0 0 1 6 0V7"></path></svg>
+      <span class="num">{{cartCount}}</span>
+    </div>
+  </div>
+
+  <!-- ══ MIGA ══ -->
+  <div style="padding: 20px 80px 0; font-size: 12.5px; color: #8a7570; letter-spacing: .04em;">
+    <a href="#" style="color: #8a7570;">Tienda</a> · <a href="#" style="color: #8a7570;">Velas</a> · <a href="#" style="color: #8a7570;">Cálidos y dulces</a> · <span style="color: #835c5b;">Vainilla y canela</span>
+  </div>
+
+  <!-- ══ FICHA ══ -->
+  <div style="display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr); gap: 56px; padding: 30px 80px 62px; align-items: start;">
+
+    <!-- Visual -->
+    <div>
+      <div style="position: relative; aspect-ratio: 4/5; border-radius: 18px; overflow: hidden; background: #e8d9d5; box-shadow: 0 18px 46px -22px rgba(103,17,40,.32);">
+        <img src="hero.jpg" alt="Vela de soja Vainilla y canela encendida" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+        <div style="position: absolute; left: 20px; top: 20px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(253,248,242,.92); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #671128;">
+          <span class="flame" style="width: 10px; height: 17px; background: #671128;"></span>
+          Cálidos y dulces
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px;">
+        <div style="position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 2px solid #671128;">
+          <img src="hero.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+        </div>
+        <div style="position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 1px solid #e8d9d5;">
+          <img src="mundo-velas.jpg" alt="Detalle de la cera y la mecha de algodón" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+        </div>
+        <div style="position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 1px solid #e8d9d5;">
+          <img src="ambiance.jpg" alt="La vela encendida en el ambiente" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+        </div>
+        <div class="trama" style="position: relative; aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 1px solid #e8d9d5; display: grid; place-items: center; background: radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1);">
+          <span class="flame" style="width: 22px; height: 38px; background: #b88a89;"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Datos -->
+    <div style="padding-top: 6px;">
+      <div class="eyebrow">Vela de soja · 220 g</div>
+      <h1 class="disp" style="font-size: 54px; color: {{accent}}; margin: 14px 0 0; font-weight: 500; line-height: 1.04;">Vainilla y canela</h1>
+      <p style="margin: 16px 0 0; font-size: 17px; line-height: 1.62; color: #3a2429; max-width: 46ch;">
+        Huele a cocina un domingo a la tarde, cuando algo se está horneando y todavía no
+        sabés qué. Dulce, tibia, sin empalagar.
+      </p>
+
+      <div style="display: flex; align-items: baseline; gap: 14px; margin: 26px 0 0;">
+        <span class="num" style="font-size: 34px; font-weight: 600; color: {{accent}};">$12.900</span>
+        <span style="font-size: 13px; color: #8a7570;">o 3 cuotas sin interés de <b class="num">$4.300</b></span>
+      </div>
+
+      <!-- Pirámide olfativa -->
+      <div style="margin-top: 28px; border: 1px solid #e8d9d5; border-radius: 16px; background: #fdf8f2; overflow: hidden;">
+        <div style="padding: 16px 22px; border-bottom: 1px solid #e8d9d5; font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #671128;">Cómo se abre el aroma</div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));">
+          <div style="padding: 20px 22px; border-right: 1px solid #e8d9d5;">
+            <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #8a7570;">Salida</div>
+            <div class="disp" style="font-size: 22px; color: #3a2429; margin-top: 8px;">Canela</div>
+            <div style="font-size: 12.5px; color: #835c5b; margin-top: 6px; line-height: 1.5;">Los primeros minutos: especia tibia.</div>
+          </div>
+          <div style="padding: 20px 22px; border-right: 1px solid #e8d9d5;">
+            <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #8a7570;">Corazón</div>
+            <div class="disp" style="font-size: 22px; color: #3a2429; margin-top: 8px;">Vainilla</div>
+            <div style="font-size: 12.5px; color: #835c5b; margin-top: 6px; line-height: 1.5;">El cuerpo del aroma, el que se queda.</div>
+          </div>
+          <div style="padding: 20px 22px;">
+            <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #8a7570;">Fondo</div>
+            <div class="disp" style="font-size: 22px; color: #3a2429; margin-top: 8px;">Caramelo</div>
+            <div style="font-size: 12.5px; color: #835c5b; margin-top: 6px; line-height: 1.5;">Lo que queda en la casa después de apagarla.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Datos duros -->
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px;">
+        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: #fdf8f2;">
+          <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #8a7570;">Intensidad</div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 10px;">
+            <span class="flame" style="width: 11px; height: 19px; background: #671128;"></span>
+            <span class="flame" style="width: 11px; height: 19px; background: #671128;"></span>
+            <span class="flame" style="width: 11px; height: 19px; background: #671128;"></span>
+            <span style="font-size: 13px; color: #3a2429; font-weight: 600; margin-left: 4px;">Intensa</span>
+          </div>
+        </div>
+        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: #fdf8f2;">
+          <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #8a7570;">Dura</div>
+          <div class="num" style="font-size: 20px; color: #3a2429; font-weight: 600; margin-top: 8px;">45 h</div>
+        </div>
+        <div style="padding: 18px 20px; border: 1px solid #e8d9d5; border-radius: 14px; background: #fdf8f2;">
+          <div style="font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #8a7570;">Ambienta</div>
+          <div class="num" style="font-size: 20px; color: #3a2429; font-weight: 600; margin-top: 8px;">hasta 20 m²</div>
+        </div>
+      </div>
+
+      <!-- Compra -->
+      <div style="display: flex; align-items: center; gap: 14px; margin-top: 26px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="step" onClick="{{minus}}" aria-label="Quitar una unidad">−</button>
+          <span class="num" style="font-size: 16px; min-width: 30px; text-align: center; color: #3a2429; font-weight: 600;">{{qty}}</span>
+          <button class="step" onClick="{{plus}}" aria-label="Sumar una unidad">+</button>
+        </div>
+        <button class="btn btn-vino" onClick="{{addToCart}}" style="flex: 1; min-width: 220px;">Sumar al carrito · {{lineTotal}}</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 13px; color: #835c5b;">
+        <span class="flame" style="width: 10px; height: 17px; background: #b88a89;"></span>
+        {{shipHint}}
+      </div>
+
+      <!-- Ritual + frasco -->
+      <div style="margin-top: 26px; padding: 22px 24px; border-radius: 16px; background: #e8d9d5;">
+        <div class="disp" style="font-size: 21px; color: #671128;">Cuando se termina, el frasco queda</div>
+        <div style="margin-top: 8px; font-size: 14px; line-height: 1.6; color: #3a2429;">
+          Lavalo con agua caliente y jabón: sirve de portalápices, de vasito para velas de té
+          o de maceta chica. La cera de soja sale sola —no hace falta raspar.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CUIDADO ══ -->
+  <div style="background: #fdf8f2; border-top: 1px solid #e8d9d5; border-bottom: 1px solid #e8d9d5; padding: 54px 80px;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 26px;">
+      <span style="height: 1px; flex: 0 0 46px; background: #d0aeac;"></span>
+      <h2 class="disp" style="font-size: 32px; color: {{accent}}; font-weight: 500; margin: 0;">Para que rinda las 45 horas</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px;">
+      <div style="display: flex; gap: 16px;">
+        <span class="disp" style="font-size: 30px; color: #b88a89; line-height: 1;">01</span>
+        <div>
+          <div style="font-size: 15px; font-weight: 600; color: #3a2429;">La primera vez, dejala 2 horas</div>
+          <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Hasta que toda la superficie se derrita pareja. Si la apagás antes, se hace un pocito y después quema desparejo.</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 16px;">
+        <span class="disp" style="font-size: 30px; color: #b88a89; line-height: 1;">02</span>
+        <div>
+          <div style="font-size: 15px; font-weight: 600; color: #3a2429;">Cortá la mecha a 5 mm</div>
+          <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Antes de cada encendido. Llama más chica, sin hollín, y la cera dura más.</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 16px;">
+        <span class="disp" style="font-size: 30px; color: #b88a89; line-height: 1;">03</span>
+        <div>
+          <div style="font-size: 15px; font-weight: 600; color: #3a2429;">No más de 4 horas seguidas</div>
+          <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Dejala descansar y volvé a encenderla. Apagala con apagavelas, no soplando.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SE LLEVA BIEN CON ══ -->
+  <div style="padding: 58px 80px;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 26px;">
+      <span style="height: 1px; flex: 0 0 46px; background: #d0aeac;"></span>
+      <h2 class="disp" style="font-size: 32px; color: {{accent}}; font-weight: 500; margin: 0;">Se lleva bien con</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px;">
+      <sc-for list="{{cross}}" as="x" hint-placeholder-count="4">
+        <div class="xcard" style="background: #fdf8f2; border: 1px solid #e8d9d5; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: .25s;">
+          <div class="trama" style="position: relative; aspect-ratio: 4/3; display: grid; place-items: center; background: {{x.wash}};">
+            <span class="flame" style="width: 34px; height: 58px; background: {{x.tint}}; opacity: .9;"></span>
+            <sc-if value="{{x.isIdea}}" hint-placeholder-val="{{true}}">
+              <div style="position: absolute; right: 12px; top: 12px; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #f3ebe1; background: #835c5b; padding: 5px 10px; border-radius: 999px;">A proponer</div>
+            </sc-if>
+          </div>
+          <div style="padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 9px; flex: 1;">
+            <h3 style="font-size: 15px; font-weight: 600; color: #3a2429; margin: 0; line-height: 1.35;">{{x.name}}</h3>
+            <div style="font-size: 12.5px; color: #8a7570; line-height: 1.5;">{{x.why}}</div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 6px;">
+              <span class="num" style="font-size: 17px; font-weight: 600; color: #671128;">{{x.price}}</span>
+              <button onClick="{{x.add}}" style="font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .06em; padding: 0 16px; min-height: 40px; border-radius: 999px; border: 1px solid #b88a89; background: transparent; color: #835c5b; cursor: pointer;">Sumar</button>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ══ RESEÑAS (honestas: todavía no hay) ══ -->
+  <div style="padding: 0 80px 62px;">
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30px; align-items: center; padding: 34px 38px; border: 1px dashed #d0aeac; border-radius: 18px; background: #fdf8f2;">
+      <div>
+        <div class="eyebrow">Reseñas</div>
+        <div class="disp" style="font-size: 27px; color: #671128; margin-top: 12px;">Todavía no publicamos reseñas de esta vela</div>
+        <div style="margin-top: 10px; font-size: 14.5px; color: #835c5b; line-height: 1.6; max-width: 52ch;">
+          Preferimos no inventar ninguna. Cuando la compres y la enciendas, contanos qué te
+          pareció por WhatsApp o Instagram y la publicamos acá con tu nombre.
+        </div>
+      </div>
+      <div style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
+        <a href="#" class="btn btn-ghost">Contanos por WhatsApp</a>
+        <a href="#" class="btn btn-vino">Sumar al carrito</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#671128","options":["#671128","#835c5b","#b88a89","#d0aeac"],"section":"Marca"}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { qty: 1, cart: 0, subtotal: 0 };
+  }
+
+  money(n) { return '$' + n.toLocaleString('es-AR'); }
+
+  renderVals() {
+    const price = 12900;
+    const q = this.state.qty;
+    const sub = this.state.subtotal;
+    const free = 25000;
+
+    const crossDefs = [
+      { name: 'Difusor Vainilla y canela', why: 'La misma fragancia, encendida todo el mes.', price: 14900, tint: '#b88a89', wash: 'radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1)', isIdea: false },
+      { name: 'Fósforos largos', why: 'Para encenderla sin quemarte los dedos.', price: 3900, tint: '#835c5b', wash: 'radial-gradient(64% 58% at 50% 44%, #eadfd8, #ddcbc4 68%, #cdb5ae)', isIdea: false },
+      { name: 'Portavela de cerámica', why: 'Le da base y protege la mesa.', price: 9900, tint: '#d0aeac', wash: 'radial-gradient(64% 58% at 50% 44%, #fdf3ee, #f0e0dc 68%, #e3cdc9)', isIdea: false },
+      { name: 'Trío para descubrir · 3 minis', why: 'Un cálido, un floral y un amaderado para probar antes de elegir.', price: 9900, tint: '#671128', wash: 'radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e3cdc9 68%, #d0aeac)', isIdea: true }
+    ];
+
+    return {
+      accent: this.props.accent ?? '#671128',
+      qty: q,
+      lineTotal: this.money(price * q),
+      cartCount: this.state.cart,
+      shipHint: sub >= free
+        ? 'Tu envío es gratis'
+        : 'Te faltan ' + this.money(free - sub) + ' para el envío gratis en CABA y GBA',
+      cross: crossDefs.map((x) => ({
+        name: x.name,
+        why: x.why,
+        tint: x.tint,
+        wash: x.wash,
+        isIdea: x.isIdea,
+        price: this.money(x.price),
+        add: () => this.setState({ cart: this.state.cart + 1, subtotal: sub + x.price })
+      })),
+      plus: () => this.setState({ qty: q + 1 }),
+      minus: () => this.setState({ qty: Math.max(1, q - 1) }),
+      addToCart: () => this.setState({ cart: this.state.cart + q, subtotal: sub + price * q })
+    };
+  }
+}
+</script>
+</body>
+</html>

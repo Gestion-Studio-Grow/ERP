@@ -1,0 +1,245 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #671128; color: #f3ebe1;
+           font-family: 'Kumbh Sans', system-ui, -apple-system, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #f3ebe1; text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { color: #d0aeac; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; letter-spacing: .005em; line-height: 1.04; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .opt { display: flex; align-items: center; gap: 16px; width: 100%; text-align: left;
+           padding: 18px 22px; border-radius: 14px; border: 1px solid rgba(232,217,213,.34);
+           background: rgba(232,217,213,.09); color: #f3ebe1; cursor: pointer;
+           font-family: 'Kumbh Sans', sans-serif; font-size: 15.5px; transition: .2s; min-height: 62px; }
+    .opt:hover { background: rgba(232,217,213,.2); border-color: #d0aeac; transform: translateX(3px); }
+    .opt-k { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; color: #d0aeac;
+             width: 30px; flex: none; }
+  </style>
+</helmet>
+
+<div style="min-height: 100%; background: radial-gradient(90% 62% at 22% 8%, #7e1a35, #671128 58%, #4d0c1e); padding: 44px 46px 46px; position: relative; overflow: hidden;">
+
+  <div aria-hidden style="position: absolute; right: -80px; top: -60px; width: 340px; height: 340px; border-radius: 50%; background: radial-gradient(50% 50% at 50% 50%, rgba(208,174,172,.34), rgba(184,138,137,.12) 52%, transparent 74%); filter: blur(6px);"></div>
+
+  <div style="position: relative;">
+    <!-- Cabecera -->
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+      <div style="display: flex; align-items: center; gap: 11px;">
+        <span class="flame" style="width: 15px; height: 26px; background: #f3ebe1;"></span>
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase; color: #d0aeac;">Encontrá tu aroma</span>
+      </div>
+      <span class="num" style="font-size: 12px; letter-spacing: .12em; color: rgba(243,235,225,.7);">{{stepLabel}}</span>
+    </div>
+
+    <!-- Progreso -->
+    <div style="display: flex; gap: 7px; margin-top: 18px;">
+      <sc-for list="{{bars}}" as="b" hint-placeholder-count="3">
+        <div style="flex: 1; height: 4px; border-radius: 999px; background: {{b.bg}};"></div>
+      </sc-for>
+    </div>
+
+    <!-- Pregunta -->
+    <sc-if value="{{asking}}" hint-placeholder-val="{{true}}">
+      <div style="margin-top: 40px;">
+        <h1 class="disp" style="font-size: 46px; margin: 0; color: #fff; font-weight: 500; max-width: 18ch;">{{question}}</h1>
+        <p style="margin: 14px 0 0; font-size: 15.5px; color: rgba(243,235,225,.76); max-width: 46ch; line-height: 1.6;">{{hint}}</p>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 30px;">
+          <sc-for list="{{options}}" as="o" hint-placeholder-count="3">
+            <button class="opt" onClick="{{o.pick}}">
+              <span class="opt-k">{{o.key}}</span>
+              <span>{{o.label}}</span>
+            </button>
+          </sc-for>
+        </div>
+        <button onClick="{{back}}" style="margin-top: 26px; background: transparent; border: 0; color: rgba(243,235,225,.7); font-family: 'Kumbh Sans', sans-serif; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 10px 0; min-height: 44px;">{{backLabel}}</button>
+      </div>
+    </sc-if>
+
+    <!-- Resultado -->
+    <sc-if value="{{done}}" hint-placeholder-val="{{false}}">
+      <div style="margin-top: 36px;">
+        <div style="font-size: 11px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase; color: #d0aeac;">Tu aroma es</div>
+        <h1 class="disp" style="font-size: 54px; margin: 12px 0 0; color: #fff; font-weight: 500;">{{pickName}}</h1>
+        <p style="margin: 14px 0 0; font-size: 16.5px; color: rgba(243,235,225,.86); max-width: 44ch; line-height: 1.62;">{{pickWhy}}</p>
+
+        <div style="display: flex; gap: 14px; margin-top: 28px; align-items: stretch;">
+          <div style="width: 168px; flex: none; border-radius: 16px; overflow: hidden; background: rgba(243,235,225,.1); border: 1px solid rgba(232,217,213,.3); display: grid; place-items: center; padding: 26px 0;">
+            <span class="flame" style="width: 52px; height: 88px; background: #f3ebe1; opacity: .92;"></span>
+          </div>
+          <div style="flex: 1; border-radius: 16px; border: 1px solid rgba(232,217,213,.3); background: rgba(243,235,225,.08); padding: 22px 24px; display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <div style="font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: #d0aeac;">Notas</div>
+              <div style="margin-top: 6px; font-size: 15px; color: #f3ebe1;">{{pickNotes}}</div>
+            </div>
+            <div style="display: flex; gap: 26px;">
+              <div>
+                <div style="font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: #d0aeac;">Intensidad</div>
+                <div style="display: flex; align-items: center; gap: 5px; margin-top: 8px;">
+                  <span class="flame" style="width: 10px; height: 17px; background: #f3ebe1; opacity: {{pickF1}};"></span>
+                  <span class="flame" style="width: 10px; height: 17px; background: #f3ebe1; opacity: {{pickF2}};"></span>
+                  <span class="flame" style="width: 10px; height: 17px; background: #f3ebe1; opacity: {{pickF3}};"></span>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: #d0aeac;">Dura</div>
+                <div class="num" style="margin-top: 6px; font-size: 17px; color: #f3ebe1; font-weight: 600;">{{pickDur}}</div>
+              </div>
+              <div>
+                <div style="font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: #d0aeac;">Precio</div>
+                <div class="num" style="margin-top: 6px; font-size: 17px; color: #f3ebe1; font-weight: 600;">{{pickPrice}}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 26px;">
+          <a href="#" style="display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 26px; border-radius: 999px; background: #f3ebe1; color: #671128; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-decoration: none;">Sumar al carrito</a>
+          <a href="#" style="display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 26px; border-radius: 999px; border: 1px solid rgba(243,235,225,.5); color: #f3ebe1; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-decoration: none;">Ver los otros dos que te pegan</a>
+          <button onClick="{{restart}}" style="min-height: 48px; padding: 0 22px; border-radius: 999px; border: 0; background: transparent; color: rgba(243,235,225,.72); font-family: 'Kumbh Sans', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: .06em; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;">Volver a empezar</button>
+        </div>
+
+        <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid rgba(232,217,213,.24); font-size: 13.5px; color: rgba(243,235,225,.72); line-height: 1.6; max-width: 52ch;">
+          ¿Seguís con dudas? Escribinos por WhatsApp y lo charlamos —contanos para quién es
+          y te ayudamos a elegir.
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":760,"height":920}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { step: 0, answers: [] };
+  }
+
+  questions() {
+    return [
+      {
+        q: '¿Qué querés que pase en ese ambiente?',
+        hint: 'No hay respuesta correcta: elegí la que más se parezca a tu momento.',
+        opts: [
+          { key: 'A', label: 'Bajar un cambio y relajarme', fam: 'florales' },
+          { key: 'B', label: 'Concentrarme y trabajar tranquila', fam: 'amaderados' },
+          { key: 'C', label: 'Recibir gente y que la casa reciba bien', fam: 'calidos' }
+        ]
+      },
+      {
+        q: '¿En qué momento del día la vas a encender?',
+        hint: 'Los aromas cambian según la luz que hay en la casa.',
+        opts: [
+          { key: 'A', label: 'A la mañana o al mediodía', fam: 'florales' },
+          { key: 'B', label: 'A la tarde, mientras trabajo', fam: 'amaderados' },
+          { key: 'C', label: 'De noche, cuando el día se termina', fam: 'calidos' }
+        ]
+      },
+      {
+        q: '¿Cuánto querés que se note?',
+        hint: 'Un ambiente chico necesita menos de lo que uno cree.',
+        opts: [
+          { key: 'A', label: 'Apenas, un fondo suave', intensity: 1 },
+          { key: 'B', label: 'Que se sienta al entrar', intensity: 2 },
+          { key: 'C', label: 'Que llene toda la casa', intensity: 3 }
+        ]
+      }
+    ];
+  }
+
+  catalog() {
+    return [
+      { name: 'Lavanda', fam: 'florales', intensity: 1, notes: 'lavanda · romero · lino', duration: '40 h', price: 11900, why: 'Suave y limpia, de las que no compiten con nada. Es la que más nos piden para el cuarto.' },
+      { name: 'Flor de naranjo', fam: 'florales', intensity: 2, notes: 'azahar · neroli · miel', duration: '40 h', price: 11900, why: 'Luminosa y liviana, con un fondo de miel. Levanta un ambiente sin taparlo.' },
+      { name: 'Jazmín', fam: 'florales', intensity: 3, notes: 'jazmín · pétalos blancos · almizcle', duration: '40 h', price: 11900, why: 'Floral de verdad, de las que se sienten desde la puerta. Para cuando querés que la casa hable.' },
+      { name: 'Sándalo', fam: 'amaderados', intensity: 3, notes: 'sándalo · vetiver · cuero suave', duration: '50 h', price: 13900, why: 'Serena y con carácter. La que ponés cuando necesitás que el día se ordene.' },
+      { name: 'Cedro y ámbar', fam: 'amaderados', intensity: 3, notes: 'cedro · ámbar · incienso', duration: '50 h', price: 13900, why: 'Amaderada y cálida a la vez. Hace que un escritorio se sienta un lugar y no un mueble.' },
+      { name: 'Coco y vainilla', fam: 'calidos', intensity: 2, notes: 'coco · vainilla · leche tibia', duration: '45 h', price: 12900, why: 'Dulce sin empalagar, redonda. La que gusta a todo el mundo cuando hay gente en casa.' },
+      { name: 'Vainilla y canela', fam: 'calidos', intensity: 3, notes: 'vainilla · canela · caramelo', duration: '45 h', price: 12900, why: 'Huele a domingo a la tarde con algo en el horno. Se queda en la casa después de apagarla.' }
+    ];
+  }
+
+  answer(i, opt) {
+    const a = this.state.answers.slice(0, i);
+    a[i] = opt;
+    this.setState({ answers: a, step: i + 1 });
+  }
+
+  renderVals() {
+    const qs = this.questions();
+    const step = this.state.step;
+    const answers = this.state.answers;
+    const asking = step < qs.length;
+
+    const bars = [0, 1, 2].map((i) => ({ bg: i < step ? '#f3ebe1' : 'rgba(243,235,225,.24)' }));
+
+    let out = {
+      stepLabel: asking ? 'Paso ' + (step + 1) + ' de 3' : 'Listo',
+      bars: bars,
+      asking: asking,
+      done: !asking,
+      question: '',
+      hint: '',
+      options: [],
+      backLabel: step === 0 ? 'Cerrar' : 'Volver a la anterior',
+      back: () => this.setState({ step: Math.max(0, step - 1) }),
+      restart: () => this.setState({ step: 0, answers: [] }),
+      pickName: '',
+      pickWhy: '',
+      pickNotes: '',
+      pickDur: '',
+      pickPrice: '',
+      pickF1: '.24',
+      pickF2: '.24',
+      pickF3: '.24'
+    };
+
+    if (asking) {
+      const cur = qs[step];
+      out.question = cur.q;
+      out.hint = cur.hint;
+      out.options = cur.opts.map((o) => ({
+        key: o.key,
+        label: o.label,
+        pick: () => this.answer(step, o)
+      }));
+      return out;
+    }
+
+    const fam = (answers[0] && answers[0].fam) || (answers[1] && answers[1].fam) || 'calidos';
+    const wanted = (answers[2] && answers[2].intensity) || 2;
+    const pool = this.catalog().filter((c) => c.fam === fam);
+    let best = pool[0];
+    let bestGap = 99;
+    for (const c of pool) {
+      const gap = Math.abs(c.intensity - wanted);
+      if (gap < bestGap) { bestGap = gap; best = c; }
+    }
+
+    out.pickName = best.name;
+    out.pickWhy = best.why;
+    out.pickNotes = best.notes;
+    out.pickDur = best.duration;
+    out.pickPrice = '$' + best.price.toLocaleString('es-AR');
+    out.pickF1 = best.intensity >= 1 ? '1' : '.24';
+    out.pickF2 = best.intensity >= 2 ? '1' : '.24';
+    out.pickF3 = best.intensity >= 3 ? '1' : '.24';
+    return out;
+  }
+}
+</script>
+</body>
+</html>

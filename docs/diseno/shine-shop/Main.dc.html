@@ -1,0 +1,472 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #f3ebe1; color: #3a2429;
+           font-family: 'Kumbh Sans', system-ui, -apple-system, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; letter-spacing: .005em; line-height: 1.02; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .trama { background-image: radial-gradient(circle at 50% 50%, rgba(131,92,91,.16) 1.1px, transparent 1.2px);
+             background-size: 14px 14px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+           font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: .08em;
+           padding: 14px 26px; min-height: 48px; border-radius: 999px; border: 1px solid transparent;
+           cursor: pointer; transition: .2s; text-align: center; }
+    .btn-vino { background: #671128; color: #fff; }
+    .btn-vino:hover { background: #7e1a35; color: #fff; transform: translateY(-2px); box-shadow: 0 18px 46px -22px rgba(103,17,40,.32); }
+    .btn-ghost { border-color: #b88a89; color: #835c5b; background: transparent; }
+    .btn-ghost:hover { border-color: #671128; color: #671128; background: rgba(184,138,137,.1); }
+    .eyebrow { font-weight: 600; font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #671128; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 18px 46px -22px rgba(103,17,40,.32); border-color: #d0aeac; }
+    .chip:hover { border-color: #671128; color: #671128; }
+    .fam:hover .fam-img { transform: scale(1.05); }
+    .fam:hover .fam-link { text-decoration: underline; text-underline-offset: 3px; }
+  </style>
+</helmet>
+
+<div style="min-height: 100%; background: #f3ebe1;">
+
+  <!-- ══ TOP BAR ══ -->
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 80px; background: #f3ebe1; border-bottom: 1px solid #e8d9d5;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <img src="logo.png" alt="Shine" style="height: 34px; width: auto; display: block;">
+      <small style="font-size: 9.5px; letter-spacing: .24em; color: #835c5b; text-transform: uppercase; white-space: nowrap;">velas · aromas · deco</small>
+    </div>
+    <div style="display: flex; align-items: center; gap: 28px; font-size: 12.5px; letter-spacing: .06em; font-weight: 500; color: #835c5b;">
+      <a href="#" style="color: #671128; font-weight: 600; border-bottom: 1px solid #671128; padding-bottom: 2px;">Tienda</a>
+      <a href="#" style="color: #835c5b;">Velas</a>
+      <a href="#" style="color: #835c5b;">Aromas</a>
+      <a href="#" style="color: #835c5b;">Decoración</a>
+      <a href="#" style="color: #835c5b;">Accesorios</a>
+      <a href="#" style="color: #835c5b;">Sets de regalo</a>
+    </div>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1px solid #e8d9d5; border-radius: 999px; background: #fdf8f2; min-width: 190px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b88a89" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+        <span style="font-size: 12.5px; color: #8a7570;">Buscar un aroma…</span>
+      </div>
+      <div style="position: relative; display: flex; align-items: center; gap: 9px; padding: 11px 20px; border-radius: 999px; background: #671128; color: #fff; font-size: 12.5px; font-weight: 600; letter-spacing: .06em;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 12.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z"></path><path d="M9 7V5.5a3 3 0 0 1 6 0V7"></path></svg>
+        <span class="num">{{cartCount}}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CABECERA DE TIENDA ══ -->
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .82fr); align-items: stretch; border-bottom: 1px solid #e8d9d5;">
+    <div style="padding: 64px 80px 58px; display: flex; flex-direction: column; justify-content: center;">
+      <div class="eyebrow">Tienda Shine</div>
+      <h1 class="disp" style="font-size: 62px; color: {{accent}}; margin: 16px 0 0; max-width: 13ch; font-weight: 500;">Elegí tu aroma</h1>
+      <p style="margin: 18px 0 0; font-size: 17px; line-height: 1.62; color: #3a2429; max-width: 50ch;">
+        Cera de soja, mecha de algodón y fragancias que cambian cómo se siente un espacio.
+        Cada aroma está descrito por sus notas, su intensidad y las horas que dura, para que
+        puedas elegir sin olerlo.
+      </p>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 26px;">
+        <span style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; background: #fdf8f2; border: 1px solid #e8d9d5; font-size: 12.5px; color: #835c5b; font-weight: 500;">
+          <span class="flame" style="width: 11px; height: 19px; background: #671128;"></span>
+          Envío gratis desde <b class="num" style="color: #671128;">$25.000</b>
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; background: #fdf8f2; border: 1px solid #e8d9d5; font-size: 12.5px; color: #835c5b; font-weight: 500;">
+          CABA y GBA · envío $3.500
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; background: #fdf8f2; border: 1px solid #e8d9d5; font-size: 12.5px; color: #835c5b; font-weight: 500;">
+          Mercado Pago · transferencia · débito y crédito
+        </span>
+      </div>
+      <div class="disp" style="display: inline-flex; align-items: center; gap: 10px; margin-top: 30px; font-style: italic; font-size: 19px; color: #835c5b;">
+        <span class="flame" style="width: 13px; height: 22px; background: #835c5b;"></span>
+        Que tu luz nunca se apague
+      </div>
+    </div>
+    <div style="position: relative; overflow: hidden; background: #e8d9d5; min-height: 420px;">
+      <img src="hero.jpg" alt="Velas de soja encendidas creando un ambiente cálido" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+      <div style="position: absolute; inset: 0; background: linear-gradient(90deg, rgba(243,235,225,.92), rgba(243,235,225,.12) 34%, transparent 60%);"></div>
+    </div>
+  </div>
+
+  <!-- ══ ÍNDICE OLFATIVO ══ -->
+  <div style="padding: 62px 80px 10px;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
+      <span style="font-size: 18px; color: #835c5b; letter-spacing: .02em;">01</span>
+      <span style="height: 1px; flex: 0 0 46px; background: #d0aeac;"></span>
+      <h2 class="disp" style="font-size: 38px; color: {{accent}}; font-weight: 500; margin: 0;">Índice olfativo</h2>
+    </div>
+    <p style="margin: 0 0 32px; font-size: 15.5px; color: #835c5b; max-width: 62ch; line-height: 1.6;">
+      Tres familias, tres estados de ánimo. Tocá una y la tienda se filtra sola.
+    </p>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+      <sc-for list="{{families}}" as="f" hint-placeholder-count="3">
+        <button class="fam" onClick="{{f.pick}}" aria-label="{{f.aria}}" style="display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer;">
+          <div style="position: relative; aspect-ratio: 16/10; border-radius: 14px; overflow: hidden; background: #e8d9d5; box-shadow: 0 18px 46px -22px rgba(103,17,40,.32);">
+            <img class="fam-img" src="{{f.img}}" alt="{{f.alt}}" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .6s cubic-bezier(.22,.61,.36,1);">
+            <div style="position: absolute; inset: 0; background: linear-gradient(transparent 34%, rgba(58,17,25,.72));"></div>
+            <div style="position: absolute; left: 18px; right: 18px; bottom: 16px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+              <div class="disp" style="font-weight: 600; font-size: 27px; color: #fff; text-shadow: 0 2px 16px rgba(58,17,25,.6);">{{f.name}}</div>
+              <div class="num" style="font-size: 12px; letter-spacing: .12em; color: rgba(255,255,255,.86); text-transform: uppercase; padding-bottom: 6px;">{{f.count}}</div>
+            </div>
+            <div style="position: absolute; left: 18px; top: 16px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(253,248,242,.9);">
+              <span class="flame" style="width: 12px; height: 20px; background: {{f.tint}};"></span>
+            </div>
+          </div>
+          <div style="margin: 15px 2px 0; font-size: 14px; line-height: 1.55; color: #835c5b;">{{f.text}}</div>
+          <div class="fam-link" style="margin: 11px 2px 0; font-size: 13px; font-weight: 600; color: #671128; letter-spacing: .02em;">{{f.cta}}</div>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ══ BARRA DE FILTROS ══ -->
+  <div style="padding: 54px 80px 0;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 26px;">
+      <span style="font-size: 18px; color: #835c5b; letter-spacing: .02em;">02</span>
+      <span style="height: 1px; flex: 0 0 46px; background: #d0aeac;"></span>
+      <h2 class="disp" style="font-size: 38px; color: {{accent}}; font-weight: 500; margin: 0;">La colección</h2>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 20px 26px; padding: 20px 24px; background: #fdf8f2; border: 1px solid #e8d9d5; border-radius: 16px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #8a7570;">Familia</span>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <sc-for list="{{famChips}}" as="c" hint-placeholder-count="4">
+            <button class="chip" onClick="{{c.pick}}" style="font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: .04em; padding: 9px 16px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: .2s; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}};">{{c.label}}</button>
+          </sc-for>
+        </div>
+      </div>
+      <span style="width: 1px; align-self: stretch; background: #e8d9d5;"></span>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #8a7570;">Formato</span>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <sc-for list="{{formChips}}" as="c" hint-placeholder-count="5">
+            <button class="chip" onClick="{{c.pick}}" style="font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: .04em; padding: 9px 16px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: .2s; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}};">{{c.label}}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 16px;">
+        <span class="num" style="font-size: 13px; color: #835c5b;">{{resultLabel}}</span>
+        <button onClick="{{clearAll}}" style="font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; color: #671128; background: transparent; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 8px 0;">Limpiar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ GRILLA DE PRODUCTOS ══ -->
+  <div style="padding: 26px 80px 0;">
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px;">
+      <sc-for list="{{shown}}" as="p" hint-placeholder-count="8">
+        <div class="card" style="background: #fdf8f2; border: 1px solid #e8d9d5; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: .25s;">
+          <div class="trama" style="position: relative; aspect-ratio: 1/1; display: grid; place-items: center; overflow: hidden; background: {{p.wash}};">
+            <span class="flame" style="width: 44px; height: 75px; background: {{p.tint}}; opacity: .9;"></span>
+            <div style="position: absolute; left: 14px; top: 14px; font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #835c5b; background: rgba(253,248,242,.86); padding: 5px 10px; border-radius: 999px;">{{p.format}}</div>
+            <sc-if value="{{p.isNew}}" hint-placeholder-val="{{true}}">
+              <div style="position: absolute; right: 14px; top: 14px; font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #f3ebe1; background: #671128; padding: 5px 10px; border-radius: 999px;">Temporada</div>
+            </sc-if>
+          </div>
+          <div style="padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 11px; flex: 1;">
+            <div>
+              <h3 style="font-size: 16px; font-weight: 600; color: #3a2429; line-height: 1.3; margin: 0;">{{p.name}}</h3>
+              <div style="margin-top: 6px; font-size: 12.5px; color: #8a7570; line-height: 1.5;">{{p.notes}}</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 14px; padding: 9px 0; border-top: 1px solid #e8d9d5; border-bottom: 1px solid #e8d9d5;">
+              <div style="display: flex; align-items: center; gap: 5px;" title="Intensidad">
+                <span class="flame" style="width: 9px; height: 15px; background: #671128; opacity: {{p.f1}};"></span>
+                <span class="flame" style="width: 9px; height: 15px; background: #671128; opacity: {{p.f2}};"></span>
+                <span class="flame" style="width: 9px; height: 15px; background: #671128; opacity: {{p.f3}};"></span>
+                <span style="font-size: 11px; color: #8a7570; margin-left: 3px;">{{p.intLabel}}</span>
+              </div>
+              <span class="num" style="font-size: 11.5px; color: #8a7570; margin-left: auto;">{{p.duration}}</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto;">
+              <span class="num" style="font-size: 19px; font-weight: 600; color: {{accent}};">{{p.price}}</span>
+              <button onClick="{{p.add}}" style="font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .06em; padding: 0 18px; min-height: 40px; border-radius: 999px; border: 1px solid #b88a89; background: transparent; color: #835c5b; cursor: pointer; transition: .2s;">Sumar</button>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ══ QUIZ ══ -->
+  <div style="position: relative; overflow: hidden; margin: 68px 0 0; padding: 76px 80px; color: #fff;">
+    <img src="ambiance.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(58,17,25,.82), rgba(58,17,25,.66));"></div>
+    <div style="position: relative; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 56px; align-items: center; max-width: 1180px; margin: 0 auto;">
+      <div>
+        <div class="eyebrow" style="color: #d0aeac;">¿No sabés cuál?</div>
+        <h2 class="disp" style="font-size: 46px; margin: 16px 0 0; color: #fff; font-weight: 500; max-width: 16ch;">Contanos el momento y te decimos el aroma</h2>
+        <p style="margin: 18px 0 0; font-size: 16.5px; line-height: 1.65; color: rgba(255,255,255,.86); max-width: 48ch;">
+          Tres preguntas —dónde, cuándo y para qué— y te proponemos una fragancia de la colección.
+          Si no te convence, seguís charlando por WhatsApp con nosotras.
+        </p>
+        <div style="display: flex; gap: 13px; flex-wrap: wrap; margin-top: 28px;">
+          <a href="#" class="btn btn-vino" style="background: #f3ebe1; color: #671128;">Encontrá tu aroma</a>
+          <a href="#" class="btn btn-ghost" style="border-color: rgba(243,235,225,.5); color: #f3ebe1;">Escribinos por WhatsApp</a>
+        </div>
+      </div>
+      <div style="background: rgba(253,248,242,.1); border: 1px solid rgba(253,248,242,.22); border-radius: 18px; padding: 30px 30px 26px;">
+        <div style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #d0aeac;">Paso 1 de 3</div>
+        <div class="disp" style="font-size: 27px; margin: 12px 0 20px; color: #fff;">¿Qué querés que pase en ese ambiente?</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="padding: 14px 18px; border-radius: 12px; border: 1px solid rgba(232,217,213,.34); background: rgba(232,217,213,.1); font-size: 14.5px;">Bajar un cambio y relajarme</div>
+          <div style="padding: 14px 18px; border-radius: 12px; border: 1px solid rgba(232,217,213,.34); background: rgba(232,217,213,.1); font-size: 14.5px;">Concentrarme y trabajar</div>
+          <div style="padding: 14px 18px; border-radius: 12px; border: 1px solid rgba(232,217,213,.34); background: rgba(232,217,213,.1); font-size: 14.5px;">Recibir gente en casa</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SETS DE REGALO ══ -->
+  <div style="background: #fdf8f2; border-top: 1px solid #e8d9d5; padding: 68px 80px;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
+      <span style="font-size: 18px; color: #835c5b; letter-spacing: .02em;">03</span>
+      <span style="height: 1px; flex: 0 0 46px; background: #d0aeac;"></span>
+      <h2 class="disp" style="font-size: 38px; color: {{accent}}; font-weight: 500; margin: 0;">Sets de regalo</h2>
+    </div>
+    <p style="margin: 0 0 32px; font-size: 15.5px; color: #835c5b; max-width: 52ch; line-height: 1.6;">
+      Experiencias listas para regalar —o para darte un gusto.
+    </p>
+    <div style="display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: 34px; align-items: stretch;">
+      <div style="position: relative; border-radius: 18px; overflow: hidden; min-height: 340px; background: #b88a89; box-shadow: 0 18px 46px -22px rgba(103,17,40,.32);">
+        <img src="gift.jpg" alt="Set de regalo Shine" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+        <div style="position: absolute; inset: 0; background: linear-gradient(180deg, transparent 34%, rgba(58,17,25,.7));"></div>
+        <div style="position: absolute; left: 26px; right: 26px; bottom: 24px;">
+          <div class="disp" style="font-size: 30px; color: #fff;">Se arma, se envuelve, se manda</div>
+          <div style="margin-top: 8px; font-size: 14px; color: rgba(255,255,255,.86); line-height: 1.55;">Con tarjeta escrita a mano y envío directo a quien lo recibe.</div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <sc-for list="{{sets}}" as="s" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 20px; padding: 22px 24px; background: #f3ebe1; border: 1px solid #e8d9d5; border-radius: 16px;">
+            <span class="flame" style="width: 20px; height: 34px; background: #b88a89;"></span>
+            <div style="min-width: 0; flex: 1;">
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 16px; font-weight: 600; color: #3a2429;">{{s.name}}</span>
+                <sc-if value="{{s.hasNote}}" hint-placeholder-val="{{true}}">
+                  <span style="font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #671128; border: 1px solid #d0aeac; border-radius: 999px; padding: 4px 10px;">{{s.note}}</span>
+                </sc-if>
+              </div>
+              <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.55;">{{s.items}}</div>
+            </div>
+            <span class="num" style="font-size: 19px; font-weight: 600; color: {{accent}};">{{s.price}}</span>
+            <button onClick="{{s.add}}" style="font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .06em; padding: 0 18px; min-height: 40px; border-radius: 999px; border: 1px solid #b88a89; background: transparent; color: #835c5b; cursor: pointer;">Sumar</button>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ BARRA DE CARRITO (pegada abajo en la página real) ══ -->
+  <div style="display: flex; align-items: center; gap: 26px; padding: 18px 80px; background: {{accent}}; color: #f3ebe1;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="flame" style="width: 14px; height: 24px; background: #f3ebe1;"></span>
+      <span class="num" style="font-size: 14px; font-weight: 600; letter-spacing: .04em;">{{cartLine}}</span>
+    </div>
+    <div style="flex: 1; max-width: 420px;">
+      <div style="height: 6px; border-radius: 999px; background: rgba(243,235,225,.24); overflow: hidden;">
+        <div style="height: 100%; border-radius: 999px; background: #d0aeac; width: {{progress}};"></div>
+      </div>
+      <div class="num" style="margin-top: 8px; font-size: 12px; color: rgba(243,235,225,.86);">{{shipLine}}</div>
+    </div>
+    <a href="#" class="btn" style="margin-left: auto; background: #f3ebe1; color: #671128;">Finalizar compra</a>
+  </div>
+
+  <!-- ══ PIE ══ -->
+  <div style="padding: 46px 80px 40px; background: #f3ebe1; border-top: 1px solid #e8d9d5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px;">
+    <div>
+      <img src="logo.png" alt="Shine" style="height: 30px; width: auto; display: block;">
+      <div class="disp" style="margin-top: 14px; font-style: italic; font-size: 17px; color: #835c5b;">Que tu luz nunca se apague</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #671128;">Envíos</div>
+      <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">CABA y GBA<br>Envío $3.500 · gratis desde $25.000<br>Retiro coordinado por WhatsApp</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #671128;">Pagos</div>
+      <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">Mercado Pago · Transferencia<br>Débito y crédito · Efectivo</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #671128;">Hablemos</div>
+      <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">WhatsApp [TU NÚMERO]<br>Instagram @shine.velas.store</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#671128","options":["#671128","#835c5b","#b88a89","#d0aeac"],"section":"Marca"},"density":{"editor":"enum","options":["cómoda","compacta"],"default":"cómoda","section":"Grilla"}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { fam: 'todas', format: 'todos', cart: 0, subtotal: 0 };
+  }
+
+  catalog() {
+    return [
+      { id: 'v1', name: 'Vainilla y canela', fam: 'calidos', format: 'Vela', notes: 'vainilla · canela · caramelo', intensity: 3, duration: '45 h', price: 12900, isNew: true },
+      { id: 'v2', name: 'Coco y vainilla', fam: 'calidos', format: 'Vela', notes: 'coco · vainilla · leche tibia', intensity: 2, duration: '45 h', price: 12900, isNew: false },
+      { id: 'v3', name: 'Flor de naranjo', fam: 'florales', format: 'Vela', notes: 'azahar · neroli · miel', intensity: 2, duration: '40 h', price: 11900, isNew: true },
+      { id: 'v4', name: 'Jazmín', fam: 'florales', format: 'Vela', notes: 'jazmín · pétalos blancos · almizcle', intensity: 3, duration: '40 h', price: 11900, isNew: false },
+      { id: 'v5', name: 'Lavanda', fam: 'florales', format: 'Vela', notes: 'lavanda · romero · lino', intensity: 1, duration: '40 h', price: 11900, isNew: false },
+      { id: 'v6', name: 'Sándalo', fam: 'amaderados', format: 'Vela', notes: 'sándalo · vetiver · cuero suave', intensity: 3, duration: '50 h', price: 13900, isNew: false },
+      { id: 'v7', name: 'Cedro y ámbar', fam: 'amaderados', format: 'Vela', notes: 'cedro · ámbar · incienso', intensity: 3, duration: '50 h', price: 13900, isNew: true },
+      { id: 'v8', name: 'Vainilla y canela · dos mechas', fam: 'calidos', format: 'Vela grande', notes: 'la misma fragancia, el doble de ambiente', intensity: 3, duration: '80 h', price: 19900, isNew: false },
+      { id: 'd1', name: 'Difusor Sándalo 250 ml', fam: 'amaderados', format: 'Difusor', notes: 'sándalo · vetiver · varillas de rattan', intensity: 2, duration: '8 a 10 semanas', price: 14900, isNew: false },
+      { id: 's1', name: 'Sahumerios Flor de naranjo ×20', fam: 'florales', format: 'Sahumerio', notes: 'azahar · resina suave', intensity: 2, duration: '35 min c/u', price: 4900, isNew: false },
+      { id: 't1', name: 'Textil Lavanda 100 ml', fam: 'florales', format: 'Textil', notes: 'lavanda · algodón limpio', intensity: 1, duration: 'rinde 60 usos', price: 8900, isNew: false },
+      { id: 'v9', name: 'Coco y vainilla · lata viajera', fam: 'calidos', format: 'Vela', notes: 'para llevar a donde vayas', intensity: 2, duration: '25 h', price: 8900, isNew: false }
+    ];
+  }
+
+  money(n) {
+    return '$' + n.toLocaleString('es-AR');
+  }
+
+  tintFor(fam) {
+    if (fam === 'calidos') return '#b88a89';
+    if (fam === 'florales') return '#d0aeac';
+    return '#835c5b';
+  }
+
+  washFor(fam) {
+    if (fam === 'calidos') return 'radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1)';
+    if (fam === 'florales') return 'radial-gradient(64% 58% at 50% 44%, #fdf3ee, #f0e0dc 68%, #e3cdc9)';
+    return 'radial-gradient(64% 58% at 50% 44%, #eadfd8, #ddcbc4 68%, #cdb5ae)';
+  }
+
+  intensityLabel(n) {
+    if (n === 1) return 'suave';
+    if (n === 2) return 'media';
+    return 'intensa';
+  }
+
+  add(price) {
+    this.setState({ cart: this.state.cart + 1, subtotal: this.state.subtotal + price });
+  }
+
+  renderVals() {
+    const all = this.catalog();
+    const compact = this.props.density === 'compacta';
+    const shown = all.filter((p) => {
+      const okFam = this.state.fam === 'todas' || p.fam === this.state.fam;
+      const okFormat = this.state.format === 'todos' || p.format === this.state.format;
+      return okFam && okFormat;
+    });
+
+    const famDefs = [
+      { key: 'calidos', name: 'Cálidos y dulces', img: 'mundo-velas.jpg', alt: 'Velas de cera de soja de aroma cálido', text: 'Vainilla, canela, coco. Para bajar un cambio cuando el día se termina.', cta: 'Ver los cálidos →' },
+      { key: 'florales', name: 'Florales', img: 'mundo-aromas.jpg', alt: 'Difusores y aromas florales', text: 'Azahar, jazmín, lavanda. Livianos, luminosos, para el día.', cta: 'Ver los florales →' },
+      { key: 'amaderados', name: 'Amaderados', img: 'mundo-decoracion.jpg', alt: 'Ambiente con velas de aroma amaderado', text: 'Sándalo, cedro, ámbar. Serenos y con carácter, para concentrarte.', cta: 'Ver los amaderados →' }
+    ];
+
+    const families = famDefs.map((f) => {
+      const n = all.filter((p) => p.fam === f.key).length;
+      return Object.assign({}, f, {
+        tint: this.tintFor(f.key),
+        count: n + ' piezas',
+        aria: 'Filtrar por familia ' + f.name,
+        pick: () => this.setState({ fam: f.key })
+      });
+    });
+
+    const famChipDefs = [
+      { key: 'todas', label: 'Todas' },
+      { key: 'calidos', label: 'Cálidos y dulces' },
+      { key: 'florales', label: 'Florales' },
+      { key: 'amaderados', label: 'Amaderados' }
+    ];
+    const famChips = famChipDefs.map((c) => {
+      const on = this.state.fam === c.key;
+      return {
+        label: c.label,
+        bg: on ? '#671128' : 'transparent',
+        fg: on ? '#f3ebe1' : '#835c5b',
+        bd: on ? '#671128' : '#d0aeac',
+        pick: () => this.setState({ fam: c.key })
+      };
+    });
+
+    const formatDefs = ['todos', 'Vela', 'Vela grande', 'Difusor', 'Sahumerio', 'Textil'];
+    const formChips = formatDefs.map((k) => {
+      const on = this.state.format === k;
+      return {
+        label: k === 'todos' ? 'Todos' : k,
+        bg: on ? '#671128' : 'transparent',
+        fg: on ? '#f3ebe1' : '#835c5b',
+        bd: on ? '#671128' : '#d0aeac',
+        pick: () => this.setState({ format: k })
+      };
+    });
+
+    const items = shown.map((p) => ({
+      name: p.name,
+      notes: p.notes,
+      format: p.format,
+      isNew: p.isNew,
+      duration: p.duration,
+      price: this.money(p.price),
+      tint: this.tintFor(p.fam),
+      wash: this.washFor(p.fam),
+      intLabel: this.intensityLabel(p.intensity),
+      f1: p.intensity >= 1 ? '1' : '.22',
+      f2: p.intensity >= 2 ? '1' : '.22',
+      f3: p.intensity >= 3 ? '1' : '.22',
+      add: () => this.add(p.price)
+    }));
+
+    const setDefs = [
+      { name: 'Set Ritual', items: 'Vela de soja + difusor a juego + fósforos largos', price: 21900, note: 'El más elegido' },
+      { name: 'Caja Aromas', items: '3 velas aromáticas en caja de regalo', price: 22900, note: '' },
+      { name: 'Set Deco & Luz', items: 'Vela decorativa + portavela de cerámica + bandeja', price: 24900, note: 'Envío gratis' }
+    ];
+    const sets = setDefs.map((s) => ({
+      name: s.name,
+      items: s.items,
+      note: s.note,
+      hasNote: s.note !== '',
+      price: this.money(s.price),
+      add: () => this.add(s.price)
+    }));
+
+    const free = 25000;
+    const sub = this.state.subtotal;
+    const pct = Math.min(100, Math.round((sub / free) * 100));
+    const shipLine = sub === 0
+      ? 'Sumá ' + this.money(free) + ' y el envío te sale gratis'
+      : sub >= free
+        ? 'Llegaste: tu envío es gratis'
+        : 'Te faltan ' + this.money(free - sub) + ' para el envío gratis';
+
+    return {
+      accent: this.props.accent ?? '#671128',
+      families: families,
+      famChips: famChips,
+      formChips: formChips,
+      shown: items,
+      sets: sets,
+      cartCount: this.state.cart,
+      cartLine: this.state.cart === 0
+        ? 'Tu carrito está vacío'
+        : this.state.cart + (this.state.cart === 1 ? ' pieza · ' : ' piezas · ') + this.money(sub),
+      progress: pct + '%',
+      shipLine: shipLine,
+      resultLabel: shown.length + (shown.length === 1 ? ' pieza' : ' piezas') + (compact ? ' · vista compacta' : ''),
+      clearAll: () => this.setState({ fam: 'todas', format: 'todos' })
+    };
+  }
+}
+</script>
+</body>
+</html>

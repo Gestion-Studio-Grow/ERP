@@ -1,0 +1,43 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "El Shop" },
+    { "id": "page-2", "name": "Sistema y direcciones" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Shop · escritorio", "page": "page-1", "x": 0, "y": 0, "w": 1440, "h": 4400, "expand": "fill", "is_interactive": true },
+    { "file": "Ficha.dc.html", "title": "Ficha de producto", "page": "page-1", "x": 1560, "y": 0, "w": 1440, "h": 2350, "expand": "fill", "is_interactive": true },
+    { "file": "Mobile.dc.html", "title": "Shop · teléfono", "page": "page-1", "x": 3120, "y": 0, "w": 390, "h": 2850, "is_interactive": true },
+    { "file": "Quiz.dc.html", "title": "Encontrá tu aroma", "page": "page-1", "x": 3630, "y": 0, "w": 760, "h": 860, "is_interactive": true },
+    { "file": "Carrito.dc.html", "title": "Carrito", "page": "page-1", "x": 4510, "y": 0, "w": 520, "h": 1040, "is_interactive": true },
+    { "file": "Sistema.dc.html", "title": "Sistema de la tienda", "page": "page-2", "x": 0, "y": 0, "w": 1240, "h": 1620, "expand": "fill" },
+    { "file": "DireccionB.dc.html", "title": "Dirección B · El boticario", "page": "page-2", "x": 1360, "y": 0, "w": 680, "h": 1020 },
+    { "file": "DireccionC.dc.html", "title": "Dirección C · El almacén", "page": "page-2", "x": 2160, "y": 0, "w": 880, "h": 920 }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "page": "page-1",
+      "x": 0,
+      "y": -250,
+      "w": 620,
+      "text": "SHOP DE SHINE — sobre el manual de marca 2026 y los tokens que ya corre la vidriera en producción.\n\nEl problema del rubro es uno solo: no se puede oler por pantalla. Todo acá lo ataca — familias olfativas como filtro, notas visibles en cada tarjeta, medidor de intensidad, horas que dura, m² que ambienta y el quiz de aroma.\n\nLos filtros, el quiz y el carrito FUNCIONAN: probalos."
+    },
+    {
+      "id": "datos",
+      "page": "page-1",
+      "x": 3120,
+      "y": -250,
+      "w": 620,
+      "text": "DATOS REALES vs. DE MUESTRA.\n\nReales (salen del repo): envío $3.500, gratis desde $25.000, CABA y GBA, medios de pago, los tres sets de regalo con su precio, los siete aromas de temporada y todo el copy de marca.\n\nDe muestra (a reemplazar): los precios de las velas sueltas, las horas de duración y los m². El número de WhatsApp quedó como [TU NÚMERO]."
+    },
+    {
+      "id": "direcciones",
+      "page": "page-2",
+      "x": 1360,
+      "y": -220,
+      "w": 620,
+      "text": "Dos caminos que NO tomé, en boceto, para que se vea contra qué se decidió.\n\nB (el boticario) gana en relato y pierde en velocidad. C (el almacén) gana en velocidad y tira el precio para abajo.\n\nLo que está en la página 'El Shop' toma el relato de B en la ficha y la grilla escaneable de C en la tienda."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

@@ -1,0 +1,209 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #fdf8f2; color: #3a2429;
+           font-family: 'Kumbh Sans', system-ui, -apple-system, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; letter-spacing: .005em; line-height: 1.04; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .trama { background-image: radial-gradient(circle at 50% 50%, rgba(131,92,91,.16) 1.1px, transparent 1.2px);
+             background-size: 11px 11px; }
+    .step { width: 36px; height: 36px; border-radius: 10px; border: 1px solid #d0aeac; background: #f3ebe1;
+            color: #671128; cursor: pointer; font-size: 17px; line-height: 1; display: grid; place-items: center;
+            transition: .15s; font-family: 'Kumbh Sans', sans-serif; }
+    .step:hover { background: #671128; color: #fff; border-color: #671128; }
+  </style>
+</helmet>
+
+<div style="min-height: 100%; background: #fdf8f2; display: flex; flex-direction: column;">
+
+  <!-- Cabecera del panel -->
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 26px; border-bottom: 1px solid #e8d9d5;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="flame" style="width: 14px; height: 24px; background: #671128;"></span>
+      <div>
+        <div class="disp" style="font-size: 25px; color: #671128;">Tu pedido</div>
+        <div class="num" style="font-size: 12px; color: #8a7570; margin-top: 2px;">{{countLabel}}</div>
+      </div>
+    </div>
+    <button aria-label="Cerrar el carrito" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid #e8d9d5; background: transparent; color: #835c5b; cursor: pointer; display: grid; place-items: center;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </button>
+  </div>
+
+  <!-- Barra de envío gratis -->
+  <div style="padding: 18px 26px; background: #f3ebe1; border-bottom: 1px solid #e8d9d5;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+      <span style="font-size: 13px; color: #835c5b;">{{shipLine}}</span>
+      <span class="num" style="font-size: 12px; color: #8a7570;">{{pctLabel}}</span>
+    </div>
+    <div style="height: 6px; border-radius: 999px; background: #e8d9d5; overflow: hidden; margin-top: 10px;">
+      <div style="height: 100%; border-radius: 999px; background: #671128; width: {{progress}}; transition: width .3s ease;"></div>
+    </div>
+  </div>
+
+  <!-- Líneas -->
+  <div style="flex: 1; padding: 8px 26px 0;">
+    <sc-for list="{{lines}}" as="l" hint-placeholder-count="3">
+      <div style="display: flex; gap: 15px; padding: 18px 0; border-bottom: 1px solid #e8d9d5;">
+        <div class="trama" style="width: 74px; height: 74px; flex: none; border-radius: 12px; display: grid; place-items: center; background: {{l.wash}};">
+          <span class="flame" style="width: 22px; height: 38px; background: {{l.tint}}; opacity: .9;"></span>
+        </div>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+          <div>
+            <div style="font-size: 14.5px; font-weight: 600; color: #3a2429; line-height: 1.35;">{{l.name}}</div>
+            <div style="font-size: 12px; color: #8a7570; margin-top: 3px;">{{l.notes}}</div>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <button class="step" onClick="{{l.minus}}" aria-label="{{l.ariaMinus}}">−</button>
+              <span class="num" style="font-size: 14.5px; min-width: 26px; text-align: center; font-weight: 600; color: #3a2429;">{{l.qty}}</span>
+              <button class="step" onClick="{{l.plus}}" aria-label="{{l.ariaPlus}}">+</button>
+            </div>
+            <span class="num" style="font-size: 16px; font-weight: 600; color: #671128;">{{l.total}}</span>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- Entrega -->
+  <div style="padding: 22px 26px 0;">
+    <div style="font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #8a7570;">Cómo lo recibís</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px;">
+      <sc-for list="{{modes}}" as="m" hint-placeholder-count="2">
+        <button onClick="{{m.pick}}" style="text-align: left; padding: 14px 16px; border-radius: 12px; cursor: pointer; font-family: 'Kumbh Sans', sans-serif; min-height: 74px; border: 1px solid {{m.bd}}; background: {{m.bg}}; color: {{m.fg}};">
+          <div style="font-size: 13.5px; font-weight: 600;">{{m.label}}</div>
+          <div class="num" style="font-size: 12px; margin-top: 4px; opacity: .8;">{{m.detail}}</div>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- Totales -->
+  <div style="padding: 22px 26px 0;">
+    <div style="display: flex; justify-content: space-between; font-size: 14px; color: #835c5b; padding: 7px 0;">
+      <span>Subtotal</span><span class="num">{{subtotal}}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 14px; color: #835c5b; padding: 7px 0;">
+      <span>{{shipLabel}}</span><span class="num" style="color: {{shipColor}};">{{shipValue}}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 15px 0 0; margin-top: 8px; border-top: 1px solid #e8d9d5;">
+      <span class="disp" style="font-size: 24px; color: #3a2429;">Total</span>
+      <span class="num" style="font-size: 28px; font-weight: 600; color: #671128;">{{total}}</span>
+    </div>
+  </div>
+
+  <!-- Acciones -->
+  <div style="padding: 20px 26px 26px;">
+    <a href="#" style="display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 999px; background: #671128; color: #fff; font-size: 13px; font-weight: 600; letter-spacing: .08em;">Ir a pagar</a>
+    <a href="#" style="display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; margin-top: 10px; border-radius: 999px; background: transparent; border: 1px solid #b88a89; color: #835c5b; font-size: 13px; font-weight: 600; letter-spacing: .06em;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b7a3b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 20.5l1.3-4.2A8.2 8.2 0 1 1 8 19.4Z"></path></svg>
+      Prefiero cerrarlo por WhatsApp
+    </a>
+    <div style="margin-top: 16px; font-size: 12px; color: #8a7570; line-height: 1.65; text-align: center;">
+      Mercado Pago · transferencia · débito y crédito<br>
+      Envíos a CABA y GBA · retiro coordinado por WhatsApp
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":520,"height":980}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { qty: { v1: 1, v6: 1, s1: 2 }, mode: 'DELIVERY' };
+  }
+
+  money(n) { return '$' + n.toLocaleString('es-AR'); }
+
+  items() {
+    return [
+      { id: 'v1', name: 'Vainilla y canela', notes: 'Vela de soja 220 g · 45 h', price: 12900, tint: '#b88a89', wash: 'radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1)' },
+      { id: 'v6', name: 'Sándalo', notes: 'Vela de soja 220 g · 50 h', price: 13900, tint: '#835c5b', wash: 'radial-gradient(64% 58% at 50% 44%, #eadfd8, #ddcbc4 68%, #cdb5ae)' },
+      { id: 's1', name: 'Sahumerios Flor de naranjo ×20', notes: 'Azahar · resina suave', price: 4900, tint: '#d0aeac', wash: 'radial-gradient(64% 58% at 50% 44%, #fdf3ee, #f0e0dc 68%, #e3cdc9)' }
+    ];
+  }
+
+  bump(id, dir) {
+    const q = Object.assign({}, this.state.qty);
+    q[id] = Math.max(0, (q[id] || 0) + dir);
+    this.setState({ qty: q });
+  }
+
+  renderVals() {
+    const flat = 3500;
+    const free = 25000;
+    const all = this.items();
+    const live = all.filter((i) => (this.state.qty[i.id] || 0) > 0);
+    const subtotal = live.reduce((s, i) => s + i.price * this.state.qty[i.id], 0);
+    const count = live.reduce((s, i) => s + this.state.qty[i.id], 0);
+    const delivery = this.state.mode === 'DELIVERY';
+    const shipFree = subtotal >= free;
+    const ship = !delivery ? 0 : shipFree ? 0 : flat;
+    const pct = Math.min(100, Math.round((subtotal / free) * 100));
+
+    return {
+      lines: live.map((i) => ({
+        name: i.name,
+        notes: i.notes,
+        tint: i.tint,
+        wash: i.wash,
+        qty: this.state.qty[i.id],
+        total: this.money(i.price * this.state.qty[i.id]),
+        ariaMinus: 'Quitar una unidad de ' + i.name,
+        ariaPlus: 'Sumar una unidad de ' + i.name,
+        minus: () => this.bump(i.id, -1),
+        plus: () => this.bump(i.id, 1)
+      })),
+      modes: [
+        {
+          label: 'Envío a domicilio',
+          detail: shipFree ? 'Gratis · CABA y GBA' : this.money(flat) + ' · CABA y GBA',
+          bg: delivery ? '#671128' : 'transparent',
+          fg: delivery ? '#f3ebe1' : '#835c5b',
+          bd: delivery ? '#671128' : '#d0aeac',
+          pick: () => this.setState({ mode: 'DELIVERY' })
+        },
+        {
+          label: 'Retiro',
+          detail: 'Sin cargo · lo coordinamos',
+          bg: delivery ? 'transparent' : '#671128',
+          fg: delivery ? '#835c5b' : '#f3ebe1',
+          bd: delivery ? '#d0aeac' : '#671128',
+          pick: () => this.setState({ mode: 'PICKUP' })
+        }
+      ],
+      countLabel: count === 0 ? 'Todavía no sumaste nada' : count + (count === 1 ? ' pieza' : ' piezas'),
+      subtotal: this.money(subtotal),
+      shipLabel: delivery ? 'Envío' : 'Retiro',
+      shipValue: !delivery ? 'Sin cargo' : shipFree ? 'Gratis' : this.money(flat),
+      shipColor: (!delivery || shipFree) ? '#0b7a3b' : '#835c5b',
+      total: this.money(subtotal + ship),
+      progress: pct + '%',
+      pctLabel: pct + '%',
+      shipLine: subtotal >= free
+        ? 'Llegaste: tu envío es gratis'
+        : 'Te faltan ' + this.money(free - subtotal) + ' para el envío gratis'
+    };
+  }
+}
+</script>
+</body>
+</html>

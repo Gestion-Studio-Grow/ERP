@@ -1,0 +1,275 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #f3ebe1; color: #3a2429;
+           font-family: 'Kumbh Sans', system-ui, -apple-system, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; letter-spacing: .005em; line-height: 1.02; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .trama { background-image: radial-gradient(circle at 50% 50%, rgba(131,92,91,.16) 1.1px, transparent 1.2px);
+             background-size: 12px 12px; }
+    .eyebrow { font-weight: 600; font-size: 10px; letter-spacing: .3em; text-transform: uppercase; color: #671128; }
+  </style>
+</helmet>
+
+<div style="min-height: 100%; background: #f3ebe1; width: 390px;">
+
+  <!-- ══ BARRA ══ -->
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; background: #f3ebe1; border-bottom: 1px solid #e8d9d5;">
+    <button aria-label="Abrir menú" style="width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; cursor: pointer; margin-left: -10px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#835c5b" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+    </button>
+    <img src="logo.png" alt="Shine" style="height: 26px; width: auto; display: block;">
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button aria-label="Buscar" style="width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; cursor: pointer;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#835c5b" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+      </button>
+      <button aria-label="Ver carrito" style="position: relative; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; cursor: pointer; margin-right: -10px;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#671128" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 12.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z"></path><path d="M9 7V5.5a3 3 0 0 1 6 0V7"></path></svg>
+        <span class="num" style="position: absolute; top: 4px; right: 3px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: #671128; color: #f3ebe1; font-size: 10px; font-weight: 700; display: grid; place-items: center;">{{cartCount}}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ CABECERA ══ -->
+  <div style="padding: 22px 18px 20px;">
+    <div class="eyebrow">Tienda Shine</div>
+    <h1 class="disp" style="font-size: 40px; color: #671128; margin: 12px 0 0; font-weight: 500;">Elegí tu aroma</h1>
+    <p style="margin: 12px 0 0; font-size: 15px; line-height: 1.6; color: #3a2429;">
+      Cada fragancia con sus notas, su intensidad y las horas que dura. Para elegir sin olerla.
+    </p>
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 11px 15px; border-radius: 12px; background: #fdf8f2; border: 1px solid #e8d9d5;">
+      <span class="flame" style="width: 11px; height: 19px; background: #671128;"></span>
+      <span style="font-size: 12.5px; color: #835c5b;">Envío gratis desde <b class="num" style="color: #671128;">$25.000</b> · CABA y GBA</span>
+    </div>
+  </div>
+
+  <!-- ══ FAMILIAS (carrusel) ══ -->
+  <div style="padding: 0 0 4px 18px;">
+    <div style="font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #8a7570; margin-bottom: 12px;">Índice olfativo</div>
+    <div style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 14px; padding-right: 18px;">
+      <sc-for list="{{families}}" as="f" hint-placeholder-count="3">
+        <button onClick="{{f.pick}}" aria-label="{{f.aria}}" style="flex: none; width: 168px; border: 0; background: transparent; padding: 0; cursor: pointer; text-align: left;">
+          <div style="position: relative; width: 168px; height: 116px; border-radius: 14px; overflow: hidden; background: #e8d9d5;">
+            <img src="{{f.img}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+            <div style="position: absolute; inset: 0; background: linear-gradient(transparent 32%, rgba(58,17,25,.74));"></div>
+            <div class="disp" style="position: absolute; left: 13px; right: 13px; bottom: 11px; font-size: 20px; font-weight: 600; color: #fff; line-height: 1.1;">{{f.name}}</div>
+          </div>
+          <div class="num" style="margin-top: 8px; font-size: 11.5px; color: #8a7570; letter-spacing: .04em;">{{f.count}}</div>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ══ FILTROS ══ -->
+  <div style="position: relative; padding: 12px 0 14px 18px; background: #f3ebe1; border-top: 1px solid #e8d9d5; border-bottom: 1px solid #e8d9d5;">
+    <div style="display: flex; gap: 8px; overflow-x: auto; padding-right: 18px;">
+      <sc-for list="{{chips}}" as="c" hint-placeholder-count="4">
+        <button onClick="{{c.pick}}" style="flex: none; font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: .03em; padding: 0 16px; min-height: 44px; border-radius: 999px; cursor: pointer; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}};">{{c.label}}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ══ GRILLA ══ -->
+  <div style="padding: 18px 18px 0;">
+    <div class="num" style="font-size: 12px; color: #8a7570; margin-bottom: 14px;">{{resultLabel}}</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px;">
+      <sc-for list="{{shown}}" as="p" hint-placeholder-count="6">
+        <div style="background: #fdf8f2; border: 1px solid #e8d9d5; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;">
+          <div class="trama" style="position: relative; aspect-ratio: 1/1; display: grid; place-items: center; background: {{p.wash}};">
+            <span class="flame" style="width: 32px; height: 54px; background: {{p.tint}}; opacity: .9;"></span>
+            <sc-if value="{{p.isNew}}" hint-placeholder-val="{{true}}">
+              <div style="position: absolute; right: 9px; top: 9px; font-size: 9px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #f3ebe1; background: #671128; padding: 4px 8px; border-radius: 999px;">Temporada</div>
+            </sc-if>
+          </div>
+          <div style="padding: 12px 13px 13px; display: flex; flex-direction: column; gap: 8px; flex: 1;">
+            <h3 style="font-size: 14px; font-weight: 600; color: #3a2429; margin: 0; line-height: 1.3;">{{p.name}}</h3>
+            <div style="font-size: 11.5px; color: #8a7570; line-height: 1.45;">{{p.notes}}</div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span class="flame" style="width: 8px; height: 13px; background: #671128; opacity: {{p.f1}};"></span>
+              <span class="flame" style="width: 8px; height: 13px; background: #671128; opacity: {{p.f2}};"></span>
+              <span class="flame" style="width: 8px; height: 13px; background: #671128; opacity: {{p.f3}};"></span>
+              <span class="num" style="font-size: 10.5px; color: #8a7570; margin-left: auto;">{{p.duration}}</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto;">
+              <span class="num" style="font-size: 16px; font-weight: 600; color: #671128;">{{p.price}}</span>
+              <button onClick="{{p.add}}" aria-label="{{p.aria}}" style="width: 44px; height: 44px; border-radius: 999px; border: 1px solid #b88a89; background: transparent; color: #671128; cursor: pointer; font-size: 20px; line-height: 1; display: grid; place-items: center; margin-right: -2px;">+</button>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ══ QUIZ ══ -->
+  <div style="position: relative; overflow: hidden; margin: 26px 0 0; padding: 34px 22px 32px; color: #fff;">
+    <img src="ambiance.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(58,17,25,.84), rgba(58,17,25,.7));"></div>
+    <div style="position: relative;">
+      <div class="eyebrow" style="color: #d0aeac;">¿No sabés cuál?</div>
+      <div class="disp" style="font-size: 32px; margin: 12px 0 0; color: #fff; line-height: 1.06;">Contanos el momento y te decimos el aroma</div>
+      <div style="margin: 12px 0 0; font-size: 14.5px; line-height: 1.6; color: rgba(255,255,255,.86);">Tres preguntas y listo. Si no te convence, seguimos por WhatsApp.</div>
+      <a href="#" style="display: inline-flex; align-items: center; justify-content: center; margin-top: 20px; min-height: 48px; padding: 0 26px; border-radius: 999px; background: #f3ebe1; color: #671128; font-size: 13px; font-weight: 600; letter-spacing: .08em;">Encontrá tu aroma</a>
+    </div>
+  </div>
+
+  <!-- ══ SETS ══ -->
+  <div style="background: #fdf8f2; border-top: 1px solid #e8d9d5; padding: 30px 18px 26px;">
+    <h2 class="disp" style="font-size: 30px; color: #671128; font-weight: 500; margin: 0 0 6px;">Sets de regalo</h2>
+    <p style="margin: 0 0 18px; font-size: 14px; color: #835c5b; line-height: 1.55;">Listos para regalar —o para darte un gusto.</p>
+    <div style="display: flex; flex-direction: column; gap: 11px;">
+      <sc-for list="{{sets}}" as="s" hint-placeholder-count="3">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 15px 16px; background: #f3ebe1; border: 1px solid #e8d9d5; border-radius: 14px;">
+          <span class="flame" style="width: 16px; height: 27px; background: #b88a89;"></span>
+          <div style="min-width: 0; flex: 1;">
+            <div style="font-size: 14px; font-weight: 600; color: #3a2429;">{{s.name}}</div>
+            <div style="margin-top: 4px; font-size: 12px; color: #835c5b; line-height: 1.45;">{{s.items}}</div>
+          </div>
+          <span class="num" style="font-size: 16px; font-weight: 600; color: #671128;">{{s.price}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ══ PIE ══ -->
+  <div style="padding: 28px 18px 96px; background: #f3ebe1; border-top: 1px solid #e8d9d5;">
+    <div class="disp" style="font-style: italic; font-size: 18px; color: #835c5b;">Que tu luz nunca se apague</div>
+    <div style="margin-top: 14px; font-size: 13px; color: #835c5b; line-height: 1.8;">
+      Envíos a CABA y GBA · $3.500, gratis desde $25.000<br>
+      Mercado Pago · transferencia · débito y crédito<br>
+      WhatsApp [TU NÚMERO] · @shine.velas.store
+    </div>
+  </div>
+
+  <!-- ══ BARRA FIJA DE CARRITO ══ -->
+  <div style="position: sticky; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 13px 18px; background: #671128; color: #f3ebe1;">
+    <div style="min-width: 0; flex: 1;">
+      <div class="num" style="font-size: 13px; font-weight: 600;">{{cartLine}}</div>
+      <div style="height: 5px; border-radius: 999px; background: rgba(243,235,225,.24); overflow: hidden; margin-top: 7px;">
+        <div style="height: 100%; border-radius: 999px; background: #d0aeac; width: {{progress}};"></div>
+      </div>
+    </div>
+    <a href="#" style="display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 22px; border-radius: 999px; background: #f3ebe1; color: #671128; font-size: 12.5px; font-weight: 600; letter-spacing: .06em; white-space: nowrap;">Ver carrito</a>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { fam: 'todas', cart: 0, subtotal: 0 };
+  }
+
+  money(n) { return '$' + n.toLocaleString('es-AR'); }
+
+  catalog() {
+    return [
+      { id: 'v1', name: 'Vainilla y canela', fam: 'calidos', notes: 'vainilla · canela · caramelo', intensity: 3, duration: '45 h', price: 12900, isNew: true },
+      { id: 'v3', name: 'Flor de naranjo', fam: 'florales', notes: 'azahar · neroli · miel', intensity: 2, duration: '40 h', price: 11900, isNew: true },
+      { id: 'v6', name: 'Sándalo', fam: 'amaderados', notes: 'sándalo · vetiver · cuero suave', intensity: 3, duration: '50 h', price: 13900, isNew: false },
+      { id: 'v5', name: 'Lavanda', fam: 'florales', notes: 'lavanda · romero · lino', intensity: 1, duration: '40 h', price: 11900, isNew: false },
+      { id: 'v7', name: 'Cedro y ámbar', fam: 'amaderados', notes: 'cedro · ámbar · incienso', intensity: 3, duration: '50 h', price: 13900, isNew: true },
+      { id: 'v2', name: 'Coco y vainilla', fam: 'calidos', notes: 'coco · vainilla · leche tibia', intensity: 2, duration: '45 h', price: 12900, isNew: false },
+      { id: 'v4', name: 'Jazmín', fam: 'florales', notes: 'jazmín · pétalos · almizcle', intensity: 3, duration: '40 h', price: 11900, isNew: false },
+      { id: 'd1', name: 'Difusor Sándalo 250 ml', fam: 'amaderados', notes: 'sándalo · varillas de rattan', intensity: 2, duration: '8 a 10 sem', price: 14900, isNew: false }
+    ];
+  }
+
+  tintFor(fam) {
+    if (fam === 'calidos') return '#b88a89';
+    if (fam === 'florales') return '#d0aeac';
+    return '#835c5b';
+  }
+
+  washFor(fam) {
+    if (fam === 'calidos') return 'radial-gradient(64% 58% at 50% 44%, #f3e3dd, #e8d9d5 68%, #ddc6c1)';
+    if (fam === 'florales') return 'radial-gradient(64% 58% at 50% 44%, #fdf3ee, #f0e0dc 68%, #e3cdc9)';
+    return 'radial-gradient(64% 58% at 50% 44%, #eadfd8, #ddcbc4 68%, #cdb5ae)';
+  }
+
+  renderVals() {
+    const all = this.catalog();
+    const shown = all.filter((p) => this.state.fam === 'todas' || p.fam === this.state.fam);
+    const free = 25000;
+    const sub = this.state.subtotal;
+
+    const famDefs = [
+      { key: 'calidos', name: 'Cálidos y dulces', img: 'mundo-velas.jpg' },
+      { key: 'florales', name: 'Florales', img: 'mundo-aromas.jpg' },
+      { key: 'amaderados', name: 'Amaderados', img: 'mundo-decoracion.jpg' }
+    ];
+
+    const chipDefs = [
+      { key: 'todas', label: 'Todas' },
+      { key: 'calidos', label: 'Cálidos y dulces' },
+      { key: 'florales', label: 'Florales' },
+      { key: 'amaderados', label: 'Amaderados' }
+    ];
+
+    return {
+      families: famDefs.map((f) => ({
+        name: f.name,
+        img: f.img,
+        aria: 'Filtrar por familia ' + f.name,
+        count: all.filter((p) => p.fam === f.key).length + ' piezas',
+        pick: () => this.setState({ fam: f.key })
+      })),
+      chips: chipDefs.map((c) => {
+        const on = this.state.fam === c.key;
+        return {
+          label: c.label,
+          bg: on ? '#671128' : '#fdf8f2',
+          fg: on ? '#f3ebe1' : '#835c5b',
+          bd: on ? '#671128' : '#d0aeac',
+          pick: () => this.setState({ fam: c.key })
+        };
+      }),
+      shown: shown.map((p) => ({
+        name: p.name,
+        notes: p.notes,
+        duration: p.duration,
+        isNew: p.isNew,
+        price: this.money(p.price),
+        tint: this.tintFor(p.fam),
+        wash: this.washFor(p.fam),
+        aria: 'Sumar ' + p.name + ' al carrito',
+        f1: p.intensity >= 1 ? '1' : '.22',
+        f2: p.intensity >= 2 ? '1' : '.22',
+        f3: p.intensity >= 3 ? '1' : '.22',
+        add: () => this.setState({ cart: this.state.cart + 1, subtotal: sub + p.price })
+      })),
+      sets: [
+        { name: 'Set Ritual', items: 'Vela + difusor a juego + fósforos largos', price: this.money(21900) },
+        { name: 'Caja Aromas', items: '3 velas aromáticas en caja de regalo', price: this.money(22900) },
+        { name: 'Set Deco & Luz', items: 'Vela decorativa + portavela + bandeja', price: this.money(24900) }
+      ],
+      resultLabel: shown.length + (shown.length === 1 ? ' pieza' : ' piezas'),
+      cartCount: this.state.cart,
+      cartLine: this.state.cart === 0
+        ? 'Sumá ' + this.money(free) + ' y el envío es gratis'
+        : sub >= free
+          ? this.money(sub) + ' · envío gratis'
+          : this.money(sub) + ' · faltan ' + this.money(free - sub),
+      progress: Math.min(100, Math.round((sub / free) * 100)) + '%'
+    };
+  }
+}
+</script>
+</body>
+</html>
