@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .94; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 18px 34px 24px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 18px 34px; overflow: hidden; border: 1px solid #e4d7d0; background: #fdf8f2; }
+  </style>
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">07</span><span class="t">Ficha técnica</span></div>
+  <div class="lienzo" style="flex: 1;">
+
+    <div style="position: absolute; inset: 0; padding: 24px 30px; overflow: hidden;">
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr .7fr .7fr .8fr; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid #b88a89;">
+        <span class="meta" style="font-size: 9.5px;">Aroma</span><span class="meta" style="font-size: 9.5px;">Familia</span>
+        <span class="meta" style="font-size: 9.5px;">Int.</span><span class="meta" style="font-size: 9.5px;">Dura</span><span class="meta" style="font-size: 9.5px; text-align: right;">Precio</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr .7fr .7fr .8fr; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eee3dd; align-items: center;"><span style="font-size: 15px; font-weight: 600;">Vainilla y canela</span><span style="font-size: 13px; color: #835c5b;">Cálidos</span><span class="num" style="font-size: 13px;">3</span><span class="num" style="font-size: 13px;">45 h</span><span class="num" style="font-size: 15px; font-weight: 600; color: #671128; text-align: right;">$12.900</span></div>
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr .7fr .7fr .8fr; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eee3dd; align-items: center;"><span style="font-size: 15px; font-weight: 600;">Coco y vainilla</span><span style="font-size: 13px; color: #835c5b;">Cálidos</span><span class="num" style="font-size: 13px;">2</span><span class="num" style="font-size: 13px;">45 h</span><span class="num" style="font-size: 15px; font-weight: 600; color: #671128; text-align: right;">$12.900</span></div>
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr .7fr .7fr .8fr; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eee3dd; align-items: center;"><span style="font-size: 15px; font-weight: 600;">Flor de naranjo</span><span style="font-size: 13px; color: #835c5b;">Florales</span><span class="num" style="font-size: 13px;">2</span><span class="num" style="font-size: 13px;">40 h</span><span class="num" style="font-size: 15px; font-weight: 600; color: #671128; text-align: right;">$11.900</span></div>
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr .7fr .7fr .8fr; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eee3dd; align-items: center;"><span style="font-size: 15px; font-weight: 600;">Lavanda</span><span style="font-size: 13px; color: #835c5b;">Florales</span><span class="num" style="font-size: 13px;">1</span><span class="num" style="font-size: 13px;">40 h</span><span class="num" style="font-size: 15px; font-weight: 600; color: #671128; text-align: right;">$11.900</span></div>
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr .7fr .7fr .8fr; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eee3dd; align-items: center;"><span style="font-size: 15px; font-weight: 600;">Sándalo</span><span style="font-size: 13px; color: #835c5b;">Amaderados</span><span class="num" style="font-size: 13px;">3</span><span class="num" style="font-size: 13px;">50 h</span><span class="num" style="font-size: 15px; font-weight: 600; color: #671128; text-align: right;">$13.900</span></div>
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr .7fr .7fr .8fr; gap: 14px; padding: 13px 0; border-bottom: 1px solid #eee3dd; align-items: center;"><span style="font-size: 15px; font-weight: 600;">Cedro y ámbar</span><span style="font-size: 13px; color: #835c5b;">Amaderados</span><span class="num" style="font-size: 13px;">3</span><span class="num" style="font-size: 13px;">50 h</span><span class="num" style="font-size: 15px; font-weight: 600; color: #671128; text-align: right;">$13.900</span></div>
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr .7fr .7fr .8fr; gap: 14px; padding: 13px 0; align-items: center;"><span style="font-size: 15px; font-weight: 600;">Difusor Sándalo</span><span style="font-size: 13px; color: #835c5b;">Amaderados</span><span class="num" style="font-size: 13px;">2</span><span class="num" style="font-size: 13px;">8 sem</span><span class="num" style="font-size: 15px; font-weight: 600; color: #671128; text-align: right;">$14.900</span></div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Por qué</b><span>Todo el catálogo comparable en una pantalla, ordenable por cualquier columna. Es lo que pide el que compra por segunda vez.</span></div>
+    <div><b>Qué cede</b><span>Cero seducción: no hay foto ni relato. Sirve de segunda capa, difícilmente como puerta de entrada.</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .94; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 18px 34px 24px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 18px 34px; overflow: hidden; border: 1px solid #e4d7d0; background: #fdf8f2; }
+  </style>
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">04</span><span class="t">Un aroma por pantalla</span></div>
+  <div class="lienzo" style="flex: 1;">
+
+    <div style="position: absolute; inset: 0; overflow: hidden;">
+      <img src="hero.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+      <div style="position: absolute; inset: 0; background: linear-gradient(90deg, rgba(58,17,25,.72), rgba(58,17,25,.12) 62%);"></div>
+      <div style="position: absolute; left: 40px; top: 50%; transform: translateY(-50%); color: #fff; max-width: 46%;">
+        <div class="num meta" style="color: rgba(243,235,225,.72);">01 / 12 · Cálidos y dulces</div>
+        <div class="disp" style="font-size: 60px; margin-top: 14px;">Vainilla y canela</div>
+        <div style="margin-top: 16px; font-size: 15px; line-height: 1.6; color: rgba(255,255,255,.86);">Huele a cocina un domingo a la tarde.</div>
+        <div class="num disp" style="font-size: 34px; margin-top: 22px;">$12.900</div>
+      </div>
+      <div style="position: absolute; right: 26px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 9px;">
+        <span style="width: 6px; height: 22px; border-radius: 99px; background: #f3ebe1;"></span>
+        <span style="width: 6px; height: 6px; border-radius: 99px; background: rgba(243,235,225,.45);"></span>
+        <span style="width: 6px; height: 6px; border-radius: 99px; background: rgba(243,235,225,.45);"></span>
+        <span style="width: 6px; height: 6px; border-radius: 99px; background: rgba(243,235,225,.45);"></span>
+        <span style="width: 6px; height: 6px; border-radius: 99px; background: rgba(243,235,225,.45);"></span>
+      </div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Por qué</b><span>Cada aroma se lleva una pantalla entera. Máximo peso de la foto y del nombre: es lo más parecido a una vidriera.</span></div>
+    <div><b>Qué cede</b><span>Doce pantallas para ver doce productos. Comparar es imposible y el que tiene apuro se va.</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

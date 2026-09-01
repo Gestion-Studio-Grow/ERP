@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .94; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 18px 34px 24px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 18px 34px; overflow: hidden; border: 1px solid #e4d7d0; background: #fdf8f2; }
+  </style>
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">09</span><span class="t">Escenario e índice</span></div>
+  <div class="lienzo" style="flex: 1;">
+
+    <div style="position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0,46fr) minmax(0,54fr);">
+      <div style="border-right: 1px solid #e4d7d0; padding: 28px 30px; display: flex; flex-direction: column;">
+        <div class="meta">Cálidos y dulces · Vela 220 g</div>
+        <div class="disp" style="font-size: 52px; color: #671128; margin-top: 12px;">Vainilla y canela</div>
+        <div style="margin-top: 14px; font-size: 14.5px; line-height: 1.6; max-width: 30ch;">Huele a cocina un domingo a la tarde, cuando algo se está horneando.</div>
+        <div style="margin-top: auto; display: grid; grid-template-columns: repeat(3,1fr); border-top: 1px solid #e4d7d0; border-bottom: 1px solid #e4d7d0;">
+          <div style="padding: 12px 0;"><div class="meta" style="font-size: 9px;">Salida</div><div class="disp" style="font-size: 19px; margin-top: 5px;">Canela</div></div>
+          <div style="padding: 12px 0;"><div class="meta" style="font-size: 9px;">Corazón</div><div class="disp" style="font-size: 19px; margin-top: 5px;">Vainilla</div></div>
+          <div style="padding: 12px 0;"><div class="meta" style="font-size: 9px;">Fondo</div><div class="disp" style="font-size: 19px; margin-top: 5px;">Caramelo</div></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; margin-top: 18px;">
+          <span class="num disp" style="font-size: 34px; color: #671128;">$12.900</span>
+          <span style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: #671128; color: #fff; font-size: 12px; font-weight: 600; letter-spacing: .07em;">Sumar</span>
+        </div>
+      </div>
+      <div style="padding: 28px 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;"><span class="disp" style="font-size: 30px; color: #671128;">El índice</span><span class="meta">12 piezas</span></div>
+        <div style="margin-top: 14px;">
+          <div style="padding: 13px 8px; border-top: 1px solid #e4d7d0; background: rgba(232,217,213,.6);"><span class="disp" style="font-size: 25px; color: #671128;">Vainilla y canela</span><span class="num meta" style="float: right; padding-top: 9px;">$12.900</span></div>
+          <div style="padding: 13px 8px; border-top: 1px solid #e4d7d0;"><span class="disp" style="font-size: 25px; color: #671128;">Coco y vainilla</span><span class="num meta" style="float: right; padding-top: 9px;">$12.900</span></div>
+          <div style="padding: 13px 8px; border-top: 1px solid #e4d7d0;"><span class="disp" style="font-size: 25px; color: #671128;">Flor de naranjo</span><span class="num meta" style="float: right; padding-top: 9px;">$11.900</span></div>
+          <div style="padding: 13px 8px; border-top: 1px solid #e4d7d0;"><span class="disp" style="font-size: 25px; color: #671128;">Jazmín</span><span class="num meta" style="float: right; padding-top: 9px;">$11.900</span></div>
+          <div style="padding: 13px 8px; border-top: 1px solid #e4d7d0;"><span class="disp" style="font-size: 25px; color: #671128;">Lavanda</span><span class="num meta" style="float: right; padding-top: 9px;">$11.900</span></div>
+          <div style="padding: 13px 8px; border-top: 1px solid #e4d7d0; border-bottom: 1px solid #e4d7d0;"><span class="disp" style="font-size: 25px; color: #671128;">Sándalo</span><span class="num meta" style="float: right; padding-top: 9px;">$13.900</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Por qué</b><span>Ves el catálogo entero y el detalle al mismo tiempo, sin cambiar de página. Comparar cuesta un clic.</span></div>
+    <div><b>Qué cede</b><span>La mitad de la pantalla queda tomada por un solo producto. En teléfono hay que partirlo igual.</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

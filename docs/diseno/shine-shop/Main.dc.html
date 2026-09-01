@@ -64,251 +64,167 @@
     .btn-ghost { border-color: #b88a89; color: #835c5b; background: transparent; }
     .btn-ghost:hover { border-color: #671128; color: #671128; background: rgba(184,138,137,.1); }
     .eyebrow { font-weight: 600; font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #671128; }
-    .card:hover { transform: translateY(-3px); box-shadow: 0 18px 46px -22px rgba(103,17,40,.32); border-color: #d0aeac; }
     .chip:hover { border-color: #671128; color: #671128; }
+    /* El ÍNDICE: la tienda es una lista tipográfica, no una grilla de tarjetas.
+       Cada fila es un aroma; al tocarla, el ESCENARIO de la izquierda cambia. */
+    .fila { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; align-items: center;
+            gap: 22px; width: 100%; text-align: left; padding: 18px 10px 18px 0; border: 0;
+            border-top: 1px solid #e4d7d0; background: transparent; cursor: pointer;
+            font: inherit; transition: .18s; }
+    .fila:hover { padding-left: 10px; padding-right: 0; }
+    .fila:hover .nm { color: #7e1a35; }
+    .fila-on { background: linear-gradient(90deg, rgba(232,217,213,.7), rgba(232,217,213,0) 74%); padding-left: 10px; padding-right: 0; }
+    .nm { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 33px; font-weight: 400;
+          line-height: 1; color: #671128; transition: .18s; display: block; }
+    .tab { font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: .04em;
+           padding: 0 2px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent;
+           cursor: pointer; min-height: 44px; transition: .2s; }
+    .tab:hover { color: #671128; }
+    /* EL RIEL: no hay barra superior. La navegación es una franja vertical y lo que
+       navega no son categorías de producto: son MOMENTOS de la casa. */
+    .mom { display: block; width: 100%; border: 0; background: transparent; cursor: pointer;
+           padding: 26px 0; font-family: 'Kumbh Sans', sans-serif; font-size: 13px; font-weight: 600;
+           letter-spacing: .26em; text-transform: uppercase; writing-mode: vertical-rl;
+           transition: .22s; white-space: nowrap; }
+    .mom:hover { color: #671128; }
+    .aroma { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 24px; width: 100%;
+             text-align: left; border: 0; border-top: 1px solid rgba(232,217,213,.34); background: transparent;
+             cursor: pointer; font: inherit; padding: 24px 0; transition: .2s; }
+    .aroma:hover { padding-left: 8px; }
     .fam:hover .fam-img { transform: scale(1.04); }
     .fam:hover .fam-name { color: #7e1a35; }
-    /* La LLAMA de la marca como CONTENEDOR de imagen: la foto vive adentro del
-       isotipo. Es el recurso que sólo Shine puede tener — reemplaza al rectángulo
-       de siempre. */
-    .llama-img { -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
-                 mask: url(./flame-mask.png) center/contain no-repeat; }
     .col { position: absolute; top: 0; bottom: 0; width: 1px; background: #e4d7d0; }
     .meta { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
   </style>
 </helmet>
 
-<div class="paper" style="min-height: 100%;">
+<div class="paper" style="min-height: 100%; display: grid; grid-template-columns: 92px minmax(0, 1fr);">
 
-  <!-- ══ BARRA ══ -->
-  <div style="position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 80px;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <img src="logo.png" alt="Shine" style="height: 32px; width: auto; display: block;">
-      <small style="font-size: 9.5px; letter-spacing: .24em; color: #835c5b; text-transform: uppercase;">velas · aromas · deco</small>
+  <!-- ══ EL RIEL — reemplaza a la barra superior. Marca arriba, MOMENTOS al medio, carrito abajo. ══ -->
+  <div style="position: relative; border-right: 1px solid #e8d9d5;">
+    <div style="height: 900px; display: flex; flex-direction: column; align-items: center; padding: 26px 0 30px;">
+    <img src="logo.png" alt="Shine" style="width: 54px; height: auto; display: block;">
+    <div style="width: 1px; height: 40px; background: #e4d7d0; margin: 22px 0;"></div>
+    <div style="display: flex; flex-direction: column; align-items: center; flex: 1;">
+      <sc-for list="{{momentos}}" as="m" hint-placeholder-count="4">
+        <button class="mom" onClick="{{m.pick}}" aria-label="{{m.aria}}" style="color: {{m.fg}};">{{m.label}}</button>
+      </sc-for>
     </div>
-    <div style="display: flex; align-items: center; gap: 28px; font-size: 12.5px; letter-spacing: .06em; font-weight: 500; color: #835c5b;">
-      <a href="#" style="color: #671128; font-weight: 600;">Tienda</a>
-      <a href="#" style="color: #835c5b;">Velas</a>
-      <a href="#" style="color: #835c5b;">Aromas</a>
-      <a href="#" style="color: #835c5b;">Decoración</a>
-      <a href="#" style="color: #835c5b;">Accesorios</a>
-      <a href="#" style="color: #835c5b;">Sets de regalo</a>
-    </div>
-    <div style="display: flex; align-items: center; gap: 16px;">
-      <button aria-label="Buscar un aroma" style="display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; cursor: pointer; min-height: 44px; color: #835c5b; font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
-        Buscar
-      </button>
-      <div style="display: flex; align-items: center; gap: 9px; padding: 11px 20px; border-radius: 999px; background: {{accent}}; color: #fff; font-size: 12.5px; font-weight: 600; letter-spacing: .06em;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 12.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z"></path><path d="M9 7V5.5a3 3 0 0 1 6 0V7"></path></svg>
-        <span class="num">{{cartCount}}</span>
-      </div>
+    <div class="meta" style="writing-mode: vertical-rl; font-size: 9.5px; letter-spacing: .3em; color: #b88a89; margin-bottom: 22px;">Que tu luz nunca se apague</div>
+    <button aria-label="Ver el carrito" style="width: 52px; height: 52px; border-radius: 50%; border: 0; background: {{accent}}; color: #fff; cursor: pointer; display: grid; place-items: center; position: relative;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 12.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z"></path><path d="M9 7V5.5a3 3 0 0 1 6 0V7"></path></svg>
+      <span class="num" style="position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; border-radius: 999px; background: #3a2429; color: #f3ebe1; font-size: 11px; font-weight: 700; display: grid; place-items: center;">{{cartCount}}</span>
+    </button>
     </div>
   </div>
 
-  <!-- ══ APERTURA — la foto vive DENTRO de la llama ══ -->
-  <div style="position: relative; height: 800px; overflow: hidden;">
-    <div class="capa" style="left: 80px; right: 80px;" aria-hidden>
-      <div class="col" style="left: 0;"></div><div class="col" style="left: 25%;"></div>
-      <div class="col" style="left: 50%;"></div><div class="col" style="left: 75%;"></div>
-      <div class="col" style="right: 0;"></div>
-    </div>
-    <div class="llama-img" aria-hidden style="position: absolute; right: 100px; top: -70px; width: 400px; height: 762px; background: #e6d5cf; opacity: .6;"></div>
-    <div class="llama-img" style="position: absolute; right: 148px; top: -94px; width: 400px; height: 762px;">
-      <img src="hero.jpg" alt="Velas de soja encendidas creando un ambiente cálido" style="width: 100%; height: 100%; object-fit: cover; filter: saturate(.94) brightness(1.04);">
-    </div>
+  <div style="min-width: 0;">
 
-    <div style="position: absolute; left: 112px; top: 118px; max-width: 620px;">
-      <div class="eyebrow">Tienda Shine</div>
-      <h1 class="disp" style="font-size: 116px; color: {{accent}}; margin: 24px 0 0;">Elegí<br><em style="font-weight: 300;">tu aroma</em></h1>
-      <div style="width: 120px; height: 1px; background: #d0aeac; margin: 36px 0 26px;"></div>
-      <p style="font-size: 17px; line-height: 1.64; max-width: 37ch; margin: 0;">
-        Cera de soja, mecha de algodón y fragancias que cambian cómo se siente un espacio.
-        Cada aroma con sus notas, su intensidad y las horas que dura, para que puedas elegir
-        sin olerlo.
-      </p>
-      <div style="display: flex; gap: 26px; margin-top: 34px; align-items: center; flex-wrap: wrap;">
-        <a href="#" class="btn btn-vino" style="min-height: 52px; padding: 0 30px;">Ver la colección</a>
-        <span class="meta">12 piezas · 3 familias</span>
+    <!-- ══ LA ESCENA — se entra por el MOMENTO, no por el producto ══ -->
+    <div style="display: grid; grid-template-columns: minmax(0, 58fr) minmax(0, 42fr); min-height: 860px;">
+
+      <div style="position: relative; overflow: hidden;">
+        <img src="{{escenaImg}}" alt="{{escenaAlt}}" class="capa" style="width: 100%; height: 100%; object-fit: cover;">
+        <div class="capa" style="background: linear-gradient(180deg, rgba(58,17,25,.18) 0%, rgba(58,17,25,.14) 42%, rgba(58,17,25,.72) 100%);"></div>
+        <div style="position: absolute; left: 56px; right: 56px; bottom: 52px; color: #fff;">
+          <div class="meta" style="color: rgba(243,235,225,.82);">{{escenaHora}}</div>
+          <h1 class="disp" style="font-size: 92px; margin: 16px 0 0; color: #fff; max-width: 12ch;">{{escenaTitulo}}</h1>
+          <p style="margin: 20px 0 0; font-size: 19px; line-height: 1.55; color: rgba(255,255,255,.9); max-width: 42ch;">{{escenaTexto}}</p>
+        </div>
+        <div class="meta" style="position: absolute; left: 56px; top: 46px; color: rgba(243,235,225,.8);">{{escenaPaso}}</div>
+      </div>
+
+      <div style="position: relative; overflow: hidden; padding: 46px 48px 44px; display: flex; flex-direction: column; background: #3a2429; color: #f3ebe1;">
+        <svg class="capa" style="color: #f3ebe1; opacity: .05;" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
+        <div style="position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 16px;">
+          <h2 class="disp" style="font-size: 34px; margin: 0; color: #f3ebe1;">Lo que le va</h2>
+          <span class="meta" style="color: #c9a4a2;">{{escenaCuenta}}</span>
+        </div>
+        <div style="position: relative; margin-top: 22px;">
+          <sc-for list="{{aromas}}" as="a" hint-placeholder-count="3">
+            <button class="aroma" onClick="{{a.add}}" aria-label="{{a.aria}}">
+              <span>
+                <span class="disp" style="display: block; font-size: 34px; color: #f3ebe1;">{{a.name}}</span>
+                <span style="display: block; font-size: 13px; color: rgba(243,235,225,.62); margin-top: 8px;">{{a.notes}}</span>
+                <span style="display: flex; align-items: center; gap: 16px; margin-top: 12px;">
+                  <span style="display: flex; gap: 4px;">
+                    <span class="flame" style="width: 8px; height: 14px; background: #d0aeac; opacity: {{a.f1}};"></span>
+                    <span class="flame" style="width: 8px; height: 14px; background: #d0aeac; opacity: {{a.f2}};"></span>
+                    <span class="flame" style="width: 8px; height: 14px; background: #d0aeac; opacity: {{a.f3}};"></span>
+                  </span>
+                  <span class="num" style="font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: rgba(243,235,225,.6);">{{a.duration}} · {{a.format}}</span>
+                </span>
+              </span>
+              <span style="text-align: right; align-self: center;">
+                <span class="num" style="display: block; font-size: 21px; font-weight: 600; color: #f3ebe1;">{{a.price}}</span>
+                <span style="display: inline-flex; align-items: center; justify-content: center; margin-top: 10px; min-height: 40px; padding: 0 18px; border-radius: 999px; border: 1px solid rgba(243,235,225,.4); font-size: 12px; font-weight: 600; letter-spacing: .06em; color: #f3ebe1;">Sumar</span>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+        <div style="position: relative; margin-top: auto; padding-top: 26px; border-top: 1px solid rgba(232,217,213,.24);">
+          <div style="font-size: 13.5px; line-height: 1.6; color: rgba(243,235,225,.72);">{{escenaPorque}}</div>
+          <a href="#indice" style="display: inline-block; margin-top: 16px; font-size: 13px; font-weight: 600; color: #d0aeac; text-decoration: underline; text-underline-offset: 4px;">Prefiero ver los 12 aromas →</a>
+        </div>
       </div>
     </div>
-    <div class="meta" style="position: absolute; left: 80px; top: 344px; transform: rotate(-90deg); transform-origin: left top; white-space: nowrap; color: #b88a89;">Que tu luz nunca se apague</div>
-    <div style="position: absolute; left: 112px; bottom: 46px; right: 80px; display: flex; gap: 30px; align-items: center;">
-      <span class="meta">Envío gratis desde $25.000</span><span style="flex: 1; height: 1px; background: #e4d7d0;"></span>
-      <span class="meta">CABA y GBA · envío $3.500</span><span style="flex: 1; height: 1px; background: #e4d7d0;"></span>
-      <span class="meta">Mercado Pago · transferencia</span>
-    </div>
-  </div>
 
-  <!-- ══ ÍNDICE OLFATIVO — fila escalonada, no tres cajas iguales ══ -->
-  <div style="position: relative; overflow: hidden; padding: 62px 80px 72px; border-top: 1px solid #e8d9d5;">
-    <svg class="capa trama-borde" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
-    <div class="sobre" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 40px; margin-bottom: 42px;">
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <span style="font-size: 18px; color: #835c5b;">01</span>
-        <span style="width: 46px; height: 1px; background: #d0aeac;"></span>
-        <h2 class="disp" style="font-size: 44px; color: {{accent}}; margin: 0;">Índice olfativo</h2>
-      </div>
-      <p style="max-width: 34ch; text-align: right; font-size: 14.5px; color: #835c5b; line-height: 1.6; margin: 0;">
-        Tres familias, tres estados de ánimo. Tocá una y la tienda se filtra sola.
-      </p>
-    </div>
-    <div class="sobre" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px; align-items: start;">
-      <sc-for list="{{families}}" as="f" hint-placeholder-count="3">
-        <button class="fam" onClick="{{f.pick}}" aria-label="{{f.aria}}" style="display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; margin-top: {{f.offset}};">
-          <div style="position: relative; height: {{f.alto}}; overflow: hidden; background: #e8d9d5;">
-            <img class="fam-img" src="{{f.img}}" alt="{{f.alt}}" style="width: 100%; height: 100%; object-fit: cover; transition: transform .6s cubic-bezier(.22,.61,.36,1);">
-            <div class="meta" style="position: absolute; left: 0; top: 0; padding: 13px 16px; color: #f3ebe1; background: rgba(58,17,25,.5); backdrop-filter: blur(3px);">{{f.num}}</div>
-          </div>
-          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 18px;">
-            <span class="disp fam-name" style="font-size: 30px; color: {{accent}}; transition: .2s;">{{f.name}}</span>
-            <span class="meta">{{f.count}}</span>
-          </div>
-          <div style="height: 1px; background: #e4d7d0; margin: 14px 0 12px;"></div>
-          <div style="font-size: 14px; color: #835c5b; line-height: 1.55;">{{f.text}}</div>
+    <!-- ══ LA CINTA DE MOMENTOS — dónde estás parado ══ -->
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid #e8d9d5;">
+      <sc-for list="{{cinta}}" as="c" hint-placeholder-count="4">
+        <button onClick="{{c.pick}}" aria-label="{{c.aria}}" style="text-align: left; border: 0; border-right: 1px solid #e8d9d5; background: {{c.bg}}; cursor: pointer; padding: 22px 26px; font-family: 'Kumbh Sans', sans-serif; transition: .2s;">
+          <span class="num meta" style="font-size: 10px; color: {{c.fg2}};">{{c.hora}}</span>
+          <span class="disp" style="display: block; font-size: 26px; margin-top: 8px; color: {{c.fg}};">{{c.titulo}}</span>
+          <span style="display: block; font-size: 12.5px; margin-top: 6px; color: {{c.fg2}};">{{c.cuenta}}</span>
         </button>
       </sc-for>
     </div>
-  </div>
 
-  <!-- ══ LA COLECCIÓN ══ -->
-  <div style="position: relative; overflow: hidden; padding: 58px 80px 0; border-top: 1px solid #e8d9d5;">
-    <svg class="capa trama-borde" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
-    <div class="sobre" style="display: flex; align-items: center; gap: 16px; margin-bottom: 30px;">
-      <span style="font-size: 18px; color: #835c5b;">02</span>
-      <span style="width: 46px; height: 1px; background: #d0aeac;"></span>
-      <h2 class="disp" style="font-size: 44px; color: {{accent}}; margin: 0;">La colección</h2>
-    </div>
-
-    <div class="sobre" style="display: flex; flex-wrap: wrap; align-items: center; gap: 20px 26px; padding: 20px 24px; background: rgba(253,248,242,.8); border: 1px solid #e8d9d5; border-radius: 16px; backdrop-filter: blur(4px);">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span class="meta" style="letter-spacing: .18em;">Familia</span>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <sc-for list="{{famChips}}" as="c" hint-placeholder-count="4">
-            <button class="chip" onClick="{{c.pick}}" style="font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: .04em; padding: 9px 16px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: .2s; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}};">{{c.label}}</button>
-          </sc-for>
-        </div>
-      </div>
-      <span style="width: 1px; align-self: stretch; background: #e8d9d5;"></span>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span class="meta" style="letter-spacing: .18em;">Formato</span>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <sc-for list="{{formChips}}" as="c" hint-placeholder-count="6">
-            <button class="chip" onClick="{{c.pick}}" style="font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: .04em; padding: 9px 16px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: .2s; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}};">{{c.label}}</button>
-          </sc-for>
-        </div>
-      </div>
-      <div style="margin-left: auto; display: flex; align-items: center; gap: 16px;">
-        <span class="num" style="font-size: 13px; color: #835c5b;">{{resultLabel}}</span>
-        <button onClick="{{clearAll}}" style="font-family: 'Kumbh Sans', sans-serif; font-size: 12.5px; font-weight: 600; color: {{accent}}; background: transparent; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; min-height: 44px;">Limpiar</button>
-      </div>
-    </div>
-
-    <div class="sobre" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; margin-top: 26px;">
-      <sc-for list="{{shown}}" as="p" hint-placeholder-count="8">
-        <div class="card" style="background: rgba(253,248,242,.86); border: 1px solid #e8d9d5; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: .25s;">
-          <div style="position: relative; aspect-ratio: 1/1; display: grid; place-items: center; overflow: hidden; background: {{p.wash}};">
-            <svg class="capa trama-suave" style="color: {{p.tint}};" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
-            <sc-if value="{{p.isVela}}" hint-placeholder-val="{{true}}">
-              <svg viewBox="-6 -6 112 112" style="position: relative; width: 58%; color: {{p.tint}};" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden focusable="false"><g stroke-linecap="round" stroke-linejoin="round"><path d="M22 44 h56 v42 a10 10 0 0 1 -10 10 h-36 a10 10 0 0 1 -10 -10 Z"></path><path d="M50 44 V30"></path><path d="M50 30 C61 20 65 9 61 -2 C58 6 52 7 50 2 C47 9 41 11 39 4 C35 14 39 23 50 30 Z"></path></g></svg>
-            </sc-if>
-            <sc-if value="{{p.isVelaG}}" hint-placeholder-val="{{true}}">
-              <svg viewBox="-6 -6 112 112" style="position: relative; width: 58%; color: {{p.tint}};" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden focusable="false"><g stroke-linecap="round" stroke-linejoin="round"><path d="M12 46 h76 v40 a11 11 0 0 1 -11 11 h-54 a11 11 0 0 1 -11 -11 Z"></path><path d="M34 46 V34M66 46 V34"></path><path d="M34 34 C43 26 46 17 43 8 C40 14 36 15 34 11 C32 16 27 18 25 12 C22 20 25 28 34 34 Z"></path><path d="M66 34 C75 26 78 17 75 8 C72 14 68 15 66 11 C64 16 59 18 57 12 C54 20 57 28 66 34 Z"></path></g></svg>
-            </sc-if>
-            <sc-if value="{{p.isDifusor}}" hint-placeholder-val="{{true}}">
-              <svg viewBox="-6 -6 112 112" style="position: relative; width: 58%; color: {{p.tint}};" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden focusable="false"><g stroke-linecap="round" stroke-linejoin="round"><path d="M27 52 h46 v34 a10 10 0 0 1 -10 10 h-26 a10 10 0 0 1 -10 -10 Z"></path><path d="M38 52 V42 h24 v10"></path><path d="M38 42 L24 2M50 42 L50 -2M62 42 L76 2"></path></g></svg>
-            </sc-if>
-            <sc-if value="{{p.isSahumerio}}" hint-placeholder-val="{{true}}">
-              <svg viewBox="-6 -6 112 112" style="position: relative; width: 58%; color: {{p.tint}};" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden focusable="false"><g stroke-linecap="round" stroke-linejoin="round"><path d="M34 96 h32"></path><path d="M40 96 L36 34M50 96 L50 30M60 96 L64 34"></path><path d="M36 26 C29 18 34 12 30 4M50 22 C43 14 48 8 44 0M64 26 C57 18 62 12 58 4"></path></g></svg>
-            </sc-if>
-            <sc-if value="{{p.isTextil}}" hint-placeholder-val="{{true}}">
-              <svg viewBox="-6 -6 112 112" style="position: relative; width: 58%; color: {{p.tint}};" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden focusable="false"><g stroke-linecap="round" stroke-linejoin="round"><path d="M32 48 h36 v38 a10 10 0 0 1 -10 10 h-16 a10 10 0 0 1 -10 -10 Z"></path><path d="M42 48 V34 h16 v14"></path><path d="M58 40 h12 v-12"></path><path d="M76 22 h2M84 16 h2M78 32 h2M88 26 h2"></path></g></svg>
-            </sc-if>
-            <div class="capa" style="top: auto; height: 1px; background: rgba(131,92,91,.14);"></div>
-            <div class="meta" style="position: absolute; left: 14px; top: 14px; font-size: 10px; letter-spacing: .16em; background: rgba(253,248,242,.82); padding: 5px 10px; border-radius: 999px;">{{p.format}}</div>
-            <sc-if value="{{p.isNew}}" hint-placeholder-val="{{true}}">
-              <div class="meta" style="position: absolute; right: 14px; top: 14px; font-size: 10px; letter-spacing: .16em; color: #f3ebe1; background: {{accent}}; padding: 5px 10px; border-radius: 999px;">Temporada</div>
-            </sc-if>
-          </div>
-          <div style="padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 11px; flex: 1;">
-            <div>
-              <h3 style="font-size: 16px; font-weight: 600; color: #3a2429; line-height: 1.3; margin: 0;">{{p.name}}</h3>
-              <div style="margin-top: 6px; font-size: 12.5px; color: #835c5b; line-height: 1.5;">{{p.notes}}</div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 14px; padding: 9px 0; border-top: 1px solid #e8d9d5; border-bottom: 1px solid #e8d9d5;">
-              <div style="display: flex; align-items: center; gap: 5px;">
-                <span class="flame" style="width: 9px; height: 15px; background: {{accent}}; opacity: {{p.f1}};"></span>
-                <span class="flame" style="width: 9px; height: 15px; background: {{accent}}; opacity: {{p.f2}};"></span>
-                <span class="flame" style="width: 9px; height: 15px; background: {{accent}}; opacity: {{p.f3}};"></span>
-                <span style="font-size: 11px; color: #835c5b; margin-left: 3px;">{{p.intLabel}}</span>
-              </div>
-              <span class="num" style="font-size: 11.5px; color: #835c5b; margin-left: auto;">{{p.duration}}</span>
-            </div>
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto;">
-              <span class="num" style="font-size: 19px; font-weight: 600; color: {{accent}};">{{p.price}}</span>
-              <button onClick="{{p.add}}" aria-label="{{p.aria}}" style="font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .06em; padding: 0 18px; min-height: 40px; border-radius: 999px; border: 1px solid #b88a89; background: transparent; color: #835c5b; cursor: pointer; transition: .2s;">Sumar</button>
-            </div>
-          </div>
-        </div>
-      </sc-for>
-    </div>
-  </div>
-
-  <!-- ══ QUIZ — la imagen a sangre y el título cruzando el borde ══ -->
-  <div style="position: relative; overflow: hidden; margin-top: 76px;">
-    <div style="position: relative; height: 150px;">
-      <h2 class="disp" style="position: absolute; left: 80px; bottom: -46px; font-size: 104px; color: {{accent}}; margin: 0; z-index: 2;">¿No sabés cuál?</h2>
-    </div>
-    <div style="position: relative; padding: 96px 80px 76px; color: #fff; overflow: hidden;">
-      <img src="ambiance.jpg" alt="" class="capa" style="width: 100%; height: 100%; object-fit: cover;">
-      <div class="capa" style="background: linear-gradient(180deg, rgba(58,17,25,.66), rgba(58,17,25,.82));"></div>
-      <div style="position: relative; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 60px; align-items: center;">
+    <!-- ══ EL ÍNDICE COMPLETO — para quien ya sabe qué quiere ══ -->
+    <div id="indice" style="position: relative; overflow: hidden; padding: 66px 56px 72px;">
+      <svg class="capa trama-borde" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
+      <div class="sobre" style="display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; flex-wrap: wrap;">
         <div>
-          <p style="margin: 0; font-size: 19px; line-height: 1.6; color: rgba(255,255,255,.9); max-width: 40ch;">
-            Contanos el momento y te decimos el aroma. Tres preguntas —dónde, cuándo y para
-            qué— y te proponemos una fragancia de la colección. Si no te convence, seguís
-            charlando por WhatsApp con nosotras.
-          </p>
-          <div style="display: flex; gap: 13px; flex-wrap: wrap; margin-top: 30px;">
-            <a href="#" class="btn" style="background: #f3ebe1; color: {{accent}};">Encontrá tu aroma</a>
-            <a href="#" class="btn btn-ghost" style="border-color: rgba(243,235,225,.5); color: #f3ebe1;">Escribinos por WhatsApp</a>
-          </div>
+          <div class="meta">Si ya sabés qué buscás</div>
+          <h2 class="disp" style="font-size: 52px; color: {{accent}}; margin: 14px 0 0;">Los doce aromas</h2>
         </div>
-        <div style="border-left: 1px solid rgba(232,217,213,.3); padding-left: 42px;">
-          <div class="meta" style="color: #d0aeac;">Paso 1 de 3</div>
-          <div class="disp" style="font-size: 34px; margin: 14px 0 22px; color: #fff;">¿Qué querés que pase en ese ambiente?</div>
-          <div style="display: flex; flex-direction: column; gap: 1px;">
-            <div style="padding: 15px 0; border-top: 1px solid rgba(232,217,213,.26); font-size: 15px;">Bajar un cambio y relajarme</div>
-            <div style="padding: 15px 0; border-top: 1px solid rgba(232,217,213,.26); font-size: 15px;">Concentrarme y trabajar</div>
-            <div style="padding: 15px 0; border-top: 1px solid rgba(232,217,213,.26); border-bottom: 1px solid rgba(232,217,213,.26); font-size: 15px;">Recibir gente en casa</div>
-          </div>
+        <div style="display: flex; gap: 26px; flex-wrap: wrap;">
+          <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+            <button class="tab" onClick="{{t.pick}}" style="color: {{t.fg}}; border-bottom-color: {{t.bd}};">{{t.label}}</button>
+          </sc-for>
         </div>
+      </div>
+      <div class="sobre" style="margin-top: 26px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 56px;">
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="12">
+          <button class="fila {{r.cls}}" onClick="{{r.pick}}" aria-label="{{r.aria}}">
+            <span class="num meta" style="font-size: 11px;">{{r.n}}</span>
+            <span>
+              <span class="nm">{{r.name}}</span>
+              <span style="display: block; font-size: 12.5px; color: #835c5b; margin-top: 7px;">{{r.notes}}</span>
+            </span>
+            <span style="display: flex; gap: 4px;">
+              <span class="flame" style="width: 8px; height: 14px; background: {{accent}}; opacity: {{r.f1}};"></span>
+              <span class="flame" style="width: 8px; height: 14px; background: {{accent}}; opacity: {{r.f2}};"></span>
+              <span class="flame" style="width: 8px; height: 14px; background: {{accent}}; opacity: {{r.f3}};"></span>
+            </span>
+            <span class="num" style="font-size: 17px; font-weight: 600; color: {{accent}};">{{r.price}}</span>
+          </button>
+        </sc-for>
       </div>
     </div>
-  </div>
 
-  <!-- ══ SETS — la foto sangra por el borde izquierdo ══ -->
-  <div style="position: relative; overflow: hidden; padding: 72px 80px 76px;">
-    <svg class="capa trama-borde" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
-    <div class="sobre" style="display: grid; grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr); gap: 56px; align-items: center;">
-      <div style="position: relative; margin-left: -80px; height: 460px; overflow: hidden; background: #b88a89;">
-        <img src="gift.jpg" alt="Set de regalo Shine" style="width: 100%; height: 100%; object-fit: cover;">
-        <div class="capa" style="background: linear-gradient(180deg, transparent 42%, rgba(58,17,25,.7));"></div>
-        <div style="position: absolute; left: 92px; right: 26px; bottom: 26px;">
-          <div class="disp" style="font-size: 32px; color: #fff;">Se arma, se envuelve, se manda</div>
-          <div style="margin-top: 8px; font-size: 14px; color: rgba(255,255,255,.86); line-height: 1.55;">Con tarjeta escrita a mano y envío directo a quien lo recibe.</div>
-        </div>
+    <!-- ══ REGALO ══ -->
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid #e8d9d5;">
+      <div style="position: relative; overflow: hidden; min-height: 480px;">
+        <img src="gift.jpg" alt="Set de regalo Shine" class="capa" style="width: 100%; height: 100%; object-fit: cover;">
       </div>
-      <div>
-        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 26px;">
-          <span style="font-size: 18px; color: #835c5b;">03</span>
-          <span style="width: 46px; height: 1px; background: #d0aeac;"></span>
-          <h2 class="disp" style="font-size: 44px; color: {{accent}}; margin: 0;">Sets de regalo</h2>
-        </div>
-        <div style="display: flex; flex-direction: column;">
+      <div style="padding: 66px 56px 62px;">
+        <div class="meta">Para otra casa</div>
+        <h2 class="disp" style="font-size: 52px; color: {{accent}}; margin: 14px 0 0;">Se arma, se envuelve, se manda</h2>
+        <p style="margin: 18px 0 0; font-size: 16px; color: #835c5b; line-height: 1.6; max-width: 46ch;">Con tarjeta escrita a mano y envío directo a quien lo recibe.</p>
+        <div style="display: flex; flex-direction: column; margin-top: 26px;">
           <sc-for list="{{sets}}" as="s" hint-placeholder-count="3">
-            <div style="display: flex; align-items: center; gap: 22px; padding: 22px 0; border-top: 1px solid #e4d7d0;">
-              <span class="flame" style="width: 18px; height: 31px; background: #b88a89;"></span>
+            <div style="display: flex; align-items: center; gap: 20px; padding: 20px 0; border-top: 1px solid #e4d7d0;">
               <div style="min-width: 0; flex: 1;">
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                   <span style="font-size: 17px; font-weight: 600; color: #3a2429;">{{s.name}}</span>
@@ -325,43 +241,35 @@
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- ══ BARRA DE CARRITO ══ -->
-  <div style="display: flex; align-items: center; gap: 26px; padding: 20px 80px; background: {{accent}}; color: #f3ebe1;">
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <span class="flame" style="width: 14px; height: 24px; background: #f3ebe1;"></span>
+    <!-- ══ CARRITO + PIE ══ -->
+    <div style="display: flex; align-items: center; gap: 26px; padding: 20px 56px; background: {{accent}}; color: #f3ebe1;">
       <span class="num" style="font-size: 14px; font-weight: 600; letter-spacing: .04em;">{{cartLine}}</span>
-    </div>
-    <div style="flex: 1; max-width: 420px;">
-      <div style="height: 5px; border-radius: 999px; background: rgba(243,235,225,.24); overflow: hidden;">
-        <div style="height: 100%; border-radius: 999px; background: #d0aeac; width: {{progress}}; transition: width .3s ease;"></div>
+      <div style="flex: 1; max-width: 400px;">
+        <div style="height: 5px; border-radius: 999px; background: rgba(243,235,225,.24); overflow: hidden;">
+          <div style="height: 100%; border-radius: 999px; background: #d0aeac; width: {{progress}}; transition: width .3s ease;"></div>
+        </div>
+        <div class="num" style="margin-top: 8px; font-size: 12px; color: rgba(243,235,225,.86);">{{shipLine}}</div>
       </div>
-      <div class="num" style="margin-top: 8px; font-size: 12px; color: rgba(243,235,225,.86);">{{shipLine}}</div>
+      <a href="#" class="btn" style="margin-left: auto; background: #f3ebe1; color: {{accent}};">Finalizar compra</a>
     </div>
-    <a href="#" class="btn" style="margin-left: auto; background: #f3ebe1; color: {{accent}};">Finalizar compra</a>
-  </div>
 
-  <!-- ══ PIE ══ -->
-  <div style="padding: 54px 80px 46px; border-top: 1px solid #e8d9d5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px;">
-    <div>
-      <img src="logo.png" alt="Shine" style="height: 28px; width: auto; display: block;">
-      <div class="disp" style="margin-top: 16px; font-style: italic; font-size: 18px; color: #835c5b;">Que tu luz nunca se apague</div>
+    <div style="padding: 46px 56px 44px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px;">
+      <div>
+        <div class="meta" style="letter-spacing: .18em; color: {{accent}};">Envíos</div>
+        <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">CABA y GBA · $3.500<br>Gratis desde $25.000<br>Retiro coordinado por WhatsApp</div>
+      </div>
+      <div>
+        <div class="meta" style="letter-spacing: .18em; color: {{accent}};">Pagos</div>
+        <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">Mercado Pago · Transferencia<br>Débito y crédito · Efectivo</div>
+      </div>
+      <div>
+        <div class="meta" style="letter-spacing: .18em; color: {{accent}};">Hablemos</div>
+        <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">WhatsApp [TU NÚMERO]<br>Instagram @shine.velas.store</div>
+      </div>
     </div>
-    <div>
-      <div class="meta" style="letter-spacing: .18em; color: {{accent}};">Envíos</div>
-      <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">CABA y GBA<br>Envío $3.500 · gratis desde $25.000<br>Retiro coordinado por WhatsApp</div>
-    </div>
-    <div>
-      <div class="meta" style="letter-spacing: .18em; color: {{accent}};">Pagos</div>
-      <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">Mercado Pago · Transferencia<br>Débito y crédito · Efectivo</div>
-    </div>
-    <div>
-      <div class="meta" style="letter-spacing: .18em; color: {{accent}};">Hablemos</div>
-      <div style="margin-top: 12px; font-size: 13.5px; color: #835c5b; line-height: 1.7;">WhatsApp [TU NÚMERO]<br>Instagram @shine.velas.store</div>
-    </div>
-  </div>
 
+  </div>
 </div>
 </x-dc>
 
@@ -369,169 +277,174 @@
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { fam: 'todas', format: 'todos', cart: 0, subtotal: 0 };
+    this.state = { momento: 'noche', fam: 'todas', sel: 'v1', cart: 0, subtotal: 0 };
+  }
+
+  // La tienda se ordena por MOMENTO de la casa, no por categoría de producto.
+  // Cada momento tiene su escena y los aromas que le van.
+  momentos() {
+    return [
+      { key: 'manana', label: 'Mañana', titulo: 'Que la casa arranque liviana', hora: '07 — 12 h',
+        img: 'mundo-decoracion.jpg', alt: 'Ambiente claro de mañana con flores y velas',
+        texto: 'Con la ventana abierta y el mate hecho, la casa pide algo que se sienta limpio y no tape nada.',
+        porque: 'A esta hora conviene un aroma suave: la casa todavía está fría y cualquier cosa intensa se vuelve pesada.',
+        ids: ['v3', 'v5', 't1'] },
+      { key: 'tarde', label: 'Tarde', titulo: 'Que el día se ordene', hora: '12 — 19 h',
+        img: 'mundo-aromas.jpg', alt: 'Difusor y aromas sobre el escritorio a la tarde',
+        texto: 'Las horas en que hay que concentrarse. Un aroma que acompañe sin distraer, y que dure toda la jornada.',
+        porque: 'Los amaderados sostienen el foco: son serenos, no dulces, y no cansan después de tres horas.',
+        ids: ['v6', 'v7', 'd1'] },
+      { key: 'noche', label: 'Noche', titulo: 'Que el día se termine', hora: '19 — 00 h',
+        img: 'hero.jpg', alt: 'Velas de soja encendidas creando un ambiente cálido de noche',
+        texto: 'Se baja la luz, se enciende una vela y la casa cambia de temperatura. Es el momento en que más se usa una vela.',
+        porque: 'Los cálidos son los de la noche: dulces sin empalagar, se quedan en la casa después de apagar la vela.',
+        ids: ['v1', 'v2', 'v9'] },
+      { key: 'gente', label: 'Viene gente', titulo: 'Que la casa reciba bien', hora: 'Cuando tocan el timbre',
+        img: 'ambiance.jpg', alt: 'Living preparado con velas para recibir gente',
+        texto: 'Se nota apenas se abre la puerta, antes de que nadie diga nada. Es lo primero que percibe quien llega.',
+        porque: 'Para recibir conviene que se sienta desde la entrada: intensidad alta y algo que llene el ambiente rápido.',
+        ids: ['v4', 'v8', 's1'] }
+    ];
   }
 
   catalog() {
     return [
-      { id: 'v1', name: 'Vainilla y canela', fam: 'calidos', format: 'Vela', notes: 'vainilla · canela · caramelo', intensity: 3, duration: '45 h', price: 12900, isNew: true },
-      { id: 'v2', name: 'Coco y vainilla', fam: 'calidos', format: 'Vela', notes: 'coco · vainilla · leche tibia', intensity: 2, duration: '45 h', price: 12900, isNew: false },
-      { id: 'v3', name: 'Flor de naranjo', fam: 'florales', format: 'Vela', notes: 'azahar · neroli · miel', intensity: 2, duration: '40 h', price: 11900, isNew: true },
-      { id: 'v4', name: 'Jazmín', fam: 'florales', format: 'Vela', notes: 'jazmín · pétalos blancos · almizcle', intensity: 3, duration: '40 h', price: 11900, isNew: false },
-      { id: 'v5', name: 'Lavanda', fam: 'florales', format: 'Vela', notes: 'lavanda · romero · lino', intensity: 1, duration: '40 h', price: 11900, isNew: false },
-      { id: 'v6', name: 'Sándalo', fam: 'amaderados', format: 'Vela', notes: 'sándalo · vetiver · cuero suave', intensity: 3, duration: '50 h', price: 13900, isNew: false },
-      { id: 'v7', name: 'Cedro y ámbar', fam: 'amaderados', format: 'Vela', notes: 'cedro · ámbar · incienso', intensity: 3, duration: '50 h', price: 13900, isNew: true },
-      { id: 'v8', name: 'Vainilla y canela · dos mechas', fam: 'calidos', format: 'Vela grande', notes: 'la misma fragancia, el doble de ambiente', intensity: 3, duration: '80 h', price: 19900, isNew: false },
-      { id: 'd1', name: 'Difusor Sándalo 250 ml', fam: 'amaderados', format: 'Difusor', notes: 'sándalo · vetiver · varillas de rattan', intensity: 2, duration: '8 a 10 semanas', price: 14900, isNew: false },
-      { id: 's1', name: 'Sahumerios Flor de naranjo ×20', fam: 'florales', format: 'Sahumerio', notes: 'azahar · resina suave', intensity: 2, duration: '35 min c/u', price: 4900, isNew: false },
-      { id: 't1', name: 'Textil Lavanda 100 ml', fam: 'florales', format: 'Textil', notes: 'lavanda · algodón limpio', intensity: 1, duration: 'rinde 60 usos', price: 8900, isNew: false },
-      { id: 'v9', name: 'Coco y vainilla · lata viajera', fam: 'calidos', format: 'Vela', notes: 'para llevar a donde vayas', intensity: 2, duration: '25 h', price: 8900, isNew: false }
+      { id: 'v1', name: 'Vainilla y canela', fam: 'calidos', format: 'Vela 220 g', notes: 'vainilla · canela · caramelo', intensity: 3, duration: '45 h', price: 12900 },
+      { id: 'v2', name: 'Coco y vainilla', fam: 'calidos', format: 'Vela 220 g', notes: 'coco · vainilla · leche tibia', intensity: 2, duration: '45 h', price: 12900 },
+      { id: 'v3', name: 'Flor de naranjo', fam: 'florales', format: 'Vela 220 g', notes: 'azahar · neroli · miel', intensity: 2, duration: '40 h', price: 11900 },
+      { id: 'v4', name: 'Jazmín', fam: 'florales', format: 'Vela 220 g', notes: 'jazmín · pétalos blancos · almizcle', intensity: 3, duration: '40 h', price: 11900 },
+      { id: 'v5', name: 'Lavanda', fam: 'florales', format: 'Vela 220 g', notes: 'lavanda · romero · lino', intensity: 1, duration: '40 h', price: 11900 },
+      { id: 'v6', name: 'Sándalo', fam: 'amaderados', format: 'Vela 220 g', notes: 'sándalo · vetiver · cuero suave', intensity: 3, duration: '50 h', price: 13900 },
+      { id: 'v7', name: 'Cedro y ámbar', fam: 'amaderados', format: 'Vela 220 g', notes: 'cedro · ámbar · incienso', intensity: 3, duration: '50 h', price: 13900 },
+      { id: 'v8', name: 'Vainilla y canela · dos mechas', fam: 'calidos', format: 'Vela grande 380 g', notes: 'la misma fragancia, el doble de ambiente', intensity: 3, duration: '80 h', price: 19900 },
+      { id: 'd1', name: 'Difusor Sándalo 250 ml', fam: 'amaderados', format: 'Difusor', notes: 'sándalo · vetiver · varillas de rattan', intensity: 2, duration: '8 a 10 sem', price: 14900 },
+      { id: 's1', name: 'Sahumerios Flor de naranjo', fam: 'florales', format: 'Caja × 20', notes: 'azahar · resina suave', intensity: 2, duration: '35 min', price: 4900 },
+      { id: 't1', name: 'Textil Lavanda 100 ml', fam: 'florales', format: 'Textil', notes: 'lavanda · algodón limpio', intensity: 1, duration: '60 usos', price: 8900 },
+      { id: 'v9', name: 'Coco y vainilla · lata viajera', fam: 'calidos', format: 'Lata 90 g', notes: 'para llevar a donde vayas', intensity: 2, duration: '25 h', price: 8900 }
     ];
   }
 
-  money(n) {
-    return '$' + n.toLocaleString('es-AR');
-  }
-
-  tintFor(fam) {
-    if (fam === 'calidos') return '#b88a89';
-    if (fam === 'florales') return '#c9979a';
-    return '#835c5b';
-  }
-
-  // Cada familia tiene su BAÑO de color: son tintes de la paleta del manual,
-  // no colores nuevos. Cálidos tira a arena, florales a rosa pálido y
-  // amaderados a taupe — se reconoce la familia de reojo, sin leer.
-  washFor(fam) {
-    if (fam === 'calidos') return 'linear-gradient(166deg, #f7ede1 0%, #ecd9c7 100%)';
-    if (fam === 'florales') return 'linear-gradient(166deg, #fdf4f0 0%, #f0dcd9 100%)';
-    return 'linear-gradient(166deg, #eee4d6 0%, #d6c3b2 100%)';
-  }
-
-  intensityLabel(n) {
-    if (n === 1) return 'suave';
-    if (n === 2) return 'media';
-    return 'intensa';
-  }
+  money(n) { return '$' + n.toLocaleString('es-AR'); }
+  op(inten, k) { return inten >= k ? '1' : '.22'; }
 
   add(price) {
     this.setState({ cart: this.state.cart + 1, subtotal: this.state.subtotal + price });
   }
 
   renderVals() {
+    const accent = this.props.accent ?? '#671128';
     const all = this.catalog();
-    const shown = all.filter((p) => {
-      const okFam = this.state.fam === 'todas' || p.fam === this.state.fam;
-      const okFormat = this.state.format === 'todos' || p.format === this.state.format;
-      return okFam && okFormat;
-    });
+    const moms = this.momentos();
+    let mom = moms.filter((m) => m.key === this.state.momento)[0] || moms[2];
+    const idx = moms.indexOf(mom);
+    const suyos = mom.ids.map((id) => all.filter((p) => p.id === id)[0]).filter((p) => p);
 
-    const famDefs = [
-      { key: 'calidos', num: '01', name: 'Cálidos y dulces', img: 'mundo-velas.jpg', alt: 'Velas de cera de soja de aroma cálido', text: 'Vainilla, canela, coco. Para bajar un cambio cuando el día se termina.', alto: '470px', offset: '0px' },
-      { key: 'florales', num: '02', name: 'Florales', img: 'mundo-aromas.jpg', alt: 'Difusores y aromas florales', text: 'Azahar, jazmín, lavanda. Livianos, luminosos, para el día.', alto: '400px', offset: '96px' },
-      { key: 'amaderados', num: '03', name: 'Amaderados', img: 'mundo-decoracion.jpg', alt: 'Ambiente con velas de aroma amaderado', text: 'Sándalo, cedro, ámbar. Serenos y con carácter, para concentrarte.', alto: '440px', offset: '40px' }
-    ];
-
-    const families = famDefs.map((f) => {
-      const n = all.filter((p) => p.fam === f.key).length;
-      return Object.assign({}, f, {
-        tint: this.tintFor(f.key),
-        count: n + ' piezas',
-        aria: 'Filtrar por familia ' + f.name,
-        pick: () => this.setState({ fam: f.key })
-      });
-    });
-
-    const famChipDefs = [
+    const lista = all.filter((p) => this.state.fam === 'todas' || p.fam === this.state.fam);
+    const tabDefs = [
       { key: 'todas', label: 'Todas' },
       { key: 'calidos', label: 'Cálidos y dulces' },
       { key: 'florales', label: 'Florales' },
       { key: 'amaderados', label: 'Amaderados' }
     ];
-    const famChips = famChipDefs.map((c) => {
-      const on = this.state.fam === c.key;
-      return {
-        label: c.label,
-        bg: on ? '#671128' : 'transparent',
-        fg: on ? '#f3ebe1' : '#835c5b',
-        bd: on ? '#671128' : '#d0aeac',
-        pick: () => this.setState({ fam: c.key })
-      };
-    });
-
-    const formatDefs = ['todos', 'Vela', 'Vela grande', 'Difusor', 'Sahumerio', 'Textil'];
-    const formChips = formatDefs.map((k) => {
-      const on = this.state.format === k;
-      return {
-        label: k === 'todos' ? 'Todos' : k,
-        bg: on ? '#671128' : 'transparent',
-        fg: on ? '#f3ebe1' : '#835c5b',
-        bd: on ? '#671128' : '#d0aeac',
-        pick: () => this.setState({ format: k })
-      };
-    });
-
-    const items = shown.map((p) => ({
-      isVela: p.format === 'Vela',
-      isVelaG: p.format === 'Vela grande',
-      isDifusor: p.format === 'Difusor',
-      isSahumerio: p.format === 'Sahumerio',
-      isTextil: p.format === 'Textil',
-      aria: 'Sumar ' + p.name + ' al carrito',
-      name: p.name,
-      notes: p.notes,
-      format: p.format,
-      isNew: p.isNew,
-      duration: p.duration,
-      price: this.money(p.price),
-      tint: this.tintFor(p.fam),
-      wash: this.washFor(p.fam),
-      intLabel: this.intensityLabel(p.intensity),
-      f1: p.intensity >= 1 ? '1' : '.22',
-      f2: p.intensity >= 2 ? '1' : '.22',
-      f3: p.intensity >= 3 ? '1' : '.22',
-      add: () => this.add(p.price)
-    }));
-
     const setDefs = [
       { name: 'Set Ritual', items: 'Vela de soja + difusor a juego + fósforos largos', price: 21900, note: 'El más elegido' },
       { name: 'Caja Aromas', items: '3 velas aromáticas en caja de regalo', price: 22900, note: '' },
       { name: 'Set Deco & Luz', items: 'Vela decorativa + portavela de cerámica + bandeja', price: 24900, note: 'Envío gratis' }
     ];
-    const sets = setDefs.map((s) => ({
-      name: s.name,
-      items: s.items,
-      note: s.note,
-      hasNote: s.note !== '',
-      price: this.money(s.price),
-      aria: 'Sumar ' + s.name + ' al carrito',
-      add: () => this.add(s.price)
-    }));
 
     const free = 25000;
     const sub = this.state.subtotal;
     const pct = Math.min(100, Math.round((sub / free) * 100));
-    const shipLine = sub === 0
-      ? 'Sumá ' + this.money(free) + ' y el envío te sale gratis'
-      : sub >= free
-        ? 'Llegaste: tu envío es gratis'
-        : 'Te faltan ' + this.money(free - sub) + ' para el envío gratis';
 
     return {
-      accent: this.props.accent ?? '#671128',
-      families: families,
-      famChips: famChips,
-      formChips: formChips,
-      shown: items,
-      sets: sets,
+      accent: accent,
+
+      momentos: moms.map((m) => ({
+        label: m.label,
+        fg: m.key === mom.key ? accent : '#a08c85',
+        aria: 'Ver los aromas de ' + m.label,
+        pick: () => this.setState({ momento: m.key })
+      })),
+
+      cinta: moms.map((m) => {
+        const on = m.key === mom.key;
+        return {
+          hora: m.hora,
+          titulo: m.label,
+          cuenta: m.ids.length + ' aromas',
+          bg: on ? 'rgba(232,217,213,.5)' : 'transparent',
+          fg: on ? accent : '#3a2429',
+          fg2: '#835c5b',
+          aria: 'Ver los aromas de ' + m.label,
+          pick: () => this.setState({ momento: m.key })
+        };
+      }),
+
+      escenaImg: mom.img,
+      escenaAlt: mom.alt,
+      escenaHora: mom.hora,
+      escenaTitulo: mom.titulo,
+      escenaTexto: mom.texto,
+      escenaPorque: mom.porque,
+      escenaCuenta: suyos.length + ' aromas',
+      escenaPaso: (idx + 1) + ' / 4 · ' + mom.label,
+
+      aromas: suyos.map((p) => ({
+        name: p.name,
+        notes: p.notes,
+        duration: p.duration,
+        format: p.format,
+        price: this.money(p.price),
+        aria: 'Sumar ' + p.name + ' al carrito',
+        f1: this.op(p.intensity, 1),
+        f2: this.op(p.intensity, 2),
+        f3: this.op(p.intensity, 3),
+        add: () => this.add(p.price)
+      })),
+
+      tabs: tabDefs.map((t) => {
+        const on = this.state.fam === t.key;
+        return {
+          label: t.label,
+          fg: on ? accent : '#835c5b',
+          bd: on ? accent : 'transparent',
+          pick: () => this.setState({ fam: t.key })
+        };
+      }),
+
+      rows: lista.map((p, i) => ({
+        n: (i + 1) < 10 ? '0' + (i + 1) : '' + (i + 1),
+        name: p.name,
+        notes: p.notes,
+        price: this.money(p.price),
+        cls: '',
+        aria: 'Sumar ' + p.name + ' al carrito',
+        f1: this.op(p.intensity, 1),
+        f2: this.op(p.intensity, 2),
+        f3: this.op(p.intensity, 3),
+        pick: () => this.add(p.price)
+      })),
+
+      sets: setDefs.map((s) => ({
+        name: s.name,
+        items: s.items,
+        note: s.note,
+        hasNote: s.note !== '',
+        price: this.money(s.price),
+        aria: 'Sumar ' + s.name + ' al carrito',
+        add: () => this.add(s.price)
+      })),
+
       cartCount: this.state.cart,
       cartLine: this.state.cart === 0
         ? 'Tu carrito está vacío'
         : this.state.cart + (this.state.cart === 1 ? ' pieza · ' : ' piezas · ') + this.money(sub),
       progress: pct + '%',
-      shipLine: shipLine,
-      resultLabel: shown.length + (shown.length === 1 ? ' pieza' : ' piezas'),
-      clearAll: () => this.setState({ fam: 'todas', format: 'todos' })
+      shipLine: sub === 0
+        ? 'Sumá ' + this.money(free) + ' y el envío te sale gratis'
+        : sub >= free
+          ? 'Llegaste: tu envío es gratis'
+          : 'Te faltan ' + this.money(free - sub) + ' para el envío gratis'
     };
   }
 }

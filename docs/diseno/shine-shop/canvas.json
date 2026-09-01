@@ -1,23 +1,117 @@
 {
   "pages": [
     {
+      "id": "page-0",
+      "name": "10 estructuras"
+    },
+    {
       "id": "page-1",
-      "name": "El Shop"
+      "name": "La tienda armada"
     },
     {
       "id": "page-2",
-      "name": "Sistema y direcciones"
+      "name": "Sistema y bocetos"
     }
   ],
   "artboards": [
     {
+      "file": "E01.dc.html",
+      "title": "01 · estructura",
+      "page": "page-0",
+      "x": 0,
+      "y": 0,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E02.dc.html",
+      "title": "02 · estructura",
+      "page": "page-0",
+      "x": 1120,
+      "y": 0,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E03.dc.html",
+      "title": "03 · estructura",
+      "page": "page-0",
+      "x": 2240,
+      "y": 0,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E04.dc.html",
+      "title": "04 · estructura",
+      "page": "page-0",
+      "x": 3360,
+      "y": 0,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E05.dc.html",
+      "title": "05 · estructura",
+      "page": "page-0",
+      "x": 4480,
+      "y": 0,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E06.dc.html",
+      "title": "06 · estructura",
+      "page": "page-0",
+      "x": 0,
+      "y": 920,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E07.dc.html",
+      "title": "07 · estructura",
+      "page": "page-0",
+      "x": 1120,
+      "y": 920,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E08.dc.html",
+      "title": "08 · estructura",
+      "page": "page-0",
+      "x": 2240,
+      "y": 920,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E09.dc.html",
+      "title": "09 · estructura",
+      "page": "page-0",
+      "x": 3360,
+      "y": 920,
+      "w": 1000,
+      "h": 720
+    },
+    {
+      "file": "E10.dc.html",
+      "title": "10 · estructura",
+      "page": "page-0",
+      "x": 4480,
+      "y": 920,
+      "w": 1000,
+      "h": 720
+    },
+    {
       "file": "Main.dc.html",
-      "title": "Shop · escritorio",
+      "title": "Tienda · por momento de la casa",
       "page": "page-1",
       "x": 0,
       "y": 0,
       "w": 1440,
-      "h": 5300,
+      "h": 2900,
       "expand": "fill",
       "is_interactive": true
     },
@@ -39,7 +133,7 @@
       "x": 3120,
       "y": 0,
       "w": 390,
-      "h": 2960,
+      "h": 2900,
       "is_interactive": true
     },
     {
@@ -93,12 +187,20 @@
   ],
   "annotations": [
     {
+      "id": "diez",
+      "page": "page-0",
+      "x": 0,
+      "y": -230,
+      "w": 900,
+      "text": "DIEZ ESTRUCTURAS PARA LA TIENDA DE SHINE — no diez pieles: diez maneras distintas de ORDENAR la tienda (qué navega el cliente, en qué orden lee, cómo llega al aroma).\n\nCada una dice por qué serviría y qué cede. Ninguna es la correcta todavía: elegí una o dos y las llevo a alta fidelidad con el catálogo completo.\n\nEn la página 'La tienda armada' está la nº 01 ya construida y funcionando."
+    },
+    {
       "id": "brief",
       "page": "page-1",
       "x": 0,
       "y": -250,
       "w": 620,
-      "text": "SHOP DE SHINE — sobre el manual de marca 2026 y los tokens que ya corre la vidriera en producción.\n\nLa imagen ya no va en el rectángulo de siempre: vive DENTRO del isotipo de Shine. Es la forma propia de la marca haciendo de marco, y ninguna otra tienda de velas puede copiarla.\n\nEl fondo tampoco es un relleno plano: papel tonal + grano + la trama oficial del manual, que estaba sin usar.\n\nLos filtros, el quiz y el carrito FUNCIONAN: probalos."
+      "text": "SHOP DE SHINE — la tienda NO está ordenada por producto.\n\nNo hay banner ni barra superior: la navegación es un RIEL vertical y lo que navega son MOMENTOS de la casa (mañana / tarde / noche / viene gente). Entrás por el momento y la tienda te muestra los aromas que le van, con el porqué.\n\nEl catálogo completo queda de segunda opción, para el que ya sabe qué busca.\n\nProbalo: tocá un momento en el riel de la izquierda o en la cinta de abajo."
     },
     {
       "id": "datos",
@@ -119,6 +221,6 @@
   ],
   "launch": {
     "view": "canvas",
-    "page": "page-1"
+    "page": "page-0"
   }
 }

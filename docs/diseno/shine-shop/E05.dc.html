@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .94; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 18px 34px 24px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 18px 34px; overflow: hidden; border: 1px solid #e4d7d0; background: #fdf8f2; }
+  </style>
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">05</span><span class="t">Mapa olfativo</span></div>
+  <div class="lienzo" style="flex: 1;">
+
+    <div style="position: absolute; inset: 0; padding: 26px 34px;">
+      <div class="meta">Dónde cae cada aroma</div>
+      <div style="position: relative; margin-top: 16px; height: calc(100% - 46px); border-left: 1px solid #d0aeac; border-bottom: 1px solid #d0aeac;">
+        <span class="meta" style="position: absolute; left: -14px; top: -6px; transform: rotate(-90deg); transform-origin: left top; font-size: 9.5px;">Intenso</span>
+        <span class="meta" style="position: absolute; left: -14px; bottom: 46px; transform: rotate(-90deg); transform-origin: left top; font-size: 9.5px;">Suave</span>
+        <span class="meta" style="position: absolute; left: 8px; bottom: -20px; font-size: 9.5px;">Dulce</span>
+        <span class="meta" style="position: absolute; right: 0; bottom: -20px; font-size: 9.5px;">Seco</span>
+        <div style="position: absolute; left: 12%; top: 14%;"><span style="display: block; width: 11px; height: 11px; border-radius: 99px; background: #671128;"></span><span class="disp" style="position: absolute; left: 17px; top: -7px; font-size: 21px; color: #671128; white-space: nowrap;">Vainilla y canela</span></div>
+        <div style="position: absolute; left: 20%; top: 44%;"><span style="display: block; width: 9px; height: 9px; border-radius: 99px; background: #b88a89;"></span><span class="disp" style="position: absolute; left: 15px; top: -7px; font-size: 19px; color: #835c5b; white-space: nowrap;">Coco y vainilla</span></div>
+        <div style="position: absolute; left: 44%; top: 66%;"><span style="display: block; width: 9px; height: 9px; border-radius: 99px; background: #b88a89;"></span><span class="disp" style="position: absolute; left: 15px; top: -7px; font-size: 19px; color: #835c5b; white-space: nowrap;">Flor de naranjo</span></div>
+        <div style="position: absolute; left: 40%; top: 84%;"><span style="display: block; width: 9px; height: 9px; border-radius: 99px; background: #b88a89;"></span><span class="disp" style="position: absolute; left: 15px; top: -7px; font-size: 19px; color: #835c5b; white-space: nowrap;">Lavanda</span></div>
+        <div style="position: absolute; left: 74%; top: 20%;"><span style="display: block; width: 9px; height: 9px; border-radius: 99px; background: #b88a89;"></span><span class="disp" style="position: absolute; left: 15px; top: -7px; font-size: 19px; color: #835c5b; white-space: nowrap;">Sándalo</span></div>
+        <div style="position: absolute; left: 82%; top: 40%;"><span style="display: block; width: 9px; height: 9px; border-radius: 99px; background: #b88a89;"></span><span class="disp" style="position: absolute; left: -110px; top: -7px; font-size: 19px; color: #835c5b; white-space: nowrap;">Cedro y ámbar</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Por qué</b><span>Se elige por comparación, que es como funciona la nariz. Ves de un vistazo qué tan dulce e intenso es cada uno.</span></div>
+    <div><b>Qué cede</b><span>Hay que enseñarle al cliente a leer el plano. Y no escala más allá de 20 o 25 productos.</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

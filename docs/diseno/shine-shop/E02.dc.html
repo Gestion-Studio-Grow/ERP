@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .94; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; padding: 18px 34px 24px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 18px 34px; overflow: hidden; border: 1px solid #e4d7d0; background: #fdf8f2; }
+  </style>
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">02</span><span class="t">Índice tipográfico</span></div>
+  <div class="lienzo" style="flex: 1;">
+
+    <div style="position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0,1fr) 300px;">
+      <div style="padding: 30px 34px;">
+        <div class="meta">Doce aromas</div>
+        <div style="margin-top: 20px;">
+          <div class="disp" style="font-size: 40px; color: #cbb8b2; padding: 7px 0;">Vainilla y canela</div>
+          <div class="disp" style="font-size: 40px; color: #cbb8b2; padding: 7px 0;">Coco y vainilla</div>
+          <div class="disp" style="font-size: 40px; color: #671128; padding: 7px 0;">Flor de naranjo<span class="num meta" style="margin-left: 16px; color: #835c5b;">$11.900</span></div>
+          <div class="disp" style="font-size: 40px; color: #cbb8b2; padding: 7px 0;">Jazmín</div>
+          <div class="disp" style="font-size: 40px; color: #cbb8b2; padding: 7px 0;">Lavanda</div>
+          <div class="disp" style="font-size: 40px; color: #cbb8b2; padding: 7px 0;">Sándalo</div>
+          <div class="disp" style="font-size: 40px; color: #cbb8b2; padding: 7px 0;">Cedro y ámbar</div>
+        </div>
+      </div>
+      <div style="position: relative; overflow: hidden; border-left: 1px solid #e4d7d0;">
+        <img src="mundo-aromas.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
+        <div style="position: absolute; left: 20px; right: 20px; bottom: 20px; color: #fff; text-shadow: 0 2px 14px rgba(58,17,25,.7);">
+          <div style="font-size: 13px;">azahar · neroli · miel</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Por qué</b><span>Cero ruido: la tipografía es la interfaz. La foto aparece sola al recorrer la lista con el dedo o el mouse.</span></div>
+    <div><b>Qué cede</b><span>Sin fotos por producto en la lista, la compra por impulso baja. Necesita nombres muy buenos.</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
