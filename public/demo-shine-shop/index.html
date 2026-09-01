@@ -32,7 +32,6 @@
   .flame { display:inline-block; flex:none;
     -webkit-mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat;
     mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat; }
-  .capa { position:absolute; inset:0; pointer-events:none; }
 
   .aviso { position:fixed; right:14px; top:14px; z-index:60; background:rgba(58,17,25,.88); color:#f3ebe1;
            font-size:10px; font-weight:600; letter-spacing:.18em; text-transform:uppercase;
@@ -56,7 +55,7 @@
          color:var(--vino); font-size:11px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; transition:.4s; }
   .cta:hover { background:var(--vino); color:var(--crema); }
   .marco { margin:0; }
-  .marco img { display:block; width:100%; aspect-ratio:3/2; object-fit:cover; border-radius:4px;
+  .marco img { display:block; width:100%; height:auto; aspect-ratio:3/2; object-fit:cover; border-radius:4px;
                border:1px solid var(--blush); filter:saturate(1.04) contrast(1.02);
                transition:opacity .3s ease; }
   .claim { margin:16px 2px 0; font-style:italic; font-size:17.5px; color:var(--malva-d);
@@ -179,7 +178,7 @@
 
   <main>
     <section class="hero" id="hero">
-      <div class="hero-txt">
+      <div>
         <div class="num meta" id="hero-kicker" style="display:flex;align-items:center;gap:14px">
           <span style="width:34px;height:1px;background:var(--nude)"></span><span id="hero-hora"></span>
         </div>
@@ -188,7 +187,7 @@
         <a class="cta" href="#lo-que-va">Ver sus aromas</a>
       </div>
       <figure class="marco">
-        <img id="hero-img" src="/tenants/shinevelas/hero.jpg" alt="" width="1024" height="576" fetchpriority="high" decoding="async">
+        <img id="hero-img" src="/tenants/shinevelas/hero.jpg" alt="Velas de soja encendidas sobre una mesa de madera, con luz baja de noche." width="1024" height="576" fetchpriority="high" decoding="async">
         <figcaption class="claim" id="claim"></figcaption>
       </figure>
     </section>
@@ -197,7 +196,7 @@
       <div class="cards-grid" id="cards"></div>
     </section>
 
-    <p class="atributos">Cera de soja &nbsp;·&nbsp; Pabilo de algodón &nbsp;·&nbsp; Vertido a mano</p>
+    <p class="atributos">Cera de soja&nbsp;·&nbsp;Pabilo de algodón&nbsp;·&nbsp;Vertido a mano</p>
 
     <section class="indice" id="indice">
       <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:30px;flex-wrap:wrap;margin-bottom:30px">
@@ -269,15 +268,19 @@ const DUO = { v1:['#ead7bc','#b98a5e'], v2:['#f1e5d4','#c9b296'], v3:['#f4e7d2',
   d1:['#ddcbb6','#8a6c52'], s1:['#f4e7d2','#dca96e'], t1:['#e7dfe8','#a89ab5'], v9:['#f1e5d4','#c9b296'] };
 const MOMENTOS = [
   { k:'manana', label:'Mañana', hora:'07 — 12 h', t1:'Que la casa', t2:'arranque liviana', img:'/tenants/shinevelas/mundo-decoracion.jpg',
+    alt:'Jarrones de cerámica clara con flores frescas y una vela encendida, a la luz de la mañana.',
     texto:'Con la ventana abierta y el mate hecho, la casa pide algo que se sienta limpio y no tape nada.',
     porque:'A esta hora conviene un aroma suave: la casa todavía está fría y cualquier cosa intensa se vuelve pesada.', ids:['v3','v5','t1'] },
   { k:'tarde', label:'Tarde', hora:'12 — 19 h', t1:'Que el día', t2:'se ordene', img:'/tenants/shinevelas/mundo-aromas.jpg',
+    alt:'Velas encendidas sobre mantas y toallas en tonos cálidos, en un ambiente sereno de tarde.',
     texto:'Las horas en que hay que concentrarse. Un aroma que acompañe sin distraer, y que dure toda la jornada.',
     porque:'Los amaderados sostienen el foco: son serenos, no dulces, y no cansan después de tres horas.', ids:['v6','v7','d1'] },
   { k:'noche', label:'Noche', hora:'19 — 00 h', t1:'Que el día', t2:'se termine', img:'/tenants/shinevelas/hero.jpg',
+    alt:'Velas de soja encendidas sobre una mesa de madera, con luz baja de noche.',
     texto:'Se baja la luz, se enciende una vela y la casa cambia de temperatura. Es el momento en que más se usa una vela.',
     porque:'Los cálidos son los de la noche: dulces sin empalagar, se quedan en la casa después de apagar la vela.', ids:['v1','v2','v9'] },
   { k:'gente', label:'Viene gente', hora:'Cuando tocan el timbre', t1:'Que la casa', t2:'reciba bien', img:'/tenants/shinevelas/ambiance.jpg',
+    alt:'Un grupo de velas encendidas iluminando la mesa, listas para recibir visitas.',
     texto:'Se nota apenas se abre la puerta, antes de que nadie diga nada. Es lo primero que percibe quien llega.',
     porque:'Para recibir conviene que se sienta desde la entrada: intensidad alta y algo que llene el ambiente rápido.', ids:['v4','v8','s1'] },
 ];
@@ -359,6 +362,7 @@ function pintarMomento() {
     tmp.onerror = () => { if (t === heroSeq) hero.style.opacity = 1; };
     tmp.src = m.img;
   }
+  hero.alt = m.alt;
   $('#hero-hora').textContent = m.label.toUpperCase() + ' · ' + m.hora.toUpperCase();
   $('#hero-titulo').innerHTML = m.t1 + '<br><em style="font-weight:300">' + m.t2 + '</em>';
   $('#hero-texto').textContent = m.texto;
