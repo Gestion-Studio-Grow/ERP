@@ -126,7 +126,7 @@
           <img src="ambiance.jpg" alt="La vela encendida en el ambiente" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
         <div style="position: relative; width: 118px; height: 118px; overflow: hidden; border: 1px solid #e8d9d5;">
-          <img src="mundo-aromas.jpg" alt="El aroma en el ambiente" style="width: 100%; height: 100%; object-fit: cover;">
+          <img src="gift.jpg" alt="La vela en su caja de regalo" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
       </div>
     </div>
@@ -169,7 +169,7 @@
           </div>
         </div>
       </div>
-      <div class="meta" style="font-size: 9px; margin-top: 10px; color: #b88a89;">La columna es el aroma en el tiempo: arriba lo primero que olés, abajo lo que queda</div>
+      <div class="meta" style="font-size: 9.5px; margin-top: 10px; color: #835c5b;">El aroma en el tiempo: arriba la salida, abajo lo que queda</div>
 
       <!-- Datos duros -->
       <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px;">
@@ -257,11 +257,10 @@
     <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px;">
       <sc-for list="{{cross}}" as="x" hint-placeholder-count="4">
         <div class="xcard" style="background: rgba(253,248,242,.86); border: 1px solid #e8d9d5; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: .25s;">
-          <div style="position: relative; aspect-ratio: 4/3; display: grid; place-items: center; overflow: hidden; background: {{x.wash}};">
-            <svg class="capa trama-suave" style="color: {{x.tint}};" aria-hidden focusable="false"><rect width="100%" height="100%" fill="url(#trama-shine)"></rect></svg>
-            <span class="flame" style="position: relative; width: 34px; height: 58px; background: {{x.tint}}; opacity: .9;"></span>
+          <div style="position: relative; aspect-ratio: 4/3; overflow: hidden; background: {{x.wash}};">
+            <img src="{{x.foto}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
             <sc-if value="{{x.isIdea}}" hint-placeholder-val="{{true}}">
-              <div style="position: absolute; right: 12px; top: 12px; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #f3ebe1; background: #835c5b; padding: 5px 10px; border-radius: 999px;">A proponer</div>
+              <div style="position: absolute; right: 12px; top: 12px; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #f3ebe1; background: #835c5b; padding: 5px 10px; border-radius: 999px;">Ideal para empezar</div>
             </sc-if>
           </div>
           <div style="padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 9px; flex: 1;">
@@ -269,7 +268,7 @@
             <div style="font-size: 12.5px; color: #835c5b; line-height: 1.5;">{{x.why}}</div>
             <div style="display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 6px;">
               <span class="num" style="font-size: 17px; font-weight: 600; color: #671128;">{{x.price}}</span>
-              <button onClick="{{x.add}}" style="font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .06em; padding: 0 16px; min-height: 40px; border-radius: 999px; border: 1px solid #b88a89; background: transparent; color: #835c5b; cursor: pointer;">Sumar</button>
+              <button onClick="{{x.add}}" style="font-family: 'Kumbh Sans', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .06em; padding: 0 16px; min-height: 40px; border-radius: 6px; border: 1px solid #b88a89; background: transparent; color: #835c5b; cursor: pointer;">Sumar</button>
             </div>
           </div>
         </div>
@@ -314,10 +313,10 @@ class Component extends DCLogic {
     const free = 25000;
 
     const crossDefs = [
-      { name: 'Difusor Vainilla y canela', why: 'La misma fragancia, encendida todo el mes.', price: 14900, tint: '#b88a89', wash: 'linear-gradient(166deg, #f7ede1 0%, #ecd9c7 100%)', isIdea: false },
-      { name: 'Fósforos largos', why: 'Para encenderla sin quemarte los dedos.', price: 3900, tint: '#835c5b', wash: 'linear-gradient(166deg, #eee4d6 0%, #d6c3b2 100%)', isIdea: false },
-      { name: 'Portavela de cerámica', why: 'Le da base y protege la mesa.', price: 9900, tint: '#c9979a', wash: 'linear-gradient(166deg, #fdf4f0 0%, #f0dcd9 100%)', isIdea: false },
-      { name: 'Trío para descubrir · 3 minis', why: 'Un cálido, un floral y un amaderado para probar antes de elegir.', price: 9900, tint: '#671128', wash: 'linear-gradient(166deg, #f6e9e3 0%, #e0c8c3 100%)', isIdea: true }
+      { name: 'Difusor Vainilla y canela', why: 'La misma fragancia, encendida todo el mes.', price: 14900, foto: 'mundo-aromas.jpg', tint: '#b88a89', wash: 'linear-gradient(166deg, #f7ede1 0%, #ecd9c7 100%)', isIdea: false },
+      { name: 'Fósforos largos', why: 'Para encenderla sin quemarte los dedos.', price: 3900, foto: 'ambiance.jpg', tint: '#835c5b', wash: 'linear-gradient(166deg, #eee4d6 0%, #d6c3b2 100%)', isIdea: false },
+      { name: 'Portavela de cerámica', why: 'Le da base y protege la mesa.', price: 9900, foto: 'mundo-decoracion.jpg', tint: '#c9979a', wash: 'linear-gradient(166deg, #fdf4f0 0%, #f0dcd9 100%)', isIdea: false },
+      { name: 'Trío para descubrir · 3 minis', why: 'Un cálido, un floral y un amaderado para probar antes de elegir.', price: 9900, foto: 'gift.jpg', tint: '#671128', wash: 'linear-gradient(166deg, #f6e9e3 0%, #e0c8c3 100%)', isIdea: true }
     ];
 
     return {
@@ -330,6 +329,7 @@ class Component extends DCLogic {
         : 'Te faltan ' + this.money(free - sub) + ' para el envío gratis en CABA y GBA',
       cross: crossDefs.map((x) => ({
         name: x.name,
+        foto: x.foto,
         why: x.why,
         tint: x.tint,
         wash: x.wash,
