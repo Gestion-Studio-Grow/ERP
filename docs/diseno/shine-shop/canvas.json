@@ -5,6 +5,10 @@
       "name": "10 estructuras"
     },
     {
+      "id": "page-4",
+      "name": "Foto + columna"
+    },
+    {
       "id": "page-3",
       "name": "La exhibición"
     },
@@ -224,6 +228,51 @@
       "y": 900,
       "w": 1060,
       "h": 760
+    },
+    {
+      "file": "F1.dc.html",
+      "title": "15 · El díptico",
+      "page": "page-4",
+      "x": 0,
+      "y": 0,
+      "w": 1060,
+      "h": 880
+    },
+    {
+      "file": "F2.dc.html",
+      "title": "16 · La cinta",
+      "page": "page-4",
+      "x": 1180,
+      "y": 0,
+      "w": 1060,
+      "h": 880
+    },
+    {
+      "file": "F3.dc.html",
+      "title": "17 · La lámina graduada",
+      "page": "page-4",
+      "x": 2360,
+      "y": 0,
+      "w": 1060,
+      "h": 880
+    },
+    {
+      "file": "F4.dc.html",
+      "title": "18 · El halo",
+      "page": "page-4",
+      "x": 0,
+      "y": 1040,
+      "w": 1060,
+      "h": 880
+    },
+    {
+      "file": "F5.dc.html",
+      "title": "19 · La editorial",
+      "page": "page-4",
+      "x": 1180,
+      "y": 1040,
+      "w": 1060,
+      "h": 880
     }
   ],
   "annotations": [
@@ -266,10 +315,18 @@
       "y": -240,
       "w": 880,
       "text": "CÓMO EXHIBIR VELAS Y AROMAS SIN FOTO DE PRODUCTO — cuatro sistemas, todos minimalistas y combinables entre sí:\n\n11 el aroma como muestra de material (color + textura de cera) · 12 la vela que se enciende al tocarla (probala: la 12 es interactiva) · 13 el catálogo como láminas numeradas a línea · 14 la pirámide olfativa hecha color.\n\nEl color de cada aroma sale de sus notas, desaturado para que quede quieto. Recomendación: 12 para la tienda + 14 en la ficha + 13 para etiquetas y packaging."
+    },
+    {
+      "id": "fotocol",
+      "page": "page-4",
+      "x": 2360,
+      "y": 1040,
+      "w": 760,
+      "text": "FOTO + COLUMNA DE NOTAS — cinco composiciones del mismo par, cada una parada sobre algo del manual 2026 (el fundamento está al pie de cada tablero).\n\n15 el díptico (mitad objeto, mitad aroma) · 16 la cinta de regalo · 17 la lámina de archivo · 18 el halo con la vela de color · 19 la editorial tipográfica.\n\nLas fotos actuales son las de ambiente de la marca: cuando esté la foto real de cada vela, entra en el mismo marco sin tocar nada.\n\nCada tablero muestra al lado cómo rinde el sistema con otros aromas."
     }
   ],
   "launch": {
     "view": "canvas",
-    "page": "page-3"
+    "page": "page-4"
   }
 }

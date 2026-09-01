@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .96; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1.2fr 1fr; gap: 26px; padding: 16px 34px 22px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 16px 34px; }
+  </style>
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">17</span><span class="t">La lámina graduada</span></div>
+  <div class="lienzo" style="flex: 1; display: flex; align-items: center; gap: 54px;">
+    <div style="flex: none;"><div style="width:390px;border:1px solid #c9b4ab;background:#fdf8f2;padding:9px">
+  <div style="border:1px solid #e4d7d0;padding:16px 18px">
+    <div style="display:flex;justify-content:space-between"><span class="meta" style="font-size:9px">Lám. Nº 01</span><span class="meta" style="font-size:9px">Shine · cera de soja</span></div>
+    <div style="position:relative;height:250px;margin-top:12px;overflow:hidden"><img src="hero.jpg" alt="Vainilla y canela" style="width:100%;height:100%;object-fit:cover"></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:18px;margin-top:16px">
+      <div>
+        <div class="disp" style="font-size:24px;color:#671128">Vainilla y canela</div>
+        <div class="meta" style="font-size:8.5px;margin-top:7px">Vela de soja 220 g · 45 h</div>
+        <div style="font-size:11.5px;color:#835c5b;margin-top:8px">vainilla · canela · caramelo</div>
+        <div class="num" style="font-size:16px;font-weight:600;color:#671128;margin-top:12px">$12.900</div>
+      </div>
+      <div style="position:relative;height:132px">
+        <div style="position:absolute;right:14px;top:0;bottom:0;width:26px;background:linear-gradient(180deg,#ead7bc,#b98a5e);border:1px solid rgba(58,17,25,.14)"></div>
+        <span style="position:absolute;right:0;top:6.0%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:12.2%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:18.4%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:24.6%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:30.8%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:37.0%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:43.2%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:49.4%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:55.6%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:61.800000000000004%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:68.0%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:74.2%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:80.4%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:86.60000000000001%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:92.8%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span>
+        <div style="position:absolute;right:46px;top:0;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Canela</div>
+        <div style="position:absolute;right:46px;top:44%;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Vainilla</div>
+        <div style="position:absolute;right:46px;bottom:0;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Caramelo</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+    <div style="flex: 1; min-width: 0;">
+      <div class="meta" style="margin-bottom: 16px;">El mismo sistema, con otros aromas</div>
+      <div style="display: flex; gap: 4px; align-items: flex-start;"><div style="width:168px;height:240px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:440px"><div style="width:390px;border:1px solid #c9b4ab;background:#fdf8f2;padding:9px">
+  <div style="border:1px solid #e4d7d0;padding:16px 18px">
+    <div style="display:flex;justify-content:space-between"><span class="meta" style="font-size:9px">Lám. Nº 01</span><span class="meta" style="font-size:9px">Shine · cera de soja</span></div>
+    <div style="position:relative;height:250px;margin-top:12px;overflow:hidden"><img src="mundo-velas.jpg" alt="Coco y vainilla" style="width:100%;height:100%;object-fit:cover"></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:18px;margin-top:16px">
+      <div>
+        <div class="disp" style="font-size:24px;color:#671128">Coco y vainilla</div>
+        <div class="meta" style="font-size:8.5px;margin-top:7px">Vela de soja 220 g · 45 h</div>
+        <div style="font-size:11.5px;color:#835c5b;margin-top:8px">coco · vainilla · leche tibia</div>
+        <div class="num" style="font-size:16px;font-weight:600;color:#671128;margin-top:12px">$12.900</div>
+      </div>
+      <div style="position:relative;height:132px">
+        <div style="position:absolute;right:14px;top:0;bottom:0;width:26px;background:linear-gradient(180deg,#f1e5d4,#c9b296);border:1px solid rgba(58,17,25,.14)"></div>
+        <span style="position:absolute;right:0;top:6.0%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:12.2%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:18.4%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:24.6%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:30.8%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:37.0%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:43.2%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:49.4%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:55.6%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:61.800000000000004%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:68.0%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:74.2%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:80.4%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:86.60000000000001%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:92.8%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span>
+        <div style="position:absolute;right:46px;top:0;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Coco</div>
+        <div style="position:absolute;right:46px;top:44%;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Vainilla</div>
+        <div style="position:absolute;right:46px;bottom:0;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Leche</div>
+      </div>
+    </div>
+  </div>
+</div></div></div><div style="width:168px;height:240px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:440px"><div style="width:390px;border:1px solid #c9b4ab;background:#fdf8f2;padding:9px">
+  <div style="border:1px solid #e4d7d0;padding:16px 18px">
+    <div style="display:flex;justify-content:space-between"><span class="meta" style="font-size:9px">Lám. Nº 01</span><span class="meta" style="font-size:9px">Shine · cera de soja</span></div>
+    <div style="position:relative;height:250px;margin-top:12px;overflow:hidden"><img src="mundo-aromas.jpg" alt="Flor de naranjo" style="width:100%;height:100%;object-fit:cover"></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:18px;margin-top:16px">
+      <div>
+        <div class="disp" style="font-size:24px;color:#671128">Flor de naranjo</div>
+        <div class="meta" style="font-size:8.5px;margin-top:7px">Vela de soja 220 g · 40 h</div>
+        <div style="font-size:11.5px;color:#835c5b;margin-top:8px">azahar · neroli · miel</div>
+        <div class="num" style="font-size:16px;font-weight:600;color:#671128;margin-top:12px">$11.900</div>
+      </div>
+      <div style="position:relative;height:132px">
+        <div style="position:absolute;right:14px;top:0;bottom:0;width:26px;background:linear-gradient(180deg,#f4e7d2,#dca96e);border:1px solid rgba(58,17,25,.14)"></div>
+        <span style="position:absolute;right:0;top:6.0%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:12.2%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:18.4%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:24.6%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:30.8%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:37.0%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:43.2%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:49.4%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:55.6%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:61.800000000000004%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:68.0%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:74.2%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:80.4%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:86.60000000000001%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:92.8%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span>
+        <div style="position:absolute;right:46px;top:0;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Azahar</div>
+        <div style="position:absolute;right:46px;top:44%;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Neroli</div>
+        <div style="position:absolute;right:46px;bottom:0;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Miel</div>
+      </div>
+    </div>
+  </div>
+</div></div></div><div style="width:168px;height:240px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:440px"><div style="width:390px;border:1px solid #c9b4ab;background:#fdf8f2;padding:9px">
+  <div style="border:1px solid #e4d7d0;padding:16px 18px">
+    <div style="display:flex;justify-content:space-between"><span class="meta" style="font-size:9px">Lám. Nº 01</span><span class="meta" style="font-size:9px">Shine · cera de soja</span></div>
+    <div style="position:relative;height:250px;margin-top:12px;overflow:hidden"><img src="ambiance.jpg" alt="Sándalo" style="width:100%;height:100%;object-fit:cover"></div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:18px;margin-top:16px">
+      <div>
+        <div class="disp" style="font-size:24px;color:#671128">Sándalo</div>
+        <div class="meta" style="font-size:8.5px;margin-top:7px">Vela de soja 220 g · 50 h</div>
+        <div style="font-size:11.5px;color:#835c5b;margin-top:8px">sándalo · vetiver · cuero</div>
+        <div class="num" style="font-size:16px;font-weight:600;color:#671128;margin-top:12px">$13.900</div>
+      </div>
+      <div style="position:relative;height:132px">
+        <div style="position:absolute;right:14px;top:0;bottom:0;width:26px;background:linear-gradient(180deg,#ddcbb6,#8a6c52);border:1px solid rgba(58,17,25,.14)"></div>
+        <span style="position:absolute;right:0;top:6.0%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:12.2%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:18.4%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:24.6%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:30.8%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:37.0%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:43.2%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:49.4%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:55.6%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:61.800000000000004%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:68.0%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:74.2%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:80.4%;width:10px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:86.60000000000001%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span><span style="position:absolute;right:0;top:92.8%;width:6px;height:1px;background:rgba(58,17,25,.35)"></span>
+        <div style="position:absolute;right:46px;top:0;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Vetiver</div>
+        <div style="position:absolute;right:46px;top:44%;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Sándalo</div>
+        <div style="position:absolute;right:46px;bottom:0;font-size:9.5px;color:#835c5b;text-align:right;white-space:nowrap">Cuero</div>
+      </div>
+    </div>
+  </div>
+</div></div></div></div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Fundamento — manual 2026</b><span>«Profesional» + el sistema de numeración e íconos del manual: cada vela es una lámina de archivo y la columna, una escala graduada de laboratorio. Web y etiqueta usan la misma pieza.</span></div>
+    <div><b>Qué cede</b><span>La más sobria de las cinco: gana autoridad, pierde calidez. Mejor para catálogo impreso.</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

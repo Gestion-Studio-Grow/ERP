@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .96; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1.2fr 1fr; gap: 26px; padding: 16px 34px 22px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 16px 34px; }
+  </style>
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">16</span><span class="t">La cinta</span></div>
+  <div class="lienzo" style="flex: 1; display: flex; align-items: center; gap: 54px;">
+    <div style="flex: none;"><div style="width:380px">
+  <div style="position:relative;height:400px">
+    <div style="position:absolute;inset:0;overflow:hidden;background:#e8d9d5"><img src="hero.jpg" alt="Vainilla y canela" style="width:100%;height:100%;object-fit:cover"></div>
+    <div style="position:absolute;left:26px;top:-14px;width:58px;height:452px;background:linear-gradient(180deg,#ead7bc,#b98a5e);clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 18px),0 100%);box-shadow:0 12px 26px -12px rgba(58,17,25,.5);border-left:2px solid rgba(253,248,242,.85);border-right:2px solid rgba(253,248,242,.85)">
+      <span class="flame" style="position:absolute;left:50%;top:18px;transform:translateX(-50%);width:12px;height:21px;background:rgba(58,17,25,.5)"></span>
+      <div style="position:absolute;left:0;right:0;top:24%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Salida</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Canela</div></div>
+      <div style="position:absolute;left:0;right:0;top:49%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Corazón</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Vainilla</div></div>
+      <div style="position:absolute;left:0;right:0;top:74%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Fondo</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Caramelo</div></div>
+    </div>
+  </div>
+  <div style="padding:22px 4px 0">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px">
+      <div class="disp" style="font-size:25px;color:#671128">Vainilla y canela</div>
+      <span class="num" style="font-size:18px;font-weight:600;color:#671128">$12.900</span>
+    </div>
+    <div style="font-size:11.5px;color:#835c5b;margin-top:5px">vainilla · canela · caramelo</div>
+  </div>
+</div></div>
+    <div style="flex: 1; min-width: 0;">
+      <div class="meta" style="margin-bottom: 16px;">El mismo sistema, con otros aromas</div>
+      <div style="display: flex; gap: 14px; align-items: flex-start;"><div style="width:168px;height:204px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:440px"><div style="width:380px">
+  <div style="position:relative;height:400px">
+    <div style="position:absolute;inset:0;overflow:hidden;background:#e8d9d5"><img src="mundo-velas.jpg" alt="Coco y vainilla" style="width:100%;height:100%;object-fit:cover"></div>
+    <div style="position:absolute;left:26px;top:-14px;width:58px;height:452px;background:linear-gradient(180deg,#f1e5d4,#c9b296);clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 18px),0 100%);box-shadow:0 12px 26px -12px rgba(58,17,25,.5);border-left:2px solid rgba(253,248,242,.85);border-right:2px solid rgba(253,248,242,.85)">
+      <span class="flame" style="position:absolute;left:50%;top:18px;transform:translateX(-50%);width:12px;height:21px;background:rgba(58,17,25,.5)"></span>
+      <div style="position:absolute;left:0;right:0;top:24%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Salida</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Coco</div></div>
+      <div style="position:absolute;left:0;right:0;top:49%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Corazón</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Vainilla</div></div>
+      <div style="position:absolute;left:0;right:0;top:74%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Fondo</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Leche</div></div>
+    </div>
+  </div>
+  <div style="padding:22px 4px 0">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px">
+      <div class="disp" style="font-size:25px;color:#671128">Coco y vainilla</div>
+      <span class="num" style="font-size:18px;font-weight:600;color:#671128">$12.900</span>
+    </div>
+    <div style="font-size:11.5px;color:#835c5b;margin-top:5px">coco · vainilla · leche tibia</div>
+  </div>
+</div></div></div><div style="width:168px;height:204px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:440px"><div style="width:380px">
+  <div style="position:relative;height:400px">
+    <div style="position:absolute;inset:0;overflow:hidden;background:#e8d9d5"><img src="mundo-aromas.jpg" alt="Flor de naranjo" style="width:100%;height:100%;object-fit:cover"></div>
+    <div style="position:absolute;left:26px;top:-14px;width:58px;height:452px;background:linear-gradient(180deg,#f4e7d2,#dca96e);clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 18px),0 100%);box-shadow:0 12px 26px -12px rgba(58,17,25,.5);border-left:2px solid rgba(253,248,242,.85);border-right:2px solid rgba(253,248,242,.85)">
+      <span class="flame" style="position:absolute;left:50%;top:18px;transform:translateX(-50%);width:12px;height:21px;background:rgba(58,17,25,.5)"></span>
+      <div style="position:absolute;left:0;right:0;top:24%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Salida</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Azahar</div></div>
+      <div style="position:absolute;left:0;right:0;top:49%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Corazón</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Neroli</div></div>
+      <div style="position:absolute;left:0;right:0;top:74%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Fondo</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Miel</div></div>
+    </div>
+  </div>
+  <div style="padding:22px 4px 0">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px">
+      <div class="disp" style="font-size:25px;color:#671128">Flor de naranjo</div>
+      <span class="num" style="font-size:18px;font-weight:600;color:#671128">$11.900</span>
+    </div>
+    <div style="font-size:11.5px;color:#835c5b;margin-top:5px">azahar · neroli · miel</div>
+  </div>
+</div></div></div><div style="width:168px;height:204px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:440px"><div style="width:380px">
+  <div style="position:relative;height:400px">
+    <div style="position:absolute;inset:0;overflow:hidden;background:#e8d9d5"><img src="ambiance.jpg" alt="Sándalo" style="width:100%;height:100%;object-fit:cover"></div>
+    <div style="position:absolute;left:26px;top:-14px;width:58px;height:452px;background:linear-gradient(180deg,#ddcbb6,#8a6c52);clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 18px),0 100%);box-shadow:0 12px 26px -12px rgba(58,17,25,.5);border-left:2px solid rgba(253,248,242,.85);border-right:2px solid rgba(253,248,242,.85)">
+      <span class="flame" style="position:absolute;left:50%;top:18px;transform:translateX(-50%);width:12px;height:21px;background:rgba(58,17,25,.5)"></span>
+      <div style="position:absolute;left:0;right:0;top:24%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Salida</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Vetiver</div></div>
+      <div style="position:absolute;left:0;right:0;top:49%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Corazón</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Sándalo</div></div>
+      <div style="position:absolute;left:0;right:0;top:74%;text-align:center"><div class="meta" style="font-size:7.5px;color:rgba(58,17,25,.55)">Fondo</div><div style="font-size:10px;color:#3a2429;margin-top:1px">Cuero</div></div>
+    </div>
+  </div>
+  <div style="padding:22px 4px 0">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px">
+      <div class="disp" style="font-size:25px;color:#671128">Sándalo</div>
+      <span class="num" style="font-size:18px;font-weight:600;color:#671128">$13.900</span>
+    </div>
+    <div style="font-size:11.5px;color:#835c5b;margin-top:5px">sándalo · vetiver · cuero</div>
+  </div>
+</div></div></div></div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Fundamento — manual 2026</b><span>Moodboard del manual: «especial · sentimental». La columna cuelga sobre la foto como la cinta de un regalo, con la llama arriba y filete de papel para despegarse de la foto — el producto se exhibe ya envuelto para regalar.</span></div>
+    <div><b>Qué cede</b><span>La cinta tapa una franja de la foto: hay que encuadrar dejando aire a la izquierda.</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

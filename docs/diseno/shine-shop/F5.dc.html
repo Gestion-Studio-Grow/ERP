@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; color: #3a2429; font-family: 'Kumbh Sans', system-ui, sans-serif;
+           line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #671128; text-decoration: none; }
+    a:hover { color: #7e1a35; }
+    .disp { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: -.01em; line-height: .96; }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+    .meta { font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #835c5b; }
+    .flame { display: inline-block; flex: none;
+             -webkit-mask: url(./flame-mask.png) center/contain no-repeat;
+             mask: url(./flame-mask.png) center/contain no-repeat; }
+    .paper { background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='gr'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23gr)' opacity='.24'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #f7f1e9 0%, #f3ebe1 46%, #efe5da 100%);
+      background-size: 120px 120px, auto; background-repeat: repeat, no-repeat;
+      background-blend-mode: multiply, normal; }
+    .cabeza { display: flex; align-items: baseline; gap: 16px; padding: 22px 34px 0; }
+    .cabeza .n { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; color: #b88a89; line-height: 1; }
+    .cabeza .t { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #671128; }
+    .pie { display: grid; grid-template-columns: 1.2fr 1fr; gap: 26px; padding: 16px 34px 22px; border-top: 1px solid #e4d7d0; }
+    .pie b { display: block; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #671128; margin-bottom: 6px; }
+    .pie span { font-size: 12.5px; color: #835c5b; line-height: 1.55; }
+    .lienzo { position: relative; margin: 16px 34px; }
+  </style>
+</helmet>
+
+<div class="paper" style="min-height: 100%; display: flex; flex-direction: column;">
+  <div class="cabeza"><span class="n">19</span><span class="t">La editorial</span></div>
+  <div class="lienzo" style="flex: 1; display: flex; align-items: center; gap: 54px;">
+    <div style="flex: none;"><div style="width:430px;position:relative;min-height:540px">
+  <div style="position:absolute;right:0;top:6px;bottom:6px;width:40px;background:linear-gradient(180deg,#ead7bc,#b98a5e)">
+    <div style="position:absolute;right:calc(100% + 10px);top:3%"><div class="meta" style="font-size:8px">Salida</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Canela</div></div><div style="position:absolute;right:calc(100% + 10px);top:44%"><div class="meta" style="font-size:8px">Corazón</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Vainilla</div></div><div style="position:absolute;right:calc(100% + 10px);bottom:3%"><div class="meta" style="font-size:8px">Fondo</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Caramelo</div></div>
+  </div>
+  <div class="disp" style="font-size:52px;color:#671128;max-width:7ch;position:relative">Vainilla<br><em style="font-weight:300">y canela</em></div>
+  <div class="meta" style="font-size:9px;margin-top:12px">Vela de soja 220 g · 45 h</div>
+  <div style="position:relative;width:252px;height:300px;overflow:hidden;margin-top:20px"><img src="hero.jpg" alt="Vainilla y canela" style="width:100%;height:100%;object-fit:cover"></div>
+  <div style="font-size:11.5px;color:#835c5b;margin-top:12px;max-width:252px">vainilla · canela · caramelo</div>
+  <div style="display:flex;align-items:center;gap:18px;margin-top:12px">
+    <span class="num disp" style="font-size:30px;color:#671128">$12.900</span>
+    <span style="display:inline-flex;align-items:center;min-height:40px;padding:0 20px;border-radius:999px;background:#671128;color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em">Sumar</span>
+  </div>
+</div></div>
+    <div style="flex: 1; min-width: 0;">
+      <div class="meta" style="margin-bottom: 16px;">El mismo sistema, con otros aromas</div>
+      <div style="display: flex; gap: 14px; align-items: flex-start;"><div style="width:196px;height:234px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:470px"><div style="width:430px;position:relative;min-height:540px">
+  <div style="position:absolute;right:0;top:6px;bottom:6px;width:40px;background:linear-gradient(180deg,#f1e5d4,#c9b296)">
+    <div style="position:absolute;right:calc(100% + 10px);top:3%"><div class="meta" style="font-size:8px">Salida</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Coco</div></div><div style="position:absolute;right:calc(100% + 10px);top:44%"><div class="meta" style="font-size:8px">Corazón</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Vainilla</div></div><div style="position:absolute;right:calc(100% + 10px);bottom:3%"><div class="meta" style="font-size:8px">Fondo</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Leche</div></div>
+  </div>
+  <div class="disp" style="font-size:52px;color:#671128;max-width:7ch;position:relative">Coco<br><em style="font-weight:300">y vainilla</em></div>
+  <div class="meta" style="font-size:9px;margin-top:12px">Vela de soja 220 g · 45 h</div>
+  <div style="position:relative;width:252px;height:300px;overflow:hidden;margin-top:20px"><img src="mundo-velas.jpg" alt="Coco y vainilla" style="width:100%;height:100%;object-fit:cover"></div>
+  <div style="font-size:11.5px;color:#835c5b;margin-top:12px;max-width:252px">coco · vainilla · leche tibia</div>
+  <div style="display:flex;align-items:center;gap:18px;margin-top:12px">
+    <span class="num disp" style="font-size:30px;color:#671128">$12.900</span>
+    <span style="display:inline-flex;align-items:center;min-height:40px;padding:0 20px;border-radius:999px;background:#671128;color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em">Sumar</span>
+  </div>
+</div></div></div><div style="width:196px;height:234px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:470px"><div style="width:430px;position:relative;min-height:540px">
+  <div style="position:absolute;right:0;top:6px;bottom:6px;width:40px;background:linear-gradient(180deg,#f4e7d2,#dca96e)">
+    <div style="position:absolute;right:calc(100% + 10px);top:3%"><div class="meta" style="font-size:8px">Salida</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Azahar</div></div><div style="position:absolute;right:calc(100% + 10px);top:44%"><div class="meta" style="font-size:8px">Corazón</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Neroli</div></div><div style="position:absolute;right:calc(100% + 10px);bottom:3%"><div class="meta" style="font-size:8px">Fondo</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Miel</div></div>
+  </div>
+  <div class="disp" style="font-size:52px;color:#671128;max-width:7ch;position:relative">Flor de naranjo</div>
+  <div class="meta" style="font-size:9px;margin-top:12px">Vela de soja 220 g · 40 h</div>
+  <div style="position:relative;width:252px;height:300px;overflow:hidden;margin-top:20px"><img src="mundo-aromas.jpg" alt="Flor de naranjo" style="width:100%;height:100%;object-fit:cover"></div>
+  <div style="font-size:11.5px;color:#835c5b;margin-top:12px;max-width:252px">azahar · neroli · miel</div>
+  <div style="display:flex;align-items:center;gap:18px;margin-top:12px">
+    <span class="num disp" style="font-size:30px;color:#671128">$11.900</span>
+    <span style="display:inline-flex;align-items:center;min-height:40px;padding:0 20px;border-radius:999px;background:#671128;color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em">Sumar</span>
+  </div>
+</div></div></div><div style="width:196px;height:234px;overflow:hidden"><div style="transform:scale(.38);transform-origin:top left;width:470px"><div style="width:430px;position:relative;min-height:540px">
+  <div style="position:absolute;right:0;top:6px;bottom:6px;width:40px;background:linear-gradient(180deg,#ddcbb6,#8a6c52)">
+    <div style="position:absolute;right:calc(100% + 10px);top:3%"><div class="meta" style="font-size:8px">Salida</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Vetiver</div></div><div style="position:absolute;right:calc(100% + 10px);top:44%"><div class="meta" style="font-size:8px">Corazón</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Sándalo</div></div><div style="position:absolute;right:calc(100% + 10px);bottom:3%"><div class="meta" style="font-size:8px">Fondo</div><div style="font-size:10.5px;margin-top:2px;white-space:nowrap">Cuero</div></div>
+  </div>
+  <div class="disp" style="font-size:52px;color:#671128;max-width:7ch;position:relative">Sándalo</div>
+  <div class="meta" style="font-size:9px;margin-top:12px">Vela de soja 220 g · 50 h</div>
+  <div style="position:relative;width:252px;height:300px;overflow:hidden;margin-top:20px"><img src="ambiance.jpg" alt="Sándalo" style="width:100%;height:100%;object-fit:cover"></div>
+  <div style="font-size:11.5px;color:#835c5b;margin-top:12px;max-width:252px">sándalo · vetiver · cuero</div>
+  <div style="display:flex;align-items:center;gap:18px;margin-top:12px">
+    <span class="num disp" style="font-size:30px;color:#671128">$13.900</span>
+    <span style="display:inline-flex;align-items:center;min-height:40px;padding:0 20px;border-radius:999px;background:#671128;color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em">Sumar</span>
+  </div>
+</div></div></div></div>
+    </div>
+  </div>
+  <div class="pie">
+    <div><b>Fundamento — manual 2026</b><span>«Tipografía delicada» como partido gráfico del manual: el nombre en The Seasons/Cormorant es el protagonista, la foto acompaña en menor jerarquía y la columna ordena el borde.</span></div>
+    <div><b>Qué cede</b><span>Con nombres largos (Vainilla y canela · dos mechas) el título come dos renglones más.</span></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
