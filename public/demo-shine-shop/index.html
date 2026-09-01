@@ -20,7 +20,7 @@
     -webkit-font-smoothing:antialiased; background:#f3ebe1; }
   body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
     background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.26'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.16'/%3E%3C/svg%3E"),
       linear-gradient(180deg,#f7f1e9 0%,#f3ebe1 44%,#efe5da 100%);
     background-size:120px 120px,auto; background-repeat:repeat,no-repeat;
     background-blend-mode:multiply,normal; }
@@ -46,31 +46,26 @@
   .mom:hover, .mom.on { color:var(--vino); }
   #riel-momentos { display:flex; flex-direction:column; align-items:center; }
 
-  .hero { position:relative; overflow:hidden; min-height:min(92svh,820px); display:flex; flex-direction:column;
-          align-items:center; justify-content:center; text-align:center; padding:70px 56px 200px; }
-  .hero img.fondo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-          filter:blur(8px) saturate(1.06) contrast(1.02) brightness(.97); transform:scale(1.08);
-          transition:opacity .3s ease; }
-  .hero .grano { position:absolute; inset:0; pointer-events:none; mix-blend-mode:overlay; opacity:.35;
-          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g2'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g2)' opacity='.5'/%3E%3C/svg%3E");
-          background-size:120px 120px; }
-  .hero .velo { position:absolute; inset:0;
-    background: radial-gradient(ellipse 72% 56% at 50% 44%, rgba(20,8,10,.28), transparent 74%),
-      linear-gradient(180deg, rgba(20,8,10,.26), transparent 26%),
-      linear-gradient(180deg, transparent 62%, rgba(243,235,225,.55) 88%, #f3ebe1 100%); }
-  .hero-int { position:relative; color:#f7f1e8; max-width:760px; }
-  .hero h1 { font-size:clamp(52px,8vw,104px); font-weight:300; margin:24px 0 0; color:#f7f1e8; line-height:1.06; }
-  .hero .lede { margin:26px auto 0; font-size:17px; line-height:1.62; color:rgba(247,241,232,.9);
-                max-width:44ch; text-wrap:balance; }
-  .cta { display:inline-flex; align-items:center; justify-content:center; margin-top:30px; min-height:50px;
-         padding:0 40px; border:1px solid rgba(247,241,232,.85); border-radius:999px; background:transparent;
-         color:#f7f1e8; font-size:11px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; transition:.4s; }
-  .cta:hover { background:#f3ebe1; color:var(--vino); }
+  .hero { display:grid; grid-template-columns:minmax(0,1.02fr) minmax(0,1fr); gap:64px; align-items:center;
+          max-width:1240px; margin:0 auto; padding:92px 64px 66px; }
+  .hero h1 { font-size:clamp(46px,5.6vw,84px); font-weight:300; margin:22px 0 0; color:var(--tinta); line-height:1.04; }
+  .hero .lede { margin:24px 0 0; font-size:16.5px; line-height:1.65; color:rgba(58,36,41,.78);
+                max-width:46ch; text-wrap:balance; }
+  .cta { display:inline-flex; align-items:center; justify-content:center; margin-top:34px; min-height:50px;
+         padding:0 40px; border:1px solid var(--vino); border-radius:999px; background:transparent;
+         color:var(--vino); font-size:11px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; transition:.4s; }
+  .cta:hover { background:var(--vino); color:var(--crema); }
+  .marco { margin:0; }
+  .marco img { display:block; width:100%; aspect-ratio:3/2; object-fit:cover; border-radius:4px;
+               border:1px solid var(--blush); filter:saturate(1.04) contrast(1.02);
+               transition:opacity .3s ease; }
+  .claim { margin:16px 2px 0; font-style:italic; font-size:17.5px; color:var(--malva-d);
+           line-height:1.45; font-family:'Cormorant Garamond',Georgia,serif; }
 
-  .cards { position:relative; margin:-128px 56px 0; z-index:2; }
+  .cards { position:relative; margin:14px 56px 0; }
   .cards-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; max-width:1120px; margin:0 auto; }
   .card { contain:layout paint; background:var(--papel); border:1px solid var(--blush); border-radius:4px; overflow:hidden;
-          display:flex; flex-direction:column; box-shadow:0 26px 54px -30px rgba(58,17,25,.5); }
+          display:flex; flex-direction:column; box-shadow:0 14px 34px -26px rgba(58,17,25,.35); }
   .card .visual { display:grid; grid-template-columns:minmax(0,1fr) 84px; height:240px; }
   .card .visual > div:first-child { position:relative; overflow:hidden; }
   .card .visual img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
@@ -81,15 +76,10 @@
                     text-transform:uppercase; color:rgba(58,17,25,.85); }
   .col-notas .l span { font-size:10.5px; color:var(--tinta); }
   .col-notas .hr { position:absolute; left:8px; right:8px; height:1px; background:rgba(58,17,25,.14); }
-  .claim { text-align:center; margin:26px auto 0; font-style:italic; font-size:21px; color:var(--malva-d);
-           line-height:1.45; max-width:52ch; font-family:'Cormorant Garamond',Georgia,serif; }
-
-  .marquee { contain:layout paint style; overflow:hidden; border-top:1px solid var(--linea); border-bottom:1px solid var(--linea);
-             padding:13px 0; white-space:nowrap; margin-top:58px; }
-  .marquee > div { display:inline-block; font-size:10px; letter-spacing:.32em; text-transform:uppercase;
-                   color:var(--malva-d); animation:mq 38s linear infinite; }
-  @keyframes mq { from { transform:translateX(0); } to { transform:translateX(-33.33%); } }
-  @media (prefers-reduced-motion:reduce) { .marquee > div { animation:none; } .hero img.fondo { transition:none; } }
+  .atributos { text-align:center; margin:64px 0 0; padding:14px 20px; border-top:1px solid var(--linea);
+               border-bottom:1px solid var(--linea); font-size:10px; letter-spacing:.32em;
+               text-transform:uppercase; color:var(--malva-d); }
+  @media (prefers-reduced-motion:reduce) { .marco img { transition:none; } }
 
   .indice { position:relative; padding:66px 56px 72px; }
   .acc-head { display:grid; grid-template-columns:46px minmax(0,1fr) auto 30px; align-items:center; gap:20px;
@@ -152,9 +142,10 @@
     .aviso { top:auto; bottom:calc(78px + env(safe-area-inset-bottom));
              right:calc(14px + env(safe-area-inset-right)); backdrop-filter:none;
              -webkit-backdrop-filter:none; background:rgba(58,17,25,.94); }
-    .hero { padding:48px 20px 170px; min-height:min(84svh,640px); }
-    .hero img.fondo { filter:blur(6px) saturate(1.05); transform:scale(1.06); }
-    .cards { margin:-120px 18px 0; }
+    .hero { display:block; padding:44px 20px 10px; }
+    .hero h1 { font-size:clamp(42px,11vw,60px); }
+    .marco { margin-top:30px; }
+    .cards { margin:36px 18px 0; }
     .cards-grid { grid-template-columns:1fr; }
     .filas { grid-template-columns:1fr; }
     .fila { gap:14px; }
@@ -188,27 +179,25 @@
 
   <main>
     <section class="hero" id="hero">
-      <img class="fondo" id="hero-img" src="/tenants/shinevelas/hero.jpg" alt="" width="1024" height="576" fetchpriority="high" decoding="async">
-      <div class="grano" aria-hidden="true"></div>
-      <div class="capa" aria-hidden="true" style="background:linear-gradient(160deg,#671128,#3a2429);opacity:.18;mix-blend-mode:soft-light"></div>
-      <div class="velo"></div>
-      <div class="hero-int">
-        <div class="num meta" id="hero-kicker" style="color:#f7f1e8;display:flex;align-items:center;justify-content:center;gap:14px">
-          <span style="width:34px;height:1px;background:rgba(247,241,232,.5)"></span><span id="hero-hora"></span><span style="width:34px;height:1px;background:rgba(247,241,232,.5)"></span>
+      <div class="hero-txt">
+        <div class="num meta" id="hero-kicker" style="display:flex;align-items:center;gap:14px">
+          <span style="width:34px;height:1px;background:var(--nude)"></span><span id="hero-hora"></span>
         </div>
         <h1 class="disp" id="hero-titulo"></h1>
         <p class="lede" id="hero-texto"></p>
-        <div aria-hidden style="width:56px;height:1px;background:rgba(184,138,137,.85);margin:30px auto 0"></div>
         <a class="cta" href="#lo-que-va">Ver sus aromas</a>
       </div>
+      <figure class="marco">
+        <img id="hero-img" src="/tenants/shinevelas/hero.jpg" alt="" width="1024" height="576" fetchpriority="high" decoding="async">
+        <figcaption class="claim" id="claim"></figcaption>
+      </figure>
     </section>
 
     <section class="cards" id="lo-que-va">
       <div class="cards-grid" id="cards"></div>
-      <p class="claim" id="claim"></p>
     </section>
 
-    <div class="marquee" aria-hidden="true"><div>CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;</div></div>
+    <p class="atributos">Cera de soja &nbsp;·&nbsp; Pabilo de algodón &nbsp;·&nbsp; Vertido a mano</p>
 
     <section class="indice" id="indice">
       <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:30px;flex-wrap:wrap;margin-bottom:30px">
@@ -462,9 +451,6 @@ addEventListener('load', () => {
   const go = () => pool.forEach((n) => { const i = new Image(); i.decoding = 'async'; i.src = '/tenants/shinevelas/' + n + '.jpg'; });
   'requestIdleCallback' in window ? requestIdleCallback(go, { timeout: 3000 }) : setTimeout(go, 1500);
 }, { once: true });
-new IntersectionObserver((es) => {
-  document.querySelector('.marquee > div').style.animationPlayState = es[0].isIntersecting ? 'running' : 'paused';
-}).observe(document.querySelector('.marquee'));
 $('#cards').addEventListener('click', (e) => {
   const b = e.target.closest('[data-add]');
   if (b) sumar(byId[b.dataset.add].precio);

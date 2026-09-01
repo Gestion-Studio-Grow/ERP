@@ -19,7 +19,7 @@
     -webkit-font-smoothing:antialiased; background:#f3ebe1; }
   body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
     background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.26'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.16'/%3E%3C/svg%3E"),
       linear-gradient(180deg,#f7f1e9 0%,#f3ebe1 44%,#efe5da 100%);
     background-size:120px 120px,auto; background-repeat:repeat,no-repeat;
     background-blend-mode:multiply,normal; }
@@ -87,7 +87,7 @@
 <main class="grid-ficha">
   <div>
     <div style="position:relative;overflow:hidden;border-radius:4px;background:var(--blush)">
-      <img id="foto-grande" src="/tenants/shinevelas/hero.jpg" alt="Vela de soja Vainilla y canela encendida" width="1024" height="576" fetchpriority="high" decoding="async" style="width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;object-position:center 42%;display:block">
+      <img id="foto-grande" src="/tenants/shinevelas/hero.jpg" alt="Vela de soja Vainilla y canela encendida" width="1024" height="576" fetchpriority="high" decoding="async" style="width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;object-position:center 42%;display:block;filter:saturate(1.04) contrast(1.02)">
       <div style="position:absolute;left:20px;top:20px;display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:999px;background:rgba(253,248,242,.92);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--vino)">
         <span class="flame" style="width:10px;height:17px;background:var(--vino)"></span>Cálidos y dulces
       </div>
