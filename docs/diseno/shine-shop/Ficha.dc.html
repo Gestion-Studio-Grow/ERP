@@ -206,44 +206,41 @@
         {{shipHint}}
       </div>
 
-      <!-- Ritual + frasco -->
-      <div style="margin-top: 26px; padding: 22px 24px; border-radius: 16px; background: #e8d9d5;">
-        <div class="disp" style="font-size: 21px; color: #671128;">Cuando se termina, el frasco queda</div>
-        <div style="margin-top: 8px; font-size: 14px; line-height: 1.6; color: #3a2429;">
-          Lavalo con agua caliente y jabón: sirve de portalápices, de vasito para velas de té
-          o de maceta chica. La cera de soja sale sola —no hace falta raspar.
-        </div>
-      </div>
-    </div>
-  </div>
+      <!-- Desplegables: cuidado · frasco · envíos (estilo ficha de lujo) -->
+      <div style="margin-top: 30px; border-top: 1px solid #e4d7d0;">
 
-  <!-- ══ CUIDADO ══ -->
-  <div style="border-top: 1px solid #e8d9d5; border-bottom: 1px solid #e8d9d5; padding: 60px 80px;">
-    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 26px;">
-      <span style="height: 1px; flex: 0 0 46px; background: #d0aeac;"></span>
-      <h2 class="disp" style="font-size: 32px; color: {{accent}}; font-weight: 500; margin: 0;">Para que rinda las 45 horas</h2>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px;">
-      <div style="display: flex; gap: 16px;">
-        <span class="disp" style="font-size: 30px; color: #b88a89; line-height: 1;">01</span>
-        <div>
-          <div style="font-size: 15px; font-weight: 600; color: #3a2429;">La primera vez, dejala 2 horas</div>
-          <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Hasta que toda la superficie se derrita pareja. Si la apagás antes, se hace un pocito y después quema desparejo.</div>
-        </div>
-      </div>
-      <div style="display: flex; gap: 16px;">
-        <span class="disp" style="font-size: 30px; color: #b88a89; line-height: 1;">02</span>
-        <div>
-          <div style="font-size: 15px; font-weight: 600; color: #3a2429;">Cortá la mecha a 5 mm</div>
-          <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Antes de cada encendido. Llama más chica, sin hollín, y la cera dura más.</div>
-        </div>
-      </div>
-      <div style="display: flex; gap: 16px;">
-        <span class="disp" style="font-size: 30px; color: #b88a89; line-height: 1;">03</span>
-        <div>
-          <div style="font-size: 15px; font-weight: 600; color: #3a2429;">No más de 4 horas seguidas</div>
-          <div style="margin-top: 6px; font-size: 13.5px; color: #835c5b; line-height: 1.6;">Dejala descansar y volvé a encenderla. Apagala con apagavelas, no soplando.</div>
-        </div>
+        <button onClick="{{togCuidado}}" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; text-align: left; border: 0; background: transparent; padding: 18px 2px; cursor: pointer; font: inherit; border-bottom: 1px solid #e4d7d0;">
+          <span style="font-size: 14px; font-weight: 600; color: #3a2429;">Cómo cuidarla para que rinda las 45 horas</span>
+          <span class="disp num" style="font-size: 24px; color: #b88a89; line-height: 1;">{{indCuidado}}</span>
+        </button>
+        <sc-if value="{{openCuidado}}" hint-placeholder-val="{{true}}">
+          <div style="padding: 16px 2px 20px; border-bottom: 1px solid #e4d7d0; font-size: 13.5px; color: #835c5b; line-height: 1.65;">
+            <b style="color: #3a2429;">La primera vez, dejala 2 horas</b> — hasta que la superficie se derrita pareja; si la apagás antes, quema desparejo.<br>
+            <b style="color: #3a2429;">Cortá la mecha a 5 mm</b> antes de cada encendido: llama más chica, sin hollín.<br>
+            <b style="color: #3a2429;">No más de 4 horas seguidas</b>, y apagala con apagavelas, no soplando.
+          </div>
+        </sc-if>
+
+        <button onClick="{{togFrasco}}" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; text-align: left; border: 0; background: transparent; padding: 18px 2px; cursor: pointer; font: inherit; border-bottom: 1px solid #e4d7d0;">
+          <span style="font-size: 14px; font-weight: 600; color: #3a2429;">Cuando se termina, el frasco queda</span>
+          <span class="disp num" style="font-size: 24px; color: #b88a89; line-height: 1;">{{indFrasco}}</span>
+        </button>
+        <sc-if value="{{openFrasco}}" hint-placeholder-val="{{false}}">
+          <div style="padding: 16px 2px 20px; border-bottom: 1px solid #e4d7d0; font-size: 13.5px; color: #835c5b; line-height: 1.65;">
+            Lavalo con agua caliente y jabón: sirve de portalápices, de vasito para velas de té o de maceta chica. La cera de soja sale sola —no hace falta raspar.
+          </div>
+        </sc-if>
+
+        <button onClick="{{togEnvios}}" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; text-align: left; border: 0; background: transparent; padding: 18px 2px; cursor: pointer; font: inherit; border-bottom: 1px solid #e4d7d0;">
+          <span style="font-size: 14px; font-weight: 600; color: #3a2429;">Envíos y pagos</span>
+          <span class="disp num" style="font-size: 24px; color: #b88a89; line-height: 1;">{{indEnvios}}</span>
+        </button>
+        <sc-if value="{{openEnvios}}" hint-placeholder-val="{{false}}">
+          <div style="padding: 16px 2px 20px; border-bottom: 1px solid #e4d7d0; font-size: 13.5px; color: #835c5b; line-height: 1.65;">
+            CABA y GBA: envío $3.500, gratis desde $25.000. Retiro coordinado por WhatsApp.<br>
+            Mercado Pago, transferencia, débito, crédito y efectivo. 3 cuotas sin interés.
+          </div>
+        </sc-if>
       </div>
     </div>
   </div>
@@ -254,8 +251,10 @@
       <span style="height: 1px; flex: 0 0 46px; background: #d0aeac;"></span>
       <h2 class="disp" style="font-size: 32px; color: {{accent}}; font-weight: 500; margin: 0;">Se lleva bien con</h2>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px;">
-      <sc-for list="{{cross}}" as="x" hint-placeholder-count="4">
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <button onClick="{{crossPrev}}" aria-label="Ver los anteriores" style="width: 46px; height: 46px; flex: none; border-radius: 50%; border: 1px solid #b88a89; background: transparent; color: #671128; cursor: pointer; font-size: 18px; opacity: {{prevOp}};">←</button>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; flex: 1;">
+      <sc-for list="{{cross}}" as="x" hint-placeholder-count="3">
         <div class="xcard" style="background: rgba(253,248,242,.86); border: 1px solid #e8d9d5; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; transition: .25s;">
           <div style="position: relative; aspect-ratio: 4/3; overflow: hidden; background: {{x.wash}};">
             <img src="{{x.foto}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;">
@@ -273,7 +272,10 @@
           </div>
         </div>
       </sc-for>
+      </div>
+      <button onClick="{{crossNext}}" aria-label="Ver los siguientes" style="width: 46px; height: 46px; flex: none; border-radius: 50%; border: 1px solid #b88a89; background: transparent; color: #671128; cursor: pointer; font-size: 18px; opacity: {{nextOp}};">→</button>
     </div>
+    <div class="meta" style="text-align: center; margin-top: 18px; font-size: 9.5px;">{{crossPos}}</div>
   </div>
 
   <!-- ══ RESEÑAS (honestas: todavía no hay) ══ -->
@@ -301,7 +303,7 @@
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { qty: 1, cart: 0, subtotal: 0 };
+    this.state = { qty: 1, cart: 0, subtotal: 0, accs: { cuidado: true }, cx: 0 };
   }
 
   money(n) { return '$' + n.toLocaleString('es-AR'); }
@@ -319,15 +321,38 @@ class Component extends DCLogic {
       { name: 'Trío para descubrir · 3 minis', why: 'Un cálido, un floral y un amaderado para probar antes de elegir.', price: 9900, foto: 'gift.jpg', tint: '#671128', wash: 'linear-gradient(166deg, #f6e9e3 0%, #e0c8c3 100%)', isIdea: true }
     ];
 
+    // NN/g: los desplegables no se auto-cierran — varios pueden estar abiertos a la vez.
+    const abre = (k) => () => {
+      const a = Object.assign({}, this.state.accs);
+      a[k] = !a[k];
+      this.setState({ accs: a });
+    };
+    const cx = this.state.cx;
+    const maxCx = 1; // 4 piezas, se ven 3
+
     return {
       accent: this.props.accent ?? '#671128',
+      openCuidado: !!this.state.accs.cuidado,
+      openFrasco: !!this.state.accs.frasco,
+      openEnvios: !!this.state.accs.envios,
+      indCuidado: this.state.accs.cuidado ? '−' : '+',
+      indFrasco: this.state.accs.frasco ? '−' : '+',
+      indEnvios: this.state.accs.envios ? '−' : '+',
+      togCuidado: abre('cuidado'),
+      togFrasco: abre('frasco'),
+      togEnvios: abre('envios'),
+      crossPrev: () => this.setState({ cx: Math.max(0, cx - 1) }),
+      crossNext: () => this.setState({ cx: Math.min(maxCx, cx + 1) }),
+      prevOp: cx === 0 ? '.35' : '1',
+      nextOp: cx === maxCx ? '.35' : '1',
+      crossPos: (cx + 1) + ' / 2',
       qty: q,
       lineTotal: this.money(price * q),
       cartCount: this.state.cart,
       shipHint: sub >= free
         ? 'Tu envío es gratis'
         : 'Te faltan ' + this.money(free - sub) + ' para el envío gratis en CABA y GBA',
-      cross: crossDefs.map((x) => ({
+      cross: crossDefs.slice(cx, cx + 3).map((x) => ({
         name: x.name,
         foto: x.foto,
         why: x.why,

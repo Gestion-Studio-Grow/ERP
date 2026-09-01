@@ -119,7 +119,7 @@
       "x": 0,
       "y": 0,
       "w": 1440,
-      "h": 3300,
+      "h": 2750,
       "expand": "fill",
       "is_interactive": true
     },
@@ -130,7 +130,7 @@
       "x": 1560,
       "y": 0,
       "w": 1440,
-      "h": 2500,
+      "h": 2150,
       "expand": "fill",
       "is_interactive": true
     },
