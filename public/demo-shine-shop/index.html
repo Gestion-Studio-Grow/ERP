@@ -366,7 +366,8 @@ function pintarMomento() {
         hero.src = destino; hero.style.opacity = 1;
       }, 300);
     };
-    // si la foto nueva falla, se conserva la actual: no se toca nada
+    // si la foto nueva falla, se conserva la actual y se restaura la opacidad
+    tmp.onerror = () => { if (t === heroSeq) hero.style.opacity = 1; };
     tmp.src = m.img;
   }
   $('#hero-hora').textContent = m.label.toUpperCase() + ' · ' + m.hora.toUpperCase();
