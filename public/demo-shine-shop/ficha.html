@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vainilla y canela · Shine</title>
+<title>Vainilla y canela · Prototipo de diseño</title>
+<meta name="robots" content="noindex, nofollow">
 <meta name="generator" content="Gestión Studio Grow">
 <link rel="icon" href="/tenants/shinevelas/brand/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -35,8 +36,9 @@
               text-align:left; border:0; background:transparent; padding:18px 2px; cursor:pointer;
               border-bottom:1px solid var(--linea); font-size:14px; font-weight:600; color:var(--tinta); }
   .acc-ind { font-family:'Cormorant Garamond',Georgia,serif; font-size:24px; color:var(--malva); line-height:1; }
-  .acc-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .24s ease-out; }
-  .acc-body.open { grid-template-rows:1fr; }
+  .acc-body { display:grid; grid-template-rows:0fr; visibility:hidden;
+              transition:grid-template-rows .24s ease-out, visibility .24s; }
+  .acc-body.open { grid-template-rows:1fr; visibility:visible; }
   .acc-body > div { overflow:hidden; }
   .acc-txt { padding:16px 2px 20px; border-bottom:1px solid var(--linea); font-size:13.5px;
              color:var(--malva-d); line-height:1.65; }
@@ -47,8 +49,7 @@
               font-size:13px; letter-spacing:.08em; min-height:52px; padding:0 32px; border-radius:999px;
               border:0; background:var(--vino); color:#fff; cursor:pointer; transition:.2s; }
   .btn-vino:hover { background:#7e1a35; }
-  .flecha { width:46px; height:46px; flex:none; border-radius:50%; border:1px solid var(--malva);
-            background:transparent; color:var(--vino); cursor:pointer; font-size:18px; }
+  .btn-sec:hover { border-color:var(--vino) !important; color:var(--vino) !important; }
   .xcard { background:rgba(253,248,242,.86); border:1px solid var(--blush); border-radius:16px;
            overflow:hidden; display:flex; flex-direction:column; }
   @media (max-width:900px) {
@@ -59,15 +60,16 @@
 </style>
 </head>
 <body>
+<div role="note" aria-label="Aviso de prototipo" style="position:fixed;right:14px;top:74px;z-index:60;background:rgba(58,17,25,.88);color:#f3ebe1;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;padding:8px 14px;border-radius:999px;backdrop-filter:blur(4px)">Prototipo de diseño · datos de muestra</div>
 
 <header class="barra-sup">
   <a href="index.html" aria-label="Volver a la tienda"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" style="height:32px;width:auto;display:block"></a>
   <nav style="font-size:12.5px;color:var(--malva-d)"><a href="index.html">Tienda</a> · <a href="index.html#indice">Todo lo que hay</a></nav>
-  <span id="carrito" class="num" style="display:inline-flex;align-items:center;gap:9px;padding:10px 18px;border-radius:999px;background:var(--vino);color:#fff;font-size:12.5px;font-weight:600">0</span>
+  <span id="carrito" class="num" role="status" aria-label="Piezas en el carrito" style="display:inline-flex;align-items:center;gap:9px;padding:10px 18px;border-radius:999px;background:var(--vino);color:#fff;font-size:12.5px;font-weight:600">0</span>
 </header>
 
-<nav style="padding:18px 56px 0;font-size:12.5px;color:#a08c85" aria-label="Miga de pan">
-  <a href="index.html" style="color:#a08c85">Tienda</a> · <a href="index.html#indice" style="color:#a08c85">Cálidos y dulces</a> · <span style="color:var(--malva-d)">Vainilla y canela</span>
+<nav style="padding:18px 56px 0;font-size:12.5px;color:var(--malva-d)" aria-label="Miga de pan">
+  <a href="index.html" style="color:var(--malva-d)">Tienda</a> · <a href="index.html#indice" style="color:var(--malva-d)">Cálidos y dulces</a> · <span style="color:var(--malva-d)">Vainilla y canela</span>
 </nav>
 
 <main class="grid-ficha">
@@ -87,7 +89,7 @@
     <p style="margin:16px 0 0;font-size:17px;line-height:1.62;max-width:46ch">Huele a cocina un domingo a la tarde, cuando algo se está horneando y todavía no sabés qué. Dulce, tibia, sin empalagar.</p>
     <div style="display:flex;align-items:baseline;gap:14px;margin:24px 0 0">
       <span class="num" style="font-size:34px;font-weight:600;color:var(--vino)">$12.900</span>
-      <span style="font-size:13px;color:var(--malva-d)">o 3 cuotas sin interés de <b class="num">$4.300</b></span>
+      <span style="font-size:13px;color:var(--malva-d)">Mercado Pago · transferencia · tarjetas</span>
     </div>
 
     <div style="margin-top:28px;display:grid;grid-template-columns:64px minmax(0,1fr);gap:26px;align-items:stretch">
@@ -134,20 +136,15 @@
     <span style="width:46px;height:1px;background:var(--nude)"></span>
     <h2 class="disp" style="font-size:clamp(28px,3.5vw,32px);color:var(--vino);margin:0">Se lleva bien con</h2>
   </div>
-  <div style="display:flex;align-items:center;gap:18px">
-    <button class="flecha" id="prev" aria-label="Ver los anteriores">←</button>
-    <div id="cross" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;flex:1"></div>
-    <button class="flecha" id="next" aria-label="Ver los siguientes">→</button>
-  </div>
-  <div class="meta" id="cross-pos" style="text-align:center;margin-top:18px;font-size:9.5px">1 / 2</div>
+  <div id="cross" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px"></div>
 </section>
 
 <script>
-// Demo estática · Elaborado por GSG · precios de muestra
+// Prototipo de diseño · Elaborado por GSG · TODO de muestra: precios, horas, m², formatos.
 const $ = (s) => document.querySelector(s);
 const money = (n) => '$' + n.toLocaleString('es-AR');
 const PRECIO = 12900;
-let qty = 1, cart = 0, subtotal = 0, cx = 0;
+let qty = 1, cart = 0, subtotal = 0;
 const abiertos = { cuidado: true };
 const ACC = [
   { k:'cuidado', t:'Cómo cuidarla para que rinda las 45 horas',
@@ -155,13 +152,12 @@ const ACC = [
   { k:'frasco', t:'Cuando se termina, el frasco queda',
     c:'Lavalo con agua caliente y jabón: sirve de portalápices, de vasito para velas de té o de maceta chica. La cera de soja sale sola —no hace falta raspar.' },
   { k:'envios', t:'Envíos y pagos',
-    c:'CABA y GBA: envío $3.500, gratis desde $25.000. Retiro coordinado por WhatsApp.<br>Mercado Pago, transferencia, débito, crédito y efectivo. 3 cuotas sin interés.' },
+    c:'CABA y GBA: envío $3.500, gratis desde $25.000. Retiro coordinado por WhatsApp.<br>Mercado Pago, transferencia, débito, crédito y efectivo.' },
 ];
 const CROSS = [
   { n:'Difusor Vainilla y canela', w:'La misma fragancia, encendida todo el mes.', p:14900, f:'/tenants/shinevelas/mundo-aromas.jpg' },
   { n:'Fósforos largos', w:'Para encenderla sin quemarte los dedos.', p:3900, f:'/tenants/shinevelas/ambiance.jpg' },
   { n:'Portavela de cerámica', w:'Le da base y protege la mesa.', p:9900, f:'/tenants/shinevelas/mundo-decoracion.jpg' },
-  { n:'Trío para descubrir · 3 minis', w:'Un cálido, un floral y un amaderado para probar.', p:9900, f:'/tenants/shinevelas/gift.jpg' },
 ];
 const THUMBS = ['/tenants/shinevelas/hero.jpg','/tenants/shinevelas/mundo-velas.jpg','/tenants/shinevelas/ambiance.jpg','/tenants/shinevelas/gift.jpg'];
 
@@ -173,15 +169,15 @@ function pintarCarrito() {
 }
 function pintarAcc() {
   $('#acordeones').innerHTML = ACC.map((a) => `
-    <button class="acc-item" data-k="${a.k}" aria-expanded="${!!abiertos[a.k]}">
+    <button class="acc-item" data-k="${a.k}" aria-expanded="${!!abiertos[a.k]}" aria-controls="acc-${a.k}">
       <span>${a.t}</span><span class="acc-ind num">${abiertos[a.k] ? '−' : '+'}</span>
     </button>
-    <div class="acc-body${abiertos[a.k] ? ' open' : ''}"><div><div class="acc-txt">${a.c}</div></div></div>`).join('');
+    <div class="acc-body${abiertos[a.k] ? ' open' : ''}" id="acc-${a.k}"><div><div class="acc-txt">${a.c}</div></div></div>`).join('');
   document.querySelectorAll('.acc-item').forEach((b) =>
     b.addEventListener('click', () => { abiertos[b.dataset.k] = !abiertos[b.dataset.k]; pintarAcc(); }));
 }
 function pintarCross() {
-  $('#cross').innerHTML = CROSS.slice(cx, cx + 3).map((x) => `
+  $('#cross').innerHTML = CROSS.map((x) => `
     <article class="xcard">
       <div style="position:relative;aspect-ratio:4/3;overflow:hidden"><img src="${x.f}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></div>
       <div style="padding:16px 18px 18px;display:flex;flex-direction:column;gap:9px;flex:1">
@@ -193,9 +189,6 @@ function pintarCross() {
         </div>
       </div>
     </article>`).join('');
-  $('#prev').style.opacity = cx === 0 ? '.35' : '1';
-  $('#next').style.opacity = cx === 1 ? '.35' : '1';
-  $('#cross-pos').textContent = (cx + 1) + ' / 2';
   document.querySelectorAll('#cross [data-p]').forEach((b) =>
     b.addEventListener('click', () => { cart += 1; subtotal += parseInt(b.dataset.p, 10); pintarCarrito(); }));
 }
@@ -209,8 +202,6 @@ document.querySelectorAll('#thumbs button').forEach((b) => b.addEventListener('c
 $('#mas').addEventListener('click', () => { qty += 1; pintarQty(); });
 $('#menos').addEventListener('click', () => { qty = Math.max(1, qty - 1); pintarQty(); });
 $('#agregar').addEventListener('click', () => { cart += qty; subtotal += PRECIO * qty; pintarCarrito(); });
-$('#prev').addEventListener('click', () => { cx = Math.max(0, cx - 1); pintarCross(); });
-$('#next').addEventListener('click', () => { cx = Math.min(1, cx + 1); pintarCross(); });
 pintarQty(); pintarAcc(); pintarCross();
 </script>
 </body>

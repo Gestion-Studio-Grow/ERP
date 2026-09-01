@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shine · Tienda</title>
-<meta name="description" content="Velas de soja artesanales — la tienda de Shine, ordenada por momentos de la casa.">
+<title>Shine · Prototipo de diseño de la tienda</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Prototipo de diseño de la tienda de Shine — datos de muestra.">
 <meta name="generator" content="Gestión Studio Grow">
 <link rel="icon" href="/tenants/shinevelas/brand/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -35,7 +36,7 @@
           display:flex; flex-direction:column; align-items:center; padding:26px 0 30px; }
   .mom { display:block; border:0; background:transparent; cursor:pointer; padding:24px 0;
          font-size:13px; font-weight:600; letter-spacing:.26em; text-transform:uppercase;
-         writing-mode:vertical-rl; transition:.22s; white-space:nowrap; color:#a08c85; }
+         writing-mode:vertical-rl; transition:.22s; white-space:nowrap; color:var(--malva-d); }
   .mom:hover, .mom.on { color:var(--vino); }
 
   .hero { position:relative; overflow:hidden; min-height:min(92svh,820px); display:flex; flex-direction:column;
@@ -64,8 +65,8 @@
   .card .visual img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   .col-notas { position:relative; }
   .col-notas .l { position:absolute; left:0; right:0; text-align:center; }
-  .col-notas .l b { display:block; font-size:7.5px; font-weight:600; letter-spacing:.22em;
-                    text-transform:uppercase; color:rgba(58,17,25,.6); }
+  .col-notas .l b { display:block; font-size:8px; font-weight:600; letter-spacing:.2em;
+                    text-transform:uppercase; color:rgba(58,17,25,.85); }
   .col-notas .l span { font-size:10.5px; color:var(--tinta); }
   .col-notas .hr { position:absolute; left:8px; right:8px; height:1px; background:rgba(58,17,25,.14); }
   .claim { text-align:center; margin:26px auto 0; font-style:italic; font-size:21px; color:var(--malva-d);
@@ -86,8 +87,9 @@
   .acc-chip { width:46px; height:18px; border-radius:999px; }
   .fam-nombre { font-family:'Cormorant Garamond',Georgia,serif; font-size:32px; color:var(--vino); transition:.2s; }
   .acc-ind { font-family:'Cormorant Garamond',Georgia,serif; font-size:28px; color:var(--malva); text-align:center; line-height:1; }
-  .acc-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .24s ease-out; }
-  .acc-body.open { grid-template-rows:1fr; }
+  .acc-body { display:grid; grid-template-rows:0fr; visibility:hidden;
+              transition:grid-template-rows .24s ease-out, visibility .24s; }
+  .acc-body.open { grid-template-rows:1fr; visibility:visible; }
   .acc-body > div { overflow:hidden; }
   .filas { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 56px; padding-bottom:26px; }
   .fila { display:grid; grid-template-columns:10px 30px minmax(0,1fr) auto auto; align-items:center; gap:22px;
@@ -140,6 +142,7 @@
 </style>
 </head>
 <body>
+<div role="note" aria-label="Aviso de prototipo" style="position:fixed;right:14px;top:14px;z-index:60;background:rgba(58,17,25,.88);color:#f3ebe1;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;padding:8px 14px;border-radius:999px;backdrop-filter:blur(4px)">Prototipo de diseño · datos de muestra</div>
 <div class="shell">
 
   <aside class="riel" aria-label="Momentos de la casa">
@@ -202,7 +205,7 @@
       <span class="num" id="barra-linea" style="font-size:14px;font-weight:600;letter-spacing:.04em;color:var(--vino)">Tu carrito está vacío</span>
       <div class="medidor" style="flex:1;max-width:400px">
         <div class="track"><div class="fill" id="barra-fill"></div></div>
-        <div class="num" id="barra-envio" style="margin-top:8px;font-size:12px;color:var(--malva-d)">Sumá $25.000 y el envío te sale gratis</div>
+        <div class="num" id="barra-envio" style="margin-top:8px;font-size:12px;color:var(--tinta)">Sumá $25.000 y el envío te sale gratis</div>
       </div>
       <a class="barra-cta" id="barra-cta" href="#lo-que-va" style="background:transparent;color:var(--vino)">Elegí tu primera vela</a>
     </div>
@@ -218,14 +221,15 @@
       <div><div class="meta" style="letter-spacing:.18em;color:var(--vino)">Pagos</div>
         <div style="margin-top:12px;font-size:13.5px;color:var(--malva-d);line-height:1.7">Mercado Pago · Transferencia<br>Débito y crédito · Efectivo</div></div>
       <div><div class="meta" style="letter-spacing:.18em;color:var(--vino)">Hablemos</div>
-        <div style="margin-top:12px;font-size:13.5px;color:var(--malva-d);line-height:1.7"><a href="#" style="font-weight:600">Escribinos por WhatsApp</a><br>Instagram @shine.velas.store</div></div>
+        <div style="margin-top:12px;font-size:13.5px;color:var(--malva-d);line-height:1.7"><a href="https://www.instagram.com/shine.velas.store" rel="noopener" style="font-weight:600">Escribinos por Instagram</a><br>@shine.velas.store</div></div>
     </footer>
   </main>
 </div>
 
 <script>
 // ── Demo estática de la tienda Shine · Elaborado por GSG ──
-// Datos de MUESTRA (precios de velas sueltas, horas, m²); los reales salen del ERP.
+// TODO ES DE MUESTRA: precios, horas, m², gramajes y formatos. Los reales salen del ERP
+// cuando el dueño releve el catálogo de Shine. El cartel fijo de la página lo declara.
 const CAT = [
   { id:'v1', nombre:'Vainilla y canela', fam:'calidos', formato:'Vela 220 g', notas:'vainilla · canela · caramelo', trio:['Canela','Vainilla','Caramelo'], int:3, dura:'45 h', precio:12900, foto:'/tenants/shinevelas/mundo-velas.jpg' },
   { id:'v2', nombre:'Coco y vainilla', fam:'calidos', formato:'Vela 220 g', notas:'coco · vainilla · leche tibia', trio:['Coco','Vainilla','Leche'], int:2, dura:'45 h', precio:12900, foto:'/tenants/shinevelas/gift.jpg' },
@@ -305,7 +309,8 @@ function pintarMomento() {
   $('#riel-momentos').innerHTML = MOMENTOS.map((x) =>
     `<button class="mom${x.k===state.momento?' on':''}" data-k="${x.k}" aria-pressed="${x.k===state.momento}">${x.label}</button>`).join('');
   document.querySelectorAll('#riel-momentos .mom').forEach((b) =>
-    b.addEventListener('click', () => { state.momento = b.dataset.k; pintarMomento(); }));
+    b.addEventListener('click', () => { state.momento = b.dataset.k; pintarMomento();
+      const on = document.querySelector('#riel-momentos .mom.on'); if (on) on.focus(); }));
   $('#cards').innerHTML = m.ids.map((id) => {
     const p = byId[id], d = DUO[id];
     return `<article class="card">
@@ -320,7 +325,7 @@ function pintarMomento() {
       </div>
       <div style="padding:16px 18px 18px;display:flex;flex-direction:column;gap:10px;flex:1">
         <div>
-          <a class="disp" href="ficha.html" style="font-size:24px;color:var(--vino)">${p.nombre}</a>
+          ${id === 'v1' ? `<a class="disp" href="ficha.html" style="font-size:24px;color:var(--vino)">${p.nombre}</a>` : `<span class="disp" style="font-size:24px;color:var(--vino)">${p.nombre}</span>`}
           <div style="font-size:12px;color:var(--malva-d);margin-top:5px">${p.notas}</div>
         </div>
         <div style="display:flex;align-items:center;gap:12px;margin-top:auto;padding-top:8px;border-top:1px solid #eee3dd">
@@ -351,14 +356,14 @@ function pintarAcordeon() {
       </button>`;
     }).join('');
     return `<div>
-      <button class="acc-head" data-fam="${f.k}" aria-expanded="${abierta}">
+      <button class="acc-head" data-fam="${f.k}" aria-expanded="${abierta}" aria-controls="fam-${f.k}">
         <span class="acc-chip" style="background:linear-gradient(90deg,${f.chip[0]},${f.chip[1]})"></span>
         <span><span class="fam-nombre">${f.nombre}</span>
           <span style="display:block;font-size:13px;color:var(--malva-d);margin-top:5px">${f.descr}</span></span>
         <span class="meta">${piezas.length} piezas</span>
         <span class="acc-ind num">${abierta ? '−' : '+'}</span>
       </button>
-      <div class="acc-body${abierta ? ' open' : ''}"><div><div class="filas">${filas}</div></div></div>
+      <div class="acc-body${abierta ? ' open' : ''}" id="fam-${f.k}"><div><div class="filas">${filas}</div></div></div>
     </div>`;
   }).join('');
   document.querySelectorAll('.acc-head').forEach((b) =>
@@ -381,6 +386,8 @@ $('#sets').innerHTML = SETS.map((s) => `<div class="set-row">
 document.querySelectorAll('#sets [data-precio]').forEach((b) =>
   b.addEventListener('click', () => sumar(parseInt(b.dataset.precio, 10))));
 
+document.querySelector('#btn-carrito').addEventListener('click', () =>
+  document.querySelector('#barra').scrollIntoView({ behavior: 'smooth' }));
 pintarMomento();
 pintarAcordeon();
 pintarCarrito();

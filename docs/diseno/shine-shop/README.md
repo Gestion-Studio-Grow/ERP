@@ -51,9 +51,12 @@ isotipo, horas que dura, m² que ambienta y quiz de aroma de tres pasos.
 
 Reales: envío, umbral de envío gratis, zonas, medios de pago, los tres sets con su precio,
 los siete aromas de temporada, todo el copy de marca.
-**De muestra:** precios de las velas sueltas, horas de duración y m². WhatsApp quedó como
-`[TU NÚMERO]`. El "Trío para descubrir · 3 minis" de la ficha va marcado *A proponer*: no
-existe hoy, es una propuesta de producto.
+**De muestra:** precios de las velas sueltas, horas de duración, m², gramajes y formatos.
+Sin cuotas: Shine no ofrece financiación en `storefront.ts`. El "Trío para descubrir · 3 minis"
+del lienzo va marcado **"Propuesta · a confirmar"** (no existe hoy) y quedó **excluido de la
+demo pública** hasta que el dueño lo confirme. La demo (`public/demo-shine-shop/`) lleva
+`noindex` y un cartel fijo "Prototipo de diseño · datos de muestra": Shine es cliente
+consolidado y su demo real es el front del ERP (`ShineFront.tsx`), no esta lámina.
 
 ## Cómo regenerar la página
 
