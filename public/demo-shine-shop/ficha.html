@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vainilla y canela · Shine</title>
+<meta name="generator" content="Gestión Studio Grow">
+<link rel="icon" href="/tenants/shinevelas/brand/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d9d5; --nude:#d0aeac; --malva:#b88a89;
+          --malva-d:#835c5b; --vino:#671128; --tinta:#3a2429; --linea:#e4d7d0; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--tinta); font-family:'Kumbh Sans',system-ui,sans-serif; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.26'/%3E%3C/svg%3E"),
+      linear-gradient(180deg,#f7f1e9 0%,#f3ebe1 44%,#efe5da 100%);
+    background-size:120px 120px,auto; background-repeat:repeat,no-repeat; background-attachment:fixed;
+    background-blend-mode:multiply,normal; }
+  a { color:var(--vino); text-decoration:none; }
+  button { font-family:inherit; }
+  .disp { font-family:'Cormorant Garamond',Georgia,serif; font-weight:400; letter-spacing:-.01em; line-height:.96; }
+  .num { font-variant-numeric:tabular-nums; }
+  .meta { font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--malva-d); }
+  .flame { display:inline-block; flex:none;
+    -webkit-mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat;
+    mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat; }
+  .barra-sup { display:flex; align-items:center; justify-content:space-between; gap:24px;
+               padding:16px 56px; border-bottom:1px solid var(--blush); }
+  .grid-ficha { display:grid; grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr); gap:60px; padding:30px 56px 72px; align-items:start; }
+  .dato { padding:18px 20px; border:1px solid var(--blush); border-radius:14px; background:rgba(253,248,242,.8); }
+  .acc-item { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%;
+              text-align:left; border:0; background:transparent; padding:18px 2px; cursor:pointer;
+              border-bottom:1px solid var(--linea); font-size:14px; font-weight:600; color:var(--tinta); }
+  .acc-ind { font-family:'Cormorant Garamond',Georgia,serif; font-size:24px; color:var(--malva); line-height:1; }
+  .acc-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .24s ease-out; }
+  .acc-body.open { grid-template-rows:1fr; }
+  .acc-body > div { overflow:hidden; }
+  .acc-txt { padding:16px 2px 20px; border-bottom:1px solid var(--linea); font-size:13.5px;
+             color:var(--malva-d); line-height:1.65; }
+  .step { width:40px; height:40px; border-radius:10px; border:1px solid var(--nude); background:var(--crema);
+          color:var(--vino); cursor:pointer; font-size:19px; display:grid; place-items:center; }
+  .step:hover { background:var(--vino); color:#fff; border-color:var(--vino); }
+  .btn-vino { display:inline-flex; align-items:center; justify-content:center; gap:9px; font-weight:600;
+              font-size:13px; letter-spacing:.08em; min-height:52px; padding:0 32px; border-radius:999px;
+              border:0; background:var(--vino); color:#fff; cursor:pointer; transition:.2s; }
+  .btn-vino:hover { background:#7e1a35; }
+  .flecha { width:46px; height:46px; flex:none; border-radius:50%; border:1px solid var(--malva);
+            background:transparent; color:var(--vino); cursor:pointer; font-size:18px; }
+  .xcard { background:rgba(253,248,242,.86); border:1px solid var(--blush); border-radius:16px;
+           overflow:hidden; display:flex; flex-direction:column; }
+  @media (max-width:900px) {
+    .barra-sup { padding:14px 20px; }
+    .grid-ficha { grid-template-columns:1fr; gap:30px; padding:20px 20px 50px; }
+    .cross-zona { padding:40px 20px 60px !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="barra-sup">
+  <a href="index.html" aria-label="Volver a la tienda"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" style="height:32px;width:auto;display:block"></a>
+  <nav style="font-size:12.5px;color:var(--malva-d)"><a href="index.html">Tienda</a> · <a href="index.html#indice">Todo lo que hay</a></nav>
+  <span id="carrito" class="num" style="display:inline-flex;align-items:center;gap:9px;padding:10px 18px;border-radius:999px;background:var(--vino);color:#fff;font-size:12.5px;font-weight:600">0</span>
+</header>
+
+<nav style="padding:18px 56px 0;font-size:12.5px;color:#a08c85" aria-label="Miga de pan">
+  <a href="index.html" style="color:#a08c85">Tienda</a> · <a href="index.html#indice" style="color:#a08c85">Cálidos y dulces</a> · <span style="color:var(--malva-d)">Vainilla y canela</span>
+</nav>
+
+<main class="grid-ficha">
+  <div>
+    <div style="position:relative;overflow:hidden;border-radius:4px;background:var(--blush)">
+      <img id="foto-grande" src="/tenants/shinevelas/hero.jpg" alt="Vela de soja Vainilla y canela encendida" style="width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;display:block">
+      <div style="position:absolute;left:20px;top:20px;display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:999px;background:rgba(253,248,242,.92);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--vino)">
+        <span class="flame" style="width:10px;height:17px;background:var(--vino)"></span>Cálidos y dulces
+      </div>
+    </div>
+    <div id="thumbs" style="display:flex;gap:12px;margin-top:12px"></div>
+  </div>
+
+  <div>
+    <div class="meta">Vela de soja · 220 g</div>
+    <h1 class="disp" style="font-size:clamp(44px,6vw,72px);color:var(--vino);margin:16px 0 0">Vainilla y canela</h1>
+    <p style="margin:16px 0 0;font-size:17px;line-height:1.62;max-width:46ch">Huele a cocina un domingo a la tarde, cuando algo se está horneando y todavía no sabés qué. Dulce, tibia, sin empalagar.</p>
+    <div style="display:flex;align-items:baseline;gap:14px;margin:24px 0 0">
+      <span class="num" style="font-size:34px;font-weight:600;color:var(--vino)">$12.900</span>
+      <span style="font-size:13px;color:var(--malva-d)">o 3 cuotas sin interés de <b class="num">$4.300</b></span>
+    </div>
+
+    <div style="margin-top:28px;display:grid;grid-template-columns:64px minmax(0,1fr);gap:26px;align-items:stretch">
+      <div style="position:relative;min-height:230px;border-radius:999px;background:linear-gradient(180deg,#ead7bc,#b98a5e);box-shadow:inset 0 0 0 1px rgba(58,17,25,.08)">
+        <div style="position:absolute;left:-6px;right:-6px;top:33%;height:1px;background:rgba(58,17,25,.16)"></div>
+        <div style="position:absolute;left:-6px;right:-6px;top:66%;height:1px;background:rgba(58,17,25,.16)"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:space-between;padding:4px 0">
+        <div><div class="meta" style="font-size:11px">Salida</div><div class="disp" style="font-size:23px;margin-top:4px">Canela</div><div style="font-size:12.5px;color:var(--malva-d);margin-top:3px">Los primeros minutos: especia tibia.</div></div>
+        <div><div class="meta" style="font-size:11px">Corazón</div><div class="disp" style="font-size:23px;margin-top:4px">Vainilla</div><div style="font-size:12.5px;color:var(--malva-d);margin-top:3px">El cuerpo del aroma, el que se queda.</div></div>
+        <div><div class="meta" style="font-size:11px">Fondo</div><div class="disp" style="font-size:23px;margin-top:4px">Caramelo</div><div style="font-size:12.5px;color:var(--malva-d);margin-top:3px">Lo que queda en la casa después de apagarla.</div></div>
+      </div>
+    </div>
+    <div class="meta" style="font-size:9.5px;margin-top:10px;color:var(--malva-d)">El aroma en el tiempo: arriba la salida, abajo lo que queda</div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:22px">
+      <div class="dato"><div class="meta" style="font-size:11px">Intensidad</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:10px">
+          <span class="flame" style="width:11px;height:19px;background:var(--vino)"></span><span class="flame" style="width:11px;height:19px;background:var(--vino)"></span><span class="flame" style="width:11px;height:19px;background:var(--vino)"></span>
+          <span style="font-size:13px;font-weight:600;margin-left:4px">Intensa</span></div></div>
+      <div class="dato"><div class="meta" style="font-size:11px">Dura</div><div class="num" style="font-size:20px;font-weight:600;margin-top:8px">45 h</div></div>
+      <div class="dato"><div class="meta" style="font-size:11px">Ambienta</div><div class="num" style="font-size:20px;font-weight:600;margin-top:8px">hasta 20 m²</div></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:14px;margin-top:26px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="step" id="menos" aria-label="Quitar una unidad">−</button>
+        <span class="num" id="qty" style="font-size:16px;min-width:30px;text-align:center;font-weight:600">1</span>
+        <button class="step" id="mas" aria-label="Sumar una unidad">+</button>
+      </div>
+      <button class="btn-vino" id="agregar" style="flex:1;min-width:220px">Sumar al carrito · $12.900</button>
+    </div>
+    <div id="envio-hint" style="display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px;color:var(--malva-d)">
+      <span class="flame" style="width:10px;height:17px;background:var(--malva)"></span>
+      <span>Te faltan $25.000 para el envío gratis en CABA y GBA</span>
+    </div>
+
+    <div style="margin-top:30px;border-top:1px solid var(--linea)" id="acordeones"></div>
+  </div>
+</main>
+
+<section class="cross-zona" style="padding:20px 56px 80px">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:26px">
+    <span style="width:46px;height:1px;background:var(--nude)"></span>
+    <h2 class="disp" style="font-size:clamp(28px,3.5vw,32px);color:var(--vino);margin:0">Se lleva bien con</h2>
+  </div>
+  <div style="display:flex;align-items:center;gap:18px">
+    <button class="flecha" id="prev" aria-label="Ver los anteriores">←</button>
+    <div id="cross" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;flex:1"></div>
+    <button class="flecha" id="next" aria-label="Ver los siguientes">→</button>
+  </div>
+  <div class="meta" id="cross-pos" style="text-align:center;margin-top:18px;font-size:9.5px">1 / 2</div>
+</section>
+
+<script>
+// Demo estática · Elaborado por GSG · precios de muestra
+const $ = (s) => document.querySelector(s);
+const money = (n) => '$' + n.toLocaleString('es-AR');
+const PRECIO = 12900;
+let qty = 1, cart = 0, subtotal = 0, cx = 0;
+const abiertos = { cuidado: true };
+const ACC = [
+  { k:'cuidado', t:'Cómo cuidarla para que rinda las 45 horas',
+    c:'<b style="color:var(--tinta)">La primera vez, dejala 2 horas</b> — hasta que la superficie se derrita pareja; si la apagás antes, quema desparejo.<br><b style="color:var(--tinta)">Cortá la mecha a 5 mm</b> antes de cada encendido: llama más chica, sin hollín.<br><b style="color:var(--tinta)">No más de 4 horas seguidas</b>, y apagala con apagavelas, no soplando.' },
+  { k:'frasco', t:'Cuando se termina, el frasco queda',
+    c:'Lavalo con agua caliente y jabón: sirve de portalápices, de vasito para velas de té o de maceta chica. La cera de soja sale sola —no hace falta raspar.' },
+  { k:'envios', t:'Envíos y pagos',
+    c:'CABA y GBA: envío $3.500, gratis desde $25.000. Retiro coordinado por WhatsApp.<br>Mercado Pago, transferencia, débito, crédito y efectivo. 3 cuotas sin interés.' },
+];
+const CROSS = [
+  { n:'Difusor Vainilla y canela', w:'La misma fragancia, encendida todo el mes.', p:14900, f:'/tenants/shinevelas/mundo-aromas.jpg' },
+  { n:'Fósforos largos', w:'Para encenderla sin quemarte los dedos.', p:3900, f:'/tenants/shinevelas/ambiance.jpg' },
+  { n:'Portavela de cerámica', w:'Le da base y protege la mesa.', p:9900, f:'/tenants/shinevelas/mundo-decoracion.jpg' },
+  { n:'Trío para descubrir · 3 minis', w:'Un cálido, un floral y un amaderado para probar.', p:9900, f:'/tenants/shinevelas/gift.jpg' },
+];
+const THUMBS = ['/tenants/shinevelas/hero.jpg','/tenants/shinevelas/mundo-velas.jpg','/tenants/shinevelas/ambiance.jpg','/tenants/shinevelas/gift.jpg'];
+
+function pintarQty() { $('#qty').textContent = qty; $('#agregar').textContent = 'Sumar al carrito · ' + money(PRECIO * qty); }
+function pintarCarrito() {
+  $('#carrito').textContent = cart;
+  $('#envio-hint span:last-child').textContent = subtotal >= 25000 ? 'Tu envío es gratis'
+    : 'Te faltan ' + money(25000 - subtotal) + ' para el envío gratis en CABA y GBA';
+}
+function pintarAcc() {
+  $('#acordeones').innerHTML = ACC.map((a) => `
+    <button class="acc-item" data-k="${a.k}" aria-expanded="${!!abiertos[a.k]}">
+      <span>${a.t}</span><span class="acc-ind num">${abiertos[a.k] ? '−' : '+'}</span>
+    </button>
+    <div class="acc-body${abiertos[a.k] ? ' open' : ''}"><div><div class="acc-txt">${a.c}</div></div></div>`).join('');
+  document.querySelectorAll('.acc-item').forEach((b) =>
+    b.addEventListener('click', () => { abiertos[b.dataset.k] = !abiertos[b.dataset.k]; pintarAcc(); }));
+}
+function pintarCross() {
+  $('#cross').innerHTML = CROSS.slice(cx, cx + 3).map((x) => `
+    <article class="xcard">
+      <div style="position:relative;aspect-ratio:4/3;overflow:hidden"><img src="${x.f}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></div>
+      <div style="padding:16px 18px 18px;display:flex;flex-direction:column;gap:9px;flex:1">
+        <h3 style="font-size:15px;font-weight:600;margin:0;line-height:1.35">${x.n}</h3>
+        <div style="font-size:12.5px;color:var(--malva-d);line-height:1.5">${x.w}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:6px">
+          <span class="num" style="font-size:17px;font-weight:600;color:var(--vino)">${money(x.p)}</span>
+          <button class="btn-sec" data-p="${x.p}" style="font-weight:600;font-size:12px;padding:0 16px;min-height:40px;border-radius:6px;border:1px solid var(--malva);background:transparent;color:var(--malva-d);cursor:pointer">Sumar</button>
+        </div>
+      </div>
+    </article>`).join('');
+  $('#prev').style.opacity = cx === 0 ? '.35' : '1';
+  $('#next').style.opacity = cx === 1 ? '.35' : '1';
+  $('#cross-pos').textContent = (cx + 1) + ' / 2';
+  document.querySelectorAll('#cross [data-p]').forEach((b) =>
+    b.addEventListener('click', () => { cart += 1; subtotal += parseInt(b.dataset.p, 10); pintarCarrito(); }));
+}
+$('#thumbs').innerHTML = THUMBS.map((t, i) =>
+  `<button data-t="${t}" style="position:relative;width:96px;height:96px;overflow:hidden;border:${i===0?'2px solid var(--vino)':'1px solid var(--blush)'};background:transparent;padding:0;cursor:pointer"><img src="${t}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></button>`).join('');
+document.querySelectorAll('#thumbs button').forEach((b) => b.addEventListener('click', () => {
+  $('#foto-grande').src = b.dataset.t;
+  document.querySelectorAll('#thumbs button').forEach((x) => x.style.border = '1px solid var(--blush)');
+  b.style.border = '2px solid var(--vino)';
+}));
+$('#mas').addEventListener('click', () => { qty += 1; pintarQty(); });
+$('#menos').addEventListener('click', () => { qty = Math.max(1, qty - 1); pintarQty(); });
+$('#agregar').addEventListener('click', () => { cart += qty; subtotal += PRECIO * qty; pintarCarrito(); });
+$('#prev').addEventListener('click', () => { cx = Math.max(0, cx - 1); pintarCross(); });
+$('#next').addEventListener('click', () => { cx = Math.min(1, cx + 1); pintarCross(); });
+pintarQty(); pintarAcc(); pintarCross();
+</script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shine · Tienda</title>
+<meta name="description" content="Velas de soja artesanales — la tienda de Shine, ordenada por momentos de la casa.">
+<meta name="generator" content="Gestión Studio Grow">
+<link rel="icon" href="/tenants/shinevelas/brand/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Kumbh+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d9d5; --nude:#d0aeac; --malva:#b88a89;
+          --malva-d:#835c5b; --vino:#671128; --tinta:#3a2429; --linea:#e4d7d0; }
+  * { box-sizing: border-box; }
+  body { margin:0; color:var(--tinta); font-family:'Kumbh Sans',system-ui,sans-serif; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.26'/%3E%3C/svg%3E"),
+      linear-gradient(180deg,#f7f1e9 0%,#f3ebe1 44%,#efe5da 100%);
+    background-size:120px 120px,auto; background-repeat:repeat,no-repeat; background-attachment:fixed;
+    background-blend-mode:multiply,normal; }
+  a { color:var(--vino); text-decoration:none; }
+  button { font-family:inherit; }
+  .disp { font-family:'Cormorant Garamond',Georgia,serif; font-weight:400; letter-spacing:-.01em; line-height:.96; }
+  .num { font-variant-numeric:tabular-nums; }
+  .meta { font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--malva-d); }
+  .flame { display:inline-block; flex:none;
+    -webkit-mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat;
+    mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat; }
+  .capa { position:absolute; inset:0; pointer-events:none; }
+
+  .shell { display:grid; grid-template-columns:92px minmax(0,1fr); min-height:100vh; }
+  .riel { position:sticky; top:0; height:100vh; border-right:1px solid var(--blush);
+          display:flex; flex-direction:column; align-items:center; padding:26px 0 30px; }
+  .mom { display:block; border:0; background:transparent; cursor:pointer; padding:24px 0;
+         font-size:13px; font-weight:600; letter-spacing:.26em; text-transform:uppercase;
+         writing-mode:vertical-rl; transition:.22s; white-space:nowrap; color:#a08c85; }
+  .mom:hover, .mom.on { color:var(--vino); }
+
+  .hero { position:relative; overflow:hidden; min-height:min(92svh,820px); display:flex; flex-direction:column;
+          align-items:center; justify-content:center; text-align:center; padding:70px 56px 200px; }
+  .hero img.fondo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+          filter:saturate(.92) contrast(.97); transition:opacity .6s ease; }
+  .hero .velo { position:absolute; inset:0;
+    background: radial-gradient(ellipse 72% 56% at 50% 44%, rgba(20,8,10,.34), transparent 74%),
+      linear-gradient(180deg, rgba(20,8,10,.26), transparent 26%),
+      linear-gradient(180deg, transparent 62%, rgba(243,235,225,.55) 88%, #f3ebe1 100%); }
+  .hero-int { position:relative; color:#f7f1e8; max-width:760px; }
+  .hero h1 { font-size:clamp(52px,8vw,104px); font-weight:300; margin:24px 0 0; color:#f7f1e8; line-height:1.06; }
+  .hero .lede { margin:26px auto 0; font-size:17px; line-height:1.62; color:rgba(247,241,232,.9);
+                max-width:44ch; text-wrap:balance; }
+  .cta { display:inline-flex; align-items:center; justify-content:center; margin-top:30px; min-height:50px;
+         padding:0 40px; border:1px solid rgba(247,241,232,.85); border-radius:999px; background:transparent;
+         color:#f7f1e8; font-size:11px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; transition:.4s; }
+  .cta:hover { background:#f3ebe1; color:var(--vino); }
+
+  .cards { position:relative; margin:-128px 56px 0; z-index:2; }
+  .cards-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; max-width:1120px; margin:0 auto; }
+  .card { background:var(--papel); border:1px solid var(--blush); border-radius:4px; overflow:hidden;
+          display:flex; flex-direction:column; box-shadow:0 26px 54px -30px rgba(58,17,25,.5); }
+  .card .visual { display:grid; grid-template-columns:minmax(0,1fr) 84px; height:240px; }
+  .card .visual > div:first-child { position:relative; overflow:hidden; }
+  .card .visual img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .col-notas { position:relative; }
+  .col-notas .l { position:absolute; left:0; right:0; text-align:center; }
+  .col-notas .l b { display:block; font-size:7.5px; font-weight:600; letter-spacing:.22em;
+                    text-transform:uppercase; color:rgba(58,17,25,.6); }
+  .col-notas .l span { font-size:10.5px; color:var(--tinta); }
+  .col-notas .hr { position:absolute; left:8px; right:8px; height:1px; background:rgba(58,17,25,.14); }
+  .claim { text-align:center; margin:26px auto 0; font-style:italic; font-size:21px; color:var(--malva-d);
+           line-height:1.45; max-width:52ch; font-family:'Cormorant Garamond',Georgia,serif; }
+
+  .marquee { overflow:hidden; border-top:1px solid var(--linea); border-bottom:1px solid var(--linea);
+             padding:13px 0; white-space:nowrap; margin-top:58px; }
+  .marquee > div { display:inline-block; font-size:10px; letter-spacing:.32em; text-transform:uppercase;
+                   color:var(--malva-d); animation:mq 38s linear infinite; }
+  @keyframes mq { from { transform:translateX(0); } to { transform:translateX(-33.33%); } }
+  @media (prefers-reduced-motion:reduce) { .marquee > div { animation:none; } }
+
+  .indice { position:relative; padding:66px 56px 72px; }
+  .acc-head { display:grid; grid-template-columns:46px minmax(0,1fr) auto 30px; align-items:center; gap:20px;
+              width:100%; text-align:left; border:0; border-top:1px solid var(--linea); background:transparent;
+              padding:24px 4px 24px 0; cursor:pointer; transition:.2s; }
+  .acc-head:hover .fam-nombre { color:#7e1a35; }
+  .acc-chip { width:46px; height:18px; border-radius:999px; }
+  .fam-nombre { font-family:'Cormorant Garamond',Georgia,serif; font-size:32px; color:var(--vino); transition:.2s; }
+  .acc-ind { font-family:'Cormorant Garamond',Georgia,serif; font-size:28px; color:var(--malva); text-align:center; line-height:1; }
+  .acc-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .24s ease-out; }
+  .acc-body.open { grid-template-rows:1fr; }
+  .acc-body > div { overflow:hidden; }
+  .filas { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 56px; padding-bottom:26px; }
+  .fila { display:grid; grid-template-columns:10px 30px minmax(0,1fr) auto auto; align-items:center; gap:22px;
+          width:100%; text-align:left; padding:18px 10px 18px 0; border:0; border-top:1px solid var(--linea);
+          background:transparent; cursor:pointer; transition:.18s; }
+  .fila:hover { padding-left:10px; padding-right:0; }
+  .fila .nm { font-family:'Cormorant Garamond',Georgia,serif; font-size:31px; color:var(--vino); display:block; line-height:1; }
+  .fila:hover .nm { color:#7e1a35; }
+  .sliver { width:10px; height:46px; border-radius:999px; }
+
+  .regalo { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); border-top:1px solid var(--blush); }
+  .regalo .foto { position:relative; overflow:hidden; min-height:480px; }
+  .regalo .foto img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .set-row { display:flex; align-items:center; gap:20px; padding:20px 0; border-top:1px solid var(--linea); }
+  .btn-sec { font-weight:600; font-size:12px; letter-spacing:.06em; padding:0 18px; min-height:40px;
+             border-radius:6px; border:1px solid var(--malva); background:transparent; color:var(--malva-d); cursor:pointer; }
+  .btn-sec:hover { border-color:var(--vino); color:var(--vino); }
+
+  .barra { position:sticky; bottom:0; z-index:5; display:flex; align-items:center; gap:26px;
+           padding:14px 56px; background:#e1cdca; border-top:1px solid var(--nude); }
+  .barra .track { height:5px; border-radius:999px; background:rgba(103,17,40,.16); overflow:hidden; }
+  .barra .fill { height:100%; border-radius:999px; background:var(--vino); width:0%; transition:width .3s ease; }
+  .barra-cta { display:inline-flex; align-items:center; justify-content:center; gap:9px; font-weight:600;
+               font-size:13px; letter-spacing:.08em; padding:0 26px; min-height:46px; border-radius:999px;
+               border:1px solid var(--vino); margin-left:auto; transition:.25s; }
+
+  .cierre { padding:72px 56px 60px; text-align:center; border-top:1px solid var(--blush); }
+  .pie { padding:0 56px 46px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; }
+
+  @media (max-width:900px) {
+    .shell { grid-template-columns:1fr; }
+    .riel { position:static; height:auto; flex-direction:row; padding:14px 18px; gap:6px; overflow-x:auto;
+            border-right:0; border-bottom:1px solid var(--blush); }
+    .riel .logo-riel { margin-right:10px; }
+    .mom { writing-mode:horizontal-tb; padding:10px 12px; letter-spacing:.14em; }
+    .riel .sep, .riel .eslogan-riel, .riel .relleno { display:none; }
+    .hero { padding:56px 20px 180px; }
+    .cards { margin:-120px 18px 0; }
+    .cards-grid { grid-template-columns:1fr; }
+    .filas { grid-template-columns:1fr; }
+    .indice { padding:50px 20px 56px; }
+    .regalo { grid-template-columns:1fr; }
+    .regalo .foto { min-height:280px; }
+    .regalo .lado { padding:40px 20px !important; }
+    .barra { padding:12px 18px; gap:14px; }
+    .barra .medidor { display:none; }
+    .pie { grid-template-columns:1fr; padding:0 20px 40px; }
+    .cierre { padding:56px 20px 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <aside class="riel" aria-label="Momentos de la casa">
+    <a class="logo-riel" href="#" aria-label="Shine"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" style="width:54px;height:auto;display:block"></a>
+    <div class="sep" style="width:1px;height:40px;background:var(--linea);margin:22px 0"></div>
+    <nav id="riel-momentos" style="display:flex;flex-direction:column;align-items:center" class="contents"></nav>
+    <div class="relleno" style="flex:1"></div>
+    <div class="eslogan-riel meta" style="writing-mode:vertical-rl;font-size:9.5px;letter-spacing:.3em;white-space:nowrap;margin-bottom:34px">Que tu luz nunca se apague</div>
+    <button id="btn-carrito" aria-label="Ver carrito" style="width:52px;height:52px;border-radius:50%;border:0;background:var(--vino);color:#fff;cursor:pointer;display:grid;place-items:center;position:relative;flex:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 12.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z"/><path d="M9 7V5.5a3 3 0 0 1 6 0V7"/></svg>
+      <span id="carrito-n" class="num" style="position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;border-radius:999px;background:var(--tinta);color:var(--crema);font-size:11px;font-weight:700;display:grid;place-items:center">0</span>
+    </button>
+  </aside>
+
+  <main>
+    <section class="hero" id="hero">
+      <img class="fondo" id="hero-img" src="/tenants/shinevelas/hero.jpg" alt="">
+      <div class="velo"></div>
+      <div class="hero-int">
+        <div class="num meta" id="hero-kicker" style="color:rgba(247,241,232,.85);display:flex;align-items:center;justify-content:center;gap:14px">
+          <span style="width:34px;height:1px;background:rgba(247,241,232,.5)"></span><span id="hero-hora"></span><span style="width:34px;height:1px;background:rgba(247,241,232,.5)"></span>
+        </div>
+        <h1 class="disp" id="hero-titulo"></h1>
+        <p class="lede" id="hero-texto"></p>
+        <div aria-hidden style="width:56px;height:1px;background:rgba(184,138,137,.85);margin:30px auto 0"></div>
+        <a class="cta" href="#lo-que-va">Ver sus aromas</a>
+      </div>
+    </section>
+
+    <section class="cards" id="lo-que-va">
+      <div class="cards-grid" id="cards"></div>
+      <p class="claim" id="claim"></p>
+    </section>
+
+    <div class="marquee" aria-hidden="true"><div>CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;CERA DE SOJA&nbsp;&nbsp;·&nbsp;&nbsp;PABILO DE ALGODÓN&nbsp;&nbsp;·&nbsp;&nbsp;VERTIDO A MANO&nbsp;&nbsp;·&nbsp;&nbsp;QUE TU LUZ NUNCA SE APAGUE&nbsp;&nbsp;·&nbsp;&nbsp;</div></div>
+
+    <section class="indice" id="indice">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:30px;flex-wrap:wrap;margin-bottom:30px">
+        <div>
+          <div class="meta">Si ya sabés qué buscás</div>
+          <h2 class="disp" style="font-size:clamp(38px,5vw,52px);color:var(--vino);margin:14px 0 0">Todo lo que hay</h2>
+        </div>
+        <div class="meta" style="padding-bottom:8px">12 piezas · 3 familias · tocá una para abrirla</div>
+      </div>
+      <div id="acordeon"></div>
+      <div style="border-top:1px solid var(--linea)"></div>
+    </section>
+
+    <section class="regalo">
+      <div class="foto"><img src="/tenants/shinevelas/gift.jpg" alt="Set de regalo Shine en su caja"></div>
+      <div class="lado" style="padding:66px 56px 62px">
+        <div class="meta">Para otra casa</div>
+        <h2 class="disp" style="font-size:clamp(36px,4.6vw,52px);color:var(--vino);margin:14px 0 0">Se arma, se envuelve, se manda</h2>
+        <p style="margin:18px 0 0;font-size:16px;color:var(--malva-d);line-height:1.6;max-width:46ch">Con tarjeta escrita a mano y envío directo a quien lo recibe.</p>
+        <div id="sets" style="display:flex;flex-direction:column;margin-top:26px"></div>
+      </div>
+    </section>
+
+    <div class="barra" id="barra">
+      <span class="num" id="barra-linea" style="font-size:14px;font-weight:600;letter-spacing:.04em;color:var(--vino)">Tu carrito está vacío</span>
+      <div class="medidor" style="flex:1;max-width:400px">
+        <div class="track"><div class="fill" id="barra-fill"></div></div>
+        <div class="num" id="barra-envio" style="margin-top:8px;font-size:12px;color:var(--malva-d)">Sumá $25.000 y el envío te sale gratis</div>
+      </div>
+      <a class="barra-cta" id="barra-cta" href="#lo-que-va" style="background:transparent;color:var(--vino)">Elegí tu primera vela</a>
+    </div>
+
+    <section class="cierre">
+      <span class="flame" style="width:17px;height:29px;background:var(--vino)"></span>
+      <div class="disp" style="font-size:clamp(30px,4.5vw,46px);font-weight:300;font-style:italic;color:var(--vino);margin-top:16px">Que tu luz nunca se apague</div>
+    </section>
+
+    <footer class="pie">
+      <div><div class="meta" style="letter-spacing:.18em;color:var(--vino)">Envíos</div>
+        <div style="margin-top:12px;font-size:13.5px;color:var(--malva-d);line-height:1.7">CABA y GBA · $3.500<br>Gratis desde $25.000<br>Retiro coordinado por WhatsApp</div></div>
+      <div><div class="meta" style="letter-spacing:.18em;color:var(--vino)">Pagos</div>
+        <div style="margin-top:12px;font-size:13.5px;color:var(--malva-d);line-height:1.7">Mercado Pago · Transferencia<br>Débito y crédito · Efectivo</div></div>
+      <div><div class="meta" style="letter-spacing:.18em;color:var(--vino)">Hablemos</div>
+        <div style="margin-top:12px;font-size:13.5px;color:var(--malva-d);line-height:1.7"><a href="#" style="font-weight:600">Escribinos por WhatsApp</a><br>Instagram @shine.velas.store</div></div>
+    </footer>
+  </main>
+</div>
+
+<script>
+// ── Demo estática de la tienda Shine · Elaborado por GSG ──
+// Datos de MUESTRA (precios de velas sueltas, horas, m²); los reales salen del ERP.
+const CAT = [
+  { id:'v1', nombre:'Vainilla y canela', fam:'calidos', formato:'Vela 220 g', notas:'vainilla · canela · caramelo', trio:['Canela','Vainilla','Caramelo'], int:3, dura:'45 h', precio:12900, foto:'/tenants/shinevelas/mundo-velas.jpg' },
+  { id:'v2', nombre:'Coco y vainilla', fam:'calidos', formato:'Vela 220 g', notas:'coco · vainilla · leche tibia', trio:['Coco','Vainilla','Leche'], int:2, dura:'45 h', precio:12900, foto:'/tenants/shinevelas/gift.jpg' },
+  { id:'v3', nombre:'Flor de naranjo', fam:'florales', formato:'Vela 220 g', notas:'azahar · neroli · miel', trio:['Azahar','Neroli','Miel'], int:2, dura:'40 h', precio:11900, foto:'/tenants/shinevelas/mundo-aromas.jpg' },
+  { id:'v4', nombre:'Jazmín', fam:'florales', formato:'Vela 220 g', notas:'jazmín · pétalos blancos · almizcle', trio:['Pétalos','Jazmín','Almizcle'], int:3, dura:'40 h', precio:11900, foto:'/tenants/shinevelas/ambiance.jpg' },
+  { id:'v5', nombre:'Lavanda', fam:'florales', formato:'Vela 220 g', notas:'lavanda · romero · lino', trio:['Romero','Lavanda','Lino'], int:1, dura:'40 h', precio:11900, foto:'/tenants/shinevelas/mundo-decoracion.jpg' },
+  { id:'v6', nombre:'Sándalo', fam:'amaderados', formato:'Vela 220 g', notas:'sándalo · vetiver · cuero suave', trio:['Vetiver','Sándalo','Cuero'], int:3, dura:'50 h', precio:13900, foto:'/tenants/shinevelas/ambiance.jpg' },
+  { id:'v7', nombre:'Cedro y ámbar', fam:'amaderados', formato:'Vela 220 g', notas:'cedro · ámbar · incienso', trio:['Cedro','Ámbar','Incienso'], int:3, dura:'50 h', precio:13900, foto:'/tenants/shinevelas/mundo-decoracion.jpg' },
+  { id:'v8', nombre:'Vainilla y canela · dos mechas', fam:'calidos', formato:'Vela grande 380 g', notas:'la misma fragancia, el doble de ambiente', trio:['Canela','Vainilla','Caramelo'], int:3, dura:'80 h', precio:19900, foto:'/tenants/shinevelas/mundo-velas.jpg' },
+  { id:'d1', nombre:'Difusor Sándalo', fam:'amaderados', formato:'Difusor 250 ml', notas:'250 ml · sándalo · varillas de rattan', trio:['Vetiver','Sándalo','Rattan'], int:2, dura:'8 a 10 sem', precio:14900, foto:'/tenants/shinevelas/mundo-aromas.jpg' },
+  { id:'s1', nombre:'Sahumerios Flor de naranjo', fam:'florales', formato:'Caja × 20', notas:'azahar · resina suave', trio:['Resina','Azahar','Madera'], int:2, dura:'35 min', precio:4900, foto:'/tenants/shinevelas/mundo-aromas.jpg' },
+  { id:'t1', nombre:'Textil Lavanda', fam:'florales', formato:'Textil 100 ml', notas:'100 ml · lavanda · algodón limpio', trio:['Algodón','Lavanda','Almizcle'], int:1, dura:'60 usos', precio:8900, foto:'/tenants/shinevelas/gift.jpg' },
+  { id:'v9', nombre:'Coco y vainilla · lata viajera', fam:'calidos', formato:'Lata 90 g', notas:'para llevar a donde vayas', trio:['Coco','Vainilla','Leche'], int:2, dura:'25 h', precio:8900, foto:'/tenants/shinevelas/mundo-decoracion.jpg' },
+];
+const DUO = { v1:['#ead7bc','#b98a5e'], v2:['#f1e5d4','#c9b296'], v3:['#f4e7d2','#dca96e'], v4:['#f4ece2','#c9bcab'],
+  v5:['#e7dfe8','#a89ab5'], v6:['#ddcbb6','#8a6c52'], v7:['#dcc4a5','#7d5a3f'], v8:['#ead7bc','#b98a5e'],
+  d1:['#ddcbb6','#8a6c52'], s1:['#f4e7d2','#dca96e'], t1:['#e7dfe8','#a89ab5'], v9:['#f1e5d4','#c9b296'] };
+const MOMENTOS = [
+  { k:'manana', label:'Mañana', hora:'07 — 12 h', t1:'Que la casa', t2:'arranque liviana', img:'/tenants/shinevelas/mundo-decoracion.jpg',
+    texto:'Con la ventana abierta y el mate hecho, la casa pide algo que se sienta limpio y no tape nada.',
+    porque:'A esta hora conviene un aroma suave: la casa todavía está fría y cualquier cosa intensa se vuelve pesada.', ids:['v3','v5','t1'] },
+  { k:'tarde', label:'Tarde', hora:'12 — 19 h', t1:'Que el día', t2:'se ordene', img:'/tenants/shinevelas/mundo-aromas.jpg',
+    texto:'Las horas en que hay que concentrarse. Un aroma que acompañe sin distraer, y que dure toda la jornada.',
+    porque:'Los amaderados sostienen el foco: son serenos, no dulces, y no cansan después de tres horas.', ids:['v6','v7','d1'] },
+  { k:'noche', label:'Noche', hora:'19 — 00 h', t1:'Que el día', t2:'se termine', img:'/tenants/shinevelas/hero.jpg',
+    texto:'Se baja la luz, se enciende una vela y la casa cambia de temperatura. Es el momento en que más se usa una vela.',
+    porque:'Los cálidos son los de la noche: dulces sin empalagar, se quedan en la casa después de apagar la vela.', ids:['v1','v2','v9'] },
+  { k:'gente', label:'Viene gente', hora:'Cuando tocan el timbre', t1:'Que la casa', t2:'reciba bien', img:'/tenants/shinevelas/ambiance.jpg',
+    texto:'Se nota apenas se abre la puerta, antes de que nadie diga nada. Es lo primero que percibe quien llega.',
+    porque:'Para recibir conviene que se sienta desde la entrada: intensidad alta y algo que llene el ambiente rápido.', ids:['v4','v8','s1'] },
+];
+const FAMILIAS = [
+  { k:'calidos', nombre:'Cálidos y dulces', descr:'Vainilla, canela, coco. Los de la noche.', chip:['#ead7bc','#b98a5e'] },
+  { k:'florales', nombre:'Florales', descr:'Azahar, jazmín, lavanda. Livianos, para el día.', chip:['#f4ece2','#a89ab5'] },
+  { k:'amaderados', nombre:'Amaderados', descr:'Sándalo, cedro, ámbar. Serenos, para concentrarse.', chip:['#ddcbb6','#7d5a3f'] },
+];
+const SETS = [
+  { nombre:'Set Ritual', items:'Vela de soja + difusor a juego + fósforos largos', precio:21900, nota:'El más elegido' },
+  { nombre:'Caja Aromas', items:'3 velas aromáticas en caja de regalo', precio:22900, nota:'' },
+  { nombre:'Set Deco & Luz', items:'Vela decorativa + portavela de cerámica + bandeja', precio:24900, nota:'Envío gratis' },
+];
+const $ = (s) => document.querySelector(s);
+const money = (n) => '$' + n.toLocaleString('es-AR');
+const byId = Object.fromEntries(CAT.map((p) => [p.id, p]));
+const state = { momento:'noche', fam:'calidos', cart:0, subtotal:0 };
+
+function flames(n, size) {
+  return [1,2,3].map((k) =>
+    `<span class="flame" style="width:${size}px;height:${Math.round(size*1.7)}px;background:var(--vino);opacity:${n>=k?1:.22}"></span>`
+  ).join('');
+}
+function sumar(precio) {
+  state.cart += 1; state.subtotal += precio;
+  pintarCarrito();
+}
+function pintarCarrito() {
+  const libre = 25000, s = state.subtotal;
+  $('#carrito-n').textContent = state.cart;
+  $('#barra-linea').textContent = state.cart === 0 ? 'Tu carrito está vacío'
+    : state.cart + (state.cart === 1 ? ' pieza · ' : ' piezas · ') + money(s);
+  $('#barra-fill').style.width = Math.min(100, Math.round(s / libre * 100)) + '%';
+  $('#barra-envio').textContent = s === 0 ? 'Sumá ' + money(libre) + ' y el envío te sale gratis'
+    : s >= libre ? 'Llegaste: tu envío es gratis' : 'Te faltan ' + money(libre - s) + ' para el envío gratis';
+  const cta = $('#barra-cta');
+  if (state.cart === 0) { cta.textContent = 'Elegí tu primera vela'; cta.href = '#lo-que-va';
+    cta.style.background = 'transparent'; cta.style.color = 'var(--vino)'; }
+  else { cta.textContent = 'Finalizar compra'; cta.href = '#';
+    cta.style.background = 'var(--vino)'; cta.style.color = '#f3ebe1'; }
+}
+function pintarMomento() {
+  const m = MOMENTOS.find((x) => x.k === state.momento);
+  $('#hero-img').src = m.img;
+  $('#hero-hora').textContent = m.label.toUpperCase() + ' · ' + m.hora.toUpperCase();
+  $('#hero-titulo').innerHTML = m.t1 + '<br><em style="font-weight:300">' + m.t2 + '</em>';
+  $('#hero-texto').textContent = m.texto;
+  $('#claim').textContent = m.porque;
+  $('#riel-momentos').innerHTML = MOMENTOS.map((x) =>
+    `<button class="mom${x.k===state.momento?' on':''}" data-k="${x.k}" aria-pressed="${x.k===state.momento}">${x.label}</button>`).join('');
+  document.querySelectorAll('#riel-momentos .mom').forEach((b) =>
+    b.addEventListener('click', () => { state.momento = b.dataset.k; pintarMomento(); }));
+  $('#cards').innerHTML = m.ids.map((id) => {
+    const p = byId[id], d = DUO[id];
+    return `<article class="card">
+      <div class="visual">
+        <div><img src="${p.foto}" alt="${p.nombre}"></div>
+        <div class="col-notas" style="background:linear-gradient(180deg,${d[0]},${d[1]})">
+          <div class="hr" style="top:33%"></div><div class="hr" style="top:66%"></div>
+          <div class="l" style="top:5%"><b>Salida</b><span>${p.trio[0]}</span></div>
+          <div class="l" style="top:44%"><b>Corazón</b><span>${p.trio[1]}</span></div>
+          <div class="l" style="bottom:5%"><b>Fondo</b><span>${p.trio[2]}</span></div>
+        </div>
+      </div>
+      <div style="padding:16px 18px 18px;display:flex;flex-direction:column;gap:10px;flex:1">
+        <div>
+          <a class="disp" href="ficha.html" style="font-size:24px;color:var(--vino)">${p.nombre}</a>
+          <div style="font-size:12px;color:var(--malva-d);margin-top:5px">${p.notas}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:auto;padding-top:8px;border-top:1px solid #eee3dd">
+          <span style="display:flex;gap:4px">${flames(p.int, 8)}</span>
+          <span class="num" style="font-size:10.5px;letter-spacing:.1em;color:var(--malva-d)">${p.dura} · ${p.formato.split(' ').slice(-2).join(' ')}</span>
+          <span class="num" style="font-size:17px;font-weight:600;color:var(--vino);margin-left:auto">${money(p.precio)}</span>
+          <button class="btn-sec" style="min-height:38px;padding:0 15px;font-size:11.5px" data-add="${p.id}">Sumar</button>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+  document.querySelectorAll('#cards [data-add]').forEach((b) =>
+    b.addEventListener('click', () => sumar(byId[b.dataset.add].precio)));
+}
+function pintarAcordeon() {
+  $('#acordeon').innerHTML = FAMILIAS.map((f) => {
+    const abierta = state.fam === f.k;
+    const piezas = CAT.filter((p) => p.fam === f.k);
+    const filas = piezas.map((p, i) => {
+      const d = DUO[p.id];
+      return `<button class="fila" data-add="${p.id}" aria-label="Sumar ${p.nombre} al carrito">
+        <span class="sliver" style="background:linear-gradient(180deg,${d[0]},${d[1]})"></span>
+        <span class="num meta" style="font-size:11px">0${i+1}</span>
+        <span><span class="nm">${p.nombre}</span>
+          <span style="display:block;font-size:12.5px;color:var(--malva-d);margin-top:7px">${p.notas}</span></span>
+        <span style="display:flex;gap:4px">${flames(p.int, 8)}</span>
+        <span class="num" style="font-size:17px;font-weight:600;color:var(--vino)">${money(p.precio)}</span>
+      </button>`;
+    }).join('');
+    return `<div>
+      <button class="acc-head" data-fam="${f.k}" aria-expanded="${abierta}">
+        <span class="acc-chip" style="background:linear-gradient(90deg,${f.chip[0]},${f.chip[1]})"></span>
+        <span><span class="fam-nombre">${f.nombre}</span>
+          <span style="display:block;font-size:13px;color:var(--malva-d);margin-top:5px">${f.descr}</span></span>
+        <span class="meta">${piezas.length} piezas</span>
+        <span class="acc-ind num">${abierta ? '−' : '+'}</span>
+      </button>
+      <div class="acc-body${abierta ? ' open' : ''}"><div><div class="filas">${filas}</div></div></div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.acc-head').forEach((b) =>
+    b.addEventListener('click', () => { state.fam = state.fam === b.dataset.fam ? null : b.dataset.fam; pintarAcordeon(); }));
+  document.querySelectorAll('#acordeon [data-add]').forEach((b) =>
+    b.addEventListener('click', () => sumar(byId[b.dataset.add].precio)));
+}
+$('#sets').innerHTML = SETS.map((s) => `<div class="set-row">
+  <span class="flame" style="width:18px;height:31px;background:var(--malva)"></span>
+  <div style="min-width:0;flex:1">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:17px;font-weight:600">${s.nombre}</span>
+      ${s.nota ? `<span class="meta" style="font-size:10px;letter-spacing:.14em;color:var(--vino);border:1px solid var(--nude);border-radius:999px;padding:4px 10px">${s.nota}</span>` : ''}
+    </div>
+    <div style="margin-top:6px;font-size:13.5px;color:var(--malva-d);line-height:1.55">${s.items}</div>
+  </div>
+  <span class="num" style="font-size:19px;font-weight:600;color:var(--vino)">${money(s.precio)}</span>
+  <button class="btn-sec" data-precio="${s.precio}">Sumar</button>
+</div>`).join('');
+document.querySelectorAll('#sets [data-precio]').forEach((b) =>
+  b.addEventListener('click', () => sumar(parseInt(b.dataset.precio, 10))));
+
+pintarMomento();
+pintarAcordeon();
+pintarCarrito();
+</script>
+</body>
+</html>
