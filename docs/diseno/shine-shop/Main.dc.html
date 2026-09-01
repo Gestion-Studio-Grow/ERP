@@ -67,7 +67,7 @@
     .chip:hover { border-color: #671128; color: #671128; }
     /* El ÍNDICE: la tienda es una lista tipográfica, no una grilla de tarjetas.
        Cada fila es un aroma; al tocarla, el ESCENARIO de la izquierda cambia. */
-    .fila { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; align-items: center;
+    .fila { display: grid; grid-template-columns: 10px 30px minmax(0, 1fr) auto auto; align-items: center;
             gap: 22px; width: 100%; text-align: left; padding: 18px 10px 18px 0; border: 0;
             border-top: 1px solid #e4d7d0; background: transparent; cursor: pointer;
             font: inherit; transition: .18s; }
@@ -142,7 +142,11 @@
         </div>
         <div style="position: relative; margin-top: 22px;">
           <sc-for list="{{aromas}}" as="a" hint-placeholder-count="3">
-            <button class="aroma" onClick="{{a.add}}" aria-label="{{a.aria}}">
+            <button class="aroma" onClick="{{a.add}}" aria-label="{{a.aria}}" style="grid-template-columns: auto minmax(0, 1fr) auto;">
+              <span style="display: flex; gap: 10px; align-self: center;">
+                <span style="position: relative; width: 66px; height: 84px; overflow: hidden; border-radius: 3px; flex: none;"><img src="{{a.foto}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;"></span>
+                <span style="width: 9px; height: 84px; border-radius: 999px; flex: none; background: linear-gradient(180deg, {{a.c1}}, {{a.c2}});"></span>
+              </span>
               <span>
                 <span class="disp" style="display: block; font-size: 34px; color: #f3ebe1;">{{a.name}}</span>
                 <span style="display: block; font-size: 13px; color: rgba(243,235,225,.62); margin-top: 8px;">{{a.notes}}</span>
@@ -197,6 +201,7 @@
       <div class="sobre" style="margin-top: 26px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 56px;">
         <sc-for list="{{rows}}" as="r" hint-placeholder-count="12">
           <button class="fila {{r.cls}}" onClick="{{r.pick}}" aria-label="{{r.aria}}">
+            <span style="width: 10px; height: 46px; border-radius: 999px; background: linear-gradient(180deg, {{r.c1}}, {{r.c2}}); align-self: center;"></span>
             <span class="num meta" style="font-size: 11px;">{{r.n}}</span>
             <span>
               <span class="nm">{{r.name}}</span>
@@ -327,6 +332,23 @@ class Component extends DCLogic {
   money(n) { return '$' + n.toLocaleString('es-AR'); }
   op(inten, k) { return inten >= k ? '1' : '.22'; }
 
+  // El duotono de cada aroma sale de sus notas (misma tabla que la exhibición).
+  duo(id) {
+    const t = {
+      v1: ['#ead7bc', '#b98a5e'], v2: ['#f1e5d4', '#c9b296'], v3: ['#f4e7d2', '#dca96e'],
+      v4: ['#f4ece2', '#c9bcab'], v5: ['#e7dfe8', '#a89ab5'], v6: ['#ddcbb6', '#8a6c52'],
+      v7: ['#dcc4a5', '#7d5a3f'], v8: ['#ead7bc', '#b98a5e'], d1: ['#ddcbb6', '#8a6c52'],
+      s1: ['#f4e7d2', '#dca96e'], t1: ['#e7dfe8', '#a89ab5'], v9: ['#f1e5d4', '#c9b296']
+    };
+    return t[id] || ['#ead7bc', '#b98a5e'];
+  }
+
+  fotoDe(fam) {
+    if (fam === 'calidos') return 'mundo-velas.jpg';
+    if (fam === 'florales') return 'mundo-aromas.jpg';
+    return 'mundo-decoracion.jpg';
+  }
+
   add(price) {
     this.setState({ cart: this.state.cart + 1, subtotal: this.state.subtotal + price });
   }
@@ -390,6 +412,9 @@ class Component extends DCLogic {
       escenaPaso: (idx + 1) + ' / 4 · ' + mom.label,
 
       aromas: suyos.map((p) => ({
+        foto: this.fotoDe(p.fam),
+        c1: this.duo(p.id)[0],
+        c2: this.duo(p.id)[1],
         name: p.name,
         notes: p.notes,
         duration: p.duration,
@@ -413,6 +438,8 @@ class Component extends DCLogic {
       }),
 
       rows: lista.map((p, i) => ({
+        c1: this.duo(p.id)[0],
+        c2: this.duo(p.id)[1],
         n: (i + 1) < 10 ? '0' + (i + 1) : '' + (i + 1),
         name: p.name,
         notes: p.notes,

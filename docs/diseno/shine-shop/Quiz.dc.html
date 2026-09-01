@@ -101,8 +101,15 @@
         <p style="margin: 14px 0 0; font-size: 16.5px; color: rgba(243,235,225,.86); max-width: 44ch; line-height: 1.62;">{{pickWhy}}</p>
 
         <div style="display: flex; gap: 14px; margin-top: 28px; align-items: stretch;">
-          <div style="width: 168px; flex: none; border-radius: 16px; overflow: hidden; background: rgba(243,235,225,.1); border: 1px solid rgba(232,217,213,.3); display: grid; place-items: center; padding: 26px 0;">
-            <span class="flame" style="width: 52px; height: 88px; background: #f3ebe1; opacity: .92;"></span>
+          <div style="width: 168px; flex: none; border-radius: 16px; background: rgba(243,235,225,.08); border: 1px solid rgba(232,217,213,.3); display: flex; align-items: center; justify-content: center; gap: 16px; padding: 22px 0;">
+            <div style="position: relative; width: 34px; height: 168px; border-radius: 999px; background: linear-gradient(180deg, {{pickC1}}, {{pickC2}});">
+              <span class="flame" style="position: absolute; left: 50%; top: -22px; transform: translateX(-50%); width: 11px; height: 19px; background: #f3ebe1; opacity: .9;"></span>
+            </div>
+            <div style="display: flex; flex-direction: column; justify-content: space-between; height: 168px; padding: 2px 0;">
+              <span style="font-size: 11px; color: rgba(243,235,225,.85);">{{pickN1}}</span>
+              <span style="font-size: 11px; color: rgba(243,235,225,.85);">{{pickN2}}</span>
+              <span style="font-size: 11px; color: rgba(243,235,225,.85);">{{pickN3}}</span>
+            </div>
           </div>
           <div style="flex: 1; border-radius: 16px; border: 1px solid rgba(232,217,213,.3); background: rgba(243,235,225,.08); padding: 22px 24px; display: flex; flex-direction: column; gap: 14px;">
             <div>
@@ -229,7 +236,12 @@ class Component extends DCLogic {
       pickPrice: '',
       pickF1: '.24',
       pickF2: '.24',
-      pickF3: '.24'
+      pickF3: '.24',
+      pickC1: '#ead7bc',
+      pickC2: '#b98a5e',
+      pickN1: '',
+      pickN2: '',
+      pickN3: ''
     };
 
     if (asking) {
@@ -254,6 +266,19 @@ class Component extends DCLogic {
       if (gap < bestGap) { bestGap = gap; best = c; }
     }
 
+    const duos = {
+      'Lavanda': ['#e7dfe8', '#a89ab5'], 'Flor de naranjo': ['#f4e7d2', '#dca96e'],
+      'Jazmín': ['#f4ece2', '#c9bcab'], 'Sándalo': ['#ddcbb6', '#8a6c52'],
+      'Cedro y ámbar': ['#dcc4a5', '#7d5a3f'], 'Coco y vainilla': ['#f1e5d4', '#c9b296'],
+      'Vainilla y canela': ['#ead7bc', '#b98a5e']
+    };
+    const duo = duos[best.name] || ['#ead7bc', '#b98a5e'];
+    const partes = best.notes.split(' · ');
+    out.pickC1 = duo[0];
+    out.pickC2 = duo[1];
+    out.pickN1 = partes[0] || '';
+    out.pickN2 = partes[1] || '';
+    out.pickN3 = partes[2] || '';
     out.pickName = best.name;
     out.pickWhy = best.why;
     out.pickNotes = best.notes;
