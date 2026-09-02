@@ -13,7 +13,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Kumbh+Sans:wght@400;600;700&display=swap">
 <style>
   :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d9d5; --nude:#d0aeac; --malva:#b88a89;
-          --malva-d:#835c5b; --vino:#671128; --tinta:#3a2429; --linea:#e4d7d0; }
+          --malva-d:#835c5b; --vino:#3a2429; --acc:#671128; --tinta:#3a2429; --linea:#e4d7d0; }
+  /* el bordó queda solo en la acción de compra; el resto de la jerarquía es tipográfica */
   * { box-sizing:border-box; }
   body { margin:0; color:var(--tinta); font-family:'Kumbh Sans',system-ui,sans-serif; line-height:1.55;
     -webkit-font-smoothing:antialiased; background:#f3ebe1; }
@@ -54,7 +55,7 @@
   .step:hover { background:var(--vino); color:#fff; border-color:var(--vino); }
   .btn-vino { display:inline-flex; align-items:center; justify-content:center; gap:9px; font-weight:600;
               font-size:13px; letter-spacing:.08em; min-height:52px; padding:0 32px; border-radius:999px;
-              border:0; background:var(--vino); color:#fff; cursor:pointer; transition:.2s; }
+              border:0; background:var(--acc); color:#fff; cursor:pointer; transition:.2s; }
   .btn-vino:hover { background:#7e1a35; }
   .btn-sec:hover { border-color:var(--vino) !important; color:var(--vino) !important; }
   .xcard { background:rgba(253,248,242,.86); border:1px solid var(--blush); border-radius:16px;
