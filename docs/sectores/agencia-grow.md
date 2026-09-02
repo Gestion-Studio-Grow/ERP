@@ -86,6 +86,22 @@ Mismo sistema operativo que el resto de la compañía:
 
 ---
 
+## 4.b Mesa Cripto (frente abierto 2026-09-02)
+
+Primer frente de análisis del candidato `crypto-bot`, con **dos células nuevas del pool** (charters en
+`.claude/agents/`, roster §2.3): **`analista-fx-cripto`** (rieles de dólares: Lemon, USDT, MEP, Wise; neto punta a
+punta; riesgo ARCA/BCRA) y **`quant-trading`** (viabilidad de estrategias neta de costos; backtest reproducible).
+Ambas **analizan y nunca operan**: mover plata, claves API o gasto de infraestructura es §C del dueño.
+
+| Doc | Qué responde |
+|---|---|
+| `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-lemon-usd-usdt-banco.md` | ¿Conviene traer USD por Lemon (ACH → USDt → banco AR a 1,03)? Neto real vs alternativas |
+| `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-btc-15m-viabilidad.md` | ¿Se puede ganar operando BTC en 15 min? Break-even, simulación y script |
+| `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-btc-15m-investigacion-mercado.md` | Costos por exchange, volatilidad 2026, evidencia publicada |
+| `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-challenger.md` | Antítesis (ADR-045) sobre ambos análisis y la app |
+| `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-propuesta-app-mesa-cripto.md` | Qué app construir (y cuál no) — para decisión del dueño |
+| `scripts/btc-15m-backtest.mjs` | Backtester Node sin dependencias, datos públicos, nunca opera |
+
 ## 5. Puntos abiertos — a confirmar por el dueño
 
 1. **Cartera exacta de Agencia Grow** (§2): ¿`dos-manos-padel`, `shine-velas`, `crypto-bot`,

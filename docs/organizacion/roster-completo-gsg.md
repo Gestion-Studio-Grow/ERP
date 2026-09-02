@@ -57,6 +57,8 @@ actuar** (ADR-052).
 | **Gestión de cartera propia** | conduce los negocios propios del grupo | Sonnet | 🆕 (§4) |
 | **Pricing & Packaging** | precios/planes por perfil (lite/enterprise) y segmento, márgenes, unit economics | Opus (plata) | 📐 (`pricing-packaging`, charter 2026-07-08) |
 | **PO del Catálogo / Plugins** | dueño del repositorio de módulos; set mínimo vendible por rubro/perfil; registry | Opus/Sonnet | 📐 (`po-catalogo-plugins`, charter 2026-07-08) |
+| **Mesa Cripto — Analista FX & Cripto** | rieles de dólares (Lemon/USDT/MEP/Wise), neto punta a punta, riesgo regulatorio ARCA/BCRA; analiza, nunca mueve plata (§C) | Sonnet→Opus (plata real) | 📐 (`analista-fx-cripto`, charter 2026-09-02) |
+| **Mesa Cripto — Quant Trading** | viabilidad de estrategias (BTC 15m) neta de costos: break-even, backtest reproducible, Monte Carlo, anti-overfitting; nunca opera (§C) | Sonnet→Opus (plata real) | 📐 (`quant-trading`, charter 2026-09-02) |
 
 ### 2.4 · Preset IA (motor de onboarding — transversal)
 | Célula | Rol | Modelo | Estado |

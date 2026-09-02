@@ -11,15 +11,16 @@
 **Formato fijo de cada entrada:**
 `[ID] Síntoma → Causa raíz → Fix aplicado (commit) → Lección → Guardarraíl → Refs`.
 Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categorías (prefijo del ID):
-**PD** Prod/Deploy · **DB** Datos/DB · **MT** Multi-tenant · **DX** Demo/UX · **MP** Metodología/Proceso · **SEC** Seguridad.
+**PD** Prod/Deploy · **DB** Datos/DB · **MT** Multi-tenant · **DX** Demo/UX · **MP** Metodología/Proceso · **SEC** Seguridad · **QT** Mesa cripto/Quant Trading.
 
 ## Índice
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir) · MP-15 desvío de ADR sin rastro de autoridad = observación a elevar · MP-16 análisis de mercado en sesión remota con egress bloqueado = modelo analítico + script reproducible, nunca datos inventados
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
+- **QT** — QT-1 costo ida+vuelta vs. σ de la vela decide todo antes que el indicador
 
 ---
 
@@ -411,6 +412,25 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   commit** (nota fechada en el ADR/ESTADO-ACTUAL) **o** lo marca como **propuesta para el Gate** — nunca lo
   commitea como hecho consumado. El integrador (Gate) trata toda deviación sin rastro como observación a elevar.
 - **Refs:** ADR-059 D3, ADR-008 (repo como memoria), ADR-047; retro `docs/retro/retro-sprint-grow-ar-pr2-2026-07-08.md`.
+
+---
+**[MP-16] Análisis cuantitativo pedido desde el móvil en una sesión remota con egress bloqueado**
+- **Síntoma:** el dueño pidió evaluar rentabilidad de BTC en velas de 15 min y del riel Lemon USD→USDt; en la sesión
+  remota el proxy bloquea Binance/Bybit/Kraken/Coinbase/OKX, los sitios de Lemon y `curl` saliente. No había forma
+  de bajar OHLCV real ni de leer la ayuda oficial de la billetera.
+- **Causa raíz:** la política de red de la sesión remota (claude.ai/code) no incluye APIs de mercado; el trabajo
+  cuantitativo asumía internet libre. Tentación: "inventar" una serie o citar números de memoria como si fueran del día.
+- **Fix:** se separó lo que **sí** se puede hacer sin datos vivos (modelo analítico de break-even con volatilidad
+  publicada + simulación sintética **declarada** sin edge que mide solo el arrastre de costos) de lo que **no**
+  (backtest real), y se dejó el backtester como **script reproducible** (`scripts/btc-15m-backtest.mjs`, cero
+  dependencias, endpoints públicos) para correr en desktop en un comando. El doc lo dice en su §3.
+- **Lección:** un análisis con datos que no se pudieron obtener **vale si declara la restricción y deja el camino
+  reproducible**; un análisis con datos fabricados o no fechados **no vale aunque el número "cierre"**.
+- **Guardarraíl:** todo doc cuantitativo de la Mesa Cripto lleva (1) sección "Restricción del entorno" si faltó
+  acceso, (2) fuente + fecha por cada número de mercado, (3) `⚠️ a verificar` en lo no confirmado, y (4) los criterios
+  de decisión **fijados antes** de ver los resultados reales (vara pre-registrada, no ajustada al número).
+- **Refs:** `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-btc-15m-viabilidad.md` §3/§8, ADR-030, ADR-046,
+  ADR-052; charters `quant-trading` y `analista-fx-cripto`.
 
 ---
 
