@@ -1,5 +1,21 @@
 # 📓 Registro de Lecciones Aprendidas — calibración de PMO y Arquitecto (GSG)
 
+## 2026-09-02 · Rutas relativas en artefactos estáticos de `public/` (Prod/Deploy)
+
+**Qué pasó:** la demo de Shine se mergeó con rutas relativas (`img/...`) y en vivo no cargó
+ninguna imagen: Vercel sirve `public/<slug>/index.html` en `/<slug>` SIN barra final, así que el
+navegador resolvía `/img/...` contra la raíz → 404 masivo. Lo detectó el dueño mirando la demo.
+
+**Regla:** todo artefacto estático servido desde `public/<slug>/` usa rutas absolutas
+`/<slug>/...` en TODO (src, href, preload, `url()` de CSS y datos en JS que armen `src`).
+Las relativas solo si se garantiza la barra final, cosa que Vercel no hace.
+
+**Chequeo para el Gate de presets (generador por IA):** antes de mostrar al cliente, servir el
+artefacto desde la raíz de `public/` y verificar 0 respuestas HTTP ≥400 y 0 imágenes con
+`naturalWidth === 0` — exactamente el probe que destapó esto. Vale para Break Point, Magra y
+todo preset futuro.
+
+
 > **Qué es:** la **memoria de lo que ya nos pasó**, destilada en lecciones + **guardarraíles** concretos
 > para que **no vuelva a pasar**. Es **lectura obligatoria de calibración** para el **PMO** (autor de
 > planes) y el **Arquitecto de Solución** (ejecutor), y **para cualquier célula antes de tocar un área de
