@@ -32,7 +32,8 @@
   .flame { display:inline-block; flex:none;
     -webkit-mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat;
     mask:url(/tenants/shinevelas/brand/flame-mask.png) center/contain no-repeat; }
-  .aviso { position:fixed; right:14px; top:74px; z-index:60; background:rgba(58,17,25,.88); color:#f3ebe1;
+  .aviso { position:fixed; right:14px; top:74px; z-index:60; pointer-events:none;
+           background:rgba(58,17,25,.88); color:#f3ebe1;
            font-size:10px; font-weight:600; letter-spacing:.18em; text-transform:uppercase;
            padding:8px 14px; border-radius:999px; backdrop-filter:blur(4px); }
   .barra-sup { position:sticky; top:0; z-index:50; background:var(--crema);
@@ -43,7 +44,7 @@
   .acc-item { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%;
               text-align:left; border:0; background:transparent; padding:18px 2px; cursor:pointer;
               border-bottom:1px solid var(--linea); font-size:14px; font-weight:600; color:var(--tinta); }
-  .acc-ind { font-family:'Cormorant Garamond',Georgia,serif; font-size:24px; color:var(--malva); line-height:1; }
+  .acc-ind { font-family:'Cormorant Garamond',Georgia,serif; font-size:24px; color:var(--malva-d); line-height:1; }
   .acc-body { display:grid; grid-template-rows:0fr; visibility:hidden;
               transition:grid-template-rows .24s ease-out, visibility .24s; }
   .acc-body.open { grid-template-rows:1fr; visibility:visible; }
@@ -67,8 +68,10 @@
     #cross { grid-template-columns:1fr !important; }
     #thumbs { flex-wrap:wrap; }
     .step { width:44px; height:44px; }
-    .aviso { top:auto; bottom:calc(16px + env(safe-area-inset-bottom)); backdrop-filter:none;
-             -webkit-backdrop-filter:none; background:rgba(58,17,25,.94); }
+    /* tira fija al borde inferior, a tono con la bandeja del index: no flota ni intercepta */
+    .aviso { left:0; right:0; top:auto; bottom:0; border-radius:0; text-align:center;
+             font-size:9px; letter-spacing:.16em; backdrop-filter:none; -webkit-backdrop-filter:none;
+             padding:5px 0 calc(5px + env(safe-area-inset-bottom)); background:rgba(58,17,25,.92); }
   }
 </style>
 </head>
@@ -205,7 +208,7 @@ function construirCross() {
         <div style="font-size:12.5px;color:var(--malva-d);line-height:1.5">${x.w}</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:6px">
           <span class="num" style="font-size:17px;font-weight:600;color:var(--vino)">${money(x.p)}</span>
-          <button class="btn-sec" data-p="${x.p}" style="font-weight:600;font-size:12px;padding:0 16px;min-height:40px;border-radius:6px;border:1px solid var(--malva);background:transparent;color:var(--malva-d);cursor:pointer">Sumar</button>
+          <button class="btn-sec" data-p="${x.p}" style="font-weight:600;font-size:12px;padding:0 16px;min-height:40px;border-radius:6px;border:1px solid var(--malva-d);background:transparent;color:var(--malva-d);cursor:pointer">Sumar</button>
         </div>
       </div>
     </article>`).join('');

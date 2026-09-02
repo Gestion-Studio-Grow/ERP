@@ -94,7 +94,7 @@
                filter:saturate(1.04) contrast(1.02); transition:opacity .25s ease; }
   .panel figcaption { margin-top:12px; font-size:11px; letter-spacing:.2em; text-transform:uppercase;
                       color:var(--malva-d); }
-  @media (prefers-reduced-motion:reduce) { .panel img { transition:none; } .barra .fill { transition:none; } }
+  @media (prefers-reduced-motion:reduce) { .panel img { transition:none; } }
 
   .pie { max-width:1240px; margin:0 auto; padding:64px 48px 54px; border-top:1px solid var(--linea);
          display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; }
@@ -109,6 +109,8 @@
   .barra-cta { display:inline-flex; align-items:center; justify-content:center; gap:9px; font-weight:600;
                font-size:13px; letter-spacing:.08em; padding:0 26px; min-height:46px; border-radius:999px;
                border:1px solid var(--acc); margin-left:auto; transition:.25s; }
+  /* después de la regla base del fill para que gane en cascada */
+  @media (prefers-reduced-motion:reduce) { .barra .fill { transition:none; } }
 
   @media (max-width:900px) {
     .cab { padding:18px 20px 0; }
@@ -126,7 +128,7 @@
     /* en móvil el aviso es una tira pegada a la bandeja: nunca flota sobre el contenido */
     .aviso { display:none; }
     .barra::before { content:"Prototipo de diseño · datos de muestra"; position:absolute;
-             left:0; right:0; top:-23px; text-align:center; pointer-events:none;
+             left:0; right:0; bottom:calc(100% - 1px); text-align:center; pointer-events:none;
              font-size:9px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
              color:#f3ebe1; background:rgba(58,17,25,.92); padding:5px 0; }
     .barra { position:sticky; padding:12px 18px calc(12px + env(safe-area-inset-bottom)); gap:14px; }
@@ -172,7 +174,7 @@
     <div><div class="meta">Pagos</div>
       <div>Mercado Pago · Transferencia<br>Débito y crédito · Efectivo</div></div>
     <div><div class="meta">Hablemos</div>
-      <div><a href="https://www.instagram.com/shine.velas.store" rel="noopener">Escribinos por Instagram</a><br>@shine.velas.store</div></div>
+      <div><a href="https://www.instagram.com/shine.velas.store" rel="noopener" target="_blank">Escribinos por Instagram</a><br>@shine.velas.store</div></div>
   </footer>
 </main>
 
@@ -234,7 +236,8 @@ function pintarCarrito() {
     : s >= libre ? 'Llegaste: tu envío es gratis' : 'Te faltan ' + money(libre - s) + ' para el envío gratis';
   const cta = $('#barra-cta');
   if (state.cart === 0) { cta.textContent = 'Elegí tu primera vela'; cta.href = '#carta';
-    cta.style.background = 'transparent'; cta.style.color = 'var(--acc)'; cta.removeAttribute('rel'); }
+    cta.style.background = 'transparent'; cta.style.color = 'var(--acc)';
+    cta.removeAttribute('rel'); cta.removeAttribute('target'); }
   else { cta.textContent = 'Escribinos y coordinamos'; cta.href = 'https://www.instagram.com/shine.velas.store';
     cta.setAttribute('rel', 'noopener'); cta.setAttribute('target', '_blank');
     cta.style.background = 'var(--acc)'; cta.style.color = '#f3ebe1'; }
