@@ -32,11 +32,13 @@
   .num { font-variant-numeric:tabular-nums; }
   .meta { font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--malva-d); }
 
-  .aviso { position:fixed; right:14px; top:14px; z-index:60; background:rgba(58,17,25,.88); color:#f3ebe1;
+  .aviso { position:fixed; right:14px; top:14px; z-index:60; pointer-events:none;
+           background:rgba(58,17,25,.88); color:#f3ebe1;
            font-size:10px; font-weight:600; letter-spacing:.18em; text-transform:uppercase;
            padding:8px 14px; border-radius:999px; backdrop-filter:blur(4px); }
 
-  .cab { display:flex; align-items:center; justify-content:space-between; max-width:1240px;
+  /* logo y nav juntos a la izquierda: la esquina derecha queda libre para el aviso fijo */
+  .cab { display:flex; align-items:center; gap:30px; max-width:1240px;
          margin:0 auto; padding:24px 48px 0; }
   .cab img { width:52px; height:auto; display:block; }
   .cab a.ancla { font-size:11px; font-weight:600; letter-spacing:.18em; text-transform:uppercase;
@@ -74,7 +76,7 @@
   .grupo .descr { font-size:12.5px; color:var(--malva-d); }
   .item { display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:16px; align-items:center;
           padding:19px 0; border-top:1px solid var(--linea); }
-  .item .n { font-size:11.5px; color:var(--malva); align-self:start; padding-top:8px; }
+  .item .n { font-size:11.5px; color:var(--malva-d); align-self:start; padding-top:8px; }
   .item .nom { font-family:'Cormorant Garamond',Georgia,serif; font-size:27px; line-height:1.05;
                color:var(--tinta); }
   a.nom { border-bottom:1px solid var(--nude); }
@@ -92,7 +94,7 @@
                filter:saturate(1.04) contrast(1.02); transition:opacity .25s ease; }
   .panel figcaption { margin-top:12px; font-size:11px; letter-spacing:.2em; text-transform:uppercase;
                       color:var(--malva-d); }
-  @media (prefers-reduced-motion:reduce) { .panel img { transition:none; } }
+  @media (prefers-reduced-motion:reduce) { .panel img { transition:none; } .barra .fill { transition:none; } }
 
   .pie { max-width:1240px; margin:0 auto; padding:64px 48px 54px; border-top:1px solid var(--linea);
          display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; }
@@ -121,10 +123,13 @@
     .item { grid-template-columns:34px minmax(0,1fr); }
     .item .der { grid-column:2; justify-content:space-between; margin-top:8px; }
     .sumar { min-height:44px; padding:0 22px; }
-    .aviso { top:auto; bottom:calc(78px + env(safe-area-inset-bottom));
-             right:calc(14px + env(safe-area-inset-right)); backdrop-filter:none;
-             -webkit-backdrop-filter:none; background:rgba(58,17,25,.94); }
-    .barra { padding:12px 18px calc(12px + env(safe-area-inset-bottom)); gap:14px; }
+    /* en móvil el aviso es una tira pegada a la bandeja: nunca flota sobre el contenido */
+    .aviso { display:none; }
+    .barra::before { content:"Prototipo de diseño · datos de muestra"; position:absolute;
+             left:0; right:0; top:-23px; text-align:center; pointer-events:none;
+             font-size:9px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+             color:#f3ebe1; background:rgba(58,17,25,.92); padding:5px 0; }
+    .barra { position:sticky; padding:12px 18px calc(12px + env(safe-area-inset-bottom)); gap:14px; }
     .barra .medidor { display:none; }
     .pie { grid-template-columns:1fr; padding:48px 20px 40px; }
   }
@@ -154,7 +159,7 @@
   </section>
 
   <section class="carta-wrap" id="carta">
-    <div id="lista" aria-label="La carta"></div>
+    <div id="lista"></div>
     <figure class="panel" aria-hidden="true">
       <img id="panel-img" src="/tenants/shinevelas/hero.jpg" alt="" width="886" height="665" decoding="async">
       <figcaption id="panel-cap">La colección</figcaption>
@@ -163,7 +168,7 @@
 
   <footer class="pie">
     <div><div class="meta">Envíos</div>
-      <div>CABA y GBA · $3.500<br>Gratis desde $25.000<br>Retiro coordinado por WhatsApp</div></div>
+      <div>CABA y GBA · $3.500<br>Gratis desde $25.000<br>Retiro coordinado por mensaje</div></div>
     <div><div class="meta">Pagos</div>
       <div>Mercado Pago · Transferencia<br>Débito y crédito · Efectivo</div></div>
     <div><div class="meta">Hablemos</div>
@@ -172,7 +177,7 @@
 </main>
 
 <div class="barra" id="barra">
-  <span class="num" id="barra-linea" style="font-size:14px;font-weight:600;letter-spacing:.04em;color:var(--tinta)">Tu carrito está vacío</span>
+  <span class="num" id="barra-linea" role="status" style="font-size:14px;font-weight:600;letter-spacing:.04em;color:var(--tinta)">Tu carrito está vacío</span>
   <div class="medidor" style="flex:1;max-width:400px">
     <div class="track"><div class="fill" id="barra-fill"></div></div>
     <div class="num" id="barra-envio" style="margin-top:8px;font-size:12px;color:var(--tinta)">Sumá $25.000 y el envío te sale gratis</div>
@@ -231,14 +236,15 @@ function pintarCarrito() {
   if (state.cart === 0) { cta.textContent = 'Elegí tu primera vela'; cta.href = '#carta';
     cta.style.background = 'transparent'; cta.style.color = 'var(--acc)'; cta.removeAttribute('rel'); }
   else { cta.textContent = 'Escribinos y coordinamos'; cta.href = 'https://www.instagram.com/shine.velas.store';
-    cta.setAttribute('rel', 'noopener'); cta.style.background = 'var(--acc)'; cta.style.color = '#f3ebe1'; }
+    cta.setAttribute('rel', 'noopener'); cta.setAttribute('target', '_blank');
+    cta.style.background = 'var(--acc)'; cta.style.color = '#f3ebe1'; }
 }
 
 function construirIndice() {
   $('#indice').innerHTML = GRUPOS.map((g) => {
     const n = g.k === 'regalo' ? SETS.length : CAT.filter((p) => p.fam === g.k).length;
     return `<a href="#g-${g.k}"><span class="fam">${g.nombre}</span>
-      <span class="cant num">${String(n).padStart(2, '0')} piezas</span></a>`;
+      <span class="cant num">${n} piezas</span></a>`;
   }).join('');
 }
 
@@ -246,8 +252,8 @@ function construirCarta() {
   let n = 0;
   $('#lista').innerHTML = GRUPOS.map((g) => {
     const items = g.k === 'regalo' ? SETS : CAT.filter((p) => p.fam === g.k);
-    return `<section class="grupo" id="g-${g.k}">
-      <header><h2>${g.nombre}</h2><span class="descr">${g.descr}</span></header>
+    return `<section class="grupo" id="g-${g.k}" aria-labelledby="t-${g.k}">
+      <header><h2 id="t-${g.k}">${g.nombre}</h2><span class="descr">${g.descr}</span></header>
       ${items.map((p) => {
         n += 1;
         const sub = g.k === 'regalo' ? p.notas : `${p.notas} · ${p.dura} · ${INT[p.int]}`;
@@ -284,8 +290,12 @@ if (matchMedia('(hover: hover)').matches) {
     const p = byId[fila.dataset.id];
     const img = $('#panel-img');
     if (img.src.endsWith(p.foto)) return;
-    img.style.opacity = 0;
-    setTimeout(() => { img.src = p.foto; img.style.opacity = 1; }, 120);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      img.src = p.foto;
+    } else {
+      img.style.opacity = 0;
+      setTimeout(() => { img.src = p.foto; img.style.opacity = 1; }, 120);
+    }
     $('#panel-cap').textContent = p.nombre;
   });
 }
