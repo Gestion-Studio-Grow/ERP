@@ -10,7 +10,7 @@
 <link rel="icon" href="/tenants/shinevelas/brand/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="image" href="img/medio-kilo.jpg" fetchpriority="high">
+<link rel="preload" as="image" href="/demo-shine-shop/img/medio-kilo.jpg" fetchpriority="high">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Kumbh+Sans:wght@400;600;700&display=swap">
 <style>
   :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d9d5; --nude:#d0aeac; --malva:#b88a89;
@@ -79,19 +79,19 @@
 <div class="aviso" role="note" aria-label="Aviso de prototipo">Prototipo de diseño · catálogo real, carrito de muestra</div>
 
 <header class="barra-sup">
-  <a href="index.html" aria-label="Volver a la tienda"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" width="2150" height="663" decoding="async" style="height:32px;width:auto;display:block"></a>
-  <nav style="font-size:12.5px;color:var(--malva-d)"><a href="index.html">Volver a la tienda</a></nav>
+  <a href="/demo-shine-shop/index.html" aria-label="Volver a la tienda"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" width="2150" height="663" decoding="async" style="height:32px;width:auto;display:block"></a>
+  <nav style="font-size:12.5px;color:var(--malva-d)"><a href="/demo-shine-shop/index.html">Volver a la tienda</a></nav>
   <span id="carrito" class="num" role="status" aria-label="Piezas en el carrito" style="display:inline-flex;align-items:center;gap:9px;padding:10px 18px;border-radius:999px;background:var(--vino);color:#fff;font-size:12.5px;font-weight:600">0</span>
 </header>
 
 <nav style="padding:18px 56px 0;font-size:12.5px;color:var(--malva-d)" aria-label="Miga de pan">
-  <a href="index.html" style="color:var(--malva-d)">Tienda</a> · <a href="index.html#grilla" style="color:var(--malva-d)">Velas de envase</a> · <span style="color:var(--malva-d)">Medio kilo de vela</span>
+  <a href="/demo-shine-shop/index.html" style="color:var(--malva-d)">Tienda</a> · <a href="/demo-shine-shop/index.html#grilla" style="color:var(--malva-d)">Velas de envase</a> · <span style="color:var(--malva-d)">Medio kilo de vela</span>
 </nav>
 
 <main class="grid-ficha">
   <div>
     <div style="position:relative;overflow:hidden;border-radius:4px;background:var(--blush)">
-      <img id="foto-grande" src="img/medio-kilo.jpg" alt="Medio kilo de vela: frasco de vidrio con moños adheridos, en la mano." width="720" height="900" fetchpriority="high" decoding="async" style="width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;object-position:center 30%;display:block">
+      <img id="foto-grande" src="/demo-shine-shop/img/medio-kilo.jpg" alt="Medio kilo de vela: frasco de vidrio con moños adheridos, en la mano." width="720" height="900" fetchpriority="high" decoding="async" style="width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;object-position:center 30%;display:block">
       <div style="position:absolute;left:20px;top:20px;display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:999px;background:rgba(253,248,242,.92);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--vino)">
         <span class="flame" style="width:10px;height:17px;background:var(--vino)"></span>Velas de envase
       </div>
@@ -159,9 +159,9 @@ const ACC = [
     c:'CABA y GBA: envío $3.500, gratis desde $25.000. Retiro coordinado por mensaje.<br>Mercado Pago, transferencia, débito, crédito y efectivo.' },
 ];
 const CROSS = [
-  { n:'Kit difu + home', w:'Difusor rosé + home spray grande + varillas.', p:23000, f:'img/kit-difu-home.jpg' },
-  { n:'Apaga velas', w:'Con dijes: la apaga sin humo ni soplidos.', p:5000, f:'img/apagavelas.jpg' },
-  { n:'Bombones aromáticos', w:'En bolsita de organza, para regalar.', p:3000, f:'img/bombones.jpg' },
+  { n:'Kit difu + home', w:'Difusor rosé + home spray grande + varillas.', p:23000, f:'/demo-shine-shop/img/kit-difu-home.jpg' },
+  { n:'Apaga velas', w:'Con dijes: la apaga sin humo ni soplidos.', p:5000, f:'/demo-shine-shop/img/apagavelas.jpg' },
+  { n:'Bombones aromáticos', w:'En bolsita de organza, para regalar.', p:3000, f:'/demo-shine-shop/img/bombones.jpg' },
 ];
 
 function pintarQty() { $('#qty').textContent = qty; $('#agregar').textContent = 'Sumar al carrito · ' + money(PRECIO * qty); }
