@@ -47,16 +47,18 @@ familias olfativas como filtro (tintes de la propia paleta, no colores nuevos), 
 en cada tarjeta, pirámide salida/corazón/fondo en la ficha, medidor de intensidad con el
 isotipo, horas que dura, m² que ambienta y quiz de aroma de tres pasos.
 
-## Datos de muestra a reemplazar
+## Datos: catálogo oficial (desde 2026-09-02)
 
-Reales: envío, umbral de envío gratis, zonas, medios de pago, los tres sets con su precio,
-los siete aromas de temporada, todo el copy de marca.
-**De muestra:** precios de las velas sueltas, horas de duración, m², gramajes y formatos.
-Sin cuotas: Shine no ofrece financiación en `storefront.ts`. El "Trío para descubrir · 3 minis"
-del lienzo va marcado **"Propuesta · a confirmar"** (no existe hoy) y quedó **excluido de la
-demo pública** hasta que el dueño lo confirme. La demo (`public/demo-shine-shop/`) lleva
-`noindex` y un cartel fijo "Prototipo de diseño · datos de muestra": Shine es cliente
-consolidado y su demo real es el front del ERP (`ShineFront.tsx`), no esta lámina.
+**La demo pública usa el catálogo oficial de Shine** (PDF Canva de 21 páginas aportado por el
+dueño): 42 productos con precios reales, fotos reales de producto, aromas reales y copy real.
+Fuente de verdad de la extracción: `docs/diseno/catalogo-shine-2026.md`. Fotos en
+`public/demo-shine-shop/img/`.
+**Sigue de muestra:** el carrito (no persiste ni cobra). El cartel fijo dice "Prototipo de
+diseño · catálogo real, carrito de muestra" y la página lleva `noindex`.
+Los artboards del lienzo (`*.dc.html`) son la exploración de diseño previa y conservan la
+pirámide salida/corazón/fondo y datos ficticios de esa etapa; la página viva ya no.
+Sin cuotas: Shine no ofrece financiación en `storefront.ts`. La vidriera de producción del
+ERP sigue siendo `ShineFront.tsx`, no esta lámina.
 
 ## Cómo regenerar la página
 

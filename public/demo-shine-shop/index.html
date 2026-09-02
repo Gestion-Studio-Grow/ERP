@@ -29,7 +29,7 @@
 
   .anuncio { text-align:center; background:var(--tinta); color:#f3ebe1; font-size:11px;
              font-weight:600; letter-spacing:.14em; text-transform:uppercase; padding:9px 16px; }
-  .aviso { position:fixed; right:14px; top:52px; z-index:60; pointer-events:none;
+  .aviso { position:fixed; right:14px; top:78px; z-index:60; pointer-events:none;
            background:rgba(58,17,25,.88); color:#f3ebe1;
            font-size:10px; font-weight:600; letter-spacing:.18em; text-transform:uppercase;
            padding:8px 14px; border-radius:999px; backdrop-filter:blur(4px); }
@@ -81,7 +81,7 @@
   .prod h3 a { border-bottom:1px solid var(--nude); }
   .prod .sub { font-size:12.5px; color:var(--malva-d); margin-top:4px; }
   .prod .pie-prod { display:flex; align-items:center; justify-content:space-between; gap:12px;
-                    margin-top:12px; padding-top:11px; border-top:1px solid var(--linea); }
+                    margin-top:auto; padding-top:11px; border-top:1px solid var(--linea); }
   .prod .precio { font-size:15.5px; font-weight:600; }
   .sumar { border:1px solid var(--acc); color:var(--acc); background:transparent; cursor:pointer;
            border-radius:999px; min-height:40px; padding:0 17px; font-size:10.5px; font-weight:600;
@@ -138,7 +138,10 @@
              font-size:9px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
              color:#f3ebe1; background:rgba(58,17,25,.92); padding:5px 0; }
     .barra { padding:12px 18px calc(12px + env(safe-area-inset-bottom)); gap:14px; }
-    .barra .medidor { display:none; }
+    .barra .track { display:none; }
+    .barra .medidor { flex:1; min-width:0; max-width:none; }
+    #barra-envio { margin-top:0 !important; font-size:11px !important; }
+    #barra-linea { display:none; }
     .pie { grid-template-columns:1fr; padding:44px 20px 40px; }
   }
   @media (min-width:901px) and (max-width:1200px) { .grilla { grid-template-columns:repeat(3,minmax(0,1fr)); } }
@@ -163,7 +166,7 @@
   </header>
 
   <section class="aromas" aria-label="Nuestros aromas">
-    <div class="meta"><img class="destello" src="img/destello.png" alt="" aria-hidden="true"> Nuestros aromas — elegís la fragancia de tu vela</div>
+    <div class="meta"><img class="destello" src="/tenants/shinevelas/brand/icon-sparkle-o.png" alt="" aria-hidden="true" width="283" height="390"> Nuestros aromas — elegís la fragancia de tu vela</div>
     <div class="fila-aroma"><span class="cual meta">Velas</span>
       <div class="aromitas">
         <span class="aromita">Vainilla &amp; Caramelo</span><span class="aromita">Rosas</span>
@@ -226,34 +229,34 @@ const CAT = [
   { id:'e3', nombre:'Mini morronero', cat:'envase', sub:'100 g · puede variar el lazo', precio:8000, foto:'img/mini-morronero.jpg' },
   { id:'e4', nombre:'Envase Tenesse', cat:'envase', sub:'320 g · liso, alas o mariposa', precio:17000, foto:'img/tenesse-alas.jpg', foto2:'img/tenesse-mariposa.jpg' },
   { id:'e5', nombre:'Lata de vidrio', cat:'envase', sub:'480 g · cerezas, patitas, ojo turco y más', precio:28000, foto:'img/lata-cerezas.jpg', foto2:'img/lata-patitas.jpg' },
-  { id:'e6', nombre:'Refill de vela', cat:'envase', sub:'100 g · traé tu envase limpio', precio:3000, foto:'img/refill-velas.jpg' },
+  { id:'e6', nombre:'Refill de vela', cat:'envase', sub:'100 g · con tu envase limpio (si no, hay recargo)', precio:3000, foto:'img/refill-velas.jpg' },
   // Personalizadas
   { id:'p1', nombre:'“Huele a que…”', cat:'perso', sub:'elegís cómo termina la frase · con anticipación', precio:19000, foto:'img/huele-a-que.jpg', tag:'Personalizada' },
   { id:'p2', nombre:'Morronero personalizado', cat:'perso', sub:'sticker con tu frase · con anticipación', precio:13000, foto:'img/morronero-perso.jpg', tag:'Personalizada' },
   { id:'p3', nombre:'Morronero con figuras', cat:'perso', sub:'ositos, corazones, cereales o frambuesas', precio:13000, foto:'img/morronero-figuras.jpg' },
   // Velas de molde
-  { id:'m1', nombre:'Peonia', cat:'molde', sub:'vela de molde', precio:7500, foto:'img/peonia.jpg' },
-  { id:'m2', nombre:'Rosa', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/rosas.jpg' },
-  { id:'m3', nombre:'Flor de loto', cat:'molde', sub:'vela de molde', precio:7000, foto:'img/flor-loto.jpg' },
+  { id:'m1', nombre:'Peonia', cat:'molde', sub:'', precio:7500, foto:'img/peonia.jpg' },
+  { id:'m2', nombre:'Rosa', cat:'molde', sub:'', precio:6000, foto:'img/rosas.jpg' },
+  { id:'m3', nombre:'Flor de loto', cat:'molde', sub:'', precio:7000, foto:'img/flor-loto.jpg' },
   { id:'m4', nombre:'Margarita', cat:'molde', sub:'sola · en bolsita de organza $3.000', precio:2500, foto:'img/margaritas.jpg' },
   { id:'m5', nombre:'Bouquet floral', cat:'molde', sub:'ramo de velas para regalar', precio:28000, foto:'img/bouquet.jpg' },
-  { id:'m6', nombre:'Oso XL', cat:'molde', sub:'vela de molde', precio:8500, foto:'img/osos.jpg' },
-  { id:'m7', nombre:'Oso Teddy', cat:'molde', sub:'vela de molde', precio:7000, foto:'img/osos.jpg' },
-  { id:'m8', nombre:'Mini oso', cat:'molde', sub:'vela de molde', precio:4500, foto:'img/osos.jpg' },
+  { id:'m6', nombre:'Oso XL', cat:'molde', sub:'', precio:8500, foto:'img/osos.jpg' },
+  { id:'m7', nombre:'Oso Teddy', cat:'molde', sub:'', precio:7000, foto:'img/osos.jpg' },
+  { id:'m8', nombre:'Mini oso', cat:'molde', sub:'', precio:4500, foto:'img/osos.jpg' },
   { id:'m9', nombre:'Pastillas diseños', cat:'molde', sub:'moño, bouquet, love y más', precio:6500, foto:'img/pastillas.jpg' },
-  { id:'m10', nombre:'Corazón texturado', cat:'molde', sub:'vela de molde', precio:7000, foto:'img/corazon-texturado.jpg' },
-  { id:'m11', nombre:'León', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/leon-jirafa.jpg' },
-  { id:'m12', nombre:'Jirafa', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/leon-jirafa.jpg' },
-  { id:'m13', nombre:'Almeja', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/almeja.jpg' },
-  { id:'m14', nombre:'Buda', cat:'molde', sub:'vela de molde', precio:7000, foto:'img/buda.jpg' },
-  { id:'m15', nombre:'Sol & Luna', cat:'molde', sub:'vela de molde', precio:7500, foto:'img/sol-luna.jpg' },
-  { id:'m16', nombre:'Columna XL', cat:'molde', sub:'vela de molde', precio:14000, foto:'img/columnas.jpg' },
-  { id:'m17', nombre:'Columna mini', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/columnas.jpg' },
-  { id:'m18', nombre:'Bubble corazón', cat:'molde', sub:'vela de molde', precio:16000, foto:'img/bubble-corazon.jpg' },
+  { id:'m10', nombre:'Corazón texturado', cat:'molde', sub:'', precio:7000, foto:'img/corazon-texturado.jpg' },
+  { id:'m11', nombre:'León', cat:'molde', sub:'', precio:6000, foto:'img/leon-jirafa.jpg' },
+  { id:'m12', nombre:'Jirafa', cat:'molde', sub:'', precio:6000, foto:'img/leon-jirafa.jpg' },
+  { id:'m13', nombre:'Almeja', cat:'molde', sub:'', precio:6000, foto:'img/almeja.jpg' },
+  { id:'m14', nombre:'Buda', cat:'molde', sub:'', precio:7000, foto:'img/buda.jpg' },
+  { id:'m15', nombre:'Sol & Luna', cat:'molde', sub:'', precio:7500, foto:'img/sol-luna.jpg' },
+  { id:'m16', nombre:'Columna XL', cat:'molde', sub:'', precio:14000, foto:'img/columnas.jpg' },
+  { id:'m17', nombre:'Columna mini', cat:'molde', sub:'', precio:6000, foto:'img/columnas.jpg' },
+  { id:'m18', nombre:'Bubble corazón', cat:'molde', sub:'', precio:16000, foto:'img/bubble-corazon.jpg' },
   { id:'m19', nombre:'Bubble x2', cat:'molde', sub:'dos bubbles', precio:7500, foto:'img/bubble-x2.jpg' },
   { id:'m20', nombre:'Vela candelabro + moño', cat:'molde', sub:'vela espiralada con base de moño', precio:27000, foto:'img/candelabro.jpg' },
-  { id:'m21', nombre:'Perita', cat:'molde', sub:'vela de molde', precio:9500, foto:'img/perita.jpg' },
-  { id:'m22', nombre:'Cilindro texturado', cat:'molde', sub:'vela de molde', precio:8000, foto:'img/cilindro.jpg' },
+  { id:'m21', nombre:'Perita', cat:'molde', sub:'', precio:9500, foto:'img/perita.jpg' },
+  { id:'m22', nombre:'Cilindro texturado', cat:'molde', sub:'', precio:8000, foto:'img/cilindro.jpg' },
   { id:'m23', nombre:'Estructurales x2', cat:'molde', sub:'par de velas estructurales', precio:18000, foto:'img/estructurales.jpg' },
   { id:'m24', nombre:'Velón mariposa', cat:'molde', sub:'velón texturado', precio:21000, foto:'img/velon-mariposa.jpg' },
   // Difusores y home
@@ -262,7 +265,7 @@ const CAT = [
   { id:'d3', nombre:'Kit difu + home', cat:'difu', sub:'difusor rosé + home spray grande + varillas', precio:23000, foto:'img/kit-difu-home.jpg' },
   { id:'d4', nombre:'Home spray grande', cat:'difu', sub:'plástico · 250 cc', precio:13000, foto:'img/home-spray-grande.jpg' },
   { id:'d5', nombre:'Home spray chico', cat:'difu', sub:'plástico transparente · 200 cc', precio:10000, foto:'img/home-spray-chico.jpg' },
-  { id:'d6', nombre:'Refill difu/home', cat:'difu', sub:'200 cc · también 300 y 500 cc', precio:9000, foto:'img/refill-difu.jpg' },
+  { id:'d6', nombre:'Refill difu/home', cat:'difu', sub:'200 cc $9.000 · 300 cc $11.000 · 500 cc $19.000', precio:9000, desde:true, foto:'img/refill-difu.jpg' },
   // Extras
   { id:'x1', nombre:'Tabletas aromáticas', cat:'extras', sub:'para cajones y placares', precio:6500, foto:'img/tabletas.jpg' },
   { id:'x2', nombre:'Apaga velas', cat:'extras', sub:'con dijes', precio:5000, foto:'img/apagavelas.jpg' },
@@ -305,14 +308,14 @@ function construirChips() {
   $('#chips').innerHTML = CATEGORIAS.map((f) => {
     const n = f.k === 'todas' ? CAT.length : CAT.filter((p) => p.cat === f.k).length;
     return `<button class="chip${f.k === state.cat ? ' on' : ''}" data-cat="${f.k}"
-       aria-pressed="${f.k === state.cat}">${f.nombre} <span class="num" style="opacity:.6">${n}</span></button>`;
+       aria-pressed="${f.k === state.cat}">${f.nombre} <span class="num" style="color:var(--malva-d)">${n}</span></button>`;
   }).join('');
 }
 function construirGrilla() {
   const items = state.cat === 'todas' ? CAT : CAT.filter((p) => p.cat === state.cat);
   $('#grilla').innerHTML = items.map((p, i) => {
     const nom = p.ficha ? `<a href="ficha.html">${p.nombre}</a>` : p.nombre;
-    const lazy = i > 7 ? ' loading="lazy"' : '';
+    const lazy = i > 3 ? ' loading="lazy"' : '';
     return `<article class="prod">
       <div class="marco">
         <img src="${p.foto}" alt="${p.nombre}" width="720" height="900" decoding="async"${lazy}>
@@ -320,9 +323,10 @@ function construirGrilla() {
         ${p.tag ? `<span class="tag">${p.tag}</span>` : ''}
       </div>
       <h3 class="disp">${nom}</h3>
-      <div class="sub">${p.sub}</div>
+      ${p.sub ? `<div class="sub">${p.sub}</div>` : ''}
+      <div style="flex:1"></div>
       <div class="pie-prod">
-        <span class="precio num">${money(p.precio)}</span>
+        <span class="precio num">${p.desde ? 'Desde ' : ''}${money(p.precio)}</span>
         <button class="sumar" data-add="${p.id}" aria-label="Sumar ${p.nombre} al carrito">Sumar</button>
       </div>
     </article>`;

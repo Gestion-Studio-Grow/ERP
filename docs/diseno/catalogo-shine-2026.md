@@ -1,7 +1,7 @@
 # Catálogo oficial Shine — extracción para la demo web
 
 **Fuente:** PDF "Catálogo · Velas y Aromas" (Canva) subido por el dueño el 2026-09-02 (21 páginas).
-Las fotos reales de producto extraídas viven en `public/demo-shine-shop/img/` (43 fotos + trama + destello).
+Las fotos reales de producto extraídas viven en `public/demo-shine-shop/img/` (44 fotos de producto + trama derivada del asset oficial).
 Este doc es la fuente de verdad de datos de producto de la demo hasta que el catálogo entre al ERP.
 
 ## Identidad visual del catálogo (trasladada a la web)
@@ -93,4 +93,9 @@ pedidos personalizados."
 es $28.000 — se toma el de página. El envío/pagos NO están en el catálogo: se mantienen los del
 storefront del ERP.
 
-— Elaborado por GSG
+**Verificaciones posteriores (Gate):** "Apaga velas · con dijes" es fiel (la foto muestra las
+cadenitas con dijes). El material del pabilo NO figura en el catálogo — no se afirma en la web
+hasta confirmarlo con la dueña. El destello y la trama de la web usan los assets oficiales de
+`public/tenants/shinevelas/brand/` (no copias).
+
+— Elaborado por **Gestión Studio Grow (GSG)**

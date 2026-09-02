@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Vainilla y canela · Prototipo de diseño</title>
+<title>Medio kilo de vela · Shine · Prototipo de diseño</title>
 <meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Medio kilo de vela de soja en frasco de vidrio — prototipo de diseño de la tienda de Shine.">
 <meta name="generator" content="Gestión Studio Grow">
 <link rel="icon" href="/tenants/shinevelas/brand/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="image" href="/tenants/shinevelas/hero.jpg" fetchpriority="high">
+<link rel="preload" as="image" href="img/medio-kilo.jpg" fetchpriority="high">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Kumbh+Sans:wght@400;600;700&display=swap">
 <style>
   :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d9d5; --nude:#d0aeac; --malva:#b88a89;
@@ -66,7 +67,6 @@
     .grid-ficha { grid-template-columns:1fr; gap:30px; padding:20px 20px 50px; }
     .cross-zona { padding:40px 20px 60px !important; }
     #cross { grid-template-columns:1fr !important; }
-    #thumbs { flex-wrap:wrap; }
     .step { width:44px; height:44px; }
     /* tira fija al borde inferior, a tono con la bandeja del index: no flota ni intercepta */
     .aviso { left:0; right:0; top:auto; bottom:0; border-radius:0; text-align:center;
@@ -80,7 +80,7 @@
 
 <header class="barra-sup">
   <a href="index.html" aria-label="Volver a la tienda"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" width="2150" height="663" decoding="async" style="height:32px;width:auto;display:block"></a>
-  <nav style="font-size:12.5px;color:var(--malva-d)"><a href="index.html">Tienda</a> · <a href="index.html#grilla">La tienda</a></nav>
+  <nav style="font-size:12.5px;color:var(--malva-d)"><a href="index.html">Volver a la tienda</a></nav>
   <span id="carrito" class="num" role="status" aria-label="Piezas en el carrito" style="display:inline-flex;align-items:center;gap:9px;padding:10px 18px;border-radius:999px;background:var(--vino);color:#fff;font-size:12.5px;font-weight:600">0</span>
 </header>
 
@@ -96,7 +96,6 @@
         <span class="flame" style="width:10px;height:17px;background:var(--vino)"></span>Velas de envase
       </div>
     </div>
-    <div id="thumbs" style="display:flex;gap:12px;margin-top:12px"></div>
   </div>
 
   <div>
@@ -116,7 +115,7 @@
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:22px">
       <div class="dato"><div class="meta" style="font-size:11px">Peso</div><div class="num" style="font-size:20px;font-weight:600;margin-top:8px">500 g</div></div>
       <div class="dato"><div class="meta" style="font-size:11px">Cera</div><div style="font-size:16px;font-weight:600;margin-top:10px">100% soja</div></div>
-      <div class="dato"><div class="meta" style="font-size:11px">Pabilo</div><div style="font-size:16px;font-weight:600;margin-top:10px">Algodón</div></div>
+      <div class="dato"><div class="meta" style="font-size:11px">Envase</div><div style="font-size:16px;font-weight:600;margin-top:10px">Vidrio</div></div>
     </div>
 
     <div style="display:flex;align-items:center;gap:14px;margin-top:26px;flex-wrap:wrap">
@@ -164,7 +163,6 @@ const CROSS = [
   { n:'Apaga velas', w:'Con dijes: la apaga sin humo ni soplidos.', p:5000, f:'img/apagavelas.jpg' },
   { n:'Bombones aromáticos', w:'En bolsita de organza, para regalar.', p:3000, f:'img/bombones.jpg' },
 ];
-const THUMBS = [];
 
 function pintarQty() { $('#qty').textContent = qty; $('#agregar').textContent = 'Sumar al carrito · ' + money(PRECIO * qty); }
 function pintarCarrito() {
@@ -206,13 +204,6 @@ function construirCross() {
     if (b) { cart += 1; subtotal += parseInt(b.dataset.p, 10); pintarCarrito(); }
   });
 }
-$('#thumbs').innerHTML = THUMBS.map((t, i) =>
-  `<button data-t="${t}" style="position:relative;width:96px;height:96px;overflow:hidden;border:${i===0?'2px solid var(--vino)':'1px solid var(--blush)'};background:transparent;padding:0;cursor:pointer"><img src="${t}" alt="" width="96" height="96" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></button>`).join('');
-document.querySelectorAll('#thumbs button').forEach((b) => b.addEventListener('click', () => {
-  $('#foto-grande').src = b.dataset.t;
-  document.querySelectorAll('#thumbs button').forEach((x) => x.style.border = '1px solid var(--blush)');
-  b.style.border = '2px solid var(--vino)';
-}));
 $('#mas').addEventListener('click', () => { qty += 1; pintarQty(); });
 $('#menos').addEventListener('click', () => { qty = Math.max(1, qty - 1); pintarQty(); });
 $('#agregar').addEventListener('click', () => { cart += qty; subtotal += PRECIO * qty; pintarCarrito(); });
