@@ -94,6 +94,14 @@ exterior y (b) la demo pública de la capacidad GSG** (análisis + producto en 4
    (`⚠️ abierto`), y chequear en la app el **spread final** antes de cada operación. Eso lo hacés vos; ninguna célula
    toca fondos.
 
+> **Decisión del dueño (rastro, MP-15) — 2026-09-02:** tras leer el resumen de los análisis y las objeciones del
+> Challenger, el dueño respondió **"avanza"**. Se interpreta como: construir la **fase 1 en modo demo a costo cero**
+> (calculadora de rieles + panel de costos BTC 15 m), sin bot de trading, sin cotizaciones en vivo, sin dominio ni
+> persistencia (DEMO → VENTA → INVERSIÓN). Entregable: `public/lab/mesa-cripto/index.html` (servida bajo
+> `/lab/mesa-cripto`, estándar del Lab) + Artifact privado de revisión:
+> https://claude.ai/code/artifact/90a6535a-fa90-4b00-a4b7-8e6883c9c83d (redeploy a la misma URL en cada cambio). El trade-off contra P1 queda asumido por el
+> dueño con esa palabra; si la lectura fuera otra, se revierte con un `git rm` (reversible).
+
 ## 7. Síntesis (se completa con la antítesis del Challenger)
 
 > Ver [`2026-09-02-challenger.md`](./2026-09-02-challenger.md). La síntesis final es del dueño; acá se anota qué

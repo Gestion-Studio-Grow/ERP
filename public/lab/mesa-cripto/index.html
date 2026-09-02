@@ -1,0 +1,267 @@
+<title>Mesa Cripto GSG</title>
+<meta name="generator" content="Gestión Studio Grow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F2F4F7;--surface:#FFFFFF;--ink:#16202E;--muted:#5E6B7E;--line:#D7DDE6;--line-soft:#E8ECF1;
+  --accent:#1B7A55;--accent-ink:#0F5C3E;--accent-soft:#DFF1E8;--warn:#B7791F;--warn-soft:#FBF1DC;--crit:#B03A3A;--crit-soft:#F9E3E3;
+  --bar:#1B7A55;--bar-dim:#A9C9BA;--focus:#2F6FB0;
+  --display:"Archivo",Arial Narrow,Arial,sans-serif;--body:"IBM Plex Sans",Helvetica,Arial,sans-serif;--mono:"IBM Plex Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E141C;--surface:#161F2B;--ink:#E8ECF2;--muted:#98A4B5;--line:#2A3644;--line-soft:#1F2936;
+  --accent:#3FB07F;--accent-ink:#7DD4AC;--accent-soft:#163526;--warn:#D9A24A;--warn-soft:#3A2D14;--crit:#E06A6A;--crit-soft:#3D1B1B;
+  --bar:#3FB07F;--bar-dim:#2E4A3D;--focus:#6FA6E8;}}
+:root[data-theme="dark"]{
+  --bg:#0E141C;--surface:#161F2B;--ink:#E8ECF2;--muted:#98A4B5;--line:#2A3644;--line-soft:#1F2936;
+  --accent:#3FB07F;--accent-ink:#7DD4AC;--accent-soft:#163526;--warn:#D9A24A;--warn-soft:#3A2D14;--crit:#E06A6A;--crit-soft:#3D1B1B;
+  --bar:#3FB07F;--bar-dim:#2E4A3D;--focus:#6FA6E8;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+a{color:var(--accent-ink)}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 56px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid var(--ink);padding-bottom:14px}
+.brand{font-family:var(--display);font-weight:700;font-size:28px;letter-spacing:-.01em;line-height:1.05}
+.brand small{display:block;font-family:var(--body);font-weight:500;font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-top:6px}
+.quotes{font-family:var(--mono);font-size:12.5px;color:var(--muted);text-align:right;line-height:1.6}
+.quotes b{color:var(--ink);font-weight:500}
+nav{display:flex;gap:6px;margin:18px 0 22px;flex-wrap:wrap}
+nav button{font:600 14px var(--body);padding:10px 16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+nav button:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:22px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px}
+.panel h2{font-family:var(--display);font-size:17px;font-weight:600;margin:0 0 12px;text-wrap:balance}
+.field{display:grid;gap:4px;margin-bottom:12px}
+.field label{font-size:12.5px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
+.field .hint{font-size:12px;color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+input[type=number],select{width:100%;font:500 15px var(--mono);padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin:6px 0}
+.check input{margin-top:3px}
+.verdict{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:16px 18px;border-radius:8px;background:var(--accent-soft);border:1px solid var(--accent);margin-bottom:16px}
+.verdict.warn{background:var(--warn-soft);border-color:var(--warn)}
+.verdict.crit{background:var(--crit-soft);border-color:var(--crit)}
+.verdict h3{margin:0 0 4px;font-family:var(--display);font-size:20px;font-weight:700;text-wrap:balance}
+.verdict p{margin:0;font-size:14px}
+.big{font-family:var(--display);font-weight:700;font-size:34px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.big small{font-size:14px;font-weight:600;color:var(--muted);margin-left:4px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line)}
+td{padding:10px 8px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.best td{background:var(--accent-soft)}
+.bar{height:8px;background:var(--bar-dim);border-radius:4px;overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%;background:var(--bar)}
+.tag{display:inline-block;font:500 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:middle}
+.tag.warn{border-color:var(--warn);color:var(--warn)}
+.name{font-weight:600}
+.sub{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.tile .k{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tile .v{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-top:4px}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:500;margin-left:3px}
+.tile.bad .v{color:var(--crit)}.tile.mid .v{color:var(--warn)}.tile.ok .v{color:var(--accent-ink)}
+.chart{display:grid;gap:8px;margin-top:6px}
+.crow{display:grid;grid-template-columns:150px 1fr 90px;gap:10px;align-items:center;font-size:13px}
+.crow .b{height:14px;background:var(--bar-dim);border-radius:3px;position:relative;overflow:hidden}
+.crow .b i{position:absolute;left:0;top:0;bottom:0;background:var(--crit)}
+.crow .b i.ok{background:var(--bar)}
+.crow .b s{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.crow .n{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.fine{font-size:12.5px;color:var(--muted);margin-top:14px;line-height:1.55}
+.fine ul{margin:6px 0 0;padding-left:18px}
+footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.scroll{overflow-x:auto}
+@media (prefers-reduced-motion:no-preference){.bar i,.crow .b i{transition:width .35s ease}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="brand">Mesa Cripto GSG<small>Calculadora de rieles de dólares · costos de BTC en 15 min · demo, sin datos reales</small></div>
+  <div class="quotes" id="quotes"></div>
+</header>
+
+<nav role="tablist" aria-label="Secciones">
+  <button role="tab" id="tab-rieles" aria-selected="true" aria-controls="p-rieles">¿Por dónde traigo mis dólares?</button>
+  <button role="tab" id="tab-btc" aria-selected="false" aria-controls="p-btc">¿Da operar BTC en 15 minutos?</button>
+</nav>
+
+<!-- ─────────── RIELES ─────────── -->
+<section id="p-rieles" role="tabpanel" aria-labelledby="tab-rieles">
+<div class="grid">
+  <form class="panel" id="f-rieles" onsubmit="return false">
+    <h2>Tu operación</h2>
+    <div class="field"><label for="monto">Monto a traer (USD)</label><input id="monto" type="number" min="100" step="100" value="2000"></div>
+    <div class="row2">
+      <div class="field"><label for="mep">Dólar MEP (ARS)</label><input id="mep" type="number" step="0.5" value="1535.5"></div>
+      <div class="field"><label for="lemonAsk">USDt venta en Lemon (ARS)</label><input id="lemonAsk" type="number" step="0.5" value="1615.54"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="feeIn">Comisión ACH Lemon (%)</label><input id="feeIn" type="number" step="0.1" value="1.5"><span class="hint">1,5 % hoy; hay fuentes con 2 % + 5 USD</span></div>
+      <div class="field"><label for="prima">Prima neta USDt→USD al banco (%)</label><input id="prima" type="number" step="0.1" value="3"><span class="hint">La que muestra la app al confirmar</span></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="wise">Wise, costo total (%)</label><input id="wise" type="number" step="0.1" value="0.6"></div>
+      <div class="field"><label for="swift">SWIFT directo, fijo (USD)</label><input id="swift" type="number" step="5" value="40"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="beloBid">USDT compra en Belo (ARS)</label><input id="beloBid" type="number" step="0.5" value="1585"></div>
+      <div class="field"><label for="p2pBid">USDT compra P2P Binance (ARS)</label><input id="p2pBid" type="number" step="0.5" value="1577.47"></div>
+    </div>
+    <label class="check"><input id="beloPromo" type="checkbox" checked> Belo con ACH sin comisión (promo 2026, a verificar)</label>
+    <label class="check"><input id="viaMep" type="checkbox" checked> Reconvertir pesos a dólar MEP (−0,5 %, T+1) en los rieles que terminan en pesos</label>
+  </form>
+
+  <div>
+    <div class="verdict" id="v-rieles"><div><h3 id="v-title"></h3><p id="v-text"></p></div><div class="big" id="v-num"></div></div>
+    <div class="panel scroll">
+      <h2>Ranking por dólares que quedan en la mano</h2>
+      <table aria-describedby="fine-rieles">
+        <thead><tr><th>Riel</th><th style="width:26%">Neto relativo</th><th class="num">Neto (USD)</th><th class="num">vs. mejor</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="fine" id="fine-rieles">
+        <span id="be-line"></span>
+        <ul>
+          <li>Prima <b>de pizarra</b> de Lemon (venta USDt ÷ MEP − 1): <span id="pizarra" class="num"></span>. La <b>neta</b> que ingresaste ya descuenta el spread de salida, que la app muestra recién al confirmar. La diferencia es el spread implícito: <span id="spread"></span>.</li>
+          <li>Los rieles que terminan en pesos (Belo, P2P) se expresan como equivalente en dólares reconvirtiendo a MEP: agregan un día y un paso más.</li>
+          <li>Todo entre cuentas propias, mismo titular. Sin cepo para personas humanas desde abril 2025; los PSAV informan a ARCA (RG 5804/2025). Consultá Ganancias con tu contador antes de repetir la operación.</li>
+          <li>Cotizaciones de ejemplo del 1 de septiembre de 2026. No es asesoramiento financiero: es una cuenta transparente para comparar.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ─────────── BTC ─────────── -->
+<section id="p-btc" role="tabpanel" aria-labelledby="tab-btc" hidden>
+<div class="grid">
+  <form class="panel" id="f-btc" onsubmit="return false">
+    <h2>Tu mesa de operaciones</h2>
+    <div class="field"><label for="ex">Exchange y tipo de orden</label>
+      <select id="ex">
+        <option value="0.0005,0.0002">Binance futuros taker (0,05 % + slip 0,02 %)</option>
+        <option value="0.0002,0.0002">Binance futuros maker (0,02 % + slip)</option>
+        <option value="0.00075,0.0002">Binance spot taker con BNB (0,075 % + slip)</option>
+        <option value="0.001,0.0002" selected>Binance spot taker (0,10 % + slip 0,02 %)</option>
+        <option value="0.01,0.0005">Binance P2P entrada/salida a pesos (~1 % por lado)</option>
+        <option value="0.015,0">Lemon app, spread ~1,5 % por lado</option>
+        <option value="0.02,0">Lemon app, spread 2 % por lado</option>
+      </select></div>
+    <div class="row2">
+      <div class="field"><label for="vol">Volatilidad anual de BTC (%)</label><input id="vol" type="number" step="0.5" value="34.6"><span class="hint">Realizada 90 d, jul-2026 (30 d: 32,3 · 365 d: 43,4)</span></div>
+      <div class="field"><label for="trades">Operaciones por año</label><input id="trades" type="number" step="10" value="330"><span class="hint">EMA 21/55 en 15 min ≈ 330</span></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="target">Objetivo neto anual (%)</label><input id="target" type="number" step="5" value="20"></div>
+      <div class="field"><label for="capital">Capital (USD)</label><input id="capital" type="number" step="500" value="5000"></div>
+    </div>
+  </form>
+
+  <div>
+    <div class="verdict" id="v-btc"><div><h3 id="b-title"></h3><p id="b-text"></p></div><div class="big" id="b-num"></div></div>
+    <div class="tiles">
+      <div class="tile" id="t-sigma"><div class="k">σ de una vela de 15 min</div><div class="v"></div></div>
+      <div class="tile" id="t-rt"><div class="k">Costo ida + vuelta</div><div class="v"></div></div>
+      <div class="tile" id="t-ratio"><div class="k">Velas a acertar por operación</div><div class="v"></div></div>
+      <div class="tile" id="t-drag"><div class="k">Costos por año</div><div class="v"></div></div>
+      <div class="tile" id="t-gross"><div class="k">Bruto necesario</div><div class="v"></div></div>
+      <div class="tile" id="t-per"><div class="k">Por operación, neto</div><div class="v"></div></div>
+    </div>
+    <div class="panel">
+      <h2>Cuánto se comen los costos por año, según cuánto operás (sin contar si acertás)</h2>
+      <div class="chart" id="chart"></div>
+      <div class="fine">
+        La barra es <b>operaciones por año × costo ida+vuelta</b> con el exchange elegido; la línea marca el 100 % del capital.
+        Conteo de operaciones por estrategia: simulación de 365 días en velas de 15 min (script <code>scripts/btc-15m-backtest.mjs</code>).
+        <ul>
+          <li>Quien cobra el spread (market maker) juega otro juego que quien lo paga. Un retail con orden taker arranca cada operación perdiendo el costo ida+vuelta.</li>
+          <li>Backtests públicos con costos en 15 min: EMA 21/55 −6,5 %; scalping 6 meses con drawdowns que se comen el win rate.</li>
+          <li>Impuestos aparte: Ganancias grava el resultado por compraventa de cripto (5 % / 15 %). Cientos de operaciones son cientos de hechos imponibles.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<footer><span>Demo a costo cero · datos de ejemplo fechados · nunca opera ni pide claves</span><span>Elaborado por Gestión Studio Grow</span></footer>
+</div>
+
+<script>
+(function(){
+  const $=(id)=>document.getElementById(id);
+  const fmt=(n,d=2)=>n.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
+  const pct=(x,d=2)=>(x>=0?'+':'−')+fmt(Math.abs(x)*100,d)+' %';
+  const pctAbs=(x,d=2)=>fmt(x*100,d)+' %';
+
+  // ── Tabs ──
+  const tabs=[['tab-rieles','p-rieles'],['tab-btc','p-btc']];
+  tabs.forEach(([t,p])=>$(t).addEventListener('click',()=>{tabs.forEach(([t2,p2])=>{$(t2).setAttribute('aria-selected',t2===t);$(p2).hidden=p2!==p;});try{localStorage.setItem('mesa-tab',t)}catch(e){}}));
+  try{const s=localStorage.getItem('mesa-tab');if(s&&$(s))$(s).click();}catch(e){}
+
+  // ── Rieles ──
+  function rieles(){
+    const M=+$('monto').value||0, mep=+$('mep').value||1, lemonAsk=+$('lemonAsk').value||mep;
+    const fIn=(+$('feeIn').value||0)/100, prima=(+$('prima').value||0)/100, wise=(+$('wise').value||0)/100, swift=+$('swift').value||0;
+    const beloBid=+$('beloBid').value||mep, p2pBid=+$('p2pBid').value||mep, beloPromo=$('beloPromo').checked, viaMep=$('viaMep').checked;
+    const mepCost=viaMep?0.005:0;
+    const pesos=(usdt,bid)=>usdt*(bid/mep)*(1-mepCost);
+    const rows=[
+      {n:'Lemon · ACH → USDt → banco AR',s:`${pctAbs(fIn,1)} de entrada, prima neta ${pctAbs(prima,1)}`,v:M*(1-fIn)*(1+prima),lemon:true},
+      {n:'Lemon · USDT comprado afuera → banco AR',s:'0,25 % de compra + 1 USD de red, misma prima',v:(M*(1-0.0025)-1)*(1+prima),lemon:true,tag:'más pasos'},
+      {n:'Belo · ACH → USDT → pesos'+(viaMep?' → MEP':''),s:(beloPromo?'ACH 0 % (promo a verificar)':'ACH 1,5 %')+`, compra ${fmt(beloBid,0)} ARS`,v:pesos(M*(beloPromo?1:0.985),beloBid),tag:'termina en pesos'},
+      {n:'Binance P2P → pesos'+(viaMep?' → MEP':''),s:`0,25 % + red, compra ${fmt(p2pBid,0)} ARS`,v:pesos(M*(1-0.0025)-1,p2pBid),tag:'contraparte P2P',warn:true},
+      {n:'Wise → pesos a interbancario',s:`${pctAbs(wise,1)} todo incluido, 1–2 días`,v:M*(1-wise),nominal:true},
+      {n:'Takenos · ACH 0 % → banco AR 1 %',s:'dólar nominal, sin prima',v:M*0.99,nominal:true},
+      {n:'SWIFT directo a caja de ahorro USD',s:`${fmt(swift,0)} USD fijos entre bancos, 2–5 días`,v:M-swift,nominal:true},
+    ];
+    rows.sort((a,b)=>b.v-a.v);
+    const best=rows[0].v, bestNominal=Math.max(...rows.filter(r=>r.nominal).map(r=>r.v)), bestNominalRow=rows.find(r=>r.nominal&&r.v===bestNominal);
+    const lemon=rows.find(r=>r.n.startsWith('Lemon · ACH'));
+    const worst=Math.min(...rows.map(r=>r.v));
+    $('rows').innerHTML=rows.map((r,i)=>`<tr class="${i===0?'best':''}"><td><span class="name">${r.n}</span>${r.tag?`<span class="tag ${r.warn?'warn':''}">${r.tag}</span>`:''}<span class="sub">${r.s}</span></td><td><div class="bar" role="img" aria-label="${fmt(r.v,0)} dólares"><i style="width:${Math.max(4,((r.v-worst*0.97)/(best-worst*0.97))*100)}%"></i></div></td><td class="num">${fmt(r.v)}</td><td class="num">${i===0?'mejor':pct((r.v-best)/best)}</td></tr>`).join('');
+    const be=bestNominal/(M*(1-fIn))-1;
+    const pizarra=lemonAsk/mep-1;
+    $('pizarra').textContent=pctAbs(pizarra); $('spread').textContent=pctAbs(pizarra-prima);
+    $('be-line').innerHTML=`<b>Punto de quiebre de Lemon:</b> con ${pctAbs(fIn,1)} de entrada, Lemon empata con el mejor riel sin prima cripto (${bestNominalRow.n.split(' ')[0]}) cuando la prima neta es <b>${pctAbs(be)}</b> (${fmt(bestNominal)} ÷ ${fmt(M*(1-fIn))} − 1). Por debajo de eso, conviene el riel sin cripto.`;
+    const v=$('v-rieles'); const gain=lemon.v-bestNominal; const lemonIsBest=rows[0].lemon;
+    v.className='verdict '+(gain>M*0.005?'':gain>0?'warn':'crit');
+    $('v-title').textContent=gain>0?`Lemon deja ${fmt(gain,0)} USD más que traerlos sin cripto (${bestNominalRow.n.split(' ')[0]})`:`Hoy conviene traerlos sin cripto (${bestNominalRow.n.split(' ')[0]})`;
+    $('v-text').textContent=(lemonIsBest?`Lemon es además el mejor riel del ranking. `:`El que más deja es ${rows[0].n} (${fmt(rows[0].v)} USD), con más pasos o un dato a verificar. `)+`Colchón de Lemon sobre su punto de quiebre: ${pct(prima-be)} de prima. La prima es una ventana, no un rendimiento.`;
+    $('v-num').innerHTML=`${fmt(lemon.v,0)}<small>USD netos por Lemon</small>`;
+    $('quotes').innerHTML=`Ejemplo 01-sep-2026 · MEP <b>${fmt(mep,1)}</b> · oficial BNA <b>1.530</b> · USDt Lemon venta <b>${fmt(lemonAsk,2)}</b><br>prima de pizarra <b>${pctAbs(pizarra)}</b> · neta usada <b>${pctAbs(prima,1)}</b>`;
+  }
+  $('f-rieles').addEventListener('input',rieles); rieles();
+
+  // ── BTC ──
+  const STRATS=[['EMA 9/21',842],['Bollinger 20/2σ',661],['Donchian 20',419],['EMA 21/55',332],['RSI 14',224],['EMA 50/200',106],['Donchian 1 día',104],['Swing diario',24]];
+  function btc(){
+    const [fee,slip]=$('ex').value.split(',').map(Number);
+    const vol=(+$('vol').value||0)/100, trades=+$('trades').value||0, target=(+$('target').value||0)/100, cap=+$('capital').value||0;
+    const sigma=vol/Math.sqrt(365*96), rt=2*(fee+slip), ratio=rt/sigma, drag=trades*rt, gross=target+drag, per=trades?gross/trades:0, perSig=sigma?per/sigma:0;
+    const set=(id,html,cls)=>{const t=$(id);t.querySelector('.v').innerHTML=html;t.className='tile '+(cls||'');};
+    set('t-sigma',`${pctAbs(sigma,3)}`);
+    set('t-rt',`${pctAbs(rt,3)}`,ratio>2?'bad':ratio>0.5?'mid':'ok');
+    set('t-ratio',`${fmt(ratio,2)}<small>σ</small>`,ratio>2?'bad':ratio>0.5?'mid':'ok');
+    set('t-drag',`${pctAbs(drag,0)}<small>del capital</small>`,drag>0.5?'bad':drag>0.15?'mid':'ok');
+    set('t-gross',`${pctAbs(gross,0)}<small>para ${pctAbs(target,0)} neto</small>`,gross>0.6?'bad':gross>0.3?'mid':'ok');
+    set('t-per',`${pctAbs(per,2)}<small>= ${fmt(perSig,1)} σ</small>`,perSig>1?'bad':perSig>0.4?'mid':'ok');
+    const v=$('v-btc');
+    let cls,title,text;
+    if(ratio>3){cls='crit';title='No da: el costo de cada operación es más grande que varias velas enteras';text=`Con este riel cada entrada y salida cuesta ${fmt(ratio,1)} desvíos de una vela de 15 min. Ninguna estrategia activa sobrevive: los costos solos se llevan ${pctAbs(drag,0)} del capital al año.`;}
+    else if(ratio>0.5){cls='warn';title='Estructuralmente en contra: arrancás cada operación perdiendo ~1 vela';text=`Para ganar ${pctAbs(target,0)} neto con ${fmt(trades,0)} operaciones necesitás ${pctAbs(gross,0)} bruto: acertar ${fmt(perSig,1)} σ de vela en cada operación, todo el año. Eso lo logra quien cobra el spread, no quien lo paga.`;}
+    else{cls='';title='El costo no te mata solo; ahora falta demostrar el edge';text=`Costo ida+vuelta de ${pctAbs(rt,3)} contra ${pctAbs(sigma,3)} de σ por vela. Condición para seguir: backtest real out-of-sample con más de 100 operaciones que supere al azar y a buy & hold; después 30 días de paper trading.`;}
+    v.className='verdict '+cls; $('b-title').textContent=title; $('b-text').textContent=text;
+    $('b-num').innerHTML=`${fmt(cap*drag,0)}<small>USD/año en costos</small>`;
+    const max=Math.max(1.05,...STRATS.map(s=>s[1]*rt));
+    $('chart').innerHTML=STRATS.map(([n,t])=>{const d=t*rt;return `<div class="crow"><span>${n}<span class="sub">${t} op/año</span></span><div class="b" role="img" aria-label="${pctAbs(d,0)} del capital"><i class="${d<0.15?'ok':''}" style="width:${Math.min(100,d/max*100)}%"></i><s style="left:${1/max*100}%"></s></div><span class="n">${pctAbs(d,0)}</span></div>`;}).join('');
+  }
+  $('f-btc').addEventListener('input',btc); btc();
+})();
+</script>
