@@ -5,33 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Shine · Prototipo de diseño de la tienda</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="description" content="Prototipo de diseño de la tienda de Shine — datos de muestra.">
+<meta name="description" content="Prototipo de diseño de la tienda de Shine — catálogo real, carrito de muestra.">
 <meta name="generator" content="Gestión Studio Grow">
 <link rel="icon" href="/tenants/shinevelas/brand/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="image" href="/tenants/shinevelas/mundo-velas.jpg" fetchpriority="high">
+<link rel="preload" as="image" href="img/medio-kilo.jpg" fetchpriority="high">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Kumbh+Sans:wght@400;600;700&display=swap">
 <style>
-  /* Un solo color de marca en la acción de compra (--acc); jerarquía por tipografía y espacio. */
-  :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d9d5; --nude:#d0aeac;
+  /* Identidad del catálogo oficial: blush, destello ✦, hairlines, serif elegante.
+     Un solo color de marca en la acción de compra (--acc). */
+  :root { --crema:#f3ebe1; --papel:#fdf8f2; --blush:#e8d0cc; --blush-s:#f0e0dc; --nude:#d0aeac;
           --malva-d:#835c5b; --acc:#671128; --tinta:#3a2429; --linea:#e4d7d0; }
   * { box-sizing:border-box; }
   body { margin:0; color:var(--tinta); font-family:'Kumbh Sans',system-ui,sans-serif; line-height:1.55;
-    -webkit-font-smoothing:antialiased; background:#f3ebe1; }
-  body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)' opacity='.16'/%3E%3C/svg%3E"),
-      linear-gradient(180deg,#f7f1e9 0%,#f3ebe1 44%,#efe5da 100%);
-    background-size:120px 120px,auto; background-repeat:repeat,no-repeat;
-    background-blend-mode:multiply,normal; }
+    background:#f3ebe1; -webkit-font-smoothing:antialiased; }
   a { color:var(--tinta); text-decoration:none; }
   button { font-family:inherit; }
   .disp { font-family:'Cormorant Garamond',Georgia,serif; font-weight:400; letter-spacing:-.01em; line-height:1; }
   .num { font-variant-numeric:tabular-nums; }
   .meta { font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--malva-d); }
+  .destello { width:11px; height:11px; vertical-align:-1px; }
 
-  /* barra de anuncio: convención de tienda (Otherland/Anecdote) — en flujo, no flota */
   .anuncio { text-align:center; background:var(--tinta); color:#f3ebe1; font-size:11px;
              font-weight:600; letter-spacing:.14em; text-transform:uppercase; padding:9px 16px; }
   .aviso { position:fixed; right:14px; top:52px; z-index:60; pointer-events:none;
@@ -39,14 +34,23 @@
            font-size:10px; font-weight:600; letter-spacing:.18em; text-transform:uppercase;
            padding:8px 14px; border-radius:999px; backdrop-filter:blur(4px); }
 
-  /* logo y nav a la izquierda: la esquina derecha queda libre para el aviso fijo */
-  .cab { display:flex; align-items:center; gap:30px; max-width:1240px;
-         margin:0 auto; padding:24px 48px 0; }
-  .cab img { width:52px; height:auto; display:block; }
+  /* portada a la manera del catálogo: banda blush con la trama oficial arriba */
+  .portada { background:var(--blush); border-bottom:1px solid var(--nude); }
+  .portada .trama { height:64px; background:url(img/trama.png) repeat; background-size:190px; opacity:.55; }
+  .portada .adentro { max-width:1240px; margin:0 auto; padding:34px 48px 44px;
+                      display:flex; align-items:flex-end; justify-content:space-between; gap:30px; flex-wrap:wrap; }
+  .portada img.logo { width:118px; height:auto; display:block; }
+  .portada .lema { margin:10px 0 0; font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--tinta); }
+  .portada h1 { margin:16px 0 0; font-size:clamp(34px,4.2vw,54px); font-weight:300; color:var(--tinta); }
+  .portada .manifiesto { margin:14px 0 0; max-width:52ch; font-size:15px; line-height:1.6; color:#5d4340;
+                         font-style:italic; font-family:'Cormorant Garamond',Georgia,serif; font-size:19px; }
 
-  .intro { max-width:1240px; margin:0 auto; padding:52px 48px 8px; }
-  .intro h1 { font-size:clamp(38px,4.6vw,62px); font-weight:300; color:var(--tinta); margin:14px 0 0; }
-  .intro .baja { margin:14px 0 0; font-size:15.5px; color:var(--malva-d); max-width:56ch; }
+  /* nuestros aromas — elegís la fragancia de tu vela */
+  .aromas { max-width:1240px; margin:0 auto; padding:30px 48px 6px; }
+  .aromas .fila-aroma { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; margin-top:12px; }
+  .aromas .cual { flex:none; width:120px; }
+  .aromitas { display:flex; gap:8px; flex-wrap:wrap; }
+  .aromita { border:1px solid var(--nude); border-radius:999px; padding:5px 13px; font-size:12px; color:var(--tinta); }
 
   .filtros { position:sticky; top:0; z-index:40; background:rgba(243,235,225,.96);
              backdrop-filter:blur(6px); border-bottom:1px solid var(--linea); }
@@ -58,14 +62,15 @@
   .chip:hover { border-color:var(--malva-d); }
   .chip.on { background:var(--tinta); border-color:var(--tinta); color:var(--crema); }
 
-  .grilla { max-width:1240px; margin:0 auto; padding:44px 48px 90px;
+  .grilla { max-width:1240px; margin:0 auto; padding:40px 48px 84px;
             display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:40px 28px; }
   .prod { display:flex; flex-direction:column; }
-  .prod .marco { position:relative; overflow:hidden; border-radius:4px; border:1px solid var(--blush); }
+  .prod .marco { position:relative; overflow:hidden; border-radius:4px; border:1px solid var(--linea);
+                 background:var(--papel); }
   .prod .marco img { display:block; width:100%; height:auto; aspect-ratio:4/5; object-fit:cover;
-                     filter:saturate(1.04) contrast(1.02); transition:transform .5s ease; }
+                     transition:transform .5s ease; }
   .prod:hover .marco img { transform:scale(1.03); }
-  /* al pasar el mouse la foto cambia a la vista de ambiente: el swap clásico de las tiendas de velas */
+  /* al pasar el mouse, la variante del producto (el swap clásico de las tiendas de velas) */
   .prod .marco .alt { position:absolute; inset:0; width:100%; height:100%; opacity:0;
                       transition:opacity .35s ease; }
   @media (hover:hover) { .prod:hover .marco .alt { opacity:1; } }
@@ -82,14 +87,23 @@
            border-radius:999px; min-height:40px; padding:0 17px; font-size:10.5px; font-weight:600;
            letter-spacing:.12em; text-transform:uppercase; transition:.25s; }
   .sumar:hover { background:var(--acc); color:var(--crema); }
-  @media (prefers-reduced-motion:reduce) { .prod .marco img { transition:none; } }
+  @media (prefers-reduced-motion:reduce) { .prod .marco img, .prod .marco .alt { transition:none; } }
 
-  .idea { text-align:center; padding:66px 24px; border-top:1px solid var(--linea); }
-  .idea p { margin:0 auto; max-width:36ch; font-family:'Cormorant Garamond',Georgia,serif;
-            font-style:italic; font-weight:300; font-size:clamp(22px,2.6vw,29px); line-height:1.4;
-            color:var(--malva-d); }
+  /* cierre real del catálogo: personalizados */
+  .consultas { background:var(--blush-s); border-top:1px solid var(--linea); text-align:center;
+               padding:58px 24px; }
+  .consultas h2 { margin:0; font-size:clamp(26px,3.2vw,38px); font-weight:300; }
+  .consultas p { margin:12px auto 0; max-width:52ch; font-size:14.5px; color:var(--malva-d); }
+  .consultas a.cta-consulta { display:inline-flex; align-items:center; justify-content:center; margin-top:22px;
+       min-height:46px; padding:0 30px; border:1px solid var(--acc); border-radius:999px; color:var(--acc);
+       font-size:11px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; transition:.25s; }
+  .consultas a.cta-consulta:hover { background:var(--acc); color:var(--crema); }
 
-  .pie { max-width:1240px; margin:0 auto; padding:56px 48px 54px; border-top:1px solid var(--linea);
+  .idea { text-align:center; padding:56px 24px 50px; }
+  .idea p { margin:0 auto; font-family:'Cormorant Garamond',Georgia,serif;
+            font-style:italic; font-weight:300; font-size:clamp(22px,2.6vw,29px); color:var(--malva-d); }
+
+  .pie { max-width:1240px; margin:0 auto; padding:50px 48px 54px; border-top:1px solid var(--linea);
          display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; }
   .pie .meta { letter-spacing:.18em; }
   .pie div > div:last-child { margin-top:12px; font-size:13.5px; color:var(--malva-d); line-height:1.7; }
@@ -106,22 +120,22 @@
   @media (prefers-reduced-motion:reduce) { .barra .fill { transition:none; } }
 
   @media (max-width:900px) {
-    .cab { padding:18px 20px 0; }
-    .intro { padding:34px 20px 4px; }
-    .intro .baja { font-size:14.5px; }
+    .portada .adentro { padding:26px 20px 34px; }
+    .portada .trama { height:52px; }
+    .aromas { padding:24px 20px 2px; }
+    .aromas .cual { width:100%; }
     .filtros > div { padding:12px 20px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
     .filtros > div::-webkit-scrollbar { display:none; }
     .chip { flex:none; min-height:44px; }
-    .grilla { grid-template-columns:repeat(2,minmax(0,1fr)); gap:30px 14px; padding:28px 20px 80px; }
-    .prod h3 { font-size:18.5px; }
+    .grilla { grid-template-columns:repeat(2,minmax(0,1fr)); gap:30px 14px; padding:26px 20px 76px; }
+    .prod h3 { font-size:18px; }
     .prod .pie-prod { flex-wrap:wrap; }
     .sumar { min-height:44px; }
-    .idea { padding:52px 24px; }
     /* en móvil el aviso es una tira pegada a la bandeja: nunca flota sobre el contenido */
     .aviso { display:none; }
-    .barra::before { content:"Prototipo de diseño · datos de muestra"; position:absolute;
+    .barra::before { content:"Prototipo de diseño · catálogo real, carrito de muestra"; position:absolute;
              left:0; right:0; bottom:calc(100% - 1px); text-align:center; pointer-events:none;
-             font-size:9px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+             font-size:9px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
              color:#f3ebe1; background:rgba(58,17,25,.92); padding:5px 0; }
     .barra { padding:12px 18px calc(12px + env(safe-area-inset-bottom)); gap:14px; }
     .barra .medidor { display:none; }
@@ -132,24 +146,51 @@
 </head>
 <body>
 <div class="anuncio">Envío gratis en CABA y GBA desde $25.000</div>
-<div class="aviso" role="note" aria-label="Aviso de prototipo">Prototipo de diseño · datos de muestra</div>
-
-<header class="cab">
-  <a href="#" aria-label="Shine"><img src="/tenants/shinevelas/brand/logo.png" alt="Shine" width="2150" height="663" decoding="async"></a>
-  <span class="meta">Velas de soja · vertidas a mano</span>
-</header>
+<div class="aviso" role="note" aria-label="Aviso de prototipo">Prototipo de diseño · catálogo real, carrito de muestra</div>
 
 <main>
-  <section class="intro">
-    <h1 class="disp">La tienda de Shine</h1>
-    <p class="baja">Quince piezas hechas de a tandas chicas, desde $4.900. Cera de soja y pabilo de algodón, nada más.</p>
+  <header class="portada">
+    <div class="trama" aria-hidden="true"></div>
+    <div class="adentro">
+      <div>
+        <img class="logo" src="/tenants/shinevelas/brand/logo.png" alt="Shine" width="2150" height="663" decoding="async">
+        <p class="lema">Que tu luz nunca se apague</p>
+        <h1 class="disp">Catálogo · Velas y aromas</h1>
+        <p class="manifiesto">No son solo velas. Son pausas, rituales y atmósferas que transforman lo cotidiano.
+          Artesanales, de cera de soja, y con la fragancia que vos elijas.</p>
+      </div>
+    </div>
+  </header>
+
+  <section class="aromas" aria-label="Nuestros aromas">
+    <div class="meta"><img class="destello" src="img/destello.png" alt="" aria-hidden="true"> Nuestros aromas — elegís la fragancia de tu vela</div>
+    <div class="fila-aroma"><span class="cual meta">Velas</span>
+      <div class="aromitas">
+        <span class="aromita">Vainilla &amp; Caramelo</span><span class="aromita">Rosas</span>
+        <span class="aromita">Lavanda</span><span class="aromita">Frutos Rojos</span>
+        <span class="aromita">Bebé</span><span class="aromita">Coco &amp; Lima</span>
+        <span class="aromita">Limón &amp; Jengibre</span><span class="aromita">Flores Blancas</span>
+        <span class="aromita">Mango &amp; Maracuyá</span>
+      </div></div>
+    <div class="fila-aroma"><span class="cual meta">Difusores y home</span>
+      <div class="aromitas">
+        <span class="aromita">Peras &amp; Flores</span><span class="aromita">Naranja &amp; Jengibre</span>
+        <span class="aromita">Vaini &amp; Coco</span><span class="aromita">Limón &amp; Jengibre</span>
+        <span class="aromita">Flores Blancas</span><span class="aromita">Tilo</span>
+      </div></div>
   </section>
 
-  <nav class="filtros" aria-label="Filtrar por familia de aroma">
+  <nav class="filtros" aria-label="Filtrar por categoría">
     <div id="chips"></div>
   </nav>
 
   <section class="grilla" id="grilla" aria-label="Productos"></section>
+
+  <section class="consultas">
+    <h2 class="disp">¿Buscabas algo que no encontraste?</h2>
+    <p>Hacemos souvenirs y pedidos personalizados. Contanos qué tenés en mente y lo armamos juntas.</p>
+    <a class="cta-consulta" href="https://www.instagram.com/shine.velas.store" rel="noopener" target="_blank">Consultanos por Instagram</a>
+  </section>
 
   <section class="idea" aria-label="Lema de la marca">
     <p>Que tu luz nunca se apague.</p>
@@ -176,36 +217,69 @@
 
 <script>
 // ── Demo estática de la tienda Shine · Elaborado por GSG ──
-// TODO ES DE MUESTRA: precios, horas, m², gramajes y formatos. Los reales salen del ERP
-// cuando el dueño releve el catálogo de Shine. El cartel fijo de la página lo declara.
+// PRODUCTOS Y PRECIOS REALES del catálogo oficial 2026 (docs/diseno/catalogo-shine-2026.md).
+// El carrito es de muestra: no persiste ni cobra. El cartel fijo de la página lo declara.
 const CAT = [
-  { id:'v1', nombre:'Vainilla y canela', fam:'calidos', notas:'vainilla · canela · caramelo · 45 h', precio:12900, foto:'/tenants/shinevelas/mundo-velas.jpg', tag:'La más elegida', foto2:'/tenants/shinevelas/hero.jpg' },
-  { id:'v2', nombre:'Coco y vainilla', fam:'calidos', notas:'coco · vainilla · leche tibia · 45 h', precio:12900, foto:'/tenants/shinevelas/gift.jpg', foto2:'/tenants/shinevelas/ambiance.jpg' },
-  { id:'v8', nombre:'Vainilla y canela · dos mechas', fam:'calidos', notas:'el doble de ambiente · 80 h', precio:19900, foto:'/tenants/shinevelas/hero.jpg', foto2:'/tenants/shinevelas/mundo-velas.jpg' },
-  { id:'v9', nombre:'Coco y vainilla · lata viajera', fam:'calidos', notas:'para llevar a donde vayas · 25 h', precio:8900, foto:'/tenants/shinevelas/mundo-decoracion.jpg', foto2:'/tenants/shinevelas/gift.jpg' },
-  { id:'v3', nombre:'Flor de naranjo', fam:'florales', notas:'azahar · neroli · miel · 40 h', precio:11900, foto:'/tenants/shinevelas/mundo-aromas.jpg', foto2:'/tenants/shinevelas/mundo-decoracion.jpg' },
-  { id:'v4', nombre:'Jazmín', fam:'florales', notas:'jazmín · pétalos blancos · 40 h', precio:11900, foto:'/tenants/shinevelas/ambiance.jpg', foto2:'/tenants/shinevelas/mundo-decoracion.jpg' },
-  { id:'v5', nombre:'Lavanda', fam:'florales', notas:'lavanda · romero · lino · 40 h', precio:11900, foto:'/tenants/shinevelas/mundo-decoracion.jpg', foto2:'/tenants/shinevelas/gift.jpg' },
-  { id:'s1', nombre:'Sahumerios Flor de naranjo', fam:'florales', notas:'caja × 20 · azahar · resina suave', precio:4900, foto:'/tenants/shinevelas/mundo-aromas.jpg', foto2:'/tenants/shinevelas/ambiance.jpg' },
-  { id:'t1', nombre:'Textil Lavanda', fam:'florales', notas:'100 ml · lavanda · algodón limpio', precio:8900, foto:'/tenants/shinevelas/gift.jpg', foto2:'/tenants/shinevelas/mundo-decoracion.jpg' },
-  { id:'v6', nombre:'Sándalo', fam:'amaderados', notas:'sándalo · vetiver · cuero suave · 50 h', precio:13900, foto:'/tenants/shinevelas/ambiance.jpg', foto2:'/tenants/shinevelas/mundo-aromas.jpg' },
-  { id:'v7', nombre:'Cedro y ámbar', fam:'amaderados', notas:'cedro · ámbar · incienso · 50 h', precio:13900, foto:'/tenants/shinevelas/mundo-decoracion.jpg', foto2:'/tenants/shinevelas/ambiance.jpg' },
-  { id:'d1', nombre:'Difusor Sándalo', fam:'amaderados', notas:'250 ml · varillas de rattan · 8 a 10 semanas', precio:14900, foto:'/tenants/shinevelas/mundo-aromas.jpg', foto2:'/tenants/shinevelas/mundo-decoracion.jpg' },
-  { id:'g1', nombre:'Set Ritual', fam:'regalo', notas:'vela + difusor a juego + fósforos largos', precio:21900, foto:'/tenants/shinevelas/gift.jpg', tag:'El más elegido', foto2:'/tenants/shinevelas/hero.jpg' },
-  { id:'g2', nombre:'Caja Aromas', fam:'regalo', notas:'3 velas aromáticas en caja de regalo', precio:22900, foto:'/tenants/shinevelas/hero.jpg', foto2:'/tenants/shinevelas/gift.jpg' },
-  { id:'g3', nombre:'Set Deco & Luz', fam:'regalo', notas:'vela decorativa + portavela + bandeja', precio:24900, foto:'/tenants/shinevelas/mundo-velas.jpg', tag:'Envío gratis', foto2:'/tenants/shinevelas/ambiance.jpg' },
+  // Velas de envase
+  { id:'e1', nombre:'Medio kilo de vela', cat:'envase', sub:'frasco de vidrio con moños · 500 g', precio:25000, foto:'img/medio-kilo.jpg', ficha:true },
+  { id:'e2', nombre:'Morronero liso', cat:'envase', sub:'200 g', precio:12000, foto:'img/morronero-liso.jpg' },
+  { id:'e3', nombre:'Mini morronero', cat:'envase', sub:'100 g · puede variar el lazo', precio:8000, foto:'img/mini-morronero.jpg' },
+  { id:'e4', nombre:'Envase Tenesse', cat:'envase', sub:'320 g · liso, alas o mariposa', precio:17000, foto:'img/tenesse-alas.jpg', foto2:'img/tenesse-mariposa.jpg' },
+  { id:'e5', nombre:'Lata de vidrio', cat:'envase', sub:'480 g · cerezas, patitas, ojo turco y más', precio:28000, foto:'img/lata-cerezas.jpg', foto2:'img/lata-patitas.jpg' },
+  { id:'e6', nombre:'Refill de vela', cat:'envase', sub:'100 g · traé tu envase limpio', precio:3000, foto:'img/refill-velas.jpg' },
+  // Personalizadas
+  { id:'p1', nombre:'“Huele a que…”', cat:'perso', sub:'elegís cómo termina la frase · con anticipación', precio:19000, foto:'img/huele-a-que.jpg', tag:'Personalizada' },
+  { id:'p2', nombre:'Morronero personalizado', cat:'perso', sub:'sticker con tu frase · con anticipación', precio:13000, foto:'img/morronero-perso.jpg', tag:'Personalizada' },
+  { id:'p3', nombre:'Morronero con figuras', cat:'perso', sub:'ositos, corazones, cereales o frambuesas', precio:13000, foto:'img/morronero-figuras.jpg' },
+  // Velas de molde
+  { id:'m1', nombre:'Peonia', cat:'molde', sub:'vela de molde', precio:7500, foto:'img/peonia.jpg' },
+  { id:'m2', nombre:'Rosa', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/rosas.jpg' },
+  { id:'m3', nombre:'Flor de loto', cat:'molde', sub:'vela de molde', precio:7000, foto:'img/flor-loto.jpg' },
+  { id:'m4', nombre:'Margarita', cat:'molde', sub:'sola · en bolsita de organza $3.000', precio:2500, foto:'img/margaritas.jpg' },
+  { id:'m5', nombre:'Bouquet floral', cat:'molde', sub:'ramo de velas para regalar', precio:28000, foto:'img/bouquet.jpg' },
+  { id:'m6', nombre:'Oso XL', cat:'molde', sub:'vela de molde', precio:8500, foto:'img/osos.jpg' },
+  { id:'m7', nombre:'Oso Teddy', cat:'molde', sub:'vela de molde', precio:7000, foto:'img/osos.jpg' },
+  { id:'m8', nombre:'Mini oso', cat:'molde', sub:'vela de molde', precio:4500, foto:'img/osos.jpg' },
+  { id:'m9', nombre:'Pastillas diseños', cat:'molde', sub:'moño, bouquet, love y más', precio:6500, foto:'img/pastillas.jpg' },
+  { id:'m10', nombre:'Corazón texturado', cat:'molde', sub:'vela de molde', precio:7000, foto:'img/corazon-texturado.jpg' },
+  { id:'m11', nombre:'León', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/leon-jirafa.jpg' },
+  { id:'m12', nombre:'Jirafa', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/leon-jirafa.jpg' },
+  { id:'m13', nombre:'Almeja', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/almeja.jpg' },
+  { id:'m14', nombre:'Buda', cat:'molde', sub:'vela de molde', precio:7000, foto:'img/buda.jpg' },
+  { id:'m15', nombre:'Sol & Luna', cat:'molde', sub:'vela de molde', precio:7500, foto:'img/sol-luna.jpg' },
+  { id:'m16', nombre:'Columna XL', cat:'molde', sub:'vela de molde', precio:14000, foto:'img/columnas.jpg' },
+  { id:'m17', nombre:'Columna mini', cat:'molde', sub:'vela de molde', precio:6000, foto:'img/columnas.jpg' },
+  { id:'m18', nombre:'Bubble corazón', cat:'molde', sub:'vela de molde', precio:16000, foto:'img/bubble-corazon.jpg' },
+  { id:'m19', nombre:'Bubble x2', cat:'molde', sub:'dos bubbles', precio:7500, foto:'img/bubble-x2.jpg' },
+  { id:'m20', nombre:'Vela candelabro + moño', cat:'molde', sub:'vela espiralada con base de moño', precio:27000, foto:'img/candelabro.jpg' },
+  { id:'m21', nombre:'Perita', cat:'molde', sub:'vela de molde', precio:9500, foto:'img/perita.jpg' },
+  { id:'m22', nombre:'Cilindro texturado', cat:'molde', sub:'vela de molde', precio:8000, foto:'img/cilindro.jpg' },
+  { id:'m23', nombre:'Estructurales x2', cat:'molde', sub:'par de velas estructurales', precio:18000, foto:'img/estructurales.jpg' },
+  { id:'m24', nombre:'Velón mariposa', cat:'molde', sub:'velón texturado', precio:21000, foto:'img/velon-mariposa.jpg' },
+  // Difusores y home
+  { id:'d1', nombre:'Difusor petaca', cat:'difu', sub:'vidrio · 200 cc · incluye varillas', precio:15000, foto:'img/difusor-petaca.jpg' },
+  { id:'d2', nombre:'Difusor rosé', cat:'difu', sub:'plástico · 125 cc · incluye varillas', precio:13000, foto:'img/difusor-rose.jpg' },
+  { id:'d3', nombre:'Kit difu + home', cat:'difu', sub:'difusor rosé + home spray grande + varillas', precio:23000, foto:'img/kit-difu-home.jpg' },
+  { id:'d4', nombre:'Home spray grande', cat:'difu', sub:'plástico · 250 cc', precio:13000, foto:'img/home-spray-grande.jpg' },
+  { id:'d5', nombre:'Home spray chico', cat:'difu', sub:'plástico transparente · 200 cc', precio:10000, foto:'img/home-spray-chico.jpg' },
+  { id:'d6', nombre:'Refill difu/home', cat:'difu', sub:'200 cc · también 300 y 500 cc', precio:9000, foto:'img/refill-difu.jpg' },
+  // Extras
+  { id:'x1', nombre:'Tabletas aromáticas', cat:'extras', sub:'para cajones y placares', precio:6500, foto:'img/tabletas.jpg' },
+  { id:'x2', nombre:'Apaga velas', cat:'extras', sub:'con dijes', precio:5000, foto:'img/apagavelas.jpg' },
+  { id:'x3', nombre:'Bombones aromáticos', cat:'extras', sub:'en bolsita de organza', precio:3000, foto:'img/bombones.jpg' },
 ];
-const FAMILIAS = [
-  { k:'todas', nombre:'Todas' },
-  { k:'calidos', nombre:'Cálidos y dulces' },
-  { k:'florales', nombre:'Florales' },
-  { k:'amaderados', nombre:'Amaderados' },
-  { k:'regalo', nombre:'Para regalar' },
+const CATEGORIAS = [
+  { k:'todas', nombre:'Todo' },
+  { k:'envase', nombre:'Velas de envase' },
+  { k:'molde', nombre:'Velas de molde' },
+  { k:'perso', nombre:'Personalizadas' },
+  { k:'difu', nombre:'Difusores y home' },
+  { k:'extras', nombre:'Extras' },
 ];
 const $ = (s) => document.querySelector(s);
 const money = (n) => '$' + n.toLocaleString('es-AR');
 const byId = Object.fromEntries(CAT.map((p) => [p.id, p]));
-const state = { fam:'todas', cart:0, subtotal:0 };
+const state = { cat:'todas', cart:0, subtotal:0 };
 
 function sumar(precio) {
   state.cart += 1; state.subtotal += precio;
@@ -228,25 +302,25 @@ function pintarCarrito() {
 }
 
 function construirChips() {
-  $('#chips').innerHTML = FAMILIAS.map((f) => {
-    const n = f.k === 'todas' ? CAT.length : CAT.filter((p) => p.fam === f.k).length;
-    return `<button class="chip${f.k === state.fam ? ' on' : ''}" data-fam="${f.k}"
-       aria-pressed="${f.k === state.fam}">${f.nombre} <span class="num" style="opacity:.6">${n}</span></button>`;
+  $('#chips').innerHTML = CATEGORIAS.map((f) => {
+    const n = f.k === 'todas' ? CAT.length : CAT.filter((p) => p.cat === f.k).length;
+    return `<button class="chip${f.k === state.cat ? ' on' : ''}" data-cat="${f.k}"
+       aria-pressed="${f.k === state.cat}">${f.nombre} <span class="num" style="opacity:.6">${n}</span></button>`;
   }).join('');
 }
 function construirGrilla() {
-  const items = state.fam === 'todas' ? CAT : CAT.filter((p) => p.fam === state.fam);
-  $('#grilla').innerHTML = items.map((p) => {
-    const nom = p.id === 'v1'
-      ? `<a href="ficha.html">${p.nombre}</a>` : p.nombre;
+  const items = state.cat === 'todas' ? CAT : CAT.filter((p) => p.cat === state.cat);
+  $('#grilla').innerHTML = items.map((p, i) => {
+    const nom = p.ficha ? `<a href="ficha.html">${p.nombre}</a>` : p.nombre;
+    const lazy = i > 7 ? ' loading="lazy"' : '';
     return `<article class="prod">
       <div class="marco">
-        <img src="${p.foto}" alt="${p.nombre}" width="886" height="665" decoding="async">
-        <img class="alt" src="${p.foto2}" alt="" aria-hidden="true" width="886" height="665" loading="lazy" decoding="async">
+        <img src="${p.foto}" alt="${p.nombre}" width="720" height="900" decoding="async"${lazy}>
+        ${p.foto2 ? `<img class="alt" src="${p.foto2}" alt="" aria-hidden="true" width="720" height="900" loading="lazy" decoding="async">` : ''}
         ${p.tag ? `<span class="tag">${p.tag}</span>` : ''}
       </div>
       <h3 class="disp">${nom}</h3>
-      <div class="sub">${p.notas}</div>
+      <div class="sub">${p.sub}</div>
       <div class="pie-prod">
         <span class="precio num">${money(p.precio)}</span>
         <button class="sumar" data-add="${p.id}" aria-label="Sumar ${p.nombre} al carrito">Sumar</button>
@@ -261,10 +335,10 @@ pintarCarrito();
 
 $('#chips').addEventListener('click', (e) => {
   const c = e.target.closest('.chip');
-  if (!c || c.dataset.fam === state.fam) return;
-  state.fam = c.dataset.fam;
+  if (!c || c.dataset.cat === state.cat) return;
+  state.cat = c.dataset.cat;
   document.querySelectorAll('.chip').forEach((x) => {
-    const on = x.dataset.fam === state.fam;
+    const on = x.dataset.cat === state.cat;
     x.classList.toggle('on', on); x.setAttribute('aria-pressed', on);
   });
   construirGrilla();
@@ -273,12 +347,6 @@ $('#grilla').addEventListener('click', (e) => {
   const b = e.target.closest('[data-add]');
   if (b) sumar(byId[b.dataset.add].precio);
 });
-// se precalientan las fotos que la grilla reusa, cuando el navegador está libre
-addEventListener('load', () => {
-  const pool = ['gift', 'hero', 'mundo-decoracion', 'mundo-aromas', 'ambiance'];
-  const go = () => pool.forEach((f) => { const i = new Image(); i.decoding = 'async'; i.src = '/tenants/shinevelas/' + f + '.jpg'; });
-  'requestIdleCallback' in window ? requestIdleCallback(go, { timeout: 3000 }) : setTimeout(go, 1500);
-}, { once: true });
 </script>
 </body>
 </html>
