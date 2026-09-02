@@ -67,3 +67,5 @@ Los `.dc.html` y `canvas.json` son la fuente. La página armada NO se versiona (
 `canvas.json` y las imágenes de `public/tenants/shinevelas/` (`logo.png`, `flame-mask.png`,
 `hero.jpg`, `ambiance.jpg`, `gift.jpg`, `mundo-velas.jpg`, `mundo-aromas.jpg`,
 `mundo-decoracion.jpg`), y se republica sobre la MISMA URL de arriba.
+
+— Elaborado por **Gestión Studio Grow (GSG)**

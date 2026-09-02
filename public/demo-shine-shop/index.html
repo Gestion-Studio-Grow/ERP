@@ -25,7 +25,7 @@
   .disp { font-family:'Cormorant Garamond',Georgia,serif; font-weight:400; letter-spacing:-.01em; line-height:1; }
   .num { font-variant-numeric:tabular-nums; }
   .meta { font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--malva-d); }
-  .destello { width:11px; height:11px; vertical-align:-1px; }
+  .destello { width:11px; height:15px; vertical-align:-3px; }
 
   .anuncio { text-align:center; background:var(--tinta); color:#f3ebe1; font-size:11px;
              font-weight:600; letter-spacing:.14em; text-transform:uppercase; padding:9px 16px; }
@@ -138,10 +138,12 @@
              font-size:9px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
              color:#f3ebe1; background:rgba(58,17,25,.92); padding:5px 0; }
     .barra { padding:12px 18px calc(12px + env(safe-area-inset-bottom)); gap:14px; }
+    .barra { flex-wrap:wrap; row-gap:4px; }
+    #barra-linea { font-size:12.5px !important; }
     .barra .track { display:none; }
-    .barra .medidor { flex:1; min-width:0; max-width:none; }
+    .barra .medidor { flex:1 1 100%; min-width:100%; order:3; }
     #barra-envio { margin-top:0 !important; font-size:11px !important; }
-    #barra-linea { display:none; }
+    .barra-cta { min-height:44px; padding:0 18px; font-size:12px; }
     .pie { grid-template-columns:1fr; padding:44px 20px 40px; }
   }
   @media (min-width:901px) and (max-width:1200px) { .grilla { grid-template-columns:repeat(3,minmax(0,1fr)); } }
@@ -326,7 +328,7 @@ function construirGrilla() {
       ${p.sub ? `<div class="sub">${p.sub}</div>` : ''}
       <div style="flex:1"></div>
       <div class="pie-prod">
-        <span class="precio num">${p.desde ? 'Desde ' : ''}${money(p.precio)}</span>
+        <span class="precio num" style="position:relative">${p.desde ? '<small style="position:absolute;bottom:100%;left:0;font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--malva-d)">Desde</small>' : ''}${money(p.precio)}</span>
         <button class="sumar" data-add="${p.id}" aria-label="Sumar ${p.nombre} al carrito">Sumar</button>
       </div>
     </article>`;
