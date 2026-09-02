@@ -358,6 +358,10 @@ dueño. Orden de Gate/merge al reabrir F3: rebasa sobre `main` con F1 → Gate O
 
 ## 8. Estructura de agentes — realidad vs doc (para no asumir)
 
+> **2026-09-02 · Mesa Cripto (Agencia Grow):** 2 células nuevas con charter en `.claude/agents/` — `analista-fx-cripto` y
+> `quant-trading` (Sonnet, nunca operan plata, §C) — y frente de análisis + app demo bajo `public/lab/mesa-cripto/`.
+> Índice en `docs/sectores/agencia-grow.md §4.b`. Rama `claude/usd-deposits-btc-trading-bczlnj`, Gate en Opus corrido.
+
 **La estructura de agentes ya está MATERIALIZADA como archivos + METODOLOGÍA + COMANDOS + GOBERNANZA:**
 - **`.claude/agents/` EXISTE — 18 subagentes definidos** (materializados en `8e0aca5`/`b5c3536`): `pmo`,
   `arquitecto-solucion`, `advisory`, `challenger`, `seguridad`, `auditoria-gsg-gate`, `qa`, `sello-marca-gsg`,

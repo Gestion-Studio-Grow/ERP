@@ -19,6 +19,8 @@
  * Cero dependencias. No pide claves API: solo endpoints públicos. Nunca opera.
  */
 
+import fs from 'node:fs';
+
 const args = parseArgs(process.argv.slice(2));
 
 // ── Presets de costo por lado (comisión). El slippage se suma aparte. ──────────────────────────
@@ -116,7 +118,6 @@ async function main() {
   const text = out.join('\n');
   console.log(text);
   if (args.json) {
-    const fs = await import('node:fs');
     fs.writeFileSync(args.json, JSON.stringify({ sourceLabel, costSide, roundTrip, sigma, sigmaAnnual, breakEvenSigmas, rows, bh, bhOos, mcStats }, null, 2));
   }
 }
@@ -185,7 +186,7 @@ function rsi(x, n) { const out = new Array(x.length).fill(50); let g = 0, l = 0;
 function mean(a) { return a.reduce((s, v) => s + v, 0) / a.length; }
 function std(a) { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / a.length); }
 function pct(sorted, q) { return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]; }
-function p(x) { return `${x >= 0 ? '+' : ''}${(x * 100).toFixed(2)}%`; }
+function p(x) { return `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`; }
 
 // ── Datos ──────────────────────────────────────────────────────────────────────────────────────
 async function fetchBinance(days) {
@@ -211,12 +212,11 @@ async function fetchBybit(days) {
 }
 function dedupe(rows) { const m = new Map(); for (const r of rows) m.set(r.t, r); return [...m.values()].sort((a, b) => a.t - b.t); }
 function readCsv(path) {
-  const fs = require_('node:fs'); const lines = fs.readFileSync(path, 'utf8').trim().split(/\r?\n/); const head = lines[0].toLowerCase().split(',');
+  const lines = fs.readFileSync(path, 'utf8').trim().split(/\r?\n/); const head = lines[0].toLowerCase().split(',');
   const ix = (k) => head.findIndex((h) => h.includes(k));
   const [ti, oi, hi, li, ci] = ['time', 'open', 'high', 'low', 'close'].map(ix);
   return dedupe(lines.slice(1).map((ln) => { const f = ln.split(','); const t = isNaN(+f[ti]) ? Date.parse(f[ti]) : +f[ti] * (String(f[ti]).length <= 10 ? 1000 : 1); return { t, o: +f[oi], h: +f[hi], l: +f[li], c: +f[ci] }; }));
 }
-function require_(m) { return globalThis.process.getBuiltinModule ? process.getBuiltinModule(m) : null; }
 function synthetic(n, seed, sigma) {
   const rng = mulberry32(seed); let price = 60000; const out = []; let t = Date.now() - n * 900_000;
   for (let i = 0; i < n; i++) {

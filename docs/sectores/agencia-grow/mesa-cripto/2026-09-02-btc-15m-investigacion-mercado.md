@@ -58,7 +58,7 @@ CNV (régimen argentino vigente desde 2024).
 | **Bybit perp (USDT)** | 0,11% (0,055%+0,055%) | 0,04% (0,02%+0,02%) | — |
 | **OKX spot** | 0,20% (0,10%+0,10%) | 0,16% (0,08%+0,08%) | Maker algo mejor que Bybit en spot. |
 | **OKX perp (USDT)** | 0,10% (0,05%+0,05%) | 0,04% (0,02%+0,02%) | — |
-| **Lemon (app AR)** | ⚠️ **a verificar — fuentes en conflicto: 1,0%–2,0%** | — | La página de ayuda de Lemon declara comisión "0,5% compra / 0,5% venta" = 1,0% ida+vuelta **como comisión nominal**, pero el precio que muestra la app ya trae un spread sobre el precio de referencia (fuentes externas ubican el spread real de apps argentinas en 0,5%–1,5% adicional) — la brecha entre "comisión declarada" y "costo real todo incluido" es justamente el punto ciego típico del retail. Sin PITR de precios propio para auditar, se deja el rango **1–2%** del brief como el más conservador y verificable. Cashback de BTC (0,5%–2%) compensa parcialmente pero no es determinístico para trading activo. PSAV inscripto en CNV. KYC obligatorio, sin retiro instantáneo a exchange internacional en todos los casos. |
+| **Lemon (app AR)** | ⚠️ **a verificar — fuentes en conflicto: 1,0%–2,0% por lado = 2–4% ida+vuelta** | — | La página de ayuda de Lemon declara comisión "0,5% compra / 0,5% venta" = 1,0% ida+vuelta **como comisión nominal**, pero el precio que muestra la app ya trae un spread sobre el precio de referencia (fuentes externas ubican el spread real de apps argentinas en 0,5%–1,5% adicional) — la brecha entre "comisión declarada" y "costo real todo incluido" es justamente el punto ciego típico del retail. Sin PITR de precios propio para auditar, se deja el rango **1–2%** del brief como el más conservador y verificable. Cashback de BTC (0,5%–2%) compensa parcialmente pero no es determinístico para trading activo. PSAV inscripto en CNV. KYC obligatorio, sin retiro instantáneo a exchange internacional en todos los casos. |
 | **Belo (app AR)** | ⚠️ 0,5%–0,8% (spread) | — | PSAV. Spread más ajustado que Lemon/Ripio según comparativas 2026. |
 | **Buenbit (app AR)** | ⚠️ 0,5%–0,8% (spread) | — | PSAV. Similar a Belo. |
 | **Ripio (app AR)** | ⚠️ 1,0%–2,0% (spread, según activo/volumen) | — | PSAV. Cobra vía spread, no comisión explícita — mismo punto ciego que Lemon. |
@@ -101,7 +101,7 @@ lunes/miércoles, con la primera hora del día y la franja post-16:00 UTC como l
   el costo queda *por debajo* de una vela típica — pero exige operar exclusivamente con limit orders que
   hagan de maker (no siempre se puede si la estrategia necesita entrar ya), sumarle el funding si la
   posición queda abierta varias horas, y aceptar el riesgo de no-fill/selección adversa de la sección 3.
-- **Lemon, 1–2% ida+vuelta** ≈ **4,3σ a 11,6σ**. Acá no hay estrategia que compense: el costo de una sola
+- **Lemon, 1–2% por lado = 2–4% ida+vuelta** ≈ **11σ a 22σ** (con σ = 0,185%). Acá no hay estrategia que compense: el costo de una sola
   operación equivale a 4 a 12 velas enteras de movimiento típico. Operar BTC en 15 min desde una app
   argentina con spread de exchange es matemáticamente inviable — no es un problema de qué indicador usar.
 

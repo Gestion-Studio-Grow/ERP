@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-09-02 03:18 UTC
+generado_el: 2026-09-02 12:16 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-09-02 03:18 UTC sobre `50b3cfc`.**
+> ⏱️ **Foto tomada el 2026-09-02 12:16 UTC sobre `a7a4500`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,14 +19,16 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/usd-deposits-btc-trading-bczlnj` |
-| HEAD | `50b3cfc` (2026-09-02) |
-| Árbol | **7 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| HEAD | `a7a4500` (2026-09-02) |
+| Árbol | **10 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | f7b0095 · 2026-08-16 · refactor(ch): la poda — de 9 secciones a 4, y el hero deja de firmar como plantilla |
 
 **Ramas locales (2, más reciente primero):** `claude/usd-deposits-btc-trading-bczlnj` · `main`
 
 **Últimos commits**
 
+- a7a4500 · 2026-09-02 · feat(grow/mesa-cripto): app demo fase 1 bajo /lab/mesa-cripto (calculadora de rieles + costos BTC 15m)
+- 5d3fb06 · 2026-09-02 · docs(grow/mesa-cripto): análisis Lemon USD→USDt, research BTC 15m, Challenger y propuesta de app
 - 50b3cfc · 2026-09-02 · feat(grow/mesa-cripto): 2 agentes expertos + análisis BTC 15m + backtester reproducible
 - 4cc66d6 · 2026-09-02 · fix(shine): la ficha adopta el aviso que no intercepta (Gate B-3) + D-1 y O-9..O-12
 - c8d5e3d · 2026-09-02 · fix(shine): nav visible y clickeable, números AA, aviso que no ocluye (Gate B-1/B-1b/B-2)
@@ -37,8 +39,6 @@ tags: [brain/estado, fase-0]
 - 4e52a51 · 2026-09-01 · fix(shine): restaura la opacidad del hero si la foto nueva falla a mitad de fundido (Gate O-1)
 - dc368f0 · 2026-09-01 · fix(shine): cierra B-1bis/B-2/B-3 del re-gate
 - e1746cf · 2026-09-01 · fix(shine): hero sin parpadeo en carga y sin carrera en clics rápidos (Gate B-1)
-- 87bb9b2 · 2026-09-01 · perf(shine): optimización de rendimiento, fondo con blur deliberado y móvil reestructurado
-- a04c6cc · 2026-09-01 · perf(shine): base de optimización de la demo — carga, ejecución y el fondo desenfocado a propósito
 
 ## Migraciones (Prisma)
 
@@ -57,7 +57,7 @@ tags: [brain/estado, fase-0]
 | Fuente | Volumen |
 |---|---:|
 | Documentos en `docs/` | 304 |
-| Palabras en `docs/` | 441.701 |
+| Palabras en `docs/` | 442.152 |
 | ADRs | 81 |
 | Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
 

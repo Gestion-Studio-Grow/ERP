@@ -6,6 +6,9 @@
 
 > Nota de sesión: el agente Challenger corre sin herramienta de escritura; el PMO de la sesión persistió este texto tal
 > cual lo entregó. Las correcciones numéricas de §1.1 y §1.2 **ya se aplicaron** en el doc de Lemon.
+> El Gate (Opus) refinó §1.2: la "prima de pizarra 5,21 %" tomaba el precio de **venta** (lo que pagás para comprar);
+> al vender USDt cobrás el de **compra** (1.534,81 ≈ MEP → prima ≈ −0,04 %). La prima ~3 % existe solo en el riel USDt →
+> dólares al banco y se verifica en la app. Doc de Lemon §4/§5 y la app ya usan esa convención.
 
 ## 0. Calibración (ADR-052)
 

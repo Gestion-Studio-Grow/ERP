@@ -127,11 +127,13 @@ Igualando `Monto × (1 − fee_entrada) × (1 + prima) = Monto × (1 − 0,006)`
   montos chicos: 994 / 975 − 1 ≈ **1,95%** para 1.000 USD, 1.988 / 1.955 − 1 ≈ **1,69%** para 2.000 USD,
   9.940 / 9.795 − 1 ≈ **1,48%** para 10.000 USD (corregidos por el Challenger; el borrador decía 1,85 / 1,59 / 1,38).
 
-**Prima de pizarra vs. prima neta (objeción del Challenger, aceptada):** con los datos crudos de §9 (MEP 1.535,5 ·
-Lemon USDT venta 1.615,54) la prima **de pizarra** es 1.615,54 / 1.535,5 − 1 = **5,21%**. El ~3% "neto" que usa este
-doc sale del ejemplo publicado por Lemon en La Nación (1.970 → 2.033,04 = +3,2%), es decir **ya descuenta el spread
-interno de salida (~2 pp) que la app muestra recién al confirmar**. Los dos números se publican siempre juntos: la
-prima de pizarra es medible; la neta es una estimación que depende de un spread que solo se ve en la app.
+**Convención bid/ask (objeción del Challenger, refinada por el Gate):** **al vender USDt cobrás el precio de
+COMPRA del exchange** (el más bajo de la pizarra); el de VENTA es lo que pagás para comprar. Con los datos crudos de §9:
+Lemon **compra** USDT a 1.534,81 vs. MEP 1.535,5 → si vendés USDt a pesos en Lemon la prima es 1.534,81 / 1.535,5 − 1 =
+**−0,04%: nada**. El 1.615,54 es el precio de venta (spread bid-ask de 5,3% en Lemon, ⚠️ dato de snippet a verificar).
+El ~3% "neto" de este doc **no sale de vender a pesos**: existe solo en el riel **USDt → dólares al banco**, según el
+ejemplo publicado por Lemon en La Nación (1.970 → 2.033,04 = +3,2%), y la app lo muestra recién al confirmar. Por eso
+la prima neta se trata como **dato a verificar en la app en cada operación**, no como cotización de mercado.
 
 **Lectura en criollo:** la prima de hoy (~3% neta) te da un colchón grande sobre el punto de quiebre (~0,9%),
 pero ese colchón **se movió fuerte en el pasado** (llegó a estar en 0% o negativo en momentos de brecha
@@ -141,14 +143,17 @@ chica) — no es un margen que puedas dar por garantizado a 6 meses vista.
 
 ## 5. Comparativa contra alternativas (neto para USD 2.000)
 
+> Convención: los rieles que terminan **en pesos** se valúan al precio de **compra** del exchange (lo que te pagan) y se
+> reconvierten a dólar MEP con −0,5% y un día más (T+1), para comparar dólares contra dólares. Mismos números que la app.
+
 | Alternativa | Cómo funciona | Fee de entrada | Prima/spread aplicado | **Neto estimado** | Fricción operativa |
 |---|---|---:|---:|---:|---|
 | **Lemon (ACH → USDC → banco AR)** | Descripto en §3 | 1,5% | ~3% (hoy) | **2.029,10** | Media (KYC + 2 pasos + esperas) |
 | **Transferencia bancaria directa** (banco US → SWIFT → caja de ahorro USD en banco AR) | Wire clásico, sin cripto de por medio | Fija, ~USD 35-50 entre banco emisor + corresponsal (⚠️ a verificar con el banco puntual, varía mucho) | 0% (llega como USD nominal) | **~1.950-1.965** | Baja, pero lenta (2-5 días) y el costo fijo castiga montos chicos |
 | **Wise → pesos vía tipo interbancario / MEP** | Wise convierte a tipo mid-market + comisión chica | ~0,4-0,8% (uso 0,6%) | 0% (no hay prima cripto) | **~1.988,00** | Baja, 1-2 días, la más simple |
-| **USDT comprado afuera (Kraken/Coinbase) y vendido en el exchange AR con mejor precio del día** (Buenbit, cotización dada: venta 1.623,68 ARS/USDT vs. MEP 1.535,5) | Comprás USDT con USD que ya tenías afuera, lo mandás por red (TRC-20, ~1 USD) y lo vendés en pesos en el exchange que mejor paga | ~0,25% (fee de compra) + ~1 USD de red | ~5,7% de diferencia venta-vs-MEP (bruto, antes de reconvertir pesos a dólares) | **~2.080-2.110** (equivalente en poder de compra dólar, restando ~1% si después reconvertís los pesos a MEP) | **Alta**: necesitás ya tener USD en un exchange afuera, y en Argentina solo podés operar con PSAV inscriptos en CNV; es el camino con más pasos y más superficie de error |
-| **Binance P2P** (venta dada: 1.595,9 ARS/USDT) | Mismo mecanismo que arriba, contraparte P2P en vez de exchange centralizado | similar (~0,25% + red) | ~3,9% vs. MEP | **~2.045-2.070** | Alta + riesgo de contraparte P2P (estafas, congelamiento de cuenta bancaria por "operación sospechosa") |
-| **Belo** (si la promo "ACH sin comisión" de 2026 sigue vigente) | Mismo riel que Lemon (también usa Bridge), venta USDT dada: 1.605 ARS | **0%** (⚠️ a verificar que la promo siga activa) | ~4,5% vs. MEP con esa cotización | **~2.090** (si la promo de comisión 0% sigue viva) | Media, igual que Lemon — **si el dato de comisión 0% es real, Belo le gana a Lemon hoy** |
+| **USDT comprado afuera (Kraken/Coinbase) y vendido en el exchange AR con mejor precio del día** (Buenbit, cotización dada: **compra** 1.584 ARS/USDT —lo que te pagan— vs. MEP 1.535,5) | Comprás USDT con USD que ya tenías afuera, lo mandás por red (TRC-20, ~1 USD) y lo vendés en pesos en el exchange que mejor paga | ~0,25% (fee de compra) + ~1 USD de red | ~3,2% de diferencia compra-vs-MEP (bruto, antes de reconvertir pesos a dólares) | **~2.047** (equivalente en dólares, ya restado −0,5% por reconvertir los pesos a MEP, T+1) | **Alta**: necesitás ya tener USD en un exchange afuera, y en Argentina solo podés operar con PSAV inscriptos en CNV; es el camino con más pasos y más superficie de error |
+| **Binance P2P** (compra dada: 1.577,47 ARS/USDT) | Mismo mecanismo que arriba, contraparte P2P en vez de exchange centralizado | similar (~0,25% + red) | ~2,7% vs. MEP | **~2.039** (con −0,5% de reconversión a MEP) | Alta + riesgo de contraparte P2P (estafas, congelamiento de cuenta bancaria por "operación sospechosa") |
+| **Belo** (si la promo "ACH sin comisión" de 2026 sigue vigente) | Mismo riel que Lemon (también usa Bridge), compra USDT dada: 1.585 ARS | **0%** (⚠️ a verificar que la promo siga activa) | ~3,2% vs. MEP | **~2.054** (si la promo de comisión 0% sigue viva; con −0,5% de reconversión a MEP) | Media, igual que Lemon — **si el dato de comisión 0% es real, Belo le gana a Lemon hoy** |
 | **Takenos** | Cuenta USD también recibe ACH sin comisión, pero retirar a banco AR cobra 1% (o 5% si entra por transferencia bancaria en dólares desde Argentina, no aplica acá) | 0% (ACH) + 1% salida a banco AR | No opera con prima cripto, es dólar nominal | **~1.980** | Media |
 
 **Para GSG/vos, hoy, con estos números: Belo (si la promo de 0% sigue en pie) o el camino cripto puro son

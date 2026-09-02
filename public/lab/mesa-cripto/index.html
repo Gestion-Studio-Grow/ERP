@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mesa Cripto GSG</title>
 <meta name="generator" content="Gestión Studio Grow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -56,7 +61,7 @@ tr.best td{background:var(--accent-soft)}
 .bar{height:8px;background:var(--bar-dim);border-radius:4px;overflow:hidden;min-width:80px}
 .bar i{display:block;height:100%;background:var(--bar)}
 .tag{display:inline-block;font:500 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:middle}
-.tag.warn{border-color:var(--warn);color:var(--warn)}
+.tag.warn{border-color:var(--crit);color:var(--crit)}
 .name{font-weight:600}
 .sub{display:block;font-size:12px;color:var(--muted);font-weight:400}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
@@ -78,10 +83,12 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
 .scroll{overflow-x:auto}
 @media (prefers-reduced-motion:no-preference){.bar i,.crow .b i{transition:width .35s ease}}
 </style>
+</head>
+<body>
 
 <div class="wrap">
 <header>
-  <div class="brand">Mesa Cripto GSG<small>Calculadora de rieles de dólares · costos de BTC en 15 min · demo, sin datos reales</small></div>
+  <h1 class="brand" style="margin:0">Mesa Cripto GSG<small>Calculadora de rieles de dólares · costos de BTC en 15 min · demo, sin datos reales</small></h1>
   <div class="quotes" id="quotes"></div>
 </header>
 
@@ -98,11 +105,11 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
     <div class="field"><label for="monto">Monto a traer (USD)</label><input id="monto" type="number" min="100" step="100" value="2000"></div>
     <div class="row2">
       <div class="field"><label for="mep">Dólar MEP (ARS)</label><input id="mep" type="number" step="0.5" value="1535.5"></div>
-      <div class="field"><label for="lemonAsk">USDt venta en Lemon (ARS)</label><input id="lemonAsk" type="number" step="0.5" value="1615.54"></div>
+      <div class="field"><label for="lemonBid">USDt que te paga Lemon en pesos (compra, ARS)</label><input id="lemonBid" type="number" step="0.5" value="1534.81"></div>
     </div>
     <div class="row2">
-      <div class="field"><label for="feeIn">Comisión ACH Lemon (%)</label><input id="feeIn" type="number" step="0.1" value="1.5"><span class="hint">1,5 % hoy; hay fuentes con 2 % + 5 USD</span></div>
-      <div class="field"><label for="prima">Prima neta USDt→USD al banco (%)</label><input id="prima" type="number" step="0.1" value="3"><span class="hint">La que muestra la app al confirmar</span></div>
+      <div class="field"><label for="feeIn">Comisión ACH Lemon (%)</label><input id="feeIn" type="number" step="0.1" value="1.5" aria-describedby="h-feeIn"><span class="hint" id="h-feeIn">1,5 % hoy; hay fuentes con 2 % + 5 USD</span></div>
+      <div class="field"><label for="prima">Prima neta USDt→USD al banco (%)</label><input id="prima" type="number" step="0.1" value="3" aria-describedby="h-prima"><span class="hint" id="h-prima">La que muestra la app al confirmar el envío al banco</span></div>
     </div>
     <div class="row2">
       <div class="field"><label for="wise">Wise, costo total (%)</label><input id="wise" type="number" step="0.1" value="0.6"></div>
@@ -127,10 +134,10 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
       <div class="fine" id="fine-rieles">
         <span id="be-line"></span>
         <ul>
-          <li>Prima <b>de pizarra</b> de Lemon (venta USDt ÷ MEP − 1): <span id="pizarra" class="num"></span>. La <b>neta</b> que ingresaste ya descuenta el spread de salida, que la app muestra recién al confirmar. La diferencia es el spread implícito: <span id="spread"></span>.</li>
+          <li>Convención: <b>al vender USDt cobrás el precio de compra del exchange</b> (el más bajo de la pizarra). Si vendés USDt a pesos en Lemon, la prima sobre el MEP es <span id="pizarra"></span>: casi nada. La prima neta que ingresaste (~3 %) existe solo en el riel USDt → dólares al banco, según el ejemplo publicado por Lemon (2.000 → 2.033); la app la muestra al confirmar. Verificala ahí antes de operar.</li>
           <li>Los rieles que terminan en pesos (Belo, P2P) se expresan como equivalente en dólares reconvirtiendo a MEP: agregan un día y un paso más.</li>
           <li>Todo entre cuentas propias, mismo titular. Sin cepo para personas humanas desde abril 2025; los PSAV informan a ARCA (RG 5804/2025). Consultá Ganancias con tu contador antes de repetir la operación.</li>
-          <li>Cotizaciones de ejemplo del 1 de septiembre de 2026. No es asesoramiento financiero: es una cuenta transparente para comparar.</li>
+          <li>Cotizaciones de ejemplo del 1 de septiembre de 2026 (compra Belo 1.585 · P2P 1.577,47 · Lemon 1.534,81 · MEP 1.535,5). No es asesoramiento financiero: es una cuenta transparente para comparar. No guarda nada: ni datos ni preferencias.</li>
         </ul>
       </div>
     </div>
@@ -154,8 +161,8 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
         <option value="0.02,0">Lemon app, spread 2 % por lado</option>
       </select></div>
     <div class="row2">
-      <div class="field"><label for="vol">Volatilidad anual de BTC (%)</label><input id="vol" type="number" step="0.5" value="34.6"><span class="hint">Realizada 90 d, jul-2026 (30 d: 32,3 · 365 d: 43,4)</span></div>
-      <div class="field"><label for="trades">Operaciones por año</label><input id="trades" type="number" step="10" value="330"><span class="hint">EMA 21/55 en 15 min ≈ 330</span></div>
+      <div class="field"><label for="vol">Volatilidad anual de BTC (%)</label><input id="vol" type="number" step="0.5" value="34.6" aria-describedby="h-vol"><span class="hint" id="h-vol">Realizada 90 d, jul-2026 (30 d: 32,3 · 365 d: 43,4)</span></div>
+      <div class="field"><label for="trades">Operaciones por año</label><input id="trades" type="number" step="10" value="330" aria-describedby="h-trades"><span class="hint" id="h-trades">EMA 21/55 en 15 min ≈ 330</span></div>
     </div>
     <div class="row2">
       <div class="field"><label for="target">Objetivo neto anual (%)</label><input id="target" type="number" step="5" value="20"></div>
@@ -202,12 +209,14 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
 
   // ── Tabs ──
   const tabs=[['tab-rieles','p-rieles'],['tab-btc','p-btc']];
-  tabs.forEach(([t,p])=>$(t).addEventListener('click',()=>{tabs.forEach(([t2,p2])=>{$(t2).setAttribute('aria-selected',t2===t);$(p2).hidden=p2!==p;});try{localStorage.setItem('mesa-tab',t)}catch(e){}}));
-  try{const s=localStorage.getItem('mesa-tab');if(s&&$(s))$(s).click();}catch(e){}
+  const show=(t)=>{tabs.forEach(([t2,p2])=>{const on=t2===t;$(t2).setAttribute('aria-selected',on);$(t2).tabIndex=on?0:-1;$(p2).hidden=!on;$(p2).tabIndex=on?0:-1;});};
+  tabs.forEach(([t],i)=>{$(t).addEventListener('click',()=>show(t));$(t).addEventListener('keydown',(e)=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();const j=(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length;show(tabs[j][0]);$(tabs[j][0]).focus();}});});
+  show('tab-rieles');
 
   // ── Rieles ──
   function rieles(){
-    const M=+$('monto').value||0, mep=+$('mep').value||1, lemonAsk=+$('lemonAsk').value||mep;
+    const M=+$('monto').value||0, mep=+$('mep').value||0, lemonBid=+$('lemonBid').value||mep;
+    if(!(M>0)||!(mep>0)){$('rows').innerHTML='<tr><td colspan="4" style="color:var(--muted)">Ingresá un monto y un dólar MEP mayores a cero para ver el ranking.</td></tr>';$('v-rieles').className='verdict warn';$('v-title').textContent='Falta un dato';$('v-text').textContent='Completá el monto a traer y la cotización del MEP.';$('v-num').textContent='';$('be-line').textContent='';$('pizarra').textContent='—';return;}
     const fIn=(+$('feeIn').value||0)/100, prima=(+$('prima').value||0)/100, wise=(+$('wise').value||0)/100, swift=+$('swift').value||0;
     const beloBid=+$('beloBid').value||mep, p2pBid=+$('p2pBid').value||mep, beloPromo=$('beloPromo').checked, viaMep=$('viaMep').checked;
     const mepCost=viaMep?0.005:0;
@@ -227,23 +236,24 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
     const worst=Math.min(...rows.map(r=>r.v));
     $('rows').innerHTML=rows.map((r,i)=>`<tr class="${i===0?'best':''}"><td><span class="name">${r.n}</span>${r.tag?`<span class="tag ${r.warn?'warn':''}">${r.tag}</span>`:''}<span class="sub">${r.s}</span></td><td><div class="bar" role="img" aria-label="${fmt(r.v,0)} dólares"><i style="width:${Math.max(4,((r.v-worst*0.97)/(best-worst*0.97))*100)}%"></i></div></td><td class="num">${fmt(r.v)}</td><td class="num">${i===0?'mejor':pct((r.v-best)/best)}</td></tr>`).join('');
     const be=bestNominal/(M*(1-fIn))-1;
-    const pizarra=lemonAsk/mep-1;
-    $('pizarra').textContent=pctAbs(pizarra); $('spread').textContent=pctAbs(pizarra-prima);
+    const pizarra=lemonBid/mep-1;
+    $('pizarra').textContent=pct(pizarra);
     $('be-line').innerHTML=`<b>Punto de quiebre de Lemon:</b> con ${pctAbs(fIn,1)} de entrada, Lemon empata con el mejor riel sin prima cripto (${bestNominalRow.n.split(' ')[0]}) cuando la prima neta es <b>${pctAbs(be)}</b> (${fmt(bestNominal)} ÷ ${fmt(M*(1-fIn))} − 1). Por debajo de eso, conviene el riel sin cripto.`;
     const v=$('v-rieles'); const gain=lemon.v-bestNominal; const lemonIsBest=rows[0].lemon;
     v.className='verdict '+(gain>M*0.005?'':gain>0?'warn':'crit');
     $('v-title').textContent=gain>0?`Lemon deja ${fmt(gain,0)} USD más que traerlos sin cripto (${bestNominalRow.n.split(' ')[0]})`:`Hoy conviene traerlos sin cripto (${bestNominalRow.n.split(' ')[0]})`;
     $('v-text').textContent=(lemonIsBest?`Lemon es además el mejor riel del ranking. `:`El que más deja es ${rows[0].n} (${fmt(rows[0].v)} USD), con más pasos o un dato a verificar. `)+`Colchón de Lemon sobre su punto de quiebre: ${pct(prima-be)} de prima. La prima es una ventana, no un rendimiento.`;
     $('v-num').innerHTML=`${fmt(lemon.v,0)}<small>USD netos por Lemon</small>`;
-    $('quotes').innerHTML=`Ejemplo 01-sep-2026 · MEP <b>${fmt(mep,1)}</b> · oficial BNA <b>1.530</b> · USDt Lemon venta <b>${fmt(lemonAsk,2)}</b><br>prima de pizarra <b>${pctAbs(pizarra)}</b> · neta usada <b>${pctAbs(prima,1)}</b>`;
+    $('quotes').innerHTML=`Ejemplo 01-sep-2026 · MEP <b>${fmt(mep,1)}</b> · oficial BNA <b>1.530</b> · USDt compra Lemon <b>${fmt(lemonBid,2)}</b><br>prima neta usada (USDt → USD al banco) <b>${pctAbs(prima,1)}</b> · a verificar en la app`;
   }
   $('f-rieles').addEventListener('input',rieles); rieles();
 
   // ── BTC ──
-  const STRATS=[['EMA 9/21',842],['Bollinger 20/2σ',661],['Donchian 20',419],['EMA 21/55',332],['RSI 14',224],['EMA 50/200',106],['Donchian 1 día',104],['Swing diario',24]];
+  const STRATS=[['EMA 9/21',842],['Bollinger 20/2σ',661],['Donchian 20',419],['EMA 21/55',332],['RSI 14',224],['EMA 50/200',106],['Donchian 1 día',104],['Swing diario (estimación)',24]];
   function btc(){
     const [fee,slip]=$('ex').value.split(',').map(Number);
     const vol=(+$('vol').value||0)/100, trades=+$('trades').value||0, target=(+$('target').value||0)/100, cap=+$('capital').value||0;
+    if(!(vol>0)||!(trades>0)){$('v-btc').className='verdict warn';$('b-title').textContent='Falta un dato';$('b-text').textContent='Ingresá una volatilidad anual y una cantidad de operaciones mayores a cero.';$('b-num').textContent='';['t-sigma','t-rt','t-ratio','t-drag','t-gross','t-per'].forEach(id=>{$(id).querySelector('.v').textContent='—';$(id).className='tile';});$('chart').innerHTML='';return;}
     const sigma=vol/Math.sqrt(365*96), rt=2*(fee+slip), ratio=rt/sigma, drag=trades*rt, gross=target+drag, per=trades?gross/trades:0, perSig=sigma?per/sigma:0;
     const set=(id,html,cls)=>{const t=$(id);t.querySelector('.v').innerHTML=html;t.className='tile '+(cls||'');};
     set('t-sigma',`${pctAbs(sigma,3)}`);
@@ -265,3 +275,5 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
   $('f-btc').addEventListener('input',btc); btc();
 })();
 </script>
+</body>
+</html>

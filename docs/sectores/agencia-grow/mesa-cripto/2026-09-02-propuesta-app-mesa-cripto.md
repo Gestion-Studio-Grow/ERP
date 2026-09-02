@@ -11,7 +11,7 @@ adoptado hasta que el dueño decida.
 
 | Pregunta del dueño | Respuesta corta | Doc |
 |---|---|---|
-| ¿Traer USD por Lemon (ACH → USDt → banco AR a ~1,03) es rentable? | **Sí, pero deja la mitad del titular:** 2.000 USD → ~2.029 netos con prima 3 % y 1,5 % de entrada (vs ~1.988 por Wise, ~1.955 por SWIFT directo). La ventaja **es la prima del dólar cripto sobre el MEP**, que hoy es ~3 % y **ya estuvo en 0 % o negativa**. Punto de quiebre: prima < ~0,8 % → gana Wise. Belo podría ganarle si su ACH 0 % sigue vigente (`⚠️ a verificar`). | [Lemon USD→USDt→banco](./2026-09-02-lemon-usd-usdt-banco.md) |
+| ¿Traer USD por Lemon (ACH → USDt → banco AR a ~1,03) es rentable? | **Sí, pero deja la mitad del titular:** 2.000 USD → ~2.029 netos con prima 3 % y 1,5 % de entrada (vs ~1.988 por Wise, ~1.955 por SWIFT directo). La ventaja **es la prima del dólar cripto sobre el MEP**, que hoy es ~3 % y **ya estuvo en 0 % o negativa**. Punto de quiebre: prima neta < ~0,91 % → gana Wise. Belo podría ganarle si su ACH 0 % sigue vigente (`⚠️ a verificar`). | [Lemon USD→USDt→banco](./2026-09-02-lemon-usd-usdt-banco.md) |
 | ¿Operar BTC en velas de 15 min puede dar rentabilidad? | **No con rieles argentinos** (costo ida+vuelta 2–4 % = 11–22 σ de una vela) y **sin edge demostrado en Binance** (costo 0,14–0,24 % ≈ 1 σ; toda estrategia clásica termina en la banda del azar menos costos; backtests públicos con costos: −6,5 % y −16,9 %). Lo único con lógica estructural es el **carry de funding** (delta-neutral), que no es "trading de 15 min". | [Viabilidad BTC 15m](./2026-09-02-btc-15m-viabilidad.md) · [Mercado y costos](./2026-09-02-btc-15m-investigacion-mercado.md) |
 | ¿Se construye una app? | Tesis inicial: calculadora pública de rieles a costo cero. **Tras el Challenger (§7): no por defecto**; queda como opción explícita del dueño. Bot de 15 min: **no**. | este doc + Challenger |
 
@@ -39,8 +39,11 @@ confirmar, y nadie compara punta a punta contra Wise/banco/otra billetera. El us
 **Cómo se construye (reversible, a costo cero — regla DEMO → VENTA → INVERSIÓN):**
 - Página estática (HTML + JS, sin backend, sin base) que consume APIs públicas desde el navegador; hosting gratuito
   (`<slug>.vercel.app`), sin dominio propio. Estimación: **1 día de célula Sonnet** + Gate en Opus.
-- Ubicación: proyecto hermano `productos/mesa-cripto/` (patrón del `constructor`), **fuera del Core del ERP** (regla de
-  frontera Grow/Digital del charter §4). Si algún día se vende como módulo del ERP, cruza a Agencia Digital con su ADR.
+- Ubicación prevista: proyecto hermano `productos/mesa-cripto/` (patrón del `constructor`), **fuera del Core del ERP**.
+  **Deuda anotada (Gate O-8):** la fase 1 quedó en `public/lab/mesa-cripto/index.html` dentro del ERP para cumplir el
+  estándar del Lab ("bajo `/lab`"); es HTML estático sin backend, hereda el portón `SITE_GATE_PASSWORD` del proxy y el
+  deploy sigue siendo Gate 1 del dueño. Mover a `productos/` es un `git mv` reversible. URL real servida por Next:
+  `/lab/mesa-cripto/index.html` (Next no resuelve `index.html` en carpetas de `public/`; un rewrite lo acortaría).
 - La lógica de cálculo es la misma del doc de Lemon (fórmula por riel), testeada con los mismos casos (2.000 → 2.029,10).
 
 **Monetización (honesta: chica):** links de referido de billeteras (Lemon/Belo pagan referidos), lead a un contador
@@ -130,9 +133,10 @@ exterior y (b) la demo pública de la capacidad GSG** (análisis + producto en 4
 1. **Cerrar el frente con los análisis como entregable** + mantener una **tabla interna de rieles vigentes** (alternativa 2
    del Challenger) que la célula `analista-fx-cripto` actualiza cuando cambie una comisión o la prima cruce 0,9 %.
    Costo cero real, sin superficie pública.
-2. **No construir la app pública ni el bot de 15 min.** Si querés la vidriera de marca igual, decilo explícito y se
-   construye la fase 1 en 1 día Sonnet asumiendo el trade-off contra P1; si un tenant real la pide, va como insight del
-   Panel del Dueño (alternativa 3).
+2. ~~**No construir la app pública ni el bot de 15 min.**~~ **Superada por la decisión del dueño del 2026-09-02
+   ("avanza")**: la fase 1 demo se construyó a costo cero (ver rastro arriba). Sigue vigente: **no hay bot de 15 min**, y
+   si un tenant real la pide, la lógica va como insight del Panel del Dueño (alternativa 3). Pendiente: una línea de
+   confirmación del dueño de que asume el trade-off contra P1 (el Gate lo pide como O-14).
 3. **Vos, con plata del grupo:** consultar al contador el punto de Ganancias antes de repetir el riel Lemon, y mirar el
    spread final en la app en cada operación. Ninguna célula toca fondos (§C).
 4. **BTC:** correr `node scripts/btc-15m-backtest.mjs --source binance --days 365` en desktop (15 min); si no pasa la
