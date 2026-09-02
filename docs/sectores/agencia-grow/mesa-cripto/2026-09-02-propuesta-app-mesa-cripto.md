@@ -112,8 +112,9 @@ exterior y (b) la demo pública de la capacidad GSG** (análisis + producto en 4
 
 **Objeciones aceptadas (cambian la tesis):**
 - **Números de Lemon corregidos** en el doc fuente: punto de quiebre **0,91 %** (no 0,81 %) con entrada 1,5 %, y
-  1,95 / 1,69 / 1,48 % con 2 %+5 USD; prima **de pizarra 5,21 %** publicada junto a la **neta ~3 %** (que ya descuenta
-  el spread de salida que la app muestra recién al confirmar). El colchón real es un tercio más chico de lo dicho.
+  1,95 / 1,69 / 1,48 % con 2 %+5 USD; ~~prima de pizarra 5,21 % publicada junto a la neta ~3 %~~ → **refinado por el Gate:** el 5,21 % era el lado
+  de venta; al vender USDt cobrás el de compra (≈ MEP, prima −0,04 %). La prima ~3 % existe solo en el riel USDt → USD al
+  banco y se verifica en la app (doc de Lemon §4). El colchón real es un tercio más chico de lo dicho.
 - **La app pública fase 1 no se recomienda por defecto.** Ya existen comparadolar.ar/usdt, dolarito.ar (dólar cripto) y
   criptoya con audiencia y SEO; el diferencial (neto por riel) es angosto y copiable; el uso es 0–2 veces al año; el
   input decisivo (spread de salida) no es observable de antemano; los referidos rompen la neutralidad; y compite con

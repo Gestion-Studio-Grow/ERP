@@ -50,7 +50,7 @@ async function main() {
   } else if (args.synthetic) {
     const days = Number(args.synthetic) || 365;
     candles = synthetic(days * 96, seed, Number(args.sigma ?? 0.0020));
-    sourceLabel = `SINTÉTICO GBM sin edge · ${days} días · σ/vela ${(Number(args.sigma ?? 0.002) * 100).toFixed(2)}%`;
+    sourceLabel = `SINTÉTICO GBM sin edge · ${days} días · σ/vela ${n(Number(args.sigma ?? 0.002) * 100, 2)} %`;
   } else {
     const days = Number(args.days ?? 365);
     const source = args.source ?? 'binance';
@@ -100,18 +100,18 @@ async function main() {
   // ── Salida ─────────────────────────────────────────────────────────────────────────────────
   const out = [];
   out.push(`# Backtest BTC 15m — ${sourceLabel}`);
-  out.push(`Costos: ${preset.label}${args.fee != null || args.slippage != null ? ' (override)' : ''} → por lado ${(costSide * 100).toFixed(3)}% · ida+vuelta ${(roundTrip * 100).toFixed(3)}%`);
-  out.push(`Velas: ${candles.length} · σ por vela ${(sigma * 100).toFixed(3)}% · |ret| medio ${(meanAbs * 100).toFixed(3)}% · σ anualizada ${(sigmaAnnual * 100).toFixed(1)}%`);
-  out.push(`**Break-even:** el costo ida+vuelta equivale a **${breakEvenSigmas.toFixed(2)} σ de una vela**. Cada trade tiene que capturar eso solo para empatar.`);
+  out.push(`Costos: ${preset.label}${args.fee != null || args.slippage != null ? ' (override)' : ''} → por lado ${n(costSide * 100, 2)} % · ida+vuelta ${n(roundTrip * 100, 2)} %`);
+  out.push(`Velas: ${candles.length} · σ por vela ${n(sigma * 100, 3)} % · |ret| medio ${n(meanAbs * 100, 3)} % · σ anualizada ${n(sigmaAnnual * 100, 1)} %`);
+  out.push(`**Break-even:** el costo ida+vuelta equivale a **${n(breakEvenSigmas, 2)} σ de una vela**. Cada trade tiene que capturar eso solo para empatar.`);
   out.push('');
   out.push('| Estrategia | Trades | Neto total | Neto IS (70%) | Neto OOS (30%) | B&H OOS | MaxDD | Win% | PF | Exp/trade | Costos pagados |');
   out.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
   for (const r of rows) {
-    out.push(`| ${r.name} ${r.params} | ${r.all.trades} | ${p(r.all.netReturn)} | ${p(r.ins.netReturn)} | ${p(r.oos.netReturn)} | ${p(bhOos.netReturn)} | ${p(-r.all.maxDD)} | ${(r.all.winRate * 100).toFixed(0)}% | ${r.all.profitFactor.toFixed(2)} | ${p(r.all.expectancy)} | ${p(r.all.costPaid)} |`);
+    out.push(`| ${r.name} ${r.params} | ${r.all.trades} | ${p(r.all.netReturn)} | ${p(r.ins.netReturn)} | ${p(r.oos.netReturn)} | ${p(bhOos.netReturn)} | ${p(-r.all.maxDD)} | ${n(r.all.winRate * 100, 0)} % | ${Number.isFinite(r.all.profitFactor) ? n(r.all.profitFactor, 2) : '∞'} | ${p(r.all.expectancy)} | ${p(r.all.costPaid)} |`);
   }
   out.push(`| Buy & hold | ${bh.trades} | ${p(bh.netReturn)} | — | ${p(bhOos.netReturn)} | ${p(bhOos.netReturn)} | ${p(-bh.maxDD)} | — | — | — | ${p(bh.costPaid)} |`);
   out.push('');
-  out.push(`**Monte Carlo (${mcRuns} corridas aleatorias, ${refTrades} trades c/u, mismos costos):** media ${p(mcStats.mean)} · p5 ${p(mcStats.p5)} · mediana ${p(mcStats.p50)} · p95 ${p(mcStats.p95)} · % corridas positivas ${(mcStats.positive * 100).toFixed(0)}%`);
+  out.push(`**Monte Carlo (${mcRuns} corridas aleatorias, ${refTrades} trades c/u, mismos costos):** media ${p(mcStats.mean)} · p5 ${p(mcStats.p5)} · mediana ${p(mcStats.p50)} · p95 ${p(mcStats.p95)} · % corridas positivas ${n(mcStats.positive * 100, 0)} %`);
   out.push('Lectura: una estrategia tiene edge solo si su neto OOS supera el p95 aleatorio Y le gana a buy&hold OOS. Si cae dentro de la banda aleatoria, es ruido más costos.');
   out.push('');
   out.push('Notas: señal en cierre → ejecución en apertura siguiente; long-only salvo `--short`; sin funding ni intereses; sin impuestos (Ganancias AR 5%/15% sobre resultado). Script sin dependencias, endpoints públicos, nunca opera. — GSG · quant-trading');
@@ -186,6 +186,7 @@ function rsi(x, n) { const out = new Array(x.length).fill(50); let g = 0, l = 0;
 function mean(a) { return a.reduce((s, v) => s + v, 0) / a.length; }
 function std(a) { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / a.length); }
 function pct(sorted, q) { return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]; }
+function n(x, d) { return x.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
 function p(x) { return `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`; }
 
 // ── Datos ──────────────────────────────────────────────────────────────────────────────────────

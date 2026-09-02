@@ -108,7 +108,7 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
       <div class="field"><label for="lemonBid">USDt que te paga Lemon en pesos (compra, ARS)</label><input id="lemonBid" type="number" step="0.5" value="1534.81"></div>
     </div>
     <div class="row2">
-      <div class="field"><label for="feeIn">Comisión ACH Lemon (%)</label><input id="feeIn" type="number" step="0.1" value="1.5" aria-describedby="h-feeIn"><span class="hint" id="h-feeIn">1,5 % hoy; hay fuentes con 2 % + 5 USD</span></div>
+      <div class="field"><label for="feeIn">Comisión ACH Lemon (%)</label><input id="feeIn" type="number" step="0.1" min="0" max="99" value="1.5" aria-describedby="h-feeIn"><span class="hint" id="h-feeIn">1,5 % hoy; hay fuentes con 2 % + 5 USD</span></div>
       <div class="field"><label for="prima">Prima neta USDt→USD al banco (%)</label><input id="prima" type="number" step="0.1" value="3" aria-describedby="h-prima"><span class="hint" id="h-prima">La que muestra la app al confirmar el envío al banco</span></div>
     </div>
     <div class="row2">
@@ -235,7 +235,8 @@ footer{margin-top:36px;padding-top:12px;border-top:1px solid var(--line);font-si
     const lemon=rows.find(r=>r.n.startsWith('Lemon · ACH'));
     const worst=Math.min(...rows.map(r=>r.v));
     $('rows').innerHTML=rows.map((r,i)=>`<tr class="${i===0?'best':''}"><td><span class="name">${r.n}</span>${r.tag?`<span class="tag ${r.warn?'warn':''}">${r.tag}</span>`:''}<span class="sub">${r.s}</span></td><td><div class="bar" role="img" aria-label="${fmt(r.v,0)} dólares"><i style="width:${Math.max(4,((r.v-worst*0.97)/(best-worst*0.97))*100)}%"></i></div></td><td class="num">${fmt(r.v)}</td><td class="num">${i===0?'mejor':pct((r.v-best)/best)}</td></tr>`).join('');
-    const be=bestNominal/(M*(1-fIn))-1;
+    const den=M*(1-fIn); if(!(den>0)){$('be-line').textContent='Con 100 % de comisión de entrada no queda nada para comparar: bajá la comisión.';$('v-rieles').className='verdict crit';$('v-title').textContent='Comisión de entrada imposible';$('v-text').textContent='Revisá la comisión ACH: con ese valor Lemon no deja nada.';$('v-num').textContent='';return;}
+    const be=bestNominal/den-1;
     const pizarra=lemonBid/mep-1;
     $('pizarra').textContent=pct(pizarra);
     $('be-line').innerHTML=`<b>Punto de quiebre de Lemon:</b> con ${pctAbs(fIn,1)} de entrada, Lemon empata con el mejor riel sin prima cripto (${bestNominalRow.n.split(' ')[0]}) cuando la prima neta es <b>${pctAbs(be)}</b> (${fmt(bestNominal)} ÷ ${fmt(M*(1-fIn))} − 1). Por debajo de eso, conviene el riel sin cripto.`;

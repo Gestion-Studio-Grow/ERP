@@ -144,7 +144,8 @@ chica) — no es un margen que puedas dar por garantizado a 6 meses vista.
 ## 5. Comparativa contra alternativas (neto para USD 2.000)
 
 > Convención: los rieles que terminan **en pesos** se valúan al precio de **compra** del exchange (lo que te pagan) y se
-> reconvierten a dólar MEP con −0,5% y un día más (T+1), para comparar dólares contra dólares. Mismos números que la app.
+> reconvierten a dólar MEP con −0,5% y un día más (T+1), para comparar dólares contra dólares. Lemon, Belo, P2P, Wise, Takenos y SWIFT dan los mismos números que la app; la fila
+> "USDT afuera vendido en Buenbit" no está en la app.
 
 | Alternativa | Cómo funciona | Fee de entrada | Prima/spread aplicado | **Neto estimado** | Fricción operativa |
 |---|---|---:|---:|---:|---|
@@ -152,7 +153,7 @@ chica) — no es un margen que puedas dar por garantizado a 6 meses vista.
 | **Transferencia bancaria directa** (banco US → SWIFT → caja de ahorro USD en banco AR) | Wire clásico, sin cripto de por medio | Fija, ~USD 35-50 entre banco emisor + corresponsal (⚠️ a verificar con el banco puntual, varía mucho) | 0% (llega como USD nominal) | **~1.950-1.965** | Baja, pero lenta (2-5 días) y el costo fijo castiga montos chicos |
 | **Wise → pesos vía tipo interbancario / MEP** | Wise convierte a tipo mid-market + comisión chica | ~0,4-0,8% (uso 0,6%) | 0% (no hay prima cripto) | **~1.988,00** | Baja, 1-2 días, la más simple |
 | **USDT comprado afuera (Kraken/Coinbase) y vendido en el exchange AR con mejor precio del día** (Buenbit, cotización dada: **compra** 1.584 ARS/USDT —lo que te pagan— vs. MEP 1.535,5) | Comprás USDT con USD que ya tenías afuera, lo mandás por red (TRC-20, ~1 USD) y lo vendés en pesos en el exchange que mejor paga | ~0,25% (fee de compra) + ~1 USD de red | ~3,2% de diferencia compra-vs-MEP (bruto, antes de reconvertir pesos a dólares) | **~2.047** (equivalente en dólares, ya restado −0,5% por reconvertir los pesos a MEP, T+1) | **Alta**: necesitás ya tener USD en un exchange afuera, y en Argentina solo podés operar con PSAV inscriptos en CNV; es el camino con más pasos y más superficie de error |
-| **Binance P2P** (compra dada: 1.577,47 ARS/USDT) | Mismo mecanismo que arriba, contraparte P2P en vez de exchange centralizado | similar (~0,25% + red) | ~2,7% vs. MEP | **~2.039** (con −0,5% de reconversión a MEP) | Alta + riesgo de contraparte P2P (estafas, congelamiento de cuenta bancaria por "operación sospechosa") |
+| **Binance P2P** (compra dada: 1.577,47 ARS/USDT) | Mismo mecanismo que arriba, contraparte P2P en vez de exchange centralizado | similar (~0,25% + red) | ~2,7% vs. MEP | **~2.038** (con −0,5% de reconversión a MEP) | Alta + riesgo de contraparte P2P (estafas, congelamiento de cuenta bancaria por "operación sospechosa") |
 | **Belo** (si la promo "ACH sin comisión" de 2026 sigue vigente) | Mismo riel que Lemon (también usa Bridge), compra USDT dada: 1.585 ARS | **0%** (⚠️ a verificar que la promo siga activa) | ~3,2% vs. MEP | **~2.054** (si la promo de comisión 0% sigue viva; con −0,5% de reconversión a MEP) | Media, igual que Lemon — **si el dato de comisión 0% es real, Belo le gana a Lemon hoy** |
 | **Takenos** | Cuenta USD también recibe ACH sin comisión, pero retirar a banco AR cobra 1% (o 5% si entra por transferencia bancaria en dólares desde Argentina, no aplica acá) | 0% (ACH) + 1% salida a banco AR | No opera con prima cripto, es dólar nominal | **~1.980** | Media |
 
@@ -245,7 +246,7 @@ se eleva al dueño.** No propongo mover plata acá.
 2. **El spread real que muestra la app al momento de vender** el USDC/USDt hacia el banco argentino (no
    la cotización de portada de la sección "Dólar digital", sino la pantalla de confirmación de la
    operación puntual).
-3. **La prima efectiva del día** entre el precio de venta que te ofrece Lemon y el MEP/oficial del
+3. **La prima efectiva del día** entre el precio de compra que te paga Lemon (y la tasa USDt→USD del envío al banco) y el MEP/oficial del
    momento — con eso se recalcula la tabla de §4 con el número real, no el de este documento.
 4. **Que la cuenta de origen (EE.UU.) y la cuenta de destino (banco AR) figuren a tu mismo nombre** — es
    requisito duro de Lemon.

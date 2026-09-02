@@ -101,6 +101,10 @@ Ambas **analizan y nunca operan**: mover plata, claves API o gasto de infraestru
 | `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-challenger.md` | Antítesis (ADR-045) sobre ambos análisis y la app |
 | `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-propuesta-app-mesa-cripto.md` | Qué app construir (y cuál no) — para decisión del dueño |
 | `scripts/btc-15m-backtest.mjs` | Backtester Node sin dependencias, datos públicos, nunca opera |
+
+> **Gate de Excelencia (Opus, 2026-09-02):** primera pasada RECHAZADO (4 bloqueantes: esqueleto HTML/viewport, lado bid/ask de la prima,
+> NaN al vaciar campos, 0,8 % viejo); fixes aplicados; re-gate **APROBADO CON OBSERVACIONES** (O-1..O-5 cerradas en el mismo push).
+> Habilitado a `main`. Pendiente del dueño: confirmación de una línea del trade-off contra P1 (O-14) y correr el backtest real en desktop.
 | `public/lab/mesa-cripto/index.html` → `/lab/mesa-cripto/index.html` | **App demo fase 1** (decisión del dueño 2026-09-02, "avanza"): calculadora de rieles + panel de costos BTC 15 m. Artifact privado de revisión: https://claude.ai/code/artifact/90a6535a-fa90-4b00-a4b7-8e6883c9c83d |
 
 ## 5. Puntos abiertos — a confirmar por el dueño
