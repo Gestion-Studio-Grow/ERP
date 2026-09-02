@@ -7,7 +7,7 @@ tags: [brain/indice]
 
 # 🛡️ Lecciones — índice de guardarraíles
 
-> 38 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
+> 40 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
 > — no el registro entero. Calibración obligatoria antes de tocar Prod/Deploy · Datos/DB ·
 > Multi-tenant · Seguridad (ADR-052).
 
@@ -60,6 +60,8 @@ tags: [brain/indice]
 - **[MP-13](MP-13-una-fundacion-gateada-sin-consumidor-real-infla-el-de-avance.md)** — al reportar % de una fundación/flag, distinguir construido de consumido; no contar "listo" una capa sin al menos un consumidor real cableado y verde.
 - **[MP-14](MP-14-gating-por-redirect-riesgo-de-loop-si-el-destino-tambien-se.md)** — antes de enforcar gating con `redirect()`, mapear el destino para CADA rol y CADA combinación de módulos apagados; si algún destino puede estar gateado, no redirigir — usar 404/estado neutro o […]
 - **[MP-15](MP-15-deviacion-de-una-decision-de-adr-citando-una-autoridad-no.md)** — si una sesión se desvía de un ADR aceptado, trae la confirmación del dueño al mismo commit (nota fechada en el ADR/ESTADO-ACTUAL) o lo marca como propuesta para el Gate — nunca lo commitea como hecho […]
+- **[MP-16](MP-16-analisis-cuantitativo-pedido-desde-el-movil-en-una-sesion.md)** — todo doc cuantitativo de la Mesa Cripto lleva (1) sección "Restricción del entorno" si faltó acceso, (2) fuente + fecha por cada número de mercado, (3) `⚠️ a verificar` en lo no confirmado, y (4) los […]
+- **[MP-17](MP-17-el-costo-ida-vuelta-vs-de-la-vela-decide-todo-antes-de.md)** — todo análisis de estrategia de trading en timeframe intradiario abre con la tabla costo-ida+vuelta-por-exchange vs. σ-por-vela antes de tocar un indicador; si el costo supera ~0,25σ-1σ se lo dice […]
 
 ## SEC — Seguridad
 

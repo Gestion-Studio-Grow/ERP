@@ -11,16 +11,15 @@
 **Formato fijo de cada entrada:**
 `[ID] Síntoma → Causa raíz → Fix aplicado (commit) → Lección → Guardarraíl → Refs`.
 Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categorías (prefijo del ID):
-**PD** Prod/Deploy · **DB** Datos/DB · **MT** Multi-tenant · **DX** Demo/UX · **MP** Metodología/Proceso · **SEC** Seguridad · **QT** Mesa cripto/Quant Trading.
+**PD** Prod/Deploy · **DB** Datos/DB · **MT** Multi-tenant · **DX** Demo/UX · **MP** Metodología/Proceso · **SEC** Seguridad.
 
 ## Índice
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir) · MP-15 desvío de ADR sin rastro de autoridad = observación a elevar · MP-16 análisis de mercado en sesión remota con egress bloqueado = modelo analítico + script reproducible, nunca datos inventados
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir) · MP-15 desvío de ADR sin rastro de autoridad = observación a elevar · MP-16 análisis de mercado en sesión remota con egress bloqueado = modelo analítico + script reproducible, nunca datos inventados · MP-17 trading intradiario: tabla costo ida+vuelta vs σ por vela ANTES de tocar un indicador
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
-- **QT** — QT-1 costo ida+vuelta vs. σ de la vela decide todo antes que el indicador
 
 ---
 
@@ -431,6 +430,27 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   de decisión **fijados antes** de ver los resultados reales (vara pre-registrada, no ajustada al número).
 - **Refs:** `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-btc-15m-viabilidad.md` §3/§8, ADR-030, ADR-046,
   ADR-052; charters `quant-trading` y `analista-fx-cripto`.
+
+---
+**[MP-17] El costo ida+vuelta vs. σ de la vela decide todo, antes de mirar un solo indicador**
+- **Síntoma:** el dueño preguntó si "BTC en velas de 15 min" puede dar rentabilidad hoy — la tentación
+  natural es arrancar comparando indicadores (EMA, RSI, Bollinger) o buscando "la estrategia que funciona".
+- **Causa raíz:** sin fijar primero el costo real de operar (comisión+spread+funding del exchange concreto)
+  contra la volatilidad típica de una sola vela (σ), cualquier resultado de indicador es ruido — el filtro
+  que importa (costo/σ) nunca se aplicó.
+- **Fix:** se calculó σ_15min = σ_anual / √(365×96) ≈ 0,17%-0,23% con la vol realizada 2026 (30/90/365d) y se
+  comparó contra el costo ida+vuelta de cada exchange accesible desde Argentina (0,04% en futuros-maker de
+  Binance/Bybit/OKX hasta 1-4% en apps AR) — solo maker en futuros queda por debajo de 0,25σ; todo el resto
+  arranca perdiendo antes de la primera señal. Se cruzó contra backtests públicos con costos reales
+  (CoinQuant: RSI scalping 92 trades/−16,88%, EMA 21/55 25 trades/−6,5%) que confirman el patrón.
+- **Lección:** en timeframes cortos (≤15 min) el costo de ejecución domina el resultado mucho más que la
+  calidad del indicador — evaluar "¿qué estrategia uso?" antes de "¿el costo cabe en la volatilidad de la
+  vela?" es empezar por el paso equivocado y lleva a horas de backtest sobre una premisa ya perdida.
+- **Guardarraíl:** todo análisis de estrategia de trading en timeframe intradiario abre con la tabla
+  costo-ida+vuelta-por-exchange vs. σ-por-vela **antes** de tocar un indicador; si el costo supera ~0,25σ-1σ
+  se lo dice explícito y se corta ahí (charter `quant-trading`, paso "costos primero").
+- **Refs:** `docs/sectores/agencia-grow/mesa-cripto/2026-09-02-btc-15m-investigacion-mercado.md` §3/§4/§8,
+  ADR-046 (zona estándar/precisa para análisis cuantitativo), ADR-052; charter `quant-trading`.
 
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: quant-trading
 description: Analista Cuantitativo de Trading de GSG (Agencia Grow) — evalúa con rigor si una estrategia de trading (ej. BTC en velas de 15 min) puede ser rentable DESPUÉS de comisiones, spread y slippage; diseña y corre backtests reproducibles, análisis de break-even y Monte Carlo, y detecta overfitting. Úsalo antes de construir cualquier bot o app de trading. Analiza; NUNCA opera con plata real ni maneja claves de exchange (§C, dueño).
+model: sonnet
 tools: Read, Grep, Glob, Bash, WebSearch, WebFetch, Edit, Write
 ---
 

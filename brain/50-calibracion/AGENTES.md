@@ -7,11 +7,11 @@ tags: [brain/calibracion, brain/roster]
 
 # 👥 Agentes materializados — derivado de `.claude/agents/`
 
-> 25 agentes con charter real. Esta tabla **se deriva de los archivos**, no se
+> 27 agentes con charter real. Esta tabla **se deriva de los archivos**, no se
 > mantiene a mano: el roster narrado (`docs/organizacion/roster-completo-gsg.md`) quedó viejo
 > respecto del repo, que es la enfermedad que el vault existe para curar.
 
-> 🚨 **25 de 25 agentes NO declaran `model:` en su frontmatter.**
+> 🚨 **25 de 27 agentes NO declaran `model:` en su frontmatter.**
 > La capa que ves abajo es **prosa del encabezado**, no una instrucción que el harness honre:
 > al despachar, el subagente **hereda el modelo del padre**. Es la causa exacta de la lección
 > **MP-4** (Opus por herencia) y **MP-9** (modelo mal etiquetado), y deja sin red la regla de
@@ -20,6 +20,7 @@ tags: [brain/calibracion, brain/roster]
 | Agente | Capa declarada (prosa) | `model:` | Qué hace |
 |---|---|:---:|---|
 | [advisory](../../.claude/agents/advisory.md) | Sonnet (escala a Opus a pedido) | ❌ | Advisory Board de GSG — propone estrategia con rigor (la TESIS) antes de adoptar un fundamento (bases, roadmap, […] |
+| [analista-fx-cripto](../../.claude/agents/analista-fx-cripto.md) | Sonnet → Opus (plata real) | ✅ | Analista de Mesa FX & Cripto de GSG (Agencia Grow) — evalúa rieles para mover dólares hacia/desde Argentina (Lemon, […] |
 | [arquitecto-solucion](../../.claude/agents/arquitecto-solucion.md) | Opus/Sonnet | ❌ | Arquitecto de Solución de GSG — separa lo reversible de lo irreversible, ejecuta lo reversible de forma autónoma y […] |
 | [auditoria-gsg-gate](../../.claude/agents/auditoria-gsg-gate.md) | Opus SIEMPRE | ❌ | Auditoría GSG (el Gate de Excelencia) — corre SIEMPRE en Opus antes de cada merge a main. Audita SAP Fiori 7 ángulos + […] |
 | [backoffice-ingenieria](../../.claude/agents/backoffice-ingenieria.md) | Sonnet→Opus (override según Plan de Ventana) | ❌ | Ingeniero de Backoffice del ERP — construye e integra al backoffice del ERP la funcionalidad que definió […] |
@@ -38,6 +39,7 @@ tags: [brain/calibracion, brain/roster]
 | [preset-ia](../../.claude/agents/preset-ia.md) | Opus | ❌ | Preset IA de GSG — motor de onboarding: ingesta de marca/artefacto (web/RRSS del cliente o prototipo) + adaptación → […] |
 | [pricing-packaging](../../.claude/agents/pricing-packaging.md) | Opus (plata) | ❌ | Pricing & Packaging de GSG — define precios y planes por perfil (lite/enterprise) y por segmento […] |
 | [qa](../../.claude/agents/qa.md) | Sonnet | ❌ | QA / Probador interactivo de GSG — prueba como usuario real end-to-end (entrar, navegar, backoffice, carrito, WhatsApp) […] |
+| [quant-trading](../../.claude/agents/quant-trading.md) | Sonnet → Opus (plata real) | ✅ | Analista Cuantitativo de Trading de GSG (Agencia Grow) — evalúa con rigor si una estrategia de trading (ej. BTC en […] |
 | [raci-matriz](../../.claude/agents/raci-matriz.md) | Sonnet→Opus (juicio de gobernanza) | ❌ | Especialista en Matrices RACI de GSG — diseña y mantiene la matriz RACI (Responsible/Accountable/Consulted/Informed) […] |
 | [release-manager](../../.claude/agents/release-manager.md) | Opus coord / Sonnet ejecuta | ❌ | Release Manager de GSG — orquesta el tren de releases de punta a punta (batch → build → Gate → deploy con OK del […] |
 | [seguridad](../../.claude/agents/seguridad.md) | Opus | ❌ | Seguridad de GSG — audita y endurece RLS, auth, secretos y aislamiento multi-tenant. Úsalo antes de tocar áreas de […] |

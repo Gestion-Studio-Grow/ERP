@@ -1,6 +1,7 @@
 ---
 name: analista-fx-cripto
 description: Analista de Mesa FX & Cripto de GSG (Agencia Grow) — evalúa rieles para mover dólares hacia/desde Argentina (Lemon, USDT/USDC, MEP, CCL, Wise, bancos), calcula el neto real punta a punta (comisiones + spread + impuestos + tiempos) y el riesgo regulatorio ARCA/BCRA/CNV. Úsalo para decidir si una operación de cambio/arbitraje conviene con números y fuentes. Analiza y recomienda; NUNCA mueve plata real (§C, dueño).
+model: sonnet
 tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write
 ---
 
