@@ -41,11 +41,16 @@ const LIBRO_PATH = "/admin/caja/libro";
 // formatea desde el instante UTC en la zona del negocio: el asiento se ancla al
 // mediodía, así que ningún corrimiento lo mueve de día.
 function fmtRowDate(d: Date): string {
-  return new Intl.DateTimeFormat("es-AR", {
+  // `es-AR` ignora el "2-digit" del día para día/mes sueltos y rinde "6/9". Se
+  // arma a mano para que la columna quede alineada: "06/09".
+  const partes = new Intl.DateTimeFormat("es-AR", {
     timeZone: "America/Argentina/Buenos_Aires",
     day: "2-digit",
     month: "2-digit",
-  }).format(d);
+  }).formatToParts(d);
+  const dia = partes.find((p) => p.type === "day")?.value ?? "";
+  const mes = partes.find((p) => p.type === "month")?.value ?? "";
+  return `${dia.padStart(2, "0")}/${mes.padStart(2, "0")}`;
 }
 
 export default async function LibroCajaPage({
@@ -86,7 +91,7 @@ export default async function LibroCajaPage({
           className="rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-2"
           rel="prev"
         >
-          ← {formatMonthLabel(prev.year, prev.month)}
+          <span className="capitalize">← {formatMonthLabel(prev.year, prev.month)}</span>
         </Link>
         <span className="text-sm font-medium capitalize text-strong">{label}</span>
         <Link
@@ -94,7 +99,7 @@ export default async function LibroCajaPage({
           className="rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-2"
           rel="next"
         >
-          {formatMonthLabel(next.year, next.month)} →
+          <span className="capitalize">{formatMonthLabel(next.year, next.month)} →</span>
         </Link>
       </nav>
 
@@ -111,7 +116,10 @@ export default async function LibroCajaPage({
             </CardDescription>
           </div>
         </CardHeader>
-        <AddLibroEntryForm defaultDate={defaultDate} />
+        {/* `key` por mes: remonta el formulario al navegar, para que la fecha por
+            defecto se re-inicialice. Sin esto, llegar con la flecha y guardar
+            mandaba la fila al mes anterior y desaparecía de la pantalla. */}
+        <AddLibroEntryForm key={monthKey} defaultDate={defaultDate} viewMonth={monthKey} />
       </Card>
 
       {/* Detalle del mes */}
@@ -128,11 +136,14 @@ export default async function LibroCajaPage({
             description="Cargá el primero con el formulario de arriba, o cambiá de mes."
           />
         ) : (
-          <Card flush className="overflow-x-auto">
-            <table className="w-full min-w-[52rem] text-sm">
-              <caption className="sr-only">
-                Movimientos de caja de {label}: fecha, detalle, medio, ingreso, egreso y saldo acumulado.
-              </caption>
+          <Card flush className="relative overflow-x-auto">
+            {/* `aria-label` en vez de un <caption className="sr-only">: el caption
+                absolutamente posicionado se escapaba del contenedor y estiraba el
+                documento a 817px en mobile, dejando media pantalla en blanco. */}
+            <table
+              className="w-full min-w-[52rem] text-sm"
+              aria-label={`Movimientos de caja de ${label}: fecha, detalle, medio, ingreso, egreso y saldo acumulado`}
+            >
               <thead>
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-faint">
                   <th scope="col" className="px-4 py-2 font-medium">Fecha</th>
@@ -203,7 +214,7 @@ function ResumenCard({ summary, label }: { summary: { opening: MethodAmounts; in
   ] as const;
 
   return (
-    <Card flush className="overflow-x-auto">
+    <Card flush className="relative overflow-x-auto">
       <table className="w-full min-w-[40rem] text-sm">
         <caption className="px-4 pt-4 text-left">
           <span className="font-medium text-strong">Resumen de <span className="capitalize">{label}</span></span>

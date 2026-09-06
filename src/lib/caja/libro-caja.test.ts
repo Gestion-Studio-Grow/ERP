@@ -16,6 +16,7 @@ import {
   shiftMonth,
   formatMonthKey,
   formatMonthLabel,
+  dateBelongsToMonth,
   type LibroMovement,
 } from "./libro-caja";
 import { AGOSTO_2026, AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
@@ -210,4 +211,22 @@ test("las etiquetas del período son estables y en español", () => {
   assert.equal(formatMonthKey(2026, 12), "2026-12");
   assert.equal(formatMonthLabel(2026, 8), "agosto 2026");
   assert.equal(formatMonthLabel(2026, 1), "enero 2026");
+});
+
+// ── Guarda contra los dos errores reales de la planilla ─────────────────────
+
+test("dateBelongsToMonth atrapa el año mal tipeado y la fila que caería en otro mes", () => {
+  assert.equal(dateBelongsToMonth("2026-05-11", "2026-05"), true);
+  // El error real: 25 filas de mayo 2026 quedaron fechadas en 2025.
+  assert.equal(dateBelongsToMonth("2025-05-11", "2026-05"), false);
+  // El otro error real: cargar con la fecha de hoy mientras se mira otro mes.
+  assert.equal(dateBelongsToMonth("2026-09-06", "2026-08"), false);
+  assert.equal(dateBelongsToMonth("2026-08-31", "2026-08"), true);
+  assert.equal(dateBelongsToMonth("2026-09-01", "2026-08"), false);
+});
+
+test("dateBelongsToMonth no advierte cuando no hay con qué comparar", () => {
+  assert.equal(dateBelongsToMonth("2026-05-11", ""), true);
+  assert.equal(dateBelongsToMonth("2026-05-11", "basura"), true);
+  assert.equal(dateBelongsToMonth("no-es-fecha", "2026-05"), true);
 });

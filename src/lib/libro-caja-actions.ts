@@ -29,6 +29,7 @@ import {
   openingFromHistory,
   parseMonth,
   formatMonthKey,
+  dateBelongsToMonth,
   type Libro,
   type LibroMovement,
 } from "@/lib/caja/libro-caja";
@@ -36,7 +37,20 @@ import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 
 const LIBRO_PATH = "/admin/caja/libro";
 
-export type LibroActionState = { ok: true } | { ok: false; error: string } | null;
+// Error de dominio para el aviso de duplicado. Va como clase (y no como string
+// suelto) para poder distinguirlo de cualquier otro fallo de la transacción.
+class DuplicadoError extends Error {}
+
+// Estado de las acciones del libro para la UI.
+//
+// La variante `confirmable` es lo que separa este libro de la planilla: en Sheets
+// una fila con el año mal tipeado, o cargada dos veces, entra sin que nadie se
+// entere. Acá la acción FRENA y pide confirmación explícita, y sólo guarda si el
+// usuario insiste. Ver `CONFIRM_*` abajo.
+export type LibroActionState =
+  | { ok: true; message?: string }
+  | { ok: false; error: string; confirmable?: "fuera-de-mes" | "duplicado" }
+  | null;
 
 function toActionError(err: unknown): { ok: false; error: string } {
   const msg = err instanceof Error && err.message ? err.message : "No se pudo completar la operación.";
@@ -188,9 +202,43 @@ export async function addLibroEntry(
     return { ok: false, error: "La fecha no es válida." };
   }
 
+  // ── Guardas anti-error, derivadas de la auditoría de la planilla real ──────
+  //
+  // La planilla de CH Estética llegó con 25 filas fechadas un año antes (mayo 2025
+  // en vez de 2026) y con filas repetidas. Las dos cosas pasan sin ruido en Sheets.
+  // Acá las dos frenan y piden confirmación; el usuario puede insistir, pero no
+  // puede hacerlo sin darse cuenta.
+  const confirmado = String(formData.get("confirm") || "") === "1";
+
+  // (a) FUERA DEL MES QUE SE ESTÁ MIRANDO. Cubre dos errores de una: el año mal
+  // tipeado, y cargar una fila con la fecha de hoy mientras se mira otro mes (la
+  // fila se guardaría bien pero desaparecería de la pantalla, que es peor que un
+  // error: parece que no se guardó y se vuelve a cargar → doble cobro).
+  const mesEnPantalla = String(formData.get("viewMonth") || "").trim();
+  if (!confirmado && !dateBelongsToMonth(dateStr, mesEnPantalla)) {
+    return {
+      ok: false,
+      confirmable: "fuera-de-mes",
+      error:
+        `Esa fecha (${dateStr}) no es de ${mesEnPantalla}, que es el mes que estás viendo. ` +
+        `Si la guardás así, la fila no va a aparecer en esta pantalla. Revisá la fecha o confirmá para guardarla igual.`,
+    };
+  }
+
   const actor = `user:${user.id}`;
   try {
     await tenantTransaction(async (tx) => {
+      // (b) POSIBLE DUPLICADO: mismo día, mismo detalle, mismo medio y mismo monto.
+      // Puede ser legítimo (dos señas iguales el mismo día), por eso avisa en vez de
+      // prohibir. Es la red que atrapa el doble guardado venga de donde venga —
+      // incluido un doble click o un reintento del usuario.
+      if (!confirmado) {
+        const yaHay = await tx.cashMovement.findFirst({
+          where: { tenantId, type, method, amount, reason: detail, occurredAt },
+          select: { id: true },
+        });
+        if (yaHay) throw new DuplicadoError();
+      }
       const openSession = await tx.cashSession.findFirst({
         where: { tenantId, status: "OPEN" },
         select: { id: true },
@@ -209,6 +257,15 @@ export async function addLibroEntry(
       });
     }, { tenantId });
   } catch (err) {
+    if (err instanceof DuplicadoError) {
+      return {
+        ok: false,
+        confirmable: "duplicado",
+        error:
+          `Ya hay un movimiento igual ese mismo día: “${detail}”, ${type === "INGRESO" ? "ingreso" : "egreso"} ` +
+          `de ${amount} por ${method}. Si es otro cobro distinto, confirmá para guardarlo igual.`,
+      };
+    }
     return toActionError(err);
   }
 
@@ -218,7 +275,12 @@ export async function addLibroEntry(
     changes: { type, method, amount, detail, occurredAt: dateStr },
   });
   revalidatePath(LIBRO_PATH);
-  return { ok: true };
+  // Confirmación EXPLÍCITA: la única señal de éxito no puede ser "fijate si
+  // apareció la fila". Si el usuario no ve una confirmación, vuelve a cargar.
+  return {
+    ok: true,
+    message: `Guardado: ${detail} — ${type === "INGRESO" ? "ingreso" : "egreso"} de ${amount} por ${method}.`,
+  };
 }
 
 // --- Borrar un asiento del libro ---
@@ -268,5 +330,5 @@ export async function deleteLibroEntry(
     changes: borrado,
   });
   revalidatePath(LIBRO_PATH);
-  return { ok: true };
+  return { ok: true, message: `Borrado: ${borrado.reason ?? "movimiento"}.` };
 }

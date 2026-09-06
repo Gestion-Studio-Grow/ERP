@@ -188,3 +188,16 @@ const MONTH_NAMES = [
 export function formatMonthLabel(year: number, month: number): string {
   return `${MONTH_NAMES[month - 1] ?? "?"} ${year}`;
 }
+
+// ¿La fecha (YYYY-MM-DD) cae dentro del mes (YYYY-MM) que se está mirando?
+//
+// Es la guarda que atrapa dos errores REALES de la planilla que reemplaza: 25 filas
+// fechadas un año antes (mayo 2025 en vez de 2026), y filas cargadas con la fecha de
+// hoy mientras se miraba otro mes. Las dos entran sin ruido en una hoja de cálculo;
+// acá la acción frena y pide confirmación. Devuelve `true` cuando no hay mes contra
+// el cual comparar (no hay nada que advertir).
+export function dateBelongsToMonth(dateStr: string, monthKey: string): boolean {
+  if (!parseMonth(monthKey)) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return true;
+  return dateStr.slice(0, 7) === monthKey;
+}
