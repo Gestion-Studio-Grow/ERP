@@ -4,6 +4,7 @@ import { fmtShortDate } from "@/lib/datetime";
 import {
   expectedCash,
   summarizeMovements,
+  type CashMethod,
   type CashMovementLike,
   type CashMovementType,
 } from "@/lib/caja/cash-register";
@@ -122,12 +123,23 @@ function OpenSession({
     openingFloat: number;
     openedAt: Date;
     openedBy: string;
-    movements: { id: string; type: string; amount: number; reason: string | null; createdAt: Date }[];
+    movements: {
+      id: string;
+      type: string;
+      amount: number;
+      method?: string | null;
+      reason: string | null;
+      createdAt: Date;
+    }[];
   };
 }) {
+  // `method` va SIEMPRE: el esperado en vivo cuenta sólo el efectivo del cajón, igual
+  // que el cierre. Sin él, un ingreso por MP del turno inflaría el número que el
+  // mostrador mira para contar la plata.
   const movs: CashMovementLike[] = session.movements.map((m) => ({
     type: m.type as CashMovementType,
     amount: m.amount,
+    method: (m.method ?? "EFECTIVO") as CashMethod,
   }));
   // Esperado EN VIVO (mismo cálculo que usa el cierre) + desglose por categoría.
   const expected = expectedCash(session.openingFloat, movs);

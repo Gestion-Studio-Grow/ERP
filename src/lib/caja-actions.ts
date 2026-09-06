@@ -22,7 +22,12 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
 import { Prisma } from "@/generated/prisma/client";
-import { reconcileCash, type CashMovementLike, type CashMovementType } from "@/lib/caja/cash-register";
+import {
+  reconcileCash,
+  type CashMethod,
+  type CashMovementLike,
+  type CashMovementType,
+} from "@/lib/caja/cash-register";
 import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 
 const CAJA_PATH = "/admin/caja";
@@ -228,7 +233,12 @@ export async function closeCashSession(
     result = await tenantTransaction(async (tx) => {
       const session = await tx.cashSession.findFirst({
         where: { tenantId, status: "OPEN" },
-        include: { movements: { select: { type: true, amount: true } } },
+        // `method` es OBLIGATORIO acá: `summarizeMovements` cuenta SÓLO los movimientos
+        // EFECTIVO (el arqueo cuenta el cajón). Si no se selecciona, llega `undefined`,
+        // que la aritmética interpreta como EFECTIVO por compatibilidad hacia atrás — y
+        // entonces un ingreso por MP enganchado a este turno infla el efectivo esperado
+        // y produce un faltante fantasma al cerrar.
+        include: { movements: { select: { type: true, amount: true, method: true } } },
       });
       if (!session) {
         throw new Error("No hay una caja abierta para cerrar.");
@@ -236,6 +246,7 @@ export async function closeCashSession(
       const movements: CashMovementLike[] = session.movements.map((m) => ({
         type: m.type as CashMovementType,
         amount: m.amount,
+        method: m.method as CashMethod,
       }));
       const arqueo = reconcileCash(session.openingFloat, movements, counted);
 
