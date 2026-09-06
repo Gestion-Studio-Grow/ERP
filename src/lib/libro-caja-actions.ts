@@ -30,9 +30,12 @@ import {
   parseMonth,
   formatMonthKey,
   dateBelongsToMonth,
+  formatMonthLabel,
+  CASH_METHOD_LABEL,
   type Libro,
   type LibroMovement,
 } from "@/lib/caja/libro-caja";
+import { fmtMoneyARS } from "@/components/ui/format";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 
 const LIBRO_PATH = "/admin/caja/libro";
@@ -216,11 +219,13 @@ export async function addLibroEntry(
   // error: parece que no se guardó y se vuelve a cargar → doble cobro).
   const mesEnPantalla = String(formData.get("viewMonth") || "").trim();
   if (!confirmado && !dateBelongsToMonth(dateStr, mesEnPantalla)) {
+    const vista = parseMonth(mesEnPantalla);
+    const rotulo = vista ? formatMonthLabel(vista.year, vista.month) : mesEnPantalla;
     return {
       ok: false,
       confirmable: "fuera-de-mes",
       error:
-        `Esa fecha (${dateStr}) no es de ${mesEnPantalla}, que es el mes que estás viendo. ` +
+        `Esa fecha (${dateStr}) no es de ${rotulo}, que es el mes que estás viendo. ` +
         `Si la guardás así, la fila no va a aparecer en esta pantalla. Revisá la fecha o confirmá para guardarla igual.`,
     };
   }
@@ -263,7 +268,7 @@ export async function addLibroEntry(
         confirmable: "duplicado",
         error:
           `Ya hay un movimiento igual ese mismo día: “${detail}”, ${type === "INGRESO" ? "ingreso" : "egreso"} ` +
-          `de ${amount} por ${method}. Si es otro cobro distinto, confirmá para guardarlo igual.`,
+          `de ${fmtMoneyARS(amount)} (${CASH_METHOD_LABEL[method]}). Si es otro cobro distinto, confirmá para guardarlo igual.`,
       };
     }
     return toActionError(err);
@@ -279,7 +284,7 @@ export async function addLibroEntry(
   // apareció la fila". Si el usuario no ve una confirmación, vuelve a cargar.
   return {
     ok: true,
-    message: `Guardado: ${detail} — ${type === "INGRESO" ? "ingreso" : "egreso"} de ${amount} por ${method}.`,
+    message: `Guardado: ${detail} — ${type === "INGRESO" ? "ingreso" : "egreso"} de ${fmtMoneyARS(amount)} (${CASH_METHOD_LABEL[method]})`,
   };
 }
 

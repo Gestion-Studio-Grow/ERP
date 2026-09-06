@@ -67,23 +67,39 @@ export function AddLibroEntryForm({
   const [date, setDate] = useState(defaultDate);
   const [type, setType] = useState("INGRESO");
   const [method, setMethod] = useState("MP");
-  // Cuando la acción pide confirmación (fecha fuera del mes, o posible duplicado)
-  // guardamos los datos tal cual se enviaron para poder reenviarlos con `confirm`.
-  const [porConfirmar, setPorConfirmar] = useState<FormData | null>(null);
+  // ¿La acción pidió confirmación (fecha fuera del mes, o posible duplicado)?
+  //
+  // Es un BOOLEANO, no una copia del FormData. Guardar la foto de los datos y
+  // reenviarla era un bug que costaba plata: si la persona veía el aviso de
+  // duplicado, se daba cuenta de que era otra clienta, CORREGÍA los campos y
+  // apretaba "Guardar igual", se guardaba el movimiento VIEJO —el duplicado que la
+  // guarda venía a evitar— y el corregido se perdía, con la pantalla mostrando los
+  // datos nuevos. Ahora el reenvío relee el formulario.
+  const [porConfirmar, setPorConfirmar] = useState(false);
 
-  function enviar(fd: FormData) {
+  // Lee SIEMPRE lo que está en pantalla en este instante.
+  function datosActuales(confirmar: boolean): FormData | null {
+    const form = formRef.current;
+    if (!form) return null;
+    const fd = new FormData(form);
+    fd.set("viewMonth", viewMonth);
+    if (confirmar) fd.set("confirm", "1");
+    return fd;
+  }
+
+  function enviar(confirmar: boolean) {
+    const fd = datosActuales(confirmar);
+    if (!fd) return;
     startTransition(async () => {
       const res = await addLibroEntry(null, fd);
       setState(res);
       if (res?.ok) {
-        setPorConfirmar(null);
+        setPorConfirmar(false);
         formRef.current?.reset();
         formRef.current?.querySelector<HTMLInputElement>("#libro-detail")?.focus();
         router.refresh();
-      } else if (res && !res.ok && res.confirmable) {
-        setPorConfirmar(fd);
       } else {
-        setPorConfirmar(null);
+        setPorConfirmar(Boolean(res && !res.ok && res.confirmable));
       }
     });
   }
@@ -93,9 +109,16 @@ export function AddLibroEntryForm({
       ref={formRef}
       onSubmit={(e) => {
         e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        fd.set("viewMonth", viewMonth);
-        enviar(fd);
+        enviar(false);
+      }}
+      // Tocar cualquier campo cancela una confirmación pendiente: si la persona
+      // corrigió el dato, lo que corresponde es volver a validar de cero, no dejar
+      // a mano un botón que saltea las guardas sobre datos que ya cambiaron.
+      onInput={() => {
+        if (porConfirmar) {
+          setPorConfirmar(false);
+          setState(null);
+        }
       }}
       className="flex flex-col gap-4"
     >
@@ -166,15 +189,7 @@ export function AddLibroEntryForm({
         {/* Segundo paso explícito cuando la acción avisó algo raro (fecha fuera del
             mes, posible duplicado). No se guarda nada hasta que la persona insiste. */}
         {porConfirmar && !pending && (
-          <button
-            type="button"
-            onClick={() => {
-              const fd = porConfirmar;
-              fd.set("confirm", "1");
-              enviar(fd);
-            }}
-            className={buttonClasses("outline", "md")}
-          >
+          <button type="button" onClick={() => enviar(true)} className={buttonClasses("outline", "md")}>
             Guardar igual
           </button>
         )}
