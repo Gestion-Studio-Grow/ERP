@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCajaData } from "@/lib/caja-actions";
 import { fmtShortDate } from "@/lib/datetime";
 import {
@@ -44,10 +45,19 @@ export default async function CajaPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1 text-strong">Caja</h1>
-      <p className="text-muted mb-8 max-w-2xl">
+      <p className="text-muted mb-4 max-w-2xl">
         Abrí el turno con el fondo inicial, registrá ingresos, egresos y retiros durante el día, y
         cerrá haciendo el arqueo: el sistema calcula cuánto efectivo debería haber y lo compara con
         lo que contás en el cajón. Las ventas en efectivo se registran solas.
+      </p>
+      {/* El arqueo es del CAJÓN (efectivo de un turno). La caja del negocio mes a mes,
+          con MP y tarjeta, vive en el libro — dos lecturas del mismo ledger. */}
+      <p className="text-muted mb-8 max-w-2xl text-sm">
+        ¿Buscás lo que entró y salió en el mes, con MP y tarjeta?{" "}
+        <Link href="/admin/caja/libro" className="underline underline-offset-4 hover:text-strong">
+          Andá al libro de caja
+        </Link>
+        .
       </p>
 
       {open ? <OpenSession session={open} /> : <ClosedState />}

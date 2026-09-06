@@ -58,6 +58,7 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist", alias: ["cola", "waitlist", "anotados para un hueco"] },
   { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read", module: "pos", alias: ["ventas", "mostrador", "comandas"] },
   { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read", module: "pos", alias: ["cobrar", "cierre", "arqueo", "efectivo", "cobros"] },
+  { href: "/admin/caja/libro", label: "Libro de caja", icon: "caja", cap: "orders:read", module: "pos", alias: ["planilla", "excel", "google sheets", "caja diaria", "cierre de caja", "ingresos y egresos", "mensual", "saldo"] },
   { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog", alias: ["servicios", "precios", "productos", "tratamientos", "profesionales", "horarios"] },
   { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog", alias: ["proveedores", "reposicion", "remitos"] },
   { href: "/admin/inventario", label: "Inventario", icon: "inventario", cap: "catalog:read", module: "catalog", retailOnly: true, alias: ["stock", "existencias"] },

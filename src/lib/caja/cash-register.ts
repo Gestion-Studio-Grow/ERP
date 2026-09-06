@@ -15,11 +15,25 @@ import { round2 } from "@/lib/round";
 
 export type CashMovementType = "APERTURA" | "VENTA" | "INGRESO" | "EGRESO" | "RETIRO";
 
-// Movimiento visto por la aritmética: solo tipo + monto (>0). La APERTURA no entra
+// Medio por el que se movió la plata. Espeja el enum `CashMethod` de Prisma.
+export type CashMethod = "EFECTIVO" | "MP" | "TARJETA";
+
+// Movimiento visto por la aritmética: tipo + monto (>0) + medio. La APERTURA no entra
 // como movimiento en el cálculo del esperado —ese fondo lo aporta `openingFloat`—;
 // si además se materializa como fila APERTURA en el ledger (para tener el turno
 // completo), esta función la ignora para no contarla dos veces.
-export type CashMovementLike = { type: CashMovementType; amount: number };
+//
+// `method` es OPCIONAL y ausente significa EFECTIVO: así toda fila anterior a la
+// columna `method` (y todo llamador que solo hace arqueo de cajón) sigue valiendo
+// exactamente lo mismo que antes.
+export type CashMovementLike = { type: CashMovementType; amount: number; method?: CashMethod };
+
+// El arqueo de turno cuenta el CAJÓN: solo la plata en efectivo. Un ingreso por MP o
+// tarjeta no está en el cajón y no puede inflar el esperado — contarlo produciría un
+// faltante fantasma en cada cierre. Ausente = EFECTIVO (compatibilidad hacia atrás).
+function isCash(m: CashMovementLike): boolean {
+  return (m.method ?? "EFECTIVO") === "EFECTIVO";
+}
 
 // Efecto de un movimiento sobre el efectivo esperado en el cajón:
 //   +1 → entra plata (VENTA en efectivo, INGRESO)
@@ -48,7 +62,8 @@ function usable(amount: number): boolean {
   return Number.isFinite(amount) && amount > 0;
 }
 
-// Desglose del efectivo del turno por categoría (todos >= 0, ya redondeados).
+// Desglose del EFECTIVO del turno por categoría (todos >= 0, ya redondeados).
+// Los movimientos por MP/tarjeta quedan fuera: no son plata del cajón.
 export type CashBreakdown = {
   sales: number; // ingresos por VENTA en efectivo
   cashIn: number; // otros INGRESO
@@ -63,6 +78,7 @@ export function summarizeMovements(movements: readonly CashMovementLike[]): Cash
   let withdrawals = 0;
   for (const m of movements) {
     if (!usable(m.amount)) continue;
+    if (!isCash(m)) continue; // MP/tarjeta no están en el cajón
     switch (m.type) {
       case "VENTA":
         sales += m.amount;

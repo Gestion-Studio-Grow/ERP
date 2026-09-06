@@ -113,3 +113,50 @@ test("round2 redondea a dos decimales", () => {
   assert.equal(round2(2.5), 2.5);
   assert.equal(round2(7000), 7000);
 });
+
+// ── El arqueo cuenta el CAJÓN, no la caja del negocio ───────────────────────
+//
+// Desde que `CashMovement` tiene medio de pago (libro de caja), un ingreso por MP o
+// por tarjeta NO está en el cajón: contarlo produciría un faltante fantasma en cada
+// cierre (el sistema esperaría plata que nunca entró al cajón).
+
+test("un ingreso por MP no infla el efectivo esperado", () => {
+  const esperado = expectedCash(1000, [
+    { type: "INGRESO", amount: 500, method: "EFECTIVO" },
+    { type: "INGRESO", amount: 9999, method: "MP" },
+    { type: "VENTA", amount: 7777, method: "TARJETA" },
+  ]);
+  assert.equal(esperado, 1500);
+});
+
+test("un egreso por MP no baja el efectivo esperado", () => {
+  const esperado = expectedCash(1000, [
+    { type: "EGRESO", amount: 300, method: "EFECTIVO" },
+    { type: "EGRESO", amount: 5000, method: "MP" },
+  ]);
+  assert.equal(esperado, 700);
+});
+
+test("sin `method` todo se sigue leyendo como EFECTIVO (compatibilidad hacia atrás)", () => {
+  const conMetodo = expectedCash(100, [{ type: "INGRESO", amount: 50, method: "EFECTIVO" }]);
+  const sinMetodo = expectedCash(100, [{ type: "INGRESO", amount: 50 }]);
+  assert.equal(sinMetodo, conMetodo);
+  assert.equal(sinMetodo, 150);
+});
+
+test("el desglose del turno tampoco mezcla medios", () => {
+  const b = summarizeMovements([
+    { type: "VENTA", amount: 200, method: "EFECTIVO" },
+    { type: "VENTA", amount: 800, method: "MP" },
+    { type: "RETIRO", amount: 100, method: "EFECTIVO" },
+    { type: "RETIRO", amount: 400, method: "TARJETA" },
+  ]);
+  assert.equal(b.sales, 200);
+  assert.equal(b.withdrawals, 100);
+});
+
+test("un arqueo cuyo turno solo tuvo cobros por MP cuadra con el fondo inicial", () => {
+  const r = reconcileCash(5000, [{ type: "VENTA", amount: 120000, method: "MP" }], 5000);
+  assert.equal(r.expected, 5000);
+  assert.equal(r.diff, 0); // sin el filtro por medio, acá habría un faltante de 120.000
+});

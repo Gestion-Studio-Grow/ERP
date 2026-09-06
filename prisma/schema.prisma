@@ -133,6 +133,23 @@ enum CashMovementType {
   RETIRO
 }
 
+// Medio de pago del movimiento de caja. Es la dimensión que la planilla de Google
+// Sheets del centro de estética tiene en columnas (EFECTIVO / MP / TARJETA) y que
+// el ledger no tenía: sin esto el libro de caja mensual no se puede reproducir.
+//
+// EFECTIVO es el DEFAULT a propósito: todo lo que había en `CashMovement` antes de
+// esta columna era, por construcción, plata del cajón (el arqueo de turno es
+// efectivo puro). Así la migración es aditiva y no reinterpreta ninguna fila viva.
+//
+// MP agrupa Mercado Pago y transferencia — que es como lo lleva el negocio en la
+// planilla (una sola columna). No se desdobla hasta que alguien lo pida: partir la
+// columna después es una migración de datos trivial; juntarla, no.
+enum CashMethod {
+  EFECTIVO
+  MP
+  TARJETA
+}
+
 // Tenant (negocio) — raíz del aislamiento multi-tenant (ADR-001). Cada tabla de
 // negocio referencia un tenant. Por ahora hay uno solo (Beauty & Spa); el
 // modelo nace preparado para muchos sin rediseñar. La zona horaria vive acá
@@ -1226,12 +1243,24 @@ model CashMovement {
   tenant   Tenant @relation(fields: [tenantId], references: [id])
   tenantId String
 
-  session   CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  sessionId String
+  // NULLABLE desde el Libro de Caja: un asiento del libro mensual no pertenece a
+  // ningún turno de mostrador (la planilla es continua, no por turno). Cuando SÍ hay
+  // un turno abierto, el libro engancha el movimiento a ese turno para que el arqueo
+  // lo vea — ver `resolveSessionForEntry` en src/lib/libro-caja-actions.ts.
+  session   CashSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String?
 
   type   CashMovementType
   amount Float // siempre > 0; el signo lo aplica el arqueo según `type`
+  // Medio por el que entró/salió la plata. El arqueo de turno SOLO mira EFECTIVO
+  // (contar el cajón no aplica a MP ni a tarjeta): ver `summarizeMovements`.
+  method CashMethod @default(EFECTIVO)
   reason String? // motivo/descripción (obligatorio en la UI para INGRESO/EGRESO/RETIRO)
+
+  // Fecha CONTABLE del movimiento, separada de `createdAt` (que es cuándo se tipeó).
+  // La planilla se carga en diferido: el retiro del 17 se anota el 21. Sin esta
+  // columna el libro de un mes cerrado cambiaría según cuándo se cargó la fila.
+  occurredAt DateTime @default(now())
 
   // Rastro opcional al pedido que originó el movimiento (VENTA en efectivo).
   order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
@@ -1250,6 +1279,8 @@ model CashMovement {
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])
+  // Consulta del libro: todos los movimientos del tenant en un rango de fechas.
+  @@index([tenantId, occurredAt])
 }
 
 // --- Capability COMPRAS / REPOSICIÓN de stock del POS ---

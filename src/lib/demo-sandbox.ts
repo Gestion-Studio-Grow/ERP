@@ -228,6 +228,43 @@ export function getDemoCajaData(rec: ConsultorRecommendation = activeDemoRecomme
   };
 }
 
+// Libro de caja del mes en curso para la demo: un mes plausible con los TRES medios
+// y con egresos típicos del negocio (comisiones, alquiler, retiro), para que la
+// pantalla se vea como se va a ver con datos reales en vez de vacía. Las escrituras
+// siguen bloqueadas (DEMO_WRITE_BLOCKED): esto es solo lo que se muestra.
+//
+// Las fechas se anclan al mes CORRIENTE para que el visitante caiga siempre en un mes
+// con contenido, sin importar cuándo entre.
+export function getDemoLibroMovements(rec: ConsultorRecommendation = activeDemoRecommendation()) {
+  const catalog = demoCatalog(rec);
+  const venta = (i: number, fallback: number) =>
+    catalog[i] ?? { name: rec.itemKind === "servicio" ? "Servicio" : "Venta", price: fallback };
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const dia = (d: number) => new Date(Date.UTC(y, m, d, 15, 0, 0));
+
+  const filas: {
+    id: string;
+    occurredAt: Date;
+    type: "INGRESO" | "EGRESO";
+    method: "EFECTIVO" | "MP" | "TARJETA";
+    amount: number;
+    detail: string;
+  }[] = [
+    { id: "demo-lib-1", occurredAt: dia(2), type: "INGRESO", method: "MP", amount: venta(0, 42000).price, detail: venta(0, 42000).name },
+    { id: "demo-lib-2", occurredAt: dia(3), type: "INGRESO", method: "EFECTIVO", amount: venta(1, 27000).price, detail: venta(1, 27000).name },
+    { id: "demo-lib-3", occurredAt: dia(4), type: "INGRESO", method: "TARJETA", amount: 55000, detail: "Cobro con tarjeta" },
+    { id: "demo-lib-4", occurredAt: dia(5), type: "EGRESO", method: "MP", amount: 46800, detail: "Comisión del equipo" },
+    { id: "demo-lib-5", occurredAt: dia(8), type: "INGRESO", method: "MP", amount: 65400, detail: venta(2, 65400).name },
+    { id: "demo-lib-6", occurredAt: dia(9), type: "EGRESO", method: "EFECTIVO", amount: 27000, detail: "Insumos" },
+    { id: "demo-lib-7", occurredAt: dia(10), type: "EGRESO", method: "MP", amount: 154823, detail: "Impuestos del mes" },
+    { id: "demo-lib-8", occurredAt: dia(12), type: "INGRESO", method: "MP", amount: 92052, detail: venta(3, 92052).name },
+    { id: "demo-lib-9", occurredAt: dia(14), type: "EGRESO", method: "EFECTIVO", amount: 178000, detail: "Retiro de la dueña" },
+  ];
+  return filas;
+}
+
 // ─────────────────────────────────────────── Fixtures — Panel del Dueño ────
 
 const DAY_MS = 24 * 60 * 60 * 1000;
