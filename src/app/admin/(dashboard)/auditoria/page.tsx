@@ -17,6 +17,9 @@ function formatActor(actor: string, userNames: Map<string, string>): string {
   return actor;
 }
 
+import { resumenCierre } from "@/lib/caja/cierre-resumen";
+import { CIERRE_DIARIO_ENTITY } from "@/lib/caja/frontera-cierre";
+
 const actionLabel: Record<string, string> = {
   create: "Creó",
   create_manual: "Cargó (manual)",
@@ -26,6 +29,8 @@ const actionLabel: Record<string, string> = {
   cancel: "Canceló",
   no_show: "No se presentó",
   delete: "Eliminó",
+  "caja.cierre-diario": "Cerró la caja del",
+  "caja.corte-inicial": "Hizo el corte inicial del",
 };
 
 const entityLabel: Record<string, string> = {
@@ -35,7 +40,30 @@ const entityLabel: Record<string, string> = {
   Product: "producto",
   Professional: "profesional",
   Review: "reseña",
+  // El cierre de caja no es sólo un rastro: es el registro del arqueo del día
+  // (esperado, contado y diferencia por medio quedan en `changes`). Ver
+  // src/lib/caja/frontera-cierre.ts.
+  CierreDiario: "día",
 };
+
+// El cierre de caja se cuenta en castellano: esa fila ES el registro del arqueo del día
+// (ver src/lib/caja/cierre-resumen.ts), y la dueña la va a leer buscando qué pasó el
+// martes. El resto de las entidades sigue con el volcado de siempre — cambiarlo para
+// todas es otra tarea.
+function DetalleCambios({ entity, changes }: { entity: string; changes: unknown }) {
+  if (!changes) return <span className="text-faint">—</span>;
+  const cierre = entity === CIERRE_DIARIO_ENTITY ? resumenCierre(changes) : null;
+  if (!cierre) return <code className="text-xs break-all">{JSON.stringify(changes)}</code>;
+  return (
+    <div className="flex flex-col gap-0.5 text-xs">
+      <span className="text-body">{cierre.titulo}</span>
+      {cierre.medios.map((m) => (
+        <span key={m}>{m}</span>
+      ))}
+      {cierre.nota && <span className="text-faint">“{cierre.nota}”</span>}
+    </div>
+  );
+}
 
 export default async function AuditoriaPage() {
   const entries = await getAuditLog();
@@ -78,11 +106,7 @@ export default async function AuditoriaPage() {
                   <span className="text-muted">{entityLabel[e.entity] ?? e.entity}</span>
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-muted">
-                  {e.changes ? (
-                    <code className="text-xs break-all">{JSON.stringify(e.changes)}</code>
-                  ) : (
-                    <span className="text-faint">—</span>
-                  )}
+                  <DetalleCambios entity={e.entity} changes={e.changes} />
                 </td>
               </tr>
             ))}
