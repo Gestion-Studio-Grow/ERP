@@ -242,8 +242,14 @@ function NavBuscable({
   }
 
   return (
-    <div className="flex flex-col min-h-0">
-      <div className="px-1 pb-3">
+    // `flex-1 min-h-0` es lo que hace que esto NO desborde a su contenedor: en una
+    // columna flex, un hijo con mucho contenido no se encoge por debajo de su alto
+    // natural (min-height:auto), y el menú se derramaba por abajo. En el cajón móvil
+    // eso terminaba con el pie —usuario, "Ver sitio público", "Cerrar sesión"— pintado
+    // ENCIMA de los últimos ítems del menú, y el último grupo cortado fuera de la
+    // pantalla. Reportado con captura desde un teléfono real.
+    <div className="flex flex-1 flex-col min-h-0">
+      <div className="shrink-0 px-1 pb-3">
         <label htmlFor={`${listboxId}-input`} className="sr-only">
           Buscar en el menú
         </label>
@@ -297,6 +303,9 @@ function NavBuscable({
           : ""}
       </p>
 
+      {/* La lista scrollea SOLA. El buscador de arriba y el pie de abajo quedan siempre
+          a la vista; lo único que se mueve es el menú. */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
       {buscando ? (
         resultados.length > 0 ? (
           <ul id={listboxId} role="listbox" aria-label="Resultados de la búsqueda" className="space-y-0.5">
@@ -336,6 +345,7 @@ function NavBuscable({
       ) : (
         <NavLinks items={items} onNavigate={onNavigate} />
       )}
+      </div>
     </div>
   );
 }
@@ -356,7 +366,7 @@ function NavFooter({
 }) {
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
   return (
-    <div className="mt-6 pt-4 border-t border-line space-y-1">
+    <div className="shrink-0 mt-4 pt-4 border-t border-line space-y-1">
       <div className="flex items-center gap-2.5 px-2 py-1.5">
         <span className="grid place-items-center w-9 h-9 rounded-lg bg-accent-soft text-accent text-sm font-bold shrink-0">{initial}</span>
         <div className="min-w-0">
@@ -479,10 +489,10 @@ export default function AdminShell({
   return (
     <div className="min-h-screen flex bg-surface text-body">
       {/* Sidebar fijo — solo desktop (lg+) */}
-      <nav className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5">
-        <div className="px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
+      <nav className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5 h-screen sticky top-0">
+        <div className="shrink-0 px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
         <NavBuscable items={items} navGrouping={navGrouping} atajoGlobal />
-        <div className="mt-auto"><NavFooter userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} /></div>
+        <NavFooter userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} />
       </nav>
 
       {/* Cajón móvil */}
@@ -493,8 +503,8 @@ export default function AdminShell({
             onClick={() => setDrawerOpen(false)}
             aria-hidden
           />
-          <nav className="relative w-64 max-w-[80%] bg-surface-raised h-full px-3 py-5 flex flex-col shadow-overlay">
-            <div className="px-2 mb-6 flex items-center justify-between">
+          <nav className="relative w-64 max-w-[80%] bg-surface-raised h-full max-h-[100dvh] px-3 py-5 flex flex-col shadow-overlay">
+            <div className="shrink-0 px-2 mb-6 flex items-center justify-between">
               <Brand monogram={monogram} name={brandName} />
               <button
                 onClick={() => setDrawerOpen(false)}
@@ -509,14 +519,12 @@ export default function AdminShell({
               navGrouping={navGrouping}
               onNavigate={() => setDrawerOpen(false)}
             />
-            <div className="mt-auto">
-              <NavFooter
-                userName={userName}
-                roleLabel={roleLabel}
-                showPublicSite={showPublicSite}
-                onNavigate={() => setDrawerOpen(false)}
-              />
-            </div>
+            <NavFooter
+              userName={userName}
+              roleLabel={roleLabel}
+              showPublicSite={showPublicSite}
+              onNavigate={() => setDrawerOpen(false)}
+            />
           </nav>
         </div>
       )}
