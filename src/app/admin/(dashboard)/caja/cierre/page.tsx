@@ -20,6 +20,7 @@ import {
   totalOf,
 } from "@/lib/caja/libro-caja";
 import { formatDayLabel, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { fmtDateTime } from "@/lib/datetime";
 import {
   Card,
   CardHeader,
@@ -48,7 +49,7 @@ export default async function CierreCajaPage({
 }) {
   const { dia } = await searchParams;
   const data = await getCierreDiarioData(dia);
-  const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo } = data;
+  const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo, registro } = data;
 
   const esperadoTotal = preview.total.expected;
   const puedeCerrar = !yaCerrado && !enElFuturo;
@@ -81,10 +82,40 @@ export default async function CierreCajaPage({
         </Link>
       </nav>
 
-      {yaCerrado && (
+      {/* Un día cerrado muestra SU COMPROBANTE, no un panel vacío. El QA encontró que
+          quedaba diciendo "0 movimientos · se puede cerrar igual" justo debajo del cartel
+          de cerrado — la pantalla se contradecía a sí misma en el momento más importante
+          del día, y no quedaba rastro de lo que se había contado. */}
+      {yaCerrado && registro && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Cerrado</CardTitle>
+            <CardDescription>
+              El {formatDayLabel(day)} se cerró el {fmtDateTime(registro.cerradoEl)} por {registro.quien}.
+              Un cierre no se rehace: si apareció algo, cargalo con fecha{" "}
+              {formatDayLabel(nextDayKey(lastClosedDay!))} y aclaralo en el detalle.
+            </CardDescription>
+          </CardHeader>
+          <div className="flex flex-col gap-1 px-4 pb-4 text-sm">
+            <p className="text-strong">{registro.resumen!.titulo}</p>
+            {registro.resumen!.medios.map((m) => (
+              <p key={m} className="text-body tabular-nums">{m}</p>
+            ))}
+            {registro.resumen!.nota && (
+              <p className="mt-1 text-muted">“{registro.resumen!.nota}”</p>
+            )}
+          </div>
+        </Card>
+      )}
+      {yaCerrado && !registro && (
         <p role="status" className="mb-6 rounded-md bg-success-soft px-4 py-3 text-sm text-success">
-          El {formatDayLabel(day)} ya está cerrado (último cierre: {formatDayLabel(lastClosedDay!)}).
-          Un cierre no se rehace: si apareció algo, va como movimiento con la fecha de hoy.
+          El {formatDayLabel(day)} quedó dentro del cierre del {formatDayLabel(lastClosedDay!)}:
+          cerrar un día arquea todo lo que quedó desde el cierre anterior, así que este día no
+          tiene un cierre propio.{" "}
+          <Link href={`${CIERRE_PATH}?dia=${lastClosedDay}`} className="underline">
+            Ver ese cierre
+          </Link>
+          .
         </p>
       )}
       {enElFuturo && (
@@ -93,6 +124,7 @@ export default async function CierreCajaPage({
         </p>
       )}
 
+      {!yaCerrado && (
       <Card className="mb-8">
         <CardHeader>
           <CardTitle>Lo que el libro dice que hay</CardTitle>
@@ -147,7 +179,7 @@ export default async function CierreCajaPage({
             </tbody>
           </table>
         </div>
-        {preview.cobrosCarteraCount > 0 && (
+        {!yaCerrado && preview.cobrosCarteraCount > 0 && (
           <p className="border-t border-line px-4 py-3 text-xs text-muted">
             De los ingresos, {preview.cobrosCarteraCount} vinieron de cuentas a cobrar
             ({fmtMoneyARS(totalOf({
@@ -158,6 +190,7 @@ export default async function CierreCajaPage({
           </p>
         )}
       </Card>
+      )}
 
       {puedeCerrar && (
         <CerrarDiaForm
@@ -171,6 +204,8 @@ export default async function CierreCajaPage({
         />
       )}
 
+      {!yaCerrado && (
+        <>
       <h2 className="mb-3 mt-10 text-lg font-medium text-strong">
         Movimientos del período
       </h2>
@@ -222,6 +257,8 @@ export default async function CierreCajaPage({
             </table>
           </div>
         </Card>
+      )}
+        </>
       )}
     </div>
   );

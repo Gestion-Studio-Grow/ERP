@@ -53,6 +53,7 @@ import {
   CIERRE_DIARIO_ENTITY,
 } from "@/lib/caja/frontera-cierre";
 import { cierreMarker } from "@/lib/caja/cierre-marca";
+import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { CASH_METHODS, libroOrigin, type LibroMovement } from "@/lib/caja/libro-caja";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 
@@ -71,6 +72,15 @@ function endOfDayUtc(day: DayKey): Date {
 function ajusteInstant(day: DayKey): Date {
   return businessWallTimeToUtc(day, "23:59");
 }
+
+/** El comprobante de un día ya cerrado: qué se contó, quién y cuándo. */
+export type CierreRegistrado = {
+  day: DayKey;
+  cerradoEl: Date;
+  quien: string;
+  /** El detalle por medio, ya en castellano (ver src/lib/caja/cierre-resumen.ts). */
+  resumen: ReturnType<typeof resumenCierre>;
+};
 
 export type CierreDiarioData = {
   day: DayKey;
@@ -91,6 +101,15 @@ export type CierreDiarioData = {
   }[];
   yaCerrado: boolean;
   enElFuturo: boolean;
+  /**
+   * Si este día está cerrado: el comprobante de SU cierre, o null si quedó ABSORBIDO por
+   * un cierre posterior (cerrar el 07 arquea desde el último cierre, así que el 05 y el 06
+   * quedan adentro y no tienen cierre propio).
+   *
+   * El QA encontró que sin esto la pantalla de un día cerrado quedaba diciendo "0
+   * movimientos" y ofreciendo "se puede cerrar igual", contradiciendo su propio cartel.
+   */
+  registro: CierreRegistrado | null;
 };
 
 const NADA_DECLARADO: DeclaredAmounts = { EFECTIVO: null, MP: null, TARJETA: null };
@@ -111,11 +130,31 @@ export async function getCierreDiarioData(dayRaw?: string | null): Promise<Cierr
       movements: [],
       yaCerrado: false,
       enElFuturo: compareDayKeys(day, today) > 0,
+      registro: null,
     };
   }
 
   const tenantId = await getCurrentTenantId();
   const cerradoHasta = await lastClosedDay(tenantId);
+  const yaCerrado = cerradoHasta ? compareDayKeys(day, cerradoHasta) <= 0 : false;
+
+  // Un día CERRADO no tiene "período": el período es lo que falta arquear desde el último
+  // cierre, y este día ya está adentro. Calcularlo igual daba el rango invertido que vio el
+  // QA ("Desde el 08/09 hasta el 07/09 — 0 movimientos") sobre el día recién cerrado.
+  if (yaCerrado) {
+    return {
+      day,
+      today,
+      lastClosedDay: cerradoHasta,
+      since: null,
+      preview: buildCierreDiario({ day, previous: [], movements: [], declared: NADA_DECLARADO }),
+      movements: [],
+      yaCerrado: true,
+      enElFuturo: compareDayKeys(day, today) > 0,
+      registro: await leerRegistro(tenantId, day),
+    };
+  }
+
   const since = cerradoHasta ? nextDayKey(cerradoHasta) : null;
 
   // Período: desde el día siguiente al último cierre (o desde el origen) hasta el final
@@ -130,6 +169,9 @@ export async function getCierreDiarioData(dayRaw?: string | null): Promise<Cierr
       select: {
         id: true, occurredAt: true, type: true, method: true,
         amount: true, reason: true, orderId: true, collectionId: true,
+        // El ORIGEN del cobro, no sólo su id: es lo que separa un cobro de fiado de un
+        // cobro de turno en el resumen del cierre (ver CierreMovement).
+        collection: { select: { originType: true } },
       },
     }),
     // El saldo de apertura se DERIVA agregando lo anterior al período: un groupBy que no
@@ -158,6 +200,7 @@ export async function getCierreDiarioData(dayRaw?: string | null): Promise<Cierr
     amount: r.amount,
     detail: r.reason ?? "",
     collectionId: r.collectionId ?? null,
+    collectionOrigin: r.collection?.originType ?? null,
   }));
 
   return {
@@ -175,9 +218,35 @@ export async function getCierreDiarioData(dayRaw?: string | null): Promise<Cierr
       detail: r.reason ?? "",
       origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId }),
     })),
-    yaCerrado: cerradoHasta ? compareDayKeys(day, cerradoHasta) <= 0 : false,
+    yaCerrado: false,
     enElFuturo: compareDayKeys(day, today) > 0,
+    registro: null,
   };
+}
+
+/**
+ * El comprobante del cierre de ESE día exacto. `null` si el día quedó absorbido por un
+ * cierre posterior (no tuvo cierre propio) — la pantalla lo dice con esas palabras.
+ */
+async function leerRegistro(tenantId: string, day: DayKey): Promise<CierreRegistrado | null> {
+  const fila = await prisma.auditLog.findFirst({
+    where: { tenantId, entity: CIERRE_DIARIO_ENTITY, entityId: day },
+    orderBy: { createdAt: "desc" },
+    select: { actor: true, createdAt: true, changes: true },
+  });
+  if (!fila) return null;
+  const resumen = resumenCierre(fila.changes);
+  if (!resumen) return null;
+
+  // El actor viaja como "user:<id>"; se resuelve al nombre para que el comprobante diga
+  // quién cerró y no un identificador.
+  let quien = fila.actor;
+  const id = fila.actor.startsWith("user:") ? fila.actor.slice("user:".length) : null;
+  if (id) {
+    const u = await prisma.user.findFirst({ where: { tenantId, id }, select: { name: true } });
+    if (u?.name) quien = u.name;
+  }
+  return { day, cerradoEl: fila.createdAt, quien, resumen };
 }
 
 export type CierreActionState = { ok: true; message: string } | { ok: false; errors: string[] } | null;
@@ -232,7 +301,10 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
           tx.cashMovement.findMany({
             where: { tenantId, occurredAt: { gte: start, lt: end } },
             orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
-            select: { id: true, occurredAt: true, type: true, method: true, amount: true, reason: true, collectionId: true },
+            select: {
+              id: true, occurredAt: true, type: true, method: true, amount: true, reason: true,
+              collectionId: true, collection: { select: { originType: true } },
+            },
           }),
           tx.cashMovement.groupBy({
             by: ["type", "method"],
@@ -260,6 +332,7 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
             amount: r.amount,
             detail: r.reason ?? "",
             collectionId: r.collectionId ?? null,
+            collectionOrigin: r.collection?.originType ?? null,
           })),
           declared,
         });

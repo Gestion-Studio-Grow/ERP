@@ -22,6 +22,7 @@ import {
   type MethodAmounts,
 } from "@/lib/caja/libro-caja";
 import { todayInBusinessTz } from "@/lib/datetime";
+import { isFrozenDay, nextDayKey } from "@/lib/caja/cierre-diario";
 import {
   Card,
   CardHeader,
@@ -62,7 +63,7 @@ export default async function LibroCajaPage({
   const { mes } = await searchParams;
   // getLibroCajaData aplica requireCapability("orders:read") — guard de la página.
   // Un ?mes inválido cae al mes corriente en vez de romper.
-  const { rows, summary, year, month, monthKey, posiblesDuplicados } = await getLibroCajaData(mes);
+  const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = await getLibroCajaData(mes);
   const duplicados = new Set(posiblesDuplicados);
 
   const prev = shiftMonth(year, month, -1);
@@ -72,7 +73,12 @@ export default async function LibroCajaPage({
   // se está mirando un mes pasado, el día 1 de ESE mes — cargar una fila con la fecha
   // de hoy mientras se mira julio la haría desaparecer de la pantalla.
   const today = todayInBusinessTz();
-  const defaultDate = today.startsWith(monthKey) ? today : `${monthKey}-01`;
+  const enElMes = today.startsWith(monthKey) ? today : `${monthKey}-01`;
+  // Y si ese día quedó CONGELADO por un cierre, se propone el primer día abierto: seguir
+  // proponiendo el día cerrado hace que cada intento de carga falle hasta corregir la
+  // fecha a mano, que es justo cuando la persona ya cerró y está apurada por irse.
+  const defaultDate =
+    cerradoHasta && isFrozenDay(enElMes, cerradoHasta) ? nextDayKey(cerradoHasta) : enElMes;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">

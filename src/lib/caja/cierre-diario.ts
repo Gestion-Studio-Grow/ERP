@@ -79,11 +79,23 @@ export function isFrozenDay(day: DayKey, lastClosedDay: DayKey | null): boolean 
   return compareDayKeys(day, lastClosedDay) <= 0;
 }
 
+/**
+ * El mensaje del día congelado. Manda a cargar en el PRIMER DÍA ABIERTO, no "hoy".
+ *
+ * El QA de recorrido encontró el callejón: se cierra el día de hoy, aparece un gasto, y el
+ * mensaje decía "cargalo con la fecha de hoy" — que es justo el día que se acaba de
+ * congelar. La única salida real era fecharlo mañana, o sea lo contrario de lo que el
+ * mensaje pedía. Ahora el mensaje dice la fecha exacta que sí se puede usar.
+ */
 export function frozenDayMessage(day: DayKey, lastClosedDay: DayKey): string {
+  const abierto = nextDayKey(lastClosedDay);
+  const mismoDia = day === lastClosedDay;
   return (
-    `El ${formatDayLabel(day)} ya está cerrado (último cierre: ${formatDayLabel(lastClosedDay)}). ` +
-    `No se puede cargar ni borrar nada con esa fecha. Si falta un movimiento, cargalo con la fecha de hoy ` +
-    `y aclarás en el detalle a qué día corresponde.`
+    (mismoDia
+      ? `El ${formatDayLabel(day)} ya está cerrado. `
+      : `El ${formatDayLabel(day)} quedó dentro del cierre del ${formatDayLabel(lastClosedDay)}. `) +
+    `No se puede cargar ni borrar nada con esa fecha. Si falta un movimiento, cargalo con fecha ` +
+    `${formatDayLabel(abierto)} —el primer día abierto— y aclarás en el detalle que es del ${formatDayLabel(day)}.`
   );
 }
 
@@ -113,7 +125,16 @@ export function cashMethodFromPaymentMethod(paymentMethod: string): CashMethod |
 // cartera que lo originó. Ese rastro es lo que evita el doble conteo (ver el diseño):
 // si un ingreso vino de cuentas a cobrar, el cierre lo cuenta UNA vez como ingreso del
 // libro y lo REPORTA aparte como "cobro de cartera" — nunca lo suma dos veces.
-export type CierreMovement = LibroMovement & { collectionId?: string | null };
+// Movimiento visto por el cierre: el del libro + de qué COBRO salió, si salió de uno.
+// `collectionOrigin` es el `Collection.originType` (ORDER | APPOINTMENT | RECEIVABLE |
+// PAYABLE). Hace falta el ORIGEN y no alcanza el id: el rótulo de la pantalla dice
+// "vinieron de cuentas a cobrar", y con sólo el id se lo ponía a CUALQUIER movimiento con
+// rastro a un cobro — que hoy son todos cobros de TURNO, porque el fiado todavía no
+// escribe el rastro. O sea: el rótulo mentía sobre plata. Con el origen no puede.
+export type CierreMovement = LibroMovement & {
+  collectionId?: string | null;
+  collectionOrigin?: string | null;
+};
 
 // Lo que la persona DECLARA que hay al cierre, por medio. `null` = ese medio no se
 // concilia hoy (la tarjeta se liquida a T+N y el negocio no la cuenta por día). El
@@ -125,7 +146,7 @@ export type CierreMedio = {
   ingresos: number;
   egresos: number;
   expected: number; // opening + ingresos − egresos: lo que el libro dice que hay
-  cobrosCartera: number; // parte de `ingresos` que vino de cuentas a cobrar (informativo)
+  cobrosCartera: number; // parte de `ingresos` que vino de cuentas a cobrar / fiado (informativo)
   declared: number | null; // lo contado / lo que dice el extracto
   diff: number | null; // declared − expected: >0 sobra, <0 falta, null sin declarar
 };
@@ -195,6 +216,9 @@ function ajusteDetail(day: DayKey, method: CashMethod, diff: number): string {
 // El esperado por medio es `buildLibro(...).summary.saldo`: la MISMA aritmética del
 // libro, sin reimplementar. Lo único que el cierre calcula por su cuenta es la
 // diferencia y los ajustes que la asientan.
+/** `Collection.originType` del fiado. Es el único origen que cuenta como cobro de cartera. */
+export const ORIGEN_CUENTA_A_COBRAR = "RECEIVABLE";
+
 export function buildCierreDiario(input: {
   day: DayKey;
   since?: DayKey | null;
@@ -205,12 +229,14 @@ export function buildCierreDiario(input: {
   const opening = openingFromHistory(input.previous);
   const { summary } = buildLibro(opening, input.movements);
 
-  // Cobros que vinieron de cuentas a cobrar: ya están dentro de `ingresos` (son filas
-  // del libro). Se suman aparte SOLO para mostrarlos; no vuelven a entrar al esperado.
+  // Cobros que vinieron de CUENTAS A COBRAR (fiado): ya están dentro de `ingresos` (son
+  // filas del libro). Se suman aparte SOLO para mostrarlos; no vuelven a entrar al
+  // esperado. Se identifican por el ORIGEN del cobro, no por tener rastro a uno: un cobro
+  // de turno también lo tiene y no es fiado.
   const cobros = zeroAmounts();
   let cobrosCount = 0;
   for (const m of input.movements) {
-    if (!m.collectionId) continue;
+    if (m.collectionOrigin !== ORIGEN_CUENTA_A_COBRAR) continue;
     if (movementSign(m.type) <= 0) continue; // un cobro de cartera solo puede ser ingreso
     if (!Number.isFinite(m.amount) || m.amount <= 0) continue;
     cobros[m.method] += m.amount;

@@ -18,6 +18,14 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auditAdmin } from "@/lib/audit";
+// GUARDA DE DÍA CERRADO — el QA de recorrido la encontró faltando acá y el agujero era
+// real: con el 07/09 ya cerrado y congelado desde el libro, esta pantalla dejaba registrar
+// un egreso CON FECHA 07/09 sin decir nada, y el saldo del día siguiente pasaba de los
+// $2.400 contados a −$5.300. O sea: el sistema decía "este día está congelado" en una
+// pantalla y lo movía desde otra. La frontera es una sola y ahora la miran las dos.
+import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { isFrozenDay, frozenDayMessage } from "@/lib/caja/cierre-diario";
+import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
@@ -109,6 +117,9 @@ export async function openCashSession(
   }
   const actor = `user:${user.id}`;
 
+  const congelado = await rechazarSiElDiaEstaCerrado(tenantId);
+  if (congelado) return congelado;
+
   let session: { id: string };
   try {
     session = await tenantTransaction(async (tx) => {
@@ -182,6 +193,9 @@ export async function addCashMovement(
   }
   const actor = `user:${user.id}`;
 
+  const diaCerrado = await rechazarSiElDiaEstaCerrado(tenantId);
+  if (diaCerrado) return diaCerrado;
+
   try {
     await tenantTransaction(async (tx) => {
       const session = await tx.cashSession.findFirst({
@@ -206,6 +220,19 @@ export async function addCashMovement(
   });
   revalidatePath(CAJA_PATH);
   return { ok: true };
+}
+
+/**
+ * Frena cualquier escritura de caja sobre un día ya cerrado. Se llama ANTES de abrir la
+ * transacción (el día es "hoy", no depende de nada que la tx pueda cambiar) y devuelve el
+ * mismo mensaje que el libro, para que la persona lea siempre lo mismo.
+ */
+async function rechazarSiElDiaEstaCerrado(tenantId: string): Promise<CajaActionState | null> {
+  const cerradoHasta = await lastClosedDay(tenantId);
+  if (!cerradoHasta) return null;
+  const hoy = dateStrInBusinessTz(new Date());
+  if (!isFrozenDay(hoy, cerradoHasta)) return null;
+  return { ok: false, error: frozenDayMessage(hoy, cerradoHasta) };
 }
 
 // --- Cerrar turno de caja (arqueo) ---

@@ -108,6 +108,13 @@ export type LibroCajaData = Libro & {
   // candidatas a doble conteo durante la transición desde la planilla. Ver
   // `flagPossibleDuplicates`. Vacío en demo.
   posiblesDuplicados: string[];
+  /**
+   * Hasta qué día está cerrada la caja, o null si nunca se cerró. La pantalla lo usa para
+   * proponer una fecha que SÍ se pueda usar: el QA encontró que después de cerrar el día,
+   * el formulario seguía proponiendo esa fecha y cada intento de carga fallaba hasta
+   * cambiarla a mano.
+   */
+  cerradoHasta: string | null;
 };
 
 // --- Loader de la pantalla del libro ---
@@ -130,7 +137,7 @@ export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroC
     const demo = getDemoLibroMovements().filter(
       (m) => m.occurredAt >= start && m.occurredAt < end,
     );
-    return { ...buildLibro(openingFromHistory([]), demo), monthKey, year, month, posiblesDuplicados: [] };
+    return { ...buildLibro(openingFromHistory([]), demo), monthKey, year, month, posiblesDuplicados: [], cerradoHasta: null };
   }
 
   const tenantId = await getCurrentTenantId();
@@ -178,6 +185,7 @@ export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroC
     year,
     month,
     posiblesDuplicados: [...flagPossibleDuplicates(libro.rows, dateStrInBusinessTz)],
+    cerradoHasta: await lastClosedDay(tenantId),
   };
 }
 

@@ -46,6 +46,7 @@ function mov(over: Partial<CierreMovement> & { amount: number; day?: string }): 
     amount: rest.amount,
     detail: rest.detail ?? "detalle",
     collectionId: rest.collectionId ?? null,
+    collectionOrigin: rest.collectionOrigin ?? null,
   };
 }
 
@@ -348,7 +349,7 @@ test("un cobro que vino de cuentas a cobrar entra al esperado UNA vez y se repor
   // INGRESO en el libro con su `collectionId`. Nadie lo vuelve a tipear.
   const movements = [
     mov({ id: "pago", amount: 30000, method: "EFECTIVO", detail: "Saldo tratamiento facial", day: "2026-09-06" }),
-    mov({ id: "cob", amount: 10000, method: "MP", detail: "Cobro cuenta a cobrar", day: "2026-09-06", collectionId: "col_1" }),
+    mov({ id: "cob", amount: 10000, method: "MP", detail: "Cobro cuenta a cobrar", day: "2026-09-06", collectionId: "col_1", collectionOrigin: "RECEIVABLE" }),
   ];
   const cierre = buildCierreDiario({ day: "2026-09-06", previous: [], movements, declared: declared(30000, 10000) });
 
@@ -360,11 +361,41 @@ test("un cobro que vino de cuentas a cobrar entra al esperado UNA vez y se repor
   assert.equal(cierre.estado, "CUADRA");
 });
 
+test("un COBRO DE TURNO no se cuenta como cobro de cartera, aunque tenga rastro a un cobro", () => {
+  // El bug que esto fija: el cierre rotulaba "vinieron de cuentas a cobrar" a TODO
+  // movimiento con `collectionId`, y el único que lo escribe hoy es el cobro de turno.
+  // O sea que la pantalla decía, sobre plata real, que una seña de turno era fiado.
+  const cierre = buildCierreDiario({
+    day: "2026-09-06",
+    previous: [],
+    movements: [
+      mov({ id: "senia", amount: 10000, method: "MP", detail: "Turno · Limpieza facial — Ana", collectionId: "col_turno", collectionOrigin: "APPOINTMENT" }),
+      mov({ id: "fiado", amount: 4000, method: "MP", detail: "Cobro de fiado", collectionId: "col_ar", collectionOrigin: "RECEIVABLE" }),
+    ],
+    declared: declared(0, 14000),
+  });
+  assert.equal(cierre.porMedio.MP.ingresos, 14000, "los dos entran al esperado");
+  assert.equal(cierre.porMedio.MP.cobrosCartera, 4000, "sólo el fiado se rotula como cartera");
+  assert.equal(cierre.cobrosCarteraCount, 1);
+  assert.equal(cierre.estado, "CUADRA");
+});
+
+test("un movimiento con rastro pero sin origen conocido no se rotula (fail-closed del rótulo)", () => {
+  const cierre = buildCierreDiario({
+    day: "2026-09-06",
+    previous: [],
+    movements: [mov({ id: "x", amount: 5000, method: "MP", collectionId: "col_?", collectionOrigin: null })],
+    declared: declared(0, 5000),
+  });
+  assert.equal(cierre.cobrosCarteraCount, 0);
+  assert.equal(cierre.porMedio.MP.ingresos, 5000);
+});
+
 test("un egreso con collectionId (pago a proveedor de cuentas a pagar) no se cuenta como cobro de cartera", () => {
   const cierre = buildCierreDiario({
     day: "2026-09-06",
     previous: [],
-    movements: [mov({ id: "pp", amount: 5000, type: "EGRESO", method: "MP", collectionId: "col_ap" })],
+    movements: [mov({ id: "pp", amount: 5000, type: "EGRESO", method: "MP", collectionId: "col_ap", collectionOrigin: "RECEIVABLE" })],
     declared: declared(0, -5000),
   });
   assert.equal(cierre.cobrosCarteraCount, 0);
@@ -443,7 +474,22 @@ test("isFrozenDay congela todo lo fechado hasta el último cierre inclusive", ()
   assert.equal(isFrozenDay("2026-09-07", "2026-09-06"), false);
   assert.equal(isFrozenDay("2026-09-05", null), false);
   assert.ok(frozenDayMessage("2026-09-05", "2026-09-06").includes("06/09/2026"));
-  assert.ok(frozenDayMessage("2026-09-05", "2026-09-06").includes("fecha de hoy"));
+});
+
+// El callejón que encontró el QA: se cierra hoy, aparece un gasto, y el mensaje mandaba a
+// "cargalo con la fecha de hoy" — el día que se acaba de congelar. Tiene que nombrar el
+// primer día ABIERTO, con fecha exacta.
+test("el mensaje del día congelado manda al primer día abierto, no a hoy", () => {
+  const m = frozenDayMessage("2026-09-07", "2026-09-07");
+  assert.ok(m.includes("08/09/2026"), `no nombra el primer día abierto: ${m}`);
+  assert.ok(!m.includes("fecha de hoy"), `sigue mandando a 'hoy': ${m}`);
+  assert.ok(m.includes("ya está cerrado"));
+});
+
+test("un día absorbido por un cierre posterior lo dice con esas palabras, no 'ya está cerrado'", () => {
+  const m = frozenDayMessage("2026-09-05", "2026-09-07");
+  assert.ok(m.includes("quedó dentro del cierre del 07/09/2026"), m);
+  assert.ok(m.includes("08/09/2026"));
 });
 
 test("no se puede cerrar un día ya cerrado ni un día que todavía no pasó", () => {
@@ -493,7 +539,7 @@ test("un movimiento con monto no usable no mueve el esperado (mismo blindaje que
   const c = buildCierreDiario({
     day: "2026-09-06",
     previous: [],
-    movements: [mov({ id: "a", amount: 0 }), mov({ id: "b", amount: -50 }), mov({ id: "c", amount: 100, collectionId: "x" })],
+    movements: [mov({ id: "a", amount: 0 }), mov({ id: "b", amount: -50 }), mov({ id: "c", amount: 100, collectionId: "x", collectionOrigin: "RECEIVABLE" })],
     declared: declared(100),
   });
   assert.equal(c.movementCount, 3);

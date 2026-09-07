@@ -95,7 +95,10 @@ export function CerrarDiaForm({ day, esperado }: { day: string; esperado: Espera
                 step="0.01"
                 min={0}
                 inputMode="decimal"
-                placeholder={String(Math.round(esperado[m]))}
+                // NUNCA el esperado como placeholder: le sopla la respuesta a quien tiene
+                // que contar, y en gris tenue parece un campo ya completado. El número
+                // esperado ya está impreso abajo, a la vista, donde no sesga el conteo.
+                placeholder="0"
                 value={declarado[m]}
                 onChange={(e) => setDeclarado((prev) => ({ ...prev, [m]: e.target.value }))}
               />

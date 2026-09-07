@@ -240,8 +240,16 @@ function OpenSession({
         <CardHeader>
           <div>
             <CardTitle>Registrar movimiento</CardTitle>
+            {/* El texto anterior decía "las ventas en efectivo entran solas" y quedó
+                mintiendo por dos lados: hoy entran solos TODOS los cobros de turnos y las
+                ventas del mostrador, por cualquier medio (efectivo, MP o transferencia),
+                no sólo las de efectivo. Ver src/lib/caja/cobro-turno.ts y cash-sale.ts.
+                El riesgo de que mienta es concreto: la recepcionista vuelve a cargar a
+                mano lo que el sistema ya asentó y la caja queda con doble conteo. */}
             <CardDescription>
-              Ingreso, egreso o retiro de efectivo. Las ventas en efectivo entran solas.
+              Gastos, retiros o ingresos sueltos en efectivo. Lo que cobrás desde Turnos o
+              desde el mostrador ya entra solo —en efectivo, Mercado Pago o transferencia—:
+              no lo vuelvas a cargar acá.
             </CardDescription>
           </div>
         </CardHeader>
