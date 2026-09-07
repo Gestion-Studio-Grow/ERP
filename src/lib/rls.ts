@@ -24,6 +24,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { basePrisma, RLS_ENFORCEMENT } from "@/lib/prisma-base";
 import { getTenantStore, runInTenantContext } from "@/lib/tenant-context";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { scopeArgs, scopeTxClient } from "@/lib/tenant-scope";
 
 async function resolveTenantId(): Promise<string> {
   return getTenantStore()?.tenantId ?? (await getCurrentTenantId());
@@ -40,7 +41,9 @@ export const rlsPrisma = basePrisma.$extends({
       const store = getTenantStore();
       // Ya dentro de una transacción que seteó el GUC (tenantTransaction): correr
       // directo, sin abrir otra transacción (no se puede anidar).
-      if (store?.insideTx) return query(args);
+      if (store?.insideTx) {
+        return query(scopeArgs(model, operation, args, store.tenantId));
+      }
 
       const tenantId = store?.tenantId ?? (await getCurrentTenantId());
 
@@ -48,11 +51,17 @@ export const rlsPrisma = basePrisma.$extends({
       // como primer statement y re-despachar la MISMA operación sobre `tx` (mismo
       // cliente, sin auto-referencia ni recursión del extension). set_config(...,
       // true) es transaction-scoped ⇒ pooling-safe.
+      //
+      // El candado de tenant (ADR-018 bis, src/lib/tenant-scope.ts) va ACÁ ADENTRO y
+      // no como extensión por fuera: `tx` es el cliente crudo, sin extensiones, así
+      // que una extensión externa se saltearía en silencio. Medido: con el candado
+      // por fuera y el flag ON, 3 de 6 ataques cross-tenant volvían a pasar
+      // (prisma/rls/aislamiento-capa-app.ts).
       const delegate = model.charAt(0).toLowerCase() + model.slice(1);
       return basePrisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (tx as any)[delegate][operation](args);
+        return (scopeTxClient(tx, tenantId) as any)[delegate][operation](args);
       });
     },
   },
@@ -102,7 +111,15 @@ export async function tenantTransaction<T>(
 
   for (let attempt = 0; ; attempt++) {
     try {
-      if (!RLS_ENFORCEMENT) return await basePrisma.$transaction(fn, txOptions);
+      if (!RLS_ENFORCEMENT) {
+        // Sin RLS el candado de la app es la ÚNICA muralla: el `tx` crudo no tiene
+        // extensiones, así que se envuelve con el proxy que inyecta el tenant.
+        const tenantId = opts?.tenantId ?? (await resolveTenantId());
+        return await basePrisma.$transaction(
+          (tx) => fn(scopeTxClient(tx, tenantId)),
+          txOptions,
+        );
+      }
 
       const tenantId = opts?.tenantId ?? (await resolveTenantId());
       // Callback async que await-ea DENTRO del scope: así el contexto ALS (insideTx)
@@ -113,7 +130,7 @@ export async function tenantTransaction<T>(
         async () =>
           basePrisma.$transaction(async (tx) => {
             await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
-            return fn(tx);
+            return fn(scopeTxClient(tx, tenantId));
           }, txOptions),
         { insideTx: true },
       );
