@@ -76,3 +76,67 @@ test("isColumnMissing: con driver adapters (sin meta.column) reconoce la columna
   assert.equal(isColumnMissing(e, "idempotencyKey"), false, "otra columna no se disfraza");
   assert.equal(isColumnMissing(e), true);
 });
+
+// ── P2002 con DRIVER ADAPTERS (Prisma 7 + PrismaPg) ─────────────────────────
+//
+// Forma REAL del error, capturada contra Postgres local forzando una colisión del
+// unique `User_tenantId_email_key`. Lo que importa: `meta.target` viene UNDEFINED,
+// así que la implementación vieja —que sólo leía ese campo— devolvía false para
+// cualquier `isUniqueViolation(e, "campo")`, y las guardas de idempotencia que
+// dependen de él nunca se activaban.
+
+function p2002DriverAdapter(constraintFields: string[], constraintName: string) {
+  return Object.assign(
+    new Prisma.PrismaClientKnownRequestError("Invalid `prisma.user.create()` invocation", {
+      code: "P2002",
+      clientVersion: "7.8.0",
+    }),
+    {
+      meta: {
+        modelName: "User",
+        driverAdapterError: {
+          name: "DriverAdapterError",
+          cause: {
+            originalCode: "23505",
+            originalMessage: `duplicate key value violates unique constraint "${constraintName}"`,
+            kind: "UniqueConstraintViolation",
+            constraint: { fields: constraintFields },
+          },
+        },
+      },
+    },
+  );
+}
+
+test("P2002 de driver adapter: reconoce el campo aunque `meta.target` no exista", () => {
+  const e = p2002DriverAdapter(['"tenantId"', "email"], "User_tenantId_email_key");
+  assert.equal((e.meta as { target?: unknown }).target, undefined, "el fixture debe reflejar que target NO viene");
+  assert.equal(isUniqueViolation(e), true);
+  assert.equal(isUniqueViolation(e, "email"), true, "sin esto, la guarda de idempotencia nunca se activa");
+  assert.equal(isUniqueViolation(e, "tenantId"), true, "los nombres vienen entrecomillados y hay que limpiarlos");
+});
+
+test("P2002 de driver adapter: NO confunde un índice con otro", () => {
+  const e = p2002DriverAdapter(['"tenantId"', "email"], "User_tenantId_email_key");
+  assert.equal(isUniqueViolation(e, "paymentId"), false);
+  assert.equal(isUniqueViolation(e, "orderId"), false);
+});
+
+test("P2002 de driver adapter: los campos del cobro de turno y de la venta", () => {
+  const turno = p2002DriverAdapter(['"tenantId"', '"paymentId"', "type"], "CashMovement_tenantId_paymentId_type_key");
+  assert.equal(isUniqueViolation(turno, "paymentId"), true);
+  assert.equal(isUniqueViolation(turno, "orderId"), false);
+
+  const venta = p2002DriverAdapter(['"tenantId"', '"orderId"', "type"], "CashMovement_tenantId_orderId_type_key");
+  assert.equal(isUniqueViolation(venta, "orderId"), true);
+  assert.equal(isUniqueViolation(venta, "paymentId"), false);
+});
+
+test("sigue funcionando la forma CLÁSICA del P2002 (`meta.target`)", () => {
+  const e = Object.assign(
+    new Prisma.PrismaClientKnownRequestError("x", { code: "P2002", clientVersion: "7.8.0" }),
+    { meta: { target: ["tenantId", "idempotencyKey"] } },
+  );
+  assert.equal(isUniqueViolation(e, "idempotencyKey"), true);
+  assert.equal(isUniqueViolation(e, "paymentId"), false);
+});

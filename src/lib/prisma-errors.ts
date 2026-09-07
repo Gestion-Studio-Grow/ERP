@@ -17,12 +17,47 @@ export function isPrismaError(e: unknown, code: string): e is Prisma.PrismaClien
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === code;
 }
 
-// El `target` de un P2002 puede venir como nombre de constraint (string, típico en
-// Postgres: `Modelo_campoA_campoB_key`) o como lista de campos. Se normaliza a un
-// string en minúsculas para poder buscar un campo por substring de forma robusta.
+// De dónde sacar QUÉ índice se violó en un P2002.
+//
+// Con el motor clásico venía en `meta.target`, como nombre de constraint (string, típico
+// en Postgres: `Modelo_campoA_campoB_key`) o como lista de campos. Con los DRIVER ADAPTERS
+// de Prisma 7 (PrismaPg, el que usa este repo) `meta.target` es **undefined** y el dato
+// viaja anidado en `meta.driverAdapterError.cause`. Medido contra Postgres local:
+//
+//   meta = { modelName: "User", driverAdapterError: { cause: {
+//     originalCode: "23505",
+//     originalMessage: 'duplicate key value violates unique constraint "User_tenantId_email_key"',
+//     constraint: { fields: ['"tenantId"', "email"] } } } }
+//
+// Es el MISMO problema que tenía `isColumnMissing` con el P2022, en su función hermana.
+// Sin este arreglo, todo `isUniqueViolation(e, "campo")` daba false en producción y las
+// guardas de idempotencia que dependen de él —la carrera del doble submit en el cobro de
+// turno, en la venta del mostrador y en la `idempotencyKey` del pedido— nunca se
+// activaban: en vez de resolverse en silencio, la colisión salía como error 500.
+//
+// OJO: acá NO sirve el fallback por `e.message` que usa `isColumnMissing`, porque el
+// mensaje de un P2002 es el volcado de la invocación y no nombra el campo.
 function p2002Target(e: Prisma.PrismaClientKnownRequestError): string {
-  const t = (e.meta as { target?: unknown } | undefined)?.target;
-  return (Array.isArray(t) ? t.join(",") : String(t ?? "")).toLowerCase();
+  const meta = e.meta as
+    | {
+        target?: unknown;
+        driverAdapterError?: { cause?: { constraint?: { fields?: unknown; index?: unknown }; originalMessage?: unknown } };
+      }
+    | undefined;
+
+  const partes: string[] = [];
+
+  const t = meta?.target;
+  if (t !== undefined) partes.push(Array.isArray(t) ? t.join(",") : String(t));
+
+  const causa = meta?.driverAdapterError?.cause;
+  const fields = causa?.constraint?.fields;
+  // Los nombres pueden venir citados (`"tenantId"`): se limpian las comillas.
+  if (Array.isArray(fields)) partes.push(fields.map((f) => String(f).replace(/"/g, "")).join(","));
+  if (causa?.constraint?.index !== undefined) partes.push(String(causa.constraint.index));
+  if (causa?.originalMessage !== undefined) partes.push(String(causa.originalMessage));
+
+  return partes.join(",").toLowerCase();
 }
 
 /**
