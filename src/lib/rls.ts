@@ -1,11 +1,17 @@
 // Extensión de Prisma que inyecta el contexto de tenant para RLS (ADR-018, B).
 //
 // Cómo encaja (ver src/lib/prisma-base.ts): `@/lib/prisma` exporta el cliente
-// CONMUTADO por el flag RLS_ENFORCEMENT. Con el flag OFF (hoy) el cliente es el
-// crudo y esta extensión NO se usa → comportamiento idéntico al de siempre. Con
-// el flag ON, `prisma` pasa a ser `rlsPrisma` y cada operación queda envuelta en
+// CONMUTADO por el flag RLS_ENFORCEMENT. Con el flag OFF el cliente es el crudo y
+// esta extensión NO se usa → comportamiento idéntico al de siempre. Con el flag ON,
+// `prisma` pasa a ser `rlsPrisma` y cada operación queda envuelta en
 // una transacción que primero setea `app.current_tenant_id` con
 // set_config(..., true) (== SET LOCAL, pero parametrizable → pooling-safe).
+//
+// ⚠️ El "(hoy)" que decía este comentario afirmaba que el flag estaba OFF. Es falso o al
+// menos no verificable desde el código: `.env.vercel.template:33` trae `RLS_ENFORCEMENT=on`
+// y el CLAUDE.md del repo declara RLS vivo y forzado en producción. El valor real vive en
+// el entorno de Vercel, no acá, así que este archivo NO debe afirmar en qué estado está.
+// Para saberlo de verdad: `prisma/rls/check-rls-live.mjs` contra la base.
 //
 // Resolución del tenant: primero el store de AsyncLocalStorage (si un request lo
 // seteó con runInTenantContext); si no, cae a getCurrentTenantId() — la

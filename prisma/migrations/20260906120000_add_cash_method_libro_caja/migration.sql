@@ -29,7 +29,20 @@
 -- ⚠️ NO APLICADA a Neon (gate del dueño: producción se migra con `prisma migrate deploy`,
 --    nunca `migrate dev`). Es aditiva y sin downtime, pero el código del Libro de Caja NO
 --    tolera que falten estas columnas: la pantalla /admin/caja/libro requiere la migración
---    aplicada. El resto del sistema (incluido /admin/caja) sigue funcionando sin ella.
+--    aplicada.
+--
+-- ⚠️⚠️ ESTA AFIRMACIÓN DEJÓ DE SER CIERTA. Decía: "el resto del sistema (incluido
+--    /admin/caja) sigue funcionando sin ella". Era verdad cuando se escribió, y dejó de
+--    serlo con el puente de cobros (commit b172307): `recordCashSaleMovementInTx` ahora
+--    escribe `method` en TODA venta cobrada, dentro de la misma transacción de la venta,
+--    y NINGÚN llamador captura el P2022 (order-core.ts sólo tolera la ausencia de
+--    `idempotencyKey`). El cierre de arqueo también selecciona `method`
+--    (caja-actions.ts:241).
+--
+--    Consecuencia: si se deploya ANTES de migrar, cada venta del mostrador falla con 500
+--    y se revierte, y el cierre de caja también. No es "el libro no ve los turnos": es el
+--    POS caído. EL ORDEN `migrate deploy` → deploy NO ES UNA RECOMENDACIÓN, ES UN
+--    REQUISITO.
 --
 -- ⚠️ RLS: no hay tablas nuevas. `CashMovement` ya tiene `tenantId` y ya está cubierta por la
 --    policy data-driven de `prisma/rls/0001_enable_rls.sql`. No hace falta re-ejecutarla.
