@@ -146,7 +146,7 @@ export default async function UsuariosPage({
                   </form>
 
                   {/* Reset de contraseña */}
-                  <form action={resetUserPassword} className="flex gap-2">
+                  <form action={resetUserPassword} className="flex flex-wrap gap-2">
                     <input type="hidden" name="userId" value={u.id} />
                     <input
                       type="password"
@@ -156,7 +156,7 @@ export default async function UsuariosPage({
                       placeholder="Nueva contraseña"
                       aria-label={`Nueva contraseña para ${u.name}`}
                       autoComplete="new-password"
-                      className="flex-1 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+                      className="min-w-[9rem] flex-1 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
                     />
                     <SubmitButton
                       pendingText="…"

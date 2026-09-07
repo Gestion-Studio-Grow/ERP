@@ -178,8 +178,12 @@ async function InicioVertical() {
         {/* Home de una acción (Comercio): el atajo a la tarea más frecuente es el
             héroe (botón sólido). Home analítico (Empresa): la acción cede el
             protagonismo a los indicadores → botón secundario (ADR-059 D8). */}
+        {/* A /turnos/LISTA, no a /turnos: el calendario no tiene formulario de alta
+            (el alta vive en la pestaña Lista), así que el atajo a la acción más
+            frecuente del negocio caía en una pantalla desde la que NO se puede hacer
+            justamente eso. */}
         <Link
-          href="/admin/turnos"
+          href="/admin/turnos/lista"
           className={buttonClasses(analytical ? "outline" : "solid", "sm", "whitespace-nowrap")}
         >
           + Nuevo turno

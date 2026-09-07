@@ -199,7 +199,7 @@ function ServiceRow({
                 name="price"
                 type="number"
                 min={0}
-                step={100}
+                step={1}
                 defaultValue={service.price}
                 required
                 className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
@@ -219,7 +219,7 @@ function ServiceRow({
                 name="residentPrice"
                 type="number"
                 min={0}
-                step={100}
+                step={1}
                 defaultValue={service.residentPrice ?? ""}
                 placeholder="Sin diferencial"
                 className="w-32 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
@@ -231,7 +231,7 @@ function ServiceRow({
                 name="depositAmount"
                 type="number"
                 min={0}
-                step={100}
+                step={1}
                 defaultValue={service.depositAmount ?? ""}
                 placeholder="Sin seña"
                 className="w-32 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
@@ -512,7 +512,7 @@ export default function ServicesSection({
           name="price"
           type="number"
           min={0}
-          step={100}
+          step={1}
           required
           placeholder="Precio $"
         />
@@ -520,14 +520,14 @@ export default function ServicesSection({
           name="residentPrice"
           type="number"
           min={0}
-          step={100}
+          step={1}
           placeholder="Precio local (opcional)"
         />
         <Input
           name="depositAmount"
           type="number"
           min={0}
-          step={100}
+          step={1}
           placeholder="Seña obligatoria (opcional)"
         />
         <Select

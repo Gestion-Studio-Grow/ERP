@@ -198,22 +198,48 @@ export function AddLibroEntryForm({
   );
 }
 
+// Qué filas están "armadas" para borrar, FUERA del estado de React.
+//
+// El QA midió que ~8% de los borrados no pasaban del primer clic: al borrar una
+// fila, el refresco de la lista remonta los botones de las demás y `useState(false)`
+// volvía a cero, así que el segundo clic re-armaba en vez de confirmar y en pantalla
+// no pasaba nada. No perdía datos, pero es un "apreté y no pasó nada" sobre un botón
+// que maneja plata.
+//
+// Guardar el armado en un módulo y sembrar el estado desde ahí en el montaje lo hace
+// sobrevivir al remonte. Es un Set y no un contexto porque no hay ningún componente
+// cliente que envuelva la tabla (las filas las pinta el server component).
+const ARMADOS = new Set<string>();
+
 // Borrado de una fila. Form propio por fila: borrar plata es puntual y se audita
 // fila por fila. Dos pasos —la ✕ pregunta, y recién el segundo clic borra— porque
 // no hay deshacer y un toque de más se lleva un movimiento.
 export function DeleteLibroEntryButton({ id, detail }: { id: string; detail: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [armado, setArmado] = useState(false);
+  // El inicializador corre en cada montaje: si la fila ya estaba armada antes del
+  // refresco, vuelve armada.
+  const [armado, setArmadoState] = useState(() => ARMADOS.has(id));
   const [error, setError] = useState<string | null>(null);
+
+  function setArmado(v: boolean) {
+    if (v) ARMADOS.add(id);
+    else ARMADOS.delete(id);
+    setArmadoState(v);
+  }
 
   // Si se armó y no se confirma, se desarma solo: un botón de borrar que queda
   // cebado esperando un clic distraído es peor que pedir el clic de nuevo.
   useEffect(() => {
     if (!armado) return;
-    const t = setTimeout(() => setArmado(false), 4000);
+    // Se desarma tocando el Set directamente (y no `setArmado`) para no depender de
+    // una función que se recrea en cada render y haría re-correr el efecto siempre.
+    const t = setTimeout(() => {
+      ARMADOS.delete(id);
+      setArmadoState(false);
+    }, 4000);
     return () => clearTimeout(t);
-  }, [armado]);
+  }, [armado, id]);
 
   function borrar() {
     startTransition(async () => {
@@ -222,7 +248,8 @@ export function DeleteLibroEntryButton({ id, detail }: { id: string; detail: str
       const res = await deleteLibroEntry(null, fd);
       if (res?.ok) {
         setError(null);
-        setArmado(false);
+        ARMADOS.delete(id);
+        setArmadoState(false);
         router.refresh();
       } else {
         // El error del borrado tiene que VERSE: antes iba sólo al `title` y a un

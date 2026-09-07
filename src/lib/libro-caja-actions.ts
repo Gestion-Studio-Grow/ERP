@@ -22,7 +22,7 @@ import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
-import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
+import { businessWallTimeToUtc, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED, getDemoLibroMovements } from "@/lib/demo-sandbox";
 import {
   buildLibro,
@@ -37,12 +37,34 @@ import {
 } from "@/lib/caja/libro-caja";
 import { fmtMoneyARS } from "@/components/ui/format";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
+import { isFrozenDay, frozenDayMessage } from "@/lib/caja/cierre-diario";
+import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 
 const LIBRO_PATH = "/admin/caja/libro";
 
 // Error de dominio para el aviso de duplicado. Va como clase (y no como string
 // suelto) para poder distinguirlo de cualquier otro fallo de la transacción.
 class DuplicadoError extends Error {}
+
+// Último día CERRADO del tenant, o null si todavía no hubo corte inicial.
+//
+// Hoy la única frontera de congelamiento que existe es el CORTE INICIAL: el día en
+// que el negocio dejó la planilla y empezó a operar en el sistema. Se identifica por
+// la marca `corte-inicial:<día>` que el script deja en `createdBy` (mismo patrón que
+// el importador). Cuando aterrice el modelo `CashDayClose` esto pasa a leerse de ahí
+// y esta función es el único lugar que cambia.
+//
+// Sin corte no hay congelamiento: `isFrozenDay(x, null)` es siempre false, así que un
+// tenant que todavía no cortó opera exactamente como antes.
+async function lastClosedDay(tenantId: string): Promise<string | null> {
+  const marca = await prisma.cashMovement.findFirst({
+    where: { tenantId, createdBy: { startsWith: CORTE_INICIAL_ACTOR_PREFIX } },
+    orderBy: { occurredAt: "desc" },
+    select: { createdBy: true },
+  });
+  const day = marca?.createdBy.slice(CORTE_INICIAL_ACTOR_PREFIX.length) ?? null;
+  return day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+}
 
 // Estado de las acciones del libro para la UI.
 //
@@ -205,6 +227,16 @@ export async function addLibroEntry(
     return { ok: false, error: "La fecha no es válida." };
   }
 
+  // ── Congelamiento por corte inicial ────────────────────────────────────────
+  //
+  // Lo contado en el corte ES la verdad: todo lo anterior a esa fecha ya está dentro
+  // del conteo físico. Cargar un movimiento viejo suelto lo contaría DOS veces y
+  // movería el saldo operativo. No es opinable ni confirmable: se rechaza.
+  const cerradoHasta = await lastClosedDay(tenantId);
+  if (cerradoHasta && isFrozenDay(dateStr, cerradoHasta)) {
+    return { ok: false, error: frozenDayMessage(dateStr, cerradoHasta) };
+  }
+
   // ── Guardas anti-error, derivadas de la auditoría de la planilla real ──────
   //
   // La planilla de CH Estética llegó con 25 filas fechadas un año antes (mayo 2025
@@ -307,12 +339,14 @@ export async function deleteLibroEntry(
   const id = String(formData.get("id") || "").trim();
   if (!id) return { ok: false, error: "Falta identificar el movimiento a borrar." };
 
+  const cerradoHasta = await lastClosedDay(tenantId);
+
   let borrado: { type: string; method: string; amount: number; reason: string | null };
   try {
     borrado = await tenantTransaction(async (tx) => {
       const found = await tx.cashMovement.findFirst({
         where: { tenantId, id },
-        select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true },
+        select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true, createdBy: true, occurredAt: true },
       });
       if (!found) throw new Error("Ese movimiento ya no existe.");
       if (found.type !== "INGRESO" && found.type !== "EGRESO") {
@@ -320,6 +354,15 @@ export async function deleteLibroEntry(
       }
       if (found.orderId) {
         throw new Error("Ese movimiento viene de un pedido cobrado. Corregí el pedido, no el libro.");
+      }
+      // Mismo candado que el alta: un día ya cerrado por el corte inicial no se toca.
+      // Borrar hacia atrás desbalancearía el saldo operativo contra lo que se contó.
+      if (found.createdBy.startsWith(CORTE_INICIAL_ACTOR_PREFIX)) {
+        throw new Error("Ese movimiento es el ajuste del corte inicial. No se borra: es lo que ata el saldo del sistema al conteo físico.");
+      }
+      const dia = dateStrInBusinessTz(found.occurredAt);
+      if (cerradoHasta && isFrozenDay(dia, cerradoHasta)) {
+        throw new Error(frozenDayMessage(dia, cerradoHasta));
       }
       await tx.cashMovement.delete({ where: { id: found.id } });
       return { type: found.type, method: found.method, amount: found.amount, reason: found.reason };

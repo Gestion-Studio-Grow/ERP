@@ -23,7 +23,7 @@ export default async function CampaniaPage() {
   const conInstagram = leads.filter((l) => l.instagram).length;
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10 flex flex-col gap-8">
+    <main className="mx-auto max-w-4xl px-6 py-10 flex flex-col gap-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-serif text-3xl" style={{ color: "var(--text-strong)" }}>
@@ -108,7 +108,7 @@ export default async function CampaniaPage() {
         Sólo se puede contactar con novedades a quienes tienen “Difusión: Sí”. Es el
         consentimiento que dieron al anotarse, y quedó registrado con su fecha.
       </p>
-    </div>
+    </main>
   );
 }
 
