@@ -272,6 +272,7 @@ Magra/Shine/ADM esperan deploy (Gate 1). Migración `control_plane_tenant` (colu
 - `20260705150002_fiscal_invoice_align` — Invoice alineado al spec (`ivaDesglose` Json, `authorizedAt`, unique).
 - *(… las posteriores hasta `20260906120000_add_cash_method_libro_caja` — libro de caja multi-medio — siguen el mismo estado: en repo, Neon a confirmar.)*
 - `20260907120000_add_cash_movement_payment_id` — **puente turnos → libro de caja**: `CashMovement.paymentId` + `@@unique(tenantId, paymentId, type)`. Aditiva. **Mientras no se aplique, el cobro de turno NO llega al libro** (el código lo tolera y lo audita como `libroCaja: "sin-migrar"`); las ventas del mostrador sí llegan. Ver `docs/producto/diseno-cierre-diario-caja.md §4.6`.
+- `20260907180000_add_appointment_partial_collections` — **cobros parciales de turno (seña al reservar + saldo al completar, `src/lib/turnos`)**: `Collection.idempotencyKey` + `@@unique(tenantId, idempotencyKey)` (doble clic no duplica plata) y `CashMovement.collectionId` + `@@unique(tenantId, collectionId, type)` (el puente al libro pasa a keyearse por el cobro; `paymentId` queda para lo previo). Aditiva. **Mientras no se aplique, el cobro entra igual (Collection + Payment agregado) pero SIN clave persistente ni asiento en el libro** (auditado `libroCaja: "sin-migrar"`). Verificado en local tirando las columnas.
 
 **✅ Sin colisiones de timestamp** (verificado 2026-07-07: los 27 dirs son únicos; la doble `150000` se
 resolvió a `150000/150001/150002`). **RLS** vive **fuera** de `prisma/migrations/` a propósito (`prisma/rls/`)

@@ -16,13 +16,17 @@ type Appointment = {
   notes: string | null;
   client: { name: string; phone: string };
   professional: { name: string };
-  service: { name: string; price: number };
+  service: { name: string; price: number; depositAmount?: number | null };
   box: { name: string };
-  payment: { method: string; comprobanteNro: string | null } | null;
+  payment: { method: string; comprobanteNro: string | null; amount?: number; status?: string } | null;
+  // Cobros parciales del turno (seña/saldo) — src/lib/turnos. Ausente en demo.
+  collections?: { amount: number; method: string }[];
 };
 
+// "Reservado" y no "Pendiente de pago": desde los cobros parciales la seña se cobra al
+// reservar y el estado del turno ya no dice nada de la plata (eso lo dice cobrado/saldo).
 const statusLabel: Record<string, string> = {
-  PENDING: "Pendiente de pago",
+  PENDING: "Reservado",
   CONFIRMED: "Confirmado",
   CANCELLED: "Cancelado",
   COMPLETED: "Completado",

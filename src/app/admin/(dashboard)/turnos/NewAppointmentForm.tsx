@@ -6,6 +6,7 @@ import { getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtTime } from "@/lib/datetime";
 import { Input, Select, Textarea, Field, buttonClasses, cn, fmtMoneyARS } from "@/components/ui";
+import { seniaDelServicio, METODOS_DE_PAGO, METODO_LABEL } from "@/lib/turnos/cobros";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
@@ -24,6 +25,10 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
     () => professionals.find((p) => p.id === professionalId),
     [professionalId, professionals]
   );
+  const service = useMemo(() => professional?.services.find((s) => s.id === serviceId), [professional, serviceId]);
+  // Seña del catálogo (monto fijo, provisional a confirmar): se propone cobrarla en el acto.
+  const senia = service ? seniaDelServicio({ depositAmount: service.depositAmount, precio: service.price }) : 0;
+  const [cobrarSenia, setCobrarSenia] = useState(true);
 
   function loadSlots(nextProfessionalId: string, nextServiceId: string, nextDate: string) {
     setSlots([]);
@@ -193,10 +198,43 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
                 className="uppercase placeholder:normal-case"
               />
             </Field>
+            {senia > 0 && (
+              <div className="rounded-md border border-line bg-surface-sunken p-3 space-y-2">
+                <label className="flex items-center gap-2 text-sm text-body">
+                  <input
+                    type="checkbox"
+                    name="senaCobrar"
+                    className="accent-accent"
+                    checked={cobrarSenia}
+                    onChange={(e) => setCobrarSenia(e.target.checked)}
+                  />
+                  Cobrar la seña ahora ({fmtMoneyARS(senia, 0)})
+                </label>
+                {cobrarSenia && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Monto de la seña" htmlFor="na-sena-monto">
+                      <Input id="na-sena-monto" name="senaMonto" type="number" min={1} step="1" defaultValue={Math.round(senia)} required />
+                    </Field>
+                    <Field label="Medio" htmlFor="na-sena-metodo">
+                      <Select id="na-sena-metodo" name="senaMetodo" defaultValue="TRANSFERENCIA" required>
+                        {METODOS_DE_PAGO.map((m) => (
+                          <option key={m} value={m}>
+                            {METODO_LABEL[m]}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+                )}
+                {!cobrarSenia && (
+                  <p className="text-xs text-muted">Queda como seña sin cobrar: registrala desde la fila del turno cuando llegue.</p>
+                )}
+              </div>
+            )}
             <Field label="Estado" htmlFor="na-status">
-              <Select id="na-status" name="status" defaultValue="CONFIRMED">
-                <option value="CONFIRMED">Confirmado (ya pagó o pactado en persona)</option>
-                <option value="PENDING">Pendiente de pago</option>
+              <Select id="na-status" name="status" defaultValue="PENDING">
+                <option value="PENDING">Reservado (la clienta todavía no confirmó)</option>
+                <option value="CONFIRMED">Confirmado (ya confirmó que viene)</option>
               </Select>
             </Field>
             <Field label="Notas (opcional)" htmlFor="na-notes" hint="Preferencias, tono, alergias…">

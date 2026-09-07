@@ -1280,6 +1280,16 @@ model CashMovement {
   payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   paymentId String?
 
+  // Rastro al COBRO PARCIAL de turno (`Collection`, seña o saldo) que originó el movimiento.
+  // Desde los cobros parciales (src/lib/turnos) un turno tiene VARIOS cobros y UN `Payment`
+  // agregado, así que `paymentId` ya no puede ser la clave del asiento (chocaría el @@unique
+  // de arriba en el segundo cobro): la clave de idempotencia del puente pasa a ser el cobro
+  // concreto, `@@unique(tenantId, collectionId, type)`. `paymentId` queda para los asientos
+  // anteriores a este cambio. Migración ESCRITA y SIN aplicar (gate del dueño); el código
+  // tolera que la columna no exista todavía (schema-ahead, ver `settleAppointmentPaymentGuarded`).
+  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  collectionId String?
+
   createdBy String // actor "user:<id>"
   createdAt DateTime @default(now())
 
@@ -1293,10 +1303,14 @@ model CashMovement {
   // Misma forma que A-5, para el cobro de turno: UN asiento por (cobro, tipo). Los movimientos
   // sin cobro de turno (paymentId NULL) no colisionan entre sí.
   @@unique([tenantId, paymentId, type])
+  // Cobros PARCIALES de turno (seña / saldo): UN asiento por (cobro, tipo). Es la clave de
+  // idempotencia vigente del puente turnos → libro; `paymentId` es la anterior.
+  @@unique([tenantId, collectionId, type])
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])
   @@index([paymentId])
+  @@index([collectionId])
   // Consulta del libro: todos los movimientos del tenant en un rango de fechas.
   @@index([tenantId, occurredAt])
 }
@@ -1512,6 +1526,19 @@ model Collection {
   collectedBy String // actor "user:<id>" que registró el cobro (audit)
   createdAt   DateTime @default(now())
 
+  // Clave de idempotencia del cobro (cobros parciales de turno, src/lib/turnos). Misma
+  // forma que `Order.idempotencyKey` (A-1): la manda el llamador —`senia:<turno>` al
+  // reservar, `saldo:<turno>` al completar, un uuid del formulario en "Registrar cobro"—
+  // y el @@unique de abajo es el árbitro de la carrera del doble submit: cobrar dos veces
+  // por doble clic NO puede duplicar plata. NULL para cobros sin clave (no colisionan).
+  // Migración ESCRITA y SIN aplicar (gate del dueño); el código tolera que no exista.
+  idempotencyKey String?
+
+  // Puente cobro de turno → libro de caja: el asiento VENTA que ESTE cobro produjo
+  // (src/lib/caja/cobro-turno.ts). Rastro débil, a lo sumo un asiento por tipo.
+  cashMovements CashMovement[]
+
+  @@unique([tenantId, idempotencyKey]) // NULLs no colisionan (Postgres)
   @@index([tenantId, originType, originId]) // "todos los cobros de este origen" → para saldar
   @@index([tenantId, createdAt])
 }

@@ -24,11 +24,24 @@ import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
+import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
-  cobroTurnoDetail,
-  recordCobroTurnoInTx,
-  settleAppointmentPaymentGuarded,
-} from "@/lib/caja/cobro-turno";
+  aplicarCobroTurnoInTx,
+  cobrosDelTurnoInTx,
+  cobrosPorTurno,
+  rastroLibroCaja,
+  CobroTurnoRechazado,
+  CompletarTurnoRechazado,
+  type AplicarCobroResult,
+} from "@/lib/turnos/cobro-turno-repo";
+import {
+  claveCobroTurno,
+  esMetodoDePago,
+  planCompletar,
+  puedeCompletarse,
+  type MetodoDePago,
+} from "@/lib/turnos/cobros";
+import { Prisma } from "@/generated/prisma/client";
 import {
   isDemoSandbox,
   getDemoAgendaDay,
@@ -187,20 +200,32 @@ export async function getAvailableSlotsRange(
 
 type BookingStatus = "PENDING" | "CONFIRMED";
 
+// Resultado de una acción de mostrador que el formulario muestra en línea (los errores de
+// dominio NO se lanzan: en producción Next enmascara el mensaje de un throw en Server Action).
+export type ResultadoAccion = { ok: true } | { ok: false; error: string };
+
+// Seña que se cobra EN EL MISMO ACTO de reservar (src/lib/turnos): "la seña se cobra al
+// momento de reservar el turno". Va dentro de la tx de la reserva: turno + cobro + asiento
+// en el libro, todo o nada.
+type CobroInicial = { monto: number; method: MetodoDePago; actor: string };
+
 async function bookAppointment({
   professionalId,
   serviceId,
   startsAtIso,
   clientId,
+  clientName,
   status,
   notes,
   isResident,
   couponCode,
+  cobroInicial,
 }: {
   professionalId: string;
   serviceId: string;
   startsAtIso: string;
   clientId: string;
+  clientName?: string;
   status: BookingStatus;
   notes?: string;
   // Vecino/a de La Alameda (ADR-013): si el servicio tiene precio preferencial
@@ -209,6 +234,7 @@ async function bookAppointment({
   // Cupón de descuento (ADR-014) — se revalida contra la base DENTRO de la
   // transacción, nunca se confía en el descuento que mandó el cliente.
   couponCode?: string;
+  cobroInicial?: CobroInicial | null;
 }) {
   const [service, professional] = await Promise.all([
     prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
@@ -237,7 +263,9 @@ async function bookAppointment({
     throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
 
-  return bookingTransaction(async (tx) => {
+  const tenantId = await getCurrentTenantId();
+
+  const run = (withSchema: boolean) => bookingTransaction(async (tx) => {
     // Re-chequea la disponibilidad DENTRO de la transacción para cerrar la
     // ventana de carrera entre "mostrar franjas libres" y "escribir la reserva":
     // dos requests sobre la misma franja no pueden triunfar las dos. En
@@ -256,7 +284,6 @@ async function bookAppointment({
     let appliedCouponCode: string | null = null;
     const normalizedCode = couponCode?.trim().toUpperCase();
     if (normalizedCode) {
-      const tenantId = await getCurrentTenantId();
       const coupon = await tx.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalizedCode } } });
       const valid =
         coupon &&
@@ -274,9 +301,9 @@ async function bookAppointment({
       // el cliente ya llegó hasta acá con la expectativa de reservar.
     }
 
-    return tx.appointment.create({
+    const appointment = await tx.appointment.create({
       data: {
-        tenantId: await getCurrentTenantId(),
+        tenantId,
         clientId,
         professionalId,
         serviceId,
@@ -291,7 +318,48 @@ async function bookAppointment({
         notes: notes?.trim() || null,
       },
     });
+
+    // Seña al reservar: mismo acto, misma tx. Clave natural `senia:<turno>` (una sola seña
+    // por turno); si la migración de cobros parciales no está aplicada, se cobra sin clave
+    // persistente ni asiento (`withSchema=false`, ver settleAppointmentPaymentGuarded).
+    let cobro: AplicarCobroResult | null = null;
+    if (cobroInicial && cobroInicial.monto > 0) {
+      cobro = await aplicarCobroTurnoInTx(tx, tenantId, {
+        appointmentId: appointment.id,
+        status,
+        precio: appointment.priceAtBooking ?? basePrice,
+        monto: cobroInicial.monto,
+        method: cobroInicial.method,
+        note: "Seña al reservar",
+        actor: cobroInicial.actor,
+        detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),
+        idempotencyKey: claveCobroTurno("senia", appointment.id),
+        withSchema,
+      });
+    }
+    return { appointment, cobro };
   });
+
+  if (!cobroInicial) {
+    const { appointment } = await run(false);
+    return { appointment, cobro: null, libroCaja: null as ReturnType<typeof rastroLibroCaja> };
+  }
+  const settled = await settleAppointmentPaymentGuarded({
+    runWithBridge: () => run(true),
+    runWithoutBridge: () => run(false),
+  });
+  // La clave de la seña lleva el id del turno recién creado: no puede chocar con nadie.
+  if (settled.outcome === "race") throw new Error("La reserva se envió dos veces. Revisá la agenda antes de reintentar.");
+  if (settled.outcome === "degraded") {
+    logger.warn("caja", "reserva con seña asentada SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+      tenantId,
+      appointmentId: settled.value.appointment.id,
+    });
+  }
+  return {
+    ...settled.value,
+    libroCaja: rastroLibroCaja({ outcome: settled.outcome, value: settled.value.cobro ?? undefined }),
+  };
 }
 
 export async function createAppointment(formData: FormData) {
@@ -324,11 +392,14 @@ export async function createAppointment(formData: FormData) {
     client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
   }
 
-  const appointment = await bookAppointment({
+  // Reserva pública: la seña la cobra la recepción cuando llega el comprobante
+  // ("Registrar cobro" en /admin/turnos) — no hay canal de cobro online todavía.
+  const { appointment } = await bookAppointment({
     professionalId,
     serviceId,
     startsAtIso,
     clientId: client.id,
+    clientName,
     status: "PENDING",
     isResident,
     couponCode,
@@ -513,11 +584,12 @@ export async function createBookingFromModal(input: {
     client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
   }
 
-  const appointment = await bookAppointment({
+  const { appointment } = await bookAppointment({
     professionalId: input.professionalId,
     serviceId: input.serviceId,
     startsAtIso: input.startsAtIso,
     clientId: client.id,
+    clientName,
     status: "PENDING",
     isResident,
     couponCode: input.couponCode,
@@ -539,7 +611,7 @@ export async function createBookingFromModal(input: {
 }
 
 export async function createManualAppointment(formData: FormData) {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   const professionalId = String(formData.get("professionalId"));
   const serviceId = String(formData.get("serviceId"));
   const startsAtIso = String(formData.get("startsAt"));
@@ -555,6 +627,18 @@ export async function createManualAppointment(formData: FormData) {
     throw new Error("Nombre y teléfono del cliente son obligatorios.");
   }
 
+  // Seña en el acto (src/lib/turnos): la recepción marca "cobrar seña ahora", con monto
+  // (precargado con el `depositAmount` del catálogo — provisional a confirmar si es fijo o
+  // porcentaje) y medio. El server valida monto y medio; el saldo lo valida la tx.
+  let cobroInicial: CobroInicial | null = null;
+  if (formData.get("senaCobrar") === "on") {
+    const monto = Number(String(formData.get("senaMonto") || "").replace(",", "."));
+    const metodo = String(formData.get("senaMetodo") || "");
+    if (!Number.isFinite(monto) || monto <= 0) throw new Error("El monto de la seña tiene que ser mayor a cero.");
+    if (!esMetodoDePago(metodo)) throw new Error("Elegí el medio con que se cobra la seña: efectivo, Mercado Pago o transferencia.");
+    cobroInicial = { monto, method: metodo, actor: `user:${user.id}` };
+  }
+
   let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
   if (!client) {
     client = await prisma.client.create({
@@ -564,27 +648,45 @@ export async function createManualAppointment(formData: FormData) {
     client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
   }
 
-  const appointment = await bookAppointment({
-    professionalId,
-    serviceId,
-    startsAtIso,
-    clientId: client.id,
-    status,
-    notes,
-    isResident,
-    couponCode,
-  });
+  let booked: Awaited<ReturnType<typeof bookAppointment>>;
+  try {
+    booked = await bookAppointment({
+      professionalId,
+      serviceId,
+      startsAtIso,
+      clientId: client.id,
+      clientName: client.name,
+      status,
+      notes,
+      isResident,
+      couponCode,
+      cobroInicial,
+    });
+  } catch (e) {
+    // La seña excede el precio, etc.: mensaje de dominio al formulario, no un 500.
+    if (e instanceof CobroTurnoRechazado) throw new Error(`No se pudo cobrar la seña: ${e.message}`);
+    throw e;
+  }
+  const { appointment, cobro, libroCaja } = booked;
 
   await auditAdmin({
     action: "create_manual",
     entity: "Appointment",
     entityId: appointment.id,
-    changes: { professionalId, serviceId, startsAt: appointment.startsAt, status },
+    changes: {
+      professionalId,
+      serviceId,
+      startsAt: appointment.startsAt,
+      status,
+      senia: cobro?.applied ? { monto: cobro.monto, method: cobroInicial?.method, saldo: cobro.estado.saldo } : null,
+      libroCaja,
+    },
   });
 
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/turnos/lista");
+  revalidatePath("/admin/caja/libro");
 }
 
 // Reprograma un turno existente a otra fecha/hora (y opcionalmente otro
@@ -689,127 +791,137 @@ export async function getAppointments(rangeDays: number = APPOINTMENTS_DEFAULT_R
   // acota al último año + todo el futuro (parametrizable), que es lo que la pantalla realmente usa.
   const tenantId = await getCurrentTenantId();
   const since = new Date(Date.now() - Math.max(1, rangeDays) * 24 * 60 * 60 * 1000);
-  return prisma.appointment.findMany({
+  const appointments = await prisma.appointment.findMany({
     where: { tenantId, startsAt: { gte: since } },
     orderBy: { startsAt: "asc" },
     include: { client: true, professional: true, service: true, box: true, payment: true },
   });
+  return conCobros(tenantId, appointments);
 }
 
-export async function confirmPayment(formData: FormData) {
+// Adjunta a cada turno sus cobros parciales (`collections`) para que la fila muestre
+// cobrado/saldo. Query aparte y tolerante: si la tabla `Collection` no está migrada, la
+// agenda carga igual con `collections: []` (ver `cobrosPorTurno`).
+async function conCobros<T extends { id: string }>(tenantId: string, appointments: T[]) {
+  const cobros = await cobrosPorTurno(prisma, tenantId, appointments.map((a) => a.id));
+  return appointments.map((a) => ({ ...a, collections: cobros.get(a.id) ?? [] }));
+}
+
+// ── Cobro de turnos (src/lib/turnos): seña al reservar, saldo al completar, parciales ──
+//
+// Reemplaza a `confirmPayment` (UN `Payment` por el precio completo, 1:1, sin seña ni
+// parciales). Un turno puede tener VARIOS cobros (`Collection.appointmentId`, D9); el saldo
+// se deriva (precio − Σ cobros); `Payment` queda como AGREGADO de los cobros para que
+// Reportes, la ficha de la clienta, comisiones y facturación vean el total sin cambiar.
+// Cada cobro asienta UNA VENTA en el libro de caja con su medio, por el puente existente
+// (src/lib/caja/cobro-turno.ts), keyeada por el cobro (`collectionId`).
+
+// Registra un cobro (seña, saldo o parcial) contra un turno vivo o prestado con saldo.
+// NO cambia el estado del turno: reservar/confirmar/completar son pasos del ciclo de la
+// dueña; la plata es otra dimensión. Idempotente por `idempotencyKey` (uuid del formulario,
+// renovado tras cada cobro): el doble clic no duplica; la guarda de saldo tampoco deja
+// cobrar de más.
+export async function registrarCobroTurno(formData: FormData): Promise<ResultadoAccion> {
   const user = await requireCapability("agenda:manage");
-  if (isDemoSandbox()) return; // modo demo: no persiste
-  const appointmentId = String(formData.get("appointmentId"));
-  const methodRaw = String(formData.get("method"));
-  if (methodRaw !== "MERCADOPAGO" && methodRaw !== "EFECTIVO" && methodRaw !== "TRANSFERENCIA") {
-    throw new Error("Elegí el medio de pago: Mercado Pago, efectivo o transferencia.");
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
+  const appointmentId = String(formData.get("appointmentId") || "");
+  const monto = Number(String(formData.get("amount") || "").replace(",", "."));
+  const methodRaw = String(formData.get("method") || "");
+  const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
+  if (!appointmentId) return { ok: false, error: "Falta el turno a cobrar." };
+  if (!Number.isFinite(monto) || monto <= 0) return { ok: false, error: "El monto a cobrar tiene que ser mayor a cero." };
+  if (!esMetodoDePago(methodRaw)) {
+    return { ok: false, error: "Elegí el medio de pago: Mercado Pago, efectivo o transferencia." };
   }
   const method = methodRaw;
-
-  const appointment = await prisma.appointment.findUniqueOrThrow({
-    where: { id: appointmentId },
-    include: { service: { select: { name: true, price: true } }, client: { select: { name: true } } },
-  });
-  const tenantId = appointment.tenantId;
-
-  // Cobrar el precio congelado al reservar (AMD-003); fallback al precio actual
-  // del servicio solo para turnos anteriores a esta feature (priceAtBooking null).
-  const amount = appointment.priceAtBooking ?? appointment.service.price;
+  const tenantId = await getCurrentTenantId();
   const actor = `user:${user.id}`;
-  const detail = cobroTurnoDetail({
-    serviceName: appointment.service.name,
-    clientName: appointment.client.name,
-  });
 
-  // Cobro + turno CONFIRMED + asiento en el LIBRO DE CAJA, en UNA sola tx (I7): o queda
-  // todo, o no queda nada. El asiento es lo que faltaba —el QA midió que cobrar un turno
-  // de $15.000 en efectivo dejaba el libro igual—; ahora la plata del turno aparece en el
-  // libro una sola vez, con el medio con que se cobró (puente en src/lib/caja/cobro-turno.ts).
-  //
-  // El monto del asiento se toma del `Payment` PERSISTIDO (no del cálculo de arriba): así
-  // Reportes (que suma Payment) y el libro (que suma CashMovement) no pueden dar distinto.
-  const settle = (withBridge: boolean) =>
+  // Todo dentro de UNA tx Serializable: el estado del turno y el saldo se leen y se escriben
+  // en la misma foto (dos cobros simultáneos no pueden sobre-cobrar: uno reintenta y ve el otro).
+  const run = (withSchema: boolean) =>
     tenantTransaction(
       async (tx) => {
-        const payment = await tx.payment.upsert({
-          where: { appointmentId },
-          create: {
-            tenantId,
-            appointmentId,
-            amount,
-            method,
-            status: "APPROVED",
-            comprobanteNro: `REC-${Date.now()}`,
-          },
-          update: {
-            method,
-            status: "APPROVED",
-          },
-          select: { id: true, amount: true, method: true, status: true },
-        });
-
-        await tx.appointment.update({
+        const appointment = await tx.appointment.findUniqueOrThrow({
           where: { id: appointmentId },
-          data: { status: "CONFIRMED" },
+          include: { service: { select: { name: true, price: true } }, client: { select: { name: true } } },
         });
-
-        if (!withBridge) return { payment, caja: null };
-        const caja = await recordCobroTurnoInTx(tx, tenantId, {
-          paymentId: payment.id,
-          status: payment.status,
-          paymentMethod: payment.method,
-          amount: payment.amount,
-          detail,
+        return aplicarCobroTurnoInTx(tx, tenantId, {
+          appointmentId,
+          status: appointment.status,
+          precio: appointment.priceAtBooking ?? appointment.service.price,
+          monto,
+          method,
           actor,
+          detail: cobroTurnoDetail({ serviceName: appointment.service.name, clientName: appointment.client.name }),
+          idempotencyKey,
+          withSchema,
         });
-        return { payment, caja };
       },
-      { tenantId },
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-  // Tolerancia a schema-ahead (la columna `paymentId` tiene migración escrita y sin
-  // aplicar) y a la carrera del doble submit — ver `settleAppointmentPaymentGuarded`.
-  const settled = await settleAppointmentPaymentGuarded({
-    runWithBridge: () => settle(true),
-    runWithoutBridge: () => settle(false),
-  });
-
-  if (settled.outcome === "race") {
-    // El otro submit ya dejó el cobro y su asiento. No se re-audita ni se muestra un 500.
-    revalidatePath("/admin/turnos");
-    return;
+  let settled: SettleOutcome<AplicarCobroResult>;
+  try {
+    settled = await settleAppointmentPaymentGuarded({
+      runWithBridge: () => run(true),
+      runWithoutBridge: () => run(false),
+    });
+  } catch (e) {
+    if (e instanceof CobroTurnoRechazado) return { ok: false, error: e.message };
+    throw e;
   }
 
+  if (settled.outcome === "race" || !settled.value.applied) {
+    // El otro submit ya dejó el cobro y su asiento. No se re-audita ni se muestra un error.
+    revalidatePath("/admin/turnos");
+    return { ok: true };
+  }
   if (settled.outcome === "degraded") {
-    logger.warn("caja", "confirmPayment: cobro asentado SIN puente al libro de caja (columna paymentId sin migrar)", {
+    logger.warn("caja", "registrarCobroTurno: cobro asentado SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
       tenantId,
       appointmentId,
     });
   }
 
   await auditAdmin({
-    action: "confirm_payment",
+    action: "collect_payment",
     entity: "Appointment",
     entityId: appointmentId,
     changes: {
       method,
-      amount,
-      status: "CONFIRMED",
-      // Rastro de qué pasó con el libro: asentado / motivo por el que no / degradado.
-      libroCaja:
-        settled.outcome === "degraded"
-          ? "sin-migrar"
-          : settled.value.caja?.recorded
-            ? { movementId: settled.value.caja.movementId, method: settled.value.caja.method }
-            : settled.value.caja?.reason ?? null,
+      amount: settled.value.monto,
+      cobrado: settled.value.estado.cobrado,
+      saldo: settled.value.estado.saldo,
+      libroCaja: rastroLibroCaja(settled),
     },
   });
 
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/lista");
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
+  return { ok: true };
+}
+
+// Reservado → Confirmado (la clienta confirmó que viene). Sin plata: la seña se cobró al
+// reservar (o se registra aparte). No exige seña — la recepción decide; la fila muestra
+// "sin seña" para que se vea.
+export async function confirmarTurno(formData: FormData) {
+  await requireCapability("agenda:manage");
+  if (isDemoSandbox()) return; // modo demo: no persiste
+  const appointmentId = String(formData.get("appointmentId") || "");
+  const res = await prisma.appointment.updateMany({
+    where: { id: appointmentId, status: "PENDING" },
+    data: { status: "CONFIRMED" },
+  });
+  if (res.count === 0) return; // ya no estaba reservado (doble clic / cambió): no hay nada que hacer
+  await auditAdmin({ action: "confirm", entity: "Appointment", entityId: appointmentId, changes: { status: "CONFIRMED" } });
+  revalidatePath("/admin");
+  revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/lista");
 }
 
 export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
@@ -1048,56 +1160,128 @@ export async function markNoShow(formData: FormData) {
   revalidatePath("/admin/turnos");
 }
 
-export async function completeAppointment(formData: FormData) {
+// Realizado → Completado: el servicio se prestó Y se cobró el resto. Exige que el turno haya
+// OCURRIDO (`startsAt <= ahora`; el QA completó un turno del martes estando domingo) y cobra
+// el saldo con el medio elegido, en la MISMA tx que el cierre y el consumo de insumos. Si la
+// recepción marca "dejar saldo a cobrar", el turno queda COMPLETED con saldo > 0: eso ES la
+// cuenta a cobrar (derivada, no un estado nuevo del enum — decisión de producto).
+export async function completeAppointment(formData: FormData): Promise<ResultadoAccion> {
   const user = await requireCapability("agenda:complete");
-  if (isDemoSandbox()) return; // modo demo: no persiste
-  const appointmentId = String(formData.get("appointmentId"));
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
+  const appointmentId = String(formData.get("appointmentId") || "");
   // Toggle "facturar sí/no" (ADR-024 §2.c): true por default; solo se saltea si
   // la UI manda explícitamente `facturar="false"` (checkbox "No facturar").
   const facturar = formData.get("facturar") !== "false";
+  const methodRaw = String(formData.get("method") || "");
+  const method: MetodoDePago | null = esMetodoDePago(methodRaw) ? methodRaw : null;
+  const dejarSaldoACobrar = formData.get("saldo") === "a-cobrar";
+  const tenantId = await getCurrentTenantId();
+  const actor = `user:${user.id}`;
 
-  const tenantId = await tenantTransaction(async (tx) => {
-    const appointment = await tx.appointment.findUniqueOrThrow({
-      where: { id: appointmentId },
-      include: { service: { include: { products: { include: { product: true } } } } },
+  const run = (withSchema: boolean) =>
+    tenantTransaction(
+      async (tx) => {
+        const appointment = await tx.appointment.findUniqueOrThrow({
+          where: { id: appointmentId },
+          include: {
+            service: { include: { products: { include: { product: true } } } },
+            client: { select: { name: true } },
+            payment: { select: { status: true, amount: true } },
+          },
+        });
+
+        // Un PROFESSIONAL solo puede cerrar turnos de su propia agenda (ADR-017 §2.b).
+        if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+          throw new Error("No autorizado: solo podés operar sobre tu propia agenda.");
+        }
+
+        const puede = puedeCompletarse({ status: appointment.status, startsAt: appointment.startsAt, ahora: new Date() });
+        if (!puede.ok) throw new CompletarTurnoRechazado(puede.motivo);
+
+        const precio = appointment.priceAtBooking ?? appointment.service.price;
+        const cobros = await cobrosDelTurnoInTx(tx, tenantId, appointmentId);
+        const plan = planCompletar({ precio, cobros, pagoLegado: appointment.payment, dejarSaldoACobrar, method });
+        if (!plan.ok) throw new CompletarTurnoRechazado(plan.motivo);
+
+        // Consumo de insumos al cerrar el turno, vía ledger (`recordMovement`): descuenta
+        // el stock y asienta un StockMovement (CONSUMO) por insumo en la misma transacción.
+        // `allowNegative`: el cierre del turno NO se bloquea por falta de insumo cargado
+        // (a diferencia de la venta) — el servicio ya se prestó; que el stock quede en
+        // rojo es una señal para reponer/ajustar, no un motivo para frenar el cierre.
+        for (const usage of appointment.service.products) {
+          await recordMovement(tx, {
+            tenantId: appointment.tenantId,
+            productId: usage.productId,
+            type: "CONSUMO",
+            qty: usage.quantity,
+            appointmentId,
+            createdBy: actor,
+            label: usage.product.name,
+            allowNegative: true,
+          });
+        }
+
+        // El saldo, con el medio elegido: UN cobro por lo que falta (clave natural
+        // `saldo:<turno>`), en la misma tx que el cierre → asiento en el libro incluido.
+        let cobro: AplicarCobroResult | null = null;
+        if (plan.cobro) {
+          cobro = await aplicarCobroTurnoInTx(tx, tenantId, {
+            appointmentId,
+            status: appointment.status,
+            precio,
+            monto: plan.cobro.monto,
+            method: plan.cobro.method as MetodoDePago,
+            note: "Saldo al completar",
+            actor,
+            detail: cobroTurnoDetail({ serviceName: appointment.service.name, clientName: appointment.client.name }),
+            idempotencyKey: claveCobroTurno("saldo", appointmentId),
+            withSchema,
+          });
+        }
+
+        await tx.appointment.update({
+          where: { id: appointmentId },
+          data: { status: "COMPLETED" },
+        });
+
+        return { cobro, saldoACobrar: plan.saldoACobrar };
+      },
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+  let settled: SettleOutcome<{ cobro: AplicarCobroResult | null; saldoACobrar: number }>;
+  try {
+    settled = await settleAppointmentPaymentGuarded({
+      runWithBridge: () => run(true),
+      runWithoutBridge: () => run(false),
     });
-
-    // Un PROFESSIONAL solo puede cerrar turnos de su propia agenda (ADR-017 §2.b).
-    if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
-      throw new Error("No autorizado: solo podés operar sobre tu propia agenda.");
-    }
-
-    if (appointment.status !== "CONFIRMED") {
-      throw new Error("Solo se puede completar un turno que esté confirmado.");
-    }
-
-    // Consumo de insumos al cerrar el turno, vía ledger (`recordMovement`): descuenta
-    // el stock y asienta un StockMovement (CONSUMO) por insumo en la misma transacción.
-    // `allowNegative`: el cierre del turno NO se bloquea por falta de insumo cargado
-    // (a diferencia de la venta) — el servicio ya se prestó; que el stock quede en
-    // rojo es una señal para reponer/ajustar, no un motivo para frenar el cierre.
-    for (const usage of appointment.service.products) {
-      await recordMovement(tx, {
-        tenantId: appointment.tenantId,
-        productId: usage.productId,
-        type: "CONSUMO",
-        qty: usage.quantity,
-        appointmentId,
-        createdBy: `user:${user.id}`,
-        label: usage.product.name,
-        allowNegative: true,
-      });
-    }
-
-    await tx.appointment.update({
-      where: { id: appointmentId },
-      data: { status: "COMPLETED" },
+  } catch (e) {
+    if (e instanceof CompletarTurnoRechazado || e instanceof CobroTurnoRechazado) return { ok: false, error: e.message };
+    throw e;
+  }
+  if (settled.outcome === "race") {
+    // El otro submit ya completó y cobró. Nada que reparar.
+    revalidatePath("/admin/turnos");
+    return { ok: true };
+  }
+  if (settled.outcome === "degraded") {
+    logger.warn("caja", "completeAppointment: saldo cobrado SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+      tenantId,
+      appointmentId,
     });
+  }
+  const cobro = settled.value.cobro;
 
-    return appointment.tenantId;
+  await auditAdmin({
+    action: "complete",
+    entity: "Appointment",
+    entityId: appointmentId,
+    changes: {
+      saldoCobrado: cobro?.applied ? { amount: cobro.monto, method } : null,
+      saldoACobrar: settled.value.saldoACobrar,
+      libroCaja: cobro ? rastroLibroCaja({ outcome: settled.outcome, value: cobro }) : null,
+    },
   });
-
-  await auditAdmin({ action: "complete", entity: "Appointment", entityId: appointmentId });
 
   // Disparo de facturación al cerrar el servicio (ADR-024 §2.a). Best-effort y
   // detrás del flag maestro (§2.b): si el flag está OFF o el operador eligió no
@@ -1113,8 +1297,12 @@ export async function completeAppointment(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/lista");
   revalidatePath("/admin/catalogo");
   revalidatePath("/admin/reportes");
+  revalidatePath("/admin/caja");
+  revalidatePath("/admin/caja/libro");
+  return { ok: true };
 }
 
 export async function getClients() {
@@ -1187,7 +1375,7 @@ export async function getAgendaDay(date: string) {
     }),
   ]);
 
-  return { professionals, appointments, blocksToday };
+  return { professionals, appointments: await conCobros(await getCurrentTenantId(), appointments), blocksToday };
 }
 
 export async function getDashboardData() {
