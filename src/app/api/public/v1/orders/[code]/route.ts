@@ -8,6 +8,7 @@
  */
 
 import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
+import { checkPublicApiRate, clientIpFromRequest } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withRequestId, setRequestContext } from "@/lib/request-context";
@@ -18,6 +19,18 @@ export const GET = withRequestId(async (
   request: Request,
   { params }: { params: Promise<{ code: string }> },
 ) => {
+  // A-2 · El límite se aplica ANTES de parsear y ANTES de autenticar: si no, la
+  // api-key de un tenant se podía fuerza-brutear sin freno y este POST floodear
+  // (compute de Neon, plan free). El limitador existía y estaba testeado, pero
+  // ninguna ruta lo llamaba: construido no es lo mismo que consumido.
+  const espera = checkPublicApiRate(clientIpFromRequest(request));
+  if (espera !== null) {
+    return Response.json(
+      { ok: false, error: { code: "rate_limited", message: "Demasiados pedidos. Probá de nuevo en unos segundos." } },
+      { status: 429, headers: { "Retry-After": String(espera) } },
+    );
+  }
+
   try {
     const { tenantId } = await authenticatePublicApi(request);
     setRequestContext({ tenantId });

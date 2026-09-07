@@ -20,6 +20,7 @@ import { redirect } from "next/navigation";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
+import { Prisma } from "@/generated/prisma/client";
 import { requireCapability } from "@/lib/authz";
 import { isDemoSandbox } from "@/lib/demo-sandbox";
 
@@ -209,13 +210,27 @@ export async function settleCommissions(formData: FormData) {
       },
     });
 
-    await tx.appointment.updateMany({
-      where: { id: { in: ids } },
+    // C-1 · La CLAVE del arreglo: se reclaman sólo los turnos que SIGUEN sin liquidar.
+    // Antes filtraba nada más que por `id`, así que dos liquidaciones concurrentes del
+    // mismo profesional (doble clic, dos pestañas) leían el mismo set pendiente, cada
+    // una creaba su `CommissionPayout` y la segunda pisaba la asignación: quedaban DOS
+    // comprobantes por el MISMO trabajo. Es plata pagada dos veces.
+    const reclamados = await tx.appointment.updateMany({
+      where: { id: { in: ids }, commissionPayoutId: null },
       data: { commissionPayoutId: payout.id },
     });
 
+    // Si otra transacción se los llevó primero, reclamamos menos de los que contamos:
+    // el monto del payout ya no corresponde al trabajo. Se aborta y se deshace todo
+    // (incluido el `create` de arriba) en vez de emitir un comprobante que miente.
+    if (reclamados.count !== ids.length) {
+      throw new Error(
+        "Otra liquidación de este profesional se estaba procesando al mismo tiempo. No se pagó nada: volvé a intentar y revisá el historial.",
+      );
+    }
+
     return { count: ids.length, amount, payoutId: payout.id, professionalName: professional.name };
-  });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   if (result.count === 0) backWith("error_nada");
 

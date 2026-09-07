@@ -14,6 +14,7 @@
  */
 
 import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
+import { checkPublicApiRate, clientIpFromRequest } from "@/lib/rate-limit";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { withRequestId, setRequestContext } from "@/lib/request-context";
 import { auditPublic } from "@/lib/audit";
@@ -39,6 +40,18 @@ function errorResponse(err: unknown): Response {
 }
 
 export const POST = withRequestId(async (request: Request) => {
+  // A-2 · El límite se aplica ANTES de parsear y ANTES de autenticar: si no, la
+  // api-key de un tenant se podía fuerza-brutear sin freno y este POST floodear
+  // (compute de Neon, plan free). El limitador existía y estaba testeado, pero
+  // ninguna ruta lo llamaba: construido no es lo mismo que consumido.
+  const espera = checkPublicApiRate(clientIpFromRequest(request));
+  if (espera !== null) {
+    return Response.json(
+      { ok: false, error: { code: "rate_limited", message: "Demasiados pedidos. Probá de nuevo en unos segundos." } },
+      { status: 429, headers: { "Retry-After": String(espera) } },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();

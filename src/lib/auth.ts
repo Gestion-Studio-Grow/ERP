@@ -15,8 +15,25 @@ function toHex(buffer: ArrayBuffer) {
     .join("");
 }
 
+// FAIL-CLOSED (A-1). El fallback `?? "dev-secret"` firmaba las cookies de sesión con
+// un string PÚBLICO si `AUTH_SECRET` faltaba en producción: cualquiera que leyera el
+// código podía forjar una cookie válida — bypass total de autenticación, silencioso.
+// En producción ahora se rompe al arrancar, que es la falla correcta: un deploy sin
+// secreto no debe atender, no debe atender inseguro. En desarrollo se mantiene el
+// default para no romper el arranque local.
+function authSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AUTH_SECRET no está configurado. Es obligatorio en producción: sin él las sesiones se firmarían con una clave pública.",
+    );
+  }
+  return "dev-secret";
+}
+
 async function sign(value: string) {
-  const secret = process.env.AUTH_SECRET ?? "dev-secret";
+  const secret = authSecret();
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),

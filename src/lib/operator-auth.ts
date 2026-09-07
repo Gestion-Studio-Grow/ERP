@@ -21,7 +21,18 @@ function toHex(buffer: ArrayBuffer) {
 function operatorSecret(): string {
   // Secreto propio del plano; cae a AUTH_SECRET solo en dev. En prod debe setearse
   // OPERATOR_SECRET distinto del de la app del tenant (separación de llaveros).
-  return process.env.OPERATOR_SECRET ?? process.env.AUTH_SECRET ?? "dev-operator-secret";
+  //
+  // FAIL-CLOSED (A-1). Este plano es MÁS sensible que el del tenant: el operador ve
+  // y opera CROSS-TENANT. Un fallback a un string público acá no es un bypass de una
+  // cuenta, es un bypass del plano que gobierna a los cuatro clientes.
+  const secret = process.env.OPERATOR_SECRET ?? process.env.AUTH_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "OPERATOR_SECRET (o al menos AUTH_SECRET) no está configurado. Es obligatorio en producción: el plano del operador es cross-tenant.",
+    );
+  }
+  return "dev-operator-secret";
 }
 
 async function sign(value: string): Promise<string> {
