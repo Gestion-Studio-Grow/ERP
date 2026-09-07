@@ -25,6 +25,11 @@ import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
 import {
+  cobroTurnoDetail,
+  recordCobroTurnoInTx,
+  settleAppointmentPaymentGuarded,
+} from "@/lib/caja/cobro-turno";
+import {
   isDemoSandbox,
   getDemoAgendaDay,
   getDemoReportData,
@@ -692,51 +697,119 @@ export async function getAppointments(rangeDays: number = APPOINTMENTS_DEFAULT_R
 }
 
 export async function confirmPayment(formData: FormData) {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   if (isDemoSandbox()) return; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId"));
-  const method = String(formData.get("method")) as "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
+  const methodRaw = String(formData.get("method"));
+  if (methodRaw !== "MERCADOPAGO" && methodRaw !== "EFECTIVO" && methodRaw !== "TRANSFERENCIA") {
+    throw new Error("Elegí el medio de pago: Mercado Pago, efectivo o transferencia.");
+  }
+  const method = methodRaw;
 
   const appointment = await prisma.appointment.findUniqueOrThrow({
     where: { id: appointmentId },
-    include: { service: true },
+    include: { service: { select: { name: true, price: true } }, client: { select: { name: true } } },
   });
+  const tenantId = appointment.tenantId;
 
   // Cobrar el precio congelado al reservar (AMD-003); fallback al precio actual
   // del servicio solo para turnos anteriores a esta feature (priceAtBooking null).
   const amount = appointment.priceAtBooking ?? appointment.service.price;
+  const actor = `user:${user.id}`;
+  const detail = cobroTurnoDetail({
+    serviceName: appointment.service.name,
+    clientName: appointment.client.name,
+  });
 
-  await prisma.payment.upsert({
-    where: { appointmentId },
-    create: {
-      tenantId: appointment.tenantId,
+  // Cobro + turno CONFIRMED + asiento en el LIBRO DE CAJA, en UNA sola tx (I7): o queda
+  // todo, o no queda nada. El asiento es lo que faltaba —el QA midió que cobrar un turno
+  // de $15.000 en efectivo dejaba el libro igual—; ahora la plata del turno aparece en el
+  // libro una sola vez, con el medio con que se cobró (puente en src/lib/caja/cobro-turno.ts).
+  //
+  // El monto del asiento se toma del `Payment` PERSISTIDO (no del cálculo de arriba): así
+  // Reportes (que suma Payment) y el libro (que suma CashMovement) no pueden dar distinto.
+  const settle = (withBridge: boolean) =>
+    tenantTransaction(
+      async (tx) => {
+        const payment = await tx.payment.upsert({
+          where: { appointmentId },
+          create: {
+            tenantId,
+            appointmentId,
+            amount,
+            method,
+            status: "APPROVED",
+            comprobanteNro: `REC-${Date.now()}`,
+          },
+          update: {
+            method,
+            status: "APPROVED",
+          },
+          select: { id: true, amount: true, method: true, status: true },
+        });
+
+        await tx.appointment.update({
+          where: { id: appointmentId },
+          data: { status: "CONFIRMED" },
+        });
+
+        if (!withBridge) return { payment, caja: null };
+        const caja = await recordCobroTurnoInTx(tx, tenantId, {
+          paymentId: payment.id,
+          status: payment.status,
+          paymentMethod: payment.method,
+          amount: payment.amount,
+          detail,
+          actor,
+        });
+        return { payment, caja };
+      },
+      { tenantId },
+    );
+
+  // Tolerancia a schema-ahead (la columna `paymentId` tiene migración escrita y sin
+  // aplicar) y a la carrera del doble submit — ver `settleAppointmentPaymentGuarded`.
+  const settled = await settleAppointmentPaymentGuarded({
+    runWithBridge: () => settle(true),
+    runWithoutBridge: () => settle(false),
+  });
+
+  if (settled.outcome === "race") {
+    // El otro submit ya dejó el cobro y su asiento. No se re-audita ni se muestra un 500.
+    revalidatePath("/admin/turnos");
+    return;
+  }
+
+  if (settled.outcome === "degraded") {
+    logger.warn("caja", "confirmPayment: cobro asentado SIN puente al libro de caja (columna paymentId sin migrar)", {
+      tenantId,
       appointmentId,
-      amount,
-      method,
-      status: "APPROVED",
-      comprobanteNro: `REC-${Date.now()}`,
-    },
-    update: {
-      method,
-      status: "APPROVED",
-    },
-  });
-
-  await prisma.appointment.update({
-    where: { id: appointmentId },
-    data: { status: "CONFIRMED" },
-  });
+    });
+  }
 
   await auditAdmin({
     action: "confirm_payment",
     entity: "Appointment",
     entityId: appointmentId,
-    changes: { method, amount, status: "CONFIRMED" },
+    changes: {
+      method,
+      amount,
+      status: "CONFIRMED",
+      // Rastro de qué pasó con el libro: asentado / motivo por el que no / degradado.
+      libroCaja:
+        settled.outcome === "degraded"
+          ? "sin-migrar"
+          : settled.value.caja?.recorded
+            ? { movementId: settled.value.caja.movementId, method: settled.value.caja.method }
+            : settled.value.caja?.reason ?? null,
+    },
   });
 
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/reportes");
+  revalidatePath("/admin/caja");
+  revalidatePath("/admin/caja/libro");
 }
 
 export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {

@@ -20,8 +20,17 @@ import { recordCashSaleMovementInTx, type CashSaleTx, type CashSaleInput } from 
 
 // --- Doble de test para la variante tx-scoped real. ---
 
+type MovRow = {
+  id: string;
+  orderId: string;
+  type: string;
+  amount: number;
+  method?: string;
+  sessionId?: string | null;
+};
+
 function makeCashTx(opts: { openSession: boolean; preexistingOrderId?: string }) {
-  const movements: { id: string; orderId: string; type: string; amount: number }[] = [];
+  const movements: MovRow[] = [];
   let seq = 0;
   if (opts.preexistingOrderId) {
     movements.push({ id: "mov_pre", orderId: opts.preexistingOrderId, type: "VENTA", amount: 1 });
@@ -35,8 +44,17 @@ function makeCashTx(opts: { openSession: boolean; preexistingOrderId?: string })
         const m = movements.find((x) => x.orderId === args.where.orderId && x.type === args.where.type);
         return m ? { id: m.id } : null;
       },
-      create: async (args: { data: { orderId: string; type: string; amount: number } }) => {
-        const m = { id: `mov_${++seq}`, orderId: args.data.orderId, type: args.data.type, amount: args.data.amount };
+      create: async (args: {
+        data: { orderId: string; type: string; amount: number; method: string; sessionId: string | null };
+      }) => {
+        const m: MovRow = {
+          id: `mov_${++seq}`,
+          orderId: args.data.orderId,
+          type: args.data.type,
+          amount: args.data.amount,
+          method: args.data.method,
+          sessionId: args.data.sessionId,
+        };
         movements.push(m);
         return { id: m.id };
       },
@@ -55,19 +73,28 @@ const cashInput = (over: Partial<CashSaleInput> = {}): CashSaleInput => ({
   ...over,
 });
 
-test("I7 · venta efectivo con caja abierta → asienta el movimiento en la tx del llamador", async () => {
+test("I7 · venta efectivo con caja abierta → asienta el movimiento en la tx del llamador, enganchado al turno", async () => {
   const { tx, movements } = makeCashTx({ openSession: true });
   const r = await recordCashSaleMovementInTx(tx, "t1", cashInput());
   assert.equal(r.recorded, true);
   assert.equal(movements.length, 1);
   assert.equal(movements[0].amount, 4500);
+  assert.equal(movements[0].method, "EFECTIVO");
+  assert.equal(movements[0].sessionId, "sess_1", "efectivo con turno abierto: entra al arqueo del cajón");
 });
 
-test("I7 · sin caja abierta → NO asienta y NO lanza (la venta se concreta igual): benigno", async () => {
+// Comportamiento NUEVO (libro de caja): antes "sin caja abierta" era motivo para NO
+// asentar, porque el ledger era el cajón de un turno. Ahora el ledger es el libro del
+// negocio: una venta cobrada sin turno abierto es plata que entró y tiene que verse en
+// /admin/caja/libro. Queda suelta (`sessionId` null): ningún arqueo la cuenta porque no
+// hay turno que la contenga — no hay nada que descuadrar.
+test("I7 · sin caja abierta → asienta IGUAL, suelto (sessionId null), sin lanzar: el libro lo ve", async () => {
   const { tx, movements } = makeCashTx({ openSession: false });
   const r = await recordCashSaleMovementInTx(tx, "t1", cashInput());
-  assert.deepEqual(r, { recorded: false, reason: "no-open-session" });
-  assert.equal(movements.length, 0);
+  assert.equal(r.recorded, true);
+  assert.equal(r.recorded && r.sessionId, null);
+  assert.equal(movements.length, 1);
+  assert.equal(movements[0].sessionId, null);
 });
 
 test("I7 · idempotencia por orderId: si ya se imputó, no duplica", async () => {
@@ -77,11 +104,34 @@ test("I7 · idempotencia por orderId: si ya se imputó, no duplica", async () =>
   assert.equal(movements.length, 1, "sigue habiendo un solo movimiento (el preexistente)");
 });
 
-test("I7 · no efectivo (MP) → benigno, sin movimiento de caja", async () => {
+// Comportamiento NUEVO (libro multi-medio): la venta por MP SÍ se asienta, en la columna
+// MP. El arqueo del turno al que se engancha no cambia: `summarizeMovements` filtra por
+// medio y cuenta sólo EFECTIVO (cash-register.test.ts / cash-sale.test.ts).
+test("I7 · MP → asienta en la columna MP (antes se descartaba: el libro era efectivo puro)", async () => {
   const { tx, movements } = makeCashTx({ openSession: true });
   const r = await recordCashSaleMovementInTx(tx, "t1", cashInput({ paymentMethod: "MERCADOPAGO" }));
-  assert.deepEqual(r, { recorded: false, reason: "not-cash" });
-  assert.equal(movements.length, 0);
+  assert.equal(r.recorded, true);
+  assert.equal(r.recorded && r.method, "MP");
+  assert.equal(movements.length, 1);
+  assert.equal(movements[0].method, "MP");
+});
+
+test("I7 · transferencia → misma columna MP; sin medio → no se asienta (unsupported-method)", async () => {
+  const conTransf = makeCashTx({ openSession: true });
+  const r1 = await recordCashSaleMovementInTx(conTransf.tx, "t1", cashInput({ paymentMethod: "TRANSFERENCIA" }));
+  assert.equal(r1.recorded && r1.method, "MP");
+
+  const sinMedio = makeCashTx({ openSession: true });
+  const r2 = await recordCashSaleMovementInTx(sinMedio.tx, "t1", cashInput({ paymentMethod: null }));
+  assert.deepEqual(r2, { recorded: false, reason: "unsupported-method" });
+  assert.equal(sinMedio.movements.length, 0);
+});
+
+test("I7 · idempotencia por orderId no mira el medio: re-cobrar por MP lo que ya entró en efectivo no duplica", async () => {
+  const { tx, movements } = makeCashTx({ openSession: true, preexistingOrderId: "ord_1" });
+  const r = await recordCashSaleMovementInTx(tx, "t1", cashInput({ orderId: "ord_1", paymentMethod: "MERCADOPAGO" }));
+  assert.deepEqual(r, { recorded: false, reason: "already-recorded" });
+  assert.equal(movements.length, 1);
 });
 
 // --- Simulación de la FRONTERA transaccional (bug de 2ª-tx vs fix de 1-tx). ---

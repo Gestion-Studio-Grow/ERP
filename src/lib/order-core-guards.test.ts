@@ -144,7 +144,7 @@ test("happy path: alta directa sin clave → devuelve el pedido creado", async (
     ...base,
     idempotencyKey: null,
     findByKey: async () => null,
-    runInsert: async () => ({ id: "ord_h", code: 1, cashSale: { recorded: false, reason: "not-cash" } }),
+    runInsert: async () => ({ id: "ord_h", code: 1, cashSale: { recorded: false, reason: "unsupported-method" } }),
   });
   assert.equal(r.id, "ord_h");
   assert.equal(r.code, 1);

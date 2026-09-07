@@ -14,6 +14,7 @@ import { getLibroCajaData } from "@/lib/libro-caja-actions";
 import {
   CASH_METHODS,
   CASH_METHOD_LABEL,
+  LIBRO_ORIGIN_LABEL,
   totalOf,
   shiftMonth,
   formatMonthKey,
@@ -61,7 +62,8 @@ export default async function LibroCajaPage({
   const { mes } = await searchParams;
   // getLibroCajaData aplica requireCapability("orders:read") — guard de la página.
   // Un ?mes inválido cae al mes corriente en vez de romper.
-  const { rows, summary, year, month, monthKey } = await getLibroCajaData(mes);
+  const { rows, summary, year, month, monthKey, posiblesDuplicados } = await getLibroCajaData(mes);
+  const duplicados = new Set(posiblesDuplicados);
 
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
@@ -78,9 +80,20 @@ export default async function LibroCajaPage({
         title="Libro de caja"
         description="Todo lo que entra y sale del negocio, mes a mes y por medio de pago. Reemplaza la planilla: el saldo inicial y el saldo corrido los calcula el sistema."
         actions={
-          <Link href="/admin/caja" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
-            Ir al arqueo del mostrador
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Pedido explícito de la contadora del cliente: sin export, la única
+                alternativa era darle el usuario de la dueña o mandarle 280 renglones
+                en capturas. Bajan los MOVIMIENTOS del mes, no totales. */}
+            <a
+              href={`/admin/caja/libro/export?mes=${monthKey}`}
+              className="text-sm text-muted underline underline-offset-4 hover:text-strong"
+            >
+              Descargar el mes (CSV)
+            </a>
+            <Link href="/admin/caja" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
+              Ir al arqueo del mostrador
+            </Link>
+          </div>
         }
       />
 
@@ -112,7 +125,11 @@ export default async function LibroCajaPage({
             <CardTitle>Agregar movimiento</CardTitle>
             <CardDescription>
               Una fila por cobro o por gasto, igual que en la planilla. Se guarda con la fecha que
-              pongas, no con la de hoy: podés cargar en diferido.
+              pongas, no con la de hoy: podés cargar en diferido.{" "}
+              <strong className="font-medium text-body">
+                Los turnos cobrados desde Turnos y las ventas del mostrador entran solos
+              </strong>
+              : acá se carga lo que no pasa por el sistema (señas, gastos, retiros, cobros sueltos).
             </CardDescription>
           </div>
         </CardHeader>
@@ -162,20 +179,35 @@ export default async function LibroCajaPage({
                   const entra = r.signedAmount > 0;
                   const sale = r.signedAmount < 0;
                   // Solo se puede borrar lo que se cargó a mano en el libro: una VENTA la
-                  // creó el POS y una APERTURA el arqueo (la acción también lo valida).
+                  // escribió el sistema (mostrador o turno cobrado) y una APERTURA el arqueo
+                  // (la acción también lo valida).
                   const borrable = r.type === "INGRESO" || r.type === "EGRESO";
+                  const origen = r.origin ?? "manual";
+                  // Transición desde la planilla: una fila manual con una gemela del sistema
+                  // el mismo día (mismo medio y monto) es un doble conteo probable. Se marca
+                  // para que se revise y se borre la manual; el sistema nunca la borra solo.
+                  const dudosa = duplicados.has(r.id);
                   return (
-                    <tr key={r.id} className="hover:bg-surface-2">
+                    <tr key={r.id} className={dudosa ? "bg-warning-soft/40 hover:bg-surface-2" : "hover:bg-surface-2"}>
                       <td className="whitespace-nowrap px-4 py-2 tabular-nums text-muted">
                         {fmtRowDate(r.occurredAt)}
                       </td>
                       <td className="px-4 py-2 text-body">
                         {r.detail || <span className="text-faint">—</span>}
-                        {r.type === "VENTA" && (
-                          <Badge tone="neutral" className="ml-2">Venta del mostrador</Badge>
+                        {origen !== "manual" && (
+                          <Badge tone="info" className="ml-2">{LIBRO_ORIGIN_LABEL[origen]}</Badge>
                         )}
                         {r.type === "APERTURA" && (
                           <Badge tone="neutral" className="ml-2">Apertura de turno</Badge>
+                        )}
+                        {dudosa && (
+                          <Badge
+                            tone="warning"
+                            className="ml-2"
+                            title="Hay un turno cobrado o una venta del mostrador el mismo día, por el mismo medio y monto. Si es el mismo cobro, borrá esta fila: la del sistema queda."
+                          >
+                            ¿Duplicado? El sistema ya registró un cobro igual ese día
+                          </Badge>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-2 text-muted">

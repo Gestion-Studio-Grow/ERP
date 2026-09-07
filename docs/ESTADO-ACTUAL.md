@@ -270,6 +270,8 @@ Magra/Shine/ADM esperan deploy (Gate 1). Migración `control_plane_tenant` (colu
 - `20260705150000_add_stock_ledger` — ledger `StockMovement`.
 - `20260705150001_add_tenant_fiscal_config` — config fiscal por tenant.
 - `20260705150002_fiscal_invoice_align` — Invoice alineado al spec (`ivaDesglose` Json, `authorizedAt`, unique).
+- *(… las posteriores hasta `20260906120000_add_cash_method_libro_caja` — libro de caja multi-medio — siguen el mismo estado: en repo, Neon a confirmar.)*
+- `20260907120000_add_cash_movement_payment_id` — **puente turnos → libro de caja**: `CashMovement.paymentId` + `@@unique(tenantId, paymentId, type)`. Aditiva. **Mientras no se aplique, el cobro de turno NO llega al libro** (el código lo tolera y lo audita como `libroCaja: "sin-migrar"`); las ventas del mostrador sí llegan. Ver `docs/producto/diseno-cierre-diario-caja.md §4.6`.
 
 **✅ Sin colisiones de timestamp** (verificado 2026-07-07: los 27 dirs son únicos; la doble `150000` se
 resolvió a `150000/150001/150002`). **RLS** vive **fuera** de `prisma/migrations/` a propósito (`prisma/rls/`)

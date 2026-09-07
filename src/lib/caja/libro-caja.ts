@@ -33,6 +33,12 @@ export const CASH_METHOD_LABEL: Record<CashMethod, string> = {
 // de los tres medios (`totalOf`), así no puede quedar desfasado del desglose.
 export type MethodAmounts = Record<CashMethod, number>;
 
+// De dónde salió una fila del libro. Es la distinción que hace posible la transición
+// desde la planilla sin doble conteo: lo que escribió el SISTEMA (una venta del
+// mostrador, un turno cobrado) se ve distinto, no se borra desde el libro y sirve para
+// avisar cuando alguien intenta tipearlo a mano otra vez.
+export type LibroOrigin = "manual" | "pos" | "turno";
+
 export type LibroMovement = {
   id: string;
   occurredAt: Date;
@@ -40,6 +46,22 @@ export type LibroMovement = {
   method: CashMethod;
   amount: number; // siempre > 0; el signo lo aplica `movementSign`
   detail: string;
+  origin?: LibroOrigin; // ausente = "manual" (compatibilidad con las filas demo y los fixtures)
+};
+
+// Origen de un movimiento a partir de lo que el ledger ya guarda. `VENTA` es el tipo que el
+// libro RESERVA para lo que escribe el sistema (no se puede tipear a mano, ver LIBRO_TYPES en
+// libro-caja-actions.ts): con `orderId` es una venta del mostrador (cash-sale.ts); sin
+// `orderId` es un cobro de turno (cobro-turno.ts, rastro por `paymentId`). Derivarlo así
+// evita leer `paymentId` en la pantalla, que tiene su migración escrita y sin aplicar.
+export function libroOrigin(m: { type: CashMovementType; orderId?: string | null }): LibroOrigin {
+  if (m.type !== "VENTA") return "manual";
+  return m.orderId ? "pos" : "turno";
+}
+
+export const LIBRO_ORIGIN_LABEL: Record<Exclude<LibroOrigin, "manual">, string> = {
+  pos: "Venta del mostrador",
+  turno: "Turno cobrado",
 };
 
 // Una fila del libro tal como se pinta: el movimiento + el saldo TOTAL acumulado
@@ -152,6 +174,36 @@ export function buildLibro(
   }
 
   return { rows, summary: { opening, ingresos, egresos, saldo } };
+}
+
+// --- Transición desde la planilla: gemelas del sistema ---
+//
+// Mientras el negocio se acostumbra a que los turnos y las ventas entran solos al libro,
+// va a seguir tipeando algunos cobros a mano: el mismo cobro queda DOS veces (una del
+// sistema, una manual) y el saldo se infla. La guarda de `addLibroEntry` frena al tipear;
+// esta función cubre el otro orden (se tipeó primero y el sistema asentó después) y los
+// "guardar igual": marca las filas MANUALES que entran plata y tienen una gemela del
+// sistema el mismo día del negocio, por el mismo medio y el mismo monto. Es una señal
+// para revisar y borrar la manual — nunca borra ni resta nada sola.
+//
+// `dayOf` traduce el instante al día calendario del negocio (la fila manual se ancla al
+// mediodía; la del sistema lleva la hora real del cobro): se compara por DÍA, no por hora.
+export function flagPossibleDuplicates(
+  rows: readonly LibroMovement[],
+  dayOf: (d: Date) => string,
+): Set<string> {
+  const key = (m: LibroMovement) => `${dayOf(m.occurredAt)}|${m.method}|${round2(m.amount)}`;
+  const delSistema = new Set<string>();
+  for (const m of rows) {
+    if ((m.origin ?? "manual") !== "manual" && movementSign(m.type) > 0) delSistema.add(key(m));
+  }
+  const marcadas = new Set<string>();
+  if (delSistema.size === 0) return marcadas;
+  for (const m of rows) {
+    if ((m.origin ?? "manual") !== "manual" || movementSign(m.type) <= 0) continue;
+    if (delSistema.has(key(m))) marcadas.add(m.id);
+  }
+  return marcadas;
 }
 
 // --- Período mensual ---

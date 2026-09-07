@@ -679,6 +679,11 @@ model Payment {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  // Puente turnos → libro de caja: el asiento VENTA que este cobro produjo en el ledger
+  // (ver src/lib/caja/cobro-turno.ts). Rastro débil: un Payment tiene a lo sumo un asiento
+  // por tipo (`@@unique` en CashMovement).
+  cashMovements CashMovement[]
+
   @@index([tenantId])
 }
 
@@ -1262,9 +1267,18 @@ model CashMovement {
   // columna el libro de un mes cerrado cambiaría según cuándo se cargó la fila.
   occurredAt DateTime @default(now())
 
-  // Rastro opcional al pedido que originó el movimiento (VENTA en efectivo).
+  // Rastro opcional al pedido que originó el movimiento (VENTA del mostrador, cualquier medio).
   order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
   orderId String?
+
+  // Rastro opcional al COBRO DE TURNO (`Payment`) que originó el movimiento (VENTA por el
+  // servicio cobrado en /admin/turnos). Es la clave de idempotencia del puente turnos → libro:
+  // confirmar el pago dos veces no puede producir dos asientos. `Payment` es 1:1 con el turno
+  // (`appointmentId @unique`), así que un `paymentId` identifica UN cobro y nada más.
+  // Migración ESCRITA y SIN aplicar (gate del dueño); el código tolera que la columna no
+  // exista todavía (schema-ahead, ver `settleAppointmentPaymentGuarded`).
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  paymentId String?
 
   createdBy String // actor "user:<id>"
   createdAt DateTime @default(now())
@@ -1276,9 +1290,13 @@ model CashMovement {
   // colisionan (NULLs distintos en Postgres). Migración ESCRITA y SIN aplicar (Gate 2); el
   // código tolera que el índice no exista todavía (schema-ahead).
   @@unique([tenantId, orderId, type])
+  // Misma forma que A-5, para el cobro de turno: UN asiento por (cobro, tipo). Los movimientos
+  // sin cobro de turno (paymentId NULL) no colisionan entre sí.
+  @@unique([tenantId, paymentId, type])
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])
+  @@index([paymentId])
   // Consulta del libro: todos los movimientos del tenant en un rango de fechas.
   @@index([tenantId, occurredAt])
 }

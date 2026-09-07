@@ -55,3 +55,24 @@ test("isPrismaError: match por código", () => {
   assert.equal(isPrismaError(p2002("x"), "P2034"), false);
   assert.equal(isPrismaError(new Error("no"), "P2002"), false);
 });
+
+// Forma REAL del P2022 con driver adapters (Prisma 7 + PrismaPg), copiada del log del
+// servidor local con `CashMovement.paymentId` sin migrar: `meta` trae `modelName` y
+// `driverAdapterError` pero NO `column`; la columna sólo viaja en el mensaje.
+function p2022DriverAdapter(modelName: string, column: string): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError(
+    `\nInvalid \`prisma.cashMovement.findFirst()\` invocation:\n\n\nThe column \`${modelName}.${column}\` does not exist in the current database.`,
+    {
+      code: "P2022",
+      clientVersion: "7.8.0",
+      meta: { modelName, driverAdapterError: { name: "DriverAdapterError", kind: "ColumnNotFound" } },
+    },
+  );
+}
+
+test("isColumnMissing: con driver adapters (sin meta.column) reconoce la columna por el mensaje", () => {
+  const e = p2022DriverAdapter("CashMovement", "paymentId");
+  assert.equal(isColumnMissing(e, "paymentId"), true, "antes daba false y la tolerancia a schema-ahead no se activaba");
+  assert.equal(isColumnMissing(e, "idempotencyKey"), false, "otra columna no se disfraza");
+  assert.equal(isColumnMissing(e), true);
+});

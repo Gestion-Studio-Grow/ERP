@@ -31,20 +31,27 @@ import {
   formatMonthKey,
   dateBelongsToMonth,
   formatMonthLabel,
+  libroOrigin,
+  flagPossibleDuplicates,
   CASH_METHOD_LABEL,
+  LIBRO_ORIGIN_LABEL,
   type Libro,
   type LibroMovement,
 } from "@/lib/caja/libro-caja";
 import { fmtMoneyARS } from "@/components/ui/format";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
-import { isFrozenDay, frozenDayMessage } from "@/lib/caja/cierre-diario";
+import { isFrozenDay, frozenDayMessage, nextDayKey } from "@/lib/caja/cierre-diario";
 import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 
 const LIBRO_PATH = "/admin/caja/libro";
 
 // Error de dominio para el aviso de duplicado. Va como clase (y no como string
 // suelto) para poder distinguirlo de cualquier otro fallo de la transacción.
-class DuplicadoError extends Error {}
+class DuplicadoError extends Error {
+  constructor(readonly delSistema: { detail: string } | null = null) {
+    super();
+  }
+}
 
 // Último día CERRADO del tenant, o null si todavía no hubo corte inicial.
 //
@@ -112,6 +119,10 @@ export type LibroCajaData = Libro & {
   monthKey: string;
   year: number;
   month: number;
+  // Filas MANUALES que tienen una gemela del sistema el mismo día (mismo medio y monto):
+  // candidatas a doble conteo durante la transición desde la planilla. Ver
+  // `flagPossibleDuplicates`. Vacío en demo.
+  posiblesDuplicados: string[];
 };
 
 // --- Loader de la pantalla del libro ---
@@ -134,7 +145,7 @@ export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroC
     const demo = getDemoLibroMovements().filter(
       (m) => m.occurredAt >= start && m.occurredAt < end,
     );
-    return { ...buildLibro(openingFromHistory([]), demo), monthKey, year, month };
+    return { ...buildLibro(openingFromHistory([]), demo), monthKey, year, month, posiblesDuplicados: [] };
   }
 
   const tenantId = await getCurrentTenantId();
@@ -142,7 +153,7 @@ export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroC
     prisma.cashMovement.findMany({
       where: { tenantId, occurredAt: { gte: start, lt: end } },
       orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
-      select: { id: true, occurredAt: true, type: true, method: true, amount: true, reason: true },
+      select: { id: true, occurredAt: true, type: true, method: true, amount: true, reason: true, orderId: true },
     }),
     prisma.cashMovement.groupBy({
       by: ["type", "method"],
@@ -172,9 +183,17 @@ export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroC
     method: r.method as CashMethod,
     amount: r.amount,
     detail: r.reason ?? "",
+    origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId }),
   }));
 
-  return { ...buildLibro(opening, movements), monthKey, year, month };
+  const libro = buildLibro(opening, movements);
+  return {
+    ...libro,
+    monthKey,
+    year,
+    month,
+    posiblesDuplicados: [...flagPossibleDuplicates(libro.rows, dateStrInBusinessTz)],
+  };
 }
 
 // --- Cargar un asiento del libro ---
@@ -263,18 +282,46 @@ export async function addLibroEntry(
   }
 
   const actor = `user:${user.id}`;
+  // Límites del DÍA del negocio en UTC, para comparar contra filas que llevan la hora real
+  // del cobro (las del sistema) y no el mediodía al que se ancla el alta manual.
+  const diaDesde = businessWallTimeToUtc(dateStr, "00:00");
+  const diaHasta = businessWallTimeToUtc(nextDayKey(dateStr), "00:00");
   try {
     await tenantTransaction(async (tx) => {
-      // (b) POSIBLE DUPLICADO: mismo día, mismo detalle, mismo medio y mismo monto.
-      // Puede ser legítimo (dos señas iguales el mismo día), por eso avisa en vez de
-      // prohibir. Es la red que atrapa el doble guardado venga de donde venga —
-      // incluido un doble click o un reintento del usuario.
+      // (b) POSIBLE DUPLICADO, dos variantes en una consulta:
+      //
+      //   · Manual repetida: mismo día, mismo detalle, mismo medio y mismo monto. Puede ser
+      //     legítimo (dos señas iguales el mismo día), por eso avisa en vez de prohibir. Es
+      //     la red que atrapa el doble guardado venga de donde venga — incluido un doble
+      //     click o un reintento del usuario.
+      //
+      //   · YA LO REGISTRÓ EL SISTEMA: un ingreso manual del mismo día, medio y monto que
+      //     una VENTA (turno cobrado desde Turnos o venta del mostrador). Es LA defensa de
+      //     la transición desde la planilla: la dueña venía tipeando cada cobro a mano, y
+      //     ahora esos cobros entran solos. Sin esta guarda cada uno quedaría dos veces. El
+      //     detalle no se compara (ella escribe "Sofía facial", el sistema "Turno · …"):
+      //     alcanza con día + medio + monto. Se avisa, con el detalle de la fila del
+      //     sistema, y se puede insistir (una seña igual al precio del servicio es legítima).
       if (!confirmado) {
         const yaHay = await tx.cashMovement.findFirst({
-          where: { tenantId, type, method, amount, reason: detail, occurredAt },
-          select: { id: true },
+          where: {
+            tenantId,
+            method,
+            amount,
+            occurredAt: { gte: diaDesde, lt: diaHasta },
+            OR: [
+              { type, reason: detail, occurredAt },
+              ...(type === "INGRESO" ? [{ type: "VENTA" as const }] : []),
+            ],
+          },
+          // Primero la del sistema si hay una: es el aviso más importante. El enum se ordena
+          // por declaración (APERTURA, VENTA, INGRESO, …), así que `asc` pone VENTA antes.
+          orderBy: { type: "asc" },
+          select: { id: true, type: true, reason: true },
         });
-        if (yaHay) throw new DuplicadoError();
+        if (yaHay) {
+          throw new DuplicadoError(yaHay.type === "VENTA" ? { detail: yaHay.reason ?? "" } : null);
+        }
       }
       const openSession = await tx.cashSession.findFirst({
         where: { tenantId, status: "OPEN" },
@@ -295,6 +342,16 @@ export async function addLibroEntry(
     }, { tenantId });
   } catch (err) {
     if (err instanceof DuplicadoError) {
+      if (err.delSistema) {
+        return {
+          ok: false,
+          confirmable: "duplicado",
+          error:
+            `El sistema ya registró un cobro igual ese día: “${err.delSistema.detail}”, ` +
+            `${fmtMoneyARS(amount)} (${CASH_METHOD_LABEL[method]}). Los turnos cobrados desde Turnos y las ventas ` +
+            `del mostrador entran solos al libro: no hace falta tipearlos. Si es otro cobro distinto, confirmá para guardarlo igual.`,
+        };
+      }
       return {
         ok: false,
         confirmable: "duplicado",
@@ -349,11 +406,20 @@ export async function deleteLibroEntry(
         select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true, createdBy: true, occurredAt: true },
       });
       if (!found) throw new Error("Ese movimiento ya no existe.");
+      // Lo que escribió el SISTEMA no se borra desde el libro (dirección única: la venta y
+      // el cobro escriben en el libro; el libro nunca toca pedidos ni turnos). Borrar acá
+      // dejaría un pedido/turno cobrado sin su plata en el libro y un arqueo descuadrado.
+      const origen = libroOrigin({ type: found.type as CashMovementType, orderId: found.orderId });
+      if (origen === "turno") {
+        throw new Error(
+          `Ese movimiento es un ${LIBRO_ORIGIN_LABEL.turno.toLowerCase()}: lo registró el sistema al confirmar el pago. Si está mal, corregilo desde Turnos, no desde el libro.`,
+        );
+      }
+      if (origen === "pos" || found.orderId) {
+        throw new Error("Ese movimiento viene de un pedido cobrado. Corregí el pedido, no el libro.");
+      }
       if (found.type !== "INGRESO" && found.type !== "EGRESO") {
         throw new Error("Ese movimiento lo generó la caja del mostrador. Corregilo desde el turno, no desde el libro.");
-      }
-      if (found.orderId) {
-        throw new Error("Ese movimiento viene de un pedido cobrado. Corregí el pedido, no el libro.");
       }
       // Mismo candado que el alta: un día ya cerrado por el corte inicial no se toca.
       // Borrar hacia atrás desbalancearía el saldo operativo contra lo que se contó.

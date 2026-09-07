@@ -45,6 +45,15 @@ export function isUniqueViolation(e: unknown, field?: string): boolean {
 export function isColumnMissing(e: unknown, column?: string): boolean {
   if (!isPrismaError(e, "P2022")) return false;
   if (!column) return true;
+  // Con el motor clásico el P2022 trae `meta.column` ("Modelo.columna"). Con los DRIVER
+  // ADAPTERS de Prisma 7 (PrismaPg, el que usa este repo) `meta` trae `modelName` y
+  // `driverAdapterError: ColumnNotFound` pero NO `column` — medido contra Postgres local con
+  // la columna `CashMovement.paymentId` sin migrar. La columna sí viaja en el mensaje
+  // ("The column `CashMovement.paymentId` does not exist in the current database."), así que
+  // se busca en los dos lugares. Sin este fallback, todo `isColumnMissing(e, "x")` daba false
+  // en producción y la tolerancia a schema-ahead (A-1, cobro de turno) no se activaba nunca.
   const col = (e.meta as { column?: unknown } | undefined)?.column;
-  return String(col ?? "").toLowerCase().includes(column.toLowerCase());
+  const needle = column.toLowerCase();
+  if (String(col ?? "").toLowerCase().includes(needle)) return true;
+  return String(e.message ?? "").toLowerCase().includes(needle);
 }

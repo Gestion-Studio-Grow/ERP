@@ -186,9 +186,16 @@ export default async function ReportesPage({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         <div className="rounded-lg border border-line p-4">
-          <p className="text-sm text-muted">Ingresos totales</p>
+          <p className="text-sm text-muted">Ingresos por turnos</p>
           <p className="text-2xl font-semibold">
             {fmtMoneyARS(data.totalIngresos, 0)}
+          </p>
+          {/* Reportes suma los PAGOS de turnos; la caja completa (turnos + mostrador +
+              gastos, por medio) vive en el libro. Cada cobro de turno aparece en los dos,
+              una vez en cada uno: son dos lecturas del mismo hecho, no dos verdades. */}
+          <p className="text-xs text-faint mt-1">
+            Solo servicios cobrados. Ventas del mostrador y gastos: en el{" "}
+            <Link href="/admin/caja/libro" className="underline underline-offset-2">libro de caja</Link>.
           </p>
         </div>
         <div className="rounded-lg border border-line p-4">

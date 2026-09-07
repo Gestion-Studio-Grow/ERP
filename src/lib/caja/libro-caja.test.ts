@@ -45,6 +45,7 @@ function mov(over: Partial<LibroMovement> & { amount: number }): LibroMovement {
     method: over.method ?? "EFECTIVO",
     amount: over.amount,
     detail: over.detail ?? "detalle",
+    ...(over.origin ? { origin: over.origin } : {}),
   };
 }
 
@@ -229,4 +230,60 @@ test("dateBelongsToMonth no advierte cuando no hay con qué comparar", () => {
   assert.equal(dateBelongsToMonth("2026-05-11", ""), true);
   assert.equal(dateBelongsToMonth("2026-05-11", "basura"), true);
   assert.equal(dateBelongsToMonth("no-es-fecha", "2026-05"), true);
+});
+
+// ── Origen de las filas y gemelas del sistema (transición desde la planilla) ──
+
+import { libroOrigin, flagPossibleDuplicates } from "./libro-caja";
+
+const dayUtc = (d: Date) => d.toISOString().slice(0, 10);
+
+test("origen: VENTA con pedido = mostrador, VENTA sin pedido = turno cobrado, el resto es manual", () => {
+  assert.equal(libroOrigin({ type: "VENTA", orderId: "ord_1" }), "pos");
+  assert.equal(libroOrigin({ type: "VENTA", orderId: null }), "turno");
+  assert.equal(libroOrigin({ type: "VENTA" }), "turno");
+  assert.equal(libroOrigin({ type: "INGRESO", orderId: null }), "manual");
+  assert.equal(libroOrigin({ type: "EGRESO" }), "manual");
+  assert.equal(libroOrigin({ type: "APERTURA" }), "manual");
+});
+
+test("gemela del sistema: un ingreso manual del mismo día, medio y monto que un turno cobrado queda marcado", () => {
+  const rows: LibroMovement[] = [
+    mov({ id: "sys", type: "VENTA", method: "MP", amount: 15000, origin: "turno", occurredAt: new Date("2026-09-07T18:42:10.000Z") }),
+    mov({ id: "man", type: "INGRESO", method: "MP", amount: 15000, detail: "Sofía facial", occurredAt: new Date("2026-09-07T15:00:00.000Z") }),
+  ];
+  const marcadas = flagPossibleDuplicates(rows, dayUtc);
+  assert.deepEqual([...marcadas], ["man"], "se marca la MANUAL, nunca la del sistema");
+});
+
+test("gemela del sistema: no se marca si cambia el día, el medio o el monto", () => {
+  const sys = mov({ id: "sys", type: "VENTA", method: "MP", amount: 15000, origin: "pos", occurredAt: new Date("2026-09-07T18:00:00.000Z") });
+  const otroDia = mov({ id: "d", type: "INGRESO", method: "MP", amount: 15000, occurredAt: new Date("2026-09-08T15:00:00.000Z") });
+  const otroMedio = mov({ id: "m", type: "INGRESO", method: "EFECTIVO", amount: 15000, occurredAt: new Date("2026-09-07T15:00:00.000Z") });
+  const otroMonto = mov({ id: "a", type: "INGRESO", method: "MP", amount: 15500, occurredAt: new Date("2026-09-07T15:00:00.000Z") });
+  assert.equal(flagPossibleDuplicates([sys, otroDia, otroMedio, otroMonto], dayUtc).size, 0);
+});
+
+test("gemela del sistema: un EGRESO manual nunca es gemela de una venta, y sin filas del sistema no se marca nada", () => {
+  const sys = mov({ id: "sys", type: "VENTA", method: "EFECTIVO", amount: 5000, origin: "turno" });
+  const gasto = mov({ id: "g", type: "EGRESO", method: "EFECTIVO", amount: 5000 });
+  assert.equal(flagPossibleDuplicates([sys, gasto], dayUtc).size, 0);
+
+  const soloManual = [mov({ id: "a", amount: 5000 }), mov({ id: "b", amount: 5000 })];
+  assert.equal(flagPossibleDuplicates(soloManual, dayUtc).size, 0, "dos manuales iguales no son un doble conteo del sistema");
+});
+
+test("gemela del sistema: la marca no cambia la aritmética del libro (avisa, no resta)", () => {
+  const rows: LibroMovement[] = [
+    mov({ id: "sys", type: "VENTA", method: "MP", amount: 15000, origin: "turno" }),
+    mov({ id: "man", type: "INGRESO", method: "MP", amount: 15000 }),
+  ];
+  const { summary } = buildLibro(zeroAmounts(), rows);
+  assert.equal(summary.ingresos.MP, 30000, "mientras la manual no se borre, el libro la suma: la decisión es humana");
+  assert.equal(flagPossibleDuplicates(rows, dayUtc).has("man"), true);
+});
+
+test("el origen viaja hasta la fila que se pinta", () => {
+  const { rows } = buildLibro(zeroAmounts(), [mov({ id: "x", type: "VENTA", amount: 100, origin: "pos" })]);
+  assert.equal(rows[0].origin, "pos");
 });

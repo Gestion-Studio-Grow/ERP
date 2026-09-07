@@ -9,6 +9,7 @@ import {
   type CashMovementType,
 } from "@/lib/caja/cash-register";
 import { Card, CardHeader, CardTitle, CardDescription, Badge, fmtMoneyARS, type BadgeProps } from "@/components/ui";
+import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { OpenCajaForm, AddMovementForm, CloseCajaForm } from "./CajaForms";
 
 export const dynamic = "force-dynamic";
@@ -204,17 +205,23 @@ function OpenSession({
             <ul className="divide-y divide-line text-sm">
               {session.movements.map((m) => {
                 const tone = MOVEMENT_TONE[m.type] ?? "neutral";
-                const sign = movementSignLabel(m.type);
+                // Un movimiento por MP/tarjeta enganchado al turno NO está en el cajón: se
+                // lista (es plata del turno, y el libro lo ve) pero sin signo ni color, y con
+                // su medio a la vista, para que nadie lo busque en el efectivo esperado.
+                const method = (m.method ?? "EFECTIVO") as CashMethod;
+                const enCajon = method === "EFECTIVO";
+                const sign = enCajon ? movementSignLabel(m.type) : "";
                 return (
                   <li key={m.id} className="flex items-center justify-between gap-3 py-2">
                     <span className="flex min-w-0 items-center gap-2">
                       <Badge tone={tone}>{MOVEMENT_LABEL[m.type] ?? m.type}</Badge>
+                      {!enCajon && <Badge tone="neutral">{CASH_METHOD_LABEL[method]}</Badge>}
                       {m.reason && <span className="truncate text-muted">{m.reason}</span>}
                       <span className="shrink-0 text-xs text-faint">{fmtShortDate(m.createdAt)}</span>
                     </span>
                     <span
                       className={`shrink-0 tabular-nums ${
-                        sign === "+" ? "text-success" : sign === "−" ? "text-danger" : "text-body"
+                        sign === "+" ? "text-success" : sign === "−" ? "text-danger" : enCajon ? "text-body" : "text-muted"
                       }`}
                     >
                       {sign && `${sign} `}
