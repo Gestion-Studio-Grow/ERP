@@ -42,6 +42,11 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import { isFrozenDay, frozenDayMessage, nextDayKey } from "@/lib/caja/cierre-diario";
 import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
+// La frontera de congelamiento (hasta qué día está cerrado) vive aparte porque la
+// comparten el libro y el cierre diario. Cubre las dos formas de cerrar: el corte
+// inicial y cada cierre de día.
+import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 
 const LIBRO_PATH = "/admin/caja/libro";
 
@@ -51,26 +56,6 @@ class DuplicadoError extends Error {
   constructor(readonly delSistema: { detail: string } | null = null) {
     super();
   }
-}
-
-// Último día CERRADO del tenant, o null si todavía no hubo corte inicial.
-//
-// Hoy la única frontera de congelamiento que existe es el CORTE INICIAL: el día en
-// que el negocio dejó la planilla y empezó a operar en el sistema. Se identifica por
-// la marca `corte-inicial:<día>` que el script deja en `createdBy` (mismo patrón que
-// el importador). Cuando aterrice el modelo `CashDayClose` esto pasa a leerse de ahí
-// y esta función es el único lugar que cambia.
-//
-// Sin corte no hay congelamiento: `isFrozenDay(x, null)` es siempre false, así que un
-// tenant que todavía no cortó opera exactamente como antes.
-async function lastClosedDay(tenantId: string): Promise<string | null> {
-  const marca = await prisma.cashMovement.findFirst({
-    where: { tenantId, createdBy: { startsWith: CORTE_INICIAL_ACTOR_PREFIX } },
-    orderBy: { occurredAt: "desc" },
-    select: { createdBy: true },
-  });
-  const day = marca?.createdBy.slice(CORTE_INICIAL_ACTOR_PREFIX.length) ?? null;
-  return day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
 }
 
 // Estado de las acciones del libro para la UI.
@@ -425,6 +410,9 @@ export async function deleteLibroEntry(
       // Borrar hacia atrás desbalancearía el saldo operativo contra lo que se contó.
       if (found.createdBy.startsWith(CORTE_INICIAL_ACTOR_PREFIX)) {
         throw new Error("Ese movimiento es el ajuste del corte inicial. No se borra: es lo que ata el saldo del sistema al conteo físico.");
+      }
+      if (found.createdBy.startsWith(CIERRE_DIARIO_ACTOR_PREFIX)) {
+        throw new Error("Ese movimiento es la diferencia que dejó un cierre de caja. No se borra: si estuvo mal, va una corrección con la fecha de hoy.");
       }
       const dia = dateStrInBusinessTz(found.occurredAt);
       if (cerradoHasta && isFrozenDay(dia, cerradoHasta)) {
