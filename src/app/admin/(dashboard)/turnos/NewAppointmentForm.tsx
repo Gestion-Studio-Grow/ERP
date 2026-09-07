@@ -7,12 +7,29 @@ import SubmitButton from "@/components/SubmitButton";
 import { fmtTime } from "@/lib/datetime";
 import { Input, Select, Textarea, Field, buttonClasses, cn, fmtMoneyARS } from "@/components/ui";
 import { seniaDelServicio, METODOS_DE_PAGO, METODO_LABEL } from "@/lib/turnos/cobros";
+import {
+  cobroPropuestoAlAlta,
+  montoDelCobro,
+  quedaSaldado,
+  type ModoCobro,
+  type OrigenAlta,
+} from "@/lib/turnos/cobro-alta";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
 type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
 
-export default function NewAppointmentForm({ professionals }: { professionals: Professional[] }) {
-  const [open, setOpen] = useState(false);
+// De dónde se abre el formulario. Cambia los defaults, no las reglas — la propuesta de
+// cobro vive pura y testeada en `@/lib/turnos/cobro-alta`; el servidor valida igual en los
+// dos casos (`createManualAppointment`).
+
+export default function NewAppointmentForm({
+  professionals,
+  origen = "agenda",
+}: {
+  professionals: Professional[];
+  origen?: OrigenAlta;
+}) {
+  const [open, setOpen] = useState(origen === "mostrador");
   const [professionalId, setProfessionalId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState("");
@@ -28,7 +45,25 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
   const service = useMemo(() => professional?.services.find((s) => s.id === serviceId), [professional, serviceId]);
   // Seña del catálogo (monto fijo, provisional a confirmar): se propone cobrarla en el acto.
   const senia = service ? seniaDelServicio({ depositAmount: service.depositAmount, precio: service.price }) : 0;
-  const [cobrarSenia, setCobrarSenia] = useState(true);
+  const precio = service?.price ?? 0;
+
+  // Qué se cobra en el acto. Antes esto era un checkbox que SÓLO aparecía si el servicio
+  // tenía seña cargada — o sea que un servicio sin seña no se podía cobrar al darlo de alta,
+  // que es justo lo que necesita el mostrador. Ahora siempre se puede elegir, y el total
+  // es una opción de primera clase.
+  const [queCobrar, setQueCobrar] = useState<ModoCobro>("nada");
+  const [montoOtro, setMontoOtro] = useState("");
+
+  const montoACobrar = montoDelCobro({ modo: queCobrar, senia, precio, otro: montoOtro });
+
+  // Al elegir servicio se propone lo razonable para el contexto, sin trabar nada: el
+  // usuario puede cambiarlo. En el mostrador la clienta está ahí, así que el default es
+  // cobrar el total; en la agenda se está reservando, así que es la seña (si la hay).
+  function propuestaPara(nextServiceId: string): ModoCobro {
+    const svc = professional?.services.find((x) => x.id === nextServiceId);
+    const s = svc ? seniaDelServicio({ depositAmount: svc.depositAmount, precio: svc.price }) : 0;
+    return cobroPropuestoAlAlta({ origen, senia: s });
+  }
 
   function loadSlots(nextProfessionalId: string, nextServiceId: string, nextDate: string) {
     setSlots([]);
@@ -46,6 +81,8 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
     setDate("");
     setSlots([]);
     setSelectedSlot("");
+    setQueCobrar("nada");
+    setMontoOtro("");
     setError("");
   }
 
@@ -63,15 +100,19 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
   return (
     <div className="rounded-lg border border-line bg-surface-raised shadow-xs p-4 mb-8">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-medium text-strong">Nuevo turno (por teléfono o en el local)</p>
+        <p className="text-sm font-medium text-strong">
+          {origen === "mostrador"
+            ? "Cobrar un servicio (elegí profesional y horario)"
+            : "Nuevo turno (por teléfono o en el local)"}
+        </p>
         <button
           onClick={() => {
-            setOpen(false);
             reset();
+            if (origen !== "mostrador") setOpen(false);
           }}
           className="text-sm text-muted hover:text-strong transition-colors"
         >
-          Cancelar
+          {origen === "mostrador" ? "Limpiar" : "Cancelar"}
         </button>
       </div>
 
@@ -119,6 +160,7 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
               disabled={!professional}
               onChange={(e) => {
                 setServiceId(e.target.value);
+                setQueCobrar(e.target.value ? propuestaPara(e.target.value) : "nada");
                 loadSlots(professionalId, e.target.value, date);
               }}
             >
@@ -198,41 +240,64 @@ export default function NewAppointmentForm({ professionals }: { professionals: P
                 className="uppercase placeholder:normal-case"
               />
             </Field>
-            {senia > 0 && (
+            {service && (
               <div className="rounded-md border border-line bg-surface-sunken p-3 space-y-2">
-                <label className="flex items-center gap-2 text-sm text-body">
-                  <input
-                    type="checkbox"
-                    name="senaCobrar"
-                    className="accent-accent"
-                    checked={cobrarSenia}
-                    onChange={(e) => setCobrarSenia(e.target.checked)}
-                  />
-                  Cobrar la seña ahora ({fmtMoneyARS(senia, 0)})
-                </label>
-                {cobrarSenia && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Monto de la seña" htmlFor="na-sena-monto">
-                      <Input id="na-sena-monto" name="senaMonto" type="number" min={1} step="1" defaultValue={Math.round(senia)} required />
-                    </Field>
-                    <Field label="Medio" htmlFor="na-sena-metodo">
-                      <Select id="na-sena-metodo" name="senaMetodo" defaultValue="TRANSFERENCIA" required>
-                        {METODOS_DE_PAGO.map((m) => (
-                          <option key={m} value={m}>
-                            {METODO_LABEL[m]}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                  </div>
+                {/* El campo del formulario sigue llamándose `senaCobrar`/`senaMonto` porque
+                    es lo que lee `createManualAppointment`: cambiarle el nombre no agrega
+                    nada y toca el servidor. Lo que cambió es que ahora se puede cobrar el
+                    TOTAL, no sólo la seña, y que el bloque aparece siempre — un servicio
+                    sin seña cargada también se puede cobrar en el acto. */}
+                <Field label="Cobrar ahora" htmlFor="na-que-cobrar">
+                  <Select
+                    id="na-que-cobrar"
+                    value={queCobrar}
+                    onChange={(e) => setQueCobrar(e.target.value as typeof queCobrar)}
+                  >
+                    <option value="nada">Nada — se cobra después</option>
+                    {senia > 0 && <option value="senia">Seña — {fmtMoneyARS(senia, 0)}</option>}
+                    <option value="total">Total del servicio — {fmtMoneyARS(precio, 0)}</option>
+                    <option value="otro">Otro monto</option>
+                  </Select>
+                </Field>
+                {queCobrar !== "nada" && (
+                  <>
+                    <input type="hidden" name="senaCobrar" value="on" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Monto" htmlFor="na-sena-monto">
+                        <Input
+                          id="na-sena-monto"
+                          name="senaMonto"
+                          type="number"
+                          min={1}
+                          step="1"
+                          required
+                          readOnly={queCobrar !== "otro"}
+                          value={queCobrar === "otro" ? montoOtro : String(Math.round(montoACobrar))}
+                          onChange={(e) => setMontoOtro(e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Medio" htmlFor="na-sena-metodo">
+                        <Select id="na-sena-metodo" name="senaMetodo" defaultValue={origen === "mostrador" ? "EFECTIVO" : "TRANSFERENCIA"} required>
+                          {METODOS_DE_PAGO.map((m) => (
+                            <option key={m} value={m}>
+                              {METODO_LABEL[m]}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </div>
+                    {quedaSaldado({ monto: montoACobrar, precio }) && (
+                      <p className="text-xs text-muted">Queda saldado: el turno no va a mostrar saldo pendiente.</p>
+                    )}
+                  </>
                 )}
-                {!cobrarSenia && (
-                  <p className="text-xs text-muted">Queda como seña sin cobrar: registrala desde la fila del turno cuando llegue.</p>
+                {queCobrar === "nada" && senia > 0 && (
+                  <p className="text-xs text-muted">Queda la seña sin cobrar: registrala desde la fila del turno cuando llegue.</p>
                 )}
               </div>
             )}
             <Field label="Estado" htmlFor="na-status">
-              <Select id="na-status" name="status" defaultValue="PENDING">
+              <Select id="na-status" name="status" defaultValue={origen === "mostrador" ? "CONFIRMED" : "PENDING"}>
                 <option value="PENDING">Reservado (la clienta todavía no confirmó)</option>
                 <option value="CONFIRMED">Confirmado (ya confirmó que viene)</option>
               </Select>

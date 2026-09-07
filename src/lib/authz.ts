@@ -33,3 +33,16 @@ export async function requireCapability(cap: Capability): Promise<SessionUser> {
   }
   return user;
 }
+
+/**
+ * ¿El usuario de este request tiene la capacidad? A diferencia de `requireCapability`,
+ * NO redirige: devuelve un booleano. Es para decidir si MOSTRAR algo (una solapa, un
+ * botón) en una pantalla a la que la persona sí puede entrar por otro motivo.
+ *
+ * Ocultar en el front es UX; la seguridad real sigue siendo el `requireCapability` de la
+ * acción del servidor (ADR-017 §2.e). Sin sesión devuelve false, no redirige.
+ */
+export async function canCurrentUser(cap: Capability): Promise<boolean> {
+  const user = await getCurrentUser();
+  return user ? roleHasCapability(user.role, cap) : false;
+}

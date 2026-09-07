@@ -330,7 +330,11 @@ async function bookAppointment({
         precio: appointment.priceAtBooking ?? basePrice,
         monto: cobroInicial.monto,
         method: cobroInicial.method,
-        note: "Seña al reservar",
+        // La nota dice lo que REALMENTE pasó: desde el mostrador se cobra el servicio
+        // entero, y llamarle "seña" a eso sería mentir en el dato.
+        note: cobroInicial.monto >= (appointment.priceAtBooking ?? basePrice)
+          ? "Cobro al reservar"
+          : "Seña al reservar",
         actor: cobroInicial.actor,
         detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),
         idempotencyKey: claveCobroTurno("senia", appointment.id),
@@ -822,7 +826,10 @@ async function conCobros<T extends { id: string }>(tenantId: string, appointment
 // renovado tras cada cobro): el doble clic no duplica; la guarda de saldo tampoco deja
 // cobrar de más.
 export async function registrarCobroTurno(formData: FormData): Promise<ResultadoAccion> {
-  const user = await requireCapability("agenda:manage");
+  // `agenda:collect`, no `agenda:manage`: el profesional cobra sus propios turnos (y rinde
+  // la comisión después), pero no puede crear ni cancelar turnos ajenos. El scoping a su
+  // `professionalId` está más abajo, dentro de la transacción.
+  const user = await requireCapability("agenda:collect");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") || "");
   const monto = Number(String(formData.get("amount") || "").replace(",", "."));
@@ -846,6 +853,12 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
           where: { id: appointmentId },
           include: { service: { select: { name: true, price: true } }, client: { select: { name: true } } },
         });
+        // El profesional cobra LO SUYO. Mismo scoping que `completeAppointment` y
+        // `markNoShow`: la capacidad habilita la clase de acción, el dueño de la fila la
+        // acota. Sin esto, `agenda:collect` dejaría cobrar el turno de cualquier colega.
+        if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+          throw new Error("Ese turno es de otra profesional: sólo podés cobrar los tuyos.");
+        }
         return aplicarCobroTurnoInTx(tx, tenantId, {
           appointmentId,
           status: appointment.status,

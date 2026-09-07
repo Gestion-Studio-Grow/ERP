@@ -8,7 +8,9 @@ import { fmtMoneyARS, EmptyState, ButtonLink } from "@/components/ui";
 import { fmtShortDate } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
-import PosForm from "./PosForm";
+import MostradorTabs from "./MostradorTabs";
+import { getProfessionalsWithServices } from "@/lib/actions";
+import { canCurrentUser } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,15 @@ export default async function PedidosPage() {
   // getPosData aplica requireCapability("orders:read") — guard de la página. El snapshot de
   // stock (mismo gate) es lo que permite avisar el faltante antes de cobrar y explicar la
   // caja vacía: "no hay productos" no es lo mismo que "hay, pero sin precio".
-  const [{ orders, products }, stockSnap] = await Promise.all([getPosData(), getPosStockSnapshot()]);
+  const [{ orders, products }, stockSnap, puedeAgenda] = await Promise.all([
+    getPosData(),
+    getPosStockSnapshot(),
+    canCurrentUser("agenda:manage"),
+  ]);
+  // Los servicios del mostrador crean un TURNO, así que se ofrecen sólo a quien puede
+  // gestionar agenda (OWNER y RECEPCIÓN). El catálogo es público (lo usa el sitio de
+  // reservas), pero la solapa no aparece si el rol no puede dar de alta un turno.
+  const professionals = puedeAgenda ? await getProfessionalsWithServices() : [];
   const empty =
     products.length === 0
       ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
@@ -42,24 +52,30 @@ export default async function PedidosPage() {
     <main className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="text-2xl font-semibold mb-1">Caja y pedidos</h1>
       <p className="text-muted mb-8">
-        Atendé en el mostrador: elegí el producto, cargá la cantidad —o el peso, si se vende por
-        kilo—, cobrá y listo. O tomá un pedido para retiro/envío: los pedidos abiertos caen a la
-        bandeja de abajo para seguir su preparación y cobro.
+        Atendé en el mostrador. En <strong>Productos</strong>: elegí, cargá la cantidad —o el
+        peso, si se vende por kilo—, cobrá y listo. En <strong>Servicios</strong>: elegí el
+        servicio, la profesional y el horario de la agenda, y cobralo en el acto. Los pedidos
+        para retiro o envío caen a la bandeja de abajo para seguir su preparación y cobro.
       </p>
 
-      {empty ? (
-        <EmptyState
-          title={empty.title}
-          description={empty.description}
-          action={
-            empty.linkToCatalog ? (
-              <ButtonLink href="/admin/catalogo#productos">Ir al catálogo a cargar precios</ButtonLink>
-            ) : undefined
-          }
-        />
-      ) : (
-        <PosForm products={products} stockById={stockSnap.stockById} />
-      )}
+      <MostradorTabs
+        products={products}
+        stockById={stockSnap.stockById}
+        professionals={professionals}
+        productosBloqueados={
+          empty ? (
+            <EmptyState
+              title={empty.title}
+              description={empty.description}
+              action={
+                empty.linkToCatalog ? (
+                  <ButtonLink href="/admin/catalogo#productos">Ir al catálogo a cargar precios</ButtonLink>
+                ) : undefined
+              }
+            />
+          ) : undefined
+        }
+      />
 
       <h2 className="text-lg font-medium mt-10 mb-3">
         Bandeja de pedidos{abiertos.length > 0 && ` (${abiertos.length} abierto${abiertos.length !== 1 ? "s" : ""})`}
