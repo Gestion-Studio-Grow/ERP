@@ -40,6 +40,8 @@ export type Corte = {
   cost: number | null;
   /** Góndola explícita (Product.category) o null → se deriva del nombre. */
   category: string | null;
+  /** Si true, cada venta descuenta stock con guarda anti-oversell (order-core). */
+  trackStock: boolean;
 };
 
 /** Agrupa por categoría EFECTIVA (explícita si está, si no derivada del nombre). */
@@ -62,6 +64,7 @@ function VentaFields({
   unit,
   category,
   cost,
+  trackStock,
   idPrefix,
 }: {
   saleUnit: "UNIT" | "WEIGHT";
@@ -70,6 +73,7 @@ function VentaFields({
   unit: string;
   category: string | null;
   cost: number | null;
+  trackStock: boolean;
   idPrefix: string;
 }) {
   const [modo, setModo] = useState<"UNIT" | "WEIGHT">(saleUnit);
@@ -176,6 +180,22 @@ function VentaFields({
           </div>
         </>
       )}
+
+      {/* Control de stock por producto: hidden "off" + checkbox "on" (un checkbox destildado
+          no viaja). Sin esto, vender no descontaba stock: las compras sumaban y las ventas no
+          restaban. Se decide acá, por producto, y no con un default global (ver ProductsSection). */}
+      <label className="flex items-center gap-2 text-sm min-h-9">
+        <input type="hidden" name="trackStock" value="off" />
+        <input
+          id={`${idPrefix}-trackStock`}
+          type="checkbox"
+          name="trackStock"
+          value="on"
+          defaultChecked={trackStock}
+          className="size-4"
+        />
+        <span className="text-body">Controlar stock al vender</span>
+      </label>
     </>
   );
 }
@@ -238,6 +258,7 @@ function CorteRow({ corte }: { corte: Corte }) {
               unit={corte.unit}
               category={corte.category}
               cost={corte.cost}
+              trackStock={corte.trackStock}
               idPrefix={`edit-${corte.id}`}
             />
             <div className="flex flex-col gap-1">
@@ -425,7 +446,7 @@ export default function CortesSection({ cortes, catalogHeading }: { cortes: Cort
               className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
             />
           </div>
-          <VentaFields saleUnit="WEIGHT" price={null} pricePerKg={null} unit="kg" category={null} cost={null} idPrefix="new-corte" />
+          <VentaFields saleUnit="WEIGHT" price={null} pricePerKg={null} unit="kg" category={null} cost={null} trackStock={true} idPrefix="new-corte" />
           <div className="flex flex-col gap-1">
             <label htmlFor="new-corte-stock" className="text-xs font-medium text-muted">
               Stock inicial

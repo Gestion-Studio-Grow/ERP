@@ -44,6 +44,7 @@ export default async function CatalogoPage() {
         cost: ex?.cost ?? costByProduct.get(p.id) ?? null,
         // Góndola explícita (Product.category) si está; null → CortesSection deriva del nombre.
         category: ex?.category ?? null,
+        trackStock: p.trackStock,
       };
     });
     const heading = rubro.rubro?.wording.catalogHeading ?? "Catálogo de cortes";

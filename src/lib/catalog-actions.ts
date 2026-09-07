@@ -8,6 +8,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { writeProductExtras } from "@/lib/carniceria/product-extras";
+import { parseSaleFields } from "@/lib/stock/product-sale-fields";
 
 const CATALOG_PATH = "/admin/catalogo";
 
@@ -277,24 +278,12 @@ export async function setServiceProfessionals(formData: FormData) {
 
 // --- Products (stock) ---
 
-// Campos de venta al público (extensión retail, mec. A ADR-002). Opcionales: el
-// catálogo del spa no los manda y quedan en default/null; el blueprint Carnicería
-// (seed de provisioning / futuro catálogo retail) los usa para vender por kg.
-// Sólo aplica si el form realmente trae los campos: así editar un producto desde
-// un form que no los incluye (el del spa) NO pisa el precio de un corte existente.
-function parseRetailFields(formData: FormData): {
-  saleUnit?: "UNIT" | "WEIGHT";
-  price?: number | null;
-  pricePerKg?: number | null;
-} {
-  if (!formData.has("saleUnit")) return {};
-  const saleUnit = String(formData.get("saleUnit") || "").trim() === "WEIGHT" ? "WEIGHT" : "UNIT";
-  const priceRaw = String(formData.get("price") || "").trim();
-  const pricePerKgRaw = String(formData.get("pricePerKg") || "").trim();
-  const price = priceRaw && Number(priceRaw) > 0 ? Number(priceRaw) : null;
-  const pricePerKg = pricePerKgRaw && Number(pricePerKgRaw) > 0 ? Number(pricePerKgRaw) : null;
-  return { saleUnit, price, pricePerKg };
-}
+// Campos de venta (forma de venta, precio por unidad / por kg, control de stock): los parsea
+// `parseSaleFields` (src/lib/stock/product-sale-fields.ts, puro y testeado). Sólo aplica lo
+// que el form realmente trae, así un ABM parcial NO pisa el precio ni el flag de un producto
+// existente. Los mandan tanto el catálogo genérico (ProductsSection) como el retail
+// (CortesSection). `trackStock` se decide POR PRODUCTO desde esos forms: el default del
+// schema sigue en false a propósito (ver comentario en ProductsSection / prisma/schema.prisma).
 
 // Extras del rubro cárnico (Product.category/cost) — columnas de la migración Gate 2,
 // NO en schema.prisma. Se escriben por SQL crudo tolerante (writeProductExtras): si las
@@ -328,7 +317,7 @@ export async function createProduct(formData: FormData) {
       unit,
       stock,
       lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt,
-      ...parseRetailFields(formData),
+      ...parseSaleFields(formData),
     },
   });
   await writeProductExtras(created.id, parseCarniceriaExtras(formData));
@@ -345,7 +334,7 @@ export async function updateProduct(formData: FormData) {
   if (!name || Number.isNaN(stock)) return;
   await prisma.product.update({
     where: { id },
-    data: { name, unit, stock, lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt, ...parseRetailFields(formData) },
+    data: { name, unit, stock, lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt, ...parseSaleFields(formData) },
   });
   await writeProductExtras(id, parseCarniceriaExtras(formData));
   revalidatePath(CATALOG_PATH);

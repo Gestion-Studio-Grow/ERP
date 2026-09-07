@@ -4,8 +4,10 @@ import {
   setOrderPaid,
   cancelOrder,
 } from "@/lib/order-actions";
-import { fmtMoneyARS } from "@/components/ui";
+import { fmtMoneyARS, EmptyState, ButtonLink } from "@/components/ui";
 import { fmtShortDate } from "@/lib/datetime";
+import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
+import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import PosForm from "./PosForm";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +26,14 @@ const STATUS: Record<string, { label: string; badge: string; next?: string }> = 
 const FULFILLMENT: Record<string, string> = { PICKUP: "Retira", DELIVERY: "Envío" };
 
 export default async function PedidosPage() {
-  // getPosData aplica requireCapability("orders:read") — guard de la página.
-  const { orders, products } = await getPosData();
+  // getPosData aplica requireCapability("orders:read") — guard de la página. El snapshot de
+  // stock (mismo gate) es lo que permite avisar el faltante antes de cobrar y explicar la
+  // caja vacía: "no hay productos" no es lo mismo que "hay, pero sin precio".
+  const [{ orders, products }, stockSnap] = await Promise.all([getPosData(), getPosStockSnapshot()]);
+  const empty =
+    products.length === 0
+      ? posEmptyState({ activeProducts: stockSnap.activeProducts, canManageCatalog: stockSnap.canManageCatalog })
+      : null;
 
   const abiertos = orders.filter((o) => o.status !== "DELIVERED" && o.status !== "CANCELLED");
   const cerrados = orders.filter((o) => o.status === "DELIVERED" || o.status === "CANCELLED");
@@ -39,7 +47,19 @@ export default async function PedidosPage() {
         bandeja de abajo para seguir su preparación y cobro.
       </p>
 
-      <PosForm products={products} />
+      {empty ? (
+        <EmptyState
+          title={empty.title}
+          description={empty.description}
+          action={
+            empty.linkToCatalog ? (
+              <ButtonLink href="/admin/catalogo#productos">Ir al catálogo a cargar precios</ButtonLink>
+            ) : undefined
+          }
+        />
+      ) : (
+        <PosForm products={products} stockById={stockSnap.stockById} />
+      )}
 
       <h2 className="text-lg font-medium mt-10 mb-3">
         Bandeja de pedidos{abiertos.length > 0 && ` (${abiertos.length} abierto${abiertos.length !== 1 ? "s" : ""})`}
