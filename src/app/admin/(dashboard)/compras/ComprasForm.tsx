@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { createStockPurchase } from "@/lib/stock-actions";
 import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
@@ -22,6 +23,22 @@ const qtyFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 // `formal` (perfil Empresa): muestra la cabecera de ORDEN FORMAL a proveedor —
 // razón social + CUIT + N° de orden de compra (J45/18J). Default false = cabecera
 // simple de Comercio (proveedor libre + nota), idéntica a hoy.
+// Mismo blindaje que el POS: sin esto, un doble clic registraba DOS compras (medidas a
+// 52 ms de diferencia) y el stock subía el doble. Reponer mercadería que no llegó es
+// tan caro como cobrar dos veces.
+function RegistrarSubmit({ disabled, label }: { disabled: boolean; label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={disabled || pending}
+      className={`${buttonClasses("solid", "lg")} disabled:opacity-50`}
+    >
+      {pending ? "Registrando…" : label}
+    </button>
+  );
+}
+
 export default function ComprasForm({ products, formal = false }: { products: ReplenishableProduct[]; formal?: boolean }) {
   const [kind, setKind] = useState<"COMPRA" | "REPOSICION">("COMPRA");
   const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qty: 0, unitCost: 0 }]);
@@ -250,9 +267,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
             {fmtMoneyARS(totalCost)}
           </span>
         </div>
-        <button type="submit" disabled={!hasValidLine} className={buttonClasses("solid", "lg")}>
-          Registrar {isCompra ? "compra" : "reposición"}
-        </button>
+        <RegistrarSubmit disabled={!hasValidLine} label={`Registrar ${isCompra ? "compra" : "reposición"}`} />
       </div>
     </form>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { createOrder } from "@/lib/order-actions";
 import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
@@ -20,6 +21,32 @@ type Line = { key: number; productId: string; qty: number };
 
 function unitPriceOf(p: SellableProduct): number {
   return (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
+}
+
+// Botón de cobro que se BLOQUEA mientras el envío está en vuelo.
+//
+// Sin esto, un doble clic cobraba DOS VECES: el QA midió dos `Order` idénticos a 73 ms
+// uno del otro, dos movimientos VENTA y el efectivo esperado del turno subiendo el
+// doble. Es plata mal contada en el arqueo. `useFormStatus` cierra la ventana en el
+// cliente, que es la misma defensa con la que el libro de caja y la caja de mostrador
+// YA resisten el doble clic (el QA lo verificó en los dos).
+//
+// PENDIENTE, y anotado a propósito: falta la guarda a nivel BASE. `insertOrder` soporta
+// `idempotencyKey`, pero la vidriera la genera UNA vez por visita porque es un checkout
+// de una sola compra; el mostrador vende muchas veces por sesión, así que una clave sin
+// renovar bloquearía la segunda venta idéntica legítima — peor que el bug que cierra.
+// Necesita un diseño propio (clave con ventana de tiempo), no un copiar y pegar.
+function CobrarSubmit({ disabled, label }: { disabled: boolean; label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={disabled || pending}
+      className={`${buttonClasses("solid", "lg")} disabled:opacity-50`}
+    >
+      {pending ? "Cobrando…" : label}
+    </button>
+  );
 }
 
 export default function PosForm({ products }: { products: SellableProduct[] }) {
@@ -68,8 +95,8 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
   if (products.length === 0) {
     return (
       <div className="rounded-lg border border-line bg-surface-sunken p-4 text-sm text-muted">
-        No hay productos con precio cargado todavía. Cargá los cortes con precio (por kg o por
-        unidad) en el catálogo para poder venderlos en la caja.
+        No hay productos con precio cargado todavía. Cargalos en el catálogo, con su precio por
+        unidad o por kilo, para poder venderlos en la caja.
       </div>
     );
   }
@@ -243,9 +270,7 @@ export default function PosForm({ products }: { products: SellableProduct[] }) {
             {fmtMoneyARS(subtotal)}
           </span>
         </div>
-        <button type="submit" disabled={!hasValidLine} className={buttonClasses("solid", "lg")}>
-          {isOrder ? "Registrar pedido" : "Cobrar"}
-        </button>
+        <CobrarSubmit disabled={!hasValidLine} label={isOrder ? "Registrar pedido" : "Cobrar"} />
       </div>
     </form>
   );
