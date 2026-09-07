@@ -182,6 +182,7 @@ export default function AppointmentRow({
   appointment,
   statusLabel,
   canManage = true,
+  canCollect = true,
 }: {
   appointment: Appointment;
   statusLabel: Record<string, string>;
@@ -189,6 +190,11 @@ export default function AppointmentRow({
   // PROFESSIONAL solo cierra sus turnos (completar / no-show). Es UX: el server
   // igual bloquea las acciones que su rol no puede (ADR-017 §2.e).
   canManage?: boolean;
+  /**
+   * ¿Puede COBRAR este turno? Va aparte de `canManage` porque el profesional cobra los
+   * suyos (y rinde la comisión después) sin poder crear ni cancelar turnos ajenos.
+   */
+  canCollect?: boolean;
 }) {
   const isPending = appointment.status === "PENDING";
   const isConfirmed = appointment.status === "CONFIRMED";
@@ -286,7 +292,7 @@ export default function AppointmentRow({
         {isConfirmed && (
           <div className="flex flex-col gap-2 min-w-[260px]">
             <CompletarForm appointmentId={appointment.id} saldo={plata.saldo} yaOcurrio={yaOcurrio} />
-            {canManage && plata.saldo > 0 && (
+            {canCollect && plata.saldo > 0 && (
               <CobroForm
                 appointmentId={appointment.id}
                 monto={sugerido.monto}

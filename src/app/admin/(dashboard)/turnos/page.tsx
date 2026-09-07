@@ -45,6 +45,8 @@ export default async function TurnosCalendarPage({
   // son de OWNER/RECEPTION. Sí puede cerrar sus turnos (completar / no-show).
   const user = await requireCapability("agenda:read");
   const canManage = roleHasCapability(user.role, "agenda:manage");
+  // El profesional cobra sus turnos aunque no pueda gestionarlos (decisión del dueño).
+  const canCollect = roleHasCapability(user.role, "agenda:collect");
 
   const { date: dateParam } = await searchParams;
   const today = todayInBusinessTz();
@@ -107,7 +109,7 @@ export default async function TurnosCalendarPage({
 
       <NovedadesDelDia blocks={blocksToday} />
 
-      <CalendarGrid professionals={professionals} appointments={appointments} canManage={canManage} />
+      <CalendarGrid professionals={professionals} appointments={appointments} canManage={canManage} canCollect={canCollect} />
     </main>
   );
 }

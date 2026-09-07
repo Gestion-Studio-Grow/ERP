@@ -58,10 +58,12 @@ export default function CalendarGrid({
   professionals,
   appointments,
   canManage = true,
+  canCollect = true,
 }: {
   professionals: Professional[];
   appointments: Appointment[];
   canManage?: boolean;
+  canCollect?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = appointments.find((a) => a.id === selectedId) ?? null;
@@ -95,7 +97,7 @@ export default function CalendarGrid({
             <p className="text-xs font-medium text-faint mb-1">
               {fmtTime(appt.startsAt)} · {appt.professional.name}
             </p>
-            <AppointmentRow appointment={appt} statusLabel={statusLabel} canManage={canManage} />
+            <AppointmentRow appointment={appt} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} />
           </div>
         ))}
       </div>
@@ -186,7 +188,7 @@ export default function CalendarGrid({
       {selected && (
         <div className="hidden lg:block mt-6">
           <h2 className="text-sm font-medium text-strong mb-2">Turno seleccionado</h2>
-          <AppointmentRow appointment={selected} statusLabel={statusLabel} canManage={canManage} />
+          <AppointmentRow appointment={selected} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} />
         </div>
       )}
     </div>

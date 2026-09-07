@@ -15,6 +15,13 @@ export type Capability =
   | "agenda:read"
   | "agenda:manage" // crear/mover/cancelar turnos, cobrar
   | "agenda:complete" // marcar completado / no-show
+  // Cobrar un turno: seña, cobro parcial o saldo. Va SEPARADA de `agenda:manage` a
+  // propósito. Decisión del dueño (2026-09-07): en CH Estética **el profesional también
+  // cobra, y rinde la comisión después** — es el flujo real del negocio. Pero cobrar no
+  // puede implicar crear, cancelar o reprogramar turnos ajenos, que es lo que da
+  // `agenda:manage`. Con una capacidad propia, el profesional cobra LO SUYO (el scoping a
+  // su `professionalId` lo hace la acción) y nada más.
+  | "agenda:collect"
   | "clients:read"
   | "clients:manage"
   | "waitlist:manage" // anotar/gestionar la lista de espera y convertir en turno
@@ -50,6 +57,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "agenda:read",
   "agenda:manage",
   "agenda:complete",
+  "agenda:collect",
   "clients:read",
   "clients:manage",
   "waitlist:manage",
@@ -91,9 +99,9 @@ export const ALL_CAPABILITIES: Capability[] = [
 //   EXCEPCIÓN: la lista de espera (`waitlist:manage`) SÍ va a RECEPTION — es
 //   trabajo de mostrador puro (anota a quien llama cuando está lleno y ofrece el
 //   hueco cuando se libera), del mismo tenor operativo que agenda + clientes.
-// - PROFESSIONAL: solo su propia agenda — leer y marcar completado/no-show. El
-//   scoping a su `professionalId` se hace en el loader (getAgendaDay) y en las
-//   acciones de cierre; la capability solo habilita la clase de acción.
+// - PROFESSIONAL: solo su propia agenda — leer, marcar completado/no-show y COBRAR sus
+//   turnos. El scoping a su `professionalId` se hace en el loader (getAgendaDay) y en las
+//   acciones de cierre y cobro; la capability solo habilita la clase de acción.
 export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
   OWNER: ALL_CAPABILITIES,
   RECEPTION: [
@@ -101,6 +109,7 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "agenda:read",
     "agenda:manage",
     "agenda:complete",
+    "agenda:collect",
     "clients:read",
     "clients:manage",
     "waitlist:manage",
@@ -110,7 +119,10 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     "orders:read",
     "orders:manage",
   ],
-  PROFESSIONAL: ["agenda:read", "agenda:complete"],
+  // El profesional ve y cierra SU agenda, y cobra SUS turnos (decisión del dueño: cobra y
+  // rinde la comisión después). No puede crear, cancelar ni reprogramar: eso es
+  // `agenda:manage`, y sigue siendo de OWNER y RECEPCIÓN.
+  PROFESSIONAL: ["agenda:read", "agenda:complete", "agenda:collect"],
 };
 
 export function roleHasCapability(role: Role, cap: Capability): boolean {
