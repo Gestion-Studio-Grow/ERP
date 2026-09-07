@@ -1,6 +1,13 @@
-// Mes REAL de la planilla de Google Sheets de CH Estética (agosto 2026), usado como
-// fixture de regresión del libro de caja: 283 asientos, los importes y los medios tal
-// cual los cargó el negocio.
+// La HOJA "Agosto 2026" REAL de la planilla de Google Sheets de CH Estética, usada como
+// fixture de regresión del libro de caja: 283 asientos, con las fechas, los importes y
+// los medios tal cual los cargó el negocio.
+//
+// OJO CON EL NOMBRE: es una HOJA, no un mes. La pestaña se llama "Agosto 2026" pero
+// arranca el 16/08 y sigue hasta el 06/09: 194 filas de planilla con fecha de agosto
+// (197 asientos — tres filas traen dos importes) y 86 de septiembre. Eso NO es un error
+// del fixture: es el defecto estructural de la planilla, anotado en la auditoría
+// (`20-MEMORIA/reference_auditoria_planilla_caja_ch.md`, hallazgo 4), reproducido acá tal
+// cual para que la prueba mida la planilla que existe y no una idealizada.
 //
 // ANONIMIZADO A PROPÓSITO: la planilla trae nombre y apellido de clientas reales en la
 // columna DETALLE y este repositorio es público. La prueba del libro está en la
@@ -9,7 +16,7 @@
 //
 // Tupla compacta: [fecha contable, tipo (I=ingreso / E=egreso), medio (E/M/T), monto].
 
-export const AGOSTO_2026: readonly [string, "I" | "E", "E" | "M" | "T", number][] = [
+export const HOJA_AGOSTO_2026: readonly [string, "I" | "E", "E" | "M" | "T", number][] = [
   ["2026-08-16","I","M",42000],
   ["2026-08-16","I","M",40000],
   ["2026-08-16","I","M",18400],
@@ -297,7 +304,13 @@ export const AGOSTO_2026: readonly [string, "I" | "E", "E" | "M" | "T", number][
 // Totales DECLARADOS por el bloque RESUMEN de la planilla — tipeados a mano por el
 // negocio, independientes de las filas de arriba. Que el libro derive exactamente
 // estos números es la prueba de que reproduce la planilla.
-export const AGOSTO_2026_RESUMEN = {
+// El bloque RESUMEN de la propia hoja (celdas D4:J6). NO está tipeado a mano: `D4` y `E4`
+// son `=SUM(D9:D1000)`, o sea los totales que la planilla calcula sola. Lo único manual es
+// `Saldo inicial` (D3/E3) — y está VACÍO, que es el hallazgo 1 de la auditoría: la hoja
+// arranca en 0 y por eso la prueba parte de saldo inicial cero.
+// Leído del archivo, no derivado de las filas de arriba: los 283 asientos del fixture y
+// este bloque se compararon contra `Copia_de_Caja_de_cierre.xlsx` y coinciden al peso.
+export const HOJA_AGOSTO_2026_RESUMEN = {
   ingresos: { EFECTIVO: 2314570, MP: 5110952, TARJETA: 0, TOTAL: 7425522 },
   egresos: { EFECTIVO: 1614370, MP: 3696722, TARJETA: 0, TOTAL: 5311092 },
   saldo: { EFECTIVO: 700200, MP: 1414230, TARJETA: 0, TOTAL: 2114430 },

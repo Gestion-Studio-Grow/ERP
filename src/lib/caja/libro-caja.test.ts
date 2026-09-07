@@ -1,8 +1,9 @@
 // Pruebas de la aritmética del LIBRO DE CAJA.
 //
-// La prueba fuerte no es sintética: es el mes de AGOSTO 2026 real de la planilla de
-// CH Estética (283 asientos). Si `buildLibro` reproduce al peso el bloque RESUMEN que
-// el negocio tipeó a mano, entonces la pantalla puede reemplazar la planilla.
+// La prueba fuerte no es sintética: es la hoja "Agosto 2026" REAL de la planilla de
+// CH Estética (283 asientos, del 16/08 al 06/09 — la hoja mezcla dos meses, ver el
+// fixture). Si `buildLibro` reproduce al peso el bloque RESUMEN de esa hoja, entonces la
+// pantalla puede reemplazar la planilla.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -19,7 +20,7 @@ import {
   dateBelongsToMonth,
   type LibroMovement,
 } from "./libro-caja";
-import { AGOSTO_2026, AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
+import { HOJA_AGOSTO_2026, HOJA_AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
 import type { CashMethod } from "./cash-register";
 
 const METHOD: Record<"E" | "M" | "T", CashMethod> = { E: "EFECTIVO", M: "MP", T: "TARJETA" };
@@ -27,7 +28,7 @@ const METHOD: Record<"E" | "M" | "T", CashMethod> = { E: "EFECTIVO", M: "MP", T:
 // El fixture compacto → movimientos del dominio. El id es secuencial y con padding
 // para que el desempate por id dentro del mismo día siga el orden de la planilla.
 function agostoMovements(): LibroMovement[] {
-  return AGOSTO_2026.map(([fecha, tipo, medio, monto], i) => ({
+  return HOJA_AGOSTO_2026.map(([fecha, tipo, medio, monto], i) => ({
     id: `a${String(i).padStart(4, "0")}`,
     occurredAt: new Date(`${fecha}T12:00:00.000Z`),
     type: tipo === "I" ? ("INGRESO" as const) : ("EGRESO" as const),
@@ -51,10 +52,10 @@ function mov(over: Partial<LibroMovement> & { amount: number }): LibroMovement {
 
 // ── La prueba que importa: el mes real ──────────────────────────────────────
 
-test("agosto 2026 real: el libro reproduce al peso el RESUMEN que tipeó el negocio", () => {
+test("hoja \"Agosto 2026\" real: el libro reproduce al peso el RESUMEN de la planilla", () => {
   // La planilla arranca el mes con saldo inicial 0 en los tres medios.
   const { summary } = buildLibro(zeroAmounts(), agostoMovements());
-  const esperado = AGOSTO_2026_RESUMEN;
+  const esperado = HOJA_AGOSTO_2026_RESUMEN;
 
   assert.equal(summary.ingresos.EFECTIVO, esperado.ingresos.EFECTIVO);
   assert.equal(summary.ingresos.MP, esperado.ingresos.MP);
@@ -72,10 +73,10 @@ test("agosto 2026 real: el libro reproduce al peso el RESUMEN que tipeó el nego
   assert.equal(totalOf(summary.saldo), esperado.saldo.TOTAL);
 });
 
-test("agosto 2026 real: el saldo corrido de la última fila cierra contra el SALDO ACTUAL", () => {
+test("hoja \"Agosto 2026\" real: el saldo corrido de la última fila cierra contra el SALDO ACTUAL", () => {
   const { rows } = buildLibro(zeroAmounts(), agostoMovements());
-  assert.equal(rows.length, AGOSTO_2026.length);
-  assert.equal(rows[rows.length - 1].runningTotal, AGOSTO_2026_RESUMEN.saldo.TOTAL);
+  assert.equal(rows.length, HOJA_AGOSTO_2026.length);
+  assert.equal(rows[rows.length - 1].runningTotal, HOJA_AGOSTO_2026_RESUMEN.saldo.TOTAL);
 });
 
 // ── Saldo corrido ───────────────────────────────────────────────────────────

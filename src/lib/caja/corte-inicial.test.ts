@@ -27,7 +27,7 @@ import {
 import { movementSign, type CashMethod } from "./cash-register";
 import { buildLibro, openingFromHistory, totalOf, zeroAmounts, type LibroMovement } from "./libro-caja";
 import { buildCierreDiario, partitionForCierre, isFrozenDay } from "./cierre-diario";
-import { AGOSTO_2026, AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
+import { HOJA_AGOSTO_2026, HOJA_AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
 
 const METHOD: Record<"E" | "M" | "T", CashMethod> = { E: "EFECTIVO", M: "MP", T: "TARJETA" };
 
@@ -62,7 +62,7 @@ function arqueo(e: number, m: number, t: number): ArqueoInicial {
 const DIA_CORTE_FIXTURE = "2026-09-06";
 
 function agostoMovements(): CorteMovement[] {
-  return AGOSTO_2026.map(([fecha, tipo, medio, monto], i) => ({
+  return HOJA_AGOSTO_2026.map(([fecha, tipo, medio, monto], i) => ({
     id: `a${String(i).padStart(4, "0")}`,
     occurredAt: new Date(`${fecha}T12:00:00.000Z`),
     type: tipo === "I" ? ("INGRESO" as const) : ("EGRESO" as const),
@@ -92,7 +92,7 @@ test("caso real CH: el histórico decía X, se cuenta Y, la diferencia queda ase
   // Histórico = el agosto 2026 real de la planilla (283 asientos). Lo que la planilla
   // decía que había al 31/08 es su bloque RESUMEN → saldo por medio.
   const historico = agostoMovements();
-  const X = AGOSTO_2026_RESUMEN.saldo;
+  const X = HOJA_AGOSTO_2026_RESUMEN.saldo;
   // Lo contado: los sobrantes REALES que la dueña encontró al margen (69.190 efectivo,
   // 16.723 MP) y que la planilla nunca asentó. Tarjeta: 0, como en toda la serie.
   const Y = arqueo(X.EFECTIVO + 69190, X.MP + 16723, 0);
@@ -101,7 +101,7 @@ test("caso real CH: el histórico decía X, se cuenta Y, la diferencia queda ase
 
   // Lo que decía el histórico es exactamente el saldo del libro.
   assert.deepEqual(corte.historico, { EFECTIVO: X.EFECTIVO, MP: X.MP, TARJETA: X.TARJETA });
-  assert.equal(corte.historicoCount, AGOSTO_2026.length);
+  assert.equal(corte.historicoCount, HOJA_AGOSTO_2026.length);
   assert.equal(corte.posterioresAlCorte, 0);
 
   // El desvío queda medido y asentado: dos ajustes (efectivo y MP), ninguno en tarjeta.

@@ -27,7 +27,7 @@ import {
 } from "./cierre-diario";
 import { movementSign, type CashMethod } from "./cash-register";
 import { openingFromHistory, totalOf, type LibroMovement } from "./libro-caja";
-import { AGOSTO_2026, AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
+import { HOJA_AGOSTO_2026, HOJA_AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
 
 const METHOD: Record<"E" | "M" | "T", CashMethod> = { E: "EFECTIVO", M: "MP", T: "TARJETA" };
 
@@ -54,7 +54,7 @@ function declared(e: number | null, m: number | null = null, t: number | null = 
 }
 
 function agostoMovements(): CierreMovement[] {
-  return AGOSTO_2026.map(([fecha, tipo, medio, monto], i) => ({
+  return HOJA_AGOSTO_2026.map(([fecha, tipo, medio, monto], i) => ({
     id: `a${String(i).padStart(4, "0")}`,
     occurredAt: new Date(`${fecha}T12:00:00.000Z`),
     type: tipo === "I" ? ("INGRESO" as const) : ("EGRESO" as const),
@@ -144,9 +144,9 @@ test("agosto 2026 real: cerrar el mes con los sobrantes de la dueña asienta 69.
     openingAfterCierre(c1),
   );
   // Y el saldo final del período es el RESUMEN real de la planilla + los dos sobrantes.
-  assert.equal(c2.porMedio.EFECTIVO.expected, AGOSTO_2026_RESUMEN.saldo.EFECTIVO + 69190);
-  assert.equal(c2.porMedio.MP.expected, AGOSTO_2026_RESUMEN.saldo.MP + 16723);
-  assert.equal(c2.total.expected, AGOSTO_2026_RESUMEN.saldo.TOTAL + 85913);
+  assert.equal(c2.porMedio.EFECTIVO.expected, HOJA_AGOSTO_2026_RESUMEN.saldo.EFECTIVO + 69190);
+  assert.equal(c2.porMedio.MP.expected, HOJA_AGOSTO_2026_RESUMEN.saldo.MP + 16723);
+  assert.equal(c2.total.expected, HOJA_AGOSTO_2026_RESUMEN.saldo.TOTAL + 85913);
 
   const c2ok = buildCierreDiario({
     ...p2,
