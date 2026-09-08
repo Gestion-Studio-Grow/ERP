@@ -72,8 +72,17 @@ export const ALL_ITEMS: ShellItem[] = [
   //   2. Íconos distintos. Tres ítems seguidos con el mismo ícono no se distinguen de un
   //      vistazo, que es como se lee un menú.
   { href: "/admin/caja", label: "Arqueo de cajón", icon: "caja", cap: "orders:read", module: "pos", retailOnly: true, alias: ["fondo inicial", "contar el cajón", "efectivo del mostrador", "relevo"] },
-  { href: "/admin/caja/libro", label: "Libro de caja", icon: "contabilidad", cap: "orders:read", module: "pos", alias: ["planilla", "excel", "google sheets", "caja diaria", "ingresos y egresos", "mensual", "saldo"] },
-  { href: "/admin/caja/cierre", label: "Cierre del día", icon: "caja", cap: "orders:read", module: "pos", alias: ["cerrar la caja", "cierre de caja", "arqueo del día", "contar la plata", "diferencia de caja", "cuadrar", "cobrar"] },
+  // Libro y cierre NO llevan `module: "pos"`. Los copié de `/admin/caja` al crearlos y
+  // era una bomba de tiempo: el preset de un negocio de servicios NO incluye `pos`
+  // (`src/blueprints/presets-meta.ts:37`, "SIN pos (no es mostrador)"), así que el día que
+  // se encienda el registro de módulos la dueña de CH perdería del menú exactamente las
+  // dos pantallas que le construimos para reemplazar la planilla.
+  //
+  // Y no corresponde gatearlas: `pos` es "vende en mostrador". El libro de caja y el
+  // cierre del día los tiene TODO negocio que maneje plata, venda por mostrador o no —
+  // son core, como Ajustes. El rol ya los acota con `orders:read`.
+  { href: "/admin/caja/libro", label: "Libro de caja", icon: "contabilidad", cap: "orders:read", alias: ["planilla", "excel", "google sheets", "caja diaria", "ingresos y egresos", "mensual", "saldo"] },
+  { href: "/admin/caja/cierre", label: "Cierre del día", icon: "caja", cap: "orders:read", alias: ["cerrar la caja", "cierre de caja", "arqueo del día", "contar la plata", "diferencia de caja", "cuadrar", "cobrar"] },
   { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog", alias: ["servicios", "precios", "productos", "tratamientos", "profesionales", "horarios"] },
   { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog", alias: ["proveedores", "reposicion", "remitos"] },
   { href: "/admin/inventario", label: "Inventario", icon: "inventario", cap: "catalog:read", module: "catalog", retailOnly: true, alias: ["stock", "existencias"] },
