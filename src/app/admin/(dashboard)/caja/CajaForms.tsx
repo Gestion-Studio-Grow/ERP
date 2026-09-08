@@ -8,15 +8,14 @@
 // Son client components finos: la carga de datos y el arqueo en vivo viven en el
 // server component (page.tsx). Acá solo va la interacción del formulario.
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import {
   openCashSession,
-  addCashMovement,
   closeCashSession,
   type CajaActionState,
 } from "@/lib/caja-actions";
 import { round2 } from "@/lib/round";
-import { Field, Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { Field, Input, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 
 // Formateador de pesos para el preview del arqueo en el cliente (mismo estilo que
@@ -64,58 +63,12 @@ export function OpenCajaForm() {
   );
 }
 
-// --- Registrar movimiento manual (ingreso / egreso / retiro) ---
-export function AddMovementForm() {
-  const [state, formAction] = useActionState<CajaActionState, FormData>(addCashMovement, null);
-  const formRef = useRef<HTMLFormElement>(null);
-  // Tras un alta exitosa, limpiar el formulario para el próximo movimiento (el
-  // turno sigue abierto y el form queda en pantalla). Cada éxito devuelve un objeto
-  // nuevo → el efecto se dispara en cada registro.
-  useEffect(() => {
-    if (state?.ok) formRef.current?.reset();
-  }, [state]);
-
-  return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-[10rem_10rem_1fr]">
-        <Field label="Tipo" htmlFor="mov-type">
-          <Select id="mov-type" name="type" defaultValue="INGRESO">
-            <option value="INGRESO">Ingreso</option>
-            <option value="EGRESO">Egreso</option>
-            <option value="RETIRO">Retiro</option>
-          </Select>
-        </Field>
-        <Field label="Monto" htmlFor="mov-amount" required>
-          <Input
-            id="mov-amount"
-            type="number"
-            name="amount"
-            min="0.01"
-            step="0.01"
-            required
-            inputMode="decimal"
-            className="text-right tabular-nums"
-          />
-        </Field>
-        <Field label="Motivo" htmlFor="mov-reason" required>
-          <Input
-            id="mov-reason"
-            type="text"
-            name="reason"
-            required
-            placeholder="Pago a proveedor, cambio, retiro a caja fuerte…"
-          />
-        </Field>
-      </div>
-      <FormError state={state} />
-      <div>
-        <SubmitButton className={buttonClasses("outline", "md")} pendingText="Registrando…">
-          Registrar movimiento
-        </SubmitButton>
-      </div>
-    </form>
-  );
-}
+// El alta manual de movimientos NO vive más acá. Vive en `AddLibroEntryForm` (libro/
+// LibroForms.tsx) y escribe por `addLibroEntry`, que es el único camino de escritura manual
+// del negocio: tiene medio de pago, fecha contable, guarda de día congelado y guarda de
+// duplicado contra las ventas que el sistema ya asentó. El formulario que estaba acá no
+// tenía selector de medio, así que todo lo que cargaba caía en EFECTIVO por default — en un
+// negocio de servicios eso es ciego a siete de cada diez pesos.
 
 // Preview del arqueo EN VIVO: dado el efectivo contado que se está tipeando y el
 // esperado, devuelve la diferencia y cómo mostrarla. `null` = todavía no hay un

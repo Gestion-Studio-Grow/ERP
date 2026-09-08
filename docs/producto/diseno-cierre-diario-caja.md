@@ -6,20 +6,50 @@
 
 ---
 
-> **Decidido el 2026-09-08.** En un negocio de SERVICIOS el arqueo del cajón
-> (`/admin/caja`, modelo `CashSession`) no se ofrece: su formulario sólo registra
-> EFECTIVO, y en CH Estética el efectivo es el 28,6% de la plata. El único arqueo es el
-> CIERRE DEL DÍA, que cuenta los tres medios y asienta la diferencia en el libro. El ítem
-> pasó a `retailOnly` y la pantalla redirige al cierre si el tenant no es retail.
+> **Decidido el 2026-09-08, corregido el mismo día por el dueño.**
 >
-> Dos consecuencias que hay que tener presentes:
-> * `retailOnly` es más angosto que "tiene mostrador": **gastronomía y `generico` también
->   pierden el arqueo**. Hoy no hay ningún tenant así; el día que entre uno, revisar el eje.
-> * El hueco de `closingDiff` **sigue abierto para los tenants retail**: al cerrar el turno
->   la diferencia se congela en la `CashSession` y no la asienta nadie, mientras el cierre
->   diario escribe sus ajustes con `sessionId: null`. Para CH deja de importar (no usa la
->   pantalla); para magra/adosmanos hay que resolverlo ANTES de que operen caja de verdad.
->   Ése es el deadline real, no la publicación de CH.
+> Primero se sacó `/admin/caja` del menú para los tenants de servicios (`retailOnly` + un
+> redirect al cierre), con el argumento de que su formulario sólo registraba EFECTIVO y en CH
+> el efectivo es el 28,6% de la plata. **El dueño lo revirtió: la Caja se queda.** Y tenía
+> razón — lo que sobraba no era la pantalla, era el TURNO DE CAJERO que vive adentro.
+>
+> Cómo quedó repartido el trabajo:
+>
+> | Pantalla | Qué es |
+> |---|---|
+> | **Caja** `/admin/caja` | La pantalla del día de quien atiende: cuánto hay AHORA por cada uno de los tres medios, los movimientos del día con su origen, y el alta de gastos/retiros/ingresos sueltos. **Core: la tienen los tres rubros.** |
+> | **Libro** `/admin/caja/libro` | El mes completo, tres medios, con export. La vista de la dueña y de la contadora. |
+> | **Cierre del día** `/admin/caja/cierre` | El arqueo real: declara los tres medios, congela el día y asienta la diferencia en el libro. |
+> | **Turno de cajero** (dentro de Caja) | Fondo inicial, relevo y conteo del cajón físico. Se renderiza **sólo** si el tenant tiene cajón (`isRetail`, o demo). CH no lo ve. |
+>
+> Los tres cambios que hicieron que la Caja deje de mentir:
+>
+> 1. **Un solo camino de escritura manual.** `addCashMovement` se eliminó: no tenía selector
+>    de medio (todo caía en `@default(EFECTIVO)`) y exigía un turno abierto, que en un negocio
+>    de servicios no existe nunca — desde la Caja no se podía registrar un gasto en absoluto.
+>    Ahora el formulario es el mismo `addLibroEntry` del libro, con medio, fecha contable,
+>    guarda de día congelado y guarda de duplicado. Engancha al turno abierto cuando lo hay,
+>    así que el mostrador con cajón no pierde nada.
+> 2. **El resumen en vivo son los tres medios**, leídos con el mismo `getCierreDiarioData` que
+>    usa el cierre: lo que se ve a las 16 es lo que va a aparecer a las 20 al cerrar. No hay
+>    una segunda aritmética.
+> 3. **El hueco de `closingDiff` se cerró.** `closeCashSession` ahora asienta la diferencia del
+>    arqueo como movimiento del libro (`arqueo-turno:<sessionId>`, EFECTIVO, INGRESO si sobra /
+>    EGRESO si falta) en la misma transacción, y `deleteLibroEntry` no lo deja borrar. Antes la
+>    diferencia se congelaba en la `CashSession` y no la leía ningún libro: el faltante anotado
+>    al margen de la planilla, con otra ropa. Turno y día dejan de ser dos verdades.
+>
+> Lo que queda dicho y **no** resuelto:
+> * Ninguna de las tres cajas lleva `module: "pos"` (son core). Efecto lateral: el producto
+>   Comerciante, que focaliza su nav por módulos, ahora pasa el gate de las tres. Lo acota el
+>   rol (`orders:read`), no el módulo.
+> * En el sandbox de demo el resumen por medio muestra $0 en los tres: el loader devuelve un
+>   preview vacío para demo (`cierre-diario-actions.ts:123-135`). Es preexistente —el Cierre
+>   del día ya se veía así en `/probar`— y ahora también se ve en la Caja.
+> * **Precondición dura:** todo esto necesita la migración `20260906120000_add_cash_method_libro_caja`
+>   aplicada en Neon. No es sólo por estas pantallas: `closeCashSession` ya selecciona `method`
+>   y `recordCashSaleMovementInTx` lo escribe en toda venta cobrada. Sin la migración, la caja
+>   de producción tira P2022. Orden obligatorio: `prisma migrate deploy` → deploy.
 
 ## 0. En una frase
 

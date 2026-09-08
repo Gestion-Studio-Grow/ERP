@@ -24,6 +24,7 @@ import { auditAdmin } from "@/lib/audit";
 // $2.400 contados a −$5.300. O sea: el sistema decía "este día está congelado" en una
 // pantalla y lo movía desde otra. La frontera es una sola y ahora la miran las dos.
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { ajusteDeArqueoTurno } from "@/lib/caja/cierre-marca";
 import { isFrozenDay, frozenDayMessage } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -54,11 +55,6 @@ function toActionError(err: unknown): { ok: false; error: string } {
   const msg = err instanceof Error && err.message ? err.message : "No se pudo completar la operación.";
   return { ok: false, error: msg };
 }
-
-// Tipos de movimiento que el mostrador puede registrar a mano (la APERTURA la crea
-// `openCashSession`; VENTA la crearía el flujo de venta en efectivo, futuro).
-const MANUAL_MOVEMENT_TYPES = ["INGRESO", "EGRESO", "RETIRO"] as const;
-type ManualMovementType = (typeof MANUAL_MOVEMENT_TYPES)[number];
 
 function parseAmount(raw: FormDataEntryValue | null): number {
   // Acepta coma o punto decimal (entrada AR): "1.234,50" no aplica acá porque el
@@ -163,64 +159,12 @@ export async function openCashSession(
   return { ok: true };
 }
 
-// --- Registrar un movimiento de caja (ingreso / egreso / retiro) ---
-//
-// Solo se puede sobre la sesión ABIERTA del tenant. El monto se guarda POSITIVO;
-// el signo lo aplica el arqueo según el tipo. Motivo obligatorio (es plata que
-// entra o sale sin una venta detrás: tiene que quedar justificada).
-export async function addCashMovement(
-  _prev: CajaActionState,
-  formData: FormData,
-): Promise<CajaActionState> {
-  const user = await requireCapability("orders:manage");
-  if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
-  const tenantId = await getCurrentTenantId();
-
-  const typeRaw = String(formData.get("type") || "").trim();
-  const type = (MANUAL_MOVEMENT_TYPES as readonly string[]).includes(typeRaw)
-    ? (typeRaw as ManualMovementType)
-    : null;
-  if (!type) {
-    return { ok: false, error: "Tipo de movimiento inválido. Elegí ingreso, egreso o retiro." };
-  }
-  const amount = parseAmount(formData.get("amount"));
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return { ok: false, error: "El monto del movimiento tiene que ser mayor a 0." };
-  }
-  const reason = String(formData.get("reason") || "").trim();
-  if (!reason) {
-    return { ok: false, error: "Poné un motivo para el movimiento (queda registrado en el arqueo)." };
-  }
-  const actor = `user:${user.id}`;
-
-  const diaCerrado = await rechazarSiElDiaEstaCerrado(tenantId);
-  if (diaCerrado) return diaCerrado;
-
-  try {
-    await tenantTransaction(async (tx) => {
-      const session = await tx.cashSession.findFirst({
-        where: { tenantId, status: "OPEN" },
-        select: { id: true },
-      });
-      if (!session) {
-        throw new Error("No hay una caja abierta. Abrí un turno antes de registrar movimientos.");
-      }
-      await tx.cashMovement.create({
-        data: { tenantId, sessionId: session.id, type, amount, reason, createdBy: actor },
-      });
-    }, { tenantId });
-  } catch (err) {
-    return toActionError(err);
-  }
-
-  await auditAdmin({
-    action: "movement",
-    entity: "CashSession",
-    changes: { type, amount, reason },
-  });
-  revalidatePath(CAJA_PATH);
-  return { ok: true };
-}
+// El alta manual de movimientos se fue de acá: la escribe `addLibroEntry`
+// (src/lib/libro-caja-actions.ts), que es el único camino manual del negocio. Esta acción
+// no tenía selector de medio —toda fila caía en `@default(EFECTIVO)`— y además exigía un
+// turno de cajero abierto, que en un negocio de servicios no existe nunca: desde la Caja no
+// se podía registrar un gasto en absoluto. `addLibroEntry` engancha el asiento al turno
+// abierto cuando lo hay, así que el mostrador con cajón no pierde nada.
 
 /**
  * Frena cualquier escritura de caja sobre un día ya cerrado. Se llama ANTES de abrir la
@@ -297,6 +241,25 @@ export async function closeCashSession(
           closedAt: new Date(),
         },
       });
+
+      // La diferencia del arqueo SE ASIENTA EN EL LIBRO, en la misma transacción.
+      //
+      // Antes vivía sólo en `closingDiff`, y el libro deriva su saldo SUMANDO movimientos:
+      // un faltante contado en el cajón no llegaba a ningún lado. El 07/09 quedó un turno
+      // con la diferencia varada en la sesión mientras el libro seguía diciendo otra cosa.
+      //
+      // Signo: el conteo físico manda. Contado > esperado ⇒ entró plata que el sistema no
+      // tenía (INGRESO); contado < esperado ⇒ falta (EGRESO). Siempre EFECTIVO: el arqueo
+      // de turno cuenta el cajón y nada más.
+      //
+      // `sessionId` va apuntando al turno que la produjo, pero eso NO la mete en el arqueo
+      // de ese turno: la sesión ya quedó CLOSED en esta misma transacción y su esperado
+      // quedó congelado arriba. Es trazabilidad, no aritmética.
+      const ajuste = ajusteDeArqueoTurno(arqueo.diff, session.id);
+      if (ajuste) {
+        await tx.cashMovement.create({ data: { tenantId, sessionId: session.id, ...ajuste } });
+      }
+
       return { id: session.id, ...arqueo };
     }, { tenantId });
   } catch (err) {

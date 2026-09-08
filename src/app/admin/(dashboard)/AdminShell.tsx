@@ -24,6 +24,11 @@ function Icon({ name }: { name: string }) {
     espera: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
     pedidos: (<><path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><path d="M3 6h18M16 10a4 4 0 01-8 0" /></>),
     caja: (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h4" /></>),
+    // Cierre del día = el cajón YA contado. Comparte la silueta de `caja` (es la misma
+    // plata) y se distingue por el tilde: sin ícono propio caía en el fallback `dashboard`,
+    // que no dice nada, o repetía `caja` y volvía a dejar dos ítems indistinguibles — que
+    // es exactamente lo que el QA marcó.
+    cierre: (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /><path d="M8.5 14.8l2 2 4-4" /></>),
     catalogo: (<><path d="M4 6h16M4 12h16M4 18h10" /></>),
     compras: (<><path d="M4 5h2l1.2 11a1.5 1.5 0 001.5 1.3h8.1a1.5 1.5 0 001.5-1.2L20 8H7" /><circle cx="9.5" cy="20" r="1" /><circle cx="17" cy="20" r="1" /><path d="M13 4v4M11 6h4" /></>),
     ajustes: (<><path d="M4 8h9M17 8h3M4 16h3M11 16h9" /><circle cx="15" cy="8" r="2" /><circle cx="9" cy="16" r="2" /></>),

@@ -46,9 +46,13 @@ import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 // comparten el libro y el cierre diario. Cubre las dos formas de cerrar: el corte
 // inicial y cada cierre de día.
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
-import { CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
+import { ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 
 const LIBRO_PATH = "/admin/caja/libro";
+// El mismo formulario de alta se monta en la Caja (es el único camino de escritura manual),
+// así que las dos pantallas se invalidan juntas: cargar un gasto desde la Caja tiene que
+// mover el saldo por medio que esa misma pantalla está mostrando.
+const CAJA_PATH = "/admin/caja";
 
 // Error de dominio para el aviso de duplicado. Va como clase (y no como string
 // suelto) para poder distinguirlo de cualquier otro fallo de la transacción.
@@ -362,6 +366,7 @@ export async function addLibroEntry(
     changes: { type, method, amount, detail, occurredAt: dateStr },
   });
   revalidatePath(LIBRO_PATH);
+  revalidatePath(CAJA_PATH);
   // Confirmación EXPLÍCITA: la única señal de éxito no puede ser "fijate si
   // apareció la fila". Si el usuario no ve una confirmación, vuelve a cargar.
   return {
@@ -422,6 +427,13 @@ export async function deleteLibroEntry(
       if (found.createdBy.startsWith(CIERRE_DIARIO_ACTOR_PREFIX)) {
         throw new Error("Ese movimiento es la diferencia que dejó un cierre de caja. No se borra: si estuvo mal, va una corrección con la fecha de hoy.");
       }
+      // Mismo criterio para la diferencia del arqueo de TURNO. Va acá arriba y no le alcanza
+      // la guarda de tipo de abajo: el ajuste se asienta como INGRESO/EGRESO (es lo que el
+      // libro sabe sumar), así que sin este candado quedaría borrable desde el libro y el
+      // saldo se desataría del conteo físico del cajón.
+      if (found.createdBy.startsWith(ARQUEO_TURNO_ACTOR_PREFIX)) {
+        throw new Error("Ese movimiento es la diferencia que dejó el arqueo de un turno. No se borra: si estuvo mal, va una corrección con la fecha de hoy.");
+      }
       const dia = dateStrInBusinessTz(found.occurredAt);
       if (cerradoHasta && isFrozenDay(dia, cerradoHasta)) {
         throw new Error(frozenDayMessage(dia, cerradoHasta));
@@ -440,5 +452,6 @@ export async function deleteLibroEntry(
     changes: borrado,
   });
   revalidatePath(LIBRO_PATH);
+  revalidatePath(CAJA_PATH);
   return { ok: true, message: `Borrado: ${borrado.reason ?? "movimiento"}.` };
 }

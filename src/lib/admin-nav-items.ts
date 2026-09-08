@@ -58,31 +58,32 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist", alias: ["cola", "waitlist", "anotados para un hueco"] },
   { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read", module: "pos", alias: ["ventas", "mostrador", "comandas"] },
   // LAS TRES CAJAS. Un QA de recorrido las encontró como tres ítems hermanos, planos y con
-  // el MISMO ícono, y la primera —el arqueo del cajón— es la que una persona sin
-  // explicación abre primero. Dos cambios, decididos con el dato de la operación:
+  // el MISMO ícono, y la primera es la que una persona sin explicación abre primero. Los
+  // íconos ya se separaron. Lo que cambió después es QUÉ es cada una:
   //
-  //   1. El arqueo del cajón es `retailOnly`. Sólo registra EFECTIVO (su formulario no
-  //      tiene selector de medio), y en un negocio de servicios como CH el efectivo es el
-  //      28,6% de la plata: es una vista ciega al 71% del flujo, dominada por el cierre
-  //      diario, que arquea los tres medios, congela el día y asienta la diferencia en el
-  //      libro. Para un mostrador con cajón y relevos (carnicería, retail) sí sirve.
-  //      ⚠️ `retailOnly` es más angosto que "tiene mostrador": gastronomía y `generico`
-  //      también lo pierden. Hoy no hay ningún tenant así; el día que entre una rotisería,
-  //      hay que revisar este eje.
-  //   2. Íconos distintos. Tres ítems seguidos con el mismo ícono no se distinguen de un
-  //      vistazo, que es como se lee un menú.
-  { href: "/admin/caja", label: "Arqueo de cajón", icon: "caja", cap: "orders:read", module: "pos", retailOnly: true, alias: ["fondo inicial", "contar el cajón", "efectivo del mostrador", "relevo"] },
-  // Libro y cierre NO llevan `module: "pos"`. Los copié de `/admin/caja` al crearlos y
-  // era una bomba de tiempo: el preset de un negocio de servicios NO incluye `pos`
-  // (`src/blueprints/presets-meta.ts:37`, "SIN pos (no es mostrador)"), así que el día que
-  // se encienda el registro de módulos la dueña de CH perdería del menú exactamente las
-  // dos pantallas que le construimos para reemplazar la planilla.
+  //   · Caja (`/admin/caja`) — la pantalla del día de quien atiende: qué entró hoy por cada
+  //     medio, los movimientos del día, y los gastos o retiros sueltos. Es CORE: la tiene
+  //     todo negocio que maneje plata. El TURNO DE CAJERO que vive adentro (fondo inicial,
+  //     arqueo del cajón, relevo) es lo único de mostrador, y la propia pantalla lo muestra
+  //     sólo si el tenant tiene cajón físico — el eje `retailOnly` acá arriba habría sacado
+  //     la pantalla entera, que no es lo que sobra.
+  //   · Libro (`/admin/caja/libro`) — el mes, los tres medios, con export. La vista de la
+  //     dueña y de la contadora.
+  //   · Cierre del día (`/admin/caja/cierre`) — el arqueo REAL de un negocio de servicios:
+  //     cuenta los tres medios, congela el día y asienta la diferencia en el libro.
   //
-  // Y no corresponde gatearlas: `pos` es "vende en mostrador". El libro de caja y el
-  // cierre del día los tiene TODO negocio que maneje plata, venda por mostrador o no —
-  // son core, como Ajustes. El rol ya los acota con `orders:read`.
+  // Ninguna de las tres lleva `module: "pos"`. Ese módulo es "vende en mostrador", y el
+  // preset de un negocio de servicios NO lo incluye (`src/blueprints/presets-meta.ts:37`,
+  // "SIN pos (no es mostrador)"): el día que se encienda el registro de módulos, la dueña de
+  // CH perdería del menú las tres pantallas con las que le reemplazamos la planilla. El rol
+  // ya las acota con `orders:read`. Lo que sí es `pos` es la venta de productos, y esa vive
+  // en `/admin/pedidos`, que conserva su módulo.
+  //
+  // El alias "arqueo" se lo queda el Cierre del día, no la Caja: buscar "arqueo" en un
+  // negocio de servicios tiene que devolver el que cuenta los tres medios.
+  { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read", alias: ["mostrador", "cobrar", "caja de hoy", "efectivo del dia", "fondo inicial", "contar el cajon", "relevo", "gasto", "retiro"] },
   { href: "/admin/caja/libro", label: "Libro de caja", icon: "contabilidad", cap: "orders:read", alias: ["planilla", "excel", "google sheets", "caja diaria", "ingresos y egresos", "mensual", "saldo"] },
-  { href: "/admin/caja/cierre", label: "Cierre del día", icon: "caja", cap: "orders:read", alias: ["cerrar la caja", "cierre de caja", "arqueo del día", "contar la plata", "diferencia de caja", "cuadrar", "cobrar"] },
+  { href: "/admin/caja/cierre", label: "Cierre del día", icon: "cierre", cap: "orders:read", alias: ["cerrar la caja", "cierre de caja", "arqueo", "arqueo del día", "contar la plata", "diferencia de caja", "cuadrar"] },
   { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog", alias: ["servicios", "precios", "productos", "tratamientos", "profesionales", "horarios"] },
   { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog", alias: ["proveedores", "reposicion", "remitos"] },
   { href: "/admin/inventario", label: "Inventario", icon: "inventario", cap: "catalog:read", module: "catalog", retailOnly: true, alias: ["stock", "existencias"] },

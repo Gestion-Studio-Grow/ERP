@@ -43,7 +43,7 @@ hace falta además un candado de perfil (`perfilMin`)?
 | `/admin/turnos` Agenda | `agenda:read` — los 3 roles | Sí | Operación | — (lite) |
 | `/admin/espera` Lista de espera | `waitlist:manage` — OWNER+RECEPTION | Sí | Operación | — (lite) |
 | `/admin/pedidos` Pedidos | `orders:read` — OWNER+RECEPTION | Sí | Operación | — (lite) |
-| `/admin/caja` Caja | `orders:read` — OWNER+RECEPTION | Sí | Operación | rubro (retail) |
+| `/admin/caja` Caja | `orders:read` — OWNER+RECEPTION | Sí | Operación | — (core: los tres rubros; el turno de cajero de adentro sí es retail) |
 | `/admin/clientes` Clientes | `clients:read` — OWNER+RECEPTION | Sí | Clientes | — (lite) |
 | `/admin/recordatorios` Recordatorios | `reminders:manage` — solo OWNER | Sí | Clientes | — (lite) |
 | `/admin/resenas` Reseñas | `reviews:manage` — solo OWNER | Sí | Clientes | — (lite) |

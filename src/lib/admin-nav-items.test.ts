@@ -54,8 +54,19 @@ test("Comerciante: rutas de SUS módulos permitidas (facturación/clientes/repor
 });
 
 test("Comerciante: módulos que NO tiene → bloqueados (la deuda del UAT)", () => {
-  for (const p of ["/admin/turnos", "/admin/caja", "/admin/pedidos", "/admin/catalogo", "/admin/compras", "/admin/espera", "/admin/resenas", "/admin/recordatorios"]) {
+  for (const p of ["/admin/turnos", "/admin/pedidos", "/admin/catalogo", "/admin/compras", "/admin/espera", "/admin/resenas", "/admin/recordatorios"]) {
     assert.equal(rutaPermitidaParaModulos(p, COMERCIANTE), false, p);
+  }
+});
+
+// `/admin/caja` SALIÓ de esa lista, con las otras dos cajas. No es una filtración: el
+// Comerciante ya podía entrar al libro y al cierre desde que se les sacó `module: "pos"`
+// (e28d98d), y las tres son la misma cosa —la plata del negocio, que un comerciante con
+// facturación también maneja—. Lo que las acota es el rol (`orders:read`), no el módulo:
+// `getCajaData` y `getCierreDiarioData` lo exigen antes de devolver una fila.
+test("Comerciante: las tres cajas pasan el gate de módulos (son core, como Ajustes)", () => {
+  for (const p of ["/admin/caja", "/admin/caja/libro", "/admin/caja/cierre"]) {
+    assert.equal(rutaPermitidaParaModulos(p, COMERCIANTE), true, p);
   }
 });
 
@@ -72,8 +83,8 @@ test("Comerciante: ruta fuera del backoffice (inventario/libros) → bloqueada",
 // encienda el registro de módulos, la dueña perdería del menú justo las dos pantallas que
 // reemplazan la planilla. Esto lo fija: son core, como Ajustes.
 
-test("el libro de caja y el cierre del día NO se gatean por módulo: todo negocio maneja plata", () => {
-  for (const href of ["/admin/caja/libro", "/admin/caja/cierre"]) {
+test("las tres cajas NO se gatean por módulo: todo negocio maneja plata", () => {
+  for (const href of ["/admin/caja", "/admin/caja/libro", "/admin/caja/cierre"]) {
     const item = ALL_ITEMS.find((i) => i.href === href);
     assert.ok(item, `falta el ítem ${href}`);
     assert.equal(
@@ -85,11 +96,28 @@ test("el libro de caja y el cierre del día NO se gatean por módulo: todo negoc
   }
 });
 
-test("el arqueo de cajón sí es de mostrador: retailOnly y módulo pos", () => {
+// La Caja NO es retailOnly. Lo que es de mostrador es el TURNO DE CAJERO que vive adentro,
+// y eso lo decide la propia pantalla (`tieneCajonFisico`), no el menú: gatear el ítem sacaba
+// la pantalla entera —resumen por medio, movimientos del día, alta de gastos— a un negocio
+// de servicios, que es justo el que la usa todos los días.
+test("la Caja la ven los tres rubros: no lleva retailOnly", () => {
   const item = ALL_ITEMS.find((i) => i.href === "/admin/caja");
   assert.ok(item);
-  assert.equal(item.retailOnly, true, "el cajón con relevos es de mostrador");
-  assert.equal(item.module, "pos");
+  assert.equal(item.retailOnly, undefined, "gatear el ítem le saca la pantalla del día a servicios");
+  assert.equal(item.carniceriaOnly, undefined);
+});
+
+// El alias "arqueo" tiene que devolver UN resultado, y el que cuenta los tres medios. Si la
+// Caja se lo vuelve a apropiar, buscar "arqueo" en CH devuelve el que sólo ve efectivo.
+test("buscar \"arqueo\" lleva al cierre del día, no a la Caja", () => {
+  const conArqueo = ALL_ITEMS.filter((i) =>
+    (i.alias ?? []).some((a) => a.toLowerCase().includes("arqueo")),
+  );
+  assert.deepEqual(
+    conArqueo.map((i) => i.href),
+    ["/admin/caja/cierre"],
+    `más de un ítem responde a "arqueo": ${conArqueo.map((i) => i.href).join(", ")}`,
+  );
 });
 
 test("los tres ítems de caja no comparten el mismo ícono", () => {
