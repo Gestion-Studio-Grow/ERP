@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auditAdmin } from "@/lib/audit";
+import { sePuedeLiquidar } from "@/lib/comision-liquidable";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { Prisma } from "@/generated/prisma/client";
@@ -82,7 +83,14 @@ export async function getCommissionsOverview(): Promise<{
         commissionPayoutId: null,
         payment: { status: "APPROVED" },
       },
-      include: { professional: true, payment: true },
+      // `collections` y el precio hacen falta para saber si el turno está SALDADO: uno con
+      // saldo pendiente no se liquida (ver `comision-liquidable.ts`).
+      include: {
+        professional: true,
+        payment: true,
+        collections: { select: { amount: true, method: true } },
+        service: { select: { price: true } },
+      },
     }),
     prisma.professionalServiceCommission.findMany({ where: { tenantId } }),
     prisma.commissionPayout.findMany({
@@ -103,6 +111,10 @@ export async function getCommissionsOverview(): Promise<{
   const acc = new Map<string, PendingCommission>();
   for (const a of appointments) {
     if (!a.payment) continue; // defensivo; el where ya lo garantiza
+    // Un turno con saldo pendiente ESPERA. Liquidarlo lo congela con su payout, y el
+    // cobro posterior del saldo ya no vuelve a entrar al pendiente: esa comisión se
+    // perdía para siempre. Ver `comision-liquidable.ts`.
+    if (!sePuedeLiquidar({ precio: a.priceAtBooking ?? a.service.price, cobros: a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method })), pagoLegado: a.payment })) continue;
     const pct = resolvePct(
       a.professional.commissionPercent,
       overridesByProf.get(a.professionalId) ?? new Map(),
@@ -174,7 +186,11 @@ export async function settleCommissions(formData: FormData) {
           commissionPayoutId: null,
           payment: { status: "APPROVED" },
         },
-        include: { payment: true },
+        include: {
+          payment: true,
+          collections: { select: { amount: true, method: true } },
+          service: { select: { price: true } },
+        },
       }),
       tx.professionalServiceCommission.findMany({ where: { tenantId, professionalId } }),
     ]);
@@ -187,6 +203,9 @@ export async function settleCommissions(formData: FormData) {
     const ids: string[] = [];
     for (const a of appointments) {
       if (!a.payment) continue;
+      // Misma guarda que el listado de pendientes: sin esto, la pantalla mostraría un
+      // total y la liquidación escribiría otro.
+      if (!sePuedeLiquidar({ precio: a.priceAtBooking ?? a.service.price, cobros: a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method })), pagoLegado: a.payment })) continue;
       const pct = resolvePct(professional.commissionPercent, overrideByService, a.serviceId);
       if (pct <= 0) continue; // turno sin comisión: no forma parte de la liquidación
       amount += (a.payment.amount * pct) / 100;
