@@ -6,6 +6,21 @@
 
 ---
 
+> **Decidido el 2026-09-08.** En un negocio de SERVICIOS el arqueo del cajón
+> (`/admin/caja`, modelo `CashSession`) no se ofrece: su formulario sólo registra
+> EFECTIVO, y en CH Estética el efectivo es el 28,6% de la plata. El único arqueo es el
+> CIERRE DEL DÍA, que cuenta los tres medios y asienta la diferencia en el libro. El ítem
+> pasó a `retailOnly` y la pantalla redirige al cierre si el tenant no es retail.
+>
+> Dos consecuencias que hay que tener presentes:
+> * `retailOnly` es más angosto que "tiene mostrador": **gastronomía y `generico` también
+>   pierden el arqueo**. Hoy no hay ningún tenant así; el día que entre uno, revisar el eje.
+> * El hueco de `closingDiff` **sigue abierto para los tenants retail**: al cerrar el turno
+>   la diferencia se congela en la `CashSession` y no la asienta nadie, mientras el cierre
+>   diario escribe sus ajustes con `sessionId: null`. Para CH deja de importar (no usa la
+>   pantalla); para magra/adosmanos hay que resolverlo ANTES de que operen caja de verdad.
+>   Ése es el deadline real, no la publicación de CH.
+
 ## 0. En una frase
 
 Cerrar el día es **declarar cuánta plata hay de verdad, por medio, y dejar que el sistema asiente la diferencia contra lo que el libro decía**. Después de cerrar, el libro dice lo que se contó — no lo que se tipeó — y nada fechado hasta ese día se puede volver a tocar.

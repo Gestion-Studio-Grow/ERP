@@ -57,9 +57,23 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read", module: "clients", alias: ["fichas", "base de clientes", "historial del cliente"] },
   { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist", alias: ["cola", "waitlist", "anotados para un hueco"] },
   { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read", module: "pos", alias: ["ventas", "mostrador", "comandas"] },
-  { href: "/admin/caja", label: "Caja", icon: "caja", cap: "orders:read", module: "pos", alias: ["cobrar", "cierre", "arqueo", "efectivo", "cobros"] },
-  { href: "/admin/caja/libro", label: "Libro de caja", icon: "caja", cap: "orders:read", module: "pos", alias: ["planilla", "excel", "google sheets", "caja diaria", "ingresos y egresos", "mensual", "saldo"] },
-  { href: "/admin/caja/cierre", label: "Cierre del día", icon: "caja", cap: "orders:read", module: "pos", alias: ["cerrar la caja", "cierre de caja", "arqueo del día", "contar la plata", "diferencia de caja", "cuadrar"] },
+  // LAS TRES CAJAS. Un QA de recorrido las encontró como tres ítems hermanos, planos y con
+  // el MISMO ícono, y la primera —el arqueo del cajón— es la que una persona sin
+  // explicación abre primero. Dos cambios, decididos con el dato de la operación:
+  //
+  //   1. El arqueo del cajón es `retailOnly`. Sólo registra EFECTIVO (su formulario no
+  //      tiene selector de medio), y en un negocio de servicios como CH el efectivo es el
+  //      28,6% de la plata: es una vista ciega al 71% del flujo, dominada por el cierre
+  //      diario, que arquea los tres medios, congela el día y asienta la diferencia en el
+  //      libro. Para un mostrador con cajón y relevos (carnicería, retail) sí sirve.
+  //      ⚠️ `retailOnly` es más angosto que "tiene mostrador": gastronomía y `generico`
+  //      también lo pierden. Hoy no hay ningún tenant así; el día que entre una rotisería,
+  //      hay que revisar este eje.
+  //   2. Íconos distintos. Tres ítems seguidos con el mismo ícono no se distinguen de un
+  //      vistazo, que es como se lee un menú.
+  { href: "/admin/caja", label: "Arqueo de cajón", icon: "caja", cap: "orders:read", module: "pos", retailOnly: true, alias: ["fondo inicial", "contar el cajón", "efectivo del mostrador", "relevo"] },
+  { href: "/admin/caja/libro", label: "Libro de caja", icon: "contabilidad", cap: "orders:read", module: "pos", alias: ["planilla", "excel", "google sheets", "caja diaria", "ingresos y egresos", "mensual", "saldo"] },
+  { href: "/admin/caja/cierre", label: "Cierre del día", icon: "caja", cap: "orders:read", module: "pos", alias: ["cerrar la caja", "cierre de caja", "arqueo del día", "contar la plata", "diferencia de caja", "cuadrar", "cobrar"] },
   { href: "/admin/catalogo", label: "Catálogo", icon: "catalogo", cap: "catalog:manage", module: "catalog", alias: ["servicios", "precios", "productos", "tratamientos", "profesionales", "horarios"] },
   { href: "/admin/compras", label: "Compras", icon: "compras", cap: "catalog:manage", module: "catalog", alias: ["proveedores", "reposicion", "remitos"] },
   { href: "/admin/inventario", label: "Inventario", icon: "inventario", cap: "catalog:read", module: "catalog", retailOnly: true, alias: ["stock", "existencias"] },

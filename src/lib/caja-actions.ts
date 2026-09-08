@@ -255,6 +255,14 @@ export async function closeCashSession(
   const note = String(formData.get("note") || "").trim() || null;
   const actor = `user:${user.id}`;
 
+  // También al CERRAR. La primera pasada de esta guarda cubrió los dos caminos que
+  // escriben un `CashMovement` (abrir y registrar), y el cierre del turno no escribe
+  // ninguno — pero congela `closingDiff` en la sesión, o sea deja un SEGUNDO faltante
+  // declarado sobre un día que el libro ya dio por contado, y que ningún libro lee.
+  // Es el defecto de la planilla —el faltante anotado al margen— con otra ropa.
+  const diaCerrado = await rechazarSiElDiaEstaCerrado(tenantId);
+  if (diaCerrado) return diaCerrado;
+
   let result: { id: string } & ReturnType<typeof reconcileCash>;
   try {
     result = await tenantTransaction(async (tx) => {

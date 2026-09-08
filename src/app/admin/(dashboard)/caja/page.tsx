@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getCajaData } from "@/lib/caja-actions";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { isDemoSandbox } from "@/lib/demo-flag";
 import { fmtShortDate } from "@/lib/datetime";
 import {
   expectedCash,
@@ -13,6 +16,23 @@ import { CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { OpenCajaForm, AddMovementForm, CloseCajaForm } from "./CajaForms";
 
 export const dynamic = "force-dynamic";
+
+// El arqueo del CAJÓN es de mostrador con relevos: sólo registra efectivo, y en un negocio
+// de servicios eso es una fracción chica de la plata. Para esos tenants el arqueo que
+// corresponde es el CIERRE DEL DÍA, que cuenta los tres medios. El ítem ya está oculto del
+// menú (`retailOnly`), pero la URL tecleada o un marcador viejo tienen que aterrizar en
+// algo útil, no en una pantalla que no les sirve.
+//
+// El corto en demo NO es opcional: en el sandbox no existe una fila `Tenant` para el
+// tenant de demo, así que `getCurrentTenantRubro()` devuelve isRetail=false para TODOS los
+// rubros — y `/probar` manda acá a todo rubro que no sea agenda (carnicería, gastronomía).
+// Sin este corto, la demo pública de esos rubros aterrizaría en el cierre. Lo encontró la
+// validación adversarial de la decisión, no el diseño.
+async function redirigirSiNoTieneCajon() {
+  if (isDemoSandbox()) return;
+  const rubro = await getCurrentTenantRubro();
+  if (!rubro.isRetail) redirect("/admin/caja/cierre");
+}
 
 
 const MOVEMENT_LABEL: Record<string, string> = {
@@ -41,6 +61,7 @@ function movementSignLabel(type: string): "+" | "−" | "" {
 }
 
 export default async function CajaPage() {
+  await redirigirSiNoTieneCajon();
   // getCajaData aplica requireCapability("orders:read") — guard de la página.
   const { open, recentClosed } = await getCajaData();
 

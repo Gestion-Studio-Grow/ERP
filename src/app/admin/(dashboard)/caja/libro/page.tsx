@@ -22,6 +22,7 @@ import {
   type MethodAmounts,
 } from "@/lib/caja/libro-caja";
 import { todayInBusinessTz } from "@/lib/datetime";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { isFrozenDay, nextDayKey } from "@/lib/caja/cierre-diario";
 import {
   Card,
@@ -64,6 +65,7 @@ export default async function LibroCajaPage({
   // getLibroCajaData aplica requireCapability("orders:read") — guard de la página.
   // Un ?mes inválido cae al mes corriente en vez de romper.
   const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = await getLibroCajaData(mes);
+  const esRetail = (await getCurrentTenantRubro()).isRetail;
   const duplicados = new Set(posiblesDuplicados);
 
   const prev = shiftMonth(year, month, -1);
@@ -96,9 +98,18 @@ export default async function LibroCajaPage({
             >
               Descargar el mes (CSV)
             </a>
-            <Link href="/admin/caja" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
-              Ir al arqueo del mostrador
+            {/* El paso final del día es CERRAR, y desde acá no se llegaba: el único link
+                era al arqueo del mostrador, que para un negocio de servicios redirige. Se
+                invierte. El link al arqueo queda sólo para quien tiene cajón (retail); si
+                no, llevaría a una redirección con el rótulo equivocado. */}
+            <Link href="/admin/caja/cierre" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
+              Cerrar el día →
             </Link>
+            {esRetail && (
+              <Link href="/admin/caja" className="text-sm text-muted underline underline-offset-4 hover:text-strong">
+                Ir al arqueo del mostrador
+              </Link>
+            )}
           </div>
         }
       />
