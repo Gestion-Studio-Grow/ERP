@@ -157,18 +157,40 @@ function imprimirPasada(r, { compacto = false } = {}) {
   if (mejorSpot) say(curvaTexto(mejorSpot, r));
 
   // ARS.
-  if (r.contexto.ars) say(arsTexto());
+  if (r.ctx?.ars) say(arsTexto(r.ctx.ars));
   say('');
 }
 
+/** Curva de derrumbe (top-of-book vs ejecutable vs piso de costo) del cruce spot más tentador. */
 function curvaTexto(op, r) {
-  const [a, b] = op.ruta.split(' → ');
-  return `\n📉 Derrumbe del spread por profundidad — ${op.par} ${op.ruta} (top-of-book vs ejecutable):\n` +
-    '   (se calcula con los libros de la pasada; ver la curva completa en la consola web)\n' +
+  const cab = `\n📉 Derrumbe del spread por profundidad — ${op.par} ${op.ruta} (top-of-book vs ejecutable):\n` +
     `   spread top ${pct(op.spreadTop)} → ejecutable a ${usd(op.nocional, 0)}: ${pct(op.spreadEjecutable)} → piso de costo ${pct(op.costos.totalConImpuesto)} → neto ${pct(op.neto)}`;
+  const c = r.curvas?.[0];
+  if (!c) return cab;
+  return `${cab}\n   Cruce más tentador de la pasada: ${c.par} ${c.ruta}\n` + tabla(c.puntos, [
+    { titulo: 'Nocional', clave: 'nocional', der: true, f: (v) => usd(v, 0) },
+    { titulo: 'Spread top', clave: 'spreadTop', der: true, f: (v) => pct(v) },
+    { titulo: 'Ejecutable', clave: 'spreadEjecutable', der: true, f: (v) => pct(v) },
+    { titulo: 'Slippage', clave: 'slippage', der: true, f: (v) => pct(v) },
+    { titulo: 'Piso de costo', clave: 'pisoCosto', der: true, f: (v) => pct(v) },
+    { titulo: 'Libro alcanza', clave: 'completo', f: (v) => (v ? 'sí' : 'no') },
+  ]).replace(/^/gm, '   ');
 }
 
-function arsTexto() { return '\n🇦🇷 USDT/ARS: ver `--json` o la consola web para el detalle por plataforma y el premium vs oficial.'; }
+function arsTexto(ars) {
+  const s = resumenArs(ars);
+  if (!s) return '';
+  const cab = `\n🇦🇷 USDT/ARS por plataforma (${ars.origen}) — publicado vs con comisiones · dólar oficial BNA venta ${num(s.oficialVenta)}:\n` +
+    `   premium del mejor bid USDT vs oficial: ${pct(s.premiumVsOficial, 2)}   (si es ≈ 0, el "rulo" no existe; el brief dice ≈ 0, la foto del 08/09 dijo +2,6 %: por eso se mide)\n`;
+  return cab + tabla(s.filas, [
+    { titulo: 'Plataforma', clave: 'plataforma' },
+    { titulo: 'Compra publ.', clave: 'ask', der: true, f: (v) => num(v) },
+    { titulo: 'Compra total', clave: 'totalAsk', der: true, f: (v) => num(v) },
+    { titulo: 'Venta publ.', clave: 'bid', der: true, f: (v) => num(v) },
+    { titulo: 'Venta total', clave: 'totalBid', der: true, f: (v) => num(v) },
+    { titulo: 'Spread efectivo', clave: 'spreadEfectivo', der: true, f: (v) => pct(v, 2) },
+  ]).replace(/^/gm, '   ');
+}
 
 function fecha(ts) { return ts ? new Date(ts).toLocaleString('es-AR') : '—'; }
 

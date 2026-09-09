@@ -4,6 +4,10 @@
  * Todos los valores son FRACCIONES (0.001 = 0,10 %). Configurables por objeto,
  * con la fuente anotada al lado de cada número. Verificados para 2026.
  *
+ * FUENTE DE REGISTRO: docs/MODELO-DE-COSTOS.md (tabla de fricciones con fuente y fecha,
+ * corte 08/09/2026). Lo que ahí figura como SIN VERIFICAR se marca acá igual y NO habilita
+ * capital: lo tiene que medir esta consola (docs/ANALISIS-FACTIBILIDAD.md §7).
+ *
  * Regla de la casa: el costo se muestra SIEMPRE desagregado y al lado del spread
  * bruto. Un neto sin desglose no sirve como evidencia.
  */
@@ -22,11 +26,13 @@ export const COSTOS = Object.freeze({
       retiroUSDT: 1,        // USD fijo, TRC20
       retiroSeg: 120,       // tiempo típico hasta acreditar (confirmaciones TRC20)
     },
-    // Fuente: kraken.com/features/fee-schedule — spot tier < 50k USD/30d: maker 0,16 % / taker 0,26 %.
+    // Fuente: MODELO-DE-COSTOS.md §1 — Kraken Pro tier base (< USD 10k/30d) desde el 09/07/2026: maker 0,25 % /
+    // taker 0,40 % (Datawallet · blog Kraken jul-2026). Hay conflicto de fuentes (0,40/0,80 en CryptoSlate); el brief
+    // original decía 0,26 %. Se usa 0,40 % (conservador). Retiro USDT: SIN VERIFICAR → se asume USD 1.
     kraken: {
-      spotTaker: 0.0026,
-      spotMaker: 0.0016,
-      retiroUSDT: 1,
+      spotTaker: 0.0040,
+      spotMaker: 0.0025,
+      retiroUSDT: 1,        // SIN VERIFICAR
       retiroSeg: 180,
     },
     // Fuente: bybit.com/en/help-center (fee rates) — spot VIP0 0,10 %; perpetuos maker 0,02 % / taker 0,055 %.
@@ -39,12 +45,13 @@ export const COSTOS = Object.freeze({
       retiroSeg: 120,
     },
     // Fuente: okx.com/fees — spot Lv1 maker 0,08 % / taker 0,10 %; perpetuos maker 0,02 % / taker 0,05 %.
+    // Retiro USDT TRC20: 2,6 USDT según Traders Union vs USD 1 según Eco → se usa 2,6 (conservador, MODELO §2).
     okx: {
       spotTaker: 0.0010,
       spotMaker: 0.0008,
       futMaker: 0.0002,
       futTaker: 0.0005,
-      retiroUSDT: 1,
+      retiroUSDT: 2.6,
       retiroSeg: 120,
     },
     // Fuente: coinbase.com/advanced-fees — Advanced Trade tier base: maker 0,40 % / taker 0,60 %.
@@ -63,11 +70,30 @@ export const COSTOS = Object.freeze({
     spreadEfectivoMin: 0.035,
     spreadEfectivoMax: 0.08,
     spreadEfectivoDefault: 0.05,
-    // Premium USDT/ARS vs dólar oficial. 2022: > 30 % (el "rulo" clásico). 2026: ≈ 0 %.
-    // Fuente: series de dolarapi.com / criptoya vs BCRA A3500 — brecha cripto-oficial < 1 % durante 2025-2026.
-    premiumVsOficial: 0.0,
+    // Premium USDT/ARS vs dólar oficial. 2022: > 30 % (el "rulo" clásico). Brief 2026: ≈ 0 %.
+    // PERO la foto del 08/09/2026 (MODELO §0) dio +2,6 % (Binance P2P) / +3,2 % (Fiwind) vs BNA venta $1.530.
+    // Las dos no pueden ser ciertas en promedio: es la primera variable que la consola mide 30 días (ANÁLISIS §7.5).
+    premiumVsOficial: 0.0,          // supuesto del brief (promedio)
+    premiumMedido20260908: 0.026,   // foto de un día, no promedio
     transferenciaARS: 0,       // CVU/CBU inmediata y gratis para personas físicas
     transferenciaARSSeg: 30,
+    // Volatilidad anualizada del USDT/ARS (proxy del riesgo de que el premium se mueva): SIN VERIFICAR, se asume 8 %.
+    volatilidadAnualARS: 0.08,
+    // Rulo oficial (BNA → USD → exchange → USDT → ARS), fricciones del ciclo (MODELO §6 / ANÁLISIS §4):
+    rulo: {
+      spreadP2PEfectivo: 0.0015,  // el análisis resta 0,15 % de fricción P2P sobre el mejor bid
+      transferenciaUSDBanco: 0,   // SIN VERIFICAR — comisión bancaria de salida de USD
+      conversionUSDaUSDT: 0,      // SIN VERIFICAR — Binance dice "sin comisiones"; spread implícito desconocido
+      impuestoCheque: 0,          // 0 si caja de ahorro de persona humana (exenta, SIN VERIFICAR texto vigente); 0,012 si cuenta corriente
+      cicloHoras: 48,             // riel ARS exchange → banco 24–48 h (CopyTradeInsider 2026)
+      advertencias: [
+        'SIN VERIFICAR: comisión bancaria de transferencia de USD al exchange y spread de la conversión USD→USDT',
+        'SIN VERIFICAR: si la DDJJ de la Com. "A" 8336 (BCRA) alcanza destino cripto → si menciona activos virtuales es 🔴 definitivo',
+        'SIN VERIFICAR: exención de impuesto al cheque en caja de ahorro (si es cuenta corriente: −1,2 % por ciclo)',
+        'Es una FOTO: el premium del 08/09 (+2,6 %) no es un promedio; el brief dice ≈ 0 %. Medir 30 días a las 11:00 y 16:00',
+        'Habilitación (ANÁLISIS §7.5): premium neto ≥ 1,5 % en ≥ 20 de 30 días + profundidad P2P + ciclo de prueba USD 200 + DDJJ + OK contador. Los cinco a la vez',
+      ],
+    },
   },
 
   impuestos: {

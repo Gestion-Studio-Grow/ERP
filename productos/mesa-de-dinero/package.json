@@ -1,0 +1,25 @@
+{
+  "name": "@gsg/mesa-de-dinero",
+  "version": "0.1.0",
+  "description": "Consola de falsación de estrategias de arbitraje cripto: mide con datos reales cuántas oportunidades sobreviven al modelo de costos completo. Solo lectura de mercado, modo papel. No opera.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "bin": { "mesa": "bin/mesa.mjs" },
+  "scripts": {
+    "scan": "node bin/mesa.mjs scan",
+    "watch": "node bin/mesa.mjs watch --intervalo 10",
+    "serve": "node bin/mesa.mjs serve --puerto 8787",
+    "reporte": "node bin/mesa.mjs reporte",
+    "test": "node --test test/",
+    "fixtures": "node test/fixtures/generar.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "metadata": {
+    "generator": "Gestión Studio Grow",
+    "modo": "paper",
+    "opera": false
+  },
+  "license": "UNLICENSED"
+}

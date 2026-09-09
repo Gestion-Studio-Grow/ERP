@@ -15,7 +15,8 @@ import { curvaSpread, NOCIONALES_CURVA } from './profundidad.mjs';
 
 export const ESTRATEGIAS = Object.freeze({ 'cex-cex': cexCex, triangular, funding, ars });
 export const PARES_DEFAULT = Object.freeze(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ETH/BTC']);
-export const NOCIONALES_DEFAULT = Object.freeze([100, 1_000, 10_000]);
+// Clips del contrato de medición (ANÁLISIS §7.1): USD 500 / 2.500 / 5.000; 10.000 para ver el derrumbe.
+export const NOCIONALES_DEFAULT = Object.freeze([500, 2_500, 5_000, 10_000]);
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 

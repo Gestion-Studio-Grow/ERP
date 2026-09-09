@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Gestión Studio Grow">
+<title>Mesa de Dinero · consola de falsación</title>
+<style>
+  :root {
+    color-scheme: light;
+    --fondo: #f7f7f5; --superficie: #ffffff; --borde: #d6d6d1;
+    --tinta: #141414; --tinta-2: #4f4f4b; --tinta-3: #6e6e69;
+    --acento: #1c5cab; --acento-tinta: #ffffff; --foco: #1c5cab;
+    --ok-fondo: #e3f5ec; --ok-tinta: #0b5a34;
+    --warn-fondo: #fff3d6; --warn-tinta: #6b4a00;
+    --mal-fondo: #fde4e4; --mal-tinta: #8a1c1c;
+    --serie-1: #2a78d6; --serie-2: #eb6834; --serie-3: #1baf7a; --grilla: #e6e6e2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --fondo: #141413; --superficie: #1f1f1d; --borde: #3a3a37;
+      --tinta: #f2f2ee; --tinta-2: #c6c6bf; --tinta-3: #a3a39b;
+      --acento: #6ea6f0; --acento-tinta: #0d1b2e; --foco: #9cc4ff;
+      --ok-fondo: #143524; --ok-tinta: #9fe3bf;
+      --warn-fondo: #3d2f0a; --warn-tinta: #ffd77a;
+      --mal-fondo: #421818; --mal-tinta: #ffb3b3;
+      --serie-1: #3987e5; --serie-2: #d95926; --serie-3: #199e70; --grilla: #33332f;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --fondo: #141413; --superficie: #1f1f1d; --borde: #3a3a37;
+    --tinta: #f2f2ee; --tinta-2: #c6c6bf; --tinta-3: #a3a39b;
+    --acento: #6ea6f0; --acento-tinta: #0d1b2e; --foco: #9cc4ff;
+    --ok-fondo: #143524; --ok-tinta: #9fe3bf;
+    --warn-fondo: #3d2f0a; --warn-tinta: #ffd77a;
+    --mal-fondo: #421818; --mal-tinta: #ffb3b3;
+    --serie-1: #3987e5; --serie-2: #d95926; --serie-3: #199e70; --grilla: #33332f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--tinta); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--acento); }
+  :focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--superficie); padding: 8px 12px; border: 1px solid var(--borde); z-index: 10; }
+  .skip:focus { left: 8px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--borde); background: var(--superficie); }
+  header h1 { font-size: 1.15rem; margin: 0; }
+  .etiqueta { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; border: 1px solid transparent; }
+  .etiqueta.papel { background: var(--warn-fondo); color: var(--warn-tinta); }
+  .etiqueta.fixture { background: var(--mal-fondo); color: var(--mal-tinta); }
+  .etiqueta.red { background: var(--ok-fondo); color: var(--ok-tinta); }
+  main { max-width: 1240px; margin: 0 auto; padding: 18px 20px 60px; display: grid; gap: 18px; }
+  section { background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; padding: 16px 18px; }
+  section h2 { font-size: 1rem; margin: 0 0 10px; }
+  .intro { color: var(--tinta-2); margin: 0 0 6px; }
+  form.controles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px 18px; align-items: end; }
+  fieldset { border: 1px solid var(--borde); border-radius: 8px; padding: 8px 12px; margin: 0; min-width: 0; }
+  legend { font-size: .85rem; color: var(--tinta-2); padding: 0 4px; }
+  label { display: block; font-size: .9rem; }
+  label.inline { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+  input[type=text], input[type=number] { width: 100%; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 6px; background: var(--fondo); color: var(--tinta); font: inherit; }
+  button { font: inherit; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--borde); background: var(--superficie); color: var(--tinta); cursor: pointer; }
+  button.primario { background: var(--acento); color: var(--acento-tinta); border-color: var(--acento); font-weight: 600; }
+  button[disabled] { opacity: .6; cursor: progress; }
+  .estado { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--borde); background: var(--fondo); font-size: .92rem; }
+  .estado.alerta { background: var(--mal-fondo); color: var(--mal-tinta); border-color: transparent; }
+  .estado.aviso { background: var(--warn-fondo); color: var(--warn-tinta); border-color: transparent; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .kpi { border: 1px solid var(--borde); border-radius: 10px; padding: 12px 14px; background: var(--fondo); }
+  .kpi .titulo { font-size: .82rem; color: var(--tinta-2); margin: 0; }
+  .kpi .valor { font-size: 1.7rem; font-weight: 700; margin: 2px 0 0; letter-spacing: -.01em; }
+  .kpi .detalle { font-size: .82rem; color: var(--tinta-3); margin: 2px 0 0; }
+  .tabla-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; font-variant-numeric: tabular-nums; }
+  caption { text-align: left; color: var(--tinta-2); font-size: .85rem; padding: 0 0 8px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--borde); text-align: left; white-space: nowrap; }
+  th { color: var(--tinta-2); font-weight: 600; position: sticky; top: 0; background: var(--superficie); }
+  td.num, th.num { text-align: right; }
+  .ver { font-weight: 600; }
+  .ver.sobrevive { color: var(--ok-tinta); } .ver.marginal { color: var(--warn-tinta); } .ver.muere { color: var(--mal-tinta); }
+  .neg { color: var(--mal-tinta); }
+  .grafico-wrap { position: relative; }
+  svg.grafico { width: 100%; height: auto; display: block; background: var(--superficie); }
+  .grafico text { fill: var(--tinta-2); font-size: 12px; }
+  .grafico .grilla line { stroke: var(--grilla); stroke-width: 1; }
+  .grafico .eje line, .grafico .eje path { stroke: var(--borde); }
+  .grafico .linea { fill: none; stroke-width: 2; stroke-linejoin: round; }
+  .grafico .punto { r: 4; stroke: var(--superficie); stroke-width: 2; }
+  .grafico .cursor { stroke: var(--tinta-3); stroke-dasharray: 3 3; }
+  .leyenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: .85rem; margin: 8px 0 0; padding: 0; list-style: none; }
+  .leyenda li { display: inline-flex; align-items: center; gap: 6px; }
+  .muestra { width: 18px; height: 3px; border-radius: 2px; display: inline-block; }
+  .tooltip { position: absolute; pointer-events: none; background: var(--superficie); border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; font-size: .82rem; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 180px; }
+  .fila-controles { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+  select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--borde); background: var(--fondo); color: var(--tinta); }
+  footer { text-align: center; color: var(--tinta-3); font-size: .8rem; padding: 18px; }
+  .vis-oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 640px) { header { padding: 12px 14px; } main { padding: 12px 12px 40px; } .kpi .valor { font-size: 1.4rem; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#principal">Saltar al contenido</a>
+<header>
+  <div>
+    <h1>🏦 Mesa de Dinero <span class="vis-oculto">— </span><span style="font-weight:400;color:var(--tinta-2)">consola de falsación</span></h1>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <span class="etiqueta papel" title="Solo lectura de mercado. Nunca opera.">MODO PAPEL · no opera</span>
+    <span class="etiqueta" id="origen-datos" aria-live="polite">datos: —</span>
+    <button type="button" id="tema" aria-pressed="false">🌙 Tema oscuro</button>
+  </div>
+</header>
+
+<main id="principal">
+  <section aria-labelledby="t-intro">
+    <h2 id="t-intro">Qué mide esto</h2>
+    <p class="intro">Esto <strong>no promete ganar plata</strong>. Es una máquina para matar estrategias con datos reales: mira el spread bruto que un amateur vería, le resta el <strong>modelo de costos completo</strong> (comisiones, slippage por profundidad, retiro, riesgo de traslado, impuesto) y vuelve a chequear a los N ms si la oportunidad sigue viva. Si casi nada sobrevive, <em>ese es el resultado</em>.</p>
+    <p class="intro" style="margin:0"><strong>Nunca opera.</strong> Sin API keys, sin órdenes, sin endpoints privados. Si un día se quisiera operar, eso lo decide el dueño.</p>
+  </section>
+
+  <section aria-labelledby="t-controles">
+    <h2 id="t-controles">Correr una pasada</h2>
+    <form class="controles" id="form">
+      <div>
+        <label for="nocionales">Nocionales (USD, separados por coma)</label>
+        <input type="text" id="nocionales" name="nocionales" value="500, 2500, 5000, 10000" inputmode="numeric" autocomplete="off">
+      </div>
+      <div>
+        <label for="recheck">Re-chequeo a los (ms)</label>
+        <input type="number" id="recheck" name="recheck" value="500" min="0" max="10000" step="50">
+      </div>
+      <fieldset>
+        <legend>Estrategias</legend>
+        <label class="inline"><input type="checkbox" name="estrategia" value="cex-cex" checked> CEX↔CEX</label>
+        <label class="inline"><input type="checkbox" name="estrategia" value="triangular" checked> Triangular</label>
+        <label class="inline"><input type="checkbox" name="estrategia" value="funding" checked> Funding</label>
+        <label class="inline"><input type="checkbox" name="estrategia" value="ars" checked> ARS</label>
+      </fieldset>
+      <fieldset id="fs-pares">
+        <legend>Pares</legend>
+      </fieldset>
+      <div>
+        <button type="submit" class="primario" id="btn-scan">▶ Correr pasada</button>
+        <button type="button" id="btn-reporte">📓 Reporte acumulado</button>
+      </div>
+    </form>
+    <p class="estado" id="estado" role="status" aria-live="polite" style="margin:14px 0 0">Listo. Corré una pasada para ver qué sobrevive.</p>
+    <p class="estado alerta" id="error" role="alert" hidden style="margin:10px 0 0"></p>
+  </section>
+
+  <section aria-labelledby="t-kpis">
+    <h2 id="t-kpis">Los tres números que importan</h2>
+    <div class="kpis" id="kpis">
+      <div class="kpi"><p class="titulo">🎯 Tasa de supervivencia</p><p class="valor" id="k-superv">—</p><p class="detalle" id="k-superv-d">netas positivas ÷ brutas observadas</p></div>
+      <div class="kpi"><p class="titulo">👻 Tasa de fantasma</p><p class="valor" id="k-fantasma">—</p><p class="detalle" id="k-fantasma-d">desaparecen al re-chequear</p></div>
+      <div class="kpi"><p class="titulo">🧱 Piso de costo vs spread bruto</p><p class="valor" id="k-piso">—</p><p class="detalle" id="k-piso-d">promedio de las brutas observadas</p></div>
+      <div class="kpi"><p class="titulo">🔎 Combinaciones evaluadas</p><p class="valor" id="k-comb">—</p><p class="detalle" id="k-comb-d">de las cuales con bruto &gt; 0</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-tabla">
+    <h2 id="t-tabla">Oportunidades: bruto → costos → neto</h2>
+    <div class="fila-controles">
+      <label for="filtro-ver">Mostrar</label>
+      <select id="filtro-ver"><option value="todas">todas</option><option value="vivas">solo las que no mueren</option><option value="muere">solo las que mueren</option></select>
+      <label for="filtro-estr">Estrategia</label>
+      <select id="filtro-estr"><option value="">todas</option><option value="cex-cex">CEX↔CEX</option><option value="triangular">Triangular</option><option value="funding">Funding</option><option value="ars">ARS</option></select>
+    </div>
+    <div class="tabla-wrap">
+      <table id="tabla">
+        <caption id="tabla-cap">Todavía sin datos.</caption>
+        <thead><tr>
+          <th scope="col">Veredicto</th><th scope="col">Estrategia</th><th scope="col">Par</th><th scope="col">Ruta</th>
+          <th scope="col" class="num">Nocional</th><th scope="col" class="num">Bruto</th><th scope="col" class="num">Comisiones</th><th scope="col" class="num">Slippage</th>
+          <th scope="col" class="num">Retiro</th><th scope="col" class="num">Riesgo traslado</th><th scope="col" class="num">Impuesto</th><th scope="col" class="num">Neto</th><th scope="col" class="num">Neto USD</th><th scope="col">Re-chequeo</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-curva">
+    <h2 id="t-curva">Derrumbe del spread por profundidad</h2>
+    <p class="intro">Spread top-of-book vs spread ejecutable a cada nocional, contra el piso de costo. Cuando la línea naranja cruza por debajo de la verde, la oportunidad murió.</p>
+    <div class="fila-controles">
+      <label for="sel-curva">Cruce</label>
+      <select id="sel-curva"></select>
+    </div>
+    <div class="grafico-wrap" id="grafico-wrap">
+      <svg class="grafico" id="grafico" viewBox="0 0 900 340" role="img" aria-labelledby="grafico-titulo grafico-desc">
+        <title id="grafico-titulo">Spread ejecutable vs nocional</title>
+        <desc id="grafico-desc">Curva del spread top-of-book, el spread ejecutable barriendo el libro, y el piso de costo, para nocionales de 100 a 250.000 dólares.</desc>
+      </svg>
+    </div>
+    <ul class="leyenda" aria-label="Leyenda">
+      <li><span class="muestra" style="background:var(--serie-1)"></span> Spread top-of-book</li>
+      <li><span class="muestra" style="background:var(--serie-2)"></span> Spread ejecutable (VWAP)</li>
+      <li><span class="muestra" style="background:var(--serie-3)"></span> Piso de costo</li>
+    </ul>
+    <details style="margin-top:10px"><summary>Ver como tabla</summary>
+      <div class="tabla-wrap"><table id="tabla-curva"><caption>Puntos de la curva</caption><thead><tr><th scope="col" class="num">Nocional</th><th scope="col" class="num">Spread top</th><th scope="col" class="num">Ejecutable</th><th scope="col" class="num">Slippage</th><th scope="col" class="num">Piso de costo</th><th scope="col">Libro alcanza</th></tr></thead><tbody></tbody></table></div>
+    </details>
+  </section>
+
+  <section aria-labelledby="t-funding">
+    <h2 id="t-funding">Cash &amp; carry: cuántos días hay que aguantar para pagar los costos</h2>
+    <p class="intro">Break-even = round-trip ÷ funding diario. Referencia: con 0,28 % de round-trip y funding neutro 0,01 %/8h → 9,3 días. ⚠️ El funding no es fijo: si se da vuelta, la posición paga.</p>
+    <div class="tabla-wrap"><table id="tabla-funding"><caption>Por venue y par (nocional más chico)</caption><thead><tr><th scope="col">Venue</th><th scope="col">Par</th><th scope="col" class="num">Funding 8h</th><th scope="col" class="num">Anualizado</th><th scope="col" class="num">Round-trip</th><th scope="col" class="num">Break-even</th><th scope="col" class="num">Neto a horizonte</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section aria-labelledby="t-ars">
+    <h2 id="t-ars">🇦🇷 USDT/ARS entre plataformas argentinas</h2>
+    <p class="intro" id="ars-resumen">Sin datos todavía.</p>
+    <div class="tabla-wrap"><table id="tabla-ars"><caption>Precio publicado vs precio con comisiones</caption><thead><tr><th scope="col">Plataforma</th><th scope="col" class="num">Compra (publicado)</th><th scope="col" class="num">Compra (total)</th><th scope="col" class="num">Venta (publicado)</th><th scope="col" class="num">Venta (total)</th><th scope="col" class="num">Spread efectivo</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section aria-labelledby="t-reporte" id="sec-reporte" hidden>
+    <h2 id="t-reporte">📓 Reporte acumulado (JSONL)</h2>
+    <div class="tabla-wrap"><table id="tabla-reporte"><caption id="reporte-cap"></caption><thead><tr><th scope="col">Estrategia</th><th scope="col" class="num">Brutas</th><th scope="col" class="num">Sobreviven</th><th scope="col" class="num">Supervivencia</th><th scope="col" class="num">Fantasma</th><th scope="col" class="num">Bruto prom.</th><th scope="col" class="num">Piso costo prom.</th><th scope="col" class="num">Mejor neto</th></tr></thead><tbody></tbody></table></div>
+  </section>
+</main>
+
+<footer>Consola de falsación · modo papel · <span>Gestión Studio Grow</span></footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const pct = (x, d = 3) => Number.isFinite(x) ? (x * 100).toFixed(d).replace('.', ',') + ' %' : '—';
+  const usd = (x, d = 0) => Number.isFinite(x) ? 'USD ' + x.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+  const num = (x, d = 2) => Number.isFinite(x) ? x.toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+  const EMOJI = { sobrevive: '🟢', marginal: '🟡', muere: '🔴' };
+  const N = (v) => (v === null ? NaN : v);
+  let ultima = null;
+
+  // Tema: sigue al sistema, el botón lo fuerza y lo recuerda.
+  const raiz = document.documentElement, btnTema = $('#tema');
+  function aplicarTema(t) {
+    if (t) raiz.dataset.theme = t; else delete raiz.dataset.theme;
+    const oscuro = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    btnTema.textContent = oscuro ? '☀️ Tema claro' : '🌙 Tema oscuro';
+    btnTema.setAttribute('aria-pressed', String(oscuro));
+    try { t ? localStorage.setItem('mesa-tema', t) : localStorage.removeItem('mesa-tema'); } catch {}
+  }
+  try { aplicarTema(localStorage.getItem('mesa-tema') || null); } catch { aplicarTema(null); }
+  btnTema.addEventListener('click', () => aplicarTema(btnTema.getAttribute('aria-pressed') === 'true' ? 'light' : 'dark'));
+
+  const estado = $('#estado'), error = $('#error');
+  function avisar(msg, tipo = '') { estado.textContent = msg; estado.className = 'estado ' + tipo; }
+  function fallar(msg) { error.textContent = msg; error.hidden = false; }
+  function limpiarError() { error.hidden = true; error.textContent = ''; }
+
+  async function api(ruta, opts) {
+    const r = await fetch(ruta, opts);
+    const j = await r.json().catch(() => ({ error: 'respuesta no válida' }));
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    return j;
+  }
+
+  function pintarOrigen(red) {
+    const el = $('#origen-datos');
+    if (!red) return;
+    if (red.redCaida) { el.textContent = 'datos: fixtures (sin salida de red)'; el.className = 'etiqueta fixture'; el.title = red.motivo || ''; }
+    else { el.textContent = 'datos: red (market data público)'; el.className = 'etiqueta red'; el.title = ''; }
+  }
+
+  async function cargarEstado() {
+    try {
+      const e = await api('/api/estado');
+      pintarOrigen(e.red);
+      const fs = $('#fs-pares');
+      for (const p of e.defaults.pares) {
+        const id = 'par-' + p.replace('/', '-');
+        const l = document.createElement('label'); l.className = 'inline';
+        l.innerHTML = '<input type="checkbox" name="par" value="' + p + '" id="' + id + '" checked> ' + p;
+        fs.appendChild(l);
+      }
+      if (e.ultima) pintar(e.ultima);
+    } catch (err) { fallar('No pude leer el estado del servidor: ' + err.message); }
+  }
+
+  $('#form').addEventListener('submit', async (ev) => {
+    ev.preventDefault(); limpiarError();
+    const btn = $('#btn-scan'); btn.disabled = true;
+    avisar('Observando libros, aplicando costos y re-chequeando… (modo papel, no opera)');
+    const nocionales = $('#nocionales').value.split(',').map((s) => Number(s.trim())).filter((n) => n > 0);
+    if (!nocionales.length) { fallar('Poné al menos un nocional válido, por ejemplo 1000.'); btn.disabled = false; return; }
+    const marcados = (n) => [...document.querySelectorAll('input[name=' + n + ']:checked')].map((i) => i.value);
+    try {
+      const r = await api('/api/scan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nocionales, estrategias: marcados('estrategia'), pares: marcados('par'), delayRecheckMs: Number($('#recheck').value) }) });
+      pintar(r);
+      const e = r.estadisticas;
+      avisar('Pasada ' + r.pasada + ' lista en ' + r.duracionMs + ' ms: ' + e.netasPositivas + ' de ' + e.brutas + ' brutas sobreviven al modelo de costos.' + (r.red.redCaida ? ' Datos de fixtures (sin salida de red).' : ''), r.red.redCaida ? 'aviso' : '');
+    } catch (err) { fallar('La pasada falló: ' + err.message); avisar('Hubo un error. Revisá el aviso de arriba.'); }
+    finally { btn.disabled = false; }
+  });
+
+  $('#btn-reporte').addEventListener('click', async () => {
+    limpiarError();
+    try {
+      const e = await api('/api/reporte');
+      const sec = $('#sec-reporte'); sec.hidden = false;
+      $('#reporte-cap').textContent = e.brutas ? (e.pasadas + ' pasadas · ' + e.brutas + ' brutas · supervivencia ' + pct(N(e.tasaSupervivencia), 1) + ' · fantasma ' + pct(N(e.tasaFantasma), 1)) : (e.sinRegistro ? 'El servidor corre sin registro.' : 'Todavía no hay observaciones registradas.');
+      const tb = $('#tabla-reporte tbody'); tb.innerHTML = '';
+      for (const [k, v] of Object.entries(e.porEstrategia || {})) tb.appendChild(fila([k, v.brutas, v.netasPositivas, pct(N(v.tasaSupervivencia), 1), pct(N(v.tasaFantasma), 1), pct(N(v.brutoPromedio)), pct(N(v.pisoCostoPromedio)), pct(N(v.mejorNeto))], [1,2,3,4,5,6,7]));
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) { fallar('No pude leer el reporte: ' + err.message); }
+  });
+
+  function fila(vals, numIdx = [], clases = []) {
+    const tr = document.createElement('tr');
+    vals.forEach((v, i) => { const td = document.createElement('td'); td.textContent = v; if (numIdx.includes(i)) td.className = 'num'; if (clases[i]) td.className += ' ' + clases[i]; tr.appendChild(td); });
+    return tr;
+  }
+
+  function pintar(r) {
+    ultima = r;
+    pintarOrigen(r.red);
+    const e = r.estadisticas;
+    $('#k-superv').textContent = pct(N(e.tasaSupervivencia), 1);
+    $('#k-superv-d').textContent = e.netasPositivas + ' netas positivas de ' + e.brutas + ' brutas observadas';
+    $('#k-fantasma').textContent = Number.isFinite(N(e.tasaFantasma)) ? pct(e.tasaFantasma, 1) : 's/d';
+    $('#k-fantasma-d').textContent = e.recheckeadas ? (e.fantasmas + ' de ' + e.recheckeadas + ' re-chequeadas desaparecieron') : 'nada quedó vivo para re-chequear';
+    $('#k-piso').textContent = pct(N(e.pisoCostoPromedio)) + ' vs ' + pct(N(e.brutoPromedio));
+    $('#k-comb').textContent = String(e.combinacionesEvaluadas ?? '—');
+    $('#k-comb-d').textContent = 'de las cuales ' + e.brutas + ' con bruto > 0';
+    pintarTabla();
+    pintarCurvas(r.curvas || []);
+    pintarFunding(r);
+    pintarArs(r.ars);
+  }
+
+  $('#filtro-ver').addEventListener('change', pintarTabla);
+  $('#filtro-estr').addEventListener('change', pintarTabla);
+  function pintarTabla() {
+    if (!ultima) return;
+    const ver = $('#filtro-ver').value, estr = $('#filtro-estr').value;
+    const ops = ultima.oportunidades.filter((o) => (ver === 'todas' || (ver === 'vivas' ? o.veredicto !== 'muere' : o.veredicto === 'muere')) && (!estr || o.estrategia === estr));
+    const tb = $('#tabla tbody'); tb.innerHTML = '';
+    for (const o of ops.slice(0, 200)) {
+      const rc = o.recheck && o.recheck.hecho ? (o.recheck.fantasma ? '👻 fantasma a ' + o.recheck.delayMs + ' ms' : 'sigue viva (' + pct(o.recheck.neto) + ')') : '—';
+      const tr = fila([EMOJI[o.veredicto] + ' ' + o.veredicto, o.estrategia, o.par, o.ruta, usd(o.nocional), pct(o.bruto), pct(o.costos.comisiones), pct(o.costos.slippage), pct(o.costos.retiro), pct(o.costos.riesgoTraslado), pct(o.costos.impuesto), pct(o.neto), num(o.netoUSD), rc], [4,5,6,7,8,9,10,11,12]);
+      tr.children[0].className = 'ver ' + o.veredicto;
+      if (o.neto < 0) tr.children[11].className += ' neg';
+      tb.appendChild(tr);
+    }
+    $('#tabla-cap').textContent = ops.length ? (ops.length + ' oportunidades (mostrando hasta 200), ordenadas por neto. Pasada ' + ultima.pasada + '.') : 'Ni una sola oportunidad bruta con estos filtros. Eso también es un dato.';
+  }
+
+  // ---- Curva ----
+  let curvas = [];
+  $('#sel-curva').addEventListener('change', () => dibujarCurva(curvas[Number($('#sel-curva').value)]));
+  function pintarCurvas(cs) {
+    curvas = cs;
+    const sel = $('#sel-curva'); sel.innerHTML = '';
+    cs.forEach((c, i) => { const o = document.createElement('option'); o.value = i; o.textContent = c.par + ' · ' + c.ruta; sel.appendChild(o); });
+    dibujarCurva(cs[0]);
+  }
+  function dibujarCurva(c) {
+    const svg = $('#grafico');
+    [...svg.querySelectorAll('g')].forEach((g) => g.remove());
+    const tbody = $('#tabla-curva tbody'); tbody.innerHTML = '';
+    if (!c) { $('#grafico-desc').textContent = 'Sin cruces spot con bruto positivo en esta pasada.'; return; }
+    const W = 900, H = 340, m = { t: 20, r: 30, b: 44, l: 64 };
+    const pts = c.puntos;
+    const xs = pts.map((p) => Math.log10(p.nocional));
+    const ys = pts.flatMap((p) => [p.spreadTop, p.spreadEjecutable, p.pisoCosto]).filter(Number.isFinite);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    let y0 = Math.min(0, ...ys), y1 = Math.max(...ys); const pad = (y1 - y0) * 0.08 || 0.001; y0 -= pad; y1 += pad;
+    const X = (v) => m.l + (Math.log10(v) - x0) / (x1 - x0) * (W - m.l - m.r);
+    const Y = (v) => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+    const ns = 'http://www.w3.org/2000/svg';
+    const el = (t, a = {}) => { const e = document.createElementNS(ns, t); for (const [k, v] of Object.entries(a)) e.setAttribute(k, v); return e; };
+    const grilla = el('g', { class: 'grilla' }), ejes = el('g', { class: 'eje' }), series = el('g'), textos = el('g');
+    const ticksY = 5;
+    for (let i = 0; i <= ticksY; i++) {
+      const v = y0 + (y1 - y0) * i / ticksY, y = Y(v);
+      grilla.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: y, y2: y }));
+      const t = el('text', { x: m.l - 8, y: y + 4, 'text-anchor': 'end' }); t.textContent = pct(v, 2); textos.appendChild(t);
+    }
+    for (const p of pts) { const t = el('text', { x: X(p.nocional), y: H - m.b + 18, 'text-anchor': 'middle' }); t.textContent = p.nocional >= 1000 ? (p.nocional / 1000) + 'k' : p.nocional; textos.appendChild(t); }
+    const tx = el('text', { x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle' }); tx.textContent = 'Nocional (USD, escala log)'; textos.appendChild(tx);
+    if (y0 < 0 && y1 > 0) grilla.appendChild(el('line', { x1: m.l, x2: W - m.r, y1: Y(0), y2: Y(0), style: 'stroke:var(--borde);stroke-width:1.5' }));
+    const linea = (clave, color) => {
+      const d = pts.map((p, i) => (i ? 'L' : 'M') + X(p.nocional) + ',' + Y(p[clave])).join(' ');
+      series.appendChild(el('path', { d, class: 'linea', stroke: color }));
+      for (const p of pts) series.appendChild(el('circle', { cx: X(p.nocional), cy: Y(p[clave]), class: 'punto', fill: color }));
+    };
+    linea('spreadTop', 'var(--serie-1)'); linea('spreadEjecutable', 'var(--serie-2)'); linea('pisoCosto', 'var(--serie-3)');
+    const et = (clave, texto, color) => { const p = pts[pts.length - 1]; const t = el('text', { x: X(p.nocional) + 6, y: Y(p[clave]) + 4, style: 'fill:' + color + ';font-weight:600' }); t.textContent = texto; textos.appendChild(t); };
+    et('pisoCosto', 'costo', 'var(--serie-3)');
+    svg.append(grilla, ejes, series, textos);
+    $('#grafico-desc').textContent = c.par + ' ' + c.ruta + ': spread top ' + pct(pts[0].spreadTop) + '; ejecutable a ' + usd(pts[pts.length - 1].nocional) + ' ' + pct(pts[pts.length - 1].spreadEjecutable) + '; piso de costo a 1.000 USD ' + pct(pts.find((p) => p.nocional === 1000)?.pisoCosto ?? pts[0].pisoCosto) + '.';
+
+    // Hover: crosshair + tooltip.
+    const wrap = $('#grafico-wrap'); let tip = wrap.querySelector('.tooltip'); if (!tip) { tip = document.createElement('div'); tip.className = 'tooltip'; tip.hidden = true; tip.setAttribute('role', 'status'); wrap.appendChild(tip); }
+    const cursor = el('line', { class: 'cursor', y1: m.t, y2: H - m.b, x1: 0, x2: 0 }); cursor.style.display = 'none'; series.appendChild(cursor);
+    svg.onmousemove = (ev) => {
+      const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) * W / r.width;
+      let mejor = pts[0], dist = Infinity; for (const p of pts) { const d = Math.abs(X(p.nocional) - px); if (d < dist) { dist = d; mejor = p; } }
+      cursor.setAttribute('x1', X(mejor.nocional)); cursor.setAttribute('x2', X(mejor.nocional)); cursor.style.display = '';
+      tip.hidden = false; tip.innerHTML = '<strong>' + usd(mejor.nocional) + '</strong><br>top: ' + pct(mejor.spreadTop) + '<br>ejecutable: ' + pct(mejor.spreadEjecutable) + '<br>piso de costo: ' + pct(mejor.pisoCosto) + (mejor.completo ? '' : '<br>⚠️ el libro no alcanza');
+      const left = Math.min(X(mejor.nocional) / W * r.width + 12, r.width - 200); tip.style.left = left + 'px'; tip.style.top = '12px';
+    };
+    svg.onmouseleave = () => { cursor.style.display = 'none'; tip.hidden = true; };
+    for (const p of pts) tbody.appendChild(fila([usd(p.nocional), pct(p.spreadTop), pct(p.spreadEjecutable), pct(p.slippage), pct(p.pisoCosto), p.completo ? 'sí' : 'no'], [0,1,2,3,4]));
+  }
+
+  function pintarFunding(r) {
+    const tb = $('#tabla-funding tbody'); tb.innerHTML = '';
+    const n0 = r.contexto.nocionales[0];
+    const ops = r.oportunidades.filter((o) => o.estrategia === 'funding' && o.nocional === n0);
+    for (const o of ops) tb.appendChild(fila([o.ruta.split(':')[0], o.par, pct(o.detalle.tasa8h, 4), pct(o.detalle.fundingAnualizado, 1), pct(o.detalle.roundTrip), Number.isFinite(o.detalle.breakEvenDias) ? o.detalle.breakEvenDias.toFixed(1).replace('.', ',') + ' días' : '∞', pct(o.neto) + ' (' + o.detalle.horizonteDias + ' d)'], [2,3,4,5,6]));
+    if (!ops.length) tb.appendChild(fila(['sin datos de funding en esta pasada', '', '', '', '', '', '']));
+  }
+
+  function pintarArs(a) {
+    const tb = $('#tabla-ars tbody'); tb.innerHTML = '';
+    if (!a) { $('#ars-resumen').textContent = 'Sin datos ARS en esta pasada.'; return; }
+    $('#ars-resumen').textContent = 'Mejor compra: ' + a.mejorCompra.plataforma + ' a ' + num(a.mejorCompra.totalAsk) + ' ARS · mejor venta: ' + a.mejorVenta.plataforma + ' a ' + num(a.mejorVenta.totalBid) + ' ARS · premium del USDT vs dólar oficial (' + num(a.oficialVenta) + '): ' + pct(a.premiumVsOficial, 2) + '. Si el premium es ≈ 0, el "rulo" no existe.';
+    for (const f of a.filas) tb.appendChild(fila([f.plataforma, num(f.ask), num(f.totalAsk), num(f.bid), num(f.totalBid), pct(f.spreadEfectivo, 2)], [1,2,3,4,5]));
+  }
+
+  cargarEstado();
+})();
+</script>
+</body>
+</html>
