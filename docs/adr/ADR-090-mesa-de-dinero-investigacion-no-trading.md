@@ -44,11 +44,15 @@ una célula inútil.
    titulares son **tasa de supervivencia**, **tasa de fantasma** y **spread ejecutable vs nocional** — no
    "ganancia encontrada". **Matar una estrategia con aritmética es producir valor**; un ciclo que concluye
    "ninguna sobrevive" es un ciclo exitoso.
-4. **Centro de gravedad en Opus, al revés que el resto de la factory.** El criterio de `CLAUDE.md` §2
-   (*¿es caro de revertir, toca plata?*) da **sí** en casi toda la mesa: `mesa-dinero-orquestador`,
-   `mesa-costos`, `mesa-riesgo` y `mesa-falsacion` van en Opus; solo `mesa-cuant` y `mesa-datos` (formular
-   y cablear, ambos reversibles) van en Sonnet. **`mesa-falsacion` no se degrada de modelo ni en modo
-   `economia`**, por la misma lógica que el Gate (§3).
+4. **En esta mesa NO corre nada en Sonnet: todo en Opus y Fable** — bajada de línea del dueño (2026-09-09).
+   Es una **excepción explícita y acotada** al default de `CLAUDE.md` §2 (Sonnet para toda la ejecución),
+   y se sostiene con el criterio de la propia §2: *¿es caro de revertir, toca plata?* En esta célula la
+   respuesta es **sí en toda la cadena**, así que el default de ahorro no aplica. El reparto es
+   **Opus = juicio · Fable = generación**: `mesa-dinero-orquestador`, `mesa-costos`, `mesa-riesgo`,
+   `mesa-falsacion` y `mesa-cuant` en **Opus**; `mesa-datos` en **Fable** (conectores y consola son
+   generación de código). **`mesa-falsacion` no se degrada de modelo ni en modo `economia`**, por la misma
+   lógica que el Gate (§3). **Alcance: solo esta mesa** — no deroga el default Sonnet del resto de la
+   factory, que sigue vigente.
 5. **Se prestan agentes del pool antes de crear** (ADR-053): `cobro-fiscal`, `seguridad`, `challenger`,
    `auditoria-gsg-gate`, `finops-costo-uso`. Los seis nuevos existen porque ningún rol del pool cubría el
    modelo de fricción de mercado ni la falsación cuantitativa.

@@ -40,9 +40,13 @@ demo a costo cero y solo lectura. El capital es **inversión post-evidencia**, n
 
 ## 3. Roster y capa de modelo
 
-La asignación sigue el criterio de `CLAUDE.md` §2 — *"¿un error acá es caro o difícil de revertir, o toca
-seguridad, plata, arquitectura?"*. En esta mesa **casi todo toca plata y casi todo es irreversible**, así
-que el centro de gravedad está en Opus, al revés que en el resto de la factory.
+**Bajada de línea del dueño (2026-09-09): en esta mesa NO corre nada en Sonnet — todo en Opus y Fable.**
+Es una **excepción explícita** al default de `CLAUDE.md` §2 (Sonnet para toda la ejecución), y se sostiene
+con el criterio de la propia §2: *"¿un error acá es caro o difícil de revertir, o toca seguridad, plata,
+arquitectura?"*. En esta mesa **casi todo toca plata y casi todo es irreversible**, así que la respuesta es
+**sí** en toda la cadena, y el default de ahorro deja de aplicar.
+
+El reparto es **Opus = juicio · Fable = generación**:
 
 | Agente | Capa | Función | Por qué esa capa |
 |---|---|---|---|
@@ -50,8 +54,8 @@ que el centro de gravedad está en Opus, al revés que en el resto de la factory
 | 💸 **mesa-costos** | **Opus** | El piso de fricción: fees, slippage por profundidad, retiros, rieles ARS, impuestos. | **Es donde se pierde la plata.** Un fee mal cargado da vuelta el signo del resultado. |
 | ⚠️ **mesa-riesgo** | **Opus** | Límites, kill switch, escenario de ruina, contraparte. Tiene **veto**. | La pérdida de capital es irreversible y el error de riesgo es silencioso. |
 | ⚔️ **mesa-falsacion** | **Opus** SIEMPRE | Intenta matar cada estrategia. Ninguna se eleva sin su dictamen. | Es el Gate de la mesa: **no se degrada de modelo**, ni en modo `economia` (misma lógica que §3). |
-| 🧮 **mesa-cuant** | Sonnet | Formula la estrategia y su **tesis de edge**. | Formular es barato y reversible; si la hipótesis es mala la mata la falsación. |
-| 🔌 **mesa-datos** | Sonnet | Conectores de solo lectura, normalización de libros, registro. | Cableado acotado y reversible. |
+| 🧮 **mesa-cuant** | **Opus** | Formula la estrategia y su **tesis de edge**. | Distinguir una fricción real de "el mercado es ineficiente" es **juicio**. Una hipótesis mal formulada arrastra a toda la cadena antes de morir. |
+| 🔌 **mesa-datos** | **Fable** | Conectores de solo lectura, normalización de libros, registro. | Es **generación de código** (conectores, consola): el trabajo que el dueño mandó a Fable. El juicio no vive acá. |
 
 ### Prestados del pool (ADR-053 — se prestan, NO se duplican)
 `cobro-fiscal` (ARCA/Ganancias sobre los resultados) · `seguridad` (custodia de claves, superficie de

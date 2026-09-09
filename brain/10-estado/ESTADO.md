@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-09-09 03:52 UTC
+generado_el: 2026-09-09 03:55 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-09-09 03:52 UTC sobre `0476abe`.**
+> ⏱️ **Foto tomada el 2026-09-09 03:55 UTC sobre `88c1805`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,14 +19,15 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/money-desk-orchestrator-agent-s7clku` |
-| HEAD | `0476abe` (2026-09-02) |
-| Árbol | **11 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| HEAD | `88c1805` (2026-09-09) |
+| Árbol | **7 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo |
 
 **Ramas locales (2, más reciente primero):** `claude/money-desk-orchestrator-agent-s7clku` · `main`
 
 **Últimos commits**
 
+- 88c1805 · 2026-09-09 · feat(mesa-dinero): célula de investigación financiera — agentes, charter y ADR-090
 - 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo
 - 922c036 · 2026-09-02 · fix(shine): la etiqueta Desde ya no toca la hairline del pie (Gate B-9)
 - a8850c7 · 2026-09-02 · fix(shine): cierra B-7/B-8 y M-5/M-6/M-7 del re-gate del catálogo
@@ -38,7 +39,6 @@ tags: [brain/estado, fase-0]
 - c488c4c · 2026-09-02 · redesign(shine): reestructura Challenger+referencias — portada tipográfica y carta única numerada
 - b45e634 · 2026-09-01 · fix(shine): alts fieles a las fotos y sincronizados con el src (Gate B-2/O-8/O-9)
 - e19fd05 · 2026-09-01 · fix(shine): height:auto activa el marco 3:2 (Gate B-1) + alts por momento
-- d203901 · 2026-09-01 · redesign(shine): hero editorial — menos carga visual y foto nítida a tamaño honesto
 
 ## Migraciones (Prisma)
 
@@ -57,7 +57,7 @@ tags: [brain/estado, fase-0]
 | Fuente | Volumen |
 |---|---:|
 | Documentos en `docs/` | 302 |
-| Palabras en `docs/` | 431.336 |
+| Palabras en `docs/` | 431.527 |
 | ADRs | 82 |
 | Nodos en el grafo | 87 _(los 82 ADR + 5 enmiendas)_ |
 

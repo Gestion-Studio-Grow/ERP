@@ -32,8 +32,8 @@ tags: [brain/calibracion, brain/roster]
 | [finops-costo-uso](../../.claude/agents/finops-costo-uso.md) | Sonnet (+Opus revisa) | ❌ | FinOps / Costo-Uso de GSG — telemetría de costo y uso de la factory (gasto por célula/modelo, serie temporal, alertas). […] |
 | [growth](../../.claude/agents/growth.md) | Sonnet → Opus (estrategia) | ❌ | Growth / Go-to-market de GSG — adquisición, canal, CAC/ROAS, funnel, retención y posicionamiento, con evidencia real y […] |
 | [mesa-costos](../../.claude/agents/mesa-costos.md) | **Opus** | ✅ | Modelo de costos y fricciones de la Mesa de Dinero de GSG — calcula el PISO que toda estrategia tiene que superar […] |
-| [mesa-cuant](../../.claude/agents/mesa-cuant.md) | **Sonnet** | ✅ | Cuant de la Mesa de Dinero de GSG — formula estrategias de inversión o arbitraje y, sobre todo, su TESIS DE EDGE (por […] |
-| [mesa-datos](../../.claude/agents/mesa-datos.md) | **Sonnet** | ✅ | Ingeniería de datos de mercado de la Mesa de Dinero de GSG — conectores de solo lectura a exchanges reales, […] |
+| [mesa-cuant](../../.claude/agents/mesa-cuant.md) | **Opus** | ✅ | Cuant de la Mesa de Dinero de GSG — formula estrategias de inversión o arbitraje y, sobre todo, su TESIS DE EDGE (por […] |
+| [mesa-datos](../../.claude/agents/mesa-datos.md) | **Fable** | ✅ | Ingeniería de datos de mercado de la Mesa de Dinero de GSG — conectores de solo lectura a exchanges reales, […] |
 | [mesa-dinero-orquestador](../../.claude/agents/mesa-dinero-orquestador.md) | **Opus** SIEMPRE | ✅ | Orquestador de la Mesa de Dinero de GSG — jefe de mesa. Coordina la célula que investiga rentabilidad por inversiones o […] |
 | [mesa-falsacion](../../.claude/agents/mesa-falsacion.md) | **Opus** SIEMPRE | ✅ | Falsación / red-team de la Mesa de Dinero de GSG — su trabajo es MATAR cada estrategia con aritmética y datos reales […] |
 | [mesa-riesgo](../../.claude/agents/mesa-riesgo.md) | **Opus** | ✅ | Riesgo de la Mesa de Dinero de GSG — define límites de posición, kill switch, escenarios de ruina y riesgo de […] |
