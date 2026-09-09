@@ -13,7 +13,7 @@
  * los años de ingeniería en C++/CUDA de los productos comerciales.
  */
 
-import { parseCards, cardToString, rankOf, suitOf, RANKS } from './cards.mjs';
+import { parseCards, rankOf, suitOf, RANKS } from './cards.mjs';
 import { parseRange } from './range.mjs';
 import { evaluar, describirPuntaje } from './evaluator.mjs';
 import { crearMesaShowdown } from './showdown.mjs';
@@ -212,7 +212,9 @@ export function resolverRiver(spot) {
     rangos: { [OOP]: rangoOOP, [IP]: rangoIP },
     pote: spot.pote,
     // La explotabilidad relativa es la cifra honesta: "este solver deja sobre la
-    // mesa un X% del pote". Debajo de ~0,3% del pote se considera resuelto.
+    // mesa un X% del pote". El umbral de ~0,3% para considerarlo resuelto es
+    // criterio PROPIO de GSG para "sirve para estudiar" — no es una convención
+    // citable de la industria, así que no se presenta como tal.
     explotabilidadPorcentualDelPote: (salida.explotabilidad / spot.pote) * 100,
   };
 }

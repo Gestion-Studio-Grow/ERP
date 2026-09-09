@@ -372,7 +372,25 @@ Gate se ve en lo que encontró:
   el aislamiento del pipeline vuelto estructural, el cierre fiscal de este §7, y una ambigüedad que un
   jugador iba a leer mal ("apueste el 76%" → "el 76% de las veces").
 
-Queda pendiente el **re-gate sobre el delta**.
+**Re-gate del delta: APROBADO.** El Gate volvió a correr sobre el commit de correcciones y verificó
+ejecutando, no leyendo: probó diez caminos del CLI (cero stack traces, `exit 1` en los siete de error), y
+—esto es lo que más vale— **demostró por mutación** que el test del BLOCKER 2 ahora sirve: mutiló el
+evaluador en una copia y el test se puso rojo. El test viejo habría pasado en verde con el evaluador roto.
+
+También re-corrió el banco de medición y le dio **160×** y **305×** contra los **162×** y **304×**
+publicados (dentro del ruido de máquina, con explotabilidad idéntica al decimal). Es la definición de
+número reproducible.
+
+Cerró con tres condiciones autocertificables, ya aplicadas: una frase huérfana en el README que dejaba
+dos anchos de rango contradictorios a dos líneas de distancia (481 y 615 — un resto de edición en la
+única sección que no se lo puede permitir), el umbral de 0,3% sin calificar en un comentario de
+`river.mjs`, y un import muerto que había quedado al sacar un re-export.
+
+**El entregable que puede ir a `main` es más honesto que el que entró al Gate:** se le sacó una garantía
+sobrevendida, se le corrigió un número **en contra** del propio interés (49× → 162×, admitiendo tres
+mediciones erradas), y se le quitó un test que compraba confianza sin darla. **El merge a `main` queda
+habilitado pero no ejecutado: lo decide el dueño.** Nada de esto habilita deploy ni toca la DB — los
+Gates 1 y 2 siguen intactos y no aplican.
 
 ---
 

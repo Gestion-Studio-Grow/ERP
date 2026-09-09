@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-09-09 04:34 UTC
+generado_el: 2026-09-09 04:42 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-09-09 04:34 UTC sobre `36e3eba`.**
+> ⏱️ **Foto tomada el 2026-09-09 04:42 UTC sobre `18ccf7a`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,14 +19,15 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/poker-solver-orchestrator-agents-hq26vd` |
-| HEAD | `36e3eba` (2026-09-09) |
-| Árbol | **12 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| HEAD | `18ccf7a` (2026-09-09) |
+| Árbol | **3 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo |
 
 **Ramas locales (2, más reciente primero):** `claude/poker-solver-orchestrator-agents-hq26vd` · `main`
 
 **Últimos commits**
 
+- 18ccf7a · 2026-09-09 · fix(poker-solver): cierra los 2 blockers y los 10 must-fix del Gate
 - 36e3eba · 2026-09-09 · dictamen(poker-solver): no construir el motor, construir la capa de estudio — con PoC que lo sustenta
 - 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo
 - 922c036 · 2026-09-02 · fix(shine): la etiqueta Desde ya no toca la hairline del pie (Gate B-9)
@@ -38,7 +39,6 @@ tags: [brain/estado, fase-0]
 - c8d5e3d · 2026-09-02 · fix(shine): nav visible y clickeable, números AA, aviso que no ocluye (Gate B-1/B-1b/B-2)
 - c488c4c · 2026-09-02 · redesign(shine): reestructura Challenger+referencias — portada tipográfica y carta única numerada
 - b45e634 · 2026-09-01 · fix(shine): alts fieles a las fotos y sincronizados con el src (Gate B-2/O-8/O-9)
-- e19fd05 · 2026-09-01 · fix(shine): height:auto activa el marco 3:2 (Gate B-1) + alts por momento
 
 ## Migraciones (Prisma)
 
@@ -57,7 +57,7 @@ tags: [brain/estado, fase-0]
 | Fuente | Volumen |
 |---|---:|
 | Documentos en `docs/` | 301 |
-| Palabras en `docs/` | 433.780 |
+| Palabras en `docs/` | 434.030 |
 | ADRs | 81 |
 | Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
 

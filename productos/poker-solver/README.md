@@ -70,12 +70,7 @@ De ahí la regla: *si no se midió la explotabilidad, no se puede decir que conv
 
 ---
 
----
-
 ## Rendimiento medido
-
-Peor caso realista, en JavaScript plano y sin dependencias (rangos anchos de 481 combos por lado, árbol
-de 16 nodos de decisión, tres tamaños de apuesta más all-in y una subida):
 
 Todo esto sale de `node bin/medir.mjs`, que está commiteado justamente para que los números se puedan
 **reproducir** en vez de creerlos. Condiciones: Node v22.22.2, 50 corridas de calentamiento del JIT,
