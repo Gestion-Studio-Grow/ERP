@@ -1,0 +1,20 @@
+{
+  "_nota": "Formato calcado de https://criptoya.com/api/usdt/ars/1000 (ask/bid = precio publicado; totalAsk/totalBid = precio con comisiones incluidas). Snapshot sintético 2026: premium USDT/ARS vs oficial ≈ 0 %.",
+  "ts": 1789000000000,
+  "monto": 1000,
+  "usdt": {
+    "binancep2p":   { "ask": 1458.0, "totalAsk": 1458.0, "bid": 1452.0, "totalBid": 1452.0, "time": 1789000000 },
+    "fiwind":       { "ask": 1460.0, "totalAsk": 1460.0, "bid": 1450.0, "totalBid": 1450.0, "time": 1789000000 },
+    "buenbit":      { "ask": 1462.0, "totalAsk": 1470.0, "bid": 1448.0, "totalBid": 1440.0, "time": 1789000000 },
+    "belo":         { "ask": 1465.0, "totalAsk": 1472.0, "bid": 1447.0, "totalBid": 1440.0, "time": 1789000000 },
+    "lemoncash":    { "ask": 1468.0, "totalAsk": 1475.0, "bid": 1445.0, "totalBid": 1438.0, "time": 1789000000 },
+    "ripio":        { "ask": 1470.0, "totalAsk": 1492.0, "bid": 1440.0, "totalBid": 1420.0, "time": 1789000000 },
+    "satoshitango": { "ask": 1475.0, "totalAsk": 1497.0, "bid": 1435.0, "totalBid": 1414.0, "time": 1789000000 }
+  },
+  "dolar": {
+    "oficial": { "compra": 1440.0, "venta": 1460.0 },
+    "mep": 1455.0,
+    "ccl": 1470.0,
+    "blue": { "compra": 1455.0, "venta": 1475.0 }
+  }
+}

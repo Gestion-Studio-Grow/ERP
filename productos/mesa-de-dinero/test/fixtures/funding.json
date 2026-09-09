@@ -1,0 +1,17 @@
+{
+  "_nota": "Tasas de funding de perpetuos USDT-M por 8 h, fracción. Snapshot sintético con valores típicos 2026 (neutro 0,01 %/8 h).",
+  "ts": 1789000000000,
+  "binance": {
+    "BTC/USDT": { "tasa8h": 0.0001, "precioMarca": 104262.0, "precioIndice": 104251.0, "proximoCobroTs": 1789020000000 },
+    "ETH/USDT": { "tasa8h": 0.000085, "precioMarca": 3180.6, "precioIndice": 3180.1, "proximoCobroTs": 1789020000000 },
+    "SOL/USDT": { "tasa8h": 0.00018, "precioMarca": 148.09, "precioIndice": 148.04, "proximoCobroTs": 1789020000000 }
+  },
+  "bybit": {
+    "BTC/USDT": { "tasa8h": 0.0001, "precioMarca": 104258.0, "precioIndice": 104250.0, "proximoCobroTs": 1789020000000 },
+    "ETH/USDT": { "tasa8h": 0.00009, "precioMarca": 3180.9, "precioIndice": 3180.2, "proximoCobroTs": 1789020000000 }
+  },
+  "okx": {
+    "BTC/USDT": { "tasa8h": 0.00012, "precioMarca": 104266.0, "precioIndice": 104252.0, "proximoCobroTs": 1789020000000 },
+    "ETH/USDT": { "tasa8h": 0.00011, "precioMarca": 3181.2, "precioIndice": 3180.3, "proximoCobroTs": 1789020000000 }
+  }
+}

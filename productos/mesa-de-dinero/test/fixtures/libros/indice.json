@@ -1,0 +1,29 @@
+{
+  "binance": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT",
+    "ETH/BTC"
+  ],
+  "kraken": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT"
+  ],
+  "bybit": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT",
+    "ETH/BTC"
+  ],
+  "okx": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT",
+    "ETH/BTC"
+  ],
+  "coinbase": [
+    "BTC/USDT",
+    "ETH/USDT"
+  ]
+}
