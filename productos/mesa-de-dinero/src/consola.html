@@ -321,7 +321,7 @@
     $('#k-superv').textContent = pct(N(e.tasaSupervivencia), 1);
     $('#k-superv-d').textContent = e.netasPositivas + ' netas positivas de ' + e.brutas + ' brutas observadas';
     $('#k-fantasma').textContent = Number.isFinite(N(e.tasaFantasma)) ? pct(e.tasaFantasma, 1) : 's/d';
-    $('#k-fantasma-d').textContent = e.recheckeadas ? (e.fantasmas + ' de ' + e.recheckeadas + ' re-chequeadas desaparecieron') : 'nada quedó vivo para re-chequear';
+    $('#k-fantasma-d').textContent = e.recheckeadas ? (e.fantasmas + ' de ' + e.recheckeadas + ' efímeras re-chequeadas desaparecieron') : 'ninguna oportunidad efímera (spot/triangular) quedó viva para re-chequear';
     $('#k-piso').textContent = pct(N(e.pisoCostoPromedio)) + ' vs ' + pct(N(e.brutoPromedio));
     $('#k-comb').textContent = String(e.combinacionesEvaluadas ?? '—');
     $('#k-comb-d').textContent = 'de las cuales ' + e.brutas + ' con bruto > 0';
@@ -339,7 +339,7 @@
     const ops = ultima.oportunidades.filter((o) => (ver === 'todas' || (ver === 'vivas' ? o.veredicto !== 'muere' : o.veredicto === 'muere')) && (!estr || o.estrategia === estr));
     const tb = $('#tabla tbody'); tb.innerHTML = '';
     for (const o of ops.slice(0, 200)) {
-      const rc = o.recheck && o.recheck.hecho ? (o.recheck.fantasma ? '👻 fantasma a ' + o.recheck.delayMs + ' ms' : 'sigue viva (' + pct(o.recheck.neto) + ')') : '—';
+      const rc = o.recheck && o.recheck.hecho ? (o.recheck.fantasma ? '👻 fantasma a ' + o.recheck.delayMs + ' ms' : 'sigue viva (' + pct(o.recheck.neto) + ')') : (o.recheck && o.recheck.aplica === false ? 'n/a (vive horas/días)' : '—');
       const tr = fila([EMOJI[o.veredicto] + ' ' + o.veredicto, o.estrategia, o.par, o.ruta, usd(o.nocional), pct(o.bruto), pct(o.costos.comisiones), pct(o.costos.slippage), pct(o.costos.retiro), pct(o.costos.riesgoTraslado), pct(o.costos.impuesto), pct(o.neto), num(o.netoUSD), rc], [4,5,6,7,8,9,10,11,12]);
       tr.children[0].className = 'ver ' + o.veredicto;
       if (o.neto < 0) tr.children[11].className += ' neg';

@@ -42,6 +42,7 @@ export function evaluar(ctx) {
           spreadTop: bruto,
           spreadEjecutable: bruto - slippage,
           completo: compra.completo,
+          efimera: false, // vive días: el re-chequeo a ms no mide nada acá
           detalle: {
             tasa8h: f.tasa8h,
             fundingDiario,

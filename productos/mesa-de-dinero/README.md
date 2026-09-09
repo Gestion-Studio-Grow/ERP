@@ -17,7 +17,7 @@
 | Métrica | Qué es |
 |---|---|
 | 🎯 **Tasa de supervivencia** | oportunidades con neto positivo ÷ oportunidades brutas observadas (bruto > 0) |
-| 👻 **Tasa de fantasma** | de las que sobrevivieron, cuántas desaparecen al re-chequear a los N ms |
+| 👻 **Tasa de fantasma** | de las **efímeras** (spot cruzado, triangular, cruce ARS) que sobrevivieron, cuántas desaparecen al re-chequear a los N ms. Funding y rulo oficial viven horas/días: no entran |
 | 🧱 **Piso de costo vs spread bruto** | siempre lado a lado; si el piso es más alto, no hay nada que discutir |
 
 El veredicto por oportunidad es **🟢 sobrevive / 🟡 marginal / 🔴 muere**. No hay "señal de compra".

@@ -11,7 +11,6 @@
 import { crearMercado } from '../src/exchanges.mjs';
 import { correrPasada, crearAcumulador, ESTRATEGIAS, PARES_DEFAULT, NOCIONALES_DEFAULT } from '../src/motor.mjs';
 import { crearRegistro } from '../src/registro.mjs';
-import { curvaSpread } from '../src/profundidad.mjs';
 import { resumenArs } from '../src/estrategias/ars.mjs';
 import { EMOJI_VEREDICTO, COSTOS } from '../src/costos.mjs';
 import { pct, usd, num, dias, tabla } from '../src/formato.mjs';
@@ -102,7 +101,7 @@ function reporte() {
 
 function imprimirTitulares(e) {
   say(`   🎯 Tasa de supervivencia : ${pct(e.tasaSupervivencia, 1)}   (${e.netasPositivas} netas positivas de ${e.brutas} brutas observadas)`);
-  say(`   👻 Tasa de fantasma      : ${Number.isFinite(e.tasaFantasma) ? pct(e.tasaFantasma, 1) : 's/d (nada quedó viva para re-chequear)'}${e.recheckeadas ? `   (${e.fantasmas} de ${e.recheckeadas} re-chequeadas)` : ''}`);
+  say(`   👻 Tasa de fantasma      : ${Number.isFinite(e.tasaFantasma) ? pct(e.tasaFantasma, 1) : 's/d (ninguna efímera —spot/triangular— quedó viva para re-chequear)'}${e.recheckeadas ? `   (${e.fantasmas} de ${e.recheckeadas} re-chequeadas)` : ''}`);
   say(`   🧱 Piso de costo promedio: ${pct(e.pisoCostoPromedio)}   vs   spread bruto promedio: ${pct(e.brutoPromedio)}`);
 }
 
@@ -130,7 +129,7 @@ function imprimirPasada(r, { compacto = false } = {}) {
     { titulo: 'Imp.', clave: 'costos', der: true, f: (c) => pct(c.impuesto) },
     { titulo: 'Neto', clave: 'neto', der: true, f: (v) => pct(v) },
     { titulo: 'Neto USD', clave: 'netoUSD', der: true, f: (v) => num(v) },
-    { titulo: 'Re-chequeo', clave: 'recheck', f: (rc) => (!rc?.hecho ? '—' : rc.fantasma ? `👻 fantasma a ${rc.delayMs} ms` : `sigue viva (${pct(rc.neto)})`) },
+    { titulo: 'Re-chequeo', clave: 'recheck', f: (rc) => (!rc?.hecho ? (rc?.aplica === false ? 'n/a (vive horas/días)' : '—') : rc.fantasma ? `👻 fantasma a ${rc.delayMs} ms` : `sigue viva (${pct(rc.neto)})`) },
   ]));
   if (r.oportunidades.length > filas.length) say(`   … y ${r.oportunidades.length - filas.length} más (todas en el registro JSONL).`);
 
@@ -152,8 +151,8 @@ function imprimirPasada(r, { compacto = false } = {}) {
     say('   ⚠️  el funding no es fijo: si se da vuelta, la posición paga en vez de cobrar.');
   }
 
-  // Curva de derrumbe para el mejor cruce spot.
-  const mejorSpot = r.oportunidades.find((o) => o.estrategia === 'cex-cex');
+  // Curva de derrumbe para el cruce spot más TENTADOR (mayor bruto top-of-book).
+  const mejorSpot = r.oportunidades.filter((o) => o.estrategia === 'cex-cex').sort((a, b) => b.spreadTop - a.spreadTop)[0];
   if (mejorSpot) say(curvaTexto(mejorSpot, r));
 
   // ARS.
@@ -163,11 +162,11 @@ function imprimirPasada(r, { compacto = false } = {}) {
 
 /** Curva de derrumbe (top-of-book vs ejecutable vs piso de costo) del cruce spot más tentador. */
 function curvaTexto(op, r) {
-  const cab = `\n📉 Derrumbe del spread por profundidad — ${op.par} ${op.ruta} (top-of-book vs ejecutable):\n` +
+  const cab = `\n📉 Derrumbe del spread por profundidad — cruce más tentador: ${op.par} ${op.ruta} (top-of-book vs ejecutable):\n` +
     `   spread top ${pct(op.spreadTop)} → ejecutable a ${usd(op.nocional, 0)}: ${pct(op.spreadEjecutable)} → piso de costo ${pct(op.costos.totalConImpuesto)} → neto ${pct(op.neto)}`;
-  const c = r.curvas?.[0];
+  const c = r.curvas?.find((x) => x.par === op.par && x.ruta === op.ruta) ?? r.curvas?.[0];
   if (!c) return cab;
-  return `${cab}\n   Cruce más tentador de la pasada: ${c.par} ${c.ruta}\n` + tabla(c.puntos, [
+  return `${cab}\n` + tabla(c.puntos, [
     { titulo: 'Nocional', clave: 'nocional', der: true, f: (v) => usd(v, 0) },
     { titulo: 'Spread top', clave: 'spreadTop', der: true, f: (v) => pct(v) },
     { titulo: 'Ejecutable', clave: 'spreadEjecutable', der: true, f: (v) => pct(v) },

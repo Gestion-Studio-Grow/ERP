@@ -78,8 +78,9 @@ export async function correrPasada(mercado, {
   const evaluadas = todas.filter((o) => !o.error);
   const oportunidades = evaluadas.filter((o) => o.bruto > 0);
 
-  // Re-chequeo de las que NO murieron: ¿siguen vivas a los N ms?
-  const ganadoras = oportunidades.filter((o) => o.veredicto !== VEREDICTO.MUERE);
+  // Re-chequeo de las EFÍMERAS que NO murieron: ¿siguen vivas a los N ms?
+  // (funding y rulo oficial viven horas/días → efimera:false → no entran a la tasa de fantasma)
+  const ganadoras = oportunidades.filter((o) => o.veredicto !== VEREDICTO.MUERE && o.efimera !== false);
   if (ganadoras.length && delayRecheckMs >= 0) {
     if (delayRecheckMs > 0) await dormir(delayRecheckMs);
     const ctx1 = await armarContexto(mercado, { exchanges, pares, nocionales, costos, opciones, instante: 't1' });
@@ -92,7 +93,7 @@ export async function correrPasada(mercado, {
       g.recheck = { hecho: true, delayMs: delayRecheckMs, neto: r?.neto ?? NaN, veredicto: r?.veredicto ?? 'desaparecio', fantasma };
     }
   }
-  for (const o of oportunidades) if (!o.recheck) o.recheck = { hecho: false };
+  for (const o of oportunidades) if (!o.recheck) o.recheck = { hecho: false, aplica: o.efimera !== false };
 
   oportunidades.sort((a, b) => b.neto - a.neto);
 

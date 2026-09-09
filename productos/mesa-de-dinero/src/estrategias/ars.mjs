@@ -74,6 +74,7 @@ export function evaluar(ctx) {
           estrategia: nombre, par: 'USD→USDT/ARS', ruta: `BNA oficial → ${b}`, nocional,
           ...liq, netoUSD: liq.neto * nocional,
           spreadTop: bruto, spreadEjecutable: bruto - comisiones, completo: true,
+          efimera: false, // el ciclo dura 24–48 h: la tasa de fantasma a ms no aplica
           detalle: {
             variante: 'rulo-oficial', oficialVenta, bidTotal: totalBidB, premiumVsOficial: bruto, cicloHoras: r.cicloHoras,
             advertencias: r.advertencias,
