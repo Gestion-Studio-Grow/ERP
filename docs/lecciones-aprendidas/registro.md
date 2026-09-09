@@ -380,11 +380,24 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   aspiracional) en el test; y actualizaciones alternadas de CFR+ en vez de simultáneas.
 - **Lección:** un entregable puede dar el número correcto por el motivo equivocado. Lo que hay que medir
   es la **métrica que define "bien hecho"**, no el output que uno esperaba ver.
+- **Segundo episodio, misma lección (misma sesión):** la cifra de rendimiento del showdown se midió
+  **tres veces y dio tres números** — 265× (el frente de cálculo), 49× (la sesión, "re-verificando") y
+  ~157× (el Gate) — antes de estabilizar en **162×**. Causa: las dos primeras mediciones **no calentaban
+  el JIT de V8**, y una de ellas ya había llegado a un documento. Fix: la medición dejó de ser un script
+  suelto y pasó a ser un archivo **commiteado** (`bin/medir.mjs`) con las condiciones declaradas
+  (versión de Node, corridas de calentamiento, repeticiones) y con una verificación de que las dos
+  implementaciones comparadas dan lo mismo antes de cronometrarlas.
 - **Guardarraíl:** todo entregable **numérico o algorítmico** declara su **criterio de éxito medible** y
   lo **verifica contra una verdad externa** (solución analítica, oráculo de fuerza bruta, o segunda
   implementación independiente). Si no se puede medir contra algo externo, se dice explícitamente que
   **no está verificado** — no se afirma que anda. Corolario para umbrales: se fijan con el número
-  **medido**, así una regresión de un orden de magnitud rompe el test.
+  **medido**, así una regresión de un orden de magnitud rompe el test. **Corolario para benchmarks: un
+  número publicado va con su script y sus condiciones, o no se publica** — y en JS eso incluye calentar
+  el JIT, porque sin eso el error es de 3× a 5×, no de un decimal.
+- **Guardarraíl (independencia):** al afirmar que dos implementaciones se validan cruzado, decir **qué
+  parte** es independiente. Si comparten una pieza (acá: el evaluador de manos), el cruce **no** cubre
+  esa pieza y hay que darle su propia verdad externa. "Dos implementaciones independientes" dicho de más
+  es una garantía falsa.
 - **Refs:** `productos/poker-solver/README.md`, `docs/estrategia/poker-solver-dictamen.md` §4.
 
 **[MP-16] En un motor numérico, el test falla antes que el código**
@@ -399,10 +412,16 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   literatura de Kuhn, teoría de rangos polarizados) **antes** de tocar el motor; el motor no se cambió.
 - **Lección:** en dominios con teoría propia, un test rojo es primero una hipótesis sobre el test.
   "Ajustar" el motor para que pase habría **destruido** comportamiento correcto y sofisticado.
+- **Contracara que encontró el Gate en el mismo entregable:** un test se llamaba *"color y full NO pueden
+  coexistir"* y su cuerpo solo comprobaba que el muestreo hubiera visto **alguno de los dos**. O sea:
+  **el nombre afirmaba una propiedad que el cuerpo no verificaba**, y el test igual sumaba al conteo de
+  "41 tests verdes". Un test decorativo es peor que no tenerlo, porque compra confianza sin darla.
 - **Guardarraíl:** ante un test rojo en un motor de cálculo: **(1)** verificar la afirmación contra la
   fuente del dominio, **(2)** recién si la afirmación resiste, buscar el bug, **(3)** nunca debilitar un
   test ni ajustar un oráculo para que cierre. Y: **no afirmar nada sobre nodos/ramas que el equilibrio
-  nunca visita** — ahí la estrategia no está determinada y el test no prueba nada.
+  nunca visita** — ahí la estrategia no está determinada y el test no prueba nada. **Y al revés: el
+  nombre de un test es una afirmación** — si el cuerpo no la verifica, se completa el cuerpo o se
+  renombra el test; un test verde que no prueba lo que dice su nombre es deuda disfrazada de cobertura.
 - **Refs:** `productos/poker-solver/test/river.test.mjs` (test de la trampa), `test/kuhn.test.mjs`.
 
 

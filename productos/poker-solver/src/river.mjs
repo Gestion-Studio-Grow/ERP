@@ -284,4 +284,3 @@ export function frecuenciasAgregadas(solucion, nodo) {
   });
 }
 
-export { cardToString };

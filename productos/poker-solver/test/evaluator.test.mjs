@@ -65,16 +65,60 @@ test('con 7 naipes elige la mejor mano de 5', () => {
 });
 
 test('propiedad del poker: con 7 naipes, color y full NO pueden coexistir', () => {
-  // Un color usa 5 palos iguales (5 rangos distintos); quedan 2 naipes para
-  // duplicar rangos, y 3+2 pide 3 duplicados. Es imposible por conteo, así que
-  // el evaluador nunca tiene que desempatar ese caso. Lo dejamos verificado.
-  let vistos = 0;
-  for (let i = 0; i < 20000; i++) {
-    const mano = manoAlAzar(7, i);
-    const c = categoriaDe(evaluar(mano));
-    if (c === CATEGORIA.FULL || c === CATEGORIA.COLOR) vistos++;
+  // Demostración por conteo: un color usa 5 naipes del mismo palo, y esos 5 tienen
+  // rangos distintos entre sí. Quedan 2 naipes libres, y un full (3+2) necesita 3
+  // duplicados de rango. 2 < 3 ⇒ imposible. Lo mismo para el póker: 4 del mismo
+  // rango son 4 palos distintos, así que a lo sumo 1 es del palo del color, y
+  // 4 + 5 = 9 > 7 naipes.
+  //
+  // Este test COMPRUEBA la propiedad, no la enuncia: busca un contraejemplo sobre
+  // 200.000 manos y además exige que el evaluador sea consistente con ella.
+  let conColor = 0;
+  let conFull = 0;
+
+  for (let semilla = 0; semilla < 200000; semilla++) {
+    const mano = manoAlAzar(7, semilla);
+
+    const porRango = new Array(15).fill(0);
+    const porPalo = [0, 0, 0, 0];
+    for (const naipe of mano) {
+      porRango[(naipe >> 2) + 2]++;
+      porPalo[naipe & 3]++;
+    }
+
+    const hayColor = porPalo.some((c) => c >= 5);
+    const hayPoker = porRango.some((c) => c >= 4);
+    const tercias = porRango.filter((c) => c >= 3).length;
+    const parejas = porRango.filter((c) => c >= 2).length;
+    // Full = un trío más otra pareja distinta (dos tríos también sirven).
+    const hayFull = tercias >= 1 && parejas >= 2;
+
+    assert.ok(
+      !(hayColor && (hayFull || hayPoker)),
+      `contraejemplo con ${mano.map(cardToString).join('')}: color y full/póker a la vez`,
+    );
+
+    // Y la consecuencia sobre el evaluador, que es lo que realmente nos importa:
+    // si hay color disponible, la categoría tiene que ser color o escalera de color
+    // (no puede ser full ni póker, porque acabamos de descartar que existan).
+    const categoria = categoriaDe(evaluar(mano));
+    if (hayColor) {
+      assert.ok(
+        categoria === CATEGORIA.COLOR || categoria === CATEGORIA.ESCALERA_COLOR,
+        `con 5 del mismo palo el evaluador devolvió ${categoria} en ${mano.map(cardToString).join('')}`,
+      );
+      conColor++;
+    }
+    if (categoria === CATEGORIA.FULL || categoria === CATEGORIA.POKER) {
+      assert.ok(!hayColor, 'devolvió full/póker con un color disponible');
+      conFull++;
+    }
   }
-  assert.ok(vistos > 0, 'el muestreo tiene que haber visto fulls y colores');
+
+  // Cobertura: si el muestreo no vio ninguno de los dos casos, el test no probó
+  // nada y hay que saberlo.
+  assert.ok(conColor > 100, `el muestreo vio solo ${conColor} colores: no alcanza para probar nada`);
+  assert.ok(conFull > 100, `el muestreo vio solo ${conFull} fulls/pókers: no alcanza`);
 });
 
 test('el camino rápido de 7 naipes coincide con la fuerza bruta de 5', () => {

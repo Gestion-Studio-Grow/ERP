@@ -7,7 +7,7 @@
  * rango como "sí/no" resuelve un juego que nadie juega.
  */
 
-import { RANKS, makeCard, rankOf, suitOf, cardToString, parseCard } from './cards.mjs';
+import { RANKS, makeCard, parseCard } from './cards.mjs';
 
 /** Índice canónico de un combo: 0..1325, independiente del orden de los naipes. */
 export function comboIndex(a, b) {
@@ -58,10 +58,9 @@ function expandirMano(token) {
   // Par: QQ
   if (cuerpo.length === 2 && cuerpo[0].toUpperCase() === cuerpo[1].toUpperCase()) {
     const r = valorRango(cuerpo[0]);
-    const desde = masMas ? r : r;
     const hasta = masMas ? 14 : r;
     const salida = [];
-    for (let x = desde; x <= hasta; x++) salida.push(...combosDePar(x));
+    for (let x = r; x <= hasta; x++) salida.push(...combosDePar(x));
     return salida;
   }
 
@@ -82,11 +81,11 @@ function expandirMano(token) {
   if (r1 < r2) [r1, r2] = [r2, r1];
   if (r1 === r2) throw new Error(`par con sufijo no tiene sentido: ${token}`);
 
-  const bajoDesde = masMas ? r2 : r2;
+  // Con "+" se abre hacia arriba fijando la carta alta: A2s+ = A2s..AKs.
   const bajoHasta = masMas ? r1 - 1 : r2;
 
   const salida = [];
-  for (let bajo = bajoDesde; bajo <= bajoHasta; bajo++) {
+  for (let bajo = r2; bajo <= bajoHasta; bajo++) {
     if (sufijo === 's') salida.push(...combosSuited(r1, bajo));
     else if (sufijo === 'o') salida.push(...combosOffsuit(r1, bajo));
     else salida.push(...combosSuited(r1, bajo), ...combosOffsuit(r1, bajo));
@@ -152,7 +151,7 @@ function combosPorSufijo(alto, bajo, sufijo) {
  * Parsea un rango completo.
  * @param {string} texto p.ej. "QQ+, AKs, A5s-A2s, 76s:0.5, AhKh"
  * @param {number[]} [muertas] naipes ya visibles (board + descartes): sus combos se caen
- * @returns {{combos: Array<[number, number]>, pesos: Float64Array, indices: Int32Array}}
+ * @returns {{combos: Array<[number, number]>, pesos: Float64Array}}
  */
 export function parseRange(texto, muertas = []) {
   const bloqueadas = new Set(muertas);
@@ -190,10 +189,12 @@ export function parseRange(texto, muertas = []) {
     .filter(([, v]) => v.peso > 0)
     .sort((x, y) => x[0] - y[0]);
 
+  // Ordenado por índice canónico de combo, no por el orden en que se escribió el
+  // rango: así el mismo rango escrito de dos formas da el MISMO vector, que es lo
+  // que hace comparables dos solves.
   return {
     combos: entradas.map(([, v]) => v.combo),
     pesos: Float64Array.from(entradas.map(([, v]) => v.peso)),
-    indices: Int32Array.from(entradas.map(([i]) => i)),
   };
 }
 
@@ -204,8 +205,4 @@ export function pesoTotal(rango) {
   return t;
 }
 
-export function rangeToString(rango) {
-  return rango.combos.map(([a, b]) => cardToString(a) + cardToString(b)).join(' ');
-}
 
-export { rankOf, suitOf };

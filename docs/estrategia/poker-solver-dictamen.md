@@ -99,7 +99,7 @@ Para no dictaminar de oído, se construyó una prueba de concepto real en `produ
 
 | Módulo | Qué resuelve |
 |---|---|
-| `src/cards.mjs` | Naipes como enteros 0..51, máscaras de bits para bloqueos. |
+| `src/cards.mjs` | Naipes como enteros 0..51 (el naipe se usa como índice en los caminos calientes). |
 | `src/evaluator.mjs` | Evaluador de 5 a 7 naipes → entero comparable. |
 | `src/range.mjs` | Notación de rango real (`QQ+, A2s+, T9s-76s, 76s:0.5`) → combos con peso, con *card removal*. |
 | `src/cfr.mjs` | **Motor CFR+ vectorial** agnóstico del juego + medición de **explotabilidad** por mejor respuesta. |
@@ -107,6 +107,7 @@ Para no dictaminar de oído, se construyó una prueba de concepto real en `produ
 | `src/showdown.mjs` | Masa de showdown con bloqueos en O(n log n) + oráculo de fuerza bruta. |
 | `src/river.mjs` | **Solver exacto de subjuego de river** con rangos completos y árbol de apuestas configurable. |
 | `bin/resolver-river.mjs` | CLI: imprime la solución legible por clase de mano (el jugador no lee `Float64Array`). |
+| `bin/medir.mjs` | Banco de medición reproducible: de acá salen los números de abajo. |
 
 **41 tests, todos verdes, en 1,7 s.** Detalle de uso y del mapa de módulos en
 [`productos/poker-solver/README.md`](../../productos/poker-solver/README.md).
@@ -142,32 +143,43 @@ del clarividente**, que también tiene solución cerrada: con pote P y apuesta B
 `B/(P+B)` del valor y el bluff-catcher debe pagar `P/(P+B)`. Con P=100 y B=50 el motor da **faroles 1/3
 y pago 2/3**, sobre un board real y con bloqueos activos.
 
-**Rendimiento medido** (JavaScript plano, sin dependencias, peor caso realista: 481 combos por lado,
-árbol de 16 nodos con tres tamaños de apuesta más all-in y una subida):
+**Rendimiento medido.** Reproducible con `node bin/medir.mjs` — la medición es parte del entregable,
+no un número suelto en un documento. Condiciones: Node v22.22.2, JavaScript plano sin dependencias,
+50 corridas de calentamiento del JIT, rangos de **615 combos por lado**, árbol de 16 nodos con tres
+tamaños de apuesta más all-in y una subida.
 
 | Iteraciones | Tiempo | Explotabilidad |
 |---:|---:|---:|
-| 200 | 0,5 s | 0,275% del pote |
-| 800 | 1,6 s | 0,039% del pote |
-| 2.000 | 3,8 s | **0,009% del pote** |
+| 200 | 0,53 s | 0,231% del pote |
+| 800 | 1,94 s | 0,032% del pote |
+| 2.000 | 4,73 s | **0,009% del pote** |
 
-Un spot típico (30 vs 37 combos) converge a 0,039% del pote en **0,41 s**. La masa de showdown con
-bloqueos se resolvió en O(n log n) con sumas prefijas por naipe: a 615 combos por lado, **0,098 ms**
-contra **4,79 ms** de la fuerza bruta (**~49×**, y la ventaja crece con el ancho del rango), con
+Un spot típico (30 vs 37 combos) converge a 0,039% del pote en **0,49 s**. La masa de showdown con
+bloqueos se resolvió en O(n log n) con sumas prefijas por naipe: **162×** más rápida que la fuerza bruta
+a 615 combos por lado (0,0282 ms contra 4,57 ms) y **304×** a rango completo de 1081 combos, con
 **coincidencia exacta** entre las dos implementaciones (diferencia máxima 0,0).
 
-Ese último dato es la respuesta concreta a la objeción más fuerte del Challenger — que no podríamos
-hacerle QA a un motor numérico sin *ground truth*: **se le hace QA con una segunda implementación
-obviamente correcta.** Y vale anotar cómo se llegó al número, porque es la norma en acción: la medición
-de 49× la hizo esta sesión **re-verificando** una cifra que había reportado el frente de cálculo (que
-midió a otro ancho de rango). No se publica un número que no se midió acá (lección **MP-15**).
+Ese último dato es la respuesta a la objeción más fuerte del Challenger — que no podríamos hacerle QA a
+un motor numérico sin *ground truth*: **se le hace QA con una segunda implementación obviamente
+correcta.** Con una salvedad que hay que decir, porque exagerarla sería el pecado que este dictamen dice
+evitar: las dos implementaciones son independientes en la **agregación** (sumas prefijas contra doble
+bucle anidado), pero **comparten el evaluador de manos**. Un error en el evaluador sería invisible a ese
+cruce. Por eso el evaluador tiene su propia verdad externa aparte: se contrasta contra la fuerza bruta
+de las 21 combinaciones de 5 naipes, y el orden entre categorías está fijado a mano.
+
+**Cómo se llegó al 162×, porque el proceso importa más que la cifra:** el frente de cálculo reportó 265×;
+esta sesión lo re-midió y le salió 49×; el Gate lo re-midió y le salió ~157×. La diferencia era que las
+dos primeras mediciones no calentaban el JIT de V8. El número publicado ahora sale de un script
+commiteado con las condiciones declaradas, así que cualquiera lo reproduce. **Tres mediciones distintas
+del mismo número es exactamente por qué existe la lección MP-15.**
 
 ### 4.3 Lo que el motor encuentra solo
 
 Vale contarlo porque es la diferencia entre "calcula" y "juega". En un spot armado con **desventaja de
 rango severa** para OOP (gana con 3 de 13 combos), el solver **no apuesta las nuts: pasa con todo y
 tiende una trampa.** Apostar con un rango capado es transparente — el rival foldea y las nuts cobran
-apenas el pote. Entonces pasa, deja que el rival apueste el 76%, y paga. Y en ese mismo nodo el
+apenas el pote. Entonces pasa, deja que el rival apueste el **76% de las veces** (y cuando apuesta, es
+un all-in por el tamaño del pote), y paga. Y en ese mismo nodo el
 bluff-catcher (`QQ`) mezcla **exactamente 50/50**, que es la firma de la indiferencia en el equilibrio.
 
 Nada de eso está programado: sale de resolver el juego. Es el tipo de línea por la que un jugador paga
@@ -182,8 +194,9 @@ un coach.
   que CFR+ con rangos completos da el equilibrio sin error de abstracción. En ese pedazo del árbol el
   número de un motor propio **no es peor que el de PioSOLVER: es el mismo número.**
 - La disciplina de "medir explotabilidad o no decir que convergió" ya está incorporada al código.
-- **La objeción de QA del Challenger tiene respuesta:** dos implementaciones independientes (una rápida y
-  una obviamente correcta) que dan el mismo número hacen ese número auditable.
+- **La objeción de QA del Challenger tiene respuesta:** dos implementaciones con agregación independiente
+  (una rápida y una obviamente correcta) que dan el mismo número hacen ese número auditable —
+  **compartiendo el evaluador**, que se verifica por separado contra fuerza bruta.
 
 **No prueba, y hay que decirlo con todas las letras:**
 - **No hay solver de flop ni de turn.** Ahí aparecen la abstracción de cartas y el árbol de 3 calles,
@@ -205,8 +218,10 @@ un coach.
 El motor propio deja de ser "nuestro PioSOLVER" y pasa a ser dos cosas mucho más defendibles:
 
 1. **Verificador.** Un segundo motor independiente para cruzar contra el de terceros. Cuando dos
-   implementaciones distintas dan el mismo número, ese número es confiable. Es lo que responde la
-   objeción más fuerte del Challenger ("no podemos dar QA de un motor que no podemos validar").
+   implementaciones con lógica de agregación distinta dan el mismo número, ese número es auditable. Es lo
+   que responde la objeción más fuerte del Challenger ("no podemos dar QA de un motor que no podemos
+   validar"). No es independencia total —comparten el evaluador de manos, que se verifica aparte contra
+   fuerza bruta— y conviene decirlo así al cliente, no de más.
 2. **Resolvedor de river a demanda.** Exacto, sin abstracción, para los spots concretos que le
    aparecen al cliente en su propio historial.
 
@@ -286,6 +301,19 @@ estudio, con la licencia del motor de terceros a cargo del cliente. El ángulo d
 **precio en pesos + soporte por WhatsApp**, no la tecnología: los productos relevados cobran en USD con
 tarjeta internacional, que es fricción real para el jugador argentino.
 
+**Cómo se cobra y cómo se factura** (sin esto el precio es un número suelto):
+
+- **Cobro:** Mercado Pago (link de suscripción mensual) o **transferencia bancaria** para quien prefiera
+  evitar la comisión. Nada de tarjeta internacional — ahí está justamente la fricción que atacamos.
+- **Facturación:** es un **servicio profesional recurrente**, así que sale factura **C de monotributo**
+  (o **B** si el cliente es responsable inscripto) por ARCA, emitida el mismo mes del cobro. Conviene
+  chequear en qué categoría de monotributo cae el ingreso extra antes de cerrar el precio.
+- **La licencia del motor de terceros la paga el cliente directo al proveedor**, con su propia tarjeta y
+  a su nombre. No pasa por nuestra facturación: si la adelantáramos nosotros, ese gasto en USD entraría
+  como costo propio y habría que recuperarlo con recargo, lo cual encarece sin agregar nada.
+- **Pendiente para el dueño:** confirmar categoría de monotributo y si el servicio se factura como
+  consultoría o como suscripción de software (cambia el tratamiento).
+
 ---
 
 ## 8. Go / no-go
@@ -310,8 +338,41 @@ pedido de asistencia en vivo · compite por slots con las demos del ERP en conge
   esta sesión y así corre ya, sin tocar el `tsc`/build del ERP. Si la línea se adopta, la versión de
   producción va en TypeScript (o Rust para el motor).
 - **Alcance del motor propio:** solo river. Flop y turn requieren abstracción de cartas y no están.
-- **Pendiente si hay GO:** ADR de la línea, RACI del frente, y entrada en el registro de lecciones
-  (ADR-047) al cierre.
+- **`productos/` es un directorio raíz NUEVO y hoy es huérfano.** Nació con este entregable, no está
+  mencionado en `docs/ESTADO-ACTUAL.md` y no tiene ADR — a propósito: la línea **no** está adoptada, y
+  registrarla en §7 del estado sería adoptarla de hecho. Mientras tanto: lo posee esta sesión, está
+  aislado del Core de forma **estructural** (excluido del `tsconfig.json` y del `eslint.config.mjs`, no
+  solo por la extensión de sus archivos), y **si no hay GO se borra completo** — no deja nada que
+  mantener. Si hay GO, el ADR de la línea decide si se queda ahí o se muda a su propio repo.
+- **Pendiente si hay GO:** ADR de la línea, RACI del frente, mención en `ESTADO-ACTUAL.md`, y entrada en
+  el registro de lecciones (ADR-047) al cierre.
+- **El umbral de "0,3% del pote = resuelto"** es **criterio propio de GSG** para "sirve para estudiar",
+  no una convención citable de la industria. Está declarado como tal en el código y en el CLI.
+
+---
+
+## 10. Gate de Excelencia — resultado
+
+El Gate corrió en Opus sobre este entregable (norma dura: la auditoría GSG nunca se degrada de modelo) y
+**lo rechazó en primera vuelta: 2 blockers y 10 must-fix.** Vale dejarlo escrito, porque el valor del
+Gate se ve en lo que encontró:
+
+- **Verificó la evidencia de forma independiente** —reprodujo la tabla de Kuhn dígito por dígito, parcheó
+  una copia del motor a actualización simultánea para confirmar el hallazgo del 40×, y re-midió el
+  rendimiento— y **todo clavó**. Era el riesgo grande y pasó.
+- **BLOCKER 1:** el CLI le tiraba un stack trace de Node al usuario ante cualquier entrada inválida, y el
+  §7 declara que en Fase 1 ese CLI **se le muestra al cliente**. Corregido: `--help`, validación antes de
+  imprimir, mensajes en criollo y salida con código 1.
+- **BLOCKER 2:** un test se llamaba "color y full no pueden coexistir" y su cuerpo solo comprobaba que el
+  muestreo hubiera visto alguno de los dos — **no verificaba la propiedad**, y sumaba al conteo de "41
+  tests verdes" como si lo hiciera. Violaba la lección MP-15 que este mismo commit acababa de escribir.
+  Corregido: ahora busca contraejemplo sobre 200.000 manos y exige consistencia del evaluador.
+- **10 must-fix**, todos aplicados: código muerto, dos comentarios que describían mecanismos que el código
+  no usa, la independencia de las implementaciones sobrevendida, el número del showdown no reproducible,
+  el aislamiento del pipeline vuelto estructural, el cierre fiscal de este §7, y una ambigüedad que un
+  jugador iba a leer mal ("apueste el 76%" → "el 76% de las veces").
+
+Queda pendiente el **re-gate sobre el delta**.
 
 ---
 

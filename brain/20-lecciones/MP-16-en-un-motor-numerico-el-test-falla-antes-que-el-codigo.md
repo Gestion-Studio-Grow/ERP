@@ -12,7 +12,7 @@ tags: [brain/leccion, leccion/mp]
 **Categoría:** Metodología / Proceso
 
 > 🛡️ **Guardarraíl (la regla verificable):**
-> ante un test rojo en un motor de cálculo: **(1)** verificar la afirmación contra la fuente del dominio, **(2)** recién si la afirmación resiste, buscar el bug, **(3)** nunca debilitar un test ni ajustar un oráculo para que cierre. Y: **no afirmar nada sobre nodos/ramas que el equilibrio nunca visita** — ahí la estrategia no está determinada y el test no prueba nada.
+> ante un test rojo en un motor de cálculo: **(1)** verificar la afirmación contra la fuente del dominio, **(2)** recién si la afirmación resiste, buscar el bug, **(3)** nunca debilitar un test ni ajustar un oráculo para que cierre. Y: **no afirmar nada sobre nodos/ramas que el equilibrio nunca visita** — ahí la estrategia no está determinada y el test no prueba nada. **Y al revés: el nombre de un test es una afirmación** — si el cuerpo no la verifica, se completa el cuerpo o se renombra el test; un test verde que no prueba lo que dice su nombre es deuda disfrazada de cobertura.
 
 **Lección:** en dominios con teoría propia, un test rojo es primero una hipótesis sobre el test. "Ajustar" el motor para que pase habría **destruido** comportamiento correcto y sofisticado.
 
@@ -29,10 +29,16 @@ tags: [brain/leccion, leccion/mp]
   literatura de Kuhn, teoría de rangos polarizados) **antes** de tocar el motor; el motor no se cambió.
 - **Lección:** en dominios con teoría propia, un test rojo es primero una hipótesis sobre el test.
   "Ajustar" el motor para que pase habría **destruido** comportamiento correcto y sofisticado.
+- **Contracara que encontró el Gate en el mismo entregable:** un test se llamaba *"color y full NO pueden
+  coexistir"* y su cuerpo solo comprobaba que el muestreo hubiera visto **alguno de los dos**. O sea:
+  **el nombre afirmaba una propiedad que el cuerpo no verificaba**, y el test igual sumaba al conteo de
+  "41 tests verdes". Un test decorativo es peor que no tenerlo, porque compra confianza sin darla.
 - **Guardarraíl:** ante un test rojo en un motor de cálculo: **(1)** verificar la afirmación contra la
   fuente del dominio, **(2)** recién si la afirmación resiste, buscar el bug, **(3)** nunca debilitar un
   test ni ajustar un oráculo para que cierre. Y: **no afirmar nada sobre nodos/ramas que el equilibrio
-  nunca visita** — ahí la estrategia no está determinada y el test no prueba nada.
+  nunca visita** — ahí la estrategia no está determinada y el test no prueba nada. **Y al revés: el
+  nombre de un test es una afirmación** — si el cuerpo no la verifica, se completa el cuerpo o se
+  renombra el test; un test verde que no prueba lo que dice su nombre es deuda disfrazada de cobertura.
 - **Refs:** `productos/poker-solver/test/river.test.mjs` (test de la trampa), `test/kuhn.test.mjs`.
 
 

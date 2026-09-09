@@ -177,13 +177,9 @@ function cfvConPromedio(nodo, juego, reach) {
  * "esto ya convergió": es la única medida de cuánta plata deja sobre la mesa.
  */
 function valorMejorRespuesta(nodo, juego, reachRival, br) {
-  if (nodo.tipo !== 'decision') {
-    const reach = br === 0 ? [null, reachRival] : [reachRival, null];
-    // Los terminales solo miran el reach del rival del que evalúa.
-    const cfv = cfvTerminalUnilateral(nodo, juego, reachRival, br);
-    void reach;
-    return cfv;
-  }
+  // En un terminal solo importa el reach del rival: el valor contrafactual de una
+  // mano propia no se pondera por la probabilidad de tenerla.
+  if (nodo.tipo !== 'decision') return cfvTerminalUnilateral(nodo, juego, reachRival, br);
 
   if (nodo.jugador === br) {
     // El que hace mejor respuesta elige el máximo por mano: no promedia.

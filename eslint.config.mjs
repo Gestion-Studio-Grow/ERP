@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Productos aislados del Core: son ESM plano con su propio runner de tests y
+    // no participan del pipeline del ERP. Mismo criterio que el "exclude" de
+    // tsconfig.json — que el aislamiento sea estructural y no dependa de qué
+    // extensión de archivo se use.
+    "productos/**",
   ]),
 ]);
 

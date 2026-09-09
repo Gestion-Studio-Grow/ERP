@@ -33,7 +33,9 @@ decimales. Acá hay tres niveles de verificación, y los tres corren en CI local
 1. **Evaluador de manos** — contrastado contra fuerza bruta: para miles de manos aleatorias de 7 naipes,
    `evaluar(7)` debe dar exactamente el máximo de `evaluar(5)` sobre las 21 combinaciones.
 2. **Masa de showdown con bloqueos** — la implementación rápida (O(n log n) con sumas prefijas) se
-   contrasta contra un oráculo de fuerza bruta O(n·m) obviamente correcto.
+   contrasta contra un oráculo de fuerza bruta O(n·m) obviamente correcto. Con una salvedad honesta: las
+   dos son independientes en la **agregación**, pero **comparten el evaluador**, así que ese cruce no
+   detectaría un error en el evaluador. Para eso está el punto 1, que es su verdad externa aparte.
 3. **Motor CFR+** — calibrado contra **Kuhn poker**, cuyo equilibrio de Nash está resuelto
    analíticamente desde 1950. El valor del juego para el primer jugador es exactamente **−1/18**:
 
@@ -75,19 +77,35 @@ De ahí la regla: *si no se midió la explotabilidad, no se puede decir que conv
 Peor caso realista, en JavaScript plano y sin dependencias (rangos anchos de 481 combos por lado, árbol
 de 16 nodos de decisión, tres tamaños de apuesta más all-in y una subida):
 
+Todo esto sale de `node bin/medir.mjs`, que está commiteado justamente para que los números se puedan
+**reproducir** en vez de creerlos. Condiciones: Node v22.22.2, 50 corridas de calentamiento del JIT,
+rangos de **615 combos por lado**, árbol de 16 nodos.
+
 | Iteraciones | Tiempo | Explotabilidad |
 |---:|---:|---:|
-| 200 | 0,5 s | 0,275% del pote |
-| 800 | 1,6 s | 0,039% del pote |
-| 2.000 | 3,8 s | **0,009% del pote** |
+| 200 | 0,53 s | 0,231% del pote |
+| 800 | 1,94 s | 0,032% del pote |
+| 2.000 | 4,73 s | **0,009% del pote** |
 
-Debajo de ~0,3% del pote un spot se considera resuelto para estudiar. Un spot típico (30 vs 37 combos)
-converge a 0,039% en **0,41 s**.
+Un spot típico (30 vs 37 combos) converge a 0,039% del pote en **0,49 s**.
 
-La masa de showdown con bloqueos corre en O(n log n) con sumas prefijas por naipe. Medido a **615 combos
-por lado**: **0,098 ms** contra **4,79 ms** de la fuerza bruta equivalente (**~49×**), con **coincidencia
-exacta** entre las dos (diferencia máxima 0,0). La ventaja crece con el ancho del rango, porque el camino
-lento es O(n·m) y el rápido O(n). Ese oráculo lento no se tiró: quedó en los tests verificando al rápido.
+Por debajo de **0,3% del pote** un spot se considera resuelto para estudiar. Ojo: ese umbral es **criterio
+propio de GSG**, no una convención citable de la industria — está declarado como tal en el código y en el
+output del CLI.
+
+La masa de showdown con bloqueos corre en O(n log n) con sumas prefijas por naipe, contra O(n·m) de la
+fuerza bruta:
+
+| Rango | Combos | Rápida | Fuerza bruta | Factor | Coincidencia |
+|---|---:|---:|---:|---:|---:|
+| medio | 615 | 0,0282 ms | 4,57 ms | **162×** | exacta (dif 0,0) |
+| completo | 1081 | 0,0450 ms | 13,69 ms | **304×** | exacta (dif 0,0) |
+
+Ese oráculo lento no se tiró: quedó en los tests verificando al rápido.
+
+**Una advertencia sobre este número, que es la parte útil de contarlo:** se midió tres veces y dio 265×,
+49× y ~157× antes de dar 162×. Las dos primeras mediciones no calentaban el JIT de V8. Por eso la
+medición dejó de ser un script suelto y pasó a ser un archivo commiteado con las condiciones escritas.
 
 ---
 
@@ -96,7 +114,8 @@ lento es O(n·m) y el rápido O(n). Ese oráculo lento no se tiró: quedó en lo
 En un spot armado a propósito con **desventaja de rango severa** para OOP (gana con 3 de 13 combos), el
 motor no apuesta las nuts: **pasa con todo y tiende una trampa**. Apostar con un rango capado es
 transparente — el rival foldea y las nuts cobran apenas el pote. Entonces pasa, deja que el rival (que
-tiene la ventaja de rango) apueste el 76%, y paga. Y en el mismo nodo el bluff-catcher (`QQ`) mezcla
+tiene la ventaja de rango) apueste el **76% de las veces** —y cuando apuesta es un all-in del tamaño
+del pote—, y paga. Y en el mismo nodo el bluff-catcher (`QQ`) mezcla
 **exactamente 50/50**, que es la firma de la indiferencia en el equilibrio.
 
 Nada de eso está programado. Sale de resolver el juego. Está fijado como test: si alguien "arregla" el
@@ -147,14 +166,15 @@ Las cartas del board se descuentan automáticamente del rango (*card removal*).
 
 | Archivo | Responsabilidad |
 |---|---|
-| `src/cards.mjs` | Naipes como enteros 0..51, parseo, máscaras de bits. |
+| `src/cards.mjs` | Naipes como enteros 0..51 y parseo. Entero porque el naipe se usa como índice. |
 | `src/evaluator.mjs` | Evaluador de 5-7 naipes → entero comparable. |
 | `src/range.mjs` | Notación de rango → combos con peso, con card removal. |
 | `src/showdown.mjs` | Masa gana/pierde con bloqueos en O(n log n) + oráculo de fuerza bruta. |
 | `src/cfr.mjs` | Motor CFR+ vectorial **agnóstico del juego** + explotabilidad por mejor respuesta. |
 | `src/kuhn.mjs` | Kuhn poker: el patrón de calibración. |
 | `src/river.mjs` | Árbol de apuestas del river + resolución + reportes legibles. |
-| `bin/resolver-river.mjs` | CLI de demostración. |
+| `bin/resolver-river.mjs` | CLI de demostración: solución legible por clase de mano. |
+| `bin/medir.mjs` | Banco de medición reproducible (de acá salen las tablas de arriba). |
 
 El motor **no sabe de naipes**: habla con un objeto `juego` que le contesta cuántas manos hay, qué masa
 del rango rival no está bloqueada y qué masa gana/pierde en showdown. Por eso el **mismo código** que
