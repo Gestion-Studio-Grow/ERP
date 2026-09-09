@@ -85,7 +85,7 @@ test("duracionIsoAMin", () => {
   assert.equal(duracionIsoAMin(undefined), undefined);
 });
 
-test("mapearOfertasVuelo: precio POR_PASAJERO del adulto, vigencia desde lastTicketingDate, descarta sin precio", () => {
+test("mapearOfertasVuelo: precio POR_PERSONA del adulto, vigencia desde lastTicketingDate, descarta sin precio", () => {
   const out = mapearOfertasVuelo(VUELOS, CAPTURA);
   assert.equal(out.length, 2);
   const [a, c] = out;
@@ -93,7 +93,9 @@ test("mapearOfertasVuelo: precio POR_PASAJERO del adulto, vigencia desde lastTic
   assert.equal(a.proveedor, "amadeus");
   assert.equal(a.precio.monto, 850.5);
   assert.equal(a.precio.moneda, "USD");
-  assert.equal(a.precio.baseOcupacion, "POR_PASAJERO");
+  assert.equal(a.precio.unidad, "POR_PERSONA");
+  assert.equal(a.precio.baseOcupacion, undefined);
+  assert.equal(a.precio.incluyeImpuestos, "SI");
   assert.equal(a.precio.capturadoEn, CAPTURA);
   assert.equal(a.precio.vigenteHasta, "2026-09-12T23:59:59.000Z");
   assert.deepEqual(a.totalGrupo, { monto: 1701, moneda: "USD" });
@@ -109,7 +111,7 @@ test("mapearOfertasVuelo: precio POR_PASAJERO del adulto, vigencia desde lastTic
   assert.equal(c.precio.vigenteHasta, undefined);
 });
 
-test("mapearOfertasHotel: POR_HABITACION por toda la estadía, régimen en criollo, descarta sin total y no disponibles", () => {
+test("mapearOfertasHotel: POR_HABITACION_TOTAL con base derivada de guests.adults, régimen en criollo, descarta sin total y no disponibles", () => {
   const out = mapearOfertasHotel(HOTELES, CAPTURA);
   assert.equal(out.length, 2);
   const [a, b] = out;
@@ -122,7 +124,10 @@ test("mapearOfertasHotel: POR_HABITACION por toda la estadía, régimen en criol
   assert.equal(a.noches, 5);
   assert.equal(a.precio.monto, 612.3);
   assert.equal(a.precio.moneda, "EUR");
-  assert.equal(a.precio.baseOcupacion, "POR_HABITACION");
+  assert.equal(a.precio.unidad, "POR_HABITACION_TOTAL");
+  assert.equal(a.precio.baseOcupacion, "DOBLE"); // guests.adults = 2
+  assert.equal(a.precio.noches, 5);
+  assert.equal(b.precio.baseOcupacion, "DOBLE"); // sin guests → default 2 adultos
   assert.equal(a.precio.capturadoEn, CAPTURA);
   assert.match(a.politicaCancelacion ?? "", /Cancelación sin cargo hasta/);
   assert.equal(b.habitacion.regimen, "solo alojamiento");

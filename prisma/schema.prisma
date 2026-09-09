@@ -195,8 +195,13 @@ model Tenant {
   carteraClientes          CarteraCliente[]                @relation("CarteraDelEstudio") // módulo CARTERA — clientes que administra este estudio
   carteraComoCliente       CarteraCliente[]                @relation("CarteraComoCliente") // módulo CARTERA — carteras donde este tenant es el cliente
   leadsCampania            LeadCampania[] // captación de campañas presenciales (QR del evento)
-  presupuestosViaje        PresupuestoViaje[] // módulo VIAJES — presupuestos de la agencia
-  opcionesPresupuestoViaje OpcionPresupuestoViaje[] // módulo VIAJES — snapshots de oferta
+  solicitudesViaje         SolicitudViaje[] // módulo VIAJES — pedidos de viaje de la agencia
+  tramosSolicitudViaje     TramoSolicitudViaje[] // módulo VIAJES — tramos de cada pedido
+  presupuestosViaje        PresupuestoViaje[] // módulo VIAJES — presupuestos (versiones) por pedido
+  nivelesPresupuestoViaje  NivelPresupuestoViaje[] // módulo VIAJES — niveles (Económico/Intermedio/Alto)
+  opcionesPresupuestoViaje OpcionPresupuestoViaje[] // módulo VIAJES — opciones dentro de un nivel
+  ofertasCapturadasViaje   OfertaCapturadaViaje[] // módulo VIAJES — objeto maestro: precio congelado
+  asignacionesOfertaViaje  AsignacionOfertaViaje[] // módulo VIAJES — relación oferta→opción (ABM propio)
   consumosProveedorViaje   ConsumoProveedorViaje[] // módulo VIAJES — cuota diaria por proveedor
   cacheBusquedasViaje      CacheBusquedaViaje[] // módulo VIAJES — caché de búsquedas
   fiscalCredential         TenantFiscalCredential? // cert/clave ARCA del emisor, CIFRADOS (ADR-066)
@@ -340,6 +345,8 @@ model User {
   deletedAt      DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  solicitudesViajeOperadas SolicitudViaje[] // módulo VIAJES — pedidos que opera este usuario
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -548,7 +555,7 @@ model Client {
   appointments Appointment[]
   orders       Order[]
   receivables  AccountReceivable[] // D3 — fiado de este cliente (ADR-060 Fase E)
-  presupuestos PresupuestoViaje[] // módulo VIAJES — presupuestos donde es el pasajero principal
+  solicitudes  SolicitudViaje[] // módulo VIAJES — pedidos de viaje donde es el contacto
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -1671,79 +1678,170 @@ model LeadCampania {
 }
 
 // ============================================================================
-// MÓDULO VIAJES — armador de presupuestos de viaje (agencias de viaje).
+// MÓDULO VIAJES — armador de presupuestos de viaje (agencias). Spec funcional:
+// docs/producto/spec-armador-presupuestos-viaje.md (§3 modelo · §4 estados · §5 RBAC).
 // ============================================================================
 //
-// Capability nativa del Core (ADR-002 mecanismo B: concepto nuevo, reutilizable por
-// cualquier agencia; NO tabla del blueprint). Se ASIGNA por tenant (ADR-055) con
-// rubro `agencia-viajes`. Todo con `tenantId` → la policy RLS data-driven la cubre
-// sola. TODO ADITIVO: 3 enums + 4 tablas nuevas. Migración
+// Capability nativa del Core (ADR-002 mecanismo B), asignada por tenant (ADR-055) con
+// rubro `viajes`. Patrón VARIANTE al pie: la OFERTA CAPTURADA es objeto maestro con ABM
+// propio; la ASIGNACIÓN oferta→opción es la relación explícita con su ABM (nunca "todas
+// con todas"). Todo con `tenantId` → la policy RLS data-driven lo cubre solo.
+// TODO ADITIVO: 8 enums + 9 tablas nuevas. Migración
 // `20260909120000_add_viajes_presupuestos` ESCRITA y SIN aplicar a Neon (Gate 2).
 //
-// INVARIANTE DURA: `OpcionPresupuestoViaje.capturadoEn` y `.baseOcupacion` son NOT
-// NULL y SIN default — un precio sin fecha de captura o sin base de ocupación no
-// puede existir (caso real: confundir por-habitación con por-persona duplica un
-// presupuesto). El core (`src/lib/viajes/core.ts`) lo valida antes de llegar acá.
-
-// Qué unidad cubre el precio. Espeja `BaseOcupacion` de `src/plugins/ofertas-viaje/port.ts`.
-enum BaseOcupacionViaje {
-  POR_PERSONA_EN_DOBLE
-  POR_PERSONA_EN_SINGLE
-  POR_PERSONA_EN_TRIPLE
-  POR_HABITACION
-  POR_PASAJERO
-  TOTAL
-}
+// INVARIANTE DURA: `OfertaCapturadaViaje.capturadoEn`, `.unidad`, `.vigenteHasta` y
+// `.certeza` son NOT NULL SIN default — un precio sin fecha de captura, sin unidad o sin
+// certeza no puede existir. `baseOcupacion` es NOT NULL para alojamiento (lo exige el
+// core; en DB es nullable porque vuelos/otros no la llevan).
 
 enum TipoOfertaViaje {
+  VUELO
+  ALOJAMIENTO
+  OTRO // traslado, seguro, excursión
+}
+
+// Qué cubre el importe (spec §3.3 `unidadDePrecio`). Espeja `UnidadPrecio` del port.
+enum UnidadPrecioViaje {
+  POR_PERSONA
+  POR_HABITACION_NOCHE
+  POR_HABITACION_TOTAL
+  POR_TRAMO
+}
+
+// Con cuántas personas se comparte la habitación. Sin default silencioso.
+enum BaseOcupacionViaje {
+  SINGLE
+  DOBLE
+  TRIPLE
+  OTRA // exige `ocupacion`
+}
+
+enum CertezaOfertaViaje {
+  VERIFICADA // la vi hoy en el sitio/mail del proveedor (o vino de la API en vivo)
+  ESTIMADA // proyección
+}
+
+enum IncluyeImpuestosViaje {
+  SI
+  NO
+  PARCIAL
+}
+
+enum EstadoSolicitudViaje {
+  ABIERTA
+  CERRADA
+}
+
+// Estados del presupuesto (spec §4). El paso a VENCIDO es automático (cron diario).
+enum EstadoPresupuestoViaje {
+  BORRADOR
+  EN_ARMADO
+  LISTO_PARA_REVISAR
+  APROBADO
+  ENVIADO
+  VENCIDO
+  ACEPTADO
+  RECHAZADO
+  SIN_RESPUESTA
+  ARCHIVADO
+}
+
+enum TipoBusquedaViaje {
   VUELO
   HOTEL
 }
 
-enum EstadoPresupuestoViaje {
-  BORRADOR // el operador lo está armando
-  ENVIADO // se le mandó al cliente (WhatsApp/mail)
-  ACEPTADO // el cliente dijo que sí
-  VENCIDO // pasó la vigencia sin respuesta
-  CANCELADO
+// El PEDIDO del cliente (spec §3.2). Contacto + cantidad de pasajeros; NO guarda
+// pasaportes ni documentos (Ley 25.326 / ADR-067: recién hacen falta para reservar).
+model SolicitudViaje {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  /// Ficha del Core si ya existe (dato maestro que se ASIGNA, no se duplica — ADR-055).
+  client   Client? @relation(fields: [clientId], references: [id])
+  clientId String?
+
+  contactoNombre    String
+  contactoWhatsapp  String?
+  contactoEmail     String?
+  /// Base de todo cálculo por persona. ≥ 1.
+  cantidadPasajeros Int
+  motivo            String?
+  requisitos        String?
+  /// Moneda en la que se le habla al cliente (USD/ARS).
+  monedaReferencia  String  @default("USD")
+
+  /// Usuario del panel que tomó el pedido.
+  operador   User   @relation(fields: [operadorId], references: [id])
+  operadorId String
+
+  estado EstadoSolicitudViaje @default(ABIERTA)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tramos       TramoSolicitudViaje[]
+  presupuestos PresupuestoViaje[]
+
+  @@index([tenantId, estado])
+  @@index([tenantId, operadorId])
 }
 
-// El presupuesto: cabecera con el grupo que viaja. El PASAJERO PRINCIPAL es un
-// `Client` del Core (dato maestro que se ASIGNA, no se duplica — ADR-055); opcional
-// porque un presupuesto puede arrancar antes de cargar la ficha del cliente.
+// Un tramo del pedido: destino + fechas. Al menos uno por solicitud (lo exige el core).
+model TramoSolicitudViaje {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  solicitud   SolicitudViaje @relation(fields: [solicitudId], references: [id])
+  solicitudId String
+
+  orden   Int
+  destino String
+  desde   DateTime @db.Date
+  hasta   DateTime @db.Date
+
+  ofertas OfertaCapturadaViaje[]
+
+  @@index([tenantId, solicitudId])
+}
+
+// El ENTREGABLE (spec §3.4). Versionado: recotizar = versión nueva; lo enviado es histórico.
 model PresupuestoViaje {
   id       String @id @default(cuid())
   tenant   Tenant @relation(fields: [tenantId], references: [id])
   tenantId String
 
-  client   Client? @relation(fields: [clientId], references: [id])
-  clientId String?
+  solicitud   SolicitudViaje @relation(fields: [solicitudId], references: [id])
+  solicitudId String
 
+  version      Int                    @default(1)
   titulo       String
-  destino      String
-  fechaSalida  DateTime?              @db.Date
-  fechaRegreso DateTime?              @db.Date
-  adultos      Int                    @default(1)
-  ninos        Int                    @default(0)
-  habitaciones Int                    @default(1)
   estado       EstadoPresupuestoViaje @default(BORRADOR)
-  notas        String?
+  /// Derivado: el MÍNIMO `vigenteHasta` de las ofertas asignadas. Se recalcula en cada asignación.
+  vigenteHasta DateTime?
 
-  /// Usuario del panel que lo creó (`user:<id>`), para el audit trail (ADR-017 §2.f).
-  creadoPor String?
+  notaCliente String?
+  notaInterna String?
+
+  /// Auditoría (`user:<id>`), ADR-017 §2.f.
+  creadoPor  String
+  enviadoPor String?
+  enviadoEn  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  opciones OpcionPresupuestoViaje[]
+  niveles NivelPresupuestoViaje[]
 
+  @@unique([tenantId, solicitudId, version])
   @@index([tenantId, estado])
-  @@index([tenantId, clientId])
+  @@index([tenantId, vigenteHasta])
 }
 
-// SNAPSHOT congelado de una oferta elegida por el operador. Lo que se le mostró al
-// cliente: si el proveedor cambia el precio mañana, esta fila NO cambia.
-model OpcionPresupuestoViaje {
+// Nivel (spec §3.5): "Económico" · "Intermedio" · "Alto" — default sugerido, no restricción.
+model NivelPresupuestoViaje {
   id       String @id @default(cuid())
   tenant   Tenant @relation(fields: [tenantId], references: [id])
   tenantId String
@@ -1751,36 +1849,135 @@ model OpcionPresupuestoViaje {
   presupuesto   PresupuestoViaje @relation(fields: [presupuestoId], references: [id])
   presupuestoId String
 
-  tipo                TipoOfertaViaje
-  /// Clave del proveedor que devolvió la oferta ("amadeus", "stub", "manual").
-  proveedor           String
-  /// Id de la oferta en el proveedor (para re-cotizar/reservar). Null en carga manual.
-  referenciaProveedor String?
-  /// Una línea en criollo: "AEP → MAD ida y vuelta · AR · sin escalas".
-  descripcion         String
-  /// La oferta normalizada completa (segmentos / hotel), tal como se vio.
-  detalle             Json
+  nombre      String
+  orden       Int
+  descripcion String?
 
-  /// Precio UNITARIO en la base indicada. Decimal(14,2) (ADR-057).
-  precio        Decimal            @db.Decimal(14, 2)
-  moneda        String // ISO-4217
-  baseOcupacion BaseOcupacionViaje // NOT NULL, sin default: explícito o no entra
-  /// Cuántas unidades de la base se cobran (pasajeros / personas / habitaciones).
-  cantidadBase  Int
-  /// precio × cantidadBase, calculado al congelar.
-  precioTotal   Decimal            @db.Decimal(14, 2)
-
-  /// Cuándo se obtuvo el precio. NOT NULL, sin default: la fecha de captura se declara.
-  capturadoEn  DateTime
-  /// Hasta cuándo lo garantiza el proveedor. Null = no informó.
-  vigenteHasta DateTime?
-
-  seleccionada Boolean @default(false)
-  orden        Int     @default(0)
-
-  createdAt DateTime @default(now())
+  opciones OpcionPresupuestoViaje[]
 
   @@index([tenantId, presupuestoId])
+}
+
+// Opción dentro de un nivel (spec §3.6). Los precios por persona son DERIVADOS (core),
+// no se persisten: se calculan desde las asignaciones para que nunca mientan.
+model OpcionPresupuestoViaje {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  nivel   NivelPresupuestoViaje @relation(fields: [nivelId], references: [id])
+  nivelId String
+
+  nombre    String
+  orden     Int
+  incluye   String?
+  noIncluye String?
+
+  asignaciones AsignacionOfertaViaje[]
+
+  @@index([tenantId, nivelId])
+}
+
+// OBJETO MAESTRO (spec §3.3): un precio CONGELADO con contexto suficiente para no mentir.
+// ABM propio (/admin/viajes/ofertas). Nunca se borra si está asignada a un presupuesto
+// enviado (baja lógica `activa`). Editar el precio de una oferta asignada a un enviado NO
+// modifica ese documento: captura nueva o versión nueva.
+model OfertaCapturadaViaje {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  tipo                TipoOfertaViaje
+  titulo              String
+  /// Aerolínea / cadena / mayorista / OTA / clave del buscador ("amadeus", "stub").
+  proveedor           String
+  /// Id de la oferta en el proveedor (buscador). Null en captura manual.
+  referenciaProveedor String?
+
+  /// A qué tramo del pedido aplica. Opcional en v1 para permitir la biblioteca sin pedido.
+  tramo   TramoSolicitudViaje? @relation(fields: [tramoId], references: [id])
+  tramoId String?
+
+  /// Precio en la UNIDAD indicada. Decimal(14,2) (ADR-057).
+  precio        Decimal             @db.Decimal(14, 2)
+  moneda        String // ISO-4217
+  unidad        UnidadPrecioViaje // NOT NULL sin default
+  /// Obligatoria si tipo = ALOJAMIENTO (lo exige el core). Sin default silencioso.
+  baseOcupacion BaseOcupacionViaje?
+  /// Solo con baseOcupacion = OTRA.
+  ocupacion     Int?
+  /// Obligatoria si unidad = POR_HABITACION_NOCHE.
+  noches        Int?
+
+  incluyeImpuestos IncluyeImpuestosViaje?
+  detalleImpuestos String?
+
+  /// Cuándo se obtuvo el precio. NOT NULL, sin default: se declara.
+  capturadoEn     DateTime
+  /// Hasta cuándo vale. NOT NULL: si el proveedor no la dio, se usa el default del tenant y se MARCA.
+  vigenteHasta    DateTime
+  vigenciaAsumida Boolean            @default(false)
+  /// Verificada (la vi hoy) o estimada. NOT NULL sin default: hay que elegir.
+  certeza         CertezaOfertaViaje
+  /// Link, mail o descripción del canal ("llamada al mayorista X", "Amadeus (test)").
+  fuente          String
+  /// Usuario que la capturó (`user:<id>`).
+  capturadoPor    String
+
+  /// Equipaje, penalidad, régimen, cancelación — texto libre en v1.
+  condiciones  String?
+  /// Tipo de cambio de referencia (el equivalente en ARS SIEMPRE se muestra como estimado).
+  tcReferencia Decimal?  @db.Decimal(14, 4)
+  fechaTC      DateTime?
+
+  /// La oferta normalizada completa tal como se vio (segmentos / hotel), o `{manual:true}`.
+  detalle Json
+
+  activa Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  asignaciones AsignacionOfertaViaje[]
+
+  @@index([tenantId, activa])
+  @@index([tenantId, vigenteHasta])
+  @@index([tenantId, tramoId])
+}
+
+// LA RELACIÓN EXPLÍCITA oferta → opción, con ABM propio (spec §3.7, ADR-055). Acá vive lo
+// que depende del USO de la oferta en ESA opción. Una oferta puede estar en varias opciones
+// sin duplicar la captura; desasignar no borra la oferta; jamás se asigna en lote.
+model AsignacionOfertaViaje {
+  id       String @id @default(cuid())
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+
+  opcion   OpcionPresupuestoViaje @relation(fields: [opcionId], references: [id])
+  opcionId String
+  oferta   OfertaCapturadaViaje   @relation(fields: [ofertaId], references: [id])
+  ofertaId String
+
+  /// Por default los del pedido; editable (ej.: 1 habitación para 2).
+  pasajerosCubiertos Int
+  /// Con qué base se prorratea EN ESTA opción (puede diferir de la capturada).
+  baseAplicada       BaseOcupacionViaje?
+  ocupacionAplicada  Int?
+  /// Importe explícito para calcular single desde una tarifa doble. PROHIBIDO inferirlo.
+  suplementoSingle   Decimal?            @db.Decimal(14, 2)
+  /// noches / tramos / unidades.
+  cantidad           Int
+  orden              Int
+
+  notaVisible String?
+  notaInterna String?
+
+  asignadoPor String
+  asignadoEn  DateTime @default(now())
+
+  @@unique([tenantId, opcionId, ofertaId]) // la misma oferta entra UNA vez a una opción
+  @@index([tenantId, opcionId])
+  @@index([tenantId, ofertaId])
 }
 
 // Cuota diaria de búsquedas REALES por tenant y proveedor (control de gasto: las
@@ -1809,7 +2006,7 @@ model CacheBusquedaViaje {
   tenantId String
 
   proveedor String
-  tipo      TipoOfertaViaje
+  tipo      TipoBusquedaViaje
   /// sha256 del JSON canónico de la búsqueda (`claveBusqueda`).
   clave     String
   resultado Json

@@ -25,6 +25,7 @@
 
 import {
   ProveedorOfertasError,
+  baseParaPersonas,
   type BusquedaHoteles,
   type BusquedaVuelos,
   type InstanteISO,
@@ -230,9 +231,10 @@ export function mapearOfertasVuelo(raw: RawFlightOffersAmadeus, capturadoEn: Ins
       precio: {
         monto: round2(monto),
         moneda,
-        baseOcupacion: "POR_PASAJERO",
+        unidad: "POR_PERSONA",
         capturadoEn,
         ...(o.lastTicketingDate ? { vigenteHasta: `${o.lastTicketingDate}T23:59:59.000Z` } : {}),
+        incluyeImpuestos: "SI", // Amadeus `price.total` = tarifa + tasas/impuestos
       },
       ...(total != null ? { totalGrupo: { monto: round2(total), moneda } } : {}),
       ...(bags != null ? { equipajeIncluido: bags > 0 } : {}),
@@ -244,7 +246,8 @@ export function mapearOfertasVuelo(raw: RawFlightOffersAmadeus, capturadoEn: Ins
 
 /**
  * Hotel Search v3 → `OfertaHotel[]`. En v3 cada `offer` es UNA habitación por toda la
- * estadía: `price.total` → POR_HABITACION. Sin precio o sin id, se descarta.
+ * estadía: `price.total` → POR_HABITACION_TOTAL, con base de ocupación derivada de
+ * `guests.adults` (2 → doble, 1 → single…). Sin precio o sin id, se descarta.
  */
 export function mapearOfertasHotel(raw: RawHotelOffersAmadeus, capturadoEn: InstanteISO): OfertaHotel[] {
   const out: OfertaHotel[] = [];
@@ -259,6 +262,8 @@ export function mapearOfertasHotel(raw: RawHotelOffersAmadeus, capturadoEn: Inst
       if (!of.id || monto == null || !moneda) continue;
       const deadline = of.policies?.cancellations?.[0]?.deadline;
       const reembolsable = of.policies?.refundable?.cancellationRefund;
+      const noches = nochesEntre(of.checkInDate, of.checkOutDate);
+      const { base: baseOcupacion, ocupacion } = baseParaPersonas(of.guests?.adults ?? 2);
       const politica =
         reembolsable === "NON_REFUNDABLE"
           ? "No reembolsable"
@@ -281,8 +286,16 @@ export function mapearOfertasHotel(raw: RawHotelOffersAmadeus, capturadoEn: Inst
         },
         checkIn: of.checkInDate ?? "",
         checkOut: of.checkOutDate ?? "",
-        noches: nochesEntre(of.checkInDate, of.checkOutDate),
-        precio: { monto: round2(monto), moneda, baseOcupacion: "POR_HABITACION", capturadoEn },
+        noches,
+        precio: {
+          monto: round2(monto),
+          moneda,
+          unidad: "POR_HABITACION_TOTAL",
+          baseOcupacion,
+          ...(ocupacion ? { ocupacion } : {}),
+          noches,
+          capturadoEn,
+        },
         ...(politica ? { politicaCancelacion: politica } : {}),
       });
     }

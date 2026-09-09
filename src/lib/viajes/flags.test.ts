@@ -21,22 +21,29 @@ test("viajesProveedorClave: default stub; viajesCuotaDiaria: default 50, entero 
   assert.equal(viajesCuotaDiaria({ VIAJES_CUOTA_DIARIA: "abc" }), 50);
 });
 
-test("nav: /admin/viajes existe, exige asignación dura y va atado al módulo viajes", () => {
+test("nav: /admin/viajes existe, exige asignación dura y va atado al módulo presupuestos-viaje", () => {
   const item = navItemForPath("/admin/viajes");
-  assert.equal(item?.module, "viajes");
+  assert.equal(item?.module, "presupuestos-viaje");
   assert.equal(item?.requiereAsignacion, true);
-  assert.equal(item?.cap, "viajes:manage");
+  assert.equal(item?.cap, "quotes:read");
   // Es el ÚNICO ítem con asignación dura hoy: los demás no cambian de comportamiento.
   assert.deepEqual(ALL_ITEMS.filter((i) => i.requiereAsignacion).map((i) => i.href), ["/admin/viajes"]);
 });
 
 test("gating por-URL: un Comerciante (sin viajes) no entra a /admin/viajes; una agencia con el módulo sí", () => {
   assert.equal(rutaPermitidaParaModulos("/admin/viajes", ["arca", "bancos", "clients"]), false);
-  assert.equal(rutaPermitidaParaModulos("/admin/viajes", ["clients", "viajes"]), true);
+  assert.equal(rutaPermitidaParaModulos("/admin/viajes", ["clients", "presupuestos-viaje"]), true);
 });
 
-test("RBAC: viajes:manage es solo OWNER", () => {
-  assert.equal(roleHasCapability("OWNER", "viajes:manage"), true);
-  assert.equal(roleHasCapability("RECEPTION", "viajes:manage"), false);
-  assert.equal(roleHasCapability("PROFESSIONAL", "viajes:manage"), false);
+test("RBAC (spec §5.2): RECEPTION arma y sigue pero NO pone precio ni envía; OWNER todo; PROFESSIONAL nada", () => {
+  for (const c of ["quotes:read", "quotes:manage", "quotes:track"] as const) {
+    assert.equal(roleHasCapability("OWNER", c), true, c);
+    assert.equal(roleHasCapability("RECEPTION", c), true, c);
+    assert.equal(roleHasCapability("PROFESSIONAL", c), false, c);
+  }
+  for (const c of ["quotes:price", "quotes:send"] as const) {
+    assert.equal(roleHasCapability("OWNER", c), true, c);
+    assert.equal(roleHasCapability("RECEPTION", c), false, c);
+    assert.equal(roleHasCapability("PROFESSIONAL", c), false, c);
+  }
 });

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { StubProveedorOfertas } from "./stub";
 import { RegistroProveedoresOfertas, ProveedorOfertasDesconocidoError } from "./registry";
 import { registroPorDefecto } from "./index";
-import { BASES_OCUPACION } from "./port";
+import { UNIDADES_PRECIO } from "./port";
 
 const AHORA = () => new Date("2026-09-09T12:00:00.000Z");
 
@@ -20,7 +20,8 @@ test("stub vuelos: determinístico, con capturadoEn y base en TODAS las ofertas"
   assert.ok(r1.ofertas.length >= 1);
   for (const o of r1.ofertas) {
     assert.equal(o.precio.capturadoEn, "2026-09-09T12:00:00.000Z");
-    assert.ok(BASES_OCUPACION.includes(o.precio.baseOcupacion));
+    assert.ok(UNIDADES_PRECIO.includes(o.precio.unidad));
+    assert.equal(o.precio.unidad, "POR_PERSONA");
     assert.equal(o.tramos.length, 2); // ida y vuelta
     assert.equal(o.totalGrupo?.monto, o.precio.monto * 3);
   }
@@ -33,13 +34,15 @@ test("stub vuelos: solo ida = 1 tramo; respeta maxResultados", async () => {
   assert.equal(r.ofertas[0].tramos.length, 1);
 });
 
-test("stub hoteles: noches correctas, precio POR_HABITACION y capturadoEn", async () => {
+test("stub hoteles: noches correctas, precio POR_HABITACION_TOTAL con base doble y capturadoEn", async () => {
   const s = new StubProveedorOfertas(AHORA);
   const r = await s.buscarHoteles({ ciudad: "MAD", checkIn: "2026-11-11", checkOut: "2026-11-16", adultos: 2 });
   assert.ok(r.ofertas.length >= 1);
   for (const o of r.ofertas) {
     assert.equal(o.noches, 5);
-    assert.equal(o.precio.baseOcupacion, "POR_HABITACION");
+    assert.equal(o.precio.unidad, "POR_HABITACION_TOTAL");
+    assert.equal(o.precio.baseOcupacion, "DOBLE");
+    assert.equal(o.precio.noches, 5);
     assert.equal(o.precio.capturadoEn, "2026-09-09T12:00:00.000Z");
     assert.ok(o.precio.monto > 0);
   }

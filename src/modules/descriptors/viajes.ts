@@ -1,51 +1,78 @@
 // ============================================================================
-// Descriptor del módulo VIAJES — armador de presupuestos de viaje (ADR-002/054/055).
+// Descriptores del módulo VIAJES — armador de presupuestos (ADR-002/054/055).
+// Spec funcional: docs/producto/spec-armador-presupuestos-viaje.md (§6 catálogo).
 // ============================================================================
 //
-// Capability NATIVA del Core (mecanismo B de ADR-002: "presupuesto de viaje con
-// opciones congeladas" es un concepto genuinamente nuevo y reutilizable por cualquier
-// agencia — no un campo de extensión ni una tabla del blueprint). Vive en
-// `src/lib/viajes` (core + actions) y `src/plugins/ofertas-viaje` (conector externo
-// de vuelos/hoteles, hexagonal: port + adapters Amadeus/stub).
+// DOS módulos, como pide la spec:
+//   - `presupuestos-viaje` — capability NATIVA del Core (mecanismo B de ADR-002: pedido,
+//     oferta capturada como objeto maestro, presupuesto con niveles/opciones y la
+//     asignación oferta→opción con ABM propio). Vive en `src/lib/viajes` + `/admin/viajes`.
+//   - `buscador-ofertas-viaje` — PLUGIN opcional (integración externa: Amadeus/stub por el
+//     port `src/plugins/ofertas-viaje`). Depende del anterior. Sin él, la agencia captura
+//     ofertas a mano (portal del mayorista) con la misma invariante.
 //
-// VARIANTE (ADR-055): compatible SOLO con el rubro `agencia-viajes`. Que sea compatible
-// no lo activa: se ASIGNA tenant por tenant desde la consola de operador — una estética
-// jamás lo ve, aunque su OWNER tenga todas las capabilities. Nunca "todos con todo".
+// VARIANTE (ADR-055): compatibles SOLO con el rubro `viajes`. Que sean compatibles no los
+// activa: se ASIGNAN tenant por tenant desde la consola de operador — una estética jamás
+// los ve, aunque su OWNER tenga todas las capabilities. Nunca "todos con todo".
 //
-// Además corre detrás del flag `VIAJES_ENABLED` (default OFF): con el flag apagado el
-// módulo es invisible aunque esté asignado (rollout reversible sin tocar datos).
+// Ambos corren detrás del flag `VIAJES_ENABLED` (default OFF): con el flag apagado son
+// invisibles aunque estén asignados (rollout reversible sin tocar datos).
 
 import type { ModuleDescriptor } from "../contract";
 
-export const MODULO_VIAJES = "viajes";
+export const MODULO_PRESUPUESTOS_VIAJE = "presupuestos-viaje";
+export const MODULO_BUSCADOR_OFERTAS_VIAJE = "buscador-ofertas-viaje";
 
-export const viajesModule: ModuleDescriptor = {
-  id: MODULO_VIAJES,
-  version: "0.1.0", // esqueleto vertical (conector + snapshot + schema); UI mínima
+const MIGRACION_VIAJES = {
+  carpeta: "prisma/migrations/20260909120000_add_viajes_presupuestos",
+  descripcion:
+    "SolicitudViaje, TramoSolicitudViaje, PresupuestoViaje, NivelPresupuestoViaje, OpcionPresupuestoViaje, OfertaCapturadaViaje (maestro), AsignacionOfertaViaje (relación), ConsumoProveedorViaje, CacheBusquedaViaje + 8 enums.",
+  aditiva: true as const,
+};
+
+export const presupuestosViajeModule: ModuleDescriptor = {
+  id: MODULO_PRESUPUESTOS_VIAJE,
+  version: "0.1.0", // esqueleto vertical: pedido → captura → asignación → resumen por opción
   nombre: "Presupuestos de viaje",
   descripcion:
-    "Armá presupuestos de viaje buscando vuelos y hoteles en proveedores conectados. Cada opción se guarda con su precio congelado, la base (por persona / por habitación), la fecha de captura y la vigencia.",
+    "Armá presupuestos de viaje por niveles y opciones. Cada oferta se captura una vez con precio congelado, unidad (por persona / por habitación), base de ocupación, fecha de captura, vigencia y certeza; después se asigna a las opciones.",
   kind: "capability",
-  capability: "viajes:manage",
-  rubros: ["agencia-viajes"],
-  dependencias: [{ id: "clients", rango: "^1.0" }], // el pasajero principal es un Client del Core
+  capability: "quotes:manage",
+  rubros: ["viajes"],
+  dependencias: [{ id: "clients", rango: "^1.0" }], // la ficha del contacto es un Client del Core
   flag: "VIAJES_ENABLED",
   grupo: "ventas-mostrador",
-  resumen: "Buscás vuelos y hoteles, elegís opciones y armás el presupuesto para mandarle al cliente.",
+  resumen: "Tomás el pedido, capturás ofertas, armás niveles y opciones y le mandás el presupuesto al cliente.",
   fit: "Agencias de viaje que cotizan a mano y necesitan trazabilidad de cada precio.",
   scopeItems: [
-    { label: "Buscar vuelos y hoteles en el proveedor conectado", ruta: "/admin/viajes" },
-    { label: "Guardar opciones con precio congelado, base y fecha de captura" },
-    { label: "Armar el presupuesto por cliente y mandarlo" },
+    { label: "Bandeja de pedidos y presupuestos", ruta: "/admin/viajes" },
+    { label: "Biblioteca de ofertas capturadas (precio congelado, base y fecha)" },
+    { label: "Niveles y opciones con precio por persona en doble y single" },
   ],
-  migraciones: [
-    {
-      carpeta: "prisma/migrations/20260909120000_add_viajes_presupuestos",
-      descripcion:
-        "Tablas PresupuestoViaje, OpcionPresupuestoViaje (snapshot), ConsumoProveedorViaje (cuota) y CacheBusquedaViaje + 3 enums.",
-      aditiva: true,
-    },
+  migraciones: [MIGRACION_VIAJES],
+};
+
+export const buscadorOfertasViajeModule: ModuleDescriptor = {
+  id: MODULO_BUSCADOR_OFERTAS_VIAJE,
+  version: "0.1.0",
+  nombre: "Buscador de vuelos y hoteles",
+  descripcion:
+    "Busca vuelos y hoteles en el proveedor conectado (Amadeus Self-Service; datos simulados sin credenciales) y captura la oferta elegida directo a la biblioteca, con caché y tope diario de búsquedas.",
+  kind: "plugin",
+  capability: "quotes:manage",
+  rubros: ["viajes"],
+  dependencias: [{ id: MODULO_PRESUPUESTOS_VIAJE, rango: "^0.1" }],
+  flag: "VIAJES_ENABLED",
+  grupo: "ventas-mostrador",
+  resumen: "Cotizás vuelos y hoteles desde el panel en vez de abrir diez pestañas.",
+  fit: "Agencias con el módulo de presupuestos que quieren precios orientativos al toque.",
+  scopeItems: [
+    { label: "Buscar vuelos y hoteles", ruta: "/admin/viajes" },
+    { label: "Capturar la oferta elegida a la biblioteca" },
   ],
+  // Superficie del plugin (ADR-002/006): no escucha el outbox; invoca el comando del Core
+  // que crea el objeto maestro (la action `capturarDesdeBusquedaAction`).
+  llamaComandos: ["CapturarOfertaViaje"],
   configSchema: {
     AMADEUS_CLIENT_ID: { tipo: "string", descripcion: "API key de Amadeus Self-Service (la pega el dueño).", secreto: true },
     AMADEUS_CLIENT_SECRET: { tipo: "string", descripcion: "API secret de Amadeus Self-Service.", secreto: true },

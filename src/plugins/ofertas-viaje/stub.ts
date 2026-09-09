@@ -6,18 +6,19 @@
  * Genera ofertas plausibles a partir de la búsqueda (sin Math.random: mismos
  * resultados para la misma búsqueda, así los tests son estables).
  *
- * Cumple la invariante del port: toda oferta sale con `capturadoEn` y
- * `baseOcupacion` explícitos.
+ * Cumple la invariante del port: toda oferta sale con `capturadoEn`, `unidad` y —en
+ * alojamiento— `baseOcupacion` explícitos.
  */
 
-import type {
-  BusquedaHoteles,
-  BusquedaVuelos,
-  InstanteISO,
-  OfertaHotel,
-  OfertaVuelo,
-  ProveedorOfertas,
-  ResultadoBusqueda,
+import {
+  baseParaPersonas,
+  type BusquedaHoteles,
+  type BusquedaVuelos,
+  type InstanteISO,
+  type OfertaHotel,
+  type OfertaVuelo,
+  type ProveedorOfertas,
+  type ResultadoBusqueda,
 } from "./port";
 
 export const CLAVE_STUB = "stub";
@@ -96,9 +97,10 @@ export class StubProveedorOfertas implements ProveedorOfertas {
         precio: {
           monto,
           moneda,
-          baseOcupacion: "POR_PASAJERO",
+          unidad: "POR_PERSONA",
           capturadoEn,
           vigenteHasta: `${sumarDias(capturadoEn.slice(0, 10), 2)}T23:59:59.000Z`,
+          incluyeImpuestos: "SI",
         },
         totalGrupo: { monto: monto * pax, moneda },
         equipajeIncluido: i % 2 === 0,
@@ -114,6 +116,8 @@ export class StubProveedorOfertas implements ProveedorOfertas {
     const n = Math.min(b.maxResultados ?? 3, 5);
     const moneda = b.moneda ?? "USD";
     const noches = nochesEntre(b.checkIn, b.checkOut);
+    const porHab = Math.max(1, Math.ceil(b.adultos / Math.max(1, b.habitaciones ?? 1)));
+    const { base: baseOcupacion, ocupacion } = baseParaPersonas(porHab);
     const ofertas: OfertaHotel[] = [];
     for (let i = 0; i < n; i++) {
       const estrellas = 3 + (i % 3);
@@ -122,14 +126,17 @@ export class StubProveedorOfertas implements ProveedorOfertas {
         referenciaProveedor: `stub-hotel-${base.toString(16)}-${i}`,
         proveedor: CLAVE_STUB,
         hotel: { nombre: `Hotel de ejemplo ${i + 1} (${b.ciudad})`, codigo: `STB${i}`, ciudad: b.ciudad, estrellas },
-        habitacion: { descripcion: "Habitación doble estándar", tipo: "doble", regimen: REGIMENES[i % REGIMENES.length] },
+        habitacion: { descripcion: `Habitación ${baseOcupacion.toLowerCase()} estándar`, tipo: baseOcupacion.toLowerCase(), regimen: REGIMENES[i % REGIMENES.length] },
         checkIn: b.checkIn,
         checkOut: b.checkOut,
         noches,
         precio: {
           monto: porNoche * noches,
           moneda,
-          baseOcupacion: "POR_HABITACION",
+          unidad: "POR_HABITACION_TOTAL",
+          baseOcupacion,
+          ...(ocupacion ? { ocupacion } : {}),
+          noches,
           capturadoEn,
         },
         politicaCancelacion: i === 0 ? "No reembolsable" : "Cancelación gratis hasta 48 h antes",

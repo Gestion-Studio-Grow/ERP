@@ -16,14 +16,14 @@
 //   - Bancos (plugin): su fuente de verdad vive junto al plugin
 //     (src/plugins/bancos/module.ts), misma convención que ARCA.
 //   - Cartera (nativo, panel del contador): src/modules/descriptors/cartera.ts.
-//   - Viajes (nativo, presupuestos de viaje — rubro agencia-viajes, flag VIAJES_ENABLED):
-//     src/modules/descriptors/viajes.ts.
+//   - Viajes: `presupuestos-viaje` (nativo) + `buscador-ofertas-viaje` (plugin opcional) —
+//     rubro viajes, flag VIAJES_ENABLED: src/modules/descriptors/viajes.ts.
 
 import { ModuleRegistry } from "./registry";
 import { MODULOS_NATIVOS } from "./descriptors/nativos";
 import { mercadopagoModule } from "./descriptors/mercadopago";
 import { carteraModule } from "./descriptors/cartera";
-import { viajesModule } from "./descriptors/viajes";
+import { presupuestosViajeModule, buscadorOfertasViajeModule } from "./descriptors/viajes";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -34,7 +34,8 @@ export const DESCRIPTORES_CATALOGO = [
   mercadopagoModule,
   bancosModule,
   carteraModule,
-  viajesModule,
+  presupuestosViajeModule,
+  buscadorOfertasViajeModule,
 ];
 
 /**

@@ -7,7 +7,7 @@ import { filtrarPorFlagDeRollout } from "./rollout";
 import { ModuleRegistry } from "./registry";
 import { construirCatalogo } from "./catalog";
 import { resolverActivacion } from "./activation";
-import { viajesModule, MODULO_VIAJES } from "./descriptors/viajes";
+import { presupuestosViajeModule, buscadorOfertasViajeModule, MODULO_PRESUPUESTOS_VIAJE, MODULO_BUSCADOR_OFERTAS_VIAJE } from "./descriptors/viajes";
 import type { ModuleDescriptor } from "./contract";
 
 function cap(id: string, extra: Partial<ModuleDescriptor> = {}): ModuleDescriptor {
@@ -27,36 +27,40 @@ test("filtrarPorFlagDeRollout: ids desconocidos se conservan (no es su tarea val
   assert.deepEqual(filtrarPorFlagDeRollout(["agenda", "fantasma"], r, {}), ["agenda", "fantasma"]);
 });
 
-test("VIAJES: está en el catálogo real, es capability, tiene flag VIAJES_ENABLED y migración aditiva", () => {
+test("VIAJES: los dos módulos están en el catálogo real, con flag VIAJES_ENABLED y migración aditiva", () => {
   const r = construirCatalogo();
-  const d = r.get(MODULO_VIAJES);
-  assert.equal(d.kind, "capability");
-  assert.equal(d.capability, "viajes:manage");
-  assert.equal(d.flag, "VIAJES_ENABLED");
-  assert.ok(d.migraciones?.every((m) => m.aditiva === true));
-  assert.equal(viajesModule.nucleoPara, undefined); // no es núcleo de ningún producto
+  const p = r.get(MODULO_PRESUPUESTOS_VIAJE);
+  const b = r.get(MODULO_BUSCADOR_OFERTAS_VIAJE);
+  assert.equal(p.kind, "capability");
+  assert.equal(b.kind, "plugin");
+  assert.equal(p.capability, "quotes:manage");
+  assert.equal(p.flag, "VIAJES_ENABLED");
+  assert.equal(b.flag, "VIAJES_ENABLED");
+  assert.ok(p.migraciones?.every((m) => m.aditiva === true));
+  assert.equal(presupuestosViajeModule.nucleoPara, undefined); // no es núcleo de ningún producto
+  assert.ok(buscadorOfertasViajeModule.dependencias?.some((d) => d.id === MODULO_PRESUPUESTOS_VIAJE));
 });
 
-test("VIAJES (variante ADR-055): incompatible con servicios/carnicería/genérico; compatible solo con agencia-viajes", () => {
+test("VIAJES (variante ADR-055): incompatible con servicios/carnicería/genérico; compatible solo con el rubro viajes", () => {
   const r = construirCatalogo();
   for (const rubro of ["servicios", "carniceria", "generico", "facturita", null]) {
-    const res = resolverActivacion({ tenantId: "t", blueprintId: rubro, modules: ["clients", MODULO_VIAJES] }, r);
+    const res = resolverActivacion({ tenantId: "t", blueprintId: rubro, modules: ["clients", MODULO_PRESUPUESTOS_VIAJE] }, r);
     assert.deepEqual(res.activos.map((d) => d.id), ["clients"], `rubro ${rubro}`);
-    assert.equal(res.incompatibles[0]?.id, MODULO_VIAJES);
+    assert.equal(res.incompatibles[0]?.id, MODULO_PRESUPUESTOS_VIAJE);
   }
-  const ok = resolverActivacion({ tenantId: "t", blueprintId: "agencia-viajes", modules: ["clients", MODULO_VIAJES] }, r);
-  assert.deepEqual(ok.activos.map((d) => d.id).sort(), ["clients", MODULO_VIAJES]);
+  const ok = resolverActivacion({ tenantId: "t", blueprintId: "viajes", modules: ["clients", MODULO_PRESUPUESTOS_VIAJE, MODULO_BUSCADOR_OFERTAS_VIAJE] }, r);
+  assert.deepEqual(ok.activos.map((d) => d.id).sort(), [MODULO_BUSCADOR_OFERTAS_VIAJE, "clients", MODULO_PRESUPUESTOS_VIAJE].sort());
 });
 
-test("VIAJES: depende de clients (el pasajero principal es un Client del Core)", () => {
+test("VIAJES: presupuestos depende de clients; el buscador depende de presupuestos (cae en cascada)", () => {
   const r = construirCatalogo();
-  const res = resolverActivacion({ tenantId: "t", blueprintId: "agencia-viajes", modules: [MODULO_VIAJES] }, r);
-  assert.deepEqual(res.activos, []);
-  assert.equal(res.dependenciasFaltantes[0]?.id, MODULO_VIAJES);
+  const sinClients = resolverActivacion({ tenantId: "t", blueprintId: "viajes", modules: [MODULO_PRESUPUESTOS_VIAJE, MODULO_BUSCADOR_OFERTAS_VIAJE] }, r);
+  assert.deepEqual(sinClients.activos, []);
+  assert.deepEqual(sinClients.dependenciasFaltantes.map((x) => x.id).sort(), [MODULO_BUSCADOR_OFERTAS_VIAJE, MODULO_PRESUPUESTOS_VIAJE].sort());
 });
 
-test("VIAJES: con el flag apagado (default) se filtra del set asignado → la nav no lo muestra", () => {
+test("VIAJES: con el flag apagado (default) se filtran del set asignado → la nav no los muestra", () => {
   const r = construirCatalogo();
-  assert.deepEqual(filtrarPorFlagDeRollout(["clients", MODULO_VIAJES], r, {}), ["clients"]);
-  assert.deepEqual(filtrarPorFlagDeRollout(["clients", MODULO_VIAJES], r, { VIAJES_ENABLED: "1" }), ["clients", MODULO_VIAJES]);
+  assert.deepEqual(filtrarPorFlagDeRollout(["clients", MODULO_PRESUPUESTOS_VIAJE, MODULO_BUSCADOR_OFERTAS_VIAJE], r, {}), ["clients"]);
+  assert.deepEqual(filtrarPorFlagDeRollout(["clients", MODULO_PRESUPUESTOS_VIAJE], r, { VIAJES_ENABLED: "1" }), ["clients", MODULO_PRESUPUESTOS_VIAJE]);
 });

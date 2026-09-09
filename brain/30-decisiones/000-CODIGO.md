@@ -22,11 +22,11 @@ tags: [brain/indice, brain/codigo]
 
 | Métrica | Valor |
 |---|---:|
-| Archivos de `src/` que citan un ADR | 305 de 675 |
+| Archivos de `src/` que citan un ADR | 307 de 680 |
 | Archivos de `prisma/` que citan un ADR | 37 de 72 |
 | Archivos de `scripts/` que citan un ADR | 11 de 27 |
-| Archivos escaneados en total | 774 |
-| Archivos que citan algún ADR | 353 |
+| Archivos escaneados en total | 779 |
+| Archivos que citan algún ADR | 355 |
 | ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 79 de 81 |
 
 ## 🕳️ Los agujeros (a la vista, no tapados)
@@ -120,8 +120,8 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-017](ADR-017.md)
 
-- **cabecera (9):** `src/lib/auth-password.ts` · `src/lib/auth.ts` · `src/lib/authz.ts` · `src/lib/capabilities.ts` · `src/lib/operator-auth.ts` · `src/lib/public-api-auth.ts` · `src/lib/session.ts` · `src/lib/user-actions.ts` … y 1 más
-- **inline (13):** `src/generated/prisma/internal/class.ts` · `src/generated/prisma/models/PresupuestoViaje.ts` · `src/lib/actions.ts` · `src/lib/admin-nav-items.ts` · `src/lib/audit.ts` … y 8 más
+- **cabecera (10):** `src/lib/auth-password.ts` · `src/lib/auth.ts` · `src/lib/authz.ts` · `src/lib/capabilities.ts` · `src/lib/operator-auth.ts` · `src/lib/public-api-auth.ts` · `src/lib/session.ts` · `src/lib/user-actions.ts` … y 2 más
+- **inline (12):** `src/generated/prisma/internal/class.ts` · `src/generated/prisma/models/PresupuestoViaje.ts` · `src/lib/actions.ts` · `src/lib/admin-nav-items.ts` · `src/lib/audit.ts` … y 7 más
 - **el ADR cita:** `src/lib/auth.ts` · `src/proxy.ts` · `src/lib/audit.ts`
 
 ### [ADR-018](ADR-018.md)
@@ -308,8 +308,8 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-055](ADR-055.md)
 
-- **cabecera (18):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/viajes/flags.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` · `src/modules/contract.ts` … y 10 más
-- **inline (16):** `src/generated/prisma/internal/class.ts` · `src/lib/admin-nav-items.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/modulos-actions.ts` … y 11 más
+- **cabecera (19):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/viajes/core.ts` · `src/lib/viajes/flags.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` … y 11 más
+- **inline (17):** `src/generated/prisma/internal/class.ts` · `src/generated/prisma/models/SolicitudViaje.ts` · `src/lib/admin-nav-items.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` … y 12 más
 - **el ADR cita:** `src/modules/`
 
 ### [ADR-056](ADR-056.md)
@@ -320,7 +320,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-057](ADR-057.md)
 
 - **cabecera (8):** `src/lib/debts/payable-repo.ts` · `src/lib/debts/receivable-repo.ts` · `src/lib/round.test.ts` · `src/lib/round.ts` · `src/plugins/bancos/core-contract.ts` · `src/plugins/bancos/domain/valores.ts` · `prisma/migrations/20260708120000_invoice_money_decimal/migration.sql` · `prisma/migrations/20260711120000_add_bancos_importacion/migration.sql`
-- **inline (19):** `src/components/ui/format.ts` · `src/generated/prisma/internal/class.ts` · `src/generated/prisma/models/OpcionPresupuestoViaje.ts` · `src/lib/bancos-actions.ts` · `src/lib/bancos-glue.ts` … y 14 más
+- **inline (19):** `src/components/ui/format.ts` · `src/generated/prisma/internal/class.ts` · `src/generated/prisma/models/OfertaCapturadaViaje.ts` · `src/lib/bancos-actions.ts` · `src/lib/bancos-glue.ts` … y 14 más
 - **el ADR cita:** `prisma/schema.prisma` · `src/lib/round.ts` · `src/lib/fiscal.ts` · `src/lib/invoice-core.ts`
 
 ### [ADR-058](ADR-058.md)
@@ -368,7 +368,7 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-067](ADR-067.md)
 
-- **inline (1):** `scripts/adr-graph.mjs`
+- **inline (3):** `src/generated/prisma/internal/class.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs`
 
 ### [ADR-068](ADR-068.md)
 

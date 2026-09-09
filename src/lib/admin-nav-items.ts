@@ -76,9 +76,9 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca", alias: ["arca", "afip", "comprobantes", "iva", "factura"] },
   { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports", alias: ["informes", "estadisticas", "rentabilidad", "comisiones", "ingresos"] },
   { href: "/admin/campania", label: "Campañas", icon: "clientes", cap: "clients:read", module: "campanias", alias: ["obsequio", "promociones", "leads", "anotados", "apertura"] },
-  // Módulo VIAJES (rubro agencia-viajes, flag VIAJES_ENABLED): solo con el módulo asignado
-  // Y el flag prendido (`requiereAsignacion` + `filtrarPorFlagDeRollout` en el layout).
-  { href: "/admin/viajes", label: "Presupuestos de viaje", icon: "viajes", cap: "viajes:manage", module: "viajes", requiereAsignacion: true, alias: ["vuelos", "hoteles", "cotizacion", "pasajes", "agencia"] },
+  // Módulo `presupuestos-viaje` (rubro viajes, flag VIAJES_ENABLED): solo con el módulo
+  // asignado Y el flag prendido (`requiereAsignacion` + `filtrarPorFlagDeRollout` en el layout).
+  { href: "/admin/viajes", label: "Presupuestos de viaje", icon: "viajes", cap: "quotes:read", module: "presupuestos-viaje", requiereAsignacion: true, alias: ["vuelos", "hoteles", "cotizacion", "pasajes", "agencia", "pedidos de viaje"] },
   // El ítem SIGUE declarado —la ruta necesita estar en el mapa para el gating por
   // módulos— pero ya no lo ve nadie: `modules:manage` dejó de estar en las
   // capacidades del dueño. Aprovisionar módulos es decidir qué producto compró

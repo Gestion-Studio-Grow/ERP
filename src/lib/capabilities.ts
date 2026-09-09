@@ -42,11 +42,21 @@ export type Capability =
   // (Tenant.accentPreset) y el tema claro/oscuro del panel. Solo OWNER — es
   // configuración del negocio, mismo tenor que localización/módulos.
   | "appearance:manage"
-  // Presupuestos de viaje (/admin/viajes, módulo VIAJES): buscar ofertas de vuelos/
-  // hoteles y armar presupuestos con precio congelado. La capability sola NO alcanza:
-  // la página y las actions exigen ADEMÁS el módulo `viajes` ASIGNADO al tenant
-  // (ADR-055) y el flag `VIAJES_ENABLED` — una estética no lo ve aunque sea OWNER.
-  | "viajes:manage";
+  // Presupuestos de viaje (/admin/viajes, módulo `presupuestos-viaje`; spec
+  // docs/producto/spec-armador-presupuestos-viaje.md §5). Cinco capabilities porque
+  // el que arma (mostrador) NO es el que pone precio ni el que le habla al cliente:
+  //   read   → ver bandeja, presupuestos y biblioteca de ofertas (sin costo neto ni markup)
+  //   manage → crear pedidos, capturar ofertas (ABM del maestro) y asignar/desasignar
+  //   price  → ver costo neto y margen, política de markup, aprobar (solo OWNER)
+  //   send   → generar y enviar el documento (congela la versión; solo OWNER)
+  //   track  → registrar la respuesta del cliente y el seguimiento
+  // La capability sola NO alcanza: página y actions exigen ADEMÁS el módulo
+  // `presupuestos-viaje` ASIGNADO al tenant (ADR-055) y el flag `VIAJES_ENABLED`.
+  | "quotes:read"
+  | "quotes:manage"
+  | "quotes:price"
+  | "quotes:send"
+  | "quotes:track";
 
 // Todas las capacidades — OWNER las tiene todas (absorbe el "admin" de hoy,
 // ADR-017 §2.b). Mantener esta lista sincronizada con el union `Capability`.
@@ -80,7 +90,11 @@ export const ALL_CAPABILITIES: Capability[] = [
   "payments:manage",
   "cartera:manage",
   "appearance:manage",
-  "viajes:manage",
+  "quotes:read",
+  "quotes:manage",
+  "quotes:price",
+  "quotes:send",
+  "quotes:track",
 ];
 
 // Mapa rol → capacidades (ADR-017 §2.b, tabla de roles).
@@ -115,6 +129,12 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     // RECEPTION lo tiene. El catálogo/precios sigue solo-OWNER.
     "orders:read",
     "orders:manage",
+    // Presupuestos de viaje (spec §5.2): el operador de mostrador hace TODO el laburo
+    // pesado — busca, captura, arma niveles y opciones y sigue al cliente — pero NO ve
+    // el costo neto ni pone precio de venta ni envía (mismo criterio que precios/catálogo).
+    "quotes:read",
+    "quotes:manage",
+    "quotes:track",
   ],
   PROFESSIONAL: ["agenda:read", "agenda:complete"],
 };

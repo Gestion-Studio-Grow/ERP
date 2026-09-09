@@ -10,11 +10,11 @@
  * Regla de dependencias: este módulo NO importa ningún proveedor. Los proveedores
  * importan de acá, no al revés. Dato PURO: sin Prisma, sin red, sin React.
  *
- * INVARIANTE DURA (caso real que originó el módulo): todo precio que sale de un
- * adapter trae `capturadoEn` y `baseOcupacion` OBLIGATORIOS. Confundir "precio por
- * habitación" con "precio por persona" duplica un presupuesto; un precio sin fecha de
- * captura no se puede defender ante el cliente. El tipo no admite omitirlos; el core
- * (`src/lib/viajes/core.ts`) lo re-valida en runtime antes de congelar.
+ * INVARIANTE DURA (caso real que originó el módulo, spec §3.3): todo precio que sale
+ * de un adapter trae `capturadoEn` y `unidad` OBLIGATORIOS, y `baseOcupacion` si es
+ * alojamiento. Confundir "por habitación" con "por persona" duplica un presupuesto; un
+ * precio sin fecha de captura no se puede defender ante el cliente. El tipo no admite
+ * omitirlos; el core (`src/lib/viajes/core.ts`) lo re-valida en runtime al capturar.
  */
 
 /** Código IATA de aeropuerto o ciudad (3 letras mayúsculas, p.ej. "AEP", "MAD"). */
@@ -30,56 +30,89 @@ export type InstanteISO = string;
 export type Moneda = string;
 
 /**
- * BASE DE OCUPACIÓN de un precio — QUÉ unidad cubre el importe. Es la pieza que evita
- * el error de duplicar/halvar un presupuesto. Vocabulario del rubro (agencias):
- *  - POR_PERSONA_EN_DOBLE : hotel, precio por persona compartiendo habitación doble.
- *  - POR_PERSONA_EN_SINGLE: hotel, precio por persona en habitación single.
- *  - POR_PERSONA_EN_TRIPLE: hotel, precio por persona en habitación triple.
- *  - POR_HABITACION       : hotel, precio de la habitación completa por toda la estadía.
- *  - POR_PASAJERO         : vuelo, precio por pasajero (tarifa + tasas).
- *  - TOTAL                : importe total del ítem para todo el grupo/estadía.
- * Espeja el enum `BaseOcupacionViaje` del schema Prisma (mismos literales).
+ * UNIDAD DE PRECIO — QUÉ cubre el importe (spec §3.3 `unidadDePrecio`).
+ *  - POR_PERSONA           : por pasajero/persona (vuelos, seguros, excursiones).
+ *  - POR_HABITACION_NOCHE  : la habitación completa, por noche (hace falta `noches`).
+ *  - POR_HABITACION_TOTAL  : la habitación completa por toda la estadía.
+ *  - POR_TRAMO             : el ítem entero para el grupo (traslado, paquete, tramo).
+ * Espeja el enum `UnidadPrecioViaje` del schema Prisma (mismos literales).
  */
-export type BaseOcupacion =
-  | "POR_PERSONA_EN_DOBLE"
-  | "POR_PERSONA_EN_SINGLE"
-  | "POR_PERSONA_EN_TRIPLE"
-  | "POR_HABITACION"
-  | "POR_PASAJERO"
-  | "TOTAL";
+export type UnidadPrecio = "POR_PERSONA" | "POR_HABITACION_NOCHE" | "POR_HABITACION_TOTAL" | "POR_TRAMO";
 
-export const BASES_OCUPACION: readonly BaseOcupacion[] = [
-  "POR_PERSONA_EN_DOBLE",
-  "POR_PERSONA_EN_SINGLE",
-  "POR_PERSONA_EN_TRIPLE",
-  "POR_HABITACION",
-  "POR_PASAJERO",
-  "TOTAL",
+export const UNIDADES_PRECIO: readonly UnidadPrecio[] = [
+  "POR_PERSONA",
+  "POR_HABITACION_NOCHE",
+  "POR_HABITACION_TOTAL",
+  "POR_TRAMO",
 ];
 
+/**
+ * BASE DE OCUPACIÓN — con cuántas personas se comparte la habitación (spec §3.3
+ * `baseDeOcupacion`). Obligatoria en alojamiento; sin default silencioso. `OTRA`
+ * exige `ocupacion` (el número). Espeja `BaseOcupacionViaje` del schema.
+ */
+export type BaseOcupacion = "SINGLE" | "DOBLE" | "TRIPLE" | "OTRA";
+
+export const BASES_OCUPACION: readonly BaseOcupacion[] = ["SINGLE", "DOBLE", "TRIPLE", "OTRA"];
+
+/** Personas que cubre una base (OTRA → `ocupacion`). */
+export function personasPorBase(base: BaseOcupacion, ocupacion?: number | null): number {
+  switch (base) {
+    case "SINGLE":
+      return 1;
+    case "DOBLE":
+      return 2;
+    case "TRIPLE":
+      return 3;
+    case "OTRA":
+      return ocupacion && ocupacion >= 1 ? Math.floor(ocupacion) : 0;
+  }
+}
+
+/** Base que corresponde a `n` adultos por habitación (para normalizar lo que dice el proveedor). */
+export function baseParaPersonas(n: number): { base: BaseOcupacion; ocupacion?: number } {
+  if (n <= 1) return { base: "SINGLE" };
+  if (n === 2) return { base: "DOBLE" };
+  if (n === 3) return { base: "TRIPLE" };
+  return { base: "OTRA", ocupacion: Math.floor(n) };
+}
+
 /** Etiquetas en criollo para la UI (ADR-080: cero jerga en pantalla). */
+export const UNIDAD_PRECIO_LABEL: Record<UnidadPrecio, string> = {
+  POR_PERSONA: "por persona",
+  POR_HABITACION_NOCHE: "por habitación y noche",
+  POR_HABITACION_TOTAL: "por habitación (toda la estadía)",
+  POR_TRAMO: "por tramo / ítem completo",
+};
+
 export const BASE_OCUPACION_LABEL: Record<BaseOcupacion, string> = {
-  POR_PERSONA_EN_DOBLE: "por persona en doble",
-  POR_PERSONA_EN_SINGLE: "por persona en single",
-  POR_PERSONA_EN_TRIPLE: "por persona en triple",
-  POR_HABITACION: "por habitación (toda la estadía)",
-  POR_PASAJERO: "por pasajero",
-  TOTAL: "total del ítem",
+  SINGLE: "single",
+  DOBLE: "doble",
+  TRIPLE: "triple",
+  OTRA: "otra",
 };
 
 /**
- * Un precio normalizado. Los cuatro campos son OBLIGATORIOS a propósito: sin
- * `capturadoEn` y `baseOcupacion` un precio no existe en este sistema.
+ * Un precio normalizado. `monto`, `moneda`, `unidad` y `capturadoEn` son OBLIGATORIOS a
+ * propósito; `baseOcupacion` lo es cuando el ítem es alojamiento (lo valida el core).
  */
 export interface PrecioOferta {
-  /** Importe en pesos/dólares con 2 decimales (number en memoria, ADR-057). */
+  /** Importe con 2 decimales (number en memoria, ADR-057). */
   monto: number;
   moneda: Moneda;
-  baseOcupacion: BaseOcupacion;
+  unidad: UnidadPrecio;
+  /** Obligatoria en alojamiento. */
+  baseOcupacion?: BaseOcupacion;
+  /** Solo con `baseOcupacion: "OTRA"`: cuántas personas. */
+  ocupacion?: number;
+  /** Solo con `POR_HABITACION_NOCHE`: cantidad de noches para totalizar. */
+  noches?: number;
   /** Cuándo se obtuvo el precio del proveedor (instante de la respuesta). */
   capturadoEn: InstanteISO;
   /** Hasta cuándo el proveedor lo garantiza (p.ej. lastTicketingDate). Ausente = no informa. */
   vigenteHasta?: InstanteISO;
+  /** Si el precio incluye impuestos/tasas según el proveedor. Ausente = no informa. */
+  incluyeImpuestos?: "SI" | "NO" | "PARCIAL";
 }
 
 // ── Vuelos ────────────────────────────────────────────────────────────────────
@@ -120,7 +153,7 @@ export interface OfertaVuelo {
   referenciaProveedor: string;
   proveedor: string;
   tramos: TramoVuelo[];
-  /** Precio por pasajero adulto (baseOcupacion POR_PASAJERO) salvo que el adapter indique otra base. */
+  /** Precio por pasajero adulto (unidad POR_PERSONA). */
   precio: PrecioOferta;
   /** Precio total del grupo tal como lo informa el proveedor (si lo informa). */
   totalGrupo?: { monto: number; moneda: Moneda };
@@ -160,7 +193,7 @@ export interface OfertaHotel {
   checkIn: FechaISO;
   checkOut: FechaISO;
   noches: number;
-  /** Precio de la habitación por toda la estadía (POR_HABITACION) salvo indicación del adapter. */
+  /** Precio de la habitación por toda la estadía (POR_HABITACION_TOTAL) con su base de ocupación. */
   precio: PrecioOferta;
   politicaCancelacion?: string;
 }
@@ -184,7 +217,7 @@ export interface ResultadoBusqueda<T> {
  * NUNCA sabe de qué proveedor vino el dato: solo ve este contrato.
  */
 export interface ProveedorOfertas {
-  /** Clave estable del proveedor (p.ej. "amadeus", "stub", "manual"). Se persiste en el snapshot. */
+  /** Clave estable del proveedor (p.ej. "amadeus", "stub"). Se persiste en la oferta capturada. */
   readonly clave: string;
   buscarVuelos(busqueda: BusquedaVuelos): Promise<ResultadoBusqueda<OfertaVuelo>>;
   buscarHoteles(busqueda: BusquedaHoteles): Promise<ResultadoBusqueda<OfertaHotel>>;

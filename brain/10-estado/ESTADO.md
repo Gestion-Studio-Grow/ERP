@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-09-09 15:45 UTC
+generado_el: 2026-09-09 16:10 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-09-09 15:45 UTC sobre `2d6cf65`.**
+> ⏱️ **Foto tomada el 2026-09-09 16:10 UTC sobre `1056db9`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,14 +19,16 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/azimut-viajes-consolidacion-gfh9nv` |
-| HEAD | `2d6cf65` (2026-09-09) |
-| Árbol | **17 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| HEAD | `1056db9` (2026-09-09) |
+| Árbol | **24 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo |
 
 **Ramas locales (2, más reciente primero):** `claude/azimut-viajes-consolidacion-gfh9nv` · `main`
 
 **Últimos commits**
 
+- 1056db9 · 2026-09-09 · feat(viajes): armador de presupuestos de viaje — conectores de ofertas + snapshot (flag OFF)
+- 9d4305f · 2026-09-09 · wip(viajes): esqueleto del armador de presupuestos detras de flag
 - 2d6cf65 · 2026-09-09 · docs(viajes): spec funcional del armador de presupuestos de viaje
 - 46deac7 · 2026-09-09 · chore(brain): refrescar la foto derivada del repo
 - 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo
@@ -37,8 +39,6 @@ tags: [brain/estado, fase-0]
 - 4de52b9 · 2026-09-02 · wip(shine): grilla de tienda con chips de familia, badges y swap de foto al hover
 - 4cc66d6 · 2026-09-02 · fix(shine): la ficha adopta el aviso que no intercepta (Gate B-3) + D-1 y O-9..O-12
 - c8d5e3d · 2026-09-02 · fix(shine): nav visible y clickeable, números AA, aviso que no ocluye (Gate B-1/B-1b/B-2)
-- c488c4c · 2026-09-02 · redesign(shine): reestructura Challenger+referencias — portada tipográfica y carta única numerada
-- b45e634 · 2026-09-01 · fix(shine): alts fieles a las fotos y sincronizados con el src (Gate B-2/O-8/O-9)
 
 ## Migraciones (Prisma)
 
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 302 |
-| Palabras en `docs/` | 438.101 |
+| Documentos en `docs/` | 303 |
+| Palabras en `docs/` | 445.843 |
 | ADRs | 81 |
 | Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
 

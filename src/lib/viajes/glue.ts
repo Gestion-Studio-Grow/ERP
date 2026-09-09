@@ -1,5 +1,5 @@
 // ============================================================================
-// PRESUPUESTOS DE VIAJE — glue SERVER (proveedor por tenant + loaders Prisma).
+// PRESUPUESTOS DE VIAJE — glue SERVER (gate, proveedor por tenant, loaders Prisma).
 // ============================================================================
 //
 // NO es "use server": acá viven los loaders de la página y la resolución del
@@ -7,11 +7,12 @@
 // que importa de acá (Turbopack registra cualquier re-export de un archivo
 // "use server" como action; por eso los tipos/loaders viven en este módulo).
 //
-// GATE COMPUESTO (lo aplican página y actions vía `exigirViajes`):
+// GATE COMPUESTO (lo aplican página y actions vía `exigirViajes(cap)`):
 //   1. flag `VIAJES_ENABLED` prendido (rollout reversible),
-//   2. capability `viajes:manage` (RBAC, ADR-017 — solo OWNER), y
-//   3. módulo `viajes` ASIGNADO al tenant (`Tenant.modules`, ADR-055): una estética
-//      no tiene el armador aunque su OWNER tenga la capability.
+//   2. la capability pedida (`quotes:read` para ver, `quotes:manage` para operar…), y
+//   3. módulo `presupuestos-viaje` ASIGNADO al tenant (`Tenant.modules`, ADR-055): una
+//      estética no tiene el armador aunque su OWNER tenga la capability. El buscador
+//      exige además `buscador-ofertas-viaje` asignado (`exigirBuscador`).
 //
 // AISLAMIENTO (ADR-018): tenantId EXPLÍCITO en el predicado de toda query y
 // `tenantTransaction` en toda escritura. DINERO (ADR-057): Decimal(14,2) en DB,
@@ -25,9 +26,10 @@ import { cache } from "react";
 import { basePrisma } from "@/lib/prisma-base";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
+import type { Capability } from "@/lib/capabilities";
 import { getCurrentTenantId } from "@/lib/tenant";
 import type { SessionUser } from "@/lib/session";
-import { MODULO_VIAJES } from "@/modules/descriptors/viajes";
+import { MODULO_BUSCADOR_OFERTAS_VIAJE, MODULO_PRESUPUESTOS_VIAJE } from "@/modules/descriptors/viajes";
 import {
   MemoriaCacheOfertas,
   MemoriaControlDeCuota,
@@ -39,32 +41,45 @@ import {
   type ProveedorOfertas,
 } from "@/plugins/ofertas-viaje";
 import { viajesCuotaDiaria, viajesEnabled, viajesProveedorClave } from "./flags";
-import { estadoVigencia, type EstadoVigencia } from "./core";
+import {
+  estadoVigencia,
+  resumirOpcion,
+  type AsignacionNueva,
+  type EstadoVigencia,
+  type OfertaParaCalculo,
+  type ResumenOpcion,
+} from "./core";
 
 // ── Gate compuesto ─────────────────────────────────────────────────────────────
 
 export type GateViajes =
-  | { ok: true; tenantId: string; user: SessionUser }
+  | { ok: true; tenantId: string; user: SessionUser; modules: string[] }
   | { ok: false; error: string; motivo: "flag" | "modulo" };
 
 /**
- * Exige flag + capability + módulo asignado. `requireCapability` redirige si no hay
- * sesión / rol sin la capability; los otros dos motivos vuelven como `ok:false` para
- * que la página muestre 404 (flag) o el aviso (módulo) sin romper.
+ * Exige flag + capability + módulo `presupuestos-viaje` asignado. `requireCapability`
+ * redirige si no hay sesión / rol sin la capability; los otros dos motivos vuelven como
+ * `ok:false` para que la página muestre 404 (flag) o el aviso (módulo) sin romper.
  */
-export async function exigirViajes(): Promise<GateViajes> {
+export async function exigirViajes(cap: Capability): Promise<GateViajes> {
   if (!viajesEnabled()) {
     return { ok: false, error: "El módulo de presupuestos de viaje no está habilitado.", motivo: "flag" };
   }
-  const user = await requireCapability("viajes:manage");
+  const user = await requireCapability(cap);
   const tenantId = await getCurrentTenantId();
   // Chequeo DURO sobre la asignación (Tenant.modules), independiente del flag del
-  // registry: sin el módulo `viajes` asignado, el armador no existe para ese tenant.
+  // registry: sin el módulo asignado, el armador no existe para ese tenant.
   const tenant = await basePrisma.tenant.findUnique({ where: { id: tenantId }, select: { modules: true } });
-  if (!tenant?.modules?.includes(MODULO_VIAJES)) {
+  const modules = tenant?.modules ?? [];
+  if (!modules.includes(MODULO_PRESUPUESTOS_VIAJE)) {
     return { ok: false, error: "Presupuestos de viaje no está habilitado para este negocio.", motivo: "modulo" };
   }
-  return { ok: true, tenantId, user };
+  return { ok: true, tenantId, user, modules };
+}
+
+/** ¿El tenant tiene el plugin del buscador asignado? (Sin él: captura manual solamente.) */
+export function tieneBuscador(modules: readonly string[]): boolean {
+  return modules.includes(MODULO_BUSCADOR_OFERTAS_VIAJE);
 }
 
 // ── Proveedor por tenant (con caché + cuota) ──────────────────────────────────
@@ -85,6 +100,8 @@ export interface ProveedorResuelto {
   proveedor: ProveedorOfertas;
   /** Aviso si se cayó al stub por falta de credenciales del proveedor configurado. */
   aviso: string | null;
+  /** Descripción del canal para `fuente` de la oferta capturada ("Amadeus (test)"). */
+  fuente: string;
 }
 
 /**
@@ -104,51 +121,86 @@ export function proveedorParaTenant(tenantId: string, env: Record<string, string
         : `El proveedor "${clave}" no tiene credenciales cargadas: se muestran datos simulados.`;
     interno = registro.proveedorPara(CLAVE_STUB, tenantId)!;
   }
+  const fuente =
+    interno.clave === "amadeus"
+      ? `Buscador Amadeus (${env.AMADEUS_ENV?.trim().toLowerCase() === "production" ? "producción" : "test"})`
+      : "Buscador simulado (datos de ejemplo)";
   return {
     proveedor: new ProveedorConCache(interno, tenantId, { cache: cacheGlobal, cuota: cuota() }),
     aviso,
+    fuente,
   };
 }
 
-/** El caché compartido (para que la action de guardar re-lea la oferta del server, no del cliente). */
+/** El caché compartido (para que la action de capturar re-lea la oferta del server, no del cliente). */
 export function cacheOfertasGlobal(): CacheOfertas {
   return cacheGlobal;
 }
 
 // ── Loaders ───────────────────────────────────────────────────────────────────
 
-export interface OpcionVista {
+export interface OfertaVista {
   id: string;
-  tipo: "VUELO" | "HOTEL";
+  tipo: string;
+  titulo: string;
   proveedor: string;
-  descripcion: string;
   precio: number;
   moneda: string;
-  baseOcupacion: string;
-  cantidadBase: number;
-  precioTotal: number;
+  unidad: string;
+  baseOcupacion: string | null;
+  ocupacion: number | null;
+  noches: number | null;
+  certeza: string;
+  fuente: string;
   capturadoEn: Date;
-  vigenteHasta: Date | null;
+  vigenteHasta: Date;
+  vigenciaAsumida: boolean;
   vigencia: EstadoVigencia;
+  condiciones: string | null;
+}
+
+export interface AsignacionVista {
+  id: string;
+  oferta: OfertaVista;
+  pasajerosCubiertos: number;
+  baseAplicada: string | null;
+  cantidad: number;
+}
+
+export interface OpcionVista {
+  id: string;
+  nombre: string;
+  orden: number;
+  asignaciones: AsignacionVista[];
+  resumen: ResumenOpcion;
+}
+
+export interface NivelVista {
+  id: string;
+  nombre: string;
+  orden: number;
+  opciones: OpcionVista[];
 }
 
 export interface PresupuestoVista {
   id: string;
   titulo: string;
-  destino: string;
-  fechaSalida: Date | null;
-  fechaRegreso: Date | null;
-  adultos: number;
-  ninos: number;
-  habitaciones: number;
+  version: number;
   estado: string;
-  clienteNombre: string | null;
-  opciones: OpcionVista[];
+  vigenteHasta: Date | null;
+  solicitud: {
+    id: string;
+    contactoNombre: string;
+    cantidadPasajeros: number;
+    monedaReferencia: string;
+    tramos: Array<{ id: string; destino: string; desde: Date; hasta: Date }>;
+  };
+  niveles: NivelVista[];
   createdAt: Date;
 }
 
 export type PanelViajes =
-  | { ok: true; presupuestos: PresupuestoVista[] }
+  | { ok: true; presupuestos: PresupuestoVista[]; ofertas: OfertaVista[] }
   | { ok: false; migracionPendiente: true; error: string };
 
 export function esMigracionPendiente(e: unknown): boolean {
@@ -156,46 +208,134 @@ export function esMigracionPendiente(e: unknown): boolean {
   return code === "P2021" || code === "P2022";
 }
 
-/** Presupuestos del tenant actual con sus opciones (predicado tenantId explícito). */
+type OfertaDb = {
+  id: string;
+  tipo: string;
+  titulo: string;
+  proveedor: string;
+  precio: { toNumber(): number };
+  moneda: string;
+  unidad: string;
+  baseOcupacion: string | null;
+  ocupacion: number | null;
+  noches: number | null;
+  certeza: string;
+  fuente: string;
+  capturadoEn: Date;
+  vigenteHasta: Date;
+  vigenciaAsumida: boolean;
+  condiciones: string | null;
+};
+
+function ofertaVista(o: OfertaDb, ahora: Date): OfertaVista {
+  return {
+    id: o.id,
+    tipo: o.tipo,
+    titulo: o.titulo,
+    proveedor: o.proveedor,
+    precio: o.precio.toNumber(),
+    moneda: o.moneda,
+    unidad: o.unidad,
+    baseOcupacion: o.baseOcupacion,
+    ocupacion: o.ocupacion,
+    noches: o.noches,
+    certeza: o.certeza,
+    fuente: o.fuente,
+    capturadoEn: o.capturadoEn,
+    vigenteHasta: o.vigenteHasta,
+    vigenciaAsumida: o.vigenciaAsumida,
+    vigencia: estadoVigencia(o.vigenteHasta, ahora),
+    condiciones: o.condiciones,
+  };
+}
+
+function paraCalculo(o: OfertaVista): OfertaParaCalculo {
+  return {
+    tipo: o.tipo as OfertaParaCalculo["tipo"],
+    precio: o.precio,
+    moneda: o.moneda,
+    unidad: o.unidad as OfertaParaCalculo["unidad"],
+    baseOcupacion: (o.baseOcupacion as OfertaParaCalculo["baseOcupacion"]) ?? null,
+    ocupacion: o.ocupacion,
+    noches: o.noches,
+    vigenteHasta: o.vigenteHasta,
+    certeza: o.certeza as OfertaParaCalculo["certeza"],
+  };
+}
+
+/** Bandeja del tenant actual: presupuestos (con niveles/opciones/asignaciones) + biblioteca. */
 export const cargarPanelViajes = cache(async (tenantId: string): Promise<PanelViajes> => {
   const ahora = new Date();
   try {
-    const filas = await prisma.presupuestoViaje.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-      include: {
-        client: { select: { name: true } },
-        opciones: { where: { tenantId }, orderBy: [{ orden: "asc" }, { createdAt: "asc" }] },
-      },
-    });
+    const [presupuestos, ofertas] = await Promise.all([
+      prisma.presupuestoViaje.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: {
+          solicitud: { include: { tramos: { where: { tenantId }, orderBy: { orden: "asc" } } } },
+          niveles: {
+            where: { tenantId },
+            orderBy: { orden: "asc" },
+            include: {
+              opciones: {
+                where: { tenantId },
+                orderBy: { orden: "asc" },
+                include: {
+                  asignaciones: { where: { tenantId }, orderBy: { orden: "asc" }, include: { oferta: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.ofertaCapturadaViaje.findMany({
+        where: { tenantId, activa: true },
+        orderBy: { capturadoEn: "desc" },
+        take: 30,
+      }),
+    ]);
     return {
       ok: true,
-      presupuestos: filas.map((p) => ({
+      ofertas: ofertas.map((o) => ofertaVista(o, ahora)),
+      presupuestos: presupuestos.map((p) => ({
         id: p.id,
         titulo: p.titulo,
-        destino: p.destino,
-        fechaSalida: p.fechaSalida,
-        fechaRegreso: p.fechaRegreso,
-        adultos: p.adultos,
-        ninos: p.ninos,
-        habitaciones: p.habitaciones,
+        version: p.version,
         estado: p.estado,
-        clienteNombre: p.client?.name ?? null,
+        vigenteHasta: p.vigenteHasta,
         createdAt: p.createdAt,
-        opciones: p.opciones.map((o) => ({
-          id: o.id,
-          tipo: o.tipo,
-          proveedor: o.proveedor,
-          descripcion: o.descripcion,
-          precio: o.precio.toNumber(),
-          moneda: o.moneda,
-          baseOcupacion: o.baseOcupacion,
-          cantidadBase: o.cantidadBase,
-          precioTotal: o.precioTotal.toNumber(),
-          capturadoEn: o.capturadoEn,
-          vigenteHasta: o.vigenteHasta,
-          vigencia: estadoVigencia({ vigenteHasta: o.vigenteHasta }, ahora),
+        solicitud: {
+          id: p.solicitud.id,
+          contactoNombre: p.solicitud.contactoNombre,
+          cantidadPasajeros: p.solicitud.cantidadPasajeros,
+          monedaReferencia: p.solicitud.monedaReferencia,
+          tramos: p.solicitud.tramos.map((t) => ({ id: t.id, destino: t.destino, desde: t.desde, hasta: t.hasta })),
+        },
+        niveles: p.niveles.map((n) => ({
+          id: n.id,
+          nombre: n.nombre,
+          orden: n.orden,
+          opciones: n.opciones.map((op) => {
+            const asignaciones: AsignacionVista[] = op.asignaciones.map((a) => ({
+              id: a.id,
+              oferta: ofertaVista(a.oferta, ahora),
+              pasajerosCubiertos: a.pasajerosCubiertos,
+              baseAplicada: a.baseAplicada,
+              cantidad: a.cantidad,
+            }));
+            const paraResumen = op.asignaciones.map((a, i) => ({
+              asignacion: {
+                pasajerosCubiertos: a.pasajerosCubiertos,
+                baseAplicada: (a.baseAplicada as AsignacionNueva["baseAplicada"]) ?? null,
+                ocupacionAplicada: a.ocupacionAplicada,
+                suplementoSingle: a.suplementoSingle ? a.suplementoSingle.toNumber() : null,
+                cantidad: a.cantidad,
+              },
+              oferta: paraCalculo(asignaciones[i].oferta),
+            }));
+            return { id: op.id, nombre: op.nombre, orden: op.orden, asignaciones, resumen: resumirOpcion(paraResumen, ahora) };
+          }),
         })),
       })),
     };
