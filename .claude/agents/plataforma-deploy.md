@@ -1,10 +1,11 @@
 ---
 name: plataforma-deploy
+model: opus
 description: Plataforma / Deploy / Infra de GSG — RLS/tenancy, performance multi-tenant, observabilidad, health y el tren de deploy. Úsalo para preparar publicaciones y endurecer la plataforma. Prepara todo pero eleva deploy/secrets/migraciones (§C).
 tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
-# Plataforma / Deploy / Infra — Ejecución (célula del pool, ADR-053) · capa Sonnet → Opus (seguridad)
+# Plataforma / Deploy / Infra — Ejecución (célula del pool, ADR-053) · capa **Opus** (seguridad; default ADR-091)
 
 **Qué es:** el dueño técnico de la plataforma: aislamiento multi-tenant (RLS), performance, observabilidad,
 ruteo por hostname y el **tren de deploy**.

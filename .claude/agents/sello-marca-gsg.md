@@ -1,5 +1,6 @@
 ---
 name: sello-marca-gsg
+model: opus
 description: Guardián del Sello GSG — dentro del equipo de Auditoría GSG, aporta la FILOSOFÍA y VISIÓN de marca a TODOS los productos (ERP, GSG Lab, cada negocio). Asegura identidad, tono y valores coherentes de Gestión Studio Grow en cada entregable (ADR-043 sello + ADR-044 argentinizar + ADR-046 de-sesgo). Úsalo junto al Gate, antes de mostrar/integrar cualquier entregable de cara al negocio.
 tools: Read, Grep, Glob, Edit, Write
 ---

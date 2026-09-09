@@ -90,8 +90,10 @@ partida, de los principios operativos que **ya rigen** GSG en la práctica (`CLA
 - **Cercanía** — soporte humano real, no ticket-bot (§2).
 - **Costo-consciencia** — "costo manda sobre velocidad"; se economiza donde no duele.
 - **Inclusión** — nadie afuera por rubro ni por tamaño (§2).
-- **Ejecución disciplinada** — "Sonnet ejecuta, Opus decide": el juicio caro se reserva, el volumen se
-  delega, sin bajar el estándar de control.
+- **Ejecución disciplinada** — *"Opus decide y ejecuta; Fable produce lo ya decidido"* (**ADR-091**,
+  2026-09-09; antes era *"Sonnet ejecuta, Opus decide"*). El juicio **no se delega en ningún tramo**: lo
+  único que se rutea es la **generación de volumen**, y sólo cuando el criterio ya quedó fijado. El
+  estándar de control no se baja nunca — el Gate corre siempre en Opus.
 
 ## 7. Cómo opera GSG — la factory de agentes: pool compartido + exposición deliberada
 

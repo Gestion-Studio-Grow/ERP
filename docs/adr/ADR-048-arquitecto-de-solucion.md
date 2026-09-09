@@ -6,6 +6,8 @@ depends_on: [ADR-032, ADR-040, ADR-041]
 ---
 # ADR-048: Arquitecto de Solución — autoridad sobre decisiones REVERSIBLES; las IRREVERSIBLES se elevan al dueño
 
+> ⚖️ **Modelo actualizado por [ADR-091](ADR-091-opus-por-defecto-sonnet-fuera-de-la-factory.md) (2026-09-09):** corre en **Opus** (el nuevo default), no en Sonnet. El resto del ADR sigue vigente sin cambios. Motivo: separar lo reversible de lo irreversible **es** el juicio que este rol existe para ejercer.
+
 **Estado:** Aceptado — vigente
 **Fecha:** 2026-07-07
 **Modelo:** **Sonnet 5 por defecto** (ultra-ahorro); escala a **Opus** en alto juicio o en el **borde reversible/irreversible**. Dentro del tope **≤ 4** (ADR-032).

@@ -1,7 +1,8 @@
 # Asignación de MODELO por sesión del `sprint` (cableado)
 
 > **Qué es esto:** la regla dura de **qué modelo abre cada sesión** cuando se dispara `sprint`. Formaliza
-> las dos capas de `docs/organizacion/factory-reforzada.md` (Opus = juicio, Sonnet = ejecución) y las
+> las dos capas de `docs/organizacion/factory-reforzada.md` (**Opus = default/juicio, Fable = generación
+> declarada**; Sonnet derogado por ADR-091) y las
 > **cablea a la estructura de frentes** del sprint, de modo que al invocar `sprint` cada sesión aislada
 > nazca **con su modelo asignado**, sin decidirlo a mano cada vez.
 >
@@ -16,77 +17,84 @@
 
 ---
 
-## 1. Regla de oro (economía por defecto, Opus donde pesa el juicio)
+## 1. Regla de oro (Opus es el default; Fable sólo para generación declarada)
 
-> **Sonnet 5 es el default de TODA sesión de ejecución (`/economia`). Opus 4.8 se reserva para la capa
-> de alto juicio y para la Auditoría GSG, que corre SIEMPRE en Opus sin excepción.**
+> **OPUS es el default de TODA sesión — juicio y ejecución. Sonnet salió de la factory. FABLE es la única
+> alternativa y se elige EXPLÍCITAMENTE, sólo para generación de volumen ya decidida.**
 
-- **Default = Sonnet 5** — el 100% del volumen de ejecución arranca en Sonnet (regla de `factory-reforzada.md §5`).
-- **Opus 4.8 = capa angosta y cara** — solo lo caro-de-revertir, la seguridad, la plata, la arquitectura y
-  el **Gate de Excelencia/GSG**. La capa Opus **no hace volumen**: explora/ejecuta en Sonnet y escala a
-  Opus solo para el tramo de decisión (criterio ya escrito en `economia.md`).
+- **Default = Opus** (`claude-opus-5`). Una sesión que no declara modelo corre en Opus, y está bien.
+- **Fable** (`claude-fable-5-1`) = **capa de generación**, nunca de decisión: código largo sobre una spec
+  cerrada, scaffolding, consolas, análisis extensos cuyo marco ya fijó Opus, fixtures y tareas mecánicas.
+  **Se declara; no se hereda.**
+- **Sonnet: fuera de norma.** Una sesión o charter que todavía diga Sonnet se corrige antes de trabajar.
 - **Excepción dura, no negociable:** la **Auditoría GSG / Gate de Excelencia** corre **siempre en Opus**,
-  aunque la ejecución del frente haya sido Sonnet y aunque la sesión esté en `/economia`. Es el seguro
-  anti-degradación (`factory-reforzada.md §3`).
+  aunque la generación del frente haya corrido en Fable. Es el seguro anti-degradación
+  (`factory-reforzada.md §3`). Con el default en Opus, deja de ser una escalada y pasa a ser un **piso**.
+
+> **⚖️ Esta regla se invirtió el 2026-09-09** (bajada del dueño, **ADR-091**). La versión anterior ponía
+> *Default = Sonnet* para ahorrar. **La medición que la sostenía (`docs/metricas/costo-uso-factory.md`)
+> sigue siendo válida y no se toca** — lo que cambió es qué se optimiza: **la consistencia del juicio en
+> toda la cadena por encima del ahorro por tarea**. El propio análisis ya avisaba que el ahorro real era
+> menor al de lista, porque **el 86% del gasto es acarrear contexto, no generar**.
 
 ---
 
 ## 2. Mapa sesión → modelo (lo que `sprint` abre automáticamente)
 
 Al invocar `sprint`, la creación automática de sesiones (regla 1 de la metodología) abre cada frente
-**con el modelo de esta tabla**. Dos capas:
+**con el modelo de esta tabla**.
 
-### Capa OPUS 4.8 — alto juicio (caro de revertir / seguridad / plata / arquitectura / gate)
+### Capa OPUS — el default (todos los frentes, salvo que se declare Fable)
 
-| Sesión | Por qué Opus (criterio §3) | Ancla en la estructura del sprint |
+| Sesión | Rol | Ancla en la estructura del sprint |
 |---|---|---|
-| **PMO puro (AUTOR de planes)** | Genera/mantiene **backlog · roadmap · metodología · ADRs**; **propone** planes; secuencia lo compartido. **NO ejecuta** cambios de producto — el sombrero de **ejecutor/merge** se mudó al **Arquitecto de Solución** (ADR-048/049). Autoría/estrategia de alto juicio → Opus. | Capa PMO (sobre `main`, sin worktree) — `factory-reforzada.md §2` · **ADR-049** |
-| **Auditoría GSG / Excelencia (el Gate)** | **SIEMPRE Opus, sin excepción.** Corre el Gate completo (SAP Fiori + accesibilidad + consistencia + **ángulo argentino, ADR-044** + sello Marca GSG + correctitud) antes de cada merge. Es la excepción dura. | Loop de revisión `factory-reforzada.md §3`; Gate de Excelencia de `METODOLOGIA-SPRINT.md` |
-| **Seguridad** | RLS/aislamiento multi-tenant, auth, superficies expuestas, secretos. Un error de aislamiento es caro e irreversible. | Rol Opus "Seguridad" (`factory-reforzada.md §2`); escala cuando **Plataforma** toca RLS/auth |
-| **Preset IA — Ingesta + Adaptación** | Fidelidad de marca del cliente, extracción de identidad, y el **Gate bloqueante del preset**: decisiones de calidad/adaptación difíciles de revertir de cara al cliente. | Generador de Preset IA (`docs/metodologia/generador-preset-ia.md`; memorias preset ingesta/adaptación) |
+| **PMO puro (AUTOR de planes)** | Genera/mantiene **backlog · roadmap · metodología · ADRs**; **propone** planes. **NO ejecuta** cambios de producto — el sombrero de ejecutor/merge está en el **Arquitecto de Solución** (ADR-048/049). | Capa PMO (sobre `main`, sin worktree) — `factory-reforzada.md §2` · **ADR-049** |
+| **Auditoría GSG / Excelencia (el Gate)** | **SIEMPRE Opus, sin excepción.** Gate completo (SAP Fiori + accesibilidad + consistencia + **ángulo argentino, ADR-044** + sello GSG) antes de cada merge. | Loop de revisión `factory-reforzada.md §3`; Gate de `METODOLOGIA-SPRINT.md` |
+| **Seguridad** | RLS/aislamiento multi-tenant, auth, superficies expuestas, secretos. | Rol "Seguridad" (`factory-reforzada.md §2`) |
+| **Preset IA — Ingesta + Adaptación** | Fidelidad de marca del cliente y **Gate bloqueante del preset**. | `docs/metodologia/generador-preset-ia.md` |
+| **Arquitecto de Solución** | Ejecuta lo **reversible** y **eleva lo irreversible** (puertas Type 1/2). Separar reversible de irreversible **es** el juicio: por eso no baja de Opus. | **ADR-048** · `docs/organizacion/arquitecto-de-solucion.md` |
+| **Probador interactivo** | Verificación/preview, repro de bugs, QA. | Célula QA (`factory-reforzada.md §2`) |
+| **Adaptador para cliente** | Delivery/onboarding por cliente. **No toca el core compartido** (regla 4). | Delivery `tenant/<slug>` |
+| **Plataforma / Deploy / Infra** | Perf, observabilidad, reporting, tren de deploy; RLS/tenancy/auth con Seguridad. | Core **Plataforma** + Release/Infra |
+| **Productos por rubro** | Features y branding por tenant/rubro. | Célula "Producto por rubro" |
+| **Growth / Agencia Digital** | Conversión y ejecución del sector. | Sector B Agencia Digital |
+| **Mesa de Dinero** | Investigación de rentabilidad; **no opera**. Todo Opus salvo `mesa-datos` (Fable). | **ADR-090** · `docs/organizacion/mesa-de-dinero.md` |
 
-### Capa SONNET 5 — ejecución (volumen, criterio acotado, reversible)
+### Capa FABLE — generación de volumen (se DECLARA, nunca se hereda)
 
-| Sesión | Por qué Sonnet (criterio §3) | Ancla en la estructura del sprint |
-|---|---|---|
-| **Probador interactivo** | Verificación/preview, repro de bugs, QA de ejecución. Volumen, reversible, criterio acotado. | Célula QA/verificación (`factory-reforzada.md §2` + gap G1) |
-| **Adaptador para cliente** | Delivery/onboarding por cliente (config, datos, deliverables). **No toca el core compartido** (regla 4 de delivery). | Delivery por cliente `tenant/<slug>` (`METODOLOGIA-SPRINT.md` regla 4) |
-| **Plataforma / Deploy / Infra** | Perf, observabilidad, reporting, tren de deploy: ejecución sobre archivos propios. **Escala a Opus/Seguridad** cuando toca RLS/tenancy/auth (cimiento compartido). | Core **Plataforma** (`frente/plataforma`) + Release/Infra |
-| **Productos por rubro** | Features y branding por tenant/rubro (retail, carnicería, velas, pádel…). Volumen, reversible. | Célula "Producto por rubro" (`factory-reforzada.md §2`); cores ERP de dominio |
-| **Growth / Agencia Digital** | Instrumentación de conversión y ejecución del sector Agencia Digital. La **estrategia** escala a Opus; la implementación es Sonnet. | Sector B Agencia Digital + gap G2 Growth |
-| **Arquitecto de Solución** | Ejecuta las decisiones **reversibles** de los planes (doc/wiring · orden de backlog · refactors NO-prod tras flag · blueprints · estructura de células) y **eleva las irreversibles** al dueño (puertas Type 1/2). Volumen acotado y reversible → Sonnet; **escala a Opus** en el **borde reversible/irreversible** o alto juicio. | **ADR-048** · charter `docs/organizacion/arquitecto-de-solucion.md` |
+| Cuándo | Ejemplos |
+|---|---|
+| La decisión ya está tomada y lo que queda es **producir** | Consolas y herramientas internas sobre spec cerrada (ej. `mesa-datos`), conectores, scaffolding, componentes repetitivos, fixtures/datasets, documentos y análisis extensos cuyo criterio fijó Opus |
+
+**Nunca en Fable:** arquitectura/ADRs · seguridad · plata/fiscal · gobernanza · lo irreversible · **el Gate**.
 
 ---
 
-## 3. Criterio de asignación (por qué cada sesión lleva su modelo)
+## 3. Criterio de asignación (una sola pregunta)
 
-La decisión **modelo por sesión** sale de una sola pregunta: **¿el error de esta sesión es caro o difícil
-de revertir?** Si sí → Opus; si no → Sonnet. Dimensiones que empujan a **Opus**:
+> **¿Esto es DECIDIR, o es PRODUCIR lo que ya se decidió?**
 
-1. **Irreversibilidad / riesgo** — cambios caros de deshacer: arquitectura, límites de dominio, migraciones,
-   go-lives. (PMO, Data/Migraciones, Release en su tramo de decisión.)
+- **Decidir → Opus.** Es el default: **ante la duda, Opus.**
+- **Producir volumen ya decidido → Fable**, y sólo si se declara explícito.
+
+Dimensiones que **fijan** Opus sin discusión:
+
+1. **Irreversibilidad / riesgo** — arquitectura, límites de dominio, migraciones, go-lives.
 2. **Seguridad** — RLS/aislamiento multi-tenant, auth, secretos, superficies expuestas.
-3. **Plata (Fiscal/Dinero)** — cobros, ARCA/facturación, representación de importes (Decimal), caja,
-   conciliación. **Nota:** los cores **Pagos** y **Fiscal** del sprint ejecutan volumen en Sonnet, pero su
-   **tramo de decisión sobre plata escala a Opus** (rol "Fiscal/Dinero" de `factory-reforzada.md §2`).
-4. **Juicio de marca/producto de cara al cliente** — el Gate GSG y el Gate del Preset: lo que sale con el
-   sello GSG se audita en Opus.
-5. **El Gate, siempre** — cualquier merge cruza la Auditoría GSG en Opus, sin importar en qué modelo se
-   ejecutó el frente.
+3. **Plata (Fiscal/Dinero)** — cobros, ARCA, importes (Decimal), caja, conciliación, **y toda la Mesa de
+   Dinero** (ADR-090).
+4. **Juicio de marca/producto de cara al cliente** — Gate GSG y Gate del Preset.
+5. **El Gate, siempre** — todo merge cruza la Auditoría GSG en Opus, corriera donde corriera el frente.
 
-Todo lo demás — volumen de ejecución, reversible, criterio acotado — es **Sonnet por default** (`/economia`).
-La palanca de swap de modelo a igual trabajo es la más chica; el gran ahorro está en el contexto y en *qué*
-corre en Sonnet (`factory-reforzada.md §6`). Por eso la capa Opus se mantiene **angosta**.
+### Subagentes (Task/Workflow)
+Heredan **Opus**. Pueden despacharse a **Fable** para generación de volumen, declarándolo en el parámetro
+de modelo. **Nunca a Sonnet.** El subagente devuelve dato estructurado; la síntesis de alto juicio la hace
+la capa Opus.
 
-### Escalada dentro de una sesión Sonnet (patrón `economia.md`)
-Una sesión Sonnet **no cambia de dueño** cuando necesita juicio: **escala puntualmente a Opus** para el
-tramo crítico (arquitectura, seguridad, plata, metodología) y **vuelve a Sonnet** para ejecutar. La
-Auditoría GSG es el punto fijo de escalada: **todo entregable pasa por Opus antes de `main`**.
-
-### Subagentes (Task/Workflow) — nunca Opus por herencia
-El grunt work paralelo (grep masivo, verificar un finding, leer N archivos) corre en **Sonnet o Haiku**,
-**nunca Opus** (`factory-reforzada.md §2` + gap G4). El subagente devuelve dato estructurado; la síntesis
-de alto juicio la hace la capa Opus.
+### Los agentes declaran el modelo en el FRONTMATTER, no en la prosa
+Un charter que dice "capa Opus" en el encabezado pero no trae `model:` en el frontmatter **no fija nada**:
+el subagente hereda el modelo del padre. Es la causa exacta de **MP-4** y **MP-9**. Los 31 agentes de
+`.claude/agents/` traen `model:`; **`npm run brain` lo audita** y marca en rojo al que no.
 
 ---
 
@@ -97,23 +105,24 @@ tabla §2, por cualquiera de estas vías equivalentes:
 
 - **Dentro de la sesión orquestadora (PMO despacha subagentes):** al despachar el subagente de un frente
   (Agent tool / `Task`), el PMO pasa el **modelo de la tabla §2** en el parámetro de modelo del subagente
-  (Opus para la capa de juicio y el Gate; Sonnet para ejecución). El subagente ES la sesión aislada del
-  frente y nace con su modelo.
+  (**Opus por default**; Fable sólo si el frente es generación de volumen declarada). El subagente ES la
+  sesión aislada del frente y nace con su modelo.
 - **Desde el móvil / Dispatch (N sesiones `claude` separadas):** cada sesión se abre con su modelo
-  (`/model opus` o `/model sonnet` según §2; `/economia` = Sonnet por default, `/boost` = todo Opus solo
-  para sprints críticos de punta a punta).
-- **Gate GSG:** aunque el frente haya corrido en Sonnet, la Auditoría GSG **escala a Opus** (`/boost` o
-  `/model opus`) para correr el Gate y **vuelve a Sonnet** después. No se degrada nunca de modelo.
+  (`/model opus` —el default— o `/model fable` según §2; `/economia` = modo generación, `/boost` = todo
+  Opus sin ruteo a Fable).
+- **Gate GSG:** aunque la generación del frente haya corrido en Fable, la Auditoría GSG **se corre en
+  Opus**, sin excepción. No se degrada nunca de modelo.
 
 ### Etiquetado explícito de modelo (regla dura)
-**Cada célula declara y fija su modelo de forma explícita** —`/model opus` | `/model sonnet`, o el
+**Cada célula declara y fija su modelo de forma explícita** —`/model opus` | `/model fable`, o el
 parámetro de modelo al despachar el subagente (Agent/`Task`)— según §2. **Nunca se apoya en el default de
 la cuenta ni lo asume.** Una sesión que arranca sin modelo declarado está **fuera de norma**: se corrige
 antes de trabajar. El **PMO verifica el etiquetado** al despachar cada frente; el etiquetado explícito es
 lo que hace la asignación auditable y reproducible (no depende de cómo esté configurada la cuenta).
 
-> **Default de seguridad:** si una sesión llegara a abrirse sin modelo declarado, **asume Sonnet 5**
-> (`/economia`) y se corrige. Solo la capa de juicio de §2 y el Gate arrancan en Opus.
+> **Default de seguridad:** si una sesión llegara a abrirse sin modelo declarado, **corre en Opus** — que
+> es el default del proyecto (`.claude/settings.json`) y el lado seguro del error. Igual se declara: lo que
+> hace la asignación auditable es el etiquetado explícito, no el default.
 
 ---
 
@@ -122,25 +131,25 @@ lo que hace la asignación auditable y reproducible (no depende de cómo esté c
 La tabla §2 es la **vista por capa de juicio**. Los cores de dominio del sprint
 (`METODOLOGIA-SPRINT.md` → Mapa de sectores y cores) se mapean así:
 
-| Core del sprint | Modelo base | Escala a Opus cuando… |
+| Core del sprint | Modelo | Puede rutear generación a Fable en… |
 |---|---|---|
-| **Pagos** | Sonnet | toca plata/conciliación (rol Fiscal/Dinero) o el Gate |
-| **Caja** | Sonnet | toca arqueo/plata (rol Fiscal/Dinero) o el Gate |
-| **Inventario/POS** | Sonnet | cambia schema compartido (decisión de arquitectura) o el Gate |
-| **Fiscal (ARCA)** | Sonnet | toca facturación/importes (rol Fiscal/Dinero) o el Gate |
-| **Plataforma** | Sonnet | toca RLS/tenancy/auth (rol Seguridad) o el Gate |
-| **Diseño** | Sonnet | siempre pasa el Gate GSG (Opus) antes de `main` |
-| **Agencia Digital** | Sonnet | estrategia/diferencial (juicio) o el Gate |
+| **Pagos** | **Opus** | nada — toca plata; se queda entero en Opus |
+| **Caja** | **Opus** | nada — toca arqueo/plata |
+| **Fiscal (ARCA)** | **Opus** | nada — toca facturación/importes |
+| **Plataforma** | **Opus** | nada cuando toca RLS/tenancy/auth; scaffolding de observabilidad, sí |
+| **Inventario/POS** | **Opus** | componentes repetitivos de UI sobre spec cerrada |
+| **Diseño** | **Opus** | variantes de componentes sobre tokens ya decididos |
+| **Agencia Digital** | **Opus** | producción de contenido largo con el ángulo ya fijado |
 
-El patrón es uniforme: **base Sonnet, escalada puntual a Opus por dimensión de riesgo (§3), Gate GSG
-siempre Opus**.
+El patrón es uniforme: **base Opus siempre; Fable sólo para producir lo ya decidido, y nunca donde hay
+plata, seguridad o irreversibilidad; Gate GSG siempre Opus**.
 
 ---
 
 ## 6. Resumen en una línea
 
-> **Todo `sprint` abre en Sonnet salvo la capa de juicio —PMO, Seguridad, Preset IA— y la Auditoría GSG,
-> que son Opus; y el Gate GSG en Opus no lo saltea nadie antes de `main`.**
+> **Todo `sprint` abre en Opus. Fable sólo se declara para producir lo que ya se decidió. Sonnet salió de
+> la factory. Y el Gate GSG en Opus no lo saltea nadie antes de `main`.**
 
 ---
 

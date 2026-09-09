@@ -6,6 +6,8 @@ depends_on: [ADR-008, ADR-032]
 ---
 # ADR-045: Advisory Board + Challenger (contrarian) — tensión productiva tesis/antítesis antes de adoptar un fundamento
 
+> ⚖️ **Modelo actualizado por [ADR-091](ADR-091-opus-por-defecto-sonnet-fuera-de-la-factory.md) (2026-09-09):** corre en **Opus** (el nuevo default), no en Sonnet. El resto del ADR sigue vigente sin cambios. Motivo: tensionar una estrategia es juicio puro — justo donde no conviene degradar.
+
 **Estado:** Aceptado — vigente (gobernanza de decisiones estratégicas)
 **Fecha:** 2026-07-06
 **Modelo:** **Sonnet 5 por defecto** (ultra-ahorro); escala a **Opus** a pedido del dueño o en el tramo crítico

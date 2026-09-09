@@ -1,58 +1,58 @@
 ---
-description: Modo ECONOMÍA (default) — Sonnet 5 para la mayoría; Opus 4.8 solo cuando lo amerita
-model: claude-sonnet-5
+description: Modo GENERACIÓN — Fable para volumen; el juicio y el Gate se quedan en Opus (el default)
+model: claude-opus-5
 ---
 
-# 🪙 Modo ECONOMÍA — política de modelos vigente (DEFAULT ACTIVO)
+# 🏭 Modo GENERACIÓN — Fable para volumen, Opus para juicio
 
-**Objetivo:** economía de costo/tokens **sin bajar la calidad donde importa**. Es el **modo por defecto**
-del proyecto (default también fijado en `.claude/settings.json`). Para sprints críticos donde no se
-quiere ahorrar, usá `/boost` (todo en Opus 4.8).
+> ### ⚠️ Este comando cambió de significado (2026-09-09)
+> Antes era **"Modo ECONOMÍA"**: ponía **Sonnet como default de ejecución** para ahorrar. **Eso quedó
+> derogado por bajada del dueño** (ver `CLAUDE.md` §2 y **ADR-091**): **el default ahora es Opus y
+> Sonnet salió de la factory.** El comando se conserva —no se borra— porque el nombre está en la
+> memoria muscular del equipo, pero **lo que hace ahora es otra cosa**: rutear **generación de volumen**
+> a **Fable**, sin tocar el juicio.
 
-## Regla por defecto → **Sonnet 5** (`claude-sonnet-5`)
-Usá Sonnet 5 para **la mayoría del trabajo**, que es la mayor parte del volumen:
-- Implementación de features acotadas, UI de rubro/branding, componentes.
-- Documentación, runbooks, playbooks, edición de docs.
-- Tests, fixtures, scripts de tooling.
-- Exploración/lectura de código, búsquedas, diagnósticos read-only.
-- Provisioning/onboarding rutinario que sigue un playbook ya escrito.
-- Cambios mecánicos, refactors locales, fixes de lint/tsc.
+**Objetivo:** producir volumen rápido **sin degradar ninguna decisión**. No es un modo de ahorro: es un
+modo de *reparto de trabajo*.
 
-## Escalá a **Opus 4.8** (`claude-opus-4-8`) SOLO cuando lo amerita
-Reservá Opus para lo de **alto juicio o alto riesgo**, donde un error es caro:
-- **Arquitectura y diseño de sistema** — ADRs, límites de dominio, decisiones estructurales multi-tenant.
-- **Seguridad** — RLS/aislamiento, auth, superficies expuestas, revisiones de seguridad.
-- **Dinero / fiscal** — cobros, facturación/ARCA, representación de importes (Float↔Decimal), caja.
-- **Metodología / gobernanza** — Gate de Excelencia, estándares transversales, reglas del sprint.
-- **Auditorías de excelencia críticas** — SAP Fiori + sello GSG sobre entregables sensibles.
-- **Decisiones de alto juicio o riesgo** — algo irreversible, ambiguo, o que toca prod/Neon/deploy.
+## La pregunta que decide (una sola)
 
-## 🛡️ EXCEPCIÓN DURA, NO NEGOCIABLE — la AUDITORÍA GSG siempre en Opus 4.8
+> **¿Esto es DECIDIR, o es PRODUCIR lo que ya se decidió?**
 
-**El control de calidad GSG NUNCA se degrada de modelo.** La **Auditoría GSG** —es decir, el **Gate de
-Excelencia completo**: **Auditoría SAP Fiori en TODOS sus ángulos** (5 principios + accesibilidad +
-consistencia) **+ el sello/estándar de Marca GSG**— corre **SIEMPRE en Opus 4.8** (`claude-opus-4-8`),
-**sin excepción, incluso en modo `economia`**.
+- **Decidir → Opus** (`claude-opus-5`). Es el **default**: si dudás, es Opus.
+- **Producir volumen ya decidido → Fable** (`claude-fable-5-1`), y **solo si lo declarás explícito**.
 
-- El resto del trabajo puede ir en Sonnet 5 (default); **pero el momento de auditar/aprobar un entregable
-  contra el Gate se hace en Opus 4.8**, sí o sí. Si estás en Sonnet y llegás al paso de auditoría,
-  **escalá a Opus** (`/boost` o `/model opus`) para correr la auditoría, y podés volver a Sonnet después.
-- Aplica a los bloques 1 y 2 del Gate (SAP + GSG) **y** a la decisión de "pasa / no pasa" de todo
-  entregable, incluidos los **presets** del generador por IA (`docs/metodologia/generador-preset-ia.md`,
-  gate de entrega bloqueante).
+## Qué va a Fable (generación)
+- Código largo sobre una spec ya cerrada: scaffolding, conectores, consolas, componentes repetitivos.
+- Análisis extensos y documentos largos cuyo **marco y criterio ya fijó Opus**.
+- Fixtures, datasets, migraciones de texto, traducciones, tareas mecánicas de volumen.
+
+## Qué NUNCA sale de Opus
+- **Arquitectura y ADRs** — límites de dominio, decisiones estructurales multi-tenant.
+- **Seguridad** — RLS/aislamiento, auth, secretos, superficies expuestas.
+- **Dinero / fiscal** — cobros, ARCA, representación de importes, caja, **y toda la Mesa de Dinero**.
+- **Metodología / gobernanza** — reglas del sprint, estándares transversales.
+- **Todo lo irreversible** — prod, Neon, deploy, migraciones.
+- **El Gate de Excelencia** (ver abajo).
+
+## 🛡️ EXCEPCIÓN DURA, NO NEGOCIABLE — la AUDITORÍA GSG siempre en Opus
+
+**El control de calidad GSG NUNCA se degrada de modelo.** El **Gate de Excelencia completo** —Auditoría
+SAP Fiori en TODOS sus ángulos + ángulo argentino + sello/estándar de Marca GSG— corre **SIEMPRE en
+Opus**, sin excepción, aunque la generación del frente haya corrido en Fable.
+
+- Si estás generando en Fable y llegás al paso de auditoría, **el Gate se corre en Opus**, sí o sí.
+- Aplica a los bloques 1 y 2 del Gate **y** a la decisión de "pasa / no pasa" de todo entregable,
+  incluidos los **presets** del generador por IA (gate de entrega bloqueante).
 - *Por qué:* el Gate es la garantía de que nada sale por debajo del nivel GSG. Auditar con un modelo
-  degradado para ahorrar es ahorrar justo donde NO se debe — el control de calidad es lo último que se
-  economiza. Referencias: `docs/metodologia/auditoria-sap-fiori.md`, `docs/metodologia/estandar-marca-gsg.md`.
+  degradado es degradar justo donde no se debe. Referencias:
+  `docs/metodologia/auditoria-sap-fiori.md`, `docs/metodologia/estandar-marca-gsg.md`.
 
-## Criterio para decidir (rápido)
-Preguntate: **¿un error acá es caro o difícil de revertir, o requiere criterio experto de sistema?**
-- **Sí** → Opus 4.8 (`/boost` o `/model opus`).
-- **No** (la mayoría) → **Sonnet 5**, seguí en economía.
+## Cómo activarlo
+Este comando corre en **Opus**, que ya es el default del proyecto (`.claude/settings.json`). Para mandar
+un tramo de generación a Fable, declaralo explícito: `/model fable`, o el parámetro de modelo al
+despachar el subagente. **Volvé a Opus para decidir y para auditar.** Un frente que no declara modelo
+corre en Opus — y eso está bien, es el default.
 
-En la duda dentro de una tarea grande: **empezá en Sonnet** (explorar, plan, borrador) y **escalá a
-Opus** solo para el tramo de decisión crítica; volvé a Sonnet para ejecutar. No pagues Opus por volumen.
-
-> **Cómo activarlo:** este comando corre en Sonnet 5. Para que TODA la sesión quede en Sonnet, además
-> elegí Sonnet 5 en el selector de modelo (o `/model sonnet`). El default del proyecto ya es Sonnet
-> (`.claude/settings.json`), así que las sesiones nuevas arrancan en economía. Para un sprint crítico
-> completo en Opus → `/boost`.
+> **Sonnet no es una opción.** Salió de la factory (ADR-091). Si ves una sesión o un charter que todavía
+> dice Sonnet, está **fuera de norma**: corregilo antes de trabajar.

@@ -47,7 +47,7 @@ Sos la sesión que arranca. Este comando reemplaza la Fase 0 cara (leer `ESTADO-
 El vault abarata la Fase 0; **no la deroga**. Estos cuatro ítems de `CLAUDE.md` no son derivables
 del repo y hay que hacerlos igual:
 
-- **Declarar el modelo.** Fijalo explícito (`/model opus` | `/model sonnet`) según la capa del
+- **Declarar el modelo.** Fijalo explícito (`/model opus` —el default— | `/model fable` para generación) según la capa del
   frente. Una sesión que arranca sin modelo declarado está **fuera de norma** (§4 del Modelo de
   trabajo) — y el default de la cuenta no cuenta como declaración.
 - **Escribir tus 3-5 principios** antes de actuar (ADR-052, paso 2). Sin eso la calibración está

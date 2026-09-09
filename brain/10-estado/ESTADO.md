@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-09-09 03:55 UTC
+generado_el: 2026-09-09 04:04 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-09-09 03:55 UTC sobre `88c1805`.**
+> ⏱️ **Foto tomada el 2026-09-09 04:04 UTC sobre `6edfa7a`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,14 +19,16 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/money-desk-orchestrator-agent-s7clku` |
-| HEAD | `88c1805` (2026-09-09) |
-| Árbol | **7 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| HEAD | `6edfa7a` (2026-09-09) |
+| Árbol | **57 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo |
 
 **Ramas locales (2, más reciente primero):** `claude/money-desk-orchestrator-agent-s7clku` · `main`
 
 **Últimos commits**
 
+- 6edfa7a · 2026-09-09 · wip(mesa-dinero): consola de falsación en construcción — NO usar todavía
+- d77ded8 · 2026-09-09 · refactor(mesa-dinero): cero Sonnet en la mesa — Opus para juicio, Fable para generación
 - 88c1805 · 2026-09-09 · feat(mesa-dinero): célula de investigación financiera — agentes, charter y ADR-090
 - 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo
 - 922c036 · 2026-09-02 · fix(shine): la etiqueta Desde ya no toca la hairline del pie (Gate B-9)
@@ -37,8 +39,6 @@ tags: [brain/estado, fase-0]
 - 4cc66d6 · 2026-09-02 · fix(shine): la ficha adopta el aviso que no intercepta (Gate B-3) + D-1 y O-9..O-12
 - c8d5e3d · 2026-09-02 · fix(shine): nav visible y clickeable, números AA, aviso que no ocluye (Gate B-1/B-1b/B-2)
 - c488c4c · 2026-09-02 · redesign(shine): reestructura Challenger+referencias — portada tipográfica y carta única numerada
-- b45e634 · 2026-09-01 · fix(shine): alts fieles a las fotos y sincronizados con el src (Gate B-2/O-8/O-9)
-- e19fd05 · 2026-09-01 · fix(shine): height:auto activa el marco 3:2 (Gate B-1) + alts por momento
 
 ## Migraciones (Prisma)
 
@@ -56,12 +56,12 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 302 |
-| Palabras en `docs/` | 431.527 |
-| ADRs | 82 |
-| Nodos en el grafo | 87 _(los 82 ADR + 5 enmiendas)_ |
+| Documentos en `docs/` | 303 |
+| Palabras en `docs/` | 432.935 |
+| ADRs | 83 |
+| Nodos en el grafo | 87 _(los 83 ADR + 4 enmiendas)_ |
 
-> ⚠️ **1 ADR fuera del grafo** (ADR-090) → correr `npm run adr:graph`.
+> ⚠️ **2 ADR fuera del grafo** (ADR-090, ADR-091) → correr `npm run adr:graph`.
 
 ## Superficies con front propio
 

@@ -1,5 +1,6 @@
 ---
 name: data-dba
+model: opus
 description: Data / DBA de GSG — dueño del ciclo de datos y las migraciones de Neon; único que propone tocar la DB de producción. Úsalo antes de cualquier cambio de schema o migración. Prepara y verifica, pero eleva `migrate deploy` al dueño (§C · Gate 2).
 tools: Read, Grep, Glob, Bash
 ---

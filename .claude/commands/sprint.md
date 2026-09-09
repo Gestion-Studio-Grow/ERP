@@ -41,7 +41,7 @@ Objetivo: que **no se repitan errores de migración, cosas dejadas afuera, ni p�
 
 ## Modelo por sesión + concurrencia (regla dura, ver `CLAUDE.md`)
 Cada frente que `sprint` abre nace **con su modelo etiquetado explícitamente** según el mapa
-`docs/organizacion/asignacion-modelos-sprint.md` (Sonnet default de ejecución; Opus solo PMO/Auditoría
+`docs/organizacion/asignacion-modelos-sprint.md` (**Opus es el default de todo**, ADR-091; Fable sólo para generación declarada; Opus SIEMPRE en PMO/Auditoría
 GSG/Seguridad/Preset IA/Arquitecto de Solución en su tramo crítico — ver `CLAUDE.md → MODELO DE TRABAJO`).
 Y respeta siempre el **tope ≤ 4 sesiones corriendo a la vez** + prioridades P1/P2/P3 de
 `CLAUDE.md → CONCURRENCIA Y PRIORIDADES`: si hay más frentes que cupo, entran **en olas** por prioridad
@@ -150,13 +150,13 @@ que toque el sprint**. Todo respeta el **tope ≤ 4 corriendo** en olas y las pr
 - **Dueño** — **APRUEBA** el plan y lo irreversible (gate de aprobación).
 - **Dispatch** — **conductor/canal** único con el dueño; releva status; eleva.
 - **PMO (autor · Opus)** — FASE 0 + **propone el plan** + secuencia lo compartido + tablero.
-- **Arquitecto de Solución (ejecutor · Sonnet/Opus borde)** — **ejecuta lo reversible** del plan aprobado; **eleva lo irreversible** (ADR-048/049).
-- **Advisory + Challenger (Sonnet)** — **tensionan** la estrategia antes de fundamento (puntual, ADR-045).
-- **QA / Probador (Sonnet)** — **prueba como usuario real**; verifica antes de cerrar.
+- **Arquitecto de Solución (ejecutor · Opus)** — **ejecuta lo reversible** del plan aprobado; **eleva lo irreversible** (ADR-048/049).
+- **Advisory + Challenger (Opus)** — **tensionan** la estrategia antes de fundamento (puntual, ADR-045).
+- **QA / Probador (Opus)** — **prueba como usuario real**; verifica antes de cerrar.
 - **Seguridad (Opus)** — RLS/aislamiento/auth/secretos; on-call + parte del Gate (puntual).
 - **Auditoría GSG / el Gate (Opus SIEMPRE)** — corre el Gate completo **antes de cada merge**.
 
-**B· FRENTES — según el sprint:** Preset IA (Opus, en altas) · Producto por rubro (Sonnet) · Adaptador/Delivery por cliente (Sonnet) · **ERP cores** (Pagos·Caja·Inventario/POS·Fiscal·Plataforma/Deploy·Diseño, Sonnet→Opus en su tramo) · **Agencia Digital** (Consultores/Mercado·Devs·PMO·Growth·WhatsApp). *(Importaciones = trigger propio `impo`, todo Opus.)*
+**B· FRENTES — según el sprint:** Preset IA (Opus, en altas) · Producto por rubro (Opus) · Adaptador/Delivery por cliente (Opus) · **ERP cores** (Pagos·Caja·Inventario/POS·Fiscal·Plataforma/Deploy·Diseño, Opus) · **Agencia Digital** (Consultores/Mercado·Devs·PMO·Growth·WhatsApp). *(Importaciones = trigger propio `impo`, todo Opus.)*
 
 **C· Olas (≤ 4):** el **control entra puntual** (Gate al merge, Seguridad/Advisory por gatillo) → **no ocupa cupo permanente**; los **frentes** corren en olas de ≤ 4 por prioridad. En congestión, **solo P1**.
 

@@ -6,6 +6,8 @@ depends_on: [ADR-008, ADR-016]
 ---
 # ADR-047: Rutina obligatoria de retroalimentación — 3 palancas (memoria · casos · skills/briefs) + 2 cadencias
 
+> ⚖️ **Modelo actualizado por [ADR-091](ADR-091-opus-por-defecto-sonnet-fuera-de-la-factory.md) (2026-09-09):** corre en **Opus** (el nuevo default), no en Sonnet. El resto del ADR sigue vigente sin cambios.
+
 **Estado:** Aceptado — vigente (rutina de mejora continua)
 **Fecha:** 2026-07-07
 **Modelo:** **Sonnet 5 por defecto** (ultra-ahorro); la revisión Advisory+Challenger sigue su asignación (ADR-045)

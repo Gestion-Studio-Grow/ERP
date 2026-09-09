@@ -6,6 +6,8 @@ depends_on: [ADR-008]
 ---
 # ADR-032: Economía de modelos + Gate GSG siempre en Opus + tope de concurrencia + prioridades P1/P2/P3 (factory de dos capas)
 
+> ⚖️ **SUPERSEDIDO EN PARTE por [ADR-091](ADR-091-opus-por-defecto-sonnet-fuera-de-la-factory.md) (2026-09-09).** El punto 1 (*Default = Sonnet*) y el ruteo de subagentes a Sonnet/Haiku **quedan derogados**: el default pasa a **Opus** y **Sonnet sale de la factory**; **Fable** absorbe la generación de volumen declarada. **Siguen plenamente vigentes** el **Gate GSG siempre en Opus** y las reglas de **concurrencia y prioridades**. La medición que sostenía este ADR no se deroga: sigue siendo válida.
+
 **Estado:** Aceptado (2026-07-06) — norma de alto nivel vigente
 **Fecha:** 2026-07-06
 **Depende de / extiende:** ADR-008 (costo de tokens de Claude)

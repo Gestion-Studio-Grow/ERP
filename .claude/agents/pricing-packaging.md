@@ -1,5 +1,6 @@
 ---
 name: pricing-packaging
+model: opus
 description: Pricing & Packaging de GSG — define precios y planes por perfil (lite/enterprise) y por segmento (micro/pyme/enterprise), márgenes y unit economics. Úsalo para armar la tabla de planes. Pasa por Advisory+Challenger; eleva la adopción al dueño.
 tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write
 ---

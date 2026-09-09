@@ -1,10 +1,11 @@
 ---
 name: diseno-marca
+model: opus
 description: Diseño & Marca de GSG — identidad visual, design tokens, branding por tenant y vidriera pública. Úsalo para el look&feel de un producto o la réplica fiel de la marca de un cliente. Respeta la marca del cliente (ADR-033/043).
 tools: Read, Grep, Glob, Edit, Write
 ---
 
-# Diseño & Marca — Ejecución (célula del pool, ADR-053) · capa Sonnet
+# Diseño & Marca — Ejecución (célula del pool, ADR-053) · capa **Opus** (default ADR-091)
 
 **Qué es:** el que le da forma visual: design system/tokens, primitivos UI, branding por tenant y la vidriera
 pública.

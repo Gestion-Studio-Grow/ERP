@@ -59,42 +59,63 @@ recomendación ni un default cómodo: es norma dura, no salteable. Fundamento y 
 `docs/organizacion/factory-reforzada.md` (las dos capas + el loop de revisión) y
 `docs/organizacion/asignacion-modelos-sprint.md` (el mapa sesión→modelo y el criterio de asignación).
 
-**El porqué:** la medición de costo/uso mostró que Opus era la mayor parte del gasto pero mucho de eso
-era *ejecución delegable, no juicio*. La norma empuja la frontera Opus al núcleo de juicio y mueve el
-volumen a Sonnet, **sin bajar la calidad del control**: el Gate GSG nunca se degrada de modelo. Así se
-economiza donde no duele y se paga Opus solo donde un error es caro o irreversible.
+**El porqué (revisado 2026-09-09):** la primera versión de esta norma movía el volumen a Sonnet para
+ahorrar, apoyada en la medición de costo/uso. **La medición sigue siendo válida y no se toca** — pero el
+dueño cambió qué se optimiza: **la consistencia del juicio en toda la cadena vale más que el ahorro por
+tarea**. El propio análisis ya advertía que el ahorro real era menor al que sugiere el precio de lista,
+porque **el 86% del gasto es acarrear contexto, no generar**: bajar de modelo no toca ese 86%. Entonces el
+default pasa a **Opus**, **Fable** absorbe la generación de volumen cuando se la declara, y **Sonnet sale
+de la factory**. El Gate GSG sigue sin degradarse nunca. Fundamento: **ADR-091**.
 
 ### 1. Estructura de células por capa (se auto-abren al decir `sprint`)
 La factory tiene **dos capas**. Al invocar `sprint` se **abren automáticamente** las células, **cada una
 con su modelo asignado** (1 frente = 1 worktree = 1 sesión):
-- **Capa OPUS 4.8 — alto juicio** (caro de revertir · seguridad · plata · arquitectura · el gate):
-  **PMO / Arquitecto jefe · Auditoría GSG (el Gate) · Seguridad · Preset IA (Ingesta + Adaptación).**
-- **Capa SONNET 5 — ejecución** (volumen · reversible · criterio acotado):
-  **Probador interactivo · Adaptador para cliente · Plataforma/Deploy/Infra · Productos por rubro ·
-  Growth/Agencia Digital.**
+- **Capa OPUS — juicio (el DEFAULT)** (caro de revertir · seguridad · plata · arquitectura · el gate ·
+  y también la ejecución común): **PMO / Arquitecto jefe · Auditoría GSG (el Gate) · Seguridad ·
+  Preset IA · Probador interactivo · Adaptador para cliente · Plataforma/Deploy/Infra · Productos por
+  rubro · Growth/Agencia Digital.** Si no se declara otra cosa, la célula corre en Opus.
+- **Capa FABLE — generación de volumen** (código largo, consolas, análisis extensos, scaffolding): se
+  elige **explícitamente** cuando el trabajo es producir volumen y el juicio ya está tomado aguas arriba.
+- **Sonnet queda FUERA de la factory** (bajada del dueño, 2026-09-09). Ver §2.
 
 ### 2. Economía de modelos por defecto (regla dura)
-**Default = Sonnet 5** (`claude-sonnet-5`) para TODA la ejecución (implementación acotada, docs, UI de
-rubro, tests, exploración, provisioning). **Opus 4.8** (`claude-opus-4-8`) se reserva **solo** para la
-capa de alto juicio de arriba. Criterio: *¿un error acá es caro/difícil de revertir, o toca seguridad,
-plata, arquitectura o prod/Neon/deploy?* **Sí → Opus; no (la mayoría) → Sonnet.** Comandos: **`/economia`**
-(default, Sonnet) y **`/boost`** (todo Opus, sprints críticos de punta a punta) — ver
-`.claude/commands/economia.md` y `.claude/commands/boost.md`. Coherente con la prioridad de **costo sobre
-velocidad** del dueño. Los **subagentes** (Task/Workflow) corren en **Sonnet o Haiku, nunca Opus por
-herencia**.
+**Default = OPUS** (`claude-opus-5`) para TODO — juicio y ejecución. **Sonnet queda fuera de la factory**
+(bajada de línea del dueño, 2026-09-09): no es más el default de ejecución ni una capa disponible.
+**Fable** (`claude-fable-5-1`) es la **única alternativa**, y se elige **explícitamente** —nunca por
+default— cuando el trabajo es **generación de volumen** (código largo, consolas, análisis extensos,
+scaffolding) y el juicio ya fue tomado aguas arriba. Criterio: *¿esto es decidir, o es producir lo ya
+decidido?* **Decidir → Opus (default); producir volumen → Fable, si la célula lo declara.**
+
+Comandos: **`/boost`** (todo Opus de punta a punta). **`/economia`** queda **derogado como default
+Sonnet** — ver `.claude/commands/economia.md`. Los **subagentes** (Task/Workflow) heredan **Opus** y
+pueden despacharse a **Fable** para generación; **nunca a Sonnet**.
+
+> **Por qué se invirtió la regla.** La versión anterior ponía *Default = Sonnet* apoyada en
+> `docs/metricas/costo-uso-factory.md`. **Esa medición no se toca ni se deroga: sigue siendo verdadera** —
+> Sonnet costaba menos por prompt. Lo que cambió es la **decisión del dueño sobre qué optimizar**:
+> pasa a priorizar la **calidad y consistencia del juicio en toda la cadena** por encima del ahorro por
+> tarea. El propio análisis ya advertía que el ahorro real era menor al que sugiere el precio de lista,
+> porque el **86% del gasto es acarrear contexto, no generar**. Detalle y consecuencias: **ADR-091**.
 
 ### 3. 🛡️ La Auditoría GSG corre SIEMPRE en Opus (excepción dura, no negociable)
 El **Gate de Excelencia completo** (Auditoría SAP Fiori en **TODOS** sus ángulos + sello/estándar GSG)
-corre **SIEMPRE en Opus 4.8**, sin excepción, **incluso en modo `economia`** y aunque la ejecución del
-frente haya sido Sonnet. El control de calidad GSG **nunca se degrada de modelo**: al auditar/aprobar un
-entregable (incluidos los presets del generador por IA) se **escala a Opus** para la auditoría y se
-vuelve a Sonnet para ejecutar. Auditar con un modelo degradado sería ahorrar justo donde no se debe.
+corre **SIEMPRE en Opus**, sin excepción, aunque la generación del frente haya corrido en Fable. El
+control de calidad GSG **nunca se degrada de modelo**: al auditar/aprobar un entregable (incluidos los
+presets del generador por IA) se audita **en Opus** y recién después se vuelve a la capa de generación.
+Auditar con un modelo degradado sería ahorrar justo donde no se debe. Con el default en Opus (§2) esta
+excepción deja de ser una escalada y pasa a ser un **piso que no se puede bajar**.
 
 ### 4. Cada célula ETIQUETA su modelo explícitamente (no depende del default de la cuenta)
-Toda célula **declara y fija su modelo de forma explícita** (`/model opus` | `/model sonnet`, o el
+Toda célula **declara y fija su modelo de forma explícita** (`/model opus` | `/model fable`, o el
 parámetro de modelo al despachar el subagente) según la capa de §1 — **nunca se apoya en el default de
 la cuenta ni lo asume**. Una sesión que arranca sin modelo declarado está **fuera de norma**: se corrige
 antes de trabajar. El **PMO verifica el etiquetado** al despachar cada frente.
+
+**Los agentes lo declaran en el frontmatter, no en la prosa.** Un charter que dice "capa Opus" en el
+encabezado pero no trae `model:` en el frontmatter **no fija nada**: el subagente hereda el modelo del
+padre. Es la causa exacta de las lecciones **MP-4** (Opus por herencia) y **MP-9** (modelo mal
+etiquetado). Todo agente de `.claude/agents/` **debe** traer `model:` — `npm run brain` lo audita y marca
+en rojo a los que no.
 
 ### 5. Nada se integra sin el Gate (y el preset exige autorización del cliente)
 **Ningún entregable pasa a `main` sin cruzar el Gate de Excelencia** (Auditoría SAP en todos los ángulos
@@ -143,8 +164,8 @@ escala) pasa por un par **tesis/antítesis** antes de adoptarse: el **Advisory B
 **Challenger (contrarian / red-team)** —mismos skills de alto nivel, **postura opuesta**— presenta el caso
 contrario, los riesgos, los supuestos débiles y las alternativas, con el mismo rigor. **Flujo:** Advisory
 **propone** → Challenger **desafía** → **síntesis/decisión del dueño**. **Regla dura: nada se adopta como
-fundamento sin pasar por el Challenger.** Corre en **Sonnet por defecto (ultra-ahorro)**; escala a **Opus**
-a pedido del dueño. Detalle y porqué: **`docs/adr/ADR-045-advisory-board-challenger-contrarian.md`**.
+fundamento sin pasar por el Challenger.** Corre en **Opus** (default de §2; antes era Sonnet por ahorro —
+derogado en ADR-091: el desafío estratégico es juicio puro y es justo donde no conviene degradar). Detalle y porqué: **`docs/adr/ADR-045-advisory-board-challenger-contrarian.md`**.
 
 ## 🗣️ De-sesgo / comportamiento humano POR SECTOR (ADR-046)
 
@@ -162,7 +183,8 @@ funcionó/falló) · **skills/briefs** (prompts de las células)— y **2 cadenc
 sprint, por célula** (parte de la Definición de terminado): actualizar memoria + registrar 1 caso + proponer
 1 mejora breve de brief/skill; **(b)** **consolidación periódica** (semanal o cada N sprints): destilar casos
 en mejoras de skills/briefs, limpiar memoria, y **revisión Advisory + Challenger de las bases** (ADR-045).
-Corre en **Sonnet** (ultra-ahorro). Detalle: **`docs/adr/ADR-047-rutina-de-retroalimentacion.md`**.
+Corre en **Opus** (default de §2; antes Sonnet por ahorro — derogado en ADR-091). Detalle:
+**`docs/adr/ADR-047-rutina-de-retroalimentacion.md`**.
 
 ## 🏗️ Arquitecto de Solución — autoridad sobre lo REVERSIBLE (ADR-048)
 
@@ -171,8 +193,9 @@ baja el dueño: **REVERSIBLE** (doc-only, ADR/metodología, cableado interno, or
 NO-prod tras flag, blueprints, estructura de células) lo **decide y ejecuta solo**, con **1 línea de
 rationale** por decisión (log ligero, insumo de la retro ADR-047); **IRREVERSIBLE** (deploy, Neon/DB,
 seed/migraciones, secretos, permisos, marca de cliente, gasto/órdenes de impo) **arma la propuesta y la
-eleva al dueño**. **Regla de oro: ante la duda, se trata como irreversible.** Corre en **Sonnet** por
-defecto; escala a **Opus** en el borde reversible/irreversible o alto juicio. Detalle: **`docs/adr/ADR-048-arquitecto-de-solucion.md`** · charter operativo **`docs/organizacion/arquitecto-de-solucion.md`**.
+eleva al dueño**. **Regla de oro: ante la duda, se trata como irreversible.** Corre en **Opus**
+(default de §2; antes Sonnet — derogado en ADR-091: separar reversible de irreversible es exactamente el
+juicio que no se delega). Detalle: **`docs/adr/ADR-048-arquitecto-de-solucion.md`** · charter operativo **`docs/organizacion/arquitecto-de-solucion.md`**.
 
 ## 🎓 Protocolo de calibración universal — TODO agente calibra antes de actuar (ADR-052)
 

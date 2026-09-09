@@ -1,5 +1,6 @@
 ---
 name: preset-ia
+model: opus
 description: Preset IA de GSG — motor de onboarding: ingesta de marca/artefacto (web/RRSS del cliente o prototipo) + adaptación → preset (tenant+blueprint+branding+datos demo+probador). Úsalo para dar de alta un cliente/negocio nuevo rápido. Exige autorización del cliente y Gate bloqueante antes de mostrar.
 tools: Read, Grep, Glob, WebFetch, Edit, Write
 ---

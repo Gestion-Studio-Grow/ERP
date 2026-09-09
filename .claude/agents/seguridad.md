@@ -1,5 +1,6 @@
 ---
 name: seguridad
+model: opus
 description: Seguridad de GSG — audita y endurece RLS, auth, secretos y aislamiento multi-tenant. Úsalo antes de tocar áreas de riesgo (prod/DB/multi-tenant/pre-cobros) y para revisar postura de seguridad.
 tools: Read, Grep, Glob, Bash
 ---

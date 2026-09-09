@@ -1,5 +1,6 @@
 ---
 name: pmo
+model: opus
 description: PMO de GSG — genera/actualiza el plan del sprint sobre el roadmap del repo, lo presenta al dueño, consolida y releva estado. Úsalo para planificar u orquestar un sprint o frente. Es el único que reporta al dueño.
 tools: Read, Grep, Glob, Bash, Edit, Write, Task
 ---

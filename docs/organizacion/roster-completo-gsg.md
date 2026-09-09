@@ -7,7 +7,9 @@
 > Fija la estructura estándar (ADR-051); los agentes faltantes están en §4. Diagrama:
 > `docs/organizacion/estructura-gsg.mermaid`. No instancia nada — es doc de gobernanza.
 
-**Leyenda de modelo:** Opus = alto juicio · Sonnet = ejecución (ADR-032). **Todo agente calibra antes de
+**Leyenda de modelo:** **Opus = el DEFAULT (juicio y ejecución)** · **Fable = generación de volumen
+declarada**. **Sonnet salió de la factory el 2026-09-09** (**ADR-091**, deroga la economía de ADR-032).
+Todo agente declara `model:` en su frontmatter — `npm run brain` lo audita. **Todo agente calibra antes de
 actuar** (ADR-052).
 
 ---
@@ -19,10 +21,10 @@ actuar** (ADR-052).
 | **Dueño (Maxi)** | APRUEBA planes e irreversibles; decide adopción de fundamentos | humano | ✅ |
 | **Dispatch** | conductor / canal único con el dueño; releva status; eleva | — (canal) | ✅ |
 | **PMO puro** | AUTOR de planes (backlog · roadmap · metodología · ADRs); propone | Opus | ✅ |
-| **Arquitecto de Solución** | EJECUTOR: ejecuta lo reversible del plan aprobado; eleva lo irreversible | Sonnet/Opus | 📐 (rol ADR-048, sesión no instanciada) |
-| **Advisory Board** | panel de asesores que PROPONE estrategia con rigor | Sonnet | 🆕 (sin roster — §4) |
-| **Challenger (contrarian)** | red-team: DESAFÍA cada propuesta del Advisory (tesis/antítesis) | Sonnet | 📐 (rol ADR-045) |
-| **QA / Probador** | prueba como usuario real; repro de bugs; verifica antes de cerrar | Sonnet | ✅ |
+| **Arquitecto de Solución** | EJECUTOR: ejecuta lo reversible del plan aprobado; eleva lo irreversible | **Opus** | 📐 (rol ADR-048, sesión no instanciada) |
+| **Advisory Board** | panel de asesores que PROPONE estrategia con rigor | **Opus** | 🆕 (sin roster — §4) |
+| **Challenger (contrarian)** | red-team: DESAFÍA cada propuesta del Advisory (tesis/antítesis) | **Opus** | 📐 (rol ADR-045) |
+| **QA / Probador** | prueba como usuario real; repro de bugs; verifica antes de cerrar | **Opus** | ✅ |
 | **Seguridad** | RLS/aislamiento/auth/secretos; on-call + parte del Gate | Opus | ✅ |
 | **Auditoría GSG (el Gate)** | corre el Gate de Excelencia antes de CADA merge | Opus (siempre) | ✅ |
 
@@ -31,32 +33,32 @@ actuar** (ADR-052).
 ### 2.1 · ERP multi-tenant (producto SaaS core)
 | Célula | Rol | Modelo | Estado |
 |---|---|---|---|
-| **Pagos** | gateway de cobros (Mercado Pago, checkout/seña, webhooks, conciliación) | Sonnet→Opus (plata) | ✅ |
-| **Caja** | caja del POS (apertura/cierre/arqueo/movimientos) | Sonnet | ✅ |
-| **Inventario/POS** | stock, productos, compras/reposición, proveedores | Sonnet | ✅ |
-| **Fiscal (ARCA)** | facturación electrónica WSFEv1, certs, Invoice/Outbox | Sonnet→Opus (plata) | ✅ |
-| **Plataforma/Deploy/Infra** | RLS/tenancy, perf, observabilidad, reporting, tren de deploy | Sonnet→Opus (seguridad) | ✅ |
-| **Diseño** | design system, tokens, primitivos, branding por tenant, vidrieras | Sonnet | ✅ |
-| **Reliability/SRE** | hardening, vallas, rate-limit, firma de webhooks | Sonnet→Opus | ✅ + 📐 SRE on-call/SLOs (`sre-oncall`, charter 2026-07-08) |
+| **Pagos** | gateway de cobros (Mercado Pago, checkout/seña, webhooks, conciliación) | **Opus** | ✅ |
+| **Caja** | caja del POS (apertura/cierre/arqueo/movimientos) | **Opus** | ✅ |
+| **Inventario/POS** | stock, productos, compras/reposición, proveedores | **Opus** | ✅ |
+| **Fiscal (ARCA)** | facturación electrónica WSFEv1, certs, Invoice/Outbox | **Opus** | ✅ |
+| **Plataforma/Deploy/Infra** | RLS/tenancy, perf, observabilidad, reporting, tren de deploy | **Opus** | ✅ |
+| **Diseño** | design system, tokens, primitivos, branding por tenant, vidrieras | **Opus** | ✅ |
+| **Reliability/SRE** | hardening, vallas, rate-limit, firma de webhooks | **Opus** | ✅ + 📐 SRE on-call/SLOs (`sre-oncall`, charter 2026-07-08) |
 | **Data / DBA** | dueño del ciclo de datos, migraciones Neon, integridad, RLS | Opus | 📐 (`data-dba`, charter 2026-07-08) |
 
 ### 2.2 · Agencia Digital (satélite del ERP: lo vende + suma features)
 | Célula | Rol | Modelo | Estado |
 |---|---|---|---|
-| **Consultores / Análisis de mercado** | inteligencia de mercado, estado del arte, diferencial con evidencia | Sonnet→Opus (estrategia) | ✅ |
-| **Desarrolladores** | construyen lo que los consultores validan (apalancando ERP) | Sonnet | ✅ |
-| **PMO proactivo (Agencia)** | avance + búsqueda proactiva de innovación del sector | Sonnet | ✅ |
-| **Growth** | métricas de conversión/activación/retención por vidriera/tenant | Sonnet→Opus (estrategia) | 🟡 (gap G2, parcial) |
-| **WhatsApp** | canal WhatsApp-first (wa-intent/provider/dispatch) | Sonnet | 🟡 (capas listas; falta handler HTTP + ADR proveedor) |
-| **Soporte / Customer Success** | soporte y éxito del cliente post-venta | Sonnet | 📐 (`soporte-customer-success`, charter 2026-07-08) |
+| **Consultores / Análisis de mercado** | inteligencia de mercado, estado del arte, diferencial con evidencia | **Opus** | ✅ |
+| **Desarrolladores** | construyen lo que los consultores validan (apalancando ERP) | **Opus** | ✅ |
+| **PMO proactivo (Agencia)** | avance + búsqueda proactiva de innovación del sector | **Opus** | ✅ |
+| **Growth** | métricas de conversión/activación/retención por vidriera/tenant | **Opus** | 🟡 (gap G2, parcial) |
+| **WhatsApp** | canal WhatsApp-first (wa-intent/provider/dispatch) | **Opus** | 🟡 (capas listas; falta handler HTTP + ADR proveedor) |
+| **Soporte / Customer Success** | soporte y éxito del cliente post-venta | **Opus** | 📐 (`soporte-customer-success`, charter 2026-07-08) |
 
 ### 2.3 · Agencia Grow (negocios propios del grupo)
 | Célula | Rol | Modelo | Estado |
 |---|---|---|---|
-| **Panel del Dueño** | analytics single-tenant (owner-insights / owner-trends) | Sonnet | ✅ (cableado en /admin/reportes) |
-| **Gestión de cartera propia** | conduce los negocios propios del grupo | Sonnet | 🆕 (§4) |
+| **Panel del Dueño** | analytics single-tenant (owner-insights / owner-trends) | **Opus** | ✅ (cableado en /admin/reportes) |
+| **Gestión de cartera propia** | conduce los negocios propios del grupo | **Opus** | 🆕 (§4) |
 | **Pricing & Packaging** | precios/planes por perfil (lite/enterprise) y segmento, márgenes, unit economics | Opus (plata) | 📐 (`pricing-packaging`, charter 2026-07-08) |
-| **PO del Catálogo / Plugins** | dueño del repositorio de módulos; set mínimo vendible por rubro/perfil; registry | Opus/Sonnet | 📐 (`po-catalogo-plugins`, charter 2026-07-08) |
+| **PO del Catálogo / Plugins** | dueño del repositorio de módulos; set mínimo vendible por rubro/perfil; registry | **Opus** | 📐 (`po-catalogo-plugins`, charter 2026-07-08) |
 
 ### 2.4 · Preset IA (motor de onboarding — transversal)
 | Célula | Rol | Modelo | Estado |
@@ -77,10 +79,10 @@ actuar** (ADR-052).
 ### 2.6 · Transversales de ejecución
 | Célula | Rol | Modelo | Estado |
 |---|---|---|---|
-| **Producto por rubro** | features y branding por tenant/rubro | Sonnet | ✅ |
-| **Adaptador / Delivery por cliente** | onboarding/config/datos de un cliente (`tenant/<slug>`) | Sonnet | ✅ |
-| **Docs / Índice vivo** | mantiene TABLERO/ADR-INDEX/ESTADO-ACTUAL sincronizados | Sonnet | 🆕 (§4; hoy lo hace el PMO) |
-| **FinOps / Costo-Uso** | telemetría de costo/uso de la factory (serie temporal + tablero) | Sonnet (+Opus revisa) | 📐 (`finops-costo-uso`, charter 2026-07-08) |
+| **Producto por rubro** | features y branding por tenant/rubro | **Opus** | ✅ |
+| **Adaptador / Delivery por cliente** | onboarding/config/datos de un cliente (`tenant/<slug>`) | **Opus** | ✅ |
+| **Docs / Índice vivo** | mantiene TABLERO/ADR-INDEX/ESTADO-ACTUAL sincronizados | **Opus** | 🆕 (§4; hoy lo hace el PMO) |
+| **FinOps / Costo-Uso** | telemetría de costo/uso de la factory (serie temporal + tablero) | **Opus** | 📐 (`finops-costo-uso`, charter 2026-07-08) |
 | **Release Manager** | orquesta el tren de releases (batch→build→Gate→deploy con OK) | Opus coord | 📐 (`release-manager`, charter 2026-07-08) |
 | **Legal / Compliance** | autorización de marca, datos personales, términos | Opus | 🆕 (§4) |
 
@@ -107,32 +109,32 @@ Formato: **nombre** — misión (1 línea) · **entradas → salidas** · **mode
    tocar Neon. · *in:* cambios de schema de los cores · *out:* plan de migración + verificación de
    aislamiento + propuesta de `migrate deploy` (Gate 2, elevada). · **Opus** · **ERP/Plataforma**. (gap G7)
 2. **Release Manager** — orquesta el tren de releases de punta a punta. · *in:* ramas con Gate verde ·
-   *out:* checklist de release + propuesta de deploy (Gate 1, elevada). · **Opus coord / Sonnet ejecuta** ·
+   *out:* checklist de release + propuesta de deploy (Gate 1, elevada). · **Opus** ·
    **Gobernanza**. (gap G8)
 3. **FinOps / Costo-Uso** — telemetría de costo/uso de la factory (serie temporal, tablero por
-   célula/modelo). · *in:* logs de uso Claude · *out:* reporte semanal + alertas de gasto. · **Sonnet
+   célula/modelo). · *in:* logs de uso Claude · *out:* reporte semanal + alertas de gasto. · **Opus**
    (+Opus revisa)** · **Gobernanza/PMO**. (gap G3)
 4. **Pricing & Packaging** — define precios/planes por **tier (low/mid/big)**, márgenes y unit economics. ·
    *in:* análisis de mercado + costos (FinOps) · *out:* tabla de planes por tier + modelo de márgenes
    (pasa por Advisory+Challenger). · **Opus** · **Agencia Grow/Gobernanza**.
 5. **Soporte / Customer Success** — soporte y éxito del cliente **post-venta** (incidencias, retención). ·
    *in:* consultas/tickets de tenants vivos · *out:* resoluciones + feedback a producto + casos a la retro.
-   · **Sonnet** (zona humana/criolla, de-sesgo) · **Agencia Digital/Delivery**.
+   · **Opus** (zona humana/criolla, de-sesgo) · **Agencia Digital/Delivery**.
 6. **SRE on-call / SLOs** — formaliza guardia, SLOs y runbook de incidentes (hoy el hardening es ad-hoc). ·
    *in:* señales de prod/observabilidad · *out:* SLOs + runbook + acciones de resiliencia. · **Opus decide /
-   Sonnet ejecuta** · **ERP/Plataforma**. (gap G6)
+   Opus** · **ERP/Plataforma**. (gap G6)
 7. **Docs / Índice vivo** — mantiene `TABLERO-SESIONES` + índices ADR + `ESTADO-ACTUAL` sincronizados. ·
-   *in:* cambios de canon · *out:* docs al día. · **Sonnet** · **Gobernanza/PMO**. (gap G9)
+   *in:* cambios de canon · *out:* docs al día. · **Opus** · **Gobernanza/PMO**. (gap G9)
 8. **Advisory Board (roster)** — define el **panel de asesores** (personas/perfiles) que propone estrategia.
    · *in:* preguntas estratégicas del dueño · *out:* propuestas fundadas (que el Challenger desafía). ·
-   **Sonnet** · **Gobernanza**.
+   **Opus** · **Gobernanza**.
 9. **Legal / Compliance** — cumplimiento legal (marca/consentimiento, datos personales, términos), más allá
    de lo fiscal. · *in:* flujos nuevos que tocan datos/marca · *out:* checklist legal + riesgos. · **Opus**
    · **Gobernanza**. (complementa ADR-042)
 10. **Product Owner del Catálogo/Plugins** — dueño del **repositorio de módulos**: prioriza el backlog de
     plugins, define el **set mínimo vendible** por rubro/tier y mantiene el **registry** de madurez. · *in:*
     gap de módulos (roadmap §6.1) + necesidades de venta · *out:* backlog priorizado + gate de venta por
-    rubro. · **Opus** (prioriza) / **Sonnet** (registry) · **ERP core / Gobernanza**. (ADR-054; **arranque
+    rubro. · **Opus** · **ERP core / Gobernanza**. (ADR-054; **arranque
     posible sin sumar agente:** PMO + Producto por rubro + Arquitecto)
 
 > **Cómo se activan:** el dueño elige cuáles aprobar; cada uno aprobado se graba con su charter y entra al
@@ -177,9 +179,9 @@ convocan del pool (ADR-053); definir ≠ instanciar.
 
 | Rol (slug) | Capa | Qué hace | Qué decide / eleva |
 |---|---|---|---|
-| **Analista de Funcionalidad de Backoffice** (`backoffice-producto`) | Sonnet→Opus | Define/diseña una funcionalidad de backoffice desde la necesidad del negocio (flujos, RBAC, criterios de aceptación) | Decide la spec funcional; eleva migración/§C. Dupla con `backoffice-ingenieria` |
-| **Ingeniero de Backoffice** (`backoffice-ingenieria`) | Sonnet→Opus | Construye e integra la funcionalidad al backoffice (server actions, `/admin`, RBAC, tests) | Ejecuta código reversible; **eleva** migraciones/secretos/§C; **pasa el Gate antes de integrar** |
-| **Especialista en Matrices RACI** (`raci-matriz`) | Sonnet→Opus | Diseña/mantiene la RACI por frente/tarea; detecta huecos y solapes; alinea con ADR-049 y el roster | Produce la matriz (reversible); eleva si falta dueño de algo irreversible o hay que crear rol |
+| **Analista de Funcionalidad de Backoffice** (`backoffice-producto`) | **Opus** | Define/diseña una funcionalidad de backoffice desde la necesidad del negocio (flujos, RBAC, criterios de aceptación) | Decide la spec funcional; eleva migración/§C. Dupla con `backoffice-ingenieria` |
+| **Ingeniero de Backoffice** (`backoffice-ingenieria`) | **Opus** | Construye e integra la funcionalidad al backoffice (server actions, `/admin`, RBAC, tests) | Ejecuta código reversible; **eleva** migraciones/secretos/§C; **pasa el Gate antes de integrar** |
+| **Especialista en Matrices RACI** (`raci-matriz`) | **Opus** | Diseña/mantiene la RACI por frente/tarea; detecta huecos y solapes; alinea con ADR-049 y el roster | Produce la matriz (reversible); eleva si falta dueño de algo irreversible o hay que crear rol |
 | **Guardián del Sello GSG** (`sello-marca-gsg`) | Opus | Dentro de Auditoría GSG: aporta filosofía/visión de marca a TODOS los productos (identidad, tono, valores) | Veta coherencia de marca junto al Gate (ADR-043/044/046); no pisa la marca del cliente |
 
 > **Equipo de funcionalidades de backoffice** = `backoffice-producto` + `backoffice-ingenieria` (proponen →

@@ -1,10 +1,11 @@
 ---
 name: operaciones
+model: opus
 description: Operaciones de GSG — puesta en marcha end-to-end de un negocio, runbooks, onboarding operativo y soporte. Úsalo para dejar un producto operable de punta a punta una vez validado.
 tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
-# Operaciones — Ejecución (célula del pool, ADR-053) · capa Sonnet
+# Operaciones — Ejecución (célula del pool, ADR-053) · capa **Opus** (default ADR-091)
 
 **Qué es:** el que pone el negocio a andar en el día a día: procesos, runbooks, onboarding operativo y soporte.
 

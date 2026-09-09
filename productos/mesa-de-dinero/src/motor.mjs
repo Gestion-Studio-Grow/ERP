@@ -45,7 +45,7 @@ export function evaluarTodo(ctx, estrategias = Object.keys(ESTRATEGIAS)) {
   const out = [];
   for (const nombre of estrategias) {
     const e = ESTRATEGIAS[nombre];
-    if (!e) throw new Error(`estrategia desconocida: ${nombre}`);
+    if (!e) { out.push({ estrategia: nombre, error: `estrategia desconocida: ${nombre}` }); continue; }
     try { out.push(...e.evaluar(ctx)); } catch (err) { out.push({ estrategia: nombre, error: err.message }); }
   }
   return out;
@@ -83,15 +83,12 @@ export async function correrPasada(mercado, {
     if (delayRecheckMs > 0) await dormir(delayRecheckMs);
     const ctx1 = await armarContexto(mercado, { exchanges, pares, nocionales, costos, opciones, instante: 't1' });
     const despues = new Map(evaluarTodo(ctx1, estrategias).filter((o) => !o.error).map((o) => [o.clave, o]));
+    // Fantasma = a los N ms la oportunidad ya no es lo que era: una 🟢 que dejó de ser 🟢
+    // (bajó a marginal o murió), o una 🟡 que murió. Si no aparece más, también es fantasma.
     for (const g of ganadoras) {
       const r = despues.get(g.clave);
-      g.recheck = {
-        hecho: true,
-        delayMs: delayRecheckMs,
-        neto: r?.neto ?? NaN,
-        veredicto: r?.veredicto ?? 'desaparecio',
-        fantasma: !r || r.veredicto === VEREDICTO.MUERE,
-      };
+      const fantasma = !r || r.veredicto === VEREDICTO.MUERE || (g.veredicto === VEREDICTO.SOBREVIVE && r.veredicto !== VEREDICTO.SOBREVIVE);
+      g.recheck = { hecho: true, delayMs: delayRecheckMs, neto: r?.neto ?? NaN, veredicto: r?.veredicto ?? 'desaparecio', fantasma };
     }
   }
   for (const o of oportunidades) if (!o.recheck) o.recheck = { hecho: false };
