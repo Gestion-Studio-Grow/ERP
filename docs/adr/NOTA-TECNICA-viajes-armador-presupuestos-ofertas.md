@@ -44,7 +44,85 @@ estructurales que son estables (§1.4).
 cambio de HTML, termina en bloqueo de IP y —lo peor para una agencia— entrega precios que no se pueden
 defender ante el cliente (sin id de oferta, sin vigencia). Fuera de la mesa.
 
-### 1.3 Comparativa de vías legítimas
+### 1.3 PREGUNTA CENTRAL DEL DUEÑO — ¿hay alguno GRATUITO, de AUTO-REGISTRO SIN REQUISITOS y ACTIVACIÓN INSTANTÁNEA?
+
+**Respuesta corta: sí, para COTIZAR y DEMOSTRAR — no para VENDER.** Amadeus Self-Service (vuelos + hoteles)
+y el sandbox de Hotelbeds APItude (hoteles) dan credenciales **al instante, gratis y sin hablar con nadie**.
+Lo que esas credenciales devuelven son **tarifas públicas o de prueba**: sirven para armar el presupuesto,
+demostrar el módulo y entrenar al operador, **no** son el precio neto que Azimut revende. El precio vendible
+viene del **mayorista** (que es quien vende y factura; Azimut cobra comisión) — y eso llega por contrato,
+portal B2B o carga manual con snapshot. Encaja exacto con **demo → venta → inversión**.
+
+**Contexto del cliente que cambia la lectura:** Azimut Viajes es agencia real (califica donde piden
+"agencia"), **no factura ni cobra**: el operador mayorista vende y factura, Azimut comisiona. Entonces el
+módulo **no necesita emitir** (descarta la necesidad de Duffel/consolidador) y sí necesita **cotizar con
+trazabilidad** y **cargar el precio del mayorista** con base + fecha de captura.
+
+**Corrección a lo que se le dijo al dueño sobre bedbanks:** la afirmación "los bedbanks entregan precios
+solo contra contrato firmado" es **cierta para PRODUCCIÓN y falsa para SANDBOX**. Hotelbeds APItude entrega
+credenciales de **test** por auto-registro instantáneo (con precios de prueba, no reservables); RateHawk da
+acceso de agencia tras un alta simple con revisión humana. **Confianza alta** para Hotelbeds test, **media**
+para los plazos de RateHawk. (Ver método y checklist al final de esta sección.)
+
+**Matriz — las cinco preguntas por proveedor** (✅ = sí · ⛔ = no · ⚠️ = con condición · **[C:alta/media/baja]** = confianza del dato sin verificación en vivo):
+
+| Proveedor | 1. ¿Cuenta uno mismo, sin comercial? | 2. ¿Credencial al instante o revisión humana? | 3. ¿Capa gratuita real? ¿Qué se puede hacer? | 4. ¿Qué separa sandbox de producción y qué exige cruzar? | 5. ¿Sirve para Argentina / vuelos desde AR? |
+|---|---|---|---|---|---|
+| **Amadeus Self-Service** | ✅ Registro web con email, se crea la app y listo **[C:alta]** | ✅ **Test: instantáneo** (API key + secret al crear la app). **Producción:** se pide desde el portal ("Get production key"): formulario + datos de facturación (tarjeta); revisión **~1–3 días hábiles**, sin contrato **[C:media-alta]** | ✅ **Test gratis** con cuota mensual por API (orden de **miles de llamadas/mes**) y rate limit (~10 req/s) **[C:media — verificar cifra]**. En producción hay una **cuota mensual gratuita chica** y después **pago por llamada (centavos de EUR)** **[C:media]**. Con la capa gratis se puede: buscar y precificar vuelos (Flight Offers Search/Price), listar y cotizar hoteles (Hotel List/Search v3), autocompletar aeropuertos/ciudades | Test = **subconjunto** de aerolíneas/aeropuertos/hoteles, precios **cacheados/de prueba**, sin reserva real. Producción = contenido y precios **reales** (tarifas públicas GDS), pago por uso. **Cruzar: solo billing, sin IATA ni licencia** para buscar/cotizar. **Emitir** (Flight Create Orders) sí exige acuerdo con **consolidador IATA** — Azimut no lo necesita **[C:alta]** | ✅ Global, sin restricción geográfica de cuenta. **Salvedad argentina:** las low-cost (**Flybondi, JetSMART**) casi no están en GDS → cotización doméstica **incompleta**; Aerolíneas Argentinas e internacionales sí **[C:media-alta]** |
+| **Hotelbeds APItude** (bedbank) | ✅ Registro en el portal de desarrolladores **[C:alta]** | ✅ **Test: instantáneo** (API key + secret de sandbox). **Producción: revisión humana + contrato comercial** con account manager; requiere ser agencia registrada (Azimut califica), con crédito/depósito; semanas **[C:alta]** | ✅ Sandbox gratis con **cuota diaria/mensual de requests chica** **[C:media — verificar cifra]**. Se puede: disponibilidad y precios de **hoteles de prueba** (contenido real, precios no contratados), flujo completo de reserva **simulada** | Sandbox = precios **de prueba** no reservables; producción = **tarifas netas B2B** reales. **Cruzar: contrato firmado + condición de agencia + garantía** **[C:alta]** | ✅ Opera con agencias argentinas (tiene operación LATAM). Solo hoteles, no vuelos **[C:alta]** |
+| **RateHawk / Emerging Travel Group** (bedbank) | ✅ Alta online como agencia (razón social, país, datos de contacto) **[C:media-alta]** | ⚠️ **Revisión humana** del alta (típicamente **1–3 días**); acceso API se pide después al manager y viene con **clave de test** primero **[C:media]** | ✅ Sin costo por request; el modelo es margen sobre tarifa neta. Con test: búsqueda y precios de prueba; con cuenta aprobada: tarifas netas **reales** ya en el portal B2B (sin API) **[C:media]** | Test = precios de prueba; producción = netas reales con **prepago o crédito**; contrato más liviano que Hotelbeds **[C:media]** | ✅ Fuerte en LATAM, acepta agencias argentinas; solo hoteles/traslados **[C:media-alta]** |
+| **Duffel** | ✅ Registro web con email; modo test inmediato **[C:alta]** | ✅ Test instantáneo. **Live: verificación de empresa (KYB), días** **[C:media-alta]** | ✅ Test gratis e ilimitado (aerolínea ficticia + contenido de prueba). Live: **búsqueda gratis, cobra por orden emitida** (fee fija + % en Stays) **[C:media]** | Test = "Duffel Airways" y datos ficticios; live = ofertas reales y **emisión** (Duffel es el IATA/merchant). Cruzar: KYB + **empresa en país soportado** + prepago (Duffel Balance) | ⚠️ **Probable bloqueo:** la lista de países soportados para cuentas/pagos históricamente **no incluye Argentina** **[C:media — verificar]**. Además Azimut **no emite**: no lo necesita |
+| **Kiwi.com Tequila** | ⛔ El alta self-serve **se cerró a nuevos partners (2024)**; ahora "Kiwi.com Partners" por solicitud/invitación **[C:media-alta]** | — | — | — | ⛔ Descartado: además es afiliación/OTA, no B2B de agencia |
+| **Travelpayouts** (afiliación) | ✅ Alta abierta e instantánea **[C:alta]** | ✅ Instantáneo (token al crear cuenta) **[C:alta]** | ✅ Gratis. Data API (precios **cacheados** de Aviasales), Hotellook API (precios cacheados de hoteles), widgets y **deep-links** afiliados **[C:alta]** | No hay "producción": todo es afiliación. Los precios **no son ofertas cotizables** (cacheados, sin id reservable, sin vigencia) y el negocio es **mandar tráfico y cobrar comisión de afiliado** — no el modelo de Azimut | ✅ Funciona en AR (Aviasales tiene mercado ES/LatAm). **Solo sirve como precio de referencia/inspiración**, nunca como precio del presupuesto |
+| **TravelgateX** (switch/marketplace) | ⚠️ Registro de "buyer" online, pero el onboarding real pasa por ventas **[C:media]** | ⚠️ Revisión humana; hay sandbox con **proveedor demo** **[C:media]** | ⚠️ Plan de entrada con suscripción **[C:media — verificar]** | Sandbox = proveedor ficticio; producción = **tus** contratos con cada proveedor conectados a través de TGX. Cruzar: suscripción + contratos propios | ⛔ No es fuente: es un enchufe. Sin contratos previos no devuelve nada vendible |
+| **Sabre Dev Studio** (mención, alta abierta) | ✅ Registro web para ambiente **CERT** **[C:media-alta]** | ✅ CERT instantáneo; producción exige **PCC** de agencia (contrato Sabre) **[C:media]** | ✅ CERT gratis con límites | CERT = datos de prueba; producción = contrato GDS completo | ✅ Sabre es el GDS dominante en LATAM (Despegar). Alternativa a Amadeus si Azimut ya opera Sabre por su mayorista; más pesado de integrar |
+
+**Descartes explícitos:** cualquier "API de Booking" o "API de Skyscanner" vendida en marketplaces (RapidAPI
+y similares) **NO**: son scrapers no autorizados, violan los términos de Booking/Skyscanner, no devuelven
+ids de oferta ni vigencia, se rompen sin aviso y exponen a Azimut a bloqueo. Lo mismo para SerpApi/Google
+Flights (scraping como servicio). No es una vía, es un pasivo.
+
+**Recomendación accionable esta semana (sin firmar ni pagar nada):**
+
+1. **Registrar Amadeus Self-Service (test) hoy** — 10 minutos, credenciales instantáneas. Pegar
+   `AMADEUS_CLIENT_ID/SECRET` en el entorno de demo (las pega el dueño), `VIAJES_PROVEEDOR=amadeus`,
+   `AMADEUS_ENV=test`. Con eso el esqueleto de esta rama **ya busca vuelos y hoteles reales-de-prueba** y guarda
+   snapshots. Es la demo: "buscá EZE→MAD para dos personas, guardá la opción, mirá el presupuesto con
+   base y fecha de captura".
+2. **Registrar Hotelbeds APItude (sandbox) hoy** — también instantáneo. No hace falta cablear el adapter
+   ya; la cuenta queda creada y es la **puerta de producción natural** cuando haya venta (Azimut califica como
+   agencia).
+3. **Iniciar el alta de agencia en RateHawk** (gratis, revisión de días): es la vía más liviana a **tarifa
+   neta real** de hoteles sin contrato pesado.
+4. **Preguntarle al mayorista de Azimut si tiene acceso XML/API para agencias** (varios lo dan a pedido).
+   Es la puerta al precio **vendible** de verdad, la que cierra el ciclo.
+5. **No** registrarse en Travelpayouts (modelo de afiliado, ajeno al negocio), **no** insistir con Kiwi
+   (cerrado), **no** invertir en Duffel (Argentina probablemente no soportada y Azimut no emite),
+   **no** TravelgateX (sin contratos no sirve).
+
+**Qué se puede construir y demostrar con lo gratuito:** el módulo completo de cotización y armado
+(búsqueda → opciones congeladas → presupuesto → total por moneda), con datos orientativos y el aviso
+"ambiente de prueba" en pantalla. **Qué NO:** vender con esos precios. **La puerta siguiente cuando haya
+venta:** (a) Amadeus a producción (billing, pago por uso, precios públicos reales) para cotización
+orientativa fina; (b) credenciales de producción de Hotelbeds/RateHawk (contrato de Azimut) para tarifa neta;
+(c) XML del mayorista o **carga manual con snapshot** para el precio comisionable. Dicho sin vueltas: **lo
+gratuito sirve para demo y cotización orientativa; el precio que se vende entra por contrato del mayorista o
+a mano con snapshot.** No es un problema: es el orden de la casa.
+
+**Método y checklist de verificación (15 minutos del dueño o del Arquitecto, con navegador):**
+esta sesión no tuvo egreso web (bloqueado por política), así que las cifras marcadas [C:media] salen del
+conocimiento del modelo y hay que confirmarlas antes de decirlas en una reunión:
+- `developers.amadeus.com` → *Pricing* y *Self-Service → Test vs Production*: cuota gratis mensual por API en
+  test, precio por llamada en producción, requisitos para la production key.
+- `developer.hotelbeds.com` → registro → *My Apps*: confirmar que la key de test sale al instante y la cuota
+  de requests del sandbox.
+- `ratehawk.com` (o `emergingtravel.com`) → *Registro de agencia*: campos exigidos y plazo de aprobación;
+  luego *API* → cómo se pide el acceso.
+- `duffel.com/docs` → *Supported countries*: si Argentina figura para cuentas live.
+- `tequila.kiwi.com` / `partners.kiwi.com`: si el alta self-serve sigue cerrada.
+- `travelgatex.com/pricing`: plan de entrada y si exige contratos previos.
+
+### 1.4 Comparativa ampliada (contexto de cada vía)
 
 | Proveedor | Qué devuelve | Vuelos | Hoteles | Cómo se entra | Ambiente de prueba | Límites / costo | Veredicto para GSG |
 |---|---|---|---|---|---|---|---|
@@ -56,7 +134,7 @@ defender ante el cliente (sin id de oferta, sin vigencia). Fuera de la mesa.
 | **TravelgateX** | Switch/marketplace GraphQL hacia cientos de proveedores | No | Sí (agregador) | Suscripción **y** contratos propios de la agencia con cada proveedor | Sí | Suscripción mensual **[verificar]** | **No es fuente**: es un enchufe hacia contratos que la agencia todavía no tiene |
 | **RateHawk / Emerging Travel** (mención) | Bedbank con API, fuerte en LATAM, tarifas netas | No | Sí | Alta de agencia con verificación; API tras aprobación **[verificar]** | Sí | Sin costo por request; margen en la tarifa | **Alternativa a Hotelbeds** en Fase 2, más liviana de onboardear |
 
-### 1.4 Los tres hechos estructurales (estables, no dependen de [verificar])
+### 1.5 Los tres hechos estructurales (estables, no dependen de [verificar])
 
 1. **Cotizar ≠ reservar.** Para **buscar y cotizar** vuelos y hoteles existe una vía **self-serve y gratuita
    en sandbox** (Amadeus Self-Service). Para **emitir/reservar** en producción hace falta un tercero con
@@ -69,7 +147,7 @@ defender ante el cliente (sin id de oferta, sin vigencia). Fuera de la mesa.
    pública. Por eso el módulo tiene que soportar **carga manual asistida** con el mismo snapshot: el
    operador copia el precio del portal del mayorista y lo guarda con base de ocupación + fecha de captura.
 
-### 1.5 Recomendación
+### 1.6 Recomendación de arquitectura (con qué adapter arrancar)
 
 **Arrancar con Amadeus Self-Service (ambiente test) + carga manual con snapshot**, detrás del port
 `ProveedorOfertas`. Por qué:
@@ -82,7 +160,8 @@ defender ante el cliente (sin id de oferta, sin vigencia). Fuera de la mesa.
 
 **Dicho con todas las letras:** *sin contrato comercial NO hay tarifas netas ni emisión desde el ERP;
 CON registro self-serve SÍ hay un módulo viable de cotización y armado de presupuestos, que es donde hoy
-la agencia pierde tiempo y comete el error del caso real.* Eso es lo que se construyó.
+la agencia pierde tiempo y comete el error del caso real.* Para Azimut (no factura, no emite; el
+mayorista vende y ella comisiona) eso es **exactamente el alcance que hace falta**. Eso es lo que se construyó.
 
 ---
 
