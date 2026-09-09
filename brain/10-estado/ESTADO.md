@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-09-09 15:20 UTC
+generado_el: 2026-09-09 15:45 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-09-09 15:20 UTC sobre `0476abe`.**
+> ⏱️ **Foto tomada el 2026-09-09 15:45 UTC sobre `2d6cf65`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,14 +19,16 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/azimut-viajes-consolidacion-gfh9nv` |
-| HEAD | `0476abe` (2026-09-02) |
-| Árbol | limpio _(sin contar `brain/`)_ |
+| HEAD | `2d6cf65` (2026-09-09) |
+| Árbol | **17 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo |
 
 **Ramas locales (2, más reciente primero):** `claude/azimut-viajes-consolidacion-gfh9nv` · `main`
 
 **Últimos commits**
 
+- 2d6cf65 · 2026-09-09 · docs(viajes): spec funcional del armador de presupuestos de viaje
+- 46deac7 · 2026-09-09 · chore(brain): refrescar la foto derivada del repo
 - 0476abe · 2026-09-02 · fix(shine): rutas absolutas — las imágenes no cargaban en la demo en vivo
 - 922c036 · 2026-09-02 · fix(shine): la etiqueta Desde ya no toca la hairline del pie (Gate B-9)
 - a8850c7 · 2026-09-02 · fix(shine): cierra B-7/B-8 y M-5/M-6/M-7 del re-gate del catálogo
@@ -37,13 +39,11 @@ tags: [brain/estado, fase-0]
 - c8d5e3d · 2026-09-02 · fix(shine): nav visible y clickeable, números AA, aviso que no ocluye (Gate B-1/B-1b/B-2)
 - c488c4c · 2026-09-02 · redesign(shine): reestructura Challenger+referencias — portada tipográfica y carta única numerada
 - b45e634 · 2026-09-01 · fix(shine): alts fieles a las fotos y sincronizados con el src (Gate B-2/O-8/O-9)
-- e19fd05 · 2026-09-01 · fix(shine): height:auto activa el marco 3:2 (Gate B-1) + alts por momento
-- d203901 · 2026-09-01 · redesign(shine): hero editorial — menos carga visual y foto nítida a tamaño honesto
 
 ## Migraciones (Prisma)
 
-- **Total en el repo:** 41
-- **Últimas 5:** `20260711120000_add_bancos_importacion` · `20260711140000_add_cartera_cliente` · `20260711140000_add_tenant_fiscal_credential` · `20260712120000_sprint_entregable_concurrency_guards` · `20260815120000_lead_campania`
+- **Total en el repo:** 42
+- **Últimas 5:** `20260711140000_add_cartera_cliente` · `20260711140000_add_tenant_fiscal_credential` · `20260712120000_sprint_entregable_concurrency_guards` · `20260815120000_lead_campania` · `20260909120000_add_viajes_presupuestos`
 
 > ⚠️ **Colisión de timestamp** — dos migraciones comparten prefijo, así que el orden de
 > aplicación depende del desempate alfabético. Revisar antes de cualquier Gate 2:
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 300 |
-| Palabras en `docs/` | 428.977 |
+| Documentos en `docs/` | 302 |
+| Palabras en `docs/` | 438.101 |
 | ADRs | 81 |
 | Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
 

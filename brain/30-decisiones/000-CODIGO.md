@@ -22,17 +22,17 @@ tags: [brain/indice, brain/codigo]
 
 | Métrica | Valor |
 |---|---:|
-| Archivos de `src/` que citan un ADR | 293 de 598 |
-| Archivos de `prisma/` que citan un ADR | 36 de 70 |
+| Archivos de `src/` que citan un ADR | 305 de 675 |
+| Archivos de `prisma/` que citan un ADR | 37 de 72 |
 | Archivos de `scripts/` que citan un ADR | 11 de 27 |
-| Archivos escaneados en total | 695 |
-| Archivos que citan algún ADR | 340 |
-| ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 78 de 81 |
+| Archivos escaneados en total | 774 |
+| Archivos que citan algún ADR | 353 |
+| ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 79 de 81 |
 
 ## 🕳️ Los agujeros (a la vista, no tapados)
 
 - **Citas a ADR que no existen como documento:** ADR-085, ADR-096. El código invoca una decisión que no está escrita — o el ADR falta, o la cita quedó mal.
-- **3 ADR sin ningún vínculo al código.** Muchos son de proceso o negocio y ahí es correcto (N/A); los técnicos que aparezcan acá merecen una mirada: ADR-077, ADR-078, ADR-080
+- **2 ADR sin ningún vínculo al código.** Muchos son de proceso o negocio y ahí es correcto (N/A); los técnicos que aparezcan acá merecen una mirada: ADR-077, ADR-078
 - **Un directorio puede no citar su propio ADR** (caso `bancos`/ADR-075). La ausencia en este mapa no es evidencia de nada.
 
 ## Dónde se cita cada decisión
@@ -40,17 +40,17 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-001](ADR-001.md)
 
 - **cabecera (2):** `src/lib/tenant.ts` · `prisma/schema.prisma`
-- **inline (4):** `src/plugins/mercadopago/core-contract.ts` · `prisma/seed.ts` · `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
+- **inline (5):** `src/generated/prisma/internal/class.ts` · `src/plugins/mercadopago/core-contract.ts` · `prisma/seed.ts` · `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
 
 ### [ADR-002](ADR-002.md)
 
-- **cabecera (21):** `src/app/api/cron/arca-outbox/route.ts` · `src/blueprints/agenda/index.ts` · `src/blueprints/agenda/rubros.ts` · `src/blueprints/families.ts` · `src/blueprints/gastronomia/index.ts` · `src/blueprints/generico.ts` · `src/blueprints/index.ts` · `src/blueprints/oficios/index.ts` … y 13 más
-- **inline (13):** `src/lib/catalog-actions.ts` · `src/lib/invoice-from-appointment.ts` · `src/lib/invoice-from-order.ts` · `src/lib/operator-config.ts` · `src/lib/provisioning/ports.ts` … y 8 más
+- **cabecera (23):** `src/app/api/cron/arca-outbox/route.ts` · `src/blueprints/agenda/index.ts` · `src/blueprints/agenda/rubros.ts` · `src/blueprints/families.ts` · `src/blueprints/gastronomia/index.ts` · `src/blueprints/generico.ts` · `src/blueprints/index.ts` · `src/blueprints/oficios/index.ts` … y 15 más
+- **inline (14):** `src/generated/prisma/internal/class.ts` · `src/lib/catalog-actions.ts` · `src/lib/invoice-from-appointment.ts` · `src/lib/invoice-from-order.ts` · `src/lib/operator-config.ts` … y 9 más
 
 ### [ADR-003](ADR-003.md)
 
 - **cabecera (10):** `src/blueprints/agenda/index.ts` · `src/blueprints/agenda/rubros.ts` · `src/blueprints/gastronomia/index.ts` · `src/blueprints/oficios/index.ts` · `src/blueprints/retail/index.ts` · `src/blueprints/types.ts` · `src/lib/order-actions.ts` · `src/lib/order-core.test.ts` … y 2 más
-- **inline (2):** `prisma/schema.prisma` · `scripts/adr-graph.mjs`
+- **inline (3):** `src/generated/prisma/internal/class.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs`
 
 ### [ADR-004](ADR-004.md)
 
@@ -65,7 +65,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-006](ADR-006.md)
 
 - **cabecera (5):** `src/lib/arca-dispatch.ts` · `src/lib/fiscal.ts` · `src/lib/invoice-from-mp.ts` · `src/plugins/arca/domain/comprobante.ts` · `src/plugins/mercadopago/manifest.ts`
-- **inline (16):** `src/lib/bancos-actions.ts` · `src/lib/bancos-glue.ts` · `src/lib/caja/cash-register.ts` · `src/lib/cockpit/salud.ts` · `src/lib/invoice-core.ts` … y 11 más
+- **inline (17):** `src/generated/prisma/internal/class.ts` · `src/lib/bancos-actions.ts` · `src/lib/bancos-glue.ts` · `src/lib/caja/cash-register.ts` · `src/lib/cockpit/salud.ts` … y 12 más
 
 ### [ADR-007](ADR-007.md)
 
@@ -80,38 +80,38 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-009](ADR-009.md)
 
 - **cabecera (3):** `src/lib/audit-retention.ts` · `src/lib/audit.ts` · `scripts/purge-audit-logs.ts`
-- **inline (6):** `src/lib/catalog-actions.ts` · `src/lib/order-core.ts` · `src/lib/stock/purchase-core.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs` … y 1 más
+- **inline (7):** `src/generated/prisma/internal/class.ts` · `src/lib/catalog-actions.ts` · `src/lib/order-core.ts` · `src/lib/stock/purchase-core.ts` · `prisma/schema.prisma` … y 2 más
 - **el ADR cita:** `src/lib/audit.ts` · `src/lib/audit-retention.ts`
 
 ### [ADR-010](ADR-010.md)
 
 - **cabecera (4):** `src/blueprints/servicios.ts` · `src/lib/datetime.ts` · `src/lib/tenant.ts` · `prisma/schema.prisma`
-- **inline (2):** `prisma/seed.ts` · `scripts/adr-graph.mjs`
+- **inline (3):** `src/generated/prisma/internal/class.ts` · `prisma/seed.ts` · `scripts/adr-graph.mjs`
 - **el ADR cita:** `src/lib/tenant.ts`
 
 ### [ADR-011](ADR-011.md)
 
 - **cabecera (3):** `src/app/admin/(dashboard)/turnos/page.tsx` · `scripts/categorize-services.ts` · `scripts/seed-categories.ts`
-- **inline (3):** `src/lib/actions.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs`
+- **inline (4):** `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs`
 
 ### [ADR-012](ADR-012.md)
 
-- **inline (2):** `prisma/schema.prisma` · `scripts/adr-graph.mjs`
+- **inline (3):** `src/generated/prisma/internal/class.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs`
 - **el ADR cita:** `src/lib/notifications.ts` · `src/app/api/cron/reminders`
 
 ### [ADR-013](ADR-013.md)
 
 - **cabecera (1):** `src/app/(site)/_ch/types.ts`
-- **inline (7):** `src/lib/actions.ts` · `src/app/(site)/_ch/BookingModal.tsx` · `src/app/(site)/_ch/FeaturedTreatments.tsx` · `src/app/(site)/_ch/ServicesAccordion.tsx` · `src/app/(site)/reserva/BookingForm.tsx` … y 2 más
+- **inline (8):** `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `src/app/(site)/_ch/BookingModal.tsx` · `src/app/(site)/_ch/FeaturedTreatments.tsx` · `src/app/(site)/_ch/ServicesAccordion.tsx` … y 3 más
 
 ### [ADR-014](ADR-014.md)
 
-- **inline (5):** `src/app/(site)/_ch/types.ts` · `src/lib/actions.ts` · `src/app/(site)/_ch/BookingModal.tsx` · `prisma/schema.prisma` · `scripts/adr-graph.mjs`
+- **inline (6):** `src/app/(site)/_ch/types.ts` · `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `src/app/(site)/_ch/BookingModal.tsx` · `prisma/schema.prisma` … y 1 más
 
 ### [ADR-015](ADR-015.md)
 
 - **cabecera (5):** `src/lib/caja-actions.ts` · `src/lib/order-actions.ts` · `src/lib/stock-actions.ts` · `src/lib/stock-adjustment-actions.ts` · `src/lib/tenant.ts`
-- **inline (11):** `src/lib/caja/cash-sale.ts` · `src/lib/order-core.ts` · `src/lib/rls.ts` · `src/lib/session.ts` · `src/lib/settings.ts` … y 6 más
+- **inline (12):** `src/generated/prisma/internal/class.ts` · `src/lib/caja/cash-sale.ts` · `src/lib/order-core.ts` · `src/lib/rls.ts` · `src/lib/session.ts` … y 7 más
 - **el ADR cita:** `src/lib/tenant.ts`
 
 ### [ADR-016](ADR-016.md)
@@ -121,13 +121,13 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-017](ADR-017.md)
 
 - **cabecera (9):** `src/lib/auth-password.ts` · `src/lib/auth.ts` · `src/lib/authz.ts` · `src/lib/capabilities.ts` · `src/lib/operator-auth.ts` · `src/lib/public-api-auth.ts` · `src/lib/session.ts` · `src/lib/user-actions.ts` … y 1 más
-- **inline (10):** `src/lib/actions.ts` · `src/lib/admin-nav-items.ts` · `src/lib/audit.ts` · `src/lib/provisioning/types.ts` · `src/proxy.ts` … y 5 más
+- **inline (13):** `src/generated/prisma/internal/class.ts` · `src/generated/prisma/models/PresupuestoViaje.ts` · `src/lib/actions.ts` · `src/lib/admin-nav-items.ts` · `src/lib/audit.ts` … y 8 más
 - **el ADR cita:** `src/lib/auth.ts` · `src/proxy.ts` · `src/lib/audit.ts`
 
 ### [ADR-018](ADR-018.md)
 
 - **cabecera (22):** `src/lib/cockpit/salud.ts` · `src/lib/db.ts` · `src/lib/operator-db.ts` · `src/lib/prisma.ts` · `src/lib/rls.ts` · `src/lib/tenant-context.ts` · `src/lib/tenant.test.ts` · `src/lib/tenant.ts` … y 14 más
-- **inline (31):** `src/app/api/public/v1/orders/route.ts` · `src/app/api/webhooks/mercadopago/route.ts` · `src/lib/arca-dispatch.ts` · `src/lib/bancos-actions.ts` · `src/lib/bancos-glue.ts` … y 26 más
+- **inline (34):** `src/app/api/public/v1/orders/route.ts` · `src/app/api/webhooks/mercadopago/route.ts` · `src/generated/prisma/internal/class.ts` · `src/lib/arca-dispatch.ts` · `src/lib/bancos-actions.ts` … y 29 más
 - **el ADR cita:** `src/lib/tenant.ts`
 
 ### [ADR-019](ADR-019.md)
@@ -139,18 +139,18 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-020](ADR-020.md)
 
 - **cabecera (9):** `src/app/api/public/v1/orders/route.ts` · `src/lib/external-orders.ts` · `src/lib/invoice-core.ts` · `src/lib/invoice-from-order.ts` · `src/lib/order-core.ts` · `src/lib/public-api-auth.ts` · `src/plugins/arca/core-contract.ts` · `src/plugins/bancos/core-contract.ts` … y 1 más
-- **inline (3):** `src/lib/order-actions.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs`
+- **inline (4):** `src/generated/prisma/internal/class.ts` · `src/lib/order-actions.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs`
 - **el ADR cita:** `src/lib/actions.ts`
 
 ### [ADR-021](ADR-021.md)
 
 - **cabecera (12):** `src/app/operador/(console)/direccion/panel/route.ts` · `src/lib/operator-actions.ts` · `src/lib/operator-auth.ts` · `src/lib/operator-config.ts` · `src/lib/operator-db.ts` · `src/lib/operator-provisioning-actions.ts` · `src/lib/operator-session.ts` · `src/lib/provisioning/adapters.ts` … y 4 más
-- **inline (12):** `src/lib/arca-dispatch.ts` · `src/lib/cockpit/datos.ts` · `src/lib/cron/reminder-sweep.ts` · `src/lib/provisioning/ports.ts` · `src/lib/tenant.ts` … y 7 más
+- **inline (13):** `src/generated/prisma/internal/class.ts` · `src/lib/arca-dispatch.ts` · `src/lib/cockpit/datos.ts` · `src/lib/cron/reminder-sweep.ts` · `src/lib/provisioning/ports.ts` … y 8 más
 
 ### [ADR-022](ADR-022.md)
 
 - **cabecera (23):** `src/app/api/cron/arca-outbox/route.ts` · `src/lib/arca-dispatch.ts` · `src/lib/fiscal.ts` · `src/lib/invoice-core.ts` · `src/plugins/arca/afip/port.ts` · `src/plugins/arca/afip/signer.ts` · `src/plugins/arca/afip/soap.ts` · `src/plugins/arca/afip/stub.ts` … y 15 más
-- **inline (6):** `src/lib/bancos-glue.ts` · `src/plugins/arca/domain/comprobante.ts` · `src/plugins/arca/module.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs` … y 1 más
+- **inline (7):** `src/generated/prisma/internal/class.ts` · `src/lib/bancos-glue.ts` · `src/plugins/arca/domain/comprobante.ts` · `src/plugins/arca/module.ts` · `prisma/schema.prisma` … y 2 más
 - **el ADR cita:** `src/plugins/arca/` · `src/plugins/` · `prisma/schema.prisma` · `prisma/migrations/20260704160000_add_invoice_outbox/` · `src/lib/invoice-core.ts`
 
 ### [ADR-023](ADR-023.md)
@@ -168,7 +168,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-025](ADR-025.md)
 
 - **cabecera (16):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/invoice-from-mp.ts` · `src/lib/mercadopago-ingest.ts` · `src/lib/mercadopago-simulador.ts` · `src/modules/descriptors/cartera.ts` · `src/plugins/bancos/domain/clasificador.ts` · `src/plugins/mercadopago/classifier.ts` … y 8 más
-- **inline (11):** `src/lib/bancos-actions.ts` · `src/lib/mercadopago-auto.ts` · `src/lib/mercadopago-cobros-dispatch.ts` · `src/lib/settlement/invoice-origin.ts` · `src/plugins/bancos/core-contract.ts` … y 6 más
+- **inline (12):** `src/generated/prisma/internal/class.ts` · `src/lib/bancos-actions.ts` · `src/lib/mercadopago-auto.ts` · `src/lib/mercadopago-cobros-dispatch.ts` · `src/lib/settlement/invoice-origin.ts` … y 7 más
 - **el ADR cita:** `src/plugins/mercadopago/oauth.ts` · `src/lib/mercadopago-simulador.ts` · `src/app/contador/` · `src/lib/contador-panel.ts` · `src/lib/mercadopago-ingest.ts`
 
 ### [ADR-026](ADR-026.md)
@@ -263,7 +263,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-045](ADR-045.md)
 
 - **cabecera (5):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/modules/descriptors/cartera.ts` · `src/app/contador/page.tsx` · `prisma/migrations/20260711140000_add_cartera_cliente/migration.sql`
-- **inline (3):** `prisma/schema.prisma` · `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
+- **inline (4):** `src/generated/prisma/internal/class.ts` · `prisma/schema.prisma` · `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
 
 ### [ADR-046](ADR-046.md)
 
@@ -302,14 +302,14 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-054](ADR-054.md)
 
-- **cabecera (17):** `src/blueprints/facturita.ts` · `src/lib/admin-nav-items.ts` · `src/lib/dashboard-mode.ts` · `src/lib/module-gating.ts` · `src/lib/producto-identidad.ts` · `src/modules/catalog/index.ts` · `src/modules/catalog.ts` · `src/modules/contract.ts` … y 9 más
+- **cabecera (20):** `src/blueprints/facturita.ts` · `src/lib/admin-nav-items.ts` · `src/lib/dashboard-mode.ts` · `src/lib/module-gating.ts` · `src/lib/producto-identidad.ts` · `src/modules/catalog/index.ts` · `src/modules/catalog.ts` · `src/modules/contract.ts` … y 12 más
 - **inline (10):** `src/lib/cartera-core.ts` · `src/lib/cockpit/plan.ts` · `src/lib/operator-config.ts` · `src/modules/descriptors/nativos.ts` · `src/modules/perfil.ts` … y 5 más
 - **el ADR cita:** `src/modules/` · `src/plugins/arca/module.ts` · `src/plugins/arca` · `src/plugins/mercadopago` · `src/plugins/`
 
 ### [ADR-055](ADR-055.md)
 
-- **cabecera (16):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` · `src/modules/contract.ts` · `src/modules/descriptors/cartera.ts` … y 8 más
-- **inline (11):** `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/modulos-actions.ts` · `src/lib/producto-identidad.test.ts` · `src/lib/producto-identidad.ts` … y 6 más
+- **cabecera (18):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/viajes/flags.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` · `src/modules/contract.ts` … y 10 más
+- **inline (16):** `src/generated/prisma/internal/class.ts` · `src/lib/admin-nav-items.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/modulos-actions.ts` … y 11 más
 - **el ADR cita:** `src/modules/`
 
 ### [ADR-056](ADR-056.md)
@@ -320,24 +320,24 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-057](ADR-057.md)
 
 - **cabecera (8):** `src/lib/debts/payable-repo.ts` · `src/lib/debts/receivable-repo.ts` · `src/lib/round.test.ts` · `src/lib/round.ts` · `src/plugins/bancos/core-contract.ts` · `src/plugins/bancos/domain/valores.ts` · `prisma/migrations/20260708120000_invoice_money_decimal/migration.sql` · `prisma/migrations/20260711120000_add_bancos_importacion/migration.sql`
-- **inline (12):** `src/components/ui/format.ts` · `src/lib/bancos-actions.ts` · `src/lib/bancos-glue.ts` · `src/lib/facturacion-actions.ts` · `src/lib/fiscal.ts` … y 7 más
+- **inline (19):** `src/components/ui/format.ts` · `src/generated/prisma/internal/class.ts` · `src/generated/prisma/models/OpcionPresupuestoViaje.ts` · `src/lib/bancos-actions.ts` · `src/lib/bancos-glue.ts` … y 14 más
 - **el ADR cita:** `prisma/schema.prisma` · `src/lib/round.ts` · `src/lib/fiscal.ts` · `src/lib/invoice-core.ts`
 
 ### [ADR-058](ADR-058.md)
 
 - **cabecera (3):** `src/lib/profile-gating.ts` · `src/modules/perfil.test.ts` · `src/modules/perfil.ts`
-- **inline (6):** `src/modules/flags.ts` · `src/app/admin/(dashboard)/AdminShell.tsx` · `src/app/admin/(dashboard)/compras/page.tsx` · `src/app/admin/(dashboard)/layout.tsx` · `prisma/schema.prisma` … y 1 más
+- **inline (7):** `src/generated/prisma/internal/class.ts` · `src/modules/flags.ts` · `src/app/admin/(dashboard)/AdminShell.tsx` · `src/app/admin/(dashboard)/compras/page.tsx` · `src/app/admin/(dashboard)/layout.tsx` … y 2 más
 
 ### [ADR-059](ADR-059.md)
 
 - **cabecera (22):** `src/components/ui/data-table-sort.test.ts` · `src/components/ui/data-table-sort.ts` · `src/components/ui/profile-labels.test.ts` · `src/components/ui/profile-labels.ts` · `src/lib/cuentas/aging.ts` · `src/lib/identity.ts` · `src/lib/profile-density.ts` · `src/lib/profile-gating.ts` … y 14 más
-- **inline (9):** `src/lib/cuentas/loader.ts` · `src/modules/flags.ts` · `src/app/admin/(dashboard)/AdminShell.tsx` · `src/app/admin/(dashboard)/layout.tsx` · `src/app/admin/(dashboard)/page.tsx` … y 4 más
+- **inline (10):** `src/generated/prisma/internal/class.ts` · `src/lib/cuentas/loader.ts` · `src/modules/flags.ts` · `src/app/admin/(dashboard)/AdminShell.tsx` · `src/app/admin/(dashboard)/layout.tsx` … y 5 más
 - **el ADR cita:** `src/lib/profile-gating.ts` · `src/modules/perfil.test.ts` · `src/modules/perfil.ts` · `src/modules/flags.ts` · `prisma/schema.prisma`
 
 ### [ADR-060](ADR-060.md)
 
 - **cabecera (33):** `src/app/admin/(dashboard)/libros/export/route.ts` · `src/lib/cuentas/aging.ts` · `src/lib/cuentas/types.ts` · `src/lib/debts/aging.test.ts` · `src/lib/debts/aging.ts` · `src/lib/debts/cheque.ts` · `src/lib/debts/payable-repo.ts` · `src/lib/debts/payable-service.ts` … y 25 más
-- **inline (16):** `src/lib/debts/cheque.test.ts` · `src/lib/operator-config.test.ts` · `src/lib/operator-config.ts` · `src/lib/provisioning/provisioning.test.ts` · `src/modules/descriptors/nativos.ts` … y 11 más
+- **inline (17):** `src/generated/prisma/internal/class.ts` · `src/lib/debts/cheque.test.ts` · `src/lib/operator-config.test.ts` · `src/lib/operator-config.ts` · `src/lib/provisioning/provisioning.test.ts` … y 12 más
 
 ### [ADR-061](ADR-061.md)
 
@@ -354,7 +354,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-064](ADR-064.md)
 
 - **cabecera (3):** `src/lib/caja/cash-sale-atomic.test.ts` · `src/lib/invoice-core.test.ts` · `prisma/migrations/20260710120000_invoice_origin_idempotency_unique/migration.sql`
-- **inline (8):** `src/lib/caja/cash-sale.ts` · `src/lib/invoice-core.ts` · `src/lib/invoice-from-appointment.ts` · `src/lib/invoice-from-order.ts` · `src/lib/order-actions.ts` … y 3 más
+- **inline (9):** `src/generated/prisma/internal/class.ts` · `src/lib/caja/cash-sale.ts` · `src/lib/invoice-core.ts` · `src/lib/invoice-from-appointment.ts` · `src/lib/invoice-from-order.ts` … y 4 más
 
 ### [ADR-065](ADR-065.md)
 
@@ -363,7 +363,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-066](ADR-066.md)
 
 - **cabecera (8):** `src/lib/fiscal/cert-crypto.ts` · `src/lib/fiscal/tenant-cert.ts` · `src/plugins/arca/afip/cert-inspect.ts` · `src/plugins/arca/afip/factory.ts` · `prisma/migrations/20260711140000_add_tenant_fiscal_credential/migration.sql` · `prisma/migrations/20260711140000_add_tenant_fiscal_credential/rollback.sql` · `prisma/pending-gate2/ArcaAuthTicket.sql` · `scripts/qa/arca-emision-e2e.mjs`
-- **inline (10):** `src/lib/arca-dispatch.test.ts` · `src/lib/arca-dispatch.ts` · `src/lib/arca-pruebas-actions.ts` · `src/lib/fiscal/arca-ta-store.ts` · `src/lib/fiscal/tenant-cert.test.ts` … y 5 más
+- **inline (11):** `src/generated/prisma/internal/class.ts` · `src/lib/arca-dispatch.test.ts` · `src/lib/arca-dispatch.ts` · `src/lib/arca-pruebas-actions.ts` · `src/lib/fiscal/arca-ta-store.ts` … y 6 más
 - **el ADR cita:** `src/plugins/arca/`
 
 ### [ADR-067](ADR-067.md)
@@ -412,6 +412,10 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-079](ADR-079.md)
 
 - **cabecera (1):** `src/app/admin/(dashboard)/facturacion/bancos/MercadoPagoSync.tsx`
+
+### [ADR-080](ADR-080.md)
+
+- **inline (1):** `src/plugins/ofertas-viaje/port.ts`
 
 ### [ADR-089](ADR-089.md)
 

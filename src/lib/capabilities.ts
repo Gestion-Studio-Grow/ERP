@@ -41,7 +41,12 @@ export type Capability =
   // Apariencia del backoffice (/admin/apariencia): elegir el color del equipo
   // (Tenant.accentPreset) y el tema claro/oscuro del panel. Solo OWNER — es
   // configuración del negocio, mismo tenor que localización/módulos.
-  | "appearance:manage";
+  | "appearance:manage"
+  // Presupuestos de viaje (/admin/viajes, módulo VIAJES): buscar ofertas de vuelos/
+  // hoteles y armar presupuestos con precio congelado. La capability sola NO alcanza:
+  // la página y las actions exigen ADEMÁS el módulo `viajes` ASIGNADO al tenant
+  // (ADR-055) y el flag `VIAJES_ENABLED` — una estética no lo ve aunque sea OWNER.
+  | "viajes:manage";
 
 // Todas las capacidades — OWNER las tiene todas (absorbe el "admin" de hoy,
 // ADR-017 §2.b). Mantener esta lista sincronizada con el union `Capability`.
@@ -75,6 +80,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   "payments:manage",
   "cartera:manage",
   "appearance:manage",
+  "viajes:manage",
 ];
 
 // Mapa rol → capacidades (ADR-017 §2.b, tabla de roles).

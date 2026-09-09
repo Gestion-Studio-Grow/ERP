@@ -49,6 +49,13 @@ export type ShellItem = {
   // nav ni al gating por-URL: un alias no habilita nada, solo ayuda a encontrar
   // lo que el rol YA puede ver.
   alias?: readonly string[];
+  // Eje ASIGNACIÓN DURA (ADR-055): el ítem se muestra SOLO si su `module` está en la
+  // lista de módulos asignados y habilitados del tenant (`assignedModules`), aunque el
+  // gating del registry (`MODULE_REGISTRY_ENABLED`) esté apagado. Es para módulos de
+  // rubro específico (Presupuestos de viaje): con el gating legado OFF, un ítem con
+  // `module` se mostraría a TODO OWNER — y una estética vería "Presupuestos de viaje".
+  // Default undefined → los ítems existentes no cambian.
+  requiereAsignacion?: boolean;
 };
 
 export const ALL_ITEMS: ShellItem[] = [
@@ -69,6 +76,9 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca", alias: ["arca", "afip", "comprobantes", "iva", "factura"] },
   { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports", alias: ["informes", "estadisticas", "rentabilidad", "comisiones", "ingresos"] },
   { href: "/admin/campania", label: "Campañas", icon: "clientes", cap: "clients:read", module: "campanias", alias: ["obsequio", "promociones", "leads", "anotados", "apertura"] },
+  // Módulo VIAJES (rubro agencia-viajes, flag VIAJES_ENABLED): solo con el módulo asignado
+  // Y el flag prendido (`requiereAsignacion` + `filtrarPorFlagDeRollout` en el layout).
+  { href: "/admin/viajes", label: "Presupuestos de viaje", icon: "viajes", cap: "viajes:manage", module: "viajes", requiereAsignacion: true, alias: ["vuelos", "hoteles", "cotizacion", "pasajes", "agencia"] },
   // El ítem SIGUE declarado —la ruta necesita estar en el mapa para el gating por
   // módulos— pero ya no lo ve nadie: `modules:manage` dejó de estar en las
   // capacidades del dueño. Aprovisionar módulos es decidir qué producto compró

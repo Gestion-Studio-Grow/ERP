@@ -14,7 +14,7 @@ import { getActiveProfile } from "@/lib/profile-gating";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { hasCarniceriaSchema } from "@/lib/carniceria/schema-probe";
 import { densityForProfile } from "@/lib/profile-density";
-import { navGroupingEnabled } from "@/modules";
+import { navGroupingEnabled, catalogo, filtrarPorFlagDeRollout } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
@@ -190,7 +190,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={shellModules ? [...shellModules] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} isRetail={rubro.isRetail} carniceriaReady={carniceriaReady}>
+          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={shellModules ? [...shellModules] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} isRetail={rubro.isRetail} carniceriaReady={carniceriaReady} assignedModules={filtrarPorFlagDeRollout(productoCtx.modules, catalogo())}>
             {children}
           </AdminShell>
         </ToastProvider>

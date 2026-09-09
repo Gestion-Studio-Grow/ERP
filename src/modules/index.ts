@@ -74,6 +74,8 @@ export {
 
 export { nucleoParaProducto } from "./nucleo";
 
+export { filtrarPorFlagDeRollout } from "./rollout";
+
 export {
   type TiendaGrupoMeta,
   TIENDA_GRUPOS,

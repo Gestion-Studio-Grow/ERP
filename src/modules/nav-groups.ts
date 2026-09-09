@@ -129,6 +129,10 @@ export const NAV_ITEM_GROUPS: Readonly<Record<string, NavGroupId>> = {
   "/admin/espera": "operacion",
   "/admin/pedidos": "operacion",
   "/admin/caja": "operacion",
+  // Presupuestos de viaje (módulo `viajes`, rubro agencia-viajes): cotizar y armar el
+  // presupuesto es el día a día del mostrador de una agencia. Sólo renderiza con el
+  // módulo asignado + flag (requiereAsignacion), pero su grupo se declara igual.
+  "/admin/viajes": "operacion",
   // Clientes — base de clientes + comunicación con ellos.
   "/admin/clientes": "clientes",
   "/admin/recordatorios": "clientes",

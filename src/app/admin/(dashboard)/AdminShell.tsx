@@ -45,6 +45,8 @@ function Icon({ name }: { name: string }) {
     inventario: (<><path d="M3 7l9-4 9 4-9 4-9-4z" /><path d="M3 7v10l9 4 9-4V7M12 11v10" /></>),
     lotes: (<><path d="M20.6 13.4 13.4 20.6a2 2 0 01-2.8 0l-6.2-6.2a2 2 0 01-.6-1.4V5a1 1 0 011-1h7.6a2 2 0 011.4.6l6.4 6.4a2 2 0 010 2.8z" /><circle cx="8.5" cy="8.5" r="1.2" /></>),
     despiece: (<><path d="M4 4l9 9M13 13l-2 2-3-3 2-2M13 13l6 6" /><path d="M14 6a3 3 0 104 4z" /></>),
+    // Módulo viajes (agencias): avión de línea, mismo lenguaje que el resto.
+    viajes: (<><path d="M10.5 13.5 3 11l1.5-1.5 6.5 1 5-5a2 2 0 012.8 2.8l-5 5 1 6.5L13.5 21l-2.5-6.5" /><path d="M6 20l3-3" /></>),
   };
   return (
     <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -394,6 +396,7 @@ export default function AdminShell({
   showPublicSite = true,
   isRetail = false,
   carniceriaReady = false,
+  assignedModules = [],
 }: {
   children: React.ReactNode;
   role: Role;
@@ -409,6 +412,12 @@ export default function AdminShell({
   // ¿Está aplicada la migración cárnica (Gate 2)? Habilita `carniceriaOnly` (Lotes /
   // Despiece). Default false → sin schema, los ítems ni aparecen. Lo resuelve el layout.
   carniceriaReady?: boolean;
+  // Módulos ASIGNADOS al tenant (`Tenant.modules`) ya filtrados por su flag de rollout
+  // (`filtrarPorFlagDeRollout`, en el layout). Solo lo consumen los ítems con
+  // `requiereAsignacion` (módulos de rubro específico, p.ej. viajes): esos se muestran
+  // ÚNICAMENTE si su módulo está acá, aunque el gating del registry esté apagado.
+  // Default [] → ningún ítem `requiereAsignacion` aparece (fail-closed, ADR-055).
+  assignedModules?: readonly string[];
   // Ids de módulos activos del tenant, o `null` si el gating está apagado (flag OFF)
   // → no se gatea por módulo. Se resuelve server-side en el layout.
   activeModules?: string[] | null;
@@ -455,7 +464,11 @@ export default function AdminShell({
       // dependen del schema cárnico, solo si está aplicado. En servicios (CH) todo esto
       // es false → los ítems se filtran → nav idéntica a la legada.
       (!item.retailOnly || isRetail) &&
-      (!item.carniceriaOnly || (isRetail && carniceriaReady)),
+      (!item.carniceriaOnly || (isRetail && carniceriaReady)) &&
+      // Eje ASIGNACIÓN DURA (ADR-055): un ítem de módulo de rubro específico solo si el
+      // módulo está asignado (y su flag prendido). En CH/Magra la lista no lo trae → se
+      // filtra → nav byte-idéntica a la de hoy.
+      (!item.requiereAsignacion || (!!item.module && assignedModules.includes(item.module))),
   );
   const roleLabel = ROLE_LABEL[role];
 
