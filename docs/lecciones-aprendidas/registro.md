@@ -18,7 +18,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
-- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
+- **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir) · MP-15 "da el resultado correcto" ≠ está bien → medir el criterio de éxito, no el resultado · MP-16 en un motor numérico, el test se verifica contra la teoría ANTES de tocar el código
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
 
 ---
@@ -367,6 +367,44 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** un guard que redirige necesita un destino **probadamente terminal** (accesible para todo rol/estado, nunca gateado). Ante la duda, **esconder > redirigir**: ocultar no puede loopear.
 - **Guardarraíl:** antes de enforcar gating con `redirect()`, mapear el destino para CADA rol y CADA combinación de módulos apagados; si algún destino puede estar gateado, no redirigir — usar 404/estado neutro o esconder. Nunca redirigir a la home del rol si esa home es gateable.
 - **Refs:** ADR-017 (ocultar nav = UX; rol = seguridad), ADR-054/055, ADR-047 (retro).
+
+**[MP-15] "Da el resultado correcto" no es evidencia de que esté bien**
+- **Síntoma:** un motor de cálculo (solver CFR del PoC de poker) devolvía **el valor exacto correcto**
+  (−1/18 en Kuhn poker, verificado contra la solución analítica publicada) y sin embargo estaba mal
+  construido: convergía como `1/√T` en vez de `1/T`, o sea dejaba **40× más plata sobre la mesa** con el
+  mismo cómputo.
+- **Causa raíz:** se validó el **resultado** (el valor del juego) y no el **criterio de éxito real** (la
+  explotabilidad, o sea la distancia al equilibrio). Las dos versiones —la buena y la mala— daban el
+  mismo valor, así que el error era **invisible** para el test que había.
+- **Fix aplicado:** medir explotabilidad por mejor respuesta en cada solve, con umbral **medido** (no
+  aspiracional) en el test; y actualizaciones alternadas de CFR+ en vez de simultáneas.
+- **Lección:** un entregable puede dar el número correcto por el motivo equivocado. Lo que hay que medir
+  es la **métrica que define "bien hecho"**, no el output que uno esperaba ver.
+- **Guardarraíl:** todo entregable **numérico o algorítmico** declara su **criterio de éxito medible** y
+  lo **verifica contra una verdad externa** (solución analítica, oráculo de fuerza bruta, o segunda
+  implementación independiente). Si no se puede medir contra algo externo, se dice explícitamente que
+  **no está verificado** — no se afirma que anda. Corolario para umbrales: se fijan con el número
+  **medido**, así una regresión de un orden de magnitud rompe el test.
+- **Refs:** `productos/poker-solver/README.md`, `docs/estrategia/poker-solver-dictamen.md` §4.
+
+**[MP-16] En un motor numérico, el test falla antes que el código**
+- **Síntoma:** tres tests seguidos en rojo en el PoC de poker. En los tres casos **el código estaba bien y
+  la afirmación del test estaba mal**: (a) se asumió que una mano de 7 naipes podía ser color y full a la
+  vez (es imposible por conteo); (b) se escribió que en Kuhn se defiende la reina `1/3` cuando la teoría
+  publicada dice `α + 1/3`; (c) se afirmó que el solver iba a apostar las nuts, cuando con desventaja de
+  rango el equilibrio es **pasar y tender una trampa**.
+- **Causa raíz:** confundir "lo que yo esperaba" con "lo que dice la teoría del dominio". En un motor
+  numérico la intuición del que escribe el test es la parte más débil de la cadena.
+- **Fix aplicado:** en cada caso se verificó la afirmación contra la fuente (conteo combinatorio,
+  literatura de Kuhn, teoría de rangos polarizados) **antes** de tocar el motor; el motor no se cambió.
+- **Lección:** en dominios con teoría propia, un test rojo es primero una hipótesis sobre el test.
+  "Ajustar" el motor para que pase habría **destruido** comportamiento correcto y sofisticado.
+- **Guardarraíl:** ante un test rojo en un motor de cálculo: **(1)** verificar la afirmación contra la
+  fuente del dominio, **(2)** recién si la afirmación resiste, buscar el bug, **(3)** nunca debilitar un
+  test ni ajustar un oráculo para que cierre. Y: **no afirmar nada sobre nodos/ramas que el equilibrio
+  nunca visita** — ahí la estrategia no está determinada y el test no prueba nada.
+- **Refs:** `productos/poker-solver/test/river.test.mjs` (test de la trampa), `test/kuhn.test.mjs`.
+
 
 ## SEC — Seguridad
 

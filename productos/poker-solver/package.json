@@ -1,0 +1,19 @@
+{
+  "name": "@gsg/poker-solver",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Solver exacto de subjuegos de river (CFR+), validado contra soluciones analíticas. Prueba de concepto de GSG.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "demo": "node bin/resolver-river.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "author": "Gestión Studio Grow",
+  "gsg": {
+    "generator": "Gestión Studio Grow",
+    "alcance": "estudio fuera de mesa — sin asistencia en tiempo real (RTA)"
+  }
+}

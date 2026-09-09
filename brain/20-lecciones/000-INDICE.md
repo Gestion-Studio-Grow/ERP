@@ -7,7 +7,7 @@ tags: [brain/indice]
 
 # 🛡️ Lecciones — índice de guardarraíles
 
-> 38 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
+> 40 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
 > — no el registro entero. Calibración obligatoria antes de tocar Prod/Deploy · Datos/DB ·
 > Multi-tenant · Seguridad (ADR-052).
 
@@ -59,6 +59,8 @@ tags: [brain/indice]
 - **[MP-12](MP-12-estado-actual-md-con-drift-interno-el-handoff-avanza-pero.md)** — en FASE 0, verificar contra git (no contra el propio doc) los 3 anclas duras — `main HEAD` (§1), estado de frentes (§7-bis) y `.claude/agents/` (§8) — y reconciliar TODAS las secciones que citen esos […]
 - **[MP-13](MP-13-una-fundacion-gateada-sin-consumidor-real-infla-el-de-avance.md)** — al reportar % de una fundación/flag, distinguir construido de consumido; no contar "listo" una capa sin al menos un consumidor real cableado y verde.
 - **[MP-14](MP-14-gating-por-redirect-riesgo-de-loop-si-el-destino-tambien-se.md)** — antes de enforcar gating con `redirect()`, mapear el destino para CADA rol y CADA combinación de módulos apagados; si algún destino puede estar gateado, no redirigir — usar 404/estado neutro o […]
+- **[MP-15](MP-15-da-el-resultado-correcto-no-es-evidencia-de-que-este-bien.md)** — todo entregable numérico o algorítmico declara su criterio de éxito medible y lo verifica contra una verdad externa (solución analítica, oráculo de fuerza bruta, o segunda implementación […]
+- **[MP-16](MP-16-en-un-motor-numerico-el-test-falla-antes-que-el-codigo.md)** — ante un test rojo en un motor de cálculo: (1) verificar la afirmación contra la fuente del dominio, (2) recién si la afirmación resiste, buscar el bug, (3) nunca debilitar un test ni ajustar un […]
 - **[MP-15](MP-15-deviacion-de-una-decision-de-adr-citando-una-autoridad-no.md)** — si una sesión se desvía de un ADR aceptado, trae la confirmación del dueño al mismo commit (nota fechada en el ADR/ESTADO-ACTUAL) o lo marca como propuesta para el Gate — nunca lo commitea como hecho […]
 
 ## SEC — Seguridad
