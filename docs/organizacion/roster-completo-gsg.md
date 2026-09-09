@@ -188,4 +188,30 @@ convocan del pool (ADR-053); definir ≠ instanciar.
 
 ---
 
+## 7 · Mesa de Dinero (célula de investigación financiera — 2026-09)
+
+Célula que investiga si existe **rentabilidad real** por inversiones o arbitrajes. **No opera:** su producto
+es un veredicto con evidencia medida. Centro de gravedad en **Opus**, al revés que el resto de la factory,
+porque acá casi todo toca plata y casi todo es irreversible (criterio `CLAUDE.md` §2). Charter completo:
+**`docs/organizacion/mesa-de-dinero.md`**.
+
+| Rol (slug) | Capa | Qué hace | Qué decide / eleva |
+|---|---|---|---|
+| **Orquestador de la mesa** (`mesa-dinero-orquestador`) | **Opus** | Jefe de mesa: coordina el ciclo hipótesis→costos→medición→falsación→riesgo y consolida | Decide qué se estudia (reversible); **eleva TODO capital real, credenciales y el paso a vivo** (§C) |
+| **Costos y fricción** (`mesa-costos`) | **Opus** | El piso que toda estrategia debe superar: fees, slippage por profundidad, retiros, rieles ARS, impuestos | Decide el modelo de costos; marca **SIN VERIFICAR** lo que no pudo validar contra la doc del venue |
+| **Riesgo** (`mesa-riesgo`) | **Opus** | Límites, kill switch, escenario de ruina, riesgo de contraparte y de ejecución | **Veta** el paso a vivo; eleva capital máximo al dueño |
+| **Falsación / red-team** (`mesa-falsacion`) | **Opus SIEMPRE** | Intenta **matar** cada estrategia con aritmética y datos reales | **Veta**: ninguna estrategia se eleva sin su dictamen. No se degrada de modelo, ni en `economia` |
+| **Cuant** (`mesa-cuant`) | Sonnet | Formula la estrategia y su **tesis de edge** (por qué existe la ganancia y quién la deja) | Decide qué hipótesis se especifica; no toca capital ni claves |
+| **Datos de mercado** (`mesa-datos`) | Sonnet | Conectores de **solo lectura**, normalización de libros, registro append-only | Cablea market data público; **eleva** todo lo que toque credenciales o capacidad de operar |
+
+> **Prestados del pool (ADR-053, no duplicados):** `cobro-fiscal` · `seguridad` · `challenger` ·
+> `auditoria-gsg-gate` · `finops-costo-uso`. Vuelven a su célula al cerrar el caso y vuelcan lo aprendido
+> a la retro (ADR-047).
+>
+> **Vallas duras:** modo papel y solo lectura por default · ningún peso de capital sin OK escrito del dueño ·
+> claves de trading jamás en el repo (sin retiro habilitado, las pega el dueño) · sin log no hay veredicto ·
+> la mesa **nunca** toma prioridad por encima de P1 (las demos que venden).
+
+---
+
 *Doc de organización/gobernanza (ADR-051). Todo agente calibra antes de actuar (ADR-052). No toca prod ni deploy.*
