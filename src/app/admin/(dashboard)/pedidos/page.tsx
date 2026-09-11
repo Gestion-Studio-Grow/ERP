@@ -11,6 +11,7 @@ import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import MostradorTabs from "./MostradorTabs";
 import { getProfessionalsWithServices } from "@/lib/actions";
 import { canCurrentUser } from "@/lib/authz";
+import { getCurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,11 @@ export default async function PedidosPage() {
   // getPosData aplica requireCapability("orders:read") — guard de la página. El snapshot de
   // stock (mismo gate) es lo que permite avisar el faltante antes de cobrar y explicar la
   // caja vacía: "no hay productos" no es lo mismo que "hay, pero sin precio".
-  const [{ orders, products }, stockSnap, puedeAgenda] = await Promise.all([
+  const [{ orders, products }, stockSnap, puedeAgenda, user] = await Promise.all([
     getPosData(),
     getPosStockSnapshot(),
     canCurrentUser("agenda:manage"),
+    getCurrentUser(),
   ]);
   // Los servicios del mostrador crean un TURNO, así que se ofrecen sólo a quien puede
   // gestionar agenda (OWNER y RECEPCIÓN). El catálogo es público (lo usa el sitio de
@@ -59,6 +61,7 @@ export default async function PedidosPage() {
       </p>
 
       <MostradorTabs
+        viewer={user ? { role: user.role, professionalId: user.professionalId } : undefined}
         products={products}
         stockById={stockSnap.stockById}
         professionals={professionals}

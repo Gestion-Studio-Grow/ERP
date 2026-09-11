@@ -105,6 +105,28 @@ export default async function CierreCajaPage({
               <p className="mt-1 text-muted">“{registro.resumen!.nota}”</p>
             )}
           </div>
+          {/* EL ARCHIVO DEL DÍA, acá y no en otra pantalla. El cierre es el momento en que el
+              día queda congelado: es el único instante en que bajar el libro sirve de verdad,
+              porque a partir de ahí ese archivo ya no puede cambiar. Pedido del dueño: "que
+              saque el excel del libro cada vez que se cierra".
+              Son dos alcances porque son dos usos distintos: el del día es el respaldo del
+              cierre (con los ajustes que acaba de asentar adentro); el del mes es lo que
+              recibe la contadora. Abren los dos con doble clic en Excel y se importan en
+              Google Sheets sin tocar nada (CSV con BOM UTF-8). */}
+          <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-line px-4 py-3 text-sm">
+            <a
+              href={`/admin/caja/libro/export?dia=${day}`}
+              className="font-medium underline underline-offset-4 hover:text-strong"
+            >
+              Bajar el libro de este día
+            </a>
+            <a
+              href={`/admin/caja/libro/export?mes=${day.slice(0, 7)}`}
+              className="text-muted underline underline-offset-4 hover:text-strong"
+            >
+              Bajar el mes completo
+            </a>
+          </div>
         </Card>
       )}
       {yaCerrado && !registro && (

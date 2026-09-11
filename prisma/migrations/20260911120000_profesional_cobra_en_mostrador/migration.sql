@@ -1,0 +1,12 @@
+-- ¿El MOSTRADOR puede cobrar los turnos de esta profesional?
+--
+-- Decisión del dueño (2026-09-11): la recepción cobra los servicios de TODAS las
+-- profesionales salvo la de uñas, que cobra lo suyo y rinde la comisión después.
+--
+-- Aditiva y sin downtime. DEFAULT true porque la regla del negocio es "el mostrador
+-- cobra": toda fila existente queda en el comportamiento que ya tenía, y la excepción
+-- se marca a mano desde el catálogo. Ninguna fila viva se reinterpreta.
+--
+-- Apagar el flag NO le saca la agenda a nadie: la recepción sigue pudiendo darle turno
+-- a esa profesional. Lo único que no puede es cobrarlo.
+ALTER TABLE "Professional" ADD COLUMN "cobraEnMostrador" BOOLEAN NOT NULL DEFAULT true;

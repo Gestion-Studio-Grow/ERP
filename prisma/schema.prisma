@@ -417,6 +417,18 @@ model Professional {
   box                Box?                            @relation(fields: [boxId], references: [id])
   boxId              String?
   commissionPercent  Float                           @default(0)
+  // ¿El MOSTRADOR puede cobrar los turnos de esta profesional?
+  //
+  // Decisión del dueño (2026-09-11): la recepción cobra los servicios de todas las
+  // profesionales SALVO una —la de uñas—, que cobra lo suyo y rinde la comisión después.
+  // Es configuración del negocio, no una regla del código: se prende y se apaga por
+  // profesional desde el catálogo, y el día que entre otra que cobre aparte no hay que
+  // tocar una línea.
+  //
+  // Default TRUE porque la regla del negocio es "el mostrador cobra": la excepción se
+  // marca, no al revés. Apagarlo NO le saca la agenda a nadie — la recepción sigue
+  // pudiendo darle turno; lo único que no puede es tomarle la plata.
+  cobraEnMostrador   Boolean                         @default(true)
   deletedAt          DateTime?
   services           Service[]                       @relation("ProfessionalServices")
   appointments       Appointment[]

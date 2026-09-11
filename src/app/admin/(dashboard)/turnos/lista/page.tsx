@@ -21,7 +21,10 @@ export const statusLabel: Record<string, string> = {
 export default async function TurnosListaPage() {
   // La lista (historial completo + alta manual) es gestión de agenda: solo
   // OWNER/RECEPTION. El PROFESSIONAL cae acá a su calendario propio.
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
+  // Quién mira. Alimenta la misma regla que aplica el servidor al cobrar, para que la fila no
+  // ofrezca un cobro que después se rechaza.
+  const viewer = { role: user.role, professionalId: user.professionalId };
   const [appointments, professionals] = await Promise.all([
     getAppointments(),
     getProfessionalsWithServices(),
@@ -68,7 +71,7 @@ export default async function TurnosListaPage() {
         )}
         <div className="space-y-3">
           {pending.map((a) => (
-            <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} />
+            <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} />
           ))}
         </div>
       </section>
@@ -79,7 +82,7 @@ export default async function TurnosListaPage() {
           <p className="text-sm text-muted mb-3">Turnos ya realizados con plata pendiente.</p>
           <div className="space-y-3">
             {aCobrar.map((a) => (
-              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} />
+              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} />
             ))}
           </div>
         </section>

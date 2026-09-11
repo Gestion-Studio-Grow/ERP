@@ -41,6 +41,8 @@ import {
   puedeCompletarse,
   type MetodoDePago,
 } from "@/lib/turnos/cobros";
+import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { isColumnMissing } from "@/lib/prisma-errors";
 import { Prisma } from "@/generated/prisma/client";
 import {
   isDemoSandbox,
@@ -51,10 +53,29 @@ import {
 } from "@/lib/demo-sandbox";
 
 export async function getProfessionalsWithServices() {
-  return prisma.professional.findMany({
+  const args = {
     where: { active: true, deletedAt: null },
     include: { services: { where: { active: true, deletedAt: null } }, box: true },
-  });
+  } as const;
+  try {
+    return await prisma.professional.findMany(args);
+  } catch (err) {
+    // Schema-ahead: si `cobraEnMostrador` todavía no existe en la base, el `include` de
+    // arriba falla al materializar la fila. Antes que dejar el mostrador SIN profesionales
+    // —o sea, sin poder cobrar un servicio— se devuelven sin el flag, y la regla lo trata
+    // como el default de la columna (`true`, el mostrador cobra).
+    if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
+    const filas = await prisma.professional.findMany({
+      where: args.where,
+      select: {
+        id: true, name: true, email: true, phone: true, active: true, boxId: true,
+        commissionPercent: true, tenantId: true, createdAt: true, updatedAt: true, deletedAt: true,
+        services: { where: { active: true, deletedAt: null } },
+        box: true,
+      },
+    });
+    return filas as unknown as Awaited<ReturnType<typeof prisma.professional.findMany<typeof args>>>;
+  }
 }
 
 // Franjas libres de UN día. Es azúcar sobre `getAvailableSlotsRange` (una sola
@@ -640,6 +661,19 @@ export async function createManualAppointment(formData: FormData) {
     const metodo = String(formData.get("senaMetodo") || "");
     if (!Number.isFinite(monto) || monto <= 0) throw new Error("El monto de la seña tiene que ser mayor a cero.");
     if (!esMetodoDePago(metodo)) throw new Error("Elegí el medio con que se cobra la seña: efectivo, Mercado Pago o transferencia.");
+    // MISMA REGLA QUE EL COBRO SUELTO, y hace falta acá aparte: el mostrador da de alta el
+    // turno Y lo cobra en un solo submit. Sin esta guarda, apagar el bloque de cobro en la
+    // pantalla sería toda la protección que hay — o sea, ninguna del lado del servidor.
+    // Dar el turno se permite igual; lo único que se rechaza es tomarle la plata.
+    const dueño = await leerProfesionalParaCobro(professionalId);
+    const veredicto = puedeCobrarEsteTurno({
+      rol: user.role,
+      professionalIdDelUsuario: user.professionalId,
+      professionalIdDelTurno: professionalId,
+      nombreProfesional: dueño.nombre,
+      cobraEnMostrador: dueño.cobraEnMostrador,
+    });
+    if (!veredicto.ok) throw new Error(veredicto.motivo);
     cobroInicial = { monto, method: metodo, actor: `user:${user.id}` };
   }
 
@@ -825,6 +859,62 @@ async function conCobros<T extends { id: string }>(tenantId: string, appointment
 // dueña; la plata es otra dimensión. Idempotente por `idempotencyKey` (uuid del formulario,
 // renovado tras cada cobro): el doble clic no duplica; la guarda de saldo tampoco deja
 // cobrar de más.
+/**
+ * El flag de cobro de UNA profesional, por id. Hermano de `leerProfesionalDelTurno`, para el
+ * alta del mostrador (que todavía no tiene un turno del que colgarse). Misma tolerancia al
+ * schema-ahead: si la columna no está, el flag vuelve `undefined` y rige el default.
+ */
+async function leerProfesionalParaCobro(professionalId: string): Promise<{
+  nombre: string | null;
+  cobraEnMostrador?: boolean;
+}> {
+  try {
+    const p = await prisma.professional.findUnique({
+      where: { id: professionalId },
+      select: { name: true, cobraEnMostrador: true },
+    });
+    return { nombre: p?.name ?? null, cobraEnMostrador: p?.cobraEnMostrador };
+  } catch (err) {
+    if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
+    const p = await prisma.professional.findUnique({ where: { id: professionalId }, select: { name: true } });
+    return { nombre: p?.name ?? null };
+  }
+}
+
+/**
+ * La profesional del turno y su flag de cobro, tolerando que la columna no exista todavía.
+ *
+ * `prisma` (no `tx`) porque esto es un permiso que se evalúa antes de la transacción. El
+ * catch de P2022 es el puente de schema-ahead: mientras
+ * `20260911120000_profesional_cobra_en_mostrador` no esté aplicada en Neon, se devuelve el
+ * flag en `undefined` y la regla lo trata como el default de la columna (`true`). El cobro
+ * sigue funcionando; lo único que no rige todavía es la excepción.
+ */
+async function leerProfesionalDelTurno(appointmentId: string): Promise<{
+  professionalId: string;
+  nombre: string | null;
+  cobraEnMostrador?: boolean;
+}> {
+  try {
+    const a = await prisma.appointment.findUniqueOrThrow({
+      where: { id: appointmentId },
+      select: { professionalId: true, professional: { select: { name: true, cobraEnMostrador: true } } },
+    });
+    return {
+      professionalId: a.professionalId,
+      nombre: a.professional?.name ?? null,
+      cobraEnMostrador: a.professional?.cobraEnMostrador,
+    };
+  } catch (err) {
+    if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
+    const a = await prisma.appointment.findUniqueOrThrow({
+      where: { id: appointmentId },
+      select: { professionalId: true, professional: { select: { name: true } } },
+    });
+    return { professionalId: a.professionalId, nombre: a.professional?.name ?? null };
+  }
+}
+
 export async function registrarCobroTurno(formData: FormData): Promise<ResultadoAccion> {
   // `agenda:collect`, no `agenda:manage`: el profesional cobra sus propios turnos (y rinde
   // la comisión después), pero no puede crear ni cancelar turnos ajenos. El scoping a su
@@ -844,6 +934,26 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   const tenantId = await getCurrentTenantId();
   const actor = `user:${user.id}`;
 
+  // ── QUIÉN PUEDE COBRAR ESTE TURNO ──────────────────────────────────────────
+  //
+  // Se resuelve ANTES de abrir la transacción, y a propósito: es un permiso, no un dato
+  // transaccional. Fallar acá no escribe nada y le devuelve a la recepcionista una frase
+  // que le dice qué hacer, en vez de abortar una tx a mitad de camino.
+  //
+  // `cobraEnMostrador` es configuración que cambia una vez por año; leerla un instante
+  // antes del cobro no abre ninguna carrera que importe. Y se lee tolerando que la columna
+  // todavía no exista (migración sin aplicar): un flag ausente NO puede frenar un cobro —
+  // sería una caja que deja de funcionar por un deploy.
+  const delTurno = await leerProfesionalDelTurno(appointmentId);
+  const veredicto = puedeCobrarEsteTurno({
+    rol: user.role,
+    professionalIdDelUsuario: user.professionalId,
+    professionalIdDelTurno: delTurno.professionalId,
+    nombreProfesional: delTurno.nombre,
+    cobraEnMostrador: delTurno.cobraEnMostrador,
+  });
+  if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
+
   // Todo dentro de UNA tx Serializable: el estado del turno y el saldo se leen y se escriben
   // en la misma foto (dos cobros simultáneos no pueden sobre-cobrar: uno reintenta y ve el otro).
   const run = (withSchema: boolean) =>
@@ -853,9 +963,9 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
           where: { id: appointmentId },
           include: { service: { select: { name: true, price: true } }, client: { select: { name: true } } },
         });
-        // El profesional cobra LO SUYO. Mismo scoping que `completeAppointment` y
-        // `markNoShow`: la capacidad habilita la clase de acción, el dueño de la fila la
-        // acota. Sin esto, `agenda:collect` dejaría cobrar el turno de cualquier colega.
+        // Invariante DURA, dentro de la transacción: el profesional cobra LO SUYO. El
+        // veredicto completo ya se resolvió antes de abrir la tx (ver arriba); esto queda
+        // igual por si alguien llama a esta acción por otro camino.
         if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
           throw new Error("Ese turno es de otra profesional: sólo podés cobrar los tuyos.");
         }

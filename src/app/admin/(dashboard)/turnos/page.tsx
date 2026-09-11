@@ -109,7 +109,7 @@ export default async function TurnosCalendarPage({
 
       <NovedadesDelDia blocks={blocksToday} />
 
-      <CalendarGrid professionals={professionals} appointments={appointments} canManage={canManage} canCollect={canCollect} />
+      <CalendarGrid professionals={professionals} appointments={appointments} canManage={canManage} canCollect={canCollect} viewer={{ role: user.role, professionalId: user.professionalId }} />
     </main>
   );
 }

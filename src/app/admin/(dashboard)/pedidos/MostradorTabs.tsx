@@ -26,6 +26,7 @@ export default function MostradorTabs({
   stockById,
   professionals,
   productosBloqueados,
+  viewer,
 }: {
   // Se pasan tal cual al formulario de productos: este componente no sabe de stock.
   products: React.ComponentProps<typeof PosForm>["products"];
@@ -33,6 +34,8 @@ export default function MostradorTabs({
   professionals: Professional[];
   /** Motivo por el que no se puede vender producto (catálogo vacío / sin precios). */
   productosBloqueados?: React.ReactNode;
+  /** Quién atiende: decide si el alta ofrece cobrar. Ver `puedeCobrarEsteTurno`. */
+  viewer?: { role: string; professionalId?: string | null };
 }) {
   const hayServicios = professionals.some((p) => p.services.length > 0);
   // Si no se puede vender producto pero sí servicios, se abre directo en Servicios: no
@@ -67,7 +70,7 @@ export default function MostradorTabs({
       {tab === "productos" ? (
         productosBloqueados ?? <PosForm products={products} stockById={stockById} />
       ) : hayServicios ? (
-        <NewAppointmentForm professionals={professionals} origen="mostrador" />
+        <NewAppointmentForm professionals={professionals} origen="mostrador" viewer={viewer} />
       ) : (
         <p className="rounded-lg border border-line bg-surface-raised p-6 text-sm text-muted">
           No hay servicios para cobrar: falta cargar profesionales con sus servicios en el

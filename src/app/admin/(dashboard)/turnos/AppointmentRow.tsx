@@ -13,6 +13,7 @@ import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import { fmtDateTime } from "@/lib/datetime";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import {
   cobroSugerido,
   esCuentaACobrar,
@@ -31,7 +32,7 @@ type Appointment = {
   priceAtBooking: number | null;
   notes: string | null;
   client: { name: string; phone: string };
-  professional: { name: string };
+  professional: { name: string; cobraEnMostrador?: boolean };
   service: { name: string; price: number; depositAmount?: number | null };
   box: { name: string };
   // `Payment` = agregado de los cobros del turno (o el pago 1:1 previo a los cobros parciales).
@@ -183,9 +184,17 @@ export default function AppointmentRow({
   statusLabel,
   canManage = true,
   canCollect = true,
+  viewer,
 }: {
   appointment: Appointment;
   statusLabel: Record<string, string>;
+  /**
+   * Quién está mirando. Se usa SÓLO para decidir si se dibuja el botón de cobrar: la regla
+   * la resuelve `puedeCobrarEsteTurno`, la misma función que aplica el servidor, así que la
+   * pantalla y la acción no pueden desincronizarse. Sin `viewer` se asume que puede (es lo
+   * que hacía antes) y el servidor sigue siendo la única autoridad.
+   */
+  viewer?: { role: string; professionalId?: string | null };
   // Gestión de agenda (cobrar / confirmar / cancelar) — solo OWNER/RECEPTION. El
   // PROFESSIONAL solo cierra sus turnos (completar / no-show). Es UX: el server
   // igual bloquea las acciones que su rol no puede (ADR-017 §2.e).
@@ -196,6 +205,19 @@ export default function AppointmentRow({
    */
   canCollect?: boolean;
 }) {
+  // La recepción cobra a todas salvo a quien cobra aparte (decisión del dueño). El servidor
+  // lo rechaza igual; acá se usa la MISMA función para que el botón no aparezca y la
+  // recepcionista no se entere del límite recién después de apretar, con la clienta enfrente.
+  const veredictoCobro = viewer
+    ? puedeCobrarEsteTurno({
+        rol: viewer.role,
+        professionalIdDelUsuario: viewer.professionalId,
+        professionalIdDelTurno: appointment.professionalId,
+        nombreProfesional: appointment.professional.name,
+        cobraEnMostrador: appointment.professional.cobraEnMostrador,
+      })
+    : ({ ok: true } as const);
+
   const isPending = appointment.status === "PENDING";
   const isConfirmed = appointment.status === "CONFIRMED";
 
@@ -293,11 +315,17 @@ export default function AppointmentRow({
           <div className="flex flex-col gap-2 min-w-[260px]">
             <CompletarForm appointmentId={appointment.id} saldo={plata.saldo} yaOcurrio={yaOcurrio} />
             {canCollect && plata.saldo > 0 && (
-              <CobroForm
-                appointmentId={appointment.id}
-                monto={sugerido.monto}
-                titulo={sugerido.tipo === "senia" ? "Seña pendiente" : "Cobro parcial"}
-              />
+              veredictoCobro.ok ? (
+                <CobroForm
+                  appointmentId={appointment.id}
+                  monto={sugerido.monto}
+                  titulo={sugerido.tipo === "senia" ? "Seña pendiente" : "Cobro parcial"}
+                />
+              ) : (
+                <p className="rounded-md border border-line bg-surface-sunken px-3 py-2 text-xs text-muted">
+                  {veredictoCobro.motivo} Quedan {fmtMoneyARS(plata.saldo)} a cobrar.
+                </p>
+              )
             )}
             {canManage && (
               <form action={cancelAppointment}>

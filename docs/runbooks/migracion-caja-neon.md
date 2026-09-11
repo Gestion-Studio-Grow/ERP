@@ -7,10 +7,11 @@ directo. Todo lo demás está verificado.
 
 ## Qué se aplica
 
-Cuatro migraciones. **No son tres**: la última que la documentación da por aplicada en Neon
-es `20260712120000` (`docs/producto/HANDOFF-consolidacion-a-core-0712.md:44-45`), y después
-quedaron cuatro, no las tres de la caja — `lead_campania` es de agosto y arrastra desde
-antes de este frente.
+**Cinco** migraciones. No son tres ni cuatro: la última que la documentación da por aplicada
+en Neon es `20260712120000` (`docs/producto/HANDOFF-consolidacion-a-core-0712.md:44-45`), y
+después se acumularon cinco — `lead_campania` es de agosto y arrastra desde antes de este
+frente, y `profesional_cobra_en_mostrador` entró el 11/09 con la decisión del dueño sobre
+quién cobra qué.
 
 | Migración | Qué agrega |
 |---|---|
@@ -18,8 +19,13 @@ antes de este frente.
 | `20260906120000_add_cash_method_libro_caja` | `CashMovement.method` + `occurredAt`, `sessionId` pasa a nullable |
 | `20260907120000_add_cash_movement_payment_id` | `CashMovement.paymentId` + unique |
 | `20260907180000_add_appointment_partial_collections` | `Collection.idempotencyKey`, `CashMovement.collectionId` |
+| `20260911120000_profesional_cobra_en_mostrador` | `Professional.cobraEnMostrador` (DEFAULT true) |
 
-Las cuatro son **aditivas**: agregan columnas e índices, no borran ni reinterpretan filas.
+Las cinco son **aditivas**: agregan columnas e índices, no borran ni reinterpretan filas.
+
+`20260911` es la única que **sí se degrada en vez de romper**: el código la tolera (P2022) en
+los tres caminos del mostrador, y mientras no esté aplicada rige el default —el mostrador
+cobra a todas—. O sea: se puede deployar antes o después. Las otras cuatro no.
 
 ## Por qué el orden es migrar → deployar, y no al revés
 
@@ -36,7 +42,7 @@ Publicar el código antes de migrar deja el mostrador sin poder cobrar.
 Sobre una base local llevada al estado documentado de producción (40 migraciones, hasta
 `20260712120000`) y cargada con 900 `CashMovement` y 300 `Collection`:
 
-- Las cuatro migraciones aplicaron en **1,5 segundos**.
+- Las cuatro migraciones de caja aplicaron en **1,5 segundos** (el ensayo es previo a la quinta, que es un `ADD COLUMN` con default: mismo orden de magnitud).
 - **Cero filas perdidas**: 900 y 300 antes y después.
 - `sessionId` pasó a nullable; los tres índices únicos nuevos se crearon sin colisión
   (las columnas nacen NULL y en Postgres los NULL no colisionan).
@@ -50,7 +56,7 @@ Sobre una base local llevada al estado documentado de producción (40 migracione
    ```
    DATABASE_URL=<rol directo> npx prisma migrate status
    ```
-   Si lista más o menos de cuatro pendientes, **frenar y revisar**: significa que alguien
+   Si lista más o menos de cinco pendientes, **frenar y revisar**: significa que alguien
    aplicó o revirtió algo fuera de este circuito.
 3. **Chequeo previo** (sólo lee `information_schema` y `_prisma_migrations`):
    ```

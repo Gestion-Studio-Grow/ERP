@@ -7,6 +7,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { fmtTime } from "@/lib/datetime";
 import { Input, Select, Textarea, Field, buttonClasses, cn, fmtMoneyARS } from "@/components/ui";
 import { seniaDelServicio, METODOS_DE_PAGO, METODO_LABEL } from "@/lib/turnos/cobros";
+import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import {
   cobroPropuestoAlAlta,
   montoDelCobro,
@@ -16,7 +17,7 @@ import {
 } from "@/lib/turnos/cobro-alta";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
-type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null };
+type Professional = { id: string; name: string; services: Service[]; box: { name: string } | null; cobraEnMostrador?: boolean };
 
 // De dónde se abre el formulario. Cambia los defaults, no las reglas — la propuesta de
 // cobro vive pura y testeada en `@/lib/turnos/cobro-alta`; el servidor valida igual en los
@@ -25,9 +26,16 @@ type Professional = { id: string; name: string; services: Service[]; box: { name
 export default function NewAppointmentForm({
   professionals,
   origen = "agenda",
+  viewer,
 }: {
   professionals: Professional[];
   origen?: OrigenAlta;
+  /**
+   * Quién está dando el turno. Decide si se dibuja el bloque de cobro, con la MISMA función
+   * que aplica el servidor (`puedeCobrarEsteTurno`), para que pantalla y acción no puedan
+   * desincronizarse. Sin `viewer` se asume que puede: el servidor sigue siendo la autoridad.
+   */
+  viewer?: { role: string; professionalId?: string | null };
 }) {
   const [open, setOpen] = useState(origen === "mostrador");
   const [professionalId, setProfessionalId] = useState("");
@@ -55,6 +63,26 @@ export default function NewAppointmentForm({
   const [montoOtro, setMontoOtro] = useState("");
 
   const montoACobrar = montoDelCobro({ modo: queCobrar, senia, precio, otro: montoOtro });
+
+  // ¿QUIEN ESTÁ DANDO ESTE TURNO PUEDE COBRARLO? Decisión del dueño: el mostrador cobra los
+  // servicios de todas las profesionales salvo una, que cobra lo suyo y rinde la comisión
+  // después. El turno SÍ se puede dar de alta —darle agenda no es tocarle la plata—; lo que
+  // se apaga es el bloque de cobro.
+  //
+  // Se resuelve con `puedeCobrarEsteTurno`, la MISMA función que aplica el servidor. La
+  // primera versión miraba sólo `origen === "mostrador"` y le escondía el cobro también a la
+  // DUEÑA parada en el mostrador — que el servidor sí deja cobrar. Lo encontró la UAT (caso
+  // D1): la pantalla le sacaba una atribución que el servidor le daba.
+  const veredictoCobro = professional
+    ? puedeCobrarEsteTurno({
+        rol: viewer?.role ?? "OWNER",
+        professionalIdDelUsuario: viewer?.professionalId,
+        professionalIdDelTurno: professional.id,
+        nombreProfesional: professional.name,
+        cobraEnMostrador: professional.cobraEnMostrador,
+      })
+    : ({ ok: true } as const);
+  const leCobraElMostrador = veredictoCobro.ok;
 
   // Al elegir servicio se propone lo razonable para el contexto, sin trabar nada: el
   // usuario puede cambiarlo. En el mostrador la clienta está ahí, así que el default es
@@ -151,6 +179,16 @@ export default function NewAppointmentForm({
             </Select>
           </Field>
 
+          {/* EL AVISO VA ACÁ, pegado a la elección de profesional, y no junto al bloque de
+              cobro. Lo encontró la UAT: con el aviso allá abajo, la recepcionista elegía a
+              Vero, elegía servicio, elegía fecha, elegía horario — y recién ahí se enteraba
+              de que ese turno no lo cobra ella. Cuatro pasos con la clienta enfrente. */}
+          {!veredictoCobro.ok && (
+            <div className="rounded-md border border-warning bg-warning-soft p-3 text-sm text-warning">
+              <strong>{veredictoCobro.motivo}</strong> Podés darle el turno igual.
+            </div>
+          )}
+
           <Field label="Servicio" htmlFor="na-service">
             <Select
               id="na-service"
@@ -240,7 +278,7 @@ export default function NewAppointmentForm({
                 className="uppercase placeholder:normal-case"
               />
             </Field>
-            {service && (
+            {service && leCobraElMostrador && (
               <div className="rounded-md border border-line bg-surface-sunken p-3 space-y-2">
                 {/* El campo del formulario sigue llamándose `senaCobrar`/`senaMonto` porque
                     es lo que lee `createManualAppointment`: cambiarle el nombre no agrega

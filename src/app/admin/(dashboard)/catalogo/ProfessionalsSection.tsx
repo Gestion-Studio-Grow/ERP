@@ -34,6 +34,8 @@ type Professional = {
   box: Box | null;
   services: Service[];
   commissionPercent: number;
+  /** ¿El mostrador puede cobrar sus turnos? `undefined` = la migración todavía no corrió. */
+  cobraEnMostrador?: boolean;
   workingHours: WorkingHour[];
   blocks: Block[];
   serviceCommissions: ServiceCommission[];
@@ -352,6 +354,28 @@ function ProfessionalRow({
             <span className="text-sm text-muted whitespace-nowrap">% comisión</span>
           </div>
         </div>
+        {/* QUIÉN LE COBRA. Decisión del dueño: el mostrador cobra los servicios de todas
+            salvo una, que cobra lo suyo y rinde la comisión después. Es configuración del
+            negocio, así que se prende y se apaga acá — no en el código.
+            El hidden acompaña al checkbox porque un checkbox destildado no manda nada: sin
+            él, la acción no puede distinguir "la destildaron" de "este form no tiene el
+            campo". */}
+        <label className="flex items-start gap-2 rounded-lg border border-line bg-surface-sunken px-3 py-2.5">
+          <input type="hidden" name="cobraEnMostradorPresente" value="1" />
+          <input
+            type="checkbox"
+            name="cobraEnMostrador"
+            defaultChecked={p.cobraEnMostrador !== false}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="text-strong">El mostrador cobra sus turnos</span>
+            <span className="block text-muted">
+              Destildalo si esta profesional cobra ella misma y rinde la comisión después. La
+              recepción va a poder darle turno igual: lo único que no va a poder es cobrarlo.
+            </span>
+          </span>
+        </label>
         <div>
           <p className="text-sm text-muted mb-1">Servicios que realiza</p>
           <ServiceTreePicker

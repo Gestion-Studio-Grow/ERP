@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { isColumnMissing } from "@/lib/prisma-errors";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { auditAdmin } from "@/lib/audit";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -401,18 +402,32 @@ export async function updateProfessional(formData: FormData) {
   const boxId = String(formData.get("boxId") || "") || null;
   const serviceIds = formData.getAll("serviceIds").map(String);
   const commissionPercent = Number(formData.get("commissionPercent") || 0);
+  // Un checkbox no manda nada cuando está destildado, así que el valor se lee por presencia.
+  // El form incluye un hidden `cobraEnMostradorPresente` para poder distinguir "la
+  // destildaron" de "este form ni siquiera tiene el campo" — sin eso, cualquier otro
+  // formulario que llame a esta acción apagaría el flag sin querer.
+  const tocaElFlag = formData.get("cobraEnMostradorPresente") != null;
+  const cobraEnMostrador = formData.get("cobraEnMostrador") != null;
   if (!name) return;
 
-  await prisma.professional.update({
-    where: { id },
-    data: {
-      name,
-      phone: phone || null,
-      boxId,
-      commissionPercent: Number.isNaN(commissionPercent) ? 0 : commissionPercent,
-      services: { set: serviceIds.map((sid) => ({ id: sid })) },
-    },
-  });
+  const data = {
+    name,
+    phone: phone || null,
+    boxId,
+    commissionPercent: Number.isNaN(commissionPercent) ? 0 : commissionPercent,
+    services: { set: serviceIds.map((sid) => ({ id: sid })) },
+    ...(tocaElFlag ? { cobraEnMostrador } : {}),
+  };
+  try {
+    await prisma.professional.update({ where: { id }, data });
+  } catch (err) {
+    // Schema-ahead: mientras la migración no esté aplicada, la columna no existe. Antes que
+    // perder el resto de la edición (nombre, box, comisión, servicios), se guarda sin el
+    // flag. La pantalla del catálogo avisa que la marca todavía no rige.
+    if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
+    const { cobraEnMostrador: _omitido, ...sinFlag } = data;
+    await prisma.professional.update({ where: { id }, data: sinFlag });
+  }
   revalidatePath(CATALOG_PATH);
 }
 
