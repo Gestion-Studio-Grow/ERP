@@ -15,7 +15,7 @@ import { requireUser } from "@/lib/authz";
 import { verifyPassword, hashPassword } from "@/lib/auth-password";
 import { validatePasswordStrength } from "@/lib/password-policy";
 import { clearMustChangePassword } from "@/lib/must-change-password";
-import { auditAdmin } from "@/lib/audit";
+import { auditAdmin } from "@/lib/audit-core";
 import { getProductoContexto } from "@/lib/producto";
 import { productoHome } from "@/lib/producto-identidad";
 

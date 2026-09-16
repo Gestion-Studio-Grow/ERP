@@ -17,7 +17,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { auditAdmin } from "@/lib/audit";
+import { auditAdmin } from "@/lib/audit-core";
 import { sePuedeLiquidar } from "@/lib/comision-liquidable";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";

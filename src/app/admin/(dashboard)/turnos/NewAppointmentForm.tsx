@@ -147,12 +147,22 @@ export default function NewAppointmentForm({
       <form
         action={async (fd) => {
           setError("");
+          // `createManualAppointment` DEVUELVE el error de dominio en vez de tirarlo. Antes
+          // se leía `err.message` de un throw, y en producción eso no es el mensaje: Next
+          // reemplaza los errores de Server Action por un digest, así que la recepcionista
+          // veía "Minified React error #441" en la pantalla donde cobra la seña. El `catch`
+          // se queda para lo que sí sigue tirando —un bug de verdad— con un texto que al
+          // menos dice qué hacer.
           try {
-            await createManualAppointment(fd);
+            const r = await createManualAppointment(fd);
+            if (!r.ok) {
+              setError(r.error);
+              return;
+            }
             setOpen(false);
             reset();
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "No se pudo crear el turno.");
+          } catch {
+            setError("No se pudo crear el turno por un error del sistema. Probá de nuevo; si sigue, avisá y miramos el registro.");
           }
         }}
         className="space-y-3"

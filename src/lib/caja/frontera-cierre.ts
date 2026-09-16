@@ -31,6 +31,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { compareDayKeys, isDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { todayInBusinessTz } from "@/lib/datetime";
 import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 
 /** Entidad y acción con las que el cierre diario queda escrito en `AuditLog`. */
@@ -50,15 +51,27 @@ export async function lastClosedDay(tenantId: string): Promise<DayKey | null> {
       orderBy: { occurredAt: "desc" },
       select: { createdBy: true },
     }),
+    // `action` además de `entity`, y el día no puede ser futuro: dos guardas de cordura
+    // sobre la fila que decide hasta cuándo está CONGELADO el libro de un tenant.
+    //
+    // Esta consulta es la que más daño puede hacer de todo el módulo: un `entityId` de
+    // "9999-12-31" deja el libro sin poder cargar ni borrar nada, sin pantalla que lo
+    // revierta y exento de la purga. Filtrar por `action` descarta cualquier fila que no
+    // haya nacido del cierre, y el tope de hoy descarta un día imposible venga de donde
+    // venga — de una action publicada sin guarda (ya pasó, ver `audit-core.ts`), de un
+    // import, o de alguien tipeando SQL. No reemplaza a la guarda de escritura: la respalda.
     prisma.auditLog.findFirst({
-      where: { tenantId, entity: CIERRE_DIARIO_ENTITY },
+      where: { tenantId, entity: CIERRE_DIARIO_ENTITY, action: CIERRE_DIARIO_ACTION },
       orderBy: { entityId: "desc" }, // los DayKey ISO ordenan lexicográficamente
       select: { entityId: true },
     }),
   ]);
 
   const delCorte = corte?.createdBy.slice(CORTE_INICIAL_ACTOR_PREFIX.length) ?? null;
-  return maxDay(delCorte, cierre?.entityId ?? null);
+  const delCierre = cierre?.entityId ?? null;
+  const hoy = todayInBusinessTz();
+  const cierreSano = delCierre && compareDayKeys(delCierre, hoy) <= 0 ? delCierre : null;
+  return maxDay(delCorte, cierreSano);
 }
 
 /** El mayor de dos días, ignorando lo que no sea un DayKey válido. */

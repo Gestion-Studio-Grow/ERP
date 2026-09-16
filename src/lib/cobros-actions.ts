@@ -7,7 +7,7 @@
 
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
-import { auditAdmin } from "@/lib/audit";
+import { auditAdmin } from "@/lib/audit-core";
 import {
   crearPasarelaCobrosPara,
   modoCobrosDesdeEnv,

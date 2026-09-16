@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { isColumnMissing } from "@/lib/prisma-errors";
 import { businessWallTimeToUtc } from "@/lib/datetime";
-import { auditAdmin } from "@/lib/audit";
+import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";

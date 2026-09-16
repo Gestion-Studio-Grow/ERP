@@ -17,7 +17,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { auditAdmin } from "@/lib/audit";
+import { auditAdmin } from "@/lib/audit-core";
 // GUARDA DE DÍA CERRADO — el QA de recorrido la encontró faltando acá y el agujero era
 // real: con el 07/09 ya cerrado y congelado desde el libro, esta pantalla dejaba registrar
 // un egreso CON FECHA 07/09 sin decir nada, y el saldo del día siguiente pasaba de los

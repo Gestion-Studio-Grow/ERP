@@ -22,7 +22,7 @@ import { provisionTenant } from "../../scripts/provision-tenant";
 import { resolveBlueprint, getBlueprint } from "@/blueprints";
 import { suggestedAccentForBlueprint, isModuleId } from "@/lib/operator-config";
 import { modulosBaseParaAlta } from "@/lib/provisioning/adapters";
-import { requestIp } from "@/lib/audit";
+import { requestIp } from "@/lib/audit-core";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";

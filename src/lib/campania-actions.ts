@@ -20,7 +20,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { auditPublic } from "@/lib/audit";
+import { auditPublic } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 
 // Identificador de la acción. Permite reusar el mismo formulario en la próxima.

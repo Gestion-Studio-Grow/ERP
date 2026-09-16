@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { bookingTransaction } from "@/lib/rls";
 import { revalidatePath } from "next/cache";
-import { auditPublic } from "@/lib/audit";
+import { auditPublic } from "@/lib/audit-core";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { getPublicBookingData } from "@/lib/actions";

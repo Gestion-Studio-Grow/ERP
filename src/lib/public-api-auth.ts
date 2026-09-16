@@ -17,7 +17,11 @@
  * La api-key esperada vive en env (no en la DB): así el contrato no depende de
  * una migración en Neon y prod queda seguro por default (sin env → 503, cerrado).
  *   - `EXTERNAL_ORDERS_API_KEYS` = JSON `{"<slug>":"<key>", ...}` (multi-tenant), o
- *   - `EXTERNAL_ORDERS_API_KEY`  = una sola clave (caso single-tenant de hoy).
+ *   - `EXTERNAL_ORDERS_API_KEY` + `EXTERNAL_ORDERS_API_KEY_SLUG` = una sola clave, atada
+ *     explícitamente a UN slug (caso single-tenant de hoy).
+ *
+ * Si el mapa está seteado, es la única fuente: un slug que no figure ahí se rechaza 503.
+ * Una clave NUNCA autentica a un slug que no es el suyo — ver `expectedKeyForSlug`.
  */
 
 import { timingSafeEqual } from "node:crypto";
@@ -56,20 +60,50 @@ function readApiKey(request: Request): string | null {
   return x ? x.trim() : null;
 }
 
-/** Clave esperada para un slug, leída de env. Null = API no configurada. */
-function expectedKeyForSlug(slug: string): string | null {
+/**
+ * Clave esperada para un slug, leída de env. Null = API no configurada PARA ESE SLUG.
+ *
+ * ⚠️ El bug que esto cierra: antes, si el slug no estaba en `EXTERNAL_ORDERS_API_KEYS`, la
+ * función CAÍA a `EXTERNAL_ORDERS_API_KEY` y la devolvía como clave esperada **para
+ * cualquier slug**. Como el tenant se resuelve por el `X-Tenant-Slug` declarado y lo único
+ * que lo valida es esta comparación, el integrador de un negocio cambiaba una línea del
+ * header y escribía en los otros tres: creaba pedidos, descontaba stock por el ledger y
+ * —con ARCA encendido— emitía un comprobante fiscal a nombre del otro contribuyente. Las
+ * dos murallas no ayudaban: la ruta envuelve el trabajo en `runInTenantContext` con el
+ * tenant que esta función dio por bueno, así que RLS y el candado de app se ponían del lado
+ * del atacado. La clave la tiene un estudio externo que no controlamos.
+ *
+ * Las dos reglas que lo cierran:
+ *
+ * 1. **Si el mapa está seteado, es la ÚNICA fuente.** Un slug ausente del mapa devuelve
+ *    null → 503, y no hay caída a la clave global. Fail-closed, que es lo que el
+ *    encabezado de este archivo ya prometía.
+ * Se exporta SÓLO para que el test pueda apuntarle directo: es la frontera de seguridad
+ * de toda la API pública y probarla a través de `authenticatePublicApi` exigiría una base.
+ *
+ * 2. **La clave única sirve para UN slug, el que nombra `EXTERNAL_ORDERS_API_KEY_SLUG`.**
+ *    Sin esa variable, la clave única no autentica a nadie: preferimos que el
+ *    single-tenant de hoy tenga que declarar de quién es la clave, y no que un olvido de
+ *    configuración vuelva a abrir los cuatro negocios.
+ */
+export function expectedKeyForSlug(slug: string): string | null {
   const map = process.env.EXTERNAL_ORDERS_API_KEYS;
   if (map) {
     try {
       const parsed = JSON.parse(map) as Record<string, string>;
       const k = parsed[slug];
-      if (typeof k === "string" && k.length > 0) return k;
+      return typeof k === "string" && k.length > 0 ? k : null;
     } catch {
-      // JSON mal formado: se trata como no configurado (fail-closed).
+      // JSON mal formado: se trata como no configurado (fail-closed) y NO se cae a la
+      // clave única — un typo en el JSON no puede abrir la API para todos los tenants.
+      return null;
     }
   }
   const single = process.env.EXTERNAL_ORDERS_API_KEY;
-  return single && single.length > 0 ? single : null;
+  if (!single || single.length === 0) return null;
+  const dueño = (process.env.EXTERNAL_ORDERS_API_KEY_SLUG || "").trim().toLowerCase();
+  if (!dueño) return null;
+  return dueño === slug ? single : null;
 }
 
 /**

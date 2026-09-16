@@ -282,15 +282,21 @@ export default function AppointmentRow({
           )}
         </div>
 
+        {/* La seña de un turno pendiente se COBRA, no se gestiona: sale del bloque de
+            `canManage` por la misma razón que el saldo de abajo. Confirmar y cancelar sí
+            se quedan adentro — eso sí es gestionar la agenda. */}
+        {isPending && canCollect && veredictoCobro.ok && plata.saldo > 0 && (
+          <div className="flex flex-col gap-2 min-w-[260px]">
+            <CobroForm
+              appointmentId={appointment.id}
+              monto={sugerido.monto}
+              titulo={sugerido.tipo === "senia" ? "Seña al reservar" : "Cobro"}
+            />
+          </div>
+        )}
+
         {isPending && canManage && (
           <div className="flex flex-col gap-2 min-w-[260px]">
-            {plata.saldo > 0 && (
-              <CobroForm
-                appointmentId={appointment.id}
-                monto={sugerido.monto}
-                titulo={sugerido.tipo === "senia" ? "Seña al reservar" : "Cobro"}
-              />
-            )}
             <form action={confirmarTurno}>
               <input type="hidden" name="appointmentId" value={appointment.id} />
               <SubmitButton pendingText="Confirmando…" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
@@ -351,9 +357,23 @@ export default function AppointmentRow({
           </div>
         )}
 
-        {cuentaACobrar && canManage && (
+        {/* COBRAR EL SALDO DE UN TURNO YA PRESTADO.
+            Estaba gateado por `canManage`, que es gestionar la agenda —crear, confirmar,
+            cancelar—, no cobrar. Dos consecuencias, las dos contra una decisión ya tomada
+            del dueño: la profesional, que cobra lo suyo y rinde la comisión después, tiene
+            `agenda:collect` pero NO `agenda:manage`, así que no podía cobrar su propio
+            saldo; y a la recepción se le ofrecía el botón incluso para la profesional que
+            cobra aparte, con el servidor rechazándolo después, con la clienta enfrente.
+            Ahora usa el mismo veredicto que aplica el servidor. */}
+        {cuentaACobrar && canCollect && (
           <div className="flex flex-col gap-2 min-w-[260px]">
-            <CobroForm appointmentId={appointment.id} monto={plata.saldo} titulo="Cobrar el saldo pendiente" />
+            {veredictoCobro.ok ? (
+              <CobroForm appointmentId={appointment.id} monto={plata.saldo} titulo="Cobrar el saldo pendiente" />
+            ) : (
+              <p className="rounded-md border border-line bg-surface-sunken px-3 py-2 text-xs text-muted">
+                {veredictoCobro.motivo} Quedan {fmtMoneyARS(plata.saldo)} a cobrar.
+              </p>
+            )}
           </div>
         )}
       </div>

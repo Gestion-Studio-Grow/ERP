@@ -6,7 +6,7 @@ import { createSessionToken, getSessionCookieName } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth-password";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requestIp } from "@/lib/audit";
+import { requestIp } from "@/lib/audit-core";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { getProductoContexto } from "@/lib/producto";
 import { productoHome, rutaPermitidaParaProducto } from "@/lib/producto-identidad";

@@ -17,7 +17,7 @@
 
 import { operatorPrisma } from "@/lib/operator-db";
 import { requireOperator } from "@/lib/operator-session";
-import { requestIp } from "@/lib/audit";
+import { requestIp } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { planProvision } from "@/lib/provisioning/dry-run";
 import { runTenantProvisioning, ProvisionBlockedError } from "@/lib/provisioning/provision";

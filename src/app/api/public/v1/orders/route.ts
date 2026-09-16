@@ -17,7 +17,7 @@ import { authenticatePublicApi, ApiError } from "@/lib/public-api-auth";
 import { checkPublicApiRate, clientIpFromRequest } from "@/lib/rate-limit";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { withRequestId, setRequestContext } from "@/lib/request-context";
-import { auditPublic } from "@/lib/audit";
+import { auditPublic } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import {
   parseExternalOrder,

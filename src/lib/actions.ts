@@ -12,7 +12,7 @@ import {
   dateStrInBusinessTz,
   dayOfWeekForDate,
 } from "@/lib/datetime";
-import { auditAdmin, auditPublic } from "@/lib/audit";
+import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
@@ -635,7 +635,35 @@ export async function createBookingFromModal(input: {
   return { id: appointment.id, startsAt: appointment.startsAt.toISOString() };
 }
 
-export async function createManualAppointment(formData: FormData) {
+/**
+ * ¿Este error de `bookAppointment` es una respuesta al usuario o un bug nuestro?
+ *
+ * `bookAppointment` valida reglas de negocio tirando `Error` con mensaje en castellano
+ * (horario ocupado, box sin capacidad, servicio inactivo, cupón inválido). No hay una clase
+ * propia para distinguirlos de un `TypeError`, y crearla obligaría a tocar todos los
+ * llamadores. Mientras tanto se clasifican por forma: un mensaje en castellano dirigido a
+ * una persona ES la respuesta; cualquier otra cosa sube.
+ *
+ * Es una heurística y está dicho: si un error de programación trae una de estas palabras,
+ * se va a mostrar como si fuera de dominio. El costo de equivocarse para ese lado es un
+ * mensaje raro; para el otro lado es "Minified React error #441" en la pantalla de cobro.
+ */
+function esErrorDeDominioAlReservar(e: Error): boolean {
+  const m = e.message;
+  if (!m || m.length > 300) return false;
+  return /horario|ocupad|disponib|libre|box|capacidad|servicio|profesional|cupón|cupon|turno|agenda|precio|seña|sena/i.test(m);
+}
+
+export async function createManualAppointment(formData: FormData): Promise<ResultadoAccion> {
+  // DEVUELVE un resultado en vez de tirar. En producción, un `throw` dentro de una Server
+  // Action no llega con su mensaje: Next lo reemplaza por un digest y el formulario muestra
+  // "Minified React error #441". Quien lee eso es la recepcionista, con la clienta enfrente,
+  // en la pantalla donde se cobra la seña — y el mensaje real ("ese horario ya no está
+  // libre", "la seña excede el precio") era exactamente lo que necesitaba para resolverlo.
+  //
+  // Lo que sí sigue tirando: los errores de PROGRAMACIÓN. Un `throw` que no previmos tiene
+  // que llegar al log del servidor, no convertirse en un cartelito. Por eso el catch de
+  // abajo es por tipo, no un catch-all.
   const user = await requireCapability("agenda:manage");
   const professionalId = String(formData.get("professionalId"));
   const serviceId = String(formData.get("serviceId"));
@@ -649,7 +677,7 @@ export async function createManualAppointment(formData: FormData) {
   const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
 
   if (!clientName.trim() || !clientPhone.trim()) {
-    throw new Error("Nombre y teléfono del cliente son obligatorios.");
+    return { ok: false, error: "Nombre y teléfono del cliente son obligatorios." };
   }
 
   // Seña en el acto (src/lib/turnos): la recepción marca "cobrar seña ahora", con monto
@@ -659,8 +687,8 @@ export async function createManualAppointment(formData: FormData) {
   if (formData.get("senaCobrar") === "on") {
     const monto = Number(String(formData.get("senaMonto") || "").replace(",", "."));
     const metodo = String(formData.get("senaMetodo") || "");
-    if (!Number.isFinite(monto) || monto <= 0) throw new Error("El monto de la seña tiene que ser mayor a cero.");
-    if (!esMetodoDePago(metodo)) throw new Error("Elegí el medio con que se cobra la seña: efectivo, Mercado Pago o transferencia.");
+    if (!Number.isFinite(monto) || monto <= 0) return { ok: false, error: "El monto de la seña tiene que ser mayor a cero." };
+    if (!esMetodoDePago(metodo)) return { ok: false, error: "Elegí el medio con que se cobra la seña: efectivo, Mercado Pago o transferencia." };
     // MISMA REGLA QUE EL COBRO SUELTO, y hace falta acá aparte: el mostrador da de alta el
     // turno Y lo cobra en un solo submit. Sin esta guarda, apagar el bloque de cobro en la
     // pantalla sería toda la protección que hay — o sea, ninguna del lado del servidor.
@@ -673,7 +701,7 @@ export async function createManualAppointment(formData: FormData) {
       nombreProfesional: dueño.nombre,
       cobraEnMostrador: dueño.cobraEnMostrador,
     });
-    if (!veredicto.ok) throw new Error(veredicto.motivo);
+    if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
     cobroInicial = { monto, method: metodo, actor: `user:${user.id}` };
   }
 
@@ -701,8 +729,11 @@ export async function createManualAppointment(formData: FormData) {
       cobroInicial,
     });
   } catch (e) {
-    // La seña excede el precio, etc.: mensaje de dominio al formulario, no un 500.
-    if (e instanceof CobroTurnoRechazado) throw new Error(`No se pudo cobrar la seña: ${e.message}`);
+    // La seña excede el precio, el horario se ocupó entre que se eligió y se envió, el cupón
+    // no existe: son respuestas de DOMINIO y van al formulario con su texto.
+    if (e instanceof CobroTurnoRechazado) return { ok: false, error: `No se pudo cobrar la seña: ${e.message}` };
+    if (e instanceof Error && esErrorDeDominioAlReservar(e)) return { ok: false, error: e.message };
+    // Cualquier otra cosa es un bug: que llegue al log del servidor, no a un cartelito.
     throw e;
   }
   const { appointment, cobro, libroCaja } = booked;
@@ -725,6 +756,7 @@ export async function createManualAppointment(formData: FormData) {
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/turnos/lista");
   revalidatePath("/admin/caja/libro");
+  return { ok: true };
 }
 
 // Reprograma un turno existente a otra fecha/hora (y opcionalmente otro

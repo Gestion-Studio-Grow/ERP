@@ -16,7 +16,7 @@ import { revalidatePath } from "next/cache";
 import { basePrisma } from "@/lib/prisma-base";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { auditAdmin } from "@/lib/audit";
+import { auditAdmin } from "@/lib/audit-core";
 import { ACCENT_PRESETS, type AccentPreset } from "@/lib/branding";
 
 export type ResultadoApariencia = { ok: true } | { ok: false; error: string };
