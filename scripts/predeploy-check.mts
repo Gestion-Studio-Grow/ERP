@@ -13,7 +13,11 @@
 //       _prisma_migrations. Migración sin aplicar → drift.
 //   (b) COLUMNAS: tablas/columnas que declara schema.prisma vs las que existen
 //       en information_schema de la base destino. Columna esperada que falta → drift.
-//   (Columnas de MÁS en la base no fallan: la base puede ir adelante del código.)
+//   (c) ÍNDICES: los `@@unique`/`@@index` de schema.prisma vs pg_index, comparados por
+//       COLUMNAS (no por nombre). Un `@@unique` ausente es BLOQUEANTE: cuatro de ellos son
+//       el árbitro de base de la idempotencia del dinero, y `migrate deploy` se detiene en
+//       la primera migración que falla — puede dejar la columna creada y el índice no.
+//   (Columnas e índices de MÁS en la base no fallan: la base puede ir adelante del código.)
 //
 // Base destino (en orden de preferencia):
 //   PREDEPLOY_DATABASE_URL  › DATABASE_URL (.env)
@@ -42,6 +46,38 @@ function maskedHost(url: string): string {
   } catch {
     return "(host desconocido)";
   }
+}
+
+// ── Parseo de schema.prisma → índices únicos y comunes esperados ─────────────
+//
+// POR QUÉ EXISTE ESTE PARSER, que es la parte que faltaba del chequeo.
+//
+// Hasta acá el script comparaba migraciones y columnas, y salteaba explícitamente las
+// líneas `@@` (ver `parseExpectedColumns`). O sea: verificaba que la COLUMNA estuviera y
+// no que el ÍNDICE existiera. Para un índice de rendimiento eso sería una molestia; para
+// un `@@unique` es otra cosa.
+//
+// En este sistema, cuatro `@@unique` son el ÁRBITRO DE BASE de la idempotencia del dinero:
+// son la "capa 2" que hace chocar el segundo `create` cuando dos submits pasan el
+// pre-chequeo a la vez (ver el comentario de `src/lib/caja/cobro-turno.ts`). Sin el índice,
+// el pre-chequeo solo no alcanza —es un check-then-write— y se cobra dos veces.
+//
+// Y `prisma migrate deploy` se detiene en la primera migración que falla. Una que aplique
+// su `ADD COLUMN` y muera antes del `CREATE UNIQUE INDEX` deja la base en un estado donde
+// la columna existe, el chequeo de columnas da verde, y el código cree que tiene árbitro.
+// Ése es exactamente el estado que este bloque atrapa.
+function parseExpectedIndexes(schema: string): { tabla: string; cols: string[]; unico: boolean }[] {
+  const out: { tabla: string; cols: string[]; unico: boolean }[] = [];
+  for (const [, model, body] of schema.matchAll(/model\s+(\w+)\s*\{([\s\S]*?)\n\}/g)) {
+    for (const rawLine of body.split("\n")) {
+      const line = rawLine.trim();
+      const m = /^@@(unique|index)\s*\(\s*\[([^\]]+)\]/.exec(line);
+      if (!m) continue;
+      const cols = m[2].split(",").map((c) => c.trim().replace(/\(.*\)$/, "")).filter(Boolean);
+      if (cols.length > 0) out.push({ tabla: model, cols, unico: m[1] === "unique" });
+    }
+  }
+  return out;
 }
 
 // ── Parseo de schema.prisma → tablas/columnas esperadas ──────────────────────
@@ -160,14 +196,67 @@ export async function check(): Promise<number> {
         "COLUMNAS que el código espera y NO existen en la base:\n" + missingCols.join("\n"),
       );
     }
+    // (c) ÍNDICES ------------------------------------------------------------
+    //
+    // Se comparan por COLUMNAS, no por nombre: el nombre que le pone Prisma
+    // (`Tabla_col1_col2_key`) es una convención, y un índice creado a mano con otro nombre
+    // cumple igual. Lo que importa es que exista un índice sobre ese conjunto de columnas,
+    // y que sea ÚNICO si el schema lo declara único.
+    const idxRes = await client.query(
+      `SELECT t.relname::text AS tabla, i.relname::text AS indice, ix.indisunique AS unico,
+              array_agg(a.attname::text ORDER BY k.ord) AS cols
+         FROM pg_class t
+         JOIN pg_index ix       ON ix.indrelid = t.oid
+         JOIN pg_class i        ON i.oid = ix.indexrelid
+         JOIN pg_namespace n    ON n.oid = t.relnamespace
+         JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ord) ON true
+         JOIN pg_attribute a    ON a.attrelid = t.oid AND a.attnum = k.attnum
+        WHERE n.nspname = 'public' AND t.relkind = 'r'
+        GROUP BY t.relname, i.relname, ix.indisunique`,
+    );
+    const enLaBase = idxRes.rows.map((r) => ({
+      tabla: r.tabla as string,
+      firma: (r.cols as string[]).join(","),
+      unico: r.unico as boolean,
+    }));
+    const faltanUnicos: string[] = [];
+    const faltanIndices: string[] = [];
+    for (const esperado of parseExpectedIndexes(schema)) {
+      // Si la tabla entera falta, ya se reportó arriba: no se duplica el ruido.
+      if (!actual.has(esperado.tabla)) continue;
+      const firma = esperado.cols.join(",");
+      const hay = enLaBase.some(
+        (i) => i.tabla === esperado.tabla && i.firma === firma && (!esperado.unico || i.unico),
+      );
+      if (hay) continue;
+      const linea = `   - ${esperado.tabla}(${esperado.cols.join(", ")})`;
+      if (esperado.unico) faltanUnicos.push(linea);
+      else faltanIndices.push(linea);
+    }
+    if (faltanUnicos.length > 0) {
+      problems.push(
+        `ÍNDICES ÚNICOS que el código espera y NO existen en la base (${faltanUnicos.length}):\n` +
+          faltanUnicos.join("\n") +
+          "\n   → un @@unique ausente NO es cosmético: varios arbitran la idempotencia del " +
+          "dinero (la 'capa 2' de cobro-turno.ts). Sin él, dos submits simultáneos cobran dos " +
+          "veces. NO deployar.",
+      );
+    }
+    if (faltanIndices.length > 0) {
+      problems.push(
+        `ÍNDICES que el código espera y NO existen en la base (${faltanIndices.length}):\n` +
+          faltanIndices.join("\n") +
+          "\n   → no rompe, pero la consulta que los supone va a escanear la tabla.",
+      );
+    }
   } finally {
     await client.end();
   }
 
   if (problems.length === 0) {
     console.log(
-      `✅ Base al día: ${expected.size} tablas del schema y ${expectedMigrations.length} migraciones ` +
-        "verificadas. Deploy seguro respecto del schema.",
+      `✅ Base al día: ${expected.size} tablas, ${parseExpectedIndexes(schema).length} índices y ` +
+        `${expectedMigrations.length} migraciones verificadas. Deploy seguro respecto del schema.`,
     );
     return 0;
   }

@@ -35,7 +35,27 @@ export const rlsPrisma = basePrisma.$extends({
   query: {
     async $allOperations({ args, query, model, operation }) {
       // Ops crudas ($executeRaw/$queryRaw, model === undefined): no se envuelven.
-      // Es inocuo porque la app no tiene queries crudas sobre tablas de tenant.
+      //
+      // ⚠️ ACÁ DECÍA "es inocuo porque la app no tiene queries crudas sobre tablas de
+      // tenant". ERA FALSO. Hay queries crudas sobre `Product`, `ProductBatch`,
+      // `ProcessingRun` y `User` en cuatro archivos: `carniceria/lotes-actions.ts`,
+      // `carniceria/despiece-actions.ts`, `carniceria/product-extras.ts` y
+      // `must-change-password.ts` — la mayoría escritas así a propósito, porque tocan
+      // columnas que el cliente de Prisma todavía no conoce (schema-ahead).
+      //
+      // Hoy NO hay fuga: se revisaron una por una y todas llevan su `AND "tenantId" = ...`
+      // escrito a mano. Pero el comentario viejo le decía al próximo lector que esta clase
+      // no existe, y ahí estaba el peligro real: la query cruda número 20 no iba a pasar
+      // por ninguna revisión de scope.
+      //
+      // Lo que hay que saber para escribir la próxima:
+      //   1. El candado de aplicación NO las cubre (el `return` de abajo las deja pasar
+      //      enteras). De las tres capas del aislamiento, acá quedan dos.
+      //   2. RLS sí las cubre, PERO sólo si corren dentro de `tenantTransaction` — el GUC
+      //      `app.current_tenant_id` lo setea esa transacción. Una query cruda fuera de
+      //      ella corre sin contexto: con RLS activo no ve nada, y sin RLS ve todo.
+      //   3. O sea: el `AND "tenantId" = ${tenantId}` a mano no es opcional, es la única
+      //      defensa que queda garantizada. Escribilo siempre, aunque parezca redundante.
       if (model === undefined) return query(args);
 
       const store = getTenantStore();

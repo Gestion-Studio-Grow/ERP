@@ -50,40 +50,65 @@ export type Capability =
   // configuración del negocio, mismo tenor que localización/módulos.
   | "appearance:manage";
 
-// Todas las capacidades — OWNER las tiene todas (absorbe el "admin" de hoy,
-// ADR-017 §2.b). Mantener esta lista sincronizada con el union `Capability`.
-export const ALL_CAPABILITIES: Capability[] = [
-  "dashboard:read",
-  "agenda:read",
-  "agenda:manage",
-  "agenda:complete",
-  "agenda:collect",
-  "clients:read",
-  "clients:manage",
-  "waitlist:manage",
-  "catalog:read",
-  "catalog:manage",
-  "orders:read",
-  "orders:manage",
-  "coupons:manage",
-  "reminders:manage",
-  "reviews:manage",
-  "reports:read",
-  "audit:read",
-  "users:manage",
-  "location:manage",
-  "commissions:manage",
-  // "modules:manage" NO va acá a propósito. Aprovisionar módulos es decidir qué
-  // producto compró el cliente: es una decisión comercial y de implementación,
-  // no de operación diaria. Si el dueño puede prenderlos solo, se activa
-  // funcionalidad que no contrató ni nadie le explicó — y puede apagarse Agenda
-  // un martes a la mañana. Vive en la consola de operador, del lado del
-  // proveedor, igual que el alcance lo activa el partner y no el usuario final.
-  "billing:manage",
-  "payments:manage",
-  "cartera:manage",
-  "appearance:manage",
-];
+// Las capacidades del DUEÑO. El nombre dice "ALL" y no son todas — ver la exclusión de
+// abajo, que es deliberada y anterior a este comentario.
+//
+// EL MECANISMO, que es lo que cambió: esto era un array suelto con un comentario que pedía
+// "mantener esta lista sincronizada con el union `Capability`", y el único test que la
+// miraba verificaba la dirección contraria (que cada elemento del array fuera una capability
+// válida). O sea: agregar una capability al union y olvidarse de la lista pasaba en verde, y
+// el dueño se quedaba sin un permiso que el resto del sistema cree que tiene.
+//
+// Ahora el compilador lo exige. `Record<Exclude<Capability, NoEsDelDueño>, true>` obliga a
+// que cada miembro del union esté en una de las dos listas: o se la damos al dueño, o está
+// explícitamente excluida CON SU MOTIVO. Olvidarse deja de ser posible; excluir algo a
+// propósito sigue siéndolo, y ahora se lee en el tipo en vez de en un comentario.
+//
+// (Escribí esto primero como un Record exhaustivo sobre `Capability` entero. Estaba mal:
+// `tsc` exigió `modules:manage` y eso le habría dado al dueño una atribución que el negocio
+// le sacó a propósito. La exclusión tenía que ser parte del tipo, no un agujero en él.)
+
+/**
+ * Capacidades que existen en el union y que el dueño NO tiene, con el motivo.
+ *
+ * Aprovisionar módulos es decidir qué producto compró el cliente: es una decisión comercial
+ * y de implementación, no de operación diaria. Si el dueño puede prenderlos solo, se activa
+ * funcionalidad que no contrató ni nadie le explicó — y puede apagarse Agenda un martes a la
+ * mañana. Vive en la consola de operador, del lado del proveedor, igual que el alcance lo
+ * activa el partner y no el usuario final.
+ */
+const NO_SON_DEL_DUENIO = {
+  "modules:manage": "decisión comercial: se aprovisiona desde la consola de operador",
+} as const;
+
+const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, true> = {
+  "dashboard:read": true,
+  "agenda:read": true,
+  "agenda:manage": true,
+  "agenda:complete": true,
+  "agenda:collect": true,
+  "clients:read": true,
+  "clients:manage": true,
+  "waitlist:manage": true,
+  "catalog:read": true,
+  "catalog:manage": true,
+  "orders:read": true,
+  "orders:manage": true,
+  "coupons:manage": true,
+  "reminders:manage": true,
+  "reviews:manage": true,
+  "reports:read": true,
+  "audit:read": true,
+  "users:manage": true,
+  "location:manage": true,
+  "commissions:manage": true,
+  "billing:manage": true,
+  "payments:manage": true,
+  "cartera:manage": true,
+  "appearance:manage": true,
+};
+
+export const ALL_CAPABILITIES: Capability[] = Object.keys(DEL_DUENIO) as Capability[];
 
 // Mapa rol → capacidades (ADR-017 §2.b, tabla de roles).
 // - OWNER: todo (config, precios, reportes, gestión de usuarios).

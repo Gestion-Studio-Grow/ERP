@@ -68,10 +68,50 @@ Sobre una base local llevada al estado documentado de producción (40 migracione
    ```
    ⚠️ `migrate deploy`, **nunca `migrate dev`** (falla contra el pooler).
    ⚠️ Rol **directo**, no el pooler: el pooler rechaza las migraciones.
-5. **Recién ahora, deployar** el código.
-6. **Verificar** (§ abajo).
+5. **Re-correr `prisma/rls/0001_enable_rls.sql`.** Es data-driven: le pone policy a TODA
+   tabla que tenga `tenantId`. Ninguna de las 21 migraciones históricas prende RLS en la
+   tabla que crea, así que este paso es lo que cierra esa ventana. (La de `lead_campania`
+   ahora emite su policy inline, pero re-correrlo igual es idempotente y barato.)
+6. **Verificar que los índices existan — ANTES de deployar el código.** Ver abajo; es el
+   paso que faltaba y el único que puede frenar el deploy.
+7. **Recién ahora, deployar** el código.
+8. **Verificar el resto** (§ abajo).
 
-## Después de migrar, verificar tres cosas
+## Antes de deployar: que los árbitros del dinero estén en la base
+
+**`prisma migrate deploy` se detiene en la primera migración que falla.** Una que aplique su
+`ADD COLUMN` y muera antes del `CREATE UNIQUE INDEX` deja la base en el peor estado posible:
+la columna existe, el chequeo de columnas da verde, y el código cree que tiene árbitro.
+
+Y esos índices no son cosméticos. El cobro tiene dos capas: un pre-chequeo dentro de la
+transacción, y el `@@unique` que hace chocar el `create` cuando dos submits pasan el
+pre-chequeo a la vez (`src/lib/caja/cobro-turno.ts`). **Sin el índice, la capa 1 sola es un
+check-then-write: dos pestañas o un reintento de red cobran dos veces.** Tres de esos
+árbitros llegan en este lote.
+
+```bash
+npm run predeploy-check      # con PREDEPLOY_DATABASE_URL apuntando a Neon
+```
+
+Desde ahora compara los `@@unique`/`@@index` del schema contra `pg_index` de la base
+destino, por COLUMNAS y no por nombre. Si reporta un índice único faltante: **NO deployar**,
+volver a correr la migración que lo crea. A mano, si se prefiere:
+
+```sql
+SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname IN (
+  'CashMovement_tenantId_paymentId_type_key',
+  'CashMovement_tenantId_collectionId_type_key',
+  'Collection_tenantId_idempotencyKey_key');
+-- tienen que volver las tres.
+```
+
+Hay un estado intermedio que merece nombre propio: si `20260906` aplica y `20260907180000`
+no, el cobro de turno cae al camino degradado (`withSchema = false`) y en ese camino **no
+corre el pre-chequeo, no escribe la clave de idempotencia, y no asienta el movimiento en el
+libro**. Es el único estado donde se rompen a la vez el "se escribe una sola vez" y el
+"nunca queda fuera del libro". Por eso este paso va antes del deploy y no después.
+
+## Después de migrar, verificar tres cosas más
 
 - **El commit publicado**: `GET /api/health` devuelve el sha del deploy.
 - **El aislamiento sigue encendido**: `node prisma/rls/check-rls-live.mjs` contra la base, y
