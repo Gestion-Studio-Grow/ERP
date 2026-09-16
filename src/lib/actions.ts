@@ -28,7 +28,6 @@ import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome }
 import {
   aplicarCobroTurnoInTx,
   cobrosDelTurnoInTx,
-  cobrosPorTurno,
   rastroLibroCaja,
   CobroTurnoRechazado,
   CompletarTurnoRechazado,
@@ -42,6 +41,20 @@ import {
   type MetodoDePago,
 } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
+import {
+  anularCobroTurnoInTx,
+  condonarSaldoTurnoInTx,
+  cobrosDetalladosPorTurno,
+  validarMotivo,
+  mensajeMotivoInvalido,
+  AnulacionRechazada,
+  CondonacionRechazada,
+  type AnularCobroResult,
+  type CondonarSaldoResult,
+} from "@/lib/turnos/anulacion";
+import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import { isColumnMissing } from "@/lib/prisma-errors";
 import { Prisma } from "@/generated/prisma/client";
 import {
@@ -294,8 +307,10 @@ async function bookAppointment({
     // TOCTOU: si dos entran a la vez, una aborta y reintenta viendo la otra ya escrita.
     await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });
 
-    const appliesResidentPrice = !!isResident && service.residentPrice != null;
-    const basePrice = appliesResidentPrice ? service.residentPrice! : service.price;
+    // ADR-013: UNA sola enunciación de la regla, compartida con la lista de espera. No se
+    // reescribe acá — cuando estuvo escrita dos veces, la otra copia se quedó atrás.
+    const { priceAtBooking: basePrice, isResidentBooking: appliesResidentPrice } =
+      precioCongeladoDeReserva(service, isResident);
 
     // Cupón (ADR-014): se busca y consume DENTRO de esta misma transacción —
     // si dos reservas llegan a la vez con el último uso del mismo cupón, la
@@ -871,9 +886,13 @@ export async function getAppointments(rangeDays: number = APPOINTMENTS_DEFAULT_R
 
 // Adjunta a cada turno sus cobros parciales (`collections`) para que la fila muestre
 // cobrado/saldo. Query aparte y tolerante: si la tabla `Collection` no está migrada, la
-// agenda carga igual con `collections: []` (ver `cobrosPorTurno`).
+// agenda carga igual con `collections: []` (ver `cobrosDetalladosPorTurno`).
+//
+// Trae `id` y `note` —no sólo monto y medio, como hacía `cobrosPorTurno`— porque sin el id
+// no hay qué anular: el botón "Anular este cobro" apunta a UNA fila `Collection`, y la nota
+// es lo que distingue un cobro de su contrapartida y de una condonación (anulacion.ts).
 async function conCobros<T extends { id: string }>(tenantId: string, appointments: T[]) {
-  const cobros = await cobrosPorTurno(prisma, tenantId, appointments.map((a) => a.id));
+  const cobros = await cobrosDetalladosPorTurno(prisma, tenantId, appointments.map((a) => a.id));
   return appointments.map((a) => ({ ...a, collections: cobros.get(a.id) ?? [] }));
 }
 
@@ -1058,6 +1077,205 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
+  return { ok: true };
+}
+
+// ── Corrección de cobros: anular y condonar (src/lib/turnos/anulacion.ts) ──
+//
+// Hasta acá un cobro mal cargado quedaba grabado para siempre: `Collection` se creaba y no
+// se tocaba nunca más, y el libro rechaza borrar una VENTA con "corregilo desde Turnos" —
+// pero Turnos no tenía con qué. El día cerraba con un faltante inexplicable en un medio y
+// un sobrante en el otro, y el cierre los congelaba como ajuste. Estas dos acciones son la
+// salida; si desaparecen, vuelve eso.
+
+/**
+ * Anula UN cobro concreto: asienta la contrapartida (una `Collection` negativa que baja
+ * Σ cobros), revierte el asiento del libro con un EGRESO del mismo monto, medio y fecha
+ * contable, y recalcula el `Payment` agregado. Idempotente: anular dos veces no duplica la
+ * reversa. Auditada con el motivo, que es obligatorio.
+ *
+ * MISMA capacidad y MISMO veredicto que cobrar (`agenda:collect` + `puedeCobrarEsteTurno`):
+ * quien puede tomar la plata es quien puede devolverla. Si la profesional que cobra aparte
+ * es la única que puede cobrar su turno, es también la única que puede anular ese cobro —
+ * lo contrario dejaría a la recepción deshaciendo plata que no manejó.
+ */
+export async function anularCobroTurno(formData: FormData): Promise<ResultadoAccion> {
+  const user = await requireCapability("agenda:collect");
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
+  const collectionId = String(formData.get("collectionId") || "").trim();
+  const appointmentId = String(formData.get("appointmentId") || "").trim();
+  if (!collectionId || !appointmentId) return { ok: false, error: "Falta identificar el cobro a anular." };
+
+  const motivoV = validarMotivo(formData.get("motivo") as string | null);
+  if (!motivoV.ok) return { ok: false, error: mensajeMotivoInvalido(motivoV.error) };
+
+  const tenantId = await getCurrentTenantId();
+  const actor = `user:${user.id}`;
+
+  // Mismo orden que el cobro: el permiso se resuelve ANTES de abrir la transacción (fallar
+  // acá no escribe nada y devuelve una frase accionable, no una tx abortada a medias).
+  const delTurno = await leerProfesionalDelTurno(appointmentId);
+  const veredicto = puedeCobrarEsteTurno({
+    rol: user.role,
+    professionalIdDelUsuario: user.professionalId,
+    professionalIdDelTurno: delTurno.professionalId,
+    nombreProfesional: delTurno.nombre,
+    cobraEnMostrador: delTurno.cobraEnMostrador,
+  });
+  if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
+
+  // La frontera de congelamiento se lee una vez, fuera de la tx: es estado del tenant, no
+  // del turno. La regla la aplica el repositorio contra la fecha CONTABLE del asiento.
+  const diaCerradoHasta = await lastClosedDay(tenantId);
+
+  const run = (withSchema: boolean) =>
+    tenantTransaction(
+      async (tx) => {
+        const appointment = await tx.appointment.findUniqueOrThrow({
+          where: { id: appointmentId },
+          include: { service: { select: { price: true } } },
+        });
+        // Invariante DURA dentro de la tx, igual que en el cobro: la profesional toca LO SUYO.
+        if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+          throw new Error("Ese turno es de otra profesional: sólo podés anular cobros de los tuyos.");
+        }
+        return anularCobroTurnoInTx(tx, tenantId, {
+          collectionId,
+          appointmentId,
+          precio: appointment.priceAtBooking ?? appointment.service.price,
+          motivo: motivoV.motivo,
+          actor,
+          diaCerradoHasta,
+          esDiaCerrado: (dia, hasta) => isFrozenDay(dia as DayKey, hasta as DayKey),
+          diaDe: dateStrInBusinessTz,
+          withSchema,
+        });
+      },
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+  // Mismo guardado schema-ahead que el cobro: si `CashMovement.collectionId` o
+  // `Collection.idempotencyKey` no están migradas, el cobro tampoco las usó — la reversa se
+  // asienta igual, sin clave persistente ni movimiento de libro (no hay libro que revertir).
+  let settled: SettleOutcome<AnularCobroResult>;
+  try {
+    settled = await settleAppointmentPaymentGuarded({
+      runWithBridge: () => run(true),
+      runWithoutBridge: () => run(false),
+    });
+  } catch (e) {
+    if (e instanceof AnulacionRechazada) return { ok: false, error: e.message };
+    throw e;
+  }
+
+  if (settled.outcome === "race" || !settled.value.applied) {
+    // Otro submit ya dejó la contrapartida. No se re-audita ni se muestra un error: para
+    // quien aprieta el botón dos veces, el cobro está anulado, que es lo que quería.
+    revalidatePath("/admin/turnos");
+    revalidatePath("/admin/turnos/lista");
+    return { ok: true };
+  }
+  if (settled.outcome === "degraded") {
+    logger.warn("caja", "anularCobroTurno: reversa asentada SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+      tenantId,
+      appointmentId,
+      collectionId,
+    });
+  }
+
+  await auditAdmin({
+    action: "void_collection",
+    entity: "Appointment",
+    entityId: appointmentId,
+    changes: {
+      collectionId,
+      motivo: motivoV.motivo,
+      monto: settled.value.monto,
+      cobrado: settled.value.cobradoDespues,
+      saldo: settled.value.saldoDespues,
+      libroCaja: settled.outcome === "degraded" ? "sin-migrar" : settled.value.libro,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/lista");
+  revalidatePath("/admin/reportes");
+  revalidatePath("/admin/caja");
+  revalidatePath("/admin/caja/libro");
+  return { ok: true };
+}
+
+/**
+ * Da de baja el saldo incobrable de un turno ya prestado. SIN plata: el libro de caja no se
+ * toca, no se inventa un cobro. El turno deja de figurar en "Saldos a cobrar" y se destraba
+ * su comisión (`sePuedeLiquidar` exige el turno saldado).
+ *
+ * `agenda:manage`, no `agenda:collect`: perdonar plata es una decisión del negocio (dueña o
+ * mostrador), no parte de cobrar. La profesional que cobra lo suyo no decide qué se regala.
+ *
+ * NO tiene guarda de día cerrado a propósito: no escribe una sola fila en el libro, así que
+ * no puede mover el saldo de un día ya contado.
+ */
+export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoAccion> {
+  const user = await requireCapability("agenda:manage");
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
+  const appointmentId = String(formData.get("appointmentId") || "").trim();
+  if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
+
+  const motivoV = validarMotivo(formData.get("motivo") as string | null);
+  if (!motivoV.ok) return { ok: false, error: mensajeMotivoInvalido(motivoV.error) };
+
+  const tenantId = await getCurrentTenantId();
+  const actor = `user:${user.id}`;
+
+  const run = (withSchema: boolean) =>
+    tenantTransaction(
+      async (tx) => {
+        const appointment = await tx.appointment.findUniqueOrThrow({
+          where: { id: appointmentId },
+          include: { service: { select: { price: true } } },
+        });
+        return condonarSaldoTurnoInTx(tx, tenantId, {
+          appointmentId,
+          status: appointment.status,
+          precio: appointment.priceAtBooking ?? appointment.service.price,
+          motivo: motivoV.motivo,
+          actor,
+          withSchema,
+        });
+      },
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+  let settled: SettleOutcome<CondonarSaldoResult>;
+  try {
+    settled = await settleAppointmentPaymentGuarded({
+      runWithBridge: () => run(true),
+      runWithoutBridge: () => run(false),
+    });
+  } catch (e) {
+    if (e instanceof CondonacionRechazada) return { ok: false, error: e.message };
+    throw e;
+  }
+
+  if (settled.outcome === "race" || !settled.value.applied) {
+    revalidatePath("/admin/turnos");
+    revalidatePath("/admin/turnos/lista");
+    return { ok: true };
+  }
+
+  await auditAdmin({
+    action: "write_off_balance",
+    entity: "Appointment",
+    entityId: appointmentId,
+    changes: { motivo: motivoV.motivo, monto: settled.value.monto, condonacionId: settled.value.condonacionId },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/lista");
+  revalidatePath("/admin/reportes");
   return { ok: true };
 }
 

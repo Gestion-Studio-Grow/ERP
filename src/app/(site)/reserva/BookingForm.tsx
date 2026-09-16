@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { createAppointment, getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
+import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import type { AgendaBookingCopy } from "@/blueprints/agenda";
 
 type Service = { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null };
@@ -100,15 +101,21 @@ export default function BookingForm({
               <span style={{ color: "var(--text-muted)" }}>{copy.summaryProviderLabel}</span> — {professional.name}
             </p>
           )}
-          {service && (
+          {service && (() => {
+            // El importe del resumen y la etiqueta "(precio vecino/a)" salen de UNA sola
+            // llamada a la regla que después congela el turno: separarlas es la clienta
+            // leyendo un número en la confirmación y pagando otro.
+            const { priceAtBooking, isResidentBooking } = precioCongeladoDeReserva(service, isResident);
+            return (
             <p>
               <span style={{ color: "var(--text-muted)" }}>{copy.summaryServiceLabel}</span> — {service.name} · $
-              {(isResident && service.residentPrice != null ? service.residentPrice : service.price).toLocaleString("es-AR")}
-              {isResident && service.residentPrice != null && (
+              {priceAtBooking.toLocaleString("es-AR")}
+              {isResidentBooking && (
                 <span style={{ color: "var(--text-muted)" }}> (precio vecino/a)</span>
               )}
             </p>
-          )}
+            );
+          })()}
           {service?.depositAmount != null && (
             <p style={{ color: "var(--warning)" }}>
               Seña obligatoria: ${service.depositAmount.toLocaleString("es-AR")} — te contactamos por WhatsApp para coordinarla.

@@ -229,11 +229,17 @@ export default function ComprasForm({ products, formal = false }: { products: Re
                 <span className="w-24 text-right text-sm tabular-nums text-body">
                   {lineTotal > 0 ? fmtMoneyARS(lineTotal) : "—"}
                 </span>
+                {/* Medía 17×18px: la mitad del piso de 24px que exige el propio gate
+                    visual del repo (`scripts/qa/visual-audit.mjs:195`, AA_MIN = 24) y el
+                    control más chico de todo el panel. Borrar una línea de una compra no
+                    tiene deshacer, y con ese tamaño en el teléfono se le acierta al de al
+                    lado. El gemelo del POS ya estaba resuelto (`PosForm.tsx:247`,
+                    min-h-6/min-w-6); acá se va al objetivo táctil real de 44px. */}
                 <button
                   type="button"
                   onClick={() => removeLine(l.key)}
                   aria-label="Quitar línea"
-                  className="text-lg leading-none text-muted px-1 hover:text-danger"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-lg leading-none text-muted hover:text-danger sm:min-h-9 sm:min-w-9"
                 >
                   ×
                 </button>

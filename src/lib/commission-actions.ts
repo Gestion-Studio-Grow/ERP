@@ -12,7 +12,15 @@
 //
 // La comisión se devenga sobre el monto efectivamente cobrado (`payment.amount`),
 // igual que en `getReportData`, y solo sobre turnos COMPLETED (servicio ya
-// realizado) — un turno pagado pero no realizado todavía no genera comisión.
+// realizado) — un turno pagado pero no realizado todavía no genera comisión. Eso YA
+// está decidido: `sePuedeLiquidar` exige el turno saldado justamente para que la
+// comisión se pague sobre plata que entró.
+//
+// LIQUIDAR MUEVE LA PLATA. Hasta acá esta acción marcaba la comisión como pagada y no
+// escribía un solo peso en el libro de caja: el efectivo salía del cajón y el sistema lo
+// seguía esperando, así que el cierre del día lo asentaba como "Diferencia de caja"
+// imborrable. Ahora el EGRESO va en la MISMA transacción, marcado con `comision:<payoutId>`
+// en `createdBy` — la aritmética y el asiento viven puros en `comision-liquidacion.ts`.
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
@@ -24,23 +32,32 @@ import { tenantTransaction } from "@/lib/rls";
 import { Prisma } from "@/generated/prisma/client";
 import { requireCapability } from "@/lib/authz";
 import { isDemoSandbox } from "@/lib/demo-sandbox";
+// La aritmética de la comisión y el egreso que deja la liquidación viven PUROS y testeados
+// afuera: acá sólo se orquesta la persistencia. Ver el encabezado de ese archivo sobre los
+// dos defectos que cierra (la plata que no se asentaba y la fórmula duplicada a mano).
+import {
+  calcularLiquidacion,
+  egresoDeLiquidacion,
+  parseCashMethod,
+  type TurnoParaComision,
+} from "@/lib/comision-liquidacion";
+import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
+// Hasta qué día está CONGELADO el libro (corte inicial + cierres diarios). El egreso de una
+// liquidación no puede caer en un día ya cerrado: sus números ya se arquearon.
+import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+// Mismo criterio de fecha contable que el egreso de una compra a proveedor: si hoy está
+// cerrado, el asiento se imputa al primer día abierto en vez de perderse.
+import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
 
 const REPORTES_PATH = "/admin/reportes";
+// Liquidar ahora deja una fila en el libro: las dos pantallas de caja tienen que mostrarla
+// sin esperar a que alguien recargue, o se va a tipear el egreso a mano por segunda vez.
+const LIBRO_PATH = "/admin/caja/libro";
+const CAJA_PATH = "/admin/caja";
 
 // Vuelve a Reportes con un código de feedback (banner). No filtra detalle crudo.
 function backWith(status: string): never {
   redirect(`${REPORTES_PATH}?status=${encodeURIComponent(status)}`);
-}
-
-// Resuelve el % de comisión de un turno: si hay override por (profesional,
-// servicio) usa ese; si no, cae al % general del profesional (G18). Misma regla
-// que `getReportData`.
-function resolvePct(
-  professionalCommissionPercent: number,
-  overrideByService: Map<string, number>,
-  serviceId: string,
-): number {
-  return overrideByService.get(serviceId) ?? professionalCommissionPercent;
 }
 
 export type PendingCommission = {
@@ -108,41 +125,49 @@ export async function getCommissionsOverview(): Promise<{
     m.set(o.serviceId, o.commissionPercent);
   }
 
-  const acc = new Map<string, PendingCommission>();
+  // Se AGRUPA primero y se calcula después, con `calcularLiquidacion` — la MISMA función
+  // que corre la liquidación que se persiste. Antes esta pantalla sumaba con su propia
+  // copia a mano de `(payment.amount * pct) / 100`, sin `round2`: bastaba con que alguien
+  // tocara una de las dos para que la dueña viera un total y el comprobante congelara otro.
+  const porProfesional = new Map<
+    string,
+    { nombre: string; pctGeneral: number; turnos: TurnoParaComision[] }
+  >();
   for (const a of appointments) {
     if (!a.payment) continue; // defensivo; el where ya lo garantiza
     // Un turno con saldo pendiente ESPERA. Liquidarlo lo congela con su payout, y el
     // cobro posterior del saldo ya no vuelve a entrar al pendiente: esa comisión se
     // perdía para siempre. Ver `comision-liquidable.ts`.
     if (!sePuedeLiquidar({ precio: a.priceAtBooking ?? a.service.price, cobros: a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method })), pagoLegado: a.payment })) continue;
-    const pct = resolvePct(
-      a.professional.commissionPercent,
-      overridesByProf.get(a.professionalId) ?? new Map(),
-      a.serviceId,
-    );
-    if (pct <= 0) continue;
-
-    const cur =
-      acc.get(a.professionalId) ??
-      ({
-        professionalId: a.professionalId,
-        professionalName: a.professional.name,
-        amount: 0,
-        ingresos: 0,
-        appointmentCount: 0,
-        periodStart: null,
-        periodEnd: null,
-      } as PendingCommission);
-
-    cur.amount += (a.payment.amount * pct) / 100;
-    cur.ingresos += a.payment.amount;
-    cur.appointmentCount += 1;
-    if (!cur.periodStart || a.startsAt < cur.periodStart) cur.periodStart = a.startsAt;
-    if (!cur.periodEnd || a.startsAt > cur.periodEnd) cur.periodEnd = a.startsAt;
-    acc.set(a.professionalId, cur);
+    let g = porProfesional.get(a.professionalId);
+    if (!g) {
+      g = { nombre: a.professional.name, pctGeneral: a.professional.commissionPercent, turnos: [] };
+      porProfesional.set(a.professionalId, g);
+    }
+    // `payment.amount` es lo efectivamente COBRADO: la base de la comisión es esa, no el
+    // precio de lista (decisión vigente, ver `comision-liquidable.ts`).
+    g.turnos.push({ id: a.id, serviceId: a.serviceId, base: a.payment.amount, startsAt: a.startsAt });
   }
 
-  const pending = Array.from(acc.values()).sort((x, y) => y.amount - x.amount);
+  const pending: PendingCommission[] = [];
+  for (const [professionalId, g] of porProfesional) {
+    const calc = calcularLiquidacion(
+      g.turnos,
+      g.pctGeneral,
+      overridesByProf.get(professionalId) ?? new Map(),
+    );
+    if (calc.appointmentCount === 0) continue; // todos sus turnos son de servicios sin comisión
+    pending.push({
+      professionalId,
+      professionalName: g.nombre,
+      amount: calc.amount,
+      ingresos: calc.ingresos,
+      appointmentCount: calc.appointmentCount,
+      periodStart: calc.periodStart,
+      periodEnd: calc.periodEnd,
+    });
+  }
+  pending.sort((x, y) => y.amount - x.amount);
 
   const history: PayoutHistoryRow[] = payouts.map((p) => ({
     id: p.id,
@@ -170,6 +195,16 @@ export async function settleCommissions(formData: FormData) {
   const professionalId = String(formData.get("professionalId") ?? "").trim();
   if (!professionalId) backWith("error_prof");
   const note = String(formData.get("note") ?? "").trim() || null;
+  // El formulario todavía no pregunta por qué medio se le pagó (un solo campo, la nota).
+  // `null` = no informado: el egreso asume EFECTIVO y lo DICE en el detalle de la fila.
+  // Ver `MEDIO_ASUMIDO` en comision-liquidacion.ts y `necesita_otro_archivo`.
+  const method = parseCashMethod(formData.get("method"));
+
+  // Fecha CONTABLE del egreso. Se lee ANTES de la transacción (misma forma que el alta
+  // manual del libro): si hoy ya está congelado por un cierre, el asiento se imputa al
+  // primer día abierto en vez de reescribir un día que ya se arqueó y se informó.
+  const hoy = todayInBusinessTz();
+  const diaDelEgreso = diaContableDelEgreso(hoy, await lastClosedDay(tenantId));
 
   const result = await tenantTransaction(async (tx) => {
     const professional = await tx.professional.findFirst({
@@ -197,22 +232,21 @@ export async function settleCommissions(formData: FormData) {
 
     const overrideByService = new Map(overrides.map((o) => [o.serviceId, o.commissionPercent]));
 
-    let amount = 0;
-    let periodStart: Date | null = null;
-    let periodEnd: Date | null = null;
-    const ids: string[] = [];
+    const liquidables: TurnoParaComision[] = [];
     for (const a of appointments) {
       if (!a.payment) continue;
       // Misma guarda que el listado de pendientes: sin esto, la pantalla mostraría un
       // total y la liquidación escribiría otro.
       if (!sePuedeLiquidar({ precio: a.priceAtBooking ?? a.service.price, cobros: a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method })), pagoLegado: a.payment })) continue;
-      const pct = resolvePct(professional.commissionPercent, overrideByService, a.serviceId);
-      if (pct <= 0) continue; // turno sin comisión: no forma parte de la liquidación
-      amount += (a.payment.amount * pct) / 100;
-      ids.push(a.id);
-      if (!periodStart || a.startsAt < periodStart) periodStart = a.startsAt;
-      if (!periodEnd || a.startsAt > periodEnd) periodEnd = a.startsAt;
+      // La base es lo COBRADO (`payment.amount`), no el precio de lista.
+      liquidables.push({ id: a.id, serviceId: a.serviceId, base: a.payment.amount, startsAt: a.startsAt });
     }
+
+    // MISMA función que el listado de pendientes: la fórmula dejó de estar duplicada a mano
+    // y el monto pasa por `round2`, la regla única del dinero. `CommissionPayout.amount` es
+    // `Float`: antes se congelaba el float crudo acumulado (1851.8505 en un comprobante).
+    const calc = calcularLiquidacion(liquidables, professional.commissionPercent, overrideByService);
+    const { ids, amount, periodStart, periodEnd } = calc;
 
     if (ids.length === 0 || !periodStart || !periodEnd) return { count: 0, amount: 0 };
 
@@ -248,7 +282,63 @@ export async function settleCommissions(formData: FormData) {
       );
     }
 
-    return { count: ids.length, amount, payoutId: payout.id, professionalName: professional.name };
+    // ── LA PLATA SALE DE LA CAJA, EN ESTA MISMA TRANSACCIÓN ──────────────────
+    //
+    // Antes esto no existía: se marcaba la comisión como pagada y el libro no se enteraba.
+    // El efectivo salía del cajón de verdad, el sistema lo seguía esperando, y al cerrar el
+    // día `cerrarDia` asentaba un FALTANTE por el monto entero como "Diferencia de caja" —
+    // una fila IMBORRABLE desde el libro. La comisión pagada quedaba registrada para
+    // siempre como un descuadre sin explicación.
+    //
+    // Va DENTRO de la tx a propósito: un payout emitido sin su egreso es peor que ninguno
+    // de los dos. Si el asiento falla, no hay comprobante.
+    //
+    // No hace falta pre-chequeo de idempotencia: la marca lleva `payout.id`, que nace en
+    // esta misma transacción. Si Serializable la hace reintentar, el payout también se
+    // rehace y la marca es otra; si aborta, no queda nada.
+    const egreso = egresoDeLiquidacion({
+      payoutId: payout.id,
+      profesional: professional.name,
+      amount,
+      method,
+      periodStart: dateStrInBusinessTz(periodStart),
+      periodEnd: dateStrInBusinessTz(periodEnd),
+      dia: diaDelEgreso,
+      hoy,
+    });
+    if (egreso) {
+      // Si hay un turno de mostrador ABIERTO, el asiento se engancha a ese turno: pagarle
+      // la comisión con la plata del cajón tiene que bajar el efectivo que el arqueo
+      // espera. El arqueo filtra por medio, así que un pago por transferencia enganchado al
+      // turno no le toca el efectivo. Mismo criterio que la compra a proveedor.
+      const session = await tx.cashSession.findFirst({
+        where: { tenantId, status: "OPEN" },
+        select: { id: true },
+      });
+      await tx.cashMovement.create({
+        data: {
+          tenantId,
+          sessionId: session?.id ?? null,
+          type: egreso.type,
+          method: egreso.method,
+          amount: egreso.amount,
+          reason: egreso.reason,
+          // Anclado al MEDIODÍA de la zona del negocio, igual que el alta manual del libro:
+          // así ningún corrimiento de zona horaria mueve la fila de día.
+          occurredAt: businessWallTimeToUtc(egreso.dia, "12:00"),
+          createdBy: egreso.createdBy,
+        },
+        select: { id: true },
+      });
+    }
+
+    return {
+      count: ids.length,
+      amount,
+      payoutId: payout.id,
+      professionalName: professional.name,
+      egreso,
+    };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   if (result.count === 0) backWith("error_nada");
@@ -263,9 +353,18 @@ export async function settleCommissions(formData: FormData) {
       amount: result.amount,
       appointmentCount: result.count,
       note,
+      // El egreso queda en el audit igual que en el libro: es la única forma de saber
+      // después por qué medio se pagó y si el medio fue asumido.
+      egresoMetodo: result.egreso?.method ?? null,
+      egresoMedioAsumido: result.egreso?.medioAsumido ?? null,
+      egresoDia: result.egreso?.dia ?? null,
     },
   });
 
   revalidatePath(REPORTES_PATH);
+  if (result.egreso) {
+    revalidatePath(LIBRO_PATH);
+    revalidatePath(CAJA_PATH);
+  }
   backWith("ok_settled");
 }

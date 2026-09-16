@@ -3,6 +3,9 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auditAdmin } from "@/lib/audit-core";
+// La regla de precio de ADR-013 vive en UN solo lugar, fuera de todo módulo "use server":
+// estuvo enunciada dos veces y la copia de este archivo se quedó atrás. Ver el módulo.
+import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { bookingTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
@@ -12,6 +15,16 @@ import { dateStrInBusinessTz } from "@/lib/datetime";
 
 const WAITLIST_PATH = "/admin/espera";
 
+// ─── Precio congelado del turno: la MISMA regla que el alta normal (ADR-013) ───
+//
+// Qué pasaba antes y por qué era grave: este archivo creaba el turno con
+// `priceAtBooking: service.price` a secas. Una vecina anotada en la lista de espera
+// terminaba pagando el precio de no-vecina —justo el segmento que ADR-013 vino a
+// proteger— y encima la comisión se devengaba sobre ese precio inflado. El precio
+// queda CONGELADO en el turno, así que cobrarlo después por la agenda (que lee
+// `priceAtBooking`) no lo corrige: se cobra de más y no lo ve nadie, porque la
+// pantalla de espera no muestra precio.
+//
 // Lista de espera para el panel: los que todavía esperan (WAITING) primero, luego
 // los ya avisados (NOTIFIED), ambos en orden de llegada (FIFO — el que hace más
 // que espera va arriba). Los resueltos (BOOKED/CANCELLED) no se muestran acá.
@@ -170,8 +183,9 @@ export async function findSlotsForWaitlistEntry(entryId: string, date: string) {
 // re-validando la disponibilidad con assertSlotAvailable para cerrar la carrera
 // entre "vi el hueco" y "reservo". No pasa por src/lib/actions.ts a propósito
 // (rama de comisiones trabaja ahí) — reusa solo el núcleo de dominio de
-// booking-core. Sin cupón/precio vecino: es una reserva de mostrador simple con
-// el precio general congelado; recepción ajusta después si hace falta.
+// booking-core. El precio se congela con la MISMA regla de vecino que los otros
+// tres caminos (ver `precioCongeladoDeReserva` arriba). Sin cupón: la lista de
+// espera no pide código y no se inventa uno.
 export async function bookFromWaitlist(formData: FormData) {
   await requireCapability("waitlist:manage");
   const tenantId = await getCurrentTenantId();
@@ -195,6 +209,13 @@ export async function bookFromWaitlist(formData: FormData) {
 
   if (!professional.active || professional.deletedAt) {
     throw new Error("Ese profesional ya no está disponible.");
+  }
+  // El servicio también, y acá importa más que en ningún otro camino: un anotado puede
+  // llevar SEMANAS en la lista (es su naturaleza), tiempo de sobra para que el catálogo
+  // lo desactive o lo borre. Sin esta guarda quedaba un turno agendado contra un servicio
+  // dado de baja —con su precio viejo congelado— que recepción tenía que cancelar a mano.
+  if (!service.active || service.deletedAt) {
+    throw new Error("Ese servicio ya no está disponible.");
   }
   if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
     throw new Error("Ese profesional no tiene un box activo asignado.");
@@ -242,6 +263,12 @@ export async function bookFromWaitlist(formData: FormData) {
       });
     }
 
+    // El dato de vecina vive en la ficha del Client: la lista de espera no lo pregunta
+    // (WaitlistEntry no tiene la columna). Este camino LO LEE pero no lo pisa — sin
+    // casilla "vecina" en el alta de espera, lo que diga la ficha es lo mejor que sabemos,
+    // y sobreescribirla con `false` le sacaría el beneficio a quien ya lo tenía.
+    const { priceAtBooking, isResidentBooking } = precioCongeladoDeReserva(service, client.isResident);
+
     const appt = await tx.appointment.create({
       data: {
         tenantId,
@@ -252,7 +279,8 @@ export async function bookFromWaitlist(formData: FormData) {
         startsAt,
         endsAt,
         status: "CONFIRMED",
-        priceAtBooking: service.price,
+        priceAtBooking,
+        isResidentBooking,
       },
     });
 
@@ -275,7 +303,15 @@ export async function bookFromWaitlist(formData: FormData) {
     action: "book_from_waitlist",
     entity: "Appointment",
     entityId: appointment.id,
-    changes: { waitlistEntryId: entry.id, professionalId, startsAt: appointment.startsAt },
+    // El precio va en la bitácora: es plata congelada en el turno y, si alguna vez
+    // se discute cuánto se le cobró a quién, este es el único rastro fuera de la fila.
+    changes: {
+      waitlistEntryId: entry.id,
+      professionalId,
+      startsAt: appointment.startsAt,
+      priceAtBooking: appointment.priceAtBooking,
+      isResidentBooking: appointment.isResidentBooking,
+    },
   });
 
   revalidatePath(WAITLIST_PATH);

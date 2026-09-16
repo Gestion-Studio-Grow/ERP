@@ -39,6 +39,20 @@ export const dynamic = "force-dynamic";
 
 const LIBRO_PATH = "/admin/caja/libro";
 
+// Clases del modo TARJETA (móvil) de las tablas de esta pantalla. Viven acá arriba para
+// que las dos tablas —Resumen y Movimientos— apilen igual y no se desincronicen.
+// OJO con `sm:border-b-0`: NO va. `divide-y` de Tailwind v4 se emite envuelto en `:where(...)`
+// —especificidad 0— así que cualquier `border-b-0` de la propia fila le gana y el escritorio se
+// queda SIN separadores. El borde de abajo de la fila es el separador en las dos vistas
+// (`border-collapse: collapse` viene del preflight, así que el borde del `<tr>` sí se pinta).
+const FILA_MOVIMIENTO =
+  "block border-b border-line px-4 py-3 last:border-b-0 sm:table-row sm:px-0 sm:py-0";
+// `flex` en móvil (rótulo a la izquierda, importe a la derecha) y `table-cell` desde sm:
+// la variante del breakpoint gana porque sale después en el CSS.
+const CELDA_MOVIMIENTO =
+  "flex items-baseline justify-between gap-3 py-0.5 sm:table-cell sm:py-2";
+const ROTULO_MOVIL = "text-xs uppercase tracking-wide text-faint sm:hidden";
+
 // Fecha de la fila en formato corto (dd/mm), que es como la lee la planilla. Se
 // formatea desde el instante UTC en la zona del negocio: el asiento se ancla al
 // mediodía, así que ningún corrimiento lo mueve de día.
@@ -165,15 +179,23 @@ export default async function LibroCajaPage({
             description="Cargá el primero con el formulario de arriba, o cambiá de mes."
           />
         ) : (
-          <Card flush className="relative overflow-x-auto">
+          /* TARJETA APILADA EN EL TELÉFONO, TABLA EN LA COMPUTADORA.
+              Antes esta tabla llevaba `min-w-[52rem]` (832px) dentro de un Card con
+              `overflow-x-auto`: a 412px entraban Fecha, Detalle y parte de Medio, y las
+              CUATRO columnas de plata —Ingreso, Egreso, Saldo y Acciones— arrancaban
+              después del píxel 412. Quedaban a 470px de scroll lateral sin ninguna señal
+              de que el scroll existiera. O sea: la pantalla que reemplaza la planilla no
+              mostraba ni un importe en el teléfono, que es desde donde se la mira.
+              El `overflow-x-auto` vuelve recién en `sm:`, donde la tabla sí entra. */
+          <Card flush className="relative sm:overflow-x-auto">
             {/* `aria-label` en vez de un <caption className="sr-only">: el caption
                 absolutamente posicionado se escapaba del contenedor y estiraba el
                 documento a 817px en mobile, dejando media pantalla en blanco. */}
             <table
-              className="w-full min-w-[52rem] text-sm"
+              className="block w-full text-sm sm:table sm:min-w-[52rem]"
               aria-label={`Movimientos de caja de ${label}: fecha, detalle, medio, ingreso, egreso y saldo acumulado`}
             >
-              <thead>
+              <thead className="hidden sm:table-header-group">
                 <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-faint">
                   <th scope="col" className="px-4 py-2 font-medium">Fecha</th>
                   <th scope="col" className="px-4 py-2 font-medium">Detalle</th>
@@ -186,7 +208,7 @@ export default async function LibroCajaPage({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody className="block sm:table-row-group sm:divide-y sm:divide-line">
                 {rows.map((r) => {
                   const entra = r.signedAmount > 0;
                   const sale = r.signedAmount < 0;
@@ -200,11 +222,14 @@ export default async function LibroCajaPage({
                   // para que se revise y se borre la manual; el sistema nunca la borra solo.
                   const dudosa = duplicados.has(r.id);
                   return (
-                    <tr key={r.id} className={dudosa ? "bg-warning-soft/40 hover:bg-surface-2" : "hover:bg-surface-2"}>
-                      <td className="whitespace-nowrap px-4 py-2 tabular-nums text-muted">
+                    <tr
+                      key={r.id}
+                      className={`${FILA_MOVIMIENTO} ${dudosa ? "bg-warning-soft/40 hover:bg-surface-2" : "hover:bg-surface-2"}`}
+                    >
+                      <td className="block whitespace-nowrap text-xs font-medium uppercase tracking-wide tabular-nums text-faint sm:table-cell sm:px-4 sm:py-2 sm:text-sm sm:font-normal sm:normal-case sm:tracking-normal sm:text-muted">
                         {fmtRowDate(r.occurredAt)}
                       </td>
-                      <td className="px-4 py-2 text-body">
+                      <td className="block pt-0.5 text-body sm:table-cell sm:px-4 sm:py-2 sm:pt-2">
                         {r.detail || <span className="text-faint">—</span>}
                         {origen !== "manual" && (
                           <Badge tone="info" className="ml-2">{LIBRO_ORIGIN_LABEL[origen]}</Badge>
@@ -222,19 +247,26 @@ export default async function LibroCajaPage({
                           </Badge>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-muted">
+                      <td className={`${CELDA_MOVIMIENTO} whitespace-nowrap text-muted sm:px-4 sm:py-2`}>
+                        <span className={ROTULO_MOVIL}>Medio</span>
                         {CASH_METHOD_LABEL[r.method]}
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-success">
+                      {/* Las celdas de plata vacías se ocultan en el teléfono: una fila de
+                          egreso no tiene por qué gastar un renglón en «Ingreso —». En la
+                          tabla de escritorio siguen existiendo, alineadas con su columna. */}
+                      <td className={`${CELDA_MOVIMIENTO} tabular-nums text-success sm:px-4 sm:py-2 sm:text-right ${entra ? "" : "hidden"}`}>
+                        <span className={ROTULO_MOVIL}>Ingreso</span>
                         {entra ? fmtMoneyARS(r.amount) : ""}
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-danger">
+                      <td className={`${CELDA_MOVIMIENTO} tabular-nums text-danger sm:px-4 sm:py-2 sm:text-right ${sale ? "" : "hidden"}`}>
+                        <span className={ROTULO_MOVIL}>Egreso</span>
                         {sale ? fmtMoneyARS(r.amount) : ""}
                       </td>
-                      <td className="px-4 py-2 text-right font-medium tabular-nums text-strong">
+                      <td className={`${CELDA_MOVIMIENTO} font-medium tabular-nums text-strong sm:px-4 sm:py-2 sm:text-right`}>
+                        <span className={ROTULO_MOVIL}>Saldo</span>
                         {fmtMoneyARS(r.runningTotal)}
                       </td>
-                      <td className="px-2 py-2 text-right">
+                      <td className="mt-1 flex justify-end sm:table-cell sm:px-2 sm:py-2 sm:text-right">
                         {borrable && <DeleteLibroEntryButton id={r.id} detail={r.detail} />}
                       </td>
                     </tr>
@@ -258,15 +290,19 @@ function ResumenCard({ summary, label }: { summary: { opening: MethodAmounts; in
   ] as const;
 
   return (
-    <Card flush className="relative overflow-x-auto">
-      <table className="w-full min-w-[40rem] text-sm">
-        <caption className="px-4 pt-4 text-left">
+    // Mismo motivo que la tabla de movimientos: con `min-w-[40rem]` la columna Total
+    // arrancaba en x=511 a 412px de viewport, así que la fila «Saldo actual» —la que la
+    // dueña mira primero— mostraba Efectivo y MP y escondía el total. En móvil cada
+    // concepto es una tarjeta con sus cuatro importes rotulados.
+    <Card flush className="relative sm:overflow-x-auto">
+      <table className="block w-full text-sm sm:table sm:min-w-[40rem]">
+        <caption className="block px-4 pt-4 text-left sm:table-caption">
           <span className="font-medium text-strong">Resumen de <span className="capitalize">{label}</span></span>
           <span className="ml-2 text-xs text-faint">
             El saldo inicial sale de todo lo cargado antes de este mes — no se copia a mano.
           </span>
         </caption>
-        <thead>
+        <thead className="hidden sm:table-header-group">
           <tr className="border-b border-line text-xs uppercase tracking-wide text-faint">
             <th scope="col" className="px-4 py-2 text-left font-medium">Concepto</th>
             {CASH_METHODS.map((m) => (
@@ -277,29 +313,51 @@ function ResumenCard({ summary, label }: { summary: { opening: MethodAmounts; in
             <th scope="col" className="px-4 py-2 text-right font-medium">Total</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-line">
+        <tbody className="block sm:table-row-group sm:divide-y sm:divide-line">
           {filas.map((f) => (
-            <tr key={f.k}>
-              <th scope="row" className="px-4 py-2 text-left font-normal text-muted">{f.rotulo}</th>
+            <tr key={f.k} className={FILA_MOVIMIENTO}>
+              <th
+                scope="row"
+                className="block text-left text-xs font-semibold uppercase tracking-wide text-strong sm:table-cell sm:px-4 sm:py-2 sm:text-sm sm:font-normal sm:normal-case sm:tracking-normal sm:text-muted"
+              >
+                {f.rotulo}
+              </th>
               {CASH_METHODS.map((m) => (
-                <td key={m} className={`px-4 py-2 text-right tabular-nums ${f.tono || "text-body"}`}>
+                <td
+                  key={m}
+                  className={`${CELDA_MOVIMIENTO} tabular-nums sm:px-4 sm:text-right ${f.tono || "text-body"}`}
+                >
+                  <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
                   {fmtMoneyARS(f.valores[m])}
                 </td>
               ))}
-              <td className={`px-4 py-2 text-right tabular-nums ${f.tono || "text-body"}`}>
+              <td
+                className={`${CELDA_MOVIMIENTO} font-medium tabular-nums sm:px-4 sm:font-normal sm:text-right ${f.tono || "text-body"}`}
+              >
+                <span className={ROTULO_MOVIL}>Total</span>
                 {fmtMoneyARS(totalOf(f.valores))}
               </td>
             </tr>
           ))}
           {/* SALDO ACTUAL: la línea que la dueña mira primero. */}
-          <tr className="border-t-2 border-line bg-surface-2">
-            <th scope="row" className="px-4 py-3 text-left font-medium text-strong">Saldo actual</th>
+          <tr className={`${FILA_MOVIMIENTO} border-t-2 bg-surface-2 sm:border-t-2 sm:border-line`}>
+            <th
+              scope="row"
+              className="block text-left text-xs font-semibold uppercase tracking-wide text-strong sm:table-cell sm:px-4 sm:py-3 sm:text-sm sm:normal-case sm:tracking-normal"
+            >
+              Saldo actual
+            </th>
             {CASH_METHODS.map((m) => (
-              <td key={m} className="px-4 py-3 text-right font-medium tabular-nums text-strong">
+              <td
+                key={m}
+                className={`${CELDA_MOVIMIENTO} font-medium tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}
+              >
+                <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
                 {fmtMoneyARS(summary.saldo[m])}
               </td>
             ))}
-            <td className="px-4 py-3 text-right text-base font-semibold tabular-nums text-strong">
+            <td className={`${CELDA_MOVIMIENTO} text-base font-semibold tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}>
+              <span className={ROTULO_MOVIL}>Total</span>
               {fmtMoneyARS(totalOf(summary.saldo))}
             </td>
           </tr>

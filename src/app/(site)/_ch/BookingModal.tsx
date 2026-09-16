@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { getAvailableSlots, getAvailableSlotsRange, createBookingFromModal } from "@/lib/actions";
 import { checkCoupon } from "@/lib/coupon-actions";
 import { isValidEmail, isValidArgentinePhone } from "@/lib/contact-validation";
@@ -195,7 +196,11 @@ export default function BookingModal({
   // Precio base (ya con el beneficio vecino aplicado si corresponde) y precio
   // final con el cupón — el que se muestra acá es preview, el real se
   // recalcula server-side al confirmar (nunca se confía en el del cliente).
-  const basePrice = svc ? (isResident && svc.residentPrice != null ? svc.residentPrice : svc.price) : 0;
+  //
+  // La regla se LLAMA, no se reescribe: `precio-reserva.ts` es puro y sin imports
+  // justamente para que esta pantalla pueda usar la misma que congela el turno. Que el
+  // preview y el precio congelado se separen es la clienta viendo un número y pagando otro.
+  const basePrice = svc ? precioCongeladoDeReserva(svc, isResident).priceAtBooking : 0;
   const finalPrice = Math.max(0, basePrice - (couponApplied?.discount ?? 0));
 
   async function applyCoupon() {
@@ -843,7 +848,7 @@ function Step1({
           {g.services.map((it) => {
             const on = svc?.id === it.id;
             const hasResidentPrice = it.residentPrice != null;
-            const shownPrice = isResident && hasResidentPrice ? it.residentPrice! : it.price;
+            const shownPrice = precioCongeladoDeReserva(it, isResident).priceAtBooking;
             return (
               <button
                 key={it.id}

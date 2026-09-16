@@ -37,6 +37,20 @@ export const dynamic = "force-dynamic";
 
 const CIERRE_PATH = "/admin/caja/cierre";
 
+// Clases del modo TARJETA (móvil) de las dos tablas de esta pantalla: misma forma que
+// las del libro de caja, para que las cuatro tablas de caja se lean igual en el teléfono.
+// OJO con `sm:border-b-0`: NO va. Las filas traen su propio `border-b border-line/60 sm:border-b`
+// y las dos utilidades tienen la MISMA especificidad, así que decide el orden del CSS generado:
+// `border-b-0` se emite después y gana. Con esa clase acá, el escritorio quedaba sin separadores
+// por más que cada fila pidiera el suyo.
+const FILA_TARJETA =
+  "block px-4 py-3 last:border-b-0 sm:table-row sm:px-0 sm:py-0";
+// `flex` en móvil (rótulo a la izquierda, importe a la derecha) y `table-cell` desde sm:
+// la variante del breakpoint gana porque sale después en el CSS.
+const CELDA_TARJETA =
+  "flex items-baseline justify-between gap-3 py-0.5 sm:table-cell sm:py-2";
+const ROTULO_MOVIL = "text-xs uppercase tracking-wide text-faint sm:hidden";
+
 function prevDayKey(day: DayKey): DayKey {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
@@ -55,7 +69,11 @@ export default async function CierreCajaPage({
   const puedeCerrar = !yaCerrado && !enElFuturo;
 
   return (
-    <div>
+    // Antes era un `<div>` pelado: ni el shell (`AdminShell`) ni `PageHeader` aportan
+    // padding, así que a 412px el título y los campos donde se escribe la plata contada
+    // arrancaban en el píxel 0 y llegaban al 412. Mismo contenedor que `caja/page.tsx` y
+    // `caja/libro/page.tsx`, que son las pantallas hermanas.
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <PageHeader
         title="Cierre de caja"
         description="Contá la plata al final del día y dejá la diferencia asentada. Después de cerrar, el día queda congelado y el siguiente arranca con lo que contaste."
@@ -156,9 +174,12 @@ export default async function CierreCajaPage({
               : `Todo lo cargado hasta el ${formatDayLabel(day)} — ${preview.movementCount} movimiento${preview.movementCount === 1 ? "" : "s"}. Todavía no hay ningún cierre anterior.`}
           </CardDescription>
         </CardHeader>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[36rem] text-sm">
-            <thead>
+        {/* Mismo arreglo que el libro: con `min-w-[36rem]` la columna Total arrancaba en
+            x=469 a 412px de viewport, así que la fila «Debería haber» —que es contra la
+            que se cuenta la plata— mostraba Efectivo y MP y escondía Tarjeta y Total. */}
+        <div className="sm:overflow-x-auto">
+          <table className="block w-full text-sm sm:table sm:min-w-[36rem]">
+            <thead className="hidden sm:table-header-group">
               <tr className="border-b border-line text-muted">
                 <th scope="col" className="px-4 py-2 text-left font-medium">Concepto</th>
                 {CASH_METHODS.map((m) => (
@@ -169,32 +190,46 @@ export default async function CierreCajaPage({
                 <th scope="col" className="px-4 py-2 text-right font-medium">Total</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block sm:table-row-group">
               {([
                 ["Saldo al abrir", "opening"],
                 ["Ingresos", "ingresos"],
                 ["Egresos", "egresos"],
               ] as const).map(([rotulo, key]) => (
-                <tr key={key} className="border-b border-line/60">
-                  <th scope="row" className="px-4 py-2 text-left font-normal text-muted">{rotulo}</th>
+                <tr key={key} className={`${FILA_TARJETA} border-b border-line/60 sm:border-b`}>
+                  <th
+                    scope="row"
+                    className="block text-left text-xs font-semibold uppercase tracking-wide text-strong sm:table-cell sm:px-4 sm:py-2 sm:text-sm sm:font-normal sm:normal-case sm:tracking-normal sm:text-muted"
+                  >
+                    {rotulo}
+                  </th>
                   {CASH_METHODS.map((m) => (
-                    <td key={m} className="px-4 py-2 text-right tabular-nums text-body">
+                    <td key={m} className={`${CELDA_TARJETA} tabular-nums text-body sm:px-4 sm:text-right`}>
+                      <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
                       {fmtMoneyARS(preview.porMedio[m][key])}
                     </td>
                   ))}
-                  <td className="px-4 py-2 text-right tabular-nums text-body">
+                  <td className={`${CELDA_TARJETA} font-medium tabular-nums text-body sm:px-4 sm:font-normal sm:text-right`}>
+                    <span className={ROTULO_MOVIL}>Total</span>
                     {fmtMoneyARS(preview.total[key])}
                   </td>
                 </tr>
               ))}
-              <tr className="bg-surface-raised">
-                <th scope="row" className="px-4 py-3 text-left font-medium text-strong">Debería haber</th>
+              <tr className={`${FILA_TARJETA} bg-surface-raised`}>
+                <th
+                  scope="row"
+                  className="block text-left text-xs font-semibold uppercase tracking-wide text-strong sm:table-cell sm:px-4 sm:py-3 sm:text-sm sm:normal-case sm:tracking-normal"
+                >
+                  Debería haber
+                </th>
                 {CASH_METHODS.map((m) => (
-                  <td key={m} className="px-4 py-3 text-right font-medium tabular-nums text-strong">
+                  <td key={m} className={`${CELDA_TARJETA} font-medium tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}>
+                    <span className={ROTULO_MOVIL}>{CASH_METHOD_LABEL[m]}</span>
                     {fmtMoneyARS(preview.porMedio[m].expected)}
                   </td>
                 ))}
-                <td className="px-4 py-3 text-right font-medium tabular-nums text-strong">
+                <td className={`${CELDA_TARJETA} font-medium tabular-nums text-strong sm:px-4 sm:py-3 sm:text-right`}>
+                  <span className={ROTULO_MOVIL}>Total</span>
                   {fmtMoneyARS(esperadoTotal)}
                 </td>
               </tr>
@@ -238,9 +273,9 @@ export default async function CierreCajaPage({
         />
       ) : (
         <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-sm">
-              <thead>
+          <div className="sm:overflow-x-auto">
+            <table className="block w-full text-sm sm:table sm:min-w-[40rem]">
+              <thead className="hidden sm:table-header-group">
                 <tr className="border-b border-line text-muted">
                   <th scope="col" className="px-4 py-2 text-left font-medium">Fecha</th>
                   <th scope="col" className="px-4 py-2 text-left font-medium">Detalle</th>
@@ -249,15 +284,15 @@ export default async function CierreCajaPage({
                   <th scope="col" className="px-4 py-2 text-right font-medium">Egreso</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="block sm:table-row-group">
                 {movements.map((m) => {
                   const entra = m.type === "INGRESO" || m.type === "VENTA" || m.type === "APERTURA";
                   return (
-                    <tr key={m.id} className="border-b border-line/60">
-                      <td className="whitespace-nowrap px-4 py-2 tabular-nums text-muted">
+                    <tr key={m.id} className={`${FILA_TARJETA} border-b border-line/60 sm:border-b`}>
+                      <td className="block whitespace-nowrap text-xs font-medium uppercase tracking-wide tabular-nums text-faint sm:table-cell sm:px-4 sm:py-2 sm:text-sm sm:font-normal sm:normal-case sm:tracking-normal sm:text-muted">
                         {formatDayLabel(m.day).slice(0, 5)}
                       </td>
-                      <td className="px-4 py-2 text-body">
+                      <td className="block pt-0.5 text-body sm:table-cell sm:px-4 sm:py-2 sm:pt-2">
                         {m.detail || <span className="text-muted">(sin detalle)</span>}
                         {m.origin !== "manual" && (
                           <Badge className="ml-2" tone="neutral">
@@ -265,11 +300,18 @@ export default async function CierreCajaPage({
                           </Badge>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-muted">{CASH_METHOD_LABEL[m.method]}</td>
-                      <td className="px-4 py-2 text-right tabular-nums text-body">
+                      <td className={`${CELDA_TARJETA} whitespace-nowrap text-muted sm:px-4`}>
+                        <span className={ROTULO_MOVIL}>Medio</span>
+                        {CASH_METHOD_LABEL[m.method]}
+                      </td>
+                      {/* La celda de plata vacía no ocupa renglón en el teléfono; en la
+                          tabla de escritorio sigue estando, alineada con su columna. */}
+                      <td className={`${CELDA_TARJETA} tabular-nums text-body sm:px-4 sm:text-right ${entra ? "" : "hidden"}`}>
+                        <span className={ROTULO_MOVIL}>Ingreso</span>
                         {entra ? fmtMoneyARS(m.amount) : ""}
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-body">
+                      <td className={`${CELDA_TARJETA} tabular-nums text-body sm:px-4 sm:text-right ${entra ? "hidden" : ""}`}>
+                        <span className={ROTULO_MOVIL}>Egreso</span>
                         {entra ? "" : fmtMoneyARS(m.amount)}
                       </td>
                     </tr>
@@ -282,6 +324,6 @@ export default async function CierreCajaPage({
       )}
         </>
       )}
-    </div>
+    </main>
   );
 }

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import {
   registrarCobroTurno,
+  anularCobroTurno,
+  condonarSaldoTurno,
   confirmarTurno,
   cancelAppointment,
   completeAppointment,
@@ -22,6 +24,16 @@ import {
   METODOS_DE_PAGO,
   METODO_LABEL,
 } from "@/lib/turnos/cobros";
+import {
+  claseDeCobro,
+  cobrosAnulables,
+  desglosarCobros,
+  MOTIVO_MIN,
+} from "@/lib/turnos/anulacion";
+
+// La fila de cobro tal como la ve esta pantalla: la de `anulacion.ts` más lo que la grilla
+// del calendario puede no traer.
+type FilaDeCobroUI = { id?: string; amount: number; method: string; note?: string | null };
 
 type Appointment = {
   id: string;
@@ -37,8 +49,13 @@ type Appointment = {
   box: { name: string };
   // `Payment` = agregado de los cobros del turno (o el pago 1:1 previo a los cobros parciales).
   payment: { method: string; comprobanteNro: string | null; amount?: number; status?: string } | null;
-  // Cobros parciales (seña / saldo / lo que registró la recepción). Ausente en demo.
-  collections?: { amount: number; method: string }[];
+  // Cobros parciales (seña / saldo / lo que registró la recepción) MÁS sus contrapartidas
+  // y condonaciones (anulacion.ts): el `id` es lo que se anula y la `note` lo que distingue
+  // un cobro de la reversa que lo dio de baja. Ausente en demo.
+  // `id`, `note` y `createdAt` son opcionales porque la grilla del calendario declara su
+  // propia copia de este tipo sin esas columnas (CalendarGrid.tsx). En los datos reales
+  // vienen siempre —las carga `conCobros`—; sin `id` la fila simplemente no ofrece anular.
+  collections?: { id?: string; amount: number; method: string; note?: string | null; createdAt?: Date }[];
 };
 
 // Estados mapeados a la capa semántica, no a colores crudos de Tailwind.
@@ -179,6 +196,141 @@ function CompletarForm({ appointmentId, saldo, yaOcurrio }: { appointmentId: str
   );
 }
 
+// Confirmación en DOS PASOS con motivo obligatorio, para las dos correcciones que mueven
+// plata hacia atrás. Dos pasos y no uno porque el botón vive al lado de "Registrar cobro" y
+// un clic de más no puede deshacer un cobro; el motivo es obligatorio porque es lo único
+// que, seis meses después, explica por qué la caja de ese día tiene un egreso.
+function CorreccionConMotivo({
+  etiqueta,
+  pregunta,
+  confirmar,
+  placeholder,
+  peligro = true,
+  campos,
+  accion,
+}: {
+  etiqueta: string;
+  pregunta: string;
+  confirmar: string;
+  placeholder: string;
+  peligro?: boolean;
+  campos: Record<string, string>;
+  accion: (fd: FormData) => Promise<ResultadoAccion>;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [error, setError] = useState("");
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className={peligro ? linkButtonClasses : "inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-strong transition-colors"}
+      >
+        {etiqueta}
+      </button>
+    );
+  }
+  return (
+    <form
+      className="flex flex-col gap-1.5 rounded-md border border-line bg-surface-sunken px-3 py-2"
+      role="group"
+      aria-label={pregunta}
+      action={async (fd) => {
+        setError("");
+        const r = await accion(fd);
+        if (!r.ok) setError(r.error);
+        else setAbierto(false);
+      }}
+    >
+      {Object.entries(campos).map(([k, v]) => (
+        <input key={k} type="hidden" name={k} value={v} />
+      ))}
+      <p className="text-xs font-medium text-strong">{pregunta}</p>
+      <input
+        type="text"
+        name="motivo"
+        required
+        minLength={MOTIVO_MIN}
+        maxLength={200}
+        placeholder={placeholder}
+        aria-label="Motivo"
+        className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+      />
+      <div className="flex items-center gap-3 text-xs">
+        <SubmitButton pendingText="Guardando…" className="font-semibold underline text-danger">
+          {confirmar}
+        </SubmitButton>
+        <button type="button" className="text-muted hover:underline" onClick={() => { setAbierto(false); setError(""); }}>
+          No
+        </button>
+      </div>
+      {error && (
+        <p className="text-sm text-danger" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+// Los cobros ya registrados del turno, con su anulación al lado. Es la pantalla que faltaba:
+// antes la fila decía "cobrado $18.000 · saldado" y no ofrecía NADA más — ni ver con qué
+// medio se cobró, ni corregirlo. El error típico (medio equivocado, el select viene en
+// EFECTIVO por default) se arreglaba tipeando dos asientos de fantasía en el libro.
+function CobrosRegistrados({
+  appointmentId,
+  cobros,
+  puedeAnular,
+}: {
+  appointmentId: string;
+  cobros: readonly FilaDeCobroUI[];
+  puedeAnular: boolean;
+}) {
+  const anulables = new Set(cobrosAnulables(cobros).map((c) => c.id));
+  if (cobros.length === 0) return null;
+  return (
+    <div className="mt-3 border-t border-line pt-2">
+      <p className="text-xs font-medium text-muted">Cobros registrados</p>
+      <ul className="mt-1 flex flex-col gap-1.5">
+        {cobros.map((c, i) => {
+          const clase = claseDeCobro(c.note);
+          return (
+            <li key={c.id ?? i} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              {clase === "cobro" && (
+                <span className="text-body">
+                  {fmtMoneyARS(c.amount, 0)} · {METODO_LABEL[c.method as keyof typeof METODO_LABEL] ?? c.method}
+                </span>
+              )}
+              {clase === "anulacion" && (
+                <span className="text-muted line-through">{fmtMoneyARS(Math.abs(c.amount), 0)}</span>
+              )}
+              {clase === "anulacion" && (
+                <span className="inline-block rounded-full bg-surface-sunken px-2 py-0.5 text-muted">Anulado</span>
+              )}
+              {clase === "condonacion" && (
+                <span className="inline-block rounded-full bg-info-soft px-2 py-0.5 text-info">
+                  Saldo dado de baja {fmtMoneyARS(c.amount, 0)}
+                </span>
+              )}
+              {c.note && clase !== "cobro" && <span className="text-muted">{c.note.replace(/^[A-Z]+:\S*\s*—?\s*/, "")}</span>}
+              {clase === "cobro" && puedeAnular && c.id && anulables.has(c.id) && (
+                <CorreccionConMotivo
+                  etiqueta="Anular"
+                  pregunta={`¿Anular el cobro de ${fmtMoneyARS(c.amount, 0)}? Sale del libro de caja con la fecha del cobro.`}
+                  confirmar="Sí, anular"
+                  placeholder="Por qué se anula (cobré el medio equivocado…)"
+                  campos={{ collectionId: c.id, appointmentId }}
+                  accion={anularCobroTurno}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export default function AppointmentRow({
   appointment,
   statusLabel,
@@ -232,6 +384,9 @@ export default function AppointmentRow({
   const senia = seniaDelServicio({ depositAmount: appointment.service.depositAmount, precio });
   const sugerido = cobroSugerido({ status: appointment.status, precio, depositAmount: appointment.service.depositAmount, cobros, pagoLegado });
   const cuentaACobrar = esCuentaACobrar({ status: appointment.status, saldo: plata.saldo });
+  // Cobrado y condonado se muestran SEPARADOS: sumarlos diría que entraron $20.000 cuando
+  // entraron $17.000, que es justo la mentira que obligaba a inventar asientos en la caja.
+  const desglose = desglosarCobros(cobros);
   // "Ya ocurrió" es sólo una pista visual (el server es la autoridad: `puedeCompletarse`);
   // el reloj se toma una vez al montar para no leer `Date.now()` en el render.
   const [ahora] = useState(() => Date.now());
@@ -260,7 +415,8 @@ export default function AppointmentRow({
             <span className="text-sm font-medium text-strong">{fmtMoneyARS(precio, 0)}</span>
             {plata.cobrado > 0 && (
               <span className="text-xs text-muted">
-                cobrado {fmtMoneyARS(plata.cobrado, 0)}
+                {desglose.cobrado > 0 ? `cobrado ${fmtMoneyARS(desglose.cobrado, 0)}` : "sin cobrar"}
+                {desglose.condonado > 0 ? ` · dado de baja ${fmtMoneyARS(desglose.condonado, 0)}` : ""}
                 {plata.saldo > 0 ? ` · saldo ${fmtMoneyARS(plata.saldo, 0)}` : " · saldado"}
               </span>
             )}
@@ -365,18 +521,41 @@ export default function AppointmentRow({
             saldo; y a la recepción se le ofrecía el botón incluso para la profesional que
             cobra aparte, con el servidor rechazándolo después, con la clienta enfrente.
             Ahora usa el mismo veredicto que aplica el servidor. */}
-        {cuentaACobrar && canCollect && (
+        {cuentaACobrar && (canCollect || canManage) && (
           <div className="flex flex-col gap-2 min-w-[260px]">
-            {veredictoCobro.ok ? (
-              <CobroForm appointmentId={appointment.id} monto={plata.saldo} titulo="Cobrar el saldo pendiente" />
-            ) : (
-              <p className="rounded-md border border-line bg-surface-sunken px-3 py-2 text-xs text-muted">
-                {veredictoCobro.motivo} Quedan {fmtMoneyARS(plata.saldo)} a cobrar.
-              </p>
+            {canCollect &&
+              (veredictoCobro.ok ? (
+                <CobroForm appointmentId={appointment.id} monto={plata.saldo} titulo="Cobrar el saldo pendiente" />
+              ) : (
+                <p className="rounded-md border border-line bg-surface-sunken px-3 py-2 text-xs text-muted">
+                  {veredictoCobro.motivo} Quedan {fmtMoneyARS(plata.saldo)} a cobrar.
+                </p>
+              ))}
+            {/* DAR DE BAJA EL SALDO. Sin esto, un saldo que el negocio decidió no cobrar
+                —un descuento hecho en el sillón, una deuda incobrable— se queda para
+                siempre en "Saldos a cobrar" (la única pantalla que muestra el fiado real)
+                y además traba la comisión de la profesional, que sí prestó el servicio.
+                Va con `canManage`: perdonar plata lo decide el negocio, no quien cobra. */}
+            {canManage && (
+              <CorreccionConMotivo
+                etiqueta={`Dar de baja el saldo de ${fmtMoneyARS(plata.saldo, 0)}`}
+                pregunta={`¿Dar de baja ${fmtMoneyARS(plata.saldo, 0)} que no se van a cobrar? No mueve la caja: sólo deja de figurar como deuda.`}
+                confirmar="Sí, dar de baja"
+                placeholder="Por qué no se cobra (descuento de la dueña, incobrable…)"
+                peligro={false}
+                campos={{ appointmentId: appointment.id }}
+                accion={condonarSaldoTurno}
+              />
             )}
           </div>
         )}
       </div>
+
+      <CobrosRegistrados
+        appointmentId={appointment.id}
+        cobros={cobros}
+        puedeAnular={canCollect && veredictoCobro.ok}
+      />
     </div>
   );
 }

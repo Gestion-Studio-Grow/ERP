@@ -3,6 +3,8 @@ import { fmtMoneyARS } from "@/components/ui";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
+import { canCurrentUser } from "@/lib/authz";
+import EditarClienteForm from "./EditarClienteForm";
 
 const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
@@ -20,6 +22,11 @@ export default async function ClienteDetailPage({
   const { id } = await params;
   const client = await getClient(id);
   if (!client) notFound();
+
+  // `clients:manage` está otorgada a RECEPTION y hasta acá no la consumía nadie. Esto es
+  // sólo para no mostrar un botón que no va a funcionar; la guarda de verdad está en
+  // `updateClient` (ADR-017 §2.e: ocultar un botón no es seguridad).
+  const puedeEditar = await canCurrentUser("clients:manage");
 
   const totalGastado = client.appointments
     .filter((a) => a.payment?.status === "APPROVED")
@@ -45,6 +52,30 @@ export default async function ClienteDetailPage({
           </span>
         )}
       </p>
+
+      {puedeEditar && (
+        <div className="mb-8">
+          <EditarClienteForm
+            cliente={{
+              id: client.id,
+              name: client.name,
+              phone: client.phone,
+              email: client.email,
+              notes: client.notes,
+              // `<input type="date">` sólo entiende "yyyy-mm-dd". La fecha se guarda a las
+              // 12:00Z justamente para que este recorte dé el mismo día en cualquier huso.
+              birthDate: client.birthDate ? client.birthDate.toISOString().slice(0, 10) : null,
+            }}
+          />
+        </div>
+      )}
+
+      {client.notes && (
+        <div className="mb-8 rounded-lg border border-line bg-surface-raised p-4">
+          <p className="text-sm font-medium text-strong mb-1">Notas internas</p>
+          <p className="text-sm text-muted whitespace-pre-line">{client.notes}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 mb-8">
         <div className="rounded-lg border border-line bg-surface-raised shadow-xs p-4">

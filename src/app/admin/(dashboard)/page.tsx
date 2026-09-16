@@ -241,19 +241,33 @@ async function InicioVertical() {
         {data.todayAppointments.length === 0 && (
           <p className="text-sm text-muted px-5 py-6">No hay turnos programados para hoy.</p>
         )}
+        {/* LA FILA SE APILA EN EL TELÉFONO.
+            Antes eran cuatro columnas en una sola línea sin breakpoint: hora (62px fijos),
+            cliente+servicio (`flex-1 min-w-0`), badge de estado y profesional
+            (`whitespace-nowrap`). El único que podía encogerse era el del cliente, así que
+            con una profesional de 19 caracteres su columna caía a 11px y con 23 a 0px: el
+            nombre del cliente desbordaba su caja y se pintaba ENCIMA del badge, ilegibles
+            los dos. Es la primera pantalla que se abre a la mañana y decía todo menos de
+            quién era el turno.
+            Ahora en móvil la profesional baja a una segunda línea junto al badge, y el
+            nombre del cliente se queda con el ancho completo de la fila. Desde `sm:` vuelve
+            la fila de cuatro columnas de siempre, pero con `truncate` en la profesional:
+            que se corte con puntos suspensivos el dato secundario, nunca el principal. */}
         {data.todayAppointments.map((a, i) => (
           <Link
             key={a.id}
             href="/admin/turnos"
-            className={`flex items-center gap-4 px-5 py-3.5 text-sm hover:bg-surface-sunken transition-colors ${i > 0 ? "border-t border-line" : ""}`}
+            className={`flex flex-col items-start gap-1.5 px-5 py-3.5 text-sm transition-colors hover:bg-surface-sunken sm:flex-row sm:items-center sm:gap-4 ${i > 0 ? "border-t border-line" : ""}`}
           >
             <span className="font-semibold text-accent text-xs bg-accent-soft rounded-md px-2 py-1 min-w-[62px] text-center">{fmtTime(a.startsAt)}</span>
-            <span className="flex-1 min-w-0">
+            <span className="min-w-0 max-w-full flex-1">
               <span className="font-semibold text-strong">{a.client.name}</span>
               <span className="text-muted"> — {a.service.name}</span>
             </span>
-            <StatusBadge status={(a as { status?: string }).status} />
-            <span className="text-muted text-[13px] whitespace-nowrap">{a.professional.name}</span>
+            <span className="flex min-w-0 max-w-full items-center gap-2 sm:contents">
+              <StatusBadge status={(a as { status?: string }).status} />
+              <span className="min-w-0 truncate text-[13px] text-muted">{a.professional.name}</span>
+            </span>
           </Link>
         ))}
       </section>

@@ -47,6 +47,13 @@ import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 // inicial y cada cierre de día.
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
+// Marca de los egresos que asienta el alta de una compra a proveedor. El libro la
+// necesita por dos motivos opuestos: para NO dejar borrar esas filas desde acá
+// (dirección única) y para AVISAR cuando alguien está por tipear a mano un egreso que
+// el sistema ya asentó solo.
+import { COMPRA_ACTOR_PREFIX, esEgresoDeCompra } from "@/lib/stock/purchase-egreso";
+import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
+import { esEgresoDeAnulacion } from "@/lib/turnos/anulacion";
 
 const LIBRO_PATH = "/admin/caja/libro";
 // El mismo formulario de alta se monta en la Caja (es el único camino de escritura manual),
@@ -57,7 +64,7 @@ const CAJA_PATH = "/admin/caja";
 // Error de dominio para el aviso de duplicado. Va como clase (y no como string
 // suelto) para poder distinguirlo de cualquier otro fallo de la transacción.
 class DuplicadoError extends Error {
-  constructor(readonly delSistema: { detail: string } | null = null) {
+  constructor(readonly delSistema: { detail: string; origen: "venta" | "compra" | "comision" } | null = null) {
     super();
   }
 }
@@ -299,6 +306,13 @@ export async function addLibroEntry(
       //     detalle no se compara (ella escribe "Sofía facial", el sistema "Turno · …"):
       //     alcanza con día + medio + monto. Se avisa, con el detalle de la fila del
       //     sistema, y se puede insistir (una seña igual al precio del servicio es legítima).
+      //
+      //   · YA LO ASENTÓ UNA COMPRA: un egreso manual del mismo día, medio y monto que el
+      //     que dejó el alta de una compra a proveedor (marca `compra:` en `createdBy`).
+      //     Desde que registrar una compra asienta su egreso solo, la costumbre de
+      //     tipearlo también en el libro produce el gasto DOS veces y una caja que cierra
+      //     de menos. Se avisa con el detalle de la fila del sistema y se puede insistir
+      //     (dos pagos iguales al mismo proveedor el mismo día son posibles).
       if (!confirmado) {
         const yaHay = await tx.cashMovement.findFirst({
           where: {
@@ -309,15 +323,26 @@ export async function addLibroEntry(
             OR: [
               { type, reason: detail, occurredAt },
               ...(type === "INGRESO" ? [{ type: "VENTA" as const }] : []),
+              ...(type === "EGRESO"
+                ? [
+                    { type: "EGRESO" as const, createdBy: { startsWith: COMPRA_ACTOR_PREFIX } },
+                    { type: "EGRESO" as const, createdBy: { startsWith: COMISION_ACTOR_PREFIX } },
+                  ]
+                : []),
             ],
           },
           // Primero la del sistema si hay una: es el aviso más importante. El enum se ordena
           // por declaración (APERTURA, VENTA, INGRESO, …), así que `asc` pone VENTA antes.
+          // Para EGRESO el orden no alcanza (las dos ramas son del mismo tipo): ahí distingue
+          // la marca de `createdBy`.
           orderBy: { type: "asc" },
-          select: { id: true, type: true, reason: true },
+          select: { id: true, type: true, reason: true, createdBy: true },
         });
         if (yaHay) {
-          throw new DuplicadoError(yaHay.type === "VENTA" ? { detail: yaHay.reason ?? "" } : null);
+          if (yaHay.type === "VENTA") throw new DuplicadoError({ detail: yaHay.reason ?? "", origen: "venta" });
+          if (esEgresoDeCompra(yaHay)) throw new DuplicadoError({ detail: yaHay.reason ?? "", origen: "compra" });
+          if (esEgresoDeComision(yaHay)) throw new DuplicadoError({ detail: yaHay.reason ?? "", origen: "comision" });
+          throw new DuplicadoError(null);
         }
       }
       const openSession = await tx.cashSession.findFirst({
@@ -339,6 +364,26 @@ export async function addLibroEntry(
     }, { tenantId });
   } catch (err) {
     if (err instanceof DuplicadoError) {
+      if (err.delSistema?.origen === "comision") {
+        return {
+          ok: false,
+          confirmable: "duplicado",
+          error:
+            `El sistema ya asentó ese egreso cuando liquidaste la comisión: “${err.delSistema.detail}”, ` +
+            `${fmtMoneyARS(amount)} (${CASH_METHOD_LABEL[method]}). Las liquidaciones descuentan solas de la ` +
+            `caja: no hace falta cargarlas también acá. Si es otro pago distinto, confirmá para guardarlo igual.`,
+        };
+      }
+      if (err.delSistema?.origen === "compra") {
+        return {
+          ok: false,
+          confirmable: "duplicado",
+          error:
+            `El sistema ya asentó ese gasto cuando registraste la compra: “${err.delSistema.detail}”, ` +
+            `${fmtMoneyARS(amount)} (${CASH_METHOD_LABEL[method]}). Las compras a proveedor descuentan solas ` +
+            `de la caja: no hace falta cargarlas también acá. Si es otro pago distinto, confirmá para guardarlo igual.`,
+        };
+      }
       if (err.delSistema) {
         return {
           ok: false,
@@ -433,6 +478,28 @@ export async function deleteLibroEntry(
       // saldo se desataría del conteo físico del cajón.
       if (found.createdBy.startsWith(ARQUEO_TURNO_ACTOR_PREFIX)) {
         throw new Error("Ese movimiento es la diferencia que dejó el arqueo de un turno. No se borra: si estuvo mal, va una corrección con la fecha de hoy.");
+      }
+      // El egreso que asentó una compra a proveedor tampoco se borra desde acá, por la misma
+      // regla de dirección única que la venta: la compra escribe en el libro, el libro no
+      // escribe en compras. Borrar la fila dejaría la mercadería adentro y la plata como si
+      // nunca hubiera salido — exactamente el agujero que asentar el egreso vino a tapar.
+      // Como una compra registrada no se puede editar hoy, la corrección es un movimiento en
+      // contra con la fecha de hoy, igual que con la diferencia de un cierre.
+      // La reversa de un cobro anulado se asienta como EGRESO (es lo que el libro sabe
+      // restar) y sin marca se ve igual que uno tipeado a mano. Borrarla le devolvería al
+      // libro plata que el sistema ya decidió que NO entró: el turno queda anulado y el
+      // saldo vuelve a contarla. Misma regla de dirección única que la compra y la venta.
+      if (esEgresoDeAnulacion(found)) {
+        throw new Error("Ese egreso lo asentó la anulación de un cobro. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.");
+      }
+      // El egreso de una liquidación de comisión tampoco: la liquidación escribe en el libro,
+      // el libro no toca liquidaciones. Borrarlo dejaría a la profesional cobrada y la plata
+      // como si nunca hubiera salido.
+      if (esEgresoDeComision(found)) {
+        throw new Error("Ese egreso lo asentó una liquidación de comisión. No se borra desde el libro: si el importe está mal, cargá una corrección con la fecha de hoy.");
+      }
+      if (esEgresoDeCompra(found)) {
+        throw new Error("Ese egreso lo asentó el registro de una compra a proveedor. No se borra desde el libro: si el importe o el medio están mal, cargá una corrección con la fecha de hoy.");
       }
       const dia = dateStrInBusinessTz(found.occurredAt);
       if (cerradoHasta && isFrozenDay(dia, cerradoHasta)) {

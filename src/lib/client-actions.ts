@@ -6,7 +6,11 @@ import { revalidatePath } from "next/cache";
 import { auditPublic } from "@/lib/audit-core";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
-import { getPublicBookingData } from "@/lib/actions";
+import { getPublicBookingData, type ResultadoAccion } from "@/lib/actions";
+import { requireCapability } from "@/lib/authz";
+import { auditAdmin } from "@/lib/audit-core";
+import { validateBookingContact } from "@/lib/contact-validation";
+import { fichaQueChoca, normalizarTelefono } from "@/lib/clientes/telefono";
 import { getLocation } from "@/lib/settings";
 import { nextBusinessDays } from "@/lib/datetime";
 import type { BookingData } from "@/app/(site)/_ch/types";
@@ -186,4 +190,126 @@ export async function getBookingDataPublic(): Promise<BookingData> {
     days: nextBusinessDays(14),
     whatsapp: location.whatsapp,
   };
+}
+
+
+// ============================================================================
+// LA EXCEPCIÓN DE ESTE ARCHIVO: una acción de ADMIN, con guarda.
+// ============================================================================
+//
+// El resto de `client-actions.ts` es superficie pública: la autoriza tener el id del turno.
+// `updateClient` no: es la ficha del cliente desde el panel y exige `clients:manage`.
+//
+// Por qué existe. La ficha era 100 % lectura y no había NINGUNA acción que escribiera un
+// `Client` fuera del `{ isResident }` del alta de turno. Un teléfono mal tipeado no se
+// corregía nunca — y ese es el teléfono al que sale el recordatorio (`reminder-sweep.ts`
+// manda a `appt.client.phone`), así que la clienta no recibía el aviso y nadie entendía por
+// qué. La única vía disponible era reservarle otro turno con el teléfono bien, que crea una
+// SEGUNDA ficha y parte el historial en dos. De paso, `clients:manage` estaba otorgada a
+// RECEPTION y anunciada por los blueprints como "ficha de clientes" sin que ningún
+// `requireCapability` la consumiera: un permiso que no permitía nada.
+//
+// QUÉ SE GUARDA EN `phone`: lo que la persona tipeó (trim + espacios colapsados), NO la
+// clave normalizada. Es deliberado y es por el alta: `createManualAppointment` y
+// `createBookingFromModal` reusan la ficha con `findFirst({ where: { phone } })`, match
+// EXACTO sobre el string. Si acá reescribiéramos "11 4000-7919" como "1140007919", la
+// próxima vez que la recepcionista tipee el teléfono como siempre lo tipea, el alta no
+// encontraría la ficha y crearía una nueva — o sea, el mismo bug que vinimos a arreglar,
+// dado vuelta. La normalización se usa sólo para COMPARAR. Cuando el alta también normalice
+// (es `src/lib/actions.ts`), esto se puede revisar.
+export async function updateClient(formData: FormData): Promise<ResultadoAccion> {
+  // DEVUELVE resultado en vez de tirar: un `throw` dentro de una Server Action llega a
+  // producción como "Minified React error #441" y quien lo lee es la recepcionista.
+  await requireCapability("clients:manage");
+
+  const id = String(formData.get("id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
+  const phone = String(formData.get("phone") ?? "").trim().replace(/\s+/g, " ");
+  const email = String(formData.get("email") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+  const birthDateStr = String(formData.get("birthDate") ?? "").trim();
+
+  if (!id) return { ok: false, error: "Falta indicar qué cliente se edita." };
+  if (!name) return { ok: false, error: "El nombre no puede quedar vacío." };
+  if (!phone) return { ok: false, error: "El teléfono no puede quedar vacío: es por donde sale el recordatorio." };
+
+  // Misma autoridad de forma que el alta (CH-A1): el dato que entra por acá termina en el
+  // mismo lugar que el que entra por el modal de reserva.
+  const contacto = validateBookingContact(phone, email);
+  if (!contacto.ok) return { ok: false, error: contacto.error };
+
+  let birthDate: Date | null = null;
+  if (birthDateStr) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDateStr)) {
+      return { ok: false, error: "La fecha de nacimiento no es válida." };
+    }
+    // Mediodía UTC, no medianoche: un cumpleaños es una fecha, no un instante, y guardarlo
+    // a las 00:00Z lo corre un día para atrás al mostrarlo en cualquier huso negativo
+    // (Argentina es UTC-3). Con las 12:00Z la fecha se lee igual en todo el continente.
+    birthDate = new Date(`${birthDateStr}T12:00:00.000Z`);
+    if (Number.isNaN(birthDate.getTime())) {
+      return { ok: false, error: "La fecha de nacimiento no es válida." };
+    }
+  }
+
+  // `findUnique` viene scopeado al tenant por la extensión de Prisma (tenant-scope): un id
+  // de otro tenant devuelve null acá, no una ficha ajena.
+  const antes = await prisma.client.findUnique({ where: { id } });
+  if (!antes) return { ok: false, error: "Esa ficha de cliente no existe." };
+
+  // EL TELÉFONO ES LA CLAVE NATURAL. Si se lo edita a uno que ya tiene otra ficha, quedan
+  // dos clientas con el mismo número y el alta de turno elige la que le da el `findFirst`:
+  // los turnos nuevos van a una y el historial viejo queda en la otra. Se RECHAZA y se dice
+  // cuál es la otra ficha. Unificar dos clientas (mover turnos, pedidos y cuenta corriente)
+  // es otra operación, con su propia auditoría, y todavía no existe: hacerla de prepo acá,
+  // en silencio, sería peor que no dejar.
+  const clave = normalizarTelefono(phone);
+  if (clave && clave !== normalizarTelefono(antes.phone)) {
+    // Sin columna normalizada en `Client` no hay índice por el cual buscar: se comparan las
+    // claves en memoria. Es un COUNT de fichas del tenant (miles, no millones) y corre sólo
+    // cuando el teléfono cambia de verdad. Si algún día molesta, el arreglo es una columna
+    // `phoneKey` con único por tenant, no un índice sobre el string tipeado.
+    const otros = await prisma.client.findMany({ select: { id: true, name: true, phone: true } });
+    // La DECISIÓN vive en `fichaQueChoca` (puro) para poder probarla con números de verdad:
+    // acá adentro sólo se puede verificar por forma, y esa verificación queda verde aunque
+    // alguien borre el chequeo.
+    const choque = fichaQueChoca(id, phone, antes.phone, otros);
+    if (choque) {
+      return {
+        ok: false,
+        error:
+          `Ese teléfono ya es el de la ficha de ${choque.name} (${choque.phone}). ` +
+          "Si son la misma persona, hay que unificar las dos fichas: por ahora se hace a mano.",
+      };
+    }
+  }
+
+  const despues = {
+    name,
+    phone,
+    email: email || null,
+    notes: notes || null,
+    birthDate,
+  };
+
+  // Sólo los campos que CAMBIARON, con su valor anterior al lado: para un dato de contacto
+  // eso es lo que permite deshacer sin ir a buscar el backup.
+  const cambios: Record<string, { antes: unknown; despues: unknown }> = {};
+  if (antes.name !== despues.name) cambios.name = { antes: antes.name, despues: despues.name };
+  if (antes.phone !== despues.phone) cambios.phone = { antes: antes.phone, despues: despues.phone };
+  if ((antes.email ?? null) !== despues.email) cambios.email = { antes: antes.email, despues: despues.email };
+  if ((antes.notes ?? null) !== despues.notes) cambios.notes = { antes: antes.notes, despues: despues.notes };
+  if ((antes.birthDate?.getTime() ?? null) !== (despues.birthDate?.getTime() ?? null)) {
+    cambios.birthDate = { antes: antes.birthDate, despues: despues.birthDate };
+  }
+
+  if (Object.keys(cambios).length === 0) return { ok: true };
+
+  await prisma.client.update({ where: { id }, data: despues });
+
+  await auditAdmin({ action: "update", entity: "Client", entityId: id, changes: cambios });
+
+  revalidatePath(`/admin/clientes/${id}`);
+  revalidatePath("/admin/clientes");
+  return { ok: true };
 }
