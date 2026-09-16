@@ -20,7 +20,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { SessionUser } from "@/lib/session";
-import { businessWallTimeToUtc } from "@/lib/datetime";
+import { businessWallTimeToUtc, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
+import { bordesDelPeriodo } from "@/lib/report-ingresos";
 import { computeDeepKpis, type KpiAppointment, type KpiPaymentMethod } from "@/lib/report-kpis";
 import { isDemoSandbox, DEMO_TENANT_ID } from "@/lib/demo-flag";
 import {
@@ -315,8 +316,10 @@ export function getDemoReportData(
   rangeDays: number,
   rec: ConsultorRecommendation = activeDemoRecommendation(),
 ) {
-  const hasta = new Date();
-  const desde = new Date(hasta.getTime() - rangeDays * DAY_MS);
+  // Mismo contrato que `getReportData` real: bordes snapeados al día de negocio. Si el demo
+  // usara instantes sueltos, el rótulo compartido de la pantalla ("por fecha de COBRO",
+  // "fecha en que entró la plata") quedaría sobre filas fechadas de otra manera.
+  const { desde, hasta } = bordesDelPeriodo(todayInBusinessTz(), rangeDays, businessWallTimeToUtc);
   const current = buildDemoPeriod(rec, CURRENT_OFFSETS);
   const paid = current.filter((a) => a.payment);
 
@@ -343,9 +346,11 @@ export function getDemoReportData(
     hasta,
     totalIngresos,
     cantidadPagos: paid.length,
+    // Etiquetas en día de NEGOCIO, como las reales: `toISOString()` rendía el día UTC y en
+    // la última franja de cada día mostraba el día siguiente.
     porDia: [
-      { label: desde.toISOString().slice(0, 10), total: Math.round(totalIngresos * 0.42) },
-      { label: hasta.toISOString().slice(0, 10), total: Math.round(totalIngresos * 0.58) },
+      { label: dateStrInBusinessTz(desde), total: Math.round(totalIngresos * 0.42) },
+      { label: dateStrInBusinessTz(hasta), total: Math.round(totalIngresos * 0.58) },
     ],
     // Mismos nombres de campo que `getReportData` real; el contenido lo dicta el
     // rubro (para retail, "por profesional" es el canal/mostrador).

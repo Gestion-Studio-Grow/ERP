@@ -42,6 +42,7 @@ import {
 } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
+import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
 import {
   anularCobroTurnoInTx,
   condonarSaldoTurnoInTx,
@@ -1330,15 +1331,27 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
   // de Prisma no expresa en una pasada (día calendario en zona del negocio y nombres de
   // relaciones anidadas) — pero ahora corren sobre un set acotado por el rango, no sobre
   // toda la historia. Ver enmienda ADR-023 F3.
-  const hasta = new Date();
-  const desde = new Date(hasta.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+  //
+  // UN SOLO RELOJ. Esta función tenía dos: filtraba por `Payment.createdAt` (cuándo entró la
+  // plata) y después agrupaba por día con `Appointment.startsAt` (cuándo se prestó el
+  // servicio). El total nunca divergió de la suma de las filas —las dos salen del mismo
+  // array—, así que no se veía en un control cruzado; lo que mentía era CADA FILA: un turno
+  // del lunes cobrado el miércoles sumaba al lunes, aparecían días fuera del período (hasta
+  // futuros, por las señas) y había días en $0 habiendo entrado plata.
+  // Ahora el reporte contesta UNA pregunta —cuánta plata entró cada día— y lo DICE en
+  // pantalla. "Cuánto facturaron los servicios de marzo" es otra pregunta, igual de legítima,
+  // y necesita su propia vista: la falla no era usar dos relojes, era no decir cuál.
+  //
+  // Y los bordes se snapean al día de negocio. Eran un instante a media tarde, así que la
+  // primera fila siempre era un día PARCIAL sin nada que lo dijera.
+  const { desde, hasta } = bordesDelPeriodo(todayInBusinessTz(), rangeDays, businessWallTimeToUtc);
   const payments = await prisma.payment.findMany({
     where: { tenantId, status: "APPROVED", createdAt: { gte: desde, lte: hasta } },
     select: {
       amount: true,
+      createdAt: true,
       appointment: {
         select: {
-          startsAt: true,
           professional: { select: { name: true } },
           service: { select: { name: true } },
         },
@@ -1347,41 +1360,20 @@ export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAY
     orderBy: { createdAt: "desc" },
   });
 
-  const totalIngresos = payments.reduce((sum, p) => sum + p.amount, 0);
+  // La agrupación vive en `report-ingresos.ts`, pura y con el reloj inyectado. Está afuera
+  // porque era lo ÚNICO de esta función que ningún test cubría (el del CSV le pasaba `[]`),
+  // y por eso el defecto de los dos relojes sobrevivió a una auditoría de once dimensiones.
+  const agrupado = agruparIngresos(
+    payments.map((p) => ({
+      amount: p.amount,
+      cobradoEn: p.createdAt,
+      profesional: p.appointment.professional.name,
+      servicio: p.appointment.service.name,
+    })),
+    dateStrInBusinessTz,
+  );
 
-  const porDia = new Map<string, number>();
-  const porProfesional = new Map<string, number>();
-  const porServicio = new Map<string, number>();
-
-  for (const p of payments) {
-    // Agrupar por día calendario del negocio, no por día UTC.
-    const day = dateStrInBusinessTz(p.appointment.startsAt);
-    porDia.set(day, (porDia.get(day) ?? 0) + p.amount);
-
-    const prof = p.appointment.professional.name;
-    porProfesional.set(prof, (porProfesional.get(prof) ?? 0) + p.amount);
-
-    const serv = p.appointment.service.name;
-    porServicio.set(serv, (porServicio.get(serv) ?? 0) + p.amount);
-  }
-
-  const toSortedArray = (m: Map<string, number>) =>
-    Array.from(m.entries())
-      .map(([label, total]) => ({ label, total }))
-      .sort((a, b) => b.total - a.total);
-
-  return {
-    rangeDays,
-    desde,
-    hasta,
-    totalIngresos,
-    cantidadPagos: payments.length,
-    porDia: Array.from(porDia.entries())
-      .map(([label, total]) => ({ label, total }))
-      .sort((a, b) => (a.label < b.label ? 1 : -1)),
-    porProfesional: toSortedArray(porProfesional),
-    porServicio: toSortedArray(porServicio),
-  };
+  return { rangeDays, desde, hasta, ...agrupado };
 }
 
 // Reportes v2 (frente ejecutivo): KPIs profundos para el dueño — fuga operativa

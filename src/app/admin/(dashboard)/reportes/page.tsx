@@ -22,10 +22,12 @@ const STATUS_MESSAGES: Record<string, { text: string; ok: boolean }> = {
   error_prof: { text: "No se pudo identificar al profesional.", ok: false },
 };
 
-function Table({ title, rows }: { title: string; rows: { label: string; total: number }[] }) {
+function Table({ title, hint, rows }: { title: string; hint?: string; rows: { label: string; total: number }[] }) {
   return (
     <div className="rounded-lg border border-line p-4">
-      <h3 className="font-medium mb-3">{title}</h3>
+      <h3 className="font-medium mb-1">{title}</h3>
+      {hint && <p className="mb-3 text-xs text-muted">{hint}</p>}
+      {!hint && <div className="mb-3" />}
       {rows.length === 0 && <p className="text-sm text-muted">Todavía no hay datos.</p>}
       <div className="space-y-1.5">
         {rows.map((r) => (
@@ -132,8 +134,14 @@ export default async function ReportesPage({
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Reportes</h1>
+      {/* QUÉ pregunta contesta esta pantalla. Los números de acá se fechan por la fecha de
+          COBRO, no por la del turno: un turno del lunes cobrado el miércoles cuenta el
+          miércoles. Decirlo no es un detalle — la pantalla agrupaba por una fecha y filtraba
+          por otra, y ninguna fila decía cuál.
+          NO dice "cierra contra el Libro de Caja", porque no cierra: el libro también tiene
+          ventas del mostrador, gastos, y movimientos cargados con fecha retroactiva. */}
       <p className="text-muted mb-4">
-        Ingresos confirmados (turnos con pago recibido) · período{" "}
+        Plata cobrada por turnos, por fecha de COBRO · período{" "}
         {fmtShortDate(data.desde)} a {fmtShortDate(data.hasta)}.
       </p>
 
@@ -223,10 +231,16 @@ export default async function ReportesPage({
           value={pct(k.estados.tasaCancelacion)}
           hint={`${k.estados.cancelados} de ${k.estados.resueltos} turnos resueltos`}
         />
+        {/* OJO: este KPI sale de OTRO conjunto que el total de arriba. Los de esta fila se
+            arman sobre los turnos DEL PERÍODO (por `startsAt`) que tienen un pago
+            registrado, cualquiera sea su estado —un no-show con seña cobrada cuenta— mientras
+            que "Ingresos" de arriba sale de la plata cobrada en el período. Multiplicar este
+            promedio por la cantidad de turnos de arriba NO da el total, y el rótulo tiene que
+            decirlo antes de que alguien lo intente. */}
         <KpiCard
           label="Ticket promedio"
           value={money(k.ticketPromedio)}
-          hint="Por turno cobrado"
+          hint="Sobre los turnos del período con pago registrado. No multiplica contra el total de arriba."
         />
         <KpiCard
           label="Clientes que vuelven"
@@ -330,9 +344,21 @@ export default async function ReportesPage({
       )}
 
       <div className="grid gap-4 mb-8">
-        <Table title="Ingresos por día" rows={data.porDia} />
-        <Table title="Ingresos por profesional" rows={data.porProfesional} />
-        <Table title="Ingresos por servicio" rows={data.porServicio} />
+        <Table
+          title="Ingresos por día"
+          hint="Fecha en que entró la plata, no la del turno."
+          rows={data.porDia}
+        />
+        <Table
+          title="Ingresos por profesional"
+          hint="Mismo conjunto de cobros que la tabla de arriba, repartido por profesional."
+          rows={data.porProfesional}
+        />
+        <Table
+          title="Ingresos por servicio"
+          hint="Mismo conjunto de cobros, repartido por servicio."
+          rows={data.porServicio}
+        />
       </div>
 
       {/* Comisiones pendientes de pago (liquidación por período) */}
