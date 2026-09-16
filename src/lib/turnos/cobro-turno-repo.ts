@@ -27,12 +27,10 @@
 // —Collection + Payment agregado— sin clave persistente ni asiento (degradación acordada).
 
 import type { Prisma } from "@/generated/prisma/client";
-import { Prisma as PrismaNs } from "@/generated/prisma/client";
 import { recordCobroTurnoInTx, type RecordCobroTurnoResult } from "@/lib/caja/cobro-turno";
 import { round2 } from "@/lib/round";
 import {
   estadoCobroTurno,
-  montoPaymentAgregado,
   montosCobrados,
   validarCobroTurno,
   type CobroTurno,
@@ -41,8 +39,19 @@ import {
   type MotivoCobroRechazado,
   type MotivoNoCompletable,
 } from "./cobros";
+// `desglosarCobros` y `claseDeCobro` son lo ÚNICO que distingue plata que entró de un saldo
+// condonado. El import va en esta dirección y sólo en esta: `anulacion.ts` NO importa este
+// módulo (que sí trae el namespace de Prisma como valor), así que el client component que
+// importa `anulacion.ts` no arrastra el runtime de Prisma al bundle del browser.
+import { claseDeCobro, desglosarCobros } from "./anulacion";
 
 export type CobroTurnoTx = Prisma.TransactionClient;
+
+// Nota del cobro que materializa un `Payment` legado. Vive ACÁ y no en un módulo
+// compartido a propósito: si `anulacion.ts` la importara de este archivo, se llevaría
+// consigo el import de valor de Prisma de la línea 30, y `AppointmentRow.tsx` —que es
+// client component e importa `anulacion.ts`— rompería el build de Turbopack.
+const NOTA_COBRO_LEGADO = "Cobro previo a los cobros parciales (Payment del turno)";
 
 export type AplicarCobroArgs = {
   appointmentId: string;
@@ -130,12 +139,19 @@ export async function cobrosDelTurnoInTx(tx: CobroTurnoTx, tenantId: string, app
   return loadCobros(tx, tenantId, appointmentId);
 }
 
-async function loadCobros(tx: CobroTurnoTx, tenantId: string, appointmentId: string): Promise<CobroTurno[]> {
+// La NOTA viaja con el monto, siempre. Es lo único que distingue plata que entró de un saldo
+// CONDONADO o de la contrapartida de una anulación, y sin ella `Payment.amount` contaba como
+// cobrado un saldo perdonado. `estadoCobroTurno` la ignora A PROPÓSITO (el saldo SÍ se cierra
+// con la condonación, que es lo que destraba la liquidación de comisión); `desglosarCobros`
+// la lee. Son dos cuentas distintas sobre las mismas filas, y salen de la misma fila.
+type CobroConNota = CobroTurno & { note: string | null };
+
+async function loadCobros(tx: CobroTurnoTx, tenantId: string, appointmentId: string): Promise<CobroConNota[]> {
   const rows = await tx.collection.findMany({
     where: { tenantId, originType: "APPOINTMENT", originId: appointmentId },
-    select: { amount: true, method: true },
+    select: { amount: true, method: true, note: true },
   });
-  return rows.map((r) => ({ amount: r.amount.toNumber(), method: r.method }));
+  return rows.map((r) => ({ amount: r.amount.toNumber(), method: r.method, note: r.note }));
 }
 
 export async function aplicarCobroTurnoInTx(
@@ -143,6 +159,18 @@ export async function aplicarCobroTurnoInTx(
   tenantId: string,
   args: AplicarCobroArgs,
 ): Promise<AplicarCobroResult> {
+  // La NOTA de un cobro pasó a ser un dato con consecuencia: `desglosarCobros` la lee para
+  // decidir si ese peso entra o no a `Payment.amount`. Es una columna de texto libre sin
+  // constraint en la base, así que el prefijo reservado se rechaza ACÁ. Un cobro que se
+  // hiciera pasar por condonación se descontaría solo del agregado sin que nadie lo pidiera;
+  // las marcas las escribe `anulacion.ts`, por su propio camino, y nunca este.
+  if (claseDeCobro(args.note) !== "cobro") {
+    throw new Error(
+      "Cobro de turno: la nota no puede empezar con una marca reservada (ANULACION:/CONDONACION:). " +
+        "Esas marcas las escribe la anulación, no el cobro.",
+    );
+  }
+
   // Capa 2 de idempotencia: mismo formulario enviado dos veces → el primero ya quedó.
   if (args.withSchema && args.idempotencyKey) {
     const prior = await tx.collection.findFirst({
@@ -176,16 +204,15 @@ export async function aplicarCobroTurnoInTx(
         appointmentId: args.appointmentId,
         amount: round2(pagoLegado.amount),
         method: pagoLegado.method,
-        note: "Cobro previo a los cobros parciales (Payment del turno)",
+        note: NOTA_COBRO_LEGADO,
         collectedBy: args.actor,
         ...(args.withSchema ? { idempotencyKey: `legado:${args.appointmentId}` } : {}),
       },
       select: { id: true },
     });
-    cobros.push({ amount: round2(pagoLegado.amount), method: pagoLegado.method });
+    cobros.push({ amount: round2(pagoLegado.amount), method: pagoLegado.method, note: NOTA_COBRO_LEGADO });
   }
 
-  const antes = estadoCobroTurno({ precio: args.precio, cobros });
 
   const created = await tx.collection.create({
     data: {
@@ -202,11 +229,33 @@ export async function aplicarCobroTurnoInTx(
     select: { id: true },
   });
 
-  // `Payment` = agregado de los cobros del turno: APPROVED desde el primer peso que entra,
-  // `amount` = todo lo cobrado, `method` = el del último cobro. Sin `comprobanteNro`: ese campo
-  // es la marca "ya facturado" de `decidirFacturacion`; el viejo `REC-<ts>` la disparaba y
-  // dejaba el turno sin factura al completarlo (ADR-024).
-  const amount = montoPaymentAgregado({ cobradoAntes: antes.cobrado, monto: v.monto });
+  // `Payment` = LA PLATA QUE REALMENTE ENTRÓ y sigue en pie. APPROVED desde el primer peso.
+  // `method` = el del último cobro. Sin `comprobanteNro`: ese campo es la marca "ya facturado"
+  // de `decidirFacturacion`; el viejo `REC-<ts>` la disparaba y dejaba el turno sin factura al
+  // completarlo (ADR-024).
+  //
+  // Se deriva con `desglosarCobros` —la MISMA función que usa la anulación— y NO con un Σ
+  // ciego. Una fila `CONDONACION:` es saldo perdonado, no plata: sumarla inflaba
+  // `Payment.amount`. Medido: cobrar $5.000, condonar $15.000, anular el cobro y volver a
+  // cobrar $5.000 dejaba `Payment.amount = 20.000` con $5.000 reales adentro. Y de ahí lo
+  // leen Reportes, los KPIs, la ficha de la clienta, el libro de IVA y —lo caro— la base de
+  // la comisión: se le pagaba a la profesional sobre plata que nunca entró.
+  const filas: CobroConNota[] = [...cobros, { amount: v.monto, method: args.method, note: args.note ?? null }];
+  const desglose = desglosarCobros(filas);
+
+  // NO hay guarda de "coherencia" comparando esto contra `estadoCobroTurno`, y es a propósito:
+  // `desglosarCobros` PARTICIONA las filas, así que `cobrado + condonado` es idénticamente
+  // `Σ amounts`, que es lo que devuelve la otra. Comparar las dos no puede fallar nunca. Había
+  // una guarda así, tautológica, y por eso dejó pasar el Payment inflado sin decir nada.
+  // Lo único que SÍ es una anomalía: Σ negativa significa una contrapartida de anulación sin
+  // su cobro original, o sea el libro de este turno ya está roto. Ahí no escribimos encima.
+  if (desglose.cobrado < 0) {
+    throw new Error(
+      `Cobro de turno ${args.appointmentId}: Σ cobros negativa (${desglose.cobrado}). Hay una anulación sin su cobro original.`,
+    );
+  }
+  const amount = round2(desglose.cobrado);
+
   const payment = await tx.payment.upsert({
     where: { appointmentId: args.appointmentId },
     create: { tenantId, appointmentId: args.appointmentId, amount, method: args.method, status: "APPROVED" },
@@ -214,9 +263,7 @@ export async function aplicarCobroTurnoInTx(
     select: { id: true, amount: true },
   });
 
-  const estado = estadoCobroTurno({ precio: args.precio, cobros: [...cobros, { amount: v.monto, method: args.method }] });
-  // Coherencia: el agregado y el saldo derivado salen de los mismos montos.
-  if (estado.cobrado !== amount) throw new Error("Cobro de turno: el Payment agregado no coincide con Σ cobros.");
+  const estado = estadoCobroTurno({ precio: args.precio, cobros: filas });
 
   let caja: RecordCobroTurnoResult | null = null;
   if (args.withSchema) {
@@ -234,40 +281,12 @@ export async function aplicarCobroTurnoInTx(
 }
 
 // ── Lectura para las pantallas ──────────────────────────────────────────────
-
-export type CobroListado = { amount: number; method: string; createdAt: Date };
-
-// ¿Falta la tabla/columna en la DB (migración sin aplicar)? P2021 = tabla, P2022 = columna.
-function isSchemaMissing(e: unknown): boolean {
-  return e instanceof PrismaNs.PrismaClientKnownRequestError && (e.code === "P2021" || e.code === "P2022");
-}
-
-/**
- * Cobros por turno para pintar "cobrado / saldo" en la agenda. Query aparte del listado de
- * turnos a propósito: si la tabla `Collection` (D9) no está migrada, la agenda tiene que
- * seguir cargando — se devuelve un mapa vacío y el turno se ve como sin cobros (lo que
- * `Payment` legado diga sigue contando vía `pagoLegado`).
- */
-export async function cobrosPorTurno(
-  db: { collection: { findMany: CobroTurnoTx["collection"]["findMany"] } },
-  tenantId: string,
-  appointmentIds: readonly string[],
-): Promise<Map<string, CobroListado[]>> {
-  const map = new Map<string, CobroListado[]>();
-  if (appointmentIds.length === 0) return map;
-  try {
-    const rows = await db.collection.findMany({
-      where: { tenantId, originType: "APPOINTMENT", originId: { in: [...appointmentIds] } },
-      select: { originId: true, amount: true, method: true, createdAt: true },
-      orderBy: { createdAt: "asc" },
-    });
-    for (const r of rows) {
-      const arr = map.get(r.originId) ?? [];
-      arr.push({ amount: r.amount.toNumber(), method: r.method, createdAt: r.createdAt });
-      map.set(r.originId, arr);
-    }
-  } catch (e) {
-    if (!isSchemaMissing(e)) throw e;
-  }
-  return map;
-}
+//
+// Acá vivía `cobrosPorTurno`, que hacía `select: { originId, amount, method, createdAt }`
+// —SIN `note`— y devolvía un Σ ciego. Se BORRÓ, no se arregló: estaba muerta en producción
+// (su único consumidor era su propio test; la agenda usa `cobrosDetalladosPorTurno`, que sí
+// trae `id` y `note`) y una función exportada que suma plata sin mirar la nota es el molde
+// del que salió el `Payment` inflado. Dejarla viva era invitar al tercer escritor.
+//
+// Si hace falta leer cobros por turno, es `cobrosDetalladosPorTurno` (`anulacion.ts`), que
+// tiene la misma tolerancia a la tabla sin migrar.

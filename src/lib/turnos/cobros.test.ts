@@ -13,13 +13,13 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   montosCobrados,
   estadoCobroTurno,
   seniaDelServicio,
   cobroSugerido,
   validarCobroTurno,
-  montoPaymentAgregado,
   puedeCompletarse,
   planCompletar,
   baseComision,
@@ -177,10 +177,18 @@ test("turno cancelado o con no-show no acepta cobros", () => {
   }
 });
 
-test("el Payment agregado suma lo cobrado antes (incluido un legado parcial) más este cobro", () => {
-  assert.equal(montoPaymentAgregado({ cobradoAntes: 5000, monto: 15000 }), 20000);
-  assert.equal(montoPaymentAgregado({ cobradoAntes: 0, monto: 5000 }), 5000);
-  assert.equal(montoPaymentAgregado({ cobradoAntes: 0.1, monto: 0.2 }), 0.3);
+test("nadie volvió a poner un Σ ciego a la nota sobre el Payment agregado", () => {
+  // Acá se probaba `montoPaymentAgregado`, que sumaba `cobradoAntes + monto` sin mirar la
+  // nota de la fila. Una `CONDONACION:` entraba al agregado y `Payment.amount` decía $20.000
+  // donde habían entrado $5.000 — y esa columna es la base de la comisión. La función se
+  // borró; lo que queda es el candado para que no vuelva.
+  const fuente = readFileSync(new URL("./cobros.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(
+    fuente,
+    /export function montoPaymentAgregado/,
+    "volvió `montoPaymentAgregado`. El agregado se deriva con `desglosarCobros` (anulacion.ts), " +
+      "que es lo único que distingue plata cobrada de saldo condonado.",
+  );
 });
 
 // ── Completar ───────────────────────────────────────────────────────────────

@@ -18,6 +18,7 @@
 //   (`JournalEntry`) y el enlace Invoice→origen (dedupe exacto) son RESERVA/§C (ADR-060 D7/D10).
 
 import { round2 } from "@/lib/round";
+import { dateStrInBusinessTz } from "@/lib/datetime";
 
 /** Alícuota general de IVA en AR (fracción). Las ventas/compras sin comprobante se estiman acá. */
 export const IVA_ALICUOTA_GENERAL = 0.21;
@@ -92,9 +93,22 @@ export function fiscalDateToIso(aaaammdd: string): string {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : aaaammdd;
 }
 
-/** `Date` → "YYYY-MM-DD" (UTC, estable para agrupar por día). */
+/**
+ * `Date` → "YYYY-MM-DD" en el DÍA DE NEGOCIO, que es con lo que se declara.
+ *
+ * Decía `d.toISOString().slice(0, 10)`, o sea el día UTC. Argentina es UTC−3, así que todo
+ * lo cobrado entre las 21:00 y las 23:59 hora local se asentaba en el libro fiscal con la
+ * fecha del día SIGUIENTE — tres horas de cada día, siempre, sin nada que lo delatara. En
+ * un borde de mes eso corre facturación de un período fiscal al otro: un comprobante del 30
+ * a las 21:30 se declara el 1 del mes que viene.
+ *
+ * El traductor correcto ya existía y el resto del sistema lo usa (`dateStrInBusinessTz`,
+ * `datetime.ts`). Todos los llamadores le pasan instantes reales (`createdAt`, los bordes
+ * del período), nunca un día calendario anclado a medianoche UTC: por eso la conversión es
+ * segura acá y no corre ninguna fecha para atrás.
+ */
 export function dateToIso(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return dateStrInBusinessTz(d);
 }
 
 // ---------------------------------------------------------------------------

@@ -311,7 +311,7 @@ export type AnularCobroArgs = {
 
 export type ReversaLibro =
   | { asentada: true; movementId: string }
-  | { asentada: false; reason: "sin-asiento-original" | "ya-revertido" | "sin-migrar" };
+  | { asentada: false; reason: "sin-asiento-original" | "medio-no-traducible" | "ya-revertido" | "sin-migrar" };
 
 export type AnularCobroResult =
   | {
@@ -467,8 +467,12 @@ async function asentarReversaInTx(
   });
   if (previo) return { asentada: false, reason: "ya-revertido" };
 
+  // Dos causas DISTINTAS compartían etiqueta, y esta etiqueta es el único rastro que queda
+  // cuando la reversa no se asienta: "no había asiento que revertir" y "el medio del cobro no
+  // se traduce a un medio de caja" se investigan de maneras opuestas. Leer un `sin-asiento-original`
+  // que en realidad era un medio raro manda a buscar al lugar equivocado.
   const method = cashMethodFromPaymentMethod(input.method);
-  if (!method) return { asentada: false, reason: "sin-asiento-original" };
+  if (!method) return { asentada: false, reason: "medio-no-traducible" };
 
   const mov = await tx.cashMovement.create({
     data: {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   deriveIvaFromGross,
   fiscalDateToIso,
+  dateToIso,
   ventaFromInvoice,
   ventaFromGross,
   compraFromPurchase,
@@ -11,6 +12,7 @@ import {
   IVA_ALICUOTA_GENERAL,
 } from "./libro-iva";
 import { buildLibroIvaExport } from "./libro-iva-export";
+import { readFileSync } from "node:fs";
 
 test("deriveIvaFromGross: descompone un total IVA-incluido al 21% (neto + iva = total)", () => {
   const { neto, iva } = deriveIvaFromGross(1210);
@@ -118,3 +120,48 @@ test("buildLibroIvaExport: estructurado (secciones + subtotales + resumen), no v
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
+
+// ── La fecha del libro es el DÍA DE NEGOCIO, no el día UTC ──────────────────
+//
+// Decía `d.toISOString().slice(0,10)`. Argentina es UTC−3, así que todo lo cobrado entre
+// las 21:00 y las 23:59 hora local se declaraba con la fecha del día siguiente: tres horas
+// de cada día, sin nada que lo delatara. En un borde de mes corre facturación de un período
+// fiscal al otro. Es un libro de IVA: la fecha ES el dato.
+
+test("dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene", () => {
+  // 2026-06-30 21:30 en Buenos Aires = 2026-07-01 00:30 UTC.
+  const instante = new Date("2026-07-01T00:30:00.000Z");
+  assert.equal(
+    dateToIso(instante),
+    "2026-06-30",
+    "un comprobante del 30 a las 21:30 se declaraba el 1 de julio: cruza el período fiscal",
+  );
+});
+
+test("dateToIso: el resto del día no se mueve, y la medianoche local tampoco", () => {
+  // Mediodía local: 2026-03-15 12:00 -03 = 15:00 UTC. Nunca estuvo mal, no puede romperse.
+  assert.equal(dateToIso(new Date("2026-03-15T15:00:00.000Z")), "2026-03-15");
+  // 00:05 local del 15 = 03:05 UTC del 15. El otro borde: tampoco cae al 14.
+  assert.equal(dateToIso(new Date("2026-03-15T03:05:00.000Z")), "2026-03-15");
+  // 23:59:59 local del 15 = 02:59:59 UTC del 16.
+  assert.equal(dateToIso(new Date("2026-03-16T02:59:59.000Z")), "2026-03-15");
+});
+
+test("dateToIso no usa toISOString: la conversión tiene que mirar la zona del negocio", () => {
+  // Chequeo de forma, porque el bug vuelve escribiendo una línea de cuatro palabras.
+  const fuente = readFileSync(new URL("./libro-iva.ts", import.meta.url), "utf8");
+  const cuerpo = fuente.slice(fuente.indexOf("export function dateToIso"));
+  assert.doesNotMatch(
+    cuerpo.slice(0, 200),
+    /toISOString/,
+    "dateToIso volvió a fechar en UTC. El día fiscal es el día de negocio (dateStrInBusinessTz).",
+  );
+  const loader = readFileSync(new URL("./libro-iva-loader.ts", import.meta.url), "utf8");
+  const tf = loader.slice(loader.indexOf("function toFiscal"));
+  assert.doesNotMatch(
+    tf.slice(0, 200),
+    /toISOString/,
+    "toFiscal volvió a fechar en UTC: los bordes del período se corren tres horas y dejan " +
+      "adentro o afuera los comprobantes de la última franja de cada día.",
+  );
+});

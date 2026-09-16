@@ -136,12 +136,17 @@ export function validarCobroTurno(input: {
   return { ok: true, monto: v.amount, saldoDespues, quedaSaldado: saldoDespues <= 0 };
 }
 
-// Monto del `Payment` AGREGADO después de registrar un cobro: lo que ya contaba como
-// cobrado (cobros previos, o el pago legado si no había cobros) más este cobro. Así un
-// turno con `Payment` legado parcial no pierde ese peso al pasar a cobros parciales.
-export function montoPaymentAgregado(input: { cobradoAntes: number; monto: number }): number {
-  return round2(Math.max(0, input.cobradoAntes) + Math.max(0, input.monto));
-}
+// El monto del `Payment` agregado NO se calcula acá.
+//
+// Hubo una `montoPaymentAgregado` que hacía `cobradoAntes + monto`, un Σ ciego a la nota de
+// la fila. Con eso, una `CONDONACION:` —que es saldo perdonado, no plata— entraba al
+// agregado: medido, un turno de $20.000 con $5.000 realmente cobrados terminaba con
+// `Payment.amount = 20.000`. Y de ahí sale la base de la comisión que se le paga a la
+// profesional. Se BORRÓ en vez de arreglarse: una función exportada que suma plata sin mirar
+// la nota es el molde del que sale el próximo escritor equivocado.
+//
+// El agregado se deriva con `desglosarCobros` (`anulacion.ts`), en `aplicarCobroTurnoInTx`.
+// No pongas otro Σ sobre esta columna.
 
 export type MotivoNoCompletable =
   | "no-confirmado" // sólo un turno CONFIRMED se puede completar (ciclo de la dueña)

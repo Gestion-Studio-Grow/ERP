@@ -16,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
+import { dateStrInBusinessTz } from "@/lib/datetime";
 import {
   buildLibroIva,
   ventaFromInvoice,
@@ -34,9 +35,15 @@ export interface LibroIvaReport {
   rangeDays: number;
 }
 
-/** `Date` → "AAAAMMDD" para comparar contra `Invoice.fecha` (string fiscal). */
+/**
+ * `Date` → "AAAAMMDD" para comparar contra `Invoice.fecha` (string fiscal).
+ *
+ * En el día de NEGOCIO, no en el día UTC, por lo mismo que `dateToIso`: `Invoice.fecha` es
+ * un día calendario argentino, y con `toISOString()` los bordes del período se corrían tres
+ * horas, dejando adentro o afuera los comprobantes de la última franja de cada día.
+ */
 function toFiscal(d: Date): string {
-  return d.toISOString().slice(0, 10).replace(/-/g, "");
+  return dateStrInBusinessTz(d).replace(/-/g, "");
 }
 
 /** Recupera CUIT / N° de orden que S4 compuso en `notes` de la compra (formal-order). */

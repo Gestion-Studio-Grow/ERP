@@ -373,6 +373,52 @@ test("schema-ahead: sin las columnas migradas la contrapartida se asienta igual,
   assert.equal(movements.length, 0);
 });
 
+// ── Cuándo la reversa NO se asienta, y por qué eso tiene que quedar dicho ────
+//
+// `asentarReversaInTx` tiene tres salidas sin asiento, y las tres dejan la VENTA original
+// adentro del libro mientras el `Payment` baja: el saldo del libro sigue contando plata que
+// el sistema ya decidió que no entró. No se puede arreglar desde acá (hay que conocer el
+// asiento original), pero el MOTIVO es el único rastro que le queda a quien investigue, así
+// que tiene que distinguir causas. `sin-asiento-original` y `medio-no-traducible` compartían
+// etiqueta y se investigan de maneras opuestas.
+
+test("withSchema pero sin asiento original: la reversa no se asienta y lo dice", async () => {
+  // El cobro existe y las columnas están migradas, pero ese cobro nunca dejó VENTA en el
+  // libro (p. ej. se registró con el puente caído). No hay nada que revertir.
+  const { tx, movements } = makeTx({
+    cobros: [{ id: "col-1", amount: 18000, method: "EFECTIVO" }],
+    movs: [], // ← sin la VENTA del cobro
+    payment: { amount: 18000 },
+  });
+  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular({ withSchema: true }));
+  assert.equal(r.applied, true);
+  if (!r.applied) return;
+  assert.equal(r.libro.asentada, false);
+  assert.equal(
+    r.libro.asentada === false && r.libro.reason,
+    "sin-asiento-original",
+    "el motivo es el único rastro: tiene que decir que faltaba el asiento, no otra cosa",
+  );
+  assert.equal(movements.length, 0, "no se inventa un EGRESO sin saber de qué sesión ni de qué día");
+});
+
+test("un medio que no se traduce a medio de caja NO se reporta como falta de asiento", async () => {
+  // El cobro SÍ dejó su VENTA, pero su medio no tiene equivalente en la caja (p. ej. un
+  // medio nuevo que `cashMethodFromPaymentMethod` no conoce). Es otra causa y otra
+  // investigación: leer `sin-asiento-original` acá manda a buscar al lugar equivocado.
+  const { tx, movements } = makeTx({
+    cobros: [{ id: "col-1", amount: 18000, method: "CRIPTO" }],
+    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000 }],
+    payment: { amount: 18000 },
+  });
+  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular({ withSchema: true }));
+  assert.equal(r.applied, true);
+  if (!r.applied) return;
+  assert.equal(r.libro.asentada, false);
+  assert.equal(r.libro.asentada === false && r.libro.reason, "medio-no-traducible");
+  assert.equal(movements.length, 1, "queda sólo la VENTA original: el libro no se tocó");
+});
+
 test("anulado el cobro, el turno se puede volver a cobrar por el monto completo", async () => {
   const { tx, collections } = makeTx({
     cobros: [{ id: "col-1", amount: 18000, method: "EFECTIVO" }],
@@ -479,7 +525,18 @@ test("condonar exige agenda:manage: perdonar plata lo decide el negocio, no quie
   const src = readFileSync(join(SRC, "actions.ts"), "utf8");
   const desde = src.indexOf("export async function condonarSaldoTurno(");
   assert.ok(desde > 0, "no se encontró condonarSaldoTurno");
-  const cuerpo = src.slice(desde, desde + 2500);
+  // Hasta la SIGUIENTE declaración de nivel superior, no un largo fijo: con `desde + 2500`
+  // el test se ponía rojo por agregarle un comentario a la función, que es exactamente el
+  // tipo de falso negativo que enseña a ignorar los tests.
+  const sig = src.indexOf("\nexport ", desde + 1);
+  const cuerpo = src.slice(desde, sig === -1 ? undefined : sig);
   assert.match(cuerpo, /requireCapability\("agenda:manage"\)/);
   assert.match(cuerpo, /auditAdmin\(/);
+  // Y la segunda condonación deja de devolver un `ok` mudo: si ya había una, se dice.
+  assert.match(
+    cuerpo,
+    /ya tiene un saldo dado de baja/,
+    "condonar dos veces devolvía `{ ok: true }` sin hacer nada: la pantalla decía que se hizo " +
+      "algo que no se hizo.",
+  );
 });

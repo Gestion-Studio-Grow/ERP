@@ -1259,10 +1259,26 @@ export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoA
     throw e;
   }
 
-  if (settled.outcome === "race" || !settled.value.applied) {
+  if (settled.outcome === "race") {
+    // Dos submits a la vez y ganó el otro: para quien apretó el botón, el saldo quedó dado de
+    // baja, que es lo que quería. No es un error.
     revalidatePath("/admin/turnos");
     revalidatePath("/admin/turnos/lista");
     return { ok: true };
+  }
+  if (!settled.value.applied) {
+    // Este turno YA tenía un saldo dado de baja, de antes, y no se inventa otro (idempotencia
+    // capa 1). Devolvía `{ ok: true }` mudo, o sea la pantalla decía que se hizo algo que no se
+    // hizo: si el saldo cambió desde aquella condonación —porque se anuló un cobro—, la
+    // recepción aprieta el botón, ve todo bien y el saldo sigue ahí. Rehacer o deshacer una
+    // condonación es otra operación, con su propia auditoría, y todavía no existe: hasta que
+    // exista, esto por lo menos deja de mentir.
+    revalidatePath("/admin/turnos");
+    revalidatePath("/admin/turnos/lista");
+    return {
+      ok: false,
+      error: "Este turno ya tiene un saldo dado de baja. Si cambió, todavía no se puede rehacer desde acá: escribinos.",
+    };
   }
 
   await auditAdmin({

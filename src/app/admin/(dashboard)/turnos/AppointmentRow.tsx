@@ -316,7 +316,11 @@ function CobrosRegistrados({
               {clase === "cobro" && puedeAnular && c.id && anulables.has(c.id) && (
                 <CorreccionConMotivo
                   etiqueta="Anular"
-                  pregunta={`¿Anular el cobro de ${fmtMoneyARS(c.amount, 0)}? Sale del libro de caja con la fecha del cobro.`}
+                  // NO promete el libro. La reversa se asienta sólo si el cobro original dejó
+                  // asiento y su medio se traduce a un medio de caja; con las columnas sin migrar
+                  // no se asienta nada. La fila no puede saber cuál de esos casos es el suyo, y
+                  // prometer un asiento que no ocurre es peor que no decir nada.
+                  pregunta={`¿Anular el cobro de ${fmtMoneyARS(c.amount, 0)}?`}
                   confirmar="Sí, anular"
                   placeholder="Por qué se anula (cobré el medio equivocado…)"
                   campos={{ collectionId: c.id, appointmentId }}
