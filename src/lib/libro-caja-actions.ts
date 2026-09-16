@@ -314,15 +314,20 @@ export async function addLibroEntry(
       //     de menos. Se avisa con el detalle de la fila del sistema y se puede insistir
       //     (dos pagos iguales al mismo proveedor el mismo día son posibles).
       if (!confirmado) {
+        // OJO CON `method`: NO va al tope del `where`. Estuvo ahí, arriba del OR, y por eso
+        // el aviso de las ramas del SISTEMA exigía que el medio coincidiera — justo lo que no
+        // se puede dar por cierto cuando el medio del asiento pudo haberse ASUMIDO. Para un
+        // egreso de compra o de comisión alcanza día + monto: dos pagos al mismo proveedor,
+        // el mismo día y por el mismo importe son mucho más raros que un medio mal asumido.
+        // Para las ramas tipeadas a mano el medio sí es parte de la comparación.
         const yaHay = await tx.cashMovement.findFirst({
           where: {
             tenantId,
-            method,
             amount,
             occurredAt: { gte: diaDesde, lt: diaHasta },
             OR: [
-              { type, reason: detail, occurredAt },
-              ...(type === "INGRESO" ? [{ type: "VENTA" as const }] : []),
+              { type, reason: detail, occurredAt, method },
+              ...(type === "INGRESO" ? [{ type: "VENTA" as const, method }] : []),
               ...(type === "EGRESO"
                 ? [
                     { type: "EGRESO" as const, createdBy: { startsWith: COMPRA_ACTOR_PREFIX } },

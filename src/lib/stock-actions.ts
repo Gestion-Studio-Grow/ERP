@@ -21,6 +21,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { insertStockPurchase, type StockPurchaseKind } from "@/lib/stock/purchase-core";
 import { composeFormalNotes } from "@/lib/stock/formal-order";
+import { parseCashMethod } from "@/lib/comision-liquidacion";
 
 const STOCK_PATH = "/admin/compras";
 
@@ -84,8 +85,18 @@ export async function createStockPurchase(formData: FormData) {
   // en campos propios pero se COMPONEN dentro de `notes` (lossless, sin columna nueva;
   // columnas dedicadas = §C). Retrocompatible: para Comercio esos campos no llegan y
   // `composeFormalNotes` devuelve la nota libre tal cual (o null), como antes.
+  // CÓMO SE PAGÓ. El formulario ahora lo pregunta (`<Select name="pago">`) y no deja
+  // registrar una COMPRA sin elegirlo. Si igual no llega —submit sin JS, o un llamador que
+  // no es este formulario— se cae al backstop de `purchase-core` (`PAGO_POR_DEFECTO`), que
+  // asume efectivo y lo MARCA en el detalle de la fila del libro y en `medioAsumido`. Nunca
+  // se asume en silencio: asumir mal descuadra el arqueo por el importe completo.
+  //
+  // Una REPOSICIÓN interna no mueve plata, así que no tiene medio que informar.
+  const method = kind === "COMPRA" ? parseCashMethod(formData.get("pago")) : null;
+
   const result = await insertStockPurchase(tenantId, {
     kind,
+    ...(method ? { pago: { estado: "PAGADA" as const, method } } : {}),
     supplier: String(formData.get("supplier") || "").trim() || null,
     notes: composeFormalNotes({
       orderNumber: String(formData.get("orderNumber") || ""),
@@ -100,7 +111,25 @@ export async function createStockPurchase(formData: FormData) {
     action: "create",
     entity: "StockPurchase",
     entityId: result.id,
-    changes: { code: result.code, kind, totalCost: result.totalCost, lines: result.lines },
+    changes: {
+      code: result.code,
+      kind,
+      totalCost: result.totalCost,
+      lines: result.lines,
+      // El asiento de caja SE AUDITA acá. `purchase-core.ts` afirmaba por escrito que "la
+      // Server Action lo audita" y no lo hacía: "compra #12 registrada, egreso no asentado
+      // porque es a cuenta corriente" es un hecho que hay que poder reconstruir después, y
+      // `medioAsumido` es lo único que distingue un medio elegido de uno asumido.
+      egresoAsentado: result.egreso.asentado,
+      ...(result.egreso.asentado
+        ? {
+            egresoMetodo: result.egreso.method,
+            egresoMedioAsumido: result.egreso.medioAsumido,
+            egresoDia: result.egreso.dia,
+            egresoDiferidoPorCierre: result.egreso.diferidoPorCierre,
+          }
+        : { egresoMotivo: result.egreso.motivo }),
+    },
   });
   revalidatePath(STOCK_PATH);
   // El stock repuesto también cambia lo que muestra el catálogo y el POS.

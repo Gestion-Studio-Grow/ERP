@@ -195,9 +195,10 @@ export async function settleCommissions(formData: FormData) {
   const professionalId = String(formData.get("professionalId") ?? "").trim();
   if (!professionalId) backWith("error_prof");
   const note = String(formData.get("note") ?? "").trim() || null;
-  // El formulario todavía no pregunta por qué medio se le pagó (un solo campo, la nota).
-  // `null` = no informado: el egreso asume EFECTIVO y lo DICE en el detalle de la fila.
-  // Ver `MEDIO_ASUMIDO` en comision-liquidacion.ts y `necesita_otro_archivo`.
+  // Por qué medio se le pagó. El formulario AHORA lo pregunta (`<select name="method">` en
+  // /admin/reportes, con efectivo preseleccionado). `null` sigue siendo un caso posible —un
+  // submit sin JS, un llamador que no es ese formulario— y ahí el egreso asume EFECTIVO y lo
+  // DICE en el detalle de la fila. Ver `MEDIO_ASUMIDO` en comision-liquidacion.ts.
   const method = parseCashMethod(formData.get("method"));
 
   // Fecha CONTABLE del egreso. Se lee ANTES de la transacción (misma forma que el alta

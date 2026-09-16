@@ -207,3 +207,68 @@ test("el libro AVISA si alguien tipea a mano un egreso que la compra ya asentó"
   );
   assert.match(libro, /origen === "compra"/);
 });
+
+// ── 3. El medio de pago lo PREGUNTA el formulario ───────────────────────────
+//
+// El sistema asentaba siempre EFECTIVO porque nadie preguntaba, y `StockPurchase` no tiene
+// ninguna columna de la que derivarlo. Asumirlo mal descuadra el arqueo por el importe
+// COMPLETO —faltante en una columna, sobrante en la otra— y además apagaba el aviso de
+// duplicado del libro, que comparaba por medio. Estos tests son de forma a propósito: el
+// defecto no fue una función mal escrita, fue un campo que no existía.
+
+test("el formulario de compras pregunta cómo se pagó y no deja registrar sin elegirlo", () => {
+  const form = leer("../../app/admin/(dashboard)/compras/ComprasForm.tsx");
+  assert.match(
+    form,
+    /name="pago"/,
+    "sin un control `name=\"pago\"` el medio nunca llega a la Server Action y se vuelve a asumir.",
+  );
+  assert.match(
+    form,
+    /isCompra && pago === ""/,
+    "registrar una COMPRA sin medio tiene que estar deshabilitado. Una REPOSICIÓN interna no " +
+      "mueve plata, así que ésa sí va sin medio.",
+  );
+});
+
+test("la Server Action pasa el medio elegido a insertStockPurchase", () => {
+  const action = leer("../stock-actions.ts");
+  const desde = action.indexOf("export async function createStockPurchase");
+  assert.ok(desde > 0, "stock-actions.ts ya no exporta createStockPurchase");
+  const sig = action.indexOf("\nexport ", desde + 1);
+  const cuerpo = action.slice(desde, sig === -1 ? undefined : sig);
+  assert.match(cuerpo, /parseCashMethod\(formData\.get\("pago"\)\)/, "el medio se lee del formulario");
+  assert.match(cuerpo, /pago: \{ estado: "PAGADA" as const, method \}/, "y se le pasa a insertStockPurchase");
+});
+
+test("la Server Action AUDITA el asiento de caja de la compra", () => {
+  // `purchase-core.ts` afirmaba por escrito que "la Server Action lo audita" y no lo hacía.
+  // `medioAsumido` es lo único que distingue un medio elegido de uno asumido: sin eso en la
+  // auditoría, no hay manera de reconstruir después por qué una fila salió por esa columna.
+  const action = leer("../stock-actions.ts");
+  const desde = action.indexOf("export async function createStockPurchase");
+  const sig = action.indexOf("\nexport ", desde + 1);
+  const cuerpo = action.slice(desde, sig === -1 ? undefined : sig);
+  assert.match(cuerpo, /egresoAsentado/);
+  assert.match(cuerpo, /egresoMedioAsumido/);
+  assert.match(cuerpo, /egresoMotivo/, "y por qué NO se asentó, cuando no se asienta");
+});
+
+test("el aviso de duplicado de un egreso del sistema NO exige que coincida el medio", () => {
+  // `method` estuvo al tope del `where`, arriba del OR, así que las ramas del sistema
+  // (`compra:`, `comision:`) exigían igualdad de medio — justo lo que no se puede dar por
+  // cierto cuando el medio del asiento pudo haberse asumido. Con eso, el aviso se apagaba
+  // exactamente en los casos en que más hacía falta.
+  const libro = leer("../libro-caja-actions.ts");
+  const i = libro.indexOf("const yaHay = await tx.cashMovement.findFirst(");
+  assert.ok(i > 0, "no encontré la consulta del aviso de duplicado");
+  const where = libro.slice(i, libro.indexOf("orderBy", i));
+  const tope = where.slice(0, where.indexOf("OR: ["));
+  assert.doesNotMatch(
+    tope,
+    /^\s*method,\s*$/m,
+    "`method` volvió al tope del where: el aviso de las ramas del sistema vuelve a exigir " +
+      "igualdad de medio y se apaga cuando el medio del asiento fue asumido.",
+  );
+  assert.match(where, /\{ type, reason: detail, occurredAt, method \}/, "la rama tipeada a mano sí compara el medio");
+});

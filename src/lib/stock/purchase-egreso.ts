@@ -39,26 +39,22 @@ export type PagoDeCompra =
   | { estado: "PAGADA"; method: CashMethod | null }
   | { estado: "CUENTA_CORRIENTE" };
 
-// ⚠️ DEFAULT PROVISIONAL, A CONFIRMAR CON EL FORMULARIO.
+// BACKSTOP, ya no el caso normal.
 //
-// El alta de compras (/admin/compras) no pregunta hoy cómo se pagó: `ComprasForm.tsx`
-// manda tipo, proveedor, notas y líneas, y nada más. Mientras eso no cambie, hay que
-// elegir, y las dos opciones son malas de distinta manera:
+// El formulario de compras AHORA pregunta cómo se pagó (`<Select name="pago">`) y no deja
+// registrar una compra sin elegirlo, así que por el camino de la pantalla este default no se
+// usa. Queda para el llamador que no es ese formulario (un import, un script, un submit sin
+// JS): antes que no asentar nada —lo que deja el gasto fuera del libro— se asienta asumiendo
+// efectivo y se DICE en el detalle de la fila ("medio no informado (asumido efectivo)"), y
+// `medioAsumido: true` viaja en la decisión para que la Server Action lo audite.
 //
-//   (a) No asentar nada sin el dato → el defecto sigue vivo tal cual está hoy.
-//   (b) Asumir un medio → si se pagó por otro, el cierre marca faltante en una columna
-//       y sobrante en la otra, por el mismo importe.
-//
-// Se elige (b) con EFECTIVO, porque es el caso real dominante (pago al proveedor en el
-// mostrador) y porque (a) no arregla nada. Pero NO se asume en silencio: la fila del
-// libro dice "medio no informado (asumido efectivo)" en el detalle, así la dueña lo ve
-// y puede corregirlo con un movimiento en contra. `medioAsumido` viaja en la decisión
-// para que el llamador lo audite.
-//
-// Esto se borra el día que el formulario capture el medio: ver `necesita_otro_archivo`.
+// Por qué asumir es caro, y por qué el formulario tuvo que preguntarlo: `StockPurchase` no
+// tiene ninguna columna de la que se pueda derivar el medio, y si se asume mal, el arqueo del
+// día cierra con faltante en una columna y sobrante en la otra POR EL IMPORTE COMPLETO. Y
+// hasta hace poco además apagaba el aviso de duplicado del libro, que comparaba por medio.
 const MEDIO_ASUMIDO: CashMethod = "EFECTIVO";
 
-/** Lo que asume el sistema cuando el llamador todavía no captura cómo se pagó. */
+/** Lo que asume el sistema cuando el llamador NO informa cómo se pagó. Ver `MEDIO_ASUMIDO`. */
 export const PAGO_POR_DEFECTO: PagoDeCompra = { estado: "PAGADA", method: null };
 
 // ── Marca del asiento ───────────────────────────────────────────────────────

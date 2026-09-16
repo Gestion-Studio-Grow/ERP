@@ -316,3 +316,25 @@ test("el egreso de una liquidación NO se borra desde el libro de caja", () => {
   assert.ok(borrado !== -1, "deleteLibroEntry tiene que borrar el movimiento");
   assert.ok(guarda < borrado, "la guarda va ANTES del delete, no después");
 });
+
+
+test("el formulario de liquidación pregunta por qué medio se le pagó", () => {
+  // El servidor ya leía `method` con `parseCashMethod` y el formulario no lo mandaba nunca,
+  // así que el egreso del libro asumía EFECTIVO en el 100% de las liquidaciones. Hoy todas
+  // fueron en efectivo y el default venía dando bien — pero dar bien por casualidad es lo
+  // que se está sacando: pagar por transferencia deja el arqueo con faltante en efectivo y
+  // sobrante en MP por el mismo importe.
+  const page = leer("../app/admin/(dashboard)/reportes/page.tsx");
+  const i = page.indexOf("<form action={settleCommissions}");
+  assert.ok(i > 0, "no encontré el formulario de liquidación en /admin/reportes");
+  const form = page.slice(i, page.indexOf("</form>", i));
+  assert.match(form, /name="method"/, "sin este control el medio nunca llega y se vuelve a asumir");
+  for (const m of ["EFECTIVO", "MP", "TARJETA"]) {
+    assert.match(form, new RegExp(`value="${m}"`), `falta la opción ${m}`);
+  }
+  assert.match(
+    leer("./commission-actions.ts"),
+    /parseCashMethod\(formData\.get\("method"\)\)/,
+    "la Server Action tiene que leer el medio del formulario",
+  );
+});

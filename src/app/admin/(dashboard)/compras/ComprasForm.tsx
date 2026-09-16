@@ -41,6 +41,11 @@ function RegistrarSubmit({ disabled, label }: { disabled: boolean; label: string
 
 export default function ComprasForm({ products, formal = false }: { products: ReplenishableProduct[]; formal?: boolean }) {
   const [kind, setKind] = useState<"COMPRA" | "REPOSICION">("COMPRA");
+  // Cómo se pagó la compra. Arranca VACÍO a propósito: el sistema venía asumiendo efectivo
+  // porque el formulario no preguntaba, y `StockPurchase` no tiene ninguna columna de la que
+  // derivarlo. Asumirlo mal descuadra el arqueo por el importe completo (falta en una columna
+  // y sobra en la otra) y además apaga el aviso de duplicado del libro, que compara por medio.
+  const [pago, setPago] = useState<"" | "EFECTIVO" | "MP" | "TARJETA">("");
   const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qty: 0, unitCost: 0 }]);
   const [nextKey, setNextKey] = useState(2);
   // Foco dirigido: al elegir producto saltamos a la cantidad; con Enter, al próximo
@@ -158,6 +163,24 @@ export default function ComprasForm({ products, formal = false }: { products: Re
         </div>
       )}
 
+      {/* Cómo se pagó. Sólo para COMPRA: una reposición interna no mueve plata, así que no
+          tiene medio que informar. Sin este dato el egreso se asentaba siempre en EFECTIVO. */}
+      {isCompra && (
+        <label className="text-sm">
+          <span className="block text-muted mb-1">Cómo se pagó</span>
+          <Select name="pago" value={pago} onChange={(e) => setPago(e.target.value as typeof pago)}>
+            <option value="">Elegí un medio…</option>
+            <option value="EFECTIVO">Efectivo</option>
+            <option value="MP">Transferencia / Mercado Pago</option>
+            <option value="TARJETA">Tarjeta</option>
+          </Select>
+          <span className="mt-1 block text-xs text-faint">
+            Con esto sale del libro de caja por la columna correcta. Si se elige mal, el arqueo del
+            día cierra con faltante en una columna y sobrante en la otra por el mismo importe.
+          </span>
+        </label>
+      )}
+
       {/* Líneas de la entrada */}
       <div className="space-y-2 border-t border-line pt-4">
         {lines.map((l) => {
@@ -273,7 +296,10 @@ export default function ComprasForm({ products, formal = false }: { products: Re
             {fmtMoneyARS(totalCost)}
           </span>
         </div>
-        <RegistrarSubmit disabled={!hasValidLine} label={`Registrar ${isCompra ? "compra" : "reposición"}`} />
+        <RegistrarSubmit
+          disabled={!hasValidLine || (isCompra && pago === "")}
+          label={`Registrar ${isCompra ? "compra" : "reposición"}`}
+        />
       </div>
     </form>
   );

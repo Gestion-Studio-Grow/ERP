@@ -367,6 +367,24 @@ export default async function ReportesPage({
               {canSettle && (
                 <form action={settleCommissions} className="flex items-center gap-2 shrink-0">
                   <input type="hidden" name="professionalId" value={c.professionalId} />
+                  {/* Por qué medio se le pagó. El campo existía del lado del servidor
+                      (`parseCashMethod`) y el formulario no lo preguntaba, así que el egreso
+                      del libro asumía siempre EFECTIVO. Hoy todas las liquidaciones fueron
+                      en efectivo y por eso el default venía dando bien — pero dar bien por
+                      casualidad es justo lo que se está sacando del sistema: si se paga por
+                      transferencia, el arqueo cierra con faltante en efectivo y sobrante en
+                      MP por el mismo importe. Preselecciona efectivo porque es el caso real
+                      dominante, y ahora se puede cambiar. */}
+                  <select
+                    name="method"
+                    defaultValue="EFECTIVO"
+                    aria-label="Cómo se le pagó"
+                    className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+                  >
+                    <option value="EFECTIVO">Efectivo</option>
+                    <option value="MP">Transferencia / MP</option>
+                    <option value="TARJETA">Tarjeta</option>
+                  </select>
                   <input
                     name="note"
                     placeholder="Nota (opcional)"
