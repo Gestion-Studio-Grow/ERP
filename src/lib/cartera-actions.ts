@@ -17,14 +17,38 @@
 // tabla Tenant (fuera de RLS por diseño — raíz del aislamiento) para metadata de
 // clientes ya verificados.
 //
-// NOTA Gate 2: la migración `20260711140000_add_cartera_cliente` NO está aplicada
-// a Neon — en prod el panel muestra su estado honesto hasta ese OK del dueño.
+// ESTADO DE LA MIGRACIÓN `20260711140000_add_cartera_cliente`: NO MEDIDO contra Neon.
+//
+// Acá decía "NO está aplicada a Neon" como hecho. No lo es: es una afirmación de julio que
+// nadie volvió a verificar, y la documentación se contradice a sí misma sobre el tema
+// (`docs/producto/HANDOFF-suite-facturacion.md` la da por pendiente; el runbook de ARCA la
+// da por aplicada). Los tres enunciados entraron en el MISMO commit, así que no son fuentes
+// independientes: es una sola afirmación citada tres veces.
+//
+// LO QUE SÍ ESTÁ MEDIDO (base local `erp_scope`, rol `app_rls` NOBYPASSRLS, 2026-09-16):
+// `CarteraCliente` tiene `relrowsecurity = t` y su policy `tenant_isolation`, por el
+// `tenantId` del ESTUDIO. Con el GUC del tenant CLIENTE se leen 0 filas, y sin GUC también
+// 0. No hay lectura cruzada.
+//
+// OJO CON UNA COSA: el SQL de esta migración NO prende RLS. La prende
+// `prisma/rls/0001_enable_rls.sql`, que es data-driven y se corre A MANO. O sea que si en
+// Neon ese script se corrió ANTES de que existiera esta tabla, la tabla está sin RLS allá
+// aunque acá la tenga. Es exactamente el tipo de cosa que no se puede deducir.
+//
+// LO CIERRAN DOS COMANDOS, con rol directo contra Neon:
+//   npx prisma migrate status
+//   SELECT relrowsecurity FROM pg_class WHERE relname = 'CarteraCliente';
+// Hasta que se corran, nadie puede afirmar ninguna de las dos cosas — ni que sí ni que no.
 
 import { revalidatePath } from "next/cache";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { basePrisma } from "@/lib/prisma-base";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
+// Alta de cartera = crear un tenant y abrir una concesión para emitir facturas ARCA a
+// nombre de un CUIT ajeno. `audit-core.ts` dice que toda mutación de negocio pasa por acá,
+// y este camino era el que no pasaba. `audit()` nunca lanza: auditar no puede voltear el alta.
+import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { provisionTenant } from "../../scripts/provision-tenant";
 import {
@@ -237,6 +261,12 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
         );
         revalidatePath(CONTADOR_PATH);
       }
+      await auditAdmin({
+        action: "cartera.realta",
+        entity: "CarteraCliente",
+        entityId: porCuit.id,
+        changes: { estudioTenantId, clienteTenantId: porCuit.id, cuit: v.cuit, estadoAnterior: fila.estado, estado: "activa" },
+      });
       return { ok: true, clienteTenantId: porCuit.id, slug: porCuit.slug, alias: fila.alias, yaEstaba: true };
     }
     // Existe en la plataforma pero NO en esta cartera: vincularlo es una decisión
@@ -315,6 +345,23 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
     { tenantId: estudioTenantId },
   );
 
+  await auditAdmin({
+    action: "cartera.alta",
+    entity: "CarteraCliente",
+    entityId: resultado.tenantId,
+    changes: {
+      estudioTenantId,
+      clienteTenantId: resultado.tenantId,
+      slug: resultado.slug,
+      alias: v.alias,
+      // El dato que importa reconstruir seis meses después: a nombre de qué CUIT quedó
+      // habilitado este estudio para emitir, y con qué módulos.
+      cuit: v.cuit,
+      arcaHomologacion: true,
+      modulos: [...modulos],
+    },
+  });
+
   revalidatePath(CONTADOR_PATH);
   return {
     ok: true,
@@ -356,6 +403,12 @@ export async function setEstadoCarteraAction(
       }),
     { tenantId: gate.estudioTenantId },
   );
+  await auditAdmin({
+    action: "cartera.estado",
+    entity: "CarteraCliente",
+    entityId: clienteTenantId,
+    changes: { estudioTenantId: gate.estudioTenantId, clienteTenantId, estado },
+  });
   revalidatePath(CONTADOR_PATH);
   return { ok: true };
 }
@@ -381,6 +434,12 @@ export async function emitirAutomaticasClienteAction(
   if (!pertenencia.ok) return pertenencia;
 
   const resultado = await emitirPropuestas(clienteTenantId, "auto");
+  await auditAdmin({
+    action: "cartera.emitir_automaticas",
+    entity: "CarteraCliente",
+    entityId: clienteTenantId,
+    changes: { estudioTenantId: gate.estudioTenantId, clienteTenantId, resultado },
+  });
   revalidatePath(CONTADOR_PATH);
   return { ok: true, resultado };
 }

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { maxDay, CIERRE_DIARIO_ENTITY } from "./frontera-cierre";
-import { PURGE_EXEMPT_ENTITY, purgeAuditLogs } from "@/lib/audit-retention";
+import { PURGE_EXEMPT_ENTITIES, purgeAuditLogs } from "@/lib/audit-retention";
 import { CIERRE_DIARIO_ACTOR_PREFIX, cierreMarker, esAjusteDeCierre } from "./cierre-marca";
 import { isFrozenDay } from "./cierre-diario";
 
@@ -43,7 +43,11 @@ test("el ajuste de un cierre se reconoce por su marca", () => {
 // hace 18 meses volvería a aceptar movimientos. Estos dos tests son el candado.
 
 test("la entidad exenta de la purga es exactamente la del cierre", () => {
-  assert.equal(PURGE_EXEMPT_ENTITY, CIERRE_DIARIO_ENTITY);
+  assert.ok(
+    (PURGE_EXEMPT_ENTITIES as readonly string[]).includes(CIERRE_DIARIO_ENTITY),
+    "el cierre diario tiene que seguir exento de la purga: su fila ES la frontera de " +
+      "congelamiento del libro, no un rastro.",
+  );
 });
 
 test("la purga excluye las filas del cierre diario", async () => {
@@ -72,8 +76,12 @@ test("la purga excluye las filas del cierre diario", async () => {
     const where = (v as { where: Record<string, unknown> }).where;
     assert.deepEqual(
       where.entity,
-      { not: CIERRE_DIARIO_ENTITY },
+      { notIn: [...PURGE_EXEMPT_ENTITIES] },
       "la purga tiene que excluir el cierre diario: si no, se pierde la frontera de congelamiento",
+    );
+    assert.ok(
+      (where.entity as { notIn: string[] }).notIn.includes(CIERRE_DIARIO_ENTITY),
+      "y el cierre diario tiene que estar entre los exentos, sea cual sea el resto de la lista",
     );
     assert.ok(where.createdAt, "la purga sigue acotada por fecha");
   }

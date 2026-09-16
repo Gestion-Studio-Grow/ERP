@@ -25,7 +25,9 @@ sostenida que bloqueó agentes/comandos/workflows. El trabajo quedó a salvo en 
   **deployado** en `gsg-erp.vercel.app`. Migración `20260711120000_add_bancos_importacion` YA aplicada a Neon.
 - **Producto B · Contador** — cartera multi-cliente: `src/lib/cartera-core.ts` + `cartera-actions.ts` +
   `src/app/contador/**` + `src/modules/descriptors/cartera.ts` + migración
-  `20260711140000_add_cartera_cliente` (**SIN aplicar a Neon — Gate 2**).
+  `20260711140000_add_cartera_cliente` (**estado contra Neon: NO MEDIDO** — decía "SIN aplicar"
+  como hecho y era una afirmación de julio sin verificar; lo cierra `npx prisma migrate status`
+  con rol directo. Ver la nota completa en `src/lib/cartera-actions.ts`).
 - **Tema claro/oscuro + login + selector de acento** — tokens exactos de los mockups (blacklight/grafito),
   `ThemeToggle`, `AdminThemeScript`, login rehecho (bug del card de 12px corregido de raíz en
   `globals.css` max-width), página `/admin/apariencia` (toggle + swatches de color del equipo,
@@ -69,7 +71,10 @@ NO se vende como terminado** hasta que cada módulo pase el Gate — va como pre
 prometer nómina/CM/feed bancario/multi-local como disponibles: no lo están.
 
 ## 🔒 GATES PENDIENTES DEL DUEÑO
-- **Gate 2:** aplicar migración `20260711140000_add_cartera_cliente` a Neon (+ re-ejecutar RLS SQL).
+- **Gate 2:** aplicar migración `20260711140000_add_cartera_cliente` a Neon (+ re-ejecutar el SQL
+  de RLS, que es data-driven y sólo cubre las tablas que existían cuando se corrió).
+  **Antes de darlo por pendiente, MEDIRLO:** `npx prisma migrate status` con rol directo. Nadie
+  lo verificó desde julio.
 - **Credenciales:** cert de TEST de ARCA + token de test de Mercado Pago → los pega el dueño en Vercel
   (ARCA_MODO=homologacion, ARCA_CERT_PEM, ARCA_KEY_PEM, ARCA_INVOICING_ENABLED=true).
 

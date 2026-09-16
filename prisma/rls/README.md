@@ -5,10 +5,21 @@ defensa detrás del filtro app-level de `src/lib/tenant.ts`: aunque una query
 olvide el `where tenantId`, la DB no devuelve ni deja escribir filas de otro
 tenant.
 
-**Estado: ESCRITO, NO APLICADO a producción.** Aplicar es **Gate 2** (OK
-explícito de Maxi) y va junto con provisionar el 2º tenant (ADR-018 §3, gate
-duro T2). Estos archivos existen para que ese día sea *revisar y aplicar*, no
-diseñar bajo presión.
+**Estado: NO MEDIDO contra producción.** Decía "ESCRITO, NO APLICADO a producción" como
+hecho; era una afirmación de julio que nadie volvió a verificar, y es la línea que se abre
+para decidir el Gate 2, así que es la copia más cara de todas.
+
+**Estado real, medido el 2026-09-16 contra la base local `erp_scope` (rol `app_rls`, NOBYPASSRLS):** RLS está APLICADA ahí — 44 policies `tenant_isolation`, `CarteraCliente` con `relrowsecurity = t`, 0 filas leídas con el GUC de otro tenant y 0 sin GUC. **Contra Neon NO está medido por nadie.** Lo cierran dos comandos con rol directo: `npx prisma migrate status` y `SELECT relrowsecurity FROM pg_class WHERE relname = 'CarteraCliente';`. Hasta que se corran, cualquier afirmación sobre producción —en cualquier archivo de este repo— es de julio y sin verificar.
+
+Aplicar a producción es **Gate 2** (OK explícito del dueño) y va junto con provisionar el 2º
+tenant (ADR-018 §3, gate duro T2). Estos archivos existen para que ese día sea *revisar y
+aplicar*, no diseñar bajo presión.
+
+⚠️ `0001_enable_rls.sql` es data-driven y se corre A MANO: recorre las tablas que EXISTEN en
+el momento de correrlo. Una tabla creada por una migración posterior NO queda cubierta hasta
+que se lo vuelva a correr. Por eso cada `migrate deploy` a Neon tiene que terminar con este
+script otra vez, y por eso `src/lib/rls-migraciones.test.ts` falla si una migración nueva crea
+una tabla con `tenantId` sin prender RLS ella misma.
 
 ## Archivos
 

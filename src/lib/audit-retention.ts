@@ -11,10 +11,13 @@
 
 import type { PrismaClient } from "@/generated/prisma/client";
 
-// Entidad de `AuditLog` que la purga nunca borra (ver el comentario en `purgeAuditLogs`).
-// Se define acá y no se importa de `frontera-cierre.ts` a propósito: ese módulo trae el
+// Entidades de `AuditLog` que la purga nunca borra (ver el comentario en `purgeAuditLogs`).
+// Se definen acá y no se importan de `frontera-cierre.ts` a propósito: ese módulo trae el
 // cliente Prisma del runtime y esto tiene que poder correr con un doble de test.
-export const PURGE_EXEMPT_ENTITY = "CierreDiario";
+export const PURGE_EXEMPT_ENTITIES = ["CierreDiario", "CarteraCliente"] as const;
+
+/** @deprecated Usar `PURGE_EXEMPT_ENTITIES`. Se conserva por compatibilidad de llamadores. */
+export const PURGE_EXEMPT_ENTITY = PURGE_EXEMPT_ENTITIES[0];
 
 // Solo la parte del cliente Prisma que la purga necesita — se deriva del delegate real
 // para garantizar compatibilidad de tipos, pero acota la superficie (inyectable/testeable).
@@ -49,12 +52,19 @@ export async function purgeAuditLogs(
   const months = opts.months ?? AUDIT_RETENTION_MONTHS;
   const dryRun = opts.dryRun ?? true;
   const cutoff = auditRetentionCutoff(months);
-  // El CIERRE DIARIO de caja queda EXENTO. Su fila de auditoría no es un rastro: es la
-  // frontera de congelamiento del libro (hasta qué día está cerrado el tenant, ver
+  // Dos entidades quedan EXENTAS, por razones distintas.
+  //
+  // El CIERRE DIARIO de caja: su fila de auditoría no es un rastro, es la frontera de
+  // congelamiento del libro (hasta qué día está cerrado el tenant, ver
   // src/lib/caja/frontera-cierre.ts). Purgarla haría que un día cerrado hace 18 meses
   // volviera a aceptar movimientos y que el saldo dejara de ser el que se contó.
-  // Es la única excepción de la política, y desaparece el día que exista `CashDayClose`.
-  const where = { createdAt: { lt: cutoff }, entity: { not: PURGE_EXEMPT_ENTITY } };
+  // Desaparece el día que exista `CashDayClose`.
+  //
+  // La CARTERA del contador: cada fila registra que un estudio quedó habilitado para emitir
+  // facturas electrónicas a nombre del CUIT de otro. Con facturación electrónica de por
+  // medio, 18 meses no cubren la prescripción: ese consentimiento tiene que poder
+  // reconstruirse cuando lo pidan, no mientras dure la ventana de storage.
+  const where = { createdAt: { lt: cutoff }, entity: { notIn: [...PURGE_EXEMPT_ENTITIES] } };
 
   if (dryRun) {
     return { cutoff, affected: await client.auditLog.count({ where }), dryRun };
