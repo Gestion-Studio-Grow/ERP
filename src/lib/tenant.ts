@@ -7,11 +7,12 @@ import { isDemoSandbox, DEMO_TENANT_ID } from "@/lib/demo-flag";
 //
 // CÓMO RESUELVE (en orden):
 //   0. Si `FORCE_TENANT_SLUG` está seteado → ese tenant, fijo, ignorando el host
-//      (Opción A — "URLs gratis por tenant": un sitio Netlify por tenant, mismo
-//      repo, cada sitio pineado a su slug; ver docs/runbooks/alta-magra.md).
-//      Fail-closed: si el slug no matchea, THROW. NO reemplaza RLS — el aislamiento
-//      entre sitios que pegan a la misma DB lo sigue dando RLS (el id resuelto acá
-//      alimenta el GUC de la policy).
+//      (Opción A — "URLs gratis por tenant": un sitio por tenant, mismo repo, cada
+//      sitio pineado a su slug; ver docs/runbooks/alta-magra.md). Fail-closed: si el
+//      slug no matchea, THROW. **En PRODUCCIÓN con más de un tenant este paso está
+//      PROHIBIDO y lanza** — ver `assertForcedSlugAllowedInProduction` abajo. NO
+//      reemplaza RLS, y NO lo sustituye: el id que sale de acá es el que alimenta el
+//      GUC de la policy, así que un slug equivocado se propaga a RLS.
 //   1. Por SUBDOMINIO del host del request (`carolina.<base>` → tenant con
 //      subdomain="carolina"). Cada tenant tiene su URL (Tenant.subdomain, agregado
 //      por el control-plane, ADR-021). Aplica al sitio público y al backoffice del
@@ -167,6 +168,55 @@ export function forcedTenantSlug(
 }
 
 /**
+ * PORTERO del pin por env en PRODUCCIÓN. Lanza si `FORCE_TENANT_SLUG` está seteado en
+ * un deploy productivo que comparte base con MÁS DE UN tenant.
+ *
+ * POR QUÉ existe (no lo saques porque te sorprendió un throw en un deploy):
+ * `FORCE_TENANT_SLUG` es la ÚNICA variable del sistema que colapsa el aislamiento sin
+ * romper nada visible. Se aplica ANTES del host, así que fija TODO el deploy a un
+ * tenant y el routing por hostname (`TENANT_HOST_MAP` / subdominio) deja de existir:
+ * con N locales de un mismo cliente servidos por el mismo proyecto, los N muestran los
+ * datos del tenant pineado y nadie ve un error. Peor: RLS NO ataja esto — el id que
+ * devuelve `getCurrentTenantId` es el que va al GUC `app.current_tenant_id`, así que la
+ * policy se aplica CON EL TENANT EQUIVOCADO y coopera con la fuga en vez de frenarla.
+ * Es una fuga silenciosa de datos entre clientes, no una caída.
+ *
+ * POR QUÉ la guarda es `NODE_ENV === "production"` + `tenants > 1` y no un throw a secas:
+ * el pin es legítimo y se usa a diario fuera de producción — scripts de RLS
+ * (`prisma/rls/aislamiento-capa-app.ts:18`), tests, y dev local contra una base con
+ * varios tenants sembrados. Y con UN solo tenant en la base no hay a quién filtrarle
+ * nada, así que tampoco corresponde romper (es el caso del deploy de demo/preventa,
+ * que además ni llega acá: `isDemoSandbox()` corta antes).
+ *
+ * Esto no inventa política nueva: los tres runbooks de deploy ya dicen "NO setear
+ * FORCE_TENANT_SLUG" (docs/runbooks/deploy-vercel.md:73 y :120,
+ * docs/runbooks/recuperar-chestetica.md:72, .env.vercel.template:73). Lo que faltaba era
+ * que el código lo hiciera cumplir en vez de confiar en que nadie la deje puesta.
+ *
+ * `countTenants` está inyectado para testear sin DB; en runtime es `basePrisma.tenant.count`.
+ * El costo es CERO en un deploy sano: sólo se cuenta si la var está seteada.
+ */
+export async function assertForcedSlugAllowedInProduction(
+  slug: string,
+  countTenants: () => Promise<number>,
+  env: Record<string, string | undefined> = process.env,
+): Promise<void> {
+  if (env.NODE_ENV !== "production") return;
+  const tenants = await countTenants();
+  if (tenants <= 1) return;
+  throw new Error(
+    `getCurrentTenantId: FORCE_TENANT_SLUG="${slug}" está seteada en un deploy de ` +
+      `PRODUCCIÓN cuya base tiene ${tenants} tenants. Esa variable fija TODO el deploy a ` +
+      `"${slug}" e IGNORA el host: cualquier otro sitio servido por este proyecto mostraría ` +
+      `los datos de "${slug}", y RLS no lo ataja (el GUC se setea con ese mismo tenant ` +
+      "equivocado). Fail-closed (ADR-015). CÓMO SE ARREGLA: Vercel → el proyecto → Settings → " +
+      "Environment Variables → borrar FORCE_TENANT_SLUG del entorno Production → Redeploy. " +
+      "El routing de producción es por host: TENANT_HOST_MAP o subdominio de APP_BASE_DOMAIN " +
+      "(docs/runbooks/deploy-vercel.md §1).",
+  );
+}
+
+/**
  * Resuelve el tenantId del slug forzado, o THROW fail-closed (ADR-015) si no existe.
  * `lookup` está inyectado para testear sin DB; en runtime es `basePrisma.tenant`.
  */
@@ -190,8 +240,12 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
 
   // Paso 0: pin por env (Opción A). Domina sobre el host; si está seteado, el sitio
   // queda fijado a ese tenant. Usa el cliente BASE (sin RLS), como el resto de acá.
+  // En producción multi-tenant el pin está PROHIBIDO y esto lanza: ver el porqué largo
+  // en `assertForcedSlugAllowedInProduction` (resumen: dominar sobre el host arrastra al
+  // GUC de RLS, así que la fuga es silenciosa y RLS no la frena).
   const forced = forcedTenantSlug();
   if (forced) {
+    await assertForcedSlugAllowedInProduction(forced, () => basePrisma.tenant.count());
     return resolveForcedTenantId(forced, (slug) =>
       basePrisma.tenant.findUnique({ where: { slug }, select: { id: true } }),
     );

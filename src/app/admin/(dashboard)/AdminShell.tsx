@@ -4,12 +4,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
-import { roleHasCapability, type Role } from "@/lib/capabilities";
-import { moduleGateAllows } from "@/modules/gating";
-import { perfilGateAllows, type Perfil } from "@/modules/perfil";
-import { NAV_ITEM_GROUPS, readyEnterpriseNavItems, groupNavItems } from "@/modules/nav-groups";
+import { type Role } from "@/lib/capabilities";
+import { type Perfil } from "@/modules/perfil";
+import { NAV_ITEM_GROUPS, groupNavItems } from "@/modules/nav-groups";
 import { searchNavItems } from "@/modules/nav-search";
-import { ALL_ITEMS, type ShellItem } from "@/lib/admin-nav-items";
+import { menuItemsParaTenant, type ShellItem } from "@/lib/admin-nav-items";
 import { ProfileBadge } from "@/components/ui";
 import ThemeToggle from "./ThemeToggle";
 
@@ -61,8 +60,9 @@ function Icon({ name }: { name: string }) {
 // `ALL_ITEMS` + el tipo `ShellItem` viven en `@/lib/admin-nav-items` (dato puro,
 // una sola fuente de verdad): esta nav los pinta filtrados por rol × módulo ×
 // perfil × rubro, y el gating por-URL del producto Comerciante (server) mapea ruta →
-// módulo con la MISMA lista, sin duplicarla. Los ítems de rubro (retailOnly/
-// carniceriaOnly, Magra) viven ahí también y se filtran acá por isRetail/carniceriaReady.
+// módulo con la MISMA lista, sin duplicarla. Los ítems de rubro viven ahí también y se
+// filtran acá por isRetail/carniceriaReady: `retailOnly`/`carniceriaOnly` MUESTRAN lo de
+// mostrador, `agendaOnly` ESCONDE lo que sólo sirve con turnos.
 
 const ROLE_LABEL: Record<Role, string> = {
   OWNER: "Dueño/a",
@@ -441,37 +441,21 @@ export default function AdminShell({
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const activeSet = activeModules === null ? null : new Set(activeModules);
-  // Eje PERFIL (ADR-058/059, 3ª dimensión). Con `activeProfile===null` (PROFILES OFF,
-  // default) NO se suman ítems Empresa y `perfilGateAllows` deja pasar todo → nav
-  // idéntica a la legada. Con perfil Empresa se concatenan los `enterprise-only` cuya
-  // PANTALLA ya existe (`readyEnterpriseNavItems`, regla de oro de S1: nada sin ruta →
-  // cero callejones sin salida); con perfil Comercio `perfilGateAllows` los filtra.
-  // Garantiza `enterprise ⊇ lite`: el Comercio nunca ve MÁS que la nav de hoy, la
-  // Empresa ve eso + lo aditivo YA construido. Hoy no hay ítems `ready` → Empresa día-1
-  // = piso Comercio re-frameado, sin ítems nuevos (exactamente lo que valida S1).
-  // DEDUP por href: `/admin/inventario` está declarado en los DOS registros — en
-  // `ALL_ITEMS` como ítem de rubro retail (Magra) y en `ENTERPRISE_NAV_ITEMS` como
-  // shell del perfil Empresa. Es la MISMA pantalla encendida por dos vías. Sin esta
-  // deduplicación, un tenant retail con el motor de perfiles ON la vería dos veces
-  // en la barra (y React se quejaría por la key repetida). Gana el ítem base: es el
-  // que trae el rubro-gating (`retailOnly`), sin el cual la pantalla se le colaría
-  // a un tenant de servicios.
-  const vistos = new Set<string>();
-  const candidateItems: ShellItem[] = (
-    activeProfile === null ? ALL_ITEMS : [...ALL_ITEMS, ...readyEnterpriseNavItems()]
-  ).filter((item) => (vistos.has(item.href) ? false : (vistos.add(item.href), true)));
-  const items = candidateItems.filter(
-    (item) =>
-      roleHasCapability(role, item.cap) &&
-      moduleGateAllows(item.module, activeSet) &&
-      perfilGateAllows(item.perfilMin, activeProfile) &&
-      // Eje RUBRO: los ítems de mostrador/carnicería solo en un tenant retail; los que
-      // dependen del schema cárnico, solo si está aplicado. En servicios (CH) todo esto
-      // es false → los ítems se filtran → nav idéntica a la legada.
-      (!item.retailOnly || isRetail) &&
-      (!item.carniceriaOnly || (isRetail && carniceriaReady)),
-  );
+  // LA NAV SALE DE UNA SOLA FUNCIÓN, y esa función es testeable sin render.
+  // `menuItemsParaTenant` (src/lib/admin-nav-items.ts) compone los CUATRO ejes —
+  // rol × módulo × perfil × RUBRO— y es la MISMA que ejecuta src/lib/nav-rubro.test.ts
+  // con los ítems y los rubros reales. Acá no queda lógica de visibilidad: si el filtro
+  // volviera a escribirse inline, el test dejaría de cubrir lo que el usuario ve.
+  // Por qué importa el eje RUBRO: el que atiende una carnicería abría un menú con Agenda,
+  // Lista de espera, Reseñas y Recordatorios —cuatro pantallas que en un tenant sin
+  // Service ni Professional no se pueden usar— y le faltaban Inventario y Lotes.
+  const items = menuItemsParaTenant({
+    role,
+    activeModules: activeModules === null ? null : new Set(activeModules),
+    activeProfile,
+    isRetail,
+    carniceriaReady,
+  });
   const roleLabel = ROLE_LABEL[role];
 
   // Cerrar el cajón al navegar (cambia el pathname) y con Escape.

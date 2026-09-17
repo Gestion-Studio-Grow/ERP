@@ -29,7 +29,6 @@ import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { operatorSetMustChange } from "@/lib/must-change-password";
 import {
   resetOwnerPasswordCore,
-  resetManyOwnerPasswordsCore,
   type OwnerResetPort,
   type OwnerResetResult,
   type OwnerResetRow,
@@ -240,6 +239,52 @@ export async function setTenantArcaCuit(formData: FormData) {
   redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(msg)}`);
 }
 
+// --- Punto de venta de ARCA por tenant ----------------------------------------
+// `Tenant.arcaPuntoVenta` (schema.prisma:246) EXISTE desde siempre y hasta hoy no tenía UI en
+// ningún lado: se seteaba por SQL a mano. Eso lo hacía el paso que más se olvida de una apertura,
+// y el más caro: `construirPerfilFiscal` LANZA sin punto de venta (src/lib/fiscal.ts:178-186) y la
+// emisión corre best-effort dentro de un try/catch → el local cobra, la factura no sale, y se
+// descubre a fin de mes. Va acá, al lado del CUIT, porque son el mismo trámite.
+// Auditada, como el resto de las escrituras fiscales del control-plane.
+export async function setTenantArcaPuntoVenta(formData: FormData) {
+  const op = await requireOperator();
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const raw = String(formData.get("arcaPuntoVenta") || "").trim();
+
+  let punto: number | null = null;
+  if (raw !== "") {
+    // Sólo dígitos: ARCA numera los puntos de venta de 1 a 99999 (5 dígitos en el CAE).
+    if (!/^\d{1,5}$/.test(raw)) {
+      redirect(
+        `/operador/tenants/${tenantId}?error=${encodeURIComponent(
+          `"${raw}" no es un punto de venta válido: va un número entero de 1 a 99999 (el que ARCA habilitó para este CUIT).`,
+        )}`,
+      );
+    }
+    punto = Number(raw);
+    if (punto <= 0) {
+      redirect(
+        `/operador/tenants/${tenantId}?error=${encodeURIComponent("El punto de venta tiene que ser mayor que cero.")}`,
+      );
+    }
+  }
+
+  await operatorPrisma.tenant.update({ where: { id: tenantId }, data: { arcaPuntoVenta: punto } });
+  await operatorPrisma.auditLog.create({
+    data: {
+      tenantId,
+      actor: `operator:${op}`,
+      action: punto ? "fiscal.puntoVenta.set" : "fiscal.puntoVenta.clear",
+      entity: "Tenant",
+      entityId: tenantId,
+      changes: { arcaPuntoVenta: punto },
+    },
+  });
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  const msg = punto ? `Punto de venta guardado (${punto})` : "Punto de venta borrado";
+  redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(msg)}`);
+}
+
 // --- Credencial fiscal ARCA por tenant (ADR-066) ------------------------------
 // Carga/rota el certificado del emisor, CIFRADO en reposo (envelope). Acción de
 // operador, AUDITADA. El material lo pega el operador (nunca el agente); acá NUNCA se
@@ -308,26 +353,79 @@ export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetRe
   return result;
 }
 
-// Reset MASIVO de los OWNER (primer uso de los 8 tenants). Devuelve una fila por tenant con la
-// temporal REVELADA UNA vez (sólo en el retorno; nunca se persiste en claro, nunca se loguea, no
-// se escribe a ningún archivo). Cada reset queda auditado (lo hace el núcleo). Guardado por
-// `requireOperator()`. Incluye TODOS los tenants (ninguno tiene un cliente real usándolo hoy).
+// --- Reset de OWNER: por qué YA NO existe la versión masiva --------------------
+//
+// Esta acción hacía `tenant.findMany()` SIN FILTRO y le cambiaba la contraseña al OWNER de
+// TODOS los tenants de la plataforma, detrás de un solo click de confirmación. Su comentario
+// decía que se podía porque "ninguno tiene un cliente real usándolo hoy": ESO ERA FALSO.
+// `beauty-spa` (CH Estética) está VIVO en producción y su dueña entra con esa contraseña. Un
+// click dejaba a una clienta real afuera de su propio sistema, sin forma de volver atrás: el
+// hash anterior se pisa y la temporal se muestra UNA sola vez en pantalla — si el operador
+// cierra la pestaña, la recuperación es otro reset y una llamada incómoda.
+//
+// Agravante: el "cambio forzado en el próximo ingreso" que la pantalla promete NO funciona hoy.
+// La columna `mustChangePassword` no está aplicada en la base (Gate 2), así que `setMustChange`
+// devuelve `persisted:false` y la temporal queda válida para siempre. O sea: el disparo masivo
+// no sólo saca a la dueña — deja N contraseñas temporales vivas en un papel.
+//
+// Se neutraliza en vez de borrarse porque su llamador (la tarjeta de la consola) no es de este
+// frente: manteniendo la firma, el botón sigue compilando pero ya no puede hacer daño, y el
+// operador lee en pantalla qué hacer en su lugar. El reemplazo es `resetOwnerPasswordDeTenant`:
+// uno por vez, tipeando el slug del tenant.
 export async function resetAllOwnerPasswords(): Promise<
   { ok: true; rows: OwnerResetRow[] } | { ok: false; error: string }
 > {
-  const op = await requireOperator();
-  const tenants = await operatorPrisma.tenant.findMany({
-    select: { id: true, name: true },
-    orderBy: { createdAt: "asc" },
-  });
-  if (tenants.length === 0) return { ok: false, error: "No hay tenants." };
-
-  const rows = await resetManyOwnerPasswordsCore(operatorResetPort(), tenants, op);
-  revalidatePath("/operador");
-  for (const r of rows) revalidatePath(`/operador/tenants/${r.tenantId}`);
-  return { ok: true, rows };
+  await requireOperator();
+  return {
+    ok: false,
+    error:
+      "El reset MASIVO está deshabilitado a propósito. Reseteaba la contraseña del OWNER de " +
+      "TODOS los tenants de una vez, incluida CH Estética, que está viva en producción: un " +
+      "click dejaba a la dueña afuera de su sistema. Hacelo de a uno, desde la ficha del " +
+      "tenant (Tenants → el local → Contraseña del OWNER), tipeando su slug para confirmar.",
+  };
 }
 
+// Reset del OWNER de UN tenant, confirmado tipeando su slug exacto. El slug es el nombre que el
+// operador está viendo en pantalla: obliga a mirar A QUIÉN le está cambiando la contraseña, que
+// es justo el paso que el botón masivo se salteaba. Devuelve la temporal UNA vez (sólo en el
+// retorno: nunca se persiste en claro, nunca se loguea, no va por la URL) y queda auditado.
+export async function resetOwnerPasswordDeTenant(
+  tenantId: string,
+  slugTipeado: string,
+): Promise<OwnerResetResult> {
+  const op = await requireOperator();
+
+  const tenant = await operatorPrisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { slug: true, name: true },
+  });
+  if (!tenant) return { ok: false, error: "Ese tenant no existe." };
+
+  // Comparación exacta salvo espacios/mayúsculas: el slug ya es minúscula-y-guiones por
+  // construcción, y pedir precisión tipográfica sólo genera reintentos, no seguridad.
+  if (slugTipeado.trim().toLowerCase() !== tenant.slug.trim().toLowerCase()) {
+    return {
+      ok: false,
+      error: `Para confirmar, escribí exactamente el slug del tenant ("${tenant.slug}").`,
+    };
+  }
+
+  const result = await resetOwnerPasswordCore(operatorResetPort(), { tenantId, operatorSubject: op });
+  if (result.ok) {
+    revalidatePath(`/operador/tenants/${tenantId}`);
+    revalidatePath("/operador");
+  }
+  return result;
+}
+
+// Toggle de un módulo en `Tenant.modules`. OJO — HOY ESTO ES INFORMATIVO, NO PRENDE PANTALLAS:
+// el registro de módulos está detrás de `MODULE_REGISTRY_ENABLED`, que está apagado (y prenderlo
+// es cross-tenant: dejaría a beauty-spa sin menú). El gating que SÍ manda hoy es el RUBRO
+// (`isRetail` / `carniceriaOnly`). Además esto escribe el array crudo: no valida que el módulo
+// corresponda al rubro ni que estén sus dependencias. Se deja porque el dato queda listo para
+// cuando el registro se encienda, pero la ficha lo etiqueta como informativo para que nadie
+// prometa "le prendo Bancos" y se vaya con la idea de que quedó prendido.
 export async function toggleTenantModule(formData: FormData) {
   await requireOperator();
   const tenantId = String(formData.get("tenantId") || "");

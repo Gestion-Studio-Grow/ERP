@@ -103,5 +103,29 @@ VALUES ('usr_magra_owner',(SELECT id FROM "Tenant" WHERE slug='magra-demo'),'Due
 ON CONFLICT ("tenantId","email") DO UPDATE SET
   "passwordHash"=EXCLUDED."passwordHash", "active"=true, "deletedAt"=NULL, "updatedAt"=now();
 
--- Listo. Recordá prender MODULE_REGISTRY_ENABLED (+ NAV_GROUPING_ENABLED/PROFILES_ENABLED) y
--- que TENANT_HOST_MAP mapee cada host al subdomain (estetica/velas/padel/magra) para verlos.
+-- ── Listo. Qué hace falta para VERLOS (y qué NO hay que prender) ───────────────────
+--
+-- ⚠️ CORRECCIÓN 2026-09-17. Este archivo decía "prender MODULE_REGISTRY_ENABLED (+
+-- NAV_GROUPING_ENABLED/PROFILES_ENABLED)". Era una instrucción PELIGROSA y está retirada:
+-- los tres flags son GLOBALES del deploy, no por tenant (src/modules/flags.ts), así que
+-- prender cualquiera afecta a TODOS los tenants de la base — incluida `beauty-spa`, el
+-- único cliente vivo en producción.
+--
+-- Concretamente con MODULE_REGISTRY_ENABLED=on: el menú del backoffice pasa a armarse
+-- SÓLO con `Tenant.modules[]` (src/lib/module-gating.ts:27-43 → resolverActivacion, que
+-- parte de lo asignado y sólo RESTA, src/modules/activation.ts:12-16,77). `beauty-spa` tiene
+-- `modules = {}` y `blueprintId = NULL` → el set de módulos activos queda VACÍO → se queda
+-- SIN MENÚ. Comprobalo antes de discutirlo:
+--     SELECT slug, modules, "blueprintId" FROM "Tenant" WHERE slug = 'beauty-spa';
+--
+-- El eje de gating que SÍ está en uso es el RUBRO (`blueprintId` → isRetail/carniceriaOnly,
+-- src/lib/carniceria/rubro.ts:26-37). Por eso este seed ya setea `blueprintId` en cada
+-- tenant: con eso solo, cada demo abre con su cara (mostrador vs. agenda) y no hace falta
+-- tocar ningún flag.
+--
+-- Para verlos alcanza con:
+--   1. TENANT_HOST_MAP mapeando cada host al `subdomain` de arriba (estetica/velas/padel/
+--      magra). Es UNA sola variable concatenada con `;` — ver el procedimiento de edición
+--      en docs/runbooks/alta-magra.md (Paso 8): perder una entrada tira el fail-closed de
+--      src/lib/tenant.ts:150-154 en el tenant afectado.
+--   2. Nada más. Ningún flag.

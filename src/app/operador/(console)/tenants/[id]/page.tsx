@@ -9,8 +9,15 @@ import {
   setTenantSubdomain,
   toggleTenantModule,
   setTenantArcaCuit,
+  setTenantArcaPuntoVenta,
   cargarCredencialFiscal,
 } from "@/lib/operator-actions";
+import {
+  checklistApertura,
+  evaluarListoParaFacturar,
+  type EstadoApertura,
+  type ItemApertura,
+} from "@/lib/operador/checklist-apertura";
 import { MODULES, PLANS, TENANT_STATUSES, ACCENT_PRESET_IDS } from "@/lib/operator-config";
 import { Card, Field, Input, Select, Textarea, Button, Badge, fmtCuit } from "@/components/ui";
 import { modoDesdeEnv } from "@/plugins/arca";
@@ -66,6 +73,26 @@ function EstadoFiscalRow({ label, ok, valor }: { label: string; ok: boolean | nu
   );
 }
 
+// Fila del checklist de apertura. Muestra el DATO ("12 de 20 al precio del blueprint") y, cuando
+// falta, el POR QUÉ: un ítem que sólo dice "falta X" se saltea; uno que dice qué se rompe, no.
+function ItemAperturaRow({ item }: { item: ItemApertura }) {
+  const tone = item.ok === null ? "neutral" : item.ok ? "success" : "warning";
+  const estado = item.ok === null ? "no aplica" : item.ok ? "listo" : "falta";
+  return (
+    <li className="flex items-start justify-between gap-3 rounded-md border border-line px-3 py-2">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-strong">{item.label}</p>
+        <p className="text-xs text-muted">{item.detalle}</p>
+        {item.ok === false && <p className="text-xs text-warning mt-0.5">{item.porQue}</p>}
+      </div>
+      <Badge tone={tone} dot>
+        <span className="sr-only">{estado}: </span>
+        {item.ok === null ? "—" : item.ok ? "✓" : "✗"}
+      </Badge>
+    </li>
+  );
+}
+
 // CONFIGURACIÓN POR TENANT (control-plane, ADR-021). Cross-tenant vía operatorPrisma.
 export default async function TenantConfigPage({
   params,
@@ -82,7 +109,7 @@ export default async function TenantConfigPage({
     select: {
       id: true, name: true, slug: true, status: true, plan: true, blueprintId: true,
       subdomain: true, modules: true, accentPreset: true, frontTheme: true, createdAt: true,
-      arcaCuit: true,
+      arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true,
       _count: { select: { users: true, services: true, products: true, appointments: true, orders: true, clients: true } },
     },
   });
@@ -107,9 +134,56 @@ export default async function TenantConfigPage({
   const credLoaded = credFiscal && credFiscal !== "pendiente" ? credFiscal : null;
   const cuitOk = !!tenant!.arcaCuit;
   const certOk = !!credLoaded;
+  const puntoVentaOk = typeof tenant!.arcaPuntoVenta === "number" && tenant!.arcaPuntoVenta > 0;
   const certVence = credLoaded?.certNotAfter ? credLoaded.certNotAfter.toISOString().slice(0, 10) : null;
   const cuitCertMismatch = !!(credLoaded && cuitOk && credLoaded.certCuit !== tenant!.arcaCuit);
-  const listoParaFacturar = cuitOk && certOk && !cuitCertMismatch && modoArca !== "stub";
+
+  // Datos de apertura del local: contacto público y catálogo. Tolerantes a que falten (un tenant
+  // recién creado puede no tener BusinessSettings) — la ficha no se rompe por eso.
+  const contacto = await operatorPrisma.businessSettings
+    .findUnique({
+      where: { tenantId: tenant!.id },
+      select: { addressLine: true, instagram: true, whatsapp: true },
+    })
+    .catch(() => null);
+  const productos = await operatorPrisma.product
+    .findMany({
+      where: { tenantId: tenant!.id, deletedAt: null },
+      select: { name: true, price: true, pricePerKg: true },
+      take: 300, // techo defensivo: el chequeo compara contra el catálogo semilla (~20 ítems)
+    })
+    .catch(() => []);
+  const usuariosActivos = await operatorPrisma.user.count({
+    where: { tenantId: tenant!.id, active: true, deletedAt: null },
+  });
+
+  const estadoApertura: EstadoApertura = {
+    slug: tenant!.slug,
+    blueprintId: tenant!.blueprintId,
+    subdomain: tenant!.subdomain,
+    usuariosActivos,
+    arcaCuit: tenant!.arcaCuit,
+    arcaPuntoVenta: tenant!.arcaPuntoVenta,
+    arcaHomologacion: tenant!.arcaHomologacion,
+    certificadoCargado: credFiscal === "pendiente" ? null : certOk,
+    certCuit: credLoaded?.certCuit ?? null,
+    modoArca,
+    // HOY siempre false: la columna `arcaCondicionIva` está declarada schema-ahead en
+    // src/lib/fiscal.ts:108-119 pero su migración NO está aplicada. Cuando se aplique, esto pasa
+    // a leer el dato del tenant. Importa porque en producción fiscal sin condición de IVA
+    // `construirPerfilFiscal` LANZA (fiscal.ts:208-217) y la factura no sale.
+    condicionIvaDisponible: false,
+    contacto,
+    productos,
+  };
+
+  // El semáforo "listo para facturar" sale del MISMO evaluador que usa el checklist y que copia
+  // las condiciones de `construirPerfilFiscal`. Antes miraba sólo CUIT + certificado + modo: daba
+  // VERDE sin punto de venta, y ahí el perfil fiscal lanza, la venta se cobra igual (la emisión es
+  // best-effort dentro de un try/catch) y la factura no sale hasta que alguien lo nota a fin de mes.
+  const fiscal = evaluarListoParaFacturar(estadoApertura);
+  const listoParaFacturar = fiscal.listo;
+  const apertura = checklistApertura(estadoApertura);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -140,6 +214,23 @@ export default async function TenantConfigPage({
       )}
       {ok && <div className="rounded-md bg-success-soft text-success text-sm px-3 py-2">Guardado ({ok}).</div>}
       {error && <div className="rounded-md bg-danger-soft text-danger text-sm px-3 py-2 whitespace-pre-wrap">{error}</div>}
+
+      {/* Listo para abrir — el checklist del local (lo que el alta NO automatiza) */}
+      <Card className="p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-medium">Listo para abrir</h2>
+          <Badge tone={apertura.listo ? "success" : "warning"} dot>
+            {apertura.listo ? "sin pendientes" : `${apertura.pendientes} pendiente${apertura.pendientes === 1 ? "" : "s"}`}
+          </Badge>
+        </div>
+        <p className="text-sm text-muted">
+          El alta automatiza un paso de la apertura; estos son los que quedan a mano y se olvidan
+          cuando abren varios locales juntos. Es dato real de este tenant, no una lista escrita a mano.
+        </p>
+        <ul className="space-y-2">
+          {apertura.items.map((i) => <ItemAperturaRow key={i.id} item={i} />)}
+        </ul>
+      </Card>
 
       {/* Estado + Plan */}
       <div className="grid md:grid-cols-2 gap-4">
@@ -211,8 +302,8 @@ export default async function TenantConfigPage({
         <div>
           <h2 className="font-medium">Facturación electrónica · ARCA</h2>
           <p className="text-sm text-muted">
-            Para emitir hacen falta dos cosas, <b>en este orden</b>: <b>1)</b> el CUIT del emisor y{" "}
-            <b>2)</b> su certificado ARCA. El sistema firma <b>solo</b> si el CUIT del certificado coincide
+            Para emitir hacen falta tres cosas, <b>en este orden</b>: <b>1)</b> el CUIT del emisor,{" "}
+            <b>2)</b> el punto de venta que ARCA le habilitó y <b>3)</b> su certificado ARCA. El sistema firma <b>solo</b> si el CUIT del certificado coincide
             con el del tenant (guard fail-closed, ADR-066). El material nunca se muestra ni se loguea.
           </p>
         </div>
@@ -223,6 +314,11 @@ export default async function TenantConfigPage({
             label="CUIT del emisor"
             ok={cuitOk}
             valor={cuitOk ? fmtCuit(tenant!.arcaCuit) : "sin cargar"}
+          />
+          <EstadoFiscalRow
+            label="Punto de venta"
+            ok={puntoVentaOk}
+            valor={puntoVentaOk ? String(tenant!.arcaPuntoVenta) : "sin cargar"}
           />
           <EstadoFiscalRow
             label="Certificado"
@@ -248,12 +344,16 @@ export default async function TenantConfigPage({
           </div>
         ) : (
           <div role="status" className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2">
-            Todavía no está listo para facturar
-            {!cuitOk && " — falta el CUIT del emisor"}
-            {cuitOk && !certOk && " — falta el certificado"}
-            {cuitOk && certOk && cuitCertMismatch && " — el CUIT no coincide con el del certificado"}
-            {cuitOk && certOk && !cuitCertMismatch && modoArca === "stub" && " — ARCA está en modo stub (apagado)"}
-            .
+            <b>Todavía no está listo para facturar.</b> Si vende así, el cobro entra igual y la
+            factura no sale (la emisión es best-effort): el descuadre aparece a fin de mes.
+            <ul className="mt-1 space-y-0.5">
+              {fiscal.faltantes.map((f) => <li key={f}>• {f}</li>)}
+            </ul>
+            {fiscal.bloqueadoPorMigracion && (
+              <span className="block mt-1 text-xs">
+                Hay faltantes que <b>no se resuelven desde acá</b>: necesitan una migración aprobada por el dueño.
+              </span>
+            )}
           </div>
         )}
 
@@ -287,9 +387,32 @@ export default async function TenantConfigPage({
           </p>
         </form>
 
-        {/* Paso 2 — Certificado ARCA */}
+        {/* Paso 2 — Punto de venta habilitado en ARCA */}
+        <form action={setTenantArcaPuntoVenta} className="space-y-2 border-t border-line pt-4">
+          <input type="hidden" name="tenantId" value={tenant!.id} />
+          <Field label="Paso 2 · Punto de venta de ARCA">
+            <div className="flex items-end gap-2">
+              <Input
+                name="arcaPuntoVenta"
+                defaultValue={tenant!.arcaPuntoVenta ?? ""}
+                placeholder="4"
+                inputMode="numeric"
+                autoComplete="off"
+                className="flex-1 font-mono"
+                aria-describedby="pv-hint"
+              />
+              <Button type="submit" variant="outline" size="sm">Guardar punto de venta</Button>
+            </div>
+          </Field>
+          <p id="pv-hint" className="text-xs text-muted">
+            El número que ARCA habilitó para este CUIT (1 a 99999). <b>Sin esto no se puede emitir:</b>{" "}
+            el sistema cobra la venta y la factura queda sin salir. Dejalo vacío para borrarlo.
+          </p>
+        </form>
+
+        {/* Paso 3 — Certificado ARCA */}
         <div className="space-y-3 border-t border-line pt-4">
-          <h3 className="text-sm font-medium">Paso 2 · Certificado ARCA</h3>
+          <h3 className="text-sm font-medium">Paso 3 · Certificado ARCA</h3>
 
           {credFiscal === "pendiente" ? (
             <div role="alert" className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2">
@@ -307,7 +430,7 @@ export default async function TenantConfigPage({
             </div>
           ) : (
             <div className="rounded-md border border-line px-3 py-2 text-sm text-muted">
-              <Badge tone="info" dot>Sin credencial</Badge> Cargá primero el CUIT (Paso 1), después el certificado.
+              <Badge tone="info" dot>Sin credencial</Badge> Cargá primero el CUIT y el punto de venta (Pasos 1 y 2), después el certificado.
             </div>
           )}
 
@@ -353,8 +476,16 @@ export default async function TenantConfigPage({
 
       {/* Módulos */}
       <Card className="p-5 space-y-3">
-        <h2 className="font-medium">Módulos activos</h2>
-        <p className="text-sm text-muted">Encendé/apagá cada módulo para este tenant.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-medium">Módulos del tenant</h2>
+          <Badge tone="neutral">informativo</Badge>
+        </div>
+        <p className="text-sm text-muted">
+          <b>Hoy esto NO prende ni apaga pantallas.</b> Guarda la intención en el tenant, pero el menú
+          real se decide por el <b>rubro</b> del negocio; el registro de módulos está apagado a nivel
+          plataforma. Tampoco valida que el módulo corresponda al rubro ni sus dependencias. Sirve
+          para dejar registrado qué contrató cada local — no para prometerle una pantalla a un cliente.
+        </p>
         <div className="grid sm:grid-cols-2 gap-2">
           {MODULES.map((m) => {
             const on = active.has(m.id);

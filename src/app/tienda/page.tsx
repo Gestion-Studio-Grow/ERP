@@ -7,9 +7,12 @@
 // (carnicería→"Nuestros cortes", verdulería→"Frutas y verduras", …). La base neutra
 // premium (superficies hueso, texto tinta) es igual para todos los rubros.
 //
-// Ruta propia fuera del grupo (site) del spa: no hereda su layout. Provisional: hoy
-// hay un solo tenant, así que muestra el del tenant activo; con resolución de tenant
-// por request (ADR-018) se sirve por subdominio/slug del tenant.
+// Ruta propia fuera del grupo (site) del spa: no hereda su layout. El tenant se resuelve
+// por request (ADR-018, por subdominio/slug) y su identidad —rubro y marca— sale de
+// `getTenantIdentity()` (src/lib/identidad-rubro.ts): el RUBRO del dato del alta
+// (`Tenant.blueprintId`) y la MARCA de la familia del slug. Importa con MAGRA abriendo 5
+// locales, cada uno su propio tenant: `magra-lomas` es carnicería y es MAGRA sin que nadie
+// tenga que agregar su slug a una lista.
 
 import { cache } from "react";
 import type { Metadata } from "next";
@@ -17,7 +20,7 @@ import { getStorefront } from "@/lib/order-actions";
 import { getTenantAccent, tenantFaviconDataUri, brandForSlug, resolveTenantLayout } from "@/lib/branding";
 import { tenantFidelityEnabled, tenantBrandSheetEnabled } from "@/lib/identity";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
-import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { editorialFrontFor, getTenantIdentity } from "@/lib/identidad-rubro";
 import type { CSSProperties } from "react";
 import { getSiteReplica } from "@/tenants/site-replica";
 import Storefront from "./Storefront";
@@ -50,10 +53,11 @@ function tenantInitials(name: string): string {
 // ("CH Estética…"), así que el storefront de Magra decía "CH Estética" en la
 // pestaña, al compartir en redes y en buscadores. Ahora sale del tenant.
 export async function generateMetadata(): Promise<Metadata> {
-  const [data, accent, metaSlug] = await Promise.all([loadStorefront(), loadAccent(), getCurrentTenantSlug()]);
+  const [data, accent, identity] = await Promise.all([loadStorefront(), loadAccent(), getTenantIdentity()]);
   const name = data.name;
-  // SHINE: favicon = isotipo REAL de marca (manual), no las iniciales genéricas.
-  const iconUri = metaSlug === "shinevelas" ? "/tenants/shinevelas/brand/favicon.png" : tenantFaviconDataUri(tenantInitials(name), accent);
+  // SHINE: favicon = isotipo REAL de marca (manual), no las iniciales genéricas. Por MARCA
+  // (identity.brandId), no por slug exacto: `shinevelas-demo` es la misma marca.
+  const iconUri = identity.brandId === "shinevelas" ? "/tenants/shinevelas/brand/favicon.png" : tenantFaviconDataUri(tenantInitials(name), accent);
   const suffix = data.copy?.tagline ?? data.branding?.city ?? null;
   const title = suffix ? `${name} · ${suffix}` : name;
   const raw =
@@ -77,15 +81,25 @@ export async function generateMetadata(): Promise<Metadata> {
 // - Si no, cae a la vidriera genérica del rubro (para clientes sin web).
 // En ambos casos, el backoffice (pedidos/POS/stock/facturación) es el mismo, detrás.
 export default async function TiendaPage() {
-  const [data, accent, slug] = await Promise.all([loadStorefront(), loadAccent(), getCurrentTenantSlug()]);
+  const [data, accent, identity] = await Promise.all([loadStorefront(), loadAccent(), getTenantIdentity()]);
+  const slug = identity.slug;
+  const front = editorialFrontFor(identity);
+
+  // Qué front editorial se sirve: por MARCA (identity.brandId = familia del slug), no por una
+  // lista de slugs escritos a mano. Antes era `slug === "magra" || slug === "magra-demo"`: con
+  // 5 locales, `magra-lomas` y sus hermanos no matcheaban y caían a la vidriera genérica —
+  // o peor, a la landing de estética de CH si además no eran retail (ver (site)/page.tsx).
+  //
+  // La marca NO puede salir de `blueprintId`: ése es el RUBRO. Otra carnicería también es
+  // `carniceria` y no puede llevar el relato, los proveedores ni las reseñas de MAGRA.
 
   // MAGRA — front público editorial propio (ADR-072 §8, mockup aprobado). Rompe el molde
   // genérico: identidad real de MAGRA (carbón+hueso+oro, Bebas Neue, riel de pedido) con el
-  // catálogo + carrito del ERP detrás. Se resuelve por slug (`magra` en prod, `magra-demo` en
-  // el seed de QA) y se sirve DIRECTO — su piel es autocontenida (no depende del theme del
-  // brand-sheet). Copy TEXTUAL autorizado (magra-content.ts), imágenes generadas por IA.
-  if (slug === "magra" || slug === "magra-demo") {
-    return <MagraFront products={data.products} branding={data.branding} tenantKey={slug} />;
+  // catálogo + carrito del ERP detrás. Se sirve DIRECTO — su piel es autocontenida (no depende
+  // del theme del brand-sheet). Copy TEXTUAL autorizado (magra-content.ts) para lo editorial;
+  // los datos del local (dirección/horarios/WhatsApp) viajan en `branding` (BusinessSettings).
+  if (front === "magra") {
+    return <MagraFront products={data.products} branding={data.branding} tenantKey={slug ?? "magra"} />;
   }
 
   // SHINE — front público editorial LUMINOSO propio (manual de marca Shine 2026). La
@@ -93,17 +107,26 @@ export default async function TiendaPage() {
   // Kumbh Sans, la LLAMA como isotipo. Rompe el molde genérico con la identidad real de
   // Shine + el catálogo/carrito del ERP detrás (placeOnlineOrder). Copy real (storefront.ts),
   // fotos de marca (public/tenants/shinevelas). Piel autocontenida (no depende del brand-sheet).
-  if (slug === "shinevelas" && data.copy) {
+  if (front === "shinevelas" && data.copy) {
     return (
       <ShineFront
         products={data.products}
         branding={data.branding}
         copy={data.copy}
         imagery={resolveTenantLayout(brandForSlug(slug)).imagery ?? null}
-        tenantKey={slug}
+        tenantKey={slug ?? "shinevelas"}
       />
     );
   }
+
+  // VOCABULARIO de la vidriera genérica, del RUBRO DEL DATO. `getStorefront` lo resuelve por
+  // slug (`retailWordingForSlug(tenant?.slug)`, en src/lib/order-actions.ts), así que una
+  // carnicería cuyo slug no esté en el mapa
+  // —el caso de cualquier cliente nuevo que no se llame magra/shinevelas/adosmanos— decía
+  // "Nuestros productos" y "producto" en vez de "La selección" y "corte". La palabra ajena en
+  // la pantalla le dice al cliente que el sistema no es para él. Acá ya tenemos el rubro leído
+  // del tenant, así que gana ése; si el tenant no es retail, queda lo que vino.
+  const wording = identity.rubro?.wording ?? data.wording;
 
   const replica = getSiteReplica(slug);
   // tenantKey namespacea el WhatsApp que un visitante complete cuando el tenant
@@ -125,7 +148,7 @@ export default async function TiendaPage() {
     <Storefront
       name={data.name}
       branding={data.branding}
-      wording={data.wording}
+      wording={wording}
       copy={data.copy}
       products={data.products}
       accent={skinAccent}

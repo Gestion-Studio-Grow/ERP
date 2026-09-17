@@ -2,10 +2,20 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { CSSProperties } from "react";
 import { placeOnlineOrder } from "@/lib/order-actions";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
-import { MAGRA, MAGRA_HERO_IMG, cutImage, type MagraContent } from "@/tenants/magra-content";
+import {
+  MAGRA,
+  MAGRA_HERO_IMG,
+  cutImage,
+  resolveMagraLocal,
+  type MagraBrandingRow,
+  type MagraContent,
+  type MagraLocal,
+  promesaDeReparto,
+  textoAbout,
+  esElLocalDelCopy,
+} from "@/tenants/magra-content";
 
 // ── VIDRIERA MAGRA — front público editorial (ADR-072 §8 · mockup aprobado
 // mockup-magra-vidriera.html). "Esto no es una carnicería": boutique de carnes envasadas
@@ -28,11 +38,10 @@ type Product = {
   unit: string;
 };
 
-type Branding = { whatsapp: string | null } | null;
-
 type Props = {
   products: Product[];
-  branding: Branding;
+  /** Fila de BusinessSettings del LOCAL (getStorefront → branding). Puede venir vacía. */
+  branding: MagraBrandingRow | null;
   tenantKey: string;
   content?: MagraContent;
 };
@@ -43,17 +52,29 @@ const unitPrice = (p: Product) => (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.pr
 const unitLabel = (p: Product) => (p.saleUnit === "WEIGHT" ? "/ kg" : "/ u");
 
 export default function MagraFront({ products, branding, tenantKey, content = MAGRA }: Props) {
-  // El WhatsApp real de MAGRA (copia autorizada) queda como número configurado del CTA;
-  // si el branding del tenant trae uno propio (DB), gana ese. Nunca hardcodeado en el click.
-  const configured = branding?.whatsapp ?? content.whatsapp;
+  // UN SOLO número, el del LOCAL (BusinessSettings.whatsapp): el mismo que abren los botones
+  // y el mismo que se muestra escrito en el pie. Antes había dos fuentes —el CTA usaba el
+  // branding del tenant con caída a un número del archivo de copy, y el pie pintaba un tercer
+  // número a mano— y los tres podían no coincidir (y no coincidían). Si el local todavía no
+  // cargó el suyo, el CTA lo pide just-in-time (WhatsAppCtaProvider) y el pie dice
+  // "a confirmar": nunca se abre WhatsApp a un número que no es de este local.
+  const local = resolveMagraLocal(branding);
   return (
-    <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={configured}>
-      <MagraFrontContent products={products} content={content} />
+    <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={local.whatsapp}>
+      <MagraFrontContent products={products} content={content} local={local} />
     </WhatsAppCtaProvider>
   );
 }
 
-function MagraFrontContent({ products, content: c }: { products: Product[]; content: MagraContent }) {
+function MagraFrontContent({
+  products,
+  content: c,
+  local,
+}: {
+  products: Product[];
+  content: MagraContent;
+  local: MagraLocal;
+}) {
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
@@ -103,7 +124,9 @@ function MagraFrontContent({ products, content: c }: { products: Product[]; cont
             <b>{c.brandAccent}</b>
             {c.brandTail}
           </span>
-          <small>{c.brandSub}</small>
+          {/* Marca + localidad DEL LOCAL: "Meat Market · Canning" en Canning,
+              "Meat Market · Lomas de Zamora" en Lomas. La localidad no está en el copy. */}
+          <small>{local.zoneLabel ? `${c.brandSub} · ${local.zoneLabel}` : c.brandSub}</small>
         </a>
         <nav className="mf-nav" aria-label="Secciones">
           <a href="#cortes">Cortes</a>
@@ -136,7 +159,10 @@ function MagraFrontContent({ products, content: c }: { products: Product[]; cont
                   Pedir por WhatsApp
                 </button>
               </div>
-              <p className="mf-hero-zone">{c.heroZone}</p>
+              {/* La promesa de reparto sale del LOCAL, no del copy: las zonas de Canning
+                  publicadas en la vidriera de Lomas son una promesa que ese local no cumple,
+                  y está en el hero. Sin localidad cargada no se promete nada. */}
+              {promesaDeReparto(local, c) && <p className="mf-hero-zone">{promesaDeReparto(local, c)}</p>}
             </div>
             <div className="mf-hero-visual">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -216,7 +242,7 @@ function MagraFrontContent({ products, content: c }: { products: Product[]; cont
                           </div>
                           <div>
                             <div className="mf-meta-k">Envío</div>
-                            <div className="mf-meta-v mf-display">Gratis · Canning</div>
+                            <div className="mf-meta-v mf-display">{local.zoneLabel ? `Gratis · ${local.zoneLabel}` : "Gratis"}</div>
                           </div>
                         </div>
                         <div className="mf-price-add">
@@ -347,7 +373,7 @@ function MagraFrontContent({ products, content: c }: { products: Product[]; cont
           <section className="mf-about">
             <div className="mf-oro-rule" aria-hidden />
             <h2 className="mf-display mf-about-h2">{c.aboutTitle}</h2>
-            <p className="mf-about-p">{c.aboutBody}</p>
+            <p className="mf-about-p">{textoAbout(local, c)}</p>
           </section>
 
           {/* ── FOOTER ── */}
@@ -360,25 +386,43 @@ function MagraFrontContent({ products, content: c }: { products: Product[]; cont
                 Pedir por WhatsApp →
               </button>
             </div>
+            {/* Datos del LOCAL: salen de /admin/localizacion (BusinessSettings), no del copy.
+                El campo que el local no cargó se muestra como "a confirmar" — nunca el dato
+                de otro local, que con 5 locales es mandar al cliente a otra ciudad. */}
             <div className="mf-foot-cols">
               <div>
                 <h4>Dónde estamos</h4>
-                <p>{c.address}</p>
-                <p>Buenos Aires</p>
+                {local.addressLine ? <p>{local.addressLine}</p> : <p className="mf-todo">Dirección a confirmar</p>}
+                {local.city && <p>{local.city}</p>}
               </div>
               <div>
                 <h4>Horarios</h4>
-                <p>{c.hours}</p>
+                {local.hours ? <p>{local.hours}</p> : <p className="mf-todo">Horarios a confirmar</p>}
               </div>
-              <div>
-                <h4>Llegamos a</h4>
-                <p>{c.deliveryZones.join(" · ")}</p>
-              </div>
+              {/* Las zonas de reparto son de Canning y no hay columna donde guardar las de
+                  cada local: se muestran SÓLO en el local que las tiene. En el resto, el
+                  bloque no aparece — mejor que prometer un reparto de 30 km de distancia. */}
+              {esElLocalDelCopy(local) && (
+                <div>
+                  <h4>Llegamos a</h4>
+                  <p>{c.deliveryZones.join(" · ")}</p>
+                </div>
+              )}
               <div>
                 <h4>Contacto</h4>
-                <a href={`https://wa.me/${c.whatsapp}`} target="_blank" rel="noopener noreferrer">WhatsApp {c.phone}</a>
-                <a href={c.instagramUrl} target="_blank" rel="noopener noreferrer">Instagram {c.instagram}</a>
-                <a href={`mailto:${c.email}`}>{c.email}</a>
+                {local.whatsapp ? (
+                  // Texto y href salen de los MISMOS dígitos (whatsappLabel deriva de
+                  // local.whatsapp): no se pueden volver a separar.
+                  <a href={`https://wa.me/${local.whatsapp}`} target="_blank" rel="noopener noreferrer">
+                    WhatsApp {local.whatsappLabel}
+                  </a>
+                ) : (
+                  <p className="mf-todo">WhatsApp a confirmar</p>
+                )}
+                {local.instagramUrl && (
+                  <a href={local.instagramUrl} target="_blank" rel="noopener noreferrer">Instagram {local.instagram}</a>
+                )}
+                {local.email && <a href={`mailto:${local.email}`}>{local.email}</a>}
               </div>
             </div>
             <div className="mf-foot-legal">
@@ -424,7 +468,7 @@ function MagraFrontContent({ products, content: c }: { products: Product[]; cont
                 <span className="mf-v mf-display mf-num">{money2.format(subtotal)}</span>
               </div>
               <div className="mf-totrow">
-                <span className="mf-k">Envío · Canning</span>
+                <span className="mf-k">{local.zoneLabel ? `Envío · ${local.zoneLabel}` : "Envío"}</span>
                 <span className="mf-v mf-display mf-free">Gratis</span>
               </div>
               <div className="mf-totrow mf-big">
@@ -689,6 +733,9 @@ const CSS = `
 .magra .mf-foot-cols p,.magra .mf-foot-cols a{font-size:13.5px;color:var(--acero);display:block;margin-bottom:6px;line-height:1.5}
 .magra .mf-foot-cols a{text-decoration:underline;text-underline-offset:3px;padding:5px 0;min-height:24px}
 .magra .mf-foot-cols a:hover{color:var(--oro)}
+/* Dato del local todavía sin cargar: se DICE, no se inventa ni se hereda de otro local.
+   Cursiva + gris del sistema, distinto del texto de un dato real (AA sobre el negro). */
+.magra .mf-foot-cols .mf-todo{color:var(--gris);font-style:italic}
 .magra .mf-foot-legal{margin-top:40px;padding-top:20px;border-top:1px solid rgba(242,230,215,.08);font-size:12px;color:var(--gris);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;align-items:center}
 .magra .mf-admin{color:var(--acero);opacity:.85;text-decoration:underline;text-underline-offset:3px;font-size:12px;display:inline-flex;align-items:center;min-height:24px;padding:3px 0}
 .magra .mf-admin:hover{color:var(--oro);opacity:1}

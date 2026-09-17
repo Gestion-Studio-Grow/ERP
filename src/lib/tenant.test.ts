@@ -133,3 +133,138 @@ test("hostMapSubdomain: host fuera del mapa → null (cae al método de subdomin
 test("hostMapSubdomain: sin TENANT_HOST_MAP → null (no rompe el flujo de subdominio)", () => {
   assert.equal(hostMapSubdomain("chestetica-erp.vercel.app", {}), null);
 });
+
+// --- El pin por env NO puede mandar en producción multi-tenant ------------------
+//
+// POR QUÉ estos tests existen: `FORCE_TENANT_SLUG` domina sobre el host, así que una
+// var olvidada en el proyecto de Vercel hace que TODOS los sitios sirvan el mismo
+// tenant, sin error visible, y con el GUC de RLS seteado al tenant equivocado (RLS
+// coopera con la fuga en vez de frenarla). Los cuatro primeros cubren la DECISIÓN;
+// el último cubre el CABLEADO, que es lo que de verdad se puede borrar sin que nadie
+// se entere (la función podría seguir existiendo y nadie llamarla).
+
+import { assertForcedSlugAllowedInProduction } from "./tenant";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+
+test("el pin por env NO lanza fuera de producción, y ni siquiera mira la base", async () => {
+  let cuentas = 0;
+  const contar = async () => {
+    cuentas++;
+    return 4;
+  };
+  // dev y test son los usos legítimos: scripts de RLS, seeds, tests.
+  await assertForcedSlugAllowedInProduction("magra", contar, { NODE_ENV: "development" });
+  await assertForcedSlugAllowedInProduction("magra", contar, { NODE_ENV: "test" });
+  await assertForcedSlugAllowedInProduction("magra", contar, {}); // NODE_ENV ausente
+  assert.equal(cuentas, 0, "fuera de producción no debe costar ni una query");
+});
+
+test("el pin por env NO lanza en producción con UN solo tenant (no hay a quién filtrarle)", async () => {
+  await assertForcedSlugAllowedInProduction("beauty-spa", async () => 1, {
+    NODE_ENV: "production",
+  });
+  // 0 tenants es un problema distinto (lo ataja `resolveTenantId`), no el de esta guarda.
+  await assertForcedSlugAllowedInProduction("beauty-spa", async () => 0, {
+    NODE_ENV: "production",
+  });
+});
+
+test("el pin por env LANZA en producción con más de un tenant", async () => {
+  await assert.rejects(
+    () =>
+      assertForcedSlugAllowedInProduction("magra", async () => 5, { NODE_ENV: "production" }),
+    /FORCE_TENANT_SLUG="magra"[\s\S]*PRODUCCIÓN[\s\S]*5 tenants/,
+  );
+});
+
+test("el mensaje dice QUÉ sacar y DE DÓNDE (si no, el próximo lo saca del código)", async () => {
+  const err = await assertForcedSlugAllowedInProduction("magra", async () => 5, {
+    NODE_ENV: "production",
+  }).then(
+    () => null,
+    (e: Error) => e,
+  );
+  assert.ok(err, "tenía que lanzar");
+  const m = err.message;
+  assert.match(m, /Environment Variables/); // dónde vive la var
+  assert.match(m, /Redeploy/); // qué hacer después
+  assert.match(m, /RLS no lo ataja/); // por qué no alcanza con RLS
+  assert.match(m, /TENANT_HOST_MAP|APP_BASE_DOMAIN/); // cuál es el mecanismo correcto
+});
+
+// CABLEADO, con datos reales: corre `getCurrentTenantId` COMPLETO en un subproceso
+// contra la base local, que tiene más de un tenant. Si alguien borra la llamada a la
+// guarda de `getCurrentTenantId` (dejando la función intacta), esto resuelve un id en
+// vez de lanzar y el test se pone rojo — que es justo el agujero que un test de
+// "¿el archivo menciona la función?" no vería.
+//
+// Necesita el Postgres local. Si no está, se SALTEA con el motivo a la vista en vez de
+// fallar: `npm test` corre en CI sin base (.github/workflows/gates.yml:75).
+const TENANT_TS = path.join(__dirname, "tenant.ts");
+const DB_LOCAL =
+  process.env.TENANT_TEST_DATABASE_URL ??
+  "postgresql://postgres@localhost:5433/erp_scope?host=/tmp/pgrun";
+
+const HIJO = `
+(async () => {
+  const mod = await import(${JSON.stringify(TENANT_TS)});
+  const m = mod.default ?? mod;
+  try {
+    const id = await m.getCurrentTenantId();
+    console.log("RESOLVIO:" + id);
+  } catch (e) {
+    const msg = String(e && e.message);
+    // Todo throw propio de tenant.ts empieza con "getCurrentTenantId:". Cualquier otra cosa
+    // (ENOENT del socket, ECONNREFUSED, P1001) es que no hay base, no un veredicto del guard.
+    const propio = /^getCurrentTenantId:/.test(msg);
+    console.log((propio ? "THROW:" : "SIN_DB:") + msg.replace(/\\n/g, " "));
+  }
+  process.exit(0);
+})();
+`;
+
+function correr(nodeEnv: "production" | "development"): string {
+  return execFileSync(
+    process.execPath,
+    ["--import", "tsx", "-e", HIJO],
+    {
+      cwd: path.join(__dirname, "..", ".."),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        NODE_ENV: nodeEnv,
+        FORCE_TENANT_SLUG: "beauty-spa",
+        DATABASE_URL: DB_LOCAL,
+        DEMO_MODE_ENABLED: "",
+        RLS_ENFORCEMENT: "",
+      },
+    },
+  ).trim();
+}
+
+test("getCurrentTenantId: en producción con la base real (>1 tenant) el pin LANZA", (t) => {
+  if (!existsSync(TENANT_TS)) return t.skip("no encuentro tenant.ts");
+  const salida = correr("production");
+  if (salida.startsWith("SIN_DB:")) {
+    return t.skip(`sin Postgres local (${DB_LOCAL}) — el cableado queda SIN verificar`);
+  }
+  assert.ok(
+    salida.startsWith("THROW:"),
+    `getCurrentTenantId resolvió un tenant con FORCE_TENANT_SLUG en producción: ${salida}`,
+  );
+  assert.match(salida, /FORCE_TENANT_SLUG="beauty-spa".*PRODUCCIÓN/);
+});
+
+test("getCurrentTenantId: fuera de producción el pin SIGUE funcionando (dev/scripts intactos)", (t) => {
+  if (!existsSync(TENANT_TS)) return t.skip("no encuentro tenant.ts");
+  const salida = correr("development");
+  if (salida.startsWith("SIN_DB:")) {
+    return t.skip(`sin Postgres local (${DB_LOCAL}) — el cableado queda SIN verificar`);
+  }
+  assert.ok(
+    salida.startsWith("RESOLVIO:"),
+    `el pin dejó de andar en desarrollo, que es su uso legítimo: ${salida}`,
+  );
+});

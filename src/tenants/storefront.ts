@@ -6,12 +6,15 @@
 //   - El TENANT da su copy PROPIO (tagline firma, propuestas de valor, secciones,
 //     proveedores, reviews, about, footer) — lo que hace que la vidriera sea de ESE negocio.
 //
-// Se resuelve por slug mientras no exista contenido por tenant en DB (misma estrategia que
-// el acento en src/lib/branding.ts). Sin match → null y la vidriera cae al wording del rubro.
+// Se resuelve por la FAMILIA del slug (`magra-lomas` → marca `magra`), porque el copy es de
+// la MARCA y cada local es un tenant propio. Sin match → null y la vidriera cae al wording
+// genérico del rubro. Lo que NO vive acá son los datos del local (dirección, horarios,
+// WhatsApp): eso es `BusinessSettings`, cargado por cada local en /admin/localizacion.
 //
 // Contenido de MAGRA: espejado de su web oficial (magrameatmarket.com.ar). Los PRECIOS del
 // catálogo son provisionales (rubro); estos textos/estructura son de su propia comunicación.
 
+import { tenantFamilySlug } from "@/blueprints/retail/rubros";
 import type { ShippingConfig } from "@/lib/storefront-shipping";
 import type { ProductSectionId } from "@/lib/storefront-visual";
 
@@ -250,13 +253,36 @@ const adosmanos: StorefrontCopy = {
   // como propuesta de valor, pero no hay tarifa plana real confirmada para el calculador.
 };
 
-const COPY_BY_SLUG: Record<string, StorefrontCopy> = {
+// Copy por MARCA, no por tenant. Clave = familia del slug (ver `tenantFamilySlug`).
+//
+// La diferencia importa con 5 locales: `magra`, `magra-lomas` y `magra-demo` son
+// TENANTS distintos (cada local tiene el suyo) pero son la MISMA MARCA — comparten
+// relato, propuestas de valor, proveedores y reseñas. Lo que NO comparten son los
+// datos del local (dirección, horarios, WhatsApp, zonas de entrega): eso sale de
+// `BusinessSettings`, que cada local carga en /admin/localizacion.
+//
+// Ojo con la tentación de resolver esto por `blueprintId`: el blueprint dice el
+// RUBRO ("carniceria"), no la MARCA. Otra carnicería que no sea MAGRA también es
+// `carniceria` y NO puede llevar el relato, las reseñas ni los proveedores de MAGRA.
+const COPY_BY_BRAND: Record<string, StorefrontCopy> = {
   magra,
   shinevelas,
   adosmanos,
 };
 
+/**
+ * Marca editorial del tenant, o null si no tiene una propia (→ vidriera genérica
+ * del rubro). Slug exacto primero, familia después: `magra-lomas` → `magra`.
+ */
+export function resolveTenantBrandId(slug: string | null | undefined): string | null {
+  const s = (slug ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (COPY_BY_BRAND[s]) return s;
+  const family = tenantFamilySlug(s);
+  return family && COPY_BY_BRAND[family] ? family : null;
+}
+
 export function getStorefrontCopy(slug: string | null | undefined): StorefrontCopy | null {
-  if (!slug) return null;
-  return COPY_BY_SLUG[slug] ?? null;
+  const brand = resolveTenantBrandId(slug);
+  return brand ? COPY_BY_BRAND[brand] : null;
 }

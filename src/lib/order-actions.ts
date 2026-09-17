@@ -14,10 +14,30 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { retailWordingForSlug } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
-import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
+import { insertOrder, buildOrderLines, orderSubtotal, type OrderPaymentMethod } from "@/lib/order-core";
 import { recordCashSaleMovementInTx } from "@/lib/caja/cash-sale";
 import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
+import { cantidadOCero } from "@/lib/pos-peso";
+import { fmtMoneyARS } from "@/components/ui/format";
+import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+import { isFrozenDay } from "@/lib/caja/cierre-diario";
+import { dateStrInBusinessTz } from "@/lib/datetime";
+import { logger } from "@/lib/logger";
+import { getTenantIdentity } from "@/lib/identidad-rubro";
+import { recordMovement, round3 } from "@/lib/stock/ledger";
+import { round2 } from "@/lib/round";
+import {
+  anularVentaInTx,
+  AnulacionVentaRechazada,
+  fronteraDeVenta,
+  planEdicionDeLineas,
+  mensajeEdicionRechazada,
+  deltasDeStock,
+  detalleStockAjustadoPorEdicion,
+  MOTIVO_ANULACION_SIN_TEXTO,
+  EDICION_ACTOR_PREFIX,
+} from "@/lib/order-anulacion";
 import type { $Enums } from "@/generated/prisma/client";
 
 type OrderStatus = $Enums.OrderStatus;
@@ -77,10 +97,30 @@ type PaymentMethod = OrderPaymentMethod;
 
 // Parsea las líneas (arrays paralelos productId[]/quantity[], patrón getAll del
 // Core) de un FormData a la forma que espera insertOrder.
+//
+// La cantidad NO se lee con `Number()`. Con `Number("1,3")` —un kilo trescientos escrito
+// como se escribe en Argentina— sale `NaN`, y con lo que dejaba pasar el `<input
+// type="number">` de antes salía `13`: diez veces el peso y diez veces el precio, sin un
+// solo error de validación. `cantidadOCero` (pos-peso.ts) lee coma y punto como el mismo
+// separador decimal y redondea a gramos. Acá se vuelve a parsear aunque el navegador ya
+// mande el valor canónico: el server NO confía en lo que le llega del cliente, y este mismo
+// `parseItems` lo usa también la vidriera pública, donde el que tipea es un desconocido.
 function parseItems(formData: FormData): { productId: string; qty: number }[] {
   const productIds = formData.getAll("productId").map(String);
-  const quantities = formData.getAll("quantity").map((q) => Number(q));
+  const quantities = formData.getAll("quantity").map((q) => cantidadOCero(String(q)));
   return productIds.map((id, i) => ({ productId: id, qty: quantities[i] }));
+}
+
+// Estado que las acciones del mostrador le devuelven a la pantalla.
+//
+// POR QUÉ SE DEVUELVE Y NO SE LANZA: un error LANZADO desde una Server Action llega al
+// cliente con el mensaje REDACTADO (Next no reenvía `error.message` en producción), así que
+// "el día de caja está cerrado" y "se cayó la base" se ven exactamente iguales — y la persona
+// del mostrador no puede hacer nada con ninguno de los dos. Un valor DEVUELTO viaja entero.
+export type OrderActionState = { ok: true; mensaje?: string } | { ok: false; error: string } | null;
+
+function errorDeAccion(err: unknown, generico: string): { ok: false; error: string } {
+  return { ok: false, error: err instanceof Error && err.message ? err.message : generico };
 }
 
 // I7 (ADR-064): la imputación de la venta en efectivo a la caja YA NO es una segunda tx
@@ -96,9 +136,9 @@ function parseItems(formData: FormData): { productId: string; qty: number }[] {
 // --- Crear pedido / venta de mostrador (el "checkout" del backoffice) ---
 //
 // Cubre los dos caminos operados por el mostrador: venta presencial (channel
-// COUNTER, se cobra en el acto → CONFIRMED) y toma de pedido con retiro/delivery
-// (channel ONLINE → PENDING). Requiere capability de mostrador.
-export async function createOrder(formData: FormData) {
+// COUNTER, se cobra en el acto) y toma de pedido con retiro/delivery (channel
+// ONLINE → PENDING). Requiere capability de mostrador.
+export async function createOrder(formData: FormData): Promise<OrderActionState> {
   const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
 
@@ -113,37 +153,119 @@ export async function createOrder(formData: FormData) {
       ? paymentMethodRaw
       : null;
 
+  // FRONTERA DEL DÍA CERRADO. El libro, el cierre diario, las compras, las comisiones, la
+  // caja y los turnos rechazan escribir sobre un día ya arqueado y firmado; los DOS caminos de
+  // cobro de este archivo —`createOrder` acá y `setOrderPaid` más abajo— eran los que no la
+  // miraban. Cerrar la caja a las 20:00 y cobrar una venta a las 20:05 dejaba el arqueo
+  // diciendo 6 movimientos y el libro del mismo día diciendo 8, y el descuadre aparecía recién
+  // al mes siguiente, sin forma de saber cuál de las dos cifras era la buena.
+  //
+  // Se frena SÓLO la venta que va a escribir en la caja. Tomar un pedido sin cobrar no toca
+  // el libro: bloquearlo también sería inventar un candado que no protege nada y dejar al
+  // mostrador sin poder anotar el pedido de mañana.
+  //
+  // La DECISIÓN entera vive en `fronteraDeVenta` (pura, probada sin base); acá sólo se le
+  // pasan los dos hechos que hay que ir a buscar: hasta qué día está cerrado y qué día es hoy
+  // en la zona del negocio.
+  const frontera = fronteraDeVenta({
+    paid,
+    paymentMethod,
+    hoy: dateStrInBusinessTz(new Date()),
+    cerradoHasta: await lastClosedDay(tenantId),
+    esDiaCerrado: isFrozenDay,
+  });
+  if (frontera.bloquea) return { ok: false, error: frontera.error };
+
+  // Idempotencia del ticket (A-1). La clave la genera el CLIENTE una vez por ticket y la
+  // renueva al limpiarlo, no el server: con una clave fija el mostrador no podría vender dos
+  // veces lo mismo a dos personas distintas (que es lo normal en una carnicería), y sin
+  // ninguna clave el reintento de red, el botón "recargar" del navegador o la segunda pestaña
+  // cobran DOS VECES — con ticket alto y en efectivo. `useFormStatus` sólo cierra la ventana
+  // del doble clic dentro de la misma pestaña; esto la cierra a nivel base.
+  const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
+
   // I7 (ADR-064): la imputación a caja de la venta en efectivo va ATÓMICA con la orden+stock
   // dentro de `insertOrder` (una sola tx, todo-o-nada). `imputarCajaActor` la activa: solo el
   // mostrador imputa caja física. Un fallo de DB al asentar la caja aborta toda la venta (no
   // queda cobrada sin su movimiento → el arqueo nunca descuadra).
-  const result = await insertOrder(
-    tenantId,
-    {
-      channel,
-      fulfillment,
-      customerName: String(formData.get("customerName") || "").trim() || "Mostrador",
-      customerPhone: String(formData.get("customerPhone") || "").trim(),
-      address: String(formData.get("address") || "").trim() || null,
-      notes: String(formData.get("notes") || "").trim() || null,
-      // scheduledFor es una preferencia blanda (horario de retiro/entrega); MVP la
-      // interpreta en hora local del server (provisional; unificar con TZ del tenant).
-      scheduledFor: scheduledRaw ? new Date(scheduledRaw) : null,
-      paid,
-      paymentMethod,
-      items: parseItems(formData),
-    },
-    { imputarCajaActor: `user:${user.id}` },
-  );
+  let result;
+  try {
+    result = await insertOrder(
+      tenantId,
+      {
+        channel,
+        fulfillment,
+        customerName: String(formData.get("customerName") || "").trim() || "Mostrador",
+        customerPhone: String(formData.get("customerPhone") || "").trim(),
+        address: String(formData.get("address") || "").trim() || null,
+        notes: String(formData.get("notes") || "").trim() || null,
+        // scheduledFor es una preferencia blanda (horario de retiro/entrega); MVP la
+        // interpreta en hora local del server (provisional; unificar con TZ del tenant).
+        scheduledFor: scheduledRaw ? new Date(scheduledRaw) : null,
+        paid,
+        paymentMethod,
+        items: parseItems(formData),
+      },
+      { imputarCajaActor: `user:${user.id}`, idempotencyKey },
+    );
+  } catch (err) {
+    // El mensaje de dominio (sin stock, sin precio, sin dirección) llega ENTERO a la pantalla
+    // porque se devuelve en vez de lanzarse. Antes el POS mostraba siempre el mismo texto
+    // genérico "revisá el stock", incluso cuando el problema era otro.
+    return errorDeAccion(
+      err,
+      "No se pudo registrar la venta. Revisá las cantidades y volvé a intentar.",
+    );
+  }
+
+  // Reintento deduplicado: el pedido ya existía. No se re-audita (el alta real ya dejó su
+  // rastro) y no se vuelve a tocar el estado.
+  if (result.dedup) {
+    revalidatePath(ORDERS_PATH);
+    return { ok: true, mensaje: "Esa venta ya estaba registrada (no se cobró dos veces)." };
+  }
+
+  // La venta de mostrador COBRADA y RETIRADA ya terminó: nace DELIVERED. **Sólo en rubro
+  // MOSTRADOR.**
+  //
+  // Nacía CONFIRMED y la bandeja da por "abierto" todo lo que no sea DELIVERED/CANCELLED, así
+  // que cada ticket de mostrador se quedaba ahí para siempre. Con 100 tickets al día, a las
+  // dos horas el pedido online que SÍ hay que preparar no se ve: la bandeja deja de ser una
+  // lista de trabajo y pasa a ser un historial que nadie mira. Se filtra por `status`
+  // CONFIRMED para no pisar un estado que otra pestaña ya movió.
+  //
+  // POR QUÉ VA GATEADO POR RUBRO, y no para todos: en la bandeja, un pedido DELIVERED cae en
+  // la lista de cerrados y deja de ofrecer sus acciones. Para una estética —que hace un puñado
+  // de ventas de mostrador por día y no tiene la bandeja tapada— esto es sólo perder la forma
+  // de corregir una venta, sin ganar nada a cambio. El problema que se está resolviendo es de
+  // volumen, y el volumen es del rubro de mostrador. El día que la bandeja sepa mostrar las
+  // acciones de un pedido cerrado, esta distinción sobra.
+  const { isRetail } = await getTenantIdentity();
+  const naceEntregada =
+    isRetail && channel === "COUNTER" && fulfillment === "PICKUP" && paid && paymentMethod != null;
+  if (naceEntregada) {
+    await prisma.order.updateMany({
+      where: { id: result.id, tenantId, status: "CONFIRMED" },
+      data: { status: "DELIVERED" },
+    });
+  }
 
   await auditAdmin({
     action: "create",
     entity: "Order",
     entityId: result.id,
-    changes: { code: result.code, channel, fulfillment, total: result.subtotal, lines: result.lines },
+    changes: {
+      code: result.code,
+      channel,
+      fulfillment,
+      total: result.subtotal,
+      lines: result.lines,
+      ...(naceEntregada ? { status: "DELIVERED" } : {}),
+    },
   });
 
   revalidatePath(ORDERS_PATH);
+  return { ok: true };
 }
 
 // --- Tomar pedido desde la vidriera pública (sin auth) ---
@@ -218,13 +340,31 @@ export async function advanceOrderStatus(formData: FormData) {
 
 // --- Marcar cobrado ---
 
-export async function setOrderPaid(formData: FormData) {
+async function setOrderPaidCore(
+  id: string,
+  methodRaw: string,
+): Promise<OrderActionState> {
   const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
-  const id = String(formData.get("id"));
-  const methodRaw = String(formData.get("paymentMethod") || "EFECTIVO").trim();
   const method: PaymentMethod =
     methodRaw === "MERCADOPAGO" || methodRaw === "TRANSFERENCIA" ? methodRaw : "EFECTIVO";
+  if (!id) return { ok: false, error: "Falta identificar el pedido a cobrar." };
+
+  // MISMA FRONTERA QUE EL ALTA, y por la misma razón. Este camino también escribe una fila en
+  // el libro (`recordCashSaleMovementInTx`, abajo) y tampoco la miraba: cobrar un pedido
+  // pendiente después de haber cerrado la caja metía plata en un día ya arqueado y firmado.
+  // Sin esta guarda, además, el mensaje que el POS le da a la persona cuando el día está
+  // cerrado —"dejalo sin cobrar y cobralo mañana"— tendría una trampa: si lo cobraba desde la
+  // bandeja el MISMO día, entraba igual.
+  const frontera = fronteraDeVenta({
+    paid: true,
+    paymentMethod: method,
+    hoy: dateStrInBusinessTz(new Date()),
+    cerradoHasta: await lastClosedDay(tenantId),
+    esDiaCerrado: isFrozenDay,
+    contexto: "cobro",
+  });
+  if (frontera.bloquea) return { ok: false, error: frontera.error };
 
   // I7 (ADR-064): marcar cobrado + asentar la caja son ATÓMICOS (una sola tx). Antes el update
   // y la imputación corrían en tx separadas → un fallo de caja dejaba el pedido cobrado sin su
@@ -259,26 +399,318 @@ export async function setOrderPaid(formData: FormData) {
     // no se re-audita ni se muestra un 500. Cualquier otro error se propaga.
     if (isUniqueViolation(e, "orderId")) {
       revalidatePath(ORDERS_PATH);
-      return;
+      return { ok: true, mensaje: "Ese pedido ya estaba cobrado." };
     }
-    throw e;
+    return errorDeAccion(e, "No se pudo marcar el pedido como cobrado.");
   }
 
   await auditAdmin({ action: "update", entity: "Order", entityId: order.id, changes: { paid: true, method } });
 
   revalidatePath(ORDERS_PATH);
+  return { ok: true, mensaje: `Pedido #${order.code} cobrado: ${fmtMoneyARS(order.total)}.` };
 }
 
-// --- Cancelar ---
+/** Acción con estado para la pantalla (`useActionState`): el motivo del rechazo llega entero. */
+export async function cobrarPedido(
+  _prev: OrderActionState,
+  formData: FormData,
+): Promise<OrderActionState> {
+  return setOrderPaidCore(
+    String(formData.get("id") || "").trim(),
+    String(formData.get("paymentMethod") || "EFECTIVO").trim(),
+  );
+}
 
-export async function cancelOrder(formData: FormData) {
-  await requireCapability("orders:manage");
-  const id = String(formData.get("id"));
-  const current = await prisma.order.findUnique({ where: { id }, select: { status: true } });
-  if (!current || current.status === "DELIVERED" || current.status === "CANCELLED") return;
-  await prisma.order.update({ where: { id }, data: { status: "CANCELLED" } });
-  await auditAdmin({ action: "update", entity: "Order", entityId: id, changes: { status: "CANCELLED" } });
+/**
+ * Compatibilidad con el botón "Cobrar" que ya está en la bandeja (`pedidos/page.tsx`), que
+ * descarta el valor devuelto. Mantiene la firma `Promise<void>`: cambiarla rompería ese
+ * `<form action={...}>`. El rechazo se LANZA (en producción Next redacta el mensaje), así que
+ * la pantalla tiene que pasar a `cobrarPedido`.
+ */
+export async function setOrderPaid(formData: FormData): Promise<void> {
+  const r = await setOrderPaidCore(
+    String(formData.get("id") || "").trim(),
+    String(formData.get("paymentMethod") || "EFECTIVO").trim(),
+  );
+  if (r && !r.ok) throw new Error(r.error);
+}
+
+// --- Anular una venta (lo que antes era "Cancelar") ---
+//
+// Antes esta acción hacía UN `update` de estado y nada más: el pedido decía "Cancelado" y al
+// mismo tiempo su plata seguía en el libro y en el arqueo, y su kilaje seguía descontado del
+// stock. Ahora asienta la CONTRAPARTIDA y devuelve la mercadería, con el criterio que ya usa
+// la anulación de cobros de turno (ver `src/lib/order-anulacion.ts` para el porqué completo).
+//
+// Y ADEMÁS ACEPTA PEDIDOS YA ENTREGADOS, que antes rechazaba en silencio (`status ===
+// "DELIVERED"` → `return` sin decir nada). Desde que la venta de mostrador cobrada nace
+// DELIVERED, rechazar el estado terminal dejaría sin corrección al caso que una carnicería
+// corrige TODOS LOS DÍAS: el paquete decía 1,240 y eran 1,310.
+async function anularVentaCore(
+  orderId: string,
+  motivo: string,
+  devuelveStock: boolean,
+): Promise<OrderActionState> {
+  const user = await requireCapability("orders:manage");
+  const tenantId = await getCurrentTenantId();
+  if (!orderId) return { ok: false, error: "Falta identificar el pedido a anular." };
+
+  // La frontera se lee ANTES de abrir la transacción (no depende de nada que la tx cambie),
+  // igual que en el libro y en el cierre diario.
+  const cerradoHasta = await lastClosedDay(tenantId);
+
+  let resultado;
+  try {
+    resultado = await tenantTransaction(
+      (tx) =>
+        anularVentaInTx(tx, tenantId, {
+          orderId,
+          motivo,
+          actor: `user:${user.id}`,
+          devuelveStock,
+          diaCerradoHasta: cerradoHasta,
+          esDiaCerrado: isFrozenDay,
+          diaDe: dateStrInBusinessTz,
+        }),
+      { tenantId },
+    );
+  } catch (err) {
+    if (err instanceof AnulacionVentaRechazada) return { ok: false, error: err.message };
+    // Carrera real: dos anulaciones simultáneas: la 2ª choca el @@unique(tenantId, orderId,
+    // type) al asentar el EGRESO. Ya está anulada, no hay nada que reparar.
+    if (isUniqueViolation(err, "orderId")) {
+      revalidatePath(ORDERS_PATH);
+      return { ok: true, mensaje: "Esa venta ya estaba anulada." };
+    }
+    return errorDeAccion(err, "No se pudo anular la venta.");
+  }
+
+  if (!resultado.applied) {
+    revalidatePath(ORDERS_PATH);
+    return { ok: true, mensaje: "Esa venta ya estaba anulada." };
+  }
+
+  await auditAdmin({
+    action: "update",
+    entity: "Order",
+    entityId: orderId,
+    changes: {
+      status: "CANCELLED",
+      motivo,
+      montoRevertido: resultado.montoRevertido,
+      reversaId: resultado.reversaId,
+      stockDevuelto: resultado.stockDevuelto,
+    },
+  });
   revalidatePath(ORDERS_PATH);
+
+  // El mensaje DICE lo que se movió. Una anulación que sólo contesta "listo" obliga a ir a
+  // mirar el libro y el stock para saber si hizo algo.
+  const partes: string[] = [`Venta #${resultado.code} anulada.`];
+  if (resultado.montoRevertido > 0) {
+    partes.push(`Se devolvieron ${fmtMoneyARS(resultado.montoRevertido)} en el libro de caja.`);
+  }
+  if (resultado.stockDevuelto.length > 0) {
+    partes.push(
+      `Volvió al stock: ${resultado.stockDevuelto.map((d) => `${d.qty} de ${d.name}`).join(", ")}.`,
+    );
+  }
+  return { ok: true, mensaje: partes.join(" ") };
+}
+
+/**
+ * Acción con estado, para la pantalla que pide el MOTIVO (`useActionState`). Es la que
+ * conviene cablear: el motivo es lo único que explica la plata faltante seis meses después.
+ */
+export async function anularVenta(
+  _prev: OrderActionState,
+  formData: FormData,
+): Promise<OrderActionState> {
+  const motivo = String(formData.get("motivo") || "").trim() || MOTIVO_ANULACION_SIN_TEXTO;
+  // "La mercadería no volvió" es una CASILLA, no el default: en el caso diario —se pesó mal y
+  // se rehace la venta— la carne nunca salió del mostrador y tiene que volver al stock.
+  const devuelveStock = String(formData.get("stockNoVolvio") || "") !== "on";
+  return anularVentaCore(String(formData.get("id") || "").trim(), motivo, devuelveStock);
+}
+
+/**
+ * Compatibilidad con el botón "Cancelar" que YA está vivo en la bandeja
+ * (`pedidos/page.tsx`), que postea sin motivo y descarta el valor devuelto. Mantiene la firma
+ * `Promise<void>` a propósito: cambiarla rompería el `<form action={...}>` de esa página.
+ *
+ * **NO LANZA, y es deliberado.** Este botón no tiene diálogo de confirmación y lo aprieta hoy
+ * la dueña de la estética, el único tenant vivo. No hay `error.tsx` bajo `src/app/admin/`, así
+ * que una excepción acá le vuela la pantalla entera y en producción Next redacta el mensaje:
+ * vería un error genérico, sin saber qué pasó ni qué hacer. Un rechazo —hoy sólo uno: el día
+ * del asiento ya está cerrado— deja el pedido como estaba y queda en el log; el saldo del día
+ * cerrado, que es lo que la guarda protege, no se toca igual.
+ *
+ * Es una salida de compromiso hasta que la pantalla pase a `anularVenta`, que sí devuelve el
+ * motivo para mostrarlo. Mientras tanto: el caso normal (revertir plata y stock) funciona, y
+ * el caso raro no rompe nada.
+ */
+export async function cancelOrder(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") || "").trim();
+  const r = await anularVentaCore(id, MOTIVO_ANULACION_SIN_TEXTO, true);
+  if (r && !r.ok) {
+    logger.warn("pedidos", "cancelOrder: la anulación se rechazó y la pantalla no puede mostrarlo", {
+      orderId: id,
+      motivo: r.error,
+    });
+  }
+}
+
+// --- Editar las líneas de un pedido todavía no cobrado (el peso real) ---
+//
+// La regla y el porqué están en `order-anulacion.ts` (`planEdicionDeLineas`). Acá sólo
+// se persiste: recalcular líneas y total, y mover el stock por DELTA.
+export async function updateOrderItems(
+  _prev: OrderActionState,
+  formData: FormData,
+): Promise<OrderActionState> {
+  const user = await requireCapability("orders:manage");
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) return { ok: false, error: "Falta identificar el pedido a editar." };
+
+  const wanted = parseItems(formData).filter((l) => l.productId && l.qty > 0);
+
+  let out: { code: number; total: number; antes: number };
+  try {
+    out = await tenantTransaction(
+      async (tx) => {
+        const order = await tx.order.findFirst({
+          where: { tenantId, id },
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            paid: true,
+            total: true,
+            items: {
+              select: {
+                productId: true,
+                name: true,
+                quantity: true,
+                product: { select: { trackStock: true } },
+              },
+            },
+          },
+        });
+
+        // La invariante dura: si el pedido ya tiene plata asentada, no se edita. Se chequea
+        // contra el LIBRO, no contra el flag `paid` (ver `planEdicionDeLineas`).
+        const asiento = order
+          ? await tx.cashMovement.findFirst({
+              where: { tenantId, orderId: id },
+              select: { id: true },
+            })
+          : null;
+
+        const products = order
+          ? await tx.product.findMany({
+              where: {
+                id: { in: wanted.map((l) => l.productId) },
+                tenantId,
+                deletedAt: null,
+                active: true,
+              },
+              select: {
+                id: true,
+                name: true,
+                saleUnit: true,
+                price: true,
+                pricePerKg: true,
+                trackStock: true,
+              },
+            })
+          : [];
+        const lines = buildOrderLines(products, wanted);
+
+        const plan = planEdicionDeLineas({
+          existe: Boolean(order),
+          paid: Boolean(order?.paid),
+          status: String(order?.status ?? ""),
+          tieneAsientoDeCaja: Boolean(asiento),
+          lineasValidas: lines.length,
+        });
+        if (!plan.ok) throw new Error(mensajeEdicionRechazada(plan.motivo));
+
+        // Stock por DELTA. Va ANTES de reescribir las líneas: si un aumento de peso no tiene
+        // stock, `recordMovement` lanza, la tx se aborta entera y el pedido queda como estaba.
+        for (const d of deltasDeStock(
+          order!.items.map((it) => ({
+            productId: it.productId,
+            quantity: it.quantity,
+            trackStock: Boolean(it.product?.trackStock),
+          })),
+          lines.map((l) => ({ productId: l.productId, quantity: l.quantity, trackStock: l.trackStock })),
+        )) {
+          // El nombre sale de la línea nueva o, si el producto se SACÓ del pedido, del
+          // snapshot de la vieja: un movimiento de stock que dice "producto" no se investiga.
+          const nombre =
+            lines.find((l) => l.productId === d.productId)?.name ??
+            order!.items.find((it) => it.productId === d.productId)?.name ??
+            "producto";
+          await recordMovement(tx, {
+            tenantId,
+            productId: d.productId,
+            // Más peso del estimado → sale como VENTA (con la guarda anti-oversell). Menos
+            // peso → vuelve como AJUSTE positivo, el mismo tipo que usa la anulación mientras
+            // el enum de stock no tenga un valor propio para la devolución.
+            type: d.delta > 0 ? "VENTA" : "AJUSTE",
+            qty: d.delta > 0 ? d.delta : round3(-d.delta),
+            orderId: id,
+            createdBy: `${EDICION_ACTOR_PREFIX}user:${user.id}`,
+            reason: detalleStockAjustadoPorEdicion(order!.code, nombre, d.delta),
+            label: nombre,
+          });
+        }
+
+        await tx.orderItem.deleteMany({ where: { tenantId, orderId: id } });
+        await tx.orderItem.createMany({
+          data: lines.map((l) => ({
+            tenantId,
+            orderId: id,
+            productId: l.productId,
+            name: l.name,
+            saleUnit: l.saleUnit,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            lineTotal: l.lineTotal,
+          })),
+        });
+
+        const subtotal = orderSubtotal(lines);
+        await tx.order.updateMany({
+          where: { tenantId, id },
+          // `discount` sigue en 0 en todo el POS: subtotal y total son el mismo número.
+          data: { subtotal, total: subtotal },
+        });
+
+        return { code: order!.code, total: subtotal, antes: round2(order!.total) };
+      },
+      { tenantId },
+    );
+  } catch (err) {
+    return errorDeAccion(err, "No se pudo actualizar el pedido.");
+  }
+
+  await auditAdmin({
+    action: "update",
+    entity: "Order",
+    entityId: id,
+    changes: { total: { from: out.antes, to: out.total }, lines: wanted.length },
+  });
+  revalidatePath(ORDERS_PATH);
+  const dif = round2(out.total - out.antes);
+  return {
+    ok: true,
+    mensaje:
+      dif === 0
+        ? `Pedido #${out.code} actualizado. El total no cambió: ${fmtMoneyARS(out.total)}.`
+        : `Pedido #${out.code} actualizado al peso real: ${fmtMoneyARS(out.antes)} → ${fmtMoneyARS(out.total)} (${dif > 0 ? "+" : "−"}${fmtMoneyARS(Math.abs(dif))}).`,
+  };
 }
 
 // --- Loader público de la vidriera (sin auth) ---

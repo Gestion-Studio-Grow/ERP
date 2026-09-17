@@ -435,16 +435,82 @@ export function getRetailRubro(id: string): RetailRubro | null {
   return RETAIL_RUBROS[id] ?? null;
 }
 
-// Resolución tenant → rubro por slug, MIENTRAS no exista `Tenant.blueprintId` (misma
-// estrategia que el acento por slug en src/lib/branding.ts). Cuando esa columna se
-// despliegue, esto pasa a leerla con fallback a este mapa — un único punto de cambio.
+// ============================================================================
+// IDENTIDAD DEL LOCAL → RUBRO. El DATO manda; el slug es red de contención.
+// ============================================================================
+//
+// Por qué importa: MAGRA abre 5 locales y cada local es un tenant propio (no hay
+// modelo de sucursal). Cuatro de esos cinco NO se van a llamar `magra` —
+// `magra-lomas`, `magra-canning`, … Si el rubro se resolviera SOLO por un mapa de
+// slugs escrito a mano, esos cuatro caerían a "no es retail" y su dominio público
+// serviría la landing de ESTÉTICA de otra clienta, con los nombres de su equipo.
+// Eso no es cosmético: es la marca equivocada en la puerta del negocio.
+//
+// Orden de resolución (mismo criterio que src/lib/carniceria/rubro.ts:26-38, que
+// ya lo hacía bien para el backoffice):
+//   1. `Tenant.blueprintId` — el rubro que se eligió en el ALTA del tenant
+//      (`scripts/provision-tenant.ts` lo escribe en el create). Es el DATO: no se pudre.
+//   2. Slug exacto (`magra`) — tenants viejos, dados de alta antes de que existiera
+//      la columna, que todavía tienen `blueprintId = null`.
+//   3. FAMILIA del slug (lo que va antes del primer guion): `magra-lomas` →
+//      `magra`, `magra-demo` → `magra`, `velas-demo` → `velas`… Cubre los locales
+//      nuevos y los slugs de QA sin tener que tocar el mapa cada vez que abre un
+//      local. (Antes `magra-demo` sólo andaba porque `tienda/page.tsx` lo tenía
+//      escrito a mano en un `if`, y `velas-demo` directamente caía a la landing de
+//      CH — ver el comentario de src/app/(site)/page.tsx.)
+//
+// Sin match en ninguno de los tres → null = "no es un local de mostrador", y el
+// tenant sigue su camino de siempre (agenda/estética). Fail-open a propósito:
+// beauty-spa (el único vivo en producción) tiene `blueprintId = null` y slug
+// `beauty-spa` → familia `beauty` → sin match → landing de CH, intacta.
 const RUBRO_BY_SLUG: Record<string, string> = {
   magra: "carniceria",
   shinevelas: "velas",
   adosmanos: "padel",
 };
 
+/**
+ * Familia del slug: lo que va antes del primer guion. `magra-lomas` → `magra`.
+ * Es lo que hace que los 4 locales nuevos y los slugs de QA (`-demo`) se
+ * reconozcan sin editar un mapa por cada alta. Sin guion, la familia ES el slug.
+ */
+export function tenantFamilySlug(slug: string | null | undefined): string | null {
+  const s = (slug ?? "").trim().toLowerCase();
+  if (!s) return null;
+  const family = s.split("-")[0];
+  return family || null;
+}
+
+/** Identidad mínima del tenant que alimenta la resolución (la fila de `Tenant`). */
+export interface TenantRubroInput {
+  /** `Tenant.blueprintId` — el rubro elegido en el alta. FUENTE DE VERDAD. */
+  blueprintId?: string | null;
+  /** `Tenant.slug` — sólo red de contención para tenants sin blueprint. */
+  slug?: string | null;
+}
+
+/**
+ * Rubro retail del tenant. PURA (sin DB): el lector con Prisma vive en
+ * `src/lib/identidad-rubro.ts`. Devuelve null si el tenant no es de mostrador.
+ */
+export function resolveRubroId(t: TenantRubroInput): string | null {
+  const blueprintId = (t.blueprintId ?? "").trim();
+  // 1. El dato. Sólo vale si es un rubro retail conocido: un tenant con
+  //    blueprintId "servicios" o "generico" NO es de mostrador.
+  if (blueprintId && RETAIL_RUBROS[blueprintId]) return blueprintId;
+  return resolveRubroIdBySlug(t.slug);
+}
+
+/**
+ * Resolución SÓLO por slug (pasos 2 y 3). Se conserva para los llamadores que hoy
+ * no tienen a mano el blueprintId (`retailWordingForSlug` en src/lib/order-actions.ts);
+ * lo correcto es usar `resolveRubroId` con la fila del tenant.
+ */
 export function resolveRubroIdBySlug(slug: string | null | undefined): string | null {
-  if (!slug) return null;
-  return RUBRO_BY_SLUG[slug] ?? null;
+  const s = (slug ?? "").trim().toLowerCase();
+  if (!s) return null;
+  const exact = RUBRO_BY_SLUG[s];
+  if (exact) return exact;
+  const family = tenantFamilySlug(s);
+  return (family && RUBRO_BY_SLUG[family]) || null;
 }

@@ -3,8 +3,7 @@ import { redirect } from "next/navigation";
 import { getMostBookedServiceIds, getPublicBookingData, getPublicNews } from "@/lib/actions";
 import { getPublishedReviews } from "@/lib/reviews-actions";
 import { getLocation } from "@/lib/settings";
-import { getCurrentTenantSlug } from "@/lib/tenant-site";
-import { resolveRubroIdBySlug, RETAIL_RUBRO_IDS } from "@/blueprints/retail";
+import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { getBrandSheet } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
 import { getProductoActual } from "@/lib/producto";
@@ -60,21 +59,26 @@ export default async function Home() {
   if (producto === "comerciante" || producto === "contador") redirect("/admin/login");
   if (producto === "facturita") redirect("/facturita");
 
-  // Root `/` consciente del blueprint del tenant (runbook alta-magra.md §Paso 4 · ESTADO-ACTUAL §6):
-  // un tenant Retail/Mostrador (Magra y rubros de src/blueprints/retail) NO debe ver la landing de
-  // estética de CH — su home ES la vidriera (`/tienda`). Se resuelve por el mismo mapa slug→rubro que
-  // usa la vidriera (resolveRubroIdBySlug); fail-open: sin tenant/slug (getCurrentTenantSlug → null) o
-  // rubro no-retail cae a la landing histórica de CH, el comportamiento por defecto de siempre.
-  // El día que exista `Tenant.blueprintId`, este chequeo pasa a leer esa columna (un solo punto de cambio).
-  const slug = await getCurrentTenantSlug();
-  // FICHA DE MARCA (RFC-004-D, frente A): con el flag ON, la landing vs vidriera se decide por
-  // el `blueprintId` del tenant (DATO), no por un slug hardcodeado que no tiene los slugs demo
-  // (por eso velas-demo caía a la landing de CH). Flag OFF → camino legado por slug (idéntico).
+  // Root `/` consciente del RUBRO del tenant: un local de mostrador (carnicería, verdulería,
+  // velas, pádel…) NO debe ver la landing de estética de CH — su home ES la vidriera (`/tienda`).
+  //
+  // Se resuelve leyendo `Tenant.blueprintId` (el rubro elegido en el alta), con el slug sólo
+  // como red de contención — ver src/lib/identidad-rubro.ts. Antes dependía de un mapa de 3
+  // slugs escritos a mano: los 4 locales nuevos de MAGRA (`magra-lomas`, …) y los slugs de QA
+  // (`velas-demo`) caían acá y servían la landing de ESTÉTICA de otra clienta, con las fotos y
+  // los nombres de su equipo, en el dominio de una carnicería.
+  //
+  // Ya no depende de `TENANT_BRAND_SHEET_ENABLED`: la decisión se tomaba por el DATO sólo con
+  // ese flag encendido, y el flag está apagado. Fail-open intacto: sin tenant, sin slug o con
+  // un blueprint que no es de mostrador (beauty-spa: `blueprintId = null`) cae a la landing de
+  // CH, que es el comportamiento de siempre.
+  const identity = await getTenantIdentity();
+  if (identity.isRetail) redirect("/tienda");
+
+  // FICHA DE MARCA (RFC-004-D, frente A), detrás de `TENANT_BRAND_SHEET_ENABLED`: con el flag
+  // ON, los textos de la landing salen del nombre del tenant en vez de decir "CH". Flag OFF →
+  // copy legado de CH (idéntico).
   const sheet = tenantBrandSheetEnabled() ? await getBrandSheet() : null;
-  const isRetail = sheet
-    ? sheet.blueprintId != null && RETAIL_RUBRO_IDS.includes(sheet.blueprintId)
-    : Boolean(resolveRubroIdBySlug(slug));
-  if (isRetail) redirect("/tienda");
 
   // `professionals` sale de getPublicBookingData() (loader PÚBLICO, ya filtra
   // active/deletedAt server-side) — antes se pisaba con getCatalog(), un loader

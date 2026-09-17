@@ -1,21 +1,29 @@
 "use client";
 
-// CTA de WhatsApp de la vidriera — un solo componente compartido para las tres
-// superficies reales (Storefront genérico, SiteReplica y el modal de reserva de
-// CH), así el comportamiento y el prompt just-in-time no se reimplementan tres
-// veces (regla de consistencia SAP Fiori).
+// CTA de WhatsApp de la vidriera — un solo componente para las superficies públicas
+// (Storefront genérico, SiteReplica, el modal de reserva de CH y la vidriera de MAGRA).
 //
-// Regla del dueño: NUNCA un número hardcodeado ni abrir WhatsApp a un número
-// falso.
-// - Si `configuredNumber` viene de BusinessSettings.whatsapp (real) → el CTA
-//   abre directo a ese número.
-// - Si no hay número real configurado → el primer clic muestra este prompt
-//   pidiéndolo ahí mismo; recién con eso abre WhatsApp. El número que complete
-//   el visitante se guarda en localStorage (namespaced por tenant), nunca en
-//   el repo ni en la base — sigue siendo "sin backend, sin secretos".
+// REGLA: nunca se abre WhatsApp a un número que no sea EL DEL NEGOCIO.
+//
+// Hasta acá el camino sin número hacía lo contrario de lo que esa regla dice. Si
+// `BusinessSettings.whatsapp` estaba vacío, el primer clic abría un modal titulado
+// "Tu WhatsApp" que le pedía el número A QUIEN ESTABA MIRANDO LA PÁGINA, se lo guardaba en
+// su localStorage y abría el chat contra ÉL. O sea: el cliente que quería hacer un pedido
+// terminaba escribiéndose a sí mismo, y el pedido no le llegaba a nadie.
+//
+// No era hipotético. `BusinessSettings.whatsapp` está vacío en la fila de MAGRA: ni el
+// script de corrección de datos (`scripts/fix-magra-data-2026-07-07.ts`) ni la semilla lo
+// escriben. Y en la vidriera de MAGRA ese botón es el ÚNICO canal de venta: son seis CTA en
+// la misma página, todos apuntando al mismo lugar equivocado.
+//
+// Ahora, sin número del negocio, NO se abre WhatsApp. Se dice que el local todavía no lo
+// publicó y se ofrecen los otros contactos. Es peor para la conversión y es lo único
+// honesto: un botón que promete hablar con la carnicería no puede abrir un chat con
+// cualquier otra persona. Que el número falte lo tiene que resolver el local desde
+// /admin/localizacion, y el checklist de apertura de la consola lo pide antes de abrir.
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { buildWhatsAppHref, sanitizePhone, whatsappStorageKey } from "@/lib/whatsapp-cta";
+import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 
 type WhatsAppCtaContextValue = {
   /** Dispara el CTA: abre directo si ya hay número, si no pide el prompt. */
@@ -42,33 +50,20 @@ export function WhatsAppCtaProvider({
   children: ReactNode;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const storageKey = whatsappStorageKey(tenantKey);
   const configured = sanitizePhone(configuredNumber);
 
   const requestWhatsApp = useCallback(
     (message: string) => {
-      const number = configured || (typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null);
-      if (number) {
-        window.open(buildWhatsAppHref(number, message), "_blank", "noopener,noreferrer");
+      // Sólo el número del NEGOCIO abre el chat. Si no hay, no se inventa uno ni se le
+      // pregunta al visitante: se le explica.
+      if (configured) {
+        window.open(buildWhatsAppHref(configured, message), "_blank", "noopener,noreferrer");
         return;
       }
-      setPendingMessage(message);
-      setDraft("");
       setModalOpen(true);
     },
-    [configured, storageKey],
+    [configured],
   );
-
-  const confirm = () => {
-    const digits = sanitizePhone(draft);
-    if (!digits) return;
-    window.localStorage.setItem(storageKey, digits);
-    setModalOpen(false);
-    if (pendingMessage) window.open(buildWhatsAppHref(digits, pendingMessage), "_blank", "noopener,noreferrer");
-    setPendingMessage(null);
-  };
 
   return (
     <WhatsAppCtaContext.Provider value={{ requestWhatsApp }}>
@@ -105,75 +100,30 @@ export function WhatsAppCtaProvider({
             }}
           >
             <h2 id="wa-cta-title" style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>
-              Un dato antes de escribirte
+              Todavía no publicamos el WhatsApp
             </h2>
             <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.55, color: "var(--text-muted)" }}>
-              Para abrir WhatsApp necesitamos un número. Lo guardamos solo en este navegador, no se
-              envía a ningún lado.
+              Este local todavía no cargó su número. Escribinos por los otros medios que figuran
+              más abajo y te contestamos igual.
             </p>
-            <label style={{ display: "block", marginTop: 16, fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: "var(--text-muted)" }}>
-              Tu WhatsApp
-              <input
-                type="tel"
-                inputMode="numeric"
-                autoFocus
-                autoComplete="tel"
-                placeholder="54 9 11...."
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") confirm();
-                }}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  marginTop: 8,
-                  fontSize: 15,
-                  fontWeight: 400,
-                  textTransform: "none",
-                  letterSpacing: "normal",
-                  padding: "11px 13px",
-                  border: "1px solid var(--line-strong)",
-                  borderRadius: 9,
-                  background: "var(--surface)",
-                  color: "var(--text-strong)",
-                }}
-              />
-            </label>
             <button
               type="button"
-              onClick={confirm}
+              onClick={() => setModalOpen(false)}
+              autoFocus
               style={{
                 width: "100%",
-                marginTop: 16,
+                marginTop: 18,
                 height: 46,
-                border: "1px solid #25D366",
+                border: "1px solid var(--line-strong)",
                 borderRadius: 12,
-                background: "#fff",
-                color: "#118648",
+                background: "var(--surface)",
+                color: "var(--text-strong)",
                 fontWeight: 700,
                 fontSize: 14.5,
                 cursor: "pointer",
               }}
             >
-              Continuar por WhatsApp
-            </button>
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              style={{
-                width: "100%",
-                marginTop: 8,
-                border: "none",
-                background: "none",
-                color: "var(--text-faint)",
-                fontSize: 12.5,
-                textDecoration: "underline",
-                textUnderlineOffset: 2,
-                cursor: "pointer",
-              }}
-            >
-              Ahora no
+              Entendido
             </button>
           </div>
         </div>

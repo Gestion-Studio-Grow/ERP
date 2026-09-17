@@ -10,12 +10,19 @@
 //      tiene asignado (ADR-054/055). Antes esa lista solo existía en el client → una URL
 //      directa (/admin/turnos, /admin/caja…) evadía el ocultamiento de la nav.
 //
-// Client-safe: SOLO importa TIPOS (Capability/Perfil/NavGroupId) — cero runtime de
-// servidor, así lo puede importar tanto el client component como el layout server.
+// Client-safe: además de los TIPOS (Capability/Perfil/NavGroupId) importa DOS
+// selectores PUROS y sin runtime de servidor (`visibleNavItems` de @/modules/perfil,
+// `readyEnterpriseNavItems` de @/modules/nav-groups) — los necesita `menuItemsParaTenant`,
+// abajo. Ninguno de los dos toca Prisma/tenant/`@/modules` (barrel), así que este archivo
+// lo puede seguir importando tanto el client component como el layout server. Si algún día
+// alguno deja de ser puro, se rompe el AdminShell: la regla es que acá NO entra servidor.
+// (El encabezado anterior decía "SOLO importa TIPOS" — quedó viejo con esta función.)
 
-import type { Capability } from "@/lib/capabilities";
+import type { Capability, Role } from "@/lib/capabilities";
 import type { Perfil } from "@/modules/perfil";
+import { visibleNavItems } from "@/modules/perfil";
 import type { NavGroupId } from "@/modules/nav-groups";
+import { readyEnterpriseNavItems } from "@/modules/nav-groups";
 
 // Cada ítem declara la capacidad que lo habilita; se filtra por el rol del
 // usuario. Ocultar en el front es UX (ADR-017 §2.e) — la seguridad real la aplican
@@ -43,6 +50,28 @@ export type ShellItem = {
   // Ambos default undefined → los ítems base no cambian.
   retailOnly?: boolean;
   carniceriaOnly?: boolean;
+  // `agendaOnly`: el ESPEJO de `retailOnly`. La pantalla sólo tiene sentido donde se
+  // trabaja con TURNOS; en un mostrador es un callejón sin salida, no una pantalla vacía.
+  // No es opinión: el blueprint retail lo dice ("NO incluye agenda: el retail de mostrador
+  // no trabaja por turnos", src/blueprints/retail/index.ts:18) y su seeder crea SOLO
+  // Products — ni un Service ni un Professional. Con eso, en un tenant retail:
+  //   · /admin/espera tiene `<Select name="serviceId" required>` sin una sola opción →
+  //     el formulario no se puede enviar NUNCA (espera/page.tsx:52-59);
+  //   · /admin/recordatorios arma sus avisos por servicio y su alta de novedades pide un
+  //     `professionalId` required, también sin opciones (recordatorios/page.tsx:55-61);
+  //   · /admin/resenas no puede tener una sola fila: `Review.appointmentId` es obligatorio
+  //     y único (schema.prisma:667) → sin turnos no hay reseña posible;
+  //   · /admin/turnos necesita servicio + profesional para dar de alta algo.
+  // Por qué un booleano nuevo y no reusar lo que hay: `module` no sirve (con el registro
+  // apagado `moduleGateAllows` deja pasar todo, y prenderlo deja sin menú a beauty-spa);
+  // derivarlo de `defaultModulesForBlueprint` tampoco (es el default del ALTA, no el estado
+  // del tenant: se pelearía con `Tenant.modules` si el dueño enciende algo, y de paso se
+  // llevaría puestas pantallas que SÍ andan en retail, como Campañas o Facturación).
+  // Usa la MISMA prop `isRetail` que ya recibe el shell: cero plomería nueva.
+  // ESCONDER NO ES PROHIBIR: esto es UX (ADR-017 §2.e). La ruta sigue existiendo y sigue
+  // guardada por su capability server-side; acá sólo se saca de la vista de quien nunca la
+  // va a poder usar.
+  agendaOnly?: boolean;
   // Palabras con las que el usuario REAL busca la pantalla, más allá del rótulo:
   // "afip" para Facturación, "stock" para Inventario, "mermas" para Ajustes. Las
   // consume el buscador de la barra (`@/modules/nav-search`) y NO afectan a la
@@ -53,9 +82,9 @@ export type ShellItem = {
 
 export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin", label: "Inicio", icon: "dashboard", exact: true, cap: "dashboard:read", alias: ["tablero", "panel", "home", "resumen"] },
-  { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda", alias: ["turnos", "reservas", "calendario", "citas"] },
+  { href: "/admin/turnos", label: "Agenda", icon: "agenda", cap: "agenda:read", module: "agenda", agendaOnly: true, alias: ["turnos", "reservas", "calendario", "citas"] },
   { href: "/admin/clientes", label: "Clientes", icon: "clientes", cap: "clients:read", module: "clients", alias: ["fichas", "base de clientes", "historial del cliente"] },
-  { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist", alias: ["cola", "waitlist", "anotados para un hueco"] },
+  { href: "/admin/espera", label: "Lista de espera", icon: "espera", cap: "waitlist:manage", module: "waitlist", agendaOnly: true, alias: ["cola", "waitlist", "anotados para un hueco"] },
   { href: "/admin/pedidos", label: "Pedidos", icon: "pedidos", cap: "orders:read", module: "pos", alias: ["ventas", "mostrador", "comandas"] },
   // LAS TRES CAJAS. Un QA de recorrido las encontró como tres ítems hermanos, planos y con
   // el MISMO ícono, y la primera es la que una persona sin explicación abre primero. Los
@@ -90,8 +119,8 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/lotes", label: "Lotes / Vacío", icon: "lotes", cap: "catalog:manage", module: "catalog", carniceriaOnly: true, alias: ["vencimientos", "envasado al vacio", "trazabilidad"] },
   { href: "/admin/despiece", label: "Despiece", icon: "despiece", cap: "catalog:manage", module: "catalog", carniceriaOnly: true, alias: ["cortes", "media res", "rendimiento"] },
   { href: "/admin/ajustes", label: "Ajustes", icon: "ajustes", cap: "catalog:manage", module: "catalog", alias: ["mermas", "rotura", "recuento", "vencidos"] },
-  { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage", module: "reviews", alias: ["opiniones", "comentarios", "estrellas"] },
-  { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders", alias: ["whatsapp", "avisos", "mensajes"] },
+  { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage", module: "reviews", agendaOnly: true, alias: ["opiniones", "comentarios", "estrellas"] },
+  { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders", agendaOnly: true, alias: ["whatsapp", "avisos", "mensajes"] },
   { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca", alias: ["arca", "afip", "comprobantes", "iva", "factura"] },
   { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports", alias: ["informes", "estadisticas", "rentabilidad", "comisiones", "ingresos"] },
   { href: "/admin/campania", label: "Campañas", icon: "clientes", cap: "clients:read", module: "campanias", alias: ["obsequio", "promociones", "leads", "anotados", "apertura"] },
@@ -106,6 +135,83 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage", alias: ["direccion", "ubicacion", "contacto", "sucursal", "telefono"] },
   { href: "/admin/apariencia", label: "Apariencia", icon: "apariencia", cap: "appearance:manage", alias: ["tema", "color", "modo oscuro", "marca"] },
 ];
+
+// ============================================================================
+// EL MENÚ QUE VE ESTE TENANT — una sola función, la que usa el AdminShell.
+// ============================================================================
+//
+// Vivía inline dentro del `AdminShell` (un `.filter` con cinco condiciones). Se
+// extrajo acá por una razón concreta: un menú con ítems que no llevan a ningún lado
+// es un costo de atención en el mostrador, y esa decisión no se podía probar sin
+// renderizar React. Ahora la decisión se ejecuta en un test (src/lib/nav-rubro.test.ts)
+// con los ítems REALES y los rubros REALES, y el shell no tiene lógica propia que
+// pueda irse de sincronía con lo testeado.
+
+/** Lo que el rubro del tenant necesita saber para decidir qué ítems tienen sentido. */
+export interface RubroGateCtx {
+  /** ¿Es un local de MOSTRADOR? (`getCurrentTenantRubro().isRetail`, layout.tsx:54). */
+  isRetail: boolean;
+  /** ¿Está aplicada la migración cárnica? (`hasCarniceriaSchema`). */
+  carniceriaReady: boolean;
+}
+
+/**
+ * Eje RUBRO, en sus DOS sentidos. PURA.
+ *
+ *   · MOSTRAR — `retailOnly` (Inventario) sólo en un local de mostrador;
+ *     `carniceriaOnly` (Lotes, Despiece) además exige el schema cárnico aplicado:
+ *     sin él la pantalla es un cartel de "En preparación" (lotes/page.tsx:16).
+ *   · ESCONDER — `agendaOnly` (Agenda, Lista de espera, Reseñas, Recordatorios) se cae
+ *     del menú de un mostrador. NO es cosmético: en un tenant retail no hay un solo
+ *     `Service` ni `Professional` (el seeder crea sólo Products, blueprints/retail/index.ts:31),
+ *     y esas cuatro pantallas los piden `required` para poder hacer algo → son cuatro
+ *     callejones sin salida. El detalle, con archivo y línea, está en la declaración de
+ *     `agendaOnly` arriba.
+ *
+ * ESCONDER NO ES PROHIBIR: esto es UX (ADR-017 §2.e). La ruta sigue existiendo y sigue
+ * guardada server-side por su capability. Acá sólo se saca de la vista de quien nunca la
+ * va a poder usar. Si alguna vez hace falta PROHIBIRLA, se hace en el guarda, no acá.
+ *
+ * En un tenant de SERVICIOS (`isRetail: false`, el caso de beauty-spa) las tres reglas
+ * se comportan como antes de que existiera el eje: `agendaOnly` no filtra nada y los otros
+ * dos siguen apagados → menú byte-idéntico al legado.
+ */
+export function rubroGateAllows(
+  item: Pick<ShellItem, "retailOnly" | "carniceriaOnly" | "agendaOnly">,
+  { isRetail, carniceriaReady }: RubroGateCtx,
+): boolean {
+  if (item.retailOnly && !isRetail) return false;
+  if (item.carniceriaOnly && !(isRetail && carniceriaReady)) return false;
+  if (item.agendaOnly && isRetail) return false;
+  return true;
+}
+
+export type MenuCtx = RubroGateCtx & {
+  role: Role;
+  /** Set de módulos activos, o `null` (registro apagado → deja pasar todo). */
+  activeModules: ReadonlySet<string> | null;
+  /** Perfil activo, o `null` (motor de perfiles apagado → deja pasar todo). */
+  activeProfile: Perfil | null;
+};
+
+/**
+ * Los ítems de nav que ve un tenant, componiendo los CUATRO ejes:
+ * rol × módulo × perfil (`visibleNavItems`, @/modules/perfil) × RUBRO (`rubroGateAllows`).
+ *
+ * DEDUP por href antes de filtrar: `/admin/inventario` está declarado en los DOS
+ * registros — en `ALL_ITEMS` como ítem de rubro retail (Magra) y en `ENTERPRISE_NAV_ITEMS`
+ * como shell del perfil Empresa. Es la MISMA pantalla encendida por dos vías: sin dedup, un
+ * tenant retail con perfiles ON la vería dos veces en la barra (y React se quejaría por la
+ * key repetida). Gana el ítem base, que es el que trae `retailOnly` — sin él la pantalla se
+ * le colaría a un tenant de servicios.
+ */
+export function menuItemsParaTenant(ctx: MenuCtx): ShellItem[] {
+  const candidatos: ShellItem[] =
+    ctx.activeProfile === null ? ALL_ITEMS : [...ALL_ITEMS, ...readyEnterpriseNavItems()];
+  const vistos = new Set<string>();
+  const unicos = candidatos.filter((i) => (vistos.has(i.href) ? false : (vistos.add(i.href), true)));
+  return visibleNavItems(unicos, ctx).filter((i) => rubroGateAllows(i, ctx));
+}
 
 /** Normaliza un path: saca query/hash y colapsa trailing slash. */
 function normalizarPath(path: string): string {

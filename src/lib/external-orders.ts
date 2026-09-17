@@ -184,11 +184,27 @@ export async function createExternalOrder(
 ): Promise<ExternalOrderResult> {
   const lines = await resolveItems(tenantId, input.items);
 
-  // La referencia del sistema externo queda trazada en las notas del pedido
-  // (provisional: no hay columna dedicada todavía; sirve de idempotencia manual).
+  // La referencia del sistema externo queda trazada en las notas del pedido, para que el
+  // mostrador la vea al lado del pedido (no hay columna dedicada todavía).
+  //
+  // ⚠️ Esa nota NO es idempotencia — el comentario que estaba acá decía que "sirve de
+  // idempotencia manual" y era FALSO: nada leía esas notas antes de insertar, así que el
+  // reintento del webhook creaba un segundo pedido y descontaba el stock otra vez. La
+  // idempotencia de verdad es `idempotencyKey`, más abajo.
   const notes = [input.externalRef ? `Ref externa: ${input.externalRef}` : null, input.notes]
     .filter(Boolean)
     .join(" · ") || null;
+
+  // IDEMPOTENCIA DE LA INGESTA EXTERNA. El reintento de un webhook es el caso NORMAL, no el
+  // raro: cualquier timeout o 500 pasajero del lado nuestro hace que WooCommerce reenvíe el
+  // MISMO pedido. Con `ext:<externalRef>` como clave, el segundo envío devuelve el pedido que
+  // ya existe (`insertOrder` resuelve el dedupe y la carrera con el
+  // `@@unique(tenantId, idempotencyKey)`, APLICADO) en vez de duplicar la venta y volver a
+  // descontar el kilaje.
+  //
+  // Sin `externalRef` no hay clave posible y el comportamiento es el de hoy: cada llamada
+  // crea un pedido. Eso queda dicho en la doc de la API, no se adivina acá.
+  const idempotencyKey = input.externalRef ? `ext:${input.externalRef}` : null;
 
   const scheduledFor = input.scheduledFor ? new Date(input.scheduledFor) : null;
 
@@ -209,10 +225,16 @@ export async function createExternalOrder(
     paid: input.payment?.paid === true,
     paymentMethod: input.payment?.method ?? null,
     items: lines,
-  });
+  }, { idempotencyKey });
 
   // Trigger del flujo secundario: facturación. Best-effort para no romper la toma
   // del pedido (ya persistido) si un paso secundario falla.
+  //
+  // Se intenta TAMBIÉN cuando el pedido vino deduplicado. Parece contradictorio y no lo es:
+  // `createInvoice` es idempotente por `@@unique(tenantId, orderId)` (invoice-core.ts:105),
+  // así que reintentar no emite un segundo comprobante — y en cambio cubre el caso que sí
+  // pasa: el primer envío creó el pedido y se cayó al facturar. Saltear la facturación en el
+  // reintento dejaría ese pedido sin comprobante para siempre.
   let invoiced = false;
   if (input.invoice && isInvoicingEnabled()) {
     try {

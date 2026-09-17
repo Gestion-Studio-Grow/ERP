@@ -1,8 +1,31 @@
 // Prisma schema — Estetica ERP (Fase 1 del blueprint "Servicios", ADR-010)
 // Multi-tenant a nivel de datos (ADR-001 / G1): toda tabla de negocio lleva
-// `tenantId`. Hoy hay un solo tenant (Beauty & Spa); el aislamiento es a nivel
-// de aplicación vía src/lib/tenant.ts. RLS de Postgres se activa con el 2º
-// tenant (ver nota en el modelo Tenant).
+// `tenantId`. Ya NO hay un solo tenant: son CUATRO en la MISMA base (beauty-spa,
+// magra, shinevelas, adosmanos) y el plan de MAGRA es un tenant por local, así que
+// esto escala a ocho o nueve. El aislamiento es EN CAPAS y todas están vivas: RLS de
+// Postgres (rol `app_rls` NOBYPASSRLS + GUC `app.current_tenant_id`,
+// prisma/rls/0001_enable_rls.sql) MAS el candado de aplicación (src/lib/tenant.ts,
+// src/lib/tenant-scope.ts). Una capa sola no alcanza: con la extensión de Prisma por
+// fuera y RLS activo pasaban 3 de 6 ataques cruzados (prisma/rls/aislamiento-capa-app.ts).
+// MEDIDO el 2026-09-17 contra la base local `erp_scope`: 44 tablas con rowsecurity, 44
+// policies, `app_rls` con rolbypassrls=false. Contra Neon: NO MEDIDO desde acá.
+//
+// ── Cómo leer "migración aplicada / sin aplicar" en este archivo ──────────────
+// La frase "Migración ESCRITA y SIN aplicar" estaba doce veces y varias eran FALSAS
+// (la migración estaba escrita, commiteada y aplicada). Una afirmación de aplicación
+// sólo vale si dice CONTRA QUÉ BASE se midió, así que cada nota de acá abajo nombra su
+// migración y separa dos cosas:
+//   * base LOCAL (`erp_scope`): MEDIDO el 2026-09-17 — las 45 migraciones de
+//     prisma/migrations/ figuran aplicadas (45/45 con `finished_at` en `_prisma_migrations`).
+//   * Neon (producción): NO MEDIDO desde acá. docs/runbooks/migracion-caja-neon.md:25-37
+//     espera CINCO pendientes (20260815120000_lead_campania,
+//     20260906120000_add_cash_method_libro_caja, 20260907120000_add_cash_movement_payment_id,
+//     20260907180000_add_appointment_partial_collections y
+//     20260911120000_profesional_cobra_en_mostrador) y da por aplicado todo lo anterior a
+//     20260712120000 con documentación de JULIO que nadie remidió. Se confirma con
+//     `npm run medir:neon` (sólo lectura); si lista otra cosa, frenar.
+// La tolerancia "schema-ahead" del código (P2022/P2010) sigue siendo correcta mientras
+// Neon no esté medido: es barata y no estorba.
 
 generator client {
   provider = "prisma-client"
@@ -217,8 +240,9 @@ model Tenant {
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
   // backoffice del tenant. Todo aditivo/nullable: los tenants existentes siguen
-  // válidos sin backfill. La migración que agrega estas columnas queda ESCRITA y
-  // SIN aplicar a Neon (Gate 2).
+  // válidos sin backfill. Las agrega `20260705120000_control_plane_tenant`: APLICADA en la
+  // base local (medido 2026-09-17); no está entre las cinco pendientes del runbook, pero
+  // Neon NO MEDIDO (ver cabecera del archivo).
   status       TenantStatus @default(TRIAL) // activo / en pruebas / suspendido
   plan         String? // id de plan comercial (free-form; planes reales → ADR-006)
   blueprintId  String? // vertical sembrado en el alta (servicios/carniceria/generico)
@@ -239,7 +263,8 @@ model Tenant {
   // SOLO metadata no sensible. El certificado X.509 + clave del emisor NO viven en
   // la DB: entran por env/secret store (`ARCA_CERT_PEM`/`ARCA_KEY_PEM`, `credencialDesdeEnv`).
   // `clientePara(tenantId)` (src/lib/arca-dispatch.ts) arma el `EmisorConfig` desde acá.
-  // Aditivo/nullable — sin backfill. Migración ESCRITA y SIN aplicar a Neon (Gate 2).
+  // Aditivo/nullable — sin backfill. Las agrega `20260705150001_add_tenant_fiscal_config`:
+  // APLICADA en la base local (medido 2026-09-17); Neon NO MEDIDO (ver cabecera).
   // `arcaCuit` es String (no Int como sugería el spec): un CUIT de 11 dígitos no entra
   // en Int32 de Postgres — mismo criterio que `Invoice.docNro`.
   arcaCuit         String? // CUIT del emisor (11 dígitos, sin guiones)
@@ -249,7 +274,8 @@ model Tenant {
   // --- Config del módulo BANCOS por tenant (mismo patrón que `arca*`: ADR-022 §5 opción B) ---
   // SOLO metadata no sensible. Nulos = defaults del producto (umbral $600.000, cap 159 —
   // ver src/plugins/bancos/domain/reglas.ts, reglas comerciales del dueño). Aditivo/nullable,
-  // sin backfill. Migración ESCRITA y SIN aplicar a Neon (Gate 2).
+  // sin backfill. Las agrega `20260711120000_add_bancos_importacion`: APLICADA en la base
+  // local (medido 2026-09-17); Neon NO MEDIDO (ver cabecera).
   bancosUmbralIdentificacion Decimal? @db.Decimal(14, 2) // pesos desde los cuales se exige identificar al receptor
   bancosCapFacturasMes       Int? // tope de facturas automáticas por mes
   bancosDomicilioEmisor      String? // domicilio comercial del emisor (obligatorio en el comprobante)
@@ -279,7 +305,9 @@ enum TenantProfile {
 // Plano de OPERADOR: la gestiona/lee la conexión cross-tenant (`operatorPrisma`), no el
 // backoffice del tenant — el material NUNCA se expone a la app del tenant. Igual lleva
 // `tenantId` (la policy RLS data-driven la aísla como defensa en profundidad, ADR-018).
-// 1:1 con Tenant. Aditivo/nullable → sin backfill. Migración ESCRITA y SIN aplicar (Gate 2).
+// 1:1 con Tenant. Aditivo/nullable → sin backfill. La crea
+// `20260711140000_add_tenant_fiscal_credential`: APLICADA en la base local (la tabla existe,
+// medido 2026-09-17); Neon NO MEDIDO (ver cabecera).
 model TenantFiscalCredential {
   id       String @id @default(cuid())
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -959,8 +987,10 @@ model Invoice {
   // A-6 — origen MP_PAYMENT: id del pago de Mercado Pago que originó la factura. Clave de
   // idempotencia del webhook (MP reintenta notificaciones): un pago duplicado NO factura dos
   // veces. Nullable (las facturas de ORDER/APPOINTMENT o previas lo dejan null; NULLs no
-  // colisionan). Migración ESCRITA y SIN aplicar (Gate 2); la escritura ya está detrás de
-  // `isInvoicingEnabled()` (OFF en prod) → schema-ahead contenido.
+  // colisionan). La agrega `20260712120000_sprint_entregable_concurrency_guards`: APLICADA en
+  // la base local junto con su índice `Invoice_tenantId_mpPaymentId_key` (medido 2026-09-17);
+  // Neon NO MEDIDO (ver cabecera). La escritura además está detrás de `isInvoicingEnabled()`
+  // (OFF en prod).
   mpPaymentId String?
 
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
@@ -1001,8 +1031,9 @@ model OutboxEvent {
 // --- Módulo BANCOS (plugin src/plugins/bancos + glue src/lib/bancos-*) ---
 // Persistencia de la importación de extractos bancarios: el comerciante sube su
 // CSV/XLSX, el plugin detecta columnas y clasifica, y esto guarda el lote + cada
-// movimiento con su propuesta de factura. Migración ESCRITA y SIN aplicar a Neon
-// (Gate 2). Las tres tablas tienen `tenantId` → las cubre la policy data-driven
+// movimiento con su propuesta de factura. Las crea
+// `20260711120000_add_bancos_importacion`: APLICADA en la base local (medido 2026-09-17);
+// Neon NO MEDIDO (ver cabecera). Las tres tablas tienen `tenantId` → las cubre la policy data-driven
 // de RLS (re-ejecutar prisma/rls/0001_enable_rls.sql en el mismo deploy).
 
 // De dónde salió el extracto (espeja `OrigenMovimiento` del plugin).
@@ -1165,8 +1196,10 @@ model Order {
   // A-1 — clave de idempotencia del alta de vidriera (la genera el cliente por carrito). Dos
   // envíos con la misma clave (doble-submit / reintento) resuelven al MISMO pedido en vez de
   // crear dos y descontar stock dos veces. Nullable: el POS y la API externa no la usan (NULLs
-  // distintos en Postgres → no colisionan). Aditiva: migración ESCRITA y SIN aplicar (Gate 2);
-  // el código tolera que la columna no exista aún (schema-ahead).
+  // distintos en Postgres → no colisionan). La agrega
+  // `20260712120000_sprint_entregable_concurrency_guards`: APLICADA en la base local junto con
+  // su índice `Order_tenantId_idempotencyKey_key` (medido 2026-09-17); Neon NO MEDIDO (ver
+  // cabecera). El código igual tolera que la columna no exista (schema-ahead): es barato.
   idempotencyKey String?
 
   items         OrderItem[]
@@ -1287,8 +1320,10 @@ model CashMovement {
   // servicio cobrado en /admin/turnos). Es la clave de idempotencia del puente turnos → libro:
   // confirmar el pago dos veces no puede producir dos asientos. `Payment` es 1:1 con el turno
   // (`appointmentId @unique`), así que un `paymentId` identifica UN cobro y nada más.
-  // Migración ESCRITA y SIN aplicar (gate del dueño); el código tolera que la columna no
-  // exista todavía (schema-ahead, ver `settleAppointmentPaymentGuarded`).
+  // La agrega `20260907120000_add_cash_movement_payment_id`: APLICADA en la base local (medido
+  // 2026-09-17) y PENDIENTE en Neon — es una de las CINCO del runbook (Neon NO MEDIDO, ver
+  // cabecera). Por eso acá la tolerancia schema-ahead sí está ganándose el sueldo
+  // (`settleAppointmentPaymentGuarded`).
   payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   paymentId String?
 
@@ -1297,8 +1332,10 @@ model CashMovement {
   // agregado, así que `paymentId` ya no puede ser la clave del asiento (chocaría el @@unique
   // de arriba en el segundo cobro): la clave de idempotencia del puente pasa a ser el cobro
   // concreto, `@@unique(tenantId, collectionId, type)`. `paymentId` queda para los asientos
-  // anteriores a este cambio. Migración ESCRITA y SIN aplicar (gate del dueño); el código
-  // tolera que la columna no exista todavía (schema-ahead, ver `settleAppointmentPaymentGuarded`).
+  // anteriores a este cambio. La agrega `20260907180000_add_appointment_partial_collections`:
+  // APLICADA en la base local (medido 2026-09-17) y PENDIENTE en Neon — una de las CINCO del
+  // runbook (Neon NO MEDIDO). Por eso el código tolera que la columna no exista todavía
+  // (schema-ahead, ver `settleAppointmentPaymentGuarded`).
   collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   collectionId String?
 
@@ -1309,8 +1346,14 @@ model CashMovement {
   // cobrado" (dos asientos VENTA para el mismo pedido → arqueo con plata de más). El check-then-
   // insert de `recordCashSaleMovementInTx` no cerraba la ventana; este @@unique es el árbitro a
   // nivel DB. Los movimientos sin pedido (APERTURA/INGRESO/EGRESO/RETIRO, orderId NULL) NO
-  // colisionan (NULLs distintos en Postgres). Migración ESCRITA y SIN aplicar (Gate 2); el
-  // código tolera que el índice no exista todavía (schema-ahead).
+  // colisionan (NULLs distintos en Postgres). APLICADA — este comentario decía "SIN aplicar"
+  // y era FALSO hasta el 2026-09-17: la crea
+  // prisma/migrations/20260712120000_sprint_entregable_concurrency_guards/migration.sql:40 y el
+  // índice `CashMovement_tenantId_orderId_type_key` existe en la base local (medido con psql el
+  // 2026-09-17); tampoco está entre las cinco pendientes del runbook (Neon NO MEDIDO, ver
+  // cabecera). Que un comentario le diga "no existe" a una guarda de PLATA que sí existe es peor
+  // que no comentarla: el que sigue o le construye otra defensa encima al mismo doble-click, o
+  // desconfía de ésta y deja pasar el cobro duplicado.
   @@unique([tenantId, orderId, type])
   // Misma forma que A-5, para el cobro de turno: UN asiento por (cobro, tipo). Los movimientos
   // sin cobro de turno (paymentId NULL) no colisionan entre sí.
@@ -1456,8 +1499,10 @@ model StockMovement {
 }
 
 // ============================================================================
-// FASE C/C.5 de ADR-060 — entidades FUNDACIONALES, todas ADITIVAS (no aplicadas a
-// prod: migraciones preparadas + rollback, §C · Gate 2). Ver
+// FASE C/C.5 de ADR-060 — entidades FUNDACIONALES, todas ADITIVAS. Sus migraciones
+// (20260708230000 … 20260711140000) están APLICADAS en la base local: Supplier,
+// AccountPayable y AccountReceivable existen ahí (medido 2026-09-17) y ninguna está entre
+// las cinco pendientes del runbook; Neon NO MEDIDO (ver cabecera). Ver
 // docs/estrategia/estructura-consolidada-producto.md (ADR-060).
 // ============================================================================
 
@@ -1543,7 +1588,9 @@ model Collection {
   // reservar, `saldo:<turno>` al completar, un uuid del formulario en "Registrar cobro"—
   // y el @@unique de abajo es el árbitro de la carrera del doble submit: cobrar dos veces
   // por doble clic NO puede duplicar plata. NULL para cobros sin clave (no colisionan).
-  // Migración ESCRITA y SIN aplicar (gate del dueño); el código tolera que no exista.
+  // La agrega `20260907180000_add_appointment_partial_collections`: APLICADA en la base local
+  // junto con `Collection_tenantId_idempotencyKey_key` (medido 2026-09-17) y PENDIENTE en Neon
+  // — una de las CINCO del runbook (Neon NO MEDIDO). Por eso el código tolera que no exista.
   idempotencyKey String?
 
   // Puente cobro de turno → libro de caja: el asiento VENTA que ESTE cobro produjo

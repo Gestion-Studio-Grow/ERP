@@ -1,353 +1,330 @@
-# Runbook — Alta de Magra en producción (2º tenant + activación de RLS)
+# Runbook — Abrir un local de MAGRA (alta de tenant, paso a paso)
 
-> **🔄 Alineación 2026-07-10 (ADR-062):** este runbook es **vigente como procedimiento**, pero el número
-> **"33/33"** que aparece abajo quedó **desactualizado**: hoy la cobertura RLS es **38 tablas** (crecieron
-> con ADR-060 — Supplier/Collection/AccountPayable/AccountReceivable/PayableCheque, etc.). El registro
-> histórico "BLOQUE A 2026-07-05 → 33/33 sin drift" **se preserva como historia** (fue 33 en esa fecha).
-> **Acción vigente:** re-correr `check-rls-live.mjs` para confirmar **enforced en vivo de las 38** (las 5
-> nuevas aún **A CONFIRMAR**) + revocar el `app_user` legacy con `BYPASSRLS`.
+> **Para qué sirve:** abrir los **5 locales de Magra**. Cada local es **un tenant propio**
+> (decisión de arquitectura vigente: no hay modelo de sucursal y no se construye ahora),
+> así que este runbook se corre **5 veces**, una por local, más **un** paso final de ruteo
+> que se hace **una sola vez con las 5 entradas juntas** (Paso 8 — leelo antes de empezar).
 >
-> **Estado:** PLAN APROBADO PARA PREPARAR — **no ejecutar todavía.** Cada paso
-> irreversible (migración/rotación en prod, DNS, secrets) requiere **OK explícito del
-> dueño** en el momento. Este documento es el guion; no dispara nada solo.
->
-> **Contexto (verificado en código, deploy `f0a13f0`):** hoy prod tiene **1 tenant**
-> (CH Estética, slug `beauty-spa`). Magra está **preparado pero no provisionado**
-> (branding `src/lib/branding.ts:58`, blueprint `src/blueprints/retail/rubros.ts` (rubro `carniceria`),
-> vidriera `/tienda`, playbooks en `docs/tenants/magra/`). El alta del 2º tenant está
-> **bloqueada a propósito** por el gate ADR-018 (`scripts/provision-tenant.ts:191-202`)
-> hasta que RLS de Postgres esté activo. Por eso este runbook activa RLS **primero**.
-
-> ### 🔥 ESTADO REAL DE PROD (auditado 2026-07-05, solo lectura) — LEER ANTES DE EJECUTAR
-> Prod **NO** está "de cero" en RLS. Auditoría (`check-rls-live.mjs`) encontró:
-> 1. **RLS ya aplicado parcialmente:** `ENABLE RLS` + policy en **24/33 tablas** de-tenant.
-> 2. **DRIFT — 9 tablas sin proteger:** `Order, OrderItem, Invoice, OutboxEvent, CashMovement,
->    CashSession, StockMovement, StockPurchase, StockPurchaseItem` (POS/facturación/caja/stock).
->    Filtrarían entre tenants si se activa el enforcement sin cerrarlas.
-> 3. **`app_user` existe con `BYPASSRLS=true`** → rotar `DATABASE_URL` a él daría **CERO
->    aislamiento**, en silencio. **Y es INARREGLABLE por `neondb_owner`:** `ALTER ROLE app_user
->    … NOBYPASSRLS` → *"permission denied"* (quitar BYPASSRLS necesita superuser, que Neon no da).
->
-> **Secuencia CORREGIDA (reemplaza el "aplicar de cero" y el viejo "patchear app_user"):** re-correr
-> `0001` **cierra el drift** (es data-driven → cubre 33/33, verificado offline); `0002` **crea un rol
-> NUEVO `app_rls`** —limpio, nace `NOBYPASSRLS`— en vez de intentar arreglar el `app_user` inarreglable,
-> y se rota `DATABASE_URL` a **`app_rls`**. El `app_user` legacy queda intacto e inofensivo (nadie
-> conecta con él). Correr `check-rls-live.mjs` **antes y después** para confirmar 33/33 y `app_rls`
-> sin bypass. *(Hallazgo del ensayo en branch de Neon, 2026-07-05, 🟢 VERDE 8/8.)*
-
-## Leyenda de riesgo
-
-- 🟢 **Verificable sin riesgo** — corre local o contra un branch desechable de Neon; no toca prod. Se puede hacer sin OK.
-- 🟡 **Cambio de código** — verificable con `tsc`+build+tests; no toca prod hasta deploy (Gate 1). Necesita revisión, no es irreversible.
-- 🔴 **Requiere OK del dueño / acción humana** — irreversible sobre prod, o secret/DNS. **No se corre solo.**
-
-## Lo que YA está listo (no hay que construirlo)
-
-- SQL de RLS data-driven: `prisma/rls/0001_enable_rls.sql` (ENABLE + policy `tenant_isolation` en **toda** tabla con `tenantId` → cubre 33/33 hoy), `0002_app_role.sql` (crea el rol **NUEVO** `app_rls` sin `BYPASSRLS` — evita el `app_user` legacy inarreglable; ver hallazgo arriba), `0003_force_rls_optional.sql` (hardening opcional), `0001_rollback.sql`.
-- Redes de verificación: `check-coverage.mjs` (estática), **`check-rls-live.mjs` (auditoría del drift en vivo, solo lectura — branch o prod; verifica `app_rls` sin bypass)**, `verify-rls.mjs` (funcional contra branch, como `app_rls`), **`verify-provision-gate.mts` (offline: gate + cobertura 33/33 + `app_rls` NOBYPASSRLS)**, `verify-wiring.mts` + `verify-tenant-resolution.mts` (integración del código real con PGlite). Procedimiento canónico: `prisma/rls/README.md`.
-- Cableado app-level **escrito y apagado** tras el flag `RLS_ENFORCEMENT` (`src/lib/prisma-base.ts`, `rls.ts`, `tenant-context.ts`) → hoy cero cambio en prod.
-- Control-plane con alta por UI: `/operador/alta` → `provisionFromConsole` → `provisionTenant` (`src/lib/operator-actions.ts:51`).
+> **Tiempo:** ~10 min por local en la consola + ~10 min el paso de ruteo + 1 deploy.
 
 ---
 
-## Paso 0 — Pre-flight (🟢 sin riesgo, hacer antes de pedir cualquier OK)
+## Lo primero: cuál es el camino REAL (y cuál ya no existe)
 
-Confirma que el paquete está sano **sin tocar nada vivo**:
+Hasta esta revisión, este runbook y otros cuatro documentos mandaban usar
+**`provisionFromConsole`**. Eso ya no es el alta: es un Server Action **sin un solo
+llamador**, y lo dice su propio código —
+
+`src/lib/operator-actions.ts:74` (la función) y `src/lib/operator-actions.ts:139-142`:
+
+> *"Esta acción es LEGACY y ya no tiene llamadores: la superó el wizard, que entrega la
+> clave fuera de la URL."*
+
+Verificalo vos antes de confiar en este documento:
 
 ```bash
-node prisma/rls/check-coverage.mjs            # 28/28 tablas protegibles
-npx tsx prisma/rls/verify-wiring.mts          # cableado real + policies (PGlite en memoria)
-npx tsx prisma/rls/verify-tenant-resolution.mts   # resuelve caro.<base> y magra.<base> aislados
-npm test && npx tsc --noEmit && npx next build    # vallas verdes
+grep -rn "provisionFromConsole" --include=*.ts --include=*.tsx src/ scripts/
+# única aparición en código: su propia definición en src/lib/operator-actions.ts:74
 ```
 
-Todo esto vive en RAM / código; **no hay forma de que golpee Neon ni prod.** Si algo
-sale en rojo acá, se frena y se corrige antes de seguir — nunca se avanza a prod con
-el pre-flight en rojo.
+**La cadena que SÍ corre hoy**, verificada eslabón por eslabón:
 
----
-
-## Paso 1 — Ensayo de RLS en un branch de Neon (🟢 sin riesgo — base desechable)
-
-Objetivo: probar la activación **sobre una copia** de la base viva, no sobre la viva.
-
-1. **Crear un branch de Neon** (copia instantánea, desechable) desde el dashboard de
-   Neon: *Branches → New branch* a partir de `main`/`production`. Anotá su connection
-   string → lo llamamos `$BRANCH_URL`. 🔴 *(requiere acceso a la consola de Neon — acción humana, pero el branch NO es prod: es descartable.)*
-
-2. **Auditar el estado ANTES** (solo lectura — el branch copia el drift de prod):
-
-   ```bash
-   RLS_AUDIT_DATABASE_URL="$BRANCH_URL" node prisma/rls/check-rls-live.mjs
-   ```
-   Se espera que reporte el drift (9 tablas sin proteger + `app_user` legacy con bypass), igual que prod.
-
-3. **Aplicar RLS sobre el branch** (por `psql`, **no** `prisma migrate deploy` — estos
-   SQL viven fuera de `prisma/migrations/` a propósito). Re-correr `0001` **cierra el drift**;
-   el `0002` **crea el rol NUEVO `app_rls`** (`NOBYPASSRLS` de nacimiento):
-
-   ```bash
-   psql "$BRANCH_URL" -f prisma/rls/0001_enable_rls.sql
-   psql "$BRANCH_URL" -f prisma/rls/0002_app_role.sql   # crea app_rls SIN password (rol inerte)
-   ```
-
-4. **Auditar el estado DESPUÉS** — debe dar **33/33 y `app_rls` sin bypass**:
-
-   ```bash
-   RLS_AUDIT_DATABASE_URL="$BRANCH_URL" node prisma/rls/check-rls-live.mjs   # RESULTADO: SIN DRIFT ✅
-   ```
-
-5. **Verificar el aislamiento funcional** (el script se **niega** a correr si la URL
-   coincide con la `DATABASE_URL` de prod del `.env` — red anti-accidente):
-
-   ```bash
-   RLS_VERIFY_DATABASE_URL="$BRANCH_URL" node prisma/rls/verify-rls.mjs
-   ```
-
-   Deben pasar las **4 aserciones**: lectura aislada, `WITH CHECK` en INSERT, bloqueo de
-   UPDATE cross-tenant, y fail-closed (sin contexto → 0 filas).
-
-4. **Ensayar la app contra el branch como `app_rls`** (opcional pero recomendado):
-   levantar local con `DATABASE_URL=$BRANCH_URL?...&user=app_rls`, `RLS_ENFORCEMENT=on`,
-   `OPERATOR_DATABASE_URL=$BRANCH_URL` (rol dueño). Chequear especialmente los ~12
-   `$transaction` y `connection_limit` bajo (3-5) sobre el pooler (ADR-023 F6).
-
-5. **Limpiar:** borrar el branch de Neon al terminar (o dejarlo hasta el go-live). 🟢
-
-> **Salida esperada del Paso 1:** "las 4 aserciones en verde sobre un branch, la app
-> corre como `app_rls` sin romperse". Recién con esto se pide el OK del Paso 2.
-
----
-
-## Paso 2 — Activación de RLS en PROD (🔴 Gate 2 — irreversible, OK explícito del dueño por cada sub-paso)
-
-> **No correr hasta que el Paso 1 esté en verde.** Ventana de bajo tráfico. Idealmente
-> se hace en la **misma pasada** que el alta de Magra (Paso 3), porque prod pasa a tener
-> 2 tenants y sin RLS eso rompería el aislamiento (ADR-015).
-
-**Antes (checklist previo):**
-- [ ] 🟢 Paso 1 en verde, documentado.
-- [ ] 🔴 Definir y guardar el **password de `app_rls`** (el rol NUEVO) en el vault/secrets de Netlify (nunca al repo).
-- [ ] 🔴 Confirmar que no hay migraciones de Prisma pendientes que el alta necesite (control-plane y fiscal ya aplicadas; POS/stock son aditivas).
-- [ ] 🔴 Backup / snapshot de la base viva (branch de respaldo en Neon antes de tocar).
-
-**Ejecución (cada uno requiere OK):**
-1. ✅ **HECHO EN PROD (BLOQUE A, 2026-07-05, OK del dueño):** aplicados `0001` (33/33, SIN DRIFT) y
-   `0002` (rol `app_rls` creado: canlogin=true, bypassrls=false, super=false, **SIN password**). Comandos
-   (con `psql` contra la `DATABASE_URL` de prod, rol dueño):
-   ```bash
-   RLS_AUDIT_DATABASE_URL="$PROD_URL" node prisma/rls/check-rls-live.mjs   # ANTES: muestra el drift
-   psql "$PROD_URL" -f prisma/rls/0001_enable_rls.sql
-   psql "$PROD_URL" -f prisma/rls/0002_app_role.sql   # crea app_rls SIN password (rol inerte)
-   RLS_AUDIT_DATABASE_URL="$PROD_URL" node prisma/rls/check-rls-live.mjs   # DESPUÉS: SIN DRIFT ✅ (33/33, app_rls sin bypass)
-   ```
-   *(El `$PROD_URL` acá es el del rol dueño `neondb_owner` — es quien crea el rol y las policies.)*
-   **PENDIENTE del dueño antes del sub-paso 2:** ponerle **contraseña a `app_rls`** (Neon → Roles →
-   Reset password, o `ALTER ROLE app_rls PASSWORD '<secret>'`) — sin eso el rol no autentica.
-2. 🔴 **Rotar variables de entorno en Netlify** (sin esto, encender el flag solo agrega overhead sin enforcement — ver `src/lib/prisma-base.ts`). ⚠️ **NO rotar `DATABASE_URL` a `app_rls` hasta que el audit DESPUÉS confirme `app_rls` sin bypass** — si no, no habría aislamiento. **Y nunca rotarlo a `app_user`** (el legacy con BYPASSRLS inarreglable → cero aislamiento):
-   - `DATABASE_URL` → connection string con el rol **`app_rls`** (creado `NOBYPASSRLS` por `0002`). **El valor lo carga el dueño** (contiene el password nuevo; no se tipea desde acá).
-   - `OPERATOR_DATABASE_URL` → connection string con el rol **dueño** (`neondb_owner`, con bypass) — es el único proceso que ve cross-tenant, para el `/operador` (`src/lib/operator-db.ts`).
-   - `RLS_ENFORCEMENT` = `on`.
-3. 🔴 **Deploy** (Gate 1 — "deployá") para que tome las variables.
-
-**Después (verificación en prod, 🟢 solo lectura):**
-- [ ] `GET /api/health` responde `ok` con el commit nuevo.
-- [ ] CH Estética (`/admin`) sigue viéndose y operando normal (1 tenant, todo su dato visible).
-- [ ] Una lectura del backoffice NO devuelve filas de otro tenant (recién habrá "otro" tras el Paso 3; hasta entonces, que CH siga intacto ya valida que el enforcement no rompió nada).
-
-**Rollback (si algo sale mal):**
-1. 🔴 Revertir `DATABASE_URL` al rol dueño y `RLS_ENFORCEMENT`=`off` en Netlify + redeploy → la app vuelve al comportamiento pre-RLS al instante (el flag apagado usa el cliente crudo).
-2. 🔴 Si además se quiere sacar las policies: `psql "$PROD_URL" -f prisma/rls/0001_rollback.sql` (quita policies + RLS + FORCE).
-3. El rol `app_rls` puede quedar creado sin daño (no molesta si nadie conecta con él). El `app_user`
-   legacy también queda como estaba (con su BYPASSRLS inarreglable) — inofensivo mientras nadie lo use.
-
----
-
-## Paso 3 — Alta de Magra desde `/operador/alta` (🔴 crea datos en prod — OK del dueño)
-
-Con RLS **ya activo** (Paso 2), el gate ADR-018 se **abre** y el alta procede. Entrar a
-`https://<host>/operador` (login de operador, cookie propia — **no** es `/admin`) →
-**"+ Alta de tenant"**.
-
-**Datos a cargar** (campos reales de `provisionFromConsole`, `src/lib/operator-actions.ts:54-64`):
-
-| Campo | Valor | Nota |
+| # | Pieza | Archivo:línea |
 |---|---|---|
-| **name** | `Magra — Carnicería Premium` | nombre visible |
-| **slug** | `magra` | identificador; branding/vidriera ya mapean este slug (`branding.ts:58`) |
-| **ownerEmail** | *(email real del dueño de Magra)* | 🔴 dato de negocio a confirmar |
-| **ownerName** | `Dueño Magra` | ajustable |
-| **blueprint** | `carniceria` | rubro Retail/Mostrador (`src/blueprints/retail/rubros.ts`) |
-| **subdomain** | `magra` | clave para entrar por `magra.<dominio>` (Paso 4) |
-| **plan** | `trial` o `active` | según acuerdo comercial |
-| **status** | `TRIAL` → `ACTIVE` al confirmar cobro | |
-| **modules** | los del blueprint (o tildar) | default del rubro si se deja vacío |
-| **accent / frontTheme** | vacío → sugerido del rubro (magra = oxblood) | |
+| 1 | Pantalla `/operador/alta` (server component: arma el catálogo) | `src/app/operador/(console)/alta/page.tsx:15` |
+| 2 | `AltaWizard` (5 pasos, cliente) llama al commit | `src/app/operador/(console)/alta/WizardClient.tsx:128` |
+| 3 | `commitTenantAction` (Server Action, `requireOperator` + auditoría) | `src/lib/operator-provisioning-actions.ts:49` |
+| 4 | `runTenantProvisioning` (la saga: DB → host → invitación) | `src/lib/provisioning/provision.ts:33` |
+| 5 | `adr019Committer` → `provisionTenant` (el único paso transaccional) | `src/lib/provisioning/adapters.ts:88` → `scripts/provision-tenant.ts` |
 
-**Qué pasa con el gate:**
-- Si RLS **está** activo → el alta crea `Tenant` + OWNER (scrypt) + `BusinessSettings` + catálogo mínimo del blueprint, transaccional e idempotente por slug. Muestra la **contraseña de bootstrap UNA vez** en la ficha del tenant.
-- Si por error RLS **no** estuviera activo → `provisionTenant` aborta con
-  `"GATE ADR-018 — ALTA ABORTADA... Este tenant NO fue creado."` (la consola muestra el
-  error, no lo esconde). O sea: es **imposible** crear el 2º tenant sin aislamiento.
-
-**Verificación (🟢):** `/operador` lista ahora 2 tenants; el badge "Gate 2º tenant (RLS)"
-pasa a **ARMADO**; entrar al `/admin` de cada uno muestra solo su propio dato.
-
----
-
-## Paso 4 — Dominio propio + DNS wildcard + `APP_BASE_DOMAIN` (🔴 DNS/secrets + 🟡 fix de código)
-
-Hoy la resolución de tenant es **por subdominio** (`src/lib/tenant.ts`, `extractSubdomain`).
-En el `.netlify.app` pelado **no se puede** separar tenants por dirección (no hay wildcard),
-y `APP_BASE_DOMAIN` **no está seteado** → todo cae al fallback single-tenant. Con 2 tenants,
-un request sin subdominio **falla fail-closed**. Por eso, para 2 tenants hace falta:
-
-1. 🔴 **Dominio propio** conectado en Netlify (ej. `tudominio.com`).
-2. 🔴 **DNS wildcard**: registro `*.tudominio.com` → Netlify (además del apex), y agregar los
-   dominios en Netlify. Así `chestetica.tudominio.com` y `magra.tudominio.com` resuelven.
-3. 🔴 **Variable `APP_BASE_DOMAIN`** = `tudominio.com` en Netlify + redeploy. Recién con esto
-   `extractSubdomain` empieza a resolver por subdominio.
-4. 🔴 En `/operador`, setear el `subdomain` de cada tenant: CH → `chestetica`, Magra → `magra`
-   (Magra ya lo trae del Paso 3). Verificar: `chestetica.tudominio.com/admin` abre CH,
-   `magra.tudominio.com/admin` abre Magra.
-
-   *(Guía detallada existente: `docs/GO-LIVE-RUNBOOK.md` → PARTE 2.)*
-
-### Fix del storefront en `/` — ✅ HECHO (🟡 cambio de código, verificado, NO toca prod hasta deploy)
-
-**Problema real (verificado):** el root `/` lo sirve `src/app/(site)/page.tsx`, que es la
-**landing de estética de CH** (servicios, equipo, reserva de turno). La vidriera de Magra
-(carnicería, rubro-aware) vive en **`/tienda`** (`src/app/tienda/page.tsx`). Antes, entrar a
-`magra.tudominio.com/` mostraba la landing con forma de spa — **la equivocada**.
-
-**Fix aplicado (2026-07-05, rama `frente/rls-redirect`):** el root `/` ahora es **consciente del
-blueprint** del tenant resuelto. En `src/app/(site)/page.tsx`, al principio de `Home()`:
-```ts
-const slug = await getCurrentTenantSlug();
-if (resolveRubroIdBySlug(slug)) redirect("/tienda");
-```
-- Tenant de **servicios/estética** (CH, slug no-retail) → sigue viendo la landing `(site)` de siempre.
-- Tenant **retail/mostrador** (Magra y rubros de `src/blueprints/retail/`) → redirect `/` → `/tienda`.
-
-Reusa el wiring que ya existía (`getCurrentTenantSlug` + `resolveRubroIdBySlug`, el mismo mapa
-slug→rubro de la vidriera); no construye vidriera nueva. **Fail-open:** sin tenant/slug o rubro
-no-retail cae a la landing histórica. Cuando exista `Tenant.blueprintId`, el chequeo pasa a leer esa
-columna (un solo punto de cambio). Verificado con `tsc`+build. *(No requiere OK: es 🟡, no toca prod
-hasta el deploy del Gate 1.)*
-
----
-
----
-
-## URLs GRATIS por tenant (costo cero — sin comprar dominio)
-
-El dueño quiere costo cero: cada negocio con su URL real y gratis, sin dominio propio ni
-wildcard. Evaluadas dos opciones **contra el código real**.
-
-> **Aclaración que aplica a A y B:** ninguna de las dos elimina la necesidad de **activar
-> RLS** (Pasos 1-3). Ambos sitios/rutas pegan a la **misma** base de Neon; el aislamiento
-> real entre CH y Magra lo da RLS a nivel DB. Lo que estas opciones reemplazan es **solo el
-> Paso 4** (dominio + DNS wildcard + `APP_BASE_DOMAIN`) — eso es lo que pasa a costar $0.
-
-### OPCIÓN A — un sitio Netlify por tenant, mismo repo, tenant fijado por env var ✅ recomendada
-
-Cada negocio = un sitio Netlify con su `*.netlify.app` gratis (`chestetica.netlify.app` ya
-existe; `magra-erp.netlify.app` nuevo), **todos deployando el mismo repo/branch**, y cada
-sitio **fija su tenant** con una env var.
-
-**¿El código lo soporta hoy?** Casi. **Todo** resuelve el tenant por una sola función,
-`getCurrentTenantId()` (`src/lib/tenant.ts:97`), y la extensión de RLS también cae ahí
-(`src/lib/rls.ts:39`). Falta un **override mínimo** al frente de esa cadena. Hoy `tenant.ts`
-resuelve: subdominio → fallback single-tenant → throw. **No** lee ninguna env var de "tenant
-forzado". El truco de `APP_BASE_DOMAIN` **no sirve** en `netlify.app` (habría que llamar al
-sitio exactamente `magra.netlify.app`, que no está libre), así que la vía limpia es una var
-propia.
-
-**Cambio de código mínimo (🟡 ~10 líneas + 1 test, verificable, NO toca prod):** en
-`getCurrentTenantId` (el wrapper cacheado, para no ensuciar `resolveTenantId` que es puro y
-testeable), anteponer:
-
-```ts
-// Pin de tenant por sitio (Opción A — URLs gratis por tenant). Si está seteado,
-// domina sobre el subdominio. Fail-closed: si el slug no existe, THROW (no cae al
-// tenant equivocado). Resuelve por `slug` (misma clave que branding/vidriera).
-const forced = process.env.FORCE_TENANT_SLUG?.trim().toLowerCase();
-if (forced) {
-  const t = await basePrisma.tenant.findUnique({ where: { slug: forced }, select: { id: true } });
-  if (t) return t.id;
-  throw new Error(`FORCE_TENANT_SLUG="${forced}" no matchea ningún tenant (fail-closed, ADR-015).`);
-}
+```bash
+grep -rn "commitTenantAction\|runTenantProvisioning" --include=*.ts --include=*.tsx src/ | grep -v test
 ```
 
-**¿Rompe el modelo de subdominio o el gate RLS? No.**
-- **Subdominio:** intacto. El override se chequea *primero*; si `FORCE_TENANT_SLUG` no está,
-  la resolución cae al subdominio y al fallback single-tenant como hoy. Es aditivo.
-- **Gate RLS (ADR-018):** intacto. El gate mira `pg_class.relrowsecurity` (¿RLS activo sobre
-  las tablas?), independiente de *cómo* se resuelve el tenant. `FORCE_TENANT_SLUG` no lo toca
-  → sigue siendo imposible crear el 2º tenant sin RLS.
-- **Aislamiento:** con RLS on + `DATABASE_URL` en `app_rls`, el pin fija el `tenantId` que la
-  extensión mete en el GUC → cada sitio ve **solo** su tenant, respaldado por la policy de DB.
-- **`/operador`:** no lo afecta — usa `operatorPrisma` (cross-tenant, bypass), no
-  `getCurrentTenantId`. La consola sigue viendo todos los tenants desde cualquier sitio. Se
-  puede dejar en `chestetica.netlify.app/operador` sin sitio dedicado.
-- **Cookies/sesión:** a favor. Cada `*.netlify.app` es un **origen distinto** → jar de cookies
-  separado. La sesión de admin de CH no cruza a `magra-erp.netlify.app`. Aislamiento extra gratis.
+---
 
-**El fix del `/` ya está aplicado** (blueprint-aware, ver Paso 4 — ✅ HECHO): con
-`FORCE_TENANT_SLUG=magra`, `/tienda` muestra la vidriera de Magra y `/` **redirige a `/tienda`**
-(ya no renderiza la landing de estética). CH (slug no-retail) sigue con su landing en `/`.
+## Lo que el alta NO hace (y por eso hay pasos manuales acá)
 
-### OPCIÓN B — ruteo por path en un sitio único (`/t/magra/...`)
+Dos de los cinco estados de la saga son **no-ops**. `runtime.ts:46-47` inyecta
+`NoopHostBinder` y `NoopInviter` (`src/lib/provisioning/stubs.ts:46-69`): registran la
+llamada en un array y devuelven ok.
 
-Un solo sitio; el tenant sale del path. **Más código, menos prolijo, peor aislamiento:**
-- Requiere reescribir el árbol de rutas bajo `/t/[slug]/…` **o** un rewrite en `proxy.ts` que
-  inyecte el slug en un header y que `getCurrentTenantId` lo lea. Superficie grande (storefront
-  `/`, links, redirects, API pública, webhooks, `/operador`).
-- **Riesgo de seguridad real:** todos los tenants comparten **un mismo origen → un solo jar de
-  cookies**. La cookie de sesión es host-wide (`getSessionCookieName`, `src/proxy.ts`): un admin
-  logueado de CH podría pegarle a `/t/magra/admin` con la misma cookie salvo que se scopeen las
-  cookies por path y se endurezcan los guards. Es fácil de equivocar.
-- No hay ganancia de costo sobre A (los `*.netlify.app` de A también son gratis).
+- **El link NO queda ligado.** Escribir el subdominio en el wizard guarda
+  `Tenant.subdomain` en la base, pero **no toca Vercel ni el DNS**. El ruteo se hace a
+  mano en el **Paso 8**.
+- **Al dueño NO le llega ningún mail.** La contraseña de bootstrap se muestra **una vez
+  en pantalla** al terminar el alta (`BootstrapReveal`, fuera de la URL) y se la entregás
+  vos por un canal seguro (**Paso 7**).
 
-### A vs B — comparación
+El stepper del wizard ya los rotula *"pendiente — manual"*
+(`WizardClient.tsx:37-55`); antes los pintaba en verde y el operador se iba convencido de
+que el dominio estaba apuntado y el mail enviado. No pasaba ninguna de las dos.
 
-| Criterio | A (sitio por tenant) | B (path `/t/slug`) |
+---
+
+## Antes de empezar (una sola vez, para los 5 locales)
+
+- [ ] **Acceso a `/operador`** — es una consola aparte, con su propia cookie: **no** es
+  `/admin`. Login con `OPERATOR_PASSWORD` (`src/lib/operator-actions.ts:39-63`, con
+  rate-limit de 5 fallos / 15 min por IP).
+- [ ] **RLS activo.** Es la condición dura: `provisionTenant` aborta el alta de cualquier
+  tenant nuevo si ya hay ≥1 tenant y RLS no está encendido
+  (`scripts/provision-tenant.ts:191-202`, gate ADR-018). Hoy está enforced en producción
+  (rol `app_rls` NOBYPASSRLS, `RLS_ENFORCEMENT=on`), así que el gate pasa. Se comprueba:
+  ```bash
+  RLS_AUDIT_DATABASE_URL="$PROD_URL" node prisma/rls/check-rls-live.mjs
+  ```
+- [ ] **Los 5 emails reales de los dueños/encargados.** Uno por local; el email es la
+  identidad del OWNER y **no se puede repetir dentro del mismo tenant**, pero sí puede
+  repetirse entre tenants distintos (la unicidad es `(tenantId, email)`).
+- [ ] **Los 5 slugs decididos de antemano**, en el formato de familia. Ver el cuadro de
+  abajo — es la decisión que más cara sale si se improvisa.
+- [ ] **No hace falta ninguna migración de schema** para dar de alta un local. El alta
+  usa columnas que ya existen.
+
+### Los slugs: elegilos con el prefijo `magra-`
+
+`getCurrentTenantRubro()` (`src/lib/carniceria/rubro.ts:26-37`) resuelve el rubro así:
+**primero `Tenant.blueprintId`**, y sólo si ahí no hay nada útil cae al mapa por slug.
+Ese mapa de respaldo entiende **familias**: `tenantFamilySlug` parte el slug por el primer
+guion, así que `magra-lomas` → familia `magra` → rubro `carniceria`
+(`src/blueprints/retail/rubros.ts:466-482, 496-516`).
+
+O sea: si en el Paso 3 elegís bien el rubro, el slug no decide nada. Pero si algún día un
+local queda sin `blueprintId` (re-provisioning, script, import), el prefijo `magra-` es la
+red que evita que ese local abra el sistema y vea la **agenda de un spa**. Cuesta cero
+ponerlo.
+
+| Local | slug sugerido | subdomain sugerido | host sugerido |
+|---|---|---|---|
+| 1 | `magra` *(el que ya existe)* | `magra` | `magra-erp.vercel.app` |
+| 2 | `magra-<localidad>` | `magra-<localidad>` | `magra-<localidad>-erp.vercel.app` |
+| 3 | `magra-<localidad>` | … | … |
+| 4 | `magra-<localidad>` | … | … |
+| 5 | `magra-<localidad>` | … | … |
+
+*Las localidades concretas son dato de negocio — **provisional a confirmar** con el dueño
+antes de la primera alta. Lo que no es provisional es el formato.*
+
+---
+
+# El alta, paso por paso (repetir del 1 al 7 por cada local)
+
+## Paso 1 — Entrar a la consola de operador
+
+`https://<host-de-producción>/operador` → login → **"+ Alta de tenant"**
+(`/operador/alta`).
+
+La pantalla avisa **antes** de crear si el que viene es el 2º tenant y el gate de RLS lo
+frenaría (`alta/page.tsx:37-39`) — no te enterás por un error después del submit.
+
+## Paso 2 — Wizard, pantalla 1 de 5: **Negocio**
+
+Campos: `name`, `slug`, `ownerName`, `ownerEmail` (`WizardClient.tsx:35`, paso `Negocio`).
+
+- El **slug se auto-sugiere** desde el nombre (`suggestSlug`,
+  `src/lib/provisioning/slug.ts:35`) pero **no se auto-corrige en silencio**: si escribís
+  algo que no es kebab-case, el plan lo marca como colisión `slug-invalid` y no te deja
+  avanzar. Es a propósito (ADR-019): mejor frenar que terminar con dos slugs casi iguales.
+- Cada tecla dispara el **dry-run** (`planTenantAction`,
+  `src/lib/operator-provisioning-actions.ts:32`): **no escribe nada** y te devuelve en vivo
+  si el slug o el email ya están tomados (`src/lib/provisioning/dry-run.ts:35-57`).
+
+## Paso 3 — Pantalla 2 de 5: **Rubro** ← el paso que decide todo
+
+**Elegí `carniceria`** (familia Retail / Mostrador, `src/blueprints/retail/rubros.ts:64`).
+
+Este paso es **obligatorio**: el wizard no deja avanzar sin rubro ni blueprint explícito
+(`WizardClient.tsx:118-121`), justamente para que ningún local caiga al blueprint genérico.
+
+Lo que se juega acá:
+
+- `Tenant.blueprintId = "carniceria"` → `isRetail = true` → el local ve el **home de
+  mostrador**, el catálogo de **cortes**, Lotes y Despiece, y la vidriera `/tienda` en vez
+  de la landing de estética.
+- **El rubro es el eje de gating que se usa en este sistema.** No hay que prender ningún
+  flag para que esto funcione. En particular **NO prendas `MODULE_REGISTRY_ENABLED`**: con
+  ese flag en on, el menú del backoffice se arma sólo con `Tenant.modules[]`, y `beauty-spa`
+  —el único tenant vivo en producción— tiene `modules = {}`, así que **se quedaría sin
+  menú**. El flag es global, no por tenant.
+
+La **Edición** queda fija en "Comercio" y sin selector a propósito: el alta la acepta pero
+no la persiste (`WizardClient.tsx:58-62`, `adapters.ts:110-115`), y ofrecer "Empresa" en
+pantalla para entregar un "Comercio" es mentirle al operador.
+
+## Paso 4 — Pantalla 3 de 5: **Módulos** (mirar, no tocar)
+
+Es un **preview de sólo lectura**: los módulos los deriva el motor del rubro elegido
+(`modulosBaseParaAlta`, `src/lib/provisioning/adapters.ts:65-69`), no hay checkboxes.
+Revisá que la lista tenga sentido para una carnicería y seguí.
+
+Si después hace falta cambiar los módulos de un local, **no es en el alta**: se hace desde
+la **consola de operador**, no desde el panel del dueño. Ver "Después del alta".
+
+## Paso 5 — Pantalla 4 de 5: **Marca + link + datos del local**
+
+- **`subdomain`** → escribí el del cuadro de slugs. Se guarda en `Tenant.subdomain` (único
+  en toda la base) y el dry-run te avisa en vivo si choca (`host-taken`). **Guardalo
+  anotado: lo vas a necesitar en el Paso 8.** Repito lo de arriba: escribirlo acá **no liga
+  el dominio**.
+- **Acento y tema**: si los dejás vacíos, caen al sugerido del rubro.
+- **Datos del local** (dirección, ciudad, WhatsApp, horarios, Instagram, Maps): van a
+  `BusinessSettings`. Para 5 locales de la misma marca, **lo único que cambia de verdad es
+  dirección + WhatsApp + horarios**; el resto se repite.
+
+## Paso 6 — Pantalla 5 de 5: **Revisar** → Confirmar
+
+El botón de commit **sólo se habilita con el plan sin colisiones**
+(`WizardClient.tsx:123`). Al confirmar corre `commitTenantAction`, que:
+
+1. Re-mapea y **re-valida el input del lado servidor** (no se confía en el cliente) y
+   vuelve a correr el dry-run dentro del commit.
+2. Crea, en **una transacción**: `Tenant` + usuario **OWNER** (password scrypt) +
+   `BusinessSettings` + el catálogo mínimo del blueprint.
+3. Escribe una fila en `AuditLog` colgada del tenant nuevo
+   (`operator-provisioning-actions.ts:81-107`), consultable desde su ficha.
+
+**Es idempotente por partida doble.** Si hacés doble clic o reintentás tras un timeout:
+la clave `console:<slug>` devuelve el outcome cacheado sin re-ejecutar
+(`src/lib/provisioning/console-input.ts:69`), y aunque se pierda esa caché, el core es
+idempotente por slug y **no crea una segunda fila**. No vas a duplicar un local por
+insistir.
+
+⚠️ **Límite conocido de la idempotencia:** el store es **en memoria, por proceso**
+(`src/lib/provisioning/runtime.ts:9-29`). Sobrevive entre requests del mismo server y se
+pierde al reiniciar. Alcanza para el doble-submit; **no** sirve para reanudar un alta a
+medias entre dos procesos. La persistencia real es una tabla nueva = migración = decisión
+del dueño.
+
+**Si el commit falla:** el mensaje se muestra tal cual, no se esconde. El fallo más común
+a esta altura es el **gate de RLS**; el texto empieza con `GATE ADR-018 — ALTA ABORTADA` y
+termina con *"Este tenant NO fue creado"*.
+
+## Paso 7 — Entregar la contraseña de bootstrap (manual, **ahora o nunca**)
+
+La pantalla final muestra la contraseña del OWNER **una sola vez**. No viaja por la URL (lo
+hacía: quedaba en el historial del navegador, en los access-logs y en cualquier proxy) y
+**no se le envía al dueño por mail**, porque el inviter es un no-op.
+
+- Copiala y entregala por un canal seguro.
+- Si se perdió: no se recupera. Se resetea desde la ficha del tenant en `/operador`.
+
+## Paso 7-bis — Repetir del 1 al 7 para el local siguiente
+
+Cuando tengas **los 5 creados y los 5 subdominios anotados**, recién ahí va el Paso 8.
+
+---
+
+## Paso 8 — Ruteo: las 5 entradas de `TENANT_HOST_MAP`, **en UNA sola edición**
+
+> **Este es el paso que puede dejar locales caídos, incluida `beauty-spa`.** Leelo entero
+> antes de abrir Vercel.
+
+`TENANT_HOST_MAP` **no** es una variable por tenant: es **UNA sola variable de texto**
+concatenada con `;`, mapeando `hostname=subdomain`
+(`.env.vercel.template:37-41`, parser en `src/lib/tenant.ts:73-85`).
+
+**Por qué importa el "una sola edición":** el parser **descarta en silencio** cualquier
+entrada malformada (`src/lib/tenant.ts:80` — `if (eq <= 0) continue;`). No hay error de
+arranque, no hay warning. La entrada simplemente no existe, y el tenant afectado se cae
+**recién cuando alguien entra**, con uno de estos dos throws:
+
+| Qué pasó | Dónde revienta | Mensaje |
 |---|---|---|
-| **Costo** | $0 (`*.netlify.app` gratis por sitio) | $0 |
-| **Esfuerzo de código** | ~10 líneas + 1 test (🟡) | Alto: rutas/rewrite/cookies/guards |
-| **Prolijidad** | URLs reales y limpias por negocio | prefijo `/t/slug` en todo |
-| **Aislamiento** | Fuerte: RLS + pin + **origen separado** (cookies aparte) | Débil: **origen y cookies compartidos** → hay que endurecer |
-| **Toca el modelo actual** | Aditivo, no rompe subdominio/gate | Reestructura ruteo y sesión |
-| **Recomendación** | ✅ **Sí** | ❌ solo si algún día se quiere un único host |
+| **Se perdió** una entrada (o quedó malformada) | `src/lib/tenant.ts:150-154` | *"hay más de un tenant y el request no trae subdominio para resolver"* |
+| La entrada está, pero apunta a un `subdomain` que ningún tenant tiene | `src/lib/tenant.ts:130-135` | *"no hay tenant para el subdominio «X» (vía TENANT_HOST_MAP)"* |
 
-**Veredicto técnico:** **Opción A es viable y es la recomendada.** Cambio de código mínimo,
-no rompe subdominio ni el gate RLS, y el aislamiento queda más fuerte que en B (orígenes
-separados + RLS). Es la forma costo-cero de reemplazar el Paso 4.
+Los dos son **fail-closed a propósito** (ADR-015): antes de servirle a un local el dato de
+otro, la app se niega a responder. Eso está bien y no se "arregla" aflojando el throw.
 
-### Qué es costo cero y qué necesita acción del dueño (Opción A)
+### Procedimiento
 
-- 🟡 **Override `FORCE_TENANT_SLUG`** en `tenant.ts` + test — cambio de código, verificable con `tsc`+build+tests, no toca prod hasta deploy. (Se puede preparar ya.)
-- 🟢 **Sigue dependiendo de activar RLS** (Pasos 1-3) — sin eso, dos sitios sobre la misma DB no están aislados.
-- 🔴 **Crear el nuevo sitio Netlify** (`magra-erp.netlify.app` u otro nombre libre) apuntando al **mismo repo/branch** — acción humana en Netlify.
-- 🔴 **Setear las env vars por sitio:** en el sitio de Magra `FORCE_TENANT_SLUG=magra` (y en el de CH, opcional, `FORCE_TENANT_SLUG=beauty-spa`); en **ambos** las vars de RLS del Paso 2 (`DATABASE_URL`→`app_rls`, `OPERATOR_DATABASE_URL`→rol dueño, `RLS_ENFORCEMENT=on`).
-- ⚠️ **Nota de plan free:** cada sitio consume sus propios build-minutes/funciones/bandwidth del free tier de Netlify. Para 2-3 tenants es holgado; a escala grande se revisa. El auto-publish sigue apagado (Gate 1) por sitio.
+1. **Agregar los 5 dominios en Vercel → Settings → Domains** (Hobby permite hasta 50
+   `.vercel.app` gratis). Uno por local.
+2. **Copiar el valor ACTUAL de `TENANT_HOST_MAP`** a un editor de texto. No lo edites
+   dentro del cuadrito de Vercel.
+3. **Pegar las 5 entradas nuevas al final, separadas por `;`**, sin tocar las que ya
+   estaban. El valor queda de la forma:
+   ```
+   chestetica-erp.vercel.app=chestetica;magra-erp.vercel.app=magra;shinevelas-erp.vercel.app=shinevelas;adosmanos-erp.vercel.app=adosmanos;magra-<loc2>-erp.vercel.app=magra-<loc2>;…
+   ```
+4. **Contar antes de guardar.** El valor nuevo tiene que tener **exactamente las entradas
+   viejas + 5**:
+   ```bash
+   # pegá el valor entre comillas: tiene que imprimir el total esperado
+   echo "<valor nuevo>" | tr ';' '\n' | grep -c '='
+   ```
+   Y que **ninguna** de las viejas se haya caído:
+   ```bash
+   echo "<valor nuevo>" | tr ';' '\n' | grep -c 'chestetica-erp.vercel.app=chestetica'   # → 1
+   ```
+5. **Guardar y redeployar.** La variable se lee en runtime, pero Vercel necesita un deploy
+   para propagarla al ambiente.
+6. **Verificar los 5 locales + `beauty-spa`**, uno por uno, abriendo cada host y entrando
+   a `/admin`. Que cargue la home no alcanza: confirmá que el **nombre del negocio** en
+   pantalla es el del local correcto.
 
-> **Con Opción A, el Paso 4 (dominio propio + wildcard + `APP_BASE_DOMAIN`) queda OPCIONAL** —
-> se puede saltar entero y quedarse en `*.netlify.app` gratis. El día que se quiera una URL de
-> marca (`magra.tudominio.com`), el Paso 4 sigue disponible sin deshacer nada de A.
+> **El lado izquierdo es el hostname; el derecho es el `Tenant.subdomain`, no el slug.**
+> Suelen coincidir porque los elegimos iguales, pero la columna que el código consulta es
+> `subdomain` (`src/lib/tenant.ts:125-129`). Si no coinciden, gana `subdomain`.
+
+> **`APP_BASE_DOMAIN` sigue vacío.** Es la otra vía de ruteo (subdominio de un dominio
+> propio) y es **excluyente en la práctica** mientras estemos en `.vercel.app`: ponerle
+> `vercel.app` haría que `magra-erp` se trate como subdominio y rompería todo
+> (`.env.vercel.template:43-46`). El día que haya dominio de marca, se migra a esa vía y
+> `TENANT_HOST_MAP` puede vaciarse.
 
 ---
 
-## Resumen de OKs del dueño (lo único que no se hace solo)
+## Después del alta: lo que NO se toca desde el panel del dueño
 
-1. 🔴 Acceso a Neon para crear el **branch de ensayo** (Paso 1) — *sin riesgo, es desechable*.
-2. 🔴 **Gate 2:** aplicar RLS a prod + crear `app_rls` + rotar `DATABASE_URL` a `app_rls` + `RLS_ENFORCEMENT=on` + deploy (Paso 2) — **irreversible**.
-3. 🔴 Password de `app_rls` (el rol NUEVO) y confirmación del **email real** del dueño de Magra (secrets/dato).
-4. 🔴 Crear el tenant Magra en prod desde `/operador/alta` (Paso 3).
-5. **Para las URLs — elegir UNA vía** (excluyentes):
-   - **5a. Costo cero (recomendada):** 🔴 crear el sitio Netlify `magra-erp.netlify.app` (mismo repo) + setear `FORCE_TENANT_SLUG` y las vars de RLS por sitio (Opción A). Requiere antes el 🟡 override en `tenant.ts`.
-   - **5b. Marca propia:** 🔴 Dominio + DNS wildcard + `APP_BASE_DOMAIN` (Paso 4). Cuesta plata; opcional, se puede hacer después de 5a sin deshacer nada.
+- **`status` y `plan`.** El wizard **no los pide** y el committer **no los manda**
+  (`adapters.ts:110-115`): todo local nace `status = TRIAL` y `plan = null` (defaults del
+  schema, `prisma/schema.prisma:222-223`). Se cambian desde la **ficha del tenant** en
+  `/operador` (`setTenantStatus` / `setTenantPlan`, `src/lib/operator-actions.ts`).
+- **Los módulos.** `modules:manage` **no es una capacidad del dueño**, y no es un olvido:
+  está excluida en el tipo, con el motivo escrito
+  (`src/lib/capabilities.ts:71-82`) — aprovisionar módulos es decidir qué producto compró
+  el cliente, y eso vive del lado del proveedor. El ítem "Módulos" existe en el menú pero
+  **no lo ve nadie** (`src/lib/admin-nav-items.ts:127-132`).
+- **El subdominio** se puede corregir desde la ficha (`setTenantSubdomain`), pero **acordate
+  de actualizar también `TENANT_HOST_MAP`**: son dos lugares, y el código no los sincroniza.
 
-Todo lo 🟢/🟡 (pre-flight, ensayo en branch, fix del `/`, override `FORCE_TENANT_SLUG`) se
-puede preparar y verificar **antes**, sin tocar prod, para que el día del go-live sea
-*revisar y aplicar*.
+---
+
+## Qué NO está medido (y con qué comando se cierra)
+
+Honestidad sobre los límites de este documento:
+
+- **El valor real de `TENANT_HOST_MAP` en producción.** Este runbook usa el ejemplo de
+  `.env.vercel.template:40`. Antes del Paso 8, leé el valor real:
+  `vercel env pull` (o Vercel → Settings → Environment Variables → Production).
+- **Qué migraciones están aplicadas en Neon.** El alta no necesita ninguna, pero el árbol
+  tiene migraciones escritas y sin aplicar. Se cierra con
+  `npx prisma migrate status` contra la base de producción (solo lectura).
+  Aplicarlas es `prisma migrate deploy` —**nunca `migrate dev`**, falla contra el pooler—
+  y requiere autorización explícita del dueño.
+- **Qué flags están seteados en producción.** Todo el análisis de esta tanda asume el
+  **default OFF** de los parsers (`src/modules/flags.ts`). Documentados en
+  `.env.vercel.template`; el valor real se confirma con el mismo `vercel env pull`.
+
+---
+
+## Historia (por qué este runbook cambió tanto)
+
+La versión anterior era el plan de **activación de RLS + alta del 2º tenant** (julio 2026),
+escrita cuando producción tenía **un** tenant, la app estaba en **Netlify** y RLS todavía no
+estaba aplicado. Todo eso ya pasó: RLS está enforced con `app_rls`, el deploy es Vercel, y
+el ruteo se resolvió con `TENANT_HOST_MAP` en vez de dominio propio + wildcard.
+
+Lo que sigue vivo de aquel plan y **no** se repite acá porque no es parte de un alta:
+
+- El procedimiento de RLS: `prisma/rls/README.md` (`0001_enable_rls.sql`,
+  `0002_app_role.sql`, `check-rls-live.mjs`, `verify-rls.mjs`).
+- El gate ADR-018, que sigue vivo en `scripts/provision-tenant.ts:191-202` y es lo que hace
+  **imposible** crear un tenant nuevo sin aislamiento.
+
+`FORCE_TENANT_SLUG` (la "Opción A" de aquel plan, un sitio por tenant) **no se usa y no se
+debe usar**: hoy es la única variable que colapsa el aislamiento, tiene un portero que tira
+si aparece en un deploy productivo con más de un tenant (`src/lib/tenant.ts:170-199`), y
+`.env.vercel.template:72-74` la marca como **NO SETEAR**.

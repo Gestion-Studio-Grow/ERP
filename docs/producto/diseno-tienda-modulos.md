@@ -6,6 +6,28 @@
 
 > Regla de oro de todo el diseño: **nada de forks, cero motor nuevo.** Casi todo el andamiaje ya existe en `src/modules/**`. Esto es **enriquecer datos + generalizar dos cables + reconstruir una pantalla**. La activación por-tenant sigue siendo `Tenant.modules[]` (dato que YA existe, `prisma/schema.prisma:207`).
 
+> ### ⛔ RULING 2026-09-17 — `MODULE_REGISTRY_ENABLED` sigue APAGADO, y por qué
+>
+> Tres documentos se contradecían sobre este flag (`docs/runbooks/qa-seed-tenants.sql:106`
+> mandaba prenderlo; este documento decía que nunca; `src/lib/profile-gating.ts` afirmaba
+> que la columna `Tenant.profile` no existía). **Gana el código**, y el código dice:
+>
+> - El flag es **global del deploy**, no por tenant (`src/modules/flags.ts:13-19`).
+> - Con el flag ON, el menú se arma **sólo** con `Tenant.modules[]`
+>   (`src/lib/module-gating.ts:27-43`), y el resolver **parte de lo asignado y sólo RESTA**
+>   (`src/modules/activation.ts:12-16,77`, guardarraíl DX-6: nunca "prende todo").
+> - **`beauty-spa` tiene `modules = {}` y `blueprintId = NULL`** → su set de activos queda
+>   vacío → **se queda sin menú**. Y es el único cliente vivo en producción.
+>
+> Por eso el encendido de esta tienda es **por producto**, derivado del dato del tenant, y
+> **nunca** por este flag. El eje de gating que sí está en uso hoy es el **RUBRO**
+> (`Tenant.blueprintId` → `isRetail`/`carniceriaOnly`, `src/lib/carniceria/rubro.ts:26-37`),
+> que no necesita ningún flag.
+>
+> Se comprueba en un renglón:
+> `SELECT slug, modules, "blueprintId" FROM "Tenant" WHERE slug = 'beauty-spa';`
+
+
 ---
 
 ## 0. Qué ya está construido (para no reinventarlo)
@@ -242,7 +264,7 @@ Hoy la nav focalizada y el gating por-URL están **hardcodeados a `comerciante`*
 
 ### Riesgos transversales y mitigación
 - **Dejar un tenant sin acceso:** el núcleo viene instalado y `/admin` (Inicio) nunca se gatea (`admin-nav-items.ts:98`) → nunca hay pantalla-callejón ni loop de redirect. Backfill en F4 cubre a los vivos.
-- **Tocar verticales:** el encendido es por producto, no por el flag global → verticales caen a `null` = comportamiento legado byte-idéntico. **Nunca se prende `MODULE_REGISTRY_ENABLED`.**
+- **Tocar verticales:** el encendido es por producto, no por el flag global → verticales caen a `null` = comportamiento legado byte-idéntico. **Nunca se prende `MODULE_REGISTRY_ENABLED`** — no por prolijidad, sino porque es global del deploy (`src/modules/flags.ts:13-19`) y `beauty-spa`, el único cliente vivo, tiene `modules = {}`: con el flag ON su menú queda vacío (ver el RULING arriba).
 - **Instalar un módulo sin su tabla en prod:** gatear "Instalable" por `migraciones` aplicadas (mostrar "Próximamente" si falta) → Gate 2 sigue siendo del dueño, la tienda no lo fuerza.
 - **Doble fuente de verdad del núcleo:** `nucleoPara` en el descriptor es el único lugar; el alta y la tienda derivan de ahí.
 
@@ -252,7 +274,7 @@ Hoy la nav focalizada y el gating por-URL están **hardcodeados a `comerciante`*
 1. Núcleo Comerciante = **bancos + arca + mercadopago + clients + reports**; Pyme = mismo núcleo + perfil Empresa; Contador aparte (cartera).
 2. 6 grupos de proceso para la tienda; los 18 descriptores existentes se reparten con scope items en criollo.
 3. Schema: 5 campos **opcionales/aditivos** (`grupo`, `scopeItems`, `resumen`, `fit`, `nucleoPara`) — no rompe descriptores ni validación.
-4. Encendido **por producto** (no por flag global); **sin migración, sin Gate 2** para la tienda (`Tenant.modules[]` ya existe). Gate 2 sigue solo para las tablas de módulos Empresa/cartera, ya trackeadas.
+4. Encendido **por producto** (no por flag global — prenderlo dejaría a `beauty-spa` sin menú); **sin migración, sin Gate 2** para la tienda (`Tenant.modules[]` ya existe). Gate 2 sigue solo para las tablas de módulos Empresa/cartera, ya trackeadas.
 5. 4 fases: F1 datos (S) → F2 vidriera (M) → F3 generalizar gating (M) → F4 go-live datos (S).
 
 — Elaborado por GSG (capa Opus) · 2026-07-12

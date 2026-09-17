@@ -6,11 +6,27 @@
 // `PROFILES_ENABLED` OFF (default) devuelve `null` → el llamador NO gatea por perfil →
 // navegación legada intacta. Prenderlo activa el gating.
 //
-// REVERSIBLE por diseño (ADR-059 D1): la resolución vive EN MEMORIA — default `"lite"`
-// + un mapa opcional de overrides por tenant para DEMO (costo cero, ADR-030). Persistir
-// el perfil en `Tenant.profile` (columna aditiva) es §C · Gate 2 y HOY NO EXISTE en el
-// schema; cuando exista, este resolvedor leerá esa columna en vez del default. No se
-// reusa `Tenant.modules[]` como sentinela del perfil (antipatrón DX-6).
+// ⚠️ CORRECCIÓN 2026-09-17 — este encabezado decía que `Tenant.profile` "HOY NO EXISTE en
+// el schema". Era FALSO y hacía perder el tiempo a quien lo leía: la columna está declarada
+// en `prisma/schema.prisma:236` (`profile TenantProfile @default(lite)`) y la agrega la
+// migración `20260708213237_add_tenant_profile/migration.sql:5`. Por eso el código de abajo
+// ya hace `select: { profile: true }` — no es código futuro, es el camino real.
+//   Se verifica: `grep -n "profile" prisma/schema.prisma`
+//                `psql ... -c '\d "Tenant"' | grep profile`
+// NO MEDIDO: si esa migración está aplicada en la base de PRODUCCIÓN (Neon). Se cierra con
+// `npx prisma migrate status` contra prod (solo lectura). Mientras tanto el `catch` de abajo
+// cubre el caso, que es exactamente para lo que existe.
+//
+// REVERSIBLE por diseño (ADR-059 D1): con `PROFILES_ENABLED` OFF no se lee NADA (retorno
+// temprano) — el motor es reversible por el flag, no por la ausencia de la columna. Hay
+// además un mapa opcional de overrides EN MEMORIA por tenant para DEMO (costo cero,
+// ADR-030), con prioridad sobre la columna. No se reusa `Tenant.modules[]` como sentinela
+// del perfil (antipatrón DX-6).
+//
+// ⚠️ PRENDER `PROFILES_ENABLED` ES CROSS-TENANT. El flag es global del deploy
+// (`src/modules/flags.ts:31-35`), no por tenant: lo prendés para uno y lo prendiste para
+// los cuatro. Hoy el eje de gating que se usa es el RUBRO (`Tenant.blueprintId` →
+// `isRetail`, `src/lib/carniceria/rubro.ts:26-37`), que no necesita ningún flag.
 //
 // El predicado PURO (`perfilGateAllows`) y el selector (`visibleNavItems`) viven en
 // `@/modules/perfil` (leaf client-safe); acá está solo la parte SERVER.
@@ -32,10 +48,11 @@ const PROFILE_OVERRIDES: Readonly<Record<string, Perfil>> = {};
  * Perfil activo del tenant actual, o `null` si el motor está apagado (flag OFF) → el
  * llamador NO debe gatear por perfil. Cacheado por request (`react.cache`).
  *
- * Fuente autoritativa: la columna `Tenant.profile` (aditiva, default `lite`). **FALLBACK
- * SEGURO a `"lite"` (Comercio)** si la columna AÚN NO está aplicada en prod (migración no
- * corrida) o ante cualquier error de lectura: publicar el código ANTES que la migración
- * NUNCA rompe el panel — el peor caso es "todos Comercio", que es exactamente el default
+ * Fuente autoritativa: la columna `Tenant.profile` (aditiva, default `lite`), que EXISTE en
+ * el schema y tiene su migración escrita (`20260708213237_add_tenant_profile`). **FALLBACK
+ * SEGURO a `"lite"` (Comercio)** ante cualquier error de lectura —incluido el P2022 de una
+ * base donde esa migración todavía no se aplicó—: publicar el código ANTES que la migración
+ * NUNCA rompe el panel, y el peor caso es "todos Comercio", que es exactamente el default
  * aditivo. Con `PROFILES_ENABLED` OFF ni siquiera se entra acá (retorno temprano).
  */
 export const getActiveProfile = cache(async (): Promise<Perfil | null> => {
@@ -50,7 +67,9 @@ export const getActiveProfile = cache(async (): Promise<Perfil | null> => {
     });
     return tenant?.profile ?? "lite";
   } catch {
-    // Columna inexistente (P2022) o cualquier fallo de lectura → Comercio (fail-safe).
+    // Migración sin aplicar en esta base (P2022) o cualquier fallo de lectura → Comercio
+    // (fail-safe). NO borrar este catch "porque la columna existe": existe en el schema,
+    // pero no está medido que esté aplicada en la base de producción.
     return "lite";
   }
 });

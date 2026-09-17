@@ -16,7 +16,6 @@ import { Card, Field, Input, Select, Button, Badge } from "@/components/ui";
 import { BootstrapReveal } from "@/components/BootstrapReveal";
 import { planTenantAction, commitTenantAction } from "@/lib/operator-provisioning-actions";
 import {
-  buildProvisionInput,
   suggestMonogram,
   type RawWizardForm,
   type CommitActionResult,
@@ -33,18 +32,34 @@ export interface WizardData {
   isSecondTenant: boolean;
 }
 
-const STEPS = ["Negocio", "Rubro + Edición", "Módulos", "Marca + link", "Revisar"] as const;
+const STEPS = ["Negocio", "Rubro", "Módulos", "Marca + link", "Revisar"] as const;
 
+// ETIQUETAS DE LA SAGA. Dos de estos pasos NO HACEN NADA todavía y por eso no dicen que sí:
+// `HOST_BOUND` e `INVITED` corren sobre `NoopHostBinder` / `NoopInviter`
+// (src/lib/provisioning/runtime.ts:46-47, stubs.ts:46-69) — registran la llamada en un array y
+// devuelven ok. El stepper los pintaba en verde con "Link ligado ✓" y "Dueño invitado ✓": el
+// operador se iba convencido de que el dominio quedó apuntado y de que al dueño le llegó un mail.
+// No pasó ninguna de las dos. Se relabelan a "pendiente — manual" en vez de construir el binder y
+// el inviter: son 5 altas, ligar el dominio e invitar a mano es una hora; la maquinaria (API de
+// Vercel/DNS + mailing transaccional + compensación) cuesta mucho más que eso.
 const STATE_LABEL: Record<ProvisionState, string> = {
   PENDING: "Pendiente",
   DB_COMMITTED: "Datos creados",
-  HOST_BOUND: "Link ligado",
-  INVITED: "Dueño invitado",
+  HOST_BOUND: "Link: pendiente — manual",
+  INVITED: "Aviso al dueño: pendiente — manual",
   ACTIVE: "Activo",
   FAILED_COMPENSATED: "Falló (compensado)",
 };
 
+/** Pasos que la saga marca como cumplidos pero que hoy son no-ops (quedan a mano). */
+const PASOS_MANUALES: ProvisionState[] = ["HOST_BOUND", "INVITED"];
+
 export function AltaWizard({ data }: { data: WizardData }) {
+  // `edicion` queda fijo en "comercio" y SIN selector a propósito: el alta lo aceptaba pero no lo
+  // persiste (src/lib/provisioning/adapters.ts:83-86,110-115 lo admite en su comentario) y el
+  // gating por perfil está apagado. Elegir "Empresa" en pantalla y entregar un "Comercio" es una
+  // promesa comercial que el sistema no cumple. El campo se mantiene en el form para no cambiar
+  // el contrato del motor; vuelve a la UI el día que se persista de verdad.
   const [form, setForm] = useState<RawWizardForm>({ edicion: "comercio", frontTheme: "light" });
   const [step, setStep] = useState(0);
   const [plan, setPlan] = useState<ProvisionPlan | null>(null);
@@ -100,8 +115,12 @@ export function AltaWizard({ data }: { data: WizardData }) {
     Boolean(form.name?.trim()) && Boolean(form.slug?.trim()) && Boolean(form.ownerEmail?.trim()) &&
     !has("slug-invalid") && !has("slug-taken") && !has("email-invalid") && !planPending;
   const step3Ok = !has("host-invalid") && !has("host-taken");
-  const canAdvance = step === 0 ? step0Ok : step === 3 ? step3Ok : true;
-  const canCommit = Boolean(plan?.ok) && !planPending && !committing && !result?.ok;
+  // Paso 2 (rubro) OBLIGATORIO: sin rubro ni blueprint explícito el alta cae al blueprint de
+  // servicios y el local de carne nace con agenda de turnos. Bloquea el "Siguiente" Y el
+  // "Crear tenant" (se podía saltar el paso yendo directo al final).
+  const step1Ok = Boolean(form.rubro?.trim() || form.blueprint?.trim());
+  const canAdvance = step === 0 ? step0Ok : step === 1 ? step1Ok : step === 3 ? step3Ok : true;
+  const canCommit = Boolean(plan?.ok) && step1Ok && !planPending && !committing && !result?.ok;
 
   async function onCommit() {
     setCommitting(true);
@@ -121,7 +140,7 @@ export function AltaWizard({ data }: { data: WizardData }) {
   return (
     <div className="grid lg:grid-cols-[1fr_20rem] gap-6 items-start">
       <div className="space-y-6 min-w-0">
-        <Stepper step={step} valid={step0Ok} hostOk={step3Ok} plan={plan} />
+        <Stepper step={step} valid={step0Ok} rubroOk={step1Ok} hostOk={step3Ok} plan={plan} />
 
         {result ? (
           <ResultPanel result={result} tenantId={result.tenantId} />
@@ -131,7 +150,7 @@ export function AltaWizard({ data }: { data: WizardData }) {
             {step === 1 && <StepRubro form={form} set={set} data={data} plan={plan} />}
             {step === 2 && <StepModulos plan={plan} data={data} planPending={planPending} />}
             {step === 3 && <StepMarca form={form} set={set} data={data} monogram={monogram} theme={theme} accent={accent} has={has} msg={msg} planPending={planPending} />}
-            {step === 4 && <StepRevisar form={form} plan={plan} data={data} isSecondTenant={data.isSecondTenant} />}
+            {step === 4 && <StepRevisar form={form} plan={plan} isSecondTenant={data.isSecondTenant} />}
 
             <div className="flex items-center justify-between gap-3">
               <Button variant="ghost" size="sm" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
@@ -147,7 +166,12 @@ export function AltaWizard({ data }: { data: WizardData }) {
                 </Button>
               )}
             </div>
-            {!canCommit && step === STEPS.length - 1 && !result && plan && !plan.ok && (
+            {!canCommit && step === STEPS.length - 1 && !result && !step1Ok && (
+              <p className="text-xs text-danger" role="alert">
+                Falta elegir el <b>rubro</b> (paso 2). Sin rubro el negocio nace con blueprint de servicios.
+              </p>
+            )}
+            {!canCommit && step === STEPS.length - 1 && !result && step1Ok && plan && !plan.ok && (
               <p className="text-xs text-danger" role="alert">
                 Hay validaciones sin resolver — revisá los pasos marcados antes de crear.
               </p>
@@ -164,11 +188,11 @@ export function AltaWizard({ data }: { data: WizardData }) {
 
 // --- Barra de progreso -------------------------------------------------------
 
-function Stepper({ step, valid, hostOk, plan }: { step: number; valid: boolean; hostOk: boolean; plan: ProvisionPlan | null }) {
+function Stepper({ step, valid, rubroOk, hostOk, plan }: { step: number; valid: boolean; rubroOk: boolean; hostOk: boolean; plan: ProvisionPlan | null }) {
   return (
     <nav aria-label="Progreso del alta" className="flex flex-wrap items-center gap-2 text-sm">
       {STEPS.map((label, i) => {
-        const done = i === 0 ? valid : i === 3 ? hostOk : i < step;
+        const done = i === 0 ? valid : i === 1 ? rubroOk : i === 3 ? hostOk : i < step;
         const current = i === step;
         return (
           <span
@@ -250,10 +274,14 @@ function StepNegocio({
 function StepRubro({
   form, set, data, plan,
 }: { form: RawWizardForm; set: (p: Partial<RawWizardForm>) => void; data: WizardData; plan: ProvisionPlan | null }) {
-  const edicion = form.edicion === "empresa" ? "empresa" : "comercio";
+  const elegido = Boolean(form.rubro?.trim() || form.blueprint?.trim());
   return (
     <Card className="p-5 space-y-4">
-      <h2 className="font-medium">Rubro y edición</h2>
+      <h2 className="font-medium">Rubro del negocio</h2>
+      <p className="text-sm text-muted">
+        Define con qué nace el local: catálogo, wording de la vidriera y pantallas. <b>Es obligatorio</b>{" "}
+        — ver más abajo por qué no se puede pasar de largo.
+      </p>
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Rubro (texto libre)" htmlFor="w-rubro" hint="Se resuelve al blueprint del rubro, o al comodín genérico.">
           <Input id="w-rubro" value={form.rubro ?? ""} onChange={(e) => set({ rubro: e.target.value })} placeholder="p. ej. ferretería, spa, carnicería…" />
@@ -271,43 +299,25 @@ function StepRubro({
       </div>
 
       {/* Resolución EN VIVO del blueprint (resuelve P3). */}
-      {plan && (
+      {plan && elegido && (
         <div className="rounded-md bg-info-soft text-info text-sm px-3 py-2">
           Se crea como: <b>{plan.blueprint.label}</b> <span className="opacity-80">— {plan.blueprint.note}</span>
         </div>
       )}
 
-      {/* Edición del negocio: Comercio ↔ Empresa (el gap P1), canal neutro (C-004). */}
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-strong">Edición del negocio</legend>
-        <div className="grid sm:grid-cols-2 gap-2">
-          {(["comercio", "empresa"] as const).map((ed) => {
-            const on = edicion === ed;
-            return (
-              <button
-                type="button"
-                key={ed}
-                onClick={() => set({ edicion: ed })}
-                aria-pressed={on}
-                className={
-                  "text-left rounded-md border p-3 transition-colors " +
-                  (on ? "border-accent bg-accent-soft" : "border-line hover:bg-elevated")
-                }
-              >
-                <span className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{ed === "comercio" ? "Comercio" : "Empresa"}</span>
-                  {on && <Badge tone="accent">elegido</Badge>}
-                </span>
-                <span className="block text-xs text-muted mt-1">
-                  {ed === "comercio"
-                    ? "Lo mínimo que resuelve el rubro."
-                    : "Suma cuentas a pagar/cobrar, libros e inventario. Se puede subir después sin migrar."}
-                </span>
-              </button>
-            );
-          })}
+      {/* POR QUÉ ES OBLIGATORIO: sin rubro el alta caía al blueprint de SERVICIOS. Un local de
+          carne llamado "MAGRA Lomas" nacía con agenda de turnos, lista de espera y catálogo de
+          servicios, y "Crear tenant" quedaba habilitado igual. Con 5 locales abriendo juntos eso
+          son 5 altas mal nacidas que se arreglan a mano, tenant por tenant. El rubro NO se puede
+          cambiar cómodamente después: manda el catálogo semilla y el wording de la vidriera. */}
+      {!elegido && (
+        <div className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2" role="alert">
+          <b>Elegí el rubro para seguir.</b> Si se pasa de largo, el negocio nace con el blueprint de{" "}
+          <b>servicios</b> (agenda de turnos, lista de espera, catálogo de servicios) — aunque sea una
+          carnicería. Corregirlo después es rehacer el alta.
         </div>
-      </fieldset>
+      )}
+
     </Card>
   );
 }
@@ -317,16 +327,15 @@ function StepRubro({
 function StepModulos({ plan, data, planPending }: { plan: ProvisionPlan | null; data: WizardData; planPending: boolean }) {
   const label = (id: string) => data.moduleCatalog.find((m) => m.id === id)?.label ?? id;
   const desc = (id: string) => data.moduleCatalog.find((m) => m.id === id)?.description ?? "";
-  const isEmpresa = (id: string) => data.empresaModuleIds.includes(id);
   const modules = plan?.modules ?? [];
-  const empresaMods = modules.filter(isEmpresa);
-  const baseMods = modules.filter((id) => !isEmpresa(id));
+  const baseMods = modules;
   return (
     <Card className="p-5 space-y-4">
       <h2 className="font-medium">Módulos que se activan</h2>
       <p className="text-sm text-muted">
-        Derivados del rubro y la edición (motor de la fábrica, ADR-074). La edición Empresa suma su set
-        sobre el del rubro. El ajuste fino por módulo se hace luego en la ficha del tenant.
+        Derivados del <b>rubro</b> (motor de la fábrica, ADR-074). Son los que quedan guardados en el
+        tenant; hoy el menú real se decide por rubro, así que esta lista es la referencia de lo que
+        contrata el local, no un interruptor de pantallas.
       </p>
       {planPending && modules.length === 0 ? (
         <p className="text-sm text-muted">Calculando el set…</p>
@@ -344,22 +353,6 @@ function StepModulos({ plan, data, planPending }: { plan: ProvisionPlan | null; 
               {baseMods.length === 0 && <p className="text-xs text-muted">—</p>}
             </div>
           </div>
-          {empresaMods.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-muted mb-2">Módulos de la edición Empresa</p>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {empresaMods.map((id) => (
-                  <div key={id} className="rounded-md border border-line p-3">
-                    <span className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{label(id)}</span>
-                      <Badge tone="info">Empresa</Badge>
-                    </span>
-                    <span className="block text-xs text-muted">{desc(id)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </Card>
@@ -454,9 +447,8 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
 }
 
 function StepRevisar({
-  form, plan, data, isSecondTenant,
-}: { form: RawWizardForm; plan: ProvisionPlan | null; data: WizardData; isSecondTenant: boolean }) {
-  const edicion = form.edicion === "empresa" ? "Empresa" : "Comercio";
+  form, plan, isSecondTenant,
+}: { form: RawWizardForm; plan: ProvisionPlan | null; isSecondTenant: boolean }) {
   return (
     <Card className="p-5 space-y-4">
       <h2 className="font-medium">Revisar y crear</h2>
@@ -473,7 +465,6 @@ function StepRevisar({
         <Row k="Slug" v={`/${form.slug || "—"}`} />
         <Row k="Dueño" v={form.ownerEmail || "—"} />
         <Row k="Blueprint" v={plan ? `${plan.blueprint.label}` : "—"} />
-        <Row k="Edición" v={<Badge tone="neutral">{edicion}</Badge>} />
         <Row k="Módulos" v={`${plan?.modules.length ?? 0} activos`} />
         <Row k="Acento / tema" v={`${form.accentPreset || "default"} · ${form.frontTheme === "dark" ? "oscuro" : "claro"}`} />
         <Row k="Link" v={form.subdomain ? `/${form.subdomain}` : "sin subdominio"} />
@@ -512,10 +503,17 @@ function SagaStepper({ state }: { state: ProvisionState }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {HAPPY_PATH.map((s, i) => {
-        const done = !failed && reached >= i;
+        const manual = PASOS_MANUALES.includes(s);
+        const done = !failed && reached >= i && !manual;
         return (
-          <span key={s} className={"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs " + (done ? "bg-success-soft text-success" : "bg-surface-sunken text-muted")}>
-            <span aria-hidden>{done ? "✓" : "○"}</span>{STATE_LABEL[s]}
+          <span
+            key={s}
+            className={
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs " +
+              (done ? "bg-success-soft text-success" : manual ? "bg-warning-soft text-warning" : "bg-surface-sunken text-muted")
+            }
+          >
+            <span aria-hidden>{done ? "✓" : manual ? "⋯" : "○"}</span>{STATE_LABEL[s]}
           </span>
         );
       })}
@@ -559,6 +557,28 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
         />
       )}
 
+      {/* Lo que la saga NO hizo. Va acá, pegado al resultado, porque es el único momento en que el
+          operador tiene el alta fresca: después se olvida y el local abre sin link y sin aviso. */}
+      {result.ok && (
+        <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+          <p className="font-medium">Falta hacer a mano (el alta no lo hace):</p>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            <li>
+              • <b>Ligar el link:</b> el subdominio queda guardado en el tenant, pero apuntar el
+              dominio en Vercel/DNS es manual.
+            </li>
+            <li>
+              • <b>Avisarle al dueño:</b> no se envía ningún mail. Pasale por canal seguro la
+              contraseña de acá arriba (o generá una nueva en la ficha, “Contraseña del OWNER”).
+            </li>
+            <li>
+              • <b>Datos fiscales y de contacto:</b> CUIT, punto de venta de ARCA, dirección real e
+              Instagram. La ficha tiene el checklist “Listo para abrir” con lo que falta.
+            </li>
+          </ul>
+        </div>
+      )}
+
       {tenantId && (
         <Link href={`/operador/tenants/${tenantId}`} className="inline-block">
           <Button variant="outline" size="sm">Ir a la ficha del tenant →</Button>
@@ -578,7 +598,6 @@ function PreviewPanel({
 }) {
   const bg = accent ? (theme === "dark" ? accent.dark : accent.light) : "var(--surface-sunken)";
   const fg = accent ? (theme === "dark" ? accent.onDark : accent.onLight) : "var(--text-muted)";
-  const edicion = form.edicion === "empresa" ? "Empresa" : "Comercio";
   const isEmpresa = (id: string) => data.empresaModuleIds.includes(id);
   const label = (id: string) => data.moduleCatalog.find((m) => m.id === id)?.label ?? id;
   return (
@@ -598,7 +617,6 @@ function PreviewPanel({
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          <Badge tone="neutral">{edicion}</Badge>
           {plan && <Badge tone="info">{plan.blueprint.label}</Badge>}
         </div>
 

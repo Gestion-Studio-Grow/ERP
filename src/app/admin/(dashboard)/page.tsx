@@ -2,10 +2,11 @@ import { getDashboardData, getRetailDashboardData } from "@/lib/actions";
 import Link from "next/link";
 import { fmtTime, fmtDateTimeAr } from "@/lib/datetime";
 import { requireCapability } from "@/lib/authz";
-import { roleHasCapability, type Role } from "@/lib/capabilities";
+import { roleHasCapability } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { getActiveModuleIds } from "@/lib/module-gating";
-import { dashboardModeForModules } from "@/lib/dashboard-mode";
+import { dashboardMode } from "@/lib/dashboard-mode";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { getProductoActual } from "@/lib/producto";
 import { kpisFacturacionAction } from "@/lib/bancos-actions";
 import type { KpisFacturacionBancaria } from "@/lib/bancos-glue";
@@ -63,11 +64,91 @@ function StatusBadge({ status }: { status?: string }) {
   return <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${b.cls}`}>{b.label}</span>;
 }
 
-// Home de MOSTRADOR/retail (Wave B): ventas del día, ingresos, stock bajo, caja.
-// Lenguaje de mostrador (no "turnos/agenda"); CTA "+ Nueva venta". Se muestra cuando el
-// tenant es retail (POS activo, sin agenda) — ver `dashboardModeForModules`.
-async function RetailHome({ canSeeRevenue }: { canSeeRevenue: boolean }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// HOME DE MOSTRADOR — lo primero que se ve un sábado a la mañana con cola.
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Tres decisiones de producto, con su porqué, porque son las que alguien "ordena":
+//
+// 1. CUATRO tiles, no cinco. La grilla es de 4 columnas; el quinto tile caía solo a
+//    una segunda fila. Se fue "Clientes": en un mostrador el que compra es anónimo
+//    (el POS no obliga a cargarlo) y el número es un acumulado que no se mueve en
+//    todo el día ni tiene una acción atrás. La pantalla de Clientes SIGUE en el menú
+//    —MAGRA vende también por la vidriera, con nombre y teléfono—, lo que no tiene
+//    lugar es su CONTADOR en el tablero del que atiende.
+//    "Ingresos 7 días" no se perdió: bajó a la línea de abajo de "Ingresos hoy". En un
+//    mostrador la semana es contexto, no titular.
+//
+// 2. "CAJA CERRADA" ES UNA ALERTA, NO UN SUBTÍTULO GRIS DE 11 px. Vender con la caja
+//    cerrada NO está bloqueado: el movimiento se graba igual pero con `sessionId: null`
+//    (src/lib/caja/cash-sale.ts:125-129 y :143-149), y el arqueo del turno suma SÓLO
+//    `session.movements` (src/lib/caja-actions.ts:225-230) → esa plata no entra en el
+//    conteo del cajón de nadie. Es decir: cada venta en efectivo hecha antes de abrir la
+//    caja es un descuadre silencioso al cierre. Por eso, con la caja cerrada, el home
+//    muestra una banda con el link para abrirla (mismo patrón que la banda de ausencias
+//    del home de agenda, acá abajo) en vez de un `sub` que nadie lee.
+//
+// 3. EL VOCABULARIO SALE DEL RUBRO, NO DE UN `if`. `itemNoun` viene de la config del
+//    rubro (src/blueprints/retail/rubros.ts → wording.itemNoun): "corte" en carnicería,
+//    "producto" en velas/pádel, "prenda" en indumentaria. Una carnicería lee "Cortes para
+//    reponer"; una tienda de velas, "Productos para reponer". Cero código por rubro.
+//
+// Lo que NO se pudo poner y haría falta en una carnicería: KILOS vendidos hoy y lo que
+// VENCE esta semana. Los kilos existen en el dato (`OrderItem.saleUnit`/`quantity`,
+// schema.prisma:1197-1199) pero el loader `getRetailDashboardData` (src/lib/actions.ts:1806)
+// no los agrega y ese archivo no es de este frente. Los vencimientos NO existen: no hay
+// tabla de lotes en el schema (por eso /admin/lotes muestra "En preparación").
+
+/** Plural simple del sustantivo del rubro: "corte"→"Cortes", "prenda"→"Prendas". */
+function pluralTitulo(noun: string): string {
+  const n = noun.trim() || "producto";
+  const plural = n.endsWith("s") ? n : `${n}s`;
+  return plural.charAt(0).toUpperCase() + plural.slice(1);
+}
+
+/**
+ * Cantidad de stock con formato argentino. El stock es `Float` (schema.prisma:516) porque
+ * en un local que vende por peso son KILOS: 12,5 kg de vacío, no 12 paquetes. Sin formatear,
+ * `{p.stock}` imprime el float crudo de JavaScript —punto decimal en vez de coma, y la
+ * basura de la suma flotante ("12.299999999999999")— en la pantalla donde se decide qué
+ * reponer. Entero → sin decimales (no tiene sentido "40,00 un."); fraccionario → dos, que
+ * es el detalle útil de un total en kilos.
+ */
+function fmtCantidadStock(qty: number): string {
+  return fmtNumberAR(qty, Number.isInteger(qty) ? 0 : 2);
+}
+
+/** "kg" se deja como está; la unidad por defecto ("u"/"unidades") se abrevia legible. */
+function unidadCorta(unit: string): string {
+  const u = unit.trim().toLowerCase();
+  if (u === "u" || u === "unidad" || u === "unidades") return "un.";
+  return unit.trim() || "un.";
+}
+
+async function RetailHome({
+  canSeeRevenue,
+  canSeeStock,
+  itemNoun,
+}: {
+  canSeeRevenue: boolean;
+  /**
+   * `catalog:read`. Sin esa capacidad, /admin/inventario y /admin/compras REDIRIGEN al
+   * home (authz.ts:29-35): un tile o un link a esas pantallas sería un botón que te
+   * devuelve al mismo lugar del que saliste. Hoy la RECEPCIÓN no la tiene, así que el que
+   * atiende el mostrador ve el número de faltantes —sirve para no prometer lo que no hay—
+   * pero sin link ni listado. (Que la recepción de un mostrador NO pueda ver el stock es
+   * una discusión de capacidades, no de esta pantalla: acá sólo se evita el callejón.)
+   */
+  canSeeStock: boolean;
+  itemNoun: string;
+}) {
   const d = await getRetailDashboardData();
+  const plural = pluralTitulo(itemNoun);
+  // Ticket promedio del día: el número con el que un mostrador se da cuenta de si hoy
+  // vendió picada o vendió lomo. Sale de datos que el loader YA trae (no hay consulta
+  // nueva). Sin ventas todavía no se muestra: un "$0" de ticket promedio a las 9 de la
+  // mañana no informa nada, miente sobre el día.
+  const ticketPromedio = d.todaySalesCount > 0 ? d.todayRevenue / d.todaySalesCount : null;
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
       <div className="flex items-start justify-between gap-4 mb-6">
@@ -80,37 +161,62 @@ async function RetailHome({ canSeeRevenue }: { canSeeRevenue: boolean }) {
         </Link>
       </div>
 
+      {!d.cashOpen && (
+        <div className="mb-6 flex items-center gap-2.5 rounded-lg bg-warning-soft border border-warning/25 px-4 py-2.5 text-sm text-warning">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 9v4M12 16h.01" /></svg>
+          <span className="flex-1">
+            <span className="font-semibold">La caja está cerrada. </span>
+            Se puede cobrar igual, pero lo que entre en efectivo no va a figurar en el arqueo
+            del turno.
+          </span>
+          <Link href="/admin/caja" className="font-semibold whitespace-nowrap hover:underline">
+            Abrir caja →
+          </Link>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* Con la caja cerrada no se repite acá: lo dice la banda de arriba, que además
+            explica qué se rompe y lleva a abrirla. */}
         <Kpi label="Ventas hoy" value={String(d.todaySalesCount)} href="/admin/pedidos" icon="caja"
-          sub={d.cashOpen ? "Caja abierta." : "Caja cerrada."} />
+          sub={d.cashOpen ? "Caja abierta." : undefined} />
         {canSeeRevenue && (
-          <Kpi label="Ingresos hoy" value={fmtMoneyARS(d.todayRevenue, 0)} href="/admin/reportes" icon="barras" />
+          // A /admin/caja, no a /admin/reportes: lo que entró HOY, medio por medio, está
+          // en la caja del día; reportes es la pantalla del mes.
+          <Kpi label="Ingresos hoy" value={fmtMoneyARS(d.todayRevenue, 0)} href="/admin/caja" icon="caja"
+            sub={ticketPromedio != null ? `Ticket promedio ${fmtMoneyARS(ticketPromedio, 0)}` : undefined} />
         )}
         {canSeeRevenue && (
           <Kpi label="Ingresos 7 días" value={fmtMoneyARS(d.weekRevenue, 0)} href="/admin/reportes" icon="barras" />
         )}
-        <Kpi label="Stock bajo" value={String(d.lowStockCount)} href="/admin/inventario" icon="alerta"
-          sub={d.lowStockCount > 0 ? "Hay que reponer." : "Todo en orden."} />
-        <Kpi label="Clientes" value={String(d.clientsCount)} href="/admin/clientes" icon="cliente" />
+        <Kpi label={`${plural} para reponer`} value={String(d.lowStockCount)}
+          href={canSeeStock ? "/admin/inventario" : undefined} icon="alerta"
+          sub={d.lowStockCount > 0 ? "Bajo el mínimo." : "Todo en orden."} />
       </div>
 
+      {canSeeStock && (
       <section className="rounded-xl border border-line bg-surface-raised shadow-xs overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
-          <h2 className="text-[15px] font-semibold text-strong">Stock bajo — reponer</h2>
+          <h2 className="text-[15px] font-semibold text-strong">{plural} para reponer</h2>
           <Link href="/admin/compras" className="text-[13px] font-medium text-accent hover:underline">Ir a compras →</Link>
         </div>
         {d.lowStock.length === 0 && (
-          <p className="text-sm text-muted px-5 py-6">No hay productos por debajo del umbral.</p>
+          <p className="text-sm text-muted px-5 py-6">No hay nada por debajo del mínimo.</p>
         )}
         {d.lowStock.slice(0, 8).map((p, i) => (
           <Link key={p.id} href="/admin/inventario"
             className={`flex items-center gap-4 px-5 py-3 text-sm hover:bg-surface-sunken transition-colors ${i > 0 ? "border-t border-line" : ""}`}>
             <span className="flex-1 min-w-0 font-semibold text-strong truncate">{p.name}</span>
-            <span className="text-danger font-semibold whitespace-nowrap">{p.stock} {p.unit}</span>
-            <span className="text-faint text-[13px] whitespace-nowrap">umbral {p.lowStockAt}</span>
+            <span className="text-danger font-semibold whitespace-nowrap tabular-nums">
+              {fmtCantidadStock(p.stock)} {unidadCorta(p.unit)}
+            </span>
+            <span className="text-faint text-[13px] whitespace-nowrap tabular-nums">
+              mín. {fmtCantidadStock(p.lowStockAt)}
+            </span>
           </Link>
         ))}
       </section>
+      )}
     </main>
   );
 }
@@ -141,12 +247,29 @@ async function InicioVertical() {
   // recepción ve el resto del dashboard sin la cifra de facturación.
   const canSeeRevenue = roleHasCapability(user.role, "reports:read");
 
-  // Home adaptado al RUBRO (Wave B): mostrador/retail → ventas/caja/stock; servicios →
-  // turnos/agenda (legado). La señal son los módulos activos; con `MODULE_REGISTRY_ENABLED`
-  // OFF, `getActiveModuleIds` es null → modo "servicios" → byte-idéntico al home de hoy.
-  const activeModules = await getActiveModuleIds();
-  if (dashboardModeForModules(activeModules) === "retail") {
-    return <RetailHome canSeeRevenue={canSeeRevenue} />;
+  // QUIÉN DECIDE SI ESTE LOCAL VE MOSTRADOR O AGENDA.
+  //
+  // Los módulos activos mandan CUANDO EXISTEN; con el registro apagado —el estado de hoy—
+  // manda el RUBRO. El porqué completo (y por qué prender `MODULE_REGISTRY_ENABLED` NO es
+  // la salida: dejaría sin menú a beauty-spa, el único tenant vivo) está en
+  // src/lib/dashboard-mode.ts. Antes de esto, `dashboardModeForModules(null)` devolvía
+  // siempre "servicios" y el home de mostrador —escrito y completo— no se disparaba nunca:
+  // una carnicería abría el sistema y veía la agenda de una estética.
+  //
+  // El rubro se lee con `getCurrentTenantRubro`, la MISMA función con la que el layout
+  // resuelve el `isRetail` del menú (layout.tsx:54 → prop del AdminShell). Si el home y la
+  // barra usaran resolvedores distintos podrían discrepar y quedaría un home de mostrador
+  // con menú de agenda. Si esa lectura fallara, el layout ya habría fallado antes que esta
+  // página: no hay nada que el home pueda salvar acá.
+  const [activeModules, rubro] = await Promise.all([getActiveModuleIds(), getCurrentTenantRubro()]);
+  if (dashboardMode({ activeModules, isRetail: rubro.isRetail }) === "retail") {
+    return (
+      <RetailHome
+        canSeeRevenue={canSeeRevenue}
+        canSeeStock={roleHasCapability(user.role, "catalog:read")}
+        itemNoun={rubro.rubro?.wording.itemNoun ?? "producto"}
+      />
+    );
   }
   // Home ANALÍTICO por rol (ADR-059 D8, P1.c del set Empresa): el tenant perfil
   // "Empresa" con rol de visión financiera (OWNER) ve un panel analítico/ejecutivo
