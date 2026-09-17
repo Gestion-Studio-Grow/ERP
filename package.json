@@ -30,7 +30,8 @@
     "gate:visual:full": "node scripts/visual-gate.mjs --full",
     "gate:visual:aa": "node scripts/qa/visual-audit-gate.mjs",
     "load-test": "node scripts/load-test.mjs",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "medir:neon": "bash scripts/medir-neon.sh"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

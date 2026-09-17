@@ -3,6 +3,19 @@
 **Estado: ENSAYADA, sin aplicar a producción.** Falta la `DATABASE_URL` de Neon con rol
 directo. Todo lo demás está verificado.
 
+> **Antes de planificar nada, MEDIR.** Este repo afirmó durante meses cosas sobre el estado
+> de Neon que nadie había verificado, y la misma afirmación estaba copiada en cuatro
+> archivos. Hay un script de SOLO LECTURA que contesta las tres preguntas de una:
+>
+> ```bash
+> export NEON_URL='postgresql://...'   # rol DIRECTO, sin -pooler
+> npm run medir:neon
+> ```
+>
+> Devuelve cuántas migraciones faltan (acá abajo se esperan **cinco**), si hay tablas con
+> `tenantId` sin policy de RLS, y el estado de `CarteraCliente` y del rol `app_rls`. No
+> escribe nada y su salida no incluye la connection string: se puede pegar tal cual.
+
 ---
 
 ## Qué se aplica
