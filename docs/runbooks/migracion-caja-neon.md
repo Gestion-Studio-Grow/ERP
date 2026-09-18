@@ -62,6 +62,39 @@ Sobre una base local llevada al estado documentado de producción (40 migracione
 - `npm run predeploy-check` contra esa base: *"Base al día: 45 tablas del schema y 44
   migraciones verificadas."*
 
+## Dos caminos para correrlo
+
+### A · Desde el deploy de Vercel (no hace falta terminal)
+
+Es el camino para cuando nadie va a abrir una terminal con la cadena de producción. El build
+lleva el runbook adentro (`scripts/vercel-build.mjs`) y corre los pasos 2, 3, 4 y 6 solo, en
+este orden, frenando en cada uno:
+
+1. **Hacé el respaldo.** Neon → tu proyecto → Branches → *Create branch*. Un clic. **Esto no
+   lo hace el script y no lo va a hacer nunca**: ningún automatismo puede decidir por el
+   dueño que un respaldo no hace falta.
+2. Neon → *Connection string* → **destildá "Connection pooling"** y copiá la cadena.
+3. Vercel → el proyecto → Settings → Environment Variables → nueva variable
+   `MIGRATE_DATABASE_URL`, pegás esa cadena, marcada **sólo para Production**.
+4. Vercel → Deployments → *Redeploy* sobre el último commit de la rama.
+
+El build va a: mostrar el estado de la base, aplicar las pendientes, **verificar que los
+índices únicos de idempotencia existan** y, si falta alguno, **fallar sin publicar**; después
+auditar el aislamiento (avisa, no frena) y recién ahí compilar.
+
+**Si algo falla, Vercel no publica y el código viejo sigue sirviendo.** Las migraciones de
+este lote son aditivas, así que una base migrada con el código anterior funciona igual.
+
+Qué NO migra, a propósito: los previews (`VERCEL_ENV` distinto de `production`) y cualquier
+build sin `MIGRATE_DATABASE_URL`. Las dos condiciones se exigen juntas.
+
+Cuando termine, **sacá `MIGRATE_DATABASE_URL` de Vercel**. Deja de hacer falta, y una cadena
+con rol directo guardada en las variables de un proyecto es superficie que no necesitás.
+
+### B · A mano, desde una terminal
+
+Es el de siempre, y sigue siendo el de referencia. Los pasos, abajo.
+
 ## Los pasos
 
 1. **Backup.** Un branch de Neon o un `pg_dump`. Es lo único que deshace un error.
