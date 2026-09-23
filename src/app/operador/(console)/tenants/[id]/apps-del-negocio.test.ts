@@ -66,13 +66,19 @@ const COMO_CH: NegocioParaActivar = {
 test("activar inventario en magra: con el Inicio por apps gana Stock y las apps de stock, sin perder nada", () => {
   const v = vistaPreviaDeCambio(MAGRA, { accion: "activar", modulo: "inventario" }, SIN_PILOTO, cat);
   assert.ok(v.ok);
+  // La lista EXACTA, en el orden del espacio: las de la ola 1 más las que sumó el frente de
+  // stock en la ola 2 (Movimientos, Recuento y Proveedores), todas colgando de `inventario`.
   assert.deepEqual(ids(v.conInicio.gana), [
     "inventario",
+    "movimientos",
+    "recuento",
     "mermas",
     "recibir-mercaderia",
+    "proveedores",
     "lotes-y-vencimientos",
     "despiece",
   ]);
+  for (const app of v.conInicio.gana) assert.equal(app.modulo, "inventario", `${app.id} no es de inventario`);
   assert.equal(v.conInicio.gana[0].nombre, "Stock");
   assert.deepEqual(v.conInicio.pierde, []);
   // Catálogo ya estaba: no se arrastra nada.
@@ -172,11 +178,40 @@ test("cartera y multilocal no pueden estar juntos, en ningún orden", () => {
   assert.ok(!c.despues.includes("multilocal"));
 });
 
-test("multilocal se puede asignar y todavía no abre ninguna app", () => {
-  const v = vistaPreviaDeCambio(MAGRA, { accion: "activar", modulo: "multilocal" }, SIN_PILOTO, cat);
+test("multilocal abre las apps de Mis locales, con el Inicio por apps y sin él", () => {
+  const v = vistaPreviaDeCambio({ ...MAGRA, vinculosActivos: 0 }, { accion: "activar", modulo: "multilocal" }, SIN_PILOTO, cat);
   assert.ok(v.ok);
-  assert.deepEqual(v.conInicio, { gana: [], pierde: [] });
-  assert.equal(appsPorModulo().get("multilocal") ?? 0, 0);
+  const misLocales = ["mis-locales", "ventas-por-local", "cajas-de-los-locales", "stock-por-local"];
+  assert.deepEqual(ids(v.conInicio.gana), misLocales);
+  assert.deepEqual(v.conInicio.pierde, []);
+  // Son `moduloDuro`: aun fuera del piloto (sin gate), se abren apenas se confirma.
+  assert.deepEqual(ids(v.alConfirmar.gana), misLocales);
+  assert.equal(appsPorModulo().get("multilocal"), 4);
+  // En un negocio de servicios, Stock por local no aplica (es de mostrador).
+  const estetica = vistaPreviaDeCambio({ ...ESTETICA, vinculosActivos: 0 }, { accion: "activar", modulo: "multilocal" }, SIN_PILOTO, cat);
+  assert.ok(estetica.ok);
+  assert.deepEqual(ids(estetica.alConfirmar.gana), misLocales.slice(0, 3));
+});
+
+test("Mis locales con vínculos adentro: no se prende sobre una cartera ni se apaga con locales colgando", () => {
+  // Un estudio que apagó la cartera con clientes adentro: esas filas no pueden leerse como locales.
+  const exEstudio = { slug: "ex-estudio", blueprintId: "generico", modules: ["arca", "bancos"], vinculosActivos: 3 };
+  const prender = validarCambio(exEstudio, { accion: "activar", modulo: "multilocal" }, cat);
+  assert.equal(prender.ok, false);
+  assert.match(prender.ok ? "" : prender.motivo, /3 vínculos activos .*cartera del contador/);
+  // Una casa con locales vinculados no apaga el módulo sin darlos de baja antes.
+  const casa = { slug: "magra", blueprintId: "carniceria", modules: ["multilocal", "pos"], vinculosActivos: 1 };
+  const apagar = validarCambio(casa, { accion: "desactivar", modulo: "multilocal" }, cat);
+  assert.equal(apagar.ok, false);
+  assert.match(apagar.ok ? "" : apagar.motivo, /1 vínculo activo con sus locales: dalos de baja/);
+  // Sin vínculos, las dos cosas se pueden; y si no se pudo leer, se rechaza por las dudas.
+  assert.ok(validarCambio({ ...casa, vinculosActivos: 0 }, { accion: "desactivar", modulo: "multilocal" }, cat).ok);
+  assert.ok(validarCambio({ ...exEstudio, vinculosActivos: 0 }, { accion: "activar", modulo: "multilocal" }, cat).ok);
+  const sinDato = validarCambio({ ...exEstudio, vinculosActivos: null }, { accion: "activar", modulo: "multilocal" }, cat);
+  assert.match(sinDato.ok ? "" : sinDato.motivo, /No se pudo leer/);
+  // Re-activar lo que ya estaba no toca nada, y la cartera no cambia su regla.
+  assert.ok(validarCambio(casa, { accion: "activar", modulo: "multilocal" }, cat).ok);
+  assert.ok(validarCambio(exEstudio, { accion: "activar", modulo: "cartera" }, cat).ok);
 });
 
 test("activar cartera en un negocio del rubro lo convierte en Contador: la vista previa lo avisa", () => {
@@ -191,15 +226,28 @@ test("magra hoy: fuera del Inicio por apps, y con su asignación perdería apps 
   const e = estadoDeApps(MAGRA, SIN_PILOTO, cat);
   assert.equal(e.gate, "sin-gate");
   assert.equal(e.enInicioPorApps, false);
-  assert.deepEqual(ids(e.conInicioFrenteAlMenu.pierde).sort(), [
+  const pierde = e.conInicioFrenteAlMenu.pierde;
+  // La lista EXACTA: una app de más acá es una pantalla que magra dejaría de ver sin que nadie
+  // lo decida. Fuera de stock, Campañas y Facturación automática; de stock, las de la ola 1 y
+  // las que sumó el frente de stock en la ola 2 (Movimientos, Recuento y Proveedores).
+  assert.deepEqual(ids(pierde).sort(), [
     "campanias",
     "despiece",
     "facturacion-automatica",
     "inventario",
     "lotes-y-vencimientos",
     "mermas",
+    "movimientos",
+    "proveedores",
     "recibir-mercaderia",
+    "recuento",
   ]);
+  // Pierde sólo apps de módulos que no tiene asignados (y nunca las de Mis locales: sin
+  // `multilocal` no las ve ni hoy).
+  for (const app of pierde) {
+    assert.ok(app.modulo && !MAGRA.modules.includes(app.modulo), `${app.id} es de un módulo que ya tiene`);
+    assert.notEqual(app.espacio, "locales");
+  }
 });
 
 test("fijar en magra suma lo mínimo (inventario, campañas, bancos) y deja 0 apps perdidas", () => {

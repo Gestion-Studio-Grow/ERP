@@ -5,7 +5,15 @@
 > así que este runbook se corre **5 veces**, una por local, más **un** paso final de ruteo
 > que se hace **una sola vez con las 5 entradas juntas** (Paso 8 — leelo antes de empezar).
 >
-> **Tiempo:** ~10 min por local en la consola + ~10 min el paso de ruteo + 1 deploy.
+> **Dos configuraciones, el mismo alta.** **A — locales sueltos:** cada local es un negocio y
+> nada más (lo que describe este runbook del Paso 1 al 9). **B — la casa con sus locales:** los
+> mismos negocios, más una **casa** que ve las ventas, las cajas y el stock de todos ("Mis
+> locales"). Pasar de A a B es **vincular** desde la consola; volver es **dar de baja** el
+> vínculo. No se mueve ningún dato. B se arma DESPUÉS del alta: ver
+> [Configuración B](#configuración-b--la-casa-con-sus-locales-mis-locales).
+>
+> **Tiempo:** ~10 min por local en la consola + ~10 min el paso de ruteo + 1 deploy
+> (+ ~5 min la configuración B, sin deploy).
 
 ---
 
@@ -276,6 +284,27 @@ otro, la app se niega a responder. Eso está bien y no se "arregla" aflojando el
 
 ---
 
+## Paso 9 — Antes de sumar un negocio a `APPS_INICIO`: **"Fijar asignación actual"** (obligatorio)
+
+Vale para **cualquier** negocio que entre al Inicio por apps: `magra`, cada local nuevo y la
+casa de la configuración B. `APPS_INICIO` es la lista de slugs del piloto; un negocio que está
+ahí ve **sólo las apps de los módulos que tiene asignados**, no su menú de siempre.
+
+1. `/operador` → ficha del negocio → tarjeta **"Apps del negocio"** → **"Fijar asignación
+   actual"**.
+2. La vista previa dice qué apps ganaría o perdería. Confirmar recién cuando diga que **no
+   pierde ninguna** app de su menú de siempre.
+3. Recién después, sumar su slug a `APPS_INICIO` (misma regla del Paso 8: copiar el valor
+   actual, agregar, contar antes de guardar).
+
+**Por qué es obligatorio (medido en la vista previa de la consola, ola 1):** con la asignación
+que tiene hoy, `magra` al entrar a `APPS_INICIO` **pierde "Campañas" y "Facturación
+automática"** (y las de stock si le falta `inventario`). "Fijar" suma los módulos mínimos para
+que vea exactamente su menú de siempre. Sacar un slug de `APPS_INICIO` lo devuelve a su menú de
+siempre sin tocar datos.
+
+---
+
 ## Después del alta: lo que NO se toca desde el panel del dueño
 
 - **`status` y `plan`.** El wizard **no los pide** y el committer **no los manda**
@@ -291,6 +320,120 @@ otro, la app se niega a responder. Eso está bien y no se "arregla" aflojando el
   de actualizar también `TENANT_HOST_MAP`**: son dos lugares, y el código no los sincroniza.
 
 ---
+
+# Configuración B — la casa con sus locales ("Mis locales")
+
+La dueña de MAGRA ve en **un tablero** lo cobrado hoy en cada local, qué caja quedó sin cerrar,
+el stock de cada corte en cada local y las ventas por local con el archivo para la contadora
+(`/admin/locales`, `/admin/locales/ventas`, `/admin/locales/cajas`, `/admin/locales/stock`).
+Cada local sigue siendo su propio negocio, con su caja, su stock y sus usuarios. Lo único nuevo
+es el **vínculo** casa → local, que sólo escribe GSG desde la consola.
+
+**Cómo está hecho (para saber qué se toca):** el vínculo es una fila de `CarteraCliente`
+(la misma tabla de la cartera del contador; los dos módulos se excluyen entre sí) con
+`tenantId` = casa y `clienteTenantId` = local, escrita por `vincularLocalAction`
+(`src/lib/operador/red-locales-actions.ts` → `vincularEnTx`, `src/lib/multilocal/multilocal-core.ts`).
+La casa lee cada local en **su propia transacción, con el GUC del local**, y los ids salen
+**sólo** de sus filas (`recorrerLocales`). Las pantallas exigen el módulo `multilocal` leído de
+la base en cada página y en cada action (`exigirCasa`, `src/lib/multilocal/casa.server.ts`).
+
+## B0 — Precondición: RLS de `CarteraCliente` en Neon (lo corre el operador)
+
+```bash
+npm run medir:neon      # la sección "CarteraCliente" tiene que decir rls_activa = t
+```
+
+Si dice `f` (o la tabla no está), **B no se arma en producción**: el vínculo quedaría
+protegido por una sola capa. Volver a aplicar RLS (`prisma/rls/0001_enable_rls.sql`) es una
+ventana con **autorización del dueño**. Sin la migración, la tarjeta "Red de locales" de la
+ficha lo dice y no deja vincular.
+
+## B1 — Qué negocio es la casa *(provisional a confirmar por el dueño con el cliente)*
+
+- Si `magra` **todavía no vendió** como local: `magra` es la casa y el obrador (ya tiene el
+  catálogo) y los locales son `magra-<localidad>`.
+- Si `magra` **ya vendió** como local: se da de alta `magra-casa` (Pasos 1 a 7) y ésa es la casa.
+
+La casa **no puede** ser un estudio contable (módulo Cartera) ni local de otra red; un local no
+puede estar en dos redes ni ser casa de otra. La consola lo rechaza con el motivo.
+
+## B2 — Fijar la asignación de la casa ANTES de sumarla al Inicio por apps (obligatorio)
+
+Es el [Paso 9](#paso-9--antes-de-sumar-un-negocio-a-apps_inicio-fijar-asignación-actual-obligatorio)
+aplicado a la casa: en su ficha (`/operador/tenants/<id>`), tarjeta **"Apps del negocio"** →
+**"Fijar asignación actual"**. Recién después se suma su slug a `APPS_INICIO`.
+
+La casa **tiene que estar en `APPS_INICIO`**: las apps de Mis locales se ofrecen en el Inicio
+por apps (sección "Mis locales") y en el buscador (Ctrl/⌘K). La barra lateral sigue siendo la de
+siempre y no las lista; fuera del piloto sólo se llega tecleando `/admin/locales`.
+
+**Por qué es obligatorio (medido en la vista previa de la consola, ola 1):** con la asignación
+que tiene hoy, `magra` al entrar a `APPS_INICIO` **pierde "Campañas" y "Facturación
+automática"** (y las de stock si le falta `inventario`). "Fijar" suma los módulos mínimos para
+que vea exactamente su menú de siempre. La tarjeta muestra, antes de confirmar, qué apps ganaría
+o perdería.
+
+## B3 — Activar "Mis locales" en la casa
+
+Misma tarjeta → módulo **"Mis locales"** → vista previa (suma Mis locales, Ventas por local,
+Cajas de los locales y, en un mostrador, Stock por local) → confirmar. Queda en la auditoría de
+la casa (`module.activate`).
+
+- Estas cuatro apps exigen el módulo **siempre**, aun fuera de `APPS_INICIO`: un negocio sin
+  `multilocal` (CH, cualquier local suelto) no las abre ni tecleando la URL ("App no disponible").
+- **No se apaga "Mis locales" con locales vinculados**: primero se dan de baja (B6). Y no se
+  prende en un negocio que tenga vínculos de una cartera del contador. La vista previa lo
+  rechaza con el motivo y no ofrece confirmar. **Ojo, hoy:** el botón de confirmar del servidor
+  (`toggleTenantModule`, src/lib/operator-actions.ts) todavía no relee los vínculos, así que el
+  candado vive sólo en la vista previa. Hasta que se cablee, nunca confirmar un cambio de "Mis
+  locales" sin haber visto la vista previa recién cargada, y no trabajar de a dos operadores
+  sobre la misma casa.
+
+## B4 — Vincular cada local
+
+Ficha de la casa → tarjeta **"Red de locales"** → elegir el local → alias opcional ("Canning")
+→ **Vincular local**. Repetir por cada local. Cada vínculo deja auditoría en **la casa**
+(`multilocal.vincular`) y en **el local** (`multilocal.vinculado`), en la misma transacción que
+la fila: o quedan las tres cosas o ninguna. Si el local tiene otro CUIT que la casa, avisa (las
+ventas se ven igual; los traslados, cuando lleguen, van sólo entre locales del mismo CUIT).
+
+Cada local sigue con **su punto de venta propio**: el candado de la consola rechaza repetir
+CUIT + punto de venta entre negocios (Paso de ARCA de la ficha).
+
+## B5 — Verificar (recorrido, no "carga la pantalla")
+
+1. Entrar al host de la casa con el OWNER → Inicio → sección **"Mis locales"** con sus números
+   ("3 locales · 1 con la caja sin cerrar", "$X cobrado hoy"). Es lo **cobrado**, no lo vendido:
+   los cobros que entraron hoy a la caja menos lo anulado hoy (una anulación de hoy de una venta
+   de ayer resta hoy, igual que en la caja del local).
+2. `/admin/locales`: una tarjeta por local. **"Su caja, como la ve el local"** tiene que dar
+   las mismas cifras que `/admin/caja` de ese local (entrando con el usuario del local, en su
+   host). Si no coinciden, parar: uno de los dos miente.
+3. `/admin/locales/ventas` → **Descargar para la contadora**: el CSV trae el resumen por local,
+   el consolidado por CUIT (si comparten) y el detalle por día y medio.
+4. `/admin/locales/ventas?local=<id de un negocio que NO es de la red>` → "Ese local no es de tu
+   red" y nada de ese negocio.
+5. En CH (o cualquier negocio sin el módulo), `/admin/locales` → "App no disponible".
+
+## B6 — Dar de baja un local
+
+Ficha de la casa → "Red de locales" → **Dar de baja** en ese local. La casa deja de verlo en el
+acto; no se borra nada (la fila queda en `baja` con su historia) y queda auditado en los dos.
+Se puede volver a vincular cuando se quiera.
+
+## Lo que se le dice al cliente de B (límites de esta versión)
+
+- **Un login por local:** los usuarios son por negocio. La dueña entra a la casa con su usuario
+  y a cada local con el del local (el botón "Abrir su caja" lleva al host del local).
+- Un OWNER de local puede cambiar sus precios; la lista única de la marca y el empuje a los
+  locales llegan en la ola 3 (y ahí se ve como divergencia, no se bloquea).
+- Los productos se cruzan **por nombre** (sin acentos ni mayúsculas) y unidad de venta: un
+  renombre en un local aparece como otra fila en Stock por local.
+- Todavía no hay traslados entre locales (ola 3), ni recepción con diferencia, ni remito.
+  COT / remito cárnico: **provisional, a confirmar con la contadora de MAGRA**.
+- Rendimiento: cada pantalla lee los locales uno por uno. Medido en Postgres local: ~17 ms por
+  local. Contra Neon **no está medido**; con ~5 a 9 locales es razonable, con 30 o más hace falta
+  otra cosa.
 
 ## Qué NO está medido (y con qué comando se cierra)
 

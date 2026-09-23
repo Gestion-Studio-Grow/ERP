@@ -72,8 +72,14 @@ import {
   type FilaMonitor,
   type ResumenMonitor,
 } from "@/lib/monitor-core";
+import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
 import {
-  MODULO_CARTERA,
+  avisoDeChoqueAlContador,
+  choqueDePuntoDeVenta,
+  elegirNegocioDelCuit,
+  motivoCuitAmbiguo,
+} from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
+import {
   crearClienteProvisioning,
   decidirPuntoVentaAlta,
   exigirClienteDeCartera,
@@ -141,15 +147,59 @@ async function exigirEstudio(): Promise<Gate> {
   await requireCapability("cartera:manage");
   const estudioTenantId = await getCurrentTenantId();
   // Chequeo DURO sobre la asignación (Tenant.modules), independiente del flag del
-  // registry: sin el módulo `cartera` asignado, el panel no existe para ese tenant.
+  // registry: sin el módulo `cartera` asignado, el panel no existe para ese tenant. Y con
+  // `multilocal` al lado tampoco: la casa de una red guarda sus locales en la misma tabla, y
+  // el panel del contador los trataría como clientes (y podría emitir facturas por ellos).
+  // La regla es la misma que usa Mis locales al revés (`decidirAcceso`, multilocal-core.ts).
   const tenant = await basePrisma.tenant.findUnique({
     where: { id: estudioTenantId },
     select: { modules: true },
   });
-  if (!tenant?.modules?.includes(MODULO_CARTERA)) {
-    return { ok: false, error: "El módulo Cartera no está habilitado para este negocio." };
-  }
+  const acceso = decidirAcceso(tenant?.modules ?? null, "estudio");
+  if (!acceso.ok) return acceso;
   return { ok: true, estudioTenantId };
+}
+
+/**
+ * Escribe los datos fiscales de un cliente con el candado del punto de venta: el mismo lock por
+ * CUIT que la consola de operador (`arca-punto-venta:<cuit>`, operator-actions.ts) y la misma
+ * regla (`choqueDePuntoDeVenta`). Si otro negocio de ese CUIT ya numera con ese punto de venta,
+ * el punto de venta NO se escribe (el resto sí) y se avisa: dos negocios con el mismo talonario
+ * en ARCA se rechazan las facturas entre sí.
+ *
+ * `soloSiNoTenia`: la re-alta completa el punto de venta si faltaba y nunca lo pisa; si otro lo
+ * cargó entre la lectura y acá, no escribe.
+ */
+async function escribirFiscalConCandado(opts: {
+  tenantId: string;
+  cuit: string;
+  puntoVenta: number | null;
+  soloSiNoTenia: boolean;
+  data: { arcaCuit?: string; arcaHomologacion?: boolean; modules?: string[] };
+}): Promise<{ pvCargado: boolean; choque: boolean }> {
+  const { tenantId, cuit, soloSiNoTenia, data } = opts;
+  return basePrisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`arca-punto-venta:${cuit}`}))`;
+    let pv = opts.puntoVenta;
+    let choque = false;
+    if (pv !== null) {
+      // Tenant está fuera de RLS: se leen los otros negocios del CUIT, sólo datos de control.
+      const otros = await tx.tenant.findMany({
+        where: { arcaCuit: cuit, id: { not: tenantId } },
+        select: { id: true, name: true, slug: true, arcaCuit: true, arcaPuntoVenta: true },
+      });
+      if (choqueDePuntoDeVenta({ tenantId, cuit, puntoVenta: pv }, otros)) {
+        pv = null;
+        choque = true;
+      }
+    }
+    if (pv === null && Object.keys(data).length === 0) return { pvCargado: false, choque };
+    const r = await tx.tenant.updateMany({
+      where: { id: tenantId, ...(soloSiNoTenia && pv !== null ? { arcaPuntoVenta: null } : {}) },
+      data: { ...data, ...(pv !== null ? { arcaPuntoVenta: pv } : {}) },
+    });
+    return { pvCargado: pv !== null && r.count === 1, choque };
+  });
 }
 
 // ── Puertos reales del core ───────────────────────────────────────────────────
@@ -306,17 +356,36 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
   const v = validarAltaCliente(input);
   if (!v.ok) return v;
 
-  // Idempotencia por CUIT: si ya hay un tenant con ese CUIT, no se provisiona otro.
-  const porCuit = await basePrisma.tenant.findFirst({
+  // Idempotencia por CUIT: si ya hay un negocio con ese CUIT, no se provisiona otro. Pueden ser
+  // VARIOS (una marca con un negocio por local, todos con el mismo CUIT): se elige entre los de
+  // ESTA cartera, desempatando por el punto de venta, y nunca uno cualquiera
+  // (`elegirNegocioDelCuit`). Antes era un `findFirst`: el primero que devolviera la base.
+  const conEseCuit = await basePrisma.tenant.findMany({
     where: { arcaCuit: v.cuit },
+    orderBy: { createdAt: "asc" },
     select: { id: true, slug: true, arcaPuntoVenta: true },
   });
-  if (porCuit) {
-    if (porCuit.id === estudioTenantId) {
-      return { ok: false, error: "Ese CUIT es el de tu propio estudio: no se agrega a la cartera." };
-    }
-    const fila = await buscarFilaCartera(estudioTenantId, porCuit.id);
-    if (fila) {
+  const filasDeCartera = new Map<string, FilaCarteraDb>();
+  for (const t of conEseCuit) {
+    if (t.id === estudioTenantId) continue;
+    const f = await buscarFilaCartera(estudioTenantId, t.id);
+    if (f) filasDeCartera.set(t.id, f);
+  }
+  const eleccion = elegirNegocioDelCuit(
+    estudioTenantId,
+    conEseCuit.map((t) => ({ ...t, enMiCartera: filasDeCartera.has(t.id) })),
+    v.puntoVenta,
+  );
+  if (eleccion.tipo === "propio") {
+    return { ok: false, error: "Ese CUIT es el de tu propio estudio: no se agrega a la cartera." };
+  }
+  if (eleccion.tipo === "ambiguo") {
+    return { ok: false, error: motivoCuitAmbiguo(eleccion.cantidad, eleccion.puntosDeVenta) };
+  }
+  if (eleccion.tipo !== "nuevo") {
+    const porCuit = eleccion.tipo === "realta" ? eleccion.negocio : null;
+    const fila = porCuit ? filasDeCartera.get(porCuit.id) : undefined;
+    if (porCuit && fila) {
       // Re-alta idempotente: si estaba pausado o de baja, vuelve a activo.
       if (fila.estado !== "activa") {
         await tenantTransaction(
@@ -329,22 +398,28 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
         );
       }
       // Punto de venta: la re-alta de un cliente de ESTA cartera puede completarlo si
-      // faltaba — es el mismo dato que acepta el alta. Nunca lo PISA (`decidirPuntoVentaAlta`).
-      // `updateMany` con `arcaPuntoVenta: null` en el where: si otro lo cargó entre la
-      // lectura y acá, no escribe, y se avisa que no se cargó.
+      // faltaba — es el mismo dato que acepta el alta. Nunca lo PISA (`decidirPuntoVentaAlta`),
+      // y si otro lo cargó entre la lectura y acá, no escribe (`soloSiNoTenia`). Pasa por el
+      // candado: si otro negocio de ese CUIT ya numera con ese punto de venta, no se escribe
+      // (antes se escribía sin mirar a los demás).
       const pv = decidirPuntoVentaAlta(v.puntoVenta, porCuit.arcaPuntoVenta);
-      const pvCargado =
-        pv.escribir !== null &&
-        (
-          await basePrisma.tenant.updateMany({
-            where: { id: porCuit.id, arcaPuntoVenta: null },
-            data: { arcaPuntoVenta: pv.escribir },
-          })
-        ).count === 1;
+      const escrito =
+        pv.escribir !== null
+          ? await escribirFiscalConCandado({
+              tenantId: porCuit.id,
+              cuit: v.cuit,
+              puntoVenta: pv.escribir,
+              soloSiNoTenia: true,
+              data: {},
+            })
+          : { pvCargado: false, choque: false };
+      const pvCargado = escrito.pvCargado;
       const aviso =
-        pv.escribir !== null && !pvCargado
-          ? "No se cargó el punto de venta: alguien lo cargó mientras tanto. Si está mal, pedíselo a Gestión Studio Grow."
-          : pv.aviso;
+        pv.escribir !== null && escrito.choque
+          ? avisoDeChoqueAlContador(pv.escribir)
+          : pv.escribir !== null && !pvCargado
+            ? "No se cargó el punto de venta: alguien lo cargó mientras tanto. Si está mal, pedíselo a Gestión Studio Grow."
+            : pv.aviso;
       if (fila.estado !== "activa" || pvCargado) revalidatePath(CONTADOR_PATH);
       await auditAdmin({
         action: "cartera.realta",
@@ -413,20 +488,24 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
   });
   const modulos = new Set([...(actual?.modules ?? []), ...MODULOS_CLIENTE]);
   // El punto de venta del alta sólo entra si el tenant no tenía uno, y si el que tenía es
-  // otro se avisa (mismo criterio que la re-alta: `decidirPuntoVentaAlta`).
+  // otro se avisa (mismo criterio que la re-alta: `decidirPuntoVentaAlta`). Y pasa por el
+  // candado: si otro negocio de ese CUIT ya numera con ese punto de venta, no se carga.
   const pv = decidirPuntoVentaAlta(v.puntoVenta, actual?.arcaPuntoVenta ?? null);
-  const puntoVenta = pv.escribir;
-  await basePrisma.tenant.update({
-    where: { id: resultado.tenantId },
+  const escrito = await escribirFiscalConCandado({
+    tenantId: resultado.tenantId,
+    cuit: v.cuit,
+    puntoVenta: pv.escribir,
+    soloSiNoTenia: false,
     data: {
       arcaCuit: v.cuit,
       // Modelo de delegación: UN cert de GSG para N CUITs — hoy SIEMPRE homologación
       // (CUIT 20376833098); producción ARCA es un paso posterior del dueño.
       arcaHomologacion: true,
-      ...(puntoVenta !== null ? { arcaPuntoVenta: puntoVenta } : {}),
       modules: [...modulos],
     },
   });
+  const puntoVenta = escrito.pvCargado ? pv.escribir : null;
+  const avisoPv = escrito.choque && pv.escribir !== null ? avisoDeChoqueAlContador(pv.escribir) : pv.aviso;
 
   // La fila de la cartera (dato del ESTUDIO — tenant del estudio, RLS incluida).
   await tenantTransaction(
@@ -475,7 +554,7 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
     alias: v.alias,
     yaEstaba: false,
     ...(resultado.generatedPassword ? { passwordBootstrap: resultado.generatedPassword } : {}),
-    ...(pv.aviso ? { aviso: pv.aviso } : {}),
+    ...(avisoPv ? { aviso: avisoPv } : {}),
   };
 }
 

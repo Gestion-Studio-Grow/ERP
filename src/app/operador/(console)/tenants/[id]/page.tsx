@@ -32,7 +32,9 @@ import {
   vistaPreviaDeCambio,
   MOTIVO_OK_DEL_DUENIO,
 } from "./apps-del-negocio";
-import { flagsDeApps, leerNegocioParaActivar } from "./negocio.server";
+import { candidatosEnOtraRed, flagsDeApps, leerNegocioParaActivar, leerRedDeLaFicha } from "./negocio.server";
+import { RedDeLocalesCard, type CandidatoLocal } from "./RedDeLocalesCard";
+import { MOTIVO_OK_DEL_DUENIO_RED } from "@/lib/multilocal/multilocal-core";
 import { AppsDelNegocioCard, type CambioRegistrado, type FilaModuloFicha } from "./AppsDelNegocioCard";
 import {
   choqueDePuntoDeVenta,
@@ -293,6 +295,29 @@ export default async function TenantConfigPage({
       } as const
     : null;
   const historial = await historialDeModulos(tenant!.id);
+
+  // Red de locales: la del negocio (si es casa) y los negocios que se le pueden sumar. La lista
+  // es comodidad del formulario: lo que decide es `validarVinculo`, adentro de la transacción.
+  // Se ofrecen los que no son casa ni estudio contable, ni CH (sólo con el OK del dueño). Los
+  // que ya son local de OTRA red se muestran sin poder elegirse, con el nombre de esa casa.
+  const red = await leerRedDeLaFicha(tenant!.id);
+  const esCasa = activos.has("multilocal");
+  const posibles = esCasa
+    ? (
+        await operatorPrisma.tenant.findMany({
+          where: { id: { not: tenant!.id } },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, slug: true, modules: true },
+        })
+      ).filter((t) => !t.modules.includes("multilocal") && !t.modules.includes("cartera") && !requiereOkDelDuenio(t.slug))
+    : [];
+  const enOtraRed = await candidatosEnOtraRed(posibles.map((t) => t.id), tenant!.id);
+  const candidatosRed: CandidatoLocal[] = posibles.map(({ id, name, slug }) => ({
+    id,
+    name,
+    slug,
+    enOtraRed: enOtraRed.get(id) ?? null,
+  }));
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -602,6 +627,17 @@ export default async function TenantConfigPage({
         tenantId={tenant!.id}
         ownerEmail={owner?.email ?? null}
         tempPending={ownerTempPending}
+      />
+
+      {/* Red de locales: la única puerta para que un negocio lea datos de otro (auditada en los dos) */}
+      <RedDeLocalesCard
+        tenantId={tenant!.id}
+        nombre={tenant!.name}
+        esCasa={esCasa}
+        tieneCartera={activos.has("cartera")}
+        bloqueo={requiereOkDelDuenio(negocio!.slug) ? MOTIVO_OK_DEL_DUENIO_RED : null}
+        red={red}
+        candidatos={candidatosRed}
       />
 
       {/* Apps del negocio: módulos con vista previa, activación auditada y "fijar asignación" */}

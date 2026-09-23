@@ -12,10 +12,12 @@
 // falle en el build con un mensaje claro.
 
 import "server-only";
+import { cache } from "react";
 import { operatorPrisma } from "@/lib/operator-db";
 import { resolveRubroId } from "@/blueprints/retail/rubros";
 import { moduleRegistryEnabled, profilesEnabled } from "@/modules/flags";
 import type { Perfil } from "@/modules/perfil";
+import { leerRedEnTx, localesDeOtrasRedes, type RedEnLaFicha } from "@/lib/multilocal/multilocal-core";
 import type { FlagsDeApps, NegocioParaActivar } from "./apps-del-negocio";
 
 /** Los flags del deploy que deciden el gate por módulo, leídos del entorno. */
@@ -61,7 +63,7 @@ export async function leerNegocioParaActivar(tenantId: string): Promise<NegocioP
     select: { id: true, slug: true, blueprintId: true, modules: true },
   });
   if (!t) return null;
-  const [lotesListos, perfil] = await Promise.all([carniceriaLista(), perfilDe(t.id)]);
+  const [lotesListos, perfil, vinculosActivos] = await Promise.all([carniceriaLista(), perfilDe(t.id), vinculosActivosDe(t.id)]);
   return {
     id: t.id,
     slug: t.slug,
@@ -71,5 +73,48 @@ export async function leerNegocioParaActivar(tenantId: string): Promise<NegocioP
     esMostrador: resolveRubroId({ slug: t.slug, blueprintId: t.blueprintId }) != null,
     carniceriaLista: lotesListos,
     perfil,
+    vinculosActivos,
   };
+}
+
+/**
+ * Los vínculos activos del negocio (locales de su red o clientes de su cartera), para el candado
+ * de Mis locales (`validarCambio`). Sin la tabla (migración pendiente) no hay vínculos que
+ * cuidar; si no se pudo leer, `null` y el candado rechaza por las dudas.
+ */
+export async function vinculosActivosDe(tenantId: string): Promise<number | null> {
+  const red = await leerRedDeLaFicha(tenantId);
+  return red.estado === "ok" ? red.red.vinculosActivos : red.estado === "sin-tabla" ? 0 : null;
+}
+
+/**
+ * La red de locales vista desde la ficha: los locales de este negocio (si es casa), a qué red
+ * pertenece (si es local) y cuántos vínculos tiene. Se lee en UNA transacción del operador con
+ * el GUC de cada negocio (`leerRedEnTx`): funciona con el rol exento y con `app_rls`.
+ * `sin-tabla` = la migración de CarteraCliente no está en la base; `error` = no se pudo leer.
+ * Cacheada por request: la ficha y el candado de módulos (`leerNegocioParaActivar`) la comparten.
+ */
+export const leerRedDeLaFicha = cache(
+  async (tenantId: string): Promise<{ estado: "ok"; red: RedEnLaFicha } | { estado: "sin-tabla" } | { estado: "error" }> => {
+    try {
+      return { estado: "ok", red: await operatorPrisma.$transaction((tx) => leerRedEnTx(tx, tenantId)) };
+    } catch (e) {
+      const code = (e as { code?: string } | null)?.code;
+      return code === "P2021" ? { estado: "sin-tabla" } : { estado: "error" };
+    }
+  },
+);
+
+/**
+ * De los candidatos a local de `casaId`, cuáles ya están en otra red y de qué casa (el nombre).
+ * Es comodidad del formulario: si no se pudo leer, se devuelve vacío y el rechazo llega al
+ * enviar, con el motivo, igual que antes.
+ */
+export async function candidatosEnOtraRed(ids: readonly string[], casaId: string): Promise<Map<string, string>> {
+  try {
+    const m = await operatorPrisma.$transaction((tx) => localesDeOtrasRedes(tx, ids, casaId));
+    return new Map([...m].map(([id, casas]) => [id, casas.map((c) => c.name).join(", ")]));
+  } catch {
+    return new Map();
+  }
 }

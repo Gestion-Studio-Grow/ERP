@@ -52,6 +52,12 @@ export interface NegocioParaActivar {
   carniceriaLista: boolean;
   /** Perfil activo, o `null` con el motor de perfiles apagado (hoy). */
   perfil: Perfil | null;
+  /**
+   * Filas de CarteraCliente de este negocio que no están de baja: los locales de su red (si es
+   * casa) o los clientes de su cartera (si es estudio). Decide si se puede tocar `multilocal`
+   * (`choqueConVinculos`). `null` = no se pudo leer; ausente = quien llama no lo leyó.
+   */
+  vinculosActivos?: number | null;
 }
 
 /** Los flags del deploy que deciden el gate (se leen del entorno en negocio.server.ts). */
@@ -106,6 +112,43 @@ function choqueDeExcluyentes(modules: readonly string[], registry: ModuleRegistr
     }
   }
   return null;
+}
+
+// ── Mis locales con vínculos adentro ─────────────────────────────────────────
+
+/**
+ * Las filas de CarteraCliente no dicen de quién son: las escribe la cartera del contador
+ * (clientes de un estudio) o la consola (locales de una casa), y el módulo del negocio es lo
+ * único que las distingue. La exclusión de arriba impide tener los dos módulos juntos; esto
+ * cierra el camino de a uno, que es el mismo daño en dos pasos: apagar la cartera de un estudio
+ * con clientes adentro y prenderle Mis locales dejaría a su dueña leyendo las ventas, la caja y
+ * el stock de esos clientes como si fueran sus locales.
+ *   · Prender Mis locales exige que el negocio no tenga vínculos activos: si los tiene, son de
+ *     una cartera (con Mis locales apagado nadie puede escribir locales, ver `vincularEnTx`).
+ *   · Apagar Mis locales exige dar de baja sus locales antes: así un negocio sin el módulo nunca
+ *     tiene locales colgando que después se lean como otra cosa.
+ * La cartera no cambia: prenderla con vínculos adentro sólo pasa si son suyos, siempre que
+ * Mis locales no se haya apagado con locales adentro. Sin el dato (`null`), se rechaza por las
+ * dudas; si quien llama no lo leyó (ausente), NO se decide acá.
+ *
+ * ⚠️ HOY ESTE CANDADO CORRE SÓLO EN LA VISTA PREVIA DE LA FICHA (page.tsx, con
+ * `leerNegocioParaActivar`). El confirmar del servidor, `toggleTenantModule` en
+ * src/lib/operator-actions.ts, llama a `validarCambio` sin `vinculosActivos` y acá eso pasa
+ * de largo: un POST armado a mano o dos operadores sobre la misma casa pueden apagar Mis
+ * locales con locales colgando. Se cierra cuando esa action le pase
+ * `vinculosActivos: await vinculosActivosDe(tenantId)` (negocio.server.ts); ese archivo es de
+ * la consola, no de Mis locales.
+ */
+function choqueConVinculos(cambio: CambioDeModulo, vinculos: number | null | undefined): string | null {
+  if (cambio.modulo !== "multilocal" || vinculos === undefined || vinculos === 0) return null;
+  if (vinculos === null) {
+    return "No se pudo leer si este negocio tiene vínculos con otros negocios. Recargá la ficha y probá de nuevo.";
+  }
+  const n = `${vinculos} ${vinculos === 1 ? "vínculo activo" : "vínculos activos"}`;
+  return cambio.accion === "desactivar"
+    ? `Tiene ${n} con sus locales: dalos de baja en «Red de locales» antes de apagar Mis locales, así no quedan vínculos colgando.`
+    : `Tiene ${n} con otros negocios que no son locales de una red (clientes de una cartera del contador). ` +
+        "Mis locales los leería como sus locales: primero hay que darlos de baja.";
 }
 
 // ── Apps que ve el negocio ───────────────────────────────────────────────────
@@ -262,13 +305,19 @@ export type PlanDeCambio =
  * volver a decidirlo con la base fresca: el botón deshabilitado no protege nada.
  */
 export function validarCambio(
-  n: Pick<NegocioParaActivar, "slug" | "blueprintId" | "modules">,
+  n: Pick<NegocioParaActivar, "slug" | "blueprintId" | "modules" | "vinculosActivos">,
   cambio: CambioDeModulo,
   registry: ModuleRegistry,
 ): PlanDeCambio {
   if (requiereOkDelDuenio(n.slug)) return { ok: false, motivo: MOTIVO_OK_DEL_DUENIO };
   if (!registry.buscar(cambio.modulo)) {
     return { ok: false, motivo: `El módulo "${cambio.modulo}" no existe en el catálogo.` };
+  }
+  // Sólo si el módulo cambia de verdad: re-activar lo que ya estaba no toca ningún vínculo.
+  const yaEsta = n.modules.includes(cambio.modulo);
+  if ((cambio.accion === "activar") !== yaEsta) {
+    const vinculos = choqueConVinculos(cambio, n.vinculosActivos);
+    if (vinculos) return { ok: false, motivo: vinculos };
   }
   const antes = [...n.modules];
   let plan;
