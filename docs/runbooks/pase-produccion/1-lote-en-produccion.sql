@@ -14,7 +14,7 @@ BEGIN;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20260815120000_lead_campania', '20260906120000_add_cash_method_libro_caja', '20260907120000_add_cash_movement_payment_id', '20260907180000_add_appointment_partial_collections', '20260911120000_profesional_cobra_en_mostrador')) THEN
-    RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se ensaya encima.';
+    RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
 

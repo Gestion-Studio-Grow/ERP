@@ -30,7 +30,7 @@ BEGIN;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN (${lista})) THEN
-    RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se ensaya encima.';
+    RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
 `;
