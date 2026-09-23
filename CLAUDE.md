@@ -59,42 +59,31 @@ recomendación ni un default cómodo: es norma dura, no salteable. Fundamento y 
 `docs/organizacion/factory-reforzada.md` (las dos capas + el loop de revisión) y
 `docs/organizacion/asignacion-modelos-sprint.md` (el mapa sesión→modelo y el criterio de asignación).
 
-**El porqué:** la medición de costo/uso mostró que Opus era la mayor parte del gasto pero mucho de eso
-era *ejecución delegable, no juicio*. La norma empuja la frontera Opus al núcleo de juicio y mueve el
-volumen a Sonnet, **sin bajar la calidad del control**: el Gate GSG nunca se degrada de modelo. Así se
-economiza donde no duele y se paga Opus solo donde un error es caro o irreversible.
+**Modelos: sólo Opus 5.5** (decisión del dueño, 2026-09-23). Reemplaza la economía de modelos
+anterior (Sonnet 5 por defecto, Opus 4.8 para alto juicio, subagentes en Sonnet o Haiku): **todo corre en
+Opus 5.5** (`claude-opus-5-5`) — sesiones, células, subagentes y workflows. `.claude/settings.json` fija
+`claude-opus-5-5` como modelo de la sesión; en un workflow se usa `model: 'opus'` o se omite (hereda);
+**nunca** `sonnet`, `haiku` ni `fable`. Mismo criterio en la factoría: `Factory-GSG/10-GOBIERNO/
+reglas-que-costaron-caro.md` §Modelos.
 
-### 1. Estructura de células por capa (se auto-abren al decir `sprint`)
-La factory tiene **dos capas**. Al invocar `sprint` se **abren automáticamente** las células, **cada una
-con su modelo asignado** (1 frente = 1 worktree = 1 sesión):
-- **Capa OPUS 4.8 — alto juicio** (caro de revertir · seguridad · plata · arquitectura · el gate):
-  **PMO / Arquitecto jefe · Auditoría GSG (el Gate) · Seguridad · Preset IA (Ingesta + Adaptación).**
-- **Capa SONNET 5 — ejecución** (volumen · reversible · criterio acotado):
-  **Probador interactivo · Adaptador para cliente · Plataforma/Deploy/Infra · Productos por rubro ·
-  Growth/Agencia Digital.**
+### 1. Estructura de células (se auto-abren al decir `sprint`)
+Al invocar `sprint` se **abren automáticamente** las células (1 frente = 1 worktree = 1 sesión), todas
+en Opus 5.5: **PMO / Arquitecto jefe · Auditoría GSG (el Gate) · Seguridad · Preset IA · Probador
+interactivo · Adaptador para cliente · Plataforma/Deploy/Infra · Productos por rubro · Growth/Agencia
+Digital.**
 
-### 2. Economía de modelos por defecto (regla dura)
-**Default = Sonnet 5** (`claude-sonnet-5`) para TODA la ejecución (implementación acotada, docs, UI de
-rubro, tests, exploración, provisioning). **Opus 4.8** (`claude-opus-4-8`) se reserva **solo** para la
-capa de alto juicio de arriba. Criterio: *¿un error acá es caro/difícil de revertir, o toca seguridad,
-plata, arquitectura o prod/Neon/deploy?* **Sí → Opus; no (la mayoría) → Sonnet.** Comandos: **`/economia`**
-(default, Sonnet) y **`/boost`** (todo Opus, sprints críticos de punta a punta) — ver
-`.claude/commands/economia.md` y `.claude/commands/boost.md`. Coherente con la prioridad de **costo sobre
-velocidad** del dueño. Los **subagentes** (Task/Workflow) corren en **Sonnet o Haiku, nunca Opus por
-herencia**.
+### 2. El flujo de cambios (orquestador + dos ingenieros)
+El trabajo de producto lo lleva el orquestador del flujo de cambios con dos ingenieros (plataforma y
+producto), todos en Opus 5.5 (`Factory-GSG/.claude/agents/gsg-orquestador-cambios.md`,
+`gsg-ingeniero-plataforma.md`, `gsg-ingeniero-producto.md`).
 
-### 3. 🛡️ La Auditoría GSG corre SIEMPRE en Opus (excepción dura, no negociable)
-El **Gate de Excelencia completo** (Auditoría SAP Fiori en **TODOS** sus ángulos + sello/estándar GSG)
-corre **SIEMPRE en Opus 4.8**, sin excepción, **incluso en modo `economia`** y aunque la ejecución del
-frente haya sido Sonnet. El control de calidad GSG **nunca se degrada de modelo**: al auditar/aprobar un
-entregable (incluidos los presets del generador por IA) se **escala a Opus** para la auditoría y se
-vuelve a Sonnet para ejecutar. Auditar con un modelo degradado sería ahorrar justo donde no se debe.
+### 3. 🛡️ La Auditoría GSG (el Gate) corre en Opus 5.5
+El **Gate de Excelencia completo** corre en Opus 5.5 como todo lo demás. El control de calidad no se
+degrada de modelo ni se saltea.
 
-### 4. Cada célula ETIQUETA su modelo explícitamente (no depende del default de la cuenta)
-Toda célula **declara y fija su modelo de forma explícita** (`/model opus` | `/model sonnet`, o el
-parámetro de modelo al despachar el subagente) según la capa de §1 — **nunca se apoya en el default de
-la cuenta ni lo asume**. Una sesión que arranca sin modelo declarado está **fuera de norma**: se corrige
-antes de trabajar. El **PMO verifica el etiquetado** al despachar cada frente.
+### 4. Cada célula declara su modelo
+Toda célula y todo subagente corre en Opus 5.5. Una sesión o un subagente en otro modelo está **fuera de
+norma** y se corrige antes de trabajar. El **PMO verifica** el modelo al despachar cada frente.
 
 ### 5. Nada se integra sin el Gate (y el preset exige autorización del cliente)
 **Ningún entregable pasa a `main` sin cruzar el Gate de Excelencia** (Auditoría SAP en todos los ángulos
@@ -143,8 +132,7 @@ escala) pasa por un par **tesis/antítesis** antes de adoptarse: el **Advisory B
 **Challenger (contrarian / red-team)** —mismos skills de alto nivel, **postura opuesta**— presenta el caso
 contrario, los riesgos, los supuestos débiles y las alternativas, con el mismo rigor. **Flujo:** Advisory
 **propone** → Challenger **desafía** → **síntesis/decisión del dueño**. **Regla dura: nada se adopta como
-fundamento sin pasar por el Challenger.** Corre en **Sonnet por defecto (ultra-ahorro)**; escala a **Opus**
-a pedido del dueño. Detalle y porqué: **`docs/adr/ADR-045-advisory-board-challenger-contrarian.md`**.
+fundamento sin pasar por el Challenger.** Corre en **Opus 5.5**. Detalle y porqué: **`docs/adr/ADR-045-advisory-board-challenger-contrarian.md`**.
 
 ## 🗣️ De-sesgo / comportamiento humano POR SECTOR (ADR-046)
 
@@ -162,7 +150,7 @@ funcionó/falló) · **skills/briefs** (prompts de las células)— y **2 cadenc
 sprint, por célula** (parte de la Definición de terminado): actualizar memoria + registrar 1 caso + proponer
 1 mejora breve de brief/skill; **(b)** **consolidación periódica** (semanal o cada N sprints): destilar casos
 en mejoras de skills/briefs, limpiar memoria, y **revisión Advisory + Challenger de las bases** (ADR-045).
-Corre en **Sonnet** (ultra-ahorro). Detalle: **`docs/adr/ADR-047-rutina-de-retroalimentacion.md`**.
+Corre en **Opus 5.5**. Detalle: **`docs/adr/ADR-047-rutina-de-retroalimentacion.md`**.
 
 ## 🏗️ Arquitecto de Solución — autoridad sobre lo REVERSIBLE (ADR-048)
 
@@ -171,8 +159,7 @@ baja el dueño: **REVERSIBLE** (doc-only, ADR/metodología, cableado interno, or
 NO-prod tras flag, blueprints, estructura de células) lo **decide y ejecuta solo**, con **1 línea de
 rationale** por decisión (log ligero, insumo de la retro ADR-047); **IRREVERSIBLE** (deploy, Neon/DB,
 seed/migraciones, secretos, permisos, marca de cliente, gasto/órdenes de impo) **arma la propuesta y la
-eleva al dueño**. **Regla de oro: ante la duda, se trata como irreversible.** Corre en **Sonnet** por
-defecto; escala a **Opus** en el borde reversible/irreversible o alto juicio. Detalle: **`docs/adr/ADR-048-arquitecto-de-solucion.md`** · charter operativo **`docs/organizacion/arquitecto-de-solucion.md`**.
+eleva al dueño**. **Regla de oro: ante la duda, se trata como irreversible.** Corre en **Opus 5.5**. Detalle: **`docs/adr/ADR-048-arquitecto-de-solucion.md`** · charter operativo **`docs/organizacion/arquitecto-de-solucion.md`**.
 
 ## 🎓 Protocolo de calibración universal — TODO agente calibra antes de actuar (ADR-052)
 
@@ -253,7 +240,7 @@ TODO desarrollo.** Checklist corto que cada frente tilda **antes de pushear**:
 
 Ítem que no aplica → **N/A + por qué**. Si no tilda los **4 bloques**, **no se integra**. Detalle completo
 en `docs/METODOLOGIA-SPRINT.md` → "GATE DE EXCELENCIA" (checklist para el handoff de PR/commit). La
-**Auditoría GSG que corre este Gate va SIEMPRE en Opus 4.8** (ver §3 del Modelo de trabajo, arriba).
+**Auditoría GSG que corre este Gate va en Opus 5.5** (ver §3 del Modelo de trabajo, arriba).
 
 ## 💸 CICLO DEMO → VENTA → INVERSIÓN — regla de gasto (OBLIGATORIA)
 
