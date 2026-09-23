@@ -5,14 +5,14 @@
 // POR QUÉ. Hasta acá cada pantalla sacaba el costo de un lado distinto: Inventario y Margen
 // del último `StockPurchaseItem`; el Catálogo de `Product.cost` y, si faltaba, de la última
 // compra. Los cortes que salen de un despiece entran por el registro de movimientos
-// (REPOSICION con costo, despiece-actions.ts) y nunca por una compra, así que Stock y Margen
+// (REPOSICION con costo, despiece-registro.ts) y nunca por una compra, así que Stock y Margen
 // los mostraban "sin costo" mientras el Catálogo sí les ponía uno. El vacío costaba una
 // cosa en una pantalla y otra en la de al lado.
 //
 // LA REGLA (una sola, acá):
 //   1. Si el producto tiene `Product.cost` (columna de la migración cárnica, que todavía no
 //      está en ninguna base medida), manda ése: lo pide el catálogo de la ola 2. Es el costo
-//      que fija la dueña a mano: el despiece ya NO la escribe (carniceria/despiece-actions.ts,
+//      que fija la dueña a mano: el despiece ya NO la escribe (carniceria/despiece-registro.ts,
 //      integración de la ola 2); su costo viaja en la REPOSICION y lo lee el punto 2. OJO: un
 //      `Product.cost` que un despiece haya escrito ANTES de ese cambio sigue ahí y sigue
 //      mandando hasta que la dueña lo cambie o lo borre.

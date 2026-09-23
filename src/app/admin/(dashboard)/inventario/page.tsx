@@ -324,6 +324,18 @@ function MermaDeLaSemana({
           reajustados: esa mercadería volvió, no sobró.
         </p>
       )}
+      {merma.excluidos.traslado > 0 && (
+        <p className="mt-2 text-xs text-faint">
+          {merma.excluidos.traslado === 1 ? "1 traslado" : `${merma.excluidos.traslado} traslados`} a otros locales: no{" "}
+          {merma.excluidos.traslado === 1 ? "es" : "son"} merma, la mercadería se mudó.
+        </p>
+      )}
+      {merma.excluidos.despiece > 0 && (
+        <p className="mt-2 text-xs text-faint">
+          {merma.excluidos.despiece === 1 ? "1 pieza despostada" : `${merma.excluidos.despiece} piezas despostadas`}: no{" "}
+          {merma.excluidos.despiece === 1 ? "es" : "son"} merma, se convirtieron en cortes.
+        </p>
+      )}
       {merma.truncado && (
         <p className="mt-2 text-xs text-warning">Hay más movimientos de los que entran en este resumen: la semana está incompleta.</p>
       )}

@@ -281,13 +281,19 @@ test("el asiento queda atado a la liquidación por la marca en createdBy", () =>
 });
 
 test("la fórmula de la comisión ya no está escrita a mano en ninguna de las dos puntas", () => {
-  const src = sinComentarios(leer("./commission-actions.ts"));
-  assert.ok(
-    !/\*\s*pct\s*\)\s*\/\s*100/.test(src),
-    "volvió la copia manual de la fórmula: las dos puntas tienen que llamar a calcularLiquidacion",
-  );
-  const usos = src.match(/calcularLiquidacion\(/g) ?? [];
-  assert.equal(usos.length, 2, "la pantalla de pendientes y la liquidación usan la MISMA función");
+  // El listado de pendientes se mudó a reports/comisiones.ts (una función pura que usan la
+  // pantalla, Reportes y el botón del Inicio): la liquidación queda en commission-actions.ts.
+  const liq = sinComentarios(leer("./commission-actions.ts"));
+  const pend = sinComentarios(leer("./reports/comisiones.ts"));
+  for (const src of [liq, pend]) {
+    assert.ok(
+      !/\*\s*pct\s*\)\s*\/\s*100/.test(src),
+      "volvió la copia manual de la fórmula: las dos puntas tienen que llamar a calcularLiquidacion",
+    );
+  }
+  assert.equal((liq.match(/calcularLiquidacion\(/g) ?? []).length, 1, "la liquidación");
+  assert.equal((pend.match(/calcularLiquidacion\(/g) ?? []).length, 1, "los pendientes");
+  assert.match(liq, /leerComisionesPendientes\(prisma, tenantId\)/, "el listado sale de la misma lectura que el botón");
 });
 
 test("la base de la comisión es lo COBRADO, nunca el precio de lista", () => {
@@ -295,7 +301,7 @@ test("la base de la comisión es lo COBRADO, nunca el precio de lista", () => {
   // cobrado. Si alguien alimentara la base con `service.price`, la profesional cobraría
   // comisión sobre plata que no entró.
   const src = leer("./commission-actions.ts");
-  const bases = src.match(/base: [^,\n]+/g) ?? [];
+  const bases = [...(src.match(/base: [^,\n]+/g) ?? []), ...(leer("./reports/comisiones.ts").match(/base: [^,\n]+/g) ?? [])];
   assert.ok(bases.length >= 2, "las dos puntas arman los turnos para el cálculo");
   for (const b of bases) assert.match(b, /payment\.amount/, `base tomada de otro lado: ${b}`);
 });

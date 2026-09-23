@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
+import { TRASLADO_ACTOR_PREFIX } from "@/lib/multilocal/traslado-core";
 import { hrefMovimientos, leerFiltros, nombreDelTipo, quienHizo, usuarioDe } from "./movimientos";
 
 test("filtros: sólo tipos y días que existen; un rango al revés se da vuelta", () => {
@@ -37,5 +38,7 @@ test("quién: el nombre del usuario, el sistema, o la anulación/edición con su
   assert.equal(quienHizo("user:u9", nombres), "un usuario dado de baja");
   assert.equal(quienHizo(`${ANULACION_VENTA_ACTOR_PREFIX}user:u1`, nombres), "Carla (anulación de venta)");
   assert.equal(quienHizo(`${EDICION_ACTOR_PREFIX}user:u1`, nombres), "Carla (pedido reajustado)");
+  // Un traslado lo firma la casa: en el local ese usuario no existe, y no fue "el sistema".
+  assert.equal(quienHizo(`${TRASLADO_ACTOR_PREFIX}user:u1`, nombres), "traslado de la casa");
   assert.equal(nombreDelTipo("DEVOLUCION_PROVEEDOR"), "Devolución a proveedor");
 });

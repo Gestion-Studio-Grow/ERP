@@ -254,7 +254,8 @@ export const MAGRA: MagraContent = {
   valueProps: [
     { glyph: "→", title: "Free Shipping", text: "¡Te lo llevamos a tu casa sin costo!" },
     { glyph: "◆", title: "Calidad premium", text: "100% Garantizada. Productos seleccionados envasados." },
-    { glyph: "▣", title: "Todos los medios de pago", text: "Efectivo, crédito, débito, transferencia bancaria y Mercado Pago" },
+    // El local no cobra con tarjeta (la caja no tiene el medio): no se promete crédito ni débito.
+    { glyph: "▣", title: "Medios de pago", text: "Efectivo, transferencia bancaria y Mercado Pago" },
     { glyph: "✳", title: "Atención personalizada", text: "Dudas, pedidos o antojos: ¡escribinos por WhatsApp!" },
   ],
 
@@ -299,7 +300,7 @@ export const MAGRA: MagraContent = {
     "En MAGRA ofrecemos una selección de carnes premium envasadas al vacío de los mejores proveedores, además de productos gourmet para acompañar tus comidas. Servicio puerta a puerta en Canning.",
 
   deliveryZones: ["Canning", "San Vicente", "Guernica", "Ezeiza", "Monte Grande"],
-  paymentMethods: "Efectivo, crédito, débito, transferencia bancaria y Mercado Pago",
+  paymentMethods: "Efectivo, transferencia bancaria y Mercado Pago",
   copyright: "© 2025 MAGRA Meat Market. Todos los derechos reservados.",
 };
 

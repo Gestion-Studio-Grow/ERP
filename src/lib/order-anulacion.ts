@@ -49,7 +49,13 @@ import { formatearCantidad } from "@/lib/pos-peso";
 import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { fmtMoneyARS } from "@/components/ui/format";
-import { descuentoDelAjuste } from "@/lib/venta-reglas";
+import {
+  descuentoDelAjuste,
+  envioDeLasLineas,
+  leerCuponDelPedido,
+  whereCuponDelPedido,
+  type CuponDelPedido,
+} from "@/lib/venta-reglas";
 import type { AlcanceDeAnulacion } from "@/lib/capabilities";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -623,21 +629,26 @@ export function lineasDelAjuste(
 /**
  * Subtotal y total de un pedido reajustado. PURA.
  *
- * El descuento que tenía conserva su PORCENTAJE, no sus pesos (`descuentoDelAjuste`, en
+ * El descuento a mano conserva su PORCENTAJE, no sus pesos (`descuentoDelAjuste`, en
  * src/lib/venta-reglas.ts, que es la misma cuenta que muestra la pantalla antes de guardar).
  * Conservar los pesos dejaba que una pesada a la baja subiera el % hasta el 100 % y pasara
- * el tope de recepción.
+ * el tope de recepción. El de un CUPÓN (`antes.cupon`, la regla que escribió el alta) se
+ * vuelve a calcular con la regla del cupón: el de monto fijo sigue siendo fijo.
  */
 export function totalesDelAjuste(
   lineas: readonly { lineTotal: number }[],
-  aMano: readonly { lineTotal: number }[],
-  antes: { descuento: number; subtotal: number },
+  aMano: readonly { lineTotal: number; productId?: string | null; name?: string | null }[],
+  antes: { descuento: number; subtotal: number; cupon?: CuponDelPedido | null },
 ): { subtotal: number; descuento: number; total: number } {
   const subtotal = round2([...lineas, ...aMano].reduce((s, l) => s + l.lineTotal, 0));
+  // El envío de la tienda (una línea sin producto que el ajuste no toca) no es base del
+  // descuento: el cupón se calculó sobre lo que se compra (`envioDeLasLineas`, venta-reglas.ts).
   const { descuento } = descuentoDelAjuste({
     descuentoAntes: antes.descuento,
     subtotalAntes: antes.subtotal,
     subtotalNuevo: subtotal,
+    envio: envioDeLasLineas(aMano),
+    cupon: antes.cupon ?? null,
   });
   return { subtotal, descuento, total: round2(subtotal - descuento) };
 }
@@ -775,6 +786,19 @@ export async function ajustarPedidoInTx(
   });
   if (!plan.ok || !order) throw new Error(mensajeEdicionRechazada(plan.ok ? "no-existe" : plan.motivo));
 
+  // ¿El descuento vino de un cupón? Su regla (% o fijo) la escribió el alta en su misma
+  // transacción (`registrarCuponDelPedidoEnTx`). Sólo se busca si hay descuento: el pedido
+  // sin descuento no suma una lectura. Sin fila, el descuento es a mano y conserva su %.
+  const filaCupon =
+    order.discount > 0
+      ? await tx.auditLog.findFirst({
+          where: whereCuponDelPedido(tenantId, id),
+          orderBy: { createdAt: "desc" },
+          select: { changes: true },
+        })
+      : null;
+  const cupon = leerCuponDelPedido(filaCupon?.changes);
+
   // Stock por DELTA. Va ANTES de reescribir las líneas: si un aumento de peso no tiene
   // stock, el ledger lanza, la tx se aborta entera y el pedido queda como estaba.
   //
@@ -840,8 +864,9 @@ export async function ajustarPedidoInTx(
     ],
   });
 
-  // El descuento conserva el % con el que se cargó la venta (`totalesDelAjuste`).
-  const t = totalesDelAjuste(lines, aMano, { descuento: order.discount, subtotal: order.subtotal });
+  // El descuento a mano conserva el % con el que se cargó la venta; el cupón, su regla
+  // (`totalesDelAjuste`).
+  const t = totalesDelAjuste(lines, aMano, { descuento: order.discount, subtotal: order.subtotal, cupon });
   await tx.order.updateMany({
     where: { tenantId, id },
     data: { subtotal: t.subtotal, discount: t.descuento, total: t.total },

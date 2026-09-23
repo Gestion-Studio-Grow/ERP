@@ -80,7 +80,10 @@ export async function planProvision(input: ProvisionTenantInput, deps: PlanDeps)
     { kind: "tenant", label: "Tenant", detail: `${name || "(sin nombre)"} · /${slug || "(sin slug)"}` },
     { kind: "owner", label: "Usuario OWNER", detail: email || "(sin email)" },
     { kind: "settings", label: "BusinessSettings", detail: "branding/localización del negocio" },
-    { kind: "catalog", label: "Catálogo del blueprint", detail: `sembrado por "${blueprint.id}" si el tenant está vacío` },
+    // Un local de una red nace sin el catálogo de ejemplo: recibe la lista de la casa.
+    ...(input.sinCatalogo
+      ? []
+      : [{ kind: "catalog" as const, label: "Catálogo del blueprint", detail: `sembrado por "${blueprint.id}" si el tenant está vacío` }]),
   ];
 
   return {

@@ -66,8 +66,9 @@ const COMO_CH: NegocioParaActivar = {
 test("activar inventario en magra: con el Inicio por apps gana Stock y las apps de stock, sin perder nada", () => {
   const v = vistaPreviaDeCambio(MAGRA, { accion: "activar", modulo: "inventario" }, SIN_PILOTO, cat);
   assert.ok(v.ok);
-  // La lista EXACTA, en el orden del espacio: las de la ola 1 más las que sumó el frente de
-  // stock en la ola 2 (Movimientos, Recuento y Proveedores), todas colgando de `inventario`.
+  // La lista EXACTA, en el orden del espacio: las de la ola 1, las que sumó el frente de stock
+  // en la ola 2 (Movimientos, Recuento y Proveedores) y el Sugerido de compra de la ola 3,
+  // todas colgando de `inventario`.
   assert.deepEqual(ids(v.conInicio.gana), [
     "inventario",
     "movimientos",
@@ -75,6 +76,7 @@ test("activar inventario en magra: con el Inicio por apps gana Stock y las apps 
     "mermas",
     "recibir-mercaderia",
     "proveedores",
+    "sugerido-de-compra",
     "lotes-y-vencimientos",
     "despiece",
   ]);
@@ -181,12 +183,12 @@ test("cartera y multilocal no pueden estar juntos, en ningún orden", () => {
 test("multilocal abre las apps de Mis locales, con el Inicio por apps y sin él", () => {
   const v = vistaPreviaDeCambio({ ...MAGRA, vinculosActivos: 0 }, { accion: "activar", modulo: "multilocal" }, SIN_PILOTO, cat);
   assert.ok(v.ok);
-  const misLocales = ["mis-locales", "ventas-por-local", "cajas-de-los-locales", "stock-por-local"];
+  const misLocales = ["mis-locales", "ventas-por-local", "cajas-de-los-locales", "stock-por-local", "catalogo-de-la-marca", "traslados"];
   assert.deepEqual(ids(v.conInicio.gana), misLocales);
   assert.deepEqual(v.conInicio.pierde, []);
   // Son `moduloDuro`: aun fuera del piloto (sin gate), se abren apenas se confirma.
   assert.deepEqual(ids(v.alConfirmar.gana), misLocales);
-  assert.equal(appsPorModulo().get("multilocal"), 4);
+  assert.equal(appsPorModulo().get("multilocal"), 6);
   // En un negocio de servicios, Stock por local no aplica (es de mostrador).
   const estetica = vistaPreviaDeCambio({ ...ESTETICA, vinculosActivos: 0 }, { accion: "activar", modulo: "multilocal" }, SIN_PILOTO, cat);
   assert.ok(estetica.ok);
@@ -228,8 +230,9 @@ test("magra hoy: fuera del Inicio por apps, y con su asignación perdería apps 
   assert.equal(e.enInicioPorApps, false);
   const pierde = e.conInicioFrenteAlMenu.pierde;
   // La lista EXACTA: una app de más acá es una pantalla que magra dejaría de ver sin que nadie
-  // lo decida. Fuera de stock, Campañas y Facturación automática; de stock, las de la ola 1 y
-  // las que sumó el frente de stock en la ola 2 (Movimientos, Recuento y Proveedores).
+  // lo decida. Fuera de stock, Campañas, Facturación automática y Retenciones (las dos de
+  // bancos); de stock, las de la ola 1, las que sumó el frente de stock en la ola 2
+  // (Movimientos, Recuento y Proveedores) y el Sugerido de compra de la ola 3.
   assert.deepEqual(ids(pierde).sort(), [
     "campanias",
     "despiece",
@@ -241,6 +244,8 @@ test("magra hoy: fuera del Inicio por apps, y con su asignación perdería apps 
     "proveedores",
     "recibir-mercaderia",
     "recuento",
+    "retenciones-y-percepciones",
+    "sugerido-de-compra",
   ]);
   // Pierde sólo apps de módulos que no tiene asignados (y nunca las de Mis locales: sin
   // `multilocal` no las ve ni hoy).

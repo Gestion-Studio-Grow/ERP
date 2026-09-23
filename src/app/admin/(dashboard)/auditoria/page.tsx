@@ -21,6 +21,7 @@ import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { CIERRE_DIARIO_ENTITY } from "@/lib/caja/frontera-cierre";
 import { ACCION_CAMBIO_DE_PRECIO, ACCION_ETIQUETA_IMPRESA, resumenDeFilaDePrecio } from "@/lib/catalogo/precios-auditoria";
 import { fmtMoneyARS } from "@/components/ui/format";
+import { ACCION_CUPON_DEL_PEDIDO } from "@/lib/venta-reglas";
 
 const actionLabel: Record<string, string> = {
   create: "Creó",
@@ -38,6 +39,8 @@ const actionLabel: Record<string, string> = {
   // Catálogo y precios (precios-auditoria.ts): una fila por producto.
   [ACCION_CAMBIO_DE_PRECIO]: "Cambió el precio del",
   [ACCION_ETIQUETA_IMPRESA]: "Imprimió la etiqueta del",
+  // La regla del cupón de un pedido, que el alta escribe para poder pesarlo (order-core.ts).
+  [ACCION_CUPON_DEL_PEDIDO]: "Guardó el cupón del",
 };
 
 const entityLabel: Record<string, string> = {

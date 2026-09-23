@@ -2,6 +2,7 @@
 
 import { createCoupon, toggleCouponActive, deleteCoupon } from "@/lib/coupon-actions";
 import { useToast } from "../ToastProvider";
+import { fmtShortDate } from "@/lib/datetime";
 import { Input, Select, buttonClasses } from "@/components/ui";
 
 type Coupon = {
@@ -27,7 +28,7 @@ function CouponRow({ c }: { c: Coupon }) {
           {label} de descuento
           {c.maxUses != null && ` · ${c.usedCount}/${c.maxUses} usos`}
           {c.maxUses == null && c.usedCount > 0 && ` · usado ${c.usedCount} veces`}
-          {c.expiresAt && ` · vence ${new Date(c.expiresAt).toLocaleDateString("es-AR")}`}
+          {c.expiresAt && ` · vence ${fmtShortDate(c.expiresAt)}`}
         </span>
       </div>
       <div className="flex flex-wrap gap-2">

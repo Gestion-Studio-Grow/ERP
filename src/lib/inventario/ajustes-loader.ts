@@ -15,14 +15,16 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { filtroDeAjustables } from "@/lib/stock/adjustment-core";
 import { leerCostosVigentes } from "@/lib/inventory/inventory-loader";
 import { effectiveCategoria, CORTE_CATEGORIAS, type CorteCategoria } from "@/lib/carniceria/cortes";
+import { SIN_TRASLADOS } from "@/lib/multilocal/traslado-core";
 import { armarGondolas, type Gondola, type ProductoARecontar } from "./recuento";
 
 // --- Mermas ---
 //
 // Productos ajustables (activos, no borrados) con su stock actual, y los últimos movimientos
-// de AJUSTE para el histórico. `productoPreelegido` (el `?producto=` del "Recontar" del
-// catálogo) entra a la lista AUNQUE esté inactivo (`filtroDeAjustables`). Nunca sale del
-// negocio: el `where` lleva `tenantId`.
+// de AJUSTE para el histórico, sin los de un traslado entre locales (`SIN_TRASLADOS`): un
+// traslado no es mercadería perdida y su remito se ve en Traslados. `productoPreelegido` (el
+// `?producto=` del "Recontar" del catálogo) entra a la lista AUNQUE esté inactivo
+// (`filtroDeAjustables`). Nunca sale del negocio: el `where` lleva `tenantId`.
 export async function getAdjustmentData(productoPreelegido?: string) {
   await requireCapability("stock:read");
   const tenantId = await getCurrentTenantId();
@@ -33,7 +35,7 @@ export async function getAdjustmentData(productoPreelegido?: string) {
       select: { id: true, name: true, unit: true, stock: true, active: true },
     }),
     prisma.stockMovement.findMany({
-      where: { tenantId, type: "AJUSTE" },
+      where: { tenantId, type: "AJUSTE", ...SIN_TRASLADOS },
       orderBy: { createdAt: "desc" },
       take: 15,
       select: {

@@ -88,9 +88,11 @@ test("adentro de una transacción: UNA consulta con el negocio escrito, y el flo
 
 test("el despiece no pisa Product.cost: una compra posterior del mismo corte le gana a su costo", async () => {
   const { readFileSync } = await import("node:fs");
-  const src = readFileSync("src/lib/carniceria/despiece-actions.ts", "utf8");
+  // La escritura del despiece vive en despiece-registro.ts (registrarDespieceEnTx): cada corte
+  // entra con SU costo (valor relativo, despiece.ts), no con un costo parejo por kilo.
+  const src = readFileSync("src/lib/carniceria/despiece-registro.ts", "utf8");
   assert.ok(!/UPDATE\s+"Product"\s+SET\s+"cost"/i.test(src), "el despiece volvió a escribir Product.cost");
-  assert.match(src, /type: "REPOSICION",[\s\S]{0,80}unitCost: analysis\.costPerSellableKg/, "su costo viaja en la REPOSICION");
+  assert.match(src, /type: "REPOSICION",[\s\S]{0,80}unitCost: e\.unitCost/, "su costo viaja en la REPOSICION");
   // Con Product.cost vacío (nadie lo fijó a mano), manda el último ingreso: la compra del 20
   // le gana al despiece del 15. Si el despiece hubiera escrito Product.cost, ganaría el 9100.
   const corte: IngresosLeidos = {

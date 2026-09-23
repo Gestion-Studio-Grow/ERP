@@ -10,7 +10,7 @@ import { mustChangePasswordFor } from "@/lib/must-change-password";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getProductoContexto } from "@/lib/producto";
 import { getActiveProfile } from "@/lib/profile-gating";
-import { hasCarniceriaSchema } from "@/lib/carniceria/schema-probe";
+import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
@@ -68,7 +68,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     // cacheadas por request y `getNegocioApps` (que necesita el rol) las encuentra listas
     // en vez de esperarlas en serie.
     getContextoApps(),
-    hasCarniceriaSchema(),
+    lotesYDespieceListos(),
     // Ficha de marca (RFC-004-D) — solo si el flag está ON; si no, ni se consulta.
     useSheet ? getBrandSheet() : Promise.resolve(null),
     // Color del equipo elegido en /admin/apariencia (Tenant.accentPreset).

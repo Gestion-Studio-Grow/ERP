@@ -6,7 +6,8 @@
 // `requireApp(id)` en la PÁGINA (no en el layout, que Next no re-renderiza al navegar del
 // lado del cliente). Estos tests recorren las páginas REALES de src/app/admin/(dashboard):
 //
-//   1. TRINQUETE: la cantidad de páginas sin `requireApp` no puede subir. Hoy son 34 (todas).
+//   1. TRINQUETE: la cantidad de páginas sin `requireApp` no puede subir. Eran 34 (todas); ver
+//      LIMITE_PAGINAS_SIN_REQUIRE_APP.
 //      Cada frente la agrega en sus páginas; una página nueva sin guardia rompe el test.
 //   2. Toda página pertenece a una app del registro (salvo /admin/modulos, que sale).
 //   3. Si una página llama a `requireApp`, es con el id de SU app: proteger la app vecina
@@ -26,9 +27,11 @@ import { appDeRuta } from "./rutas";
 
 /**
  * Páginas en (dashboard) sin requireApp. Sólo puede bajar. Eran 34 al arrancar la ola 1;
- * medido en la integración de la ola 2: 24.
+ * medido en la integración de la ola 2: 24; en la de la ola 3: 11 (apariencia, auditoria,
+ * caja, caja/libro, campania, facturacion/bancos, facturacion/bancos/configuracion,
+ * localizacion, modulos, el Inicio y usuarios).
  */
-const LIMITE_PAGINAS_SIN_REQUIRE_APP = 24;
+const LIMITE_PAGINAS_SIN_REQUIRE_APP = 11;
 
 /** Páginas que no son de ninguna app, con el motivo. */
 const SIN_APP: Record<string, string> = {
@@ -104,10 +107,6 @@ const GUARDIA_EN_EL_LOADER: Record<string, { archivo: string; funcion: string }>
   "/admin/auditoria": { archivo: "src/lib/audit.ts", funcion: "getAuditLog" },
   "/admin/caja": { archivo: "src/lib/cierre-diario-actions.ts", funcion: "getCierreDiarioData" },
   "/admin/caja/libro": { archivo: "src/lib/libro-caja-actions.ts", funcion: "getLibroCajaData" },
-  "/admin/clientes": { archivo: "src/lib/actions.ts", funcion: "getClients" },
-  "/admin/espera": { archivo: "src/lib/waitlist-actions.ts", funcion: "getWaitlist" },
-  "/admin/recordatorios": { archivo: "src/lib/reminders-actions.ts", funcion: "getReminderPanelData" },
-  "/admin/resenas": { archivo: "src/lib/reviews-actions.ts", funcion: "getReviews" },
 };
 
 test("GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)", () => {

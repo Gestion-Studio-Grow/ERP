@@ -235,24 +235,29 @@ test("el formulario de compras pregunta cómo se pagó y no deja registrar sin e
   );
 });
 
-test("la Server Action pasa el medio elegido a insertStockPurchase", () => {
-  const action = leer("../stock-actions.ts");
-  const desde = action.indexOf("export async function createStockPurchase");
-  assert.ok(desde > 0, "stock-actions.ts ya no exporta createStockPurchase");
+// La Server Action de Recibir mercadería es `recibirMercaderia` (compras/actions.ts); la que
+// estaba en stock-actions.ts (`createStockPurchase`) se borró en la ola 3, sin llamadores. Lo
+// que decide (el pago y las líneas) se EJECUTA en compras/recibir.test.ts (`pagoDeLaRecepcion`,
+// `lineasDeLaRecepcion`); acá queda la forma: que la acción use esas funciones y audite.
+function cuerpoDeLaAccion(): string {
+  const action = leer("../../app/admin/(dashboard)/compras/actions.ts");
+  const desde = action.indexOf("export async function recibirMercaderia");
+  assert.ok(desde > 0, "compras/actions.ts ya no exporta recibirMercaderia");
   const sig = action.indexOf("\nexport ", desde + 1);
-  const cuerpo = action.slice(desde, sig === -1 ? undefined : sig);
-  assert.match(cuerpo, /parseCashMethod\(formData\.get\("pago"\)\)/, "el medio se lee del formulario");
-  assert.match(cuerpo, /pago: \{ estado: "PAGADA" as const, method \}/, "y se le pasa a insertStockPurchase");
+  return action.slice(desde, sig === -1 ? undefined : sig);
+}
+
+test("la Server Action pasa el medio elegido a insertStockPurchase", () => {
+  const cuerpo = cuerpoDeLaAccion();
+  assert.match(cuerpo, /pagoDeLaRecepcion\(kind, conCostos, \{\s*pago: formData\.get\("pago"\)/, "el medio se lee del formulario");
+  assert.match(cuerpo, /insertStockPurchase\(tenantId, \{\s*kind,\s*\.\.\.\(pago \? \{ pago \} : \{\}\)/, "y se le pasa a insertStockPurchase");
 });
 
 test("la Server Action AUDITA el asiento de caja de la compra", () => {
   // `purchase-core.ts` afirmaba por escrito que "la Server Action lo audita" y no lo hacía.
   // `medioAsumido` es lo único que distingue un medio elegido de uno asumido: sin eso en la
   // auditoría, no hay manera de reconstruir después por qué una fila salió por esa columna.
-  const action = leer("../stock-actions.ts");
-  const desde = action.indexOf("export async function createStockPurchase");
-  const sig = action.indexOf("\nexport ", desde + 1);
-  const cuerpo = action.slice(desde, sig === -1 ? undefined : sig);
+  const cuerpo = cuerpoDeLaAccion();
   assert.match(cuerpo, /egresoAsentado/);
   assert.match(cuerpo, /egresoMedioAsumido/);
   assert.match(cuerpo, /egresoMotivo/, "y por qué NO se asentó, cuando no se asienta");
@@ -320,10 +325,12 @@ test("un costo ilegible frena la compra con mensaje en vez de asentar un egreso 
 });
 
 test("la Server Action de compras lee con las funciones de pos-peso, no con Number()", () => {
-  const action = leer("../stock-actions.ts");
-  const desde = action.indexOf("function parseLines");
-  assert.ok(desde > 0, "no encontré parseLines en stock-actions.ts");
-  const cuerpo = action.slice(desde, action.indexOf("\n}\n", desde));
+  // Las líneas las lee `lineasDeLaRecepcion` (purchase-core.ts, ejecutada en recibir.test.ts).
+  assert.match(cuerpoDeLaAccion(), /items: lineasDeLaRecepcion\(/);
+  const core = leer("./purchase-core.ts");
+  const desde = core.indexOf("export function lineasDeLaRecepcion");
+  assert.ok(desde > 0, "no encontré lineasDeLaRecepcion en purchase-core.ts");
+  const cuerpo = core.slice(desde, core.indexOf("\n}\n", desde));
   assert.match(cuerpo, /cantidadDelFormulario\(/);
   assert.match(cuerpo, /importeDelFormulario\(/);
   assert.doesNotMatch(cuerpo, /Number\(/, "volvió un Number() crudo: '12.500' de costo se lee 12,5");

@@ -11,10 +11,13 @@
 >   (`prisma/pending-gate2/CarniceriaRubro.sql:52-70`) y ninguna venta los descuenta, ni está atado a la
 >   compra de origen (sólo `supplierId`). Lo que hay es la **lista de lotes ordenada por vencimiento**
 >   (`lotes-actions.ts:48`). **"Vence primero, sale primero" (FEFO) en la venta NO existe.**
-> - **Despiece: la pieza de entrada no se descuenta.** `despiece-actions.ts:123-137` suma el stock de cada
->   corte y les pone a todos el mismo costo por kilo (`costPerSellableKg`, `despiece.ts:51-56`, que reparte
->   parejo por kilo y no por valor de venta). La media res es un texto (`inputName`), no sale de ningún
->   stock. Los errores se tragan (`despiece-actions.ts:143`).
+> - **Despiece: corregido en la ola 3 (sin desplegar; sólo corre con la migración cárnica aplicada).** Lo
+>   que decía acá (la pieza de entrada no se descontaba, costo parejo por kilo, errores tragados) ya no es
+>   cierto en el código: `registrarDespieceEnTx` (`carniceria/despiece-registro.ts`) saca la pieza del stock
+>   como AJUSTE a su costo y entra cada corte como REPOSICION con su costo repartido por valor de venta
+>   (`planDelDespiece`, `despiece.ts`), en una transacción; la acción (`despiece-actions.ts`) devuelve el
+>   error con su motivo en vez de tragarlo. El cambio de costeo mueve los márgenes de MAGRA: hay que
+>   avisarle antes de desplegarlo (decisión del dueño).
 > - **Pedidos: entregar no pide cobro.** Medido en `HEAD` 9c9f2f5: `advanceOrderStatus` pasa un pedido de
 >   "Listo" a "Entregado" sin mirar si está cobrado (`order-actions.ts:348-363`, con el flujo de
 >   `STATUS_FLOW`, `:52-59`), y en "Cerrados recientes" el pedido queda sin botones

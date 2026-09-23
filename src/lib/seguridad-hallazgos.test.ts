@@ -25,10 +25,24 @@ test("A-1 · auth: sin AUTH_SECRET en producción, rompe (no firma con una clave
 });
 
 test("A-1 · operador: el plano cross-tenant también falla cerrado", () => {
+  // Desde 5f7314e el secreto del operador vive en `operatorSecret()`: en producción exige
+  // OPERATOR_SECRET (distinta de AUTH_SECRET) y tira si falta; la cadena con el fallback de
+  // desarrollo sólo se alcanza DESPUÉS de ese bloque. La decisión se EJECUTA en
+  // operator-auth.test.ts ("producción: sin OPERATOR_SECRET, o igual a AUTH_SECRET, falla
+  // cerrado"); acá queda la forma, para que nadie suba el fallback arriba del bloque.
   const src = leer("src/lib/operator-auth.ts");
-  assert.ok(!/\?\?\s*"dev-operator-secret"\s*;/.test(src.replace(/return "dev-operator-secret";/, "")),
-    "operator-auth.ts volvió al fallback en la cadena de secretos.");
-  assert.match(src, /NODE_ENV === "production"/);
+  const inicio = src.indexOf("function operatorSecret(");
+  assert.ok(inicio >= 0, "operator-auth.ts ya no tiene operatorSecret()");
+  const cuerpo = src.slice(inicio, src.indexOf("\n}\n", inicio));
+  const prod = cuerpo.indexOf('if (process.env.NODE_ENV === "production") {');
+  assert.ok(prod >= 0, "operatorSecret() perdió el bloque de producción");
+  const fallback = cuerpo.search(/\?\?\s*"dev-operator-secret"/);
+  assert.ok(fallback === -1 || fallback > prod, "operator-auth.ts volvió al fallback en la cadena de secretos antes del bloque de producción.");
+  const bloque = cuerpo.slice(prod, fallback === -1 ? undefined : fallback);
+  assert.match(bloque, /throw new Error\("OPERATOR_SECRET no está configurado/, "en producción, sin OPERATOR_SECRET, tira");
+  assert.match(bloque, /return propio;/, "en producción devuelve SÓLO el secreto propio");
+  // Fuera de operatorSecret() no hay otra cadena con el fallback.
+  assert.ok(!/\?\?\s*"dev-operator-secret"/.test(src.replace(cuerpo, "")), "apareció otra cadena con el fallback fuera de operatorSecret()");
 });
 
 // ── C-1 · la liquidación de comisiones no puede pagar dos veces ─────────────

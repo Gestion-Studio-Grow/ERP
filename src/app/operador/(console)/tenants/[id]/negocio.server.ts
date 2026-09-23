@@ -14,7 +14,7 @@
 import "server-only";
 import { cache } from "react";
 import { operatorPrisma } from "@/lib/operator-db";
-import { resolveRubroId } from "@/blueprints/retail/rubros";
+import { resolveRubroId, rubroConPerecederos } from "@/blueprints/retail/rubros";
 import { moduleRegistryEnabled, profilesEnabled } from "@/modules/flags";
 import type { Perfil } from "@/modules/perfil";
 import { leerRedEnTx, localesDeOtrasRedes, type RedEnLaFicha } from "@/lib/multilocal/multilocal-core";
@@ -26,8 +26,8 @@ export function flagsDeApps(): FlagsDeApps {
 }
 
 /**
- * ¿Está aplicada la migración cárnica? Misma pregunta que `hasCarniceriaSchema`, pero por la
- * conexión del operador: la de la app corre con el negocio del request y acá no hay uno.
+ * ¿Está aplicada la migración cárnica? La mitad "migración" de `lotesYDespieceListos`, pero por
+ * la conexión del operador: la de la app corre con el negocio del request y acá no hay uno.
  * Cualquier error → false (se esconden lotes y despiece, igual que en el panel).
  */
 async function carniceriaLista(): Promise<boolean> {
@@ -64,14 +64,18 @@ export async function leerNegocioParaActivar(tenantId: string): Promise<NegocioP
   });
   if (!t) return null;
   const [lotesListos, perfil, vinculosActivos] = await Promise.all([carniceriaLista(), perfilDe(t.id), vinculosActivosDe(t.id)]);
+  const rubroId = resolveRubroId({ slug: t.slug, blueprintId: t.blueprintId });
   return {
     id: t.id,
     slug: t.slug,
     blueprintId: t.blueprintId,
     modules: t.modules,
     // El mismo criterio que la barra: blueprint retail conocido o, si no hay, el slug.
-    esMostrador: resolveRubroId({ slug: t.slug, blueprintId: t.blueprintId }) != null,
-    carniceriaLista: lotesListos,
+    esMostrador: rubroId != null,
+    // Lo mismo que el panel (`lotesYDespieceListos`): la migración Y un rubro que vende
+    // perecederos. Sin lo segundo, la vista previa le mostraba Lotes y Despiece a Shine y a
+    // A Dos Manos, que no los ven.
+    carniceriaLista: lotesListos && rubroConPerecederos(rubroId),
     perfil,
     vinculosActivos,
   };

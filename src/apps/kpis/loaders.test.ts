@@ -10,6 +10,7 @@ import { businessWallTimeToUtc } from "@/lib/datetime";
 import { bordesDelPeriodo } from "@/lib/report-ingresos";
 import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
 import { filtrosFacturacionMes } from "@/lib/bancos-glue";
+import { whereVentasDelPeriodo } from "@/lib/reports/ventas-mostrador-lectura";
 import { LOADERS_KPI } from "./loaders.server";
 import { pedidos, vender, whereVentasDeHoy } from "./mostrador.server";
 import { cajaDelDia, cierreDelDia, facturacion, reportes, resumirCierre } from "./finanzas.server";
@@ -68,18 +69,29 @@ function ctx(db: DbKpi, extra: Partial<ContextoLoader> = {}): ContextoLoader {
 }
 
 /**
- * Consultas por loader (el máximo). Todas 1 (regla 8 de la arquitectura), salvo tres
- * excepciones decididas por plataforma, cada una con su porqué en el loader:
+ * Consultas por loader (el máximo). Todas 1 (regla 8 de la arquitectura), salvo estas
+ * excepciones, aceptadas por plataforma, cada una con su porqué en el loader:
  *   · cierre-del-dia, 2: la frontera del cierre es el corte inicial Y el último cierre, las dos
  *     lecturas de la pantalla (frontera-cierre.ts); ver finanzas.server.ts.
  *   · facturacion, 2: el total y los rechazados salen de un groupBy por estado, y "anuladas con
  *     factura" es un filtro por relación que un groupBy no expresa; ver finanzas.server.ts.
  *   · mermas, 3: los ajustes del mes, quiénes son recepción ("N por recepción") y, sólo con
  *     plata, la venta cobrada del mes ("% de la venta"), en paralelo; ver logistica.server.ts.
+ *   · etiquetas-de-precio, 2: los cambios salen de la auditoría y "sigue en el catálogo con
+ *     precio" del producto, sin relación entre las dos tablas; la segunda sólo con algo
+ *     pendiente. Con la base vacía hace 1: el camino de 2 lo recorre su test, abajo.
+ *   · para-contactar-hoy, 2: la bandeja misma = fichas con su actividad + constancias de
+ *     contacto y permiso, en paralelo; ver comercial.server.ts.
  * Los cuatro de Mis locales hacen UNA con el `db` del request (¿hay locales?); la red de cada
  * local la lee su action en su propia transacción, fuera de este conteo (locales.server.ts).
  */
-const CONSULTAS_ESPERADAS: Record<string, number> = { "cierre-del-dia": 2, facturacion: 2, mermas: 3 };
+const CONSULTAS_ESPERADAS: Record<string, number> = {
+  "cierre-del-dia": 2,
+  facturacion: 2,
+  mermas: 3,
+  "etiquetas-de-precio": 2,
+  "para-contactar-hoy": 2,
+};
 
 test("cada loader hace UNA consulta (salvo las excepciones declaradas) y todas filtran por el negocio", async () => {
   const ids = Object.keys(LOADERS_KPI);
@@ -100,6 +112,16 @@ test("cada loader hace UNA consulta (salvo las excepciones declaradas) y todas f
       }
     }
   }
+});
+
+test("Etiquetas con algo pendiente: 2 consultas (la excepción declarada), las dos con el negocio", async () => {
+  const { db, llamadas } = dbFalsa({
+    "auditLog.groupBy": [{ entityId: "p1", action: "cambio-de-precio", _max: { createdAt: new Date("2026-09-20T10:00:00Z") } }],
+    "product.findMany": [{ id: "p1", deletedAt: null, saleUnit: "UNIT", price: 4000, pricePerKg: null }],
+  });
+  assert.deepEqual(await LOADERS_KPI["etiquetas-de-precio"](ctx(db)), { valor: "1", detalle: "precio cambió y no se reimprimió" });
+  assert.equal(llamadas.length, CONSULTAS_ESPERADAS["etiquetas-de-precio"]);
+  for (const l of llamadas) assert.equal(l.args.where?.tenantId, "t-qa");
 });
 
 test("Pedidos: '3 abiertos' con el where de la bandeja, y los entregados sin cobrar en alerta", async () => {
@@ -233,7 +255,7 @@ test("Stock: bajo el mínimo (sólo lo que controla stock) y sin costo, con las 
   });
 });
 
-test("Reportes: el período y el where de la pantalla; en un mostrador, '—' con el porqué", async () => {
+test("Reportes: el período y el where de la pantalla; en un mostrador, las ventas cobradas del período", async () => {
   const { db, llamadas } = dbFalsa({ "payment.aggregate": { _sum: { amount: 250000 } } });
   const dato = await reportes(ctx(db, { esMostrador: false }));
   const { desde, hasta } = bordesDelPeriodo("2026-09-23", DEFAULT_REPORT_RANGE_DAYS, businessWallTimeToUtc);
@@ -245,9 +267,9 @@ test("Reportes: el período y el where de la pantalla; en un mostrador, '—' co
   assert.ok(dato && "valor" in dato);
   assert.match(dato.valor, /250\.000/);
 
-  const mostrador = dbFalsa();
-  assert.deepEqual(await reportes(ctx(mostrador.db)), { sinDato: "Las ventas del mostrador se ven en el libro de caja" });
-  assert.equal(mostrador.llamadas.length, 0);
+  const mostrador = dbFalsa({ "order.aggregate": { _count: { _all: 3 }, _sum: { total: 45000 } } });
+  assert.deepEqual(await reportes(ctx(mostrador.db)), { valor: "$45.000", detalle: "vendido en el mostrador en 3 ventas, últimos 90 días" });
+  assert.deepEqual(mostrador.llamadas[0].args.where, whereVentasDelPeriodo("t-qa", "2026-09-23", DEFAULT_REPORT_RANGE_DAYS).where);
 });
 
 test("Facturación: el mes de la facturación automática y del contador, con los rechazados aparte", async () => {
@@ -278,11 +300,6 @@ test("Campañas: si la tabla no está en la base, '—' con el motivo; cualquier
  * su loader en src/apps/kpis/<dominio>.server.ts y lo saca de acá.
  */
 const SIN_LOADER_TODAVIA = [
-  "agenda",
-  "clientes",
-  "lista-de-espera",
-  "resenas",
-  "recordatorios",
   "libro-de-caja",
   "cuentas-a-pagar",
   "cuentas-a-cobrar",

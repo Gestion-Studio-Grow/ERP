@@ -91,7 +91,8 @@ export const MAGRA_REPLICA: SiteReplicaData = {
   benefits: [
     { title: "Free Shipping", text: "¡Te lo llevamos a tu casa sin costo!" },
     { title: "Calidad premium", text: "100% Garantizada. Productos seleccionados envasados." },
-    { title: "Todos los medios de pago", text: "Efectivo, crédito, débito, transferencia bancaria y Mercado Pago" },
+    // El local no cobra con tarjeta (la caja no tiene el medio): no se promete crédito ni débito.
+    { title: "Medios de pago", text: "Efectivo, transferencia bancaria y Mercado Pago" },
     { title: "Atención personalizada", text: "Dudas, pedidos o antojos: ¡escribinos por WhatsApp!" },
   ] as Benefit[],
   gourmetTitle: "Productos gourmet",

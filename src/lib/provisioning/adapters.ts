@@ -96,6 +96,8 @@ export function adr019Committer(prisma: PrismaClient): TenantCommitter {
         timezone: e.timezone,
         owner: { name: input.admin.name, email: input.admin.email, password: input.admin.password },
         blueprint: plan.blueprint.id,
+        // Un local que nace dentro de una red no lleva el catálogo de ejemplo del rubro.
+        skipCatalog: input.sinCatalogo === true,
         branding: {
           shortLabel: e.shortLabel,
           addressLine: e.addressLine,

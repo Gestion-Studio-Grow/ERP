@@ -120,7 +120,7 @@ export interface NegocioApps {
   perfil: Perfil | null;
   /** ¿Local de mostrador? (`resolveRubroId(tenant) != null`, el mismo dato que la barra). */
   esMostrador: boolean;
-  /** ¿Está aplicada la migración cárnica? (`hasCarniceriaSchema`). */
+  /** ¿Lotes y despiece listos: migración cárnica aplicada y rubro de perecederos? (`lotesYDespieceListos`). */
   carniceriaLista: boolean;
 }
 
@@ -374,7 +374,9 @@ export function explicarNoDisponible(
           : app.rubro === "mostrador"
             ? "Esta app es para locales de mostrador, que venden productos con stock."
             : n.esMostrador
-              ? "Todavía no está habilitada en tu negocio: falta preparar la base para lotes y despiece."
+              ? // Un mostrador sin la app: o su rubro no vende perecederos (velas, pádel) o la base
+                // todavía no tiene lotes y despiece. El texto vale para los dos casos.
+                "Esta app es para negocios que venden mercadería que vence, como una carnicería, y no está habilitada en el tuyo."
               : "Esta app es para carnicerías.";
       return { titulo, porque, aQuien: pedido };
     }

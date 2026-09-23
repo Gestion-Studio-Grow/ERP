@@ -45,7 +45,7 @@ export type ShellItem = {
   grupo?: NavGroupId;
   // Eje RUBRO (Magra carnicería/retail). `retailOnly`: solo tenants retail/mostrador →
   // NO se muestra en servicios (CH byte-idéntico). `carniceriaOnly`: además exige la
-  // migración cárnica aplicada (hasCarniceriaSchema). AdminShell los filtra por
+  // migración cárnica aplicada y un rubro de perecederos (lotesYDespieceListos). AdminShell los filtra por
   // isRetail/carniceriaReady; el gating por-URL los trata como su `module` (catalog).
   // Ambos default undefined → los ítems base no cambian.
   retailOnly?: boolean;
@@ -151,7 +151,7 @@ export const ALL_ITEMS: ShellItem[] = [
 export interface RubroGateCtx {
   /** ¿Es un local de MOSTRADOR? (`getCurrentTenantRubro().isRetail`, layout.tsx:54). */
   isRetail: boolean;
-  /** ¿Está aplicada la migración cárnica? (`hasCarniceriaSchema`). */
+  /** ¿Lotes y despiece listos: migración cárnica aplicada y rubro de perecederos? (`lotesYDespieceListos`). */
   carniceriaReady: boolean;
 }
 

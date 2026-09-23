@@ -137,12 +137,16 @@ test("Etiquetas: '14 precios cambiaron y no se reimprimieron', con el where y la
   const grupos = [];
   for (let i = 0; i < 20; i++) grupos.push({ entityId: `p${i}`, action: ACCION_CAMBIO_DE_PRECIO, _max: { createdAt: new Date("2026-09-20T10:00:00Z") } });
   for (let i = 0; i < 6; i++) grupos.push({ entityId: `p${i}`, action: ACCION_ETIQUETA_IMPRESA, _max: { createdAt: new Date("2026-09-21T10:00:00Z") } });
-  const { db, llamadas } = dbFalsa({ "auditLog.groupBy": grupos });
+  // El botón cuenta lo que la lista muestra (`pendientesEnLaLista`): los 14 pendientes (p6 a
+  // p19) siguen en el catálogo y con precio.
+  const conPrecio = (id: string) => ({ id, deletedAt: null, saleUnit: "UNIT", price: 1000, pricePerKg: null });
+  const catorce = Array.from({ length: 14 }, (_, i) => conPrecio(`p${i + 6}`));
+  const { db, llamadas } = dbFalsa({ "auditLog.groupBy": grupos, "product.findMany": catorce });
   assert.deepEqual(await etiquetasDePrecio(ctx(db)), { valor: "14", detalle: "precios cambiaron y no se reimprimieron" });
   assert.deepEqual(llamadas[0].args.where, whereAuditoriaDeEtiquetas("t-magra"));
   assert.deepEqual(llamadas[0].args.by, ["entityId", "action"]);
 
-  const uno = dbFalsa({ "auditLog.groupBy": [grupos[0]] });
+  const uno = dbFalsa({ "auditLog.groupBy": [grupos[0]], "product.findMany": [conPrecio("p0")] });
   assert.deepEqual(await etiquetasDePrecio(ctx(uno.db)), { valor: "1", detalle: "precio cambió y no se reimprimió" });
   const nada = dbFalsa();
   assert.deepEqual(await etiquetasDePrecio(ctx(nada.db)), { valor: "0", detalle: "precios para reimprimir" });

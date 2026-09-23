@@ -124,6 +124,8 @@ test("piloto: el gate saca sólo lo no asignado; con inventario, bancos y campa�
     "proveedores",
     "recibir-mercaderia",
     "recuento",
+    "retenciones-y-percepciones",
+    "sugerido-de-compra",
   ]);
   const conInventario = negocio({
     role: "OWNER",
@@ -308,7 +310,7 @@ test("appsVisibles sale ordenada por espacio y, adentro, por el orden decidido",
   );
   assert.deepEqual(
     ids(visibles.filter((a) => a.espacio === "stock")),
-    ["inventario", "movimientos", "recuento", "mermas", "recibir-mercaderia", "proveedores", "lotes-y-vencimientos", "despiece"],
+    ["inventario", "movimientos", "recuento", "mermas", "recibir-mercaderia", "proveedores", "sugerido-de-compra", "lotes-y-vencimientos", "despiece"],
   );
   // El primer espacio se llama según el rubro.
   assert.equal(nombreDeEspacio("mostrador", { esMostrador: true }), "Mostrador");

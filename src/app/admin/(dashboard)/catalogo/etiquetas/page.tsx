@@ -7,13 +7,15 @@ import { fmtDateTime, todayInBusinessTz } from "@/lib/datetime";
 import { cargarEstadoEtiquetas, cargarProductosParaPrecios } from "@/lib/catalogo/precios-lectura";
 import { gondolaDe, precioDeVenta } from "@/lib/catalogo/aumento-core";
 import { EmptyState, PageHeader, buttonClasses, fmtNumberAR } from "@/components/ui";
+import { pendientesEnLaLista } from "@/apps/kpis/precios.server";
 import Etiquetas, { type ProductoEtiqueta } from "./Etiquetas";
 
 export const dynamic = "force-dynamic";
 
 // ETIQUETAS DE PRECIO. Arranca con lo que hay que reimprimir: los productos cuyo precio cambió
 // después de su última etiqueta impresa (precios-auditoria.ts). El número de arriba es el
-// mismo que el del botón del Inicio: sale de la misma consulta y la misma cuenta.
+// mismo que el del botón del Inicio: la misma consulta de auditoría y la misma cuenta
+// (`pendientesEnLaLista`, src/apps/kpis/precios.server.ts).
 export default async function EtiquetasPage() {
   await requireApp("etiquetas-de-precio");
   const tenantId = await getCurrentTenantId();
@@ -44,11 +46,11 @@ export default async function EtiquetasPage() {
       },
     ];
   });
-  const pendientesTotal = estado.pendientes.size;
-  const pendientesVisibles = conPrecio.filter((p) => p.cambioPendiente !== null).length;
-  // El número del botón cuenta también un producto que después se borró o se quedó sin
-  // precio: acá se dice aparte, para que los dos números sigan siendo el mismo.
-  const fueraDeLista = pendientesTotal - pendientesVisibles;
+  // El titular cuenta lo que la lista muestra (no borrado y con precio), con la MISMA función
+  // que el botón del Inicio: los dos dicen el mismo número. Lo que cambió de precio y después
+  // se borró o se quedó sin precio no lleva etiqueta: se dice aparte, entre paréntesis.
+  const pendientesVisibles = pendientesEnLaLista(estado.pendientes, productos);
+  const fueraDeLista = estado.pendientes.size - pendientesVisibles;
 
   return (
     <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
@@ -62,15 +64,15 @@ export default async function EtiquetasPage() {
         }
       />
       <p className="-mt-2 mb-6 text-sm text-body">
-        <span className={pendientesTotal > 0 ? "font-semibold text-strong" : undefined}>
-          {pendientesTotal === 0
+        <span className={pendientesVisibles > 0 ? "font-semibold text-strong" : undefined}>
+          {pendientesVisibles === 0
             ? "Todas las etiquetas están al día."
-            : `${fmtNumberAR(pendientesTotal)} ${pendientesTotal === 1 ? "precio cambió y no se reimprimió" : "precios cambiaron y no se reimprimieron"}.`}
+            : `${fmtNumberAR(pendientesVisibles)} ${pendientesVisibles === 1 ? "precio cambió y no se reimprimió" : "precios cambiaron y no se reimprimieron"}.`}
         </span>
         {fueraDeLista > 0 && (
           <span className="text-muted">
             {" "}
-            ({fmtNumberAR(fueraDeLista)} ya no {fueraDeLista === 1 ? "está" : "están"} en el catálogo o no {fueraDeLista === 1 ? "tiene" : "tienen"} precio.)
+            ({fueraDeLista === 1 ? "Otro cambió" : `Otros ${fmtNumberAR(fueraDeLista)} cambiaron`} de precio y ya no {fueraDeLista === 1 ? "está" : "están"} en el catálogo o no {fueraDeLista === 1 ? "tiene" : "tienen"} precio: no {fueraDeLista === 1 ? "lleva" : "llevan"} etiqueta.)
           </span>
         )}
         {estado.ultimaImpresion && <span className="text-muted"> Última impresión: {fmtDateTime(estado.ultimaImpresion)}.</span>}

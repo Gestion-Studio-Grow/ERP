@@ -54,6 +54,11 @@ export interface ProvisionTenantInput {
   empresa?: EmpresaData;
   brandSheet?: BrandSheet;
   admin: AdminUser;
+  /**
+   * Alta SIN el catálogo de ejemplo del blueprint (un local que nace dentro de una red recibe la
+   * lista de la casa). Default: se siembra, como siempre. Lo lee el committer (`skipCatalog`).
+   */
+  sinCatalogo?: boolean;
   mode: ProvisionMode;
   /** Clave de idempotencia de la ORQUESTACIÓN (cubre toda la saga; distinta del slug). */
   idempotencyKey: string;

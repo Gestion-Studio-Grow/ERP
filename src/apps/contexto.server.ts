@@ -23,7 +23,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { logger } from "@/lib/logger";
 import type { Role } from "@/lib/capabilities";
 import { getActiveProfile } from "@/lib/profile-gating";
-import { hasCarniceriaSchema } from "@/lib/carniceria/schema-probe";
+import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { resolveRubroId } from "@/blueprints/retail/rubros";
 import { catalogo } from "@/modules/catalog";
 import { moduleRegistryEnabled, appsInicioValor } from "@/modules/flags";
@@ -75,7 +75,7 @@ export const getNegocioApps = cache(async (role: Role): Promise<NegocioApps> => 
     leerTenant(),
     getContextoApps(),
     getActiveProfile(),
-    hasCarniceriaSchema(),
+    lotesYDespieceListos(),
   ]);
   return {
     role,

@@ -10,6 +10,7 @@
 // Sin imports de servidor: lo usan la página, el loader y los tests.
 
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
+import { TRASLADO_ACTOR_PREFIX } from "@/lib/multilocal/traslado-core";
 
 export const TIPOS_DE_MOVIMIENTO = ["VENTA", "COMPRA", "REPOSICION", "CONSUMO", "AJUSTE", "DEVOLUCION_PROVEEDOR"] as const;
 export type TipoDeMovimiento = (typeof TIPOS_DE_MOVIMIENTO)[number];
@@ -90,6 +91,9 @@ export function usuarioDe(createdBy: string): string | null {
 
 /** Quién hizo el movimiento, para leer: el nombre, o "el sistema", y si fue una anulación. PURA. */
 export function quienHizo(createdBy: string, nombres: ReadonlyMap<string, string>): string {
+  // Un traslado entre locales lo firma la casa ("traslado:user:<id de la casa>"): en el local
+  // ese usuario no existe, y el motivo ya nombra el remito.
+  if (createdBy.startsWith(TRASLADO_ACTOR_PREFIX)) return "traslado de la casa";
   const id = usuarioDe(createdBy);
   const nombre = id ? (nombres.get(id) ?? "un usuario dado de baja") : "el sistema";
   if (createdBy.startsWith(ANULACION_VENTA_ACTOR_PREFIX)) return `${nombre} (anulación de venta)`;

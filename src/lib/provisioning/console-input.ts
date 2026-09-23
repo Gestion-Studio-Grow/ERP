@@ -53,6 +53,12 @@ export interface RawWizardForm {
   hoursLabel?: string;
   shortLabel?: string;
   contactNote?: string;
+  // Paso 3 · Red de locales (opcional)
+  /**
+   * Un local que nace dentro de una red (Mis locales) no lleva el catálogo de ejemplo del rubro:
+   * nace vacío y recibe la lista de la casa. Sólo el valor `true` lo activa.
+   */
+  sinCatalogo?: boolean;
 }
 
 /** Normaliza la edición del form (default: comercio) — canal neutro, nunca lite/enterprise (C-004). */
@@ -114,6 +120,7 @@ export function buildProvisionInput(
       name: clean(raw.ownerName),
       email: (raw.ownerEmail ?? "").trim(),
     },
+    sinCatalogo: raw.sinCatalogo === true,
     mode,
     idempotencyKey: consoleIdempotencyKey(slug),
   };

@@ -182,8 +182,10 @@ test("ya no queda ningún relleno con EFECTIVO en las acciones de cobro", () => 
   assert.doesNotMatch(orderActions, /:\s*"EFECTIVO"\s*;/);
 });
 
-test("setOrderPaidCore cobra sólo lo que no estaba cobrado (updateMany con paid:false)", () => {
-  const cuerpo = cuerpoDe(orderActions, "async function setOrderPaidCore(");
-  assert.match(cuerpo, /updateMany\(\{\s*where:\s*\{\s*id,\s*tenantId,\s*paid:\s*false\s*\}/);
+test("el cobro de un pedido (botón «Cobrar» y aviso de Mercado Pago) cobra sólo lo que no estaba cobrado (updateMany con paid:false)", () => {
+  // `setOrderPaidCore` (order-actions.ts) y el aviso de pago usan el mismo cuerpo: cobrarPedidoEnTx.
+  assert.match(cuerpoDe(orderActions, "async function setOrderPaidCore("), /cobrarPedidoEnTx\(/);
+  const cuerpo = cuerpoDe(orderCore, "export async function cobrarPedidoEnTx(");
+  assert.match(cuerpo, /updateMany\(\{\s*where:\s*\{\s*id:\s*args\.orderId,\s*tenantId,\s*paid:\s*false\s*\}/);
   assert.doesNotMatch(cuerpo, /tx\.order\.update\(/);
 });

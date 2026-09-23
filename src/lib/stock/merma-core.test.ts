@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { buildReason } from "./adjustment-core";
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { MOTIVO_STOCK_INICIAL } from "./alta-producto";
+import { motivoDeDespiece } from "@/lib/carniceria/despiece";
 import {
   clasificarAjuste,
   cortesEnNegativo,
@@ -136,6 +137,15 @@ test("merma de 1,5 kg y un recuento con faltante: renglones SEPARADOS, en kg y e
   assert.equal(r.sobrante.movimientos, 0, "la devolución de la anulación NO aparece como sobrante");
   assert.equal(r.excluidos["devolucion-anulacion"], 1);
   assert.deepEqual(r.mermaPorMotivo.Merma, { kg: 1.5, unidades: 0 });
+});
+
+test("la pieza que entra a un despiece no es merma ni 'Otro': se convirtió en cortes", () => {
+  const pieza = mov({ productId: "vacio", qty: -100, reason: motivoDeDespiece(3, "Media res") });
+  assert.deepEqual(clasificarAjuste(pieza), { clase: "EXCLUIDO", porQue: "despiece" });
+  const r = resumirMerma([pieza, mov({ productId: "vacio", qty: -1.5, reason: buildReason("MERMA", null) })], PRODUCTOS);
+  assert.equal(r.excluidos.despiece, 1);
+  assert.equal(r.otro.movimientos, 0, "antes figuraba como 'Otro' negativo en el tablero");
+  assert.equal(r.merma.kg, 1.5, "la merma de verdad sigue contando");
 });
 
 test("un corte sin costo queda 'sin costo' (no $0) y no entra al ranking en pesos: se nombra aparte", () => {
