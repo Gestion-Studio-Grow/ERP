@@ -45,6 +45,11 @@ import {
   type DayKey,
 } from "@/lib/caja/cierre-diario";
 import { validarMotivo, mensajeMotivoInvalido } from "@/lib/turnos/anulacion";
+import { formatearCantidad } from "@/lib/pos-peso";
+import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
+import { BUSINESS_TIMEZONE } from "@/lib/business-config";
+import { fmtMoneyARS } from "@/components/ui/format";
+import { descuentoDelAjuste } from "@/lib/venta-reglas";
 import type { AlcanceDeAnulacion } from "@/lib/capabilities";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -524,10 +529,117 @@ export function mensajeEdicionRechazada(motivo: MotivoEdicionRechazada): string 
   }
 }
 
-/** Detalle del movimiento de stock que deja escrito el reajuste de peso. */
+/** Detalle del movimiento de stock que deja escrito el reajuste de peso. Con coma: "0,74". */
 export function detalleStockAjustadoPorEdicion(code: number, nombre: string, delta: number): string {
   const que = delta > 0 ? "salen" : "vuelven";
-  return `Peso real del pedido #${code} · ${nombre}: ${que} ${Math.abs(delta)}`;
+  return `Peso real del pedido #${code} · ${nombre}: ${que} ${formatearCantidad(Math.abs(delta))}`;
+}
+
+/** Una línea del pedido tal como está guardada (el snapshot de la venta). */
+export type LineaGuardada = {
+  productId: string | null;
+  name: string;
+  saleUnit: "UNIT" | "WEIGHT";
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+/** El producto como lo lee el reajuste: con su precio de hoy y si hoy se puede vender. */
+export type ProductoDelAjuste = {
+  id: string;
+  name: string;
+  saleUnit: "UNIT" | "WEIGHT";
+  price: number | null;
+  pricePerKg: number | null;
+  trackStock: boolean;
+  /** Activo, no borrado. Un producto que dejó de venderse no se SUMA, pero el que ya estaba se pesa. */
+  vendible: boolean;
+};
+
+export type LineaDelAjuste = {
+  productId: string;
+  name: string;
+  saleUnit: "UNIT" | "WEIGHT";
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  trackStock: boolean;
+};
+
+/**
+ * Las líneas nuevas de un pedido que se pesa y ajusta. PURA.
+ *
+ * EL PRECIO ES EL DEL PEDIDO, NO EL DE HOY. Antes el reajuste rearmaba las líneas con el
+ * precio del catálogo del momento de pesar: si la dueña aumentaba el vacío entre el pedido
+ * del jueves y el envasado del sábado, el cliente pagaba el aumento sobre un precio que ya le
+ * habían dicho. Lo que cambia al pesar es el PESO; el precio por kilo queda el que se
+ * congeló al tomar el pedido (ADR-009 §4). Sólo un producto que NO estaba en el pedido entra
+ * con el precio de hoy, y sólo si hoy se vende.
+ *
+ * Y LAS LÍNEAS CON PRECIO A MANO SE CONSERVAN tal cual: no tienen producto, así que el
+ * formulario no las manda, y reescribir el pedido sin ellas cobraría de menos en silencio.
+ */
+export function lineasDelAjuste(
+  existentes: readonly LineaGuardada[],
+  productos: readonly ProductoDelAjuste[],
+  pedidas: readonly { productId: string; qty: number }[],
+): { lineas: LineaDelAjuste[]; aMano: LineaGuardada[] } {
+  const porId = new Map(productos.map((p) => [p.id, p]));
+  const lineas: LineaDelAjuste[] = [];
+  for (const w of pedidas) {
+    if (!w.productId || !(w.qty > 0) || !Number.isFinite(w.qty)) continue;
+    const p = porId.get(w.productId);
+    if (!p) continue;
+    const antes = existentes.find((e) => e.productId === w.productId);
+    let unitPrice: number;
+    let name: string;
+    let saleUnit: "UNIT" | "WEIGHT";
+    if (antes) {
+      unitPrice = antes.unitPrice;
+      name = antes.name;
+      saleUnit = antes.saleUnit;
+    } else {
+      const hoy = p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price;
+      if (!p.vendible || hoy == null || !(hoy > 0)) continue;
+      unitPrice = hoy;
+      name = p.name;
+      saleUnit = p.saleUnit;
+    }
+    const quantity = round3(w.qty);
+    lineas.push({
+      productId: p.id,
+      name,
+      saleUnit,
+      quantity,
+      unitPrice,
+      lineTotal: round2(quantity * unitPrice),
+      trackStock: p.trackStock,
+    });
+  }
+  return { lineas, aMano: existentes.filter((e) => e.productId == null) };
+}
+
+/**
+ * Subtotal y total de un pedido reajustado. PURA.
+ *
+ * El descuento que tenía conserva su PORCENTAJE, no sus pesos (`descuentoDelAjuste`, en
+ * src/lib/venta-reglas.ts, que es la misma cuenta que muestra la pantalla antes de guardar).
+ * Conservar los pesos dejaba que una pesada a la baja subiera el % hasta el 100 % y pasara
+ * el tope de recepción.
+ */
+export function totalesDelAjuste(
+  lineas: readonly { lineTotal: number }[],
+  aMano: readonly { lineTotal: number }[],
+  antes: { descuento: number; subtotal: number },
+): { subtotal: number; descuento: number; total: number } {
+  const subtotal = round2([...lineas, ...aMano].reduce((s, l) => s + l.lineTotal, 0));
+  const { descuento } = descuentoDelAjuste({
+    descuentoAntes: antes.descuento,
+    subtotalAntes: antes.subtotal,
+    subtotalNuevo: subtotal,
+  });
+  return { subtotal, descuento, total: round2(subtotal - descuento) };
 }
 
 /**
@@ -558,6 +670,191 @@ export function deltasDeStock(
   return [...acum.entries()]
     .map(([productId, delta]) => ({ productId, delta: round3(delta) }))
     .filter((d) => d.delta !== 0);
+}
+
+export type AjustarPedidoArgs = {
+  orderId: string;
+  /** Lo que mandó el formulario: producto y cantidad, ya leída con coma (`parseItems`). */
+  pedidas: readonly { productId: string; qty: number }[];
+  /** "user:<id>": firma los movimientos de stock del reajuste. */
+  actor: string;
+  /**
+   * ¿Un aumento de peso de un producto con esta unidad puede dejar el stock en negativo? Lo
+   * decide el LLAMADOR con `permiteVenderSinStock` (contexto EDICION_PESO_REAL), igual que
+   * `insertOrder` recibe la lista ya decidida: acá se ejecuta, no se infiere la excepción.
+   */
+  permiteNegativo: (saleUnit: string) => boolean;
+};
+
+export type AjustarPedidoResult = {
+  code: number;
+  /** Total antes del reajuste. */
+  antes: number;
+  descuentoAntes: number;
+  subtotal: number;
+  descuento: number;
+  total: number;
+};
+
+/**
+ * Reescribe un pedido no cobrado con el peso real, dentro de la tx del llamador: líneas,
+ * totales y stock son todo-o-nada. Lo usa `updateOrderItems`; vive acá (y no en la action)
+ * para que un test lo corra entero con una base falsa y mire QUÉ se escribe.
+ *
+ * `registrarStock` se inyecta sólo para los tests: por defecto es el ledger real.
+ */
+export async function ajustarPedidoInTx(
+  tx: AnulacionVentaTx,
+  tenantId: string,
+  args: AjustarPedidoArgs,
+  registrarStock: typeof recordMovement = recordMovement,
+): Promise<AjustarPedidoResult> {
+  const id = args.orderId;
+  const order = await tx.order.findFirst({
+    where: { tenantId, id },
+    select: {
+      id: true,
+      code: true,
+      status: true,
+      paid: true,
+      subtotal: true,
+      total: true,
+      discount: true,
+      items: {
+        select: {
+          productId: true,
+          name: true,
+          saleUnit: true,
+          quantity: true,
+          unitPrice: true,
+          lineTotal: true,
+          product: { select: { trackStock: true } },
+        },
+      },
+    },
+  });
+
+  // La invariante dura: si el pedido ya tiene plata asentada, no se edita. Se chequea
+  // contra el LIBRO, no contra el flag `paid` (ver `planEdicionDeLineas`).
+  const asiento = order
+    ? await tx.cashMovement.findFirst({ where: { tenantId, orderId: id }, select: { id: true } })
+    : null;
+
+  // Sin el filtro de activo: un corte que ya estaba en el pedido se pesa aunque hoy se
+  // haya dejado de vender. Lo que NO estaba en el pedido sólo entra si hoy se vende
+  // (`vendible`, lo decide `lineasDelAjuste`).
+  const products = order
+    ? await tx.product.findMany({
+        where: { id: { in: args.pedidas.map((l) => l.productId) }, tenantId },
+        select: {
+          id: true,
+          name: true,
+          saleUnit: true,
+          price: true,
+          pricePerKg: true,
+          trackStock: true,
+          active: true,
+          deletedAt: true,
+        },
+      })
+    : [];
+  // El precio es el del PEDIDO (el snapshot), no el del catálogo de hoy; y las líneas con
+  // precio a mano se conservan. El porqué, en `lineasDelAjuste`.
+  const { lineas: lines, aMano } = lineasDelAjuste(
+    order?.items ?? [],
+    products.map((p) => ({ ...p, vendible: p.active && p.deletedAt == null })),
+    args.pedidas,
+  );
+
+  const plan = planEdicionDeLineas({
+    existe: Boolean(order),
+    paid: Boolean(order?.paid),
+    status: String(order?.status ?? ""),
+    tieneAsientoDeCaja: Boolean(asiento),
+    lineasValidas: lines.length + aMano.length,
+  });
+  if (!plan.ok || !order) throw new Error(mensajeEdicionRechazada(plan.ok ? "no-existe" : plan.motivo));
+
+  // Stock por DELTA. Va ANTES de reescribir las líneas: si un aumento de peso no tiene
+  // stock, el ledger lanza, la tx se aborta entera y el pedido queda como estaba.
+  //
+  // Salvo (MAG-4) cuando el aumento es de un producto POR PESO: el paquete ya se pesó y
+  // está en la mano, y que pese más de lo que el sistema cree es justamente el caso que
+  // esta edición viene a corregir. Ahí la VENTA sale aunque el stock quede en negativo.
+  // La unidad sale de `lines`, que se armó con el Product leído en ESTA tx, no del
+  // formulario. Las devoluciones (delta < 0, AJUSTE positivo) no pasan por la guarda.
+  for (const d of deltasDeStock(
+    order.items.map((it) => ({
+      productId: it.productId,
+      quantity: it.quantity,
+      trackStock: Boolean(it.product?.trackStock),
+    })),
+    lines.map((l) => ({ productId: l.productId, quantity: l.quantity, trackStock: l.trackStock })),
+  )) {
+    // El nombre sale de la línea nueva o, si el producto se SACÓ del pedido, del
+    // snapshot de la vieja: un movimiento de stock que dice "producto" no se investiga.
+    const nombre =
+      lines.find((l) => l.productId === d.productId)?.name ??
+      order.items.find((it) => it.productId === d.productId)?.name ??
+      "producto";
+    await registrarStock(tx, {
+      tenantId,
+      productId: d.productId,
+      // Más peso del estimado → sale como VENTA (con la guarda anti-oversell). Menos
+      // peso → vuelve como AJUSTE positivo, el mismo tipo que usa la anulación mientras
+      // el enum de stock no tenga un valor propio para la devolución.
+      type: d.delta > 0 ? "VENTA" : "AJUSTE",
+      qty: d.delta > 0 ? d.delta : round3(-d.delta),
+      orderId: id,
+      createdBy: `${EDICION_ACTOR_PREFIX}${args.actor}`,
+      reason: detalleStockAjustadoPorEdicion(order.code, nombre, d.delta),
+      label: nombre,
+      allowNegative:
+        d.delta > 0 && args.permiteNegativo(lines.find((l) => l.productId === d.productId)?.saleUnit ?? ""),
+    });
+  }
+
+  await tx.orderItem.deleteMany({ where: { tenantId, orderId: id } });
+  await tx.orderItem.createMany({
+    data: [
+      ...lines.map((l) => ({
+        tenantId,
+        orderId: id,
+        productId: l.productId,
+        name: l.name,
+        saleUnit: l.saleUnit,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        lineTotal: l.lineTotal,
+      })),
+      ...aMano.map((l) => ({
+        tenantId,
+        orderId: id,
+        productId: null,
+        name: l.name,
+        saleUnit: l.saleUnit,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        lineTotal: l.lineTotal,
+      })),
+    ],
+  });
+
+  // El descuento conserva el % con el que se cargó la venta (`totalesDelAjuste`).
+  const t = totalesDelAjuste(lines, aMano, { descuento: order.discount, subtotal: order.subtotal });
+  await tx.order.updateMany({
+    where: { tenantId, id },
+    data: { subtotal: t.subtotal, discount: t.descuento, total: t.total },
+  });
+
+  return {
+    code: order.code,
+    antes: round2(order.total),
+    descuentoAntes: round2(order.discount),
+    subtotal: t.subtotal,
+    descuento: t.descuento,
+    total: t.total,
+  };
 }
 
 // ============================================================================
@@ -731,5 +1028,230 @@ export async function entregarPedidoGuarded(params: {
     error:
       `El pedido #${code} cambió mientras lo entregabas: revisá la bandeja.` +
       (cobro ? " El cobro sí quedó registrado en la caja." : ""),
+  };
+}
+
+// ============================================================================
+// LA BANDEJA: el paso siguiente, el horario y el aviso por WhatsApp.
+// ============================================================================
+
+/** Estados a los que se AVANZA con el botón de la tarjeta (entregar tiene su propia acción). */
+export type PasoDeBandeja = "CONFIRMED" | "PREPARING" | "READY";
+
+/**
+ * El estado siguiente de un pedido, o `null` si ese paso no es un avance simple. PURA.
+ *
+ * EN COMERCIO, NUEVO PASA DIRECTO A PREPARANDO. "Confirmar" era un toque que en una
+ * carnicería no confirma nada: el pedido de la tienda ya está hecho y lo que sigue es
+ * armarlo. En un negocio de servicios (CH) se queda el paso de siempre.
+ *
+ * Listo → Entregado NO está acá: entregar pide el cobro o un «queda a cobrar» dicho a mano
+ * (`entregarPedidoGuarded`). Los terminales no avanzan.
+ */
+export function siguienteEstado(status: string, opts: { comercio: boolean }): PasoDeBandeja | null {
+  switch (status) {
+    case "PENDING":
+      return opts.comercio ? "PREPARING" : "CONFIRMED";
+    case "CONFIRMED":
+      return "PREPARING";
+    case "PREPARING":
+      return "READY";
+    default:
+      return null;
+  }
+}
+
+/** El verbo del botón que avanza. */
+export function verboDelPaso(status: string, opts: { comercio: boolean }): string | null {
+  switch (siguienteEstado(status, opts)) {
+    case "CONFIRMED":
+      return "Confirmar";
+    case "PREPARING":
+      return status === "PENDING" ? "Preparar" : "Pasar a preparación";
+    case "READY":
+      return "Marcar listo";
+    default:
+      return null;
+  }
+}
+
+/**
+ * El horario pedido, del `<input type="datetime-local">` ("2026-09-26T10:00"), leído en la
+ * zona del NEGOCIO. Antes era `new Date(raw)`: el navegador manda la hora sin zona y el
+ * servidor (UTC en Vercel) la tomaba como suya, así que "sábado 10:00" quedaba guardado como
+ * las 7 de la mañana. Lo ilegible es `null`: el horario es una preferencia, no frena el pedido.
+ */
+export function horarioDelFormulario(raw: string | null | undefined): Date | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(String(raw ?? "").trim());
+  if (!m) return null;
+  // Una fecha que no existe ("2026-13-40", "2026-02-30") no se corre a otra: es null. Sin esta
+  // guarda, el formateo de la zona horaria tira con una fecha inválida y se lleva la venta.
+  const pared = new Date(`${m[1]}T${m[2]}:00.000Z`);
+  if (Number.isNaN(pared.getTime()) || pared.toISOString().slice(0, 16) !== `${m[1]}T${m[2]}`) return null;
+  const d = businessWallTimeToUtc(m[1], m[2]);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+const DIA_CORTO = new Intl.DateTimeFormat("es-AR", {
+  timeZone: BUSINESS_TIMEZONE,
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+});
+
+/**
+ * "Retira hoy 10:00", "Envío mañana 18:30", "Retira sáb 26/09 10:00", en la zona del negocio.
+ * `esHoy` marca la tarjeta: es lo que hay que tener listo antes. PURA (recibe el hoy).
+ */
+export function etiquetaDeHorario(
+  horario: Date | string,
+  fulfillment: string,
+  hoy: DayKey,
+): { texto: string; esHoy: boolean } {
+  const d = new Date(horario);
+  const dia = dateStrInBusinessTz(d);
+  const verbo = fulfillment === "DELIVERY" ? "Envío" : "Retira";
+  const cuando = dia === hoy ? "hoy" : dia === nextDayKey(hoy) ? "mañana" : diaCorto(d);
+  return { texto: `${verbo} ${cuando} ${fmtTime(d)}`, esHoy: dia === hoy };
+}
+
+/** "sáb 26/09", armado por partes: el separador que pone cada ICU ("26-09", "26/09") varía. */
+function diaCorto(d: Date): string {
+  const p = Object.fromEntries(DIA_CORTO.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${String(p.weekday ?? "").replace(".", "")} ${p.day}/${p.month}`;
+}
+
+/**
+ * El mensaje de "tu pedido está listo" para mandar por WhatsApp, 1 a 1 y armado. PURA.
+ * Sin dirección ni horario del local cargados, no se inventan: la frase se omite.
+ */
+export function avisoPedidoListo(p: {
+  cliente: string;
+  code: number;
+  total: number;
+  pagado: boolean;
+  fulfillment: string;
+  direccionEnvio: string | null;
+  negocio: string;
+  direccionLocal: string | null;
+  horarioLocal: string | null;
+}): string {
+  const nombre = p.cliente.trim().split(/\s+/)[0];
+  const saludo = nombre && nombre !== "Mostrador" ? `Hola ${nombre}` : "Hola";
+  const listo =
+    p.fulfillment === "DELIVERY"
+      ? `tu pedido #${p.code} de ${p.negocio} ya está listo y sale${p.direccionEnvio ? ` para ${p.direccionEnvio}` : ""}.`
+      : `tu pedido #${p.code} de ${p.negocio} ya está listo para retirar.`;
+  const plata = p.pagado ? "Ya está pago." : `Total a pagar: ${fmtMoneyARS(p.total)}.`;
+  const local =
+    p.fulfillment !== "DELIVERY" && p.direccionLocal
+      ? ` Te esperamos en ${p.direccionLocal}${p.horarioLocal ? ` (${p.horarioLocal})` : ""}.`
+      : "";
+  return `${saludo}, ${listo} ${plata}${local} ¡Gracias!`;
+}
+
+// ============================================================================
+// VENTAS DEL DÍA — las ventas cobradas y las anulaciones, con quién anuló.
+// ============================================================================
+//
+// Los `where` viven acá por lo mismo que los de la bandeja: el número del Inicio ("42 ventas
+// cobradas hoy", "2 anulaciones hoy, por Juan") sale de la MISMA condición que la lista de
+// la pantalla /admin/ventas.
+
+function rangoDeCreacion(desde: Date, hasta?: Date | null): Prisma.DateTimeFilter {
+  return hasta ? { gte: desde, lt: hasta } : { gte: desde };
+}
+
+/**
+ * Las ventas COBRADAS y vigentes de un día: `paid`, no anuladas, creadas en el día del
+ * negocio. Sin `hasta`, desde `desde` en adelante (hoy). El Inicio de mostrador de antes
+ * sumaba todo pedido no anulado, cobrado o no: un pedido online sin pagar contaba como venta.
+ *
+ * DECISIÓN DEL DUEÑO, PENDIENTE (anotada en la integración de la ola 2): se cuenta por el día
+ * en que se TOMÓ la venta (`createdAt`), como pide el brief, no por el día en que entró la
+ * plata. Un pedido de ayer cobrado hoy no suma hoy y no coincide con Caja del día. Cambiarlo
+ * (sin migrar: un OR sobre el `CashMovement` VENTA del día) mueve también el "% de la venta"
+ * del número de Mermas (logistica.server.ts) y las expectativas de loaders.test.ts, y pide
+ * medir el plan en Neon antes. No se cambia sin el OK del dueño.
+ */
+export function whereVentasCobradas(tenantId: string, desde: Date, hasta?: Date | null): Prisma.OrderWhereInput {
+  return { tenantId, paid: true, status: { not: "CANCELLED" }, createdAt: rangoDeCreacion(desde, hasta) };
+}
+
+/** Las ventas cobradas de ese día que después se anularon: siguen en la lista, marcadas. */
+export function whereVentasAnuladas(tenantId: string, desde: Date, hasta?: Date | null): Prisma.OrderWhereInput {
+  return { tenantId, paid: true, status: "CANCELLED", createdAt: rangoDeCreacion(desde, hasta) };
+}
+
+/**
+ * Las anulaciones HECHAS en el día (no las ventas de ese día): la fila de auditoría que deja
+ * `anularVentaCore` con `status: "CANCELLED"`. Es la que dice quién anuló, por qué y cuánta
+ * plata volvió; el pedido sólo dice que está anulado. Una venta del martes anulada hoy por la
+ * dueña cuenta HOY: es el control que tiene que ver.
+ */
+export function whereAnulacionesDelDia(tenantId: string, desde: Date, hasta?: Date | null): Prisma.AuditLogWhereInput {
+  return {
+    tenantId,
+    entity: "Order",
+    action: "update",
+    changes: { path: ["status"], equals: "CANCELLED" },
+    createdAt: rangoDeCreacion(desde, hasta),
+  };
+}
+
+export type Anulacion = {
+  orderId: string | null;
+  code: number | null;
+  monto: number;
+  motivo: string;
+  /** Quién anuló, en palabras: su nombre, o su rol en las filas viejas que no lo guardaban. */
+  quien: string;
+};
+
+function comoObjeto(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+
+/**
+ * Una fila de auditoría de anulación, leída. PURA y tolerante: un campo raro no la tira.
+ * Quién: el nombre guardado en la fila (`por`); si es una fila vieja sin él, el nombre del
+ * usuario del `actor` cuando la pantalla lo tiene a mano (`nombres`); si no, el rol.
+ */
+export function leerAnulacion(
+  fila: { entityId?: string | null; actor: string; changes: unknown },
+  nombres?: ReadonlyMap<string, string>,
+): Anulacion {
+  const c = comoObjeto(fila.changes);
+  const monto = typeof c.montoRevertido === "number" && Number.isFinite(c.montoRevertido) ? c.montoRevertido : 0;
+  const delActor = fila.actor.startsWith("user:") ? nombres?.get(fila.actor.slice(5)) : undefined;
+  const por = typeof c.por === "string" && c.por.trim() ? c.por.trim() : (delActor ?? null);
+  const rol = c.rol === "OWNER" ? "la dueña o el dueño" : c.rol === "RECEPTION" ? "recepción" : "alguien del equipo";
+  return {
+    orderId: fila.entityId ?? null,
+    code: typeof c.code === "number" ? c.code : null,
+    monto: round2(monto),
+    motivo: typeof c.motivo === "string" ? c.motivo : "",
+    quien: por ?? rol,
+  };
+}
+
+/** "por Juan", "por Juan y Ana", "por Juan, Ana y 2 más". PURA. */
+export function porQuien(nombres: readonly string[]): string {
+  const unicos = [...new Set(nombres.filter(Boolean))];
+  if (unicos.length === 0) return "";
+  if (unicos.length === 1) return `por ${unicos[0]}`;
+  if (unicos.length === 2) return `por ${unicos[0]} y ${unicos[1]}`;
+  return `por ${unicos[0]}, ${unicos[1]} y ${unicos.length - 2} más`;
+}
+
+/** Cuántas anulaciones, cuánta plata volvió y quiénes anularon. PURA. */
+export function resumirAnulaciones(
+  filas: readonly { entityId?: string | null; actor: string; changes: unknown }[],
+): { cantidad: number; monto: number; quienes: string[] } {
+  const leidas = filas.map((f) => leerAnulacion(f));
+  return {
+    cantidad: leidas.length,
+    monto: round2(leidas.reduce((s, a) => s + a.monto, 0)),
+    quienes: [...new Set(leidas.map((a) => a.quien))],
   };
 }

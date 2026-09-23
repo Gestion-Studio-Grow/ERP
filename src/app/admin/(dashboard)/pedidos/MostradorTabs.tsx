@@ -27,6 +27,8 @@ export default function MostradorTabs({
   professionals,
   productosBloqueados,
   viewer,
+  conServicios = true,
+  formProductos,
 }: {
   // Se pasan tal cual al formulario de productos: este componente no sabe de stock.
   products: React.ComponentProps<typeof PosForm>["products"];
@@ -36,13 +38,25 @@ export default function MostradorTabs({
   productosBloqueados?: React.ReactNode;
   /** Quién atiende: decide si el alta ofrece cobrar. Ver `puedeCobrarEsteTurno`. */
   viewer?: { role: string; professionalId?: string | null };
+  /**
+   * ¿El rubro trabaja con servicios? En un comercio (carnicería, velas, pádel) la solapa
+   * «Servicios» era un callejón: se tocaba y decía que faltaban profesionales. Sin servicios
+   * no hay solapas: se ve directo el formulario de productos. Default `true`: la estética
+   * (CH) sigue viendo las dos solapas como siempre.
+   */
+  conServicios?: boolean;
+  /** El formulario de productos, si no es el POS de siempre (/admin/vender pasa el suyo). */
+  formProductos?: React.ReactNode;
 }) {
   const hayServicios = professionals.some((p) => p.services.length > 0);
   // Si no se puede vender producto pero sí servicios, se abre directo en Servicios: no
   // tiene sentido recibir a la persona con una pantalla vacía cuando hay algo que hacer.
   const [tab, setTab] = useState<"productos" | "servicios">(
-    productosBloqueados && hayServicios ? "servicios" : "productos",
+    conServicios && productosBloqueados && hayServicios ? "servicios" : "productos",
   );
+  const productos = productosBloqueados ?? formProductos ?? <PosForm products={products} stockById={stockById} />;
+
+  if (!conServicios) return <div>{productos}</div>;
 
   return (
     <div>
@@ -68,7 +82,7 @@ export default function MostradorTabs({
       </div>
 
       {tab === "productos" ? (
-        productosBloqueados ?? <PosForm products={products} stockById={stockById} />
+        productos
       ) : hayServicios ? (
         <NewAppointmentForm professionals={professionals} origen="mostrador" viewer={viewer} />
       ) : (

@@ -1,5 +1,5 @@
 // ============================================================================
-// NÚMEROS DEL MOSTRADOR — Pedidos y Ventas de hoy.
+// NÚMEROS DEL MOSTRADOR — Vender, Pedidos y Ventas del día.
 // ============================================================================
 //
 // Reglas de todos los loaders de src/apps/kpis (valen para este archivo y sus vecinos):
@@ -17,28 +17,38 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { businessWallTimeToUtc } from "@/lib/datetime";
-import { wherePedidosAbiertos } from "@/lib/order-anulacion";
+import { nextDayKey } from "@/lib/caja/cierre-diario";
+import {
+  wherePedidosAbiertos,
+  whereVentasCobradas,
+  whereAnulacionesDelDia,
+  resumirAnulaciones,
+  porQuien,
+} from "@/lib/order-anulacion";
 import { fmtMoneyARS, fmtNumberAR } from "@/components/ui/format";
-import { plural, type LoaderKpi } from "./nucleo.server";
+import { plural, type DatoKpi, type LoaderKpi } from "./nucleo.server";
 
 // ── Pedidos para preparar ────────────────────────────────────────────────────
 
 /**
- * "3 abiertos", y en alerta los entregados sin cobrar: la mercadería salió y la plata no
- * entró. El `where` es el de la bandeja (`wherePedidosAbiertos`, order-anulacion.ts, el
- * mismo que usa `getPosData`): lo que el tile cuenta es exactamente lo que la bandeja
- * lista con botones, y la bandeja dice "(3 abiertos)" en su título.
+ * "3 abiertos · 1 para hoy", y en alerta los entregados sin cobrar: la mercadería salió y la
+ * plata no entró. El `where` es el de la bandeja (`wherePedidosAbiertos`, order-anulacion.ts,
+ * el mismo que usa `getPosData`): lo que el tile cuenta es exactamente lo que la bandeja lista
+ * con botones, y la bandeja dice "(3 abiertos)" en su título.
+ *
+ * "Para hoy" sale en la MISMA consulta: se agrupa también por el horario pedido y se cuentan
+ * los que caen hoy en la zona del negocio (la bandeja los marca "Retira hoy …").
  */
-export const pedidos: LoaderKpi = async ({ db, tenantId }) => {
+export const pedidos: LoaderKpi = async ({ db, tenantId, hoy }) => {
   const grupos = await db.order.groupBy({
-    by: ["status", "paid"],
+    by: ["status", "paid", "scheduledFor"],
     where: wherePedidosAbiertos(tenantId),
     _count: { _all: true },
   });
-  const { abiertos, entregadosSinCobrar } = resumirPedidos(grupos);
+  const { abiertos, entregadosSinCobrar, paraHoy } = resumirPedidos(grupos, rangoDelDia(hoy));
   return {
     valor: fmtNumberAR(abiertos),
-    detalle: plural(abiertos, "abierto", "abiertos"),
+    detalle: plural(abiertos, "abierto", "abiertos") + (paraHoy > 0 ? ` · ${fmtNumberAR(paraHoy)} para hoy` : ""),
     ...(entregadosSinCobrar > 0
       ? {
           alerta: {
@@ -50,17 +60,32 @@ export const pedidos: LoaderKpi = async ({ db, tenantId }) => {
   };
 };
 
-/** Suma los grupos de la bandeja. Entregado sin cobrar = DELIVERED con paid=false. PURA. */
+/** Desde las 00:00 de `hoy` hasta las 00:00 del día siguiente, en la zona del negocio. */
+function rangoDelDia(hoy: string): { desde: Date; hasta: Date } {
+  return { desde: businessWallTimeToUtc(hoy, "00:00"), hasta: businessWallTimeToUtc(nextDayKey(hoy), "00:00") };
+}
+
+/**
+ * Suma los grupos de la bandeja. PURA.
+ *   · entregado sin cobrar = DELIVERED con paid=false;
+ *   · para hoy = todavía en curso (no entregado) con horario pedido dentro de `hoy`.
+ */
 export function resumirPedidos(
-  grupos: readonly { status: string; paid: boolean; _count: { _all: number } }[],
-): { abiertos: number; entregadosSinCobrar: number } {
+  grupos: readonly { status: string; paid: boolean; scheduledFor?: Date | string | null; _count: { _all: number } }[],
+  hoy?: { desde: Date; hasta: Date },
+): { abiertos: number; entregadosSinCobrar: number; paraHoy: number } {
   let abiertos = 0;
   let entregadosSinCobrar = 0;
+  let paraHoy = 0;
   for (const g of grupos) {
     abiertos += g._count._all;
     if (g.status === "DELIVERED" && !g.paid) entregadosSinCobrar += g._count._all;
+    if (hoy && g.status !== "DELIVERED" && g.scheduledFor) {
+      const t = new Date(g.scheduledFor).getTime();
+      if (t >= hoy.desde.getTime() && t < hoy.hasta.getTime()) paraHoy += g._count._all;
+    }
   }
-  return { abiertos, entregadosSinCobrar };
+  return { abiertos, entregadosSinCobrar, paraHoy };
 }
 
 // ── Ventas de hoy ────────────────────────────────────────────────────────────
@@ -72,13 +97,13 @@ export function resumirPedidos(
  * y "Ingresos hoy" mostraba plata que nunca entró. PURA.
  */
 export function whereVentasDeHoy(tenantId: string, desde: Date): Prisma.OrderWhereInput {
-  return { tenantId, paid: true, status: { not: "CANCELLED" }, createdAt: { gte: desde } };
+  // El mismo `where` que la lista de Ventas del día (/admin/ventas) para hoy.
+  return whereVentasCobradas(tenantId, desde);
 }
 
 /**
  * "42 ventas cobradas hoy · $1.230.000". El monto, sólo con reports:read; sin él ni se suma.
- * Es el número de la app Vender, que se registra en la ola 2 (hoy vender es una solapa de
- * Pedidos): el loader queda listo con su regla probada para que esa app lo tome tal cual.
+ * Es el número de la app Vender (/admin/vender).
  */
 export const vender: LoaderKpi = async ({ db, tenantId, hoy, monto }) => {
   const where = whereVentasDeHoy(tenantId, businessWallTimeToUtc(hoy, "00:00"));
@@ -95,4 +120,42 @@ export const vender: LoaderKpi = async ({ db, tenantId, hoy, monto }) => {
   };
 };
 
-export const LOADERS_MOSTRADOR: Readonly<Record<string, LoaderKpi>> = { pedidos, vender };
+// ── Ventas del día ───────────────────────────────────────────────────────────
+
+/**
+ * "2 · anulaciones hoy, por Juan · $31.000 anulados". El control de las anulaciones es por
+ * VISIBILIDAD: recepción anula lo de hoy sin pedirle la clave a nadie (trabar la corrección
+ * de una pesada un sábado con cola es peor), y la dueña ve acá quién anuló y cuánto.
+ *
+ * UNA consulta: las filas de auditoría de las anulaciones hechas hoy (`whereAnulacionesDelDia`,
+ * el mismo `where` que la sección "Anuladas hoy" de /admin/ventas). El nombre de quien anuló
+ * viaja en la fila (`por`), así no hace falta cruzar con los usuarios. El ticket promedio no
+ * entra en el tile por eso mismo: sale de otra tabla y serían dos consultas; está en la pantalla.
+ */
+export const ventasDelDia: LoaderKpi = async ({ db, tenantId, hoy, monto }) => {
+  const filas = await db.auditLog.findMany({
+    where: whereAnulacionesDelDia(tenantId, businessWallTimeToUtc(hoy, "00:00")),
+    select: { entityId: true, actor: true, changes: true },
+    take: 500,
+  });
+  return datoDeAnulaciones(resumirAnulaciones(filas), monto);
+};
+
+/** El número del tile a partir del resumen. Sin anulaciones es un 0 real, no falta de dato. PURA. */
+export function datoDeAnulaciones(
+  r: { cantidad: number; monto: number; quienes: string[] },
+  monto: boolean,
+): DatoKpi {
+  if (r.cantidad === 0) return { valor: "0", detalle: "anulaciones hoy" };
+  return {
+    valor: fmtNumberAR(r.cantidad),
+    detalle: `${plural(r.cantidad, "anulación hoy", "anulaciones hoy")}, ${porQuien(r.quienes)}`,
+    ...(monto ? { monto: `${fmtMoneyARS(r.monto, 0)} ${plural(r.cantidad, "anulado", "anulados")}` } : {}),
+  };
+}
+
+export const LOADERS_MOSTRADOR: Readonly<Record<string, LoaderKpi>> = {
+  pedidos,
+  vender,
+  "ventas-del-dia": ventasDelDia,
+};

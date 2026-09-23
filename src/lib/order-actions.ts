@@ -15,51 +15,52 @@ import { requireCapability } from "@/lib/authz";
 import { alcanceDeAnulacion } from "@/lib/capabilities";
 import { retailWordingForSlug } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
-import { insertOrder, buildOrderLines, orderSubtotal, type OrderPaymentMethod } from "@/lib/order-core";
+import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
 import { recordCashSaleMovementInTx } from "@/lib/caja/cash-sale";
 import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
 import { permiteVenderSinStock, productosQuePuedenQuedarNegativos } from "@/lib/stock/pos-stock-rules";
 import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
-import { cantidadOCero } from "@/lib/pos-peso";
+import { cantidadOCero, formatearCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
-import { recordMovement, round3 } from "@/lib/stock/ledger";
 import { round2 } from "@/lib/round";
+import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
 import {
   anularVentaInTx,
   AnulacionVentaRechazada,
   reglasDeAnulacion,
   fronteraDeVenta,
-  planEdicionDeLineas,
-  mensajeEdicionRechazada,
-  deltasDeStock,
-  detalleStockAjustadoPorEdicion,
-  EDICION_ACTOR_PREFIX,
+  ajustarPedidoInTx,
+  type AjustarPedidoResult,
   wherePedidosAbiertos,
   wherePedidosCerrados,
   entregarPedidoGuarded,
+  siguienteEstado,
+  horarioDelFormulario,
 } from "@/lib/order-anulacion";
-import type { $Enums } from "@/generated/prisma/client";
-
-type OrderStatus = $Enums.OrderStatus;
+import {
+  descuentoDelFormulario,
+  lineasAManoDelFormulario,
+  topeDeDescuento,
+  ventaDeOrden,
+  type VentaTicket,
+} from "@/app/admin/(dashboard)/vender/reglas-venta";
 
 const ORDERS_PATH = "/admin/pedidos";
+// Las otras dos pantallas del mostrador que muestran ventas: se revalidan junto con la bandeja
+// para que una venta cobrada o anulada aparezca en las tres sin esperar.
+const VENDER_PATH = "/admin/vender";
+const VENTAS_PATH = "/admin/ventas";
 
-// Flujo de estados de un pedido. El mostrador lo empuja hacia adelante; no hay
-// vuelta atrás (una cancelación es un estado terminal aparte). READY = listo para
-// que el cliente retire o para despachar.
-const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
-  PENDING: "CONFIRMED",
-  CONFIRMED: "PREPARING",
-  PREPARING: "READY",
-  READY: "DELIVERED",
-  DELIVERED: null,
-  CANCELLED: null,
-};
+function revalidarMostrador() {
+  revalidatePath(ORDERS_PATH);
+  revalidatePath(VENDER_PATH);
+  revalidatePath(VENTAS_PATH);
+}
 
 // --- Loader de la pantalla POS / bandeja de pedidos ---
 
@@ -135,7 +136,13 @@ function parseItems(formData: FormData): { productId: string; qty: number }[] {
 // cliente con el mensaje REDACTADO (Next no reenvía `error.message` en producción), así que
 // "el día de caja está cerrado" y "se cayó la base" se ven exactamente iguales — y la persona
 // del mostrador no puede hacer nada con ninguno de los dos. Un valor DEVUELTO viaja entero.
-export type OrderActionState = { ok: true; mensaje?: string } | { ok: false; error: string } | null;
+//
+// `venta`: la venta recién cobrada, para el ticket (WhatsApp o 58 mm). Sólo la pide /admin/vender
+// (`conTicket`); el POS de la bandeja no la usa y no paga la lectura extra.
+export type OrderActionState =
+  | { ok: true; mensaje?: string; venta?: VentaTicket }
+  | { ok: false; error: string }
+  | null;
 
 function errorDeAccion(err: unknown, generico: string): { ok: false; error: string } {
   return { ok: false, error: err instanceof Error && err.message ? err.message : generico };
@@ -176,6 +183,17 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: formData.get("paymentMethod") });
   if (!medio.ok) return { ok: false, error: medio.error };
   const paymentMethod: PaymentMethod | null = medio.paymentMethod;
+
+  // DESCUENTO Y PRECIO A MANO (/admin/vender). Se leen acá y se deciden con las mismas reglas
+  // que usa la pantalla (vender/reglas-venta.ts): lo que la pantalla deja pasar, el servidor
+  // lo acepta, y lo que no, se rechaza con el mismo texto. El tope del descuento sale del ROL
+  // de la sesión, nunca del formulario; y el monto se calcula en `insertOrder` sobre los
+  // precios de la base. El POS de la bandeja no manda ninguno de los dos campos: para él esto
+  // no cambia nada.
+  const descuentoPedido = descuentoDelFormulario(formData.get("descuentoTipo"), formData.get("descuentoValor"));
+  if (!descuentoPedido.ok) return { ok: false, error: descuentoPedido.error };
+  const aMano = lineasAManoDelFormulario((campo) => formData.getAll(campo).map(String));
+  if (!aMano.ok) return { ok: false, error: aMano.error };
 
   // FRONTERA DEL DÍA CERRADO. El libro, el cierre diario, las compras, las comisiones, la
   // caja y los turnos rechazan escribir sobre un día ya arqueado y firmado; los DOS caminos de
@@ -238,14 +256,22 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         customerPhone: String(formData.get("customerPhone") || "").trim(),
         address: String(formData.get("address") || "").trim() || null,
         notes: String(formData.get("notes") || "").trim() || null,
-        // scheduledFor es una preferencia blanda (horario de retiro/entrega); MVP la
-        // interpreta en hora local del server (provisional; unificar con TZ del tenant).
-        scheduledFor: scheduledRaw ? new Date(scheduledRaw) : null,
+        // El horario de retiro o envío se lee en la ZONA DEL NEGOCIO (`horarioDelFormulario`):
+        // antes era `new Date(raw)` y en el servidor (UTC) "sábado 10:00" quedaba a las 7.
+        scheduledFor: horarioDelFormulario(scheduledRaw),
         paid,
         paymentMethod,
         items,
+        lineasAMano: aMano.lineas,
       },
-      { imputarCajaActor: `user:${user.id}`, idempotencyKey, permitirNegativoPorProducto },
+      {
+        imputarCajaActor: `user:${user.id}`,
+        idempotencyKey,
+        permitirNegativoPorProducto,
+        descuento: descuentoPedido.pedido
+          ? { pedido: descuentoPedido.pedido, topePct: topeDeDescuento(user.role) }
+          : null,
+      },
     );
   } catch (err) {
     // El mensaje de dominio (sin stock, sin precio, sin dirección) llega ENTERO a la pantalla
@@ -260,7 +286,7 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // Reintento deduplicado: el pedido ya existía. No se re-audita (el alta real ya dejó su
   // rastro) y no se vuelve a tocar el estado.
   if (result.dedup) {
-    revalidatePath(ORDERS_PATH);
+    revalidarMostrador();
     return { ok: true, mensaje: "Esa venta ya estaba registrada (no se cobró dos veces)." };
   }
 
@@ -289,6 +315,10 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
     });
   }
 
+  // Lo nuevo (descuento, precio a mano, ficha) va en el rastro sólo cuando existe: la venta de
+  // siempre deja la misma fila de siempre. El descuento lleva QUIÉN lo aplicó y el precio a
+  // mano su MOTIVO: es lo que la dueña mira después en Ventas del día.
+  const descuento = result.descuento ?? 0;
   await auditAdmin({
     action: "create",
     entity: "Order",
@@ -297,14 +327,56 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
       code: result.code,
       channel,
       fulfillment,
-      total: result.subtotal,
+      total: result.total ?? result.subtotal,
       lines: result.lines,
       ...(naceEntregada ? { status: "DELIVERED" } : {}),
+      ...(descuento > 0 && descuentoPedido.pedido
+        ? {
+            subtotal: result.subtotal,
+            descuento: {
+              tipo: descuentoPedido.pedido.tipo,
+              valor: descuentoPedido.pedido.valor,
+              monto: descuento,
+              por: user.name,
+              rol: user.role,
+            },
+          }
+        : {}),
+      ...(aMano.lineas.length > 0 ? { preciosAMano: aMano.lineas, por: user.name } : {}),
+      ...(result.clientId ? { clientId: result.clientId } : {}),
     },
   });
 
-  revalidatePath(ORDERS_PATH);
-  return { ok: true };
+  revalidarMostrador();
+  if (String(formData.get("conTicket") || "") !== "1") return { ok: true };
+  return { ok: true, venta: (await ventaParaTicket(tenantId, result.id)) ?? undefined };
+}
+
+/**
+ * La venta como la muestra el ticket, leída de la base (lo que QUEDÓ grabado, no lo que mandó
+ * la pantalla). No es una action: no se exporta, así que no es un endpoint.
+ */
+async function ventaParaTicket(tenantId: string, id: string): Promise<VentaTicket | null> {
+  const o = await prisma.order.findFirst({
+    where: { id, tenantId },
+    select: {
+      id: true,
+      code: true,
+      createdAt: true,
+      subtotal: true,
+      discount: true,
+      total: true,
+      paymentMethod: true,
+      customerName: true,
+      customerPhone: true,
+      status: true,
+      items: {
+        select: { productId: true, name: true, saleUnit: true, quantity: true, unitPrice: true, lineTotal: true },
+        orderBy: { id: "asc" },
+      },
+    },
+  });
+  return o ? ventaDeOrden(o) : null;
 }
 
 // --- Tomar pedido desde la vidriera pública (sin auth) ---
@@ -353,7 +425,7 @@ export async function placeOnlineOrder(formData: FormData) {
       changes: { code: result.code, channel: "ONLINE", fulfillment, total: result.subtotal },
     });
     // El backoffice ve el pedido nuevo en su bandeja al revalidar.
-    revalidatePath(ORDERS_PATH);
+    revalidarMostrador();
   }
   redirect(`/tienda/gracias?pedido=${result.code}`);
 }
@@ -368,6 +440,9 @@ export async function placeOnlineOrder(formData: FormData) {
 // El `tenantId` va explícito en la lectura y en la escritura (antes era `findUnique` por id y
 // dependía sólo de RLS), y la escritura es un compare-and-set sobre el estado leído: si otra
 // pestaña ya lo movió, este toque no lo empuja un paso de más.
+//
+// El paso siguiente lo decide `siguienteEstado` (order-anulacion.ts): en comercio, Nuevo pasa
+// directo a Preparando; en servicios (CH) sigue pasando por Confirmado.
 export async function advanceOrderStatus(formData: FormData) {
   await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
@@ -375,15 +450,16 @@ export async function advanceOrderStatus(formData: FormData) {
   if (!id) return;
   const current = await prisma.order.findFirst({ where: { id, tenantId }, select: { status: true } });
   if (!current) return;
-  const next = STATUS_FLOW[current.status];
-  if (!next) return; // terminal (DELIVERED / CANCELLED): no avanza
-  if (next === "DELIVERED") return; // entregar es `entregarPedido`: pide el cobro
+  const { isRetail } = await getTenantIdentity();
+  // null = terminal (entregado, anulado) o Listo, que se entrega con `entregarPedido` (pide el cobro).
+  const next = siguienteEstado(current.status, { comercio: isRetail });
+  if (!next) return;
   const res = await prisma.order.updateMany({
     where: { id, tenantId, status: current.status },
     data: { status: next },
   });
   if (res.count === 0) {
-    revalidatePath(ORDERS_PATH);
+    revalidarMostrador();
     return;
   }
   await auditAdmin({
@@ -392,7 +468,7 @@ export async function advanceOrderStatus(formData: FormData) {
     entityId: id,
     changes: { status: { from: current.status, to: next } },
   });
-  revalidatePath(ORDERS_PATH);
+  revalidarMostrador();
 }
 
 // --- Marcar cobrado ---
@@ -491,7 +567,7 @@ async function setOrderPaidCore(
     );
   } catch (e) {
     if (e instanceof CobroDePedidoAnulado) {
-      revalidatePath(ORDERS_PATH);
+      revalidarMostrador();
       return { ok: false, error: e.message };
     }
     // Defensa que queda de A-5. Con `paid: false` en el filtro, el segundo cobro concurrente
@@ -499,7 +575,7 @@ async function setOrderPaidCore(
     // choque del @@unique del asiento VENTA no debería darse. Si igual se diera, la tx aborta
     // entera —el `paid` también— y no hay nada que reparar: ni re-auditoría ni un 500.
     if (isUniqueViolation(e, "orderId")) {
-      revalidatePath(ORDERS_PATH);
+      revalidarMostrador();
       return { ok: true, mensaje: "Ese pedido ya estaba cobrado." };
     }
     return errorDeAccion(e, "No se pudo marcar el pedido como cobrado.");
@@ -507,14 +583,14 @@ async function setOrderPaidCore(
 
   if (cobro.tipo === "no-existe") return { ok: false, error: "No se encontró el pedido a cobrar." };
   if (cobro.tipo === "ya-cobrado") {
-    revalidatePath(ORDERS_PATH);
+    revalidarMostrador();
     return mensajeYaCobrado({ code: cobro.code, medioRegistrado: cobro.medioRegistrado, medioElegido: method });
   }
 
   const { order } = cobro;
   await auditAdmin({ action: "update", entity: "Order", entityId: order.id, changes: { paid: true, method } });
 
-  revalidatePath(ORDERS_PATH);
+  revalidarMostrador();
   return { ok: true, mensaje: `Pedido #${order.code} cobrado: ${fmtMoneyARS(order.total)}.` };
 }
 
@@ -572,7 +648,7 @@ export async function entregarPedido(
       ).count === 1,
   });
 
-  revalidatePath(ORDERS_PATH);
+  revalidarMostrador();
   if (!r.ok) return r;
   if (r.entregado) {
     await auditAdmin({
@@ -644,33 +720,37 @@ async function anularVentaCore(
     // Carrera real: dos anulaciones simultáneas: la 2ª choca el @@unique(tenantId, orderId,
     // type) al asentar el EGRESO. Ya está anulada, no hay nada que reparar.
     if (isUniqueViolation(err, "orderId")) {
-      revalidatePath(ORDERS_PATH);
+      revalidarMostrador();
       return { ok: true, mensaje: "Esa venta ya estaba anulada." };
     }
     return errorDeAccion(err, "No se pudo anular la venta.");
   }
 
   if (!resultado.applied) {
-    revalidatePath(ORDERS_PATH);
+    revalidarMostrador();
     return { ok: true, mensaje: "Esa venta ya estaba anulada." };
   }
 
-  // Quién anuló queda en el `actor` del registro (auditAdmin lo toma de la sesión); el rol va
-  // en los cambios para que la dueña distinga, sin cruzar tablas, lo que anuló recepción.
+  // Quién anuló queda en el `actor` del registro (auditAdmin lo toma de la sesión); el rol y el
+  // NOMBRE van en los cambios para que la dueña lo vea sin cruzar tablas: el número de Ventas
+  // del día en el Inicio ("2 anulaciones hoy, por Juan") sale de esta fila con UNA consulta
+  // (`whereAnulacionesDelDia`, order-anulacion.ts), y el control por visibilidad es ése.
   await auditAdmin({
     action: "update",
     entity: "Order",
     entityId: orderId,
     changes: {
       status: "CANCELLED",
+      code: resultado.code,
       motivo,
       rol: user.role,
+      por: user.name,
       montoRevertido: resultado.montoRevertido,
       reversaId: resultado.reversaId,
       stockDevuelto: resultado.stockDevuelto,
     },
   });
-  revalidatePath(ORDERS_PATH);
+  revalidarMostrador();
 
   // El mensaje DICE lo que se movió. Una anulación que sólo contesta "listo" obliga a ir a
   // mirar el libro y el stock para saber si hizo algo.
@@ -680,7 +760,7 @@ async function anularVentaCore(
   }
   if (resultado.stockDevuelto.length > 0) {
     partes.push(
-      `Volvió al stock: ${resultado.stockDevuelto.map((d) => `${d.qty} de ${d.name}`).join(", ")}.`,
+      `Volvió al stock: ${resultado.stockDevuelto.map((d) => `${formatearCantidad(d.qty)} de ${d.name}`).join(", ")}.`,
     );
   }
   return { ok: true, mensaje: partes.join(" ") };
@@ -707,8 +787,9 @@ export async function anularVenta(
 
 // --- Editar las líneas de un pedido todavía no cobrado (el peso real) ---
 //
-// La regla y el porqué están en `order-anulacion.ts` (`planEdicionDeLineas`). Acá sólo
-// se persiste: recalcular líneas y total, y mover el stock por DELTA.
+// La regla y el porqué están en `order-anulacion.ts` (`planEdicionDeLineas`, y el descuento en
+// `totalesDelAjuste`). La transacción entera vive en `ajustarPedidoInTx`: acá se autoriza, se
+// decide la excepción de stock negativo y se audita.
 export async function updateOrderItems(
   _prev: OrderActionState,
   formData: FormData,
@@ -720,133 +801,18 @@ export async function updateOrderItems(
 
   const wanted = parseItems(formData).filter((l) => l.productId && l.qty > 0);
 
-  let out: { code: number; total: number; antes: number };
+  let out: AjustarPedidoResult;
   try {
     out = await tenantTransaction(
-      async (tx) => {
-        const order = await tx.order.findFirst({
-          where: { tenantId, id },
-          select: {
-            id: true,
-            code: true,
-            status: true,
-            paid: true,
-            total: true,
-            items: {
-              select: {
-                productId: true,
-                name: true,
-                quantity: true,
-                product: { select: { trackStock: true } },
-              },
-            },
-          },
-        });
-
-        // La invariante dura: si el pedido ya tiene plata asentada, no se edita. Se chequea
-        // contra el LIBRO, no contra el flag `paid` (ver `planEdicionDeLineas`).
-        const asiento = order
-          ? await tx.cashMovement.findFirst({
-              where: { tenantId, orderId: id },
-              select: { id: true },
-            })
-          : null;
-
-        const products = order
-          ? await tx.product.findMany({
-              where: {
-                id: { in: wanted.map((l) => l.productId) },
-                tenantId,
-                deletedAt: null,
-                active: true,
-              },
-              select: {
-                id: true,
-                name: true,
-                saleUnit: true,
-                price: true,
-                pricePerKg: true,
-                trackStock: true,
-              },
-            })
-          : [];
-        const lines = buildOrderLines(products, wanted);
-
-        const plan = planEdicionDeLineas({
-          existe: Boolean(order),
-          paid: Boolean(order?.paid),
-          status: String(order?.status ?? ""),
-          tieneAsientoDeCaja: Boolean(asiento),
-          lineasValidas: lines.length,
-        });
-        if (!plan.ok) throw new Error(mensajeEdicionRechazada(plan.motivo));
-
-        // Stock por DELTA. Va ANTES de reescribir las líneas: si un aumento de peso no tiene
-        // stock, `recordMovement` lanza, la tx se aborta entera y el pedido queda como estaba.
-        //
-        // Salvo (MAG-4) cuando el aumento es de un producto POR PESO: el paquete ya se pesó y
-        // está en la mano, y que pese más de lo que el sistema cree es justamente el caso que
-        // esta edición viene a corregir. Ahí la VENTA sale aunque el stock quede en negativo.
-        // La unidad sale de `lines`, que se armó con el Product leído en ESTA tx, no del
-        // formulario. Las devoluciones (delta < 0, AJUSTE positivo) no pasan por la guarda.
-        for (const d of deltasDeStock(
-          order!.items.map((it) => ({
-            productId: it.productId,
-            quantity: it.quantity,
-            trackStock: Boolean(it.product?.trackStock),
-          })),
-          lines.map((l) => ({ productId: l.productId, quantity: l.quantity, trackStock: l.trackStock })),
-        )) {
-          // El nombre sale de la línea nueva o, si el producto se SACÓ del pedido, del
-          // snapshot de la vieja: un movimiento de stock que dice "producto" no se investiga.
-          const nombre =
-            lines.find((l) => l.productId === d.productId)?.name ??
-            order!.items.find((it) => it.productId === d.productId)?.name ??
-            "producto";
-          await recordMovement(tx, {
-            tenantId,
-            productId: d.productId,
-            // Más peso del estimado → sale como VENTA (con la guarda anti-oversell). Menos
-            // peso → vuelve como AJUSTE positivo, el mismo tipo que usa la anulación mientras
-            // el enum de stock no tenga un valor propio para la devolución.
-            type: d.delta > 0 ? "VENTA" : "AJUSTE",
-            qty: d.delta > 0 ? d.delta : round3(-d.delta),
-            orderId: id,
-            createdBy: `${EDICION_ACTOR_PREFIX}user:${user.id}`,
-            reason: detalleStockAjustadoPorEdicion(order!.code, nombre, d.delta),
-            label: nombre,
-            allowNegative:
-              d.delta > 0 &&
-              permiteVenderSinStock({
-                saleUnit: lines.find((l) => l.productId === d.productId)?.saleUnit ?? "",
-                contexto: "EDICION_PESO_REAL",
-              }),
-          });
-        }
-
-        await tx.orderItem.deleteMany({ where: { tenantId, orderId: id } });
-        await tx.orderItem.createMany({
-          data: lines.map((l) => ({
-            tenantId,
-            orderId: id,
-            productId: l.productId,
-            name: l.name,
-            saleUnit: l.saleUnit,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            lineTotal: l.lineTotal,
-          })),
-        });
-
-        const subtotal = orderSubtotal(lines);
-        await tx.order.updateMany({
-          where: { tenantId, id },
-          // `discount` sigue en 0 en todo el POS: subtotal y total son el mismo número.
-          data: { subtotal, total: subtotal },
-        });
-
-        return { code: order!.code, total: subtotal, antes: round2(order!.total) };
-      },
+      (tx) =>
+        ajustarPedidoInTx(tx, tenantId, {
+          orderId: id,
+          pedidas: wanted,
+          actor: `user:${user.id}`,
+          // MAG-4: el aumento de un corte por PESO sale aunque el stock quede en negativo (el
+          // paquete ya está pesado en la mano). La regla es la de pos-stock-rules.ts.
+          permiteNegativo: (saleUnit) => permiteVenderSinStock({ saleUnit, contexto: "EDICION_PESO_REAL" }),
+        }),
       { tenantId },
     );
   } catch (err) {
@@ -857,9 +823,16 @@ export async function updateOrderItems(
     action: "update",
     entity: "Order",
     entityId: id,
-    changes: { total: { from: out.antes, to: out.total }, lines: wanted.length },
+    changes: {
+      total: { from: out.antes, to: out.total },
+      // El descuento acompaña al peso con el mismo %: queda escrito cuánto era y cuánto quedó.
+      ...(out.descuentoAntes !== out.descuento
+        ? { discount: { from: out.descuentoAntes, to: out.descuento } }
+        : {}),
+      lines: wanted.length,
+    },
   });
-  revalidatePath(ORDERS_PATH);
+  revalidarMostrador();
   const dif = round2(out.total - out.antes);
   return {
     ok: true,
@@ -868,6 +841,44 @@ export async function updateOrderItems(
         ? `Pedido #${out.code} actualizado. El total no cambió: ${fmtMoneyARS(out.total)}.`
         : `Pedido #${out.code} actualizado al peso real: ${fmtMoneyARS(out.antes)} → ${fmtMoneyARS(out.total)} (${dif > 0 ? "+" : "−"}${fmtMoneyARS(Math.abs(dif))}).`,
   };
+}
+
+// --- Cliente por teléfono (Vender) ---
+//
+// El mostrador escribe el teléfono y la venta queda en la ficha del cliente: nombre completo
+// sin tipearlo y la compra en su historial. Busca con la MISMA regla que el alta
+// (`buscarFichaPorTelefono`: "11 4000-7919" y "+54 9 11 4000 7919" son el mismo número), así
+// lo que la pantalla muestra es la ficha que el alta va a vincular. Devuelve sólo el nombre:
+// la pantalla no necesita más, y un endpoint no devuelve de más.
+export async function buscarClienteParaVenta(telefono: string): Promise<{ nombre: string } | null> {
+  await requireCapability("orders:manage");
+  const tenantId = await getCurrentTenantId();
+  const tel = String(telefono ?? "").slice(0, 40);
+  const ficha = await buscarFichaPorTelefono(prisma, tenantId, tel);
+  if (!ficha) return null;
+  const c = await prisma.client.findFirst({ where: { id: ficha.id, tenantId }, select: { name: true } });
+  return c ? { nombre: c.name } : null;
+}
+
+// --- Constancia del WhatsApp ---
+//
+// El mensaje sale por el WhatsApp del que atiende (un link wa.me, 1 a 1, con el texto armado):
+// el sistema no manda nada solo. Lo que sí hace es dejar CONSTANCIA de que se avisó, en la
+// auditoría del pedido, para que "¿le avisaron?" tenga respuesta. Se llama al tocar el botón,
+// sin esperar: si la constancia falla, el aviso igual sale.
+export async function registrarAvisoWhatsApp(orderId: string, tipo: "pedido-listo" | "ticket"): Promise<void> {
+  await requireCapability("orders:read");
+  const tenantId = await getCurrentTenantId();
+  const id = String(orderId ?? "").trim();
+  if (!id) return;
+  const o = await prisma.order.findFirst({ where: { id, tenantId }, select: { code: true } });
+  if (!o) return;
+  await auditAdmin({
+    action: "whatsapp",
+    entity: "Order",
+    entityId: id,
+    changes: { tipo: tipo === "ticket" ? "ticket" : "pedido-listo", code: o.code },
+  });
 }
 
 // --- Loader público de la vidriera (sin auth) ---
