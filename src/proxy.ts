@@ -11,8 +11,26 @@ import {
   readGateToken,
 } from "@/lib/site-gate";
 
+// Un preview compilado contra la base de PRODUCCIÓN no atiende nada (scripts/preview-base.mjs):
+// ni el panel, ni la consola del operador, ni la vidriera. Sólo /api/health, que dice qué commit
+// corre y no toca datos. 503 con una explicación, no una pantalla rota.
+function previewBloqueado(pathname: string): NextResponse | null {
+  if (process.env.GSG_PREVIEW_BLOQUEADO !== "1" || pathname === "/api/health") return null;
+  return new NextResponse(
+    "<!doctype html><meta charset=utf-8><title>Preview bloqueado</title>" +
+      "<body style=\"font-family:system-ui;max-width:36rem;margin:4rem auto;padding:0 1rem;line-height:1.5\">" +
+      "<h1>Este preview está bloqueado</h1>" +
+      "<p>Apunta a la base de datos de producción, con los datos reales de los clientes. " +
+      "Para usarlo como ambiente de QA, cargá en Vercel <code>DATABASE_URL</code> y " +
+      "<code>OPERATOR_DATABASE_URL</code> sólo para Preview, con la base de QA.</p></body>",
+    { status: 503, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+  );
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const bloqueado = previewBloqueado(pathname);
+  if (bloqueado) return bloqueado;
 
   // Reenvía la ruta actual como header al server (upstream, no expuesto al cliente):
   // los layouts/páginas de /admin no reciben el pathname por props, y el gating por-URL

@@ -121,8 +121,23 @@ function noConecta(queBase) {
 
 if (!migraEsteBuild) {
   if (!esProduccion) {
-    log(`${GRIS}Sin migración: el entorno es "${entorno}", no producción. Se compila y nada más.${FIN}`);
-    process.exit(corre("npx", ["prisma", "generate"]) || corre("npx", ["next", "build"]));
+    log(`${GRIS}Sin migración: el entorno es "${entorno}", no producción.${FIN}`);
+    // Un PREVIEW nunca atiende pantallas contra la base de producción: se compila igual (así el
+    // build sigue sirviendo de verificación), pero la app queda bloqueada con un aviso. Ver
+    // scripts/preview-base.mjs. Local (sin VERCEL_ENV) no se toca.
+    const extra = {};
+    if (entorno === "preview") {
+      const { previewDebeBloquearse } = await import("./preview-base.mjs");
+      const r = await previewDebeBloquearse([process.env.DATABASE_URL, process.env.OPERATOR_DATABASE_URL]);
+      if (r.bloquear) {
+        log(`${AMBAR}⚠ PREVIEW BLOQUEADO:${FIN} ${r.motivo}. Se compila, pero la app no atiende pantallas.`);
+        log(`${GRIS}  Para usarlo de QA: DATABASE_URL y OPERATOR_DATABASE_URL sólo de Preview, apuntando a la base de QA.${FIN}`);
+        extra.GSG_PREVIEW_BLOQUEADO = "1";
+      } else {
+        log(`${VERDE}Preview con base propia (${r.motivo}).${FIN}`);
+      }
+    }
+    process.exit(corre("npx", ["prisma", "generate"]) || corre("npx", ["next", "build"], extra));
   }
 
   // Producción SIN cadena de migración: no se toca la base, pero se la MIRA.

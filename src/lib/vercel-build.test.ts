@@ -31,7 +31,7 @@ writeFileSync(
 const { appendFileSync } = require("node:fs");
 const { spawnSync } = require("node:child_process");
 const args = process.argv.slice(2);
-appendFileSync(${JSON.stringify(LLAMADAS)}, args.join(" ") + "\\n");
+appendFileSync(${JSON.stringify(LLAMADAS)}, args.join(" ") + (process.env.GSG_PREVIEW_BLOQUEADO === "1" ? " [bloqueado]" : "") + "\\n");
 if (args[0] === "tsx") {
   const r = spawnSync(${JSON.stringify(TSX_REAL)}, args.slice(1), { stdio: "inherit" });
   process.exit(r.status ?? 1);
@@ -159,10 +159,17 @@ test("con migración, un host inalcanzable frena ANTES de migrar", () => {
   assert.ok(!r.llamadas.some((l) => l.includes("migrate deploy")), "nunca llegó a migrar");
 });
 
-test("un preview compila sin mirar ninguna base", () => {
+test("un preview NO migra: compila, y si no puede mirar la base queda bloqueado (fail-closed)", () => {
   const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: HOST_MUERTO, MIGRATE_DATABASE_URL: HOST_MUERTO });
+  assert.equal(r.status, 0, "compila igual: el build sigue siendo verificación");
+  assert.deepEqual(r.llamadas, ["prisma generate", "next build [bloqueado]"]);
+  assert.match(r.salida, /PREVIEW BLOQUEADO/);
+});
+
+test("un preview sin ninguna base configurada queda bloqueado", () => {
+  const r = corre({ VERCEL_ENV: "preview" });
   assert.equal(r.status, 0);
-  assert.deepEqual(r.llamadas, ["prisma generate", "next build"]);
+  assert.deepEqual(r.llamadas, ["prisma generate", "next build [bloqueado]"]);
 });
 
 test("el mensaje de migración dice NO CANCELAR, no 'cancelá'", () => {
@@ -234,4 +241,26 @@ test("el build no prende RLS solo: mide y avisa", () => {
 test("vercel.json usa este script como build", () => {
   const v = JSON.parse(readFileSync(new URL("../../vercel.json", import.meta.url), "utf8"));
   assert.equal(v.buildCommand, "node scripts/vercel-build.mjs");
+});
+
+// ── Preview contra la base de producción (con Postgres local, opcional) ─────────────────────
+// PREVIEW_TEST_PROD_URL = una base con el negocio vivo (beauty-spa); PREVIEW_TEST_QA_URL = una sin.
+const PROD_LOCAL = process.env.PREVIEW_TEST_PROD_URL;
+const QA_LOCAL = process.env.PREVIEW_TEST_QA_URL;
+
+test("preview contra una base con el negocio vivo → bloqueado", { skip: !PROD_LOCAL && "sin PREVIEW_TEST_PROD_URL" }, () => {
+  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: PROD_LOCAL!, OPERATOR_DATABASE_URL: PROD_LOCAL! });
+  assert.deepEqual(r.llamadas, ["prisma generate", "next build [bloqueado]"]);
+  assert.match(r.salida, /negocio vivo/);
+});
+
+test("preview contra una base de QA sin negocios reales → atiende", { skip: !QA_LOCAL && "sin PREVIEW_TEST_QA_URL" }, () => {
+  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: QA_LOCAL!, OPERATOR_DATABASE_URL: QA_LOCAL! });
+  assert.deepEqual(r.llamadas, ["prisma generate", "next build"]);
+  assert.match(r.salida, /base propia/);
+});
+
+test("basta UNA de las dos cadenas apuntando a producción para bloquear (la consola usa la otra)", { skip: !(PROD_LOCAL && QA_LOCAL) && "sin bases locales" }, () => {
+  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: QA_LOCAL!, OPERATOR_DATABASE_URL: PROD_LOCAL! });
+  assert.deepEqual(r.llamadas, ["prisma generate", "next build [bloqueado]"]);
 });
