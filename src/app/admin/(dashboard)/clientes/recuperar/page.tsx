@@ -1,0 +1,98 @@
+import Link from "next/link";
+import { requireApp } from "@/lib/require-app";
+import { prisma } from "@/lib/prisma";
+import { roleHasCapability } from "@/lib/capabilities";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { EmptyState, PageHeader, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { cargarBandeja } from "@/lib/crm/lecturas";
+import { contextoCrm } from "@/lib/crm/cargas.server";
+import { explicarCiclo } from "@/lib/crm/ciclo";
+import { diasEntre, haceDias } from "@/lib/crm/fechas";
+import { explicarSegmento, porRecuperar } from "@/lib/crm/segmentos";
+import { CRM_REGLAS } from "@/lib/crm/reglas";
+import EnlacesClientes from "../EnlacesClientes";
+import PasarABandeja from "./PasarABandeja";
+
+export const dynamic = "force-dynamic";
+
+// CLIENTES POR RECUPERAR — quiénes pasaron su ciclo de siempre sin volver.
+//
+// Sin puntajes: cada fila dice cuántos días hace que no viene y cada cuánto venía (su ciclo,
+// src/lib/crm/ciclo.ts). "En riesgo" es entre 1,5 y 3 ciclos sin volver y sin turno reservado.
+// La lista es la del número del Inicio (misma lectura, `cargarBandeja` → `porRecuperar`); lo
+// que se pierde por año sólo lo ve quien ve plata. Desde acá se suman a la bandeja de hoy.
+
+const REGLA = `Entre ${String(CRM_REGLAS.riesgoDesdeCiclos).replace(".", ",")} y ${CRM_REGLAS.perdidaDespuesDeCiclos} veces su ciclo sin volver`;
+
+export default async function PorRecuperarPage() {
+  const user = await requireApp("clientas-por-recuperar");
+  const c = await contextoCrm();
+  const { base, constancias } = await cargarBandeja(prisma, c);
+  const enRiesgo = porRecuperar(base);
+  const verPlata = roleHasCapability(user.role, "reports:read");
+  const puedeSumar = roleHasCapability(user.role, "clients:manage");
+  const total = enRiesgo.reduce((s, x) => s + x.ev.valorAnual, 0);
+
+  return (
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <PageHeader
+        title="Clientes por recuperar"
+        description={`${enRiesgo.length} en riesgo de no volver${verPlata && total > 0 ? ` · unos ${fmtMoneyARS(total, 0)} por año en juego (estimado)` : ""}.`}
+      />
+      <EnlacesClientes role={user.role} actual="clientas-por-recuperar" />
+      <p className="mb-4 text-sm text-muted">
+        {REGLA}, sin turno reservado. El ciclo es la mediana de los días entre sus visitas; si vino una sola vez, lo que
+        tardan en volver las demás por ese servicio; si no, {CRM_REGLAS.cicloPorDefectoDias} días (provisional).
+      </p>
+
+      {enRiesgo.length === 0 ? (
+        <EmptyState
+          title="Nadie en riesgo por ahora"
+          description="Todos los que venían seguido volvieron dentro de su ciclo o ya tienen turno. Revisá de nuevo en unos días."
+          action={
+            <Link href="/admin/clientes" className={buttonClasses("outline", "md")}>
+              Ver todos los clientes
+            </Link>
+          }
+        />
+      ) : (
+        <ul className="divide-y divide-line/60 rounded-lg border border-line bg-surface-raised">
+          {enRiesgo.map(({ persona, ev }) => {
+            const baja = constancias.bajas.has(persona.id);
+            const ultimo = constancias.ultimoContacto.get(persona.id);
+            const diasContacto = ultimo ? diasEntre(ultimo, c.hoy) : null;
+            const reciente = diasContacto !== null && diasContacto < CRM_REGLAS.contactoRecienteDias;
+            const celular = waLinkClienta(persona.telefono) !== null;
+            return (
+              <li key={persona.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 text-sm">
+                  <Link href={`/admin/clientes/${persona.id}`} className="font-medium text-strong hover:underline">
+                    {persona.nombre}
+                  </Link>
+                  <p className="text-muted">{explicarSegmento(ev)}</p>
+                  <p className="text-xs text-muted">
+                    {ev.cantidadVisitas} {ev.cantidadVisitas === 1 ? "visita" : "visitas"}; {explicarCiclo(ev.ciclo)}
+                    {verPlata && ev.valorAnual > 0 ? ` · gasta unos ${fmtMoneyARS(ev.valorAnual, 0)} por año` : ""}
+                  </p>
+                </div>
+                <div className="shrink-0 text-sm">
+                  {baja ? (
+                    <span className="text-danger">No quiere mensajes</span>
+                  ) : reciente ? (
+                    <span className="text-muted">Contactada {haceDias(diasContacto!)}</span>
+                  ) : !celular ? (
+                    <Link href={`/admin/clientes/${persona.id}`} className="text-warning underline">
+                      Sin celular válido: corregilo en su ficha
+                    </Link>
+                  ) : puedeSumar ? (
+                    <PasarABandeja clientId={persona.id} yaEsta={constancias.pasadasHoy.has(persona.id)} />
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </main>
+  );
+}

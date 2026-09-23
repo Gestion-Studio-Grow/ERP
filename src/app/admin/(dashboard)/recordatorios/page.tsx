@@ -3,16 +3,51 @@ import {
   createProfessionalNews,
   broadcastProfessionalNewsAction,
 } from "@/lib/reminders-actions";
-import { fmtDateTime } from "@/lib/datetime";
+import Link from "next/link";
+import { fmtDateTime, todayInBusinessTz } from "@/lib/datetime";
 import ReminderServicesTree from "./ReminderServicesTree";
 import TemplatesSection from "./TemplatesSection";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses } from "@/components/ui";
+import { requireApp } from "@/lib/require-app";
+import { prisma } from "@/lib/prisma";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { diaSiguiente, rangoDelDia } from "@/lib/turnos/turno-abierto";
+import { leerAvisosDeManana } from "@/lib/crm/lecturas";
+import { enInicioPorApps } from "../inicio/piloto";
 
 export const dynamic = "force-dynamic";
 
+// La cobertura REAL de los avisos de mañana (Inicio por apps), con la misma lectura que el
+// número del Inicio (`leerAvisosDeManana`). El aviso automático por WhatsApp está simulado y el
+// barrido diario llega a pocos turnos: lo que cuenta es lo que la recepción mandó a mano desde
+// "Confirmar turnos de mañana". Mostrarlo evita creer que "se avisa solo".
+async function CoberturaDeManana() {
+  const tenantId = await getCurrentTenantId();
+  const c = await leerAvisosDeManana(prisma, tenantId, rangoDelDia(diaSiguiente(todayInBusinessTz())));
+  const pct = c.total > 0 ? Math.round((c.avisados / c.total) * 100) : null;
+  return (
+    <section className="rounded-lg border border-line bg-surface-raised p-4">
+      <h2 className="text-lg font-medium text-strong">Avisos de mañana</h2>
+      <p className="mt-1 text-sm text-muted">
+        {pct === null
+          ? "Mañana no hay turnos reservados ni confirmados."
+          : `${c.avisados} de ${c.total} turnos de mañana ya tienen el aviso (${pct}%).`}{" "}
+        El envío automático por WhatsApp todavía no está conectado: los avisos que cuentan son los que se mandan desde
+        &ldquo;Confirmar turnos de mañana&rdquo;.
+      </p>
+      {pct !== null && c.avisados < c.total && (
+        <Link href="/admin/turnos/manana" className={buttonClasses("outline", "md", "mt-3")}>
+          Avisar a los que faltan
+        </Link>
+      )}
+    </section>
+  );
+}
+
 export default async function RecordatoriosPage() {
-  const { services, templates, professionals, news } = await getReminderPanelData();
+  await requireApp("recordatorios");
+  const [{ services, templates, professionals, news }, piloto] = await Promise.all([getReminderPanelData(), enInicioPorApps()]);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8 space-y-12">
@@ -24,6 +59,8 @@ export default async function RecordatoriosPage() {
           simulado en el log del servidor).
         </p>
       </div>
+
+      {piloto && <CoberturaDeManana />}
 
       {/* Config por servicio — árbol por categoría, config bajo demanda */}
       <section>
@@ -48,8 +85,9 @@ export default async function RecordatoriosPage() {
       <section>
         <h2 className="text-lg font-medium mb-1">Novedades por profesional</h2>
         <p className="text-sm text-muted mb-3">
-          Al cargarla queda publicada en la sección “Novedades” de la web (30 días). “Difundir”
-          además la envía por WhatsApp a la base de clientes (hoy simulado).
+          Al cargarla queda publicada en la sección “Novedades” de la web (30 días). “Difundir” todavía
+          no manda mensajes: el envío por WhatsApp no está conectado, así que sólo queda registrada a
+          cuántas clientas le llegaría (las que no pidieron dejar de recibir mensajes).
         </p>
         <form action={createProfessionalNews} className="rounded-lg border border-line p-4 flex flex-wrap gap-2 mb-4">
           <select name="professionalId" required aria-label="Profesional" className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent">
@@ -81,17 +119,18 @@ export default async function RecordatoriosPage() {
                 </p>
                 <p className="text-xs text-faint">
                   {fmtDateTime(n.createdAt)} · publicada en la web
-                  {n.broadcastAt && ` · difundida ${fmtDateTime(n.broadcastAt)}`}
+                  {/* No dice "difundida": el envío es simulado y no salió ningún mensaje. */}
+                  {n.broadcastAt && ` · difusión simulada el ${fmtDateTime(n.broadcastAt)}: no salió ningún mensaje`}
                 </p>
               </div>
               {!n.broadcastAt && (
                 <form action={broadcastProfessionalNewsAction}>
                   <input type="hidden" name="id" value={n.id} />
                   <SubmitButton
-                    pendingText="Difundiendo…"
+                    pendingText="Registrando…"
                     className={buttonClasses("outline", "sm", "whitespace-nowrap")}
                   >
-                    Difundir
+                    Difundir (simulado)
                   </SubmitButton>
                 </form>
               )}

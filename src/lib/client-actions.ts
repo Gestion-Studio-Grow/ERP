@@ -11,6 +11,10 @@ import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { validateBookingContact } from "@/lib/contact-validation";
 import { fichaQueChoca, normalizarTelefono } from "@/lib/clientes/telefono";
+import { fichasDelTelefono } from "@/lib/clientes/ficha-por-telefono";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { tenantTransaction } from "@/lib/rls";
+import { enInicioPorApps } from "@/app/admin/(dashboard)/inicio/piloto";
 import { getLocation } from "@/lib/settings";
 import { nextBusinessDays } from "@/lib/datetime";
 import type { BookingData } from "@/app/(site)/_ch/types";
@@ -284,7 +288,11 @@ export async function updateClient(formData: FormData): Promise<ResultadoAccion>
         ok: false,
         error:
           `Ese teléfono ya es el de la ficha de ${choque.name} (${choque.phone}). ` +
-          "Si son la misma persona, hay que unificar las dos fichas: por ahora se hace a mano.",
+          // Con el Inicio por apps existe "Unificar fichas duplicadas"; fuera del piloto (CH) esa
+          // app no está en su menú, y mandarla ahí sería un callejón: queda el texto de siempre.
+          ((await enInicioPorApps())
+            ? "Si son la misma persona, unificalas desde Clientes › Fichas duplicadas (lo hace la dueña o el dueño)."
+            : "Si son la misma persona, hay que unificar las dos fichas: por ahora se hace a mano."),
       };
     }
   }
@@ -317,4 +325,68 @@ export async function updateClient(formData: FormData): Promise<ResultadoAccion>
   revalidatePath(`/admin/clientes/${id}`);
   revalidatePath("/admin/clientes");
   return { ok: true };
+}
+
+// ============================================================================
+// NUEVA FICHA — la segunda acción de ADMIN de este archivo, con la misma guarda.
+// ============================================================================
+//
+// En un negocio de turnos la ficha nace sola al reservar. En un MOSTRADOR no nace nunca: la
+// venta ata el pedido a la ficha sólo si ya existía (order-core.ts), y crear fichas desde la
+// tienda quedó para la app de Clientes. Sin esto, Magra no tiene a quién saludar el día del
+// cumpleaños ni a quién recuperar.
+//
+// Al crearla, los pedidos que esa persona ya hizo con su número (sin ficha) quedan atados a
+// ella en la MISMA transacción: su historial arranca completo. Un teléfono que ya es de otra
+// ficha se rechaza y se dice cuál (misma regla que `updateClient`: una persona, una ficha).
+export async function crearFicha(
+  formData: FormData,
+): Promise<{ ok: true; id: string; pedidos: number } | { ok: false; error: string; existenteId?: string }> {
+  await requireCapability("clients:manage");
+  const tenantId = await getCurrentTenantId();
+
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
+  const phone = String(formData.get("phone") ?? "").trim().replace(/\s+/g, " ");
+  const email = String(formData.get("email") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+  const birthDateStr = String(formData.get("birthDate") ?? "").trim();
+
+  if (!name) return { ok: false, error: "Falta el nombre." };
+  if (!phone) return { ok: false, error: "Falta el teléfono: es por donde se le escribe." };
+  const contacto = validateBookingContact(phone, email);
+  if (!contacto.ok) return { ok: false, error: contacto.error };
+
+  let birthDate: Date | null = null;
+  if (birthDateStr) {
+    // Mediodía UTC, igual que `updateClient`: un cumpleaños es una fecha, no un instante.
+    birthDate = /^\d{4}-\d{2}-\d{2}$/.test(birthDateStr) ? new Date(`${birthDateStr}T12:00:00.000Z`) : null;
+    if (!birthDate || Number.isNaN(birthDate.getTime())) return { ok: false, error: "La fecha de cumpleaños no es válida." };
+  }
+
+  const clave = normalizarTelefono(phone);
+  const fichas = await prisma.client.findMany({ where: { tenantId }, select: { id: true, name: true, phone: true } });
+  const yaExiste = fichasDelTelefono(fichas, phone)[0];
+  if (yaExiste) {
+    return { ok: false, error: `Ese teléfono ya es de la ficha de ${yaExiste.name} (${yaExiste.phone}).`, existenteId: yaExiste.id };
+  }
+
+  // Los pedidos sin ficha con este MISMO número (escrito como sea): pasan a su historial.
+  const sinFicha = await prisma.order.findMany({ where: { tenantId, clientId: null }, select: { id: true, customerPhone: true } });
+  const pedidos = clave ? sinFicha.filter((o) => normalizarTelefono(o.customerPhone) === clave).map((o) => o.id) : [];
+
+  const id = await tenantTransaction(async (tx) => {
+    const creada = await tx.client.create({
+      data: { tenantId, name, phone, email: email || null, notes: notes || null, birthDate },
+      select: { id: true },
+    });
+    // `clientId: null` en el where: si en el medio otra venta ya lo ató a una ficha, no se pisa.
+    if (pedidos.length > 0) {
+      await tx.order.updateMany({ where: { tenantId, id: { in: pedidos }, clientId: null }, data: { clientId: creada.id } });
+    }
+    return creada.id;
+  });
+
+  await auditAdmin({ action: "create", entity: "Client", entityId: id, changes: { name, phone, pedidosVinculados: pedidos } });
+  revalidatePath("/admin/clientes");
+  return { ok: true, id, pedidos: pedidos.length };
 }

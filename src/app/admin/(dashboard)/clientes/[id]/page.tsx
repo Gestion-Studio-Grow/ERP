@@ -5,7 +5,10 @@ import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
 import { canCurrentUser } from "@/lib/authz";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { requireApp } from "@/lib/require-app";
 import EditarClienteForm from "./EditarClienteForm";
+import FichaUnica from "./FichaUnica";
+import { enInicioPorApps } from "../../inicio/piloto";
 
 // "Reservado", igual que la agenda (CalendarGrid, lista): la ficha decía "Pendiente de pago"
 // para el mismo estado, y el estado del turno no habla de plata (la seña se cobra al reservar).
@@ -22,7 +25,11 @@ export default async function ClienteDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireApp("clientes");
   const { id } = await params;
+  // En el Inicio por apps, la ficha única (próximo turno, lo que debe, faltazos, pedidos, fiado,
+  // cumpleaños y permiso de mensajes). CH, fuera del piloto, sigue con la ficha de siempre.
+  if (await enInicioPorApps()) return <FichaUnica id={id} user={user} />;
   const client = await getClient(id);
   if (!client) notFound();
 

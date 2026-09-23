@@ -1,5 +1,9 @@
 import { getReviews, togglePublished, deleteReview } from "@/lib/reviews-actions";
 import { fmtShortDate } from "@/lib/datetime";
+import { requireApp } from "@/lib/require-app";
+import { fmtNumberAR } from "@/components/ui";
+import { resumirResenasDeLista, type ResumenResenas } from "@/lib/crm/resenas";
+import { enInicioPorApps } from "../inicio/piloto";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +16,42 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
+// Promedio y desglose por profesional (Inicio por apps). Sale de la MISMA lista que se muestra
+// abajo, así el promedio coincide con el número de Reseñas en el Inicio.
+function ResumenDeResenas({ r }: { r: ResumenResenas }) {
+  if (r.total === 0 || r.promedio === null) return null;
+  return (
+    <section className="mb-8 rounded-lg border border-line bg-surface-raised p-4">
+      <p className="text-2xl font-semibold text-strong">
+        {fmtNumberAR(r.promedio, 1)}★ <span className="text-base font-normal text-muted">promedio de {r.total}</span>
+      </p>
+      {r.sinPublicar > 0 && (
+        <p className="text-sm text-muted">
+          {r.sinPublicar} sin publicar: revisalas abajo y publicá las que quieras mostrar en la web.
+        </p>
+      )}
+      <ul className="mt-3 divide-y divide-line/60 text-sm">
+        {r.porProfesional.map((p) => (
+          <li key={p.professionalId} className="flex items-center justify-between gap-3 py-2">
+            <span className="text-strong">{p.profesional}</span>
+            <span className="tabular-nums text-muted">
+              {fmtNumberAR(p.promedio, 1)}★ · {p.cantidad} {p.cantidad === 1 ? "reseña" : "reseñas"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default async function ResenasPage() {
-  const reviews = await getReviews();
+  await requireApp("resenas");
+  const [reviews, piloto] = await Promise.all([getReviews(), enInicioPorApps()]);
+  const resumen = piloto
+    ? resumirResenasDeLista(
+        reviews.map((r) => ({ rating: r.rating, published: r.published, professionalId: r.professionalId, profesional: r.professional.name })),
+      )
+    : null;
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
@@ -22,6 +60,8 @@ export default async function ResenasPage() {
         Publicá las reseñas que quieras mostrar en la web. Por defecto quedan ocultas hasta que las
         apruebes.
       </p>
+
+      {resumen && <ResumenDeResenas r={resumen} />}
 
       <div className="space-y-3">
         {reviews.map((r) => (

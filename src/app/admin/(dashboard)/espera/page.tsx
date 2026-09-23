@@ -5,17 +5,55 @@ import {
   markWaitlistNotified,
   cancelWaitlistEntry,
 } from "@/lib/waitlist-actions";
-import { fmtShortDate, nextBusinessDays } from "@/lib/datetime";
+import { dateStrInBusinessTz, fmtCalendarDateLabel, fmtShortDate, fmtTime, nextBusinessDays } from "@/lib/datetime";
 import { Input, Select, buttonClasses } from "@/components/ui";
+import { requireApp } from "@/lib/require-app";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { cargarHuecosLiberados, nombreDelNegocio } from "@/lib/crm/cargas.server";
+import { textoHuecoLiberado } from "@/lib/crm/textos";
+import { enInicioPorApps } from "../inicio/piloto";
 import EntryBooking from "./EntryBooking";
+import HuecosLiberados, { type HuecoVista } from "./HuecosLiberados";
 
 export const dynamic = "force-dynamic";
 
+// Los huecos liberados, listos para la pantalla: el texto de WhatsApp de cada anotado armado en
+// el servidor (con el nombre del negocio) y las fechas en ISO.
+async function huecosParaMostrar(): Promise<HuecoVista[]> {
+  const [huecos, negocio] = await Promise.all([cargarHuecosLiberados(), nombreDelNegocio()]);
+  return huecos.map((h) => {
+    const dia = dateStrInBusinessTz(h.startsAt);
+    const cuando = `el ${fmtCalendarDateLabel(dia)} a las ${fmtTime(h.startsAt)}`;
+    return {
+      appointmentId: h.appointmentId,
+      startsAt: h.startsAt.toISOString(),
+      dia,
+      servicio: h.servicio,
+      profesional: h.profesional,
+      professionalId: h.professionalId,
+      anotados: h.anotados.map((a) => ({
+        id: a.id,
+        nombre: a.clientName,
+        telefono: a.clientPhone,
+        preferencia: a.preferenceNote,
+        wa: waLinkClienta(
+          a.clientPhone,
+          textoHuecoLiberado({ nombre: a.clientName, negocio, servicio: h.servicio, profesional: h.profesional, cuando }),
+        ),
+        avisado: a.status === "NOTIFIED" && a.notifiedAt ? { el: a.notifiedAt.toISOString(), por: a.avisadoPor } : null,
+      })),
+    };
+  });
+}
+
 export default async function EsperaPage() {
-  // getWaitlist aplica requireCapability("waitlist:manage") — es el guard de la página.
-  const [entries, { services, professionals }] = await Promise.all([
+  // La guardia es la app (rol, módulo y rubro); getWaitlist además pide waitlist:manage.
+  await requireApp("lista-de-espera");
+  const [entries, { services, professionals }, huecos] = await Promise.all([
     getWaitlist(),
     getWaitlistFormData(),
+    // Inicio por apps: los huecos que dejó una cancelación. CH, fuera del piloto, sin cambios.
+    enInicioPorApps().then((piloto) => (piloto ? huecosParaMostrar() : [])),
   ]);
   const dates = nextBusinessDays(30);
 
@@ -26,6 +64,8 @@ export default async function EsperaPage() {
         Anotá a quien quiere un turno cuando no hay horario. Cuando se libere un lugar (una
         cancelación o una reprogramación), buscá un hueco y reservalo con un clic.
       </p>
+
+      <HuecosLiberados huecos={huecos} />
 
       {/* Alta */}
       <form

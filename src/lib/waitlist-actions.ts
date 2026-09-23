@@ -13,6 +13,9 @@ import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { getAvailableSlots } from "@/lib/actions";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { buscarFichaPorTelefono, entradaAuditoriaEmpate, type EmpateFichas } from "@/lib/clientes/ficha-por-telefono";
+import { unstable_rethrow } from "next/navigation";
+import { whereEsperando } from "@/lib/crm/wheres";
+import type { ResultadoAccion } from "@/lib/actions";
 
 const WAITLIST_PATH = "/admin/espera";
 
@@ -33,7 +36,8 @@ export async function getWaitlist() {
   await requireCapability("waitlist:manage");
   const tenantId = await getCurrentTenantId();
   return prisma.waitlistEntry.findMany({
-    where: { tenantId, status: { in: ["WAITING", "NOTIFIED"] } },
+    // El MISMO `where` que el número de Lista de espera en el Inicio.
+    where: whereEsperando(tenantId),
     orderBy: [{ status: "asc" }, { createdAt: "asc" }],
     include: { service: true, professional: true },
   });
@@ -328,4 +332,66 @@ export async function bookFromWaitlist(formData: FormData) {
   revalidatePath(WAITLIST_PATH);
   revalidatePath("/admin/turnos");
   revalidatePath("/admin");
+}
+
+// ─── Huecos liberados: avisar por WhatsApp y reservar desde el hueco ─────────
+//
+// "Marcar avisado" sólo cambiaba el estado: no decía quién avisó ni con qué. El bloque de
+// huecos liberados (/admin/espera) abre WhatsApp con el texto armado y, en el mismo toque,
+// deja la constancia: el anotado pasa a Avisado con la hora, y la auditoría guarda quién y
+// por qué hueco. Igual que "Mañana: confirmar", el sistema sabe que se abrió el chat, no que
+// el mensaje salió.
+
+export async function avisarHuecoPorWhatsApp(
+  entryId: string,
+  appointmentId: string,
+): Promise<{ ok: true; avisadoEl: string; por: string } | { ok: false; error: string }> {
+  const user = await requireCapability("waitlist:manage");
+  const tenantId = await getCurrentTenantId();
+  const id = String(entryId ?? "").trim();
+  const hueco = String(appointmentId ?? "").trim();
+  if (!id || !hueco) return { ok: false, error: "Falta el anotado o el hueco." };
+  // Los dos ids llegan del navegador: se buscan con el negocio.
+  const turno = await prisma.appointment.findFirst({
+    where: { id: hueco, tenantId, status: "CANCELLED" },
+    select: { startsAt: true, serviceId: true },
+  });
+  if (!turno) return { ok: false, error: "Ese hueco ya no está libre. Recargá la lista." };
+  const ahora = new Date();
+  // Sólo un anotado que espera ESE servicio: la constancia dice "se le ofreció este hueco".
+  const res = await prisma.waitlistEntry.updateMany({
+    where: { id, tenantId, serviceId: turno.serviceId, status: { in: ["WAITING", "NOTIFIED"] } },
+    data: { status: "NOTIFIED", notifiedAt: ahora },
+  });
+  if (res.count === 0) return { ok: false, error: "Esa persona ya no está en la lista de espera." };
+  await auditAdmin({
+    action: "notify",
+    entity: "WaitlistEntry",
+    entityId: id,
+    changes: { canal: "whatsapp-manual", hueco, startsAt: turno.startsAt },
+  });
+  revalidatePath(WAITLIST_PATH);
+  return { ok: true, avisadoEl: ahora.toISOString(), por: user.name };
+}
+
+/**
+ * Reservar el hueco liberado para un anotado. Es `bookFromWaitlist` (misma validación del
+ * hueco, misma ficha por teléfono, mismo precio congelado), pero DEVUELVE el motivo en vez de
+ * tirar: si otra persona tomó el horario un minuto antes, la recepción lee "ese horario ya no
+ * está disponible" en la fila, no la pantalla de error genérica.
+ */
+export async function reservarHuecoLiberado(formData: FormData): Promise<ResultadoAccion> {
+  try {
+    await bookFromWaitlist(formData);
+    return { ok: true };
+  } catch (e) {
+    // El redirect de la guardia (sin sesión, sin permiso) no es un error: sigue su camino.
+    unstable_rethrow(e);
+    const sinCodigo = typeof e === "object" && e !== null && !("code" in e);
+    const mensaje = e instanceof Error ? e.message : "";
+    // Los rechazos de dominio son `Error` con el motivo en castellano; uno de Prisma trae
+    // `code` y un volcado técnico que no se muestra.
+    if (sinCodigo && mensaje && mensaje.length <= 300) return { ok: false, error: mensaje };
+    return { ok: false, error: "No se pudo reservar ese horario. Probá de nuevo o elegí otro con “Buscar horario”." };
+  }
 }

@@ -3,9 +3,15 @@ import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
 import MananaConfirmar from "./MananaConfirmar";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
-import { requireCapability } from "@/lib/authz";
+import { requireApp } from "@/lib/require-app";
 import { roleHasCapability } from "@/lib/capabilities";
 import { buttonClasses } from "@/components/ui";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { cargarHuecosLiberados } from "@/lib/crm/cargas.server";
+import { anotadosConHueco } from "@/lib/crm/huecos";
+import { enInicioPorApps } from "../inicio/piloto";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -28,6 +34,28 @@ function NovedadesDelDia({
   );
 }
 
+// Un turno cancelado que le sirve a alguien de la lista de espera (Inicio por apps). Cancelar
+// antes no miraba la lista: el hueco se perdía salvo que alguien se acordara. Acá se ofrece,
+// con el mismo cruce que la lista de espera (huecos liberados, src/lib/crm/huecos.ts).
+async function HuecosParaLaEspera({ role }: { role: Parameters<typeof getNegocioApps>[0] }) {
+  const negocio = await getNegocioApps(role);
+  if (!appPermitida(appPorId("lista-de-espera"), negocio)) return null;
+  const huecos = await cargarHuecosLiberados();
+  if (huecos.length === 0) return null;
+  const personas = anotadosConHueco(huecos);
+  return (
+    <div className="mb-6 flex flex-col gap-2 rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-strong">
+        {huecos.length === 1 ? "Se liberó un turno" : `Se liberaron ${huecos.length} turnos`} que le{" "}
+        {personas === 1 ? "sirve a 1 persona" : `sirven a ${personas} personas`} de la lista de espera.
+      </p>
+      <Link href="/admin/espera" className={buttonClasses("solid", "md", "whitespace-nowrap")}>
+        Ofrecer el hueco
+      </Link>
+    </div>
+  );
+}
+
 // Suma días a una fecha de calendario "YYYY-MM-DD" de forma estable ante zonas
 // (se ancla a mediodía UTC, así nunca cruza la medianoche por el offset).
 function addDays(dateStr: string, days: number) {
@@ -44,7 +72,7 @@ export default async function TurnosCalendarPage({
   // El PROFESSIONAL ve el calendario de su propia agenda (getAgendaDay lo
   // scopea) pero sin las acciones de gestión (confirmar pago / cancelar), que
   // son de OWNER/RECEPTION. Sí puede cerrar sus turnos (completar / no-show).
-  const user = await requireCapability("agenda:read");
+  const user = await requireApp("agenda");
   const canManage = roleHasCapability(user.role, "agenda:manage");
   // El profesional cobra sus turnos aunque no pueda gestionarlos (decisión del dueño).
   const canCollect = roleHasCapability(user.role, "agenda:collect");
@@ -56,9 +84,10 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [{ professionals, appointments, blocksToday }, manana] = await Promise.all([
+  const [{ professionals, appointments, blocksToday }, manana, piloto] = await Promise.all([
     getAgendaDay(date),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
+    enInicioPorApps(),
   ]);
 
   const label = fmtCalendarDateLabel(date);
@@ -116,6 +145,8 @@ export default async function TurnosCalendarPage({
       </div>
 
       <NovedadesDelDia blocks={blocksToday} />
+
+      {piloto && canManage && <HuecosParaLaEspera role={user.role} />}
 
       {manana && <MananaConfirmar dia={manana.dia} turnos={manana.turnos} />}
 

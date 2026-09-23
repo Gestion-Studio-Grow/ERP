@@ -10,11 +10,14 @@
 // tenants) porque es mantenimiento de la plataforma, no una acción de tenant.
 
 import type { PrismaClient } from "@/generated/prisma/client";
+// El nombre de la entidad del permiso sale del motor comercial (dato puro, sin Prisma): si
+// alguien lo renombrara allá, la exención no puede quedar apuntando a un nombre viejo.
+import { ENTIDAD_PERMISO } from "./crm/reglas";
 
 // Entidades de `AuditLog` que la purga nunca borra (ver el comentario en `purgeAuditLogs`).
 // Se definen acá y no se importan de `frontera-cierre.ts` a propósito: ese módulo trae el
 // cliente Prisma del runtime y esto tiene que poder correr con un doble de test.
-export const PURGE_EXEMPT_ENTITIES = ["CierreDiario", "CarteraCliente", "CierreMes"] as const;
+export const PURGE_EXEMPT_ENTITIES = ["CierreDiario", "CarteraCliente", "CierreMes", ENTIDAD_PERMISO] as const;
 
 /** @deprecated Usar `PURGE_EXEMPT_ENTITIES`. Se conserva por compatibilidad de llamadores. */
 export const PURGE_EXEMPT_ENTITY = PURGE_EXEMPT_ENTITIES[0];
@@ -52,7 +55,7 @@ export async function purgeAuditLogs(
   const months = opts.months ?? AUDIT_RETENTION_MONTHS;
   const dryRun = opts.dryRun ?? true;
   const cutoff = auditRetentionCutoff(months);
-  // Tres entidades quedan EXENTAS, por razones distintas.
+  // Cuatro entidades quedan EXENTAS, por razones distintas.
   //
   // El CIERRE DIARIO de caja: su fila de auditoría no es un rastro, es la frontera de
   // congelamiento del libro (hasta qué día está cerrado el tenant, ver
@@ -69,6 +72,11 @@ export async function purgeAuditLogs(
   // deciden si un mes está congelado y guardan quién bajó el paquete para la contadora.
   // Purgarlas haría que un mes congelado volviera a figurar "sin congelar" y se perdiera el
   // "descargado por".
+  //
+  // El PERMISO DE MENSAJES de una clienta (`entity: "ConsentimientoCliente"`, src/lib/crm): es
+  // la prueba de que pidió no recibir mensajes (Ley 25.326, art. 27) o de que volvió a
+  // aceptarlos. Hasta que existan las columnas en `Client` (2ª ventana) vive sólo acá: purgarla
+  // a los 18 meses haría que una baja dejara de respetarse. Son pocas filas por clienta.
   const where = { createdAt: { lt: cutoff }, entity: { notIn: [...PURGE_EXEMPT_ENTITIES] } };
 
   if (dryRun) {

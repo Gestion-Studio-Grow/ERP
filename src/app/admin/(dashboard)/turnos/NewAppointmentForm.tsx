@@ -37,6 +37,7 @@ export default function NewAppointmentForm({
   origen = "agenda",
   viewer,
   fichas,
+  faltazos,
 }: {
   professionals: Professional[];
   origen?: OrigenAlta;
@@ -46,6 +47,11 @@ export default function NewAppointmentForm({
    * antes, con nombre y teléfono a mano. El servidor encuentra la ficha por teléfono igual.
    */
   fichas?: FichaParaAlta[];
+  /**
+   * Cuántas veces faltó sin avisar cada ficha, sólo las que llegan al umbral del aviso (Inicio
+   * por apps). Sin esto, el alta no avisa: es lo de siempre.
+   */
+  faltazos?: Record<string, number>;
   /**
    * Quién está dando el turno. Decide si se dibuja el bloque de cobro, con la MISMA función
    * que aplica el servidor (`puedeCobrarEsteTurno`), para que pantalla y acción no puedan
@@ -359,7 +365,7 @@ export default function NewAppointmentForm({
                 />
               </Field>
             </div>
-            {reconocida && <FichaReconocida ficha={reconocida} nombreTipeado={datos.nombre} />}
+            {reconocida && <FichaReconocida ficha={reconocida} nombreTipeado={datos.nombre} faltazos={faltazos?.[reconocida.id] ?? 0} />}
             <label className="flex min-h-11 items-center gap-2 text-sm text-body">
               <input
                 type="checkbox"
@@ -466,7 +472,7 @@ export default function NewAppointmentForm({
 
 // Lo que la recepción necesita saber de una clienta que ya existe, en el momento de darle el
 // turno: que es ella, qué se hizo la última vez, sus notas y si debe algo.
-function FichaReconocida({ ficha, nombreTipeado }: { ficha: FichaParaAlta; nombreTipeado: string }) {
+function FichaReconocida({ ficha, nombreTipeado, faltazos }: { ficha: FichaParaAlta; nombreTipeado: string; faltazos: number }) {
   const otroNombre = nombreTipeado.trim() !== "" && nombreTipeado.trim() !== ficha.nombre.trim();
   return (
     <div className="rounded-md border border-line bg-surface-sunken p-3 text-sm space-y-1" role="status">
@@ -487,6 +493,13 @@ function FichaReconocida({ ficha, nombreTipeado }: { ficha: FichaParaAlta; nombr
       {ficha.notas && <p className="whitespace-pre-line text-body">Notas: {ficha.notas}</p>}
       {ficha.saldo > 0 && (
         <p className="font-medium text-danger">Debe {fmtMoneyARS(ficha.saldo, 0)} de turnos anteriores.</p>
+      )}
+      {/* `faltazos` llega sólo si llega al umbral (cargarFaltazosPorFicha): el aviso es para
+          pedir seña, no para marcar a quien faltó una vez. */}
+      {faltazos > 0 && (
+        <p className="font-medium text-warning">
+          Faltó {faltazos} veces sin avisar. Conviene pedirle la seña para confirmar el turno.
+        </p>
       )}
       {otroNombre && (
         <p className="text-xs text-warning">

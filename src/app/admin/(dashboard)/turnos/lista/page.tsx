@@ -4,6 +4,9 @@ import AppointmentsHistoryList from "./AppointmentsHistoryList";
 import NewAppointmentForm from "../NewAppointmentForm";
 import Link from "next/link";
 import { requireCapability } from "@/lib/authz";
+import { requireApp } from "@/lib/require-app";
+import { cargarFaltazosPorFicha } from "@/lib/crm/cargas.server";
+import { enInicioPorApps } from "../../inicio/piloto";
 import { esCuentaACobrar, estadoCobroTurno } from "@/lib/turnos/cobros";
 import { seccionDeLista } from "@/lib/turnos/turno-abierto";
 
@@ -81,14 +84,19 @@ function instanteDeCarga() {
 export default async function TurnosListaPage() {
   // La lista (historial completo + alta manual) es gestión de agenda: solo
   // OWNER/RECEPTION. El PROFESSIONAL cae acá a su calendario propio.
+  // La app (módulo y rubro, como la barra) y además gestionar la agenda: la lista es más que
+  // el calendario que ve el profesional.
+  await requireApp("agenda");
   const user = await requireCapability("agenda:manage");
   // Quién mira. Alimenta la misma regla que aplica el servidor al cobrar, para que la fila no
   // ofrezca un cobro que después se rechaza.
   const viewer = { role: user.role, professionalId: user.professionalId };
-  const [appointments, professionals, fichas] = await Promise.all([
+  const [appointments, professionals, fichas, faltazos] = await Promise.all([
     getAppointments(),
     getProfessionalsWithServices(),
     getFichasParaAlta(),
+    // Inicio por apps: el aviso de faltazos al dar el turno. CH, fuera del piloto, sin cambios.
+    enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
   ]);
   // Único punto donde se lee el resultado crudo del loader: de acá para abajo se trabaja
   // siempre con `turnos`, que es lo que el navegador va a recibir.
@@ -132,7 +140,7 @@ export default async function TurnosListaPage() {
         confirmá el turno cuando la clienta confirme, y al completarlo se cobra el resto.
       </p>
 
-      <NewAppointmentForm professionals={professionals} fichas={fichas} />
+      <NewAppointmentForm professionals={professionals} fichas={fichas} faltazos={faltazos} />
 
       {sinCerrar.length > 0 && (
         <section className="mb-10">

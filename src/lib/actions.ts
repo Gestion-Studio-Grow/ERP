@@ -65,6 +65,7 @@ import {
   type FichaParaAlta,
 } from "@/lib/clientes/ficha-por-telefono";
 import { diaSiguiente, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
+import { whereTurnoCancelable, whereTurnosDeManana, whereTurnosDelDia } from "@/lib/crm/wheres";
 import { Prisma } from "@/generated/prisma/client";
 import {
   isDemoSandbox,
@@ -1359,6 +1360,8 @@ export async function confirmarTurno(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/turnos/lista");
+  // "Confirmar turnos de mañana" también ofrece este botón (MananaConfirmar.tsx).
+  revalidatePath("/admin/turnos/manana");
 }
 
 export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
@@ -1554,17 +1557,33 @@ export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE
   };
 }
 
+// Cancelar SÓLO un turno vivo (Reservado o Confirmado). Antes cancelaba cualquier estado: la
+// agenda esconde el botón en un turno completado, pero la acción es un endpoint y se puede
+// llamar directo, y un turno COMPLETADO ya tiene cobros, factura y comisión colgados. La
+// condición va en el `where` del update (como `confirmarTurno`), así también gana la carrera
+// de dos recepcionistas: si otra lo completó un segundo antes, esto no toca nada.
+//
+// Sin cambios en la firma (la usa un `<form action>`): un rechazo no escribe ni audita, deja
+// constancia en el log y la agenda se vuelve a pintar con el estado real del turno.
 export async function cancelAppointment(formData: FormData) {
   await requireCapability("agenda:manage");
   if (isDemoSandbox()) return; // modo demo: no persiste
-  const appointmentId = String(formData.get("appointmentId"));
-  await prisma.appointment.update({
-    where: { id: appointmentId },
+  const appointmentId = String(formData.get("appointmentId") ?? "");
+  const tenantId = await getCurrentTenantId();
+  const res = await prisma.appointment.updateMany({
+    where: whereTurnoCancelable(tenantId, appointmentId),
     data: { status: "CANCELLED" },
   });
+  if (res.count === 0) {
+    logger.warn("agenda", "cancelación rechazada: el turno no está reservado ni confirmado", { appointmentId });
+    revalidatePath("/admin/turnos");
+    return;
+  }
   await auditAdmin({ action: "cancel", entity: "Appointment", entityId: appointmentId });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
+  // El hueco que se libera aparece en la lista de espera (huecos liberados).
+  revalidatePath("/admin/espera");
 }
 
 export async function markNoShow(formData: FormData) {
@@ -1846,7 +1865,8 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
   const { desde, hasta } = rangoDelDia(dia);
   const [turnos, plantilla] = await Promise.all([
     prisma.appointment.findMany({
-      where: { tenantId, startsAt: { gte: desde, lt: hasta }, status: { in: ["PENDING", "CONFIRMED"] } },
+      // El MISMO `where` que el número de "Confirmar mañana" y la cobertura de Recordatorios.
+      where: whereTurnosDeManana(tenantId, desde, hasta),
       orderBy: { startsAt: "asc" },
       select: {
         id: true,
@@ -1912,6 +1932,7 @@ export async function marcarAvisada(appointmentId: string): Promise<{ ok: true; 
     changes: { reminderSentAt: ahora, canal: "whatsapp-manual" },
   });
   revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/manana");
   return { ok: true, avisadaEl: ahora.toISOString() };
 }
 
@@ -1928,6 +1949,7 @@ export async function getAgendaDay(date: string) {
   // Límites del día calendario del negocio, convertidos a UTC.
   const dayStart = businessWallTimeToUtc(date, "00:00");
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const tenantId = await getCurrentTenantId();
 
   const [professionals, appointments, blocksToday] = await Promise.all([
     prisma.professional.findMany({
@@ -1940,9 +1962,9 @@ export async function getAgendaDay(date: string) {
       include: { box: true },
     }),
     prisma.appointment.findMany({
+      // El MISMO `where` que el número de Agenda en el Inicio (acotado al profesional si es él).
       where: {
-        startsAt: { gte: dayStart, lt: dayEnd },
-        status: { not: "CANCELLED" },
+        ...whereTurnosDelDia(tenantId, dayStart, dayEnd),
         ...(onlyProfessionalId ? { professionalId: onlyProfessionalId } : {}),
       },
       include: { client: true, professional: true, service: true, payment: true, box: true },
@@ -1961,7 +1983,7 @@ export async function getAgendaDay(date: string) {
     }),
   ]);
 
-  return { professionals, appointments: await conCobros(await getCurrentTenantId(), appointments), blocksToday };
+  return { professionals, appointments: await conCobros(tenantId, appointments), blocksToday };
 }
 
 export async function getDashboardData() {

@@ -6,6 +6,8 @@ import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { broadcastProfessionalNews } from "@/lib/notifications";
 import { requireCapability } from "@/lib/authz";
+import { contarConPermiso } from "@/lib/crm/constancias";
+import { ENTIDAD_PERMISO } from "@/lib/crm/reglas";
 
 const PATH = "/admin/recordatorios";
 
@@ -116,6 +118,10 @@ export async function createProfessionalNews(formData: FormData) {
 
 // Dispara la difusión de una novedad ya cargada (hoy simulada hasta conectar
 // un proveedor real de WhatsApp — ver src/lib/notifications.ts).
+//
+// A quiénes: a las clientas que NO pidieron dejar de recibir mensajes ("No quiere mensajes" en
+// la ficha, constancias.ts). Antes contaba la base entera, bajas incluidas. Mientras el envío
+// sea simulado no sale nada, pero el número que queda registrado tiene que ser el de verdad.
 export async function broadcastProfessionalNewsAction(formData: FormData) {
   await requireCapability("reminders:manage");
   const tenantId = await getCurrentTenantId();
@@ -126,7 +132,17 @@ export async function broadcastProfessionalNewsAction(formData: FormData) {
     include: { professional: true },
   });
 
-  const recipientCount = await prisma.client.count({ where: { tenantId } });
+  const [clientes, permisos] = await Promise.all([
+    prisma.client.findMany({ where: { tenantId }, select: { id: true } }),
+    prisma.auditLog.findMany({
+      where: { tenantId, entity: ENTIDAD_PERMISO },
+      select: { entity: true, action: true, entityId: true, createdAt: true },
+    }),
+  ]);
+  const recipientCount = contarConPermiso(
+    clientes.map((c) => c.id),
+    permisos,
+  );
 
   const result = await broadcastProfessionalNews({
     tenantId,
