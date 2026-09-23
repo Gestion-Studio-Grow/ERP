@@ -79,6 +79,19 @@ export function esEgresoDeCompra(m: { createdBy?: string | null }): boolean {
   return String(m.createdBy ?? "").startsWith(COMPRA_ACTOR_PREFIX);
 }
 
+/**
+ * Marca de `createdBy` del INGRESO de caja por un reintegro del proveedor (la devolución de
+ * mercadería que el proveedor paga en plata, supplier-return.ts). Vive acá, junto a la de la
+ * compra, porque este módulo es puro y el libro la necesita para no dejar borrarla; la
+ * devolución la re-exporta.
+ */
+export const REINTEGRO_ACTOR_PREFIX = "devolucion-proveedor:";
+
+/** ¿Esta fila del libro la asentó el reintegro de una devolución a proveedor? */
+export function esIngresoDeReintegro(m: { createdBy?: string | null }): boolean {
+  return String(m.createdBy ?? "").startsWith(REINTEGRO_ACTOR_PREFIX);
+}
+
 // Por qué una compra puede NO producir egreso. Ninguno es un error: son hechos del
 // negocio, y el llamador los audita en vez de adivinar.
 export type MotivoSinEgreso =

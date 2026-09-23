@@ -166,3 +166,14 @@ test("canDecrementStock soporta cantidades fraccionarias (venta por kg)", () => 
   assert.equal(canDecrementStock(0.5, 0.75), false); // oversell fraccionario
   assert.equal(canDecrementStock(0.75, 0.75), true); // borde exacto
 });
+
+test("el núcleo del alta y el del ajuste no dependen de una carpeta de pantalla", async () => {
+  // order-core.ts lo usan la tienda y la API: si importara de src/app/admin/…, mover o
+  // renombrar la pantalla de Vender rompería la vidriera. Las reglas de la venta que comparten
+  // viven en src/lib/venta-reglas.ts.
+  const { readFileSync } = await import("node:fs");
+  for (const archivo of ["src/lib/order-core.ts", "src/lib/order-anulacion.ts"]) {
+    const src = readFileSync(archivo, "utf8");
+    assert.ok(!/from\s+["']@\/app\//.test(src), `${archivo} importa de src/app: el núcleo no puede colgar de una pantalla`);
+  }
+});

@@ -115,7 +115,16 @@ test("piloto: el gate saca sólo lo no asignado; con inventario, bancos y campa�
   const pierde = ids(appsVisibles(sinGate)).filter((id) => !ids(appsVisibles(conGate)).includes(id));
   // Stock, Recibir mercadería y Mermas cuelgan de `inventario`, que magra no tiene todavía
   // en su seed: por eso el operador se lo asigna antes de prenderle el Inicio por apps.
-  assert.deepEqual(pierde.sort(), ["campanias", "facturacion-automatica", "inventario", "mermas", "recibir-mercaderia"]);
+  assert.deepEqual(pierde.sort(), [
+    "campanias",
+    "facturacion-automatica",
+    "inventario",
+    "mermas",
+    "movimientos",
+    "proveedores",
+    "recibir-mercaderia",
+    "recuento",
+  ]);
   const conInventario = negocio({
     role: "OWNER",
     contexto: ctx({ ...MAGRA, modules: [...MAGRA.modules, "inventario", "bancos", "campanias"] }),
@@ -299,7 +308,7 @@ test("appsVisibles sale ordenada por espacio y, adentro, por el orden decidido",
   );
   assert.deepEqual(
     ids(visibles.filter((a) => a.espacio === "stock")),
-    ["inventario", "mermas", "recibir-mercaderia", "lotes-y-vencimientos", "despiece"],
+    ["inventario", "movimientos", "recuento", "mermas", "recibir-mercaderia", "proveedores", "lotes-y-vencimientos", "despiece"],
   );
   // El primer espacio se llama según el rubro.
   assert.equal(nombreDeEspacio("mostrador", { esMostrador: true }), "Mostrador");
@@ -381,5 +390,38 @@ test("número del botón: ninguna app con plata en su número se la muestra a qu
   // Y ninguna app declara plata con una capability que no sea reports:read.
   for (const app of REGISTRO_APPS) {
     if (app.kpi?.monto) assert.equal(app.kpi.monto.capability, "reports:read", app.id);
+  }
+});
+
+test("el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no", () => {
+  const encargado = negocio({ role: "RECEPTION", contexto: ctx({ ...MAGRA, modules: [...MAGRA.modules, "inventario"] }), esMostrador: true });
+  for (const id of ["inventario", "recibir-mercaderia", "mermas", "movimientos", "recuento"] as const) {
+    assert.equal(motivoNoDisponible(appPorId(id), encargado), null, id);
+  }
+  // Proveedores y Devoluciones siguen siendo de la dueña.
+  assert.equal(motivoNoDisponible(appPorId("proveedores"), encargado), "rol");
+  // CH (sin gate): la recepción no suma Compras ni Ajustes, ni tecleando la ruta.
+  const recepcionCH = negocio({ role: "RECEPTION", contexto: null, esMostrador: false });
+  for (const id of ["recibir-mercaderia", "mermas"] as const) {
+    assert.equal(motivoNoDisponible(appPorId(id), recepcionCH), "rol", id);
+  }
+  // Un mostrador FUERA del piloto (sin gate) tampoco: la barra de hoy no cambia.
+  const mostradorSinPiloto = negocio({ role: "RECEPTION", contexto: null, esMostrador: true });
+  assert.equal(motivoNoDisponible(appPorId("inventario"), mostradorSinPiloto), "rol");
+  // Sin el negocio, la regla es la de siempre.
+  assert.equal(rolPuedeEntrar(appPorId("inventario"), "RECEPTION"), false);
+});
+
+// CH (asignación vacía, sin gate) no puede entrar a Vender ni a Ventas del día ni tecleando la
+// URL: son plata nueva en el negocio vivo. MAGRA, con `pos`, sí. Se prueba con el registro REAL.
+test("Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí", async () => {
+  const { REGISTRO_APPS } = await import("./registro");
+  const apps = REGISTRO_APPS.filter((a) => a.id === "vender" || a.id === "ventas-del-dia");
+  assert.equal(apps.length, 2);
+  for (const role of ["OWNER", "RECEPTION"] as const) {
+    const ch = negocio({ role, contexto: null, modulosAsignados: [] });
+    for (const app of apps) assert.equal(motivoNoDisponible(app, ch), "modulo", `${app.id} para ${role} de CH`);
+    const comercio = negocio({ role, contexto: null, modulosAsignados: ["pos", "catalog"], esMostrador: true });
+    for (const app of apps) assert.equal(motivoNoDisponible(app, comercio), null, `${app.id} para ${role} de un comercio`);
   }
 });

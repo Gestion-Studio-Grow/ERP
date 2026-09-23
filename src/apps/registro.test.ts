@@ -58,7 +58,7 @@ test("ninguna app declara scopeItems ni campos fuera del contrato", () => {
   // la declara: el contrato de app es cerrado y se verifica en tiempo de ejecución, por si
   // alguien castea un objeto a AppDescriptor.
   const CAMPOS = new Set<keyof AppDescriptor>([
-    "id", "nombre", "descripcion", "icono", "ruta", "exacta", "espacio", "capability", "modulo",
+    "id", "nombre", "descripcion", "icono", "ruta", "exacta", "espacio", "capability", "capabilityEnMostrador", "modulo",
     "moduloDuro", "rubro", "perfilMin", "estado", "kpi", "palabras", "menuDeHoy", "enLanzador",
   ]);
   for (const app of REGISTRO_APPS) {

@@ -38,8 +38,8 @@ test("OWNER de MAGRA ve Mostrador, Caja, Clientes, Catálogo y precios, Stock y 
   ]);
 });
 
-test("RECEPTION de MAGRA ve Mostrador, Caja y Clientes", () => {
-  assert.deepEqual(nombres(magra("RECEPTION")), ["Mostrador", "Caja", "Clientes"]);
+test("RECEPTION de MAGRA ve Mostrador, Caja, Clientes y Stock y compras (el encargado cuenta y mira movimientos)", () => {
+  assert.deepEqual(nombres(magra("RECEPTION")), ["Mostrador", "Caja", "Clientes", "Stock y compras"]);
 });
 
 test("PROFESSIONAL no tiene Inicio de apps (su casa es la agenda)", () => {

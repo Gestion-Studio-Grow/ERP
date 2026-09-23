@@ -29,6 +29,7 @@ import {
   type TurnoParaComision,
 } from "./comision-liquidacion";
 import { round2 } from "./round";
+import { motivoParaNoBorrar } from "./caja/libro-caja";
 
 const leer = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
@@ -306,12 +307,16 @@ test("el egreso de una liquidación NO se borra desde el libro de caja", () => {
   const borrar = libro.indexOf("export async function deleteLibroEntry");
   assert.ok(borrar > 0, "libro-caja-actions.ts ya no exporta deleteLibroEntry");
   const cuerpo = libro.slice(borrar);
-  const guarda = cuerpo.indexOf("esEgresoDeComision(found)");
-  assert.ok(
-    guarda !== -1,
+  // La regla vive en `motivoParaNoBorrar` (caja/libro-caja.ts) y se EJECUTA acá: el egreso
+  // marcado `comision:` no se borra. deleteLibroEntry la llama antes de borrar.
+  assert.match(
+    motivoParaNoBorrar({ type: "EGRESO", createdBy: "comision:pay_1", orderId: null }) ?? "",
+    /liquidación de comisión/,
     "deleteLibroEntry tiene que rechazar el egreso marcado `comision:`: sin ese candado se " +
       "borra desde el libro y la comisión queda pagada con la plata de vuelta en el saldo.",
   );
+  const guarda = cuerpo.indexOf("motivoParaNoBorrar(");
+  assert.ok(guarda !== -1, "deleteLibroEntry tiene que pasar por motivoParaNoBorrar");
   const borrado = cuerpo.indexOf("cashMovement.delete");
   assert.ok(borrado !== -1, "deleteLibroEntry tiene que borrar el movimiento");
   assert.ok(guarda < borrado, "la guarda va ANTES del delete, no después");

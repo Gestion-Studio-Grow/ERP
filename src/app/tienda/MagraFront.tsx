@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { placeOnlineOrder } from "@/lib/order-actions";
+import { formatearCantidad } from "@/lib/pos-peso";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import {
   MAGRA,
@@ -125,7 +126,7 @@ function MagraFrontContent({
 
   const waCart =
     `¡Hola MAGRA! Quiero hacer este pedido:\n` +
-    lines.map((l) => `• ${l.q} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
+    lines.map((l) => `• ${formatearCantidad(l.q)} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
     `\nEntrega: ${fulfillment === "PICKUP" ? "retiro en el local" : "envío a domicilio"}` +
     `\nTotal estimado: ${money2.format(subtotal)}`;
 
@@ -268,7 +269,7 @@ function MagraFrontContent({
                           </div>
                           <div className="mf-stepper" role="group" aria-label={`Cantidad de ${p.name}`}>
                             <button type="button" onClick={() => bump(p, -1)} disabled={q === 0} aria-label={`Quitar ${p.name}`}>−</button>
-                            <span className="mf-q mf-display" aria-live="polite">{q > 0 ? `${q} ${p.saleUnit === "WEIGHT" ? "kg" : "u"}` : "0"}</span>
+                            <span className="mf-q mf-display" aria-live="polite">{q > 0 ? `${formatearCantidad(q)} ${p.saleUnit === "WEIGHT" ? "kg" : "u"}` : "0"}</span>
                             <button type="button" onClick={() => bump(p, 1)} aria-label={`Agregar ${p.name}`}>+</button>
                           </div>
                         </div>
@@ -468,7 +469,7 @@ function MagraFrontContent({
                     <div className="mf-ri-qt mf-num">{money.format(unitPrice(l.p))} {unitLabel(l.p)}</div>
                     <div className="mf-stepper mf-stepper-sm" role="group" aria-label={`Cantidad de ${l.p.name}`}>
                       <button type="button" onClick={() => bump(l.p, -1)} aria-label={`Quitar ${l.p.name}`}>−</button>
-                      <span className="mf-q mf-display">{l.q}{l.p.saleUnit === "WEIGHT" ? " kg" : ""}</span>
+                      <span className="mf-q mf-display">{formatearCantidad(l.q)}{l.p.saleUnit === "WEIGHT" ? " kg" : ""}</span>
                       <button type="button" onClick={() => bump(l.p, 1)} aria-label={`Agregar ${l.p.name}`}>+</button>
                     </div>
                   </div>

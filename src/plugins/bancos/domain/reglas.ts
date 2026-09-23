@@ -9,8 +9,10 @@
  *      BLOQUEA la emisión automática (las auto restantes bajan a revisión: solo
  *      manual con confirmación).
  *   4. Deduplicación: por el hash idempotente del movimiento (mismo archivo dos
- *      veces / extractos solapados) + detección CRUZADA banco↔MP (mismo monto y
- *      misma fecha ya facturado por MP → posible duplicado, REVISION).
+ *      veces / extractos solapados) + detección CRUZADA (ya hay una factura, por
+ *      cualquier vía, con el mismo monto y fecha de hasta 3 días antes de la
+ *      acreditación → posible duplicado, REVISION; ver `whereYaFacturadaPorOtraVia`,
+ *      bancos-glue.ts).
  *
  * Los montos del banco son IVA INCLUIDO: el cálculo neto/IVA lo hace el Core
  * (src/lib/fiscal.ts) — acá NO se calcula IVA (ADR-006).
@@ -166,8 +168,9 @@ export async function generarPropuestas(
 
     // FACTURABLE de acá en adelante.
 
-    // 4c) Detección cruzada banco↔MP: mismo monto y misma fecha ya facturado por
-    //     la otra vía → posible duplicado, decide un humano (REVISION).
+    // 4c) Detección cruzada: ya hay una factura (por cualquier vía) con el mismo monto
+    //     y fecha de hasta 3 días antes de esta acreditación → posible duplicado,
+    //     decide un humano (REVISION).
     if (
       ctx.deteccionCruzada &&
       (await ctx.deteccionCruzada.facturadoPorOtraVia(mov.fecha, montoTotal))
@@ -178,7 +181,7 @@ export async function generarPropuestas(
         requiereIdentificacion: montoTotal >= config.umbralIdentificacion,
         estado: "revision",
         motivo:
-          "Posible duplicado: ya hay una factura por Mercado Pago con el mismo monto y la misma fecha.",
+          "Posible duplicado: ya hay una factura con el mismo monto de hasta 3 días antes de esta acreditación.",
       });
       continue;
     }
@@ -207,7 +210,7 @@ export async function generarPropuestas(
         docTipo: DOC_TIPO_CONSUMIDOR_FINAL,
         docNro: DOC_NRO_CONSUMIDOR_FINAL,
         estado: "revision",
-        motivo: `Se alcanzó el tope de ${config.capFacturasMes} facturas automáticas del mes: esta venta se emite solo a mano, con tu confirmación.`,
+        motivo: `Se alcanzó el límite del plan de ${config.capFacturasMes} facturas automáticas por mes: esta venta se emite solo a mano, con tu confirmación.`,
       });
       continue;
     }
@@ -229,12 +232,12 @@ export async function generarPropuestas(
   if (capBloqueo || proyectadas >= config.capFacturasMes) {
     alertas.push({
       tipo: "cap-100",
-      mensaje: `Se alcanzó el tope de ${config.capFacturasMes} facturas automáticas del mes: el resto se emite solo manualmente.`,
+      mensaje: `Se alcanzó el límite del plan de ${config.capFacturasMes} facturas automáticas por mes: el resto se emite solo manualmente.`,
     });
   } else if (proyectadas >= config.capFacturasMes * 0.9) {
     alertas.push({
       tipo: "cap-90",
-      mensaje: `Atención: van ${proyectadas} de ${config.capFacturasMes} facturas automáticas del mes (más del 90% del tope del mes).`,
+      mensaje: `Atención: van ${proyectadas} de ${config.capFacturasMes} facturas automáticas del mes (más del 90% del límite del plan).`,
     });
   }
 

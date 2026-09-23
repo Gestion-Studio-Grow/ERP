@@ -10,6 +10,17 @@ import { validateNewCollection, type CollectionValidationError } from "@/lib/set
 // Collection (D9); para "pagar" el egreso se asienta cuando exista su modelo (el action lo
 // resuelve). Canal neutro; el color acá lo pone solo el error de validación.
 
+// El MEDIO no tiene valor por defecto: hay que elegirlo. Con "Efectivo" preseleccionado, un
+// cobro por transferencia que se dejaba como venía se asentaba como efectivo y descuadraba el
+// cajón; el servidor ya lo exige (`leerMedio`, settlement/asiento-libro.ts), y acá el botón no
+// se habilita hasta elegirlo. Los valores son los de `MEDIOS_CUENTA_CORRIENTE` (lo verifica
+// medio-sin-default.test.ts): no se importan para no sumar el libro de caja al cliente.
+const MEDIOS_DEL_FORMULARIO = [
+  { value: "EFECTIVO", label: "Efectivo" },
+  { value: "TRANSFERENCIA", label: "Transferencia" },
+  { value: "MERCADOPAGO", label: "Mercado Pago" },
+] as const;
+
 const ERROR_MSG: Record<CollectionValidationError, string> = {
   AMOUNT_NOT_POSITIVE: "El monto debe ser mayor a cero.",
   AMOUNT_NOT_FINITE: "Ingresá un monto válido.",
@@ -29,6 +40,8 @@ export function RegisterCollectionForm({
   action: (formData: FormData) => void | Promise<void>;
 }) {
   const [monto, setMonto] = useState("");
+  const [metodo, setMetodo] = useState("");
+  const medioElegido = MEDIOS_DEL_FORMULARIO.some((m) => m.value === metodo);
   const amt = Number(monto.trim().replace(",", "."));
   const touched = monto.trim() !== "";
   const validation = validateNewCollection(amt, saldo);
@@ -54,11 +67,16 @@ export function RegisterCollectionForm({
           />
         </label>
         <label className="text-sm">
-          <span className="block text-muted mb-1">Método</span>
-          <Select name="metodo" defaultValue="EFECTIVO">
-            <option value="EFECTIVO">Efectivo</option>
-            <option value="TRANSFERENCIA">Transferencia</option>
-            <option value="MERCADOPAGO">Mercado Pago</option>
+          <span className="block text-muted mb-1">Medio</span>
+          <Select name="metodo" value={metodo} onChange={(e) => setMetodo(e.target.value)} required>
+            <option value="" disabled>
+              Elegí el medio
+            </option>
+            {MEDIOS_DEL_FORMULARIO.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
           </Select>
         </label>
       </div>
@@ -72,7 +90,7 @@ export function RegisterCollectionForm({
       )}
 
       <div className="flex justify-end">
-        <button type="submit" disabled={!validation.ok} className={buttonClasses("solid", "sm")}>
+        <button type="submit" disabled={!validation.ok || !medioElegido} className={buttonClasses("solid", "sm")}>
           Registrar {verbo}
         </button>
       </div>

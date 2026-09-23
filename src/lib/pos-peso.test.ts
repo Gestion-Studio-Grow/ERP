@@ -257,3 +257,18 @@ test("server: el eco de un valor larguísimo se recorta (el mensaje se lee en el
     (e: Error) => e.message.length < 120,
   );
 });
+
+// La vidriera (tienda genérica y la de MAGRA) muestra la cantidad del carrito y la manda por
+// WhatsApp: con coma, como la bandeja y el ticket. Antes decía "0.25 kg". Forma del código
+// (los componentes son de cliente), más la función que usan.
+test("la vidriera muestra la cantidad con coma: pantalla y mensaje de WhatsApp", async () => {
+  const { readFileSync } = await import("node:fs");
+  assert.equal(formatearCantidad(0.25), "0,25");
+  const tienda = readFileSync("src/app/tienda/Storefront.tsx", "utf8");
+  assert.match(tienda, /`• \$\{formatearCantidad\(l\.qty\)\} /, "el mensaje de WhatsApp del carrito");
+  assert.match(tienda, /<span>\{formatearCantidad\(l\.qty\)\} /, "la línea del carrito");
+  const magra = readFileSync("src/app/tienda/MagraFront.tsx", "utf8");
+  assert.match(magra, /`• \$\{formatearCantidad\(l\.q\)\} /, "el mensaje de WhatsApp de MAGRA");
+  assert.match(magra, /\$\{formatearCantidad\(q\)\} \$\{p\.saleUnit/, "el contador de la tarjeta");
+  assert.match(magra, /\{formatearCantidad\(l\.q\)\}\{l\.p\.saleUnit/, "la línea del carrito de MAGRA");
+});

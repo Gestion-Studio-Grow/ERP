@@ -59,7 +59,9 @@ export type NombreIcono =
   | "inventario"
   | "lotes"
   | "despiece"
-  | "candado";
+  | "candado"
+  | "vender"
+  | "ventas";
 
 /**
  * Rubro donde la app tiene sentido. Ausente = en todos. Junta en un campo los tres
@@ -148,6 +150,14 @@ export interface AppDescriptor {
    * todos los rechazos y tiene que poder abrirla cualquiera, PROFESSIONAL incluido.
    */
   capability: Capability | null;
+  /**
+   * Capability que TAMBIÉN alcanza para abrirla en un local de mostrador del PILOTO (contexto con
+   * origen "piloto" y `esMostrador`). Es el encargado: RECEPTION con permisos de stock abre
+   * Stock, Recibir mercadería y Mermas en su local, sin que la recepción de un negocio de
+   * servicios (CH, contexto `null`) las sume a su barra. Fuera del piloto no cuenta: la barra de
+   * hoy no cambia (paridad dorada). Ausente = sólo `capability`.
+   */
+  capabilityEnMostrador?: Capability;
   /** Módulo que la habilita, o `null` si es del núcleo (no se apaga). */
   modulo: ModuleId | null;
   /**

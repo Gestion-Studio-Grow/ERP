@@ -189,12 +189,16 @@ test("el libro NO deja borrar el egreso que asentó una compra (dirección únic
   const libro = leer("../libro-caja-actions.ts");
   const borrar = libro.indexOf("export async function deleteLibroEntry");
   assert.ok(borrar > 0);
+  // La regla vive en `motivoParaNoBorrar` (caja/libro-caja.ts): se ejecuta con la marca de la
+  // compra, y deleteLibroEntry la llama antes de borrar.
   assert.match(
-    libro.slice(borrar),
-    /esEgresoDeCompra\(found\)/,
+    motivoParaNoBorrar({ type: "EGRESO", createdBy: compraMarker("pur_1"), orderId: null }) ?? "",
+    /compra a proveedor/,
     "sin esta guarda, borrar la fila deja la mercadería adentro y la plata como si nunca " +
       "hubiera salido — el mismo agujero que asentar el egreso vino a tapar.",
   );
+  const cuerpo = libro.slice(borrar);
+  assert.ok(cuerpo.indexOf("motivoParaNoBorrar(") !== -1 && cuerpo.indexOf("motivoParaNoBorrar(") < cuerpo.indexOf("cashMovement.delete"));
 });
 
 test("el libro AVISA si alguien tipea a mano un egreso que la compra ya asentó", () => {
@@ -282,6 +286,7 @@ test("el aviso de duplicado de un egreso del sistema NO exige que coincida el me
 // funciones de pos-peso, armar las líneas con purchase-core y decidir el egreso.
 
 import { cantidadDelFormulario, importeDelFormulario } from "../pos-peso";
+import { motivoParaNoBorrar } from "../caja/libro-caja";
 import { buildPurchaseLines, purchaseTotal } from "./purchase-core";
 
 function egresoDeUnaLinea(qtyTipeada: string, costoTipeado: string): number | null {

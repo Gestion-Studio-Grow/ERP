@@ -19,6 +19,8 @@ function formatActor(actor: string, userNames: Map<string, string>): string {
 
 import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { CIERRE_DIARIO_ENTITY } from "@/lib/caja/frontera-cierre";
+import { ACCION_CAMBIO_DE_PRECIO, ACCION_ETIQUETA_IMPRESA, resumenDeFilaDePrecio } from "@/lib/catalogo/precios-auditoria";
+import { fmtMoneyARS } from "@/components/ui/format";
 
 const actionLabel: Record<string, string> = {
   create: "Creó",
@@ -31,6 +33,11 @@ const actionLabel: Record<string, string> = {
   delete: "Eliminó",
   "caja.cierre-diario": "Cerró la caja del",
   "caja.corte-inicial": "Hizo el corte inicial del",
+  // La constancia del aviso 1 a 1 (registrarAvisoWhatsApp, order-actions.ts).
+  whatsapp: "Avisó por WhatsApp",
+  // Catálogo y precios (precios-auditoria.ts): una fila por producto.
+  [ACCION_CAMBIO_DE_PRECIO]: "Cambió el precio del",
+  [ACCION_ETIQUETA_IMPRESA]: "Imprimió la etiqueta del",
 };
 
 const entityLabel: Record<string, string> = {
@@ -44,14 +51,18 @@ const entityLabel: Record<string, string> = {
   // (esperado, contado y diferencia por medio quedan en `changes`). Ver
   // src/lib/caja/frontera-cierre.ts.
   CierreDiario: "día",
+  Order: "pedido",
 };
 
 // El cierre de caja se cuenta en castellano: esa fila ES el registro del arqueo del día
 // (ver src/lib/caja/cierre-resumen.ts), y la dueña la va a leer buscando qué pasó el
 // martes. El resto de las entidades sigue con el volcado de siempre — cambiarlo para
 // todas es otra tarea.
-function DetalleCambios({ entity, changes }: { entity: string; changes: unknown }) {
+function DetalleCambios({ entity, action, changes }: { entity: string; action: string; changes: unknown }) {
   if (!changes) return <span className="text-faint">—</span>;
+  // Un cambio de precio o una etiqueta impresa: "Vacío: $9.000 → $9.900 /kg".
+  const precio = resumenDeFilaDePrecio(action, changes, (n) => fmtMoneyARS(n));
+  if (precio) return <span className="text-xs text-body">{precio}</span>;
   const cierre = entity === CIERRE_DIARIO_ENTITY ? resumenCierre(changes) : null;
   if (!cierre) return <code className="text-xs break-all">{JSON.stringify(changes)}</code>;
   return (
@@ -106,7 +117,7 @@ export default async function AuditoriaPage() {
                   <span className="text-muted">{entityLabel[e.entity] ?? e.entity}</span>
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-muted">
-                  <DetalleCambios entity={e.entity} changes={e.changes} />
+                  <DetalleCambios entity={e.entity} action={e.action} changes={e.changes} />
                 </td>
               </tr>
             ))}

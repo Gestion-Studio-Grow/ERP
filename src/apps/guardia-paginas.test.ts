@@ -24,8 +24,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep, dirname } from "node:path";
 import { appDeRuta } from "./rutas";
 
-/** Hoy: 34 páginas en (dashboard), ninguna con requireApp. Sólo puede bajar. */
-const LIMITE_PAGINAS_SIN_REQUIRE_APP = 34;
+/**
+ * Páginas en (dashboard) sin requireApp. Sólo puede bajar. Eran 34 al arrancar la ola 1;
+ * medido en la integración de la ola 2: 24.
+ */
+const LIMITE_PAGINAS_SIN_REQUIRE_APP = 24;
 
 /** Páginas que no son de ninguna app, con el motivo. */
 const SIN_APP: Record<string, string> = {
@@ -75,8 +78,11 @@ function leer(archivo: string) {
 
 const PAGINAS = paginas(RAIZ).map(leer);
 
-/** Hoy: 5 route handlers en (dashboard), ninguno con requireApp. Sólo puede bajar. */
-const LIMITE_HANDLERS_SIN_REQUIRE_APP = 5;
+/**
+ * Route handlers en (dashboard) sin requireApp. Sólo puede bajar. Eran 5 (de 5) al arrancar la
+ * ola 1; medido en la integración de la ola 2: 0 de 7, todos con su guardia.
+ */
+const LIMITE_HANDLERS_SIN_REQUIRE_APP = 0;
 
 function handlers(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -98,19 +104,21 @@ const GUARDIA_EN_EL_LOADER: Record<string, { archivo: string; funcion: string }>
   "/admin/auditoria": { archivo: "src/lib/audit.ts", funcion: "getAuditLog" },
   "/admin/caja": { archivo: "src/lib/cierre-diario-actions.ts", funcion: "getCierreDiarioData" },
   "/admin/caja/libro": { archivo: "src/lib/libro-caja-actions.ts", funcion: "getLibroCajaData" },
-  "/admin/caja/cierre": { archivo: "src/lib/cierre-diario-actions.ts", funcion: "getCierreDiarioData" },
-  "/admin/catalogo": { archivo: "src/lib/catalog-actions.ts", funcion: "getCatalog" },
   "/admin/clientes": { archivo: "src/lib/actions.ts", funcion: "getClients" },
-  "/admin/compras": { archivo: "src/lib/stock-actions.ts", funcion: "getStockData" },
-  "/admin/ajustes": { archivo: "src/lib/stock-adjustment-actions.ts", funcion: "getAdjustmentData" },
   "/admin/espera": { archivo: "src/lib/waitlist-actions.ts", funcion: "getWaitlist" },
-  "/admin/facturacion": { archivo: "src/lib/facturacion-actions.ts", funcion: "getFacturacion" },
-  "/admin/pedidos": { archivo: "src/lib/order-actions.ts", funcion: "getPosData" },
   "/admin/recordatorios": { archivo: "src/lib/reminders-actions.ts", funcion: "getReminderPanelData" },
   "/admin/resenas": { archivo: "src/lib/reviews-actions.ts", funcion: "getReviews" },
-  // La página sólo pide `requireUser`; los tres loaders de datos piden reports:read.
-  "/admin/reportes": { archivo: "src/lib/actions.ts", funcion: "getReportData" },
 };
+
+test("GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)", () => {
+  // Cuando una página pasa a requireApp, su guardia la pone el registro y la entrada de la
+  // tabla queda muerta: nadie la vuelve a mirar. Se saca, así la tabla dice lo que es.
+  for (const ruta of Object.keys(GUARDIA_EN_EL_LOADER)) {
+    const p = PAGINAS.find((x) => x.ruta === ruta);
+    assert.ok(p, `${ruta} figura en GUARDIA_EN_EL_LOADER y no hay página`);
+    assert.deepEqual(p.requireApp, [], `${ruta} ya llama requireApp: sacala de GUARDIA_EN_EL_LOADER`);
+  }
+});
 
 /** El cuerpo de `export (async) function nombre(...)` hasta su `}` de cierre en la columna 0. */
 function cuerpoDe(src: string, funcion: string): string | undefined {
@@ -166,9 +174,10 @@ test("requireApp protege la app de SU ruta, no otra", () => {
 
 test("la capability del registro es la que pide la página raíz de cada app (directo o en su loader)", () => {
   // Sólo la página raíz: una sub-ruta puede exigir más (turnos/lista pide agenda:manage).
-  // Medido el 2026-09-23: 28 páginas raíz; 14 piden su capability directo en la página y
-  // 14 en el loader que llaman (GUARDIA_EN_EL_LOADER). Cuando una página pasa a requireApp
-  // y deja requireCapability, la capability la pone el registro y sale de las dos listas.
+  // Al arrancar la ola 1 (2026-09-23): 28 páginas raíz; 14 pedían su capability directo en la
+  // página y 14 en el loader que llaman (GUARDIA_EN_EL_LOADER). Cuando una página pasa a
+  // requireApp y deja requireCapability, la capability la pone el registro y sale de las dos
+  // listas (en la integración de la ola 2 quedaron 7 en la tabla).
   const raices = PAGINAS.filter((p) => appDeRuta(p.ruta)?.ruta === p.ruta);
   assert.ok(raices.length >= 25, `sólo ${raices.length} páginas raíz: ¿cambió la carpeta?`);
   let comparadas = 0;

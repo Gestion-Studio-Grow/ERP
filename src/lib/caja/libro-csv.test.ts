@@ -134,6 +134,10 @@ const UNA_DE_CADA: [FilaLedger, string, string][] = [
   [ledger({ id: "arqueo", type: "INGRESO", amount: 50, createdBy: "arqueo-turno:ses_4" }), "Diferencia de caja", "ses_4"],
   [ledger({ id: "corte", type: "INGRESO", amount: 10000, createdBy: "corte-inicial:2026-08-31" }), "Corte/Importación", "2026-08-31"],
   [ledger({ id: "import", type: "INGRESO", method: "MP", amount: 800, createdBy: "import:caja-historica:ab12cd34" }), "Corte/Importación", "ab12cd34"],
+  // Cuenta corriente (con CUENTAS_CORRIENTES_ENABLED): el cobro de un fiado y el pago a un
+  // proveedor llevan la MISMA marca; el sentido lo da el tipo. No son "a mano".
+  [ledger({ id: "cobro-cc", type: "INGRESO", method: "MP", amount: 1200, createdBy: "cuenta-corriente:col_11" }), "Cobro de cuenta corriente", "col_11"],
+  [ledger({ id: "pago-cc", type: "EGRESO", amount: 900, createdBy: "cuenta-corriente:col_12" }), "Pago a proveedor", "col_12"],
   [ledger({ id: "gasto-a-mano", type: "EGRESO", amount: 700, createdBy: ACTOR }), "Egreso manual", ""],
   [ledger({ id: "ingreso-a-mano", type: "INGRESO", amount: 300, createdBy: ACTOR }), "Ingreso manual", ""],
   [ledger({ id: "venta-pos", type: "VENTA", method: "MP", amount: 4000, createdBy: ACTOR, orderId: "ord_1" }), "Venta mostrador", "ord_1"],

@@ -32,31 +32,27 @@ import {
   formatMonthKey,
   dateBelongsToMonth,
   formatMonthLabel,
-  libroOrigin,
+  motivoParaNoBorrar,
   movimientoDelLedger,
   leerSinColumnasFaltantes,
   flagPossibleDuplicates,
   CASH_METHOD_LABEL,
-  LIBRO_ORIGIN_LABEL,
   type Libro,
   type LibroMovement,
 } from "@/lib/caja/libro-caja";
 import { fmtMoneyARS } from "@/components/ui/format";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 import { isFrozenDay, frozenDayMessage, nextDayKey } from "@/lib/caja/cierre-diario";
-import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 // La frontera de congelamiento (hasta qué día está cerrado) vive aparte porque la
 // comparten el libro y el cierre diario. Cubre las dos formas de cerrar: el corte
 // inicial y cada cierre de día.
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
-import { ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 // Marca de los egresos que asienta el alta de una compra a proveedor. El libro la
 // necesita por dos motivos opuestos: para NO dejar borrar esas filas desde acá
 // (dirección única) y para AVISAR cuando alguien está por tipear a mano un egreso que
 // el sistema ya asentó solo.
 import { COMPRA_ACTOR_PREFIX, esEgresoDeCompra } from "@/lib/stock/purchase-egreso";
 import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
-import { esEgresoDeAnulacion } from "@/lib/turnos/anulacion";
 import { leerImporte } from "@/lib/pos-peso";
 
 const LIBRO_PATH = "/admin/caja/libro";
@@ -502,58 +498,14 @@ export async function deleteLibroEntry(
         select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true, createdBy: true, occurredAt: true },
       });
       if (!found) throw new Error("Ese movimiento ya no existe.");
-      // Lo que escribió el SISTEMA no se borra desde el libro (dirección única: la venta y
-      // el cobro escriben en el libro; el libro nunca toca pedidos ni turnos). Borrar acá
-      // dejaría un pedido/turno cobrado sin su plata en el libro y un arqueo descuadrado.
-      const origen = libroOrigin({ type: found.type as CashMovementType, orderId: found.orderId });
-      if (origen === "turno") {
-        throw new Error(
-          `Ese movimiento es un ${LIBRO_ORIGIN_LABEL.turno.toLowerCase()}: lo registró el sistema al confirmar el pago. Si está mal, corregilo desde Turnos, no desde el libro.`,
-        );
-      }
-      if (origen === "pos" || found.orderId) {
-        throw new Error("Ese movimiento viene de un pedido cobrado. Corregí el pedido, no el libro.");
-      }
-      if (found.type !== "INGRESO" && found.type !== "EGRESO") {
-        throw new Error("Ese movimiento lo generó la caja del mostrador. Corregilo desde el turno, no desde el libro.");
-      }
-      // Mismo candado que el alta: un día ya cerrado por el corte inicial no se toca.
-      // Borrar hacia atrás desbalancearía el saldo operativo contra lo que se contó.
-      if (found.createdBy.startsWith(CORTE_INICIAL_ACTOR_PREFIX)) {
-        throw new Error("Ese movimiento es el ajuste del corte inicial. No se borra: es lo que ata el saldo del sistema al conteo físico.");
-      }
-      if (found.createdBy.startsWith(CIERRE_DIARIO_ACTOR_PREFIX)) {
-        throw new Error("Ese movimiento es la diferencia que dejó un cierre de caja. No se borra: si estuvo mal, va una corrección con la fecha de hoy.");
-      }
-      // Mismo criterio para la diferencia del arqueo de TURNO. Va acá arriba y no le alcanza
-      // la guarda de tipo de abajo: el ajuste se asienta como INGRESO/EGRESO (es lo que el
-      // libro sabe sumar), así que sin este candado quedaría borrable desde el libro y el
-      // saldo se desataría del conteo físico del cajón.
-      if (found.createdBy.startsWith(ARQUEO_TURNO_ACTOR_PREFIX)) {
-        throw new Error("Ese movimiento es la diferencia que dejó el arqueo de un turno. No se borra: si estuvo mal, va una corrección con la fecha de hoy.");
-      }
-      // El egreso que asentó una compra a proveedor tampoco se borra desde acá, por la misma
-      // regla de dirección única que la venta: la compra escribe en el libro, el libro no
-      // escribe en compras. Borrar la fila dejaría la mercadería adentro y la plata como si
-      // nunca hubiera salido — exactamente el agujero que asentar el egreso vino a tapar.
-      // Como una compra registrada no se puede editar hoy, la corrección es un movimiento en
-      // contra con la fecha de hoy, igual que con la diferencia de un cierre.
-      // La reversa de un cobro anulado se asienta como EGRESO (es lo que el libro sabe
-      // restar) y sin marca se ve igual que uno tipeado a mano. Borrarla le devolvería al
-      // libro plata que el sistema ya decidió que NO entró: el turno queda anulado y el
-      // saldo vuelve a contarla. Misma regla de dirección única que la compra y la venta.
-      if (esEgresoDeAnulacion(found)) {
-        throw new Error("Ese egreso lo asentó la anulación de un cobro. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.");
-      }
-      // El egreso de una liquidación de comisión tampoco: la liquidación escribe en el libro,
-      // el libro no toca liquidaciones. Borrarlo dejaría a la profesional cobrada y la plata
-      // como si nunca hubiera salido.
-      if (esEgresoDeComision(found)) {
-        throw new Error("Ese egreso lo asentó una liquidación de comisión. No se borra desde el libro: si el importe está mal, cargá una corrección con la fecha de hoy.");
-      }
-      if (esEgresoDeCompra(found)) {
-        throw new Error("Ese egreso lo asentó el registro de una compra a proveedor. No se borra desde el libro: si el importe o el medio están mal, cargá una corrección con la fecha de hoy.");
-      }
+      // Lo que escribió el SISTEMA no se borra desde el libro (dirección única): venta, turno
+      // cobrado, caja del mostrador, corte inicial, diferencias de cierre y de arqueo, anulación
+      // de un cobro, comisión, compra, reintegro de una devolución a proveedor y cobro o pago
+      // de cuenta corriente. La regla, con cada porqué, es `motivoParaNoBorrar` (libro-caja.ts).
+      const bloqueo = motivoParaNoBorrar({ type: found.type as CashMovementType, orderId: found.orderId, createdBy: found.createdBy });
+      if (bloqueo) throw new Error(bloqueo);
+      // Mismo candado que el alta: un día ya cerrado no se toca. Borrar hacia atrás
+      // desbalancearía el saldo operativo contra lo que se contó.
       const dia = dateStrInBusinessTz(found.occurredAt);
       if (cerradoHasta && isFrozenDay(dia, cerradoHasta)) {
         throw new Error(frozenDayMessage(dia, cerradoHasta));

@@ -52,3 +52,14 @@ test("generateStrongPassword: alta variedad de caracteres (>=10 distintos)", () 
     assert.ok(new Set(pw).size >= 10, `pocos caracteres distintos: ${pw}`);
   }
 });
+
+// La temporal que se le da al dueño tiene que pasar la MISMA regla que se le exige a él. Medido:
+// antes 1,7 % salía sin dígitos. 5.000 sorteos hacen que la regla vieja falle acá casi seguro.
+test("generateStrongPassword siempre cumple validatePasswordStrength", async () => {
+  const { generateStrongPassword } = await import("./auth-password");
+  const { validatePasswordStrength } = await import("./password-policy");
+  for (let i = 0; i < 5000; i++) {
+    const pw = generateStrongPassword();
+    assert.equal(validatePasswordStrength(pw).ok, true, pw);
+  }
+});

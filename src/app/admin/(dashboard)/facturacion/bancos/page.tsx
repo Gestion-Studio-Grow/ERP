@@ -156,7 +156,7 @@ export default async function FacturacionBancosPage() {
 
       <SectionGroup
         title="Emitir facturas"
-        description="Las ventas clasificadas y por debajo del umbral se facturan en lote, respetando el tope del mes."
+        description="Las ventas clasificadas y por debajo del umbral se facturan en lote, respetando el límite de facturas automáticas del plan."
       >
         <EmitirFacturas cantidad={listas.length} total={totalListas} />
       </SectionGroup>

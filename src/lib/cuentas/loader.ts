@@ -18,6 +18,7 @@ import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { listReceivables, getReceivableDetail } from "@/lib/debts/receivable-repo";
 import { listPayables, getPayableDetail } from "@/lib/debts/payable-repo";
+import { NOTA_DE_CREDITO_PREFIX } from "@/lib/stock/supplier-return";
 import type { DebtAccountRow, DebtAccountDetail } from "./types";
 
 const METHOD_LABEL: Record<string, string> = {
@@ -25,6 +26,19 @@ const METHOD_LABEL: Record<string, string> = {
   TRANSFERENCIA: "Transferencia",
   MERCADOPAGO: "Mercado Pago",
 };
+
+/**
+ * Cómo se lee el medio de un pago a proveedor en el historial. PURA.
+ *
+ * El crédito que deja una devolución a proveedor contra la deuda se graba como Collection con
+ * método TRANSFERENCIA (el enum `PaymentMethod` no tiene "nota de crédito": agregarlo es una
+ * migración) y con la nota que empieza con `NOTA_DE_CREDITO_PREFIX` (supplier-return.ts). Sin
+ * esto, la dueña veía una "Transferencia" que nunca hizo.
+ */
+export function medioDelPago(method: string, note: string | null | undefined): string {
+  if ((note ?? "").startsWith(NOTA_DE_CREDITO_PREFIX)) return "Nota de crédito por devolución";
+  return METHOD_LABEL[method] ?? method;
+}
 
 export async function getReceivables(): Promise<DebtAccountRow[]> {
   await requireCapability("billing:manage");
@@ -97,7 +111,7 @@ export async function getPayable(id: string): Promise<DebtAccountDetail | null> 
       id: p.id,
       fecha: p.at,
       monto: p.amount,
-      metodo: METHOD_LABEL[p.method] ?? p.method,
+      metodo: medioDelPago(p.method, p.note),
       nota: p.note,
     })),
     cheques: d.cheques.map((ch) => ({

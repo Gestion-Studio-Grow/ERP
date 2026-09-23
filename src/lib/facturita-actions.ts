@@ -77,7 +77,7 @@ export async function emitirFacturitaAction(
 
   const limite = estadoLimite(await contarFacturasDelMes(tenantId));
   if (!limite.puedeEmitir) {
-    return { ok: false, error: limite.mensaje ?? "Llegaste al tope del mes." };
+    return { ok: false, error: limite.mensaje ?? "Llegaste al límite de facturas del plan de este mes." };
   }
 
   try {

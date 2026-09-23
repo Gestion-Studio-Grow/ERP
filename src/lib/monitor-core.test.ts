@@ -202,9 +202,9 @@ test("outbox trabado: crítico — el comprobante existe pero no llega a ARCA", 
   assert.deepEqual(ids(sano({ outboxTrabados: 4 })), ["outbox_trabado"]);
 });
 
-// ── cupo del plan (regla comercial, NO la categoría del monotributo) ─────────
+// ── límite del plan (regla comercial, NO la categoría del monotributo) ───────
 
-test("cupo alcanzado: crítico, 'cupo_del_plan', y la acción es ampliar el cupo", () => {
+test("límite del plan alcanzado: crítico, 'cupo_del_plan', y la acción es ampliar el límite", () => {
   const fila = evaluarCliente(sano({ facturasMes: 159, capFacturasMes: 159 }), AHORA, REAL);
   assert.deepEqual(
     fila.senales.map((s) => s.id),
@@ -212,8 +212,8 @@ test("cupo alcanzado: crítico, 'cupo_del_plan', y la acción es ampliar el cupo
   );
   assert.equal(fila.estado, "critico");
   const s = fila.senales[0];
-  assert.match(s.detalle, /Llegó al cupo de facturas automáticas de su plan/);
-  assert.match(s.accion, /Ampliar el cupo/);
+  assert.match(s.detalle, /Llegó al límite de facturas automáticas del plan/);
+  assert.match(s.accion, /Ampliar el límite de facturas automáticas del plan/);
   assert.deepEqual(s.resuelve, { quien: "estudio", ruta: "/admin/facturacion/bancos/configuracion" });
 });
 

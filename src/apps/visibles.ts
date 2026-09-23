@@ -135,9 +135,24 @@ export interface NegocioApps {
  */
 export type MotivoNoDisponible = "rol" | "en-preparacion" | "modulo" | "rubro" | "edicion";
 
-/** ¿El rol alcanza para entrar? `capability: null` = alcanza con la sesión. */
-export function rolPuedeEntrar(app: AppDescriptor, role: Role): boolean {
-  return app.capability === null || roleHasCapability(role, app.capability);
+/**
+ * ¿El rol alcanza para entrar? `capability: null` = alcanza con la sesión. En un local de
+ * mostrador del piloto alcanza también `capabilityEnMostrador` (el encargado); sin el negocio
+ * (`n` ausente) o fuera del piloto, sólo `capability`, como hoy.
+ */
+export function rolPuedeEntrar(
+  app: AppDescriptor,
+  role: Role,
+  n?: Pick<NegocioApps, "contexto" | "esMostrador">,
+): boolean {
+  if (app.capability === null || roleHasCapability(role, app.capability)) return true;
+  return (
+    app.capabilityEnMostrador !== undefined &&
+    !!n &&
+    n.contexto?.origen === "piloto" &&
+    n.esMostrador &&
+    roleHasCapability(role, app.capabilityEnMostrador)
+  );
 }
 
 /**
@@ -190,7 +205,7 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
 
 /** Por qué la persona no puede abrir la app, o `null` si puede. */
 export function motivoNoDisponible(app: AppDescriptor, n: NegocioApps): MotivoNoDisponible | null {
-  if (!rolPuedeEntrar(app, n.role)) return "rol";
+  if (!rolPuedeEntrar(app, n.role, n)) return "rol";
   if (app.estado !== "lista") return "en-preparacion";
   if (!moduloPermite(app, n)) return "modulo";
   if (!rubroPermite(app, n)) return "rubro";

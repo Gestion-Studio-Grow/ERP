@@ -45,7 +45,7 @@ import {
   puntosDeVentaUsados,
   type NegocioFiscal,
 } from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
-import { flagsDeApps, leerNegocioParaActivar } from "@/app/operador/(console)/tenants/[id]/negocio.server";
+import { flagsDeApps, leerNegocioParaActivar, vinculosActivosDe } from "@/app/operador/(console)/tenants/[id]/negocio.server";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -597,7 +597,10 @@ export async function toggleTenantModule(formData: FormData) {
   }
 
   // Se vuelve a decidir con la base fresca: que el botón estuviera habilitado no prueba nada.
-  const plan = validarCambio(tenant, { accion, modulo }, catalogo());
+  // Con los vínculos también (el candado de Mis locales): sin ellos `validarCambio` no ve
+  // la red, y un POST armado a mano o una carrera con la vista previa apagaría Mis locales
+  // con locales colgando. Si no se pudieron leer (`null`), el candado rechaza.
+  const plan = validarCambio({ ...tenant, vinculosActivos: await vinculosActivosDe(tenantId) }, { accion, modulo }, catalogo());
   if (!plan.ok) volverAApps(tenantId, { modulo, error: plan.motivo });
   const nombre = nombresDeModulos([modulo]);
   if (plan.sinCambios) {

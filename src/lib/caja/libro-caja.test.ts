@@ -18,6 +18,7 @@ import {
   formatMonthKey,
   formatMonthLabel,
   dateBelongsToMonth,
+  motivoParaNoBorrar,
   type LibroMovement,
 } from "./libro-caja";
 import { HOJA_AGOSTO_2026, HOJA_AGOSTO_2026_RESUMEN } from "./libro-caja.fixture";
@@ -287,4 +288,27 @@ test("gemela del sistema: la marca no cambia la aritmética del libro (avisa, no
 test("el origen viaja hasta la fila que se pinta", () => {
   const { rows } = buildLibro(zeroAmounts(), [mov({ id: "x", type: "VENTA", amount: 100, origin: "pos" })]);
   assert.equal(rows[0].origin, "pos");
+});
+
+// ── Qué no se borra desde el libro (deleteLibroEntry) ───────────────────────
+
+test("no se borra desde el libro lo que asentó el sistema; lo tipeado a mano, sí", () => {
+  const a = (type: "INGRESO" | "EGRESO", createdBy: string) => motivoParaNoBorrar({ type, createdBy, orderId: null });
+  // Lo que ya se protegía, con el mismo mensaje de siempre.
+  assert.match(a("EGRESO", "compra:pur_1") ?? "", /registro de una compra a proveedor/);
+  assert.match(a("EGRESO", "comision:pay_1") ?? "", /liquidación de comisión/);
+  assert.match(a("EGRESO", "anulacion-turno:user:u1") ?? "", /anulación de un cobro/);
+  assert.match(a("INGRESO", "corte-inicial:2026-08-31") ?? "", /ajuste del corte inicial/);
+  assert.match(a("EGRESO", "cierre-diario:2026-09-05") ?? "", /diferencia que dejó un cierre de caja/);
+  assert.match(a("INGRESO", "arqueo-turno:ses_4") ?? "", /arqueo de un turno/);
+  assert.match(motivoParaNoBorrar({ type: "VENTA", orderId: "ord_1", createdBy: "user:u1" }) ?? "", /pedido cobrado/);
+  assert.match(motivoParaNoBorrar({ type: "VENTA", orderId: null, createdBy: "user:u1" }) ?? "", /turno cobrado/);
+  assert.match(motivoParaNoBorrar({ type: "RETIRO", orderId: null, createdBy: "user:u1" }) ?? "", /caja del mostrador/);
+  // Lo nuevo: el reintegro de una devolución a proveedor y la cuenta corriente (los dos sentidos).
+  assert.match(a("INGRESO", "devolucion-proveedor:pur_7") ?? "", /reintegro de una devolución a proveedor/);
+  assert.match(a("INGRESO", "cuenta-corriente:col_11") ?? "", /cobro o pago de cuenta corriente/);
+  assert.match(a("EGRESO", "cuenta-corriente:col_12") ?? "", /cobro o pago de cuenta corriente/);
+  // Lo tipeado a mano se puede borrar (el día cerrado es otro candado, aparte).
+  assert.equal(a("INGRESO", "user:u1"), null);
+  assert.equal(a("EGRESO", "user:u1"), null);
 });

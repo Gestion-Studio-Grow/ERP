@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useFormStatus } from "react-dom";
 import { placeOnlineOrder } from "@/lib/order-actions";
+import { formatearCantidad } from "@/lib/pos-peso";
 import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantLayout, SectionKey, StorefrontPalette } from "@/lib/tenant-layout";
@@ -185,7 +186,7 @@ function StorefrontContent({
 
   const cartMessage =
     `¡Hola ${name}! Quiero hacer un pedido:\n` +
-    lines.map((l) => `• ${l.qty} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
+    lines.map((l) => `• ${formatearCantidad(l.qty)} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
     (shipCfg ? `\nEnvío (${fulfillment === "PICKUP" ? "retiro" : "a domicilio"}): ${shipping === 0 ? "gratis" : money2.format(shipping)}` : "") +
     `\nTotal estimado: ${money2.format(grandTotal)}`;
 
@@ -452,7 +453,7 @@ function StorefrontContent({
               <div style={{ display: "grid", gap: 6 }}>
                 {lines.map((l) => (
                   <div key={l.p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                    <span>{l.qty} {l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · {l.p.name}</span>
+                    <span>{formatearCantidad(l.qty)} {l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · {l.p.name}</span>
                     <span style={{ fontVariantNumeric: "tabular-nums" }}>{money2.format(l.total)}</span>
                     <input type="hidden" name="productId" value={l.p.id} />
                     <input type="hidden" name="quantity" value={l.qty} />

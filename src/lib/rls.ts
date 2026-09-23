@@ -25,6 +25,7 @@ import { basePrisma, RLS_ENFORCEMENT } from "@/lib/prisma-base";
 import { getTenantStore, runInTenantContext } from "@/lib/tenant-context";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { scopeArgs, scopeTxClient } from "@/lib/tenant-scope";
+import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
 
 async function resolveTenantId(): Promise<string> {
   return getTenantStore()?.tenantId ?? (await getCurrentTenantId());
@@ -155,8 +156,9 @@ export async function tenantTransaction<T>(
         { insideTx: true },
       );
     } catch (e) {
-      // Serialization_failure/deadlock (Postgres 40001 → Prisma P2034): la
-      // transacción abortó por una concurrente. Reintentar re-corre `fn` entero.
+      // Serialization_failure/deadlock (Postgres 40001/40P01 → Prisma P2034 en una
+      // operación de modelo, P2010 en una consulta cruda): la transacción abortó por
+      // una concurrente. Reintentar re-corre `fn` entero.
       if (attempt < maxRetries && isWriteConflict(e)) continue;
       throw e;
     }
@@ -169,13 +171,14 @@ export async function tenantTransaction<T>(
 const DEFAULT_SERIALIZABLE_RETRIES = 3;
 
 /**
- * Postgres `serialization_failure` (SQLSTATE 40001) o deadlock, que Prisma expone
- * como P2034 ("Transaction failed due to a write conflict or a deadlock"). Es la
- * señal de que una transacción Serializable abortó por una concurrente y conviene
- * reintentarla, no un error de negocio.
+ * Postgres `serialization_failure` (SQLSTATE 40001) o deadlock (40P01). Prisma lo
+ * expone como P2034 cuando salta en una operación de modelo y como P2010 con el
+ * SQLSTATE cuando salta en una consulta cruda (medido; ver conflicto-de-escritura.ts).
+ * Es la señal de que una transacción Serializable abortó por una concurrente y
+ * conviene reintentarla, no un error de negocio.
  */
 function isWriteConflict(e: unknown): boolean {
-  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034";
+  return e instanceof Prisma.PrismaClientKnownRequestError && esConflictoDeEscritura(e);
 }
 
 /**

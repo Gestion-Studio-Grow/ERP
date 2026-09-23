@@ -20,13 +20,17 @@ import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja
 // Las MARCAS que cada camino del sistema deja en `CashMovement.createdBy`. Se importan de
 // donde nacen (no se copian los strings): si una cambia, el origen contable la sigue. Todos
 // estos módulos son puros (sin Prisma de valor): este archivo lo importa un client component.
-import { COMPRA_ACTOR_PREFIX } from "@/lib/stock/purchase-egreso";
-import { COMISION_ACTOR_PREFIX } from "@/lib/comision-liquidacion";
-import { ANULACION_TURNO_ACTOR_PREFIX } from "@/lib/turnos/anulacion";
+import { COMPRA_ACTOR_PREFIX, esEgresoDeCompra, esIngresoDeReintegro } from "@/lib/stock/purchase-egreso";
+import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
+import { ANULACION_TURNO_ACTOR_PREFIX, esEgresoDeAnulacion } from "@/lib/turnos/anulacion";
 import { ANULACION_VENTA_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 import { IMPORT_ACTOR_PREFIX } from "@/lib/caja/import-caja";
+// Ciclo de imports: asiento-libro → cierre-diario → este archivo. Por eso la marca de cuenta
+// corriente se LEE dentro de las funciones (`marcasDelSistema`, `motivoParaNoBorrar`), nunca
+// al cargar el módulo.
+import { CUENTA_CORRIENTE_ACTOR_PREFIX, esAsientoDeCuentaCorriente } from "@/lib/settlement/asiento-libro";
 
 // Orden CANÓNICO de los medios: es el orden de las columnas de la planilla y el de
 // las columnas de la pantalla. Un solo lugar para que tabla y resumen no se
@@ -101,7 +105,9 @@ export type OrigenContable =
   | "anulacion"
   | "diferencia-caja"
   | "corte-importacion"
-  | "apertura";
+  | "apertura"
+  | "cobro-cuenta-corriente"
+  | "pago-cuenta-corriente";
 
 /** Orden canónico: el de la columna y el del subtotal del RESUMEN. */
 export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
@@ -116,6 +122,8 @@ export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
   "diferencia-caja",
   "corte-importacion",
   "apertura",
+  "cobro-cuenta-corriente",
+  "pago-cuenta-corriente",
 ];
 
 export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
@@ -130,6 +138,8 @@ export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
   "diferencia-caja": "Diferencia de caja",
   "corte-importacion": "Corte/Importación",
   apertura: "Apertura de turno",
+  "cobro-cuenta-corriente": "Cobro de cuenta corriente",
+  "pago-cuenta-corriente": "Pago a proveedor",
 };
 
 /** Lo que el ledger guarda de una fila y alcanza para clasificarla. */
@@ -155,9 +165,23 @@ export type FilaParaOrigen = {
  * constante armada al cargar el módulo leería esas marcas antes de que existan, según qué
  * módulo se cargue primero; leídas al clasificar, ya están todas.
  */
-function marcasDelSistema(): readonly { prefijo: string; origen: OrigenContable; referenciaEnMarca: boolean }[] {
+function marcasDelSistema(): readonly {
+  prefijo: string;
+  origen: OrigenContable;
+  /** La clase si la fila es un EGRESO, cuando la misma marca asienta los dos sentidos. */
+  origenSiEgreso?: OrigenContable;
+  referenciaEnMarca: boolean;
+}[] {
   return [
     { prefijo: COMPRA_ACTOR_PREFIX, origen: "compra", referenciaEnMarca: true }, // purchaseId
+    // Cobro de una cuenta a cobrar (INGRESO) o pago de una cuenta a pagar (EGRESO), con la
+    // marca `cuenta-corriente:<collectionId>` (settlement/asiento-libro.ts).
+    {
+      prefijo: CUENTA_CORRIENTE_ACTOR_PREFIX,
+      origen: "cobro-cuenta-corriente",
+      origenSiEgreso: "pago-cuenta-corriente",
+      referenciaEnMarca: true,
+    }, // collectionId
     { prefijo: COMISION_ACTOR_PREFIX, origen: "comision", referenciaEnMarca: true }, // payoutId
     { prefijo: ANULACION_VENTA_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
     { prefijo: ANULACION_TURNO_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
@@ -179,12 +203,13 @@ export function clasificarOrigen(m: FilaParaOrigen): { origen: OrigenContable; r
   const marca = String(m.createdBy ?? "");
   const hallada = marcasDelSistema().find((x) => marca.startsWith(x.prefijo));
   if (hallada) {
+    const origen = hallada.origenSiEgreso && m.type === "EGRESO" ? hallada.origenSiEgreso : hallada.origen;
     const referencia = hallada.referenciaEnMarca
       ? marca.slice(hallada.prefijo.length)
       : hallada.prefijo === ANULACION_VENTA_ACTOR_PREFIX
         ? (m.orderId ?? "")
         : delCobroDeTurno(m);
-    return { origen: hallada.origen, referencia: sinActor(referencia) };
+    return { origen, referencia: sinActor(referencia) };
   }
   switch (m.type) {
     case "VENTA":
@@ -207,6 +232,67 @@ export function clasificarOrigen(m: FilaParaOrigen): { origen: OrigenContable; r
 /** Sólo la clase (atajo de `clasificarOrigen`). PURA. */
 export function origenContable(m: FilaParaOrigen): OrigenContable {
   return clasificarOrigen(m).origen;
+}
+
+// --- Qué NO se borra desde el libro ---
+//
+// Lo que escribió el SISTEMA no se borra desde el libro (dirección única: la venta, el cobro,
+// la compra, la liquidación y el cierre escriben en el libro; el libro nunca los toca a
+// ellos). Borrar una de esas filas dejaría un pedido, un turno, una compra o una cuenta
+// corriente con su plata fuera del libro y un arqueo descuadrado. La corrección es siempre
+// un movimiento en contra con la fecha de hoy.
+
+/**
+ * Por qué esta fila NO se puede borrar desde el libro, o `null` si es un movimiento tipeado a
+ * mano y se puede. PURA: la usa `deleteLibroEntry` (libro-caja-actions.ts) antes de borrar; el
+ * candado de día cerrado va aparte, porque depende de la frontera del cierre.
+ */
+export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null }): string | null {
+  const origen = libroOrigin({ type: m.type, orderId: m.orderId });
+  if (origen === "turno") {
+    return `Ese movimiento es un ${LIBRO_ORIGIN_LABEL.turno.toLowerCase()}: lo registró el sistema al confirmar el pago. Si está mal, corregilo desde Turnos, no desde el libro.`;
+  }
+  if (origen === "pos" || m.orderId) {
+    return "Ese movimiento viene de un pedido cobrado. Corregí el pedido, no el libro.";
+  }
+  if (m.type !== "INGRESO" && m.type !== "EGRESO") {
+    return "Ese movimiento lo generó la caja del mostrador. Corregilo desde el turno, no desde el libro.";
+  }
+  const marca = String(m.createdBy ?? "");
+  // El corte inicial es lo que ata el saldo del sistema al conteo físico.
+  if (marca.startsWith(CORTE_INICIAL_ACTOR_PREFIX)) {
+    return "Ese movimiento es el ajuste del corte inicial. No se borra: es lo que ata el saldo del sistema al conteo físico.";
+  }
+  if (marca.startsWith(CIERRE_DIARIO_ACTOR_PREFIX)) {
+    return "Ese movimiento es la diferencia que dejó un cierre de caja. No se borra: si estuvo mal, va una corrección con la fecha de hoy.";
+  }
+  // La diferencia del arqueo de TURNO se asienta como INGRESO/EGRESO (es lo que el libro sabe
+  // sumar): sin este candado quedaría borrable y el saldo se desataría del conteo del cajón.
+  if (marca.startsWith(ARQUEO_TURNO_ACTOR_PREFIX)) {
+    return "Ese movimiento es la diferencia que dejó el arqueo de un turno. No se borra: si estuvo mal, va una corrección con la fecha de hoy.";
+  }
+  // La reversa de un cobro anulado: borrarla le devolvería al libro plata que el sistema ya
+  // decidió que NO entró.
+  if (esEgresoDeAnulacion(m)) {
+    return "Ese egreso lo asentó la anulación de un cobro. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
+  if (esEgresoDeComision(m)) {
+    return "Ese egreso lo asentó una liquidación de comisión. No se borra desde el libro: si el importe está mal, cargá una corrección con la fecha de hoy.";
+  }
+  if (esEgresoDeCompra(m)) {
+    return "Ese egreso lo asentó el registro de una compra a proveedor. No se borra desde el libro: si el importe o el medio están mal, cargá una corrección con la fecha de hoy.";
+  }
+  // El reintegro de una devolución a proveedor: borrarlo dejaría la devolución hecha (el stock
+  // ya salió) y la plata que devolvió el proveedor fuera de la caja.
+  if (esIngresoDeReintegro(m)) {
+    return "Ese ingreso lo asentó el reintegro de una devolución a proveedor. No se borra desde el libro: si el importe o el medio están mal, cargá una corrección con la fecha de hoy.";
+  }
+  // El cobro de un fiado o el pago a un proveedor por cuenta corriente: borrarlo dejaría la
+  // cuenta saldada y la plata fuera del libro.
+  if (esAsientoDeCuentaCorriente(m)) {
+    return "Ese movimiento lo asentó un cobro o pago de cuenta corriente. No se borra desde el libro: si estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
+  return null;
 }
 
 function sinActor(ref: string): string {

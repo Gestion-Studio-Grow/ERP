@@ -3,13 +3,13 @@
 // ============================================================================
 // DESPIECE — server actions (SQL crudo para ProcessingRun/Output + ledger de stock).
 // Tablas de la migración Gate 2. Registrar un despiece: guarda la corrida y sus
-// cortes, SUMA el stock de cada corte (ledger) y fija su COSTO real (costo/kg vendible).
+// cortes y SUMA el stock de cada corte (ledger REPOSICION) con su COSTO real (costo/kg
+// vendible) en el movimiento. NO escribe `Product.cost`: ver `createRun`.
 // Degrada a no-op / [] sin schema aplicado (hasCarniceriaSchema gatea la pantalla).
 // ============================================================================
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
@@ -75,8 +75,15 @@ export async function listRuns(): Promise<RunRow[]> {
 
 /**
  * Registra un despiece: media res (peso + costo) → cortes (peso c/u). Guarda la corrida
- * y sus outputs, SUMA el stock de cada corte con productId (ledger REPOSICION) y fija su
- * `cost` = costo por kilo vendible (prorrateo real). Todo en UNA transacción. No-op sin schema.
+ * y sus outputs y SUMA el stock de cada corte con productId (ledger REPOSICION) con el
+ * costo por kilo vendible (prorrateo real) como `unitCost` del movimiento. Todo en UNA
+ * transacción. No-op sin schema.
+ *
+ * NO pisa `Product.cost`. Antes lo escribía en cada corrida, y como el costo vigente
+ * (stock/costo.ts) le da prioridad a `Product.cost` sobre el último ingreso, el costo de un
+ * despiece viejo le ganaba para siempre a las compras posteriores del mismo corte.
+ * `Product.cost` es el que fija la dueña a mano; el del despiece viaja en su REPOSICION, que
+ * es un ingreso con costo y el costo vigente ya lo lee (regla 2).
  */
 export async function createRun(formData: FormData): Promise<void> {
   await requireCapability("catalog:manage");
@@ -120,7 +127,8 @@ export async function createRun(formData: FormData): Promise<void> {
           INSERT INTO "ProcessingOutput" ("id","tenantId","runId","productId","name","weightKg")
           VALUES (${outId}, ${tenantId}, ${runId}, ${o.productId}, ${o.name}, ${o.weightKg})`;
 
-        // Corte mapeado a un producto → suma su stock (kg) y fija su costo real por kilo.
+        // Corte mapeado a un producto → suma su stock (kg) con su costo real por kilo en el
+        // movimiento. `Product.cost` no se toca (ver el comentario de la función).
         if (o.productId) {
           await recordMovement(tx, {
             tenantId,
@@ -131,9 +139,6 @@ export async function createRun(formData: FormData): Promise<void> {
             reason: `Despiece #${code} — ${inputName}`,
             createdBy: "user",
           });
-          if (analysis.costPerSellableKg != null) {
-            await tx.$executeRaw`UPDATE "Product" SET "cost" = ${analysis.costPerSellableKg} WHERE "id" = ${o.productId} AND "tenantId" = ${tenantId}`;
-          }
         }
       }
     }, { tenantId });

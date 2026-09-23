@@ -16,6 +16,28 @@ test("csvField deja pasar valores simples y escapa separador/comillas/saltos", (
   assert.equal(csvField("linea1\nlinea2"), '"linea1\nlinea2"');
 });
 
+test("csvField neutraliza en origen un texto que Excel tomaría como fórmula; los números no", () => {
+  // Texto que carga cualquiera (un nombre en la tienda online, un proveedor, un motivo).
+  assert.equal(csvField("=HIPERVINCULO(\"http://x\")"), '"\'=HIPERVINCULO(""http://x"")"');
+  assert.equal(csvField("+54 11 5555"), "'+54 11 5555");
+  assert.equal(csvField("@SUMA(A1)"), "'@SUMA(A1)");
+  assert.equal(csvField("-2+3"), "'-2+3");
+  assert.equal(csvField("\t=1"), "'\t=1");
+  // Importes, stocks y porcentajes negativos siguen siendo números que se suman.
+  assert.equal(csvField("-1234,50"), "-1234,50");
+  assert.equal(csvField("-1.234,50"), "-1.234,50");
+  assert.equal(csvField("-4,5%"), "-4,5%");
+  assert.equal(csvField(-3.5), "-3.5");
+  // Idempotente: lo ya neutralizado no suma otro apóstrofo.
+  assert.equal(csvField("'=1+1"), "'=1+1");
+});
+
+test("el CSV del reporte sale con el nombre peligroso neutralizado", () => {
+  const csv = buildReportCsv(baseInput({ porServicio: [{ label: "=1+1", total: 100 }] }));
+  assert.ok(csv.includes("'=1+1"));
+  assert.ok(!/(^|;|\r\n)=1\+1/.test(csv));
+});
+
 const emptyKpis: DeepKpis = {
   estados: { completados: 0, noShow: 0, cancelados: 0, resueltos: 0, tasaNoShow: 0, tasaCancelacion: 0 },
   ticketPromedio: 0,

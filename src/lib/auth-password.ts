@@ -32,7 +32,17 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
 // entropía). FUENTE ÚNICA — la reusan tanto el alta de tenant (bootstrap del OWNER,
 // `provisionTenant`) como el reset de contraseña del operador. NUNCA se persiste en claro:
 // se hashea con `hashPassword` y se muestra UNA vez al operador (revelado único). Al ser
-// aleatoria de alta entropía, satisface `validatePasswordStrength` por construcción.
+// aleatoria de alta entropía.
+//
+// "Fuerte por construcción" era FALSO: medido el 2026-09-23, 348 de 20.000 salían sin ningún
+// dígito (base64url puro puede no traerlos) y `validatePasswordStrength` las rechaza por "sólo
+// letras". Por eso el test del reset fallaba de vez en cuando: no era la carga, era el azar.
+// Se descarta y se vuelve a sortear (rechazo: la elegida sigue siendo uniforme entre las
+// válidas y la entropía casi no cambia). La probabilidad de 100 fallas seguidas es ~0,017^100.
 export function generateStrongPassword(): string {
-  return randomBytes(18).toString("base64url");
+  for (let intento = 0; intento < 100; intento++) {
+    const candidata = randomBytes(18).toString("base64url");
+    if (/\p{L}/u.test(candidata) && /\d/.test(candidata)) return candidata;
+  }
+  throw new Error("No se pudo generar una contraseña temporal válida.");
 }

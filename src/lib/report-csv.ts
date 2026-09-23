@@ -12,10 +12,30 @@ import { METODO_LABEL } from "@/lib/report-config";
 
 const SEP = ";";
 
-// Escapa un campo CSV: si contiene el separador, comillas o saltos de línea, se
-// envuelve en comillas y se duplican las comillas internas (RFC 4180).
+/**
+ * Un texto que Excel tomaría como FÓRMULA va con un apóstrofo adelante. Estos archivos llevan
+ * texto que carga cualquiera (el nombre que dejó un cliente en la tienda online, un
+ * proveedor, el motivo de un gasto) y salen hacia otra persona (la contadora, la dueña): un
+ * nombre como `=HIPERVINCULO(...)` se ejecutaría al abrir el archivo en su computadora. Empieza
+ * con `=`, `+`, `-`, `@`, tabulación o retorno de carro → `'` adelante.
+ *
+ * Los números NO se tocan: un importe negativo ("-1234,50", una nota de crédito), un stock en
+ * negativo ("-3,5") o un porcentaje ("-4,5%") empiezan con `-` y tienen que seguir siendo
+ * números que se suman. Idempotente: lo ya neutralizado empieza con `'` y no se toca otra vez.
+ * PURA. Es LA regla: `csvField` la aplica en origen, así todo export que arme sus filas con
+ * `csvField` (Reportes, el libro de caja, el paquete de la contadora, Mis locales) queda a salvo.
+ */
+export function sinFormula(campo: string | number): string | number {
+  if (typeof campo !== "string" || !/^[=+\-@\t\r]/.test(campo)) return campo;
+  if (/^-\d[\d.]*(,\d+)?%?$/.test(campo)) return campo;
+  return `'${campo}`;
+}
+
+// Escapa un campo CSV: primero neutraliza una fórmula (`sinFormula`); después, si contiene el
+// separador, comillas o saltos de línea, se envuelve en comillas y se duplican las comillas
+// internas (RFC 4180).
 export function csvField(value: string | number): string {
-  const s = String(value);
+  const s = String(sinFormula(value));
   if (s.includes(SEP) || s.includes('"') || s.includes("\n") || s.includes("\r")) {
     return `"${s.replace(/"/g, '""')}"`;
   }

@@ -115,7 +115,7 @@ test("al 100% del cap se bloquea la emisión automática (baja a revisión)", as
   );
   assert.equal(propuestas[0].estado, "auto"); // 159/159, la última permitida
   assert.equal(propuestas[1].estado, "revision"); // bloqueada: solo manual
-  assert.match(propuestas[1].motivo ?? "", /tope de 159/i);
+  assert.match(propuestas[1].motivo ?? "", /límite del plan de 159/i);
   assert.deepEqual(
     alertas.map((a) => a.tipo),
     ["cap-100"],
@@ -183,6 +183,10 @@ test("cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión", 
   );
   assert.equal(propuestas[0].estado, "revision");
   assert.match(propuestas[0].motivo ?? "", /posible duplicado/i);
+  // El texto dice lo que la detección real hace (bancos-glue.ts, `whereYaFacturadaPorOtraVia`):
+  // cualquier vía y hasta 3 días antes, no "por Mercado Pago y la misma fecha".
+  assert.match(propuestas[0].motivo ?? "", /hasta 3 días antes/);
+  assert.doesNotMatch(propuestas[0].motivo ?? "", /Mercado Pago|misma fecha/);
 });
 
 test("cruce banco↔MP: distinto monto o fecha no molesta", async () => {

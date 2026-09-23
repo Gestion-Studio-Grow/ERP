@@ -47,3 +47,22 @@ export function appDeRuta(
   const ordenadas = apps === REGISTRO_APPS ? REGISTRO_ORDENADO : masLargaPrimero(apps);
   return ordenadas.find((a) => cubre(a, target));
 }
+
+/**
+ * ¿`path` es de una app del registro cuyo módulo el negocio tiene ASIGNADO? PURA.
+ *
+ * Es lo que le falta al gate por URL de los productos con tienda (Comerciante, layout.tsx):
+ * `rutaPermitidaParaModulos` busca en la barra de hoy (ALL_ITEMS), que no conoce las apps
+ * nuevas del registro (Vender y Ventas del día, de `pos`; Mis locales, de `multilocal`), así
+ * que un Comerciante con ese módulo rebotaba al Inicio. Con el módulo asignado, la ruta pasa;
+ * la PÁGINA igual pasa por su guardia (`requireApp`, y en Mis locales `exigirCasa`). Las apps
+ * del núcleo (`modulo: null`) no entran por acá: siguen la barra de hoy.
+ */
+export function rutaDeAppConModulo(
+  path: string,
+  modules: readonly string[],
+  apps: readonly AppDescriptor[] = REGISTRO_APPS,
+): boolean {
+  const app = appDeRuta(path, apps);
+  return !!app && app.modulo !== null && modules.includes(app.modulo);
+}

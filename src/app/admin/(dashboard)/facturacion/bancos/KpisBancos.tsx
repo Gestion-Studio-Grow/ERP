@@ -59,16 +59,16 @@ function GoalBar({ usado, tope }: { usado: number; tope: number }) {
         />
       </span>
       <span className="mt-1.5 flex justify-between text-[11px] tabular-nums text-faint">
-        <span>Tope {fmtNumberAR(tope)} por mes</span>
+        <span>Límite del plan: {fmtNumberAR(tope)} facturas automáticas por mes</span>
         <span>{pct}%</span>
       </span>
       {pct >= 100 ? (
         <span role="alert" className="mt-1 block text-xs font-medium text-danger">
-          Se alcanzó el tope del mes: no se emiten más facturas automáticas.
+          Se alcanzó el límite de facturas automáticas del plan: este mes no se emiten más.
         </span>
       ) : pct >= 90 ? (
         <span role="alert" className="mt-1 block text-xs font-medium text-warning">
-          Estás cerca del tope del mes ({usado} de {tope}).
+          Estás cerca del límite de facturas automáticas del plan ({usado} de {tope}).
         </span>
       ) : null}
     </span>

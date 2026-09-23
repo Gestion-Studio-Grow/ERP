@@ -14,7 +14,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 // Entidades de `AuditLog` que la purga nunca borra (ver el comentario en `purgeAuditLogs`).
 // Se definen acá y no se importan de `frontera-cierre.ts` a propósito: ese módulo trae el
 // cliente Prisma del runtime y esto tiene que poder correr con un doble de test.
-export const PURGE_EXEMPT_ENTITIES = ["CierreDiario", "CarteraCliente"] as const;
+export const PURGE_EXEMPT_ENTITIES = ["CierreDiario", "CarteraCliente", "CierreMes"] as const;
 
 /** @deprecated Usar `PURGE_EXEMPT_ENTITIES`. Se conserva por compatibilidad de llamadores. */
 export const PURGE_EXEMPT_ENTITY = PURGE_EXEMPT_ENTITIES[0];
@@ -52,7 +52,7 @@ export async function purgeAuditLogs(
   const months = opts.months ?? AUDIT_RETENTION_MONTHS;
   const dryRun = opts.dryRun ?? true;
   const cutoff = auditRetentionCutoff(months);
-  // Dos entidades quedan EXENTAS, por razones distintas.
+  // Tres entidades quedan EXENTAS, por razones distintas.
   //
   // El CIERRE DIARIO de caja: su fila de auditoría no es un rastro, es la frontera de
   // congelamiento del libro (hasta qué día está cerrado el tenant, ver
@@ -64,6 +64,11 @@ export async function purgeAuditLogs(
   // facturas electrónicas a nombre del CUIT de otro. Con facturación electrónica de por
   // medio, 18 meses no cubren la prescripción: ese consentimiento tiene que poder
   // reconstruirse cuando lo pidan, no mientras dure la ventana de storage.
+  //
+  // El CIERRE DEL MES (src/lib/cierre-mes/cierre-mes.ts, `entity: "CierreMes"`): esas filas
+  // deciden si un mes está congelado y guardan quién bajó el paquete para la contadora.
+  // Purgarlas haría que un mes congelado volviera a figurar "sin congelar" y se perdiera el
+  // "descargado por".
   const where = { createdAt: { lt: cutoff }, entity: { notIn: [...PURGE_EXEMPT_ENTITIES] } };
 
   if (dryRun) {

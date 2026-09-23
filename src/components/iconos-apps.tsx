@@ -46,6 +46,10 @@ const TRAZOS: Record<NombreIcono, ReactNode> = {
   despiece: (<><path d="M4 4l9 9M13 13l-2 2-3-3 2-2M13 13l6 6" /><path d="M14 6a3 3 0 104 4z" /></>),
   // "App no disponible": un candado. Nuevo.
   candado: (<><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></>),
+  // Vender: la registradora (visor arriba, teclas abajo). Nuevo: antes usaba el de `caja`.
+  vender: (<><rect x="3" y="11" width="18" height="9" rx="2" /><rect x="7" y="4" width="10" height="5" rx="1" /><path d="M7 15h2M11 15h2M15 15h2" /></>),
+  // Ventas del día: el ticket con su borde cortado. Nuevo: antes usaba el de `facturacion`.
+  ventas: (<><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5z" /><path d="M9 8h6M9 12h6M9 16h3" /></>),
 };
 
 function esNombreIcono(nombre: string): nombre is NombreIcono {

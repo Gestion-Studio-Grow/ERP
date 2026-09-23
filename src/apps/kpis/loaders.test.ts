@@ -67,10 +67,21 @@ function ctx(db: DbKpi, extra: Partial<ContextoLoader> = {}): ContextoLoader {
   };
 }
 
-/** Consultas por loader. Todas 1, salvo la frontera del cierre (ver finanzas.server.ts). */
-const CONSULTAS_ESPERADAS: Record<string, number> = { "cierre-del-dia": 2 };
+/**
+ * Consultas por loader (el máximo). Todas 1 (regla 8 de la arquitectura), salvo tres
+ * excepciones decididas por plataforma, cada una con su porqué en el loader:
+ *   · cierre-del-dia, 2: la frontera del cierre es el corte inicial Y el último cierre, las dos
+ *     lecturas de la pantalla (frontera-cierre.ts); ver finanzas.server.ts.
+ *   · facturacion, 2: el total y los rechazados salen de un groupBy por estado, y "anuladas con
+ *     factura" es un filtro por relación que un groupBy no expresa; ver finanzas.server.ts.
+ *   · mermas, 3: los ajustes del mes, quiénes son recepción ("N por recepción") y, sólo con
+ *     plata, la venta cobrada del mes ("% de la venta"), en paralelo; ver logistica.server.ts.
+ * Los cuatro de Mis locales hacen UNA con el `db` del request (¿hay locales?); la red de cada
+ * local la lee su action en su propia transacción, fuera de este conteo (locales.server.ts).
+ */
+const CONSULTAS_ESPERADAS: Record<string, number> = { "cierre-del-dia": 2, facturacion: 2, mermas: 3 };
 
-test("cada loader hace UNA consulta (la frontera del cierre, dos) y todas filtran por el negocio", async () => {
+test("cada loader hace UNA consulta (salvo las excepciones declaradas) y todas filtran por el negocio", async () => {
   const ids = Object.keys(LOADERS_KPI);
   assert.ok(ids.length >= 10, `sólo ${ids.length} loaders: ¿se perdió un dominio?`);
   for (const id of ids) {
@@ -190,25 +201,35 @@ test("Cierre del día: lee la frontera de la pantalla (corte inicial y último c
   );
 });
 
-test("Stock: bajo el mínimo y en negativo con las reglas de la pantalla, con la palabra del rubro", async () => {
+test("Stock: bajo el mínimo (sólo lo que controla stock) y sin costo, con las reglas y el where de la pantalla", async () => {
+  // Filas como las lee la pantalla de Stock: con `trackStock` y sus ingresos con costo
+  // (registro de movimientos y líneas de compra), para el costo vigente único (stock/costo.ts).
+  const sinIngresos = { stockMovements: [], purchaseItems: [] };
   const productos = [
-    { id: "a", name: "Vacío", unit: "kg", stock: 2, lowStockAt: 5 }, // bajo el mínimo
-    { id: "b", name: "Entraña", unit: "kg", stock: 5, lowStockAt: 5 }, // en el mínimo cuenta
-    { id: "c", name: "Lomo", unit: "kg", stock: -1.3, lowStockAt: 2 }, // negativo (y bajo el mínimo)
-    { id: "d", name: "Osobuco", unit: "kg", stock: 40, lowStockAt: 5 },
+    { id: "a", name: "Vacío", unit: "kg", stock: 2, lowStockAt: 5, trackStock: true, stockMovements: [{ unitCost: 6543, createdAt: new Date("2026-09-10T12:00:00.000Z") }], purchaseItems: [] }, // bajo el mínimo, con costo
+    { id: "b", name: "Entraña", unit: "kg", stock: 5, lowStockAt: 5, trackStock: true, ...sinIngresos }, // en el mínimo cuenta; sin costo
+    { id: "c", name: "Lomo", unit: "kg", stock: -1.3, lowStockAt: 2, trackStock: true, ...sinIngresos }, // negativo: bajo el mínimo (la alerta es de Movimientos)
+    { id: "d", name: "Osobuco", unit: "kg", stock: 40, lowStockAt: 5, trackStock: true, ...sinIngresos }, // con stock y sin costo
+    { id: "e", name: "Bolsas", unit: "u", stock: 1, lowStockAt: 5, trackStock: false, ...sinIngresos }, // no controla stock: no está "bajo"
   ];
   const { db, llamadas } = dbFalsa({ "product.findMany": productos });
-  assert.deepEqual(await inventario(ctx(db)), {
+  assert.deepEqual(await inventario(ctx(db, { monto: false })), {
     valor: "3",
-    detalle: "cortes bajo el mínimo",
-    alerta: { valor: "1", texto: "corte en negativo" },
+    detalle: "cortes bajo el mínimo · 3 sin costo",
   });
+  assert.equal(llamadas.length, 1);
   assert.deepEqual(llamadas[0].args.where, { tenantId: "t-qa", deletedAt: null, active: true });
 
-  const velas = dbFalsa({ "product.findMany": [{ id: "x", name: "Vela", unit: "u", stock: 10, lowStockAt: 3 }] });
-  assert.deepEqual(await inventario(ctx(velas.db, { sustantivo: { uno: "producto", varios: "productos" } })), {
+  // Con reports:read, el stock valorizado a costo vigente: 2 kg × $6.543.
+  const conPlata = dbFalsa({ "product.findMany": productos });
+  const dato = await inventario(ctx(conPlata.db));
+  assert.ok(dato && "monto" in dato);
+  assert.equal(dato.monto, "$13.086 valorizado");
+
+  const velas = dbFalsa({ "product.findMany": [{ id: "x", name: "Vela", unit: "u", stock: 10, lowStockAt: 3, trackStock: true, ...sinIngresos }] });
+  assert.deepEqual(await inventario(ctx(velas.db, { monto: false, sustantivo: { uno: "producto", varios: "productos" } })), {
     valor: "0",
-    detalle: "productos bajo el mínimo",
+    detalle: "productos bajo el mínimo · 1 sin costo",
   });
 });
 
@@ -262,20 +283,15 @@ const SIN_LOADER_TODAVIA = [
   "lista-de-espera",
   "resenas",
   "recordatorios",
-  "catalogo",
   "libro-de-caja",
   "cuentas-a-pagar",
   "cuentas-a-cobrar",
-  "libro-iva",
-  "recibir-mercaderia",
-  "mermas",
   "lotes-y-vencimientos",
   "despiece",
-  "devoluciones-a-proveedor",
 ].sort();
 
-/** Loaders listos cuya app se registra más adelante (Vender llega en la ola 2). */
-const ESPERAN_SU_APP = ["vender"];
+/** Loaders listos cuya app se registra más adelante. Vacía desde la ola 2 (Vender ya está). */
+const ESPERAN_SU_APP: string[] = [];
 
 test("cobertura: qué KPI del registro tienen loader, y qué loader espera su app", () => {
   const declarados = new Set(REGISTRO_APPS.flatMap((a) => (a.kpi ? [a.kpi.id] : [])));

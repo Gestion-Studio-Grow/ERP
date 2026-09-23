@@ -12,13 +12,17 @@ import type { LoaderKpi } from "./nucleo.server";
 import { LOADERS_ADMINISTRACION } from "./administracion.server";
 import { LOADERS_COMERCIAL } from "./comercial.server";
 import { LOADERS_FINANZAS } from "./finanzas.server";
+import { LOADERS_LOCALES } from "./locales.server";
 import { LOADERS_LOGISTICA } from "./logistica.server";
 import { LOADERS_MOSTRADOR } from "./mostrador.server";
+import { LOADERS_PRECIOS } from "./precios.server";
 
 export const LOADERS_KPI: Readonly<Record<string, LoaderKpi>> = {
   ...LOADERS_MOSTRADOR,
   ...LOADERS_FINANZAS,
   ...LOADERS_LOGISTICA,
+  ...LOADERS_PRECIOS,
   ...LOADERS_COMERCIAL,
   ...LOADERS_ADMINISTRACION,
+  ...LOADERS_LOCALES,
 };

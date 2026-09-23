@@ -55,6 +55,35 @@ test("C-2 · la contraseña de bootstrap no va en el query string", () => {
     "volvió `&bootstrap=<clave>` a la URL: el secreto queda en el historial del navegador y en los access-logs.");
 });
 
+// ── El candado de Mis locales vale en el SERVIDOR, no sólo en la vista previa ─
+
+test("activar/apagar un módulo en la consola decide con los vínculos leídos de la base", () => {
+  const src = leer("src/lib/operator-actions.ts");
+  const cuerpo = src.slice(src.indexOf("export async function toggleTenantModule"), src.indexOf("export async function fijarAsignacionActual"));
+  assert.match(
+    cuerpo,
+    /validarCambio\(\{ \.\.\.tenant, vinculosActivos: await vinculosActivosDe\(tenantId\) \}/,
+    "toggleTenantModule tiene que pasarle a validarCambio los vínculos activos: sin ellos, un POST a mano apaga Mis locales con locales colgando.",
+  );
+});
+
+test("el panel del contador no abre con cartera y Mis locales juntos, y lo dice antes de leer la cartera", () => {
+  const src = leer("src/app/contador/page.tsx");
+  const decide = src.indexOf('decidirAcceso(estudio.modules, "estudio")');
+  assert.ok(decide > 0, "la página tiene que decidir con decidirAcceso (la misma regla que las actions)");
+  assert.ok(decide < src.indexOf("await monitorCarteraAction()"), "la decisión va ANTES de leer la cartera");
+});
+
+test("getProductExtras lee adentro de tenantTransaction: afuera, con RLS, no ve ninguna fila", () => {
+  // Medido en la integración de la ola 2 contra el Postgres local con el rol app_rls: la misma
+  // consulta sin el GUC del negocio da 0 filas; con el GUC, las del negocio.
+  const src = leer("src/lib/carniceria/product-extras.ts");
+  const cuerpo = src.slice(src.indexOf("export async function getProductExtras"), src.indexOf("export async function writeProductExtras"));
+  assert.match(cuerpo, /await tenantTransaction\(\s*\(tx\) => tx\.\$queryRaw/);
+  assert.ok(!/prisma\.\$queryRaw/.test(cuerpo), "volvió la consulta cruda con el cliente global (sin el negocio puesto)");
+  assert.match(cuerpo, /to_jsonb\(p\) ->> 'category'/, "sin la migración cárnica la columna no existe: to_jsonb da NULL en vez de un error");
+});
+
 // ── A-2 · el límite de la API pública está CABLEADO, no sólo construido ─────
 
 test("A-2 · las dos rutas públicas llaman al limitador", () => {
