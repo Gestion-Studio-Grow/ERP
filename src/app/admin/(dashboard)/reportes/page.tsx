@@ -12,6 +12,7 @@ import { analyzeTrends, type MetricSeriesInput } from "@/lib/owner-trends";
 import { OwnerPanel } from "@/components/OwnerPanel";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { requireApp } from "@/lib/require-app";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,8 @@ export default async function ReportesPage({
 }: {
   searchParams: Promise<{ status?: string; dias?: string }>;
 }) {
+  // Guardia de la app (ADR-098): una app oculta no es una app protegida.
+  await requireApp("reportes");
   const { status, dias } = await searchParams;
   // Rango del reporte desde la URL (?dias=), validado contra la lista permitida; si no
   // es válido, cae al default (90d). El rango es obligatorio a nivel de datos (ADR-023 F3).

@@ -32,6 +32,11 @@
 //
 // Client-safe: no importa Prisma/tenant/barrel `@/modules` — mismo criterio que
 // `perfil.ts`. Solo importa TIPOS de `./perfil` (no los modifica).
+//
+// MENÚ DE HOY, NO FUENTE (2026-09-23): las pantallas pasan a declararse UNA vez en el
+// registro de apps (src/apps/registro.ts) y los grupos, en espacios (src/apps/espacios.ts).
+// Lo de este archivo queda para pintar la barra de hoy hasta la limpieza posterior a la
+// ola 4, y un test (src/apps/paridad-menu.test.ts) exige que el registro dé lo mismo.
 
 import type { Capability } from "@/lib/capabilities";
 import type { NavGateItem, Perfil } from "./perfil";
@@ -176,9 +181,12 @@ export const NAV_ITEM_GROUPS: Readonly<Record<string, NavGroupId>> = {
 // piso universal. El encendido real lo maneja module-gating (carril S3); acá solo se
 // declara la intención para que el grupo/perfil queden fijos.
 //
-// El `module` (descriptor de catálogo que gatea por rubro) queda TBD para varios:
-// esos descriptores todavía no existen (son backlog del PO Catálogo), así que no se
-// inventan ids acá — la nota lo indica.
+// El `module` quedó sin completar en esta lista. Cuando se escribió, los descriptores de
+// catálogo no existían; hoy sí (src/modules/descriptors/nativos.ts: `inventario`,
+// `cuentas-a-cobrar`, `cuentas-a-pagar`, `libros`, `devoluciones-proveedor`) y el módulo
+// de cada pantalla vive en el registro de apps (src/apps/catalogo). Esta lista es
+// trazabilidad del backlog: no la lee la barra ni ninguna guardia, y las `nota` de abajo
+// que hablan de "descriptor pendiente" o "PO Catálogo" quedaron como historia.
 export interface BacklogNavItem {
   /** Código de scope item SAP de referencia (trazabilidad al mapa de cobertura). */
   scopeItem: string;
@@ -186,7 +194,7 @@ export interface BacklogNavItem {
   label: string;
   grupo: NavGroupId;
   perfilMin: Perfil;
-  /** Id del módulo del catálogo que lo gatea por rubro; ausente = descriptor aún por definir. */
+  /** Id del módulo del catálogo. Ausente en todos: el módulo vive en el registro de apps. */
   module?: string;
   /** true = definido pero DEFAULT OFF (opt-in por rubro/perfil de negocio, no piso universal). */
   defaultOff?: boolean;
@@ -267,12 +275,20 @@ export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
 // - `cap`: se REUSAN capabilities OWNER existentes — NO se toca `capabilities.ts`
 //   (perfil ≠ rol, ADR-059 D6b). `billing:manage` (cuentas a pagar / a cobrar),
 //   `reports:read` (libros), `catalog:manage` (inventario / devoluciones). Todas
-//   solo-OWNER → ni RECEPTION ni PROFESSIONAL ven estos ítems. La pantalla también las
-//   exige (requireCapability), así el guard ya está para el día del vivo.
-// - `module`: SIN descriptor de catálogo todavía (los descriptores Empresa son backlog
-//   del PO Catálogo) → hoy NO se gatean por módulo, solo por rol × perfil. El día que
-//   exista el descriptor se agrega `module` acá y el OWNER podrá prenderlo/apagarlo
-//   desde `/admin/modulos` (sin cambiar el plumbing).
+//   solo-OWNER → ni RECEPTION ni PROFESSIONAL ven estos ítems. La pantalla también exige
+//   una capability (requireCapability); ojo que inventario/page.tsx pide catalog:read, no
+//   catalog:manage — para los tres roles de hoy da lo mismo.
+// - `module`: CORREGIDO (2026-09-23). Esto decía que no había descriptor de catálogo y
+//   que el OWNER los prendería desde `/admin/modulos`. Las dos cosas eran falsas: los cinco
+//   descriptores existen (src/modules/descriptors/nativos.ts: `inventario`, `cuentas-a-pagar`,
+//   `cuentas-a-cobrar`, `libros`, `devoluciones-proveedor`) y `/admin/modulos` no la puede
+//   abrir nadie (`modules:manage` no está en ningún rol: `NO_SON_DEL_DUENIO` en
+//   capabilities.ts). Estos ítems siguen SIN `module` porque son el menú de HOY y tienen que
+//   dar lo mismo que antes. El módulo de cada pantalla vive ahora en el registro de apps
+//   (src/apps/catalogo/finanzas.ts y logistica.ts) y sólo decide en los negocios del
+//   piloto (`APPS_INICIO`). En el Comerciante estas pantallas siguen sin módulo, como acá
+//   (`menuDeHoy.moduloDeHoy: null`), y sin gate (CH) no cambia nada. Esta lista se borra
+//   en la limpieza posterior a la ola 4.
 export interface EnterpriseNavItem {
   href: string;
   /** Etiqueta al cliente — profesional, español neutro (ADR-059 D7). */
@@ -280,7 +296,10 @@ export interface EnterpriseNavItem {
   /** Nombre del ícono en el set inline de `AdminShell` (ver su mapa `Icon`). */
   icon: string;
   cap: Capability;
-  /** Descriptor de catálogo que lo gatearía por rubro; ausente = aún por definir (PO Catálogo). */
+  /**
+   * Módulo con el que la barra de hoy filtraría el ítem. Ausente en los cinco, a propósito:
+   * es el menú de hoy (ver la nota de arriba). El módulo de cada pantalla vive en el registro.
+   */
   module?: string;
   /**
    * Perfil mínimo. Casi todos son `enterprise` (aditivos de Empresa), PERO este registro es el
@@ -326,9 +345,9 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     cap: "billing:manage",
     // RECONCILIADO (S5, re-gate Fase D/E): `lite` — CxC/fiado es de Comercio+Empresa
     // (ADR-060 D3), coincide con la página (des-gateada de enterprise → capability
-    // billing:manage). Invariante `enterprise ⊇ lite` intacto (ambos lo ven). El
-    // rubro-gating fino llega con su descriptor de catálogo (`module`, PO Catálogo);
-    // hoy la barrera es la capability OWNER. CxP (J59) sí queda enterprise-only.
+    // billing:manage). Invariante `enterprise ⊇ lite` intacto (ambos lo ven). Su módulo
+    // (`cuentas-a-cobrar`) vive en el registro de apps y sólo decide en el piloto; en la
+    // barra de hoy la barrera es la capability OWNER. CxP (J59) sí queda enterprise-only.
     perfilMin: "lite",
     grupo: "finanzas",
     ready: true,
@@ -353,7 +372,8 @@ export const ENTERPRISE_NAV_ITEMS: readonly EnterpriseNavItem[] = [
     // RECONCILIADO (S5, Gate final): `lite` — inventario/valuación (D5) aplica a TODO
     // Comercio con stock (rubro-gated), coincide con su página re-gateada. Sigue en el
     // canal PROFILES_ENABLED (no rendea en prod con flags OFF). Invariante enterprise ⊇
-    // lite intacto (ambos lo ven). El rubro-gating fino llega con su descriptor (module).
+    // lite intacto (ambos lo ven). Nunca se pinta: ALL_ITEMS ya trae /admin/inventario
+    // (con `catalog` y sólo en mostrador) y `menuItemsParaTenant` se queda con el primero.
     perfilMin: "lite",
     grupo: "inventario-y-compras",
     ready: true,

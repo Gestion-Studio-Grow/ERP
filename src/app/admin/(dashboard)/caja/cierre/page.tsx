@@ -32,6 +32,7 @@ import {
   fmtMoneyARS,
 } from "@/components/ui";
 import { CerrarDiaForm } from "./CierreForm";
+import { requireApp } from "@/lib/require-app";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,8 @@ export default async function CierreCajaPage({
 }: {
   searchParams: Promise<{ dia?: string }>;
 }) {
+  // Guardia de la app (ADR-098): una app oculta no es una app protegida.
+  await requireApp("cierre-del-dia");
   const { dia } = await searchParams;
   const data = await getCierreDiarioData(dia, { conTurnosSinCerrar: true });
   const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo, registro, turnosSinCerrar } = data;

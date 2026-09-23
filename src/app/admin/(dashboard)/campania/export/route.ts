@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
+import { requireApp } from "@/lib/require-app";
 
 // ============================================================================
 // DESCARGA DE LOS ANOTADOS EN CSV.
@@ -36,6 +37,8 @@ const fechaAr = new Intl.DateTimeFormat("es-AR", {
 });
 
 export async function GET() {
+  // Guardia de la app (ADR-098): una app oculta no es una app protegida.
+  await requireApp("campanias");
   await requireCapability("clients:read");
 
   const leads = await prisma.leadCampania.findMany({ orderBy: { createdAt: "asc" } });

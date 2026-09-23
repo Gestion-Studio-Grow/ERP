@@ -11,10 +11,13 @@ import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
 import { PageContainer, PageHeader, buttonClasses } from "@/components/ui";
 import FacturasSection from "./FacturasSection";
 import CobrosSection from "./CobrosSection";
+import { requireApp } from "@/lib/require-app";
 
 export const dynamic = "force-dynamic";
 
 export default async function FacturacionPage() {
+  // Guardia de la app (ADR-098): una app oculta no es una app protegida.
+  await requireApp("facturacion");
   const [{ facturas, estado }, { modo }, activos] = await Promise.all([
     getFacturacion(),
     estadoCobros(),

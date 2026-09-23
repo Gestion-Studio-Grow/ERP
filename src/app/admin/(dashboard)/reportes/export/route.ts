@@ -12,11 +12,14 @@ import { getReportData, getDeepReportData } from "@/lib/actions";
 import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
 import { buildReportCsv } from "@/lib/report-csv";
 import { logger } from "@/lib/logger";
+import { requireApp } from "@/lib/require-app";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  // Guardia de la app (ADR-098): una app oculta no es una app protegida.
+  await requireApp("reportes");
   try {
     const parsed = Number(new URL(request.url).searchParams.get("dias"));
     const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsed)

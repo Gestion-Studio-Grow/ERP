@@ -13,11 +13,14 @@ import { getActiveProfile } from "@/lib/profile-gating";
 import { getTenantBrand } from "@/lib/branding";
 import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
 import { logger } from "@/lib/logger";
+import { requireApp } from "@/lib/require-app";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  // Guardia de la app (ADR-098): una app oculta no es una app protegida.
+  await requireApp("libro-iva");
   try {
     // Edición Empresa (igual que la pantalla). No filtramos el detalle si no aplica.
     if ((await getActiveProfile()) !== "enterprise") {

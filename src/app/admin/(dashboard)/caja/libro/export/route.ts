@@ -21,11 +21,14 @@ import { CASH_METHOD_LABEL, formatMonthLabel, totalOf } from "@/lib/caja/libro-c
 import { buildLibroCsv } from "@/lib/caja/libro-csv";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { logger } from "@/lib/logger";
+import { requireApp } from "@/lib/require-app";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  // Guardia de la app (ADR-098): una app oculta no es una app protegida.
+  await requireApp("libro-de-caja");
   try {
     const params = new URL(request.url).searchParams;
     const dia = params.get("dia");

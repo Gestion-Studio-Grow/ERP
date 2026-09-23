@@ -14,11 +14,14 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { logger } from "@/lib/logger";
 import { SELECT_CATALOGO, aProductoDelCatalogo, armarPlanilla } from "@/lib/catalogo/planilla-core";
+import { requireApp } from "@/lib/require-app";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // Guardia de la app (ADR-098): una app oculta no es una app protegida.
+  await requireApp("catalogo");
   // Fuera del try: `requireCapability` corta con un redirect (al login o a la home del rol),
   // y un catch que lo tragara devolvería un 403 en vez de mandar a la persona a loguearse.
   await requireCapability("catalog:read");
