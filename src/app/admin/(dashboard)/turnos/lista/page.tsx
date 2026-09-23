@@ -1,10 +1,11 @@
-import { getAppointments, getProfessionalsWithServices } from "@/lib/actions";
+import { getAppointments, getFichasParaAlta, getProfessionalsWithServices } from "@/lib/actions";
 import AppointmentRow from "../AppointmentRow";
 import AppointmentsHistoryList from "./AppointmentsHistoryList";
 import NewAppointmentForm from "../NewAppointmentForm";
 import Link from "next/link";
 import { requireCapability } from "@/lib/authz";
 import { esCuentaACobrar, estadoCobroTurno } from "@/lib/turnos/cobros";
+import { seccionDeLista } from "@/lib/turnos/turno-abierto";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,12 @@ function proyectarTurno(a: TurnoDelLoader) {
   };
 }
 
+// El reloj se lee UNA vez por carga, afuera del cuerpo del componente: las tres secciones
+// se parten con el mismo "ahora" y un turno no puede caer en dos.
+function instanteDeCarga() {
+  return new Date();
+}
+
 export default async function TurnosListaPage() {
   // La lista (historial completo + alta manual) es gestión de agenda: solo
   // OWNER/RECEPTION. El PROFESSIONAL cae acá a su calendario propio.
@@ -78,14 +85,23 @@ export default async function TurnosListaPage() {
   // Quién mira. Alimenta la misma regla que aplica el servidor al cobrar, para que la fila no
   // ofrezca un cobro que después se rechaza.
   const viewer = { role: user.role, professionalId: user.professionalId };
-  const [appointments, professionals] = await Promise.all([
+  const [appointments, professionals, fichas] = await Promise.all([
     getAppointments(),
     getProfessionalsWithServices(),
+    getFichasParaAlta(),
   ]);
   // Único punto donde se lee el resultado crudo del loader: de acá para abajo se trabaja
   // siempre con `turnos`, que es lo que el navegador va a recibir.
   const turnos = appointments.map(proyectarTurno);
-  const pending = turnos.filter((a) => a.status === "PENDING");
+  // La sección "Reservados" se PARTE en dos (regla pura `seccionDeLista`, con test):
+  //   · pasados sin cerrar: Reservados Y Confirmados con la hora ya pasada. Antes el Confirmado
+  //     de ayer se iba al Historial como si estuviera resuelto, y era un saldo sin cobrar o
+  //     una ausencia sin marcar;
+  //   · a confirmar: los Reservados que todavía no llegaron.
+  // Un turno cae en una sola: nada se repite en el Historial.
+  const ahora = instanteDeCarga();
+  const sinCerrar = turnos.filter((a) => seccionDeLista(a, ahora) === "sin-cerrar");
+  const pending = turnos.filter((a) => seccionDeLista(a, ahora) === "a-confirmar");
   // Cuentas a cobrar DERIVADAS: turnos prestados (COMPLETED) con saldo > 0. No es un estado
   // nuevo del enum (decisión de producto): es precio − Σ cobros, en la fila y acá.
   const aCobrar = turnos.filter((a) => {
@@ -96,7 +112,7 @@ export default async function TurnosListaPage() {
     });
     return esCuentaACobrar({ status: a.status, saldo: plata.saldo });
   });
-  const rest = turnos.filter((a) => a.status !== "PENDING");
+  const rest = turnos.filter((a) => seccionDeLista(a, ahora) === "historial");
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
@@ -116,18 +132,33 @@ export default async function TurnosListaPage() {
         confirmá el turno cuando la clienta confirme, y al completarlo se cobra el resto.
       </p>
 
-      <NewAppointmentForm professionals={professionals} />
+      <NewAppointmentForm professionals={professionals} fichas={fichas} />
+
+      {sinCerrar.length > 0 && (
+        <section className="mb-10">
+          <h2 className="text-lg font-medium text-strong mb-1">Pasados sin cerrar ({sinCerrar.length})</h2>
+          <p className="text-sm text-muted mb-3">
+            Ya pasó la hora y siguen reservados o confirmados: completalos (y cobrá el saldo) o
+            marcá que no se presentó.
+          </p>
+          <div className="space-y-3">
+            {sinCerrar.map((a) => (
+              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} ancla />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mb-10">
         <h2 className="text-lg font-medium text-strong mb-3">
-          Reservados, pendientes de confirmar ({pending.length})
+          Reservados, a confirmar ({pending.length})
         </h2>
         {pending.length === 0 && (
-          <p className="text-sm text-muted">No hay reservas pendientes de confirmar.</p>
+          <p className="text-sm text-muted">No hay reservas por confirmar.</p>
         )}
         <div className="space-y-3">
           {pending.map((a) => (
-            <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} />
+            <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} ancla />
           ))}
         </div>
       </section>

@@ -57,6 +57,14 @@ import {
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
 import { isColumnMissing } from "@/lib/prisma-errors";
+import {
+  buscarFichaPorTelefono,
+  entradaAuditoriaEmpate,
+  resumirFichasParaAlta,
+  type FichaEncontrada,
+  type FichaParaAlta,
+} from "@/lib/clientes/ficha-por-telefono";
+import { diaSiguiente, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
 import { Prisma } from "@/generated/prisma/client";
 import {
   isDemoSandbox,
@@ -403,6 +411,42 @@ async function bookAppointment({
   };
 }
 
+// ── La ficha de una reserva PÚBLICA (vidriera y modal) ──────────────────────
+//
+// La encuentra por teléfono NORMALIZADO (`buscarFichaPorTelefono`): "11 4000-7919" y
+// "1140007919" ya no son dos clientas. Y justamente porque ahora la coincidencia es más
+// ancha, este camino —que lo usa un ANÓNIMO— queda de sólo lectura sobre la ficha existente:
+//   - NO le cambia `isResident`. Antes lo pisaba con lo que tildara el visitante. Ese dato de
+//     la ficha fija precio en dos lugares: la lista de espera congela con `client.isResident`
+//     (`bookFromWaitlist`), y el alta de la recepción precarga "de la zona" desde la ficha
+//     (`alCambiarTelefono`). Cualquiera que supiera el teléfono de una clienta podía sacarle o
+//     darle el beneficio. El precio de ESTA reserva sigue saliendo de lo tildado, como
+//     siempre: queda Reservada y la recepción la ve antes de confirmar.
+//   - Esta función devuelve el id (y el empate, para auditarlo) y nada de eso sale de este
+//     archivo hacia el visitante. OJO, igual: el turno queda colgado de la ficha encontrada,
+//     y las páginas públicas del turno (/reserva/confirmacion/[id] y /reserva/turno/[id])
+//     muestran `appointment.client.name`. Con la coincidencia ancha, un anónimo que tipee el
+//     número de una clienta en cualquier formato ve el NOMBRE de ella ahí. Esas páginas
+//     tienen que dejar de leer la ficha; el test que lo vigila está en
+//     ficha-por-telefono.test.ts.
+// NO exportada a propósito: en un archivo "use server" cada export es un endpoint.
+async function fichaDeReservaPublica(datos: {
+  name: string;
+  phone: string;
+  email?: string;
+  isResident: boolean;
+}): Promise<FichaEncontrada> {
+  const tenantId = await getCurrentTenantId();
+  const encontrada = await buscarFichaPorTelefono(prisma, tenantId, datos.phone);
+  // El empate (si lo hay) vuelve al llamador, que lo audita recién con el turno reservado.
+  if (encontrada) return encontrada;
+  const creada = await prisma.client.create({
+    data: { tenantId, name: datos.name, phone: datos.phone, email: datos.email, isResident: datos.isResident },
+    select: { id: true },
+  });
+  return { id: creada.id, empate: null };
+}
+
 export async function createAppointment(formData: FormData) {
   const professionalId = String(formData.get("professionalId"));
   const serviceId = String(formData.get("serviceId"));
@@ -418,20 +462,13 @@ export async function createAppointment(formData: FormData) {
   const contact = validateBookingContact(clientPhone, clientEmail);
   if (!contact.ok) throw new Error(contact.error);
 
-  let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
-  if (!client) {
-    client = await prisma.client.create({
-      data: {
-        tenantId: await getCurrentTenantId(),
-        name: clientName,
-        phone: clientPhone,
-        email: clientEmail || undefined,
-        isResident,
-      },
-    });
-  } else if (client.isResident !== isResident) {
-    client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
-  }
+  const ficha = await fichaDeReservaPublica({
+    name: clientName,
+    phone: clientPhone,
+    email: clientEmail || undefined,
+    isResident,
+  });
+  const clientId = ficha.id;
 
   // Reserva pública: la seña la cobra la recepción cuando llega el comprobante
   // ("Registrar cobro" en /admin/turnos) — no hay canal de cobro online todavía.
@@ -439,13 +476,14 @@ export async function createAppointment(formData: FormData) {
     professionalId,
     serviceId,
     startsAtIso,
-    clientId: client.id,
+    clientId,
     clientName,
     status: "PENDING",
     isResident,
     couponCode,
   });
 
+  if (ficha.empate) await auditPublic({ ...entradaAuditoriaEmpate(ficha.empate), clientPhone });
   await auditPublic({
     action: "create",
     entity: "Appointment",
@@ -610,32 +648,26 @@ export async function createBookingFromModal(input: {
   const contact = validateBookingContact(clientPhone, input.clientEmail);
   if (!contact.ok) throw new Error(contact.error);
 
-  let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
-  if (!client) {
-    client = await prisma.client.create({
-      data: {
-        tenantId: await getCurrentTenantId(),
-        name: clientName,
-        phone: clientPhone,
-        email: input.clientEmail?.trim() || undefined,
-        isResident,
-      },
-    });
-  } else if (client.isResident !== isResident) {
-    client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
-  }
+  const ficha = await fichaDeReservaPublica({
+    name: clientName,
+    phone: clientPhone,
+    email: input.clientEmail?.trim() || undefined,
+    isResident,
+  });
+  const clientId = ficha.id;
 
   const { appointment } = await bookAppointment({
     professionalId: input.professionalId,
     serviceId: input.serviceId,
     startsAtIso: input.startsAtIso,
-    clientId: client.id,
+    clientId,
     clientName,
     status: "PENDING",
     isResident,
     couponCode: input.couponCode,
   });
 
+  if (ficha.empate) await auditPublic({ ...entradaAuditoriaEmpate(ficha.empate), clientPhone });
   await auditPublic({
     action: "create",
     entity: "Appointment",
@@ -721,10 +753,19 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
     cobroInicial = { monto, method: metodo, actor: `user:${user.id}` };
   }
 
-  let client = await prisma.client.findFirst({ where: { phone: clientPhone } });
+  // La ficha por teléfono NORMALIZADO: "1140007919" encuentra a la clienta cargada como
+  // "11 4000-7919" en vez de crearle una segunda ficha. Es lo mismo que el formulario le
+  // mostró a la recepción al tipear el teléfono (`fichaParaTelefono`, misma elección).
+  // Acá, a diferencia de la reserva pública, la ficha SÍ se actualiza con "cliente de la
+  // zona": lo marca la recepción, con sesión y auditoría, como siempre.
+  const tenantId = await getCurrentTenantId();
+  const encontrada = await buscarFichaPorTelefono(prisma, tenantId, clientPhone);
+  let client = encontrada
+    ? await prisma.client.findFirst({ where: { id: encontrada.id, tenantId } })
+    : null;
   if (!client) {
     client = await prisma.client.create({
-      data: { tenantId: await getCurrentTenantId(), name: clientName, phone: clientPhone, isResident },
+      data: { tenantId, name: clientName, phone: clientPhone, isResident },
     });
   } else if (client.isResident !== isResident) {
     client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
@@ -754,6 +795,9 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
   }
   const { appointment, cobro, libroCaja } = booked;
 
+  // El empate de fichas se registra recién con el turno reservado: si la reserva se rechaza
+  // (horario ocupado, seña que excede), no queda una fila de auditoría de un alta que no pasó.
+  if (encontrada?.empate) await auditAdmin(entradaAuditoriaEmpate(encontrada.empate));
   await auditAdmin({
     action: "create_manual",
     entity: "Appointment",
@@ -839,9 +883,12 @@ export async function rescheduleAppointment(formData: FormData) {
       excludeAppointmentId: appointmentId,
     });
 
+    // `reminderSentAt` vuelve a null: el aviso que se dio (a mano desde "Mañana: confirmar"
+    // o por el barrido) era para la fecha VIEJA. Sin esto, el turno movido aparecía como
+    // "avisada HH:MM" en la fecha nueva sin que nadie le hubiera avisado de esa fecha.
     await tx.appointment.update({
       where: { id: appointmentId },
-      data: { startsAt, endsAt, professionalId: targetProfessionalId, boxId },
+      data: { startsAt, endsAt, professionalId: targetProfessionalId, boxId, reminderSentAt: null },
     });
   });
 
@@ -1710,6 +1757,164 @@ export async function getClient(id: string) {
   });
 }
 
+// ── Las fichas que ofrece el alta de turno (campo "Clienta") ─────────────────
+//
+// Por cada ficha: nombre, teléfono, notas, si es vecina, su última visita y el saldo que
+// debe. La recepción la ve al buscarla o al tipear el teléfono, antes de dar el turno.
+//
+// Se proyecta campo por campo y el cálculo queda del lado del servidor: al navegador viaja
+// el RESUMEN por clienta, no los turnos (ver el encabezado de turnos/lista/page.tsx sobre lo
+// que pesaba la página). Última visita y saldo miran el último año, la misma ventana que la
+// lista de turnos: una visita o un saldo de hace más de un año no aparece acá (sí en la ficha).
+const FICHAS_ALTA_RANGO_DIAS = 365;
+
+export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
+  await requireCapability("agenda:manage");
+  if (isDemoSandbox()) return [];
+  const tenantId = await getCurrentTenantId();
+  const desde = new Date(Date.now() - FICHAS_ALTA_RANGO_DIAS * 24 * 60 * 60 * 1000);
+  const [clientes, completados] = await Promise.all([
+    prisma.client.findMany({
+      where: { tenantId },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        notes: true,
+        isResident: true,
+        createdAt: true,
+        _count: { select: { appointments: true } },
+      },
+    }),
+    prisma.appointment.findMany({
+      where: { tenantId, status: "COMPLETED", startsAt: { gte: desde } },
+      select: {
+        id: true,
+        clientId: true,
+        status: true,
+        startsAt: true,
+        priceAtBooking: true,
+        service: { select: { name: true, price: true } },
+        professional: { select: { name: true } },
+        payment: { select: { status: true, amount: true } },
+      },
+    }),
+  ]);
+  const cobros = await cobrosDetalladosPorTurno(prisma, tenantId, completados.map((a) => a.id));
+  return resumirFichasParaAlta(
+    clientes,
+    completados.map((a) => ({
+      clientId: a.clientId,
+      status: a.status,
+      startsAt: a.startsAt,
+      precio: a.priceAtBooking ?? a.service.price,
+      servicio: a.service.name,
+      profesional: a.professional.name,
+      cobros: cobros.get(a.id) ?? [],
+      pagoLegado: a.payment,
+    })),
+  );
+}
+
+// ── "Mañana: confirmar" (/admin/turnos) ──────────────────────────────────────
+//
+// Los turnos Reservados y Confirmados del DÍA SIGUIENTE DEL NEGOCIO (Buenos Aires, no el
+// servidor), con el texto del recordatorio ya armado: la plantilla APPOINTMENT_REMINDER por
+// WhatsApp del panel /admin/recordatorios (o la de siempre) y la hora de acá. La recepción
+// toca "WhatsApp", se abre el chat con ese texto, y el turno queda "avisada HH:MM".
+//
+// Es lo manual y no depende del cron: el recordatorio automático hoy no llega a estos turnos
+// (ver el comentario de la ventana en src/lib/cron/reminder-sweep.ts).
+export type TurnoAConfirmar = {
+  id: string;
+  startsAt: string;
+  status: "PENDING" | "CONFIRMED";
+  clienta: string;
+  telefono: string;
+  servicio: string;
+  profesional: string;
+  texto: string;
+  avisadaEl: string | null;
+};
+
+export async function getMananaConfirmar(): Promise<{ dia: string; turnos: TurnoAConfirmar[] }> {
+  await requireCapability("agenda:manage");
+  const dia = diaSiguiente(todayInBusinessTz());
+  if (isDemoSandbox()) return { dia, turnos: [] };
+  const tenantId = await getCurrentTenantId();
+  const { desde, hasta } = rangoDelDia(dia);
+  const [turnos, plantilla] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { tenantId, startsAt: { gte: desde, lt: hasta }, status: { in: ["PENDING", "CONFIRMED"] } },
+      orderBy: { startsAt: "asc" },
+      select: {
+        id: true,
+        startsAt: true,
+        status: true,
+        reminderSentAt: true,
+        client: { select: { name: true, phone: true } },
+        service: { select: { name: true } },
+        professional: { select: { name: true } },
+      },
+    }),
+    prisma.messageTemplate.findFirst({
+      where: { tenantId, type: "APPOINTMENT_REMINDER", channel: "WHATSAPP", active: true },
+      select: { body: true },
+    }),
+  ]);
+  return {
+    dia,
+    turnos: turnos.map((t) => ({
+      id: t.id,
+      startsAt: t.startsAt.toISOString(),
+      status: t.status === "PENDING" ? "PENDING" : "CONFIRMED",
+      clienta: t.client.name,
+      telefono: t.client.phone,
+      servicio: t.service.name,
+      profesional: t.professional.name,
+      texto: textoRecordatorio(plantilla?.body, {
+        clientName: t.client.name,
+        serviceName: t.service.name,
+        professionalName: t.professional.name,
+        startsAt: t.startsAt,
+      }),
+      avisadaEl: t.reminderSentAt ? t.reminderSentAt.toISOString() : null,
+    })),
+  };
+}
+
+/**
+ * Deja el turno como "avisada" cuando la recepción manda el recordatorio a mano por WhatsApp.
+ * Estampa `reminderSentAt` —la misma columna que usa el cron, así el barrido no le vuelve a
+ * mandar— con un update acotado por tenant: el id viene del navegador.
+ *
+ * Qué NO puede saber: si el mensaje efectivamente se envió. Se estampa al abrir el chat con el
+ * texto listo, que es lo que el sistema ve. Por eso la pantalla dice "avisada HH:MM" y no
+ * "recibido".
+ */
+export async function marcarAvisada(appointmentId: string): Promise<{ ok: true; avisadaEl: string } | { ok: false; error: string }> {
+  await requireCapability("agenda:manage");
+  if (isDemoSandbox()) return { ok: true, avisadaEl: new Date().toISOString() };
+  const id = String(appointmentId || "");
+  if (!id) return { ok: false, error: "Falta el turno." };
+  const tenantId = await getCurrentTenantId();
+  const ahora = new Date();
+  const res = await prisma.appointment.updateMany({
+    where: { id, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
+    data: { reminderSentAt: ahora },
+  });
+  if (res.count === 0) return { ok: false, error: "Ese turno ya no está reservado ni confirmado." };
+  await auditAdmin({
+    action: "reminder_manual",
+    entity: "Appointment",
+    entityId: id,
+    changes: { reminderSentAt: ahora, canal: "whatsapp-manual" },
+  });
+  revalidatePath("/admin/turnos");
+  return { ok: true, avisadaEl: ahora.toISOString() };
+}
+
 export async function getAgendaDay(date: string) {
   const user = await requireCapability("agenda:read");
   if (isDemoSandbox()) return getDemoAgendaDay(date);
@@ -1773,7 +1978,12 @@ export async function getDashboardData() {
         include: { client: true, professional: true, service: true },
         orderBy: { startsAt: "asc" },
       }),
-      prisma.appointment.count({ where: { status: "PENDING" } }),
+      // Reservados que TODAVÍA NO LLEGARON: los que hay que confirmar. Antes contaba todos los
+      // PENDING de la historia, incluidos los de hace meses que nadie cerró — esos no son "a
+      // confirmar", son turnos sin cerrar, y la lista los muestra aparte. El borde es "ahora" y
+      // no las 00:00 para que el número coincida con la sección "Reservados, a confirmar" de la
+      // lista, a la que lleva la tarjeta (misma regla: `seccionDeLista`).
+      prisma.appointment.count({ where: { status: "PENDING", startsAt: { gte: new Date() } } }),
       prisma.payment.findMany({
         where: { status: "APPROVED", createdAt: { gte: weekStart } },
         select: { amount: true },

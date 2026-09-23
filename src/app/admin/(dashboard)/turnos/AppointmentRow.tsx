@@ -14,6 +14,7 @@ import {
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
 import { fmtDateTime } from "@/lib/datetime";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import {
@@ -341,9 +342,19 @@ export default function AppointmentRow({
   canManage = true,
   canCollect = true,
   viewer,
+  ancla = false,
 }: {
   appointment: Appointment;
   statusLabel: Record<string, string>;
+  /**
+   * ¿Esta fila lleva el ancla `#turno-<id>` a la que enlaza el cierre de caja? Sólo UNA fila
+   * por turno puede llevarla: la lista dibuja un Completado con saldo en "Saldos a cobrar" y
+   * otra vez en el Historial, y el calendario dibuja el mismo turno en la grilla y en el
+   * detalle. Un `id` repetido en el DOM deja el enlace yendo a cualquiera de las dos. Por eso
+   * es opt-in: la pone sólo la sección a la que apunta el enlace (los pasados sin cerrar y los
+   * reservados de la lista).
+   */
+  ancla?: boolean;
   /**
    * Quién está mirando. Se usa SÓLO para decidir si se dibuja el botón de cobrar: la regla
    * la resuelve `puedeCobrarEsteTurno`, la misma función que aplica el servidor, así que la
@@ -396,14 +407,37 @@ export default function AppointmentRow({
   const [ahora] = useState(() => Date.now());
   const yaOcurrio = new Date(appointment.startsAt).getTime() <= ahora;
 
+  // El teléfono es un link a WhatsApp (549 + número normalizado, ver `waLinkClienta`): antes
+  // era texto y confirmar un turno era copiar el número a mano. Si lo cargado no es un número
+  // de 10 dígitos, queda como texto: no se abre un chat a un número que no es el de ella.
+  const wa = waLinkClienta(appointment.client.phone);
+
   return (
-    <div className="rounded-lg border border-line bg-surface-raised p-4">
+    // `id` = el ancla a la que lleva el cierre de caja ("#turno-<id>", ver `ancla`); `target:`
+    // la resalta al llegar, para que se vea cuál de la lista era.
+    <div
+      id={ancla ? `turno-${appointment.id}` : undefined}
+      className="scroll-mt-24 rounded-lg border border-line bg-surface-raised p-4 target:border-warning target:ring-2 target:ring-warning/40"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-medium text-strong">
             {appointment.client.name}{" "}
             <span className="text-muted font-normal">
-              — {appointment.client.phone}
+              —{" "}
+              {wa ? (
+                <a
+                  href={wa}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-strong"
+                  aria-label={`WhatsApp a ${appointment.client.name}: ${appointment.client.phone}`}
+                >
+                  {appointment.client.phone}
+                </a>
+              ) : (
+                appointment.client.phone
+              )}
             </span>
           </p>
           <p className="text-sm text-muted">

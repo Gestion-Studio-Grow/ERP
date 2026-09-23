@@ -2,12 +2,14 @@
 // Teléfono del cliente — CLAVE NATURAL de la ficha. Normalización PURA, sin DB.
 // ============================================================================
 //
-// El teléfono no es un dato de contacto más: es lo que identifica a la clienta. El alta
-// de turno (`actions.ts`, `findFirst({ where: { phone } })`) reusa la ficha si encuentra
-// una con ese teléfono y crea una nueva si no. Ese match es EXACTO sobre el string
-// tipeado, así que hoy "11 4000-7919", "1140007919" y "+5491140007919" son tres clientas
-// distintas: el historial se parte, "total gastado" y "turnos totales" se reparten entre
-// fichas que son la misma persona, y el recordatorio sale (o no) de la que le tocó.
+// El teléfono no es un dato de contacto más: es lo que identifica a la clienta. Los cuatro
+// caminos de alta de turno reusan la ficha si encuentran una con ese teléfono y crean una
+// nueva si no. Ese match era EXACTO sobre el string tipeado, así que "11 4000-7919",
+// "1140007919" y "+5491140007919" eran tres clientas distintas: el historial se partía,
+// "total gastado" y "turnos totales" se repartían entre fichas que son la misma persona.
+// Ahora los cuatro buscan con esta clave, por `buscarFichaPorTelefono`
+// (ficha-por-telefono.ts). Las fichas duplicadas que ya existen siguen ahí: unificarlas es
+// otra decisión.
 //
 // Esto devuelve la CLAVE de comparación: los dígitos del número nacional, sin código de
 // país, sin el 0 de larga distancia, sin el 9 del formato internacional de móvil y sin el

@@ -11,7 +11,7 @@ export default async function ConfirmacionPage({
   const { id } = await params;
   const appointment = await prisma.appointment.findUnique({
     where: { id },
-    include: { client: true, professional: true, service: true, box: true },
+    include: { professional: true, service: true, box: true },
   });
 
   if (!appointment) notFound();
@@ -28,7 +28,7 @@ export default async function ConfirmacionPage({
         ¡Solicitud enviada!
       </h1>
       <p className="mb-8" style={{ color: "var(--text-muted)" }}>
-        Gracias, {appointment.client.name}. Tu turno está reservado a la espera de confirmación.
+        ¡Gracias! Tu turno está reservado a la espera de confirmación.
       </p>
       <div
         className="text-left rounded-lg p-5 space-y-2 mb-6"

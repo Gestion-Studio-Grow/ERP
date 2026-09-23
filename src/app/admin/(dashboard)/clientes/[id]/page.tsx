@@ -1,13 +1,16 @@
 import { getClient } from "@/lib/actions";
-import { fmtMoneyARS } from "@/components/ui";
+import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
 import { canCurrentUser } from "@/lib/authz";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
 import EditarClienteForm from "./EditarClienteForm";
 
+// "Reservado", igual que la agenda (CalendarGrid, lista): la ficha decía "Pendiente de pago"
+// para el mismo estado, y el estado del turno no habla de plata (la seña se cobra al reservar).
 const statusLabel: Record<string, string> = {
-  PENDING: "Pendiente de pago",
+  PENDING: "Reservado",
   CONFIRMED: "Confirmado",
   CANCELLED: "Cancelado",
   COMPLETED: "Completado",
@@ -28,6 +31,10 @@ export default async function ClienteDetailPage({
   // `updateClient` (ADR-017 §2.e: ocultar un botón no es seguridad).
   const puedeEditar = await canCurrentUser("clients:manage");
 
+  // Link directo al chat (549 + teléfono normalizado). Null si lo cargado no es un número de
+  // 10 dígitos: no se abre WhatsApp a un número que no es el de ella.
+  const wa = waLinkClienta(client.phone);
+
   const totalGastado = client.appointments
     .filter((a) => a.payment?.status === "APPROVED")
     .reduce((sum, a) => sum + (a.payment?.amount ?? 0), 0);
@@ -42,6 +49,16 @@ export default async function ClienteDetailPage({
         <span>
           {client.phone} {client.email ? `· ${client.email}` : ""}
         </span>
+        {wa && (
+          <a
+            href={wa}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClasses("outline", "md", "whitespace-nowrap")}
+          >
+            WhatsApp
+          </a>
+        )}
         {client.isResident != null && (
           <span
             className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -101,6 +118,12 @@ export default async function ClienteDetailPage({
             <p className="text-muted">
               {a.professional.name} · {fmtDateTime(a.startsAt)}
             </p>
+            {/* La nota de CADA turno: el alta la pide justamente para esto ("Preferencias, tono,
+                alergias…") y el historial de la ficha no la mostraba: "qué tono se usó la vez
+                pasada" sólo se veía en la fila de ese turno en la agenda. */}
+            {a.notes && (
+              <p className="mt-1 whitespace-pre-line rounded-md bg-warning-soft px-2 py-1 text-body">{a.notes}</p>
+            )}
           </div>
         ))}
         {client.appointments.length === 0 && (

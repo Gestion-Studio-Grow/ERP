@@ -20,7 +20,7 @@ import {
   totalOf,
 } from "@/lib/caja/libro-caja";
 import { formatDayLabel, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
-import { fmtDateTime } from "@/lib/datetime";
+import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import {
   Card,
   CardHeader,
@@ -62,8 +62,8 @@ export default async function CierreCajaPage({
   searchParams: Promise<{ dia?: string }>;
 }) {
   const { dia } = await searchParams;
-  const data = await getCierreDiarioData(dia);
-  const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo, registro } = data;
+  const data = await getCierreDiarioData(dia, { conTurnosSinCerrar: true });
+  const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo, registro, turnosSinCerrar } = data;
 
   const esperadoTotal = preview.total.expected;
   const puedeCerrar = !yaCerrado && !enElFuturo;
@@ -249,6 +249,14 @@ export default async function CierreCajaPage({
       </Card>
       )}
 
+      {/* TURNOS SIN CERRAR del día que se cierra: avisa, no traba. Un turno Reservado o
+          Confirmado cuya hora ya pasó es un saldo que no entró o una ausencia sin marcar, y
+          hasta acá ninguna pantalla lo mostraba. Va ANTES del botón de cerrar porque es el
+          momento en que todavía se puede cobrar ese saldo con fecha de hoy. */}
+      {turnosSinCerrar && turnosSinCerrar.length > 0 && (
+        <TurnosSinCerrar day={day} turnos={turnosSinCerrar} />
+      )}
+
       {puedeCerrar && (
         <CerrarDiaForm
           key={day}
@@ -325,5 +333,43 @@ export default async function CierreCajaPage({
         </>
       )}
     </main>
+  );
+}
+
+function TurnosSinCerrar({ day, turnos }: { day: DayKey; turnos: NonNullable<Awaited<ReturnType<typeof getCierreDiarioData>>["turnosSinCerrar"]> }) {
+  return (
+    <Card className="mb-8 border-warning/40">
+      <CardHeader>
+        <CardTitle>Turnos sin cerrar ({turnos.length})</CardTitle>
+        <CardDescription>
+          Turnos del {formatDayLabel(day)} que siguen reservados o confirmados con la hora pasada.
+          Cada uno es un cobro que no se registró o una ausencia sin marcar. Se puede cerrar la
+          caja igual; completalos o marcá la ausencia desde la agenda.
+        </CardDescription>
+      </CardHeader>
+      <ul className="divide-y divide-line/60 border-t border-line text-sm">
+        {turnos.map((t) => (
+          <li key={t.id}>
+            <Link
+              href={`/admin/turnos/lista#turno-${t.id}`}
+              className="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4 py-2.5 hover:bg-surface-raised"
+            >
+              <span className="text-body">
+                <span className="tabular-nums font-medium text-strong">{fmtTime(t.startsAt)}</span>{" "}
+                {t.clienta} · {t.servicio} · {t.profesional}
+                <span className="ml-2 text-xs text-muted">{t.status === "PENDING" ? "Reservado" : "Confirmado"}</span>
+              </span>
+              <span className="tabular-nums text-muted">
+                {t.saldo === null
+                  ? "saldo no disponible"
+                  : t.saldo > 0
+                    ? `saldo ${fmtMoneyARS(t.saldo)}`
+                    : "saldado"}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

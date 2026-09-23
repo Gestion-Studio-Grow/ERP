@@ -12,6 +12,7 @@ import { requireCapability } from "@/lib/authz";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { getAvailableSlots } from "@/lib/actions";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { buscarFichaPorTelefono, entradaAuditoriaEmpate, type EmpateFichas } from "@/lib/clientes/ficha-por-telefono";
 
 const WAITLIST_PATH = "/admin/espera";
 
@@ -179,9 +180,9 @@ export async function findSlotsForWaitlistEntry(entryId: string, date: string) {
 }
 
 // Convierte un anotado en un turno real. Hace el upsert del Client por teléfono
-// (mismo criterio que el turno manual) y crea el turno dentro de una transacción,
-// re-validando la disponibilidad con assertSlotAvailable para cerrar la carrera
-// entre "vi el hueco" y "reservo". No pasa por src/lib/actions.ts a propósito
+// normalizado (mismo helper que el turno manual, `buscarFichaPorTelefono`) y crea el
+// turno dentro de una transacción, re-validando la disponibilidad con assertSlotAvailable
+// para cerrar la carrera entre "vi el hueco" y "reservo". No pasa por src/lib/actions.ts a propósito
 // (rama de comisiones trabaja ahí) — reusa solo el núcleo de dominio de
 // booking-core. El precio se congela con la MISMA regla de vecino que los otros
 // tres caminos (ver `precioCongeladoDeReserva` arriba). Sin cupón: la lista de
@@ -241,6 +242,10 @@ export async function bookFromWaitlist(formData: FormData) {
     throw new Error("Ese profesional no trabaja en ese horario. Elegí otro.");
   }
 
+  // El empate de fichas (si lo hay) se audita DESPUÉS de la transacción: la auditoría escribe
+  // por fuera de `tx`, y una transacción Serializable que se reintenta la dejaría duplicada.
+  // (El `as` evita que TS lo angoste a `null`: la asignación ocurre adentro del callback.)
+  let empate = null as EmpateFichas | null;
   const appointment = await bookingTransaction(async (tx) => {
     await assertSlotAvailable(tx, {
       professionalId,
@@ -250,8 +255,12 @@ export async function bookFromWaitlist(formData: FormData) {
       endsAt,
     });
 
-    // Upsert del cliente por teléfono (igual criterio que el alta manual/pública).
-    let client = await tx.client.findFirst({ where: { tenantId, phone: entry.clientPhone } });
+    // La ficha por teléfono NORMALIZADO, con el MISMO helper que el alta manual y la reserva
+    // web: "11 4000-7919" anotada en la espera encuentra a la clienta cargada como
+    // "1140007919" en vez de crearle una ficha nueva. Adentro de la tx, sobre `tx`.
+    const encontrada = await buscarFichaPorTelefono(tx, tenantId, entry.clientPhone);
+    empate = encontrada?.empate ?? null;
+    let client = encontrada ? await tx.client.findFirst({ where: { id: encontrada.id, tenantId } }) : null;
     if (!client) {
       client = await tx.client.create({
         data: {
@@ -298,6 +307,8 @@ export async function bookFromWaitlist(formData: FormData) {
 
     return appt;
   });
+
+  if (empate) await auditAdmin(entradaAuditoriaEmpate(empate));
 
   await auditAdmin({
     action: "book_from_waitlist",

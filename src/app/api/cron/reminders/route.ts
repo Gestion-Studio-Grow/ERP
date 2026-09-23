@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   const summary = await runReminderSweep();
   for (const f of summary.failures) {
-    logger.error("reminders", "recordatorio falló; se reintenta próxima corrida", undefined, {
+    logger.error("reminders", "recordatorio no enviado", undefined, {
       appointmentId: f.appointmentId,
       tenantId: f.tenantId,
       error: f.error,

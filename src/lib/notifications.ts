@@ -1,4 +1,5 @@
 import { tenantTransaction } from "@/lib/rls";
+import { interpolarPlantilla, textoRecordatorio } from "@/lib/turnos/turno-abierto";
 
 // Envío de notificaciones al cliente. Hoy soporta email real (si se configura
 // RESEND_API_KEY) y deja el mismo punto de entrada listo para conectar
@@ -23,13 +24,10 @@ type ReminderPayload = {
   startsAt: Date;
 };
 
-function formatDateTime(date: Date) {
-  return date.toLocaleString("es-AR", { dateStyle: "full", timeStyle: "short" });
-}
-
-function interpolate(template: string, vars: Record<string, string>) {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? "");
-}
+// El texto (plantilla + hora) sale de `textoRecordatorio` (turno-abierto.ts), puro y probado.
+// Antes se formateaba con `toLocaleString` SIN zona: medido con TZ=UTC —la del servidor en
+// Vercel—, un turno de las 16:00 de Buenos Aires salía "7:00 p. m.". Ahora va con
+// BUSINESS_TIMEZONE, y es el MISMO texto que arma el botón "WhatsApp" de "Mañana: confirmar".
 
 async function getActiveTemplate(
   tenantId: string,
@@ -42,21 +40,12 @@ async function getActiveTemplate(
   );
 }
 
-const DEFAULT_REMINDER_BODY =
-  "Hola {{clientName}}, te esperamos {{startsAt}} para {{serviceName}} con {{professionalName}}.";
-
 async function sendEmailReminder(payload: ReminderPayload) {
   if (!payload.clientEmail) return { sent: false, channel: "email", reason: "sin email" };
 
   const template = await getActiveTemplate(payload.tenantId, "APPOINTMENT_REMINDER", "EMAIL");
-  const vars = {
-    clientName: payload.clientName,
-    serviceName: payload.serviceName,
-    professionalName: payload.professionalName,
-    startsAt: formatDateTime(payload.startsAt),
-  };
   const subject = template?.subject || "Recordatorio de tu turno";
-  const body = interpolate(template?.body || DEFAULT_REMINDER_BODY, vars);
+  const body = textoRecordatorio(template?.body, payload);
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -80,13 +69,7 @@ async function sendEmailReminder(payload: ReminderPayload) {
 
 async function sendWhatsAppReminder(payload: ReminderPayload) {
   const template = await getActiveTemplate(payload.tenantId, "APPOINTMENT_REMINDER", "WHATSAPP");
-  const vars = {
-    clientName: payload.clientName,
-    serviceName: payload.serviceName,
-    professionalName: payload.professionalName,
-    startsAt: formatDateTime(payload.startsAt),
-  };
-  const message = interpolate(template?.body || DEFAULT_REMINDER_BODY, vars);
+  const message = textoRecordatorio(template?.body, payload);
 
   // Requiere conectar WhatsApp Business API (Meta Cloud API) o Twilio.
   // Cuando se tenga la cuenta, reemplazar este bloque por la llamada real,
@@ -116,7 +99,7 @@ export async function broadcastProfessionalNews(payload: {
 }) {
   const template = await getActiveTemplate(payload.tenantId, "PROFESSIONAL_NEWS_BROADCAST", "WHATSAPP");
   const text = template
-    ? interpolate(template.body, { professionalName: payload.professionalName, message: payload.message })
+    ? interpolarPlantilla(template.body, { professionalName: payload.professionalName, message: payload.message })
     : `Novedad de ${payload.professionalName}: ${payload.message}`;
 
   console.log(`[difusion-novedad:SIMULADO] Para ${payload.recipientCount} clientes | ${text}`);

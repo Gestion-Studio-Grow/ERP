@@ -52,7 +52,7 @@ function Kpi({ label, value, href, icon, sub }: { label: string; value: string; 
 }
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  PENDING: { label: "Pendiente", cls: "bg-warning-soft text-warning" },
+  PENDING: { label: "Reservado", cls: "bg-warning-soft text-warning" },
   CONFIRMED: { label: "Confirmado", cls: "bg-success-soft text-success" },
   COMPLETED: { label: "Completado", cls: "bg-info-soft text-info" },
   NO_SHOW: { label: "No se presentó", cls: "bg-danger-soft text-danger" },
@@ -327,8 +327,12 @@ async function InicioVertical() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Kpi label="Turnos hoy" value={String(data.todayAppointments.length)} href="/admin/turnos" icon="agenda"
             sub={data.todayAppointments.length > 0 ? `${confirmedToday} confirmados` : undefined} />
-          <Kpi label="Pendientes" value={String(data.pendingCount)} href="/admin/turnos" icon="reloj"
-            sub={data.pendingCount > 0 ? "a confirmar pago" : undefined} />
+          {/* Reservados que todavía no llegaron (ver getDashboardData), no todos los PENDING de la
+              historia. "a confirmar" y no "a confirmar pago": la seña se cobra al reservar y el
+              estado del turno no habla de plata. Va a la LISTA, que es donde están los
+              reservados para confirmar; el calendario no los lista. */}
+          <Kpi label="Reservados" value={String(data.pendingCount)} href="/admin/turnos/lista" icon="reloj"
+            sub={data.pendingCount > 0 ? "a confirmar" : undefined} />
           {canSeeRevenue && (
             <Kpi
               label="Ingresos 7 días"

@@ -26,7 +26,10 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { canCurrentUser, requireCapability } from "@/lib/authz";
+import { isPrismaError } from "@/lib/prisma-errors";
+import { estadoCobroTurno, type CobroTurno } from "@/lib/turnos/cobros";
+import { rangoDelDia, turnosSinCerrarDelDia } from "@/lib/turnos/turno-abierto";
 import { getCurrentUser } from "@/lib/session";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 import {
@@ -49,6 +52,7 @@ import {
 } from "@/lib/caja/cierre-diario";
 import {
   lastClosedDay,
+  lastClosedDayTx,
   CIERRE_DIARIO_ACTION,
   CIERRE_DIARIO_ENTITY,
 } from "@/lib/caja/frontera-cierre";
@@ -56,6 +60,7 @@ import { cierreMarker } from "@/lib/caja/cierre-marca";
 import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { CASH_METHODS, libroOrigin, type LibroMovement } from "@/lib/caja/libro-caja";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
+import { leerImporte } from "@/lib/pos-peso";
 
 const CIERRE_PATH = "/admin/caja/cierre";
 const LIBRO_PATH = "/admin/caja/libro";
@@ -110,12 +115,44 @@ export type CierreDiarioData = {
    * movimientos" y ofreciendo "se puede cerrar igual", contradiciendo su propio cartel.
    */
   registro: CierreRegistrado | null;
+  /**
+   * Turnos del día que se cierra que siguen Reservados o Confirmados con la hora pasada: un
+   * saldo que no entró o una ausencia sin marcar. Sólo AVISA, no traba el cierre (la caja
+   * cuenta plata, no turnos). `null` = no se pidió (`conTurnosSinCerrar`) o quien mira no
+   * gestiona la agenda y no se le muestra.
+   */
+  turnosSinCerrar: TurnoSinCerrar[] | null;
+};
+
+export type TurnoSinCerrar = {
+  id: string;
+  startsAt: Date;
+  status: string;
+  clienta: string;
+  servicio: string;
+  profesional: string;
+  /**
+   * Lo que falta cobrar (precio − Σ cobros). `null` = NO DISPONIBLE: la tabla de cobros
+   * (`Collection`) no está migrada en esta base. Se dice así y no "$0", que sería afirmar que
+   * no se debe nada justo cuando no se puede saber.
+   */
+  saldo: number | null;
 };
 
 const NADA_DECLARADO: DeclaredAmounts = { EFECTIVO: null, MP: null, TARJETA: null };
 
-/** Lee el ledger y arma el cierre del día pedido, sin declarar nada todavía. */
-export async function getCierreDiarioData(dayRaw?: string | null): Promise<CierreDiarioData> {
+/**
+ * Lee el ledger y arma el cierre del día pedido, sin declarar nada todavía.
+ *
+ * `conTurnosSinCerrar`: el bloque de turnos abiertos lo dibuja SÓLO la pantalla de cierre. La
+ * misma función alimenta el resumen de /admin/caja, que no lo muestra; sin la opción, esa
+ * pantalla pagaba la consulta de turnos (y la de cobros, si había abiertos) en cada carga
+ * para tirarla.
+ */
+export async function getCierreDiarioData(
+  dayRaw?: string | null,
+  opciones: { conTurnosSinCerrar?: boolean } = {},
+): Promise<CierreDiarioData> {
   await requireCapability("orders:read");
   const today = todayInBusinessTz();
   const day = isDayKey(dayRaw) ? dayRaw : today;
@@ -131,10 +168,15 @@ export async function getCierreDiarioData(dayRaw?: string | null): Promise<Cierr
       yaCerrado: false,
       enElFuturo: compareDayKeys(day, today) > 0,
       registro: null,
+      turnosSinCerrar: [],
     };
   }
 
   const tenantId = await getCurrentTenantId();
+  // Del `day` que se CIERRA, no de hoy: el cierre acepta días anteriores. Se lee también con
+  // el día ya cerrado —un turno que quedó abierto sigue siendo plata o una ausencia sin marcar.
+  const turnosSinCerrar =
+    opciones.conTurnosSinCerrar && (await canCurrentUser("agenda:manage")) ? await leerTurnosSinCerrar(tenantId, day) : null;
   const cerradoHasta = await lastClosedDay(tenantId);
   const yaCerrado = cerradoHasta ? compareDayKeys(day, cerradoHasta) <= 0 : false;
 
@@ -152,6 +194,7 @@ export async function getCierreDiarioData(dayRaw?: string | null): Promise<Cierr
       yaCerrado: true,
       enElFuturo: compareDayKeys(day, today) > 0,
       registro: await leerRegistro(tenantId, day),
+      turnosSinCerrar,
     };
   }
 
@@ -221,7 +264,68 @@ export async function getCierreDiarioData(dayRaw?: string | null): Promise<Cierr
     yaCerrado: false,
     enElFuturo: compareDayKeys(day, today) > 0,
     registro: null,
+    turnosSinCerrar,
   };
+}
+
+/**
+ * Los turnos del día `day` que siguen abiertos con la hora pasada (la regla es
+ * `turnosSinCerrarDelDia`, pura y probada), con su saldo. SÓLO LECTURA.
+ *
+ * No exportada: recibe `tenantId` por parámetro y este archivo es "use server" — exportarla
+ * la publicaría como endpoint que lee turnos de cualquier tenant.
+ */
+async function leerTurnosSinCerrar(tenantId: string, day: DayKey): Promise<TurnoSinCerrar[]> {
+  const { desde, hasta } = rangoDelDia(day);
+  const filas = await prisma.appointment.findMany({
+    where: { tenantId, startsAt: { gte: desde, lt: hasta }, status: { in: ["PENDING", "CONFIRMED"] } },
+    select: {
+      id: true,
+      startsAt: true,
+      status: true,
+      priceAtBooking: true,
+      client: { select: { name: true } },
+      service: { select: { name: true, price: true } },
+      professional: { select: { name: true } },
+      payment: { select: { status: true, amount: true } },
+    },
+  });
+  const abiertos = turnosSinCerrarDelDia(filas, day, new Date());
+  if (abiertos.length === 0) return [];
+
+  // Cobros de esos turnos. Si la tabla no existe en esta base (migración de cobros parciales
+  // sin aplicar), el saldo queda NO DISPONIBLE en vez de calcularse contra una lista vacía.
+  let cobros: Map<string, CobroTurno[]> | null = new Map();
+  try {
+    const rows = await prisma.collection.findMany({
+      where: { tenantId, originType: "APPOINTMENT", originId: { in: abiertos.map((a) => a.id) } },
+      select: { originId: true, amount: true, method: true },
+    });
+    for (const r of rows) {
+      const arr = cobros.get(r.originId) ?? [];
+      arr.push({ amount: r.amount.toNumber(), method: r.method });
+      cobros.set(r.originId, arr);
+    }
+  } catch (e) {
+    if (!isPrismaError(e, "P2021") && !isPrismaError(e, "P2022")) throw e;
+    cobros = null;
+  }
+
+  return abiertos.map((a) => ({
+    id: a.id,
+    startsAt: a.startsAt,
+    status: a.status,
+    clienta: a.client.name,
+    servicio: a.service.name,
+    profesional: a.professional.name,
+    saldo: cobros
+      ? estadoCobroTurno({
+          precio: a.priceAtBooking ?? a.service.price,
+          cobros: cobros.get(a.id) ?? [],
+          pagoLegado: a.payment,
+        }).saldo
+      : null,
+  }));
 }
 
 /**
@@ -254,9 +358,11 @@ export type CierreActionState = { ok: true; message: string } | { ok: false; err
 function parseDeclared(formData: FormData): DeclaredAmounts {
   const out = { ...NADA_DECLARADO };
   for (const k of CASH_METHODS) {
-    const raw = String(formData.get(`declarado_${k}`) ?? "").trim().replace(",", ".");
-    if (raw === "") continue; // vacío = no se concilia ese medio
-    const n = Number(raw);
+    // Plata como se escribe acá ("12.500" = doce mil quinientos), no `Number` con la coma
+    // cambiada por punto, que leía "12.500" como 12,5.
+    const lectura = leerImporte(String(formData.get(`declarado_${k}`) ?? ""));
+    if (lectura.estado === "vacio") continue; // vacío = no se concilia ese medio
+    const n = lectura.estado === "ok" ? lectura.valor : NaN;
     // Un valor tipeado pero ilegible NO se trata como "no declarado": se manda NaN, que
     // `buildCierreDiario` deja en null y la validación reporta como faltante. Callar un
     // error de tipeo sería exactamente lo que hace la planilla.
@@ -292,7 +398,9 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
   try {
     const resultado = await tenantTransaction(
       async (tx) => {
-        const cerradoHasta = await leerFrontera(tx, tenantId);
+        // La frontera COMPARTIDA, leída sobre `tx`: filtra por `action` y descarta un cierre
+        // con día futuro. La copia local que había acá no hacía ninguna de las dos cosas.
+        const cerradoHasta = await lastClosedDayTx(tx, tenantId);
         const since = cerradoHasta ? nextDayKey(cerradoHasta) : null;
         const start = since ? businessWallTimeToUtc(since, "00:00") : new Date(0);
         const end = endOfDayUtc(day);
@@ -410,32 +518,4 @@ export async function cerrarDia(formData: FormData): Promise<CierreActionState> 
     const msg = e instanceof Error && e.message ? e.message : "No se pudo cerrar el día.";
     return { ok: false, errors: [msg] };
   }
-}
-
-// La frontera leída DENTRO de la transacción (misma lógica que `lastClosedDay`, pero
-// sobre `tx`, para que el chequeo del doble cierre vea el estado de esta transacción).
-type TxLike = {
-  cashMovement: { findFirst: (a: unknown) => Promise<{ createdBy: string } | null> };
-  auditLog: { findFirst: (a: unknown) => Promise<{ entityId: string | null } | null> };
-};
-async function leerFrontera(tx: unknown, tenantId: string): Promise<DayKey | null> {
-  const c = tx as TxLike;
-  const [corte, cierre] = await Promise.all([
-    c.cashMovement.findFirst({
-      where: { tenantId, createdBy: { startsWith: "corte-inicial:" } },
-      orderBy: { occurredAt: "desc" },
-      select: { createdBy: true },
-    }),
-    c.auditLog.findFirst({
-      where: { tenantId, entity: CIERRE_DIARIO_ENTITY },
-      orderBy: { entityId: "desc" },
-      select: { entityId: true },
-    }),
-  ]);
-  const delCorte = corte?.createdBy.slice("corte-inicial:".length) ?? null;
-  const delCierre = cierre?.entityId ?? null;
-  const a = isDayKey(delCorte) ? delCorte : null;
-  const b = isDayKey(delCierre) ? delCierre : null;
-  if (a && b) return compareDayKeys(a, b) >= 0 ? a : b;
-  return a ?? b;
 }

@@ -4,8 +4,17 @@ import { useMemo, useState, useTransition } from "react";
 import { createManualAppointment } from "@/lib/actions";
 import { getAvailableSlots } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
-import { fmtTime } from "@/lib/datetime";
-import { Input, Select, Textarea, Field, buttonClasses, cn, fmtMoneyARS } from "@/components/ui";
+import { fmtShortDate, fmtTime } from "@/lib/datetime";
+import { BuscadorCombo, Input, Select, Textarea, Field, buttonClasses, cn, fmtMoneyARS } from "@/components/ui";
+import {
+  alCambiarTelefono,
+  alElegirFicha,
+  DATOS_CLIENTA_VACIOS,
+  detalleFicha,
+  fichaParaTelefono,
+  type FichaParaAlta,
+} from "@/lib/clientes/ficha-por-telefono";
+import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { seniaDelServicio, METODOS_DE_PAGO, METODO_LABEL } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import {
@@ -27,9 +36,16 @@ export default function NewAppointmentForm({
   professionals,
   origen = "agenda",
   viewer,
+  fichas,
 }: {
   professionals: Professional[];
   origen?: OrigenAlta;
+  /**
+   * Las fichas del tenant para el campo "Clienta" (buscar y precargar). OPCIONAL a propósito:
+   * el mostrador (MostradorTabs) usa este mismo formulario sin pasarlas, y ahí sigue como
+   * antes, con nombre y teléfono a mano. El servidor encuentra la ficha por teléfono igual.
+   */
+  fichas?: FichaParaAlta[];
   /**
    * Quién está dando el turno. Decide si se dibuja el bloque de cobro, con la MISMA función
    * que aplica el servidor (`puedeCobrarEsteTurno`), para que pantalla y acción no puedan
@@ -46,14 +62,40 @@ export default function NewAppointmentForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
+  // Datos de la clienta, controlados para poder precargarlos desde su ficha. Nombre, teléfono y
+  // "de la zona" van en UN estado porque la precarga los cambia juntos y tiene que poder
+  // deshacerse junta: la regla (qué se completa, qué se destilda cuando la ficha deja de
+  // corresponder) es `alCambiarTelefono`/`alElegirFicha`, pura y con test
+  // (ficha-por-telefono.test.ts). Acá sólo se llama.
+  const [datos, setDatos] = useState(DATOS_CLIENTA_VACIOS);
+  const lista = useMemo(() => fichas ?? [], [fichas]);
+  const opcionesClienta = useMemo(
+    () => lista.map((f) => ({ id: f.id, etiqueta: f.nombre, detalle: detalleFicha(f) })),
+    [lista],
+  );
+  // La ficha que corresponde a lo tipeado en "Teléfono", con la MISMA regla que usa el
+  // servidor al crear el turno (`buscarFichaPorTelefono` → `elegirFicha`): lo que dice acá
+  // es la ficha en la que el turno va a quedar.
+  const reconocida = useMemo(
+    () => (datos.telefono ? fichaParaTelefono(lista, datos.telefono) : null),
+    [lista, datos.telefono],
+  );
+  // ¿El tilde de "de la zona" lo puso la ficha y sigue como lo dejó? Sólo para decirlo al lado.
+  const vecinaDeLaFicha = datos.precarga !== null && datos.vecina && datos.precarga.vecina;
+
   const professional = useMemo(
     () => professionals.find((p) => p.id === professionalId),
     [professionalId, professionals]
   );
   const service = useMemo(() => professional?.services.find((s) => s.id === serviceId), [professional, serviceId]);
+  // El precio que el servidor va a CONGELAR para este turno (antes del cupón): el local si está
+  // tildado "de la zona" y el servicio lo tiene. Sale de `precioCongeladoDeReserva`, la misma
+  // función que usa `bookAppointment`. Antes era `service.price` a secas: con "de la zona"
+  // tildado, "Total del servicio" proponía el precio general y el servidor lo rechazaba por
+  // exceder el saldo, porque el turno se congela con el local.
+  const precio = service ? precioCongeladoDeReserva(service, datos.vecina).priceAtBooking : 0;
   // Seña del catálogo (monto fijo, provisional a confirmar): se propone cobrarla en el acto.
-  const senia = service ? seniaDelServicio({ depositAmount: service.depositAmount, precio: service.price }) : 0;
-  const precio = service?.price ?? 0;
+  const senia = service ? seniaDelServicio({ depositAmount: service.depositAmount, precio }) : 0;
 
   // Qué se cobra en el acto. Antes esto era un checkbox que SÓLO aparecía si el servicio
   // tenía seña cargada — o sea que un servicio sin seña no se podía cobrar al darlo de alta,
@@ -89,7 +131,9 @@ export default function NewAppointmentForm({
   // cobrar el total; en la agenda se está reservando, así que es la seña (si la hay).
   function propuestaPara(nextServiceId: string): ModoCobro {
     const svc = professional?.services.find((x) => x.id === nextServiceId);
-    const s = svc ? seniaDelServicio({ depositAmount: svc.depositAmount, precio: svc.price }) : 0;
+    const s = svc
+      ? seniaDelServicio({ depositAmount: svc.depositAmount, precio: precioCongeladoDeReserva(svc, datos.vecina).priceAtBooking })
+      : 0;
     return cobroPropuestoAlAlta({ origen, senia: s });
   }
 
@@ -112,6 +156,7 @@ export default function NewAppointmentForm({
     setQueCobrar("nada");
     setMontoOtro("");
     setError("");
+    setDatos(DATOS_CLIENTA_VACIOS);
   }
 
   if (!open) {
@@ -269,17 +314,65 @@ export default function NewAppointmentForm({
 
         {selectedSlot && (
           <div className="space-y-2 border-t border-line pt-3">
-            <div className="grid grid-cols-2 gap-3">
+            {opcionesClienta.length > 0 && (
+              <Field label="Clienta" htmlFor="na-clienta" hint="Buscala por nombre o teléfono. Si es nueva, completá nombre y teléfono abajo.">
+                <BuscadorCombo
+                  id="na-clienta"
+                  ariaLabel="Buscar clienta por nombre o teléfono"
+                  placeholder="Buscar clienta…"
+                  opciones={opcionesClienta}
+                  valor={reconocida?.id ?? ""}
+                  onElegir={(id) => {
+                    const f = lista.find((x) => x.id === id);
+                    if (f) setDatos((d) => alElegirFicha(d, f, lista));
+                  }}
+                />
+              </Field>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Nombre del cliente" htmlFor="na-client-name">
-                <Input id="na-client-name" name="clientName" required />
+                <Input
+                  id="na-client-name"
+                  name="clientName"
+                  required
+                  value={datos.nombre}
+                  onChange={(e) => {
+                    const nombre = e.target.value;
+                    setDatos((d) => ({ ...d, nombre }));
+                  }}
+                />
               </Field>
               <Field label="Teléfono" htmlFor="na-client-phone">
-                <Input id="na-client-phone" name="clientPhone" type="tel" required />
+                <Input
+                  id="na-client-phone"
+                  name="clientPhone"
+                  type="tel"
+                  required
+                  value={datos.telefono}
+                  onChange={(e) => {
+                    // Tipeado el número de una clienta con ficha: se completa el nombre si
+                    // estaba vacío y "de la zona" como dice su ficha. Corregido a un número
+                    // sin ficha: se deshace lo que la precarga había puesto.
+                    const telefono = e.target.value;
+                    setDatos((d) => alCambiarTelefono(d, telefono, lista));
+                  }}
+                />
               </Field>
             </div>
-            <label className="flex items-center gap-2 text-sm text-body">
-              <input type="checkbox" name="isResident" className="accent-accent" />
+            {reconocida && <FichaReconocida ficha={reconocida} nombreTipeado={datos.nombre} />}
+            <label className="flex min-h-11 items-center gap-2 text-sm text-body">
+              <input
+                type="checkbox"
+                name="isResident"
+                className="accent-accent"
+                checked={datos.vecina}
+                onChange={(e) => {
+                  const vecina = e.target.checked;
+                  setDatos((d) => ({ ...d, vecina }));
+                }}
+              />
               Cliente de la zona (precio local)
+              {vecinaDeLaFicha && <span className="text-xs text-muted">· según su ficha</span>}
             </label>
             <Field label="Cupón (opcional)" htmlFor="na-coupon">
               <Input
@@ -367,6 +460,39 @@ export default function NewAppointmentForm({
           </div>
         )}
       </form>
+    </div>
+  );
+}
+
+// Lo que la recepción necesita saber de una clienta que ya existe, en el momento de darle el
+// turno: que es ella, qué se hizo la última vez, sus notas y si debe algo.
+function FichaReconocida({ ficha, nombreTipeado }: { ficha: FichaParaAlta; nombreTipeado: string }) {
+  const otroNombre = nombreTipeado.trim() !== "" && nombreTipeado.trim() !== ficha.nombre.trim();
+  return (
+    <div className="rounded-md border border-line bg-surface-sunken p-3 text-sm space-y-1" role="status">
+      <p className="text-strong">
+        <span className="font-medium">Ya tiene ficha: {ficha.nombre}</span>{" "}
+        <span className="text-muted">
+          · {ficha.turnos} turno{ficha.turnos === 1 ? "" : "s"}
+        </span>
+      </p>
+      {ficha.ultimaVisita ? (
+        <p className="text-muted">
+          Última visita: {fmtShortDate(ficha.ultimaVisita.fecha)} · {ficha.ultimaVisita.servicio} con{" "}
+          {ficha.ultimaVisita.profesional}
+        </p>
+      ) : (
+        <p className="text-muted">Sin visitas completadas en el último año.</p>
+      )}
+      {ficha.notas && <p className="whitespace-pre-line text-body">Notas: {ficha.notas}</p>}
+      {ficha.saldo > 0 && (
+        <p className="font-medium text-danger">Debe {fmtMoneyARS(ficha.saldo, 0)} de turnos anteriores.</p>
+      )}
+      {otroNombre && (
+        <p className="text-xs text-warning">
+          El turno queda en la ficha de {ficha.nombre}: el nombre tipeado no la cambia.
+        </p>
+      )}
     </div>
   );
 }

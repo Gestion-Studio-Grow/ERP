@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui";
+import { normalizarTelefono } from "@/lib/clientes/telefono";
 
 type Client = {
   id: string;
@@ -21,13 +22,23 @@ function normalize(s: string) {
 export default function ClientsList({ clients }: { clients: Client[] }) {
   const [query, setQuery] = useState("");
 
+  // La clave de cada teléfono se calcula una vez por lista, no en cada tecla.
+  const claves = useMemo(() => new Map(clients.map((c) => [c.id, normalizarTelefono(c.phone)])), [clients]);
+
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
     if (!q) return clients;
+    // El teléfono se compara también NORMALIZADO: la ficha guarda lo que se tipeó
+    // ("11 4000-7919") y buscar "1140007919" o "+54 9 11 4000-7919" no la encontraba.
+    // Sin dígitos en la búsqueda (un nombre) la clave es "" y no filtra nada por teléfono.
+    const qTel = normalizarTelefono(query);
     return clients.filter(
-      (c) => normalize(c.name).includes(q) || c.phone.includes(q)
+      (c) =>
+        normalize(c.name).includes(q) ||
+        c.phone.includes(q) ||
+        (qTel !== "" && (claves.get(c.id) ?? "").includes(qTel))
     );
-  }, [clients, query]);
+  }, [clients, claves, query]);
 
   return (
     <>

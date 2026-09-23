@@ -15,10 +15,13 @@ import { getLocation } from "@/lib/settings";
 import { nextBusinessDays } from "@/lib/datetime";
 import type { BookingData } from "@/app/(site)/_ch/types";
 
+// Es un endpoint PÚBLICO ("use server" + lo llama la página del turno, sin sesión): quien
+// tenga el link del turno lo puede invocar. Por eso NO trae la ficha de la clienta —notas,
+// email, teléfono—: la página no la necesita y el link se reenvía por WhatsApp.
 export async function getMyAppointment(id: string) {
   return prisma.appointment.findUnique({
     where: { id },
-    include: { client: true, professional: true, service: true, box: true, payment: true, review: true },
+    include: { professional: true, service: true, box: true, payment: true, review: true },
   });
 }
 
@@ -144,9 +147,11 @@ export async function rescheduleMyAppointment(formData: FormData) {
       excludeAppointmentId: id,
     });
 
+    // El recordatorio que ya salió era para la fecha VIEJA: se limpia para que el barrido
+    // avise la nueva (igual que la reprogramación desde la agenda, en actions.ts).
     await tx.appointment.update({
       where: { id },
-      data: { startsAt, endsAt },
+      data: { startsAt, endsAt, reminderSentAt: null },
     });
   });
 

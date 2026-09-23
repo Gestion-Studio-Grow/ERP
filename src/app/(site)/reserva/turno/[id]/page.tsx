@@ -42,7 +42,7 @@ export default async function MyAppointmentPage({
         Tu turno
       </h1>
       <p className="mb-8" style={{ color: "var(--text-muted)" }}>
-        Hola {appointment.client.name}, acá está el detalle.
+        Acá está el detalle de tu turno.
       </p>
 
       <div

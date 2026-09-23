@@ -21,8 +21,17 @@ import { operatorPrisma } from "@/lib/operator-db";
 import { tenantTransaction } from "@/lib/rls";
 import { sendAppointmentReminder } from "@/lib/notifications";
 import { summarizeReminderRun, type ReminderOutcome, type ReminderRunSummary } from "@/lib/cron/reminder-batch";
+import { debeEstamparRecordatorio, motivoSinEnvio } from "@/lib/turnos/turno-abierto";
 
 const WIDE_WINDOW_MS = 72 * 60 * 60 * 1000;
+// LA VENTANA NO SE TOCA en este cambio, y es a propósito. Con el cron diario de vercel.json
+// (`0 12 * * *`, 09:00 de acá) y ±30 min alrededor de `startsAt - reminderHoursBefore`, con
+// las 24 h por defecto sólo entran los turnos de mañana entre 08:30 y 09:30 (cuentas sobre
+// el código, no medido en producción): los de las 10 a las 19 no reciben aviso automático.
+// Ensancharla ("todo mañana") haría que la PRIMERA corrida mande de golpe mails reales a
+// todas las clientas con turno mañana si RESEND_API_KEY está cargada en producción —no se
+// pudo medir—, y eso es exposición a clientas: lo decide el dueño. Mientras tanto la
+// confirmación de mañana se hace a mano desde /admin/turnos ("Mañana: confirmar").
 const TOLERANCE_MS = 30 * 60 * 1000;
 
 /**
@@ -31,7 +40,10 @@ const TOLERANCE_MS = 30 * 60 * 1000;
  * que "vencen" en esta corrida, envía y marca `reminderSentAt` por turno.
  *
  * Dead-letter $0 (igual que antes): un fallo por turno NO aborta el lote y NO
- * se pierde (no se marca `reminderSentAt` → se reintenta la próxima corrida).
+ * se marca `reminderSentAt`. Ojo: con la ventana de ±30 min, "se reintenta la próxima
+ * corrida" sólo es cierto si la próxima corrida cae dentro de la ventana; con el cron
+ * diario, no cae. Si el turno es de mañana, sigue apareciendo sin "avisada" en "Mañana:
+ * confirmar" (/admin/turnos), que es por donde se lo avisa a mano.
  */
 export async function runReminderSweep(now = Date.now()): Promise<ReminderRunSummary> {
   const wideWindowEnd = new Date(now + WIDE_WINDOW_MS);
@@ -58,9 +70,9 @@ export async function runReminderSweep(now = Date.now()): Promise<ReminderRunSum
       // antes de que `sendAppointmentReminder` lea su MessageTemplate y antes
       // del UPDATE. Con RLS_ENFORCEMENT off es exactamente el comportamiento
       // de siempre (tenantTransaction = basePrisma.$transaction sin más).
-      await tenantTransaction(
+      const enviado = await tenantTransaction(
         async (tx) => {
-          await sendAppointmentReminder({
+          const resultados = await sendAppointmentReminder({
             tenantId: appt.tenantId,
             clientName: appt.client.name,
             clientEmail: appt.client.email,
@@ -69,14 +81,27 @@ export async function runReminderSweep(now = Date.now()): Promise<ReminderRunSum
             professionalName: appt.professional.name,
             startsAt: appt.startsAt,
           });
-          await tx.appointment.update({
-            where: { id: appt.id },
+          // "Avisada" sólo si ALGÚN canal dijo que mandó. Antes se estampaba siempre: con el
+          // WhatsApp simulado (`sent:false` sin error) y sin RESEND_API_KEY, el turno quedaba
+          // como avisado sin que saliera nada, y ya no volvía a entrar en ningún barrido.
+          if (!debeEstamparRecordatorio(resultados)) return { ok: false as const, motivo: motivoSinEnvio(resultados) };
+          // `updateMany` acotado por tenant además del GUC: la lectura de arriba es cross-tenant
+          // (operatorPrisma) y la escritura no puede depender sólo de que el id sea el correcto.
+          await tx.appointment.updateMany({
+            where: { id: appt.id, tenantId: appt.tenantId },
             data: { reminderSentAt: new Date() },
           });
+          return { ok: true as const };
         },
         { tenantId: appt.tenantId },
       );
-      outcomes.push({ ok: true, appointmentId: appt.id });
+      // Lo no enviado se informa como fallo —sale en el log del cron con el motivo por canal—
+      // en vez de sumarse a "enviados", que era el número que mentía.
+      outcomes.push(
+        enviado.ok
+          ? { ok: true, appointmentId: appt.id }
+          : { ok: false, appointmentId: appt.id, tenantId: appt.tenantId, error: enviado.motivo },
+      );
     } catch (err) {
       outcomes.push({
         ok: false,

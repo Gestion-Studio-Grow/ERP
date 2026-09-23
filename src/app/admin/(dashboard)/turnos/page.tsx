@@ -1,6 +1,7 @@
-import { getAgendaDay } from "@/lib/actions";
+import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
+import MananaConfirmar from "./MananaConfirmar";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
 import { requireCapability } from "@/lib/authz";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -51,7 +52,14 @@ export default async function TurnosCalendarPage({
   const { date: dateParam } = await searchParams;
   const today = todayInBusinessTz();
   const date = dateParam ?? today;
-  const { professionals, appointments, blocksToday } = await getAgendaDay(date);
+  // "Mañana: confirmar" sólo en la vista de HOY y para quien gestiona la agenda: es la tarea
+  // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
+  // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
+  const verManana = canManage && date === today;
+  const [{ professionals, appointments, blocksToday }, manana] = await Promise.all([
+    getAgendaDay(date),
+    verManana ? getMananaConfirmar() : Promise.resolve(null),
+  ]);
 
   const label = fmtCalendarDateLabel(date);
 
@@ -108,6 +116,8 @@ export default async function TurnosCalendarPage({
       </div>
 
       <NovedadesDelDia blocks={blocksToday} />
+
+      {manana && <MananaConfirmar dia={manana.dia} turnos={manana.turnos} />}
 
       <CalendarGrid professionals={professionals} appointments={appointments} canManage={canManage} canCollect={canCollect} viewer={{ role: user.role, professionalId: user.professionalId }} />
     </main>
