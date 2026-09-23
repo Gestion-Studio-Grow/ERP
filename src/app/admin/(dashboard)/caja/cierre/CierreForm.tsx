@@ -16,6 +16,7 @@ import { cerrarDia, type CierreActionState } from "@/lib/cierre-diario-actions";
 import { Card, CardHeader, CardTitle, CardDescription, Field, Input, Textarea, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import type { CashMethod } from "@/lib/caja/cash-register";
+import { leerImporte } from "@/lib/pos-peso";
 
 type Esperado = Record<CashMethod, number>;
 
@@ -26,11 +27,12 @@ const AYUDA: Record<CashMethod, string> = {
   TARJETA: "Opcional: se liquida a los días. Dejalo vacío si no lo conciliás hoy.",
 };
 
+// Mismo lector que el servidor: "12.500" son doce mil quinientos. El campo es de TEXTO a
+// propósito: un `type="number"` de Chromium tira la coma al tipear ("12,5" → 125) y lee
+// "12.500" como 12,5 (medido, Chromium 141, teclado físico y virtual).
 function parseInput(raw: string): number | null {
-  const s = raw.trim().replace(",", ".");
-  if (s === "") return null;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
+  const l = leerImporte(raw);
+  return l.estado === "ok" ? l.valor : null;
 }
 
 export function CerrarDiaForm({ day, esperado }: { day: string; esperado: Esperado }) {
@@ -91,10 +93,10 @@ export function CerrarDiaForm({ day, esperado }: { day: string; esperado: Espera
               <Input
                 id={`declarado-${m}`}
                 name={`declarado_${m}`}
-                type="number"
-                step="0.01"
-                min={0}
+                type="text"
                 inputMode="decimal"
+                autoComplete="off"
+                aria-invalid={declarado[m].trim() !== "" && parseInput(declarado[m]) === null}
                 // NUNCA el esperado como placeholder: le sopla la respuesta a quien tiene
                 // que contar, y en gris tenue parece un campo ya completado. El número
                 // esperado ya está impreso abajo, a la vista, donde no sesga el conteo.

@@ -38,6 +38,7 @@ import {
   type CashMovementType,
 } from "@/lib/caja/cash-register";
 import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
+import { leerImporte } from "@/lib/pos-peso";
 
 const CAJA_PATH = "/admin/caja";
 
@@ -57,9 +58,12 @@ function toActionError(err: unknown): { ok: false; error: string } {
 }
 
 function parseAmount(raw: FormDataEntryValue | null): number {
-  // Acepta coma o punto decimal (entrada AR): "1.234,50" no aplica acá porque el
-  // input es number; normalizamos coma → punto por las dudas.
-  return Number(String(raw ?? "").trim().replace(",", "."));
+  // Plata escrita como se escribe acá: "12.500" son doce mil quinientos y "12,5" doce con
+  // cincuenta. Antes era `Number(raw.replace(",", "."))`, que leía "12.500" como 12,5 y
+  // "1.234,56" como NaN. Lo ilegible y lo vacío vuelven NaN: el llamador lo rechaza con
+  // mensaje en vez de asentar un número que nadie tipeó.
+  const l = leerImporte(String(raw ?? ""));
+  return l.estado === "ok" ? l.valor : NaN;
 }
 
 // --- Loader de la pantalla de caja ---

@@ -15,6 +15,7 @@ import {
   type CajaActionState,
 } from "@/lib/caja-actions";
 import { round2 } from "@/lib/round";
+import { leerImporte } from "@/lib/pos-peso";
 import { Field, Input, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 
@@ -43,10 +44,11 @@ export function OpenCajaForm() {
       <Field label="Fondo inicial" htmlFor="openingFloat" required hint="Efectivo con el que arranca el cajón.">
         <Input
           id="openingFloat"
-          type="number"
+          // Texto, no `number`: Chromium tira la coma al tipear ("12,5" → 125) y lee
+          // "12.500" como 12,5. El servidor lo lee con `leerImporte`.
+          type="text"
           name="openingFloat"
-          min="0"
-          step="0.01"
+          autoComplete="off"
           defaultValue="0"
           required
           inputMode="decimal"
@@ -77,10 +79,9 @@ export function OpenCajaForm() {
 // (mismo redondeo que `reconcileCash`).
 type ArqueoPreview = { diff: number; label: string; tone: "success" | "danger" | "neutral" };
 function previewArqueo(countedRaw: string, expected: number): ArqueoPreview | null {
-  const trimmed = countedRaw.trim();
-  if (trimmed === "") return null;
-  const counted = Number(trimmed.replace(",", "."));
-  if (!Number.isFinite(counted) || counted < 0) return null;
+  const lectura = leerImporte(countedRaw);
+  if (lectura.estado !== "ok") return null;
+  const counted = lectura.valor;
   const diff = round2(counted - expected);
   if (diff === 0) return { diff, label: "Cuadra", tone: "neutral" };
   if (diff < 0) return { diff, label: `Faltante ${fmtMoneyARS(Math.abs(diff))}`, tone: "danger" };
@@ -113,10 +114,9 @@ export function CloseCajaForm({ expected }: { expected: number }) {
         >
           <Input
             id="counted"
-            type="number"
+            type="text"
             name="counted"
-            min="0"
-            step="0.01"
+            autoComplete="off"
             required
             inputMode="decimal"
             className="text-right tabular-nums"

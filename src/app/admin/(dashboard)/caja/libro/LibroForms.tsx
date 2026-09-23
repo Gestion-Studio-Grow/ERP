@@ -164,10 +164,11 @@ export function AddLibroEntryForm({
         <Field label="Monto" htmlFor="libro-amount" required>
           <Input
             id="libro-amount"
-            type="number"
+            // Texto: "12.500" son doce mil quinientos (el servidor lee con `leerImporte`).
+            // Un `type="text"` lo leía 12,5 y tiraba la coma de "12,5".
+            type="text"
             name="amount"
-            min="0.01"
-            step="0.01"
+            autoComplete="off"
             required
             inputMode="decimal"
             className="text-right tabular-nums"
