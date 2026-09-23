@@ -48,27 +48,31 @@ import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 // Mismo criterio de fecha contable que el egreso de una compra a proveedor: si hoy está
 // cerrado, el asiento se imputa al primer día abierto en vez de perderse.
 import { diaContableDelEgreso } from "@/lib/stock/purchase-egreso";
+import { leerComisionesPendientes } from "@/lib/reports/comisiones-lectura";
+import {
+  vueltaDeLiquidacion,
+  whereTurnosConComisionPendiente,
+  type ComisionPendiente,
+  type VueltaDeLiquidacion,
+} from "@/lib/reports/comisiones";
 
 const REPORTES_PATH = "/admin/reportes";
+// La app Comisiones: liquida con el mismo formulario y vuelve a su pantalla.
+const COMISIONES_PATH = "/admin/comisiones";
 // Liquidar ahora deja una fila en el libro: las dos pantallas de caja tienen que mostrarla
 // sin esperar a que alguien recargue, o se va a tipear el egreso a mano por segunda vez.
 const LIBRO_PATH = "/admin/caja/libro";
 const CAJA_PATH = "/admin/caja";
 
-// Vuelve a Reportes con un código de feedback (banner). No filtra detalle crudo.
-function backWith(status: string): never {
-  redirect(`${REPORTES_PATH}?status=${encodeURIComponent(status)}`);
+// Vuelve a la pantalla desde la que se liquidó (Reportes o Comisiones) con un código de
+// feedback (banner). No filtra detalle crudo. El destino llega del formulario y se valida
+// contra las dos pantallas (`vueltaDeLiquidacion`): nunca un redirect a una URL cualquiera.
+function backWith(status: string, volver: VueltaDeLiquidacion = REPORTES_PATH): never {
+  redirect(`${volver}?status=${encodeURIComponent(status)}`);
 }
 
-export type PendingCommission = {
-  professionalId: string;
-  professionalName: string;
-  amount: number; // comisión pendiente
-  ingresos: number; // base sobre la que se calculó (para mostrar el "sobre $X")
-  appointmentCount: number;
-  periodStart: Date | null;
-  periodEnd: Date | null;
-};
+// Lo pendiente por profesional (comisión, base "sobre $X", turnos y período).
+export type PendingCommission = ComisionPendiente;
 
 export type PayoutHistoryRow = {
   id: string;
@@ -81,8 +85,15 @@ export type PayoutHistoryRow = {
   createdAt: Date;
 };
 
-// Overview de comisiones para Reportes: lo pendiente por profesional (turnos aún
-// no liquidados) + el histórico de liquidaciones. Solo lectura → `reports:read`.
+// Overview de comisiones: lo pendiente por profesional (turnos aún no liquidados) + el
+// histórico de liquidaciones. Lo muestran la app Comisiones y la sección de Reportes (la que
+// CH sigue viendo igual). Solo lectura → `reports:read`.
+//
+// Lo pendiente sale de `leerComisionesPendientes` (reports/comisiones-lectura.ts): UNA
+// consulta y el MISMO cálculo que la liquidación (`calcularLiquidacion`) y que el botón del
+// Inicio. Antes esta pantalla sumaba con su propia copia a mano de `(payment.amount * pct) /
+// 100`, sin `round2`, y después con su propio agrupado: bastaba con que alguien tocara uno para
+// que la dueña viera un total y el comprobante congelara otro.
 export async function getCommissionsOverview(): Promise<{
   pending: PendingCommission[];
   history: PayoutHistoryRow[];
@@ -91,83 +102,14 @@ export async function getCommissionsOverview(): Promise<{
   if (isDemoSandbox()) return { pending: [], history: [] };
   const tenantId = await getCurrentTenantId();
 
-  const [appointments, overrides, payouts] = await Promise.all([
-    // Turnos con comisión pendiente: realizados, cobrados y sin liquidar.
-    prisma.appointment.findMany({
-      where: {
-        tenantId,
-        status: "COMPLETED",
-        commissionPayoutId: null,
-        payment: { status: "APPROVED" },
-      },
-      // `collections` y el precio hacen falta para saber si el turno está SALDADO: uno con
-      // saldo pendiente no se liquida (ver `comision-liquidable.ts`).
-      include: {
-        professional: true,
-        payment: true,
-        collections: { select: { amount: true, method: true } },
-        service: { select: { price: true } },
-      },
-    }),
-    prisma.professionalServiceCommission.findMany({ where: { tenantId } }),
+  const [pending, payouts] = await Promise.all([
+    leerComisionesPendientes(prisma, tenantId),
     prisma.commissionPayout.findMany({
       where: { tenantId },
       include: { professional: true },
       orderBy: { createdAt: "desc" },
     }),
   ]);
-
-  // Índice profId -> (servId -> pct override).
-  const overridesByProf = new Map<string, Map<string, number>>();
-  for (const o of overrides) {
-    let m = overridesByProf.get(o.professionalId);
-    if (!m) overridesByProf.set(o.professionalId, (m = new Map()));
-    m.set(o.serviceId, o.commissionPercent);
-  }
-
-  // Se AGRUPA primero y se calcula después, con `calcularLiquidacion` — la MISMA función
-  // que corre la liquidación que se persiste. Antes esta pantalla sumaba con su propia
-  // copia a mano de `(payment.amount * pct) / 100`, sin `round2`: bastaba con que alguien
-  // tocara una de las dos para que la dueña viera un total y el comprobante congelara otro.
-  const porProfesional = new Map<
-    string,
-    { nombre: string; pctGeneral: number; turnos: TurnoParaComision[] }
-  >();
-  for (const a of appointments) {
-    if (!a.payment) continue; // defensivo; el where ya lo garantiza
-    // Un turno con saldo pendiente ESPERA. Liquidarlo lo congela con su payout, y el
-    // cobro posterior del saldo ya no vuelve a entrar al pendiente: esa comisión se
-    // perdía para siempre. Ver `comision-liquidable.ts`.
-    if (!sePuedeLiquidar({ precio: a.priceAtBooking ?? a.service.price, cobros: a.collections.map((c) => ({ amount: c.amount.toNumber(), method: c.method })), pagoLegado: a.payment })) continue;
-    let g = porProfesional.get(a.professionalId);
-    if (!g) {
-      g = { nombre: a.professional.name, pctGeneral: a.professional.commissionPercent, turnos: [] };
-      porProfesional.set(a.professionalId, g);
-    }
-    // `payment.amount` es lo efectivamente COBRADO: la base de la comisión es esa, no el
-    // precio de lista (decisión vigente, ver `comision-liquidable.ts`).
-    g.turnos.push({ id: a.id, serviceId: a.serviceId, base: a.payment.amount, startsAt: a.startsAt });
-  }
-
-  const pending: PendingCommission[] = [];
-  for (const [professionalId, g] of porProfesional) {
-    const calc = calcularLiquidacion(
-      g.turnos,
-      g.pctGeneral,
-      overridesByProf.get(professionalId) ?? new Map(),
-    );
-    if (calc.appointmentCount === 0) continue; // todos sus turnos son de servicios sin comisión
-    pending.push({
-      professionalId,
-      professionalName: g.nombre,
-      amount: calc.amount,
-      ingresos: calc.ingresos,
-      appointmentCount: calc.appointmentCount,
-      periodStart: calc.periodStart,
-      periodEnd: calc.periodEnd,
-    });
-  }
-  pending.sort((x, y) => y.amount - x.amount);
 
   const history: PayoutHistoryRow[] = payouts.map((p) => ({
     id: p.id,
@@ -190,10 +132,11 @@ export async function getCommissionsOverview(): Promise<{
 // si mañana cambia un precio o un %, el comprobante ya emitido no se altera.
 export async function settleCommissions(formData: FormData) {
   const user = await requireCapability("commissions:manage");
-  if (isDemoSandbox()) backWith("error_nada"); // modo demo: no hay comisiones reales que liquidar
+  const volver = vueltaDeLiquidacion(formData.get("volver"));
+  if (isDemoSandbox()) backWith("error_nada", volver); // modo demo: no hay comisiones reales que liquidar
   const tenantId = await getCurrentTenantId();
   const professionalId = String(formData.get("professionalId") ?? "").trim();
-  if (!professionalId) backWith("error_prof");
+  if (!professionalId) backWith("error_prof", volver);
   const note = String(formData.get("note") ?? "").trim() || null;
   // Por qué medio se le pagó. El formulario AHORA lo pregunta (`<select name="method">` en
   // /admin/reportes, con efectivo preseleccionado). `null` sigue siendo un caso posible —un
@@ -215,13 +158,8 @@ export async function settleCommissions(formData: FormData) {
 
     const [appointments, overrides] = await Promise.all([
       tx.appointment.findMany({
-        where: {
-          tenantId,
-          professionalId,
-          status: "COMPLETED",
-          commissionPayoutId: null,
-          payment: { status: "APPROVED" },
-        },
+        // El MISMO `where` que el listado de pendientes y el botón del Inicio.
+        where: { ...whereTurnosConComisionPendiente(tenantId), professionalId },
         include: {
           payment: true,
           collections: { select: { amount: true, method: true } },
@@ -342,7 +280,7 @@ export async function settleCommissions(formData: FormData) {
     };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-  if (result.count === 0) backWith("error_nada");
+  if (result.count === 0) backWith("error_nada", volver);
 
   await auditAdmin({
     action: "settle",
@@ -363,9 +301,10 @@ export async function settleCommissions(formData: FormData) {
   });
 
   revalidatePath(REPORTES_PATH);
+  revalidatePath(COMISIONES_PATH);
   if (result.egreso) {
     revalidatePath(LIBRO_PATH);
     revalidatePath(CAJA_PATH);
   }
-  backWith("ok_settled");
+  backWith("ok_settled", volver);
 }

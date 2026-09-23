@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeProductMargins, summarizeMargins, type MarginProductInput } from "./margin";
+import { computeProductMargins, margenDeLoVendido, productosBajoCosto, summarizeMargins, type MarginProductInput } from "./margin";
 
 const PRODUCTS: MarginProductInput[] = [
   { id: "a", name: "Bife ancho", saleUnit: "WEIGHT", price: null, pricePerKg: 12000 },
@@ -56,4 +56,34 @@ test("summarizeMargins: cuenta, margen % promedio y cuántos venden a pérdida",
 test("summarizeMargins: sin filas → resumen en cero (sección no se renderiza)", () => {
   const s = summarizeMargins([]);
   assert.deepEqual(s, { count: 0, avgMarginPct: 0, belowCostCount: 0 });
+});
+
+test("un Responsable Inscripto compara sin IVA: un precio que con IVA cubre el costo, sin IVA puede no cubrirlo", () => {
+  const p = [{ id: "a", name: "Vacío", saleUnit: "WEIGHT" as const, price: null, pricePerKg: 12100 }];
+  const conIva = computeProductMargins(p, { a: 11000 });
+  const sinIva = computeProductMargins(p, { a: 11000 }, { sinIva: true });
+  assert.equal(conIva[0].price, 12100);
+  assert.equal(productosBajoCosto(conIva), 0);
+  assert.equal(sinIva[0].price, 10000, "12.100 / 1,21");
+  assert.equal(sinIva[0].margin, -1000);
+  assert.equal(productosBajoCosto(sinIva), 1);
+});
+
+test("lo vendido por producto: con el costo de cada venta; sin costo, sin margen inventado", () => {
+  const filas = margenDeLoVendido(
+    [
+      { orderId: "p1", productId: "a", nombre: "Vacío", cantidad: 2, saleUnit: "WEIGHT", importe: 24200, costo: 12000, fuente: "guardado" },
+      { orderId: "p2", productId: "a", nombre: "Vacío", cantidad: 1, saleUnit: "WEIGHT", importe: 12100, costo: 6500, fuente: "costo-de-hoy" },
+      { orderId: "p2", productId: "b", nombre: "Chorizo", cantidad: 1, saleUnit: "WEIGHT", importe: 5000, costo: 0, fuente: "sin-costo" },
+      { orderId: "p2", productId: null, nombre: "Envío", cantidad: 1, saleUnit: "UNIT", importe: 1000, costo: 0, fuente: "sin-producto" },
+    ],
+    { sinIva: true },
+  );
+  assert.deepEqual(
+    filas.map((f) => [f.nombre, f.cantidad, f.ventas, f.costo, f.margen, f.conCostoDeHoy]),
+    [
+      ["Vacío", 3, 30000, 18500, 11500, true],
+      ["Chorizo", 1, 4132.23, 0, null, false],
+    ],
+  );
 });

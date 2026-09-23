@@ -1,0 +1,124 @@
+// RETENCIONES Y PERCEPCIONES SUFRIDAS — los impuestos que el banco ya descontó en el mes.
+//
+// SIRCREB (Ingresos Brutos), percepciones de IVA y retenciones de Ganancias se pueden tomar A
+// CUENTA en la declaración: si nadie los junta, se pagan dos veces. El impuesto a los débitos y
+// créditos (el "impuesto al cheque") va aparte y no suma al total: qué parte se computa depende
+// de la condición del negocio y la define el contador. La pantalla no afirma porcentajes: el
+// que se leía acá ("sólo la parte de los créditos") era una regla vieja.
+//
+// El dato ya estaba: los movimientos del extracto que se sube en Facturación automática; el
+// clasificador del banco los reconocía para no facturarlos y ahí terminaba. La cuenta vive en
+// src/lib/reports/retenciones.ts (pura, probada con leyendas reales) y la lectura en
+// retenciones-lectura.ts, la misma del botón del Inicio.
+
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { requireApp } from "@/lib/require-app";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { diaLegible, esMesKey, etiquetaDelMes, mesDelNegocio, mesVecino } from "@/lib/libros/fecha-fiscal";
+import { fiscalDateToIso } from "@/lib/libros/libro-iva";
+import { ETIQUETA_PAGO_A_CUENTA, RETENCIONES_Y_PERCEPCIONES } from "@/lib/reports/retenciones";
+import { leerPagosACuenta } from "@/lib/reports/retenciones-lectura";
+import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
+import { EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+
+export const dynamic = "force-dynamic";
+
+const RUTA = "/admin/retenciones";
+
+export default async function RetencionesPage({ searchParams }: { searchParams: Promise<{ mes?: string }> }) {
+  const user = await requireApp("retenciones-y-percepciones");
+  const actual = mesDelNegocio();
+  const { mes: pedido } = await searchParams;
+  const mes = esMesKey(pedido) && pedido <= actual ? pedido : actual;
+  const tenantId = await getCurrentTenantId();
+  const [r, abribles] = await Promise.all([
+    leerPagosACuenta(prisma, tenantId, mes),
+    appsQuePuedeAbrir(user.role, ["facturacion-automatica"]),
+  ]);
+  const etiqueta = etiquetaDelMes(mes);
+  const anterior = mesVecino(mes, -1);
+  const siguiente = mesVecino(mes, 1);
+  const subirExtracto = abribles.has("facturacion-automatica") ? (
+    <Link href="/admin/facturacion/bancos" className={buttonClasses("solid", "md")}>
+      Subir el extracto
+    </Link>
+  ) : undefined;
+
+  return (
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <PageHeader
+        title="Retenciones y percepciones"
+        description={`Los impuestos que el banco te descontó en ${etiqueta}. Pasáselos a tu contador: según la condición de tu negocio, se descuentan de lo que tenés que pagar.`}
+      />
+
+      <nav aria-label="Mes" className="mb-6 flex flex-wrap items-center gap-3">
+        <Link href={`${RUTA}?mes=${anterior}`} rel="prev" className={buttonClasses("outline", "md")}>
+          <span className="capitalize">← {etiquetaDelMes(anterior)}</span>
+        </Link>
+        <span className="text-sm font-medium capitalize text-strong">{etiqueta}</span>
+        {siguiente <= actual && (
+          <Link href={`${RUTA}?mes=${siguiente}`} rel="next" className={buttonClasses("outline", "md")}>
+            <span className="capitalize">{etiquetaDelMes(siguiente)} →</span>
+          </Link>
+        )}
+      </nav>
+
+      {r.leidos === 0 ? (
+        <EmptyState
+          title={`Todavía no hay extracto de ${etiqueta}`}
+          description="Las retenciones salen del extracto del banco. Subilo en Facturación automática (el mismo archivo que usás para facturar) y acá aparecen solas."
+          action={subirExtracto}
+        />
+      ) : r.movimientos.length === 0 ? (
+        <EmptyState
+          title={`El extracto de ${etiqueta} no trae retenciones ni percepciones`}
+          description={`Se leyeron ${fmtNumberAR(r.leidos)} movimientos y ninguno es una retención, una percepción (SIRCREB, IVA, Ganancias) ni el impuesto al cheque. Si falta parte del mes, subí el extracto que falta.`}
+          action={subirExtracto}
+        />
+      ) : (
+        <>
+          {/* `min-w-0` y el corte: en 412 px van dos por fila y un monto largo no entra en una línea. */}
+          <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <div className="col-span-2 min-w-0 rounded-lg border border-line p-4 lg:col-span-1">
+              <p className="text-sm text-muted">Retenciones y percepciones</p>
+              <p className="text-xl font-semibold tabular-nums text-strong [overflow-wrap:anywhere] sm:text-2xl">{fmtMoneyARS(r.total)}</p>
+              <p className="mt-1 text-xs text-muted">sin el impuesto al cheque</p>
+            </div>
+            {RETENCIONES_Y_PERCEPCIONES.map((t) => (
+              <div key={t} className="min-w-0 rounded-lg border border-line p-4">
+                <p className="text-sm text-muted">{ETIQUETA_PAGO_A_CUENTA[t]}</p>
+                <p className="text-lg font-semibold tabular-nums text-strong [overflow-wrap:anywhere] sm:text-xl">{fmtMoneyARS(r.porTipo[t])}</p>
+              </div>
+            ))}
+            <div className="min-w-0 rounded-lg border border-line p-4">
+              <p className="text-sm text-muted">{ETIQUETA_PAGO_A_CUENTA.cheque}</p>
+              <p className="text-lg font-semibold tabular-nums text-strong [overflow-wrap:anywhere] sm:text-xl">{fmtMoneyARS(r.impuestoAlCheque)}</p>
+              <p className="mt-1 text-xs text-muted">aparte</p>
+            </div>
+          </div>
+          {r.impuestoAlCheque !== 0 && (
+            <p className="mb-4 text-sm text-muted">
+              El impuesto al cheque va aparte y no suma arriba: qué parte se puede tomar a cuenta (de Ganancias, por ejemplo)
+              depende de la condición de tu negocio, y la define tu contador.
+            </p>
+          )}
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {r.movimientos.map((m) => (
+              <li key={m.id} className="flex items-baseline justify-between gap-3 px-4 py-3 text-sm">
+                <span className="min-w-0">
+                  <span className="block truncate text-strong">{m.descripcion}</span>
+                  <span className="block text-xs text-muted">
+                    {diaLegible(fiscalDateToIso(m.fecha))} · {ETIQUETA_PAGO_A_CUENTA[m.tipo]}
+                    {m.importe < 0 ? " · devolución" : ""}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap tabular-nums font-medium text-strong">{fmtMoneyARS(m.importe)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </main>
+  );
+}

@@ -20,9 +20,22 @@ export const BOM = "\uFEFF";
  */
 export { sinFormula };
 
-/** Una fila: campos a salvo de fórmulas, escapados y unidos con `;`. */
+/**
+ * Un campo en UNA línea: los saltos de línea de adentro (un nombre o una nota pegados de un
+ * mensaje) pasan a un espacio. Las filas de estos archivos se separan con \r\n; un \n suelto
+ * adentro de un campo es CSV válido, pero parte la fila para quien lee línea por línea y
+ * mezclaba los dos finales de línea en el mismo archivo. PURA.
+ */
+export function enUnaLinea(campo: string | number): string | number {
+  // Se parte por el salto y se une con un espacio: un campo que EMPIEZA con un salto no puede
+  // quedar empezando con un espacio delante de un "=" (`sinFormula` mira el primer carácter).
+  if (typeof campo !== "string" || !/[\r\n]/.test(campo)) return campo;
+  return campo.split(/\r\n|\r|\n/).map((p) => p.trim()).filter(Boolean).join(" ");
+}
+
+/** Una fila: campos en una línea, a salvo de fórmulas, escapados y unidos con `;`. */
 export function filaCsv(...campos: (string | number)[]): string {
-  return campos.map((c) => csvField(sinFormula(c))).join(";");
+  return campos.map((c) => csvField(sinFormula(enUnaLinea(c)))).join(";");
 }
 
 /**

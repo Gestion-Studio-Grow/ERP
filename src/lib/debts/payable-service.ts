@@ -12,12 +12,13 @@
 // salía sin pasar por el libro y el cierre del día daba una diferencia que nadie explicaba.
 
 import { tenantTransaction } from "@/lib/rls";
-import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
-import { aplicarConAsientoInTx, recordCollection } from "@/lib/settlement/collection-repo";
+import { aplicarConAsientoInTx, applyCollectionInTx } from "@/lib/settlement/collection-repo";
 import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { computeSettlement } from "@/lib/settlement/collection";
 import { canTransitionCheque, type ChequeStatus } from "./cheque";
+import { PagoRechazadoError, validarChequeNuevo, validarPagoAMano } from "./resumen-cuentas";
 
 export interface CreatePayableInput {
   supplierId: string;
@@ -61,41 +62,88 @@ export interface AddChequeInput {
   endorsedTo?: string | null;
 }
 
-/** Adjunta un cheque diferido a una deuda. Nace en PENDING (en cartera). Valida monto/fecha. */
-export async function addChequeToPayable(
+/** Cliente de la transacción del negocio (lo que recibe el callback de `tenantTransaction`). */
+type DebtTx = Prisma.TransactionClient;
+
+/**
+ * Lo que falta pagar de la deuda y lo que ya cubren sus cheques sin debitar, leído con `tx`
+ * (la transacción del que va a escribir): así la validación y la escritura ven lo mismo. El
+ * saldo sale con la regla única (`computeSettlement`), como el detalle de la cuenta.
+ */
+async function saldoYChequesInTx(
+  tx: DebtTx,
   tenantId: string,
   payableId: string,
-  input: AddChequeInput,
-) {
-  const amount = round2(input.amount);
-  if (!(amount > 0)) throw new Error("El monto del cheque debe ser mayor a 0.");
-  if (!input.dueDate) throw new Error("El cheque diferido necesita fecha de acreditación.");
-  // Scoping: el payable debe ser de este tenant.
-  const owner = await prisma.accountPayable.findFirst({
-    where: { id: payableId, tenantId },
-    select: { id: true },
+  total: number,
+): Promise<{ saldo: number; chequesSinDebitar: number }> {
+  const cobros = await tx.collection.findMany({
+    where: { tenantId, originType: "PAYABLE", originId: payableId },
+    select: { amount: true },
   });
-  if (!owner) throw new Error("Cuenta a pagar no encontrada para este negocio.");
+  const cheques = await tx.payableCheque.findMany({
+    where: { tenantId, payableId, status: { in: ["PENDING", "DELIVERED"] } },
+    select: { amount: true },
+  });
+  const saldo = computeSettlement(total, cobros.map((c) => c.amount.toNumber())).balance;
+  const chequesSinDebitar = round2(cheques.reduce((s, c) => s + c.amount.toNumber(), 0));
+  return { saldo, chequesSinDebitar };
+}
 
-  const c = await prisma.payableCheque.create({
+/**
+ * Un cheque propio nuevo contra la deuda, DENTRO de la transacción del llamador: lee la deuda,
+ * su saldo y sus cheques sin debitar, valida que el cheque no cubra más de lo que falta
+ * (`validarChequeNuevo`) y recién ahí lo crea. Nace en la chequera o, si `entregado`, ya
+ * entregado: entregarlo no mueve plata, así que no hace falta un segundo paso. Antes eran dos
+ * operaciones sueltas (alta y entrega) con la validación afuera: si fallaba la entrega quedaba
+ * un cheque en la chequera y un mensaje de error, y dos altas simultáneas pasaban el tope.
+ * Exportado para que el test lo ejecute con una transacción falsa.
+ */
+export async function agregarChequeInTx(
+  tx: DebtTx,
+  tenantId: string,
+  payableId: string,
+  input: AddChequeInput & { entregado: boolean },
+): Promise<{ id: string; monto: number }> {
+  if (!input.dueDate) throw new Error("El cheque diferido necesita fecha de acreditación.");
+  const deuda = await tx.accountPayable.findFirst({
+    where: { id: payableId, tenantId },
+    select: { amount: true, status: true },
+  });
+  if (!deuda) throw new Error("Cuenta a pagar no encontrada para este negocio.");
+  if (deuda.status !== "OPEN") throw new PagoRechazadoError("Esa cuenta está anulada: no se le pueden cargar cheques.");
+  const v = validarChequeNuevo({ monto: input.amount, ...(await saldoYChequesInTx(tx, tenantId, payableId, deuda.amount.toNumber())) });
+  if (!v.ok) throw new PagoRechazadoError(v.error);
+  const c = await tx.payableCheque.create({
     data: {
       tenantId,
       payableId,
       chequeNumber: input.chequeNumber.trim(),
       bank: input.bank.trim(),
-      amount,
+      amount: v.monto,
       dueDate: input.dueDate,
       issueDate: input.issueDate ?? new Date(),
       endorsedTo: input.endorsedTo?.trim() || null,
-      status: "PENDING",
+      status: input.entregado ? "DELIVERED" : "PENDING",
     },
     select: { id: true },
   });
-  return c.id;
+  return { id: c.id, monto: v.monto };
 }
 
-/** Cliente de la transacción del negocio (lo que recibe el callback de `tenantTransaction`). */
-type DebtTx = Prisma.TransactionClient;
+/**
+ * Adjunta un cheque diferido a una deuda, con su tope (no cubre más de lo que falta pagar),
+ * en una transacción Serializable: dos altas simultáneas no pueden pasar el tope las dos.
+ */
+export async function addChequeToPayable(
+  tenantId: string,
+  payableId: string,
+  input: AddChequeInput & { entregado: boolean },
+): Promise<{ id: string; monto: number }> {
+  return tenantTransaction((tx) => agregarChequeInTx(tx, tenantId, payableId, input), {
+    tenantId,
+    isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+  });
+}
 
 /**
  * El cambio de estado del cheque DENTRO de la transacción del llamador. Exportado para que el
@@ -108,10 +156,13 @@ export async function transicionarChequeInTx(
   chequeId: string,
   to: ChequeStatus,
   actor: string,
-  opts: { asentarEnLibro: boolean; ahora: Date },
+  opts: { asentarEnLibro: boolean; ahora: Date; payableId?: string },
 ): Promise<void> {
+  // `payableId`: la cuenta desde la que se pide el cambio. Si llega, el cheque tiene que ser de
+  // ESA cuenta: con un formulario manipulado (chequeId de otra deuda) se auditaba y se
+  // revalidaba una cuenta y se movía el cheque de otra.
   const cheque = await tx.payableCheque.findFirst({
-    where: { id: chequeId, tenantId },
+    where: { id: chequeId, tenantId, ...(opts.payableId ? { payableId: opts.payableId } : {}) },
     select: { id: true, status: true, amount: true, payableId: true },
   });
   if (!cheque) throw new Error("Cheque no encontrado para este negocio.");
@@ -184,9 +235,15 @@ export async function transitionCheque(
   chequeId: string,
   to: ChequeStatus,
   actor: string,
+  payableId?: string,
 ): Promise<void> {
   await tenantTransaction(
-    (tx) => transicionarChequeInTx(tx, tenantId, chequeId, to, actor, { asentarEnLibro: cuentasCorrientesEnabled(), ahora: new Date() }),
+    (tx) =>
+      transicionarChequeInTx(tx, tenantId, chequeId, to, actor, {
+        asentarEnLibro: cuentasCorrientesEnabled(),
+        ahora: new Date(),
+        payableId,
+      }),
     // 🔒 SERIALIZABLE (fix del Gate de dinero): además del compare-and-set, la transacción
     // serializa el asiento del Collection contra cobros concurrentes de la MISMA deuda;
     // `tenantTransaction` reintenta ante conflicto de serialización.
@@ -204,10 +261,12 @@ export interface PagoDeudaInput {
 }
 
 /**
- * El pago a una deuda con cuentas corrientes encendidas, DENTRO de la transacción del
- * llamador: lee la deuda, decide el asiento (medio obligatorio, freno de día cerrado) y
- * registra el pago y el EGRESO del libro. Una deuda anulada no se paga. Exportado para que el
- * test lo ejecute con una transacción falsa; en la app lo llama `payPayable`.
+ * El pago a una deuda DENTRO de la transacción del llamador: lee la deuda, frena lo que ya
+ * cubren los cheques sin debitar (`validarPagoAMano`) y registra el pago con la guarda de
+ * saldo. Con `asentarEnLibro` (CUENTAS_CORRIENTES_ENABLED) además decide el asiento (medio
+ * obligatorio, freno de día cerrado) y escribe el EGRESO del libro. Una deuda anulada no se
+ * paga. Exportado para que el test lo ejecute con una transacción falsa; en la app lo llama
+ * `payPayable`.
  */
 export async function pagarDeudaInTx(
   tx: DebtTx,
@@ -215,6 +274,7 @@ export async function pagarDeudaInTx(
   payableId: string,
   input: PagoDeudaInput,
   ahora: Date,
+  asentarEnLibro = true,
 ) {
   const p = await tx.accountPayable.findFirst({
     where: { id: payableId, tenantId },
@@ -222,15 +282,24 @@ export async function pagarDeudaInTx(
   });
   if (!p) throw new Error("Cuenta a pagar no encontrada para este negocio.");
   if (p.status !== "OPEN") throw new Error("Esa cuenta está anulada: no se le puede registrar un pago.");
-  return aplicarConAsientoInTx(tx, tenantId, {
-    originType: "PAYABLE",
+  const total = p.amount.toNumber();
+  if (!input.allowOverpay) {
+    const v = validarPagoAMano({ monto: input.amount, ...(await saldoYChequesInTx(tx, tenantId, payableId, total)) });
+    if (!v.ok) throw new PagoRechazadoError(v.error);
+  }
+  const pago = {
+    originType: "PAYABLE" as const,
     originId: payableId,
-    totalCharged: p.amount.toNumber(),
+    totalCharged: total,
     amount: input.amount,
     method: input.method,
     note: input.note ?? null,
     collectedBy: input.by,
     allowOverpay: input.allowOverpay,
+  };
+  if (!asentarEnLibro) return applyCollectionInTx(tx, tenantId, pago);
+  return aplicarConAsientoInTx(tx, tenantId, {
+    ...pago,
     origen: "PAYABLE",
     detalle: `Pago a proveedor — ${p.supplier.name}`,
     ahora,
@@ -239,31 +308,15 @@ export async function pagarDeudaInTx(
 
 /**
  * Paga una deuda en efectivo/transferencia (parcial o total) vía `Collection`(PAYABLE),
- * con la guarda de saldo de `recordCollection` (no se puede pagar más que lo que se debe,
- * salvo `allowOverpay`). Devuelve el settlement actualizado.
+ * con la guarda de saldo (no se puede pagar más que lo que se debe, salvo `allowOverpay`) y
+ * la de los cheques sin debitar. Todo en UNA transacción Serializable, con el libro o sin él:
+ * antes, con el flag apagado, la deuda se leía afuera y el pago se escribía en otra
+ * transacción. Devuelve el settlement actualizado.
  */
 export async function payPayable(tenantId: string, payableId: string, input: PagoDeudaInput) {
-  if (cuentasCorrientesEnabled()) {
-    return tenantTransaction(
-      (tx) => pagarDeudaInTx(tx, tenantId, payableId, input, new Date()),
-      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
-  }
-
-  const payable = await prisma.accountPayable.findFirst({
-    where: { id: payableId, tenantId },
-    select: { amount: true },
-  });
-  if (!payable) throw new Error("Cuenta a pagar no encontrada para este negocio.");
-
-  return recordCollection(tenantId, {
-    originType: "PAYABLE",
-    originId: payableId,
-    totalCharged: payable.amount.toNumber(),
-    amount: input.amount,
-    method: input.method,
-    note: input.note ?? null,
-    collectedBy: input.by,
-    allowOverpay: input.allowOverpay,
-  });
+  const asentarEnLibro = cuentasCorrientesEnabled();
+  return tenantTransaction(
+    (tx) => pagarDeudaInTx(tx, tenantId, payableId, input, new Date(), asentarEnLibro),
+    { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }

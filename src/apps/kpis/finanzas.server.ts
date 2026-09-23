@@ -1,5 +1,5 @@
 // ============================================================================
-// NÚMEROS DE CAJA Y FINANZAS — Caja del día, Cierre, Facturación y Reportes.
+// NÚMEROS DE CAJA Y FINANZAS — Caja, Cierre, Facturación, Reportes y finanzas de gestión.
 // ============================================================================
 //
 // Mismas reglas que todos los loaders de esta carpeta (ver mostrador.server.ts): una
@@ -7,9 +7,22 @@
 //
 // Lo que queda para su frente, con su porqué:
 //   · el efectivo esperado de la caja y el saldo o los duplicados del libro necesitan la
-//     cuenta del arqueo (`buildCierreDiario`), que suma movimientos y no es una operación;
-//   · Fiado y Cuentas a pagar son de la ola 3 (su pantalla todavía no es la final).
-// Esas apps van al Inicio sin número hasta que su frente escriba el loader.
+//     cuenta del arqueo (`buildCierreDiario`), que suma movimientos y no es una operación.
+// Esa app va al Inicio sin número hasta que su frente escriba el loader.
+//
+// LAS DE FINANZAS DE GESTIÓN (ola 3) leen con la MISMA función que su pantalla (o con la
+// parte de ella que es su número), que recibe el `db` del botón: margen, flujo de fondos,
+// retenciones y comisiones (lib/reports/*-lectura.ts). UNA consulta cada una (regla 8).
+//
+// Las que NO tienen número todavía, con su porqué: su número cruza hechos que viven en tablas
+// sin relación y no sale de una sola operación.
+//   · Fiado y Cuentas a pagar: el saldo de cada cuenta es su total menos sus cobros o pagos, y
+//     `Collection` no tiene relación con la cuenta (viaja por `originId`): son dos lecturas.
+//     La cuenta de `status` no alcanza: una deuda saldada sigue OPEN (DebtStatus es OPEN|VOID).
+//   · Resultado del mes: ventas, costo de lo vendido y gastos son seis tablas.
+// Darles número pide una excepción a la regla 8 (decisión de plataforma, con la latencia
+// contra Neon medida) o una columna de saldo (migración). Mientras tanto van al Inicio sin
+// número y la pantalla tiene el dato.
 
 import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
@@ -22,6 +35,13 @@ import { mesDelNegocio, nombreDelMes } from "@/lib/libros/fecha-fiscal";
 import { consultaAuditoriaCierre, datoCierreDelMes, mesParaCerrar } from "@/lib/cierre-mes/cierre-mes";
 import { fmtMoneyARS, fmtNumberAR } from "@/components/ui/format";
 import { plural, type DatoKpi, type LoaderKpi } from "./nucleo.server";
+import { leerMargenDelBoton } from "@/lib/reports/margen-lectura";
+import { leerSaldoDelLibro } from "@/lib/reports/flujo-lectura";
+import { leerPagosACuenta } from "@/lib/reports/retenciones-lectura";
+import { ETIQUETA_PAGO_A_CUENTA, RETENCIONES_Y_PERCEPCIONES } from "@/lib/reports/retenciones";
+import { leerComisionesPendientes } from "@/lib/reports/comisiones-lectura";
+import { totalALiquidar } from "@/lib/reports/comisiones";
+import { whereVentasDelPeriodo } from "@/lib/reports/ventas-mostrador-lectura";
 
 // ── Caja del día ─────────────────────────────────────────────────────────────
 
@@ -150,7 +170,15 @@ export const facturacion: LoaderKpi = async ({ db, tenantId, ahora }) => {
  * Sólo para un Responsable Inscripto (alguna A o B en el mes): con sólo C (monotributo) el
  * botón va sin número, igual que la pantalla, que a un monotributista no le muestra el libro.
  * Sin comprobantes en el mes no hay número que dar: '—' con el motivo, y la pantalla muestra
- * el mismo '—' en el saldo. Es plata: pide reports:read (lo declara el catálogo).
+ * el mismo '—' en el saldo. Es plata: pide reports:read (lo declara el catálogo, que además
+ * declara la parte `monto`: sin ella `monto` llegaba siempre en false y el botón no mostraba
+ * nunca su número).
+ *
+ * Límite conocido: la condición sale del MES y la de la pantalla, de toda la historia. Un
+ * monotributista sin comprobantes este mes ve '—' con el motivo en vez de no ver número. Leer
+ * la historia acá sería una segunda consulta (regla 8) o un agrupado por día de toda la
+ * facturación en cada carga del Inicio; lo resuelve la condición leída una vez por request
+ * (el mismo pedido a plataforma que saca el Libro IVA del Inicio a un monotributista).
  */
 export const libroIva: LoaderKpi = async ({ db, tenantId, ahora, monto }) => {
   if (!monto) return null;
@@ -212,16 +240,25 @@ export const facturacionAutomatica: LoaderKpi = async ({ db, tenantId }) => {
 // ── Reportes ─────────────────────────────────────────────────────────────────
 
 /**
- * Lo cobrado en turnos en el período que Reportes abre por defecto: el mismo `where` y los
- * mismos bordes de día que `getReportData` (actions.ts), con `DEFAULT_REPORT_RANGE_DAYS`. Se
- * usa el período por defecto de la pantalla y no "7 días" porque Reportes no ofrece 7: el
- * tile llevaría a una pantalla con otro número.
+ * Lo cobrado en el período que Reportes abre por defecto (`DEFAULT_REPORT_RANGE_DAYS`), con
+ * los mismos bordes de día. Se usa el período por defecto de la pantalla y no "7 días" porque
+ * Reportes no ofrece 7: el tile llevaría a una pantalla con otro número.
  *
- * En un mostrador, Reportes suma sólo los pagos de TURNOS (lo dice la propia pantalla): el
- * número sería $0 con el local vendiendo todo el día. Ahí va '—' con el porqué.
+ * En un local de MOSTRADOR, Reportes muestra las ventas cobradas del mostrador (antes sólo
+ * turnos, y el botón decía "— Las ventas del mostrador se ven en el libro de caja"): el
+ * número es el de la pantalla, con su mismo `where` (`whereVentasDelPeriodo`, el de Ventas
+ * del día). En servicios, lo cobrado en turnos, como `getReportData` (actions.ts).
  */
 export const reportes: LoaderKpi = async ({ db, tenantId, hoy, esMostrador }) => {
-  if (esMostrador) return { sinDato: "Las ventas del mostrador se ven en el libro de caja" };
+  if (esMostrador) {
+    const { where } = whereVentasDelPeriodo(tenantId, hoy, DEFAULT_REPORT_RANGE_DAYS);
+    const r = await db.order.aggregate({ where, _sum: { total: true }, _count: { _all: true } });
+    const n = r._count?._all ?? 0;
+    return {
+      valor: fmtMoneyARS(r._sum?.total ?? 0, 0),
+      detalle: `vendido en el mostrador en ${fmtNumberAR(n)} ${plural(n, "venta", "ventas")}, últimos ${DEFAULT_REPORT_RANGE_DAYS} días`,
+    };
+  }
   const { desde, hasta } = bordesDelPeriodo(hoy, DEFAULT_REPORT_RANGE_DAYS, businessWallTimeToUtc);
   const r = await db.payment.aggregate({
     where: { tenantId, status: "APPROVED", createdAt: { gte: desde, lte: hasta } },
@@ -233,6 +270,87 @@ export const reportes: LoaderKpi = async ({ db, tenantId, hoy, esMostrador }) =>
   };
 };
 
+// ── Margen ───────────────────────────────────────────────────────────────────
+
+/**
+ * "3 cortes con el precio por debajo del costo", en alerta: cada venta de esos pierde plata.
+ * UNA consulta, la de productos de la pantalla (`leerMargenDelBoton`): el precio de lista
+ * contra el costo vigente, como se cobra. Sin la condición fiscal (sería una segunda lectura)
+ * no se sabe si sacar el IVA, y estos pierden en cualquier condición; la pantalla muestra este
+ * mismo número y, a un inscripto, además los que pierden al sacar el IVA.
+ */
+export const margen: LoaderKpi = async ({ db, tenantId, sustantivo }) => {
+  const m = await leerMargenDelBoton(db, tenantId);
+  if (m.conMargen === 0) {
+    return {
+      sinDato:
+        m.sinCosto > 0
+          ? `Faltan costos: ${fmtNumberAR(m.sinCosto)} ${plural(m.sinCosto, sustantivo.uno, sustantivo.varios)} con precio y sin costo`
+          : `Todavía no hay ${sustantivo.varios} con precio y costo`,
+    };
+  }
+  const n = m.precioDeListaBajoCosto;
+  if (n === 0) return { valor: "0", detalle: `${sustantivo.varios} con el precio por debajo del costo` };
+  const texto = `${plural(n, sustantivo.uno, sustantivo.varios)} con el precio por debajo del costo`;
+  return { valor: fmtNumberAR(n), detalle: texto, alerta: { valor: fmtNumberAR(n), texto } };
+};
+
+// ── Flujo de fondos ──────────────────────────────────────────────────────────
+
+/**
+ * "$X de plata hoy", la primera tarjeta de la pantalla y el punto de partida de la proyección:
+ * el saldo del libro de caja, todos los medios, con la MISMA consulta (`leerSaldoDelLibro`, una
+ * suma agrupada por tipo). La proyección a 30 días cruza el libro, el fiado y las deudas con
+ * sus cobros y pagos (cinco lecturas): no entra en un número del Inicio (regla 8).
+ *
+ * En negativo va en alerta: un libro en rojo no es plata que falta sino plata que no se anotó
+ * (un ingreso sin cargar o un egreso de más), y cualquier proyección arranca mal desde ahí.
+ */
+export const flujoDeFondos: LoaderKpi = async ({ db, tenantId }) => {
+  const saldo = await leerSaldoDelLibro(db, tenantId);
+  const dato: DatoKpi = { valor: fmtMoneyARS(saldo, 0), detalle: "de plata hoy, según el libro de caja" };
+  if (saldo < 0) return { ...dato, alerta: { valor: fmtMoneyARS(saldo, 0), texto: "el libro de caja está en negativo" } };
+  return dato;
+};
+
+// ── Retenciones y percepciones ───────────────────────────────────────────────
+
+/**
+ * "Retenciones y percepciones de septiembre: $X (Ingresos Brutos $Y · IVA $Z) · impuesto al
+ * cheque $W aparte". UNA consulta: los movimientos del extracto del mes, con el mismo `where`
+ * que la pantalla. El impuesto al cheque no suma al total: qué parte se computa a cuenta
+ * depende de la condición del negocio y la define el contador (retenciones.ts). Sin extracto
+ * subido no hay número: '—' con el porqué, no un $0.
+ */
+export const retenciones: LoaderKpi = async ({ db, tenantId, ahora }) => {
+  const mes = mesDelNegocio(ahora);
+  const r = await leerPagosACuenta(db, tenantId, mes);
+  if (r.leidos === 0) return { sinDato: `Todavía no subiste el extracto del banco de ${nombreDelMes(mes)}` };
+  const partes = RETENCIONES_Y_PERCEPCIONES.filter((t) => r.porTipo[t] !== 0).map(
+    (t) => `${ETIQUETA_PAGO_A_CUENTA[t]} ${fmtMoneyARS(r.porTipo[t], 0)}`,
+  );
+  const cheque = r.impuestoAlCheque !== 0 ? ` · impuesto al cheque ${fmtMoneyARS(r.impuestoAlCheque, 0)} aparte` : "";
+  return {
+    valor: fmtMoneyARS(r.total, 0),
+    detalle: `retenciones y percepciones de ${nombreDelMes(mes)}` + (partes.length > 0 ? ` (${partes.join(" · ")})` : "") + cheque,
+  };
+};
+
+// ── Comisiones ───────────────────────────────────────────────────────────────
+
+/**
+ * "$412.000 a liquidar a 4 profesionales". UNA consulta con sus relaciones y el MISMO
+ * cálculo que la liquidación (`leerComisionesPendientes`).
+ */
+export const comisiones: LoaderKpi = async ({ db, tenantId }) => {
+  const t = totalALiquidar(await leerComisionesPendientes(db, tenantId));
+  if (t.profesionales === 0) return { valor: fmtMoneyARS(0, 0), detalle: "nada para liquidar" };
+  return {
+    valor: fmtMoneyARS(t.monto, 0),
+    detalle: `a liquidar a ${fmtNumberAR(t.profesionales)} ${plural(t.profesionales, "profesional", "profesionales")}`,
+  };
+};
+
 export const LOADERS_FINANZAS: Readonly<Record<string, LoaderKpi>> = {
   "caja-del-dia": cajaDelDia,
   "cierre-del-dia": cierreDelDia,
@@ -241,4 +359,8 @@ export const LOADERS_FINANZAS: Readonly<Record<string, LoaderKpi>> = {
   reportes,
   "libro-iva": libroIva,
   "cierre-del-mes": cierreDelMes,
+  margen,
+  "flujo-de-fondos": flujoDeFondos,
+  "retenciones-y-percepciones": retenciones,
+  comisiones,
 };

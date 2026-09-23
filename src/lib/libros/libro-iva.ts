@@ -105,6 +105,15 @@ export function esNotaDeCredito(tipo: number | null | undefined): boolean {
  */
 export type CondicionLibro = "responsable-inscripto" | "monotributo" | "sin-comprobantes";
 
+/**
+ * Todo lo emitido con CAE por el negocio, de cualquier mes: de acá sale la condición. Es el
+ * mismo `where` para el Libro IVA, el Resultado del mes y el Margen (los tres dicen "sin IVA"
+ * sólo a un inscripto). Objeto plano, sin Prisma de valor.
+ */
+export function whereComprobantesEmitidos(tenantId: string) {
+  return { tenantId, status: "AUTHORIZED" as const };
+}
+
 /** Deduce la condición de los tipos emitidos (de cualquier período). PURA. */
 export function condicionPorTipos(tipos: readonly (number | null | undefined)[]): CondicionLibro {
   if (tipos.some((t) => t != null && TIPOS_QUE_DISCRIMINAN_IVA.includes(t))) return "responsable-inscripto";

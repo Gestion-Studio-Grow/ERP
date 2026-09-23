@@ -15,7 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
-import { aplicarConAsientoInTx, recordCollection } from "@/lib/settlement/collection-repo";
+import { aplicarConAsientoInTx, applyCollectionInTx } from "@/lib/settlement/collection-repo";
 import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
 
 export interface CreateReceivableInput {
@@ -68,10 +68,11 @@ export interface CobroFiadoInput {
 }
 
 /**
- * El cobro del fiado con cuentas corrientes encendidas, DENTRO de la transacción del llamador:
- * lee la deuda, decide el asiento (medio obligatorio, freno de día cerrado) y registra el
- * cobro y el INGRESO del libro. Una deuda anulada no se cobra. Exportado para que el test lo
- * ejecute con una transacción falsa; en la app lo llama `collectReceivable`.
+ * El cobro del fiado DENTRO de la transacción del llamador: lee la deuda y registra el cobro
+ * con la guarda de saldo. Con `asentarEnLibro` (CUENTAS_CORRIENTES_ENABLED) además decide el
+ * asiento (medio obligatorio, freno de día cerrado) y escribe el INGRESO del libro. Una deuda
+ * anulada no se cobra, con el libro o sin él. Exportado para que el test lo ejecute con una
+ * transacción falsa; en la app lo llama `collectReceivable`.
  */
 export async function cobrarFiadoInTx(
   tx: Prisma.TransactionClient,
@@ -79,15 +80,18 @@ export async function cobrarFiadoInTx(
   receivableId: string,
   input: CobroFiadoInput,
   ahora: Date,
+  asentarEnLibro = true,
 ) {
   const r = await tx.accountReceivable.findFirst({
     where: { id: receivableId, tenantId },
     select: { amount: true, status: true, client: { select: { name: true } } },
   });
   if (!r) throw new Error("Cuenta a cobrar no encontrada para este negocio.");
+  // Sin esto, con el flag apagado, la URL del detalle de una cuenta anulada aceptaba cobros que
+  // ninguna pantalla vuelve a mostrar.
   if (r.status !== "OPEN") throw new Error("Esa cuenta está anulada: no se le puede registrar un cobro.");
-  return aplicarConAsientoInTx(tx, tenantId, {
-    originType: "RECEIVABLE",
+  const cobro = {
+    originType: "RECEIVABLE" as const,
     originId: receivableId,
     totalCharged: r.amount.toNumber(),
     amount: input.amount,
@@ -95,6 +99,10 @@ export async function cobrarFiadoInTx(
     note: input.note ?? null,
     collectedBy: input.by,
     allowOverpay: input.allowOverpay,
+  };
+  if (!asentarEnLibro) return applyCollectionInTx(tx, tenantId, cobro);
+  return aplicarConAsientoInTx(tx, tenantId, {
+    ...cobro,
     origen: "RECEIVABLE",
     detalle: `Cobro de cuenta corriente — ${r.client.name}`,
     ahora,
@@ -103,35 +111,18 @@ export async function cobrarFiadoInTx(
 
 /**
  * Registra un cobro (parcial o total) del fiado vía `Collection`(RECEIVABLE), con la guarda
- * de saldo de `recordCollection` (no se puede cobrar más que lo que se debe, salvo
- * `allowOverpay`). Devuelve el settlement actualizado (saldo/estado).
+ * de saldo (no se puede cobrar más que lo que se debe, salvo `allowOverpay`). Devuelve el
+ * settlement actualizado (saldo/estado).
  *
- * Con cuentas corrientes encendidas, en UNA transacción Serializable (`cobrarFiadoInTx`).
+ * En UNA transacción Serializable (`cobrarFiadoInTx`), con el libro o sin él: antes, con el
+ * flag apagado, la cuenta se leía afuera y el cobro se escribía en otra transacción.
  */
 export async function collectReceivable(tenantId: string, receivableId: string, input: CobroFiadoInput) {
-  if (cuentasCorrientesEnabled()) {
-    return tenantTransaction(
-      (tx) => cobrarFiadoInTx(tx, tenantId, receivableId, input, new Date()),
-      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
-  }
-
-  const receivable = await prisma.accountReceivable.findFirst({
-    where: { id: receivableId, tenantId },
-    select: { amount: true },
-  });
-  if (!receivable) throw new Error("Cuenta a cobrar no encontrada para este negocio.");
-
-  return recordCollection(tenantId, {
-    originType: "RECEIVABLE",
-    originId: receivableId,
-    totalCharged: receivable.amount.toNumber(),
-    amount: input.amount,
-    method: input.method,
-    note: input.note ?? null,
-    collectedBy: input.by,
-    allowOverpay: input.allowOverpay,
-  });
+  const asentarEnLibro = cuentasCorrientesEnabled();
+  return tenantTransaction(
+    (tx) => cobrarFiadoInTx(tx, tenantId, receivableId, input, new Date(), asentarEnLibro),
+    { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 /** Anula una cuenta a cobrar (VOID) — cargada por error / cubierta por nota de crédito. */

@@ -65,3 +65,59 @@ export function committedChequeTotal(cheques: readonly ChequeAmount[]): number {
 export function clearedChequeTotal(cheques: readonly ChequeAmount[]): number {
   return cheques.reduce((s, c) => (chequePaid(c.status) ? s + c.amount : s), 0);
 }
+
+// ── Cómo se lee un cheque PROPIO en la pantalla ──────────────────────────────
+//
+// Son cheques que el negocio le da al proveedor. Para la dueña "acreditado" no dice nada: lo
+// que le pasa es que el banco se lo DEBITA de su cuenta. Los nombres de la pantalla son los
+// de ella; los del enum quedan en la base.
+
+export const ETIQUETA_CHEQUE: Readonly<Record<ChequeStatus, string>> = {
+  PENDING: "En la chequera, sin entregar",
+  DELIVERED: "Entregado, a debitar",
+  CLEARED: "Debitado",
+  BOUNCED: "Rebotado",
+  CANCELED: "Anulado",
+};
+
+/** Un paso que la pantalla ofrece para un cheque, con su botón. */
+export interface PasoDeCheque {
+  a: ChequeStatus;
+  /** El texto del botón. */
+  boton: string;
+  /**
+   * Qué pasa, dicho antes de confirmar. Sólo los pasos sin vuelta atrás lo llevan (debitado,
+   * rebotado, anulado): entregar el cheque es de todos los días y no pide confirmación.
+   */
+  confirmar?: string;
+}
+
+/**
+ * Los pasos posibles desde un estado, en el orden en que se muestran (el camino feliz
+ * primero). Sale de la misma tabla de transiciones que valida el servidor, así la pantalla
+ * nunca ofrece un botón que el servidor va a rechazar. PURA.
+ */
+export function pasosDelCheque(desde: ChequeStatus): PasoDeCheque[] {
+  const TEXTOS: Record<ChequeStatus, Omit<PasoDeCheque, "a">> = {
+    PENDING: { boton: "En la chequera" },
+    DELIVERED: { boton: "Lo entregué" },
+    CLEARED: {
+      boton: "Se debitó",
+      confirmar: "Se registra el pago de la deuda por el monto del cheque y, si las cuentas corrientes están encendidas, el egreso en el libro de caja de hoy.",
+    },
+    BOUNCED: {
+      boton: "Rebotó",
+      confirmar: "El cheque queda rebotado y la deuda sigue con el mismo saldo. No se puede deshacer.",
+    },
+    CANCELED: {
+      boton: "Anularlo",
+      confirmar: "El cheque queda anulado y la deuda sigue con el mismo saldo. No se puede deshacer.",
+    },
+  };
+  return (CHEQUE_TRANSITIONS[desde] ?? []).map((a) => ({ a, ...TEXTOS[a] }));
+}
+
+/** ¿El texto que llegó del formulario es un estado de cheque? Nunca se confía en él. PURA. */
+export function esEstadoDeCheque(raw: unknown): raw is ChequeStatus {
+  return typeof raw === "string" && Object.prototype.hasOwnProperty.call(CHEQUE_TRANSITIONS, raw);
+}

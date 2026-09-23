@@ -13,6 +13,8 @@ import { OwnerPanel } from "@/components/OwnerPanel";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
+import { getNegocioApps } from "@/apps/contexto.server";
+import ReportesMostrador from "./ReportesMostrador";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +78,7 @@ export default async function ReportesPage({
   searchParams: Promise<{ status?: string; dias?: string }>;
 }) {
   // Guardia de la app (ADR-098): una app oculta no es una app protegida.
-  await requireApp("reportes");
+  const guardia = await requireApp("reportes");
   const { status, dias } = await searchParams;
   // Rango del reporte desde la URL (?dias=), validado contra la lista permitida; si no
   // es válido, cae al default (90d). El rango es obligatorio a nivel de datos (ADR-023 F3).
@@ -84,6 +86,14 @@ export default async function ReportesPage({
   const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsedDias)
     ? parsedDias
     : DEFAULT_REPORT_RANGE_DAYS;
+
+  // En un local de MOSTRADOR, Reportes muestra las ventas cobradas del mostrador: todo lo de
+  // abajo (turnos, profesionales, ausencias, comisiones) es de un negocio de servicios, y ahí
+  // daba $0 con el local vendiendo todo el día. Un negocio de servicios (CH) sigue viendo
+  // exactamente la pantalla de siempre.
+  const { esMostrador } = await getNegocioApps(guardia.role);
+  if (esMostrador) return <ReportesMostrador rangeDays={rangeDays} role={guardia.role} />;
+
   const [data, deep, panel, overview, user, profile] = await Promise.all([
     getReportData(rangeDays),
     getDeepReportData(rangeDays),

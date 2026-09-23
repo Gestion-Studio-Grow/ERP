@@ -13,18 +13,43 @@ import { REPORT_RANGE_DAYS, DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-confi
 import { buildReportCsv } from "@/lib/report-csv";
 import { logger } from "@/lib/logger";
 import { requireApp } from "@/lib/require-app";
+import { prisma } from "@/lib/prisma";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { getTenantBrand } from "@/lib/branding";
+import { leerVentasMostrador } from "@/lib/reports/ventas-mostrador-lectura";
+import { csvVentasMostrador } from "@/lib/reports/ventas-mostrador";
+import { BOM, cabecerasCsv } from "@/lib/libros/csv-ar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   // Guardia de la app (ADR-098): una app oculta no es una app protegida.
-  await requireApp("reportes");
+  const user = await requireApp("reportes");
   try {
     const parsed = Number(new URL(request.url).searchParams.get("dias"));
     const rangeDays = (REPORT_RANGE_DAYS as readonly number[]).includes(parsed)
       ? parsed
       : DEFAULT_REPORT_RANGE_DAYS;
+
+    // Un local de MOSTRADOR exporta lo que ve su pantalla: las ventas cobradas del período,
+    // por día, medio y producto (ReportesMostrador.tsx). El de servicios sigue igual.
+    const { esMostrador } = await getNegocioApps(user.role);
+    if (esMostrador) {
+      const tenantId = await getCurrentTenantId();
+      const [r, brand] = await Promise.all([
+        leerVentasMostrador(prisma, tenantId, todayInBusinessTz(), rangeDays),
+        getTenantBrand(),
+      ]);
+      const desde = dateStrInBusinessTz(r.desde);
+      const hasta = dateStrInBusinessTz(r.hasta);
+      return new Response(BOM + csvVentasMostrador(r, { desde, hasta, negocio: brand.name }), {
+        status: 200,
+        headers: cabecerasCsv(`ventas-${hasta}-${rangeDays}d.csv`),
+      });
+    }
 
     const [data, deep] = await Promise.all([
       getReportData(rangeDays),

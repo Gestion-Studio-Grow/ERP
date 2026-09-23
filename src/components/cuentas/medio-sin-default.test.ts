@@ -17,7 +17,10 @@ test("el medio arranca vacío, es obligatorio y el botón no se habilita sin ele
   assert.match(FUENTE, /<Select name="metodo" value=\{metodo\} .* required>/);
   assert.match(FUENTE, /const \[metodo, setMetodo\] = useState\(""\);/);
   assert.match(FUENTE, /<option value="" disabled>\s*Elegí el medio/);
-  assert.match(FUENTE, /disabled=\{!validation\.ok \|\| !medioElegido\}/);
+  // Mientras se registra, tampoco (un doble toque no manda dos cobros); y el envío repite la
+  // misma guarda por si el botón se saltea (Enter en un campo).
+  assert.match(FUENTE, /disabled=\{!validation\.ok \|\| !medioElegido \|\| pendiente\}/);
+  assert.match(FUENTE, /if \(!validation\.ok \|\| !medioElegido \|\| pendiente\) return;/);
 });
 
 test("los medios del formulario son exactamente los que acepta el servidor, y vacío se rechaza", () => {

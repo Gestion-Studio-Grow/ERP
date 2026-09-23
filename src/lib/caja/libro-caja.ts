@@ -20,7 +20,7 @@ import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja
 // Las MARCAS que cada camino del sistema deja en `CashMovement.createdBy`. Se importan de
 // donde nacen (no se copian los strings): si una cambia, el origen contable la sigue. Todos
 // estos módulos son puros (sin Prisma de valor): este archivo lo importa un client component.
-import { COMPRA_ACTOR_PREFIX, esEgresoDeCompra, esIngresoDeReintegro } from "@/lib/stock/purchase-egreso";
+import { COMPRA_ACTOR_PREFIX, REINTEGRO_ACTOR_PREFIX, esEgresoDeCompra, esIngresoDeReintegro } from "@/lib/stock/purchase-egreso";
 import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
 import { ANULACION_TURNO_ACTOR_PREFIX, esEgresoDeAnulacion } from "@/lib/turnos/anulacion";
 import { ANULACION_VENTA_ACTOR_PREFIX } from "@/lib/order-anulacion";
@@ -107,7 +107,8 @@ export type OrigenContable =
   | "corte-importacion"
   | "apertura"
   | "cobro-cuenta-corriente"
-  | "pago-cuenta-corriente";
+  | "pago-cuenta-corriente"
+  | "reintegro-proveedor";
 
 /** Orden canónico: el de la columna y el del subtotal del RESUMEN. */
 export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
@@ -124,6 +125,7 @@ export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
   "apertura",
   "cobro-cuenta-corriente",
   "pago-cuenta-corriente",
+  "reintegro-proveedor",
 ];
 
 export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
@@ -140,6 +142,10 @@ export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
   apertura: "Apertura de turno",
   "cobro-cuenta-corriente": "Cobro de cuenta corriente",
   "pago-cuenta-corriente": "Pago a proveedor",
+  // La plata que devuelve un proveedor por mercadería devuelta (supplier-return.ts). Antes
+  // salía como "Ingreso manual" y la contadora la buscaba como un cobro sin respaldo: no es
+  // una venta ni un aporte, es una compra que se achica.
+  "reintegro-proveedor": "Reintegro de proveedor",
 };
 
 /** Lo que el ledger guarda de una fila y alcanza para clasificarla. */
@@ -174,6 +180,9 @@ function marcasDelSistema(): readonly {
 }[] {
   return [
     { prefijo: COMPRA_ACTOR_PREFIX, origen: "compra", referenciaEnMarca: true }, // purchaseId
+    // El INGRESO del reintegro de una devolución a proveedor: `devolucion-proveedor:<purchaseId>`
+    // (supplier-return.ts). La referencia es la compra devuelta.
+    { prefijo: REINTEGRO_ACTOR_PREFIX, origen: "reintegro-proveedor", referenciaEnMarca: true }, // purchaseId
     // Cobro de una cuenta a cobrar (INGRESO) o pago de una cuenta a pagar (EGRESO), con la
     // marca `cuenta-corriente:<collectionId>` (settlement/asiento-libro.ts).
     {

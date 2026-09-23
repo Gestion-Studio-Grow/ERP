@@ -138,6 +138,9 @@ const UNA_DE_CADA: [FilaLedger, string, string][] = [
   // proveedor llevan la MISMA marca; el sentido lo da el tipo. No son "a mano".
   [ledger({ id: "cobro-cc", type: "INGRESO", method: "MP", amount: 1200, createdBy: "cuenta-corriente:col_11" }), "Cobro de cuenta corriente", "col_11"],
   [ledger({ id: "pago-cc", type: "EGRESO", amount: 900, createdBy: "cuenta-corriente:col_12" }), "Pago a proveedor", "col_12"],
+  // La plata que devuelve un proveedor por una devolución de mercadería: antes salía como
+  // "Ingreso manual" y la contadora la buscaba como un cobro sin respaldo.
+  [ledger({ id: "reintegro", type: "INGRESO", method: "MP", amount: 450, createdBy: "devolucion-proveedor:pur_5" }), "Reintegro de proveedor", "pur_5"],
   [ledger({ id: "gasto-a-mano", type: "EGRESO", amount: 700, createdBy: ACTOR }), "Egreso manual", ""],
   [ledger({ id: "ingreso-a-mano", type: "INGRESO", amount: 300, createdBy: ACTOR }), "Ingreso manual", ""],
   [ledger({ id: "venta-pos", type: "VENTA", method: "MP", amount: 4000, createdBy: ACTOR, orderId: "ord_1" }), "Venta mostrador", "ord_1"],
@@ -294,4 +297,16 @@ test("un error que no es de una columna de referencia sube tal cual (no se tapa)
     /conexión cortada/,
   );
   assert.equal(vueltas, 1);
+});
+
+test("un detalle con saltos de línea sale en UNA línea: el archivo usa sólo CRLF", () => {
+  const libro = buildLibro(zeroAmounts(), [
+    mov({ id: "a", amount: 100, detail: "Pago luz\nsegunda cuota" }),
+    mov({ id: "b", amount: 50, detail: "\r\n=HIPERVINCULO(\"x\")" }),
+  ]);
+  const csv = buildLibroCsv(libro, deps);
+  assert.doesNotMatch(csv, /[^\r]\n/, "ningún \\n suelto");
+  assert.match(csv, /;Pago luz segunda cuota;/);
+  // El salto del principio no deja un espacio delante del "=": la guarda de fórmulas lo ve.
+  assert.match(csv, /;"'=HIPERVINCULO\(""x""\)";/);
 });

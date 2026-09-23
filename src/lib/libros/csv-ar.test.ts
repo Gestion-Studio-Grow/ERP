@@ -3,7 +3,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { camposDeLineaCsv, filaCsv, lineaSinFormulas, sinFormula } from "./csv-ar";
+import { camposDeLineaCsv, enUnaLinea, filaCsv, lineaSinFormulas, sinFormula } from "./csv-ar";
+import { armarLibroIva } from "./libro-iva";
+import { armarExportLibroIva } from "./libro-iva-export";
 
 test("un nombre que empieza con =, +, -, @ o tabulación sale con apóstrofo adelante", () => {
   assert.equal(sinFormula('=HYPERLINK("http://x","clic")'), `'=HYPERLINK("http://x","clic")`);
@@ -33,4 +35,25 @@ test("una línea ajena (el libro de caja) se relee campo por campo y vuelve igua
   assert.equal(lineaSinFormulas("2026-08-15;Ingreso;=HYPERLINK(1);100,00"), "2026-08-15;Ingreso;'=HYPERLINK(1);100,00");
   assert.equal(lineaSinFormulas(""), "");
   assert.deepEqual(camposDeLineaCsv(`a;"sin cerrar;b`), ["a", "sin cerrar;b"], "una comilla que no cierra toma el resto");
+});
+
+test("un campo con saltos de línea queda en una línea; el que empezaba con un salto no esquiva la guarda de fórmulas", () => {
+  assert.equal(enUnaLinea("Parrilla\nEl Tano"), "Parrilla El Tano");
+  assert.equal(enUnaLinea("a\r\n\r\nb"), "a b");
+  assert.equal(enUnaLinea(1234.5), 1234.5);
+  assert.equal(filaCsv("Juan\nPérez", "1,50"), "Juan Pérez;1,50");
+  assert.equal(filaCsv("\n=HIPERVINCULO(1)"), "'=HIPERVINCULO(1)");
+});
+
+test("el Libro IVA exportado sólo usa CRLF, aunque un cliente o un proveedor traiga un salto adentro", () => {
+  const libro = armarLibroIva({
+    comprobantes: [],
+    ventasSinComprobante: [{ clave: "pedido:1", fecha: "2026-09-02", tipo: "Venta del mostrador", numero: "Pedido 1", cliente: "Ana\nGómez", total: 1000 }],
+    compras: [{ clave: "compra:1", fecha: "2026-09-03", proveedor: "Frigorífico\r\nSur", doc: "—", numero: "Compra 1", total: 500 }],
+    condicion: "responsable-inscripto",
+  });
+  const out = armarExportLibroIva(libro, { mes: "2026-09", negocio: "Magra" });
+  assert.doesNotMatch(out, /[^\r]\n/);
+  assert.match(out, /;Ana Gómez;1000,00\r\n/);
+  assert.match(out, /;Frigorífico Sur;/);
 });

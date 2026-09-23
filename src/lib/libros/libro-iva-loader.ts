@@ -36,6 +36,7 @@ import {
   type LibroIva,
   type VentaSinComprobanteRow,
   whereComprobantesDelMes,
+  whereComprobantesEmitidos,
 } from "./libro-iva";
 
 /** La base con la que se lee: una transacción del negocio (o el cliente del request). */
@@ -77,7 +78,7 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
     }),
     db.invoice.groupBy({
       by: ["tipoComprobante"],
-      where: { tenantId, status: "AUTHORIZED" },
+      where: whereComprobantesEmitidos(tenantId),
       _count: { _all: true },
     }),
     db.order.findMany({

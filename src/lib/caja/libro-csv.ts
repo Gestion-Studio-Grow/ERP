@@ -22,7 +22,20 @@ import {
 } from "@/lib/caja/libro-caja";
 
 const SEP = ";";
-const row = (...f: (string | number)[]) => f.map(csvField).join(SEP);
+
+// Un salto de línea DENTRO de un campo (un detalle pegado de un mensaje) salía como un \n
+// suelto entre comillas en un archivo que separa las filas con \r\n: para Excel es válido,
+// pero quien lo lee línea por línea ve una fila partida, y el paquete del Cierre del mes
+// parte este mismo texto en líneas (paquete-lectura.ts, `split(/\r?\n/)`): la fila llegaba
+// cortada en dos al archivo de la contadora. En el libro cada campo es UNA línea.
+// Se parte por el salto y se vuelve a unir con un espacio: un campo que EMPIEZA con un salto
+// no puede quedar empezando con un espacio delante de un "=" (la guarda de fórmulas mira el
+// primer carácter).
+const enUnaLinea = (v: string | number) =>
+  typeof v === "string" && /[\r\n]/.test(v)
+    ? v.split(/\r\n|\r|\n/).map((p) => p.trim()).filter(Boolean).join(" ")
+    : v;
+const row = (...f: (string | number)[]) => f.map((v) => csvField(enUnaLinea(v))).join(SEP);
 
 // Los importes van con COMA decimal y sin separador de miles: es lo que Excel es-AR
 // interpreta como número. Con punto quedarían como texto y no se podrían sumar —

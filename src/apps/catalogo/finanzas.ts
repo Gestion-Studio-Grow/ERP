@@ -144,7 +144,11 @@ export const APPS_FINANZAS = [
     capability: "reports:read",
     modulo: "reports",
     estado: "lista",
-    kpi: { id: "reportes", mide: "Ingresos cobrados en turnos en el período por defecto de Reportes (90 días), igual que la pantalla.", capability: "reports:read" },
+    kpi: {
+      id: "reportes",
+      mide: "Lo cobrado en el período por defecto de Reportes (90 días), igual que la pantalla: los turnos o, en un local de mostrador, las ventas.",
+      capability: "reports:read",
+    },
     palabras: ["informes", "estadisticas", "rentabilidad", "comisiones", "ingresos"],
     menuDeHoy: { etiqueta: "Reportes", orden: 180 },
   },
@@ -159,7 +163,10 @@ export const APPS_FINANZAS = [
     modulo: "cuentas-a-pagar",
     perfilMin: "enterprise",
     estado: "lista",
-    kpi: { id: "cuentas-a-pagar", mide: "Lo que vence en 7 días y los cheques a debitar.", capability: "reports:read" },
+    // Declarado SIN loader todavía (queda en SIN_LOADER_TODAVIA de loaders.test): el saldo de
+    // cada deuda es su total menos sus pagos, que viven en otra tabla sin relación. Son dos
+    // lecturas y la regla 8 pide una; ver el encabezado de kpis/finanzas.server.ts.
+    kpi: { id: "cuentas-a-pagar", mide: "Lo que vence en 7 días, los cheques a debitar y, en alerta, lo vencido.", capability: "reports:read" },
     menuDeHoy: { etiqueta: "Cuentas a pagar", orden: 250, moduloDeHoy: null },
   },
   {
@@ -174,7 +181,8 @@ export const APPS_FINANZAS = [
     modulo: "cuentas-a-cobrar",
     perfilMin: "lite",
     estado: "lista",
-    kpi: { id: "cuentas-a-cobrar", mide: "Lo que te deben y cuánto tiene más de 30 días.", capability: "reports:read" },
+    // Declarado SIN loader todavía, por lo mismo que Cuentas a pagar.
+    kpi: { id: "cuentas-a-cobrar", mide: "Lo que te deben y cuánto es fiado de hace más de 30 días.", capability: "reports:read" },
     menuDeHoy: { etiqueta: "Cuentas a cobrar", orden: 260, moduloDeHoy: null },
   },
   {
@@ -192,7 +200,112 @@ export const APPS_FINANZAS = [
       id: "libro-iva",
       mide: "IVA del mes a pagar, sólo de comprobantes con CAE (sólo si el negocio emite A o B).",
       capability: "reports:read",
+      // El número entero es plata, y el loader lo calcula sólo si le llega `monto`: sin esta
+      // parte declarada `partesDelKpi` le pasaba siempre false y el botón no mostraba nunca el
+      // IVA del mes (medido: `libroIva` devolvía null para la dueña).
+      monto: { mide: "El IVA del mes a pagar o a favor.", capability: "reports:read" },
     },
     menuDeHoy: { etiqueta: "Libros", orden: 270, moduloDeHoy: null },
+  },
+  // ── FINANZAS DE GESTIÓN (ola 3) ─────────────────────────────────────────────
+  //
+  // Apps nuevas: no estaban en la barra de hoy, así que no llevan `menuDeHoy` y CH (sin
+  // gate) no ve un cambio en su menú ni en su Inicio. Todas son plata del negocio: piden
+  // reports:read (sólo la dueña o el dueño) y su número también.
+  //
+  // Margen, Resultado y Flujo cuelgan de `reports`, que es núcleo del comerciante y de la
+  // pyme (nativos.ts): el tablero de plata viene con el negocio. Retenciones cuelga de
+  // `bancos`: sin extracto importado no hay de dónde leerlas (igual que Facturación
+  // automática).
+  //
+  // Comisiones cuelga de `reports` y del rubro servicios, NO de `commissions`: hoy las
+  // comisiones se ven y se liquidan dentro de Reportes (módulo `reports`), y sacarlas a una app
+  // propia no puede cambiar quién las ve. Además `commissions` no se puede asignar a un negocio
+  // sin blueprint (CH: el módulo es del rubro servicios y sin blueprint el rubro no se sabe;
+  // medido con `planFijarAsignacion`): colgada de él, CH la perdería el día que pase al Inicio
+  // por apps. La liquidación sigue pidiendo commissions:manage (el rol), como siempre.
+  {
+    id: "margen",
+    nombre: "Margen",
+    descripcion: "Cuánto te deja cada producto, con el costo de cada venta.",
+    icono: "reportes",
+    ruta: "/admin/reportes/margen",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: "reports",
+    estado: "lista",
+    kpi: {
+      id: "margen",
+      mide: "Productos con el precio de lista por debajo del costo vigente: pierden plata en cualquier condición fiscal.",
+      capability: "reports:read",
+    },
+    palabras: ["rentabilidad", "ganancia por producto", "costo", "vendo a perdida", "por debajo del costo", "cuanto deja"],
+  },
+  {
+    id: "resultado-del-mes",
+    nombre: "Resultado del mes",
+    descripcion: "Cuánto dejó el mes: ventas menos lo que costó lo vendido y los gastos.",
+    icono: "contabilidad",
+    ruta: "/admin/resultado",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: "reports",
+    estado: "lista",
+    // SIN número en el Inicio: "agosto dejó $X" cruza ventas, costo de lo vendido y gastos
+    // (seis tablas) y la regla 8 de la arquitectura pide UNA operación por número. Darle número
+    // es una excepción que decide plataforma, con la latencia contra Neon medida; el loader
+    // saldría de la misma lectura de la pantalla (reports/resultado-lectura.ts).
+    palabras: ["ganancia", "cuanto gane", "estado de resultados", "rentabilidad del mes", "gastos", "utilidad"],
+  },
+  {
+    id: "flujo-de-fondos",
+    nombre: "Flujo de fondos",
+    descripcion: "La plata de hoy, lo que entra y lo que sale, semana por semana.",
+    icono: "caja",
+    ruta: "/admin/flujo",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: "reports",
+    estado: "lista",
+    kpi: {
+      id: "flujo-de-fondos",
+      // La plata de hoy y no la de 30 días: la proyección cruza libro, fiado y deudas (cinco
+      // lecturas) y la regla 8 pide una operación por número. Es la primera tarjeta de la
+      // pantalla, con la misma consulta.
+      mide: "La plata de hoy según el libro de caja, de donde arranca la proyección; en alerta, si está en negativo.",
+      capability: "reports:read",
+    },
+    palabras: ["cash flow", "me alcanza", "cheques", "proyeccion", "vencimientos", "plata a futuro"],
+  },
+  {
+    id: "retenciones-y-percepciones",
+    nombre: "Retenciones y percepciones",
+    descripcion: "Los impuestos que el banco ya te descontó, para tomarlos a cuenta.",
+    icono: "bancos",
+    ruta: "/admin/retenciones",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: "bancos",
+    estado: "lista",
+    kpi: {
+      id: "retenciones-y-percepciones",
+      mide: "Retenciones y percepciones del mes descontadas por el banco (Ingresos Brutos, IVA, Ganancias); el impuesto al cheque, aparte.",
+      capability: "reports:read",
+    },
+    palabras: ["sircreb", "iibb", "ingresos brutos", "impuesto al cheque", "percepciones", "retenciones", "pagos a cuenta"],
+  },
+  {
+    id: "comisiones",
+    nombre: "Comisiones",
+    descripcion: "Lo que le toca a cada profesional y su liquidación.",
+    icono: "usuarios",
+    ruta: "/admin/comisiones",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: "reports",
+    rubro: "servicios",
+    estado: "lista",
+    kpi: { id: "comisiones", mide: "Lo que falta liquidar y a cuántos profesionales.", capability: "reports:read" },
+    palabras: ["liquidar", "liquidacion", "profesionales", "porcentaje", "pagar comision"],
   },
 ] as const satisfies readonly AppDescriptor[];

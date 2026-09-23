@@ -9,7 +9,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pagarDeudaInTx, transicionarChequeInTx } from "./payable-service";
+import { agregarChequeInTx, pagarDeudaInTx, transicionarChequeInTx } from "./payable-service";
+import { PagoRechazadoError } from "./resumen-cuentas";
 import { cobrarFiadoInTx } from "./receivable-service";
 import { AsientoRechazadoError } from "@/lib/settlement/collection-repo";
 import { CUENTA_CORRIENTE_ACTOR_PREFIX, MEDIO_OBLIGATORIO } from "@/lib/settlement/asiento-libro";
@@ -26,6 +27,8 @@ function txFalsa(opts: {
   cobrosPrevios?: number[];
   deuda?: { amount: number; status?: string; nombre?: string } | null;
   cheque?: { status: string; amount: number } | null;
+  /** Los cheques de la deuda (para la guarda del pago a mano y el tope de un cheque nuevo). */
+  cheques?: { status: string; amount: number }[];
   casPierde?: boolean;
 }) {
   const escrituras: Escritura[] = [];
@@ -42,8 +45,19 @@ function txFalsa(opts: {
     accountPayable: { findFirst: async () => deuda },
     accountReceivable: { findFirst: async () => deuda },
     payableCheque: {
-      findFirst: async () =>
-        opts.cheque ? { id: "ch-1", status: opts.cheque.status, amount: dec(opts.cheque.amount), payableId: "ap-1" } : null,
+      // El cheque es de la deuda "ap-1": si se lo pide desde otra cuenta, no aparece (como en la base).
+      findFirst: async (a: { where: { payableId?: string } }) =>
+        opts.cheque && (a.where.payableId === undefined || a.where.payableId === "ap-1")
+          ? { id: "ch-1", status: opts.cheque.status, amount: dec(opts.cheque.amount), payableId: "ap-1" }
+          : null,
+      findMany: async (a: { where: { status?: { in?: string[] } } }) =>
+        (opts.cheques ?? [])
+          .filter((c) => !a.where.status?.in || a.where.status.in.includes(c.status))
+          .map((c) => ({ amount: dec(c.amount), status: c.status })),
+      create: async (a: { data: Record<string, unknown> }) => {
+        escrituras.push({ modelo: "payableCheque", op: "create", data: a.data });
+        return { id: "ch-nuevo" };
+      },
       updateMany: async (a: { data: Record<string, unknown> }) => {
         escrituras.push({ modelo: "payableCheque", op: "updateMany", data: a.data });
         return { count: opts.casPierde ? 0 : 1 };
@@ -198,4 +212,126 @@ test("cobro de fiado: INGRESO con el nombre del cliente; a una deuda anulada no 
   const anulada = txFalsa({ deuda: { amount: 1000, status: "VOID" } });
   await assert.rejects(cobrarFiadoInTx(anulada.tx, "t-1", "ar-1", pago(300), AHORA), /anulada/);
   assert.deepEqual(plata(anulada.escrituras), []);
+});
+
+test("criterio de la ola 3: pagar $100.000 de una deuda de $300.000 en efectivo deja $200.000, el egreso en el libro y el cierre cuadra; con el día cerrado, rechazo", async () => {
+  const { tx, escrituras } = txFalsa({ deuda: { amount: 300000 }, cerradoHasta: "2026-09-22" });
+  const res = await pagarDeudaInTx(tx, "t-1", "ap-1", pago(100000), AHORA);
+  assert.equal(res.settlement.balance, 200000);
+  assert.equal(res.settlement.status, "PARTIAL");
+  const mov = escrituras.find((e) => e.modelo === "cashMovement")!.data;
+  assert.deepEqual([mov.type, mov.method, mov.amount], ["EGRESO", "EFECTIVO", 100000]);
+
+  // El día: $250.000 de ventas en efectivo, $100.000 al proveedor, en el cajón hay $150.000.
+  const cierre = buildCierreDiario({
+    day: "2026-09-23",
+    previous: [],
+    movements: [
+      { id: "v", occurredAt: AHORA, type: "INGRESO", method: "EFECTIVO", amount: 250000, detail: "Ventas" },
+      {
+        id: "mov-1",
+        occurredAt: AHORA,
+        type: "EGRESO",
+        method: "EFECTIVO",
+        amount: 100000,
+        detail: mov.reason as string,
+        collectionId: "cob-1",
+        collectionOrigin: "PAYABLE",
+      },
+    ],
+    declared: { EFECTIVO: 150000, MP: null, TARJETA: null },
+  });
+  assert.equal(cierre.estado, "CUADRA");
+
+  const cerrado = txFalsa({ deuda: { amount: 300000 }, cerradoHasta: "2026-09-23" });
+  await assert.rejects(pagarDeudaInTx(cerrado.tx, "t-1", "ap-1", pago(100000), AHORA), (e: Error) => {
+    assert.ok(e instanceof AsientoRechazadoError);
+    assert.match(e.message, /ya está cerrada/);
+    return true;
+  });
+  assert.deepEqual(plata(cerrado.escrituras), [], "rechazado: ni pago ni asiento");
+});
+
+test("pago a mano sobre una deuda que ya cubren cheques sin debitar: rechazo y nada escrito; lo que no cubren, sí", async () => {
+  // Deuda de $100.000 con un cheque de $100.000 entregado: el banco lo va a debitar entero.
+  const cubierta = txFalsa({ deuda: { amount: 100000 }, cheques: [{ status: "DELIVERED", amount: 100000 }] });
+  await assert.rejects(pagarDeudaInTx(cubierta.tx, "t-1", "ap-1", pago(40000), AHORA), (e: Error) => {
+    assert.ok(e instanceof PagoRechazadoError);
+    assert.match(e.message, /ya está cubierta por cheques/);
+    return true;
+  });
+  assert.deepEqual(plata(cubierta.escrituras), [], "ni pago ni asiento");
+
+  // $300.000 con $200.000 en cheques (uno en la chequera, uno entregado) y uno rebotado que ya
+  // no cuenta: a mano se pueden pagar hasta $100.000.
+  const cheques = [
+    { status: "PENDING", amount: 50000 },
+    { status: "DELIVERED", amount: 150000 },
+    { status: "BOUNCED", amount: 999999 },
+  ];
+  const deMas = txFalsa({ deuda: { amount: 300000 }, cheques });
+  await assert.rejects(pagarDeudaInTx(deMas.tx, "t-1", "ap-1", pago(100000.5), AHORA), /hasta \$100\.000,00/);
+  assert.deepEqual(plata(deMas.escrituras), []);
+  const justo = txFalsa({ deuda: { amount: 300000 }, cheques });
+  const res = await pagarDeudaInTx(justo.tx, "t-1", "ap-1", pago(100000), AHORA);
+  assert.equal(res.settlement.balance, 200000);
+});
+
+test("con el flag apagado: el pago y el cobro se registran sin libro, y a una cuenta anulada no se le registra nada", async () => {
+  const pagoSinLibro = txFalsa({ deuda: { amount: 1000 } });
+  const r = await pagarDeudaInTx(pagoSinLibro.tx, "t-1", "ap-1", pago(400), AHORA, false);
+  assert.equal(r.settlement.balance, 600);
+  assert.deepEqual(pagoSinLibro.escrituras.map((e) => `${e.modelo}.${e.op}`), ["collection.create"], "como antes: sin asiento");
+
+  const deudaAnulada = txFalsa({ deuda: { amount: 1000, status: "VOID" } });
+  await assert.rejects(pagarDeudaInTx(deudaAnulada.tx, "t-1", "ap-1", pago(400), AHORA, false), /anulada/);
+  assert.deepEqual(plata(deudaAnulada.escrituras), []);
+
+  const cobroSinLibro = txFalsa({});
+  await cobrarFiadoInTx(cobroSinLibro.tx, "t-1", "ar-1", pago(300), AHORA, false);
+  assert.deepEqual(cobroSinLibro.escrituras.map((e) => `${e.modelo}.${e.op}`), ["collection.create"]);
+
+  const fiadoAnulado = txFalsa({ deuda: { amount: 1000, status: "VOID" } });
+  await assert.rejects(cobrarFiadoInTx(fiadoAnulado.tx, "t-1", "ar-1", pago(300), AHORA, false), /anulada/);
+  assert.deepEqual(plata(fiadoAnulado.escrituras), [], "la URL de una cuenta anulada no acepta cobros");
+});
+
+test("un cheque se cambia sólo desde SU cuenta: con el id de otra deuda no aparece y no se escribe nada", async () => {
+  const ajena = txFalsa({ cheque: { status: "DELIVERED", amount: 700 } });
+  await assert.rejects(
+    transicionarChequeInTx(ajena.tx, "t-1", "ch-1", "CLEARED", "user:u-1", { asentarEnLibro: true, ahora: AHORA, payableId: "ap-otra" }),
+    /no encontrado/,
+  );
+  assert.deepEqual(ajena.escrituras, []);
+  const propia = txFalsa({ cheque: { status: "DELIVERED", amount: 700 } });
+  await transicionarChequeInTx(propia.tx, "t-1", "ch-1", "BOUNCED", "user:u-1", { asentarEnLibro: true, ahora: AHORA, payableId: "ap-1" });
+  assert.deepEqual(propia.escrituras.map((e) => `${e.modelo}.${e.op}`), ["payableCheque.updateMany"]);
+});
+
+test("alta de un cheque: el tope se mira en la misma transacción y 'ya entregado' es una sola escritura", async () => {
+  const input = { chequeNumber: " 123 ", bank: "Nación", amount: 150000, dueDate: new Date("2026-09-28T15:00:00.000Z") };
+  // $300.000, con $100.000 pagados: faltan $200.000.
+  const ok = txFalsa({ deuda: { amount: 300000 }, cobrosPrevios: [100000] });
+  const r = await agregarChequeInTx(ok.tx, "t-1", "ap-1", { ...input, entregado: true });
+  assert.deepEqual(r, { id: "ch-nuevo", monto: 150000 });
+  assert.deepEqual(ok.escrituras.map((e) => `${e.modelo}.${e.op}`), ["payableCheque.create"], "sin un segundo paso que pueda fallar");
+  assert.equal(ok.escrituras[0].data.status, "DELIVERED");
+  assert.equal(ok.escrituras[0].data.chequeNumber, "123");
+
+  const chequera = txFalsa({ deuda: { amount: 300000 } });
+  await agregarChequeInTx(chequera.tx, "t-1", "ap-1", { ...input, entregado: false });
+  assert.equal(chequera.escrituras[0].data.status, "PENDING");
+
+  // Otro cheque sin debitar ya cubre $100.000 de los $200.000 que faltan: éste puede ser de $100.000 como máximo.
+  const tope = txFalsa({ deuda: { amount: 300000 }, cobrosPrevios: [100000], cheques: [{ status: "DELIVERED", amount: 100000 }] });
+  await assert.rejects(agregarChequeInTx(tope.tx, "t-1", "ap-1", { ...input, entregado: true }), (e: Error) => {
+    assert.ok(e instanceof PagoRechazadoError);
+    assert.match(e.message, /como máximo, \$100\.000,00/);
+    return true;
+  });
+  assert.deepEqual(tope.escrituras, []);
+
+  const anulada = txFalsa({ deuda: { amount: 300000, status: "VOID" } });
+  await assert.rejects(agregarChequeInTx(anulada.tx, "t-1", "ap-1", { ...input, entregado: false }), /anulada/);
+  assert.deepEqual(anulada.escrituras, []);
 });
