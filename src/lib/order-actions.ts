@@ -15,9 +15,41 @@ import { requireCapability } from "@/lib/authz";
 import { alcanceDeAnulacion } from "@/lib/capabilities";
 import { retailWordingForSlug } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
-import { insertOrder, type OrderPaymentMethod } from "@/lib/order-core";
-import { recordCashSaleMovementInTx } from "@/lib/caja/cash-sale";
+import {
+  insertOrder,
+  cobrarPedidoEnTx,
+  anularVentaConSuCuentaEnTx,
+  pedidoConClave,
+  tomarPedidoOnlineGuarded,
+  AnulacionDeCuentaRechazada,
+  CobroDePedidoAnulado,
+  type CobroDePedido,
+  type OrderPaymentMethod,
+} from "@/lib/order-core";
 import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
+import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { facturarOrden } from "@/lib/invoice-from-order";
+import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
+import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
+import { logger } from "@/lib/logger";
+import { normalizarCodigoDeCupon, topeDePrecioAMano } from "@/lib/venta-reglas";
+import {
+  disponibilidadDe,
+  mensajeWhatsAppDelPedido,
+  problemasDeLaBolsa,
+  MENSAJE_BOLSA_CON_PROBLEMAS,
+  MENSAJE_NO_SE_PUDO,
+  type EstadoPedidoOnline,
+} from "@/app/tienda/reglas-tienda";
+import {
+  estadoDeFactura,
+  faltanteFiscalEnPalabras,
+  puedeFacturarVenta,
+  SIN_FACTURA,
+  type FacturaDeVenta,
+  type PerfilParaFacturar,
+} from "@/app/admin/(dashboard)/ventas/factura";
 import { permiteVenderSinStock, productosQuePuedenQuedarNegativos } from "@/lib/stock/pos-stock-rules";
 import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
@@ -30,7 +62,6 @@ import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { round2 } from "@/lib/round";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
 import {
-  anularVentaInTx,
   AnulacionVentaRechazada,
   reglasDeAnulacion,
   fronteraDeVenta,
@@ -87,7 +118,7 @@ export async function getPosData() {
       where: wherePedidosCerrados(tenantId),
       orderBy: { createdAt: "desc" },
       take: CERRADOS_EN_BANDEJA,
-      select: { id: true, code: true, status: true, customerName: true, total: true, createdAt: true, paid: true },
+      select: { id: true, code: true, status: true, customerName: true, total: true, createdAt: true, paid: true, paymentMethod: true },
     }),
     // Solo productos vendibles: activos, no borrados, con algún precio cargado.
     prisma.product.findMany({
@@ -173,7 +204,33 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   const fulfillment =
     String(formData.get("fulfillment") || "PICKUP") === "DELIVERY" ? "DELIVERY" : "PICKUP";
   const scheduledRaw = String(formData.get("scheduledFor") || "").trim();
-  const paid = String(formData.get("paid")) === "on" || String(formData.get("paid")) === "true";
+  // «A CUENTA» (Vender): la venta queda en la cuenta corriente del cliente. No es un medio de
+  // cobro —no entra plata—, así que no pasa por `medioDeCobroRequerido` ni por la frontera del
+  // día cerrado: no escribe el libro. Va detrás del flag de cuentas corrientes (las deudas
+  // tienen que poder cobrarse con asiento) y de la app Cuentas a cobrar (módulo y rol): una app
+  // escondida no es una app protegida.
+  const aCuenta = String(formData.get("aCuenta") || "") === "1";
+  if (aCuenta) {
+    if (!cuentasCorrientesEnabled()) {
+      return {
+        ok: false,
+        error: "Las cuentas corrientes todavía no están encendidas en este negocio: cobrá la venta con un medio o dejala sin cobrar.",
+      };
+    }
+    try {
+      await requireAppAccion("cuentas-a-cobrar");
+    } catch (e) {
+      if (e instanceof AppNoDisponibleError) return { ok: false, error: e.message };
+      throw e;
+    }
+    if (channel !== "COUNTER") {
+      return { ok: false, error: "«A cuenta» es para la venta de mostrador. Un pedido se deja sin cobrar y se cobra al entregarlo." };
+    }
+  }
+  const paid = !aCuenta && (String(formData.get("paid")) === "on" || String(formData.get("paid")) === "true");
+  // Cupón: el código tal cual lo escribió el cajero. Se valida y se consume en la transacción del
+  // alta (order-core.ts). No se suma a un descuento a mano: es uno o el otro.
+  const cupon = normalizarCodigoDeCupon(formData.get("cupon")) || null;
 
   // CON QUÉ SE COBRÓ (MAG-1). Una venta cobrada sin medio ya no se graba como "no cobrada" en
   // silencio ni cae en EFECTIVO por default: se rechaza y la pantalla dice que falta elegirlo.
@@ -271,6 +328,10 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         descuento: descuentoPedido.pedido
           ? { pedido: descuentoPedido.pedido, topePct: topeDeDescuento(user.role) }
           : null,
+        cupon,
+        aCuenta: aCuenta ? { createdBy: `user:${user.id}` } : null,
+        // El tope del precio a mano sale del ROL de la sesión, igual que el del descuento.
+        topePrecioAMano: topeDePrecioAMano(user.role),
       },
     );
   } catch (err) {
@@ -305,9 +366,12 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // de corregir una venta, sin ganar nada a cambio. El problema que se está resolviendo es de
   // volumen, y el volumen es del rubro de mostrador. El día que la bandeja sepa mostrar las
   // acciones de un pedido cerrado, esta distinción sobra.
+  //
+  // La venta A CUENTA de mostrador también terminó: la mercadería se fue y la deuda ya está en
+  // la cuenta corriente del cliente, no en la bandeja.
   const { isRetail } = await getTenantIdentity();
   const naceEntregada =
-    isRetail && channel === "COUNTER" && fulfillment === "PICKUP" && paid && paymentMethod != null;
+    isRetail && channel === "COUNTER" && fulfillment === "PICKUP" && ((paid && paymentMethod != null) || aCuenta);
   if (naceEntregada) {
     await prisma.order.updateMany({
       where: { id: result.id, tenantId, status: "CONFIRMED" },
@@ -344,12 +408,20 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         : {}),
       ...(aMano.lineas.length > 0 ? { preciosAMano: aMano.lineas, por: user.name } : {}),
       ...(result.clientId ? { clientId: result.clientId } : {}),
+      // El cupón queda con su monto y quién lo cargó: es lo que suma Promociones.
+      ...(result.cupon ? { cupon: { codigo: result.cupon, monto: descuento, por: user.name } } : {}),
+      ...(aCuenta ? { aCuenta: true, por: user.name } : {}),
     },
   });
 
   revalidarMostrador();
-  if (String(formData.get("conTicket") || "") !== "1") return { ok: true };
-  return { ok: true, venta: (await ventaParaTicket(tenantId, result.id)) ?? undefined };
+  const mensaje = aCuenta ? `Venta #${result.code} a cuenta: queda en la cuenta corriente del cliente.` : undefined;
+  if (String(formData.get("conTicket") || "") !== "1") return { ok: true, ...(mensaje ? { mensaje } : {}) };
+  return {
+    ok: true,
+    ...(mensaje ? { mensaje } : {}),
+    venta: (await ventaParaTicket(tenantId, result.id)) ?? undefined,
+  };
 }
 
 /**
@@ -367,6 +439,7 @@ async function ventaParaTicket(tenantId: string, id: string): Promise<VentaTicke
       discount: true,
       total: true,
       paymentMethod: true,
+      paid: true,
       customerName: true,
       customerPhone: true,
       status: true,
@@ -385,34 +458,79 @@ async function ventaParaTicket(tenantId: string, id: string): Promise<VentaTicke
 // vidriera: siempre ONLINE, siempre PENDING y SIN cobrar (el mostrador confirma y
 // cobra al preparar). Escribe con el tenant actual (fail-closed ADR-015) y audita
 // como acción pública. Al terminar redirige a la página de gracias con el nº.
-export async function placeOnlineOrder(formData: FormData) {
+//
+// EL RECHAZO VUELVE CON SU MOTIVO Y LA BOLSA NO SE PIERDE. Antes tiraba: pedir más stock del
+// que había terminaba en la pantalla genérica de error (Next redacta el mensaje de lo lanzado)
+// y el cliente perdía la bolsa entera. Ahora devuelve el estado (`EstadoPedidoOnline`): el
+// motivo general y, si es de un producto, el aviso de ESA línea, sin decir cuánto stock hay.
+//
+// Además, lo que antes la vidriera mostraba y no registraba:
+//   · el ENVÍO lo calcula el servidor con la tarifa de la marca y entra como línea del pedido;
+//   · el CUPÓN se valida y se consume en la transacción del alta;
+//   · «Pedir por WhatsApp» (`via=whatsapp`) REGISTRA el pedido y recién después devuelve el
+//     link del chat, con el número de pedido: el local lo encuentra en la bandeja.
+export async function placeOnlineOrder(
+  _prev: EstadoPedidoOnline,
+  formData: FormData,
+): Promise<EstadoPedidoOnline> {
   const tenantId = await getCurrentTenantId();
 
   const fulfillment =
     String(formData.get("fulfillment") || "PICKUP") === "DELIVERY" ? "DELIVERY" : "PICKUP";
-  const customerName = String(formData.get("customerName") || "").trim();
-  const customerPhone = String(formData.get("customerPhone") || "").trim();
+  const customerName = String(formData.get("customerName") || "").trim().slice(0, 120);
+  const customerPhone = String(formData.get("customerPhone") || "").trim().slice(0, 40);
   if (!customerName || !customerPhone) {
-    throw new Error("Necesitamos tu nombre y un teléfono de contacto para tomar el pedido.");
+    return { ok: false, error: "Necesitamos tu nombre y un teléfono de contacto para tomar el pedido.", campo: "datos" };
   }
+  const address = String(formData.get("address") || "").trim().slice(0, 300) || null;
+  if (fulfillment === "DELIVERY" && !address) {
+    return { ok: false, error: "Para el envío a domicilio necesitamos la dirección.", campo: "datos" };
+  }
+  const porWhatsApp = String(formData.get("via") || "") === "whatsapp";
 
   // A-1: clave de idempotencia del carrito (la genera el cliente por pedido). Con el doble
   // submit del mobile —el camino infeliz #1— los dos envíos traen la MISMA clave → `insertOrder`
   // devuelve el mismo pedido en vez de crear otro y volver a descontar stock.
   const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
 
-  const result = await insertOrder(tenantId, {
-    channel: "ONLINE",
-    fulfillment,
-    customerName,
-    customerPhone,
-    address: String(formData.get("address") || "").trim() || null,
-    notes: String(formData.get("notes") || "").trim() || null,
-    scheduledFor: null,
-    paid: false,
-    paymentMethod: null,
-    items: parseItems(formData),
-  }, { idempotencyKey });
+  const items = parseItems(formData).filter((l) => l.productId && l.qty > 0);
+  if (items.length === 0) {
+    return { ok: false, error: "Tu pedido está vacío: sumá algún producto con el botón +." };
+  }
+
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true, name: true } });
+  // La tarifa de envío es de la MARCA (storefront.ts): la misma que la vidriera usa para mostrar.
+  const envio = getStorefrontCopy(tenant?.slug)?.shipping ?? null;
+  const cupon = normalizarCodigoDeCupon(formData.get("cupon")) || null;
+
+  // El orden de las guardas (clave anti-duplicado, bolsa, alta) vive en
+  // `tomarPedidoOnlineGuarded`, con su porqué y su test.
+  const toma = await tomarPedidoOnlineGuarded({
+    idempotencyKey,
+    buscarPorClave: (key) => pedidoConClave(tenantId, key),
+    revisarBolsa: () => problemasDeLaBolsaEnBase(tenantId, items),
+    insertar: () =>
+      insertOrder(tenantId, {
+        channel: "ONLINE",
+        fulfillment,
+        customerName,
+        customerPhone,
+        address,
+        notes: String(formData.get("notes") || "").trim().slice(0, 500) || null,
+        scheduledFor: null,
+        paid: false,
+        paymentMethod: null,
+        items,
+      }, { idempotencyKey, envio, cupon }),
+  });
+  if (toma.tipo === "cupon") return { ok: false, error: toma.error, campo: "cupon" };
+  if (toma.tipo === "bolsa") return { ok: false, error: MENSAJE_BOLSA_CON_PROBLEMAS, porLinea: toma.porLinea };
+  if (toma.tipo === "rechazo") return { ok: false, error: toma.error };
+  if (toma.tipo === "error") {
+    logger.error("tienda", "no se pudo tomar el pedido online", toma.err, { tenantId });
+    return { ok: false, error: MENSAJE_NO_SE_PUDO };
+  }
+  const result = toma.pedido;
 
   // Solo se audita el ALTA real: si `dedup` es true, el pedido ya existía (reintento) y ya se
   // auditó en el primer envío → no se duplica el rastro.
@@ -422,12 +540,80 @@ export async function placeOnlineOrder(formData: FormData) {
       entity: "Order",
       entityId: result.id,
       clientPhone: customerPhone,
-      changes: { code: result.code, channel: "ONLINE", fulfillment, total: result.subtotal },
+      changes: {
+        code: result.code,
+        channel: "ONLINE",
+        fulfillment,
+        total: result.total ?? result.subtotal,
+        ...(result.envio ? { envio: result.envio } : {}),
+        ...(result.cupon ? { cupon: { codigo: result.cupon, monto: result.descuento ?? 0 } } : {}),
+        ...(porWhatsApp ? { via: "whatsapp" } : {}),
+      },
     });
     // El backoffice ve el pedido nuevo en su bandeja al revalidar.
     revalidarMostrador();
   }
-  redirect(`/tienda/gracias?pedido=${result.code}`);
+  if (!porWhatsApp) redirect(`/tienda/gracias?pedido=${result.code}`);
+  // El pedido YA está registrado: si armar el link del chat falla, no se dice "no pudimos tomar
+  // el pedido" (sería mentira y el cliente lo repetiría): se contesta sin chat.
+  const whatsapp = await chatDelPedido(tenantId, result.id, tenant?.name ?? "el local").catch((err) => {
+    logger.warn("tienda", "pedido registrado sin link de WhatsApp", {
+      tenantId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  });
+  return { ok: true, code: result.code, total: result.total ?? result.subtotal, whatsapp };
+}
+
+/** La bolsa contra la base: qué línea no se puede pedir y por qué (`problemasDeLaBolsa`). */
+async function problemasDeLaBolsaEnBase(
+  tenantId: string,
+  items: readonly { productId: string; qty: number }[],
+): Promise<Record<string, string>> {
+  const productos = await prisma.product.findMany({
+    where: { tenantId, id: { in: items.map((l) => l.productId) } },
+    select: { id: true, trackStock: true, stock: true, active: true, deletedAt: true, saleUnit: true, price: true, pricePerKg: true },
+  });
+  return problemasDeLaBolsa(productos, items);
+}
+
+/**
+ * El link de WhatsApp del pedido recién registrado, con su número y lo que quedó GRABADO. Al
+ * número del local (Datos del negocio): si el local no lo cargó, no hay chat que abrir y la
+ * vidriera dice que el pedido quedó registrado igual.
+ */
+async function chatDelPedido(tenantId: string, orderId: string, negocio: string): Promise<string | null> {
+  const [o, bs] = await Promise.all([
+    prisma.order.findFirst({
+      where: { id: orderId, tenantId },
+      select: {
+        code: true,
+        total: true,
+        discount: true,
+        fulfillment: true,
+        address: true,
+        customerName: true,
+        items: { select: { productId: true, name: true, saleUnit: true, quantity: true, lineTotal: true }, orderBy: { id: "asc" } },
+      },
+    }),
+    prisma.businessSettings.findUnique({ where: { tenantId }, select: { whatsapp: true } }).catch(() => null),
+  ]);
+  const numero = sanitizePhone(bs?.whatsapp);
+  if (!o || !numero) return null;
+  return buildWhatsAppHref(
+    numero,
+    mensajeWhatsAppDelPedido({
+      negocio,
+      code: o.code,
+      cliente: o.customerName,
+      lineas: o.items,
+      descuento: o.discount,
+      total: o.total,
+      fulfillment: o.fulfillment,
+      address: o.address,
+    }),
+  );
 }
 
 // --- Avanzar estado del pedido ---
@@ -474,14 +660,9 @@ export async function advanceOrderStatus(formData: FormData) {
 // --- Marcar cobrado ---
 
 // Cobrar un pedido que otra pestaña ya anuló metía en la caja la plata de una venta que el
-// sistema da por inexistente: la bandeja vieja todavía mostraba el botón. Se lanza ADENTRO de
-// la transacción para que el `paid` que ya se escribió vuelva atrás con todo lo demás.
-class CobroDePedidoAnulado extends Error {
-  constructor(code: number) {
-    super(`El pedido #${code} está anulado: no se cobra.`);
-    this.name = "CobroDePedidoAnulado";
-  }
-}
+// sistema da por inexistente: la bandeja vieja todavía mostraba el botón. `CobroDePedidoAnulado`
+// (order-core.ts) se lanza ADENTRO de la transacción para que el `paid` que ya se escribió
+// vuelva atrás con todo lo demás.
 
 async function setOrderPaidCore(
   id: string,
@@ -500,7 +681,7 @@ async function setOrderPaidCore(
   const method: PaymentMethod = medio.paymentMethod!;
 
   // MISMA FRONTERA QUE EL ALTA, y por la misma razón. Este camino también escribe una fila en
-  // el libro (`recordCashSaleMovementInTx`, abajo) y tampoco la miraba: cobrar un pedido
+  // el libro (`cobrarPedidoEnTx`, abajo) y tampoco la miraba: cobrar un pedido
   // pendiente después de haber cerrado la caja metía plata en un día ya arqueado y firmado.
   // Sin esta guarda, además, el mensaje que el POS le da a la persona cuando el día está
   // cerrado —"dejalo sin cobrar y cobralo mañana"— tendría una trampa: si lo cobraba desde la
@@ -519,50 +700,14 @@ async function setOrderPaidCore(
   // de caja falla por un error de DB, el "cobrado" también se revierte. El asiento es
   // idempotente por orderId; sin turno abierto se asienta igual, con sessionId null.
   //
-  // SÓLO SE COBRA LO QUE NO ESTABA COBRADO. Antes era `tx.order.update({ where: { id } })`,
-  // sin mirar `paid`: el segundo «Cobrar» desde otra pestaña, con otro medio elegido,
-  // reescribía `Order.paymentMethod` (EFECTIVO → MERCADOPAGO) mientras el asiento del libro se
-  // quedaba en EFECTIVO: el asiento VENTA es uno por pedido (el pre-check de
-  // `recordCashSaleMovementInTx` devuelve "already-recorded" y el @@unique(tenantId, orderId,
-  // type) cierra la carrera), así que la tx commiteaba el medio nuevo sin asiento nuevo. Pedido
-  // y libro quedaban diciendo cosas distintas (leído del código; no hay test contra base que lo
-  // reproduzca). Con `updateMany` y `paid: false` en el filtro, el segundo cobro no toca nada
-  // (count 0) y se le dice con qué medio había quedado.
-  type Cobro =
-    | { tipo: "cobrado"; order: { id: string; code: number; total: number } }
-    | { tipo: "ya-cobrado"; code: number; medioRegistrado: string | null }
-    | { tipo: "no-existe" };
-  let cobro: Cobro;
+  // SÓLO SE COBRA LO QUE NO ESTABA COBRADO (`cobrarPedidoEnTx`, order-core.ts, con el porqué):
+  // el segundo «Cobrar» desde otra pestaña, con otro medio elegido, no toca nada y se le dice
+  // con qué medio había quedado. El cuerpo de la transacción vive en order-core.ts porque el
+  // aviso de pago de Mercado Pago cobra EXACTAMENTE igual, sin sesión.
+  let cobro: CobroDePedido;
   try {
     cobro = await tenantTransaction(
-      async (tx): Promise<Cobro> => {
-        const res = await tx.order.updateMany({
-          where: { id, tenantId, paid: false },
-          data: { paid: true, paymentMethod: method },
-        });
-        const order = await tx.order.findFirst({
-          where: { id, tenantId },
-          select: { id: true, code: true, total: true, paymentMethod: true, status: true },
-        });
-        if (!order) return { tipo: "no-existe" };
-        // Se mira DESPUÉS del updateMany a propósito: si esta tx lo marcó cobrado, la fila ya
-        // quedó bloqueada, así que una anulación que llegue en paralelo espera a que termine y
-        // no hay ventana entre "leí que no estaba anulado" y "lo cobré". (La otra mitad de la
-        // carrera, anular mientras se cobra, la cierra la relectura de anularVentaInTx.)
-        if (order.status === "CANCELLED") throw new CobroDePedidoAnulado(order.code);
-        if (res.count === 0) {
-          return { tipo: "ya-cobrado", code: order.code, medioRegistrado: order.paymentMethod };
-        }
-        await recordCashSaleMovementInTx(tx, tenantId, {
-          orderId: order.id,
-          orderCode: order.code,
-          paid: true,
-          paymentMethod: method,
-          total: order.total,
-          actor: `user:${user.id}`,
-        });
-        return { tipo: "cobrado", order: { id: order.id, code: order.code, total: order.total } };
-      },
+      (tx) => cobrarPedidoEnTx(tx, tenantId, { orderId: id, method, actor: `user:${user.id}` }),
       { tenantId },
     );
   } catch (e) {
@@ -699,24 +844,38 @@ async function anularVentaCore(
   // igual que en el libro y en el cierre diario.
   const cerradoHasta = await lastClosedDay(tenantId);
 
+  // Con cuentas corrientes encendidas, una venta A CUENTA tiene su deuda: se anula en la MISMA
+  // transacción (`anularCuentaDeLaVentaEnTx`). Apagadas no se mira: no hay deudas nacidas de una
+  // venta y la tabla puede no estar en la base.
+  const conCuentas = cuentasCorrientesEnabled();
+
   let resultado;
+  let cuenta = { anulada: false, monto: 0 };
   try {
-    resultado = await tenantTransaction(
+    const r = await tenantTransaction(
       (tx) =>
-        anularVentaInTx(tx, tenantId, {
-          orderId,
-          motivo,
-          actor: `user:${user.id}`,
-          devuelveStock,
-          diaCerradoHasta: cerradoHasta,
-          esDiaCerrado: isFrozenDay,
-          diaDe: dateStrInBusinessTz,
-          soloDelDia: reglas.soloDelDia,
-        }),
+        anularVentaConSuCuentaEnTx(
+          tx,
+          tenantId,
+          {
+            orderId,
+            motivo,
+            actor: `user:${user.id}`,
+            devuelveStock,
+            diaCerradoHasta: cerradoHasta,
+            esDiaCerrado: isFrozenDay,
+            diaDe: dateStrInBusinessTz,
+            soloDelDia: reglas.soloDelDia,
+          },
+          { conCuentas },
+        ),
       { tenantId },
     );
+    resultado = r.venta;
+    cuenta = r.cuenta;
   } catch (err) {
     if (err instanceof AnulacionVentaRechazada) return { ok: false, error: err.message };
+    if (err instanceof AnulacionDeCuentaRechazada) return { ok: false, error: err.message };
     // Carrera real: dos anulaciones simultáneas: la 2ª choca el @@unique(tenantId, orderId,
     // type) al asentar el EGRESO. Ya está anulada, no hay nada que reparar.
     if (isUniqueViolation(err, "orderId")) {
@@ -748,6 +907,7 @@ async function anularVentaCore(
       montoRevertido: resultado.montoRevertido,
       reversaId: resultado.reversaId,
       stockDevuelto: resultado.stockDevuelto,
+      ...(cuenta.anulada ? { cuentaCorrienteAnulada: cuenta.monto } : {}),
     },
   });
   revalidarMostrador();
@@ -757,6 +917,9 @@ async function anularVentaCore(
   const partes: string[] = [`Venta #${resultado.code} anulada.`];
   if (resultado.montoRevertido > 0) {
     partes.push(`Se devolvieron ${fmtMoneyARS(resultado.montoRevertido)} en el libro de caja.`);
+  }
+  if (cuenta.anulada) {
+    partes.push(`Se sacaron ${fmtMoneyARS(cuenta.monto)} de la cuenta corriente del cliente.`);
   }
   if (resultado.stockDevuelto.length > 0) {
     partes.push(
@@ -881,6 +1044,97 @@ export async function registrarAvisoWhatsApp(orderId: string, tipo: "pedido-list
   });
 }
 
+// --- Facturar una venta (Vender y Ventas del día) ---
+//
+// Llama a `facturarOrden` SÓLO si la facturación electrónica está encendida y el perfil fiscal
+// está completo (`puedeFacturarVenta`, ventas/factura.ts). Si no, no emite nada y devuelve
+// «Sin factura» con el porqué: la fila lo muestra y ofrece reintentar. Emitir es derecho
+// comercial (módulo arca): pide la app Facturación además de la capability, porque una app
+// escondida no es una app protegida.
+
+export type EstadoFacturaVenta =
+  | null
+  | { ok: true; factura: FacturaDeVenta }
+  | { ok: false; error: string; factura: FacturaDeVenta };
+
+const SELECT_FACTURA = {
+  status: true,
+  numero: true,
+  puntoVenta: true,
+  tipoComprobante: true,
+  rechazoMotivo: true,
+} as const;
+
+export async function facturarVenta(_prev: EstadoFacturaVenta, formData: FormData): Promise<EstadoFacturaVenta> {
+  await requireCapability("billing:manage");
+  try {
+    await requireAppAccion("facturacion");
+  } catch (e) {
+    if (e instanceof AppNoDisponibleError) return { ok: false, error: e.message, factura: SIN_FACTURA };
+    throw e;
+  }
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) return { ok: false, error: "Falta identificar la venta a facturar.", factura: SIN_FACTURA };
+
+  const o = await prisma.order.findFirst({
+    where: { id, tenantId },
+    select: { id: true, code: true, paid: true, status: true, total: true },
+  });
+  if (!o) return { ok: false, error: "No se encontró la venta.", factura: SIN_FACTURA };
+
+  // Con la facturación APAGADA no se toca la tabla de comprobantes: su migración se aplica junto
+  // con el flag (fiscal.ts), y leerla antes rompería la pantalla en una base que no la tiene.
+  const encendida = isInvoicingEnabled();
+  let perfil: PerfilParaFacturar | null = null;
+  if (encendida) {
+    // Ya tiene comprobante: se dice cuál. Nunca se emite un segundo para la misma venta.
+    const previa = await prisma.invoice.findFirst({
+      where: { tenantId, orderId: o.id },
+      orderBy: { createdAt: "desc" },
+      select: SELECT_FACTURA,
+    });
+    if (previa) return { ok: true, factura: estadoDeFactura(previa) };
+    // El perfil fiscal se lee sólo con la facturación encendida: apagada, no hace falta.
+    try {
+      const p = await getFiscalProfile(tenantId);
+      perfil = { ok: true, condicionIva: p.condicionIva };
+    } catch (e) {
+      if (!(e instanceof PerfilFiscalIncompletoError)) throw e;
+      perfil = { ok: false, falta: faltanteFiscalEnPalabras(e.campo) };
+    }
+  }
+  const decision = puedeFacturarVenta({
+    facturacionEncendida: encendida,
+    perfil,
+    venta: { paid: o.paid, anulada: o.status === "CANCELLED", total: o.total },
+  });
+  if (!decision.ok) {
+    return { ok: false, error: decision.motivo, factura: { ...SIN_FACTURA, texto: `Sin factura: ${decision.motivo}` } };
+  }
+
+  let invoiceId: string | null = null;
+  try {
+    invoiceId = await facturarOrden(o.id, tenantId);
+  } catch (e) {
+    logger.error("ventas", "no se pudo facturar la venta", e, { tenantId, orderId: o.id });
+  }
+  if (!invoiceId) {
+    const motivo = "No se pudo emitir la factura ahora. La venta queda sin factura: reintentá en unos minutos.";
+    return { ok: false, error: motivo, factura: { ...SIN_FACTURA, texto: `Sin factura: ${motivo}` } };
+  }
+  const inv = await prisma.invoice.findFirst({ where: { id: invoiceId, tenantId }, select: SELECT_FACTURA });
+  const factura = estadoDeFactura(inv);
+  await auditAdmin({
+    action: "facturar",
+    entity: "Order",
+    entityId: o.id,
+    changes: { code: o.code, invoiceId, estado: factura.estado },
+  });
+  revalidarMostrador();
+  return { ok: true, factura };
+}
+
 // --- Loader público de la vidriera (sin auth) ---
 //
 // Lo consume la vidriera pública por tenant (`/tienda`). Devuelve el nombre del
@@ -913,7 +1167,17 @@ export async function getStorefront() {
         OR: [{ price: { not: null } }, { pricePerKg: { not: null } }],
       },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true },
+      select: {
+        id: true,
+        name: true,
+        saleUnit: true,
+        price: true,
+        pricePerKg: true,
+        unit: true,
+        stock: true,
+        lowStockAt: true,
+        trackStock: true,
+      },
     }),
   ]);
   // Wording GENÉRICO del rubro (blueprint retail) + copy PROPIO del tenant (voz firma),
@@ -926,6 +1190,12 @@ export async function getStorefront() {
     branding: settings ?? null,
     wording,
     copy,
-    products,
+    // El stock NO sale de acá: esto es público (lo lee cualquiera que abra /tienda) y cuántos
+    // kilos quedan le dice a cualquiera cuánto vende el local. Sale la etiqueta ya decidida:
+    // "Sin stock" o "Últimas unidades" (`disponibilidadDe`, tienda/reglas-tienda.ts).
+    products: products.map(({ stock, lowStockAt, trackStock, ...p }) => ({
+      ...p,
+      disponibilidad: disponibilidadDe({ stock, lowStockAt, trackStock }),
+    })),
   };
 }

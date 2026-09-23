@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { useFormStatus } from "react-dom";
-import { placeOnlineOrder } from "@/lib/order-actions";
 import { formatearCantidad } from "@/lib/pos-peso";
+import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
+import { etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
 import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantLayout, SectionKey, StorefrontPalette } from "@/lib/tenant-layout";
@@ -36,6 +36,8 @@ type Product = {
   price: number | null;
   pricePerKg: number | null;
   unit: string;
+  /** "Sin stock" / "Últimas unidades", ya decidido en el servidor (nunca el número). */
+  disponibilidad?: Disponibilidad;
 };
 
 type Branding = {
@@ -160,8 +162,11 @@ function StorefrontContent({
     });
   }
   function bump(p: Product, dir: 1 | -1) {
+    // Sin stock no se suma: el servidor lo rechazaría igual, y es mejor no dejar armarlo.
+    if (dir === 1 && p.disponibilidad === "sin-stock") return;
     const step = p.saleUnit === "WEIGHT" ? 0.25 : 1;
     const cur = cart[p.id] ?? 0;
+    pedido.olvidarAviso(p.id);
     setQty(p.id, Math.max(0, Math.round((cur + dir * step) * 100) / 100));
   }
 
@@ -178,17 +183,27 @@ function StorefrontContent({
 
   // Envío: si el tenant declara config (copy.shipping), la vidriera lo calcula y
   // muestra el desglose + el nudge de envío gratis. Sin config → 0 y sin línea.
+  // Es la MISMA tarifa y la misma regla con las que el servidor suma el envío como línea del
+  // pedido: lo que se ve acá es lo que llega a la bandeja.
   const shipCfg = copy?.shipping ?? null;
   const shipping = shippingCost(total, fulfillment, shipCfg);
-  const grandTotal = total + shipping;
+  const cupon = useCuponDePedido(total);
+  const grandTotal = total - cupon.descuento + shipping;
   const missingForFree = amountToFreeShipping(total, shipCfg);
   const freeShippingProgress = shipCfg ? Math.min(1, total / shipCfg.freeThreshold) : 0;
 
-  const cartMessage =
-    `¡Hola ${name}! Quiero hacer un pedido:\n` +
-    lines.map((l) => `• ${formatearCantidad(l.qty)} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
-    (shipCfg ? `\nEnvío (${fulfillment === "PICKUP" ? "retiro" : "a domicilio"}): ${shipping === 0 ? "gratis" : money2.format(shipping)}` : "") +
-    `\nTotal estimado: ${money2.format(grandTotal)}`;
+  // El pedido: el rechazo con su motivo (sin perder el carrito) y el de WhatsApp, que se
+  // registra ANTES de abrir el chat (pedido-online.tsx).
+  const hayWhatsApp = Boolean(branding?.whatsapp?.replace(/\D/g, ""));
+  const pedido = usePedidoOnline({
+    hayWhatsApp,
+    alRegistrar: () => {
+      setCart({});
+      setClaveDePedido(nuevaClaveDePedido());
+      cupon.limpiar();
+    },
+  });
+  const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
 
   // Copy: firma del tenant si existe; si no, cae al wording del rubro / branding.
   const eyebrow = copy?.eyebrow ?? branding?.shortLabel ?? name;
@@ -367,10 +382,15 @@ function StorefrontContent({
                             {money.format(unitPriceOf(p))}
                             <span style={{ color: T.faint, fontWeight: 500, fontSize: 13 }}>{isWeight ? " / kg" : " / unidad"}</span>
                           </div>
+                          {etiquetaDeDisponibilidad(p.disponibilidad ?? null) && (
+                            <span style={{ alignSelf: "flex-start", fontSize: 12, fontWeight: 700, borderRadius: 999, padding: "3px 10px", border: `1px solid ${p.disponibilidad === "sin-stock" ? T.line : "var(--accent)"}`, color: p.disponibilidad === "sin-stock" ? T.muted : "var(--accent)" }}>
+                              {etiquetaDeDisponibilidad(p.disponibilidad ?? null)}
+                            </span>
+                          )}
                           <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 8 }}>
                             <button type="button" onClick={() => bump(p, -1)} disabled={qty === 0} aria-label={`Quitar ${p.name}`} style={{ ...qtyBtn(T.line, T.ink), ...(qty === 0 ? { opacity: 0.4, cursor: "not-allowed" } : null) }}>−</button>
                             <span aria-live="polite" style={{ minWidth: 60, textAlign: "center", fontVariantNumeric: "tabular-nums", fontSize: 14 }}>{qty > 0 ? `${qty} ${isWeight ? "kg" : "u"}` : "—"}</span>
-                            <button type="button" onClick={() => bump(p, 1)} aria-label={`Agregar ${p.name}`} style={qtyBtn("var(--accent)", "var(--text-on-accent)")}>+</button>
+                            <button type="button" onClick={() => bump(p, 1)} disabled={p.disponibilidad === "sin-stock"} aria-label={`Agregar ${p.name}`} style={{ ...qtyBtn("var(--accent)", "var(--text-on-accent)"), ...(p.disponibilidad === "sin-stock" ? { opacity: 0.4, cursor: "not-allowed" } : null) }}>+</button>
                           </div>
                         </div>
                       );
@@ -446,19 +466,41 @@ function StorefrontContent({
         {/* ── Tu pedido (carrito + checkout) ── */}
         <section style={secStyle("cart", { background: T.surface, border: `1px solid ${T.line}`, borderRadius: 20, padding: 22 })}>
           <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 14, ...headingStyle }}>Tu pedido</h2>
+          {pedido.confirmado && (
+            <div role="status" style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 12, border: "1px solid var(--accent)", fontSize: 14, lineHeight: 1.5 }}>
+              Tu pedido <strong>#{pedido.confirmado.code}</strong> quedó registrado.{" "}
+              {pedido.confirmado.whatsapp ? "Seguimos por WhatsApp." : "Te vamos a escribir al WhatsApp que dejaste."}
+              {pedido.confirmado.whatsapp && (
+                <a href={pedido.confirmado.whatsapp} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", minHeight: 44, color: "var(--accent)", fontWeight: 700 }}>
+                  Abrir el chat del pedido #{pedido.confirmado.code}
+                </a>
+              )}
+            </div>
+          )}
           {!hasItems && <p style={{ color: T.muted }}>Elegí lo que quieras de la selección con los botones + / −, o encargá por WhatsApp.</p>}
           {hasItems && (
-            <form action={placeOnlineOrder} style={{ display: "grid", gap: 16 }}>
+            <form onSubmit={pedido.onSubmit} style={{ display: "grid", gap: 16 }}>
               <input type="hidden" name="idempotencyKey" value={claveDePedido} />
               <div style={{ display: "grid", gap: 6 }}>
                 {lines.map((l) => (
-                  <div key={l.p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                  <div key={l.p.id} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", fontSize: 14 }}>
                     <span>{formatearCantidad(l.qty)} {l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · {l.p.name}</span>
                     <span style={{ fontVariantNumeric: "tabular-nums" }}>{money2.format(l.total)}</span>
                     <input type="hidden" name="productId" value={l.p.id} />
                     <input type="hidden" name="quantity" value={l.qty} />
+                    {pedido.avisoDe(l.p.id) && (
+                      <p role="alert" style={{ flexBasis: "100%", margin: "4px 0 0", fontSize: 12.5, color: "var(--danger, #b42318)" }}>
+                        {pedido.avisoDe(l.p.id)}
+                      </p>
+                    )}
                   </div>
                 ))}
+                {cupon.descuento > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: T.muted }}>
+                    <span>Cupón {cupon.aplicado?.codigo}</span>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>−{money2.format(cupon.descuento)}</span>
+                  </div>
+                )}
                 {shipCfg && (
                   <>
                     <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${T.line}`, paddingTop: 10, fontSize: 14, color: T.muted }}>
@@ -506,9 +548,52 @@ function StorefrontContent({
                 </label>
                 {fulfillment === "DELIVERY" && (<label style={lbl}><span style={lblT}>Dirección *</span><input name="address" required style={inp} placeholder="Calle, número, barrio" /></label>)}
                 <label style={{ ...lbl, gridColumn: "1 / -1" }}><span style={lblT}>Nota</span><input name="notes" style={inp} placeholder={wording.notesPlaceholder} /></label>
+                <div style={{ ...lbl, gridColumn: "1 / -1" }}>
+                  <label htmlFor="sf-cupon" style={lblT}>Cupón (opcional)</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      id="sf-cupon"
+                      name="cupon"
+                      value={cupon.codigo}
+                      onChange={(e) => cupon.cambiar(e.target.value)}
+                      autoComplete="off"
+                      placeholder="Código"
+                      aria-invalid={errorDeCupon ? true : undefined}
+                      aria-describedby={errorDeCupon ? "sf-cupon-error" : undefined}
+                      style={{ ...inp, flex: 1, minWidth: 0, textTransform: "uppercase" }}
+                    />
+                    <button type="button" onClick={() => void cupon.aplicar()} disabled={cupon.probando} style={{ ...cta(T.surface, T.ink, `1px solid ${T.line}`), height: 44 }}>
+                      {cupon.probando ? "…" : "Aplicar"}
+                    </button>
+                  </div>
+                  {errorDeCupon && (
+                    <p id="sf-cupon-error" role="alert" style={{ margin: 0, fontSize: 12.5, color: "var(--danger, #b42318)" }}>
+                      {errorDeCupon}
+                    </p>
+                  )}
+                </div>
               </div>
-              <BotonEnviarPedido texto={wording.orderCta} />
-              <button type="button" onClick={() => requestWhatsApp(cartMessage)} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
+              {pedido.error && pedido.error.campo !== "cupon" && (
+                <p role="alert" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--danger, #b42318)", color: "var(--text-strong)", fontSize: 13.5, lineHeight: 1.45 }}>
+                  {pedido.error.texto}
+                </p>
+              )}
+              <button
+                type="submit"
+                name="via"
+                value="tienda"
+                disabled={pedido.enviando}
+                aria-busy={pedido.enviando || undefined}
+                style={{ ...cta("var(--accent)", "var(--text-on-accent)"), height: 48, ...(pedido.enviando ? { opacity: 0.7, cursor: "progress" } : null) }}
+              >
+                {pedido.enviando ? "Enviando…" : wording.orderCta}
+              </button>
+              {hayWhatsApp ? (
+                // Registra el pedido y DESPUÉS abre el chat con su número.
+                <button type="submit" name="via" value="whatsapp" disabled={pedido.enviando} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
+              ) : (
+                <button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer un pedido.`)} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
+              )}
               <p style={{ fontSize: 11, color: T.faint, textAlign: "center" }}>Te contactamos para confirmar. El pago se coordina al recibirlo.</p>
             </form>
           )}
@@ -713,22 +798,6 @@ function cta(bg: string, color: string, border?: string): CSSProperties {
 // display:inline-flex + minHeight 24 = área táctil AA (WCAG 2.5.8) sin cambiar el look
 // del CTA de texto ("Hacer pedido →" / "Lo quiero →"). Antes medían ~21px de alto.
 const linkCta: CSSProperties = { fontSize: 14, fontWeight: 700, textDecoration: "none", marginTop: 2, display: "inline-flex", alignItems: "center", minHeight: 24 };
-
-// Mientras el pedido viaja, el botón dice que está enviando y no acepta otro toque. La clave
-// anti-duplicado ya garantiza un solo pedido; esto le evita al cliente la duda de si tocó.
-function BotonEnviarPedido({ texto }: { texto: string }) {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      aria-busy={pending || undefined}
-      style={{ ...cta("var(--accent)", "var(--text-on-accent)"), height: 48, ...(pending ? { opacity: 0.7, cursor: "progress" } : null) }}
-    >
-      {pending ? "Enviando…" : texto}
-    </button>
-  );
-}
 
 function qtyBtn(bg: string, color: string): CSSProperties {
   return { height: 34, minWidth: 34, borderRadius: 10, border: "none", background: bg, color, fontWeight: 700, fontSize: 16, cursor: "pointer" };

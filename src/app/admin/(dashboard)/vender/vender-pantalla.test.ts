@@ -39,12 +39,33 @@ export async function createOrder(fd) {
       ],
       subtotal: 32125, descuento: 3212.5, total: 28912.5, medio: (o.paymentMethod || [null])[0],
       cliente: null, telefono: null, anulada: false,
+      ...(o.aCuenta ? { aCuenta: true } : {}),
     },
   };
 }
 export async function updateOrderItems(_prev, fd) { guardar(fd); return { ok: true, mensaje: "ajustado" }; }
 export async function buscarClienteParaVenta(tel) { return tel.includes("4000") ? { nombre: "María Pérez" } : null; }
 export async function registrarAvisoWhatsApp() {}
+export async function placeOnlineOrder() { return null; }
+// Con la facturación apagada: no se emite nada y la fila dice por qué (order-actions.ts).
+export async function facturarVenta(_prev, fd) {
+  guardar(fd);
+  const motivo = "La facturación electrónica no está encendida en este negocio: la venta queda sin factura. Reintentá cuando esté encendida.";
+  return { ok: false, error: motivo, factura: { estado: "sin-factura", texto: "Sin factura: " + motivo } };
+}
+`;
+// La vista previa del cupón (coupon-actions.ts), con la misma respuesta que da el servidor.
+const CUPONES_FALSOS = `
+export async function probarCuponEnPedido(codigo, base) {
+  window.__cupones = (window.__cupones || []).concat([{ codigo, base }]);
+  if (codigo.trim().toUpperCase() === "VERANO10") {
+    return { ok: true, codigo: "VERANO10", tipo: "PERCENT", valor: 10, descuento: Math.round(base * 10) / 100 };
+  }
+  if (codigo.trim().toUpperCase() === "AGOTADO") {
+    return { ok: false, error: "El cupón AGOTADO ya se usó todas las veces que permitía." };
+  }
+  return { ok: false, error: "Ese cupón no existe o no está activo. Revisá cómo está escrito." };
+}
 `;
 const NAVEGACION_FALSA = `export function useRouter() { return { refresh() { window.__refrescos = (window.__refrescos || 0) + 1; } }; }`;
 
@@ -66,13 +87,13 @@ const PEDIDOS = {
   ajustar: { subtotal: 6250, descuento: 0, quantity: 0.5 },
   "ajustar-10kg": { subtotal: 125000, descuento: 12500, quantity: 10 },
 };
-window.__montar = (cual, tope) =>
+window.__montar = (cual, tope, extra) =>
   createRoot(document.getElementById("root")).render(
     createElement(ToastProvider, null,
       cual === "sin-precios"
         ? createElement(VenderForm, { products: [], stockById: {}, rapidos: [], negocio: "MAGRA Canning", topeDescuentoPct: tope })
         : cual === "vender" || cual === "pedido"
-        ? createElement(VenderForm, { products: productos, stockById: stock, rapidos: ["p_vacio", "p_entrana"], negocio: "MAGRA Canning", topeDescuentoPct: tope, pedidoInicial: cual === "pedido" })
+        ? createElement(VenderForm, { products: productos, stockById: stock, rapidos: ["p_vacio", "p_entrana"], negocio: "MAGRA Canning", topeDescuentoPct: tope, pedidoInicial: cual === "pedido", ...(extra || {}) })
         : createElement(AjustarPedidoForm, { id: "ord_7", code: 7, subtotal: PEDIDOS[cual].subtotal, descuento: PEDIDOS[cual].descuento, items: [
             { productId: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", quantity: PEDIDOS[cual].quantity, unitPrice: 12500, lineTotal: PEDIDOS[cual].subtotal },
           ] }),
@@ -82,7 +103,12 @@ window.__montar = (cual, tope) =>
 
 type Envio = Record<string, string[]>;
 type Montaje = "vender" | "pedido" | "sin-precios" | "ajustar" | "ajustar-10kg";
-type Ventana = { __envios: Envio[]; __rechazo?: string; __montar: (cual: Montaje, tope: number | null) => void };
+type Ventana = {
+  __envios: Envio[];
+  __rechazo?: string;
+  __cupones?: { codigo: string; base: number }[];
+  __montar: (cual: Montaje, tope: number | null, extra?: Record<string, unknown>) => void;
+};
 
 function rutaDeChromium(porDefecto: () => string): string | null {
   try {
@@ -136,9 +162,10 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
           name: "falsos",
           setup(b) {
             b.onResolve({ filter: /^@\/lib\/order-actions$/ }, () => ({ path: "acciones", namespace: "falso" }));
+            b.onResolve({ filter: /^@\/lib\/coupon-actions$/ }, () => ({ path: "cupones", namespace: "falso" }));
             b.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navegacion", namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({
-              contents: a.path === "acciones" ? ACCIONES_FALSAS : NAVEGACION_FALSA,
+              contents: a.path === "acciones" ? ACCIONES_FALSAS : a.path === "cupones" ? CUPONES_FALSOS : NAVEGACION_FALSA,
               loader: "js",
               resolveDir: RAIZ,
             }));
@@ -154,16 +181,20 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await browser?.close();
   });
 
-  async function montar(cual: Montaje, tope: number | null = 10): Promise<{ page: Page; errores: string[] }> {
+  async function montar(
+    cual: Montaje,
+    tope: number | null = 10,
+    extra?: Record<string, unknown>,
+  ): Promise<{ page: Page; errores: string[] }> {
     const page = await browser!.newPage({ viewport: { width: 412, height: 915 }, locale: "es-AR" });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
     await page.setContent('<!doctype html><html lang="es"><body><div id="root"></div></body></html>');
     await page.addScriptTag({ content: bundle });
-    await page.evaluate(([c, t]) => (window as unknown as Ventana).__montar(c as Montaje, t as number | null), [
-      cual,
-      tope,
-    ] as const);
+    await page.evaluate(
+      ([c, t, x]) => (window as unknown as Ventana).__montar(c as Montaje, t as number | null, x as Record<string, unknown>),
+      [cual, tope, extra ?? {}] as const,
+    );
     return { page, errores };
   }
 
@@ -258,6 +289,90 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.close();
   });
 
+  test("cupón en el mostrador: sin «Aplicar» no se cobra; aplicado, viaja el código y no un descuento a mano", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Descuento", exact: true }).click();
+    await page.getByRole("radio", { name: "Cupón" }).click();
+    await page.fill("#descuento-valor", "agotado");
+    assert.equal(await page.getByRole("button", { name: "Aplicá el cupón" }).isDisabled(), true);
+    await page.getByRole("button", { name: "Aplicar" }).click();
+    await page.getByRole("alert").filter({ hasText: "ya se usó todas las veces" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Aplicá el cupón" }).isDisabled(), true);
+
+    // El cupón lo cargó la dueña: su 10 % no pasa por el tope de recepción, pero se ve igual.
+    await page.fill("#descuento-valor", "verano10");
+    await page.getByRole("button", { name: "Aplicar" }).click();
+    await page.getByText("Cupón VERANO10: −$1.550,00").waitFor();
+    const cobrar = page.getByRole("button", { name: "Cobrar $13.950,00" });
+    assert.ok(await cobrar.isEnabled());
+    await cobrar.click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length >= 1);
+    const envio = await page.evaluate(() => (window as unknown as Ventana).__envios[0]);
+    assert.deepEqual(envio.cupon, ["VERANO10"]);
+    assert.equal(envio.descuentoTipo, undefined, "un cupón y un descuento a mano no viajan juntos");
+    assert.equal(envio.descuentoValor, undefined);
+    const probados = await page.evaluate(() => (window as unknown as Ventana).__cupones ?? []);
+    assert.deepEqual(probados.at(-1), { codigo: "verano10", base: 15500 }, "se prueba sobre lo que se compra");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("a cuenta: sin la ficha del cliente no se deja; con la ficha viaja aCuenta=1 y ningún medio", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, { aCuentaDisponible: true });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "A cuenta" }).click();
+    await page.getByRole("alert").filter({ hasText: "buscá al cliente por su teléfono" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Buscá al cliente" }).isDisabled(), true);
+    await page.getByLabel(/Teléfono/).fill("11 4000-7919");
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.getByText("Queda en la cuenta corriente de María Pérez.", { exact: false }).waitFor();
+    const dejar = page.getByRole("button", { name: "Dejar a cuenta $12.500,00" });
+    assert.ok(await dejar.isEnabled());
+    await dejar.click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length >= 1);
+    const envio = await page.evaluate(() => (window as unknown as Ventana).__envios[0]);
+    assert.deepEqual(envio.aCuenta, ["1"]);
+    assert.equal(envio.paymentMethod, undefined, "a cuenta no es un medio de cobro");
+    await page.getByText("Venta #42 a cuenta").waitFor();
+    await page.getByText("Queda a cuenta").first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("sin cuentas corrientes, «A cuenta» no se ofrece", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    assert.equal(await page.getByRole("radio", { name: "A cuenta" }).count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("Facturar con la facturación apagada: la venta queda «Sin factura», con el porqué, y se ofrece reintentar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", null, { puedeFacturar: true });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Cobrar $12.500,00" }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    assert.equal(await page.getByText("Sin factura", { exact: true }).count(), 1);
+    await page.getByRole("button", { name: "Facturar" }).click();
+    await page.getByText("Sin factura: La facturación electrónica no está encendida", { exact: false }).waitFor();
+    await page.getByRole("button", { name: "Reintentar" }).waitFor();
+    const envio = await page.evaluate(() => (window as unknown as Ventana).__envios.at(-1));
+    assert.deepEqual(envio, { id: ["ord_42"] });
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("cliente por teléfono: la ficha se encuentra con el número escrito de otra forma", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("vender");
@@ -326,6 +441,29 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.deepEqual(errores, []);
     await page.close();
   });
+
+  test("precio a mano con recepción: un producto del catálogo no se esquiva a mano, y hay un máximo", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, { topePrecioAMano: { bajaPct: 10, maximo: 50000 } });
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Precio a mano" }).click();
+    await page.keyboard.type("vacio");
+    await page.getByPlaceholder("$ Importe").fill("100");
+    await page.getByPlaceholder(/^Motivo/).fill("le hice precio");
+    await page.getByRole("alert").filter({ hasText: "se vende por kilo" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: /^(Cobrar|Revisá)/ }).isDisabled(), true);
+
+    await page.getByPlaceholder(/^Qué se vende/).fill("Bolsa grande");
+    await page.getByPlaceholder("$ Importe").fill("60.000");
+    await page.getByRole("alert").filter({ hasText: /llega hasta \$\s?50\.000,00/ }).waitFor();
+    assert.equal(await page.getByRole("button", { name: /^(Cobrar|Revisá)/ }).isDisabled(), true);
+
+    await page.getByPlaceholder("$ Importe").fill("500");
+    assert.ok(await page.getByRole("button", { name: /^Cobrar \$\s?500,00$/ }).isEnabled());
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("sin ningún producto con precio, el formulario sigue: se cobra con precio a mano", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("sin-precios");

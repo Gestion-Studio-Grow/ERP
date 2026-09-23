@@ -9,9 +9,11 @@
 // Sólo mientras el pedido NO está cobrado (la regla y el porqué, en `planEdicionDeLineas`):
 // si ya se cobró, se anula y se rehace. El precio por kilo es el del pedido, no el de hoy, y
 // las líneas con precio a mano quedan como están (`lineasDelAjuste`). El stock se mueve por la
-// diferencia. El descuento conserva su PORCENTAJE (`descuentoDelAjuste`): si conservara los
-// pesos, una pesada a la baja lo subiría hasta el 100 % y pasaría el tope de recepción. La
-// cuenta que se ve acá es la misma función que usa el servidor, redondeada igual.
+// diferencia. El descuento a mano conserva su PORCENTAJE (`descuentoDelAjuste`): si conservara
+// los pesos, una pesada a la baja lo subiría hasta el 100 % y pasaría el tope de recepción. El
+// de un CUPÓN se recalcula con la regla del cupón (`cupon`, la que escribió el alta): el de
+// monto fijo sigue siendo el mismo monto. La cuenta que se ve acá es la misma función que usa
+// el servidor, con el mismo cupón, redondeada igual.
 //
 // Se invoca directo, como CobrarPedidoForm: al salir bien la bandeja se refresca y el
 // resultado —el total de antes y el de ahora— va al toast.
@@ -22,7 +24,13 @@ import { updateOrderItems } from "@/lib/order-actions";
 import { leerCantidad, cantidadParaFormulario, formatearCantidad, avisoDeCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { round2 } from "@/lib/round";
-import { descuentoDelAjuste } from "../vender/reglas-venta";
+import {
+  descuentoDelAjuste,
+  envioDeLasLineas,
+  esLineaDeEnvio,
+  textoDelDescuentoDelAjuste,
+  type CuponDelPedido,
+} from "../vender/reglas-venta";
 import { useToast } from "../ToastProvider";
 
 type Linea = {
@@ -45,6 +53,7 @@ export default function AjustarPedidoForm({
   items,
   subtotal: subtotalAntes,
   descuento,
+  cupon = null,
   etiqueta = "Pesar y ajustar",
 }: {
   id: string;
@@ -54,6 +63,8 @@ export default function AjustarPedidoForm({
   subtotal: number;
   /** Descuento guardado, en pesos. */
   descuento: number;
+  /** El cupón con el que se tomó el pedido (`leerCuponDelPedido`), o nada si no tuvo. */
+  cupon?: CuponDelPedido | null;
   etiqueta?: string;
 }) {
   const router = useRouter();
@@ -74,7 +85,15 @@ export default function AjustarPedidoForm({
   const subtotal = round2(
     leidas.reduce((s, l) => s + l.total, 0) + aMano.reduce((s, l) => s + l.lineTotal, 0),
   );
-  const desc = descuentoDelAjuste({ descuentoAntes: descuento, subtotalAntes, subtotalNuevo: subtotal });
+  // El envío (una línea sin producto que el ajuste no toca) no es base del descuento.
+  const desc = descuentoDelAjuste({
+    descuentoAntes: descuento,
+    subtotalAntes,
+    subtotalNuevo: subtotal,
+    envio: envioDeLasLineas(aMano),
+    cupon,
+  });
+  const textoDescuento = textoDelDescuentoDelAjuste(desc, cupon);
   const total = round2(subtotal - desc.descuento);
   const hayInvalida = leidas.some((l) => l.invalida);
   const sinLineas = !leidas.some((l) => l.qty > 0) && aMano.length === 0;
@@ -181,16 +200,11 @@ export default function AjustarPedidoForm({
       })}
       {aMano.map((l, i) => (
         <p key={`a-${i}`} className="text-xs text-muted">
-          {l.name} (precio a mano) · {fmtMoneyARS(l.lineTotal)} — queda igual
+          {l.name} ({esLineaDeEnvio(l) ? "envío" : "precio a mano"}) · {fmtMoneyARS(l.lineTotal)} — queda igual
         </p>
       ))}
       <p className="text-xs text-body">
-        {desc.descuento > 0 && (
-          <>
-            Descuento del {String(desc.porcentaje).replace(".", ",")} %, el de la venta: −
-            {fmtMoneyARS(desc.descuento)} ·{" "}
-          </>
-        )}
+        {textoDescuento && <>{textoDescuento} · </>}
         Total nuevo <strong className="tabular-nums text-strong">{fmtMoneyARS(total)}</strong>
       </p>
       {sinLineas && (

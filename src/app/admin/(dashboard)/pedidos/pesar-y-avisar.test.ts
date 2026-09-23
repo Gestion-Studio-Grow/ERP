@@ -27,7 +27,20 @@ import {
   type LineaGuardada,
   type ProductoDelAjuste,
 } from "@/lib/order-anulacion";
-import { aplicarDescuento, descuentoDelAjuste, TOPE_DESCUENTO_RECEPCION_PCT } from "@/app/admin/(dashboard)/vender/reglas-venta";
+import {
+  aplicarDescuento,
+  descuentoDelAjuste,
+  textoDelDescuentoDelAjuste,
+  TOPE_DESCUENTO_RECEPCION_PCT,
+} from "@/app/admin/(dashboard)/vender/reglas-venta";
+import {
+  aplicarCupon,
+  cambiosDelCuponDelPedido,
+  leerCuponDelPedido,
+  whereCuponDelPedido,
+  ACCION_CUPON_DEL_PEDIDO,
+  type CuponDelPedido,
+} from "@/lib/venta-reglas";
 import { permiteVenderSinStock } from "@/lib/stock/pos-stock-rules";
 import type { RecordMovementArgs } from "@/lib/stock/ledger";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
@@ -76,6 +89,24 @@ test("pedido online de 0,5 kg pesado a 1,240: el total pasa de $6.250 a $15.500 
   );
   assert.deepEqual(deltas, [{ productId: "p_vacio", delta: 0.74 }]);
   assert.equal(detalleStockAjustadoPorEdicion(7, "Vacío", 0.74), "Peso real del pedido #7 · Vacío: salen 0,74");
+});
+
+test("pesar un pedido de la tienda con envío y cupón: el envío no es base del descuento (camino del servidor)", () => {
+  // $20.000 de vacío + la línea de envío de $3.500 (sin producto, con el nombre reservado), con
+  // un cupón del 10 % sobre lo que se compra ($2.000). Se pesa a $10.000 de vacío. Es lo que
+  // hace `ajustarPedidoInTx`: `lineasDelAjuste` conserva la línea de envío entre las «a mano» y
+  // `totalesDelAjuste` la saca de la base. Antes del arreglo: descuento $1.148,94.
+  const existentes: LineaGuardada[] = [
+    { productId: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", quantity: 1.6, unitPrice: 12500, lineTotal: 20000 },
+    { productId: null, name: "Envío a domicilio", saleUnit: "UNIT", quantity: 1, unitPrice: 3500, lineTotal: 3500 },
+  ];
+  const { lineas, aMano } = lineasDelAjuste(existentes, [VACIO_HOY], [{ productId: "p_vacio", qty: 0.8 }]);
+  assert.deepEqual(aMano.map((l) => [l.name, l.lineTotal]), [["Envío a domicilio", 3500]]);
+  assert.deepEqual(totalesDelAjuste(lineas, aMano, { descuento: 2000, subtotal: 23500 }), {
+    subtotal: 13500,
+    descuento: 1000,
+    total: 12500,
+  });
 });
 
 test("ya cobrado no se pesa: se anula y se rehace", () => {
@@ -172,6 +203,115 @@ test("el descuento del ajuste: sube con el pedido al mismo %, nunca pasa del sub
   });
 });
 
+// ── El cupón en el ajuste: se recalcula con SU regla ─────────────────────────
+//
+// El refutador de la ola 3 lo midió con las funciones reales: 1,6 kg de vacío a $12.500
+// ($20.000) con un cupón FIJO de $2.000, pesado a 2,4 kg, quedaba {30.000, 3.000, 27.000} —el
+// negocio regalaba $1.000— y pesado a 0,8 kg el cliente perdía la mitad del cupón. El alta
+// guarda la regla del cupón (`registrarCuponDelPedidoEnTx`) y el ajuste la vuelve a aplicar.
+
+const MAGRA_16: LineaGuardada[] = [
+  { productId: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", quantity: 1.6, unitPrice: 12500, lineTotal: 20000 },
+];
+const FIJO_2000: CuponDelPedido = { codigo: "BIENVENIDA", tipo: "FIXED", valor: 2000 };
+const DIEZ_POR_CIENTO: CuponDelPedido = { codigo: "VERANO10", tipo: "PERCENT", valor: 10 };
+
+/** El cupón como lo decide el ALTA real (`aplicarCupon`), para partir del mismo descuento. */
+function descuentoDelAlta(c: CuponDelPedido, base: number): number {
+  const r = aplicarCupon({
+    cupon: { code: c.codigo, type: c.tipo, value: c.valor, active: true, expiresAt: null, maxUses: null, usedCount: 0 },
+    base,
+    ahora: new Date("2026-09-23T15:00:00.000Z"),
+  });
+  assert.ok(r.ok);
+  return r.descuento;
+}
+
+test("cupón FIJO de $2.000 en 1,6 kg de vacío: pesado a 2,4 kg o a 0,8 kg sigue descontando $2.000", () => {
+  assert.equal(descuentoDelAlta(FIJO_2000, 20000), 2000);
+  for (const [kg, esperado] of [
+    [2.4, { subtotal: 30000, descuento: 2000, total: 28000 }],
+    [0.8, { subtotal: 10000, descuento: 2000, total: 8000 }],
+    [1.6, { subtotal: 20000, descuento: 2000, total: 18000 }],
+  ] as const) {
+    const { lineas, aMano } = lineasDelAjuste(MAGRA_16, [VACIO_HOY], [{ productId: "p_vacio", qty: kg }]);
+    assert.deepEqual(totalesDelAjuste(lineas, aMano, { descuento: 2000, subtotal: 20000, cupon: FIJO_2000 }), esperado, `${kg} kg`);
+  }
+  // Sin la regla del cupón (un descuento a mano de $2.000), el ajuste sigue conservando el %.
+  const { lineas, aMano } = lineasDelAjuste(MAGRA_16, [VACIO_HOY], [{ productId: "p_vacio", qty: 2.4 }]);
+  assert.deepEqual(totalesDelAjuste(lineas, aMano, { descuento: 2000, subtotal: 20000 }), {
+    subtotal: 30000,
+    descuento: 3000,
+    total: 27000,
+  });
+});
+
+test("cupón FIJO con envío: el envío no es base, el cupón no se pasa de la compra y crece hasta su valor", () => {
+  const conEnvio: LineaGuardada[] = [
+    ...MAGRA_16,
+    { productId: null, name: "Envío a domicilio", saleUnit: "UNIT", quantity: 1, unitPrice: 3500, lineTotal: 3500 },
+  ];
+  const pesar = (kg: number) => lineasDelAjuste(conEnvio, [VACIO_HOY], [{ productId: "p_vacio", qty: kg }]);
+  let p = pesar(2.4);
+  assert.deepEqual(totalesDelAjuste(p.lineas, p.aMano, { descuento: 2000, subtotal: 23500, cupon: FIJO_2000 }), {
+    subtotal: 33500,
+    descuento: 2000,
+    total: 31500,
+  });
+  // 0,12 kg = $1.500 de vacío: el cupón de $2.000 no se pasa de lo que se compra (el envío se paga).
+  p = pesar(0.12);
+  assert.deepEqual(totalesDelAjuste(p.lineas, p.aMano, { descuento: 2000, subtotal: 23500, cupon: FIJO_2000 }), {
+    subtotal: 5000,
+    descuento: 1500,
+    total: 3500,
+  });
+  // Y al revés: un pedido de $1.500 tomado con el cupón de $2.000 (el alta lo topeó a $1.500)
+  // que pesa $3.000 recupera el cupón entero, no el 100 % de la compra.
+  assert.equal(descuentoDelAlta(FIJO_2000, 1500), 1500);
+  assert.deepEqual(descuentoDelAjuste({ descuentoAntes: 1500, subtotalAntes: 1500, subtotalNuevo: 3000, cupon: FIJO_2000 }), {
+    descuento: 2000,
+    porcentaje: 66.67,
+  });
+});
+
+test("cupón de %: sigue siendo el mismo % de lo que se compra", () => {
+  assert.equal(descuentoDelAlta(DIEZ_POR_CIENTO, 20000), 2000);
+  const { lineas, aMano } = lineasDelAjuste(MAGRA_16, [VACIO_HOY], [{ productId: "p_vacio", qty: 2.4 }]);
+  assert.deepEqual(totalesDelAjuste(lineas, aMano, { descuento: 2000, subtotal: 20000, cupon: DIEZ_POR_CIENTO }), {
+    subtotal: 30000,
+    descuento: 3000,
+    total: 27000,
+  });
+});
+
+test("la vista previa dice de dónde sale el descuento: el cupón fijo no es «el X % de la venta»", () => {
+  const fijo = descuentoDelAjuste({ descuentoAntes: 2000, subtotalAntes: 20000, subtotalNuevo: 30000, cupon: FIJO_2000 });
+  assert.match(textoDelDescuentoDelAjuste(fijo, FIJO_2000) ?? "", /^Cupón BIENVENIDA de \$\s?2\.000,00: −\$\s?2\.000,00$/);
+  const pct = descuentoDelAjuste({ descuentoAntes: 2000, subtotalAntes: 20000, subtotalNuevo: 30000, cupon: DIEZ_POR_CIENTO });
+  assert.match(textoDelDescuentoDelAjuste(pct, DIEZ_POR_CIENTO) ?? "", /^Cupón VERANO10 del 10 %: −\$\s?3\.000,00$/);
+  // El descuento a mano, con el mismo texto de antes.
+  const aMano = descuentoDelAjuste({ descuentoAntes: 2000, subtotalAntes: 20000, subtotalNuevo: 30000 });
+  assert.match(textoDelDescuentoDelAjuste(aMano, null) ?? "", /^Descuento del 10 %, el de la venta: −\$\s?3\.000,00$/);
+  assert.equal(textoDelDescuentoDelAjuste({ descuento: 0, porcentaje: 0 }, FIJO_2000), null);
+});
+
+test("la regla del cupón que escribe el alta se lee igual; una fila rota no inventa un cupón", () => {
+  const cambios = cambiosDelCuponDelPedido(FIJO_2000, 2000);
+  assert.deepEqual(cambios, { codigo: "BIENVENIDA", tipo: "FIXED", valor: 2000, monto: 2000 });
+  // Como vuelve de la columna Json.
+  assert.deepEqual(leerCuponDelPedido(JSON.parse(JSON.stringify(cambios))), FIJO_2000);
+  for (const roto of [null, undefined, "x", {}, { codigo: "A", tipo: "OTRO", valor: 5 }, { codigo: "A", tipo: "FIXED", valor: 0 }, { codigo: "", tipo: "FIXED", valor: 5 }, { codigo: "A", tipo: "PERCENT", valor: "10" }]) {
+    assert.equal(leerCuponDelPedido(roto), null, JSON.stringify(roto));
+  }
+  assert.deepEqual(whereCuponDelPedido("t_magra", "ord_7"), {
+    tenantId: "t_magra",
+    entity: "Order",
+    action: ACCION_CUPON_DEL_PEDIDO,
+    entityId: "ord_7",
+  });
+  assert.deepEqual(whereCuponDelPedido("t_magra", ["a", "b"]).entityId, { in: ["a", "b"] });
+});
+
 // ── La transacción entera, contra una base falsa ─────────────────────────────
 
 type Fila = Record<string, unknown>;
@@ -185,15 +325,27 @@ function baseDePedido(pedido: {
   total: number;
   items: LineaGuardada[];
   conAsiento?: boolean;
+  /** La fila que escribió el alta con la regla del cupón (`registrarCuponDelPedidoEnTx`). */
+  cupon?: CuponDelPedido;
 }) {
+  const { cupon, ...guardado } = pedido;
   const m = {
-    pedido: { id: "ord_7", code: 7, paid: false, status: "PREPARING", ...pedido },
+    pedido: { id: "ord_7", code: 7, paid: false, status: "PREPARING", ...guardado },
     itemsBorrados: 0,
     itemsNuevos: [] as Fila[],
     actualizacion: null as Fila | null,
     stock: [] as RecordMovementArgs[],
+    lecturasDeCupon: [] as Fila[],
   };
   const tx = {
+    auditLog: {
+      findFirst: async (args: { where: Fila }) => {
+        m.lecturasDeCupon.push(args.where);
+        const w = args.where;
+        const esLaFila = cupon && w.tenantId === "t_magra" && w.entity === "Order" && w.action === ACCION_CUPON_DEL_PEDIDO && w.entityId === "ord_7";
+        return esLaFila ? { changes: JSON.parse(JSON.stringify(cambiosDelCuponDelPedido(cupon, pedido.discount))) } : null;
+      },
+    },
     order: {
       findFirst: async () => ({
         ...m.pedido,
@@ -277,6 +429,37 @@ test("ajustarPedidoInTx: con plata en el libro no toca nada, aunque el pedido di
     /ya está cobrado/,
   );
   assert.deepEqual([m.stock, m.itemsBorrados, m.actualizacion], [[], 0, null]);
+});
+
+test("ajustarPedidoInTx: el pedido de la tienda con el cupón FIJO de $2.000 pesado a 2,4 kg guarda 30.000 / 2.000 / 28.000", async () => {
+  const { m, tx, registrarStock } = baseDePedido({
+    subtotal: 20000,
+    discount: 2000,
+    total: 18000,
+    items: MAGRA_16,
+    cupon: FIJO_2000,
+  });
+  const r = await ajustarPedidoInTx(tx, "t_magra", argsDelAjuste(2.4), registrarStock);
+  assert.deepEqual(m.actualizacion, { subtotal: 30000, discount: 2000, total: 28000 });
+  assert.deepEqual(r, { code: 7, antes: 18000, descuentoAntes: 2000, subtotal: 30000, descuento: 2000, total: 28000 });
+  // La regla se buscó en la fila del pedido, dentro del negocio.
+  assert.deepEqual(m.lecturasDeCupon, [whereCuponDelPedido("t_magra", "ord_7")]);
+
+  // Y a 0,8 kg, el cliente conserva el cupón entero.
+  const abajo = baseDePedido({ subtotal: 20000, discount: 2000, total: 18000, items: MAGRA_16, cupon: FIJO_2000 });
+  await ajustarPedidoInTx(abajo.tx, "t_magra", argsDelAjuste(0.8), abajo.registrarStock);
+  assert.deepEqual(abajo.m.actualizacion, { subtotal: 10000, discount: 2000, total: 8000 });
+});
+
+test("ajustarPedidoInTx: sin fila de cupón el descuento es a mano (conserva el %); sin descuento no se busca", async () => {
+  const aMano = baseDePedido({ subtotal: 20000, discount: 2000, total: 18000, items: MAGRA_16 });
+  await ajustarPedidoInTx(aMano.tx, "t_magra", argsDelAjuste(2.4), aMano.registrarStock);
+  assert.deepEqual(aMano.m.actualizacion, { subtotal: 30000, discount: 3000, total: 27000 });
+  assert.equal(aMano.m.lecturasDeCupon.length, 1);
+
+  const sinDescuento = baseDePedido({ subtotal: 6250, discount: 0, total: 6250, items: PEDIDO_ONLINE });
+  await ajustarPedidoInTx(sinDescuento.tx, "t_magra", argsDelAjuste(1.24), sinDescuento.registrarStock);
+  assert.deepEqual(sinDescuento.m.lecturasDeCupon, [], "el pedido sin descuento no suma una lectura");
 });
 
 test("un corte que ya estaba en el pedido se pesa aunque hoy se haya dejado de vender", () => {

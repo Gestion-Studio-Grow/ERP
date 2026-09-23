@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { isInvoicingEnabled } from "@/lib/fiscal";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 import { alcanceDeAnulacion, roleHasCapability } from "@/lib/capabilities";
@@ -17,7 +18,9 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { EmptyState, PageContainer, PageHeader, Select, buttonClasses } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
 import FilaVenta from "./FilaVenta";
-import { leerFiltros, notaDeDescuento, resumenDeVentas } from "./filtros";
+import { leerFiltros, notaDeCupon, notaDeDescuento, resumenACuenta, resumenDeVentas } from "./filtros";
+import { estadoDeFactura, SIN_FACTURA, type FacturaDeVenta } from "./factura";
+import { puedeAbrirApp } from "../vender/puede-abrir";
 import { ventaDeOrden } from "../vender/reglas-venta";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +47,7 @@ const SELECT_VENTA = {
   discount: true,
   total: true,
   paymentMethod: true,
+  paid: true,
   customerName: true,
   customerPhone: true,
   status: true,
@@ -65,6 +69,9 @@ export default async function VentasPage({
   const alcance = alcanceDeAnulacion(user.role);
   const puedeVender = roleHasCapability(user.role, "orders:manage");
   const filtros = leerFiltros(await searchParams, { hoy, otrosDias: verPlata });
+  // «Facturar» en cada fila: con la MISMA regla que exige su action (app Facturación: módulo arca
+  // y billing:manage). Sin ella, la fila no muestra nada de facturas: como hasta hoy.
+  const puedeFacturar = await puedeAbrirApp("facturacion");
   const esHoy = filtros.dia === hoy;
 
   // Hoy: desde las 00:00 sin tope (el MISMO `where` que el número del Inicio). Otro día: ese día.
@@ -132,6 +139,9 @@ export default async function VentasPage({
       const d = c.descuento as { monto?: unknown; por?: unknown } | undefined;
       const nota = d ? notaDeDescuento(o, typeof d.por === "string" ? d.por : null) : null;
       if (nota) out.push(nota);
+      // El código del alta y el monto del pedido: si se pesó, el cupón se recalculó.
+      const cupon = notaDeCupon(c.cupon, o.discount);
+      if (cupon) out.push(cupon);
       const manos = Array.isArray(c.preciosAMano) ? (c.preciosAMano as { nombre?: unknown; motivo?: unknown }[]) : [];
       for (const m of manos) {
         if (typeof m.nombre === "string") {
@@ -143,6 +153,24 @@ export default async function VentasPage({
   };
 
   const resumen = resumenDeVentas(vigentes);
+  const aCuenta = resumenACuenta(vigentes);
+
+  // El estado de la factura de cada venta. La tabla de comprobantes se lee SÓLO con la
+  // facturación encendida (su migración va con el flag, fiscal.ts): apagada, todas dicen «Sin
+  // factura» y el botón explica por qué no se emite.
+  const facturacionEncendida = isInvoicingEnabled();
+  const facturas =
+    puedeFacturar && facturacionEncendida && ids.length
+      ? await prisma.invoice.findMany({
+          where: { tenantId, orderId: { in: ids } },
+          orderBy: { createdAt: "desc" },
+          select: { orderId: true, status: true, numero: true, puntoVenta: true, tipoComprobante: true, rechazoMotivo: true },
+        })
+      : [];
+  const facturaDe = new Map<string, FacturaDeVenta>();
+  for (const f of facturas) {
+    if (f.orderId && !facturaDe.has(f.orderId)) facturaDe.set(f.orderId, estadoDeFactura(f));
+  }
   const anulacionesLeidas = anulacionesDelDia.map((f) => leerAnulacion(f, nombres));
   const montoAnulado = anulacionesLeidas.reduce((s, a) => s + a.monto, 0);
   const lista = [...vigentes, ...anuladas].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -217,6 +245,12 @@ export default async function VentasPage({
                 : "Sin ventas, no hay ticket promedio"}
             </p>
           )}
+          {aCuenta.cantidad > 0 && (
+            <p className="text-sm text-muted tabular-nums">
+              {aCuenta.cantidad === 1 ? "1 quedó a cuenta" : `${aCuenta.cantidad} quedaron a cuenta`}
+              {verPlata && ` (${fmtMoneyARS(aCuenta.total)}): su plata no entró al libro`}
+            </p>
+          )}
         </div>
         <div className="rounded-lg border border-line p-4">
           <p className="text-sm text-muted">Anulaciones hechas {cuando}</p>
@@ -275,6 +309,7 @@ export default async function VentasPage({
                   negocio={negocio}
                   anular={venta.anulada ? null : anulaEsteDia}
                   notas={notasDe(o)}
+                  factura={puedeFacturar && !venta.anulada ? (facturaDe.get(o.id) ?? SIN_FACTURA) : null}
                 />
               );
             })}

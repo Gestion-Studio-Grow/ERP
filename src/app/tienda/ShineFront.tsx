@@ -4,9 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { useFormStatus } from "react-dom";
-import { placeOnlineOrder } from "@/lib/order-actions";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
+import { shippingCost } from "@/lib/storefront-shipping";
+import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
+import { etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantImagery } from "@/lib/tenant-layout";
 import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
@@ -28,6 +29,8 @@ type Product = {
   price: number | null;
   pricePerKg: number | null;
   unit: string;
+  /** "Sin stock" / "Últimas unidades", ya decidido en el servidor (nunca el número). */
+  disponibilidad?: Disponibilidad;
 };
 
 type Branding = { whatsapp: string | null } | null;
@@ -120,7 +123,7 @@ export default function ShineFront({ products, branding, copy, imagery, tenantKe
   const configured = branding?.whatsapp ?? null;
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={configured}>
-      <ShineContent products={products} copy={copy} imagery={imagery} />
+      <ShineContent products={products} copy={copy} imagery={imagery} hayWhatsApp={Boolean(configured?.replace(/\D/g, ""))} />
     </WhatsAppCtaProvider>
   );
 }
@@ -137,18 +140,24 @@ function nuevaClaveDePedido(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-// Mientras el pedido viaja, el botón dice que está enviando y no acepta otro toque. La clave
-// anti-duplicado ya garantiza un solo pedido; esto le evita al cliente la duda de si tocó.
-function BotonEnviarPedido({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <button type="submit" className="sh-btn sh-btn-vino sh-rail-submit" disabled={disabled || pending} aria-busy={pending || undefined}>
-      {pending ? "Enviando…" : "Enviar pedido"}
-    </button>
-  );
+// "Sin stock" / "Últimas unidades", sin el número (lo decide el servidor, reglas-tienda.ts).
+function Disponible({ d }: { d: Disponibilidad | undefined }) {
+  const texto = etiquetaDeDisponibilidad(d ?? null);
+  if (!texto) return null;
+  return <span className={`sh-avail${d === "sin-stock" ? " off" : ""}`}>{texto}</span>;
 }
 
-function ShineContent({ products, copy, imagery }: { products: Product[]; copy: StorefrontCopy; imagery: TenantImagery | null }) {
+function ShineContent({
+  products,
+  copy,
+  imagery,
+  hayWhatsApp,
+}: {
+  products: Product[];
+  copy: StorefrontCopy;
+  imagery: TenantImagery | null;
+  hayWhatsApp: boolean;
+}) {
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
@@ -158,6 +167,9 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   function bump(p: Product, dir: 1 | -1) {
+    // Sin stock no se suma: el servidor lo rechazaría igual, y es mejor no dejar armarlo.
+    if (dir === 1 && p.disponibilidad === "sin-stock") return;
+    pedido.olvidarAviso(p.id);
     setClaveDePedido(nuevaClaveDePedido());
     setCart((s) => {
       const q = Math.max(0, (s[p.id] ?? 0) + dir);
@@ -178,24 +190,31 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
   const count = lines.reduce((s, l) => s + l.q, 0);
   const hasItems = lines.length > 0;
 
-  // Envío: fijo + umbral de envío gratis (del copy). Nudge "te faltan $X".
-  const flat = copy.shipping?.flatRate ?? 0;
+  // Envío: fijo + umbral de envío gratis (del copy). Nudge "te faltan $X". Con la MISMA regla
+  // (`shippingCost`) con la que el servidor lo suma como línea del pedido: antes esta cuenta
+  // cobraba el envío también al que retiraba, y el pedido de la bandeja no lo traía.
   const freeAt = copy.shipping?.freeThreshold ?? 0;
-  const shipFree = freeAt > 0 && subtotal >= freeAt;
-  const shipCost = !hasItems ? 0 : shipFree ? 0 : flat;
+  const shipCost = shippingCost(subtotal, fulfillment, copy.shipping);
   const missingForFree = freeAt > 0 && subtotal > 0 && subtotal < freeAt ? freeAt - subtotal : 0;
-  const total = subtotal + shipCost;
+  const cupon = useCuponDePedido(subtotal);
+  const total = subtotal - cupon.descuento + shipCost;
+
+  // El pedido: el rechazo con su motivo (sin perder la bolsa) y el de WhatsApp, que se
+  // registra ANTES de abrir el chat (pedido-online.tsx).
+  const pedido = usePedidoOnline({
+    hayWhatsApp,
+    alRegistrar: () => {
+      setCart({});
+      setClaveDePedido(nuevaClaveDePedido());
+      cupon.limpiar();
+    },
+  });
+  const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
 
   const mundos = copy.vacioLines ?? [];
   const heroImg = imagery?.heroImage ?? null;
   const ambiance = imagery?.ambianceImage ?? null;
   const giftImg = imagery?.giftImage ?? null;
-
-  const waCart =
-    `¡Hola Shine! Quiero este pedido:\n` +
-    lines.map((l) => `• ${l.q} × ${l.p.name}`).join("\n") +
-    `\nEntrega: ${fulfillment === "PICKUP" ? "retiro" : "envío a domicilio"}` +
-    `\nTotal estimado: ${money.format(total)}`;
 
   return (
     <div className="shine">
@@ -287,9 +306,10 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
                           <div className="sh-stepper" role="group" aria-label={`Cantidad de ${p.name}`}>
                             <button type="button" onClick={() => bump(p, -1)} disabled={q === 0} aria-label={`Quitar ${p.name}`}>−</button>
                             <span className="sh-q sh-num" aria-live="polite">{q}</span>
-                            <button type="button" onClick={() => bump(p, 1)} aria-label={`Agregar ${p.name}`}>+</button>
+                            <button type="button" onClick={() => bump(p, 1)} disabled={p.disponibilidad === "sin-stock"} aria-label={`Agregar ${p.name}`}>+</button>
                           </div>
                         </div>
+                        <Disponible d={p.disponibilidad} />
                       </div>
                     </Reveal>
                   );
@@ -453,7 +473,7 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
             <span className="sh-eyebrow">Tu pedido</span>
             <div className="sh-rail-t sh-display">Tu bolsa <span className="sh-cnt" aria-live="polite">{count}</span></div>
           </div>
-          <form action={placeOnlineOrder} className="sh-rail-form">
+          <form onSubmit={pedido.onSubmit} className="sh-rail-form">
             <div className="sh-rail-items">
               {!hasItems && <p className="sh-rail-empty">Sumá productos con el botón + y armá tu ambiente.</p>}
               {lines.map((l) => (
@@ -470,6 +490,11 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
                   <div className="sh-ri-amt sh-num">{money.format(l.t)}</div>
                   <input type="hidden" name="productId" value={l.p.id} />
                   <input type="hidden" name="quantity" value={l.q} />
+                  {pedido.avisoDe(l.p.id) && (
+                    <p role="alert" className="sh-aviso">
+                      {pedido.avisoDe(l.p.id)}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
@@ -481,10 +506,16 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
                 <span className="sh-k">Subtotal</span>
                 <span className="sh-v sh-num">{money.format(subtotal)}</span>
               </div>
+              {cupon.descuento > 0 && (
+                <div className="sh-totrow">
+                  <span className="sh-k">Cupón {cupon.aplicado?.codigo}</span>
+                  <span className="sh-v sh-num">−{money.format(cupon.descuento)}</span>
+                </div>
+              )}
               {copy.shipping && (
                 <div className="sh-totrow">
                   <span className="sh-k">Envío</span>
-                  <span className="sh-v sh-num">{!hasItems ? "—" : shipFree ? <b className="sh-free">Gratis</b> : money.format(shipCost)}</span>
+                  <span className="sh-v sh-num">{!hasItems ? "—" : shipCost === 0 ? <b className="sh-free">Gratis</b> : money.format(shipCost)}</span>
                 </div>
               )}
               <div className="sh-totrow sh-big">
@@ -520,14 +551,71 @@ function ShineContent({ products, copy, imagery }: { products: Product[]; copy: 
                     <span>Nota (opcional)</span>
                     <input name="notes" placeholder="Aroma preferido, para regalo…" />
                   </label>
+                  <div className="sh-field">
+                    <label htmlFor="sh-cupon">Cupón (opcional)</label>
+                    <div className="sh-cupon">
+                      <input
+                        id="sh-cupon"
+                        name="cupon"
+                        value={cupon.codigo}
+                        onChange={(e) => cupon.cambiar(e.target.value)}
+                        autoComplete="off"
+                        placeholder="Código"
+                        aria-invalid={errorDeCupon ? true : undefined}
+                        aria-describedby={errorDeCupon ? "sh-cupon-error" : undefined}
+                      />
+                      <button type="button" className="sh-btn sh-btn-ghost" onClick={() => void cupon.aplicar()} disabled={cupon.probando}>
+                        {cupon.probando ? "…" : "Aplicar"}
+                      </button>
+                    </div>
+                    {errorDeCupon && (
+                      <p id="sh-cupon-error" role="alert" className="sh-aviso">
+                        {errorDeCupon}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
               <p className="sh-rail-muted">Coordinamos el pago al confirmar: transferencia, tarjetas o Mercado Pago.</p>
-              <BotonEnviarPedido disabled={!hasItems} />
-              <button type="button" className="sh-btn sh-btn-wa sh-rail-wa" onClick={() => requestWhatsApp(hasItems ? waCart : "¡Hola Shine! Quiero hacer un pedido.")}>
-                <WaIcon /> Pedir por WhatsApp
+              {pedido.error && pedido.error.campo !== "cupon" && (
+                <p role="alert" className="sh-error">
+                  {pedido.error.texto}
+                </p>
+              )}
+              {pedido.confirmado && (
+                <div role="status" className="sh-ok">
+                  <p>
+                    Tu pedido <b>#{pedido.confirmado.code}</b> quedó registrado.{" "}
+                    {pedido.confirmado.whatsapp ? "Seguimos por WhatsApp." : "Te vamos a escribir al WhatsApp que dejaste."}
+                  </p>
+                  {pedido.confirmado.whatsapp && (
+                    <a href={pedido.confirmado.whatsapp} target="_blank" rel="noopener noreferrer">
+                      Abrir el chat del pedido #{pedido.confirmado.code}
+                    </a>
+                  )}
+                </div>
+              )}
+              <button
+                type="submit"
+                name="via"
+                value="tienda"
+                className="sh-btn sh-btn-vino sh-rail-submit"
+                disabled={!hasItems || pedido.enviando}
+                aria-busy={pedido.enviando || undefined}
+              >
+                {pedido.enviando ? "Enviando…" : "Enviar pedido"}
               </button>
+              {hasItems && hayWhatsApp ? (
+                // Registra el pedido y DESPUÉS abre el chat con su número.
+                <button type="submit" name="via" value="whatsapp" className="sh-btn sh-btn-wa sh-rail-wa" disabled={pedido.enviando}>
+                  <WaIcon /> Pedir por WhatsApp
+                </button>
+              ) : (
+                <button type="button" className="sh-btn sh-btn-wa sh-rail-wa" onClick={() => requestWhatsApp("¡Hola Shine! Quiero hacer un pedido.")}>
+                  <WaIcon /> Pedir por WhatsApp
+                </button>
+              )}
             </div>
           </form>
         </aside>
@@ -833,6 +921,16 @@ const CSS = `
 .shine .sh-rail-muted{font-size:11.5px;color:var(--malva-d);margin:12px 0 14px;line-height:1.5}
 .shine .sh-rail-submit{width:100%;margin-bottom:10px}
 .shine .sh-rail-wa{width:100%}
+.shine .sh-avail{display:inline-flex;align-self:flex-start;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--vino);border:1px solid var(--vino);border-radius:999px;padding:3px 9px;margin-top:6px}
+.shine .sh-avail.off{color:var(--malva-d);border-color:var(--nude)}
+.shine .sh-ri{flex-wrap:wrap}
+.shine .sh-aviso{flex-basis:100%;margin:6px 0 0;font-size:12.5px;color:var(--vino);line-height:1.4}
+.shine .sh-error{margin:0 0 12px;padding:10px 12px;border-radius:9px;border:1px solid var(--vino);color:var(--tinta);font-size:13px;line-height:1.45}
+.shine .sh-ok{margin:0 0 12px;padding:10px 12px;border-radius:9px;border:1px solid var(--malva-d);color:var(--tinta);font-size:13px;line-height:1.45}
+.shine .sh-ok a{display:inline-flex;align-items:center;min-height:44px;color:var(--vino);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.shine .sh-cupon{display:flex;gap:8px}
+.shine .sh-cupon input{flex:1;min-width:0;text-transform:uppercase}
+.shine .sh-cupon .sh-btn{min-height:44px;padding:10px 14px}
 @media(max-width:1080px){.shine .sh-rail{position:static;height:auto;border-left:none;border-top:1px solid var(--nude)}}
 
 /* MINI-BAR móvil */

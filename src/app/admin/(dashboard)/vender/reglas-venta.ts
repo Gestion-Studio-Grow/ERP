@@ -31,15 +31,23 @@ export {
   topeDeDescuento,
   aplicarDescuento,
   descuentoDelAjuste,
+  textoDelDescuentoDelAjuste,
   descuentoDelFormulario,
   NOMBRE_A_MANO_MAX,
   validarLineaAMano,
   lineasAManoDelFormulario,
+  topeDePrecioAMano,
+  controlarPrecioAMano,
+  esLineaDeEnvio,
+  envioDeLasLineas,
   type TipoDescuento,
   type PedidoDeDescuento,
   type ResultadoDescuento,
   type LineaAMano,
+  type TopePrecioAMano,
+  type CuponDelPedido,
 } from "@/lib/venta-reglas";
+import { esLineaDeEnvio } from "@/lib/venta-reglas";
 
 // ── VUELTO ───────────────────────────────────────────────────────────────────
 //
@@ -104,6 +112,8 @@ export type LineaTicket = {
   total: number;
   /** Sin producto: se cargó con precio a mano. El cliente no lo ve; la pantalla sí. */
   aMano: boolean;
+  /** El envío de la tienda (una línea sin producto, pero NO un precio a mano). */
+  envio?: true;
 };
 
 /** Una venta tal como la muestra el ticket. Serializable: viaja del servidor a la pantalla. */
@@ -122,6 +132,8 @@ export type VentaTicket = {
   cliente: string | null;
   telefono: string | null;
   anulada: boolean;
+  /** Saldada contra la cuenta corriente del cliente: sin medio, no entró plata. */
+  aCuenta?: true;
 };
 
 export type OrdenParaTicket = {
@@ -135,6 +147,8 @@ export type OrdenParaTicket = {
   customerName: string;
   customerPhone: string;
   status: string;
+  /** Con `paid` y sin medio, la venta quedó a cuenta. Opcional: los lectores viejos no lo traen. */
+  paid?: boolean;
   items: readonly {
     productId: string | null;
     name: string;
@@ -154,14 +168,19 @@ export function ventaDeOrden(o: OrdenParaTicket): VentaTicket {
     id: o.id,
     code: o.code,
     creada: new Date(o.createdAt).toISOString(),
-    lineas: o.items.map((it) => ({
-      nombre: it.name,
-      cantidad: it.quantity,
-      porPeso: it.saleUnit === "WEIGHT",
-      precio: it.unitPrice,
-      total: it.lineTotal,
-      aMano: it.productId == null,
-    })),
+    lineas: o.items.map((it) => {
+      // El envío de la tienda no tiene producto, pero no es un precio a mano: no se marca.
+      const envio = esLineaDeEnvio(it);
+      return {
+        nombre: it.name,
+        cantidad: it.quantity,
+        porPeso: it.saleUnit === "WEIGHT",
+        precio: it.unitPrice,
+        total: it.lineTotal,
+        aMano: it.productId == null && !envio,
+        ...(envio ? { envio: true as const } : {}),
+      };
+    }),
     subtotal: o.subtotal,
     descuento: o.discount,
     total: o.total,
@@ -169,12 +188,13 @@ export function ventaDeOrden(o: OrdenParaTicket): VentaTicket {
     cliente: nombre && nombre !== SIN_CLIENTE ? nombre : null,
     telefono: o.customerPhone.trim() || null,
     anulada: o.status === "CANCELLED",
+    ...(o.paid && !o.paymentMethod ? { aCuenta: true as const } : {}),
   };
 }
 
 /** "1,24 kg × $12.500,00" o "2 u × $3.900,00". */
 export function detalleDeLinea(l: LineaTicket): string {
-  if (l.aMano) return "";
+  if (l.aMano || l.envio) return "";
   return `${formatearCantidad(l.cantidad)} ${l.porPeso ? "kg" : "u"} × ${fmtMoneyARS(l.precio)}${l.porPeso ? "/kg" : ""}`;
 }
 
@@ -208,6 +228,7 @@ export function renglonesDelTicket(
   }
   r.push({ texto: "TOTAL", importe: fmtMoneyARS(v.total), fuerte: true });
   if (v.medio) r.push({ texto: `Pagó con ${etiquetaDeMedio(v.medio).toLowerCase()}`, chico: true });
+  else if (v.aCuenta) r.push({ texto: "Queda a cuenta", chico: true });
   if (v.medio === "EFECTIVO" && opts.pagoCon != null) {
     const vuelto = round2(opts.pagoCon - v.total);
     if (vuelto >= 0) {

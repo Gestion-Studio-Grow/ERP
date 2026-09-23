@@ -99,7 +99,15 @@ export default async function TiendaPage() {
   // del theme del brand-sheet). Copy TEXTUAL autorizado (magra-content.ts) para lo editorial;
   // los datos del local (dirección/horarios/WhatsApp) viajan en `branding` (BusinessSettings).
   if (front === "magra") {
-    return <MagraFront products={data.products} branding={data.branding} tenantKey={slug ?? "magra"} />;
+    return (
+      <MagraFront
+        products={data.products}
+        branding={data.branding}
+        tenantKey={slug ?? "magra"}
+        envio={data.copy?.shipping ?? null}
+        mediosDePago={data.copy?.paymentMethods ?? null}
+      />
+    );
   }
 
   // SHINE — front público editorial LUMINOSO propio (manual de marca Shine 2026). La

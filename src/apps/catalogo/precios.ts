@@ -67,4 +67,21 @@ export const APPS_PRECIOS = [
     kpi: { id: "etiquetas-de-precio", mide: "Precios que cambiaron y todavía no se reimprimieron." },
     palabras: ["carteles", "imprimir", "gondola", "heladera", "rotulos", "precio por kilo"],
   },
+  {
+    // Ola 3: los cupones valen en el mostrador y en la tienda (antes, sólo en los turnos). La
+    // pantalla reusa la sección de cupones del Catálogo; en CH los cupones siguen DENTRO del
+    // Catálogo (esta app no lleva `menuDeHoy`, así que su barra no cambia) hasta que el dueño
+    // apruebe el modelo por apps. La capability es la de cargar cupones: la que pide cada action.
+    id: "promociones",
+    nombre: "Promociones y cupones",
+    descripcion: "Cupones de descuento para el mostrador, la tienda online y los turnos.",
+    icono: "catalogo",
+    ruta: "/admin/promociones",
+    espacio: "precios",
+    capability: "coupons:manage",
+    modulo: "catalog",
+    estado: "lista",
+    kpi: { id: "promociones", mide: "Cupones prendidos y sin vencer, y cuántas veces se usaron." },
+    palabras: ["cupones", "cupon", "descuento", "promo", "codigo de descuento"],
+  },
 ] as const satisfies readonly AppDescriptor[];

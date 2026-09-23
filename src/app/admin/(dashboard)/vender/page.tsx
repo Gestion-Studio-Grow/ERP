@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
+import { puedeAbrirApp } from "./puede-abrir";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -11,7 +13,7 @@ import { ButtonLink, PageContainer, PageHeader, buttonClasses } from "@/componen
 import MostradorTabs from "../pedidos/MostradorTabs";
 import VenderForm from "./VenderForm";
 import { cargarVender } from "./datos";
-import { topeDeDescuento } from "./reglas-venta";
+import { topeDeDescuento, topeDePrecioAMano } from "./reglas-venta";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +26,14 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
   const user = await requireApp("vender");
   const { modo } = await searchParams;
   const tenantId = await getCurrentTenantId();
-  const [datos, stockSnap, identidad] = await Promise.all([
+  const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar] = await Promise.all([
     cargarVender(tenantId, todayInBusinessTz()),
     getPosStockSnapshot(),
     getTenantIdentity(),
+    // «A cuenta» y «Facturar» se ofrecen con la MISMA regla que exige su action: la app de
+    // Cuentas a cobrar / Facturación para este negocio y este rol (módulo, capability, rubro).
+    puedeAbrirApp("cuentas-a-cobrar"),
+    puedeAbrirApp("facturacion"),
   ]);
   // Los servicios se cobran creando un turno (ver MostradorTabs): sólo en un negocio de
   // servicios y sólo para quien puede dar turnos. En un comercio no hay solapa de Servicios.
@@ -89,6 +95,11 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
               negocio={datos.negocio}
               topeDescuentoPct={topeDeDescuento(user.role)}
               pedidoInicial={modo === "pedido"}
+              // Detrás del flag de cuentas corrientes: sin el asiento del cobro del fiado en el
+              // libro, una deuda nacida en el mostrador no se podría cobrar bien.
+              aCuentaDisponible={puedeCuentas && cuentasCorrientesEnabled()}
+              puedeFacturar={puedeFacturar}
+              topePrecioAMano={topeDePrecioAMano(user.role)}
             />
           </div>
         }

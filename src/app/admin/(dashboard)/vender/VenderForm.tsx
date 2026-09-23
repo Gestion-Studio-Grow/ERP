@@ -37,12 +37,18 @@ import {
 import { round2 } from "@/lib/round";
 import { useToast } from "../ToastProvider";
 import TicketVenta from "./TicketVenta";
+import FacturarVenta from "../ventas/FacturarVenta";
+import { SIN_FACTURA } from "../ventas/factura";
+import { useCuponDePedido } from "@/app/tienda/pedido-online";
 import {
   aplicarDescuento,
   calcularVuelto,
+  controlarPrecioAMano,
   descuentoDelFormulario,
   validarLineaAMano,
+  type ResultadoDescuento,
   type TipoDescuento,
+  type TopePrecioAMano,
   type VentaTicket,
 } from "./reglas-venta";
 
@@ -97,6 +103,9 @@ export default function VenderForm({
   negocio,
   topeDescuentoPct,
   pedidoInicial = false,
+  aCuentaDisponible = false,
+  puedeFacturar = false,
+  topePrecioAMano = null,
 }: {
   products: SellableProduct[];
   stockById: Record<string, PosStockInfo>;
@@ -108,12 +117,24 @@ export default function VenderForm({
   topeDescuentoPct: number | null;
   /** Abrir en «Pedido» (el «Tomar un pedido» de la bandeja vacía llega con `?modo=pedido`). */
   pedidoInicial?: boolean;
+  /**
+   * ¿Se ofrece «A cuenta»? Sólo con cuentas corrientes encendidas y la app Cuentas a cobrar
+   * habilitada para quien vende (lo decide la página; el servidor lo vuelve a exigir).
+   */
+  aCuentaDisponible?: boolean;
+  /** ¿Se ofrece «Facturar» en la venta recién cobrada? (billing:manage y la app Facturación). */
+  puedeFacturar?: boolean;
+  /** Tope del precio a mano de quien vende (null = sin tope). La misma regla que el servidor. */
+  topePrecioAMano?: TopePrecioAMano | null;
 }) {
   const { showError, showSuccess } = useToast();
   const [isOrder, setIsOrder] = useState(pedidoInicial);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const [paid, setPaid] = useState(!pedidoInicial);
   const [medio, setMedio] = useState<MedioDeCobro | "">("");
+  // «A cuenta» no es un medio de cobro: no entra plata. Va aparte del medio para que nunca viaje
+  // como `paymentMethod`.
+  const [aCuenta, setACuenta] = useState(false);
   const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qtyText: "" }]);
   const [manuales, setManuales] = useState<LineaManual[]>([]);
   const [nextKey, setNextKey] = useState(2);
@@ -125,7 +146,9 @@ export default function VenderForm({
   const [nombreCliente, setNombreCliente] = useState("");
   const [busqueda, setBusqueda] = useState<"nada" | "buscando" | "encontrado" | "sin-ficha" | "error">("nada");
   const [conDescuento, setConDescuento] = useState(false);
-  const [tipoDescuento, setTipoDescuento] = useState<TipoDescuento>("porcentaje");
+  // El cupón es la tercera forma del descuento: uno o el otro, nunca los dos (lo mismo exige el
+  // servidor).
+  const [tipoDescuento, setTipoDescuento] = useState<TipoDescuento | "cupon">("porcentaje");
   const [descuentoText, setDescuentoText] = useState("");
   const [pagoConText, setPagoConText] = useState("");
   // Los datos del pedido van CONTROLADOS, como todo lo demás del formulario. Sueltos, el reset
@@ -214,17 +237,32 @@ export default function VenderForm({
   const manualesLeidas = manuales.map((m) => {
     const tocada = m.nombre.trim() !== "" || m.importeText.trim() !== "" || m.motivo.trim() !== "";
     const v = validarLineaAMano({ nombre: m.nombre, importe: m.importeText, motivo: m.motivo });
-    return { ...m, importe: importeOCero(m.importeText), error: tocada && !v.ok ? v.error : null, valida: v.ok };
+    // El tope de quien vende, con la MISMA regla que el alta aplica en la transacción: la
+    // pantalla avisa antes de cobrar y el servidor decide (con el catálogo entero de la base).
+    const t = v.ok ? controlarPrecioAMano({ linea: v.linea, catalogo: products, tope: topePrecioAMano }) : null;
+    const error = tocada && !v.ok ? v.error : t && !t.ok ? t.error : null;
+    return { ...m, importe: importeOCero(m.importeText), error, valida: v.ok && (t?.ok ?? true) };
   });
 
   const subtotal = round2(
     leidas.reduce((s, l) => s + totalDeLinea(l), 0) + manualesLeidas.reduce((s, m) => s + (m.valida ? m.importe : 0), 0),
   );
 
-  const pedidoDescuento = conDescuento ? descuentoDelFormulario(tipoDescuento, descuentoText) : { ok: true as const, pedido: null };
-  const descuento = pedidoDescuento.ok
-    ? aplicarDescuento({ subtotal, pedido: pedidoDescuento.pedido, topePct: topeDescuentoPct })
-    : ({ ok: false as const, error: pedidoDescuento.error });
+  // Cupón: la vista previa sale de la regla del alta (`montoDeCupon`); el servidor lo vuelve a
+  // decidir y lo consume en la transacción. Sin «Aplicar», no se cobra: el total que dice el
+  // botón tiene que ser el que se cobra.
+  const cupon = useCuponDePedido(subtotal);
+  const usaCupon = conDescuento && tipoDescuento === "cupon";
+  const cuponSinAplicar = usaCupon && cupon.codigo.trim() !== "" && !cupon.aplicado;
+  const pedidoDescuento =
+    conDescuento && tipoDescuento !== "cupon"
+      ? descuentoDelFormulario(tipoDescuento, descuentoText)
+      : { ok: true as const, pedido: null };
+  const descuento: ResultadoDescuento = usaCupon
+    ? { ok: true, descuento: cupon.descuento, total: round2(subtotal - cupon.descuento), porcentaje: 0 }
+    : pedidoDescuento.ok
+      ? aplicarDescuento({ subtotal, pedido: pedidoDescuento.pedido, topePct: topeDescuentoPct })
+      : { ok: false, error: pedidoDescuento.error };
   const total = descuento.ok ? descuento.total : subtotal;
 
   const contextoStock = isOrder ? "ONLINE" : "COUNTER";
@@ -239,16 +277,23 @@ export default function VenderForm({
   // Una línea a mano abierta y a medio llenar frena el cobro: si se dejara pasar, se cobraría
   // de menos sin que nadie se entere. Vacía del todo, se ignora.
   const hayManualInvalida = manualesLeidas.some((m) => m.error !== null);
-  const faltaMedio = paid && !medio;
-  const vuelto = paid && medio === "EFECTIVO" ? calcularVuelto(total, pagoConText) : null;
+  // A cuenta: la deuda es de ALGUIEN. Sin la ficha encontrada por teléfono no hay a quién.
+  const aCuentaActivo = aCuentaDisponible && !isOrder && paid && aCuenta;
+  const faltaFichaACuenta = aCuentaActivo && busqueda !== "encontrado";
+  const faltaMedio = paid && !medio && !aCuentaActivo;
+  const vuelto = paid && !aCuentaActivo && medio === "EFECTIVO" ? calcularVuelto(total, pagoConText) : null;
 
   const motivoBloqueo = !hayLineaValida
     ? null
     : !descuento.ok
       ? "Revisá el descuento"
-      : faltaMedio
-        ? "Elegí cómo pagó"
-        : null;
+      : cuponSinAplicar
+        ? "Aplicá el cupón"
+        : faltaMedio
+          ? "Elegí cómo pagó"
+          : faltaFichaACuenta
+            ? "Buscá al cliente"
+            : null;
 
   function limpiar() {
     // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse.
@@ -257,9 +302,11 @@ export default function VenderForm({
     setManuales([]);
     setNextKey((k) => k + 1);
     setMedio("");
+    setACuenta(false);
     setPaid(!isOrder);
     setConDescuento(false);
     setDescuentoText("");
+    cupon.limpiar();
     setPagoConText("");
     setConCliente(false);
     setTelefono("");
@@ -318,7 +365,9 @@ export default function VenderForm({
             ? "Venta cobrada."
             : "Venta registrada sin cobrar: queda en Pedidos para preparar hasta que se cobre."),
     );
-    if (r?.venta && r.venta.medio) {
+    // La venta a cuenta también lleva su ticket (dice "Queda a cuenta"): el cliente se lleva
+    // la mercadería y la constancia de lo que quedó debiendo.
+    if (r?.venta && (r.venta.medio || r.venta.aCuenta)) {
       setUltima({ venta: r.venta, pagoCon: pagoCon?.estado === "ok" ? pagoCon.valor : null });
     }
     limpiar();
@@ -326,7 +375,8 @@ export default function VenderForm({
 
   const etiquetaCobrar = !hayLineaValida
     ? "Cobrar"
-    : motivoBloqueo ?? (isOrder ? "Registrar pedido" : `Cobrar ${fmtMoneyARS(total)}`);
+    : motivoBloqueo ??
+      (isOrder ? "Registrar pedido" : aCuentaActivo ? `Dejar a cuenta ${fmtMoneyARS(total)}` : `Cobrar ${fmtMoneyARS(total)}`);
 
   return (
     <div className="space-y-4">
@@ -337,7 +387,7 @@ export default function VenderForm({
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium text-strong">
-              Venta #{ultima.venta.code} cobrada · {fmtMoneyARS(ultima.venta.total)}
+              Venta #{ultima.venta.code} {ultima.venta.aCuenta ? "a cuenta" : "cobrada"} · {fmtMoneyARS(ultima.venta.total)}
               {ultima.pagoCon != null && ultima.pagoCon >= ultima.venta.total && (
                 <> · vuelto {fmtMoneyARS(round2(ultima.pagoCon - ultima.venta.total))}</>
               )}
@@ -350,6 +400,7 @@ export default function VenderForm({
               Cerrar
             </button>
           </div>
+          {puedeFacturar && <FacturarVenta key={ultima.venta.id} orderId={ultima.venta.id} inicial={SIN_FACTURA} />}
           <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} />
         </section>
       )}
@@ -377,6 +428,7 @@ export default function VenderForm({
               if (isOrder) return;
               setIsOrder(true);
               setPaid(false);
+              setACuenta(false);
             }}
             className={cn("chip-btn h-11 text-sm", isOrder && "bg-accent text-on-accent")}
           >
@@ -570,6 +622,7 @@ export default function VenderForm({
               <span className="mb-1 block text-muted">Teléfono / WhatsApp{isOrder ? "" : " (opcional)"}</span>
               <div className="flex gap-2">
                 <Input
+                  id="vender-telefono"
                   name="customerPhone"
                   inputMode="tel"
                   autoComplete="off"
@@ -673,6 +726,7 @@ export default function VenderForm({
                   [
                     ["porcentaje", "%"],
                     ["monto", "$"],
+                    ["cupon", "Cupón"],
                   ] as const
                 ).map(([valor, etiqueta]) => (
                   <button
@@ -681,46 +735,100 @@ export default function VenderForm({
                     role="radio"
                     aria-checked={tipoDescuento === valor}
                     onClick={() => setTipoDescuento(valor)}
-                    className={cn("chip-btn h-11 w-11 justify-center text-sm", tipoDescuento === valor && "bg-accent text-on-accent")}
+                    className={cn(
+                      "chip-btn h-11 justify-center text-sm",
+                      valor === "cupon" ? "px-3" : "w-11",
+                      tipoDescuento === valor && "bg-accent text-on-accent",
+                    )}
                   >
                     {etiqueta}
                   </button>
                 ))}
               </div>
-              <label className="text-sm">
-                <span className="mb-1 block text-muted">Descuento {tipoDescuento === "porcentaje" ? "(%)" : "($)"}</span>
-                <Input
-                  id="descuento-valor"
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  value={descuentoText}
-                  onChange={(e) => setDescuentoText(e.target.value)}
-                  className="w-32 text-right tabular-nums"
-                  aria-invalid={!descuento.ok ? true : undefined}
-                />
-              </label>
+              {usaCupon ? (
+                <>
+                  <label className="text-sm">
+                    <span className="mb-1 block text-muted">Código del cupón</span>
+                    <Input
+                      id="descuento-valor"
+                      type="text"
+                      autoComplete="off"
+                      value={cupon.codigo}
+                      onChange={(e) => cupon.cambiar(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void cupon.aplicar();
+                        }
+                      }}
+                      className="w-40 uppercase"
+                      aria-invalid={cupon.error ? true : undefined}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void cupon.aplicar()}
+                    disabled={cupon.probando}
+                    className="chip-btn h-11 text-sm"
+                  >
+                    {cupon.probando ? "Revisando…" : "Aplicar"}
+                  </button>
+                </>
+              ) : (
+                <label className="text-sm">
+                  <span className="mb-1 block text-muted">Descuento {tipoDescuento === "porcentaje" ? "(%)" : "($)"}</span>
+                  <Input
+                    id="descuento-valor"
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={descuentoText}
+                    onChange={(e) => setDescuentoText(e.target.value)}
+                    className="w-32 text-right tabular-nums"
+                    aria-invalid={!descuento.ok ? true : undefined}
+                  />
+                </label>
+              )}
               <button
                 type="button"
                 onClick={() => {
                   setConDescuento(false);
                   setDescuentoText("");
+                  cupon.limpiar();
                 }}
                 className="h-11 px-2 text-sm text-muted hover:underline"
               >
                 Sin descuento
               </button>
             </div>
-            {topeDescuentoPct != null && (
-              <p className="text-xs text-faint">Con tu usuario, hasta el {topeDescuentoPct} % de la venta.</p>
+            {usaCupon ? (
+              <>
+                {cupon.aplicado && (
+                  <p role="status" className="text-xs text-success">
+                    Cupón {cupon.aplicado.codigo}: −{fmtMoneyARS(cupon.descuento)}. Lo cargó la dueña: no tiene el tope del descuento a mano.
+                  </p>
+                )}
+                {cupon.error && (
+                  <p role="alert" className="text-xs text-danger">
+                    {cupon.error}
+                  </p>
+                )}
+                <input type="hidden" name="cupon" value={cupon.aplicado?.codigo ?? cupon.codigo} />
+              </>
+            ) : (
+              <>
+                {topeDescuentoPct != null && (
+                  <p className="text-xs text-faint">Con tu usuario, hasta el {topeDescuentoPct} % de la venta.</p>
+                )}
+                {!descuento.ok && (
+                  <p role="alert" className="text-xs text-danger">
+                    {descuento.error}
+                  </p>
+                )}
+                <input type="hidden" name="descuentoTipo" value={tipoDescuento} />
+                <input type="hidden" name="descuentoValor" value={descuentoText} />
+              </>
             )}
-            {!descuento.ok && (
-              <p role="alert" className="text-xs text-danger">
-                {descuento.error}
-              </p>
-            )}
-            <input type="hidden" name="descuentoTipo" value={tipoDescuento} />
-            <input type="hidden" name="descuentoValor" value={descuentoText} />
           </div>
         )}
 
@@ -760,16 +868,45 @@ export default function VenderForm({
                   id={`vender-medio-${m.valor}`}
                   type="button"
                   role="radio"
-                  aria-checked={medio === m.valor}
+                  aria-checked={!aCuentaActivo && medio === m.valor}
                   tabIndex={(medio ? medio === m.valor : i === 0) ? 0 : -1}
-                  onClick={() => setMedio(m.valor)}
-                  className={cn("chip-btn h-11 px-4 text-sm", medio === m.valor && "bg-accent text-on-accent")}
+                  onClick={() => {
+                    setMedio(m.valor);
+                    setACuenta(false);
+                  }}
+                  className={cn("chip-btn h-11 px-4 text-sm", !aCuentaActivo && medio === m.valor && "bg-accent text-on-accent")}
                 >
                   {m.etiqueta}
                 </button>
               ))}
-              {medio && <input type="hidden" name="paymentMethod" value={medio} />}
+              {/* A cuenta: no es un medio (no entra plata), va a la cuenta corriente del cliente. */}
+              {aCuentaDisponible && !isOrder && (
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={aCuentaActivo}
+                  tabIndex={-1}
+                  onClick={() => {
+                    setACuenta(true);
+                    setMedio("");
+                    setConCliente(true);
+                    pedirFoco("vender-telefono");
+                  }}
+                  className={cn("chip-btn h-11 px-4 text-sm", aCuentaActivo && "bg-accent text-on-accent")}
+                >
+                  A cuenta
+                </button>
+              )}
+              {medio && !aCuentaActivo && <input type="hidden" name="paymentMethod" value={medio} />}
+              {aCuentaActivo && <input type="hidden" name="aCuenta" value="1" />}
             </div>
+          )}
+          {aCuentaActivo && (
+            <p role={faltaFichaACuenta ? "alert" : "status"} className={cn("text-xs", faltaFichaACuenta ? "text-warning" : "text-muted")}>
+              {faltaFichaACuenta
+                ? "Para dejar a cuenta, buscá al cliente por su teléfono: la deuda queda en su ficha."
+                : `Queda en la cuenta corriente de ${nombreCliente}. No entra al libro de caja hasta que la pague.`}
+            </p>
           )}
           {/* Vuelto: sólo con efectivo, y no se guarda. */}
           {vuelto && (
@@ -838,7 +975,16 @@ export default function VenderForm({
             </p>
           </div>
           <CobrarSubmit
-            disabled={!hayLineaValida || hayFaltante || hayCantidadInvalida || hayManualInvalida || faltaMedio || !descuento.ok}
+            disabled={
+              !hayLineaValida ||
+              hayFaltante ||
+              hayCantidadInvalida ||
+              hayManualInvalida ||
+              faltaMedio ||
+              !descuento.ok ||
+              cuponSinAplicar ||
+              faltaFichaACuenta
+            }
             label={etiquetaCobrar}
           />
         </div>

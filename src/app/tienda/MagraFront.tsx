@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useFormStatus } from "react-dom";
-import { placeOnlineOrder } from "@/lib/order-actions";
 import { formatearCantidad } from "@/lib/pos-peso";
+import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
+import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
+import { etiquetaDeDisponibilidad, propuestasConMediosDeLaMarca, type Disponibilidad } from "./reglas-tienda";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import {
   MAGRA,
@@ -38,6 +39,8 @@ type Product = {
   price: number | null;
   pricePerKg: number | null;
   unit: string;
+  /** "Sin stock" / "Últimas unidades", ya decidido en el servidor (nunca el número). */
+  disponibilidad?: Disponibilidad;
 };
 
 type Props = {
@@ -46,6 +49,16 @@ type Props = {
   branding: MagraBrandingRow | null;
   tenantKey: string;
   content?: MagraContent;
+  /**
+   * Tarifa de envío de la marca (storefront.ts), la MISMA con la que el servidor suma el envío
+   * al pedido. MAGRA no tiene: su envío es gratis y la pantalla lo sigue diciendo.
+   */
+  envio?: ShippingConfig | null;
+  /**
+   * Los medios de pago de la MARCA (storefront.ts): los que el mostrador puede cobrar. Reescriben
+   * la propuesta "Todos los medios de pago" del copy editorial, que promete crédito y débito.
+   */
+  mediosDePago?: readonly string[] | null;
 };
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -65,7 +78,7 @@ function nuevaClaveDePedido(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export default function MagraFront({ products, branding, tenantKey, content = MAGRA }: Props) {
+export default function MagraFront({ products, branding, tenantKey, content = MAGRA, envio = null, mediosDePago = null }: Props) {
   // UN SOLO número, el del LOCAL (BusinessSettings.whatsapp): el mismo que abren los botones
   // y el mismo que se muestra escrito en el pie. Antes había dos fuentes —el CTA usaba el
   // branding del tenant con caída a un número del archivo de copy, y el pie pintaba un tercer
@@ -75,7 +88,7 @@ export default function MagraFront({ products, branding, tenantKey, content = MA
   const local = resolveMagraLocal(branding);
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={local.whatsapp}>
-      <MagraFrontContent products={products} content={content} local={local} />
+      <MagraFrontContent products={products} content={content} local={local} envio={envio} mediosDePago={mediosDePago} />
     </WhatsAppCtaProvider>
   );
 }
@@ -84,10 +97,14 @@ function MagraFrontContent({
   products,
   content: c,
   local,
+  envio,
+  mediosDePago,
 }: {
   products: Product[];
   content: MagraContent;
   local: MagraLocal;
+  envio: ShippingConfig | null;
+  mediosDePago: readonly string[] | null;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -98,7 +115,10 @@ function MagraFrontContent({
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   function bump(p: Product, dir: 1 | -1) {
+    // Sin stock no se suma: el servidor lo rechazaría igual, y es mejor no dejar armarlo.
+    if (dir === 1 && p.disponibilidad === "sin-stock") return;
     const step = p.saleUnit === "WEIGHT" ? 0.25 : 1;
+    pedido.olvidarAviso(p.id);
     setClaveDePedido(nuevaClaveDePedido());
     setCart((s) => {
       const q = Math.max(0, Math.round(((s[p.id] ?? 0) + dir * step) * 100) / 100);
@@ -119,16 +139,28 @@ function MagraFrontContent({
   const hasItems = lines.length > 0;
   const count = lines.reduce((s, l) => s + (l.p.saleUnit === "WEIGHT" ? 1 : l.q), 0);
 
+  // El envío, con la MISMA regla y tarifa que usa el servidor para sumarlo al pedido. Sin tarifa
+  // (MAGRA) es 0 y la pantalla dice "Gratis", como siempre.
+  const costoEnvio = shippingCost(subtotal, fulfillment, envio);
+  const cupon = useCuponDePedido(subtotal);
+  const total = subtotal - cupon.descuento + costoEnvio;
+
+  // El pedido: el envío, el rechazo con su motivo (sin perder la bolsa) y el de WhatsApp, que
+  // se registra ANTES de abrir el chat (pedido-online.tsx).
+  const pedido = usePedidoOnline({
+    hayWhatsApp: Boolean(local.whatsapp),
+    alRegistrar: () => {
+      setCart({});
+      setClaveDePedido(nuevaClaveDePedido());
+      cupon.limpiar();
+    },
+  });
+  const errorDeCupon = pedido.error?.campo === "cupon" ? pedido.error.texto : cupon.error;
+
   // Featured editorial: los 2 primeros cortes reales, en bloques grandes; el resto va a la
   // grilla comprable. Sin productos → sección "en preparación" + WhatsApp (nunca vacía cruda).
   const featured = products.slice(0, 2);
   const grid = products.slice(2);
-
-  const waCart =
-    `¡Hola MAGRA! Quiero hacer este pedido:\n` +
-    lines.map((l) => `• ${formatearCantidad(l.q)} ${l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · ${l.p.name}`).join("\n") +
-    `\nEntrega: ${fulfillment === "PICKUP" ? "retiro en el local" : "envío a domicilio"}` +
-    `\nTotal estimado: ${money2.format(subtotal)}`;
 
   return (
     <div className="magra">
@@ -205,7 +237,7 @@ function MagraFrontContent({
 
           {/* ── PROPUESTAS DE VALOR ── */}
           <section className="mf-values">
-            {c.valueProps.map((v, i) => (
+            {propuestasConMediosDeLaMarca(c.valueProps, mediosDePago).map((v, i) => (
               <div key={i} className="mf-value">
                 <span aria-hidden className="mf-value-glyph">{v.glyph}</span>
                 <div className="mf-value-title">{v.title}</div>
@@ -270,8 +302,9 @@ function MagraFrontContent({
                           <div className="mf-stepper" role="group" aria-label={`Cantidad de ${p.name}`}>
                             <button type="button" onClick={() => bump(p, -1)} disabled={q === 0} aria-label={`Quitar ${p.name}`}>−</button>
                             <span className="mf-q mf-display" aria-live="polite">{q > 0 ? `${formatearCantidad(q)} ${p.saleUnit === "WEIGHT" ? "kg" : "u"}` : "0"}</span>
-                            <button type="button" onClick={() => bump(p, 1)} aria-label={`Agregar ${p.name}`}>+</button>
+                            <button type="button" onClick={() => bump(p, 1)} disabled={p.disponibilidad === "sin-stock"} aria-label={`Agregar ${p.name}`}>+</button>
                           </div>
+                          <Disponible d={p.disponibilidad} />
                         </div>
                       </div>
                       <div className="mf-fe-visual">
@@ -312,9 +345,10 @@ function MagraFrontContent({
                               <div className="mf-stepper mf-stepper-sm" role="group" aria-label={`Cantidad de ${p.name}`}>
                                 <button type="button" onClick={() => bump(p, -1)} disabled={q === 0} aria-label={`Quitar ${p.name}`}>−</button>
                                 <span className="mf-q mf-display" aria-live="polite">{q > 0 ? q : "0"}</span>
-                                <button type="button" onClick={() => bump(p, 1)} aria-label={`Agregar ${p.name}`}>+</button>
+                                <button type="button" onClick={() => bump(p, 1)} disabled={p.disponibilidad === "sin-stock"} aria-label={`Agregar ${p.name}`}>+</button>
                               </div>
                             </div>
+                            <Disponible d={p.disponibilidad} />
                           </div>
                         </div>
                       );
@@ -459,7 +493,7 @@ function MagraFrontContent({
             </div>
           </div>
 
-          <form action={placeOnlineOrder} className="mf-rail-form">
+          <form onSubmit={pedido.onSubmit} className="mf-rail-form">
             <div className="mf-rail-items">
               {!hasItems && <p className="mf-rail-empty">Sumá cortes con el botón + y armá tu pedido.</p>}
               {lines.map((l) => (
@@ -476,6 +510,11 @@ function MagraFrontContent({
                   <div className="mf-ri-amt mf-display mf-num">{money.format(l.t)}</div>
                   <input type="hidden" name="productId" value={l.p.id} />
                   <input type="hidden" name="quantity" value={l.q} />
+                  {pedido.avisoDe(l.p.id) && (
+                    <p role="alert" className="mf-aviso">
+                      {pedido.avisoDe(l.p.id)}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
@@ -485,13 +524,23 @@ function MagraFrontContent({
                 <span className="mf-k">Subtotal</span>
                 <span className="mf-v mf-display mf-num">{money2.format(subtotal)}</span>
               </div>
+              {cupon.descuento > 0 && (
+                <div className="mf-totrow">
+                  <span className="mf-k">Cupón {cupon.aplicado?.codigo}</span>
+                  <span className="mf-v mf-display mf-num">−{money2.format(cupon.descuento)}</span>
+                </div>
+              )}
               <div className="mf-totrow">
                 <span className="mf-k">{local.zoneLabel ? `Envío · ${local.zoneLabel}` : "Envío"}</span>
-                <span className="mf-v mf-display mf-free">Gratis</span>
+                {costoEnvio > 0 ? (
+                  <span className="mf-v mf-display mf-num">{money2.format(costoEnvio)}</span>
+                ) : (
+                  <span className="mf-v mf-display mf-free">Gratis</span>
+                )}
               </div>
               <div className="mf-totrow mf-big">
                 <span className="mf-k">Total</span>
-                <span className="mf-v mf-display mf-num" aria-live="polite">{money2.format(subtotal)}</span>
+                <span className="mf-v mf-display mf-num" aria-live="polite">{money2.format(total)}</span>
               </div>
 
               {hasItems && (
@@ -522,19 +571,89 @@ function MagraFrontContent({
                     <span>Nota (opcional)</span>
                     <input name="notes" placeholder="Punto de cocción, horario…" />
                   </label>
+                  <div className="mf-field">
+                    <label htmlFor="mf-cupon">Cupón (opcional)</label>
+                    <div className="mf-cupon">
+                      <input
+                        id="mf-cupon"
+                        name="cupon"
+                        value={cupon.codigo}
+                        onChange={(e) => cupon.cambiar(e.target.value)}
+                        autoComplete="off"
+                        autoCapitalize="characters"
+                        placeholder="Código"
+                        aria-invalid={errorDeCupon ? true : undefined}
+                        aria-describedby={errorDeCupon ? "mf-cupon-error" : undefined}
+                      />
+                      <button type="button" className="mf-btn mf-btn-ghost" onClick={() => void cupon.aplicar()} disabled={cupon.probando}>
+                        {cupon.probando ? "…" : "Aplicar"}
+                      </button>
+                    </div>
+                    {errorDeCupon && (
+                      <p id="mf-cupon-error" role="alert" className="mf-aviso">
+                        {errorDeCupon}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
-              <p className="mf-rail-muted">Pagás al recibir: efectivo, débito, crédito, transferencia o Mercado Pago.</p>
+              {/* Sin débito ni crédito hasta que el local cobre con tarjeta: la vidriera no promete
+                  un medio que el mostrador no tiene. */}
+              <p className="mf-rail-muted">Pagás al recibir: efectivo, transferencia o Mercado Pago.</p>
 
-              <BotonEnviarPedido disabled={!hasItems} />
+              {pedido.error && pedido.error.campo !== "cupon" && (
+                <p role="alert" className="mf-error">
+                  {pedido.error.texto}
+                </p>
+              )}
+              {pedido.confirmado && (
+                <div role="status" className="mf-ok">
+                  <p>
+                    Tu pedido <b>#{pedido.confirmado.code}</b> quedó registrado.{" "}
+                    {pedido.confirmado.whatsapp
+                      ? "Seguimos por WhatsApp."
+                      : "Te vamos a escribir al WhatsApp que dejaste."}
+                  </p>
+                  {pedido.confirmado.whatsapp && (
+                    <a href={pedido.confirmado.whatsapp} target="_blank" rel="noopener noreferrer">
+                      Abrir el chat del pedido #{pedido.confirmado.code}
+                    </a>
+                  )}
+                </div>
+              )}
+
               <button
-                type="button"
-                className="mf-btn mf-btn-wa mf-rail-wa"
-                onClick={() => requestWhatsApp(hasItems ? waCart : "¡Hola MAGRA! Quiero hacer un pedido.")}
+                type="submit"
+                name="via"
+                value="tienda"
+                className="mf-btn mf-btn-oro mf-rail-submit"
+                disabled={!hasItems || pedido.enviando}
+                aria-busy={pedido.enviando || undefined}
               >
-                <WaIcon /> Pedir por WhatsApp
+                {pedido.enviando ? "Enviando…" : "Enviar pedido"}
               </button>
+              {hasItems && local.whatsapp ? (
+                // Registra el pedido y DESPUÉS abre el chat con su número: el local lo encuentra
+                // en la bandeja y no hay que dictarlo de nuevo.
+                <button
+                  type="submit"
+                  name="via"
+                  value="whatsapp"
+                  className="mf-btn mf-btn-wa mf-rail-wa"
+                  disabled={pedido.enviando}
+                >
+                  <WaIcon /> Pedir por WhatsApp
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="mf-btn mf-btn-wa mf-rail-wa"
+                  onClick={() => requestWhatsApp("¡Hola MAGRA! Quiero hacer un pedido.")}
+                >
+                  <WaIcon /> Pedir por WhatsApp
+                </button>
+              )}
             </div>
           </form>
         </aside>
@@ -544,7 +663,7 @@ function MagraFrontContent({
       {hasItems && (
         <a href="#pedido" className="mf-minibar">
           <span className="mf-minibar-cnt">{count} {count === 1 ? "corte" : "cortes"}</span>
-          <span className="mf-minibar-total mf-display mf-num">{money2.format(subtotal)}</span>
+          <span className="mf-minibar-total mf-display mf-num">{money2.format(total)}</span>
           <span className="mf-minibar-go">Finalizar pedido →</span>
         </a>
       )}
@@ -552,15 +671,11 @@ function MagraFrontContent({
   );
 }
 
-// Mientras el pedido viaja, el botón dice que está enviando y no acepta otro toque. La clave
-// anti-duplicado ya garantiza un solo pedido; esto le evita al cliente la duda de si tocó.
-function BotonEnviarPedido({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <button type="submit" className="mf-btn mf-btn-oro mf-rail-submit" disabled={disabled || pending} aria-busy={pending || undefined}>
-      {pending ? "Enviando…" : "Enviar pedido"}
-    </button>
-  );
+// "Sin stock" / "Últimas unidades", sin el número (lo decide el servidor, reglas-tienda.ts).
+function Disponible({ d }: { d: Disponibilidad | undefined }) {
+  const texto = etiquetaDeDisponibilidad(d ?? null);
+  if (!texto) return null;
+  return <span className={`mf-avail${d === "sin-stock" ? " off" : ""}`}>{texto}</span>;
 }
 
 function Kicker({ n, t, center }: { n: string; t: string; center?: boolean }) {
@@ -805,6 +920,16 @@ const CSS = `
 .magra .mf-field input:focus,.magra .mf-field select:focus{outline:2px solid var(--oro);outline-offset:1px;border-color:var(--oro)}
 .magra .mf-rail-muted{font-size:11.5px;color:var(--gris);margin:12px 0 14px;line-height:1.5}
 .magra .mf-rail-submit{width:100%;margin-bottom:10px}
+.magra .mf-avail{display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--oro);border:1px solid rgba(197,174,134,.5);border-radius:3px;padding:4px 8px;align-self:flex-start}
+.magra .mf-avail.off{color:var(--acero);border-color:rgba(204,214,223,.4)}
+.magra .mf-aviso{flex-basis:100%;margin:6px 0 0;font-size:12.5px;color:#F2B8A8;line-height:1.4}
+.magra .mf-ri{flex-wrap:wrap}
+.magra .mf-error{margin:0 0 12px;padding:10px 12px;border-radius:7px;background:rgba(122,31,25,.35);border:1px solid rgba(242,184,168,.4);color:var(--crema);font-size:13px;line-height:1.45}
+.magra .mf-ok{margin:0 0 12px;padding:10px 12px;border-radius:7px;background:rgba(11,122,59,.25);border:1px solid rgba(11,122,59,.6);color:var(--crema);font-size:13px;line-height:1.45}
+.magra .mf-ok a{display:inline-flex;align-items:center;min-height:44px;color:var(--oro);text-decoration:underline;text-underline-offset:3px;font-weight:700}
+.magra .mf-cupon{display:flex;gap:8px}
+.magra .mf-cupon input{flex:1;min-width:0;text-transform:uppercase}
+.magra .mf-cupon .mf-btn{padding:10px 14px;min-height:44px;font-size:12px}
 .magra .mf-rail-wa{width:100%}
 @media(max-width:1080px){
   .magra .mf-rail{position:static;height:auto;border-left:none;border-top:1px solid rgba(197,174,134,.3)}

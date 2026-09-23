@@ -1,7 +1,8 @@
 "use client";
 
-// Una venta de la lista: qué se vendió, cómo se pagó y sus dos acciones, «Ticket» (verlo,
-// mandarlo por WhatsApp o imprimirlo) y «Anular…» (con motivo, la misma de la bandeja).
+// Una venta de la lista: qué se vendió, cómo se pagó y sus acciones, «Ticket» (verlo,
+// mandarlo por WhatsApp o imprimirlo), «Anular…» (con motivo, la misma de la bandeja) y
+// «Facturar», con el estado de la factura a la vista.
 
 import { useState } from "react";
 import { fmtMoneyARS } from "@/components/ui/format";
@@ -9,6 +10,8 @@ import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import AnularPedidoForm from "../pedidos/AnularPedidoForm";
 import TicketVenta from "../vender/TicketVenta";
 import type { VentaTicket } from "../vender/reglas-venta";
+import FacturarVenta from "./FacturarVenta";
+import type { FacturaDeVenta } from "./factura";
 
 export default function FilaVenta({
   venta,
@@ -17,6 +20,7 @@ export default function FilaVenta({
   negocio,
   anular,
   notas,
+  factura = null,
 }: {
   venta: VentaTicket;
   /** "10:15", en la zona del negocio. */
@@ -27,6 +31,8 @@ export default function FilaVenta({
   anular: { motivoObligatorio: boolean } | null;
   /** Lo que la dueña tiene que ver: quién anuló y por qué, descuento, precio a mano. */
   notas: string[];
+  /** El estado de la factura, sólo para quien puede facturar (null = no se muestra nada). */
+  factura?: FacturaDeVenta | null;
 }) {
   const [conTicket, setConTicket] = useState(false);
   const aMano = venta.lineas.some((l) => l.aMano);
@@ -38,7 +44,7 @@ export default function FilaVenta({
             <span className="font-medium text-strong">#{venta.code}</span>
             <span className="text-muted tabular-nums">{hora}</span>
             <span className="text-xs text-faint">
-              {canal === "ONLINE" ? "Pedido" : "Mostrador"} · {etiquetaDeMedio(venta.medio)}
+              {canal === "ONLINE" ? "Pedido" : "Mostrador"} · {venta.aCuenta ? "A cuenta" : etiquetaDeMedio(venta.medio)}
             </span>
             {venta.anulada && (
               <span className="rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-medium text-danger">Anulada</span>
@@ -75,11 +81,13 @@ export default function FilaVenta({
         >
           {conTicket ? "Ocultar ticket" : "Ticket"}
         </button>
+        {factura && <FacturarVenta orderId={venta.id} inicial={factura} />}
         {anular && (
           <AnularPedidoForm
             id={venta.id}
             code={venta.code}
             paid
+            aCuenta={venta.aCuenta === true}
             total={venta.total}
             motivoObligatorio={anular.motivoObligatorio}
           />

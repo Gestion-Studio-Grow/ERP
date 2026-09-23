@@ -62,12 +62,41 @@ export function resumenDeVentas(ventas: readonly { total: number }[]): {
  * La nota "Descuento de $X (10 %), lo aplicó Y." de una venta de la lista. PURA.
  *
  * El monto y el % salen del PEDIDO, no de la auditoría del alta: si el pedido se pesó y ajustó
- * antes de cobrarlo, el descuento acompañó al peso con el mismo % (`totalesDelAjuste`) y el
- * monto del alta ya no es el que se cobró. De la auditoría sale sólo quién lo aplicó.
+ * antes de cobrarlo, el descuento a mano acompañó al peso con el mismo % (`totalesDelAjuste`) y
+ * el monto del alta ya no es el que se cobró. De la auditoría sale sólo quién lo aplicó.
  * Sin descuento en el pedido, no hay nota.
  */
 export function notaDeDescuento(o: { subtotal: number; discount: number }, por: string | null): string | null {
   if (!(o.discount > 0)) return null;
   const pct = o.subtotal > 0 ? String(round2((o.discount / o.subtotal) * 100)).replace(".", ",") : null;
   return `Descuento de ${fmtMoneyARS(o.discount)}${pct ? ` (${pct} %)` : ""}${por ? `, lo aplicó ${por}` : ""}.`;
+}
+
+/**
+ * Las ventas A CUENTA de la lista: saldadas contra la cuenta corriente del cliente, sin medio
+ * (`paid` y `paymentMethod` vacío). Son ventas —van en la lista y en la cuenta de arriba, igual
+ * que en el número del Inicio— pero su plata no entró: se dicen aparte. PURA.
+ */
+export function resumenACuenta(ventas: readonly { total: number; paid?: boolean; paymentMethod: string | null }[]): {
+  cantidad: number;
+  total: number;
+} {
+  const aCuenta = ventas.filter((v) => v.paid !== false && !v.paymentMethod);
+  return { cantidad: aCuenta.length, total: round2(aCuenta.reduce((s, v) => s + v.total, 0)) };
+}
+
+/**
+ * La nota "Cupón VERANO10: −$1.250." de una venta. PURA. El código sale del alta; el monto, del
+ * PEDIDO cuando se lo pasan (`descuentoDelPedido`), por la misma razón que `notaDeDescuento`: si
+ * se pesó y ajustó antes de cobrarlo, el cupón se recalculó (`descuentoDelAjuste`) y el monto
+ * del alta ya no es el que se cobró. Un cupón y un descuento a mano no se suman, así que el
+ * descuento del pedido ES el del cupón.
+ */
+export function notaDeCupon(cupon: unknown, descuentoDelPedido?: number): string | null {
+  if (!cupon || typeof cupon !== "object") return null;
+  const c = cupon as { codigo?: unknown; monto?: unknown };
+  if (typeof c.codigo !== "string" || !c.codigo) return null;
+  const importe = descuentoDelPedido != null ? descuentoDelPedido : c.monto;
+  const monto = typeof importe === "number" && importe > 0 ? `: −${fmtMoneyARS(importe)}` : "";
+  return `Cupón ${c.codigo}${monto}.`;
 }

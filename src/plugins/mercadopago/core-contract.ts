@@ -22,3 +22,43 @@ export type FacturarPorPago = (
   appointmentId: string,
   tenantId: string,
 ) => Promise<string | null>;
+
+// ── El link de pago de un PEDIDO ─────────────────────────────────────────────
+//
+// El link que se genera desde la bandeja lleva como `external_reference` el pedido, con un
+// prefijo que lo distingue del turno (que va pelado, por compatibilidad con los links que ya
+// existen). Cuando Mercado Pago avisa que ese pago se acreditó, el plugin no factura: le pide
+// al Core que COBRE el pedido (`CobrarPedidoPorPago`), con el mismo cobro que el botón «Cobrar».
+// El formato vive acá, en un solo lugar: lo arma el que genera el link y lo lee el que recibe
+// el aviso.
+
+export const PREFIJO_REFERENCIA_PEDIDO = "pedido:";
+
+/** La `external_reference` del link de un pedido. PURA. */
+export function referenciaDePedido(orderId: string): string {
+  return `${PREFIJO_REFERENCIA_PEDIDO}${orderId}`;
+}
+
+/** El id del pedido de una `external_reference`, o null si no es de un pedido. PURA. */
+export function pedidoDeReferencia(ref: string | null | undefined): string | null {
+  const r = String(ref ?? "").trim();
+  if (!r.startsWith(PREFIJO_REFERENCIA_PEDIDO)) return null;
+  const id = r.slice(PREFIJO_REFERENCIA_PEDIDO.length).trim();
+  return id && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
+}
+
+/** Lo que el Core contesta cuando se le pide cobrar un pedido por un pago acreditado. */
+export type ResultadoCobroPedido =
+  | { cobrado: true; code: number; total: number }
+  | { cobrado: false; motivo: string; detalle: string; code?: number };
+
+/**
+ * Comando del Core que cobra el pedido de un pago acreditado (el mismo cobro del botón
+ * «Cobrar»: sólo lo no cobrado, con el asiento en el libro). Idempotente por pedido.
+ */
+export type CobrarPedidoPorPago = (aviso: {
+  tenantId: string;
+  orderId: string;
+  paymentId: string;
+  monto: number;
+}) => Promise<ResultadoCobroPedido>;

@@ -8,7 +8,13 @@ export {
   type MpHandlerDeps,
   type ResultadoNotificacion,
 } from "./handler";
-export type { NotificacionPagoMP, FacturarPorPago } from "./core-contract";
+export type {
+  NotificacionPagoMP,
+  FacturarPorPago,
+  CobrarPedidoPorPago,
+  ResultadoCobroPedido,
+} from "./core-contract";
+export { referenciaDePedido, pedidoDeReferencia, PREFIJO_REFERENCIA_PEDIDO } from "./core-contract";
 export {
   type MercadoPagoClient,
   type MercadoPagoConfig,

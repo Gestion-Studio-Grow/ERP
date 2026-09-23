@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useFormStatus } from "react-dom";
 import type { CSSProperties } from "react";
-import { placeOnlineOrder } from "@/lib/order-actions";
 import type { SiteReplicaData } from "@/tenants/site-replica";
+import { usePedidoOnline } from "./pedido-online";
+import { etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 
 // Réplica del sitio de un tenant (config por tenant, resuelta por slug — NO un clon
@@ -23,7 +23,16 @@ const T = {
   faint: "var(--text-faint)",
 } as const;
 
-type Product = { id: string; name: string; saleUnit: "UNIT" | "WEIGHT"; price: number | null; pricePerKg: number | null; unit: string };
+type Product = {
+  id: string;
+  name: string;
+  saleUnit: "UNIT" | "WEIGHT";
+  price: number | null;
+  pricePerKg: number | null;
+  unit: string;
+  /** "Sin stock" / "Últimas unidades", ya decidido en el servidor (nunca el número). */
+  disponibilidad?: Disponibilidad;
+};
 type Branding = { whatsapp: string | null; instagram: string | null; email: string | null; addressLine: string | null; city: string | null; hoursLabel: string | null; contactNote: string | null } | null;
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -67,8 +76,13 @@ function SiteReplicaContent({
   const [idempotencyKey] = useState(() =>
     typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
   );
+  // El rechazo vuelve con su motivo y el carrito no se pierde (pedido-online.tsx). Esta réplica no
+  // ofrece pedir por WhatsApp desde el carrito: sus botones de WhatsApp son de consulta.
+  const pedido = usePedidoOnline({ hayWhatsApp: false, alRegistrar: () => setCart({}) });
 
   function bump(p: Product, d: 1 | -1) {
+    if (d === 1 && p.disponibilidad === "sin-stock") return;
+    pedido.olvidarAviso(p.id);
     const step = p.saleUnit === "WEIGHT" ? 0.25 : 1;
     setCart((c) => {
       const q = Math.max(0, Math.round(((c[p.id] ?? 0) + d * step) * 100) / 100);
@@ -169,25 +183,35 @@ function SiteReplicaContent({
                     <div key={p.id} style={{ ...card, display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</div>
                       <div style={{ color: accent, fontWeight: 700, fontSize: 14.5 }}>{money.format(price(p))}<span style={{ color: T.faint, fontWeight: 500, fontSize: 12.5 }}>{kg ? " / kg" : " / u"}</span></div>
+                      {etiquetaDeDisponibilidad(p.disponibilidad ?? null) && (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: p.disponibilidad === "sin-stock" ? T.muted : accent }}>
+                          {etiquetaDeDisponibilidad(p.disponibilidad ?? null)}
+                        </span>
+                      )}
                       <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 8 }}>
                         <button type="button" onClick={() => bump(p, -1)} aria-label="Quitar" style={qbtn(T.line, T.ink)}>−</button>
                         <span style={{ minWidth: 56, textAlign: "center", fontSize: 13.5 }}>{q > 0 ? `${q} ${kg ? "kg" : "u"}` : "—"}</span>
-                        <button type="button" onClick={() => bump(p, 1)} aria-label="Agregar" style={qbtn(accent, "var(--text-on-accent)")}>+</button>
+                        <button type="button" onClick={() => bump(p, 1)} disabled={p.disponibilidad === "sin-stock"} aria-label="Agregar" style={{ ...qbtn(accent, "var(--text-on-accent)"), ...(p.disponibilidad === "sin-stock" ? { opacity: 0.4, cursor: "not-allowed" } : null) }}>+</button>
                       </div>
                     </div>
                   );
                 })}
               </div>
               {/* Carrito → placeOnlineOrder (nuestro back) */}
-              <form action={placeOnlineOrder} style={{ ...card, flex: "1 1 280px", position: "sticky", top: 82, display: "grid", gap: 12 }}>
+              <form onSubmit={pedido.onSubmit} style={{ ...card, flex: "1 1 280px", position: "sticky", top: 82, display: "grid", gap: 12 }}>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Tu pedido</div>
                 {lines.length === 0 && <div style={{ color: T.muted, fontSize: 13.5 }}>Sumá productos con +.</div>}
                 {lines.map((l) => (
-                  <div key={l.p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
+                  <div key={l.p.id} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", fontSize: 13.5 }}>
                     <span>{l.q} {l.p.saleUnit === "WEIGHT" ? "kg" : "u"} · {l.p.name}</span>
                     <span style={{ fontVariantNumeric: "tabular-nums" }}>{money2.format(l.t)}</span>
                     <input type="hidden" name="productId" value={l.p.id} />
                     <input type="hidden" name="quantity" value={l.q} />
+                    {pedido.avisoDe(l.p.id) && (
+                      <span role="alert" style={{ flexBasis: "100%", marginTop: 4, fontSize: 12.5, color: "var(--danger, #b42318)" }}>
+                        {pedido.avisoDe(l.p.id)}
+                      </span>
+                    )}
                   </div>
                 ))}
                 {lines.length > 0 && (
@@ -215,7 +239,15 @@ function SiteReplicaContent({
                         <input name="address" required placeholder="Calle y número" style={inp} />
                       </label>
                     )}
-                    <OrderSubmit accent={accent} />
+                    <label style={fieldLabel}>Cupón (opcional)
+                      <input name="cupon" autoComplete="off" placeholder="Código" style={{ ...inp, textTransform: "uppercase" }} />
+                    </label>
+                    {pedido.error && (
+                      <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--text-strong)", border: "1px solid var(--danger, #b42318)", borderRadius: 9, padding: "8px 10px" }}>
+                        {pedido.error.texto}
+                      </p>
+                    )}
+                    <OrderSubmit accent={accent} pending={pedido.enviando} />
                     <div style={{ fontSize: 10.5, color: T.faint, textAlign: "center" }}>El pedido entra a nuestro sistema (bandeja + stock + facturación).</div>
                   </>
                 )}
@@ -290,8 +322,7 @@ function SiteReplicaContent({
 // A-1 (capa del botón): mientras el pedido se envía, el botón se DESHABILITA y cambia a
 // "Enviando…". Corta el doble-click del mobile (el camino infeliz #1) antes de que salga un
 // segundo submit; la clave de idempotencia server-side es la segunda capa por si igual sale.
-function OrderSubmit({ accent }: { accent: string }) {
-  const { pending } = useFormStatus();
+function OrderSubmit({ accent, pending }: { accent: string; pending: boolean }) {
   return (
     <button
       type="submit"

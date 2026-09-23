@@ -10,6 +10,19 @@ import EntregarPedidoForm from "./EntregarPedidoForm";
 import AnularPedidoForm from "./AnularPedidoForm";
 import AjustarPedidoForm from "./AjustarPedidoForm";
 import AvisarPorWhatsApp from "./AvisarPorWhatsApp";
+import LinkDePagoPedido from "./LinkDePagoPedido";
+import {
+  ACCION_LINK_DE_PAGO,
+  linkDePagoDisponible,
+  simulacionDisponible,
+  simuladorDeAvisosEncendido,
+  textoDelLinkDePago,
+  tieneMercadoPago,
+  ultimosLinks,
+  type LinkEnviado,
+} from "./link-de-pago";
+import { modoCobrosDesdeEnv } from "@/lib/mercadopago-cobros-dispatch";
+import { esLineaDeEnvio, leerCuponDelPedido, whereCuponDelPedido, type CuponDelPedido } from "@/lib/venta-reglas";
 import { getProfessionalsWithServices } from "@/lib/actions";
 import { canCurrentUser } from "@/lib/authz";
 import { alcanceDeAnulacion } from "@/lib/capabilities";
@@ -87,6 +100,54 @@ export default async function PedidosPage() {
   // dirección y el horario del local. Sin cargar, el mensaje no los inventa.
   const local = comercio ? await datosDelLocal() : null;
 
+  // LINK DE PAGO (Mercado Pago), sólo en comercio: la bandeja de CH queda como estaba. Se ofrece
+  // únicamente si el negocio tiene contratado Mercado Pago (`Tenant.modules`) y está conectado
+  // (o con el simulador de avisos, para probar): la misma regla que la action (link-de-pago.ts).
+  const modoCobros = modoCobrosDesdeEnv();
+  const simulador = simuladorDeAvisosEncendido();
+  const conModulo = comercio
+    ? tieneMercadoPago(
+        (await prisma.tenant.findUnique({ where: { id: await getCurrentTenantId() }, select: { modules: true } }))?.modules,
+      )
+    : false;
+  const condiciones = { modo: modoCobros, simulador, moduloMercadoPago: conModulo };
+  const ofrecerLink = comercio && linkDePagoDisponible(condiciones);
+  const simulacion = simulacionDisponible(condiciones);
+  const links: Map<string, LinkEnviado> =
+    ofrecerLink && abiertos.length
+      ? ultimosLinks(
+          await prisma.auditLog.findMany({
+            where: {
+              tenantId: await getCurrentTenantId(),
+              entity: "Order",
+              action: ACCION_LINK_DE_PAGO,
+              entityId: { in: abiertos.map((o) => o.id) },
+            },
+            select: { entityId: true, createdAt: true, changes: true },
+          }),
+        )
+      : new Map();
+
+  // El cupón de los pedidos que se pueden pesar y tienen descuento: «Pesar y ajustar» recalcula
+  // el cupón con su regla (el de monto fijo sigue fijo), la misma que usa el servidor al
+  // guardar (`descuentoDelAjuste`). Sólo en comercio (en CH no hay nada que pesar) y sólo si
+  // hay algún pedido con descuento: la bandeja de siempre no suma consultas.
+  const conDescuento = comercio
+    ? abiertos.filter((o) => !o.paid && EN_CURSO.has(o.status) && o.discount > 0).map((o) => o.id)
+    : [];
+  const cupones = new Map<string, CuponDelPedido>();
+  if (conDescuento.length) {
+    const filas = await prisma.auditLog.findMany({
+      where: whereCuponDelPedido(await getCurrentTenantId(), conDescuento),
+      orderBy: { createdAt: "asc" },
+      select: { entityId: true, changes: true },
+    });
+    for (const f of filas) {
+      const c = leerCuponDelPedido(f.changes);
+      if (f.entityId && c) cupones.set(f.entityId, c);
+    }
+  }
+
   return (
     <main className={modeloNuevo ? "mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8" : "mx-auto max-w-4xl px-6 py-8"}>
       {modeloNuevo ? (
@@ -163,6 +224,8 @@ export default async function PedidosPage() {
           // esté cobrado, y avisar por WhatsApp cuando está listo.
           const horario = comercio && o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, hoy) : null;
           const sePuedeAjustar = comercio && !o.paid && EN_CURSO.has(o.status);
+          // El último link de pago que se le mandó (si hubo), para no generar otro sin necesidad.
+          const enviado = links.get(o.id) ?? null;
           const avisoWa =
             local && o.status === "READY"
               ? waLinkClienta(
@@ -225,7 +288,9 @@ export default async function PedidosPage() {
                         {formatearCantidad(it.quantity)}
                         {it.saleUnit === "WEIGHT" ? " kg" : " u"} · {it.name} —{" "}
                         {fmtMoneyARS(it.lineTotal)}
-                        {comercio && it.productId == null && <span className="text-faint"> (precio a mano)</span>}
+                        {comercio && it.productId == null && (
+                          <span className="text-faint">{esLineaDeEnvio(it) ? " (envío)" : " (precio a mano)"}</span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -254,6 +319,7 @@ export default async function PedidosPage() {
                       code={o.code}
                       subtotal={o.subtotal}
                       descuento={o.discount}
+                      cupon={cupones.get(o.id) ?? null}
                       items={o.items.map((it) => ({
                         productId: it.productId,
                         name: it.name,
@@ -271,6 +337,26 @@ export default async function PedidosPage() {
                       transferencia y retira más tarde. Sin medio por defecto y con el motivo
                       del rechazo en pantalla (antes era un select en EFECTIVO y un botón mudo). */}
                   {!o.paid && <CobrarPedidoForm id={o.id} code={o.code} />}
+                  {/* En el modo de prueba, un pedido ya cobrado por su link sigue ofreciendo repetir
+                      el aviso: es como se ve que Mercado Pago reintentando no asienta dos veces. */}
+                  {ofrecerLink && (!o.paid || (simulacion && enviado)) && (
+                    <LinkDePagoPedido
+                      id={o.id}
+                      code={o.code}
+                      total={o.total}
+                      cobrado={o.paid}
+                      enviado={enviado}
+                      whatsappEnviado={
+                        enviado && local
+                          ? waLinkClienta(
+                              o.customerPhone,
+                              textoDelLinkDePago({ negocio: local.negocio, code: o.code, monto: enviado.monto, url: enviado.url }),
+                            )
+                          : null
+                      }
+                      simulacion={simulacion}
+                    />
+                  )}
                   {alcance && (
                     <AnularPedidoForm
                       id={o.id}
@@ -330,6 +416,8 @@ export default async function PedidosPage() {
                           id={o.id}
                           code={o.code}
                           paid={o.paid}
+                          // Saldada sin medio = venta a cuenta: la anulación saca la deuda, no plata de la caja.
+                          aCuenta={o.paid && !o.paymentMethod}
                           total={o.total}
                           motivoObligatorio={alcance.motivoObligatorio}
                         />

@@ -1,5 +1,5 @@
 // ============================================================================
-// REGLAS DE LA VENTA — descuento y precio a mano. PURO.
+// REGLAS DE LA VENTA — descuento, precio a mano (con su tope), envío y cupones. PURO.
 // ============================================================================
 //
 // Las usan la pantalla de Vender (client component, vía vender/reglas-venta.ts, que las
@@ -18,6 +18,7 @@ import { round2 } from "@/lib/round";
 import { leerImporte } from "@/lib/pos-peso";
 import { validarMotivo, MOTIVO_MIN } from "@/lib/turnos/anulacion";
 import { fmtMoneyARS } from "@/components/ui/format";
+import { fmtShortDate } from "@/lib/datetime";
 import type { Role } from "@/lib/capabilities";
 
 // ── DESCUENTO ────────────────────────────────────────────────────────────────
@@ -106,21 +107,58 @@ export function aplicarDescuento(input: {
  * descuento que el alta no habría aceptado. Si el pedido sube (pesó más, o se sumó un corte),
  * el descuento sube con él, al mismo %: es lo que el cliente espera de "te hago el 10 %".
  *
- * `Order.discount` guarda sólo el monto, no si se cargó en % o en $; por eso el ajuste
- * razona siempre en %. Sin subtotal anterior no hay % que conservar: el descuento cae a cero
- * (nunca se inventa uno). Nunca pasa del subtotal nuevo: el total no queda negativo.
+ * `Order.discount` guarda sólo el monto, no si se cargó en % o en $; por eso el descuento a
+ * mano razona siempre en %. Sin subtotal anterior no hay % que conservar: el descuento cae a
+ * cero (nunca se inventa uno). Nunca pasa del subtotal nuevo: el total no queda negativo.
+ *
+ * EL CUPÓN ES OTRA COSA. Si el pedido se tomó con un cupón, `cupon` trae su regla tal como
+ * quedó escrita al tomarlo (`CuponDelPedido`, que el alta graba en la misma transacción) y el
+ * descuento se vuelve a calcular con ESA regla sobre lo que se compra ahora (`montoDeCupon`):
+ * el de % sigue siendo el mismo %, y el de MONTO FIJO sigue siendo el mismo monto, sin pasarse
+ * de la compra. Escalar el fijo en proporción regalaba plata que el cupón no daba: 1,6 kg de
+ * vacío ($20.000) con un cupón de $2.000, pesados a 2,4 kg, quedaban con $3.000 de descuento;
+ * pesados a 0,8 kg, con $1.000, y el cliente perdía la mitad del cupón. El cupón lo creó la
+ * dueña, así que no hay tope de quien vende que cuidar (el alta tampoco lo mira).
+ *
+ * `envio`: la línea de envío del pedido de la tienda (`envioDeLasLineas`). No es base del
+ * descuento: el cupón se calculó sólo sobre lo que se compra, y el ajuste no toca el envío.
+ * Sin restarlo, $20.000 de productos + $3.500 de envío con un 10 % ($2.000) pesados a $10.000
+ * quedaban con $1.148,94 de descuento en vez de $1.000.
  */
 export function descuentoDelAjuste(input: {
   descuentoAntes: number;
   subtotalAntes: number;
   subtotalNuevo: number;
+  envio?: number;
+  /** El cupón del pedido (`leerCuponDelPedido`), o nada si el descuento fue a mano. */
+  cupon?: Pick<CuponDelPedido, "tipo" | "valor"> | null;
 }): { descuento: number; porcentaje: number } {
+  const envio = input.envio && input.envio > 0 ? round2(input.envio) : 0;
   const antes = round2(input.descuentoAntes || 0);
-  const base = round2(input.subtotalAntes || 0);
-  const nuevo = round2(input.subtotalNuevo || 0);
+  const base = round2((input.subtotalAntes || 0) - envio);
+  const nuevo = round2((input.subtotalNuevo || 0) - envio);
+  if (input.cupon) {
+    const descuento = montoDeCupon(input.cupon.tipo, input.cupon.valor, nuevo);
+    return { descuento, porcentaje: nuevo > 0 ? round2((descuento / nuevo) * 100) : 0 };
+  }
   if (!(antes > 0) || !(base > 0) || !(nuevo > 0)) return { descuento: 0, porcentaje: 0 };
   const descuento = Math.min(round2((antes * nuevo) / base), nuevo);
   return { descuento, porcentaje: round2((Math.min(antes, base) / base) * 100) };
+}
+
+/**
+ * El renglón del descuento en «Pesar y ajustar», antes de guardar. PURA. Dice de dónde sale el
+ * número: el cupón de monto fijo no es "el X % de la venta". `null` = no hay descuento.
+ */
+export function textoDelDescuentoDelAjuste(
+  d: { descuento: number; porcentaje: number },
+  cupon: CuponDelPedido | null | undefined,
+): string | null {
+  if (!(d.descuento > 0)) return null;
+  const monto = fmtMoneyARS(d.descuento);
+  if (cupon?.tipo === "FIXED") return `Cupón ${cupon.codigo} de ${fmtMoneyARS(cupon.valor)}: −${monto}`;
+  if (cupon) return `Cupón ${cupon.codigo} del ${String(Math.min(cupon.valor, 100)).replace(".", ",")} %: −${monto}`;
+  return `Descuento del ${String(d.porcentaje).replace(".", ",")} %, el de la venta: −${monto}`;
 }
 
 /**
@@ -166,6 +204,14 @@ export function validarLineaAMano(input: {
   if (!nombre) {
     return { ok: false, error: "Escribí qué se vende en la línea con precio a mano (por ejemplo, «Bondiola, sin precio cargado»)." };
   }
+  // El nombre de la línea de envío de la tienda está reservado: una línea a mano que se llamara
+  // igual dejaría de verse como «precio a mano» en Ventas del día, que es el control de la dueña.
+  if (esNombreDeEnvio(nombre)) {
+    return {
+      ok: false,
+      error: `«${NOMBRE_LINEA_ENVIO}» es el nombre que usa la tienda para el envío: escribí otro, como «Envío Canning».`,
+    };
+  }
   const l = leerImporte(input.importe);
   if (l.estado === "vacio") return { ok: false, error: `Poné el importe de «${nombre}».` };
   if (l.estado === "invalida") {
@@ -204,4 +250,269 @@ export function lineasAManoDelFormulario(
     lineas.push(r.linea);
   }
   return { ok: true, lineas };
+}
+
+// ── TEXTO: comparar nombres como los escribe una persona ─────────────────────
+
+/** "  Vacío  especial " y "vacio especial" son el mismo nombre. PURA. */
+export function normalizarNombre(s: string | null | undefined): string {
+  return String(s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// ── PRECIO A MANO: el tope de recepción ──────────────────────────────────────
+//
+// La línea a mano no tiene tope en el alta: recepción podía vender un vacío de $12.500 el kilo
+// escribiendo «Vacío» a $1.000, y lo único que quedaba era la marca en Ventas del día. Se le
+// pone un tope con la MISMA forma que el del descuento: una regla pura acá, que el alta aplica
+// DENTRO de la transacción (order-core.ts, con el catálogo leído ahí mismo), y un mensaje que
+// dice hasta dónde llega y a quién pedir más. La dueña o el dueño no tiene tope.
+//
+//   · Si el nombre es el de un producto del catálogo CON precio:
+//       - por unidad: no puede bajar más del 10 % del precio de lista;
+//       - por kilo: no se puede cargar a mano (sin el peso no hay con qué comparar); se carga
+//         el producto con su peso, y si hace falta, con el descuento, que tiene su propio tope.
+//   · Si no hay producto con precio con ese nombre: hasta un monto máximo por línea.
+//
+// PROVISIONAL A CONFIRMAR con la dueña de MAGRA: el 10 % y los $50.000. Fijarlos por negocio
+// pide una columna nueva (ola 9). El nombre se compara sin mayúsculas ni tildes; un nombre
+// inventado para esquivar el catálogo cae en el monto máximo, y la línea sigue marcada.
+
+/** Cuánto puede bajar recepción el precio de lista con una línea a mano, en %. Provisional. */
+export const TOPE_BAJA_A_MANO_RECEPCION_PCT = 10;
+/** Hasta cuánto vale una línea a mano de recepción sin producto con precio. Provisional. */
+export const MAXIMO_A_MANO_RECEPCION = 50_000;
+
+export type TopePrecioAMano = { bajaPct: number; maximo: number };
+
+/** El tope de precio a mano de quien vende. `null` = sin tope (la dueña o el dueño). */
+export function topeDePrecioAMano(role: Role): TopePrecioAMano | null {
+  return role === "OWNER" ? null : { bajaPct: TOPE_BAJA_A_MANO_RECEPCION_PCT, maximo: MAXIMO_A_MANO_RECEPCION };
+}
+
+export type ProductoDeLista = {
+  name: string;
+  saleUnit: "UNIT" | "WEIGHT" | string;
+  price: number | null;
+  pricePerKg: number | null;
+};
+
+const PIDE_A_LA_DUENIA = "Para más, pedíselo a la dueña o al dueño del negocio.";
+
+/**
+ * ¿Esta línea a mano entra en el tope de quien vende? PURA. `catalogo` son los productos del
+ * negocio (no borrados) tal como los leyó el alta dentro de su transacción.
+ */
+export function controlarPrecioAMano(input: {
+  linea: LineaAMano;
+  catalogo: readonly ProductoDeLista[];
+  tope: TopePrecioAMano | null;
+}): { ok: true } | { ok: false; error: string } {
+  const { linea, tope } = input;
+  if (!tope) return { ok: true };
+  const clave = normalizarNombre(linea.nombre);
+  const producto = input.catalogo.find((p) => {
+    if (normalizarNombre(p.name) !== clave) return false;
+    const precio = p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price;
+    return precio != null && precio > 0;
+  });
+  if (producto) {
+    if (producto.saleUnit === "WEIGHT") {
+      return {
+        ok: false,
+        error:
+          `«${producto.name}» se vende por kilo y tiene precio en el catálogo: cargalo como producto, con su peso. ` +
+          `Con tu usuario no se carga a mano. ${PIDE_A_LA_DUENIA}`,
+      };
+    }
+    const lista = producto.price as number;
+    const minimo = round2((lista * (100 - tope.bajaPct)) / 100);
+    if (linea.importe < minimo) {
+      return {
+        ok: false,
+        error:
+          `«${producto.name}» está a ${fmtMoneyARS(lista)} en el catálogo: con tu usuario, a mano llega hasta ` +
+          `${tope.bajaPct} % menos (${fmtMoneyARS(minimo)}). ${PIDE_A_LA_DUENIA}`,
+      };
+    }
+    return { ok: true };
+  }
+  if (linea.importe > tope.maximo) {
+    return {
+      ok: false,
+      error: `Con tu usuario, una línea con precio a mano llega hasta ${fmtMoneyARS(tope.maximo)}. ${PIDE_A_LA_DUENIA}`,
+    };
+  }
+  return { ok: true };
+}
+
+// ── ENVÍO: una línea más del pedido ──────────────────────────────────────────
+//
+// La tienda mostraba el envío y no lo registraba: el pedido de la bandeja decía $20.000 y el
+// cliente había visto $23.500. Ahora el envío lo calcula el SERVIDOR (con la tarifa de la
+// marca, storefront-shipping.ts) y entra como una línea sin producto del pedido: suma al
+// total, se cobra y se asienta con él, y no mueve stock. Se reconoce por su nombre, que por
+// eso está reservado para la línea a mano (`validarLineaAMano`).
+
+export const NOMBRE_LINEA_ENVIO = "Envío a domicilio";
+
+/** ¿Este nombre es el de la línea de envío? Sin mayúsculas ni tildes. PURA. */
+export function esNombreDeEnvio(nombre: string | null | undefined): boolean {
+  return normalizarNombre(nombre) === normalizarNombre(NOMBRE_LINEA_ENVIO);
+}
+
+/** ¿Esta línea guardada es el envío? Sin producto y con el nombre reservado. PURA. */
+export function esLineaDeEnvio(l: { productId: string | null; name: string }): boolean {
+  return l.productId == null && esNombreDeEnvio(l.name);
+}
+
+/**
+ * Lo que suma el envío entre las líneas guardadas de un pedido (0 si no tiene). PURA. Lo usa el
+ * ajuste («Pesar y ajustar») para dejar el envío fuera de la base del descuento.
+ */
+export function envioDeLasLineas(
+  lineas: readonly { productId?: string | null; name?: string | null; lineTotal: number }[],
+): number {
+  return round2(
+    lineas.reduce((s, l) => s + (l.productId == null && esNombreDeEnvio(l.name) ? l.lineTotal || 0 : 0), 0),
+  );
+}
+
+// ── CUPONES en el mostrador y en la tienda ───────────────────────────────────
+//
+// Hasta acá los cupones valían sólo para los turnos. En un pedido el cupón se guarda como el
+// descuento (`Order.discount`), su regla (% o fijo) queda en la auditoría del pedido para
+// poder pesarlo después (`CuponDelPedido`, al final de este archivo) y el control del máximo
+// de usos va en la MISMA transacción que crea el pedido (order-core.ts, compare-and-set sobre
+// `usedCount`): dos ventas simultáneas no pueden gastar el último uso las dos. Esta es la
+// regla, pura, que usan el alta y la vista previa ("Aplicar") de la pantalla.
+//
+// El cupón lo creó la dueña: su descuento no pasa por el tope de recepción. Un cupón y un
+// descuento a mano no se suman: es uno o el otro.
+
+export const CODIGO_CUPON_MAX = 40;
+
+/** Código como lo guarda el catálogo de cupones: sin espacios alrededor y en mayúsculas. */
+export function normalizarCodigoDeCupon(raw: unknown): string {
+  return String(raw ?? "").trim().toUpperCase().slice(0, CODIGO_CUPON_MAX);
+}
+
+export type CuponLeido = {
+  code: string;
+  type: "PERCENT" | "FIXED" | string;
+  value: number;
+  active: boolean;
+  expiresAt: Date | null;
+  maxUses: number | null;
+  usedCount: number;
+};
+
+export type ResultadoCupon =
+  | { ok: true; codigo: string; descuento: number }
+  | { ok: false; error: string };
+
+export const CUPON_Y_DESCUENTO = "Un cupón y un descuento a mano no se suman: usá uno de los dos.";
+
+/**
+ * El descuento de un cupón sobre `base` (lo que se compra, sin el envío), o el rechazo con el
+ * porqué. PURA. Sin cupón, vencido, inactivo o agotado: rechazo, nunca un descuento de 0 que
+ * el cliente descubra después.
+ */
+export function aplicarCupon(input: { cupon: CuponLeido | null; base: number; ahora: Date }): ResultadoCupon {
+  const c = input.cupon;
+  if (!c || !c.active) return { ok: false, error: "Ese cupón no existe o no está activo. Revisá cómo está escrito." };
+  if (c.expiresAt && c.expiresAt.getTime() < input.ahora.getTime()) {
+    return { ok: false, error: `El cupón ${c.code} venció el ${fmtShortDate(c.expiresAt)}.` };
+  }
+  if (c.maxUses != null && c.usedCount >= c.maxUses) {
+    return { ok: false, error: `El cupón ${c.code} ya se usó todas las veces que permitía.` };
+  }
+  const base = round2(input.base);
+  if (!(base > 0)) return { ok: false, error: "Agregá algo a la compra antes de usar el cupón." };
+  if (!(c.value > 0)) return { ok: false, error: `El cupón ${c.code} no tiene un descuento cargado.` };
+  return { ok: true, codigo: c.code, descuento: montoDeCupon(c.type, c.value, base) };
+}
+
+/**
+ * Cuánto descuenta un cupón ya validado sobre `base`: el % de lo que se compra, o el monto fijo
+ * sin pasarse de la compra. PURA. La usa también la pantalla para recalcular la vista previa
+ * cuando cambia la bolsa, sin volver a preguntarle al servidor.
+ */
+export function montoDeCupon(tipo: string, valor: number, base: number): number {
+  const b = round2(base);
+  if (!(b > 0) || !(valor > 0)) return 0;
+  return tipo === "PERCENT" ? round2((b * Math.min(valor, 100)) / 100) : round2(Math.min(valor, b));
+}
+
+/**
+ * Qué consume un cupón que pasó `aplicarCupon`: el compare-and-set sobre el `usedCount` que se
+ * leyó. Si otra venta lo gastó en el medio, el `where` no encuentra la fila y el alta vuelve a
+ * leer (order-core.ts). PURA: sólo arma el `where`, para que el test vea la guarda.
+ */
+export function whereConsumoDeCupon(tenantId: string, cupon: { id: string; usedCount: number }) {
+  return { id: cupon.id, tenantId, active: true, usedCount: cupon.usedCount };
+}
+
+/**
+ * El `where` de "cupones vigentes": prendidos y sin vencer a `ahora`. Lo usan la pantalla de
+ * Promociones y el número de su botón: el mismo `where`, la misma cuenta. Un cupón prendido que
+ * llegó a su máximo de usos sigue contando acá (Postgres no compara dos columnas en un `where`
+ * de Prisma sin SQL a mano); la pantalla lo marca "agotado". PURA.
+ */
+export function whereCuponesVigentes(tenantId: string, ahora: Date) {
+  return { tenantId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gte: ahora } }] };
+}
+
+/** ¿Este cupón ya no se puede usar porque llegó a su máximo? PURA. */
+export function cuponAgotado(c: { maxUses: number | null; usedCount: number }): boolean {
+  return c.maxUses != null && c.usedCount >= c.maxUses;
+}
+
+// ── EL CUPÓN QUE USÓ UN PEDIDO, para pesarlo y ajustarlo ─────────────────────
+//
+// `Order.discount` guarda sólo el monto: no dice si vino de un cupón ni si era de % o fijo, y
+// el esquema no se toca en esta ola. Sin eso, «Pesar y ajustar» escalaba en proporción también
+// el cupón de monto fijo (`descuentoDelAjuste`). La regla del cupón queda escrita en la
+// auditoría del pedido, en la MISMA transacción que lo crea (`registrarCuponDelPedidoEnTx`,
+// order-core.ts): si el pedido existe, su cupón está escrito; si el alta se deshace, no queda
+// nada. No depende de la fila del cupón, que la dueña puede borrar o reemplazar por otra con
+// el mismo código. La auditoría de siempre del alta ("create") sigue igual.
+
+/** La acción de auditoría que guarda el cupón de un pedido. */
+export const ACCION_CUPON_DEL_PEDIDO = "cupon-del-pedido";
+
+/** El cupón con el que se tomó un pedido, como era al tomarlo. */
+export type CuponDelPedido = { codigo: string; tipo: "PERCENT" | "FIXED"; valor: number };
+
+/** El `where` de la fila del cupón de uno o varios pedidos, siempre dentro del negocio. PURA. */
+export function whereCuponDelPedido(tenantId: string, orderIds: string | readonly string[]) {
+  return {
+    tenantId,
+    entity: "Order",
+    action: ACCION_CUPON_DEL_PEDIDO,
+    entityId: typeof orderIds === "string" ? orderIds : { in: [...orderIds] },
+  };
+}
+
+/** Lo que se escribe en `changes` de esa fila (lo lee `leerCuponDelPedido`). PURA. */
+export function cambiosDelCuponDelPedido(cupon: CuponDelPedido, monto: number) {
+  return { codigo: cupon.codigo, tipo: cupon.tipo, valor: cupon.valor, monto: round2(monto) };
+}
+
+/**
+ * El cupón de la fila de auditoría, o `null` si no es un cupón que se pueda recalcular (sin
+ * fila, tipo desconocido, valor que no es un número positivo). PURA. Con `null`, el ajuste usa
+ * la regla del descuento a mano: conservar el %.
+ */
+export function leerCuponDelPedido(changes: unknown): CuponDelPedido | null {
+  if (!changes || typeof changes !== "object") return null;
+  const c = changes as { codigo?: unknown; tipo?: unknown; valor?: unknown };
+  if (typeof c.codigo !== "string" || !c.codigo) return null;
+  if (c.tipo !== "PERCENT" && c.tipo !== "FIXED") return null;
+  if (typeof c.valor !== "number" || !Number.isFinite(c.valor) || !(c.valor > 0)) return null;
+  return { codigo: c.codigo, tipo: c.tipo, valor: c.valor };
 }

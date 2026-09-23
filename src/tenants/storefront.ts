@@ -117,7 +117,9 @@ const magra: StorefrontCopy = {
     { icon: "◆", title: "Calidad de parrilla top", text: "Los cortes que comés en los mejores restaurantes, envasados al vacío." },
     { icon: "$", title: "Precio de barrio", text: "Sin el markup del restaurante: pagás como en la carnicería, comés como afuera." },
     { icon: "→", title: "Envío gratis a domicilio", text: "Delivery sin cargo en Canning y alrededores." },
-    { icon: "▣", title: "Todos los medios de pago", text: "Efectivo, débito, crédito, transferencia y Mercado Pago." },
+    // Sin débito ni crédito: el local todavía no cobra con tarjeta en el sistema (no hay medio
+    // "Tarjeta" en la caja), y la vidriera no promete lo que el mostrador no puede cobrar.
+    { icon: "▣", title: "Medios de pago", text: "Efectivo, transferencia y Mercado Pago." },
     { icon: "✳", title: "Atención personalizada", text: "Te asesoramos y coordinamos tu pedido por WhatsApp." },
   ],
   vacioTitle: "Envasados al vacío",
@@ -146,7 +148,7 @@ const magra: StorefrontCopy = {
     body: "Somos una boutique de carnes premium envasadas al vacío: la misma calidad que buscás en las mejores parrillas, a precio de carnicería de barrio. Seleccionamos cada corte de los mejores proveedores, con una línea gourmet elegida con el mismo criterio. Servicio puerta a puerta en Canning y alrededores.",
   },
   deliveryZones: ["Canning", "San Vicente", "Guernica", "Ezeiza", "Monte Grande"],
-  paymentMethods: ["Efectivo", "Débito", "Crédito", "Transferencia", "Mercado Pago"],
+  paymentMethods: ["Efectivo", "Transferencia", "Mercado Pago"],
 };
 
 // --- SHINE Velas de soja & deco (CABA) — voz de @shine.velas.store ---

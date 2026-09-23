@@ -33,12 +33,15 @@ export default function AnularPedidoForm({
   paid,
   total,
   motivoObligatorio,
+  aCuenta = false,
 }: {
   id: string;
   code: number;
   paid: boolean;
   total: number;
   motivoObligatorio: boolean;
+  /** La venta quedó a cuenta: no hay plata en la caja que devolver, sí una deuda que sacar. */
+  aCuenta?: boolean;
 }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
@@ -102,9 +105,11 @@ export default function AnularPedidoForm({
         ¿Anular el pedido #{code}?
       </p>
       <p className="text-xs text-muted">
-        {paid
-          ? `Se devuelven ${fmtMoneyARS(total)} en la caja del día en que se cobró.`
-          : "No estaba cobrado: la caja no se toca."}
+        {aCuenta
+          ? `Estaba a cuenta: se sacan ${fmtMoneyARS(total)} de la cuenta corriente del cliente. La caja no se toca.`
+          : paid
+            ? `Se devuelven ${fmtMoneyARS(total)} en la caja del día en que se cobró.`
+            : "No estaba cobrado: la caja no se toca."}
       </p>
       <label htmlFor={motivoId} className="text-xs text-body">
         Motivo {motivoObligatorio ? "(obligatorio)" : "(queda en la auditoría)"}
