@@ -67,20 +67,36 @@ Sobre una base local llevada al estado documentado de producción (40 migracione
 ### A · Desde el deploy de Vercel (no hace falta terminal)
 
 Es el camino para cuando nadie va a abrir una terminal con la cadena de producción. El build
-lleva el runbook adentro (`scripts/vercel-build.mjs`) y corre los pasos 2, 3, 4 y 6 solo, en
-este orden, frenando en cada uno:
+lleva el runbook adentro (`scripts/vercel-build.mjs`) y frena en cada paso. Todo lo que hace
+el dueño se hace **desde el navegador**: consola de Neon y panel de Vercel.
 
-1. **Hacé el respaldo.** Neon → tu proyecto → Branches → *Create branch*. Un clic. **Esto no
-   lo hace el script y no lo va a hacer nunca**: ningún automatismo puede decidir por el
-   dueño que un respaldo no hace falta.
-2. Neon → *Connection string* → **destildá "Connection pooling"** y copiá la cadena.
-3. Vercel → el proyecto → Settings → Environment Variables → nueva variable
-   `MIGRATE_DATABASE_URL`, pegás esa cadena, marcada **sólo para Production**.
-4. Vercel → Deployments → *Redeploy* sobre el último commit de la rama.
+**Antes, en cualquier build de producción** (con o sin migración): si falta `AUTH_SECRET`, o
+si la base está atrás del código, **el build frena y no publica**. Un merge antes de tiempo ya
+no puede dejar el mostrador sin cobrar con el build en verde.
 
-El build va a: mostrar el estado de la base, aplicar las pendientes, **verificar que los
-índices únicos de idempotencia existan** y, si falta alguno, **fallar sin publicar**; después
-auditar el aislamiento (avisa, no frena) y recién ahí compilar.
+1. **Congelá `main`** mientras dure la ventana: nadie mergea nada más.
+2. **Hacé el respaldo.** Neon → tu proyecto → Branches → *Create branch*, y anotá la hora.
+   **Esto no lo hace el script y no lo va a hacer nunca.**
+3. Neon → *Connection string* → rol **`neondb_owner`** → **destildá "Connection pooling"**
+   y copiá la cadena. Tiene que ser el dueño de las tablas: los permisos por defecto de
+   `app_rls` están atados a ese rol (`prisma/rls/0002_app_role.sql`).
+4. Vercel → Settings → Environment Variables → `MIGRATE_DATABASE_URL`, pegás esa cadena,
+   marcada **sólo para Production**.
+5. Mergeá el PR **verificando que el SHA de la cabeza sea el revisado**. El build arranca solo.
+6. **NO CANCELES EL BUILD.** Cortarlo mientras migra puede dejar una migración marcada como
+   fallida, y eso traba todos los deploys siguientes (P3009). Si algo sale mal, frena solo.
+
+El build hace, en orden:
+
+| Paso | Qué | Si falla |
+|---|---|---|
+| 1 | `migrate status` (sólo lectura) | informativo |
+| 1b | Lo pendiente es **exactamente** `prisma/lote-deploy.txt`, y la base no tiene migraciones que el repo desconozca | **frena sin tocar la base** |
+| 2 | `migrate deploy` | frena; ver P3009 abajo |
+| 3 | Tablas, columnas e **índices únicos del dinero**, vistos por el dueño | frena, no publica |
+| 3b | Lo mismo, visto por el rol de la app (`DATABASE_URL`) | frena: falta un GRANT |
+| 4 | Aislamiento entre negocios (RLS) | **avisa**, no frena |
+| 5 | `prisma generate` + `next build` | frena, no publica |
 
 **Si algo falla, Vercel no publica y el código viejo sigue sirviendo.** Las migraciones de
 este lote son aditivas, así que una base migrada con el código anterior funciona igual.
@@ -88,8 +104,45 @@ este lote son aditivas, así que una base migrada con el código anterior funcio
 Qué NO migra, a propósito: los previews (`VERCEL_ENV` distinto de `production`) y cualquier
 build sin `MIGRATE_DATABASE_URL`. Las dos condiciones se exigen juntas.
 
-Cuando termine, **sacá `MIGRATE_DATABASE_URL` de Vercel**. Deja de hacer falta, y una cadena
-con rol directo guardada en las variables de un proyecto es superficie que no necesitás.
+**Un redeploy con la variable todavía cargada es inofensivo**: el paso 1b ve "nada pendiente"
+y sigue. Igual, cuando termine, **sacá `MIGRATE_DATABASE_URL` de Vercel**: una cadena del
+rol dueño guardada en las variables es superficie que no necesitás.
+
+#### Si el paso 3b frena ("el rol de la app NO ve…")
+
+Falta un GRANT sobre una tabla nueva. Neon → **SQL Editor** (como `neondb_owner`) → pegar
+`prisma/rls/0002_app_role.sql` → *Run*. Es idempotente. Después, Vercel → *Redeploy*.
+
+#### Si el paso 4 avisa tablas sin aislamiento
+
+Neon → **SQL Editor** (como `neondb_owner`) → pegar `prisma/rls/0001_enable_rls.sql` →
+*Run*. El SQL cubre las tablas que existen **en el momento en que se corre**, así que va
+**después** de migrar, no antes.
+
+#### Si el build dice P3009 (una migración quedó marcada como fallida)
+
+No se sale con otro deploy: todos van a frenar igual. Desde el navegador:
+
+1. Vercel → el deploy fallido → *Build Logs*: anotá **qué migración** falló y el error.
+2. Neon → SQL Editor: `SELECT migration_name, started_at, finished_at, logs FROM
+   _prisma_migrations WHERE finished_at IS NULL;` — tiene que aparecer esa sola.
+3. Decidir con el error a la vista, no antes:
+   - **Si la migración no llegó a cambiar nada** (el error es del primer statement),
+     `UPDATE _prisma_migrations SET rolled_back_at = now() WHERE migration_name = '<esa>'
+     AND finished_at IS NULL;` — es exactamente lo que hace `prisma migrate resolve
+     --rolled-back`, sin terminal — y *Redeploy*: la vuelve a intentar.
+   - **Si cambió algo a medias**, no se improvisa SQL a mano en producción: se restaura.
+
+#### Si hay que volver atrás: primero el código, después la base
+
+1. **Vercel → Instant Rollback** al deploy anterior. En Hobby sólo llega al inmediatamente
+   anterior, así que es lo **primero**: cualquier deploy en el medio lo vuelve imposible.
+2. **Recién después**, Neon → restaurar desde el branch del respaldo.
+
+⚠ **Restaurar la base borra todo lo que pasó después del respaldo**: los cobros que
+Carolina haya registrado en el mostrador desde esa hora se pierden. Por eso la ventana es un
+domingo a la mañana, con el local cerrado, y por eso se anota la hora del branch. Si hubo
+cobros en el medio, se re-cargan a mano desde el comprobante.
 
 ### B · A mano, desde una terminal
 

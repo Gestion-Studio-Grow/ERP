@@ -24,7 +24,18 @@
 // Es seguro apuntarlo a prod: solo corre SELECTs sobre information_schema y
 // _prisma_migrations. Overrides para test: PREDEPLOY_SCHEMA_PATH, PREDEPLOY_MIGRATIONS_DIR.
 //
-// Exit 0 = base al día (deploy seguro). Exit 1 = drift (NO deployar). Exit 2 = error de uso.
+// Exit 0 = base al día (deploy seguro). Exit 1 = drift (NO deployar).
+// Exit 2 = no se pudo mirar: no conecta, no hay permiso, o error de uso. NO es "está bien".
+//
+// MODO LOTE (PREDEPLOY_LOTE=prisma/lote-deploy.txt). Lo usa el build de Vercel ANTES de
+// migrar: la base está atrasada a propósito, así que no compara columnas; compara QUÉ se va
+// a aplicar contra lo que el dueño declaró en el archivo. "Aplicar exactamente estas cinco"
+// deja de ser una frase del runbook y pasa a ser un freno: una sexta migración que se coló
+// en la rama, o una migración en la base que el repo no conoce, detienen el build.
+//
+// NUNCA SE PASA `statement_timeout` AL CLIENTE. node-pg lo manda como parámetro de ARRANQUE
+// y el pooler de Neon (PgBouncer) rechaza la conexión entera: el chequeo fallaría en todos
+// los deploys de producción. El techo de tiempo es el reloj de 90 s del final del archivo.
 // ============================================================================
 
 import "dotenv/config";
@@ -104,15 +115,34 @@ function parseExpectedColumns(schema: string): Map<string, Set<string>> {
   return tables;
 }
 
-/** Corre el chequeo y devuelve el exit code (0=al día, 1=drift, 2=error de uso). */
+/** Postgres: "permission denied". El rol conecta pero no puede leer esa tabla. */
+const SIN_PERMISO = "42501";
+/** Postgres: "undefined_table". */
+const NO_EXISTE_TABLA = "42P01";
+
+/** Nombres de migración declarados en el archivo del lote (una por línea, `#` comenta). */
+function leerLote(ruta: string): string[] {
+  return readFileSync(ruta, "utf8")
+    .split("\n")
+    .map((l) => l.replace(/#.*$/, "").trim())
+    .filter(Boolean)
+    .sort();
+}
+
+/** Corre el chequeo y devuelve el exit code (0=al día, 1=drift, 2=no se pudo mirar). */
 export async function check(): Promise<number> {
   // Env leído acá (no al importar) para ser testeable con distintos targets.
   const SCHEMA_PATH = process.env.PREDEPLOY_SCHEMA_PATH ?? join(ROOT, "prisma", "schema.prisma");
   const MIGRATIONS_DIR = process.env.PREDEPLOY_MIGRATIONS_DIR ?? join(ROOT, "prisma", "migrations");
   const TARGET_URL = process.env.PREDEPLOY_DATABASE_URL ?? process.env.DATABASE_URL;
+  const LOTE = process.env.PREDEPLOY_LOTE;
 
   if (!TARGET_URL) {
     console.error("❌ Falta la base destino. Seteá PREDEPLOY_DATABASE_URL o DATABASE_URL (.env).");
+    return 2;
+  }
+  if (LOTE && !existsSync(LOTE)) {
+    console.error(`❌ No existe el archivo del lote: ${LOTE}`);
     return 2;
   }
   if (!existsSync(SCHEMA_PATH)) {
@@ -132,29 +162,99 @@ export async function check(): Promise<number> {
   console.log(`🔎 Pre-deploy check contra: ${maskedHost(TARGET_URL)}`);
   console.log(`   schema: ${SCHEMA_PATH.replace(ROOT, ".")}\n`);
 
-  const client = new pg.Client({ connectionString: TARGET_URL });
-  await client.connect();
+  // Sólo el tiempo de CONEXIÓN. Ver la cabecera: `statement_timeout` acá rompe el pooler.
+  const client = new pg.Client({ connectionString: TARGET_URL, connectionTimeoutMillis: 15_000 });
+  try {
+    await client.connect();
+  } catch (e) {
+    console.error(`❌ No se pudo CONECTAR a ${maskedHost(TARGET_URL)}: ${(e as Error).message}`);
+    return 2;
+  }
+
+  // Con qué rol se está mirando. Importa: `information_schema` sólo muestra las columnas que
+  // ESTE rol puede ver, así que un rol sin GRANT ve tablas "faltantes" que sí existen.
+  const quien = await client.query(
+    `SELECT current_user::text AS rol, r.rolbypassrls AS bypass
+       FROM pg_roles r WHERE r.rolname = current_user`,
+  );
+  const { rol, bypass } = quien.rows[0] ?? { rol: "(desconocido)", bypass: null };
+  console.log(`   rol: ${rol}${bypass ? "  (BYPASSRLS — no respeta el aislamiento)" : ""}\n`);
 
   const problems: string[] = [];
+  let migracionesMiradas = true;
   try {
     // (a) MIGRACIONES ---------------------------------------------------------
-    let applied: Set<string>;
+    let applied: Set<string> | null;
     try {
       const r = await client.query(
         `SELECT migration_name FROM _prisma_migrations
          WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`,
       );
       applied = new Set(r.rows.map((x) => x.migration_name));
-    } catch {
-      applied = new Set();
-      if (expectedMigrations.length > 0) {
-        problems.push(
-          "MIGRACIONES: la tabla _prisma_migrations no existe en la base destino → ninguna " +
-            "migración figura aplicada. ¿Base vacía o URL equivocada?",
-        );
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code === SIN_PERMISO) {
+        // El rol de la APP no tiene por qué leer la tabla de Prisma: no es drift, es que no
+        // se puede mirar desde acá. Las columnas y los índices se siguen verificando.
+        if (LOTE) {
+          console.error(`❌ El rol ${rol} no puede leer _prisma_migrations: no se puede validar el lote.`);
+          return 2;
+        }
+        console.warn(`⚠ El rol ${rol} no puede leer _prisma_migrations: se saltea (a) y se sigue.\n`);
+        applied = null;
+        migracionesMiradas = false;
+      } else if (code === NO_EXISTE_TABLA) {
+        applied = new Set();
+        if (expectedMigrations.length > 0) {
+          problems.push(
+            "MIGRACIONES: la tabla _prisma_migrations no existe en la base destino → ninguna " +
+              "migración figura aplicada. ¿Base vacía o URL equivocada?",
+          );
+        }
+      } else {
+        throw e;
       }
     }
-    const pending = expectedMigrations.filter((m) => !applied.has(m));
+
+    if (LOTE && applied) {
+      // MODO LOTE: sólo migraciones. La base está atrasada a propósito.
+      const declarado = leerLote(LOTE);
+      const pendientes = expectedMigrations.filter((m) => !applied.has(m));
+      const repo = new Set(expectedMigrations);
+      const desconocidas = [...applied].filter((m) => !repo.has(m)).sort();
+      const iguales =
+        pendientes.length === declarado.length && pendientes.every((m, i) => m === declarado[i]);
+      if (desconocidas.length > 0) {
+        problems.push(
+          `MIGRACIONES en la base que este repo NO tiene (${desconocidas.length}):\n` +
+            desconocidas.map((m) => `   - ${m}`).join("\n") +
+            "\n   → la base vino de otra rama. No se migra encima de algo que no se conoce.",
+        );
+      }
+      if (pendientes.length > 0 && !iguales) {
+        const sobran = pendientes.filter((m) => !declarado.includes(m));
+        const faltan = declarado.filter((m) => !pendientes.includes(m));
+        problems.push(
+          `LOTE: lo que se va a aplicar NO es lo declarado en ${LOTE}.\n` +
+            (sobran.length ? `   Pendientes que NO están declaradas:\n${sobran.map((m) => `   - ${m}`).join("\n")}\n` : "") +
+            (faltan.length ? `   Declaradas que NO están pendientes:\n${faltan.map((m) => `   - ${m}`).join("\n")}\n` : "") +
+            "   → no se migra producción con un lote distinto del que se revisó.",
+        );
+      }
+      if (problems.length === 0) {
+        console.log(
+          pendientes.length === 0
+            ? "✅ Lote: nada pendiente. La base ya tiene todas las migraciones del repo."
+            : `✅ Lote: las ${pendientes.length} pendientes son exactamente las declaradas.`,
+        );
+        return 0;
+      }
+      console.error("❌ LOTE RECHAZADO — no se migra:\n");
+      for (const p of problems) console.error(p + "\n");
+      return 1;
+    }
+
+    const pending = applied ? expectedMigrations.filter((m) => !applied.has(m)) : [];
     if (pending.length > 0) {
       problems.push(
         `MIGRACIONES sin aplicar (${pending.length}):\n` +
@@ -187,7 +287,8 @@ export async function check(): Promise<number> {
     }
     if (missingTables.length > 0) {
       problems.push(
-        `TABLAS que el código espera y NO existen en la base (${missingTables.length}):\n` +
+        `TABLAS que el código espera y NO existen en la base, o este rol no tiene GRANT sobre ` +
+          `ellas (${missingTables.length}):\n` +
           missingTables.map((t) => `   - ${t}`).join("\n"),
       );
     }
@@ -256,7 +357,10 @@ export async function check(): Promise<number> {
   if (problems.length === 0) {
     console.log(
       `✅ Base al día: ${expected.size} tablas, ${parseExpectedIndexes(schema).length} índices y ` +
-        `${expectedMigrations.length} migraciones verificadas. Deploy seguro respecto del schema.`,
+        (migracionesMiradas
+          ? `${expectedMigrations.length} migraciones verificadas.`
+          : "migraciones NO verificadas (este rol no lee _prisma_migrations).") +
+        " Deploy seguro respecto del schema.",
     );
     return 0;
   }
@@ -272,6 +376,11 @@ export async function check(): Promise<number> {
 
 // Auto-run solo si se invoca directo (npm run predeploy-check), no al importarlo (tests).
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  // Techo duro: un build de Vercel colgado de una consulta es peor que uno que falla.
+  setTimeout(() => {
+    console.error("❌ El pre-deploy check superó los 90 s. Se corta: no se pudo mirar la base.");
+    process.exit(2);
+  }, 90_000).unref();
   check()
     .then((code) => process.exit(code))
     .catch((e) => {
