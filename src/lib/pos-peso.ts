@@ -172,3 +172,81 @@ export function avisoDeCantidad(input: {
 export function formatearCantidad(valor: number): string {
   return redondearCantidad(valor).toString().replace(".", ",");
 }
+
+// ============================================================================
+// LEER UN IMPORTE — plata en pesos, NO cantidades.
+// ============================================================================
+//
+// Mismo problema que la cantidad (un `type="number"` no entiende cómo se escribe la plata
+// acá) con el desempate AL REVÉS, que es exactamente lo que advierte la cabecera: en un
+// campo de plata "$1.234" son mil doscientos treinta y cuatro pesos, no un peso con
+// veintitrés centavos. Y "12.500" en un `type="number"` hoy se lee 12,5: un egreso de doce
+// mil quinientos que entra como doce pesos con cincuenta.
+//
+//   · UN separador seguido de EXACTAMENTE 3 dígitos es de MILES:  "12.500" y "12,500" → 12500
+//   · UN separador seguido de 1 o 2 dígitos es el DECIMAL:        "12,5" y "12.50"   → 12,5
+//   · DOS separadores distintos: el último es el decimal:         "1.234,56"          → 1234,56
+//   · Separadores iguales repetidos: todos de miles:              "1.234.567"         → 1234567
+//   · Precisión: CENTAVOS. Un tercer decimal no es plata, es un error: se rechaza.
+//   · Se toleran el "$" y los espacios que se arrastran al copiar de un extracto.
+
+/** Resultado de leer un importe. Misma forma que `LecturaCantidad`, a propósito. */
+export type LecturaImporte = LecturaCantidad;
+
+const redondearCentavos = (n: number): number => Math.round(n * 100) / 100;
+
+export function leerImporte(raw: string | null | undefined): LecturaImporte {
+  const s = String(raw ?? "")
+    .replace(/[\s  ]/g, "")
+    .replace(/^\$/, "")
+    .trim();
+  if (s === "") return { estado: "vacio" };
+  if (!/^[0-9.,]+$/.test(s)) return { estado: "invalida" };
+
+  const corte = Math.max(s.lastIndexOf("."), s.lastIndexOf(","));
+  if (corte === -1) {
+    const n = Number(s);
+    return Number.isFinite(n) ? { estado: "ok", valor: n } : { estado: "invalida" };
+  }
+
+  const sep = s[corte];
+  const cabeza = s.slice(0, corte);
+  const cola = s.slice(corte + 1);
+  const miles = /^\d{1,3}([.,]\d{3})*$/;
+
+  // Separador colgando mientras se tipea ("12."): vale el entero, no se pinta de rojo.
+  if (cola === "") {
+    if (!(cabeza === "" || /^\d+$/.test(cabeza) || miles.test(cabeza))) return { estado: "invalida" };
+    const n = Number(cabeza.replace(/[.,]/g, ""));
+    return Number.isFinite(n) ? { estado: "ok", valor: n } : { estado: "invalida" };
+  }
+  if (!/^\d+$/.test(cola)) return { estado: "invalida" };
+
+  const otro = sep === "." ? "," : ".";
+  const hayOtroSeparador = cabeza.includes(otro);
+
+  // Todo el número son grupos de miles: "12.500", "1.234.567". El separador final NO es decimal.
+  if (!hayOtroSeparador && cola.length === 3 && miles.test(s)) {
+    return { estado: "ok", valor: Number(s.replace(/[.,]/g, "")) };
+  }
+
+  // El último separador es el decimal: la parte entera tiene que ser dígitos o miles con EL OTRO
+  // separador ("1.234,56"). Mezclar ("1,234,56") o pasarse de centavos ("12,345,6") rebota.
+  if (cola.length > 2) return { estado: "invalida" };
+  const enteraOk = cabeza === "" || /^\d+$/.test(cabeza) || (hayOtroSeparador && !cabeza.includes(sep) && miles.test(cabeza));
+  if (!enteraOk) return { estado: "invalida" };
+
+  const n = Number(`${cabeza.replace(/[.,]/g, "") || "0"}.${cola}`);
+  return Number.isFinite(n) ? { estado: "ok", valor: redondearCentavos(n) } : { estado: "invalida" };
+}
+
+/** El importe como número, o 0 si no es legible. Sólo para totales en pantalla. */
+export function importeOCero(raw: string | null | undefined): number {
+  const l = leerImporte(raw);
+  return l.estado === "ok" ? l.valor : 0;
+}
+
+/** El importe tal como viaja en un `<input type="hidden">`: punto decimal, sin miles. */
+export function importeParaFormulario(valor: number): string {
+  return String(redondearCentavos(valor));
+}

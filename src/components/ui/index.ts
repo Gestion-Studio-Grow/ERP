@@ -7,6 +7,8 @@ export type { CardProps } from "./Card";
 export { Badge } from "./Badge";
 export type { BadgeProps, BadgeTone } from "./Badge";
 export { Input, Select, Textarea, Field } from "./Field";
+export { BuscadorCombo } from "./BuscadorCombo";
+export type { BuscadorComboProps, OpcionBuscador } from "./BuscadorCombo";
 export { Eyebrow, SectionHeading } from "./Heading";
 export type { SectionHeadingProps } from "./Heading";
 export { PageHeader } from "./PageHeader";

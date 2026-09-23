@@ -152,3 +152,49 @@ test("un peso normal de mostrador no molesta a nadie", () => {
   // Las unidades no se avisan: 50 latas es una compra grande, no un error de coma.
   assert.equal(avisoDeCantidad({ valor: 50, saleUnit: "UNIT" }), null);
 });
+
+// ── Importes ────────────────────────────────────────────────────────────────
+import { leerImporte, importeOCero, importeParaFormulario } from "./pos-peso";
+
+const ok = (raw: string) => {
+  const l = leerImporte(raw);
+  assert.equal(l.estado, "ok", `"${raw}" tenía que leerse`);
+  return l.estado === "ok" ? l.valor : NaN;
+};
+
+test("importe: '12.500' son doce mil quinientos, no doce con cincuenta", () => {
+  assert.equal(ok("12.500"), 12500);
+  assert.equal(ok("12,500"), 12500);
+  assert.equal(ok("$ 12.500"), 12500);
+});
+
+test("importe: un solo separador con 1 o 2 dígitos es el decimal", () => {
+  assert.equal(ok("12,5"), 12.5);
+  assert.equal(ok("12.50"), 12.5);
+  assert.equal(ok("6543,21"), 6543.21);
+});
+
+test("importe: miles y centavos juntos, como en el extracto", () => {
+  assert.equal(ok("1.234,56"), 1234.56);
+  assert.equal(ok("1,234.56"), 1234.56);
+  assert.equal(ok("1.234.567"), 1234567);
+  assert.equal(ok("1.234.567,8"), 1234567.8);
+});
+
+test("importe: lo que no es plata rebota, no se vuelve 0", () => {
+  for (const raw of ["abc", "-500", "12,345,6", "1,234,56", "12.3456", "1.2.3"]) {
+    assert.equal(leerImporte(raw).estado, "invalida", raw);
+  }
+  assert.equal(leerImporte("").estado, "vacio");
+  assert.equal(importeOCero("abc"), 0);
+});
+
+test("importe: separador colgando mientras se tipea no es error", () => {
+  assert.equal(ok("12."), 12);
+  assert.equal(ok("12.500,"), 12500);
+});
+
+test("importe: viaja al server con punto y sin miles", () => {
+  assert.equal(importeParaFormulario(12500), "12500");
+  assert.equal(importeParaFormulario(1234.567), "1234.57");
+});
