@@ -12,7 +12,14 @@
 
 import { csvField } from "@/lib/report-csv";
 import type { CashMethod } from "@/lib/caja/cash-register";
-import { CASH_METHODS, type Libro, type MethodAmounts } from "@/lib/caja/libro-caja";
+import {
+  CASH_METHODS,
+  ORIGEN_CONTABLE_LABEL,
+  egresosPorOrigen,
+  origenDeFila,
+  type Libro,
+  type MethodAmounts,
+} from "@/lib/caja/libro-caja";
 
 const SEP = ";";
 const row = (...f: (string | number)[]) => f.map(csvField).join(SEP);
@@ -58,8 +65,23 @@ export function buildLibroCsv(libro: Libro, deps: LibroCsvDeps): string {
   L.push(linea("Saldo actual", libro.summary.saldo));
   L.push("");
 
+  // ── Egresos abiertos por origen ──
+  // Lo que la contadora imputa: separa lo que asentó el sistema (compras, comisiones,
+  // anulaciones, diferencias de cierre) de lo tipeado a mano, que es lo que tiene que
+  // respaldar con comprobante. Sale de las MISMAS filas del archivo: en el export de un
+  // día es el subtotal de ese día, aunque el RESUMEN de arriba sea el del mes.
+  L.push(row("EGRESOS POR ORIGEN (de los movimientos de abajo)", ...CASH_METHODS.map(methodLabel), "Total"));
+  const porOrigen = egresosPorOrigen(libro.rows);
+  for (const { origen, egresos } of porOrigen) L.push(linea(ORIGEN_CONTABLE_LABEL[origen], egresos));
+  if (porOrigen.length === 0) L.push(row("(sin egresos)"));
+  L.push("");
+
   // ── Movimientos ──
-  L.push(row("Fecha", "Detalle", "Medio", "Ingreso", "Egreso", "Saldo"));
+  // Las columnas 0 a 5 no se mueven (quien ya armó fórmulas sobre el archivo las tiene
+  // ancladas ahí): Origen y Referencia van AL FINAL. La referencia es el id de lo que
+  // originó la fila (compra, liquidación, pedido, cobro, día de cierre, turno de caja),
+  // nunca el usuario que la cargó.
+  L.push(row("Fecha", "Detalle", "Medio", "Ingreso", "Egreso", "Saldo", "Origen", "Referencia"));
   for (const r of libro.rows) {
     const entra = r.signedAmount > 0;
     const sale = r.signedAmount < 0;
@@ -71,6 +93,8 @@ export function buildLibroCsv(libro: Libro, deps: LibroCsvDeps): string {
         entra ? money(r.amount) : "",
         sale ? money(r.amount) : "",
         money(r.runningTotal),
+        ORIGEN_CONTABLE_LABEL[origenDeFila(r)],
+        r.referencia ?? "",
       ),
     );
   }

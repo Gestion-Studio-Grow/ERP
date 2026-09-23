@@ -11,11 +11,16 @@
 //
 // AISLAMIENTO (ADR-018): la cartera se lee con el tenant del ESTUDIO (RLS cubre
 // CarteraCliente vía su columna tenantId); los datos de cada cliente se leen SOLO
-// vía los cores de bancos-glue con tenantId EXPLÍCITO (tenantTransaction /
-// runInTenantContext) y SIEMPRE tras verificar la pertenencia a la cartera.
-// Jamás operatorPrisma en este camino. La única lectura con `basePrisma` es la
-// tabla Tenant (fuera de RLS por diseño — raíz del aislamiento) para metadata de
-// clientes ya verificados.
+// con tenantId EXPLÍCITO (tenantTransaction / runInTenantContext) —la pasada del
+// monitoreo, `recolectarCliente`, y los cores de bancos-glue— y SIEMPRE tras verificar
+// la pertenencia a la cartera. Jamás operatorPrisma en este camino. La única lectura con
+// `basePrisma` es la tabla Tenant (fuera de RLS por diseño — raíz del aislamiento) para
+// metadata de clientes ya verificados.
+//
+// Cada export de este archivo es un endpoint (ver la cabecera de cartera-core.ts). Las
+// actions que reciben un `clienteTenantId` corren exigirEstudio + exigirClienteDeCartera
+// antes de tocar nada; las funciones que leen con un tenantId sin verificarlo no se
+// exportan (viven en cartera-core, sin "use server", o acá sin `export`).
 //
 // ESTADO DE LA MIGRACIÓN `20260711140000_add_cartera_cliente`: NO MEDIDO contra Neon.
 //
@@ -53,23 +58,37 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { provisionTenant } from "../../scripts/provision-tenant";
 import {
   emitirPropuestas,
-  kpisFacturacionBancaria,
+  filtrosFacturacionMes,
   type ResultadoEmision,
 } from "@/lib/bancos-glue";
+import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
+import { isInvoicingEnabled } from "@/lib/fiscal";
+import { modoDesdeEnv } from "@/plugins/arca";
+import {
+  evaluarCartera,
+  type AvisoPlataforma,
+  type ContextoPlataforma,
+  type FilaMonitor,
+  type ResumenMonitor,
+} from "@/lib/monitor-core";
 import {
   MODULO_CARTERA,
   crearClienteProvisioning,
+  decidirPuntoVentaAlta,
   exigirClienteDeCartera,
-  listarCarteraCore,
+  recolectarCliente,
+  recorrerCartera,
   resolverSlugCliente,
   validarAltaCliente,
   type AltaClienteInput,
-  type CarteraPorts,
+  type ContextoRecoleccion,
   type EstadoCartera,
   type FilaCartera,
   type FilaCarteraDb,
+  type MetaCliente,
+  type RecorridoPorts,
   type ResumenCartera,
-  type ResumenFiscalCliente,
 } from "@/lib/cartera-core";
 
 const CONTADOR_PATH = "/contador";
@@ -82,8 +101,14 @@ const MODULOS_CLIENTE = ["arca", "bancos"] as const;
 // registra los re-exports de un módulo "use server" como actions): la UI los
 // importa de "@/lib/cartera-core" con `import type`.
 
-export type ResultadoCartera =
-  | { ok: true; filas: FilaCartera[]; resumen: ResumenCartera }
+/** Volumen (tabla + KPIs) y monitoreo (bandeja) de la cartera, salidos de la MISMA pasada. */
+export type ResultadoMonitorCartera =
+  | {
+      ok: true;
+      filas: FilaCartera[];
+      resumen: ResumenCartera;
+      monitor: { filas: FilaMonitor[]; resumen: ResumenMonitor; avisos: AvisoPlataforma[] };
+    }
   | { ok: false; error: string; migracionPendiente?: boolean };
 
 export type ResultadoAlta =
@@ -96,6 +121,8 @@ export type ResultadoAlta =
       passwordBootstrap?: string;
       /** true si el cliente ya estaba en la cartera (alta idempotente). */
       yaEstaba: boolean;
+      /** Algo que el alta NO hizo y el contador tiene que saber (hoy: el punto de venta). */
+      aviso?: string;
     }
   | { ok: false; error: string };
 
@@ -157,64 +184,105 @@ async function buscarFilaCartera(
   return fila ? { ...fila, estado: fila.estado as EstadoCartera } : null;
 }
 
-const portsReales: CarteraPorts = {
-  filasDeCartera: filasDeCarteraDb,
-  // Tenant está fuera de RLS por diseño (raíz del aislamiento): esta lectura es
-  // METADATA de un cliente cuya pertenencia a la cartera ya está verificada por
-  // filasDeCartera / exigirClienteDeCartera. No lee datos de negocio del cliente.
-  async datosCliente(clienteTenantId) {
-    const t = await basePrisma.tenant.findUnique({
-      where: { id: clienteTenantId },
-      select: { name: true, slug: true, subdomain: true, arcaCuit: true, arcaHomologacion: true },
-    });
-    return t
-      ? {
-          nombre: t.name,
-          slug: t.slug,
-          subdomain: t.subdomain,
-          arcaCuit: t.arcaCuit,
-          arcaHomologacion: t.arcaHomologacion,
-        }
-      : null;
-  },
-  // Los DATOS del cliente: SOLO vía el core de bancos-glue, que corre todo dentro
-  // de tenantTransaction(clienteTenantId) — RLS intacta, cero bypass.
-  async resumenFiscalCliente(clienteTenantId): Promise<ResumenFiscalCliente> {
-    const kpis = await kpisFacturacionBancaria(clienteTenantId);
-    const ultima = kpis.ultimasImportaciones[0];
-    return {
-      facturasMes: kpis.facturasMes,
-      capFacturasMes: kpis.capFacturasMes,
-      montoFacturadoMes: kpis.montoFacturadoMes,
-      pendientesRevision: kpis.pendientesRevision,
-      listasParaEmitir: kpis.listasParaEmitir,
-      ultimaImportacion: ultima
-        ? { nombreArchivo: ultima.nombreArchivo, createdAt: ultima.createdAt }
-        : null,
-    };
-  },
-};
+/**
+ * Metadata de los clientes de la cartera en UNA lectura (antes: una por cliente).
+ *
+ * Tenant está fuera de RLS por diseño (raíz del aislamiento). Los ids llegan SOLO desde
+ * `recorrerCartera`, que los toma de `filasDeCarteraDb(estudio)`: nunca de un input. Y se
+ * selecciona sólo metadata de control, ningún dato de negocio del cliente.
+ */
+async function metadataClientesDb(ids: string[]): Promise<Map<string, MetaCliente>> {
+  const tenants = await basePrisma.tenant.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      subdomain: true,
+      arcaCuit: true,
+      arcaPuntoVenta: true,
+      arcaHomologacion: true,
+      bancosCapFacturasMes: true,
+    },
+  });
+  return new Map(
+    tenants.map((t) => [
+      t.id,
+      {
+        nombre: t.name,
+        slug: t.slug,
+        subdomain: t.subdomain,
+        arcaCuit: t.arcaCuit,
+        arcaPuntoVenta: t.arcaPuntoVenta,
+        arcaHomologacion: t.arcaHomologacion,
+        capFacturasMes: t.bancosCapFacturasMes,
+      },
+    ]),
+  );
+}
+
+/**
+ * Puertos reales del recorrido. Los DATOS de cada cliente se leen con UNA
+ * `tenantTransaction` con SU tenantId (GUC = cliente, RLS intacta, cero bypass): volumen y
+ * hechos del monitoreo salen de la misma pasada. `ctx` es un solo reloj para toda la cartera.
+ */
+function portsDelRecorrido(ctx: ContextoRecoleccion): RecorridoPorts {
+  return {
+    filasDeCartera: filasDeCarteraDb,
+    metadataClientes: metadataClientesDb,
+    recolectar: (fila, meta) =>
+      tenantTransaction((tx) => recolectarCliente(tx, fila, meta, ctx), {
+        tenantId: fila.clienteTenantId,
+      }),
+  };
+}
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
-/** La cartera del estudio actual: filas + KPIs. */
-export async function listarCarteraAction(): Promise<ResultadoCartera> {
+/**
+ * La consola del contador: volumen de la cartera y "de quién me ocupo hoy", en una pasada.
+ *
+ * Es la ÚNICA puerta a `recolectarCliente`, y no recibe parámetros A PROPÓSITO: el estudio
+ * sale de la sesión (exigirEstudio) y los clientes, de SU cartera. Llamarla desde la consola
+ * del navegador con un tenantId ajeno no tiene dónde meterlo.
+ */
+export async function monitorCarteraAction(): Promise<ResultadoMonitorCartera> {
   const gate = await exigirEstudio();
   if (!gate.ok) return gate;
 
+  const ahora = new Date();
+  const plataforma: ContextoPlataforma = {
+    emisionHabilitada: isInvoicingEnabled(),
+    modoArca: modoDesdeEnv(),
+  };
+  const ctx: ContextoRecoleccion = {
+    filtros: filtrosFacturacionMes(ahora),
+    inicioDeHoy: businessWallTimeToUtc(dateStrInBusinessTz(ahora), "00:00"),
+    leerFronteraCaja: lastClosedDayTx,
+  };
+
   try {
-    const { filas, resumen } = await listarCarteraCore(portsReales, gate.estudioTenantId);
-    return { ok: true, filas, resumen };
+    const { filas, resumen, hechos } = await recorrerCartera(
+      portsDelRecorrido(ctx),
+      gate.estudioTenantId,
+      plataforma.modoArca,
+    );
+    return {
+      ok: true,
+      filas,
+      resumen,
+      monitor: evaluarCartera(hechos, ahora.toISOString(), plataforma),
+    };
   } catch (e) {
-    // P2021/P2022: tabla/columna inexistente → la migración de cartera (o la de
-    // bancos) todavía no se aplicó (Gate 2). Estado honesto, no un 500.
+    // P2021/P2022: tabla/columna inexistente → hay una migración que el código ya espera y
+    // la base todavía no tiene (Gate 2). Estado honesto, no un 500.
     const code = (e as { code?: string })?.code;
     if (code === "P2021" || code === "P2022") {
       return {
         ok: false,
         migracionPendiente: true,
         error:
-          "Falta aplicar la migración 20260711140000_add_cartera_cliente (paso del dueño). Cuando se aplique, el panel se enciende solo.",
+          "Falta aplicar migraciones pendientes de la base (paso del dueño). Cuando se apliquen, el panel se enciende solo.",
       };
     }
     throw e;
@@ -241,7 +309,7 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
   // Idempotencia por CUIT: si ya hay un tenant con ese CUIT, no se provisiona otro.
   const porCuit = await basePrisma.tenant.findFirst({
     where: { arcaCuit: v.cuit },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, arcaPuntoVenta: true },
   });
   if (porCuit) {
     if (porCuit.id === estudioTenantId) {
@@ -259,15 +327,46 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
             }),
           { tenantId: estudioTenantId },
         );
-        revalidatePath(CONTADOR_PATH);
       }
+      // Punto de venta: la re-alta de un cliente de ESTA cartera puede completarlo si
+      // faltaba — es el mismo dato que acepta el alta. Nunca lo PISA (`decidirPuntoVentaAlta`).
+      // `updateMany` con `arcaPuntoVenta: null` en el where: si otro lo cargó entre la
+      // lectura y acá, no escribe, y se avisa que no se cargó.
+      const pv = decidirPuntoVentaAlta(v.puntoVenta, porCuit.arcaPuntoVenta);
+      const pvCargado =
+        pv.escribir !== null &&
+        (
+          await basePrisma.tenant.updateMany({
+            where: { id: porCuit.id, arcaPuntoVenta: null },
+            data: { arcaPuntoVenta: pv.escribir },
+          })
+        ).count === 1;
+      const aviso =
+        pv.escribir !== null && !pvCargado
+          ? "No se cargó el punto de venta: alguien lo cargó mientras tanto. Si está mal, pedíselo a Gestión Studio Grow."
+          : pv.aviso;
+      if (fila.estado !== "activa" || pvCargado) revalidatePath(CONTADOR_PATH);
       await auditAdmin({
         action: "cartera.realta",
         entity: "CarteraCliente",
         entityId: porCuit.id,
-        changes: { estudioTenantId, clienteTenantId: porCuit.id, cuit: v.cuit, estadoAnterior: fila.estado, estado: "activa" },
+        changes: {
+          estudioTenantId,
+          clienteTenantId: porCuit.id,
+          cuit: v.cuit,
+          estadoAnterior: fila.estado,
+          estado: "activa",
+          ...(pvCargado ? { arcaPuntoVenta: pv.escribir } : {}),
+        },
       });
-      return { ok: true, clienteTenantId: porCuit.id, slug: porCuit.slug, alias: fila.alias, yaEstaba: true };
+      return {
+        ok: true,
+        clienteTenantId: porCuit.id,
+        slug: porCuit.slug,
+        alias: fila.alias,
+        yaEstaba: true,
+        ...(aviso ? { aviso } : {}),
+      };
     }
     // Existe en la plataforma pero NO en esta cartera: vincularlo es una decisión
     // de gobierno (¿de quién es ese tenant?), no un auto-attach. Cero fuga de datos.
@@ -310,9 +409,13 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
   // Tenant está fuera de RLS; es metadata de control del tenant recién creado/reusado.
   const actual = await basePrisma.tenant.findUnique({
     where: { id: resultado.tenantId },
-    select: { modules: true },
+    select: { modules: true, arcaPuntoVenta: true },
   });
   const modulos = new Set([...(actual?.modules ?? []), ...MODULOS_CLIENTE]);
+  // El punto de venta del alta sólo entra si el tenant no tenía uno, y si el que tenía es
+  // otro se avisa (mismo criterio que la re-alta: `decidirPuntoVentaAlta`).
+  const pv = decidirPuntoVentaAlta(v.puntoVenta, actual?.arcaPuntoVenta ?? null);
+  const puntoVenta = pv.escribir;
   await basePrisma.tenant.update({
     where: { id: resultado.tenantId },
     data: {
@@ -320,6 +423,7 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
       // Modelo de delegación: UN cert de GSG para N CUITs — hoy SIEMPRE homologación
       // (CUIT 20376833098); producción ARCA es un paso posterior del dueño.
       arcaHomologacion: true,
+      ...(puntoVenta !== null ? { arcaPuntoVenta: puntoVenta } : {}),
       modules: [...modulos],
     },
   });
@@ -358,6 +462,7 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
       // habilitado este estudio para emitir, y con qué módulos.
       cuit: v.cuit,
       arcaHomologacion: true,
+      ...(puntoVenta !== null ? { arcaPuntoVenta: puntoVenta } : {}),
       modulos: [...modulos],
     },
   });
@@ -370,6 +475,7 @@ export async function altaClienteCarteraAction(input: AltaClienteInput): Promise
     alias: v.alias,
     yaEstaba: false,
     ...(resultado.generatedPassword ? { passwordBootstrap: resultado.generatedPassword } : {}),
+    ...(pv.aviso ? { aviso: pv.aviso } : {}),
   };
 }
 

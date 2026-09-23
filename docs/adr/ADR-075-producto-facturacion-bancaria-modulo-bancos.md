@@ -24,7 +24,8 @@ facturable y lo empuje al mismo circuito fiscal del plugin ARCA (ADR-022).
 
 Restricción de fondo (ADR-078): el costo técnico tiene que ser ~cero por extracto — si cada fila pasara por
 IA, el margen del plan SOLO no cierra. Y restricción fiscal: el módulo no puede facturar de más (movimientos
-que no son ventas) ni dejar al tenant pasado del régimen sin avisar.
+que no son ventas). Aparte, una regla comercial: no puede pasar el cupo de facturas automáticas del plan sin
+avisar (punto 4; el cupo no tiene relación con el régimen fiscal del cliente).
 
 ## Decisión
 
@@ -43,8 +44,14 @@ Se construye el **módulo `bancos`** (producto Facturación Bancaria) con estas 
    apareció en sesión: el **piso LEGAL de ARCA es $10M desde 05/2025** — el de $600.000 es una **política
    comercial del dueño** (conservadora, configurable). Regla dura: **siempre manda el más estricto** de los
    dos; si la norma baja del valor configurado, gana la norma.
-4. **Tope de 159 facturas/mes por tenant** (techo operativo del régimen del cliente): **alerta al 90%**,
-   **bloqueo al 100%**. El módulo nunca deja al tenant emitir de más en silencio.
+4. **Cupo de 159 facturas automáticas/mes por tenant: regla COMERCIAL del plan**, configurable por tenant
+   (`CAP_FACTURAS_MES_DEFAULT`, `src/plugins/bancos/domain/reglas.ts`). **No es un techo del régimen
+   fiscal** y no tiene relación con la categoría del monotributo: esa depende de los ingresos brutos de los
+   últimos 12 meses (y superficie, energía y alquileres) y se revisa por semestre. Por eso ninguna alerta del
+   cupo manda a recategorizar: la acción es ampliar el cupo del plan. **Bloqueo al 100%** de la emisión
+   automática (banco y Mercado Pago), contando todo lo emitido en el mes, rechazados incluidos. **Alerta** al
+   90% en el panel del cliente (`KpisBancos.tsx`) y al 80% en la consola del contador (`UMBRAL_ALERTA_CAP`).
+   El módulo nunca deja al tenant emitir de más en silencio.
 5. **Dedup por hash + cruce banco↔MP.** Cada movimiento importado se identifica por hash (re-importar el
    mismo extracto no duplica) y se **cruza contra las operaciones de Mercado Pago** (ADR-025) para no
    facturar dos veces la misma venta que entró por MP y aparece acreditada en el banco.

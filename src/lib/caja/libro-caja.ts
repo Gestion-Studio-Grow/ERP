@@ -17,6 +17,16 @@
 
 import { round2 } from "@/lib/round";
 import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja/cash-register";
+// Las MARCAS que cada camino del sistema deja en `CashMovement.createdBy`. Se importan de
+// donde nacen (no se copian los strings): si una cambia, el origen contable la sigue. Todos
+// estos módulos son puros (sin Prisma de valor): este archivo lo importa un client component.
+import { COMPRA_ACTOR_PREFIX } from "@/lib/stock/purchase-egreso";
+import { COMISION_ACTOR_PREFIX } from "@/lib/comision-liquidacion";
+import { ANULACION_TURNO_ACTOR_PREFIX } from "@/lib/turnos/anulacion";
+import { ANULACION_VENTA_ACTOR_PREFIX } from "@/lib/order-anulacion";
+import { ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
+import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
+import { IMPORT_ACTOR_PREFIX } from "@/lib/caja/import-caja";
 
 // Orden CANÓNICO de los medios: es el orden de las columnas de la planilla y el de
 // las columnas de la pantalla. Un solo lugar para que tabla y resumen no se
@@ -47,6 +57,11 @@ export type LibroMovement = {
   amount: number; // siempre > 0; el signo lo aplica `movementSign`
   detail: string;
   origin?: LibroOrigin; // ausente = "manual" (compatibilidad con las filas demo y los fixtures)
+  // Clase CONTABLE de la fila y su referencia (ver `clasificarOrigen`). Las completa el
+  // loader del libro, que es el único que lee `createdBy`; ausentes en demo y fixtures, y
+  // el CSV las deriva de `type` y `origin` (`origenDeFila`).
+  origenContable?: OrigenContable;
+  referencia?: string;
 };
 
 // Origen de un movimiento a partir de lo que el ledger ya guarda. `VENTA` es el tipo que el
@@ -63,6 +78,248 @@ export const LIBRO_ORIGIN_LABEL: Record<Exclude<LibroOrigin, "manual">, string> 
   pos: "Venta del mostrador",
   turno: "Turno cobrado",
 };
+
+// --- Origen CONTABLE: de dónde salió cada peso, para quien imputa ---
+//
+// `libroOrigin` separa sistema de manual para la pantalla. La contadora necesita más:
+// distinguir un egreso que asentó el sistema (una compra a proveedor, una comisión
+// liquidada, la reversa de una anulación, la diferencia de un cierre) de uno TIPEADO a
+// mano, que es justo el que tiene que respaldar con comprobante. El dato ya existe: son
+// las marcas que cada camino deja en `CashMovement.createdBy`.
+//
+// Se mira `createdBy` ANTES que `type`: la anulación de una venta es un EGRESO que además
+// trae `orderId`, y por tipo solo pasaría por un egreso manual o por una venta.
+
+export type OrigenContable =
+  | "venta-mostrador"
+  | "cobro-turno"
+  | "ingreso-manual"
+  | "egreso-manual"
+  | "retiro"
+  | "compra"
+  | "comision"
+  | "anulacion"
+  | "diferencia-caja"
+  | "corte-importacion"
+  | "apertura";
+
+/** Orden canónico: el de la columna y el del subtotal del RESUMEN. */
+export const ORIGENES_CONTABLES: readonly OrigenContable[] = [
+  "venta-mostrador",
+  "cobro-turno",
+  "ingreso-manual",
+  "egreso-manual",
+  "retiro",
+  "compra",
+  "comision",
+  "anulacion",
+  "diferencia-caja",
+  "corte-importacion",
+  "apertura",
+];
+
+export const ORIGEN_CONTABLE_LABEL: Record<OrigenContable, string> = {
+  "venta-mostrador": "Venta mostrador",
+  "cobro-turno": "Cobro turno",
+  "ingreso-manual": "Ingreso manual",
+  "egreso-manual": "Egreso manual",
+  retiro: "Retiro de caja",
+  compra: "Compra a proveedor",
+  comision: "Comisión",
+  anulacion: "Anulación",
+  "diferencia-caja": "Diferencia de caja",
+  "corte-importacion": "Corte/Importación",
+  apertura: "Apertura de turno",
+};
+
+/** Lo que el ledger guarda de una fila y alcanza para clasificarla. */
+export type FilaParaOrigen = {
+  type: CashMovementType;
+  createdBy?: string | null;
+  orderId?: string | null;
+  collectionId?: string | null;
+  /** El `Payment` 1:1 del cobro de turno previo a los cobros parciales (cobro-turno.ts). */
+  paymentId?: string | null;
+  /** Pista para filas sin `orderId` a mano (demo, fixtures): "pos" = venta de mostrador. */
+  origin?: LibroOrigin;
+};
+
+/**
+ * Marcas del SISTEMA en `createdBy`, con la clase que le toca a cada una y, cuando el id
+ * de lo que la originó VIVE en la marca (compra, comisión, cierre, arqueo, corte, import),
+ * la referencia. En las anulaciones la marca termina en el ACTOR ("user:<id>"): ahí la
+ * referencia sale de columnas (`orderId`; `collectionId` o `paymentId`), nunca de la marca.
+ *
+ * Es una FUNCIÓN y no una constante del módulo a propósito: corte-inicial, cierre-diario
+ * (vía purchase-egreso y las anulaciones) importan este archivo, así que hay ciclos. Una
+ * constante armada al cargar el módulo leería esas marcas antes de que existan, según qué
+ * módulo se cargue primero; leídas al clasificar, ya están todas.
+ */
+function marcasDelSistema(): readonly { prefijo: string; origen: OrigenContable; referenciaEnMarca: boolean }[] {
+  return [
+    { prefijo: COMPRA_ACTOR_PREFIX, origen: "compra", referenciaEnMarca: true }, // purchaseId
+    { prefijo: COMISION_ACTOR_PREFIX, origen: "comision", referenciaEnMarca: true }, // payoutId
+    { prefijo: ANULACION_VENTA_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
+    { prefijo: ANULACION_TURNO_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
+    { prefijo: CIERRE_DIARIO_ACTOR_PREFIX, origen: "diferencia-caja", referenciaEnMarca: true }, // día
+    { prefijo: ARQUEO_TURNO_ACTOR_PREFIX, origen: "diferencia-caja", referenciaEnMarca: true }, // sessionId
+    { prefijo: CORTE_INICIAL_ACTOR_PREFIX, origen: "corte-importacion", referenciaEnMarca: true }, // día
+    { prefijo: IMPORT_ACTOR_PREFIX, origen: "corte-importacion", referenciaEnMarca: true }, // hash del CSV
+  ];
+}
+
+/**
+ * Clase contable y referencia de una fila del libro. PURA.
+ *
+ * La referencia NUNCA es un actor: si lo que queda después de la marca es "user:<id>" o
+ * contiene un "user:", se descarta. Ese CSV sale hacia el estudio contable, y los ids de
+ * los usuarios del negocio no tienen por qué cruzar.
+ */
+export function clasificarOrigen(m: FilaParaOrigen): { origen: OrigenContable; referencia: string } {
+  const marca = String(m.createdBy ?? "");
+  const hallada = marcasDelSistema().find((x) => marca.startsWith(x.prefijo));
+  if (hallada) {
+    const referencia = hallada.referenciaEnMarca
+      ? marca.slice(hallada.prefijo.length)
+      : hallada.prefijo === ANULACION_VENTA_ACTOR_PREFIX
+        ? (m.orderId ?? "")
+        : delCobroDeTurno(m);
+    return { origen: hallada.origen, referencia: sinActor(referencia) };
+  }
+  switch (m.type) {
+    case "VENTA":
+      return m.orderId || m.origin === "pos"
+        ? { origen: "venta-mostrador", referencia: m.orderId ?? "" }
+        : { origen: "cobro-turno", referencia: delCobroDeTurno(m) };
+    case "INGRESO":
+      return { origen: "ingreso-manual", referencia: "" };
+    case "EGRESO":
+      return { origen: "egreso-manual", referencia: "" };
+    case "RETIRO":
+      return { origen: "retiro", referencia: "" };
+    case "APERTURA":
+      return { origen: "apertura", referencia: "" };
+    default:
+      return { origen: "ingreso-manual", referencia: "" };
+  }
+}
+
+/** Sólo la clase (atajo de `clasificarOrigen`). PURA. */
+export function origenContable(m: FilaParaOrigen): OrigenContable {
+  return clasificarOrigen(m).origen;
+}
+
+function sinActor(ref: string): string {
+  return ref.includes("user:") ? "" : ref;
+}
+
+// El cobro de turno se identifica por el cobro parcial (`collectionId`, el vigente) o, en
+// los asientos anteriores a los cobros parciales, por el `Payment` 1:1 (`paymentId`).
+// cobro-turno.ts escribe uno u otro, nunca los dos.
+function delCobroDeTurno(m: Pick<FilaParaOrigen, "collectionId" | "paymentId">): string {
+  return m.collectionId || m.paymentId || "";
+}
+
+/** Una fila de `CashMovement` como la trae el loader del libro. */
+export type FilaLedger = {
+  id: string;
+  occurredAt: Date;
+  type: CashMovementType;
+  method: CashMethod;
+  amount: number;
+  reason: string | null;
+  orderId: string | null;
+  createdBy: string;
+  collectionId?: string | null;
+  paymentId?: string | null;
+};
+
+// --- Columnas de REFERENCIA que pueden faltar en la base ---
+//
+// `paymentId` y `collectionId` las agregan dos migraciones distintas
+// (`20260907120000_add_cash_movement_payment_id` y `20260907180000_add_appointment_partial_collections`)
+// y el runbook (docs/runbooks/migracion-caja-neon.md) nombra estados intermedios en que una
+// está aplicada y la otra no. Nombrar en el select una columna que no existe falla con P2022
+// y por una columna de REFERENCIA el libro entero no puede caerse: se vuelve a leer sin
+// ella, y esas filas salen sin referencia.
+
+/** Las columnas de referencia que el libro lee si existen. */
+export const COLUMNAS_REFERENCIA = ["collectionId", "paymentId"] as const;
+export type ColumnaReferencia = (typeof COLUMNAS_REFERENCIA)[number];
+
+/**
+ * Lee con todas las columnas de referencia y, si la base avisa que falta una, reintenta sin
+ * ESA (una por vuelta: Postgres nombra la primera que no encuentra). Cualquier otro error
+ * sube tal cual. PURA salvo por los puertos: `leer` es la consulta y `faltaColumna` el
+ * clasificador de errores (en producción, `isColumnMissing` de prisma-errors.ts), que entran
+ * por parámetro para que este módulo no importe valores de Prisma — lo usan pantallas.
+ */
+export async function leerSinColumnasFaltantes<T>(
+  leer: (columnas: readonly ColumnaReferencia[]) => Promise<T>,
+  faltaColumna: (err: unknown, columna: ColumnaReferencia) => boolean,
+): Promise<{ filas: T; faltantes: ColumnaReferencia[] }> {
+  let columnas: ColumnaReferencia[] = [...COLUMNAS_REFERENCIA];
+  const faltantes: ColumnaReferencia[] = [];
+  for (;;) {
+    try {
+      return { filas: await leer(columnas), faltantes };
+    } catch (err) {
+      const falta = columnas.find((c) => faltaColumna(err, c));
+      if (!falta) throw err;
+      faltantes.push(falta);
+      columnas = columnas.filter((c) => c !== falta);
+    }
+  }
+}
+
+/**
+ * Fila del ledger → fila del libro, ya clasificada. PURA.
+ *
+ * `createdBy` entra SÓLO para clasificar y NO sale: la fila del libro no lo lleva. El
+ * loader que la usa es un endpoint ("use server") y sus filas terminan en el CSV que va al
+ * estudio contable; el actor "user:<id>" no tiene por qué viajar.
+ */
+export function movimientoDelLedger(r: FilaLedger): LibroMovement {
+  const { origen, referencia } = clasificarOrigen(r);
+  return {
+    id: r.id,
+    occurredAt: r.occurredAt,
+    type: r.type,
+    method: r.method,
+    amount: r.amount,
+    detail: r.reason ?? "",
+    origin: libroOrigin(r),
+    origenContable: origen,
+    referencia,
+  };
+}
+
+/** Clase de una fila ya armada: la que trae el loader o, si no la trae, por tipo y origen. */
+export function origenDeFila(m: LibroMovement): OrigenContable {
+  return m.origenContable ?? origenContable({ type: m.type, origin: m.origin });
+}
+
+/**
+ * EGRESOS del período abiertos por origen y por medio (lo que la contadora imputa). Sólo
+ * los orígenes con algún egreso, en el orden canónico. PURA.
+ */
+export function egresosPorOrigen(
+  movements: readonly LibroMovement[],
+): { origen: OrigenContable; egresos: MethodAmounts }[] {
+  const acc = new Map<OrigenContable, MethodAmounts>();
+  for (const m of movements) {
+    if (!usable(m.amount) || movementSign(m.type) >= 0) continue;
+    const o = origenDeFila(m);
+    const a = acc.get(o) ?? zeroAmounts();
+    a[m.method] += m.amount;
+    acc.set(o, a);
+  }
+  return ORIGENES_CONTABLES.filter((o) => acc.has(o)).map((o) => {
+    const a = acc.get(o)!;
+    for (const k of CASH_METHODS) a[k] = round2(a[k]);
+    return { origen: o, egresos: a };
+  });
+}
 
 // Una fila del libro tal como se pinta: el movimiento + el saldo TOTAL acumulado
 // hasta esa fila inclusive. `signedAmount` es el monto ya con signo (+ entra, − sale),

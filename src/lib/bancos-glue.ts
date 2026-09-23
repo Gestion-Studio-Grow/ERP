@@ -29,6 +29,7 @@ import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
+import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
 import {
   CAP_FACTURAS_MES_DEFAULT,
   cuitValido,
@@ -75,11 +76,83 @@ export function toNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Rango [primer día del mes, primer día del mes siguiente) para filtrar por createdAt. PURA. */
+// ── El mes, con el reloj del NEGOCIO (no el del servidor) ────────────────────
+//
+// Hay DOS relojes y responden preguntas distintas, así que viven separados:
+//
+//  - `rangoMesActual` → el CUPO del plan (regla comercial: N facturas automáticas por
+//    mes). Cuenta por instante de EMISIÓN (`Invoice.createdAt`) y cuenta todo lo emitido,
+//    rechazados incluidos: esa semántica NO cambia acá, sólo los bordes. Lo usan el
+//    bloqueo al emitir (`emitirPropuestas`), Facturita, el automático de Mercado Pago y
+//    la pantalla de bancos.
+//  - `rangoFiscalMes` → cuánto se FACTURÓ en el período fiscal. Filtra por la fecha del
+//    comprobante (`Invoice.fecha`, AAAAMMDD), que es con lo que se declara.
+//
+// Antes el mes se armaba con `new Date(año, mes, 1)`, o sea en la zona del PROCESO. Con
+// el proceso en UTC (medido con TZ=UTC: el 31/08 a las 22:30 hora argentina da mes 9),
+// lo emitido entre las 21:00 y las 24:00 del último día caía en el mes siguiente. Es el
+// mismo defecto que ya se corrigió en el libro IVA (libros/libro-iva.ts, `dateToIso`).
+
+/** "AAAAMMDD" del día del negocio en que cae `ahora`. PURA (el reloj entra por parámetro). */
+export function fechaFiscalDelDia(ahora: Date = new Date()): string {
+  return dateStrInBusinessTz(ahora).replace(/-/g, "");
+}
+
+/** Año y mes (1-12) del negocio en que cae `ahora`, y los del mes siguiente. */
+function mesDelNegocio(ahora: Date): { y: number; m: number; sy: number; sm: number } {
+  const [y, m] = dateStrInBusinessTz(ahora).split("-").map(Number);
+  return m === 12 ? { y, m, sy: y + 1, sm: 1 } : { y, m, sy: y, sm: m + 1 };
+}
+
+const dosCifras = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * Rango [00:00 del 1° del mes, 00:00 del 1° del siguiente), ambos en HORA DEL NEGOCIO y
+ * expresados en UTC, para filtrar por `createdAt`. Es el reloj del CUPO. PURA.
+ */
 export function rangoMesActual(ahora: Date = new Date()): { gte: Date; lt: Date } {
+  const { y, m, sy, sm } = mesDelNegocio(ahora);
   return {
-    gte: new Date(ahora.getFullYear(), ahora.getMonth(), 1),
-    lt: new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1),
+    gte: businessWallTimeToUtc(`${y}-${dosCifras(m)}-01`, "00:00"),
+    lt: businessWallTimeToUtc(`${sy}-${dosCifras(sm)}-01`, "00:00"),
+  };
+}
+
+/**
+ * Rango fiscal del mes para `Invoice.fecha` (AAAAMMDD): {gte: "AAAAMM01", lt: "AAAAMM+1 01"}.
+ * Compara texto de igual largo y sólo dígitos, así que el orden del texto es el de las
+ * fechas. Es el reloj de "cuánto se facturó". PURA.
+ */
+export function rangoFiscalMes(ahora: Date = new Date()): { gte: string; lt: string } {
+  const { y, m, sy, sm } = mesDelNegocio(ahora);
+  return { gte: `${y}${dosCifras(m)}01`, lt: `${sy}${dosCifras(sm)}01` };
+}
+
+/** Los tres cortes de `Invoice` del mes, cada uno con su reloj. Se arman en UN lugar. */
+export interface FiltrosFacturacionMes {
+  /** Cupo del plan: TODO lo emitido en el mes por `createdAt`, rechazados incluidos (hoy consumen cupo). */
+  cupo: { createdAt: { gte: Date; lt: Date } };
+  /** Facturado: sólo con CAE (`AUTHORIZED`), por la fecha del comprobante. */
+  facturado: { fecha: { gte: string; lt: string }; status: "AUTHORIZED" };
+  /**
+   * Rechazados por ARCA entre lo EMITIDO en el mes (por `createdAt`, el reloj del cupo). No
+   * por `fecha`: el comprobante del banco lleva la fecha del movimiento (`emitirPropuestas`,
+   * `fecha: mov.fecha`), y un extracto viejo emitido y rechazado este mes quedaría en otro.
+   */
+  rechazado: { createdAt: { gte: Date; lt: Date }; status: "REJECTED" };
+}
+
+/**
+ * Filtros del mes para `Invoice`. Los usa esta pantalla (`kpisFacturacionBancaria`) y la
+ * cartera del contador (`recolectarCliente`), así que "facturado" significa lo mismo en
+ * los dos lados. `PENDING` no es facturado: no tiene CAE. PURA.
+ */
+export function filtrosFacturacionMes(ahora: Date = new Date()): FiltrosFacturacionMes {
+  const emitido = rangoMesActual(ahora);
+  return {
+    cupo: { createdAt: emitido },
+    facturado: { fecha: rangoFiscalMes(ahora), status: "AUTHORIZED" },
+    rechazado: { createdAt: emitido, status: "REJECTED" },
   };
 }
 
@@ -434,10 +507,16 @@ export interface ImportacionVista {
 }
 
 export interface KpisFacturacionBancaria {
-  /** Facturas del tenant creadas este mes (todas las vías: banco, MP, turnos). */
+  /** Facturas del tenant creadas este mes (todas las vías: banco, MP, turnos). Reloj del CUPO. */
   facturasMes: number;
   capFacturasMes: number;
   capRestante: number;
+  /**
+   * Total con CAE (`AUTHORIZED`) del período fiscal, por `Invoice.fecha`. Antes sumaba todo
+   * lo no rechazado por `createdAt`: entraban los PENDING, que todavía no son factura.
+   * Ojo: en homologación ARCA también devuelve CAE, así que esto puede ser plata de PRUEBA;
+   * rotularlo es de quien lo muestra (la cartera del contador lo separa).
+   */
   montoFacturadoMes: number;
   pendientesRevision: number;
   /** Propuestas en estado `auto`, listas para emitir en lote (aditivo, lo usa la cartera). */
@@ -451,7 +530,7 @@ export interface KpisFacturacionBancaria {
  * bajo RLS aunque el llamador sea el panel del contador operando otro tenant.
  */
 export async function kpisFacturacionBancaria(tenantId: string): Promise<KpisFacturacionBancaria> {
-  const rango = rangoMesActual();
+  const filtros = filtrosFacturacionMes();
 
   const [tenant, facturasMes, montoAgg, pendientesRevision, listasParaEmitir, ultimas] =
     await tenantTransaction(
@@ -461,10 +540,10 @@ export async function kpisFacturacionBancaria(tenantId: string): Promise<KpisFac
             where: { id: tenantId },
             select: { bancosCapFacturasMes: true },
           }),
-          tx.invoice.count({ where: { tenantId, createdAt: rango } }),
+          tx.invoice.count({ where: { tenantId, ...filtros.cupo } }),
           tx.invoice.aggregate({
             _sum: { total: true },
-            where: { tenantId, createdAt: rango, status: { not: "REJECTED" } },
+            where: { tenantId, ...filtros.facturado },
           }),
           tx.movimientoImportado.count({ where: { tenantId, estadoPropuesta: "revision" } }),
           tx.movimientoImportado.count({ where: { tenantId, estadoPropuesta: "auto" } }),

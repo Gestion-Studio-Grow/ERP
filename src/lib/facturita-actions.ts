@@ -19,7 +19,7 @@ import {
   PerfilFiscalIncompletoError,
 } from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
-import { contarFacturasDelMes } from "@/lib/bancos-glue";
+import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import {
   estadoLimite,
@@ -54,9 +54,12 @@ export type ResultadoEmisionFacturita =
   | { ok: true; invoiceId: string; limite: EstadoLimite }
   | { ok: false; error: string };
 
+// La fecha del comprobante es el día del NEGOCIO, no el del proceso. Armada con
+// `getDate()` salía en la zona del proceso: con TZ=UTC (medido) una factura del 31/08 a
+// las 22:30 hora argentina quedaba fechada 20260901, o sea en el período fiscal siguiente.
+// No se exporta a propósito: en un archivo "use server" cada export es un endpoint.
 function fechaHoy(): string {
-  const d = new Date();
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return fechaFiscalDelDia(new Date());
 }
 
 /**

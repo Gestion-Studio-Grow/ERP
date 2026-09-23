@@ -17,10 +17,29 @@
  * Este archivo es la LÓGICA con puertos inyectables (testeable sin DB, mismo
  * molde que bancos-glue/provisioning); las Server Actions que la cablean a
  * Prisma/RLS viven en `cartera-actions.ts`.
+ *
+ * ⚠️ SIN "use server", A PROPÓSITO. `recolectarCliente` lee la base de un cliente con
+ * el tenantId que le pasan. En un archivo "use server" cada export es un endpoint: un
+ * usuario autenticado de CUALQUIER tenant lo llamaría con un id ajeno, `tenantTransaction`
+ * pondría el GUC con ese id y RLS lo dejaría pasar. La única puerta es
+ * `monitorCarteraAction` (exigirEstudio → filas de SU cartera → recién ahí, por cliente).
+ * Lo cuida un test de forma en monitor-core.test.ts.
+ *
+ * Y lo importa un client component (CarteraPanel, por UMBRAL_ALERTA_CAP): nada de
+ * imports de VALOR de Prisma acá. Lo de Prisma entra sólo como `import type`.
  */
 
 import { CAP_FACTURAS_MES_DEFAULT, cuitValido, normalizarCuit } from "@/plugins/bancos";
 import { isValidEmail, suggestSlug } from "@/lib/provisioning/slug";
+import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
+import {
+  UMBRAL_OUTBOX_TRABADO,
+  emiteConValidezFiscal,
+  type HechosCliente,
+  type ModoArca,
+} from "@/lib/monitor-core";
+import type { Prisma } from "@/generated/prisma/client";
+import type { FiltrosFacturacionMes } from "@/lib/bancos-glue";
 
 // ── Vocabulario (espejo del enum EstadoCarteraCliente del schema) ────────────
 
@@ -61,6 +80,12 @@ export interface FilaCartera extends ResumenFiscalCliente {
   /** Config ARCA lista (CUIT cargado). Hoy siempre homologación (cert delegado GSG). */
   arcaConfigurado: boolean;
   arcaHomologacion: boolean;
+  /**
+   * `true` sólo si lo que emite tiene validez fiscal: ARCA en producción y el cliente
+   * fuera de homologación (`emiteConValidezFiscal`). Si es `false`, su `montoFacturadoMes`
+   * es "emitido en prueba" y la pantalla lo tiene que decir así.
+   */
+  validezFiscal: boolean;
   /** Subdominio del cliente si tiene URL propia (para "abrir su backoffice"). */
   subdomain: string | null;
 }
@@ -70,8 +95,14 @@ export interface ResumenCartera {
   /** Clientes activos (los pausados se cuentan aparte). */
   clientes: number;
   pausados: number;
+  /** Facturas del CUPO del mes (todo lo emitido, rechazados incluidos), entre todos. */
   facturasMes: number;
+  /** Suma de todos los `montoFacturadoMes`, con y sin validez fiscal. */
   montoFacturadoMes: number;
+  /** De eso, lo emitido CON validez fiscal (filas con `validezFiscal`). */
+  montoFiscalMes: number;
+  /** De eso, lo emitido EN PRUEBA: tiene CAE de homologación o del simulador, no es factura. */
+  montoPruebaMes: number;
   pendientesRevision: number;
   listasParaEmitir: number;
   /** Clientes con pctCap ≥ UMBRAL_ALERTA_CAP. */
@@ -108,11 +139,19 @@ export interface CarteraPorts {
 
 // ── Armado del panel (PURO + puertos) ─────────────────────────────────────────
 
-/** Combina fila + metadata + resumen fiscal en la fila que ve el contador. PURA. */
+/**
+ * Combina fila + metadata + resumen fiscal en la fila que ve el contador. PURA.
+ *
+ * `modoArca` es el de la plataforma (`ARCA_MODO`). Sin él no se puede afirmar que algo
+ * tenga validez fiscal, así que la fila sale con `validezFiscal: false`: ante la duda,
+ * "en prueba" (lo que se muestra de más como prueba no le hace perder plata a nadie; lo
+ * que se muestra como facturado sin serlo, sí).
+ */
 export function armarFilaCartera(
   fila: FilaCarteraDb,
   info: ClienteInfo,
   resumen: ResumenFiscalCliente,
+  modoArca?: ModoArca,
 ): FilaCartera {
   const cap = resumen.capFacturasMes > 0 ? resumen.capFacturasMes : CAP_FACTURAS_MES_DEFAULT;
   return {
@@ -126,6 +165,7 @@ export function armarFilaCartera(
     cuit: info.arcaCuit,
     arcaConfigurado: info.arcaCuit !== null && info.arcaCuit !== "",
     arcaHomologacion: info.arcaHomologacion,
+    validezFiscal: modoArca ? emiteConValidezFiscal(info.arcaHomologacion, modoArca) : false,
     ...resumen,
     pctCap: resumen.facturasMes / cap,
   };
@@ -139,10 +179,229 @@ export function resumirCartera(filas: FilaCartera[]): ResumenCartera {
     pausados: filas.filter((f) => f.estado === "pausada").length,
     facturasMes: suma((f) => f.facturasMes),
     montoFacturadoMes: suma((f) => f.montoFacturadoMes),
+    montoFiscalMes: suma((f) => (f.validezFiscal ? f.montoFacturadoMes : 0)),
+    montoPruebaMes: suma((f) => (f.validezFiscal ? 0 : f.montoFacturadoMes)),
     pendientesRevision: suma((f) => f.pendientesRevision),
     listasParaEmitir: suma((f) => f.listasParaEmitir),
     cercaDelTope: filas.filter((f) => f.pctCap >= UMBRAL_ALERTA_CAP).length,
   };
+}
+
+// ── La pasada única por cliente: volumen + hechos del monitoreo ───────────────
+//
+// Antes cada cliente costaba 1 lectura de Tenant + 1 tenantTransaction de volumen (que
+// volvía a leer Tenant), y el monitoreo, cableado aparte, iba a sumar otra transacción
+// por cliente. Ahora: UNA lectura de metadata para toda la cartera y UNA transacción por
+// cliente que devuelve las dos cosas. El piso son N transacciones: el GUC de RLS es por
+// transacción y operatorPrisma está prohibido en este camino, así que no hay una sola
+// consulta que las junte sin evadir el aislamiento.
+
+/** Metadata del tenant cliente que trae la lectura única (Tenant, fuera de RLS — solo control). */
+export interface MetaCliente extends ClienteInfo {
+  arcaPuntoVenta: number | null;
+  /** `Tenant.bancosCapFacturasMes`; `null` = el default del producto. */
+  capFacturasMes: number | null;
+}
+
+/** Lo que la pasada necesita además del cliente: un solo reloj para toda la cartera. */
+export interface ContextoRecoleccion {
+  /** Los cortes del mes de `Invoice` (bancos-glue `filtrosFacturacionMes`). */
+  filtros: FiltrosFacturacionMes;
+  /** 00:00 de HOY en hora del negocio, en UTC: lo de hoy todavía no se puede haber cerrado. */
+  inicioDeHoy: Date;
+  /**
+   * Hasta qué día está cerrada la caja, leído con ESTE `tx` (frontera-cierre
+   * `lastClosedDayTx`). Entra inyectado porque ese módulo importa prisma y éste no puede.
+   */
+  leerFronteraCaja: (tx: Prisma.TransactionClient, tenantId: string) => Promise<string | null>;
+}
+
+export interface RecoleccionCliente {
+  resumen: ResumenFiscalCliente;
+  hechos: HechosCliente;
+}
+
+/** Decimal de Prisma → number, en el borde (ADR-057; mismo criterio que `toNum` de bancos-glue). */
+function aNumero(v: unknown): number {
+  if (v != null && typeof (v as { toNumber?: () => number }).toNumber === "function") {
+    return (v as { toNumber: () => number }).toNumber();
+  }
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** "2026-09-03" → "2026-09-04" (anclado a mediodía UTC: sin corrimientos de zona). */
+function diaSiguiente(dia: string): string {
+  const d = new Date(`${dia}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * La pasada de UN cliente: volumen del mes y hechos del monitoreo, con el `tx` de SU
+ * `tenantTransaction` (GUC = cliente). Nunca abre otra conexión ni usa el prisma ambiental.
+ *
+ * NO la llames con un `fila` que no salió de la cartera del estudio actual: el aislamiento
+ * lo pone quien la llama (`recorrerCartera` + `monitorCarteraAction`), no esta función.
+ */
+export async function recolectarCliente(
+  tx: Prisma.TransactionClient,
+  fila: FilaCarteraDb,
+  meta: MetaCliente,
+  ctx: ContextoRecoleccion,
+): Promise<RecoleccionCliente> {
+  const tenantId = fila.clienteTenantId;
+  const { filtros } = ctx;
+
+  const [
+    facturasMes,
+    facturado,
+    rechazadasMes,
+    pendientesRevision,
+    listasParaEmitir,
+    revisionMasVieja,
+    ultimaImportacion,
+    ultimaFactura,
+    outboxTrabados,
+    credencial,
+    ultimoMovimientoCaja,
+  ] = await Promise.all([
+    tx.invoice.count({ where: { tenantId, ...filtros.cupo } }),
+    tx.invoice.aggregate({ _sum: { total: true }, where: { tenantId, ...filtros.facturado } }),
+    tx.invoice.count({ where: { tenantId, ...filtros.rechazado } }),
+    tx.movimientoImportado.count({ where: { tenantId, estadoPropuesta: "revision" } }),
+    tx.movimientoImportado.count({ where: { tenantId, estadoPropuesta: "auto" } }),
+    tx.movimientoImportado.findFirst({
+      where: { tenantId, estadoPropuesta: "revision" },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    }),
+    tx.importacionBancaria.findFirst({
+      where: { tenantId },
+      orderBy: { createdAt: "desc" },
+      select: { nombreArchivo: true, createdAt: true },
+    }),
+    tx.invoice.findFirst({
+      where: { tenantId },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+    tx.outboxEvent.count({
+      where: { tenantId, processedAt: null, attempts: { gte: UMBRAL_OUTBOX_TRABADO } },
+    }),
+    // Sólo la metadata NO secreta del certificado (el vencimiento). El material cifrado no
+    // se toca: ni se selecciona.
+    tx.tenantFiscalCredential.findUnique({
+      where: { tenantId },
+      select: { certNotAfter: true },
+    }),
+    tx.cashMovement.findFirst({
+      where: { tenantId },
+      orderBy: { occurredAt: "desc" },
+      select: { occurredAt: true },
+    }),
+  ]);
+
+  // Caja: sólo si el cliente tiene movimientos. La cartera nace con facturación pura y
+  // sin caja; para esos, "caja sin cerrar" no existe.
+  let caja: HechosCliente["caja"] = null;
+  if (ultimoMovimientoCaja) {
+    const cerradoHasta = await ctx.leerFronteraCaja(tx, tenantId);
+    const desde = cerradoHasta ? businessWallTimeToUtc(diaSiguiente(cerradoHasta), "00:00") : null;
+    const primeroSinCerrar = await tx.cashMovement.findFirst({
+      where: {
+        tenantId,
+        occurredAt: { ...(desde ? { gte: desde } : {}), lt: ctx.inicioDeHoy },
+      },
+      orderBy: { occurredAt: "asc" },
+      select: { occurredAt: true },
+    });
+    caja = {
+      pendienteDesde: primeroSinCerrar ? dateStrInBusinessTz(primeroSinCerrar.occurredAt) : null,
+    };
+  }
+
+  const capFacturasMes = meta.capFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
+  const actividad = [ultimaImportacion?.createdAt, ultimaFactura?.createdAt]
+    .filter((d): d is Date => d instanceof Date)
+    .map((d) => d.getTime());
+
+  return {
+    resumen: {
+      facturasMes,
+      capFacturasMes,
+      montoFacturadoMes: aNumero(facturado._sum.total),
+      pendientesRevision,
+      listasParaEmitir,
+      ultimaImportacion: ultimaImportacion
+        ? {
+            nombreArchivo: ultimaImportacion.nombreArchivo,
+            createdAt: ultimaImportacion.createdAt.toISOString(),
+          }
+        : null,
+    },
+    hechos: {
+      clienteTenantId: tenantId,
+      alias: fila.alias,
+      estadoCartera: fila.estado,
+      arcaCuit: meta.arcaCuit,
+      arcaPuntoVenta: meta.arcaPuntoVenta,
+      arcaHomologacion: meta.arcaHomologacion,
+      credencialCargada: credencial !== null,
+      certVenceAt: credencial?.certNotAfter?.toISOString() ?? null,
+      facturasMes,
+      capFacturasMes,
+      rechazadasMes,
+      outboxTrabados,
+      pendientesRevision,
+      revisionMasViejaAt: revisionMasVieja?.createdAt.toISOString() ?? null,
+      ultimaActividadAt: actividad.length > 0 ? new Date(Math.max(...actividad)).toISOString() : null,
+      caja,
+    },
+  };
+}
+
+/** Puertos del recorrido (los cablea `monitorCarteraAction`; los tests inyectan fakes). */
+export interface RecorridoPorts {
+  /** Filas de la cartera del estudio (SIEMPRE filtradas por estudioTenantId; excluye `baja`). */
+  filasDeCartera(estudioTenantId: string): Promise<FilaCarteraDb[]>;
+  /** Metadata de los clientes pedidos, en UNA lectura. Clientes inexistentes no vienen. */
+  metadataClientes(clienteTenantIds: string[]): Promise<Map<string, MetaCliente>>;
+  /** La pasada de un cliente (la real: `recolectarCliente` en tenantTransaction(cliente)). */
+  recolectar(fila: FilaCarteraDb, meta: MetaCliente): Promise<RecoleccionCliente>;
+}
+
+/**
+ * La cartera del estudio en UNA pasada: filas del panel de volumen + hechos del monitoreo.
+ *
+ * AISLAMIENTO: los ids que se leen salen EXCLUSIVAMENTE de `filasDeCartera(estudioTenantId)`
+ * — nunca de un input —, así que la lectura de metadata y cada pasada sólo tocan clientes de
+ * la cartera de ESTE estudio.
+ */
+export async function recorrerCartera(
+  ports: RecorridoPorts,
+  estudioTenantId: string,
+  modoArca: ModoArca,
+): Promise<{ filas: FilaCartera[]; resumen: ResumenCartera; hechos: HechosCliente[] }> {
+  const filasDb = await ports.filasDeCartera(estudioTenantId);
+  const metas =
+    filasDb.length > 0
+      ? await ports.metadataClientes(filasDb.map((f) => f.clienteTenantId))
+      : new Map<string, MetaCliente>();
+
+  const filas: FilaCartera[] = [];
+  const hechos: HechosCliente[] = [];
+  // Secuencial a propósito, igual que antes: cuida las conexiones del pooler de Neon.
+  // Paralelizar con un tope (3-4) queda para cuando se mida el pool con CH en vivo; con
+  // una cartera de 30 clientes o más, antes que eso va una caché por estudio.
+  for (const fila of filasDb) {
+    const meta = metas.get(fila.clienteTenantId);
+    if (!meta) continue; // fila huérfana (tenant borrado): no rompe el panel
+    const pasada = await ports.recolectar(fila, meta);
+    filas.push(armarFilaCartera(fila, meta, pasada.resumen, modoArca));
+    hechos.push(pasada.hechos);
+  }
+  return { filas, resumen: resumirCartera(filas), hechos };
 }
 
 /**
@@ -150,6 +409,10 @@ export function resumirCartera(filas: FilaCartera[]): ResumenCartera {
  * fiscal, agregadas EN MEMORIA (nunca una query cross-tenant). El único filtro
  * de entrada es `estudioTenantId`: un estudio JAMÁS ve la cartera de otro
  * (defensa doble: predicado explícito + RLS sobre CarteraCliente).
+ *
+ * Ya no la llama ninguna action: /contador pasó a `recorrerCartera`, que hace volumen y
+ * monitoreo en una sola pasada y lee la metadata de toda la cartera de una vez. Queda
+ * mientras cartera-core.test.ts la cubra; se borra junto con esos tests.
  */
 export async function listarCarteraCore(
   ports: CarteraPorts,
@@ -214,11 +477,50 @@ export interface AltaClienteInput {
   email: string;
   /** Nombre corto para la cartera; default: el nombre. */
   alias?: string;
+  /**
+   * Punto de venta de ARCA para factura electrónica. Sin él el cliente no emite nada, y
+   * después sólo lo puede cargar Gestión Studio Grow: pedirlo en el alta corta de raíz el
+   * "no puede emitir" del monitoreo. Opcional en el contrato para que el formulario viejo
+   * no rompa el alta; el formulario lo tiene que pedir.
+   */
+  puntoVenta?: number | string | null;
 }
 
 export type ValidacionAlta =
-  | { ok: true; nombre: string; cuit: string; email: string; alias: string; slugBase: string }
+  | {
+      ok: true;
+      nombre: string;
+      cuit: string;
+      email: string;
+      alias: string;
+      slugBase: string;
+      /** `null` = no se informó (el monitoreo lo va a marcar como "no puede emitir"). */
+      puntoVenta: number | null;
+    }
   | { ok: false; error: string };
+
+/** Mayor punto de venta que se acepta: ARCA los numera con hasta 5 cifras. */
+export const PUNTO_VENTA_MAX = 99_999;
+
+export type ValidacionPuntoVenta = { ok: true; puntoVenta: number | null } | { ok: false; error: string };
+
+/**
+ * Punto de venta del alta: vacío = no informado; si viene, un entero de 1 a 99999. PURA.
+ * No se redondea ni se recorta nada: un "3,5" o un "0" es un error de tipeo, y un punto de
+ * venta equivocado emite comprobantes que después sólo se anulan con nota de crédito.
+ */
+export function validarPuntoVenta(raw: AltaClienteInput["puntoVenta"]): ValidacionPuntoVenta {
+  const texto = raw == null ? "" : String(raw).trim();
+  if (texto === "") return { ok: true, puntoVenta: null };
+  const n = /^\d{1,5}$/.test(texto) ? Number(texto) : NaN;
+  if (!Number.isInteger(n) || n < 1 || n > PUNTO_VENTA_MAX) {
+    return {
+      ok: false,
+      error: "El punto de venta es un número de 1 a 5 cifras: el que el cliente dio de alta en ARCA para factura electrónica.",
+    };
+  }
+  return { ok: true, puntoVenta: n };
+}
 
 /** Valida y normaliza el alta. CUIT con dígito verificador (mismo criterio que bancos). PURA. */
 export function validarAltaCliente(input: AltaClienteInput): ValidacionAlta {
@@ -234,11 +536,49 @@ export function validarAltaCliente(input: AltaClienteInput): ValidacionAlta {
   if (!isValidEmail(email)) {
     return { ok: false, error: "El email del cliente no es válido." };
   }
+  const pv = validarPuntoVenta(input.puntoVenta);
+  if (!pv.ok) return pv;
   const slugBase = suggestSlug(nombre);
   if (!slugBase) {
     return { ok: false, error: "No se pudo generar el nombre corto para la web: usá un nombre con letras o números." };
   }
-  return { ok: true, nombre, cuit, email, alias: (input.alias?.trim() || nombre), slugBase };
+  return {
+    ok: true,
+    nombre,
+    cuit,
+    email,
+    alias: (input.alias?.trim() || nombre),
+    slugBase,
+    puntoVenta: pv.puntoVenta,
+  };
+}
+
+/**
+ * Qué hace el alta (o la re-alta) con el punto de venta, según lo que escribió el contador
+ * y lo que el tenant ya tiene. PURA.
+ *
+ * Se completa si falta y NUNCA se pisa: cambiar el punto de venta de quien ya emite corta
+ * su numeración, y eso es de la consola de operador. Lo que no se hizo se avisa: un dato
+ * tipeado que se descarta en silencio es peor que no haberlo pedido.
+ */
+export function decidirPuntoVentaAlta(
+  informado: number | null,
+  actual: number | null,
+): { escribir: number | null; aviso: string | null } {
+  if (actual !== null) {
+    return {
+      escribir: null,
+      aviso:
+        informado !== null && informado !== actual
+          ? `Ya tenía el punto de venta ${actual} y no se cambió: si está mal, pedíselo a Gestión Studio Grow.`
+          : null,
+    };
+  }
+  if (informado !== null) return { escribir: informado, aviso: null };
+  return {
+    escribir: null,
+    aviso: "No tiene punto de venta: hasta que se cargue no puede emitir. Pedíselo a Gestión Studio Grow.",
+  };
 }
 
 export type ResolucionSlug =

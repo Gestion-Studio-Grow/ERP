@@ -22,6 +22,7 @@ import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
+import { isColumnMissing } from "@/lib/prisma-errors";
 import { businessWallTimeToUtc, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED, getDemoLibroMovements } from "@/lib/demo-sandbox";
 import {
@@ -32,6 +33,8 @@ import {
   dateBelongsToMonth,
   formatMonthLabel,
   libroOrigin,
+  movimientoDelLedger,
+  leerSinColumnasFaltantes,
   flagPossibleDuplicates,
   CASH_METHOD_LABEL,
   LIBRO_ORIGIN_LABEL,
@@ -54,6 +57,7 @@ import { ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caj
 import { COMPRA_ACTOR_PREFIX, esEgresoDeCompra } from "@/lib/stock/purchase-egreso";
 import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
 import { esEgresoDeAnulacion } from "@/lib/turnos/anulacion";
+import { leerImporte } from "@/lib/pos-peso";
 
 const LIBRO_PATH = "/admin/caja/libro";
 // El mismo formulario de alta se monta en la Caja (es el único camino de escritura manual),
@@ -92,7 +96,12 @@ const LIBRO_TYPES = ["INGRESO", "EGRESO"] as const;
 const LIBRO_METHODS = ["EFECTIVO", "MP", "TARJETA"] as const;
 
 function parseAmount(raw: FormDataEntryValue | null): number {
-  return Number(String(raw ?? "").trim().replace(",", "."));
+  // Plata escrita como se escribe acá: "12.500" son doce mil quinientos y "12,5" doce con
+  // cincuenta. Antes era `Number(raw.replace(",", "."))`, que leía "12.500" como 12,5 y
+  // "1.234,56" como NaN. Lo ilegible y lo vacío vuelven NaN: el llamador lo rechaza con
+  // mensaje en vez de asentar un número que nadie tipeó.
+  const l = leerImporte(String(raw ?? ""));
+  return l.estado === "ok" ? l.valor : NaN;
 }
 
 // Límites del mes en HORA DE PARED del negocio, convertidos a UTC. Si el corte se
@@ -153,11 +162,7 @@ export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroC
 
   const tenantId = await getCurrentTenantId();
   const [rows, previousTotals] = await Promise.all([
-    prisma.cashMovement.findMany({
-      where: { tenantId, occurredAt: { gte: start, lt: end } },
-      orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
-      select: { id: true, occurredAt: true, type: true, method: true, amount: true, reason: true, orderId: true },
-    }),
+    filasDelMes(tenantId, start, end),
     prisma.cashMovement.groupBy({
       by: ["type", "method"],
       where: { tenantId, occurredAt: { lt: start } },
@@ -179,15 +184,11 @@ export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroC
     })),
   );
 
-  const movements: LibroMovement[] = rows.map((r) => ({
-    id: r.id,
-    occurredAt: r.occurredAt,
-    type: r.type as CashMovementType,
-    method: r.method as CashMethod,
-    amount: r.amount,
-    detail: r.reason ?? "",
-    origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId }),
-  }));
+  // `createdBy` entra al select sólo para clasificar el origen contable de cada fila;
+  // `movimientoDelLedger` no lo deja pasar a la fila (ver su comentario).
+  const movements: LibroMovement[] = rows.map((r) =>
+    movimientoDelLedger({ ...r, type: r.type as CashMovementType, method: r.method as CashMethod }),
+  );
 
   const libro = buildLibro(opening, movements);
   return {
@@ -198,6 +199,53 @@ export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroC
     posiblesDuplicados: [...flagPossibleDuplicates(libro.rows, dateStrInBusinessTz)],
     cerradoHasta: await lastClosedDay(tenantId),
   };
+}
+
+type FilaLibroDb = {
+  id: string;
+  occurredAt: Date;
+  type: string;
+  method: string;
+  amount: number;
+  reason: string | null;
+  orderId: string | null;
+  createdBy: string;
+  collectionId: string | null;
+  paymentId: string | null;
+};
+
+// Las filas del mes. `collectionId` y `paymentId` son la referencia de un cobro de turno y
+// de su anulación, y cada una la agrega una migración que puede faltar en la base (ver
+// `leerSinColumnasFaltantes` en caja/libro-caja.ts, donde vive la regla y su test): si
+// falta, se lee sin ella y esas filas salen sin referencia, en vez de caerse el libro.
+// Sin `export`: recibe un tenantId y este archivo es "use server".
+async function filasDelMes(tenantId: string, start: Date, end: Date): Promise<FilaLibroDb[]> {
+  const where = { tenantId, occurredAt: { gte: start, lt: end } };
+  const orderBy = [{ occurredAt: "asc" as const }, { id: "asc" as const }];
+  const { filas } = await leerSinColumnasFaltantes(
+    async (columnas) => {
+      const filas = await prisma.cashMovement.findMany({
+        where,
+        orderBy,
+        select: {
+          id: true,
+          occurredAt: true,
+          type: true,
+          method: true,
+          amount: true,
+          reason: true,
+          orderId: true,
+          createdBy: true,
+          collectionId: columnas.includes("collectionId"),
+          paymentId: columnas.includes("paymentId"),
+        },
+      });
+      // Una columna que no se pidió no viene (undefined): queda en null, fila sin esa referencia.
+      return filas.map((f) => ({ ...f, collectionId: f.collectionId ?? null, paymentId: f.paymentId ?? null }));
+    },
+    (err, columna) => isColumnMissing(err, columna),
+  );
+  return filas;
 }
 
 // --- Cargar un asiento del libro ---

@@ -13,12 +13,15 @@ import { altaClienteCarteraAction, type ResultadoAlta } from "@/lib/cartera-acti
 
 export default function AltaCliente() {
   const router = useRouter();
-  const ids = { nombre: useId(), cuit: useId(), email: useId(), alias: useId() };
+  const ids = { nombre: useId(), cuit: useId(), email: useId(), alias: useId(), pv: useId() };
 
   const [nombre, setNombre] = useState("");
   const [cuit, setCuit] = useState("");
   const [email, setEmail] = useState("");
   const [alias, setAlias] = useState("");
+  // Sin punto de venta el cliente no emite nada, y después sólo lo puede cargar GSG: se pide
+  // acá, en el único momento en que el contador lo tiene a mano.
+  const [puntoVenta, setPuntoVenta] = useState("");
   const [resultado, setResultado] = useState<ResultadoAlta | null>(null);
   const [pendiente, startTransition] = useTransition();
 
@@ -28,18 +31,23 @@ export default function AltaCliente() {
     cuit.trim() !== "" && !cuitValido(cuitNormalizado)
       ? "El CUIT no es válido: revisá los 11 números."
       : undefined;
+  const pvError =
+    puntoVenta.trim() !== "" && !/^\d{1,5}$/.test(puntoVenta.trim())
+      ? "Es un número de 1 a 5 cifras."
+      : undefined;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setResultado(null);
     startTransition(async () => {
-      const r = await altaClienteCarteraAction({ nombre, cuit, email, alias: alias || undefined });
+      const r = await altaClienteCarteraAction({ nombre, cuit, email, alias: alias || undefined, puntoVenta });
       setResultado(r);
       if (r.ok) {
         setNombre("");
         setCuit("");
         setEmail("");
         setAlias("");
+        setPuntoVenta("");
         router.refresh();
       }
     });
@@ -99,6 +107,25 @@ export default function AltaCliente() {
               required
             />
           </Field>
+          <Field
+            label="Punto de venta"
+            htmlFor={ids.pv}
+            required
+            error={pvError}
+            hint={pvError ? undefined : "El que diste de alta en ARCA para factura electrónica (hasta 5 cifras)."}
+          >
+            <Input
+              id={ids.pv}
+              name="puntoVenta"
+              value={puntoVenta}
+              onChange={(e) => setPuntoVenta(e.target.value)}
+              placeholder="3"
+              inputMode="numeric"
+              autoComplete="off"
+              required
+              aria-invalid={pvError ? true : undefined}
+            />
+          </Field>
           <Field label="Alias en tu cartera" htmlFor={ids.alias} hint="Opcional: cómo lo querés ver en la tabla.">
             <Input
               id={ids.alias}
@@ -112,7 +139,7 @@ export default function AltaCliente() {
         </div>
 
         <div className="mt-md flex items-center gap-sm">
-          <Button type="submit" disabled={pendiente || !!cuitError}>
+          <Button type="submit" disabled={pendiente || !!cuitError || !!pvError}>
             {pendiente ? "Dando de alta…" : "Agregar a la cartera"}
           </Button>
         </div>
@@ -134,6 +161,7 @@ export default function AltaCliente() {
                   <strong>{resultado.alias}</strong> quedó dado de alta y en tu cartera.
                 </p>
               )}
+              {resultado.aviso && <p className="mt-1 text-strong">{resultado.aviso}</p>}
               {resultado.passwordBootstrap && (
                 <div className="mt-2 rounded-md border border-line bg-surface-raised p-3 text-strong">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted">

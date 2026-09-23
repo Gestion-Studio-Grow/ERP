@@ -14,7 +14,10 @@ import type {
 import {
   armarFilasMovimientos,
   configBancosDesdeTenant,
+  fechaFiscalDelDia,
+  filtrosFacturacionMes,
   mapearClasificacion,
+  rangoFiscalMes,
   rangoMesActual,
   resumirPropuestas,
   toNum,
@@ -46,16 +49,96 @@ test("toNum: number, Decimal-like y basura", () => {
   assert.equal(toNum(undefined), 0);
 });
 
-test("rangoMesActual: [1° del mes, 1° del siguiente)", () => {
-  const r = rangoMesActual(new Date(2026, 6, 11)); // 11/07/2026
-  assert.equal(r.gte.getTime(), new Date(2026, 6, 1).getTime());
-  assert.equal(r.lt.getTime(), new Date(2026, 7, 1).getTime());
+// Los relojes del mes se prueban con INSTANTES UTC absolutos, no con `new Date(año, mes,
+// día)`: ese constructor usa la zona del proceso, que es justo lo que estaba mal. Estos
+// tests dan lo mismo con TZ=UTC que con TZ=America/Argentina/Buenos_Aires.
+
+test("rangoMesActual: [00:00 del 1° del mes, 00:00 del 1° del siguiente) en hora argentina", () => {
+  const r = rangoMesActual(new Date("2026-07-11T15:00:00.000Z")); // 11/07/2026, 12:00 ART
+  assert.equal(r.gte.toISOString(), "2026-07-01T03:00:00.000Z"); // 01/07 00:00 ART
+  assert.equal(r.lt.toISOString(), "2026-08-01T03:00:00.000Z"); // 01/08 00:00 ART
 });
 
-test("rangoMesActual: diciembre cruza de año", () => {
-  const r = rangoMesActual(new Date(2026, 11, 15));
-  assert.equal(r.lt.getFullYear(), 2027);
-  assert.equal(r.lt.getMonth(), 0);
+test("el 31 a las 22:30 hora argentina queda en ESE mes (cupo, fecha y período fiscal)", () => {
+  // 31/08/2026 22:30 ART = 01/09/2026 01:30 UTC. Con el proceso en UTC, el armado viejo
+  // daba septiembre para las tres cosas.
+  const ahora = new Date("2026-09-01T01:30:00.000Z");
+  const cupo = rangoMesActual(ahora);
+  assert.equal(cupo.gte.toISOString(), "2026-08-01T03:00:00.000Z");
+  assert.equal(cupo.lt.toISOString(), "2026-09-01T03:00:00.000Z");
+  assert.ok(ahora >= cupo.gte && ahora < cupo.lt, "la factura de las 22:30 cuenta para el cupo de agosto");
+  assert.deepEqual(rangoFiscalMes(ahora), { gte: "20260801", lt: "20260901" });
+  assert.equal(fechaFiscalDelDia(ahora), "20260831");
+});
+
+test("a las 00:30 del 1° hora argentina ya es el mes nuevo", () => {
+  const ahora = new Date("2026-09-01T03:30:00.000Z"); // 01/09/2026 00:30 ART
+  assert.equal(rangoMesActual(ahora).gte.toISOString(), "2026-09-01T03:00:00.000Z");
+  assert.deepEqual(rangoFiscalMes(ahora), { gte: "20260901", lt: "20261001" });
+  assert.equal(fechaFiscalDelDia(ahora), "20260901");
+});
+
+test("diciembre cruza de año en los dos relojes", () => {
+  const ahora = new Date("2026-12-15T15:00:00.000Z");
+  assert.equal(rangoMesActual(ahora).lt.toISOString(), "2027-01-01T03:00:00.000Z");
+  assert.deepEqual(rangoFiscalMes(ahora), { gte: "20261201", lt: "20270101" });
+});
+
+test("rangoFiscalMes: {gte:'AAAAMM01', lt:'AAAAMM+1 01'} y deja afuera el 1° del siguiente", () => {
+  const r = rangoFiscalMes(new Date("2026-02-10T15:00:00.000Z"));
+  assert.deepEqual(r, { gte: "20260201", lt: "20260301" });
+  // Invoice.fecha es texto AAAAMMDD: se compara como texto, que acá ordena como fecha.
+  const dentro = (f: string) => f >= r.gte && f < r.lt;
+  assert.equal(dentro("20260201"), true);
+  assert.equal(dentro("20260228"), true);
+  assert.equal(dentro("20260301"), false);
+  assert.equal(dentro("20260131"), false);
+});
+
+test("filtrosFacturacionMes: facturado = sólo AUTHORIZED por fecha fiscal; el cupo sigue contando todo por createdAt", () => {
+  const ahora = new Date("2026-09-01T01:30:00.000Z");
+  const f = filtrosFacturacionMes(ahora);
+  assert.deepEqual(f.facturado, { fecha: { gte: "20260801", lt: "20260901" }, status: "AUTHORIZED" });
+  // El cupo no filtra por estado: un rechazado hoy consume cupo (regla comercial, sin cambios).
+  assert.deepEqual(Object.keys(f.cupo), ["createdAt"]);
+  assert.equal(f.cupo.createdAt.gte.toISOString(), "2026-08-01T03:00:00.000Z");
+  assert.equal(f.cupo.createdAt.lt.toISOString(), "2026-09-01T03:00:00.000Z");
+  // Los rechazados van con el reloj de EMISIÓN, el mismo del cupo.
+  assert.deepEqual(f.rechazado, { createdAt: f.cupo.createdAt, status: "REJECTED" });
+});
+
+// Aplica un `where` de `filtrosFacturacionMes` a una factura con la semántica de Prisma
+// para estos campos (igualdad en `status`, rango en `createdAt`, rango de texto en `fecha`).
+type FacturaDePrueba = { status: string; createdAt: Date; fecha: string };
+function cumple(
+  where: { status: string; createdAt?: { gte: Date; lt: Date }; fecha?: { gte: string; lt: string } },
+  inv: FacturaDePrueba,
+): boolean {
+  if (inv.status !== where.status) return false;
+  if (where.createdAt && !(inv.createdAt >= where.createdAt.gte && inv.createdAt < where.createdAt.lt)) return false;
+  if (where.fecha && !(inv.fecha >= where.fecha.gte && inv.fecha < where.fecha.lt)) return false;
+  return true;
+}
+
+test("rechazados: un extracto de agosto emitido y rechazado en septiembre cuenta en septiembre", () => {
+  // El comprobante del banco lleva la fecha del MOVIMIENTO (20260815) pero se emitió el
+  // 03/09 a las 11:00 hora argentina y ARCA lo rechazó.
+  const rechazado: FacturaDePrueba = {
+    status: "REJECTED",
+    createdAt: new Date("2026-09-03T14:00:00.000Z"),
+    fecha: "20260815",
+  };
+  const septiembre = filtrosFacturacionMes(new Date("2026-09-20T15:00:00.000Z"));
+  const agosto = filtrosFacturacionMes(new Date("2026-08-20T15:00:00.000Z"));
+  assert.equal(cumple(septiembre.rechazado, rechazado), true, "el monitor de septiembre lo ve");
+  assert.equal(cumple(agosto.rechazado, rechazado), false);
+  // Con el filtro por fecha fiscal (el de antes) se perdía: caía en agosto.
+  assert.equal(cumple({ status: "REJECTED", fecha: rangoFiscalMes(new Date("2026-09-20T15:00:00.000Z")) }, rechazado), false);
+
+  // El facturado sigue por fecha fiscal: uno AUTORIZADO con esa misma historia es de agosto.
+  const autorizado = { ...rechazado, status: "AUTHORIZED" };
+  assert.equal(cumple(agosto.facturado, autorizado), true);
+  assert.equal(cumple(septiembre.facturado, autorizado), false);
 });
 
 // ── mapeo de clasificación ───────────────────────────────────────────────────

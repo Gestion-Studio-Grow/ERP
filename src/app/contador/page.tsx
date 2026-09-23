@@ -1,27 +1,31 @@
-// Panel del contador (módulo CARTERA — ADR-025 §12 / ADR-045) — AHORA REAL.
-// Un estudio contable ve su cartera de clientes (cada uno, un tenant del ERP):
-// facturado del mes, facturas vs tope con barra de objetivo, pendientes de
-// revisión, última importación y estado ARCA; con alta de cliente, emisión en
-// lote y pausa/baja de la fila. Server component: junta los datos con las
-// actions de cartera; la interacción vive en los client components de la carpeta.
+// Consola del contador (módulo CARTERA — ADR-025 §12 / ADR-045).
+// Un estudio contable ve su cartera de clientes (cada uno, un tenant del ERP) en dos
+// partes, las dos salidas de UNA pasada por cliente (`monitorCarteraAction`):
+//   1. arriba, "de quién me ocupo hoy" (MonitorBandeja): cuántos no pueden emitir y una
+//      línea por cliente con su peor señal y la acción que existe;
+//   2. abajo, el VOLUMEN: facturado con validez fiscal (separado de lo emitido en
+//      prueba), facturas del cupo, pendientes de revisión y la tabla con el detalle.
+// Server component: junta los datos con las actions de cartera; la interacción vive en
+// los client components de la carpeta.
 //
 // BARRERA DE ACCESO (doble, server-side): capability `cartera:manage` (solo
 // OWNER) + módulo `cartera` ASIGNADO al tenant actual (ADR-055) — un admin común
 // de un negocio cualquiera NO ve esta pantalla. Las actions repiten el gate.
 //
 // AISLAMIENTO: el panel NUNCA evade RLS — cada dato de cliente sale de
-// tenantTransaction(clienteTenantId) vía los cores de bancos-glue (ver
-// src/lib/cartera-actions.ts). Jamás operatorPrisma en este camino.
+// tenantTransaction(clienteTenantId) (ver src/lib/cartera-actions.ts). Jamás
+// operatorPrisma en este camino.
 
 import { notFound } from "next/navigation";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { basePrisma } from "@/lib/prisma-base";
-import { MODULO_CARTERA, UMBRAL_ALERTA_CAP } from "@/lib/cartera-core";
-import { listarCarteraAction } from "@/lib/cartera-actions";
+import { MODULO_CARTERA } from "@/lib/cartera-core";
+import { monitorCarteraAction } from "@/lib/cartera-actions";
 import { Badge, KpiTile, PageContainer, PageHeader, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import ThemeToggle from "@/app/admin/(dashboard)/ThemeToggle";
 import CarteraPanel from "./CarteraPanel";
+import MonitorBandeja from "./MonitorBandeja";
 import AltaCliente from "./AltaCliente";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +62,7 @@ export default async function ContadorPage() {
   });
   if (!estudio?.modules?.includes(MODULO_CARTERA)) notFound();
 
-  const res = await listarCarteraAction();
+  const res = await monitorCarteraAction();
 
   // Defensa Gate 2: si el código llegó antes que su migración, estado honesto.
   if (!res.ok) {
@@ -78,8 +82,11 @@ export default async function ContadorPage() {
     );
   }
 
-  const { filas, resumen } = res;
+  const { filas, resumen, monitor } = res;
   const base = process.env.APP_BASE_DOMAIN?.trim() || null;
+  // Si NINGÚN cliente emite con validez fiscal (hoy: toda la cartera en homologación), la
+  // tarjeta no puede decir "facturado": dice lo que es, emitido en prueba.
+  const hayFiscal = filas.some((f) => f.validezFiscal);
 
   return (
     <PageContainer>
@@ -92,46 +99,54 @@ export default async function ContadorPage() {
         }
         description={
           <>
-            Tus clientes, cada uno con su facturación al día: cuánto lleva facturado el mes, qué tan
-            cerca está del tope y qué quedó esperando tu revisión. Todo desde un solo lugar.
+            Primero, de qué cliente te tenés que ocupar hoy y qué hacer. Abajo, cuánto facturó cada
+            uno este mes y qué quedó esperando tu revisión.
           </>
         }
         actions={<ThemeToggle />}
       />
 
-      {resumen.cercaDelTope > 0 && (
-        <div
-          role="alert"
-          className="mb-lg rounded-xl border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
-        >
-          <strong>{fmtNumberAR(resumen.cercaDelTope)}</strong>{" "}
-          {resumen.cercaDelTope === 1 ? "cliente está" : "clientes están"} al{" "}
-          {Math.round(UMBRAL_ALERTA_CAP * 100)}% o más del tope de facturas del mes. Revisá si
-          corresponde subir el tope o frenar la emisión automática.
-        </div>
-      )}
+      {/* "De quién me ocupo hoy": sale de la misma pasada que el volumen de abajo. */}
+      <MonitorBandeja
+        filas={monitor.filas}
+        resumen={monitor.resumen}
+        avisos={monitor.avisos}
+        cartera={filas}
+        baseDomain={base}
+      />
 
-      {/* KPIs de la cartera — 4-up desde lg con gap 14px (fix 28); KpiTile ya
-          trae tabular-nums (fix 7). */}
+      {/* KPIs de VOLUMEN — 4-up desde lg con gap 14px (fix 28); KpiTile ya trae
+          tabular-nums (fix 7). La plata y la cantidad van en tarjetas SEPARADAS porque
+          responden a relojes distintos: la plata es fiscal (comprobantes con CAE, por su
+          fecha) y la cantidad es el cupo del plan (todo lo emitido en el mes). */}
       <section
-        aria-label="Indicadores de la cartera"
+        aria-label="Volumen de la cartera en el mes"
         className="mb-xl grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-4"
       >
+        {hayFiscal ? (
+          <KpiTile
+            label="Facturado con validez fiscal"
+            value={fmtMoneyARS(resumen.montoFiscalMes, 0)}
+            sub={
+              resumen.montoPruebaMes > 0
+                ? `Aparte, ${fmtMoneyARS(resumen.montoPruebaMes, 0)} emitido en prueba (sin validez fiscal).`
+                : "Con CAE de ARCA, por la fecha del comprobante."
+            }
+            icon={<Icono path={<path d="M4 17l5-6 4 3 7-9" />} />}
+          />
+        ) : (
+          <KpiTile
+            label="Emitido en prueba (sin validez fiscal)"
+            value={fmtMoneyARS(resumen.montoPruebaMes, 0)}
+            sub="Tiene CAE de prueba: todavía no es facturación."
+            icon={<Icono path={<path d="M4 17l5-6 4 3 7-9" />} />}
+          />
+        )}
         <KpiTile
-          label="Clientes activos"
-          value={fmtNumberAR(resumen.clientes)}
-          sub={
-            resumen.pausados > 0
-              ? `${fmtNumberAR(resumen.pausados)} en pausa.`
-              : "Toda la cartera operando."
-          }
-          icon={<Icono path={<><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19c.8-3 3-4.5 5.5-4.5S13.7 16 14.5 19" /><circle cx="17" cy="9" r="2.4" /><path d="M15.5 14.8c2.3.1 4.1 1.5 4.8 4" /></>} />}
-        />
-        <KpiTile
-          label="Facturado del mes"
-          value={fmtMoneyARS(resumen.montoFacturadoMes, 0)}
-          sub={`${fmtNumberAR(resumen.facturasMes)} facturas entre todos los clientes.`}
-          icon={<Icono path={<path d="M4 17l5-6 4 3 7-9" />} />}
+          label="Facturas del cupo"
+          value={fmtNumberAR(resumen.facturasMes)}
+          sub="Todo lo emitido este mes entre todos tus clientes, rechazos incluidos: es lo que cuenta para el cupo del plan."
+          icon={<Icono path={<path d="M5 6h14M5 12h14M5 18h9" />} />}
         />
         <KpiTile
           label="Pendientes de revisión"

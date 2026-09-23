@@ -13,7 +13,7 @@ import { fmtDateTimeAr } from "@/lib/datetime";
 import { UMBRAL_ALERTA_CAP, type EstadoCartera, type FilaCartera } from "@/lib/cartera-core";
 import { emitirAutomaticasClienteAction, setEstadoCarteraAction } from "@/lib/cartera-actions";
 
-/** Mini barra de objetivo (facturas del mes vs tope) para la celda de la tabla. */
+/** Mini barra de objetivo (facturas del mes vs cupo del plan) para la celda de la tabla. */
 function GoalMini({ usado, tope }: { usado: number; tope: number }) {
   const pct = tope > 0 ? Math.min(100, Math.round((usado / tope) * 100)) : 0;
   const color = pct >= 100 ? "bg-danger-fill" : pct >= UMBRAL_ALERTA_CAP * 100 ? "bg-warning-fill" : "bg-accent";
@@ -28,7 +28,7 @@ function GoalMini({ usado, tope }: { usado: number; tope: number }) {
         aria-valuenow={usado}
         aria-valuemin={0}
         aria-valuemax={tope}
-        aria-label={`Facturas del mes: ${usado} de ${tope}`}
+        aria-label={`Facturas del cupo: ${usado} de ${tope}`}
         className="mt-1 block h-1 overflow-hidden rounded-full bg-bar-track"
       >
         <span className={`block h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
@@ -149,7 +149,7 @@ export default function CarteraPanel({
               <tr className="border-b border-line bg-surface-sunken text-[11px] uppercase tracking-[.06em] text-muted">
                 <th scope="col" className="px-[22px] py-2.5 font-semibold">Cliente</th>
                 <th scope="col" className="px-[22px] py-2.5 text-right font-semibold">Facturado</th>
-                <th scope="col" className="px-[22px] py-2.5 font-semibold">Facturas / tope</th>
+                <th scope="col" className="px-[22px] py-2.5 font-semibold">Facturas / cupo</th>
                 <th scope="col" className="px-[22px] py-2.5 text-right font-semibold">A revisar</th>
                 <th scope="col" className="px-[22px] py-2.5 font-semibold">Última importación</th>
                 <th scope="col" className="px-[22px] py-2.5 font-semibold">ARCA</th>
@@ -192,12 +192,18 @@ export default function CarteraPanel({
                     </td>
                     <td className="whitespace-nowrap px-[22px] py-[13px] text-right tabular-nums text-strong">
                       {fmtMoneyARS(f.montoFacturadoMes)}
+                      {/* Con CAE de prueba no es facturación: se dice en la misma celda. */}
+                      {!f.validezFiscal && f.montoFacturadoMes > 0 && (
+                        <span className="mt-0.5 block text-xs font-normal text-warning">
+                          en prueba, sin validez fiscal
+                        </span>
+                      )}
                     </td>
                     <td className="px-[22px] py-[13px]">
                       <GoalMini usado={f.facturasMes} tope={f.capFacturasMes} />
                       {alerta && (
                         <span className="mt-1 block text-xs font-medium text-danger">
-                          Cerca del tope
+                          Cerca del cupo
                         </span>
                       )}
                     </td>
@@ -250,13 +256,15 @@ export default function CarteraPanel({
               </p>
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <dt className="text-xs text-muted">Facturado del mes</dt>
+                  <dt className="text-xs text-muted">
+                    {seleccion.validezFiscal ? "Facturado con validez fiscal" : "Emitido en prueba (sin validez fiscal)"}
+                  </dt>
                   <dd className="tabular-nums font-medium text-strong">
                     {fmtMoneyARS(seleccion.montoFacturadoMes)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted">Facturas / tope</dt>
+                  <dt className="text-xs text-muted">Facturas del cupo</dt>
                   <dd className="tabular-nums font-medium text-strong">
                     {fmtNumberAR(seleccion.facturasMes)} / {fmtNumberAR(seleccion.capFacturasMes)}
                   </dd>
@@ -277,7 +285,7 @@ export default function CarteraPanel({
 
               <div className="mt-5 flex flex-col gap-2">
                 <Button
-                  size="sm"
+                  size="md"
                   disabled={pendiente || seleccion.estado !== "activa" || seleccion.listasParaEmitir === 0}
                   onClick={() => emitir(seleccion)}
                 >
@@ -296,7 +304,7 @@ export default function CarteraPanel({
                     href={urlCliente(seleccion, "/admin/facturacion/bancos")!}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-9 items-center justify-center rounded-md border border-line-strong bg-surface-raised px-3 text-sm font-medium text-strong transition-colors hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                    className="inline-flex h-11 items-center justify-center rounded-md border border-line-strong bg-surface-raised px-3 text-sm font-medium text-strong transition-colors hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                   >
                     Importar extracto (su backoffice)
                   </a>
@@ -311,7 +319,7 @@ export default function CarteraPanel({
                     href={urlCliente(seleccion, "/admin")!}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium text-body transition-colors hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                    className="inline-flex h-11 items-center justify-center rounded-md px-3 text-sm font-medium text-body transition-colors hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                   >
                     Abrir su backoffice
                   </a>
@@ -320,7 +328,7 @@ export default function CarteraPanel({
                 <div className="mt-2 flex flex-wrap gap-2 border-t border-line pt-3">
                   {seleccion.estado === "activa" ? (
                     <Button
-                      size="sm"
+                      size="md"
                       variant="subtle"
                       disabled={pendiente}
                       onClick={() => setEstado(seleccion, "pausada", `${seleccion.alias} quedó en pausa.`)}
@@ -329,7 +337,7 @@ export default function CarteraPanel({
                     </Button>
                   ) : (
                     <Button
-                      size="sm"
+                      size="md"
                       variant="subtle"
                       disabled={pendiente}
                       onClick={() => setEstado(seleccion, "activa", `${seleccion.alias} volvió a estar activo.`)}
@@ -340,7 +348,7 @@ export default function CarteraPanel({
                   {confirmaBaja ? (
                     <>
                       <Button
-                        size="sm"
+                        size="md"
                         variant="danger"
                         disabled={pendiente}
                         onClick={() =>
@@ -353,12 +361,12 @@ export default function CarteraPanel({
                       >
                         Confirmar baja
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setConfirmaBaja(false)}>
+                      <Button size="md" variant="ghost" onClick={() => setConfirmaBaja(false)}>
                         Cancelar
                       </Button>
                     </>
                   ) : (
-                    <Button size="sm" variant="ghost" disabled={pendiente} onClick={() => setConfirmaBaja(true)}>
+                    <Button size="md" variant="ghost" disabled={pendiente} onClick={() => setConfirmaBaja(true)}>
                       Dar de baja
                     </Button>
                   )}
