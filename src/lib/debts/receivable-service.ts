@@ -6,11 +6,17 @@
 // el saldo vía `Collection`(RECEIVABLE). El saldo lo computan los loaders (receivable-repo)
 // desde los Collections — acá solo se escriben hechos. Comercio: fiado light (sin dueDate);
 // Empresa: con vencimiento (lo decide el llamador según perfil).
+//
+// Con `CUENTAS_CORRIENTES_ENABLED` el cobro además ASIENTA el ingreso en el libro de caja en
+// la misma transacción (settlement/asiento-libro.ts): la plata del fiado que entra al cajón
+// pasa por el libro y el cierre del día cuadra. Apagado, se comporta como antes.
 
 import { prisma } from "@/lib/prisma";
-import type { $Enums } from "@/generated/prisma/client";
+import { tenantTransaction } from "@/lib/rls";
+import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
-import { recordCollection } from "@/lib/settlement/collection-repo";
+import { aplicarConAsientoInTx, recordCollection } from "@/lib/settlement/collection-repo";
+import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
 
 export interface CreateReceivableInput {
   clientId: string;
@@ -22,11 +28,22 @@ export interface CreateReceivableInput {
   createdBy: string;
 }
 
-/** Crea una cuenta a cobrar (fiado). Valida monto > 0. Devuelve el id. */
-export async function createReceivable(tenantId: string, input: CreateReceivableInput) {
+/**
+ * Crea una cuenta a cobrar (fiado) con la transacción del LLAMADOR. Valida monto > 0.
+ * Devuelve el id.
+ *
+ * Recibe `tx` y no abre la suya: "dejar a cuenta" desde una venta tiene que crear el pedido y
+ * la deuda juntos (si falla una, no queda la otra). El llamador pasa la transacción de su
+ * negocio (`tenantTransaction`), con su RLS puesta.
+ */
+export async function createReceivable(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  input: CreateReceivableInput,
+) {
   const amount = round2(input.amount);
   if (!(amount > 0)) throw new Error("El monto del fiado debe ser mayor a 0.");
-  const r = await prisma.accountReceivable.create({
+  const r = await tx.accountReceivable.create({
     data: {
       tenantId,
       clientId: input.clientId,
@@ -41,16 +58,64 @@ export async function createReceivable(tenantId: string, input: CreateReceivable
   return r.id;
 }
 
+/** Lo que llega para registrar un cobro del fiado. */
+export interface CobroFiadoInput {
+  amount: number;
+  method: $Enums.PaymentMethod;
+  note?: string | null;
+  by: string;
+  allowOverpay?: boolean;
+}
+
+/**
+ * El cobro del fiado con cuentas corrientes encendidas, DENTRO de la transacción del llamador:
+ * lee la deuda, decide el asiento (medio obligatorio, freno de día cerrado) y registra el
+ * cobro y el INGRESO del libro. Una deuda anulada no se cobra. Exportado para que el test lo
+ * ejecute con una transacción falsa; en la app lo llama `collectReceivable`.
+ */
+export async function cobrarFiadoInTx(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  receivableId: string,
+  input: CobroFiadoInput,
+  ahora: Date,
+) {
+  const r = await tx.accountReceivable.findFirst({
+    where: { id: receivableId, tenantId },
+    select: { amount: true, status: true, client: { select: { name: true } } },
+  });
+  if (!r) throw new Error("Cuenta a cobrar no encontrada para este negocio.");
+  if (r.status !== "OPEN") throw new Error("Esa cuenta está anulada: no se le puede registrar un cobro.");
+  return aplicarConAsientoInTx(tx, tenantId, {
+    originType: "RECEIVABLE",
+    originId: receivableId,
+    totalCharged: r.amount.toNumber(),
+    amount: input.amount,
+    method: input.method,
+    note: input.note ?? null,
+    collectedBy: input.by,
+    allowOverpay: input.allowOverpay,
+    origen: "RECEIVABLE",
+    detalle: `Cobro de cuenta corriente — ${r.client.name}`,
+    ahora,
+  });
+}
+
 /**
  * Registra un cobro (parcial o total) del fiado vía `Collection`(RECEIVABLE), con la guarda
  * de saldo de `recordCollection` (no se puede cobrar más que lo que se debe, salvo
  * `allowOverpay`). Devuelve el settlement actualizado (saldo/estado).
+ *
+ * Con cuentas corrientes encendidas, en UNA transacción Serializable (`cobrarFiadoInTx`).
  */
-export async function collectReceivable(
-  tenantId: string,
-  receivableId: string,
-  input: { amount: number; method: $Enums.PaymentMethod; note?: string | null; by: string; allowOverpay?: boolean },
-) {
+export async function collectReceivable(tenantId: string, receivableId: string, input: CobroFiadoInput) {
+  if (cuentasCorrientesEnabled()) {
+    return tenantTransaction(
+      (tx) => cobrarFiadoInTx(tx, tenantId, receivableId, input, new Date()),
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
   const receivable = await prisma.accountReceivable.findFirst({
     where: { id: receivableId, tenantId },
     select: { amount: true },

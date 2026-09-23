@@ -1,90 +1,37 @@
 // ============================================================================
-// LIBRO IVA estructurado (Ventas + Compras) — capa VERDE de ADR-060 D7. PURO.
+// LIBRO IVA del MES — lo que se declara, separado de lo que sólo sirve de control. PURO.
 // ============================================================================
 //
-// "Libros / Exportar al contador" (J58), naming HONESTO (ADR-060 D7, ajuste 4 S5):
-// NUNCA "Contabilidad" (prometería asientos que no existen). Es el Libro IVA con los
-// campos que usa el contador/ARCA (tipo de comprobante, CUIT/doc, neto, alícuota, IVA,
-// total), NO un CSV plano (que subvende).
+// "Libros / Exportar al contador" (ADR-060 D7). Nunca "Contabilidad": no hay asientos. Es el
+// Libro IVA con los campos que usa el contador (tipo de comprobante, CUIT/doc, neto,
+// alícuota, IVA, total), armado desde lo que YA existe, sin schema nuevo.
 //
-// ⚠️ Capa VERDE = CERO schema nuevo. Deriva 100% de lo que YA existe:
-//   - VENTAS: `Invoice` (comprobante ARCA, fiscalmente EXACTO) + `Order` (retail/mostrador)
-//     + `Payment`/`Appointment` (servicios). Cubre los DOS caminos de venta (ajuste 5 S5:
-//     que el libro no quede "ciego a la mitad").
-//   - COMPRAS: `StockPurchase` (kind COMPRA).
-// Las ventas/compras SIN comprobante fiscal se derivan al 21% (precio AR IVA-incluido):
-//   neto = total / 1.21, iva = total − neto. Se marcan `fuente:"estimado"` (transparencia:
-//   el contador ve qué es comprobante fiscal y qué es una estimación). El libro mayor formal
-//   (`JournalEntry`) y el enlace Invoice→origen (dedupe exacto) son RESERVA/§C (ADR-060 D7/D10).
+// Tres bloques, y sólo el primero es fiscal:
+//   1. COMPROBANTES EMITIDOS — `Invoice` con CAE. Es lo que va a la declaración. Las
+//      alícuotas salen del desglose que se guardó al emitir (`Invoice.ivaDesglose`), no de
+//      dividir IVA por neto (que redondeaba y no distingue 10,5% de 21% en una factura con
+//      las dos). Las notas de crédito restan.
+//   2. VENTAS SIN COMPROBANTE — pedidos y turnos cobrados que no tienen factura con CAE.
+//      Son CONTROL: le dicen a la contadora qué se vendió sin facturar. No llevan IVA
+//      calculado: antes se "estimaban al 21%" y se sumaban al débito, mezclando lo que se
+//      declara con una suposición.
+//   3. COMPRAS — las compras de mercadería registradas. Hoy ninguna trae la factura del
+//      proveedor con el IVA discriminado (no hay dónde cargarla sin migrar), y sin
+//      comprobante no hay crédito fiscal. Antes se estimaban al 21% y ENTRABAN al crédito:
+//      el "saldo a pagar" salía más chico que el real, y la dueña presupuestaba con eso.
+//
+// Y la posición de IVA (débito − crédito) sólo se muestra a un Responsable Inscripto. Un
+// monotributista emite Factura C, que no discrimina IVA: mostrarle "IVA débito" es un dato
+// que no le corresponde. La condición no tiene columna todavía (fiscal.ts), así que se
+// deduce de lo que emitió: con alguna A o B es inscripto; sólo C, monotributo.
 
 import { round2 } from "@/lib/round";
 import { dateStrInBusinessTz } from "@/lib/datetime";
-
-/** Alícuota general de IVA en AR (fracción). Las ventas/compras sin comprobante se estiman acá. */
-export const IVA_ALICUOTA_GENERAL = 0.21;
-
-/** De dónde sale la fila: comprobante fiscal real (Invoice) o estimación derivada del bruto. */
-export type LibroIvaFuente = "comprobante" | "estimado";
-
-export interface VentaRow {
-  /** Fecha en ISO corto "YYYY-MM-DD" (ordena cronológicamente como string). */
-  fecha: string;
-  /** "Factura A/B/C" | "Ticket / consumidor final" | "Nota de crédito"… */
-  tipo: string;
-  /** N° de comprobante (o código de pedido/pago si no hay comprobante fiscal). */
-  numero: string;
-  cliente: string;
-  /** "CUIT 30-…" / "DNI …" / "Consumidor final". */
-  doc: string;
-  neto: number;
-  /** Alícuota como fracción (0.21, 0.105…). */
-  alicuota: number;
-  iva: number;
-  total: number;
-  fuente: LibroIvaFuente;
-}
-
-export interface CompraRow {
-  fecha: string;
-  proveedor: string;
-  /** CUIT si se pudo determinar, si no "—". */
-  doc: string;
-  numero: string;
-  neto: number;
-  alicuota: number;
-  iva: number;
-  total: number;
-  fuente: LibroIvaFuente;
-}
-
-export interface LibroIvaResumen {
-  ventasNeto: number;
-  ventasIva: number;
-  ventasTotal: number;
-  ventasCount: number;
-  comprasNeto: number;
-  comprasIva: number;
-  comprasTotal: number;
-  comprasCount: number;
-  /** IVA débito fiscal = IVA de ventas. */
-  ivaDebito: number;
-  /** IVA crédito fiscal = IVA de compras. */
-  ivaCredito: number;
-  /** Saldo = débito − crédito. Positivo = a pagar; negativo = saldo a favor. */
-  ivaSaldo: number;
-  /** Cuántas filas son estimadas (sin comprobante fiscal) — para la nota de transparencia. */
-  ventasEstimadas: number;
-  comprasEstimadas: number;
-}
-
-export interface LibroIva {
-  ventas: VentaRow[];
-  compras: CompraRow[];
-  resumen: LibroIvaResumen;
-}
+import { PORCENTAJE_IVA, TipoComprobante } from "@/plugins/arca/domain/catalogos";
+import { bordesDelMes, type MesKey } from "./fecha-fiscal";
 
 // ---------------------------------------------------------------------------
-// Helpers de fecha (sin dependencias).
+// Fechas.
 // ---------------------------------------------------------------------------
 
 /** "AAAAMMDD" (formato fiscal de `Invoice.fecha`) → "YYYY-MM-DD". Si no matchea, se devuelve tal cual. */
@@ -96,56 +43,210 @@ export function fiscalDateToIso(aaaammdd: string): string {
 /**
  * `Date` → "YYYY-MM-DD" en el DÍA DE NEGOCIO, que es con lo que se declara.
  *
- * Decía `d.toISOString().slice(0, 10)`, o sea el día UTC. Argentina es UTC−3, así que todo
- * lo cobrado entre las 21:00 y las 23:59 hora local se asentaba en el libro fiscal con la
- * fecha del día SIGUIENTE — tres horas de cada día, siempre, sin nada que lo delatara. En
- * un borde de mes eso corre facturación de un período fiscal al otro: un comprobante del 30
- * a las 21:30 se declara el 1 del mes que viene.
- *
- * El traductor correcto ya existía y el resto del sistema lo usa (`dateStrInBusinessTz`,
- * `datetime.ts`). Todos los llamadores le pasan instantes reales (`createdAt`, los bordes
- * del período), nunca un día calendario anclado a medianoche UTC: por eso la conversión es
- * segura acá y no corre ninguna fecha para atrás.
+ * Decía `d.toISOString().slice(0, 10)`, o sea el día UTC: todo lo cobrado entre las 21:00 y
+ * las 23:59 hora local se asentaba con la fecha del día siguiente. Todos los llamadores le
+ * pasan instantes reales (`createdAt`), nunca un día anclado a medianoche UTC.
  */
 export function dateToIso(d: Date): string {
   return dateStrInBusinessTz(d);
 }
 
 // ---------------------------------------------------------------------------
-// Derivación de IVA (precio AR IVA-incluido) — la aritmética verde.
+// Tipos de comprobante.
 // ---------------------------------------------------------------------------
 
-/** Descompone un total IVA-incluido en { neto, iva } a la alícuota dada. PURA, redondeo único. */
-export function deriveIvaFromGross(
-  total: number,
-  alicuota: number = IVA_ALICUOTA_GENERAL,
-): { neto: number; iva: number } {
-  const neto = round2(total / (1 + alicuota));
-  const iva = round2(total - neto);
-  return { neto, iva };
+const TIPO_LABEL: Record<number, string> = {
+  [TipoComprobante.FacturaA]: "Factura A",
+  [TipoComprobante.NotaDebitoA]: "Nota de débito A",
+  [TipoComprobante.NotaCreditoA]: "Nota de crédito A",
+  [TipoComprobante.FacturaB]: "Factura B",
+  [TipoComprobante.NotaDebitoB]: "Nota de débito B",
+  [TipoComprobante.NotaCreditoB]: "Nota de crédito B",
+  [TipoComprobante.FacturaC]: "Factura C",
+  [TipoComprobante.NotaDebitoC]: "Nota de débito C",
+  [TipoComprobante.NotaCreditoC]: "Nota de crédito C",
+};
+
+const NOTAS_DE_CREDITO = new Set<number>([
+  TipoComprobante.NotaCreditoA,
+  TipoComprobante.NotaCreditoB,
+  TipoComprobante.NotaCreditoC,
+]);
+
+/** Tipos que discriminan IVA (A y B): los de un Responsable Inscripto. */
+export const TIPOS_QUE_DISCRIMINAN_IVA: readonly number[] = [
+  TipoComprobante.FacturaA,
+  TipoComprobante.NotaDebitoA,
+  TipoComprobante.NotaCreditoA,
+  TipoComprobante.FacturaB,
+  TipoComprobante.NotaDebitoB,
+  TipoComprobante.NotaCreditoB,
+];
+
+const DE_MONOTRIBUTO = new Set<number>([
+  TipoComprobante.FacturaC,
+  TipoComprobante.NotaDebitoC,
+  TipoComprobante.NotaCreditoC,
+]);
+
+/** ¿El tipo resta (nota de crédito)? */
+export function esNotaDeCredito(tipo: number | null | undefined): boolean {
+  return tipo != null && NOTAS_DE_CREDITO.has(tipo);
 }
 
 // ---------------------------------------------------------------------------
-// Constructores de fila.
+// Condición del emisor, deducida de lo que emitió.
 // ---------------------------------------------------------------------------
 
-const TIPO_COMPROBANTE_LABEL: Record<number, string> = {
-  1: "Factura A",
-  6: "Factura B",
-  11: "Factura C",
-  3: "Nota de crédito A",
-  8: "Nota de crédito B",
-  13: "Nota de crédito C",
-};
+/**
+ * `responsable-inscripto`: emitió alguna A o B (discrimina IVA).
+ * `monotributo`: sólo C.
+ * `sin-comprobantes`: no emitió nada con CAE; no se puede afirmar ninguna de las dos.
+ */
+export type CondicionLibro = "responsable-inscripto" | "monotributo" | "sin-comprobantes";
+
+/** Deduce la condición de los tipos emitidos (de cualquier período). PURA. */
+export function condicionPorTipos(tipos: readonly (number | null | undefined)[]): CondicionLibro {
+  if (tipos.some((t) => t != null && TIPOS_QUE_DISCRIMINAN_IVA.includes(t))) return "responsable-inscripto";
+  if (tipos.some((t) => t != null && DE_MONOTRIBUTO.has(t))) return "monotributo";
+  return "sin-comprobantes";
+}
+
+/**
+ * ¿El Libro IVA se le oculta a este negocio? Sí a un monotributista: emite Factura C, que no
+ * discrimina IVA, y un libro de débitos y créditos no le corresponde. Lo que sí le sirve (lo
+ * facturado y lo vendido sin comprobante) va en el paquete del Cierre del mes. Con
+ * "sin-comprobantes" NO se oculta: todavía no se sabe qué es. PURA.
+ */
+export function libroOcultoPara(condicion: CondicionLibro): boolean {
+  return condicion === "monotributo";
+}
+
+// ---------------------------------------------------------------------------
+// Los comprobantes del mes: UN `where`, el de la pantalla, el del número del botón y el del
+// paquete. Objeto plano, sin Prisma de valor.
+// ---------------------------------------------------------------------------
+
+/** Los comprobantes con CAE cuya fecha fiscal (AAAAMMDD) cae en el mes. PURA. */
+export function whereComprobantesDelMes(tenantId: string, mes: MesKey) {
+  const { fiscal } = bordesDelMes(mes);
+  return { tenantId, status: "AUTHORIZED" as const, fecha: { gte: fiscal.gte, lt: fiscal.lt } };
+}
+
+/**
+ * El número del botón del Libro IVA, desde el IVA de los comprobantes del mes agrupados por
+ * tipo (una consulta con `whereComprobantesDelMes`). Misma cuenta que el resumen de la
+ * pantalla: el IVA con signo (las notas de crédito restan) y el crédito en 0. PURA.
+ *   · alguna A o B → responsable inscripto: el saldo del mes;
+ *   · sólo C → monotributo: sin número (`null`), como la pantalla, que no le muestra IVA;
+ *   · nada → no hay de dónde sacar un número: `sinComprobantes`, que el botón muestra como
+ *     '—' con el motivo. La pantalla dice lo mismo ("—" en el saldo).
+ */
+export function saldoIvaDesdeGrupos(
+  grupos: readonly { tipoComprobante: number | null; iva: number }[],
+): { condicion: "responsable-inscripto"; saldo: number } | { condicion: "monotributo" } | { condicion: "sin-comprobantes" } {
+  const condicion = condicionPorTipos(grupos.map((g) => g.tipoComprobante));
+  if (condicion !== "responsable-inscripto") return { condicion };
+  const saldo = round2(grupos.reduce((s, g) => s + (esNotaDeCredito(g.tipoComprobante) ? -g.iva : g.iva), 0));
+  return { condicion, saldo };
+}
+
+// ---------------------------------------------------------------------------
+// Filas.
+// ---------------------------------------------------------------------------
+
+/** Una alícuota de un comprobante: la fracción (0,21; 0,105…), su base y su IVA. */
+export interface LineaAlicuota {
+  alicuota: number;
+  base: number;
+  importe: number;
+}
+
+/** Un comprobante con CAE. Los montos van con SIGNO: una nota de crédito resta. */
+export interface ComprobanteRow {
+  /** Identifica la fila en la tabla (el id del comprobante). */
+  clave: string;
+  fecha: string; // YYYY-MM-DD
+  tipo: string;
+  numero: string;
+  cliente: string;
+  doc: string;
+  neto: number;
+  iva: number;
+  total: number;
+  alicuotas: LineaAlicuota[];
+  /** La venta que lo originó se anuló y no hay nota de crédito que la compense. */
+  anuladaSinNotaDeCredito: boolean;
+}
+
+/** Una venta cobrada sin comprobante con CAE. CONTROL: no lleva IVA. */
+export interface VentaSinComprobanteRow {
+  /**
+   * Identifica la fila: "pedido:<id>" o "cobro:<id>". Hace falta porque nada visible es único:
+   * dos turnos del mismo servicio, el mismo día y al mismo precio se ven iguales.
+   */
+  clave: string;
+  fecha: string;
+  tipo: string;
+  numero: string;
+  cliente: string;
+  total: number;
+}
+
+/** Una compra registrada. Sin la factura del proveedor, no da crédito fiscal. */
+export interface CompraRow {
+  /** Identifica la fila: "compra:<id>" (dos compras pueden traer el mismo número de orden). */
+  clave: string;
+  fecha: string;
+  proveedor: string;
+  doc: string;
+  numero: string;
+  total: number;
+}
 
 function docLabel(docTipo: number, docNro: string): string {
   if (docTipo === 80) return `CUIT ${docNro}`;
+  if (docTipo === 86) return `CUIL ${docNro}`;
   if (docTipo === 96) return `DNI ${docNro}`;
   return "Consumidor final";
 }
 
-/** Fila de venta desde un comprobante fiscal real (`Invoice` AUTORIZADO). Montos EXACTOS. */
-export function ventaFromInvoice(inv: {
+/**
+ * Las alícuotas del desglose que se guardó al emitir (`Invoice.ivaDesglose`, `SubtotalIva[]`
+ * = { alicuotaId, base, importe }). Si no hay desglose (comprobantes previos a guardarlo) o
+ * viene roto, UNA línea con el total: la alícuota se deduce de IVA/neto sólo en ese caso y se
+ * lleva a la alícuota oficial más cercana, para no inventar un 20,98%.
+ */
+export function alicuotasDelDesglose(
+  desglose: unknown,
+  respaldo: { neto: number; iva: number },
+): LineaAlicuota[] {
+  if (Array.isArray(desglose) && desglose.length > 0) {
+    const lineas: LineaAlicuota[] = [];
+    for (const d of desglose) {
+      const id = Number((d as { alicuotaId?: unknown })?.alicuotaId);
+      const pct = (PORCENTAJE_IVA as Record<number, number | undefined>)[id];
+      const base = Number((d as { base?: unknown })?.base);
+      const importe = Number((d as { importe?: unknown })?.importe);
+      if (pct === undefined || !Number.isFinite(base) || !Number.isFinite(importe)) return [unaLinea(respaldo)];
+      lineas.push({ alicuota: pct, base: round2(base), importe: round2(importe) });
+    }
+    return lineas;
+  }
+  return [unaLinea(respaldo)];
+}
+
+function unaLinea({ neto, iva }: { neto: number; iva: number }): LineaAlicuota {
+  const oficiales = Object.values(PORCENTAJE_IVA);
+  const bruta = neto > 0 ? iva / neto : 0;
+  const alicuota = oficiales.reduce((mejor, p) => (Math.abs(p - bruta) < Math.abs(mejor - bruta) ? p : mejor), 0);
+  return { alicuota, base: round2(neto), importe: round2(iva) };
+}
+
+/** Fila desde un `Invoice` AUTORIZADO. Montos exactos, con signo si es nota de crédito. PURA. */
+export function comprobanteDesdeInvoice(inv: {
+  /** El id del comprobante: la clave de la fila. Sin él, tipo + número (únicos con CAE). */
+  id?: string;
   fecha: string; // AAAAMMDD
   tipoComprobante: number | null;
   puntoVenta: number;
@@ -155,103 +256,164 @@ export function ventaFromInvoice(inv: {
   neto: number;
   iva: number;
   total: number;
-}): VentaRow {
-  const tipo = (inv.tipoComprobante != null && TIPO_COMPROBANTE_LABEL[inv.tipoComprobante]) || "Comprobante";
+  ivaDesglose?: unknown;
+  /** El pedido o el turno de origen está anulado. */
+  origenAnulado?: boolean;
+}): ComprobanteRow {
+  const signo = esNotaDeCredito(inv.tipoComprobante) ? -1 : 1;
+  const tipo = (inv.tipoComprobante != null && TIPO_LABEL[inv.tipoComprobante]) || "Comprobante";
   const pv = String(inv.puntoVenta).padStart(5, "0");
   const nro = inv.numero != null ? String(inv.numero).padStart(8, "0") : "—";
-  const alicuota = inv.neto > 0 ? round2(inv.iva / inv.neto) : IVA_ALICUOTA_GENERAL;
+  const doc = docLabel(inv.docTipo, inv.docNro);
   return {
+    clave: inv.id ?? `${tipo}-${pv}-${nro}`,
     fecha: fiscalDateToIso(inv.fecha),
     tipo,
     numero: `${pv}-${nro}`,
-    cliente: docLabel(inv.docTipo, inv.docNro) === "Consumidor final" ? "Consumidor final" : inv.docNro,
-    doc: docLabel(inv.docTipo, inv.docNro),
-    neto: round2(inv.neto),
-    alicuota,
-    iva: round2(inv.iva),
-    total: round2(inv.total),
-    fuente: "comprobante",
-  };
-}
-
-/** Fila de venta sin comprobante fiscal (retail `Order` o servicio `Payment`). Estimada al 21%. */
-export function ventaFromGross(input: {
-  fecha: string; // YYYY-MM-DD
-  tipo: string;
-  numero: string;
-  cliente: string;
-  total: number;
-}): VentaRow {
-  const { neto, iva } = deriveIvaFromGross(input.total);
-  return {
-    fecha: input.fecha,
-    tipo: input.tipo,
-    numero: input.numero,
-    cliente: input.cliente || "Consumidor final",
-    doc: "Consumidor final",
-    neto,
-    alicuota: IVA_ALICUOTA_GENERAL,
-    iva,
-    total: round2(input.total),
-    fuente: "estimado",
-  };
-}
-
-/** Fila de compra desde una `StockPurchase` (kind COMPRA). Estimada al 21% (sin factura con IVA). */
-export function compraFromPurchase(input: {
-  fecha: string; // YYYY-MM-DD
-  proveedor: string | null;
-  cuit?: string | null;
-  numero: string;
-  total: number;
-}): CompraRow {
-  const { neto, iva } = deriveIvaFromGross(input.total);
-  return {
-    fecha: input.fecha,
-    proveedor: input.proveedor?.trim() || "Proveedor sin identificar",
-    doc: input.cuit?.trim() ? `CUIT ${input.cuit.trim()}` : "—",
-    numero: input.numero,
-    neto,
-    alicuota: IVA_ALICUOTA_GENERAL,
-    iva,
-    total: round2(input.total),
-    fuente: "estimado",
+    cliente: doc === "Consumidor final" ? "Consumidor final" : inv.docNro,
+    doc,
+    neto: round2(signo * inv.neto),
+    iva: round2(signo * inv.iva),
+    total: round2(signo * inv.total),
+    alicuotas: alicuotasDelDesglose(inv.ivaDesglose, { neto: inv.neto, iva: inv.iva }).map((l) => ({
+      alicuota: l.alicuota,
+      base: round2(signo * l.base),
+      importe: round2(signo * l.importe),
+    })),
+    // Una nota de crédito nunca es "anulada sin nota de crédito": ES la nota.
+    anuladaSinNotaDeCredito: signo === 1 && inv.origenAnulado === true,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Resumen (IVA débito / crédito / saldo).
+// Resumen.
 // ---------------------------------------------------------------------------
 
-/** Arma el resumen fiscal a partir de las filas ya construidas. PURA. */
-export function summarizeLibroIva(ventas: readonly VentaRow[], compras: readonly CompraRow[]): LibroIvaResumen {
-  const ventasNeto = round2(ventas.reduce((s, r) => s + r.neto, 0));
-  const ventasIva = round2(ventas.reduce((s, r) => s + r.iva, 0));
-  const ventasTotal = round2(ventas.reduce((s, r) => s + r.total, 0));
-  const comprasNeto = round2(compras.reduce((s, r) => s + r.neto, 0));
-  const comprasIva = round2(compras.reduce((s, r) => s + r.iva, 0));
-  const comprasTotal = round2(compras.reduce((s, r) => s + r.total, 0));
+export interface TotalAlicuota {
+  alicuota: number;
+  neto: number;
+  iva: number;
+}
+
+export interface LibroIvaResumen {
+  condicion: CondicionLibro;
+  comprobantesCount: number;
+  comprobantesNeto: number;
+  comprobantesTotal: number;
+  /** Neto e IVA por alícuota, de mayor a menor alícuota. */
+  porAlicuota: TotalAlicuota[];
+  /** IVA débito: el IVA de los comprobantes (una C no discrimina: su IVA es 0). */
+  ivaDebito: number;
+  /**
+   * IVA crédito: 0 mientras no se carguen facturas de proveedor con el IVA discriminado. No
+   * es un olvido: sin comprobante, la compra no da crédito (y estimarla lo inventaba).
+   */
+  ivaCredito: number;
+  /** Débito − crédito. Positivo = a pagar. */
+  ivaSaldo: number;
+  sinComprobanteCount: number;
+  sinComprobanteTotal: number;
+  comprasCount: number;
+  comprasTotal: number;
+  /** Comprobantes con CAE cuya venta se anuló, sin nota de crédito. */
+  anuladasSinNotaDeCredito: number;
+}
+
+export interface LibroIva {
+  comprobantes: ComprobanteRow[];
+  ventasSinComprobante: VentaSinComprobanteRow[];
+  compras: CompraRow[];
+  resumen: LibroIvaResumen;
+}
+
+/** Arma el resumen. PURA. */
+export function resumirLibroIva(
+  comprobantes: readonly ComprobanteRow[],
+  ventasSinComprobante: readonly VentaSinComprobanteRow[],
+  compras: readonly CompraRow[],
+  condicion: CondicionLibro,
+): LibroIvaResumen {
+  const suma = <T>(xs: readonly T[], f: (x: T) => number) => round2(xs.reduce((s, x) => s + f(x), 0));
+  const porAlicuota = new Map<number, TotalAlicuota>();
+  for (const c of comprobantes) {
+    for (const l of c.alicuotas) {
+      const t = porAlicuota.get(l.alicuota) ?? { alicuota: l.alicuota, neto: 0, iva: 0 };
+      t.neto = round2(t.neto + l.base);
+      t.iva = round2(t.iva + l.importe);
+      porAlicuota.set(l.alicuota, t);
+    }
+  }
+  const ivaDebito = suma(comprobantes, (c) => c.iva);
+  const ivaCredito = 0;
   return {
-    ventasNeto,
-    ventasIva,
-    ventasTotal,
-    ventasCount: ventas.length,
-    comprasNeto,
-    comprasIva,
-    comprasTotal,
+    condicion,
+    comprobantesCount: comprobantes.length,
+    comprobantesNeto: suma(comprobantes, (c) => c.neto),
+    comprobantesTotal: suma(comprobantes, (c) => c.total),
+    porAlicuota: [...porAlicuota.values()].sort((a, b) => b.alicuota - a.alicuota),
+    ivaDebito,
+    ivaCredito,
+    ivaSaldo: round2(ivaDebito - ivaCredito),
+    sinComprobanteCount: ventasSinComprobante.length,
+    sinComprobanteTotal: suma(ventasSinComprobante, (v) => v.total),
     comprasCount: compras.length,
-    ivaDebito: ventasIva,
-    ivaCredito: comprasIva,
-    ivaSaldo: round2(ventasIva - comprasIva),
-    ventasEstimadas: ventas.filter((r) => r.fuente === "estimado").length,
-    comprasEstimadas: compras.filter((r) => r.fuente === "estimado").length,
+    comprasTotal: suma(compras, (c) => c.total),
+    anuladasSinNotaDeCredito: comprobantes.filter((c) => c.anuladaSinNotaDeCredito).length,
   };
 }
 
-/** Ensambla el Libro IVA: ordena ventas y compras por fecha ascendente y calcula el resumen. */
-export function buildLibroIva(ventas: VentaRow[], compras: CompraRow[]): LibroIva {
-  const byFecha = <T extends { fecha: string }>(a: T, b: T) => a.fecha.localeCompare(b.fecha);
-  const v = [...ventas].sort(byFecha);
-  const c = [...compras].sort(byFecha);
-  return { ventas: v, compras: c, resumen: summarizeLibroIva(v, c) };
+/** ¿Se muestra la posición de IVA? Sólo a un Responsable Inscripto. PURA. */
+export function muestraPosicionIva(condicion: CondicionLibro): boolean {
+  return condicion === "responsable-inscripto";
+}
+
+/** Ensambla el libro: cada bloque por fecha ascendente, más el resumen. PURA. */
+export function armarLibroIva(input: {
+  comprobantes: ComprobanteRow[];
+  ventasSinComprobante: VentaSinComprobanteRow[];
+  compras: CompraRow[];
+  condicion: CondicionLibro;
+}): LibroIva {
+  const porFecha = <T extends { fecha: string; numero: string }>(a: T, b: T) =>
+    a.fecha.localeCompare(b.fecha) || a.numero.localeCompare(b.numero);
+  const comprobantes = [...input.comprobantes].sort(porFecha);
+  const ventasSinComprobante = [...input.ventasSinComprobante].sort(porFecha);
+  const compras = [...input.compras].sort(porFecha);
+  return {
+    comprobantes,
+    ventasSinComprobante,
+    compras,
+    resumen: resumirLibroIva(comprobantes, ventasSinComprobante, compras, input.condicion),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Ventas anuladas con comprobante y sin nota de crédito (alarma de facturación y paso del
+// cierre del mes). Un solo `where`, así el número del botón y el de la pantalla coinciden.
+// ---------------------------------------------------------------------------
+
+/**
+ * Comprobantes con CAE cuya venta de origen (pedido o turno) quedó anulada. Hoy no existe la
+ * nota de crédito en el sistema (y el índice 1 comprobante por venta impide asociarle una),
+ * así que TODA venta anulada con factura queda con el débito fiscal y el ingreso del
+ * monotributo inflados hasta que la nota se emita por fuera, en ARCA.
+ *
+ * `fecha`: el filtro de período sobre `Invoice.fecha` (AAAAMMDD) o sobre `createdAt`, según
+ * quién pregunte (el cierre del mes va por fecha fiscal; el botón de Facturación, por mes de
+ * emisión). Objeto plano, sin Prisma de valor.
+ */
+export function whereAnuladasConFactura(
+  tenantId: string,
+  periodo:
+    | { fecha: { gte: string; lt: string } }
+    | { createdAt: { gte: Date; lt: Date } },
+) {
+  return {
+    tenantId,
+    ...periodo,
+    status: "AUTHORIZED" as const,
+    // Sin filtro por tipo: una nota de crédito no puede colgar del mismo pedido o turno
+    // (índice 1 comprobante por venta), así que acá sólo caen facturas.
+    OR: [{ order: { status: "CANCELLED" as const } }, { appointment: { status: "CANCELLED" as const } }],
+  };
 }

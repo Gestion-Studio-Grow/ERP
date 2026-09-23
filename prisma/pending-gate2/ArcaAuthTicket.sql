@@ -2,7 +2,16 @@
 -- GATE 2 — MIGRACIÓN PREPARADA, **NO APLICADA** (ADR-022 §6 · ADR-066)
 -- ============================================================================
 --
--- Caché PERSISTENTE del Ticket de Acceso (TA) de ARCA por tenant, CIFRADA.
+-- Caché PERSISTENTE del Ticket de Acceso (TA) de ARCA POR CERTIFICADO, CIFRADA.
+--
+-- 🔑 LA CLAVE ES EL CERTIFICADO (su huella SHA-256), NO EL NEGOCIO. Se cambió ANTES de
+-- aplicarse, a propósito: WSAA bloquea el segundo login por CERTIFICADO y servicio. Dos
+-- negocios del ERP que firman con el mismo certificado (los locales de una marca con un solo
+-- CUIT; los clientes de un estudio con certificado delegado) tienen que compartir el TA. Con
+-- la clave por negocio, el segundo pedía otro login con un TA vigente y ARCA lo bloqueaba
+-- ~10-15 minutos. `tenantId` queda como "quién lo pidió por última vez" (RLS y rastro).
+-- La huella la calcula el store (`huellaDeCertificado`, src/lib/fiscal/arca-ta-store.ts)
+-- desde la credencial cifrada del negocio: SHA-256 del DER del certificado, en hex.
 --
 -- POR QUÉ: WSAA rechaza un segundo login mientras haya un TA vigente
 -- (`coe.alreadyAuthenticated`), y el bloqueo dura ~10-15 min. En serverless (Vercel)
@@ -40,8 +49,11 @@
 
 CREATE TABLE IF NOT EXISTS "ArcaAuthTicket" (
   "id"         TEXT PRIMARY KEY,
-  "tenantId"   TEXT NOT NULL,
+  -- Huella SHA-256 (hex) del certificado con que se pidió el TA. Es la CLAVE (con `service`).
+  "certHuella" TEXT NOT NULL,
   "service"    TEXT NOT NULL DEFAULT 'wsfe',
+  -- El negocio que lo pidió por última vez. NO es la clave: le da la policy de RLS.
+  "tenantId"   TEXT NOT NULL,
   -- Material CIFRADO (envelope). Ilegible sin FISCAL_MASTER_KEY.
   "kekId"      TEXT NOT NULL,
   "wrappedDek" TEXT NOT NULL,
@@ -53,11 +65,13 @@ CREATE TABLE IF NOT EXISTS "ArcaAuthTicket" (
   "updatedAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Un TA por tenant (el `service` es 'wsfe' por ahora; el UNIQUE es por tenant para que el
--- upsert `ON CONFLICT ("tenantId")` del store funcione).
-CREATE UNIQUE INDEX IF NOT EXISTS "ArcaAuthTicket_tenantId_key" ON "ArcaAuthTicket" ("tenantId");
+-- Un TA por certificado y servicio: es el árbitro del upsert
+-- `ON CONFLICT ("certHuella", "service")` del store.
+CREATE UNIQUE INDEX IF NOT EXISTS "ArcaAuthTicket_certHuella_service_key" ON "ArcaAuthTicket" ("certHuella", "service");
+CREATE INDEX IF NOT EXISTS "ArcaAuthTicket_tenantId_idx" ON "ArcaAuthTicket" ("tenantId");
 
--- FK a Tenant: si se borra el tenant, se va su TA cacheado.
+-- FK a Tenant: si se borra el negocio que lo pidió último, se va el TA cacheado (el próximo
+-- negocio con ese certificado vuelve a loguearse cuando venza el vigente).
 ALTER TABLE "ArcaAuthTicket"
   ADD CONSTRAINT "ArcaAuthTicket_tenantId_fkey"
   FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -68,14 +82,18 @@ ALTER TABLE "ArcaAuthTicket"
 --
 -- model ArcaAuthTicket {
 --   id         String   @id @default(cuid())
---   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
---   tenantId   String   @unique
+--   certHuella String
 --   service    String   @default("wsfe")
+--   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+--   tenantId   String
 --   kekId      String
 --   wrappedDek String
 --   sealed     String
 --   expiration String
 --   createdAt  DateTime @default(now())
 --   updatedAt  DateTime @updatedAt
+--
+--   @@unique([certHuella, service])
+--   @@index([tenantId])
 -- }
 -- ----------------------------------------------------------------------------

@@ -68,7 +68,9 @@ export function formatDayLabel(day: DayKey): string {
 // que hace que el cierre valga algo: si el 05/09 quedara editable después de cerrar el
 // 06/09, el "esperado" que se congeló el 06 dejaría de ser reproducible. La frontera es
 // una sola por tenant —el último día cerrado— y se consulta con esta función desde
-// cualquier acción que escriba en el libro (alta, borrado, cobro de cartera).
+// cualquier acción que escriba en el libro (alta, borrado, cobro o pago de cuenta corriente).
+// El CIERRE DEL MES no mueve esta frontera: exige que el mes ya esté cerrado día por día
+// (cierre-mes/cierre-mes.ts), así que lo que el mes congela en la caja ya lo congeló el día.
 //
 // Corolario: los días sin cierre propio (un domingo, un sábado que se pasó por alto)
 // quedan absorbidos por el cierre siguiente. Eso es correcto: "cerrar el 08/09" es
@@ -129,8 +131,10 @@ export function cashMethodFromPaymentMethod(paymentMethod: string): CashMethod |
 // `collectionOrigin` es el `Collection.originType` (ORDER | APPOINTMENT | RECEIVABLE |
 // PAYABLE). Hace falta el ORIGEN y no alcanza el id: el rótulo de la pantalla dice
 // "vinieron de cuentas a cobrar", y con sólo el id se lo ponía a CUALQUIER movimiento con
-// rastro a un cobro — que hoy son todos cobros de TURNO, porque el fiado todavía no
-// escribe el rastro. O sea: el rótulo mentía sobre plata. Con el origen no puede.
+// rastro a un cobro — los cobros de TURNO también lo tienen. Con el origen no puede mentir.
+// El fiado escribe su rastro desde `aplicarConAsientoInTx` (settlement/collection-repo.ts),
+// con CUENTAS_CORRIENTES_ENABLED: un INGRESO con el `collectionId` del cobro RECEIVABLE, que
+// acá cuenta UNA vez en el esperado y se muestra aparte como "cobro de cartera".
 export type CierreMovement = LibroMovement & {
   collectionId?: string | null;
   collectionOrigin?: string | null;

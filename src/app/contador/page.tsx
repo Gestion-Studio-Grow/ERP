@@ -4,7 +4,9 @@
 //   1. arriba, "de quién me ocupo hoy" (MonitorBandeja): cuántos no pueden emitir y una
 //      línea por cliente con su peor señal y la acción que existe;
 //   2. abajo, el VOLUMEN: facturado con validez fiscal (separado de lo emitido en
-//      prueba), facturas del cupo, pendientes de revisión y la tabla con el detalle.
+//      prueba), facturas automáticas del mes contra el límite del plan, cuántos clientes
+//      tienen el mes anterior cerrado, pendientes de revisión y la tabla con el detalle
+//      (incluida la descarga del paquete del mes de cada cliente).
 // Server component: junta los datos con las actions de cartera; la interacción vive en
 // los client components de la carpeta.
 //
@@ -21,8 +23,10 @@ import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { basePrisma } from "@/lib/prisma-base";
 import { MODULO_CARTERA } from "@/lib/cartera-core";
+import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
 import { monitorCarteraAction } from "@/lib/cartera-actions";
 import { Badge, KpiTile, PageContainer, PageHeader, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { nombreDelMes } from "@/lib/libros/fecha-fiscal";
 import ThemeToggle from "@/app/admin/(dashboard)/ThemeToggle";
 import CarteraPanel from "./CarteraPanel";
 import MonitorBandeja from "./MonitorBandeja";
@@ -61,6 +65,20 @@ export default async function ContadorPage() {
     select: { name: true, modules: true },
   });
   if (!estudio?.modules?.includes(MODULO_CARTERA)) notFound();
+  // Con `cartera` Y `multilocal` juntos, el panel tampoco abre (la misma regla que las
+  // actions, `decidirAcceso`): se dice qué pasa con su título, en vez de dejar que el
+  // rechazo de las actions aparezca bajo "falta el último paso de base de datos".
+  const acceso = decidirAcceso(estudio.modules, "estudio");
+  if (!acceso.ok) {
+    return (
+      <PageContainer>
+        <PageHeader title="Mi cartera" description="El panel del contador no se puede abrir en este negocio por ahora." />
+        <div role="alert" className="rounded-xl border border-line bg-surface-raised p-5 text-sm text-muted shadow-card">
+          {acceso.error}
+        </div>
+      </PageContainer>
+    );
+  }
 
   const res = await monitorCarteraAction();
 
@@ -87,6 +105,8 @@ export default async function ContadorPage() {
   // Si NINGÚN cliente emite con validez fiscal (hoy: toda la cartera en homologación), la
   // tarjeta no puede decir "facturado": dice lo que es, emitido en prueba.
   const hayFiscal = filas.some((f) => f.validezFiscal);
+  const cierre = resumen.cierreMes;
+  const mesCierre = cierre.mes ? nombreDelMes(cierre.mes) : null;
 
   return (
     <PageContainer>
@@ -115,13 +135,13 @@ export default async function ContadorPage() {
         baseDomain={base}
       />
 
-      {/* KPIs de VOLUMEN — 4-up desde lg con gap 14px (fix 28); KpiTile ya trae
-          tabular-nums (fix 7). La plata y la cantidad van en tarjetas SEPARADAS porque
-          responden a relojes distintos: la plata es fiscal (comprobantes con CAE, por su
-          fecha) y la cantidad es el cupo del plan (todo lo emitido en el mes). */}
+      {/* KPIs de VOLUMEN con gap 14px (fix 28); KpiTile ya trae tabular-nums (fix 7). La
+          plata y la cantidad van en tarjetas SEPARADAS porque responden a relojes distintos:
+          la plata es fiscal (comprobantes con CAE, por su fecha) y la cantidad es la que
+          cuenta para el límite de facturas automáticas del plan (todo lo emitido en el mes). */}
       <section
         aria-label="Volumen de la cartera en el mes"
-        className="mb-xl grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-4"
+        className="mb-xl grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
       >
         {hayFiscal ? (
           <KpiTile
@@ -142,11 +162,23 @@ export default async function ContadorPage() {
             icon={<Icono path={<path d="M4 17l5-6 4 3 7-9" />} />}
           />
         )}
+        {/* "Límite de facturas automáticas del plan": una regla comercial del producto, no un
+            tope fiscal. La categoría del monotributo va por ingresos de 12 meses. */}
         <KpiTile
-          label="Facturas del cupo"
+          label="Facturas automáticas del mes"
           value={fmtNumberAR(resumen.facturasMes)}
-          sub="Todo lo emitido este mes entre todos tus clientes, rechazos incluidos: es lo que cuenta para el cupo del plan."
+          sub="Todo lo emitido este mes entre todos tus clientes, rechazos incluidos: es lo que cuenta para el límite de facturas automáticas del plan."
           icon={<Icono path={<path d="M5 6h14M5 12h14M5 18h9" />} />}
+        />
+        <KpiTile
+          label={mesCierre ? `Clientes con ${mesCierre} cerrado` : "Cierre del mes"}
+          value={`${fmtNumberAR(cierre.congelados)} de ${fmtNumberAR(cierre.activos)}`}
+          sub={`${
+            cierre.congelados === cierre.activos
+              ? "Todos lo congelaron: su paquete es la versión final."
+              : `${fmtNumberAR(cierre.activos - cierre.congelados)} sin cerrar todavía.`
+          } ${fmtNumberAR(monitor.resumen.sinPoderEmitir)} no ${monitor.resumen.sinPoderEmitir === 1 ? "puede" : "pueden"} facturar hoy.`}
+          icon={<Icono path={<><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></>} />}
         />
         <KpiTile
           label="Pendientes de revisión"

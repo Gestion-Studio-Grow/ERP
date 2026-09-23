@@ -1,148 +1,181 @@
 // ============================================================================
-// Loader SERVER del Libro IVA (ADR-060 D7) — arma las filas desde lo que YA existe.
+// Lectura del Libro IVA de UN MES (ADR-060 D7) — arma las filas desde lo que YA existe.
 // ============================================================================
 //
-// Guard `reports:read`. Deriva el Libro IVA de un período de:
-//   - VENTAS: `Invoice` AUTORIZADO (comprobante fiscal exacto) + `Order` pagado (retail) +
-//     `Payment` APPROVED → `Appointment` (servicios). Cubre AMBOS caminos de venta.
-//   - COMPRAS: `StockPurchase` (kind COMPRA).
+// Mes CALENDARIO en hora argentina (`bordesDelMes`), no una ventana de N días hacia atrás:
+// el IVA se liquida por mes, y con "últimos 30 días" el libro de septiembre mezclaba agosto.
 //
-// DEDUPE fiscal (usando el enlace D10 que YA existe en el schema: `Invoice.orderId` /
-// `Invoice.appointmentId`): una venta ya facturada por ARCA se cuenta SOLO en la sección
-// fiscal — el Order/Payment de ese mismo origen se excluye para no duplicar. Lo no
-// facturado va a la sección "estimado 21%". Read-only, cero schema, cero escritura.
+//   - COMPROBANTES: `Invoice` AUTORIZADO con `fecha` (AAAAMMDD) del mes, con su desglose de
+//     IVA y el estado de la venta de origen (para marcar las anuladas sin nota de crédito).
+//   - VENTAS SIN COMPROBANTE (control): pedidos cobrados y turnos cobrados del mes que NO
+//     tienen un comprobante con CAE, de ningún mes. Se decide con la relación
+//     (`invoices: none AUTHORIZED`), no con los comprobantes de ESTE mes: una venta del 31 a
+//     las 23 facturada el 1 no puede aparecer como "sin comprobante".
+//   - COMPRAS (control): `StockPurchase` COMPRA del mes. Sin factura de proveedor, sin crédito.
+//   - CONDICIÓN: de los tipos que el negocio emitió alguna vez (A/B = inscripto, sólo C =
+//     monotributo). Se mira todo el historial y no sólo el mes: un inscripto que este mes no
+//     facturó sigue siendo inscripto.
+//
+// `leerLibroIva` recibe la base con la que leer: la del request (la pantalla, envuelta en la
+// transacción del negocio) o la de OTRO negocio dentro de su `tenantTransaction` (el paquete
+// del contador). Nunca decide el negocio: se lo pasan. Por eso este archivo NO lleva
+// "use server" — publicaría un endpoint que lee el libro de cualquier tenantId.
 
-import { prisma } from "@/lib/prisma";
+import "server-only";
+import type { Prisma } from "@/generated/prisma/client";
+import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
-import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
-import { dateStrInBusinessTz } from "@/lib/datetime";
+import { bordesDelMes, type MesKey } from "./fecha-fiscal";
 import {
-  buildLibroIva,
-  ventaFromInvoice,
-  ventaFromGross,
-  compraFromPurchase,
+  armarLibroIva,
+  comprobanteDesdeInvoice,
+  condicionPorTipos,
   dateToIso,
-  type LibroIva,
-  type VentaRow,
   type CompraRow,
+  type LibroIva,
+  type VentaSinComprobanteRow,
+  whereComprobantesDelMes,
 } from "./libro-iva";
 
-export interface LibroIvaReport {
-  libro: LibroIva;
-  desde: string; // YYYY-MM-DD
-  hasta: string; // YYYY-MM-DD
-  rangeDays: number;
-}
+/** La base con la que se lee: una transacción del negocio (o el cliente del request). */
+export type DbLibro = Prisma.TransactionClient;
 
-/**
- * `Date` → "AAAAMMDD" para comparar contra `Invoice.fecha` (string fiscal).
- *
- * En el día de NEGOCIO, no en el día UTC, por lo mismo que `dateToIso`: `Invoice.fecha` es
- * un día calendario argentino, y con `toISOString()` los bordes del período se corrían tres
- * horas, dejando adentro o afuera los comprobantes de la última franja de cada día.
- */
-function toFiscal(d: Date): string {
-  return dateStrInBusinessTz(d).replace(/-/g, "");
-}
-
-/** Recupera CUIT / N° de orden que S4 compuso en `notes` de la compra (formal-order). */
+/** Recupera CUIT / N° de orden que la compra formal compuso en `notes`. */
 function parseFormalNotes(notes: string | null): { cuit: string | null; oc: string | null } {
   const cuit = notes ? /CUIT\s+([\d-]+)/i.exec(notes)?.[1] ?? null : null;
   const oc = notes ? /OC\s*#(\S+)/i.exec(notes)?.[1] ?? null : null;
   return { cuit, oc };
 }
 
-export async function getLibroIva(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS): Promise<LibroIvaReport> {
-  await requireCapability("reports:read");
-  const tenantId = await getCurrentTenantId();
+/** Decimal de Prisma → number, en el borde (ADR-057). */
+function num(v: unknown): number {
+  if (v != null && typeof (v as { toNumber?: () => number }).toNumber === "function") {
+    return (v as { toNumber: () => number }).toNumber();
+  }
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
 
-  const hasta = new Date();
-  const desde = new Date(hasta.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+/** El Libro IVA del mes `mes` del negocio `tenantId`, leído con `db`. */
+export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): Promise<LibroIva> {
+  const b = bordesDelMes(mes);
+  const enElMes = { gte: b.instantes.gte, lt: b.instantes.lt };
+  const sinComprobanteConCae = { none: { status: "AUTHORIZED" as const } };
 
-  const [invoices, orders, payments, purchases] = await Promise.all([
-    prisma.invoice.findMany({
-      where: { tenantId, status: "AUTHORIZED", fecha: { gte: toFiscal(desde), lte: toFiscal(hasta) } },
+  const [invoices, tiposEmitidos, orders, payments, purchases] = await Promise.all([
+    db.invoice.findMany({
+      // El mismo `where` que el número del botón (finanzas.server.ts).
+      where: whereComprobantesDelMes(tenantId, mes),
       select: {
+        id: true,
         fecha: true, tipoComprobante: true, puntoVenta: true, numero: true,
-        docTipo: true, docNro: true, neto: true, iva: true, total: true,
-        orderId: true, appointmentId: true,
+        docTipo: true, docNro: true, neto: true, iva: true, total: true, ivaDesglose: true,
+        order: { select: { status: true } },
+        appointment: { select: { status: true } },
       },
     }),
-    prisma.order.findMany({
-      where: { tenantId, paid: true, status: { not: "CANCELLED" }, createdAt: { gte: desde, lte: hasta } },
+    db.invoice.groupBy({
+      by: ["tipoComprobante"],
+      where: { tenantId, status: "AUTHORIZED" },
+      _count: { _all: true },
+    }),
+    db.order.findMany({
+      where: {
+        tenantId,
+        paid: true,
+        status: { not: "CANCELLED" },
+        createdAt: enElMes,
+        invoices: sinComprobanteConCae,
+      },
       select: { id: true, code: true, total: true, createdAt: true, customerName: true },
     }),
-    prisma.payment.findMany({
-      where: { tenantId, status: "APPROVED", createdAt: { gte: desde, lte: hasta } },
+    db.payment.findMany({
+      where: {
+        tenantId,
+        status: "APPROVED",
+        createdAt: enElMes,
+        appointment: { invoices: sinComprobanteConCae },
+      },
       select: {
-        amount: true, createdAt: true, comprobanteNro: true, appointmentId: true,
-        appointment: { select: { client: { select: { name: true } } } },
+        id: true,
+        amount: true,
+        createdAt: true,
+        appointment: { select: { client: { select: { name: true } }, service: { select: { name: true } } } },
       },
     }),
-    prisma.stockPurchase.findMany({
-      where: { tenantId, kind: "COMPRA", createdAt: { gte: desde, lte: hasta } },
-      select: { code: true, supplier: true, totalCost: true, createdAt: true, notes: true },
+    db.stockPurchase.findMany({
+      where: { tenantId, kind: "COMPRA", createdAt: enElMes },
+      select: {
+        id: true, code: true, supplier: true, totalCost: true, createdAt: true, notes: true,
+        supplierRef: { select: { name: true, taxId: true } },
+      },
     }),
   ]);
 
-  // Orígenes ya facturados (dedupe): no se cuentan como venta "estimada".
-  const invoicedOrderIds = new Set(invoices.map((i) => i.orderId).filter(Boolean) as string[]);
-  const invoicedApptIds = new Set(invoices.map((i) => i.appointmentId).filter(Boolean) as string[]);
+  const comprobantes = invoices.map((i) =>
+    comprobanteDesdeInvoice({
+      id: i.id,
+      fecha: i.fecha,
+      tipoComprobante: i.tipoComprobante,
+      puntoVenta: i.puntoVenta,
+      numero: i.numero,
+      docTipo: i.docTipo,
+      docNro: i.docNro,
+      neto: num(i.neto),
+      iva: num(i.iva),
+      total: num(i.total),
+      ivaDesglose: i.ivaDesglose,
+      origenAnulado: i.order?.status === "CANCELLED" || i.appointment?.status === "CANCELLED",
+    }),
+  );
 
-  const ventas: VentaRow[] = [
-    ...invoices.map((i) =>
-      ventaFromInvoice({
-        fecha: i.fecha,
-        tipoComprobante: i.tipoComprobante,
-        puntoVenta: i.puntoVenta,
-        numero: i.numero,
-        docTipo: i.docTipo,
-        docNro: i.docNro,
-        neto: Number(i.neto),
-        iva: Number(i.iva),
-        total: Number(i.total),
-      }),
-    ),
-    ...orders
-      .filter((o) => !invoicedOrderIds.has(o.id))
-      .map((o) =>
-        ventaFromGross({
-          fecha: dateToIso(o.createdAt),
-          tipo: "Ticket / mostrador",
-          numero: `P-${o.code}`,
-          cliente: o.customerName,
-          total: o.total,
-        }),
-      ),
-    ...payments
-      .filter((p) => !invoicedApptIds.has(p.appointmentId))
-      .map((p) =>
-        ventaFromGross({
-          fecha: dateToIso(p.createdAt),
-          tipo: "Ticket / servicio",
-          numero: p.comprobanteNro?.trim() || "—",
-          cliente: p.appointment?.client?.name ?? "Consumidor final",
-          total: p.amount,
-        }),
-      ),
+  const ventasSinComprobante: VentaSinComprobanteRow[] = [
+    ...orders.map((o) => ({
+      clave: `pedido:${o.id}`,
+      fecha: dateToIso(o.createdAt),
+      tipo: "Venta del mostrador",
+      numero: `Pedido ${o.code}`,
+      cliente: o.customerName?.trim() || "Consumidor final",
+      total: o.total,
+    })),
+    ...payments.map((p) => ({
+      clave: `cobro:${p.id}`,
+      fecha: dateToIso(p.createdAt),
+      tipo: "Turno cobrado",
+      numero: p.appointment?.service?.name ?? "—",
+      cliente: p.appointment?.client?.name ?? "Consumidor final",
+      total: p.amount,
+    })),
   ];
 
   const compras: CompraRow[] = purchases.map((c) => {
     const { cuit, oc } = parseFormalNotes(c.notes);
-    return compraFromPurchase({
+    const cuitFinal = c.supplierRef?.taxId?.trim() || cuit;
+    return {
+      clave: `compra:${c.id}`,
       fecha: dateToIso(c.createdAt),
-      proveedor: c.supplier,
-      cuit,
-      numero: oc ?? `C-${c.code}`,
+      proveedor: c.supplierRef?.name?.trim() || c.supplier?.trim() || "Proveedor sin identificar",
+      doc: cuitFinal ? `CUIT ${cuitFinal}` : "—",
+      numero: oc ?? `Compra ${c.code}`,
       total: c.totalCost,
-    });
+    };
   });
 
-  return {
-    libro: buildLibroIva(ventas, compras),
-    desde: dateToIso(desde),
-    hasta: dateToIso(hasta),
-    rangeDays,
-  };
+  return armarLibroIva({
+    comprobantes,
+    ventasSinComprobante,
+    compras,
+    condicion: condicionPorTipos(tiposEmitidos.map((g) => g.tipoComprobante)),
+  });
+}
+
+/**
+ * El Libro IVA del negocio del request. Exige `reports:read` (la página además pasa por
+ * `requireApp("libro-iva")`); lee en la transacción del negocio, con su RLS.
+ */
+export async function getLibroIva(mes: MesKey): Promise<LibroIva> {
+  await requireCapability("reports:read");
+  const tenantId = await getCurrentTenantId();
+  return tenantTransaction((tx) => leerLibroIva(tx, tenantId, mes), { tenantId });
 }

@@ -6,12 +6,17 @@
 // transicionar el estado del cheque (y, al ACREDITAR, asentar el pago como `Collection`), y
 // pagar en efectivo/transferencia (parcial o total) vía el mismo `Collection`. El saldo lo
 // computan los loaders (payable-repo) desde los Collections — acá solo se escriben hechos.
+//
+// Con `CUENTAS_CORRIENTES_ENABLED`, el pago y el cheque acreditado además ASIENTAN el egreso
+// en el libro de caja en la misma transacción (settlement/asiento-libro.ts). Antes la plata
+// salía sin pasar por el libro y el cierre del día daba una diferencia que nadie explicaba.
 
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
-import { recordCollection } from "@/lib/settlement/collection-repo";
+import { aplicarConAsientoInTx, recordCollection } from "@/lib/settlement/collection-repo";
+import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
 import { canTransitionCheque, type ChequeStatus } from "./cheque";
 
 export interface CreatePayableInput {
@@ -23,11 +28,16 @@ export interface CreatePayableInput {
   createdBy: string;
 }
 
-/** Crea una cuenta a pagar. Valida monto > 0. Devuelve el id. */
-export async function createPayable(tenantId: string, input: CreatePayableInput) {
+/**
+ * Crea una cuenta a pagar con la transacción del LLAMADOR. Valida monto > 0. Devuelve el id.
+ *
+ * Recibe `tx` y no abre la suya: "compra a cuenta corriente" tiene que registrar la compra
+ * (y su ingreso de stock) y la deuda juntos; si falla una, no queda la otra.
+ */
+export async function createPayable(tx: Prisma.TransactionClient, tenantId: string, input: CreatePayableInput) {
   const amount = round2(input.amount);
   if (!(amount > 0)) throw new Error("El monto de la deuda debe ser mayor a 0.");
-  const p = await prisma.accountPayable.create({
+  const p = await tx.accountPayable.create({
     data: {
       tenantId,
       supplierId: input.supplierId,
@@ -84,6 +94,85 @@ export async function addChequeToPayable(
   return c.id;
 }
 
+/** Cliente de la transacción del negocio (lo que recibe el callback de `tenantTransaction`). */
+type DebtTx = Prisma.TransactionClient;
+
+/**
+ * El cambio de estado del cheque DENTRO de la transacción del llamador. Exportado para que el
+ * test lo ejecute con una transacción falsa; en la app lo llama `transitionCheque`, que abre
+ * la transacción Serializable. `asentarEnLibro` es `cuentasCorrientesEnabled()`.
+ */
+export async function transicionarChequeInTx(
+  tx: DebtTx,
+  tenantId: string,
+  chequeId: string,
+  to: ChequeStatus,
+  actor: string,
+  opts: { asentarEnLibro: boolean; ahora: Date },
+): Promise<void> {
+  const cheque = await tx.payableCheque.findFirst({
+    where: { id: chequeId, tenantId },
+    select: { id: true, status: true, amount: true, payableId: true },
+  });
+  if (!cheque) throw new Error("Cheque no encontrado para este negocio.");
+  if (!canTransitionCheque(cheque.status, to)) {
+    throw new Error(`Transición de cheque inválida: ${cheque.status} → ${to}.`);
+  }
+
+  // 🔒 Compare-and-set: solo transiciona si el cheque SIGUE en el estado que leímos. Un
+  // doble-click / dos requests concurrentes ven el mismo `from`; solo UNO matchea el
+  // `where status` y afecta 1 fila → el otro afecta 0 y aborta. Así el asiento de pago
+  // (Collection) se crea UNA sola vez, nunca dos por el mismo cheque acreditado.
+  const res = await tx.payableCheque.updateMany({
+    where: { id: chequeId, tenantId, status: cheque.status },
+    data: { status: to },
+  });
+  if (res.count === 0) {
+    throw new Error("El cheque cambió de estado (operación concurrente); reintentá.");
+  }
+
+  // Acreditó → pagó de verdad: asentar el Collection(PAYABLE) por el monto del cheque.
+  // Con cuentas corrientes encendidas, además el EGRESO del libro (un cheque acreditado
+  // es transferencia bancaria), con la guarda de saldo y el freno de día cerrado: si hoy
+  // la caja ya está cerrada, el cheque no se marca acreditado hasta mañana (el rechazo tira
+  // y la transacción entera, con el cambio de estado, vuelve atrás).
+  if (to === "CLEARED" && opts.asentarEnLibro) {
+    const deuda = await tx.accountPayable.findFirst({
+      where: { id: cheque.payableId, tenantId },
+      select: { amount: true, supplier: { select: { name: true } } },
+    });
+    if (!deuda) throw new Error("La cuenta a pagar de este cheque ya no existe.");
+    await aplicarConAsientoInTx(tx, tenantId, {
+      originType: "PAYABLE",
+      originId: cheque.payableId,
+      totalCharged: deuda.amount.toNumber(),
+      amount: cheque.amount.toNumber(),
+      method: "TRANSFERENCIA",
+      note: `Cheque acreditado (${chequeId})`,
+      collectedBy: actor,
+      // Un cheque acreditado es un HECHO del banco: la plata ya salió. Si supera el saldo
+      // (la deuda se pagó en parte por otro lado), no se rechaza: queda la deuda en
+      // "pagado de más", a la vista, en vez de un cheque que el sistema no deja registrar.
+      allowOverpay: true,
+      origen: "PAYABLE",
+      detalle: `Cheque acreditado — ${deuda.supplier.name}`,
+      ahora: opts.ahora,
+    });
+  } else if (to === "CLEARED") {
+    await tx.collection.create({
+      data: {
+        tenantId,
+        originType: "PAYABLE",
+        originId: cheque.payableId,
+        amount: cheque.amount, // Decimal → Decimal
+        method: "TRANSFERENCIA" as $Enums.PaymentMethod, // un cheque acreditado es transferencia bancaria
+        note: `Cheque acreditado (${chequeId})`,
+        collectedBy: actor,
+      },
+    });
+  }
+}
+
 /**
  * Transiciona el estado de un cheque respetando la máquina de estados (guarda pura).
  * Si pasa a CLEARED (acreditó), asienta el pago como `Collection`(PAYABLE) por el monto del
@@ -97,43 +186,7 @@ export async function transitionCheque(
   actor: string,
 ): Promise<void> {
   await tenantTransaction(
-    async (tx) => {
-      const cheque = await tx.payableCheque.findFirst({
-        where: { id: chequeId, tenantId },
-        select: { id: true, status: true, amount: true, payableId: true },
-      });
-      if (!cheque) throw new Error("Cheque no encontrado para este negocio.");
-      if (!canTransitionCheque(cheque.status, to)) {
-        throw new Error(`Transición de cheque inválida: ${cheque.status} → ${to}.`);
-      }
-
-      // 🔒 Compare-and-set: solo transiciona si el cheque SIGUE en el estado que leímos. Un
-      // doble-click / dos requests concurrentes ven el mismo `from`; solo UNO matchea el
-      // `where status` y afecta 1 fila → el otro afecta 0 y aborta. Así el asiento de pago
-      // (Collection) se crea UNA sola vez, nunca dos por el mismo cheque acreditado.
-      const res = await tx.payableCheque.updateMany({
-        where: { id: chequeId, tenantId, status: cheque.status },
-        data: { status: to },
-      });
-      if (res.count === 0) {
-        throw new Error("El cheque cambió de estado (operación concurrente); reintentá.");
-      }
-
-      // Acreditó → pagó de verdad: asentar el Collection(PAYABLE) por el monto del cheque.
-      if (to === "CLEARED") {
-        await tx.collection.create({
-          data: {
-            tenantId,
-            originType: "PAYABLE",
-            originId: cheque.payableId,
-            amount: cheque.amount, // Decimal → Decimal
-            method: "TRANSFERENCIA" as $Enums.PaymentMethod, // un cheque acreditado es transferencia bancaria
-            note: `Cheque acreditado (${chequeId})`,
-            collectedBy: actor,
-          },
-        });
-      }
-    },
+    (tx) => transicionarChequeInTx(tx, tenantId, chequeId, to, actor, { asentarEnLibro: cuentasCorrientesEnabled(), ahora: new Date() }),
     // 🔒 SERIALIZABLE (fix del Gate de dinero): además del compare-and-set, la transacción
     // serializa el asiento del Collection contra cobros concurrentes de la MISMA deuda;
     // `tenantTransaction` reintenta ante conflicto de serialización.
@@ -141,16 +194,62 @@ export async function transitionCheque(
   );
 }
 
+/** Lo que llega para registrar un pago a una deuda. */
+export interface PagoDeudaInput {
+  amount: number;
+  method: $Enums.PaymentMethod;
+  note?: string | null;
+  by: string;
+  allowOverpay?: boolean;
+}
+
+/**
+ * El pago a una deuda con cuentas corrientes encendidas, DENTRO de la transacción del
+ * llamador: lee la deuda, decide el asiento (medio obligatorio, freno de día cerrado) y
+ * registra el pago y el EGRESO del libro. Una deuda anulada no se paga. Exportado para que el
+ * test lo ejecute con una transacción falsa; en la app lo llama `payPayable`.
+ */
+export async function pagarDeudaInTx(
+  tx: DebtTx,
+  tenantId: string,
+  payableId: string,
+  input: PagoDeudaInput,
+  ahora: Date,
+) {
+  const p = await tx.accountPayable.findFirst({
+    where: { id: payableId, tenantId },
+    select: { amount: true, status: true, supplier: { select: { name: true } } },
+  });
+  if (!p) throw new Error("Cuenta a pagar no encontrada para este negocio.");
+  if (p.status !== "OPEN") throw new Error("Esa cuenta está anulada: no se le puede registrar un pago.");
+  return aplicarConAsientoInTx(tx, tenantId, {
+    originType: "PAYABLE",
+    originId: payableId,
+    totalCharged: p.amount.toNumber(),
+    amount: input.amount,
+    method: input.method,
+    note: input.note ?? null,
+    collectedBy: input.by,
+    allowOverpay: input.allowOverpay,
+    origen: "PAYABLE",
+    detalle: `Pago a proveedor — ${p.supplier.name}`,
+    ahora,
+  });
+}
+
 /**
  * Paga una deuda en efectivo/transferencia (parcial o total) vía `Collection`(PAYABLE),
  * con la guarda de saldo de `recordCollection` (no se puede pagar más que lo que se debe,
  * salvo `allowOverpay`). Devuelve el settlement actualizado.
  */
-export async function payPayable(
-  tenantId: string,
-  payableId: string,
-  input: { amount: number; method: $Enums.PaymentMethod; note?: string | null; by: string; allowOverpay?: boolean },
-) {
+export async function payPayable(tenantId: string, payableId: string, input: PagoDeudaInput) {
+  if (cuentasCorrientesEnabled()) {
+    return tenantTransaction(
+      (tx) => pagarDeudaInTx(tx, tenantId, payableId, input, new Date()),
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
   const payable = await prisma.accountPayable.findFirst({
     where: { id: payableId, tenantId },
     select: { amount: true },

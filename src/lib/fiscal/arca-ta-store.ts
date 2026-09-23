@@ -20,14 +20,25 @@
  * `ProvisioningRun`). Sin caché, la emisión igual funciona: a lo sumo re-loguea.
  *
  * Es CONTROL-PLANE (cross-tenant, como la credencial): solo lo toca `operatorPrisma`.
+ *
+ * 🔑 LA CLAVE ES EL CERTIFICADO, NO EL NEGOCIO. WSAA bloquea el segundo login POR
+ * CERTIFICADO (y servicio), no por negocio del ERP. Dos negocios que firman con el mismo
+ * certificado —los locales de una marca con un solo CUIT, o los clientes de un estudio con
+ * certificado delegado— comparten el ticket: guardado por negocio, el segundo local pedía
+ * otro login con un TA vigente y ARCA lo rechazaba por 10-15 minutos. Por eso la fila se
+ * busca y se guarda por la huella SHA-256 del certificado (`huellaDeCertificado`); el
+ * `tenantId` queda como "quién lo pidió por última vez" (RLS y rastro), no como clave.
+ * La firma de las funciones sigue recibiendo el negocio (así la llama arca-dispatch.ts): la
+ * huella la resuelve el store desde la credencial cifrada del negocio.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { operatorPrisma } from "@/lib/operator-db";
 import { logger } from "@/lib/logger";
 import { ticketVigente, type TicketAcceso } from "@/plugins/arca";
 import {
   masterKeyDesdeEnv,
+  openCredential,
   sealSecret,
   openSecret,
   type MasterKey,
@@ -36,14 +47,18 @@ import {
 const SERVICIO_WSFE = "wsfe";
 
 /** Fila persistida del TA (material cifrado + expiration en claro). */
-interface FilaTicket {
+export interface FilaTicket {
   kekId: string;
   wrappedDek: string;
   sealed: string;
   expiration: string;
 }
 
-/** Seams inyectables (default: operatorPrisma + master key de env) → testeable sin DB. */
+/**
+ * Seams inyectables (default: operatorPrisma + master key de env) → testeable sin DB.
+ * `leerFila`/`upsertFila` reciben el negocio; la implementación real lo traduce a la huella
+ * del certificado con el que firma (ver la cabecera).
+ */
 export interface ArcaTaStoreDeps {
   /** ¿Existe la tabla `ArcaAuthTicket`? (migración Gate 2 aplicada). */
   tablaExiste: () => Promise<boolean>;
@@ -55,6 +70,43 @@ export interface ArcaTaStoreDeps {
   ) => Promise<void>;
   master: () => MasterKey;
   ahora: () => Date;
+}
+
+/**
+ * Huella del certificado: SHA-256 (hex, minúsculas) de su DER, que es como lo identifica
+ * ARCA. Se calcula sobre el DER y no sobre el texto PEM: el mismo certificado cargado con
+ * otros saltos de línea tiene que dar la misma huella. PURA.
+ */
+export function huellaDeCertificado(certPem: string): string {
+  const cuerpo = certPem
+    .replace(/-----BEGIN CERTIFICATE-----/g, "")
+    .replace(/-----END CERTIFICATE-----/g, "")
+    .replace(/\s+/g, "");
+  return createHash("sha256").update(Buffer.from(cuerpo, "base64")).digest("hex");
+}
+
+/**
+ * La huella del certificado con el que firma el negocio, o `null` si no tiene credencial
+ * cargada (sin credencial no hay TA que cachear). Descifra la credencial con la master key:
+ * el material no sale de esta función, sólo la huella.
+ */
+async function huellaDelNegocio(tenantId: string): Promise<string | null> {
+  const r = await operatorPrisma.tenantFiscalCredential.findUnique({
+    where: { tenantId },
+    select: { kekId: true, wrappedDek: true, sealed: true },
+  });
+  if (!r) return null;
+  try {
+    return huellaDeCertificado(openCredential(r, masterKeyDesdeEnv()).certPem);
+  } catch (e) {
+    // Sobre corrupto o master key equivocada: sin huella no hay caché (se re-loguea). La
+    // emisión igual falla cerrada al resolver la credencial para firmar (tenant-cert.ts).
+    logger.warn("arca.ta", "No se pudo leer el certificado para ubicar su TA; sin caché", {
+      tenantId,
+      err: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
 }
 
 // Memoizado por vida del proceso: `to_regclass` es barato pero se llama por emisión.
@@ -77,42 +129,74 @@ async function tablaExisteReal(): Promise<boolean> {
   }
 }
 
+/** Lo que el store necesita de la tabla, POR CERTIFICADO (huella), no por negocio. */
+export interface TablaPorCertificado {
+  /** La huella del certificado con el que firma el negocio, o `null` si no tiene credencial. */
+  huellaDelNegocio: (tenantId: string) => Promise<string | null>;
+  leerPorHuella: (huella: string, servicio: string) => Promise<FilaTicket | null>;
+  /** Pisa la fila de esa huella y servicio; `tenantId` queda como "quién lo pidió último". */
+  upsertPorHuella: (huella: string, servicio: string, tenantId: string, fila: FilaTicket) => Promise<void>;
+}
+
+/**
+ * Los seams `leerFila`/`upsertFila` (que reciben el negocio) sobre una tabla por certificado:
+ * el negocio se traduce a la huella de su certificado y la fila es de ESA huella. Dos negocios
+ * con el mismo certificado leen y escriben la misma fila; uno sin credencial no cachea.
+ * Separado de la base para que el test ejecute la regla con una tabla en memoria.
+ */
+export function depsPorCertificado(t: TablaPorCertificado): Pick<ArcaTaStoreDeps, "leerFila" | "upsertFila"> {
+  return {
+    leerFila: async (tenantId, servicio) => {
+      const huella = await t.huellaDelNegocio(tenantId);
+      return huella ? t.leerPorHuella(huella, servicio) : null;
+    },
+    upsertFila: async (tenantId, servicio, fila) => {
+      const huella = await t.huellaDelNegocio(tenantId);
+      if (huella) await t.upsertPorHuella(huella, servicio, tenantId, fila);
+    },
+  };
+}
+
 function defaultDeps(): ArcaTaStoreDeps {
   return {
     tablaExiste: tablaExisteReal,
-    leerFila: async (tenantId, servicio) => {
-      const rows = await operatorPrisma.$queryRaw<FilaTicket[]>`
-        SELECT "kekId", "wrappedDek", "sealed", "expiration"
-        FROM "ArcaAuthTicket"
-        WHERE "tenantId" = ${tenantId} AND "service" = ${servicio}
-        LIMIT 1
-      `;
-      return rows[0] ?? null;
-    },
-    upsertFila: async (tenantId, servicio, fila) => {
-      await operatorPrisma.$executeRaw`
-        INSERT INTO "ArcaAuthTicket"
-          ("id", "tenantId", "service", "kekId", "wrappedDek", "sealed", "expiration", "createdAt", "updatedAt")
-        VALUES
-          (${randomUUID()}, ${tenantId}, ${servicio}, ${fila.kekId}, ${fila.wrappedDek}, ${fila.sealed}, ${fila.expiration}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT ("tenantId") DO UPDATE SET
-          "service"    = EXCLUDED."service",
-          "kekId"      = EXCLUDED."kekId",
-          "wrappedDek" = EXCLUDED."wrappedDek",
-          "sealed"     = EXCLUDED."sealed",
-          "expiration" = EXCLUDED."expiration",
-          "updatedAt"  = CURRENT_TIMESTAMP
-      `;
-    },
+    ...depsPorCertificado({
+      huellaDelNegocio,
+      leerPorHuella: async (huella, servicio) => {
+        const rows = await operatorPrisma.$queryRaw<FilaTicket[]>`
+          SELECT "kekId", "wrappedDek", "sealed", "expiration"
+          FROM "ArcaAuthTicket"
+          WHERE "certHuella" = ${huella} AND "service" = ${servicio}
+          LIMIT 1
+        `;
+        return rows[0] ?? null;
+      },
+      upsertPorHuella: async (huella, servicio, tenantId, fila) => {
+        await operatorPrisma.$executeRaw`
+          INSERT INTO "ArcaAuthTicket"
+            ("id", "certHuella", "service", "tenantId", "kekId", "wrappedDek", "sealed", "expiration", "createdAt", "updatedAt")
+          VALUES
+            (${randomUUID()}, ${huella}, ${servicio}, ${tenantId}, ${fila.kekId}, ${fila.wrappedDek}, ${fila.sealed}, ${fila.expiration}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT ("certHuella", "service") DO UPDATE SET
+            "tenantId"   = EXCLUDED."tenantId",
+            "kekId"      = EXCLUDED."kekId",
+            "wrappedDek" = EXCLUDED."wrappedDek",
+            "sealed"     = EXCLUDED."sealed",
+            "expiration" = EXCLUDED."expiration",
+            "updatedAt"  = CURRENT_TIMESTAMP
+        `;
+      },
+    }),
     master: masterKeyDesdeEnv,
     ahora: () => new Date(),
   };
 }
 
 /**
- * Devuelve el TA persistido y VIGENTE del tenant, o `undefined` si no hay, venció,
- * o la tabla todavía no existe (Gate 2 sin aplicar). Descifra el token+sign; el
- * chequeo de vigencia se hace ANTES de descifrar (expiration va en claro).
+ * Devuelve el TA persistido y VIGENTE del certificado con el que firma el tenant, o
+ * `undefined` si no hay, venció, o la tabla todavía no existe (Gate 2 sin aplicar).
+ * Descifra el token+sign; el chequeo de vigencia se hace ANTES de descifrar (expiration va
+ * en claro).
  */
 export async function leerTicketAcceso(
   tenantId: string,
@@ -145,9 +229,10 @@ export async function leerTicketAcceso(
 }
 
 /**
- * Persiste (cifrado) el TA de un tenant para reusarlo entre invocaciones. No-op si
- * la tabla no existe (Gate 2 sin aplicar). Best-effort: cualquier fallo se loguea y
- * se traga — persistir el TA es optimización, no puede tumbar la emisión.
+ * Persiste (cifrado) el TA del certificado del tenant para reusarlo entre invocaciones —y
+ * entre los negocios que firman con ese mismo certificado—. No-op si la tabla no existe
+ * (Gate 2 sin aplicar) o si el tenant no tiene credencial. Best-effort: cualquier fallo se
+ * loguea y se traga — persistir el TA es optimización, no puede tumbar la emisión.
  */
 export async function guardarTicketAcceso(
   tenantId: string,

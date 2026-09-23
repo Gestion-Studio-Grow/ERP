@@ -1,7 +1,8 @@
 "use client";
 
 // Cartera del contador: tabla de clientes + panel de detalle pegajoso con las
-// acciones (emitir automáticas, abrir backoffice, pausar/reactivar, baja).
+// acciones (emitir automáticas, bajar el paquete del mes, abrir backoffice,
+// pausar/reactivar, baja).
 // Client component solo por la selección de fila y los estados de las acciones;
 // los datos vienen resueltos del server (page.tsx) y las mutaciones son Server
 // Actions con su propio gate (capability + pertenencia a la cartera).
@@ -12,26 +13,58 @@ import { Badge, Button, fmtCuit, fmtMoneyARS, fmtNumberAR } from "@/components/u
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { UMBRAL_ALERTA_CAP, type EstadoCartera, type FilaCartera } from "@/lib/cartera-core";
 import { emitirAutomaticasClienteAction, setEstadoCarteraAction } from "@/lib/cartera-actions";
+import { fechaCorta, type CierreMesCliente } from "@/lib/cierre-mes/cierre-mes";
+import { nombreDelMes } from "@/lib/libros/fecha-fiscal";
 
-/** Mini barra de objetivo (facturas del mes vs cupo del plan) para la celda de la tabla. */
-function GoalMini({ usado, tope }: { usado: number; tope: number }) {
-  const pct = tope > 0 ? Math.min(100, Math.round((usado / tope) * 100)) : 0;
+/**
+ * Mini barra de objetivo (facturas automáticas del mes vs el límite del plan) para la celda
+ * de la tabla. El límite es una regla comercial del producto, no la categoría del
+ * monotributo: por eso nunca se dice "tope".
+ */
+function GoalMini({ usado, limite }: { usado: number; limite: number }) {
+  const pct = limite > 0 ? Math.min(100, Math.round((usado / limite) * 100)) : 0;
   const color = pct >= 100 ? "bg-danger-fill" : pct >= UMBRAL_ALERTA_CAP * 100 ? "bg-warning-fill" : "bg-accent";
   return (
     <span className="block min-w-28">
       <span className="tabular-nums text-strong">
         {fmtNumberAR(usado)}
-        <span className="text-muted"> / {fmtNumberAR(tope)}</span>
+        <span className="text-muted"> / {fmtNumberAR(limite)}</span>
       </span>
       <span
         role="progressbar"
         aria-valuenow={usado}
         aria-valuemin={0}
-        aria-valuemax={tope}
-        aria-label={`Facturas del cupo: ${usado} de ${tope}`}
+        aria-valuemax={limite}
+        aria-label={`Facturas automáticas del mes: ${usado} de un límite del plan de ${limite}`}
         className="mt-1 block h-1 overflow-hidden rounded-full bg-bar-track"
       >
         <span className={`block h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </span>
+    </span>
+  );
+}
+
+/** El link de descarga del paquete del mes de un cliente (lo arma /contador/paquete). */
+function hrefPaquete(clienteTenantId: string, mes: string): string {
+  return `/contador/paquete?cliente=${encodeURIComponent(clienteTenantId)}&mes=${encodeURIComponent(mes)}`;
+}
+
+/** El cierre del mes anterior del cliente, en una celda: congelado o abierto, y el paquete. */
+function CierreCelda({ cierre }: { cierre: CierreMesCliente | null | undefined }) {
+  if (!cierre) return <span className="text-muted">—</span>;
+  return (
+    <span className="block min-w-36">
+      {cierre.congelado ? (
+        <Badge tone="success" dot>
+          Cerrado{cierre.congeladoEl ? ` el ${fechaCorta(new Date(cierre.congeladoEl))}` : ""}
+        </Badge>
+      ) : (
+        <Badge tone="warning" dot>Sin cerrar</Badge>
+      )}
+      <span className="mt-1 block text-xs text-muted">
+        {cierre.paquete
+          ? `Paquete bajado por ${cierre.paquete.por} el ${fechaCorta(new Date(cierre.paquete.el))}`
+          : "Nadie bajó el paquete"}
       </span>
     </span>
   );
@@ -104,6 +137,9 @@ export default function CarteraPanel({
   const urlCliente = (f: FilaCartera, path: string): string | null =>
     f.subdomain && baseDomain ? `https://${f.subdomain}.${baseDomain}${path}` : null;
 
+  // El mes de cierre es el mismo para toda la cartera (el anterior al de hoy).
+  const mesCierre = filas.find((f) => f.cierreMes)?.cierreMes?.mes ?? null;
+
   if (filas.length === 0) {
     return (
       <section aria-label="Cartera de clientes" className="mb-xl">
@@ -141,7 +177,7 @@ export default function CarteraPanel({
       <div className="grid grid-cols-1 items-start gap-md xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Tabla */}
         <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised shadow-card">
-          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[780px] border-collapse text-left text-sm">
             <caption className="sr-only">
               Clientes de la cartera con su resumen fiscal del mes
             </caption>
@@ -149,7 +185,10 @@ export default function CarteraPanel({
               <tr className="border-b border-line bg-surface-sunken text-[11px] uppercase tracking-[.06em] text-muted">
                 <th scope="col" className="px-[22px] py-2.5 font-semibold">Cliente</th>
                 <th scope="col" className="px-[22px] py-2.5 text-right font-semibold">Facturado</th>
-                <th scope="col" className="px-[22px] py-2.5 font-semibold">Facturas / cupo</th>
+                <th scope="col" className="px-[22px] py-2.5 font-semibold">Facturas / límite del plan</th>
+                <th scope="col" className="px-[22px] py-2.5 font-semibold">
+                  {mesCierre ? `Cierre de ${nombreDelMes(mesCierre)}` : "Cierre del mes"}
+                </th>
                 <th scope="col" className="px-[22px] py-2.5 text-right font-semibold">A revisar</th>
                 <th scope="col" className="px-[22px] py-2.5 font-semibold">Última importación</th>
                 <th scope="col" className="px-[22px] py-2.5 font-semibold">ARCA</th>
@@ -200,12 +239,15 @@ export default function CarteraPanel({
                       )}
                     </td>
                     <td className="px-[22px] py-[13px]">
-                      <GoalMini usado={f.facturasMes} tope={f.capFacturasMes} />
+                      <GoalMini usado={f.facturasMes} limite={f.capFacturasMes} />
                       {alerta && (
                         <span className="mt-1 block text-xs font-medium text-danger">
-                          Cerca del cupo
+                          Cerca del límite del plan
                         </span>
                       )}
+                    </td>
+                    <td className="px-[22px] py-[13px]">
+                      <CierreCelda cierre={f.cierreMes} />
                     </td>
                     <td className="px-[22px] py-[13px] text-right">
                       {f.pendientesRevision > 0 ? (
@@ -264,7 +306,7 @@ export default function CarteraPanel({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted">Facturas del cupo</dt>
+                  <dt className="text-xs text-muted">Facturas automáticas / límite del plan</dt>
                   <dd className="tabular-nums font-medium text-strong">
                     {fmtNumberAR(seleccion.facturasMes)} / {fmtNumberAR(seleccion.capFacturasMes)}
                   </dd>
@@ -282,6 +324,31 @@ export default function CarteraPanel({
                   </dd>
                 </div>
               </dl>
+
+              {seleccion.cierreMes && (
+                <div className="mt-4 rounded-lg border border-line p-3 text-sm">
+                  <p className="text-xs text-muted">Cierre de {nombreDelMes(seleccion.cierreMes.mes)}</p>
+                  <div className="mt-1">
+                    <CierreCelda cierre={seleccion.cierreMes} />
+                  </div>
+                  {/* <a> y no un botón con fetch: es una descarga, y cada una queda en la
+                      auditoría del cliente como "descargado por". */}
+                  <a
+                    href={hrefPaquete(seleccion.clienteTenantId, seleccion.cierreMes.mes)}
+                    download
+                    className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-md border border-line-strong bg-surface-raised px-3 text-sm font-medium text-strong transition-colors hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  >
+                    {seleccion.cierreMes.congelado
+                      ? `Descargar el paquete de ${nombreDelMes(seleccion.cierreMes.mes)}`
+                      : `Bajar un borrador de ${nombreDelMes(seleccion.cierreMes.mes)}`}
+                  </a>
+                  {!seleccion.cierreMes.congelado && (
+                    <p className="mt-1 text-xs text-muted">
+                      El negocio todavía no congeló el mes: el archivo dice que es borrador y puede cambiar.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="mt-5 flex flex-col gap-2">
                 <Button

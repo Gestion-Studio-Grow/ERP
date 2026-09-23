@@ -13,17 +13,21 @@
 // Decimal↔number vive acá, en el borde (ADR-057): se lee con `.toNumber()`, se escribe `number`.
 //
 // ⚠️ Requiere la migración D9 (tabla `Collection` + enum) — PREPARADA y SIN aplicar a prod
-// (§C · Gate 2).
+// (§C · Gate 2). El asiento en el libro (`aplicarConAsientoInTx`) además necesita
+// `CashMovement.collectionId` (lote de 5): por eso va detrás de CUENTAS_CORRIENTES_ENABLED.
 
 import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
+import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import { dateStrInBusinessTz } from "@/lib/datetime";
 import {
   computeSettlement,
   validateNewCollection,
   isSettled,
   type Settlement,
 } from "./collection";
+import { cuentaCorrienteMarker, decidirAsiento, type OrigenCuentaCorriente } from "./asiento-libro";
 
 export interface RecordCollectionArgs {
   originType: $Enums.CollectionOriginType;
@@ -116,6 +120,68 @@ export async function applyCollectionInTx(
   }
 
   return { collectionId: created.id, amount: v.amount, settlement: nuevo };
+}
+
+/** El cobro o pago no se puede asentar (medio, monto o día cerrado). El mensaje se muestra tal cual. */
+export class AsientoRechazadoError extends Error {
+  constructor(mensaje: string) {
+    super(mensaje);
+    this.name = "AsientoRechazadoError";
+  }
+}
+
+/**
+ * Un cobro de cuenta a cobrar o un pago de cuenta a pagar QUE TAMBIÉN ASIENTA EN EL LIBRO,
+ * dentro de la transacción del llamador (que tiene que ser Serializable, como la de
+ * `recordCollection`). Todo o nada: si el libro no se puede escribir, no queda el cobro; si
+ * el cobro excede el saldo, no queda el asiento.
+ *
+ * Orden: primero la decisión (medio y día cerrado, leído con ESTE `tx`), después el cobro
+ * con su guarda de saldo, y recién ahí la fila del libro con el `collectionId` del cobro.
+ * Si hay un turno de mostrador abierto, la fila se engancha a él, igual que un alta del
+ * libro (libro-caja-actions.ts): el arqueo del turno filtra por medio, así que un pago por
+ * transferencia no infla el efectivo esperado.
+ *
+ * Sólo lo usan las cuentas corrientes con `CUENTAS_CORRIENTES_ENABLED`. La devolución a
+ * proveedor sigue con `applyCollectionInTx` a secas: es un crédito, no plata que se movió.
+ */
+export async function aplicarConAsientoInTx(
+  tx: SettlementTx,
+  tenantId: string,
+  args: RecordCollectionArgs & { origen: OrigenCuentaCorriente; detalle: string; ahora: Date },
+): Promise<RecordCollectionResult> {
+  const cerradoHasta = await lastClosedDayTx(tx, tenantId);
+  const decision = decidirAsiento({
+    origen: args.origen,
+    medio: args.method,
+    monto: args.amount,
+    detalle: args.detalle,
+    hoy: dateStrInBusinessTz(args.ahora),
+    cerradoHasta,
+  });
+  if (!decision.ok) throw new AsientoRechazadoError(decision.error);
+
+  const res = await applyCollectionInTx(tx, tenantId, args);
+
+  const turno = await tx.cashSession.findFirst({
+    where: { tenantId, status: "OPEN" },
+    select: { id: true },
+  });
+  await tx.cashMovement.create({
+    data: {
+      tenantId,
+      sessionId: turno?.id ?? null,
+      type: decision.asiento.type,
+      method: decision.asiento.method,
+      // El monto ya redondeado por la guarda de saldo: el libro y el cobro dicen lo mismo.
+      amount: res.amount,
+      reason: decision.asiento.reason,
+      occurredAt: args.ahora,
+      collectionId: res.collectionId,
+      createdBy: cuentaCorrienteMarker(res.collectionId),
+    },
+  });
+  return res;
 }
 
 /**

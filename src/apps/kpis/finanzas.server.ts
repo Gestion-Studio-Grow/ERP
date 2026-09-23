@@ -8,15 +8,18 @@
 // Lo que queda para su frente, con su porqué:
 //   · el efectivo esperado de la caja y el saldo o los duplicados del libro necesitan la
 //     cuenta del arqueo (`buildCierreDiario`), que suma movimientos y no es una operación;
-//   · Libro IVA, Fiado y Cuentas a pagar son del frente de finanzas de las olas 2 y 3.
+//   · Fiado y Cuentas a pagar son de la ola 3 (su pantalla todavía no es la final).
 // Esas apps van al Inicio sin número hasta que su frente escriba el loader.
 
-import { businessWallTimeToUtc, fmtTime } from "@/lib/datetime";
+import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
 import { formatDayLabel } from "@/lib/caja/cierre-diario";
 import { filtrosFacturacionMes } from "@/lib/bancos-glue";
 import { bordesDelPeriodo } from "@/lib/report-ingresos";
 import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
+import { saldoIvaDesdeGrupos, whereAnuladasConFactura, whereComprobantesDelMes } from "@/lib/libros/libro-iva";
+import { mesDelNegocio, nombreDelMes } from "@/lib/libros/fecha-fiscal";
+import { consultaAuditoriaCierre, datoCierreDelMes, mesParaCerrar } from "@/lib/cierre-mes/cierre-mes";
 import { fmtMoneyARS, fmtNumberAR } from "@/components/ui/format";
 import { plural, type DatoKpi, type LoaderKpi } from "./nucleo.server";
 
@@ -86,29 +89,101 @@ function diasEntre(desde: string, hasta: string): number {
 // ── Facturación ──────────────────────────────────────────────────────────────
 
 /**
- * "12 comprobantes este mes · 1 rechazado por ARCA". "Este mes" es el MISMO corte que usan
- * la facturación automática y la cartera del contador (`filtrosFacturacionMes`,
- * bancos-glue.ts: lo emitido por `createdAt` en el mes del negocio), así que los tres
- * cuentan lo mismo. Un rechazo no va a "Para atender hoy": queda en el mes aunque ya se
- * haya vuelto a emitir, y una alerta que no se apaga deja de leerse.
+ * "12 comprobantes este mes · 1 rechazado por ARCA", y en alerta las ventas ANULADAS que
+ * tienen factura y ninguna nota de crédito. "Este mes" es el MISMO corte que usan la
+ * facturación automática y la cartera del contador (`filtrosFacturacionMes`, bancos-glue.ts:
+ * lo emitido por `createdAt` en el mes del negocio), así que los tres cuentan lo mismo.
+ *
+ * Un rechazo no va a "Para atender hoy": queda en el mes aunque ya se haya vuelto a emitir, y
+ * una alerta que no se apaga deja de leerse. La anulada con factura SÍ: pide una acción (la
+ * nota de crédito en ARCA) y hasta que se haga infla lo facturado del mes. Se cuenta entre lo
+ * emitido este mes, con el mismo `where` que el paso del Cierre del mes
+ * (`whereAnuladasConFactura`); lo de meses anteriores lo levanta el cierre de ese mes.
+ *
+ * Límite conocido: el sistema todavía no registra notas de crédito, así que la alerta sigue
+ * aunque la nota ya se haya emitido en ARCA. Se va sola cuando termina el mes (cuenta lo
+ * emitido este mes); el Cierre del mes la deja como paso pendiente que se puede confirmar.
+ *
+ * DOS consultas, no una (como la frontera del Cierre del día): el total y los rechazados
+ * salen de un `groupBy` por estado, y "cuya venta se anuló" es un filtro por relación que un
+ * `groupBy` no puede expresar. Hacerlo en UNA obligaría a traer todas las facturas del mes
+ * con el estado de su venta y contar en memoria: más filas, más lecturas (el `select` de la
+ * relación son otras dos) y una segunda definición de "anulada con factura" al lado de
+ * `whereAnuladasConFactura`, que es la del Cierre del mes. Las dos de acá son conteos por
+ * índice y salen en paralelo.
  */
 export const facturacion: LoaderKpi = async ({ db, tenantId, ahora }) => {
   const { cupo } = filtrosFacturacionMes(ahora);
-  const grupos = await db.invoice.groupBy({
-    by: ["status"],
-    where: { tenantId, ...cupo },
-    _count: { _all: true },
-  });
+  const [grupos, anuladas] = await Promise.all([
+    db.invoice.groupBy({
+      by: ["status"],
+      where: { tenantId, ...cupo },
+      _count: { _all: true },
+    }),
+    db.invoice.count({ where: whereAnuladasConFactura(tenantId, cupo) }),
+  ]);
   const total = grupos.reduce((s, g) => s + g._count._all, 0);
   const rechazados = grupos.find((g) => g.status === "REJECTED")?._count._all ?? 0;
-  const detalle = `${plural(total, "comprobante", "comprobantes")} este mes`;
+  const base = `${plural(total, "comprobante", "comprobantes")} este mes`;
+  const valor = fmtNumberAR(total);
+  const detalle =
+    rechazados > 0 ? `${base} · ${fmtNumberAR(rechazados)} ${plural(rechazados, "rechazado", "rechazados")} por ARCA` : base;
+  if (anuladas === 0) return { valor, detalle };
   return {
-    valor: fmtNumberAR(total),
-    detalle:
-      rechazados > 0
-        ? `${detalle} · ${fmtNumberAR(rechazados)} ${plural(rechazados, "rechazado", "rechazados")} por ARCA`
-        : detalle,
+    valor,
+    detalle,
+    alerta: {
+      valor: fmtNumberAR(anuladas),
+      texto: `${plural(anuladas, "venta anulada", "ventas anuladas")} con factura sin nota de crédito`,
+    },
   };
+};
+
+// ── Libro IVA ────────────────────────────────────────────────────────────────
+
+/**
+ * "IVA de septiembre: $X a pagar". Sale SÓLO de comprobantes con CAE del mes, con el MISMO
+ * `where` que la pantalla (`whereComprobantesDelMes`), agrupados por tipo en una consulta.
+ * La cuenta también es la de la pantalla (`saldoIvaDesdeGrupos`): el IVA con signo, las
+ * notas de crédito restan y el crédito va en 0 (sin facturas de proveedor no hay crédito).
+ *
+ * Sólo para un Responsable Inscripto (alguna A o B en el mes): con sólo C (monotributo) el
+ * botón va sin número, igual que la pantalla, que a un monotributista no le muestra el libro.
+ * Sin comprobantes en el mes no hay número que dar: '—' con el motivo, y la pantalla muestra
+ * el mismo '—' en el saldo. Es plata: pide reports:read (lo declara el catálogo).
+ */
+export const libroIva: LoaderKpi = async ({ db, tenantId, ahora, monto }) => {
+  if (!monto) return null;
+  const mes = mesDelNegocio(ahora);
+  const grupos = await db.invoice.groupBy({
+    by: ["tipoComprobante"],
+    where: whereComprobantesDelMes(tenantId, mes),
+    _sum: { iva: true },
+  });
+  const r = saldoIvaDesdeGrupos(grupos.map((g) => ({ tipoComprobante: g.tipoComprobante, iva: Number(g._sum.iva ?? 0) })));
+  if (r.condicion === "monotributo") return null;
+  if (r.condicion === "sin-comprobantes") {
+    return { sinDato: `Todavía no hay comprobantes con CAE de ${nombreDelMes(mes)}` };
+  }
+  return {
+    valor: fmtMoneyARS(Math.abs(r.saldo), 0),
+    detalle: `IVA de ${nombreDelMes(mes)} ${r.saldo >= 0 ? "a pagar" : "a favor"}, sólo de comprobantes`,
+  };
+};
+
+// ── Cierre del mes ───────────────────────────────────────────────────────────
+
+/**
+ * "Agosto · 7 de 8 pasos listos · paquete descargado por Ana el 03/09". Una consulta: las
+ * filas de auditoría del mes anterior (congelar, reabrir, descargas). Los pasos listos salen
+ * de la foto que se guardó al congelar; antes de congelar dice "sin congelar", y desde el
+ * día 3 del mes va a "Para atender hoy" (`datoCierreDelMes`).
+ */
+export const cierreDelMes: LoaderKpi = async ({ db, tenantId, ahora }) => {
+  const mes = mesParaCerrar(ahora);
+  const filas = await db.auditLog.findMany(consultaAuditoriaCierre(tenantId, mes));
+  const dia = Number(dateStrInBusinessTz(ahora).slice(8, 10));
+  return datoCierreDelMes(filas, ahora, dia);
 };
 
 /**
@@ -164,4 +239,6 @@ export const LOADERS_FINANZAS: Readonly<Record<string, LoaderKpi>> = {
   facturacion,
   "facturacion-automatica": facturacionAutomatica,
   reportes,
+  "libro-iva": libroIva,
+  "cierre-del-mes": cierreDelMes,
 };

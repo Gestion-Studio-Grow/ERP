@@ -1,91 +1,167 @@
 "use client";
 
+// Las tres tablas del Libro IVA del mes. Client component sólo por el orden de las columnas
+// (DataTable es controlado); los datos llegan armados del servidor y no se recalcula nada.
+// En el celular DataTable apila cada fila como tarjeta: sin scroll horizontal.
+// Cada fila se identifica por `clave` (el id de la base): lo visible no es único (dos turnos
+// del mismo servicio, el mismo día y al mismo precio), y DataTable la usa como `key`.
+
 import { useMemo, useState } from "react";
-import { DataTable, fmtMoneyARS, type DataTableColumn, type DataTableSort } from "@/components/ui";
-import type { VentaRow, CompraRow } from "@/lib/libros/libro-iva";
+import { DataTable, EmptyState, fmtMoneyARS, type DataTableColumn, type DataTableSort } from "@/components/ui";
+import type { ComprobanteRow, CompraRow, VentaSinComprobanteRow } from "@/lib/libros/libro-iva";
 
 const pct = (f: number) => (f * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "%";
+const plata = (n: number, fuerte = false) => (
+  <span className={`tabular-nums ${fuerte ? "font-medium" : ""}`}>{fmtMoneyARS(n)}</span>
+);
 
-// Origen de la fila: comprobante fiscal (exacto) vs estimado 21% (derivado del bruto).
-// Canal neutro: el "comprobante" usa el token success (dato firme); el estimado, muted.
-function OrigenBadge({ fuente }: { fuente: "comprobante" | "estimado" }) {
-  return fuente === "comprobante" ? (
-    <span className="rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-medium text-success">Comprobante</span>
-  ) : (
-    <span className="rounded-full bg-surface-sunken px-2 py-0.5 text-[11px] font-medium text-muted">Estimado</span>
-  );
-}
-
-// Orden client-side (DataTable es controlado): ordena las filas por la columna pedida.
-function useSorted<T extends Record<string, unknown>>(rows: T[], numericKeys: ReadonlySet<string>) {
+// Orden del lado del cliente: DataTable avisa qué columna se pidió y acá se reordena.
+function useOrden<T>(filas: T[], numericas: ReadonlySet<string>) {
   const [sort, setSort] = useState<DataTableSort>(null);
-  const sorted = useMemo(() => {
-    if (!sort) return rows;
+  const ordenadas = useMemo(() => {
+    if (!sort) return filas;
     const { key, direction } = sort;
     const dir = direction === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      if (numericKeys.has(key)) return ((a[key] as number) - (b[key] as number)) * dir;
-      return String(a[key]).localeCompare(String(b[key]), "es-AR") * dir;
-    });
-  }, [rows, sort, numericKeys]);
-  return { sorted, sort, setSort };
+    const valor = (x: T) => (x as Record<string, unknown>)[key];
+    return [...filas].sort((a, b) =>
+      numericas.has(key)
+        ? ((valor(a) as number) - (valor(b) as number)) * dir
+        : String(valor(a)).localeCompare(String(valor(b)), "es-AR") * dir,
+    );
+  }, [filas, sort, numericas]);
+  return { ordenadas, sort, setSort };
 }
 
-const VENTAS_NUM = new Set(["neto", "iva", "total"]);
-const COMPRAS_NUM = new Set(["neto", "iva", "total"]);
+const MONTOS = new Set(["neto", "iva", "total"]);
+const TOTAL = new Set(["total"]);
 
-export default function LibrosClient({ ventas, compras }: { ventas: VentaRow[]; compras: CompraRow[] }) {
-  const v = useSorted(ventas as unknown as Record<string, unknown>[], VENTAS_NUM);
-  const c = useSorted(compras as unknown as Record<string, unknown>[], COMPRAS_NUM);
+const LINK = "inline-flex h-11 items-center text-sm font-medium text-strong underline underline-offset-4";
 
-  const ventasCols: DataTableColumn<VentaRow>[] = [
-    { key: "fecha", header: "Fecha", sortable: true, cell: (r) => r.fecha },
-    { key: "tipo", header: "Tipo", cell: (r) => r.tipo },
-    { key: "numero", header: "Número", cell: (r) => r.numero },
-    { key: "cliente", header: "Cliente", cell: (r) => r.cliente },
-    { key: "doc", header: "Documento", cell: (r) => r.doc },
-    { key: "neto", header: "Neto", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{fmtMoneyARS(r.neto)}</span> },
-    { key: "alicuota", header: "Alíc.", align: "right", cell: (r) => <span className="tabular-nums">{pct(r.alicuota)}</span> },
-    { key: "iva", header: "IVA", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{fmtMoneyARS(r.iva)}</span> },
-    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => <span className="tabular-nums font-medium">{fmtMoneyARS(r.total)}</span> },
-    { key: "fuente", header: "Origen", cell: (r) => <OrigenBadge fuente={r.fuente} /> },
+export default function LibrosClient({
+  comprobantes,
+  ventasSinComprobante,
+  compras,
+  conIva,
+}: {
+  comprobantes: ComprobanteRow[];
+  ventasSinComprobante: VentaSinComprobanteRow[];
+  compras: CompraRow[];
+  /** Responsable Inscripto: se muestran neto, alícuota e IVA. En monotributo, sólo el total. */
+  conIva: boolean;
+}) {
+  const c = useOrden(comprobantes, MONTOS);
+  const v = useOrden(ventasSinComprobante, TOTAL);
+  const k = useOrden(compras, TOTAL);
+
+  const columnasIva: DataTableColumn<ComprobanteRow>[] = [
+    { key: "neto", header: "Neto", sortable: true, align: "right", cell: (r) => plata(r.neto) },
+    {
+      key: "alicuotas",
+      header: "Alíc.",
+      align: "right",
+      cell: (r) => <span className="tabular-nums">{r.alicuotas.map((a) => pct(a.alicuota)).join(" y ")}</span>,
+    },
+    { key: "iva", header: "IVA", sortable: true, align: "right", cell: (r) => plata(r.iva) },
   ];
 
-  const comprasCols: DataTableColumn<CompraRow>[] = [
+  const colsComprobantes: DataTableColumn<ComprobanteRow>[] = [
+    { key: "fecha", header: "Fecha", sortable: true, cell: (r) => r.fecha },
+    { key: "tipo", header: "Tipo", cell: (r) => r.tipo },
+    { key: "numero", header: "Número", cell: (r) => <span className="tabular-nums">{r.numero}</span> },
+    { key: "doc", header: "Cliente", cell: (r) => r.doc },
+    ...(conIva ? columnasIva : []),
+    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => plata(r.total, true) },
+    {
+      key: "obs",
+      header: "",
+      cell: (r) =>
+        r.anuladaSinNotaDeCredito ? (
+          <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning">
+            Venta anulada: falta la nota de crédito
+          </span>
+        ) : null,
+    },
+  ];
+
+  const colsSinComprobante: DataTableColumn<VentaSinComprobanteRow>[] = [
+    { key: "fecha", header: "Fecha", sortable: true, cell: (r) => r.fecha },
+    { key: "tipo", header: "Tipo", cell: (r) => r.tipo },
+    { key: "numero", header: "Referencia", cell: (r) => r.numero },
+    { key: "cliente", header: "Cliente", cell: (r) => r.cliente },
+    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => plata(r.total, true) },
+  ];
+
+  const colsCompras: DataTableColumn<CompraRow>[] = [
     { key: "fecha", header: "Fecha", sortable: true, cell: (r) => r.fecha },
     { key: "proveedor", header: "Proveedor", cell: (r) => r.proveedor },
     { key: "doc", header: "Documento", cell: (r) => r.doc },
     { key: "numero", header: "Número", cell: (r) => r.numero },
-    { key: "neto", header: "Neto", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{fmtMoneyARS(r.neto)}</span> },
-    { key: "alicuota", header: "Alíc.", align: "right", cell: (r) => <span className="tabular-nums">{pct(r.alicuota)}</span> },
-    { key: "iva", header: "IVA", sortable: true, align: "right", cell: (r) => <span className="tabular-nums">{fmtMoneyARS(r.iva)}</span> },
-    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => <span className="tabular-nums font-medium">{fmtMoneyARS(r.total)}</span> },
-    { key: "fuente", header: "Origen", cell: (r) => <OrigenBadge fuente={r.fuente} /> },
+    { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => plata(r.total, true) },
   ];
 
   return (
     <div className="space-y-8">
-      <section>
-        <h2 className="mb-3 text-lg font-semibold text-strong">Libro IVA Ventas <span className="text-sm font-normal text-muted">(IVA débito)</span></h2>
+      <section aria-labelledby="libro-comprobantes">
+        <h2 id="libro-comprobantes" className="mb-1 text-lg font-semibold text-strong">
+          Comprobantes emitidos
+        </h2>
+        <p className="mb-3 text-sm text-muted">Con CAE de ARCA. Es lo que se declara.</p>
         <DataTable
-          caption="Libro IVA Ventas del período"
-          columns={ventasCols}
-          rows={v.sorted as unknown as VentaRow[]}
-          rowKey={(r) => `${r.fecha}-${r.tipo}-${r.numero}-${r.total}`}
-          sort={v.sort}
-          onSortChange={v.setSort}
+          caption="Comprobantes emitidos del mes"
+          columns={colsComprobantes}
+          rows={c.ordenadas}
+          rowKey={(r) => r.clave}
+          sort={c.sort}
+          onSortChange={c.setSort}
+          emptyState={
+            <EmptyState
+              title="No hay comprobantes con CAE este mes"
+              description="Las facturas se emiten desde Facturación. Si tu negocio todavía no factura desde el sistema, este bloque queda vacío."
+              action={
+                <a href="/admin/facturacion" className={LINK}>
+                  Ir a Facturación
+                </a>
+              }
+            />
+          }
         />
       </section>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold text-strong">Libro IVA Compras <span className="text-sm font-normal text-muted">(IVA crédito)</span></h2>
+      <section aria-labelledby="libro-sin-comprobante">
+        <h2 id="libro-sin-comprobante" className="mb-1 text-lg font-semibold text-strong">
+          Ventas sin comprobante <span className="text-sm font-normal text-muted">(control)</span>
+        </h2>
+        <p className="mb-3 text-sm text-muted">
+          Pedidos y turnos cobrados que no tienen factura con CAE. No se declaran ni llevan IVA calculado: son para
+          que tu contador sepa qué se vendió sin facturar.
+        </p>
         <DataTable
-          caption="Libro IVA Compras del período"
-          columns={comprasCols}
-          rows={c.sorted as unknown as CompraRow[]}
-          rowKey={(r) => `${r.fecha}-${r.proveedor}-${r.numero}-${r.total}`}
-          sort={c.sort}
-          onSortChange={c.setSort}
+          caption="Ventas sin comprobante del mes"
+          columns={colsSinComprobante}
+          rows={v.ordenadas}
+          rowKey={(r) => r.clave}
+          sort={v.sort}
+          onSortChange={v.setSort}
+          emptyState={<EmptyState title="Todo lo cobrado este mes tiene comprobante" />}
+        />
+      </section>
+
+      <section aria-labelledby="libro-compras">
+        <h2 id="libro-compras" className="mb-1 text-lg font-semibold text-strong">
+          Compras <span className="text-sm font-normal text-muted">(control)</span>
+        </h2>
+        <p className="mb-3 text-sm text-muted">
+          Se cargan sin la factura del proveedor, y sin ella no dan crédito fiscal. Pasale a tu contador las facturas
+          de compra para que sume el crédito.
+        </p>
+        <DataTable
+          caption="Compras del mes"
+          columns={colsCompras}
+          rows={k.ordenadas}
+          rowKey={(r) => r.clave}
+          sort={k.sort}
+          onSortChange={k.setSort}
+          emptyState={<EmptyState title="No hay compras cargadas este mes" />}
         />
       </section>
     </div>

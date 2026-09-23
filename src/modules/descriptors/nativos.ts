@@ -44,8 +44,11 @@ export const posModule: ModuleDescriptor = {
   grupo: "ventas-mostrador",
   resumen: "Cobrás en el mostrador y tomás pedidos, con venta por unidad o por kilo.",
   fit: "Retail, gastronomía y mostrador (no servicios puros).",
+  // La Caja no es de `pos`: es del núcleo (src/apps/catalogo/finanzas.ts). La tienen los
+  // tres rubros, CH incluida, que no trae `pos`; si este módulo la reclamara, apagarlo le
+  // sacaría a un negocio la pantalla con la que cierra el día.
   scopeItems: [
-    { label: "Caja y cobro de mostrador", ruta: "/admin/caja" },
+    { label: "Cobro en el mostrador" },
     { label: "Toma de pedidos", ruta: "/admin/pedidos" },
     { label: "Venta por unidad o por kg" },
   ],
@@ -64,7 +67,9 @@ export const catalogModule: ModuleDescriptor = {
   fit: "Quien vende ítems catalogados (base de stock y compras).",
   scopeItems: [
     { label: "Alta de productos y servicios", ruta: "/admin/catalogo" },
-    { label: "Precios y categorías", ruta: "/admin/ajustes" },
+    // Los precios se cambian en el Catálogo. /admin/ajustes es la pantalla de mermas y
+    // recuentos: mandar "Precios" ahí era un callejón.
+    { label: "Precios y categorías", ruta: "/admin/catalogo" },
     { label: "Compras y reposición", ruta: "/admin/compras" },
   ],
 };
@@ -137,11 +142,13 @@ export const reportsModule: ModuleDescriptor = {
   grupo: "facturacion-cobros",
   // Núcleo: los reportes básicos (ingresos vs tope de facturación) vienen de fábrica.
   nucleoPara: ["comerciante", "pyme", "contador"],
-  resumen: "Cuánto entra, cuánto facturaste y cuánto te falta para el tope del mes.",
-  fit: "Todos: es el tablero básico de ingresos y topes.",
+  // Sin "tope del mes": Reportes no lo muestra, y el único límite que existe es el de
+  // facturas automáticas del plan (una regla comercial de la facturación desde el extracto),
+  // que no es un tope fiscal. Prometerlo acá era decirle al cliente algo que no iba a ver.
+  resumen: "Cuánto entra en el período y cómo rinde el negocio.",
+  fit: "Todos: es el tablero básico de ingresos.",
   scopeItems: [
     { label: "Ingresos del período", ruta: "/admin/reportes" },
-    { label: "Facturado vs. tope del mes" },
     { label: "Métricas del negocio" },
   ],
 };
@@ -196,10 +203,12 @@ export const reviewsModule: ModuleDescriptor = {
   capability: "reviews:manage",
   rubros: "todos",
   grupo: "clientes-fidelizacion",
-  resumen: "Pedís y mostrás las opiniones de tus clientes para trabajar la reputación.",
+  // No promete "pedir opiniones": hoy nadie las pide (no hay envío); la pantalla aprueba y
+  // publica las que dejan los clientes. Cuando exista el pedido, vuelve a la lista.
+  resumen: "Elegís qué opiniones de tus clientes se muestran en la web para trabajar la reputación.",
   fit: "Quien trabaja su reputación y quiere reseñas.",
   scopeItems: [
-    { label: "Pedir opiniones a clientes", ruta: "/admin/resenas" },
+    { label: "Aprobar y publicar opiniones", ruta: "/admin/resenas" },
     { label: "Mostrar calificaciones" },
   ],
 };

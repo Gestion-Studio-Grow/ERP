@@ -13,19 +13,31 @@ import { prisma } from "@/lib/prisma";
 import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
+import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const CONCEPTO_PRODUCTOS = 1;
 const DOC_CONSUMIDOR_FINAL = 99;
 
-/** Fecha de hoy en formato ARCA `AAAAMMDD` (zona horaria del server). */
-function fechaHoy(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}${m}${day}`;
+/**
+ * Lo que el facturador usa de afuera. Es un parámetro (con los reales por defecto) para que
+ * el test lo EJECUTE con el reloj fijo y sin base: la fecha del comprobante es la del día del
+ * negocio, y eso se prueba corriendo `facturarOrden`, no sólo la función de la fecha.
+ */
+export interface DepsFacturarOrden {
+  leerOrden: (orderId: string, tenantId: string) => Promise<{ total: number } | null>;
+  getFiscalProfile: typeof getFiscalProfile;
+  createInvoice: typeof createInvoice;
+  processArcaOutbox: typeof processArcaOutbox;
 }
+
+const DEPS: DepsFacturarOrden = {
+  leerOrden: (orderId, tenantId) =>
+    prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { total: true } }),
+  getFiscalProfile,
+  createInvoice,
+  processArcaOutbox,
+};
 
 /**
  * Crea la factura de una orden y la despacha al plugin ARCA (tick del simulador).
@@ -40,21 +52,21 @@ function fechaHoy(): string {
 export async function facturarOrden(
   orderId: string,
   tenantId: string,
+  deps: DepsFacturarOrden = DEPS,
 ): Promise<string | null> {
-  const order = await prisma.order.findFirst({
-    where: { id: orderId, tenantId },
-    select: { total: true },
-  });
+  const order = await deps.leerOrden(orderId, tenantId);
   if (!order) return null;
 
   const monto = order.total;
   if (!(monto > 0)) return null;
 
-  const perfil = await getFiscalProfile(tenantId);
+  const perfil = await deps.getFiscalProfile(tenantId);
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, monto);
-  const fecha = fechaHoy();
+  // El día del NEGOCIO, no el del servidor: facturado el 31/08 a las 23:30 argentinas es
+  // del 31/08 (en UTC ya es 1/09, y la venta caía en el período fiscal siguiente).
+  const fecha = fechaFiscalDelDia();
 
-  const invoiceId = await createInvoice({
+  const invoiceId = await deps.createInvoice({
     tenantId,
     concepto: CONCEPTO_PRODUCTOS,
     fecha,
@@ -76,7 +88,7 @@ export async function facturarOrden(
   });
 
   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
-  await processArcaOutbox();
+  await deps.processArcaOutbox();
 
   return invoiceId;
 }

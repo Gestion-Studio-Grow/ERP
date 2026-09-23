@@ -40,6 +40,14 @@ import {
 } from "@/lib/monitor-core";
 import type { Prisma } from "@/generated/prisma/client";
 import type { FiltrosFacturacionMes } from "@/lib/bancos-glue";
+import {
+  cierreMesCliente,
+  consultaUltimaDescarga,
+  consultaUltimoEstadoCierre,
+  mesParaCerrar,
+  type CierreMesCliente,
+  type RegistroCierre,
+} from "@/lib/cierre-mes/cierre-mes";
 
 // ── Vocabulario (espejo del enum EstadoCarteraCliente del schema) ────────────
 
@@ -48,7 +56,11 @@ export type EstadoCartera = "activa" | "pausada" | "baja";
 /** Id del módulo en el catálogo (ADR-054): la ASIGNACIÓN al tenant estudio es la llave del panel. */
 export const MODULO_CARTERA = "cartera";
 
-/** % del cap de facturas del mes desde el cual el cliente cuenta como "cerca del tope" (§12.3). */
+/**
+ * % del límite de facturas automáticas del plan desde el cual el cliente cuenta como "cerca
+ * del límite" (§12.3). Es una regla COMERCIAL del producto (159 por mes, bancos/reglas.ts):
+ * no es la categoría del monotributo, que va por ingresos de 12 meses.
+ */
 export const UMBRAL_ALERTA_CAP = 0.8;
 
 // ── Contratos del panel (el scaffold FilaCartera/ResumenCartera, hecho real) ──
@@ -88,6 +100,11 @@ export interface FilaCartera extends ResumenFiscalCliente {
   validezFiscal: boolean;
   /** Subdominio del cliente si tiene URL propia (para "abrir su backoffice"). */
   subdomain: string | null;
+  /**
+   * Cierre del mes anterior del cliente (congelado o no, y quién bajó el paquete). Opcional:
+   * `armarFilaCartera` no lo conoce; lo agrega `recorrerCartera` desde la misma pasada.
+   */
+  cierreMes?: CierreMesCliente | null;
 }
 
 /** KPIs de cabecera del panel (conserva el contrato del scaffold, ahora real). */
@@ -95,7 +112,7 @@ export interface ResumenCartera {
   /** Clientes activos (los pausados se cuentan aparte). */
   clientes: number;
   pausados: number;
-  /** Facturas del CUPO del mes (todo lo emitido, rechazados incluidos), entre todos. */
+  /** Facturas automáticas del mes (todo lo emitido, rechazados incluidos: lo que cuenta para el límite del plan), entre todos. */
   facturasMes: number;
   /** Suma de todos los `montoFacturadoMes`, con y sin validez fiscal. */
   montoFacturadoMes: number;
@@ -105,8 +122,10 @@ export interface ResumenCartera {
   montoPruebaMes: number;
   pendientesRevision: number;
   listasParaEmitir: number;
-  /** Clientes con pctCap ≥ UMBRAL_ALERTA_CAP. */
+  /** Clientes con pctCap ≥ UMBRAL_ALERTA_CAP (cerca del límite de facturas automáticas del plan). */
   cercaDelTope: number;
+  /** El mes anterior: de los clientes activos, cuántos lo tienen congelado. `mes` null = sin datos. */
+  cierreMes: { mes: string | null; congelados: number; activos: number };
 }
 
 // ── Puertos (los cablea cartera-actions; los tests inyectan fakes) ───────────
@@ -184,6 +203,11 @@ export function resumirCartera(filas: FilaCartera[]): ResumenCartera {
     pendientesRevision: suma((f) => f.pendientesRevision),
     listasParaEmitir: suma((f) => f.listasParaEmitir),
     cercaDelTope: filas.filter((f) => f.pctCap >= UMBRAL_ALERTA_CAP).length,
+    cierreMes: {
+      mes: filas.find((f) => f.cierreMes)?.cierreMes?.mes ?? null,
+      congelados: filas.filter((f) => f.estado === "activa" && f.cierreMes?.congelado).length,
+      activos: filas.filter((f) => f.estado === "activa").length,
+    },
   };
 }
 
@@ -219,6 +243,8 @@ export interface ContextoRecoleccion {
 export interface RecoleccionCliente {
   resumen: ResumenFiscalCliente;
   hechos: HechosCliente;
+  /** El cierre del mes anterior del cliente. Opcional: los recolectores de prueba no lo traen. */
+  cierreMes?: CierreMesCliente;
 }
 
 /** Decimal de Prisma → number, en el borde (ADR-057; mismo criterio que `toNum` de bancos-glue). */
@@ -252,8 +278,12 @@ export async function recolectarCliente(
 ): Promise<RecoleccionCliente> {
   const tenantId = fila.clienteTenantId;
   const { filtros } = ctx;
+  // El mes que el cliente tendría que tener cerrado: el anterior al de hoy (hora argentina).
+  const mesACerrar = mesParaCerrar(ctx.inicioDeHoy);
 
   const [
+    ultimoEstadoCierre,
+    ultimaDescarga,
     facturasMes,
     facturado,
     rechazadasMes,
@@ -266,6 +296,10 @@ export async function recolectarCliente(
     credencial,
     ultimoMovimientoCaja,
   ] = await Promise.all([
+    // Cierre del mes: dos filas de SU auditoría (la última de congelar/reabrir y la última
+    // descarga del paquete), con el `tx` del cliente como todo lo demás.
+    tx.auditLog.findFirst(consultaUltimoEstadoCierre(tenantId, mesACerrar)),
+    tx.auditLog.findFirst(consultaUltimaDescarga(tenantId, mesACerrar)),
     tx.invoice.count({ where: { tenantId, ...filtros.cupo } }),
     tx.invoice.aggregate({ _sum: { total: true }, where: { tenantId, ...filtros.facturado } }),
     tx.invoice.count({ where: { tenantId, ...filtros.rechazado } }),
@@ -326,7 +360,11 @@ export async function recolectarCliente(
     .filter((d): d is Date => d instanceof Date)
     .map((d) => d.getTime());
 
+  const filasCierre: RegistroCierre[] = [];
+  for (const f of [ultimoEstadoCierre, ultimaDescarga]) if (f) filasCierre.push(f);
+
   return {
+    cierreMes: cierreMesCliente(mesACerrar, filasCierre),
     resumen: {
       facturasMes,
       capFacturasMes,
@@ -398,7 +436,7 @@ export async function recorrerCartera(
     const meta = metas.get(fila.clienteTenantId);
     if (!meta) continue; // fila huérfana (tenant borrado): no rompe el panel
     const pasada = await ports.recolectar(fila, meta);
-    filas.push(armarFilaCartera(fila, meta, pasada.resumen, modoArca));
+    filas.push({ ...armarFilaCartera(fila, meta, pasada.resumen, modoArca), cierreMes: pasada.cierreMes ?? null });
     hechos.push(pasada.hechos);
   }
   return { filas, resumen: resumirCartera(filas), hechos };

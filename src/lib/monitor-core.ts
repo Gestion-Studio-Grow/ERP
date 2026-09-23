@@ -37,7 +37,10 @@ import { dateStrInBusinessTz } from "@/lib/datetime";
 
 // ── Umbrales (explícitos y exportados: son política, no magia) ───────────────
 
-/** % del cupo mensual desde el que el cliente entra en alerta (espeja UMBRAL_ALERTA_CAP). */
+/**
+ * % del límite de facturas automáticas del plan desde el que el cliente entra en alerta
+ * (espeja UMBRAL_ALERTA_CAP).
+ */
 export const UMBRAL_CAP_ATENCION = 0.8;
 
 /** Reintentos del outbox a partir de los cuales el despacho se considera trabado. */
@@ -145,7 +148,8 @@ export interface HechosCliente {
   certVenceAt: string | null;
 
   // El mes en curso, los dos por el reloj de EMISIÓN (`Invoice.createdAt`, bordes en hora
-  // argentina): el CUPO cuenta todo lo emitido; `rechazadasMes`, lo emitido que ARCA rechazó.
+  // argentina): el LÍMITE DE FACTURAS AUTOMÁTICAS DEL PLAN cuenta todo lo emitido;
+  // `rechazadasMes`, lo emitido que ARCA rechazó.
   facturasMes: number;
   capFacturasMes: number;
   rechazadasMes: number;
@@ -373,27 +377,28 @@ export function evaluarCliente(
     });
   }
 
-  // 5. CUPO DEL PLAN. Es una regla COMERCIAL (159 facturas automáticas por mes,
-  //    plugins/bancos/domain/reglas.ts), no la categoría del monotributo: esa depende de
-  //    los ingresos de 12 meses, superficie, energía y alquileres, y se revisa por semestre.
-  //    Decirle a un contador que recategorice por la CANTIDAD de tickets es la forma de que
-  //    deje de creerle a la consola. Alcanzado frena el automático (banco y Mercado Pago).
+  // 5. LÍMITE DE FACTURAS AUTOMÁTICAS DEL PLAN. Es una regla COMERCIAL del producto (159
+  //    facturas automáticas por mes, plugins/bancos/domain/reglas.ts), no un tope fiscal ni la
+  //    categoría del monotributo: esa depende de los ingresos de 12 meses, superficie, energía
+  //    y alquileres, y se revisa por semestre. Nombrarlo "tope" o "cupo" a secas lo hacía
+  //    parecer fiscal. Alcanzado frena el automático (banco y Mercado Pago), no la factura
+  //    manual. Los ids (`cupo_del_plan`, `cerca_del_cupo`) quedan: son internos.
   if (cap > 0 && h.facturasMes >= cap) {
     senales.push({
       id: "cupo_del_plan",
       severidad: "critico",
-      titulo: "Llegó al cupo del plan",
-      detalle: `Llegó al cupo de facturas automáticas de su plan: ${h.facturasMes} de ${cap} este mes.`,
-      accion: "Ampliar el cupo del plan en la configuración de su facturación automática.",
+      titulo: "Llegó al límite del plan",
+      detalle: `Llegó al límite de facturas automáticas del plan: ${h.facturasMes} de ${cap} este mes.`,
+      accion: "Ampliar el límite de facturas automáticas del plan en la configuración de su facturación automática.",
       resuelve: { quien: "estudio", ruta: "/admin/facturacion/bancos/configuracion" },
     });
   } else if (cap > 0 && pctCap >= UMBRAL_CAP_ATENCION) {
     senales.push({
       id: "cerca_del_cupo",
       severidad: "atencion",
-      titulo: "Cerca del cupo del plan",
-      detalle: `${h.facturasMes} de ${cap} facturas automáticas del mes (${Math.round(pctCap * 100)}%).`,
-      accion: "Ampliar el cupo del plan antes de que frene la emisión automática.",
+      titulo: "Cerca del límite del plan",
+      detalle: `${h.facturasMes} de ${cap} facturas automáticas del mes (${Math.round(pctCap * 100)}% del límite del plan).`,
+      accion: "Ampliar el límite de facturas automáticas del plan antes de que frene la emisión automática.",
       resuelve: { quien: "estudio", ruta: "/admin/facturacion/bancos/configuracion" },
     });
   }
@@ -574,8 +579,8 @@ export interface TitularMonitor {
  * Con la emisión apagada en la plataforma ningún comprobante llega a ARCA (el cron del
  * outbox no despacha y `emitirPropuestas` tampoco), así que "Todos pueden emitir"
  * contradice el aviso que va justo abajo. Ahí manda la plataforma; si además hay clientes
- * con un bloqueo PROPIO (punto de venta, certificado, cupo), se dice en la nota: son los
- * que siguen sin poder emitir el día que se encienda.
+ * con un bloqueo PROPIO (punto de venta, certificado, límite del plan), se dice en la nota:
+ * son los que siguen sin poder emitir el día que se encienda.
  */
 export function titularMonitor(resumen: ResumenMonitor, avisos: readonly AvisoPlataforma[]): TitularMonitor {
   const n = resumen.sinPoderEmitir;

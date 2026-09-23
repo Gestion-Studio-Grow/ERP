@@ -88,7 +88,10 @@ export const APPS_FINANZAS = [
     capability: "billing:manage",
     modulo: "arca",
     estado: "lista",
-    kpi: { id: "facturacion", mide: "Comprobantes del mes y cuántos rechazó ARCA." },
+    kpi: {
+      id: "facturacion",
+      mide: "Comprobantes del mes, cuántos rechazó ARCA y las ventas anuladas con factura sin nota de crédito.",
+    },
     palabras: ["arca", "afip", "comprobantes", "iva", "factura"],
     menuDeHoy: { etiqueta: "Facturación", orden: 170 },
   },
@@ -107,6 +110,29 @@ export const APPS_FINANZAS = [
       mide: "Ventas del extracto listas para emitir y las que esperan datos del comprador.",
     },
     palabras: ["extracto", "banco", "facturar solo", "acreditaciones"],
+  },
+  // CIERRE DEL MES: del núcleo, como la caja. Todo negocio que maneja plata cierra el mes
+  // para su contador, tenga o no facturación electrónica. Pide reports:read (sólo la dueña):
+  // congelar el mes y bajar el paquete es trabajo de ella, y el paquete lleva todos los
+  // montos. Reabrir además exige OWNER explícito (cierre-mes/cierre-mes.ts). No estaba en la
+  // barra de hoy: no lleva `menuDeHoy`, así que CH no ve un cambio en su menú.
+  {
+    id: "cierre-del-mes",
+    nombre: "Cierre del mes",
+    descripcion: "Revisar el mes, congelarlo y bajar el paquete para tu contador.",
+    // El del cierre del día: es el mismo gesto, un mes entero. El candado ya es de "App no
+    // disponible" y en el Inicio se leería como "bloqueada".
+    icono: "cierre",
+    ruta: "/admin/cierre-mes",
+    espacio: "finanzas",
+    capability: "reports:read",
+    modulo: null,
+    estado: "lista",
+    kpi: {
+      id: "cierre-del-mes",
+      mide: "Si el mes anterior está congelado, cuántos pasos quedaron listos y quién bajó el paquete.",
+    },
+    palabras: ["cerrar el mes", "fin de mes", "paquete", "contadora", "contador", "congelar el mes", "exportar al contador"],
   },
   {
     id: "reportes",
@@ -162,7 +188,11 @@ export const APPS_FINANZAS = [
     modulo: "libros",
     perfilMin: "enterprise",
     estado: "lista",
-    kpi: { id: "libro-iva", mide: "IVA del mes a pagar (sólo Responsable Inscripto).", capability: "reports:read" },
+    kpi: {
+      id: "libro-iva",
+      mide: "IVA del mes a pagar, sólo de comprobantes con CAE (sólo si el negocio emite A o B).",
+      capability: "reports:read",
+    },
     menuDeHoy: { etiqueta: "Libros", orden: 270, moduloDeHoy: null },
   },
 ] as const satisfies readonly AppDescriptor[];

@@ -12,15 +12,24 @@ import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
 import type { PagoMP } from "@/plugins/mercadopago";
+import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
 const CONCEPTO_PRODUCTOS = 1; // venta de productos/servicios sueltos, sin fechas de servicio
 const DOC_CONSUMIDOR_FINAL = 99;
 
-function fechaHoy(): string {
-  const d = new Date();
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+/**
+ * Lo que el facturador usa de afuera. Es un parámetro (con los reales por defecto) para que
+ * el test lo EJECUTE con el reloj fijo y sin base: sin fecha de acreditación, la del día del
+ * negocio, y eso se prueba corriendo `facturarPagoMP`, no sólo la función de la fecha.
+ */
+export interface DepsFacturarPagoMP {
+  getFiscalProfile: typeof getFiscalProfile;
+  createInvoice: typeof createInvoice;
+  processArcaOutbox: typeof processArcaOutbox;
 }
+
+const DEPS: DepsFacturarPagoMP = { getFiscalProfile, createInvoice, processArcaOutbox };
 
 /**
  * Crea la Factura C de un pago MP y la despacha al plugin ARCA (tick del
@@ -29,14 +38,17 @@ function fechaHoy(): string {
 export async function facturarPagoMP(
   pago: PagoMP,
   tenantId: string,
+  deps: DepsFacturarPagoMP = DEPS,
 ): Promise<string | null> {
   if (pago.estado !== "approved" || !(pago.monto > 0)) return null;
 
-  const perfil = await getFiscalProfile(tenantId);
+  const perfil = await deps.getFiscalProfile(tenantId);
   const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, pago.monto);
-  const fecha = pago.fechaAcreditacion ?? fechaHoy();
+  // Sin fecha de acreditación de MP, el día del NEGOCIO (no el del servidor, que a las 21
+  // argentinas ya está en el día siguiente): ver libros/fecha-fiscal.ts.
+  const fecha = pago.fechaAcreditacion ?? fechaFiscalDelDia();
 
-  const invoiceId = await createInvoice({
+  const invoiceId = await deps.createInvoice({
     tenantId,
     concepto: CONCEPTO_PRODUCTOS,
     fecha,
@@ -54,6 +66,6 @@ export async function facturarPagoMP(
     origin: { type: "MP_PAYMENT", id: pago.id },
   });
 
-  await processArcaOutbox();
+  await deps.processArcaOutbox();
   return invoiceId;
 }

@@ -30,6 +30,7 @@ import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/f
 import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
 import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
+import { fechaFiscalDelDia, ventanaYaFacturada } from "@/lib/libros/fecha-fiscal";
 import {
   CAP_FACTURAS_MES_DEFAULT,
   cuitValido,
@@ -93,10 +94,12 @@ export function toNum(v: unknown): number {
 // lo emitido entre las 21:00 y las 24:00 del último día caía en el mes siguiente. Es el
 // mismo defecto que ya se corrigió en el libro IVA (libros/libro-iva.ts, `dateToIso`).
 
-/** "AAAAMMDD" del día del negocio en que cae `ahora`. PURA (el reloj entra por parámetro). */
-export function fechaFiscalDelDia(ahora: Date = new Date()): string {
-  return dateStrInBusinessTz(ahora).replace(/-/g, "");
-}
+/**
+ * "AAAAMMDD" del día del negocio en que cae `ahora`. Vive en libros/fecha-fiscal.ts, que
+ * es la fuente de los tres facturadores; se re-exporta acá porque Facturita y los tests de
+ * este glue la importan de este módulo.
+ */
+export { fechaFiscalDelDia };
 
 /** Año y mes (1-12) del negocio en que cae `ahora`, y los del mes siguiente. */
 function mesDelNegocio(ahora: Date): { y: number; m: number; sy: number; sm: number } {
@@ -438,15 +441,38 @@ export class AprendizajeBancoPrisma implements AprendizajeBancoPort {
 }
 
 /**
- * Detección cruzada banco↔MP REAL: ¿ya hay una factura del tenant con esta
- * fecha y este total? (típico: el cobro entró por MP, MP lo facturó, y el
- * mismo monto aparece acreditado en el extracto del banco).
+ * Qué comprobante cuenta como "esta acreditación ya se facturó". PURA.
+ *
+ * Mismo total y fecha de comprobante entre 3 días ANTES de la acreditación y el día de la
+ * acreditación (`ventanaYaFacturada`, libros/fecha-fiscal.ts). Antes pedía la MISMA fecha:
+ * una transferencia de la venta del viernes acreditada el lunes volvía a proponerse para
+ * facturar, y la misma venta salía con dos comprobantes. Un rechazado por ARCA no cuenta:
+ * esa venta no quedó facturada y hay que emitirla.
+ *
+ * La ventana más ancha también junta dos ventas legítimas del mismo importe en días
+ * seguidos: la segunda va a revisión en vez de emitirse sola. Es el error barato (un clic de
+ * confirmación); el otro es una factura de más, que sólo se corrige con nota de crédito.
+ */
+export function whereYaFacturadaPorOtraVia(tenantId: string, fechaAcreditacion: string, monto: number) {
+  return {
+    tenantId,
+    fecha: ventanaYaFacturada(fechaAcreditacion),
+    total: monto,
+    status: { not: "REJECTED" as const },
+  };
+}
+
+/**
+ * Detección cruzada banco↔MP REAL: ¿ya hay una factura del tenant con este total y una
+ * fecha de hasta 3 días antes de la acreditación? (típico: la venta se facturó el día que
+ * se hizo, o el cobro entró por MP y MP lo facturó, y el mismo monto aparece acreditado
+ * después en el extracto del banco).
  */
 export function crearDeteccionCruzadaInvoices(tenantId: string): DeteccionCruzadaPort {
   return {
     async facturadoPorOtraVia(fecha: string, monto: number): Promise<boolean> {
       const existente = await prisma.invoice.findFirst({
-        where: { tenantId, fecha, total: monto },
+        where: whereYaFacturadaPorOtraVia(tenantId, fecha, monto),
         select: { id: true },
       });
       return existente !== null;
@@ -714,10 +740,13 @@ export async function emitirPropuestas(
       capAlcanzado,
       ...(capAlcanzado
         ? {
+            // "Límite de facturas automáticas del plan": es una regla COMERCIAL del producto,
+            // no un tope fiscal ni la categoría del monotributo (que va por ingresos de 12
+            // meses). Este mensaje lo lee también el contador en su cartera.
             mensaje:
-              `Se alcanzó el tope de ${cap} facturas del mes` +
+              `Se llegó al límite de facturas automáticas del plan (${cap} por mes)` +
               (bloqueadas > 0
-                ? `: ${bloqueadas} ${bloqueadas === 1 ? "propuesta quedó" : "propuestas quedaron"} SIN emitir. Se emiten recién el mes próximo (o subiendo el tope en la configuración del módulo).`
+                ? `: ${bloqueadas} ${bloqueadas === 1 ? "propuesta quedó" : "propuestas quedaron"} SIN emitir. Se emiten recién el mes próximo, o ampliando el límite del plan en la configuración de la facturación automática.`
                 : "."),
           }
         : {}),
