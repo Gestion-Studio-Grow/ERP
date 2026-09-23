@@ -5,7 +5,7 @@
 //
 // Se ejecuta la decisión con datos: el plan que arma `planificarPlanilla` y, para la
 // idempotencia, ese plan APLICADO a un catálogo en memoria con los mismos `data` que
-// `escribirPlan` le manda a la base (createMany con `data` y UPDATE con COALESCE: un campo
+// `escribirPlan` le manda a la base (createManyAndReturn con `data` y UPDATE con COALESCE: un campo
 // ausente no se toca). Al final, `escribirPlan` corre contra una tx falsa para ver que las
 // sentencias llevan exactamente esos datos y que un conteo que no cierra deshace todo.
 
@@ -271,12 +271,20 @@ test("huella: el mismo archivo contra el mismo catálogo da la misma; si el cat�
 // ── escribirPlan contra una tx falsa ─────────────────────────────────────────
 
 function txFalsa(filasActualizadas?: number) {
-  const log: { createMany?: unknown; sql?: string; valores?: unknown[] } = {};
+  const log: { createMany?: unknown; select?: unknown; sql?: string; valores?: unknown[] } = {};
   const tx = {
     product: {
-      async createMany(args: { data: unknown[] }) {
+      // Las altas vuelven con su id (createManyAndReturn): el llamador anota su precio.
+      async createManyAndReturn(args: { data: Record<string, unknown>[]; select: unknown }) {
         log.createMany = args.data;
-        return { count: args.data.length };
+        log.select = args.select;
+        return args.data.map((d, i) => ({
+          id: `nuevo-${i}`,
+          name: d.name,
+          saleUnit: d.saleUnit,
+          price: d.price,
+          pricePerKg: d.pricePerKg,
+        }));
       },
     },
     async $executeRaw(q: TemplateStringsArray, ...valores: unknown[]) {
@@ -288,14 +296,19 @@ function txFalsa(filasActualizadas?: number) {
   return { tx: tx as unknown as LedgerTx, log };
 }
 
-test("escribirPlan: UN createMany con las altas del tenant y UN update con null = no tocar", async () => {
+test("escribirPlan: UN createManyAndReturn con las altas del tenant y UN update con null = no tocar", async () => {
   const plan = planificarPlanilla(
     csv("Vacío;kg;13200;;", "Chorizo parrillero;u;950;no;", "Entraña;kg;18900;;"),
     CATALOGO,
   );
   const { tx, log } = txFalsa();
   const r = await escribirPlan(tx, "t-magra", plan);
-  assert.deepEqual(r, { altas: 1, cambios: 2 });
+  assert.deepEqual(r, {
+    altas: 1,
+    cambios: 2,
+    creados: [{ id: "nuevo-0", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 18900 }],
+  });
+  assert.deepEqual(log.select, { id: true, name: true, saleUnit: true, price: true, pricePerKg: true });
   assert.deepEqual(log.createMany, [
     { tenantId: "t-magra", name: "Entraña", unit: "kg", saleUnit: "WEIGHT", price: null, pricePerKg: 18900, trackStock: true },
   ]);

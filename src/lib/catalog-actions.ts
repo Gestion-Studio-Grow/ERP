@@ -12,6 +12,8 @@ import { writeProductExtras } from "@/lib/carniceria/product-extras";
 import { parseSaleFields } from "@/lib/stock/product-sale-fields";
 import { crearProductoConStockInicial } from "@/lib/stock/alta-producto";
 import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { cambioDePrecioDeUnProducto, registrarCambiosDePrecio } from "@/lib/catalogo/precios-auditoria";
 import {
   clearCommissionOverride,
   setCommissionOverride,
@@ -339,9 +341,10 @@ export async function createProduct(formData: FormData) {
   const lowStockAt = parseLowStockAt(formData) ?? 5;
   const venta = parseSaleFields(formData);
   const extras = parseCarniceriaExtras(formData);
+  const { isRetail } = await getCurrentTenantRubro();
   const created = await tenantTransaction(
-    (tx) =>
-      crearProductoConStockInicial(tx, {
+    async (tx) => {
+      const creado = await crearProductoConStockInicial(tx, {
         tenantId,
         name,
         unit,
@@ -349,7 +352,11 @@ export async function createProduct(formData: FormData) {
         venta,
         stockInicial,
         createdBy: `user:${user.id}`,
-      }),
+      });
+      // Un corte que nace con precio necesita su etiqueta: queda anotado en la misma tx.
+      if (isRetail) await registrarPrecioDeUnProducto(tx, tenantId, `user:${user.id}`, "alta", creado.id, name, null, venta);
+      return creado;
+    },
     { tenantId },
   );
   await writeProductExtras(created.id, extras);
@@ -373,8 +380,13 @@ export async function createProduct(formData: FormData) {
 // El `where` lleva `tenantId` además del id (mismo criterio que 75c1204): la escritura ya
 // queda acotada por el candado de aplicación y por RLS, pero no depende sólo de ellos.
 // Como en el alta, todo se lee ANTES de escribir: un costo ilegible no deja la edición a medias.
+//
+// En un MOSTRADOR, si el precio de venta cambia, deja su fila `cambio-de-precio` en la MISMA
+// transacción que lo guarda (precios-auditoria.ts): el antes, el después y quién. Es lo que lee
+// Etiquetas para saber qué cartel falta reimprimir. En un negocio de servicios no se anota
+// (CH no cambia sin el OK del dueño); ahí los precios que importan son los de los servicios.
 export async function updateProduct(formData: FormData) {
-  await requireCapability("catalog:manage");
+  const user = await requireCapability("catalog:manage");
   const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
@@ -384,19 +396,49 @@ export async function updateProduct(formData: FormData) {
   const lowStockAt = parseLowStockAt(formData);
   const venta = parseSaleFields(formData);
   const extras = parseCarniceriaExtras(formData);
-  const res = await prisma.product.updateMany({
-    where: { id, tenantId, deletedAt: null },
-    data: {
-      name,
-      unit,
-      // Vacío = no se toca (antes `Number("")` guardaba 0, y el aviso sólo saltaba en cero).
-      ...(lowStockAt != null ? { lowStockAt } : {}),
-      ...venta,
-    },
-  });
-  if (res.count === 0) throw new Error("No se encontró el producto para guardar los cambios.");
+  const where = { id, tenantId, deletedAt: null };
+  const data = {
+    name,
+    unit,
+    // Vacío = no se toca (antes `Number("")` guardaba 0, y el aviso sólo saltaba en cero).
+    ...(lowStockAt != null ? { lowStockAt } : {}),
+    ...venta,
+  };
+  const { isRetail } = await getCurrentTenantRubro();
+  if (!isRetail) {
+    // Servicios: el mismo camino de siempre, sin registro de precio.
+    const res = await prisma.product.updateMany({ where, data });
+    if (res.count === 0) throw new Error("No se encontró el producto para guardar los cambios.");
+  } else {
+    // Mostrador: el precio de antes, el guardado y su registro, en UNA transacción.
+    await tenantTransaction(
+      async (tx) => {
+        const antes = await tx.product.findFirst({ where, select: { saleUnit: true, price: true, pricePerKg: true } });
+        const res = await tx.product.updateMany({ where, data });
+        if (res.count === 0 || !antes) throw new Error("No se encontró el producto para guardar los cambios.");
+        const previo = { ...antes, saleUnit: antes.saleUnit === "WEIGHT" ? ("WEIGHT" as const) : ("UNIT" as const) };
+        await registrarPrecioDeUnProducto(tx, tenantId, `user:${user.id}`, "catalogo", id, name, previo, venta);
+      },
+      { tenantId },
+    );
+  }
   await writeProductExtras(id, extras);
   revalidatePath(CATALOG_PATH);
+}
+
+// Sin export: no es endpoint. Anota el cambio de precio de un producto si lo hubo.
+async function registrarPrecioDeUnProducto(
+  tx: Parameters<typeof registrarCambiosDePrecio>[0],
+  tenantId: string,
+  actor: string,
+  origen: "alta" | "catalogo",
+  productId: string,
+  nombre: string,
+  antes: { saleUnit: "UNIT" | "WEIGHT"; price: number | null; pricePerKg: number | null } | null,
+  venta: ReturnType<typeof parseSaleFields>,
+): Promise<void> {
+  const cambio = cambioDePrecioDeUnProducto({ productId, nombre, antes, venta });
+  if (cambio) await registrarCambiosDePrecio(tx, { tenantId, actor, origen, cambios: [cambio] });
 }
 
 export async function toggleProductActive(formData: FormData) {

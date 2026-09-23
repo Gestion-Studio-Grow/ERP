@@ -18,6 +18,9 @@ import Link from "next/link";
 import { createProduct, updateProduct, toggleProductActive, deleteProduct } from "@/lib/catalog-actions";
 import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { salePriceOf, type SaleUnit } from "@/lib/stock/product-sale-fields";
+// "Stock bajo" tiene UNA definición (la de Stock y la del número del Inicio): un producto que
+// no controla stock nunca está "bajo". Pura y sin Prisma: se puede usar en el cliente.
+import { esStockBajo } from "@/lib/inventory/valuation";
 import {
   leerCantidad,
   leerImporte,
@@ -301,7 +304,7 @@ function PriceCell({ product }: { product: Product }) {
 
 function ProductRow({ product }: { product: Product }) {
   const [editing, setEditing] = useState(false);
-  const lowStock = product.stock <= product.lowStockAt;
+  const lowStock = esStockBajo(product);
 
   if (editing) {
     return (
@@ -418,7 +421,7 @@ function ProductRow({ product }: { product: Product }) {
 }
 
 export default function ProductsSection({ products }: { products: Product[] }) {
-  const lowStockCount = products.filter((p) => p.active && p.stock <= p.lowStockAt).length;
+  const lowStockCount = products.filter((p) => p.active && esStockBajo(p)).length;
   const sellableCount = products.filter((p) => p.active && salePriceOf(p) != null).length;
 
   return (

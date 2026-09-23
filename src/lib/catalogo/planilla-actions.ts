@@ -15,9 +15,15 @@
 // catálogo leído DENTRO de la transacción que escribe. Lo único que usa de la vista previa
 // es la huella, para negarse si el plan ya no es el que la persona vio (alguien cambió un
 // precio en el medio, o el archivo es otro).
+//
+// Cada precio que cambia (y cada alta con precio) deja además su fila `cambio-de-precio` en
+// la MISMA transacción (precios-auditoria.ts): es lo que leen "Último aumento" y Etiquetas
+// para saber qué cartel falta reimprimir. El resumen de la planilla (`import`) sigue igual.
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/authz";
+import type { SessionUser } from "@/lib/session";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
@@ -34,6 +40,7 @@ import {
   type PlanPlanilla,
   type ProductoDelCatalogo,
 } from "@/lib/catalogo/planilla-core";
+import { registrarCambiosDePrecio, type CambioDePrecio } from "@/lib/catalogo/precios-auditoria";
 
 export type ResultadoVistaPrevia = { ok: true; plan: PlanPlanilla } | { ok: false; mensaje: string };
 
@@ -41,11 +48,11 @@ export type ResultadoAplicar =
   | { ok: true; altas: number; cambios: number }
   | { ok: false; mensaje: string; plan?: PlanPlanilla };
 
-/** Capacidad + rubro retail. Devuelve el mensaje si no pasa; null si pasa. */
-async function candado(): Promise<string | null> {
-  await requireCapability("catalog:manage");
+/** Capacidad + rubro retail. Devuelve el usuario si pasa, o el mensaje si no. */
+async function candado(): Promise<SessionUser | { mensaje: string }> {
+  const user = await requireCapability("catalog:manage");
   const rubro = await getCurrentTenantRubro();
-  return rubro.isRetail ? null : "La planilla de cortes es del catálogo de mostrador.";
+  return rubro.isRetail ? user : { mensaje: "La planilla de cortes es del catálogo de mostrador." };
 }
 
 function textoValido(texto: unknown): string | null {
@@ -66,8 +73,10 @@ async function leerCatalogo(tx: LedgerTx, tenantId: string): Promise<ProductoDel
 
 /** Vista previa: arma el plan y NO escribe nada. */
 export async function previsualizarPlanilla(texto: string): Promise<ResultadoVistaPrevia> {
-  const bloqueo = (await candado()) ?? textoValido(texto);
-  if (bloqueo) return { ok: false, mensaje: bloqueo };
+  const acceso = await candado();
+  if ("mensaje" in acceso) return { ok: false, mensaje: acceso.mensaje };
+  const invalido = textoValido(texto);
+  if (invalido) return { ok: false, mensaje: invalido };
   const tenantId = await getCurrentTenantId();
   try {
     const catalogo = await tenantTransaction((tx) => leerCatalogo(tx, tenantId), { tenantId });
@@ -83,9 +92,13 @@ export async function previsualizarPlanilla(texto: string): Promise<ResultadoVis
  * previa que la persona aprobó; si el plan de ahora da otra, no se escribe.
  */
 export async function aplicarPlanilla(texto: string, huella: string): Promise<ResultadoAplicar> {
-  const bloqueo = (await candado()) ?? textoValido(texto);
-  if (bloqueo) return { ok: false, mensaje: bloqueo };
+  const acceso = await candado();
+  if ("mensaje" in acceso) return { ok: false, mensaje: acceso.mensaje };
+  const invalido = textoValido(texto);
+  if (invalido) return { ok: false, mensaje: invalido };
   const tenantId = await getCurrentTenantId();
+  const actor = `user:${acceso.id}`;
+  const lote = { id: randomUUID() };
 
   let resultado: ResultadoAplicar;
   let aplicado: PlanPlanilla | null = null;
@@ -108,8 +121,19 @@ export async function aplicarPlanilla(texto: string, huella: string): Promise<Re
           };
         }
         const escrito = await escribirPlan(tx, tenantId, plan);
+        const cambiosDePrecio: CambioDePrecio[] = plan.cambios.flatMap((c) =>
+          c.precioDespues === null
+            ? []
+            : [{ productId: c.productId, nombre: c.nombre, saleUnit: c.saleUnit, antes: c.precioAntes, despues: c.precioDespues }],
+        );
+        await registrarCambiosDePrecio(tx, { tenantId, actor, origen: "planilla", cambios: cambiosDePrecio, lote });
+        const altasConPrecio: CambioDePrecio[] = escrito.creados.flatMap((p) => {
+          const precio = p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price;
+          return precio != null && precio > 0 ? [{ productId: p.id, nombre: p.name, saleUnit: p.saleUnit, antes: null, despues: precio }] : [];
+        });
+        await registrarCambiosDePrecio(tx, { tenantId, actor, origen: "alta", cambios: altasConPrecio, lote });
         aplicado = plan;
-        return { ok: true, ...escrito };
+        return { ok: true, altas: escrito.altas, cambios: escrito.cambios };
       },
       { tenantId },
     );
@@ -137,8 +161,9 @@ export async function aplicarPlanilla(texto: string, huella: string): Promise<Re
         })),
       },
     });
-    revalidatePath("/admin/catalogo");
+    revalidatePath("/admin/catalogo", "layout"); // catálogo, actualizar precios y etiquetas
     revalidatePath("/admin/pedidos"); // el POS lee el precio de acá
+    revalidatePath("/admin/vender");
     revalidatePath("/admin/inventario");
   }
   return resultado;

@@ -349,6 +349,25 @@ function huellaDe(altas: readonly Alta[], cambios: readonly Cambio[]): string {
   return `${altas.length}-${cambios.length}-${fnv1a(cuerpo)}`;
 }
 
+/**
+ * Un plan que son sólo CAMBIOS ya decididos (sin archivo): el de "Actualizar precios"
+ * (aumento-core.ts). Mismo formato y misma huella que el de la planilla, así se escribe con
+ * `escribirPlan` y se valida igual entre la vista previa y el "Aplicar".
+ */
+export function armarPlanDeCambios(cambios: Cambio[]): PlanPlanilla {
+  return {
+    errorGeneral: null,
+    filasLeidas: cambios.length,
+    altas: [],
+    cambios,
+    sinCambios: 0,
+    errores: [],
+    noEstanEnPlanilla: [],
+    stockIgnorado: 0,
+    huella: huellaDe([], cambios),
+  };
+}
+
 function planVacio(errorGeneral: string, catalogo: readonly ProductoDelCatalogo[]): PlanPlanilla {
   return {
     errorGeneral,
@@ -551,7 +570,9 @@ export function planAplicable(plan: PlanPlanilla): boolean {
 
 /**
  * Escribe el plan dentro de la tx del llamador. Dos sentencias, sea cual sea el tamaño:
- * un `createMany` con las altas y UN `UPDATE … FROM unnest(…)` con todos los cambios. Con
+ * un `createManyAndReturn` con las altas y UN `UPDATE … FROM unnest(…)` con todos los cambios.
+ * Las altas vuelven con su id para que el llamador deje, en la misma transacción, el registro
+ * de su precio (lo que lee Etiquetas para saber qué falta imprimir). Con
  * una sentencia por fila, 200 filas son 200 idas y vueltas a la base dentro de una
  * transacción interactiva, que Prisma corta a los 5 s por defecto (según su documentación;
  * `tenantTransaction` no cambia ese tope).
@@ -562,6 +583,9 @@ export function planAplicable(plan: PlanPlanilla): boolean {
  * planificar, escribir) tardó 39 ms, con 4 consultas en el log de Prisma. Los `null` de los
  * arreglos llegaron como NULL y el COALESCE dejó el campo como estaba. NO medido contra
  * Neon: ahí cada ida y vuelta cuesta más, pero siguen siendo las mismas cuatro.
+ * Con `createManyAndReturn` (ola 2): 202 cambios + 98 altas contra el Postgres local de QA, con
+ * el rol de RLS (app_rls) y el negocio puesto, `escribirPlan` hizo 2 consultas en 51 ms y
+ * devolvió las 98 altas con su id.
  *
  * El UPDATE usa COALESCE: un `null` en el arreglo es "no tocar ese campo", que es lo que
  * dice `DatosCambio` con un campo ausente. Si no se actualizan exactamente tantas filas como
@@ -571,14 +595,18 @@ export async function escribirPlan(
   tx: LedgerTx,
   tenantId: string,
   plan: PlanPlanilla,
-): Promise<{ altas: number; cambios: number }> {
+): Promise<{ altas: number; cambios: number; creados: ProductoCreado[] }> {
   if (!planAplicable(plan)) throw new Error("La planilla tiene errores o no cambia nada: no se aplica.");
 
-  let altas = 0;
+  let creados: ProductoCreado[] = [];
   if (plan.altas.length > 0) {
-    const r = await tx.product.createMany({ data: plan.altas.map((a) => ({ tenantId, ...a.data })) });
-    altas = r.count;
+    const filas = await tx.product.createManyAndReturn({
+      data: plan.altas.map((a) => ({ tenantId, ...a.data })),
+      select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true },
+    });
+    creados = filas.map((f) => ({ ...f, saleUnit: f.saleUnit === "WEIGHT" ? "WEIGHT" : "UNIT" }));
   }
+  const altas = creados.length;
 
   let cambios = 0;
   if (plan.cambios.length > 0) {
@@ -601,5 +629,14 @@ export async function escribirPlan(
       );
     }
   }
-  return { altas, cambios };
+  return { altas, cambios, creados };
 }
+
+/** Un producto recién dado de alta por `escribirPlan`, con lo que hace falta para registrar su precio. */
+export type ProductoCreado = {
+  id: string;
+  name: string;
+  saleUnit: FormaDeVenta;
+  price: number | null;
+  pricePerKg: number | null;
+};

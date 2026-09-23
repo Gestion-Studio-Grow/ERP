@@ -16,16 +16,19 @@
 // mientras no exista `Product.category` (Gate 2, ver backoffice-carniceria-spec.md).
 
 import { useState } from "react";
+import Link from "next/link";
 import { createProduct, updateProduct, toggleProductActive, deleteProduct } from "@/lib/catalog-actions";
 import { Badge, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { formatearCantidad } from "@/lib/pos-peso";
+// "Stock bajo" tiene UNA definición (la de Stock y la del número del Inicio): controla stock y
+// está en el mínimo o por debajo. Pura y sin Prisma: se puede usar en el cliente.
+import { esStockBajo } from "@/lib/inventory/valuation";
 // Los números del corte (precio, costo, stock inicial, aviso) se tipean con la misma pieza
 // que el catálogo genérico: texto leído con la regla del POS. Ver `CampoDecimal` (y
 // `useVolverAlResetear`, que deja el alta en blanco después de cada corte).
 import { CampoDecimal, StockSoloLectura, useVolverAlResetear } from "./ProductsSection";
 import {
   CORTE_CATEGORIAS,
-  categoriaMeta,
   effectiveCategoria,
   margenCorte,
   type CorteCategoria,
@@ -33,6 +36,11 @@ import {
 
 export type Corte = {
   id: string;
+  /**
+   * Los movimientos de este corte (/admin/inventario/movimientos?producto=…), armado en el
+   * servidor con `hrefMovimientos`; ausente si quien mira no puede abrir Movimientos.
+   */
+  movimientos?: string;
   name: string;
   unit: string;
   stock: number;
@@ -41,8 +49,13 @@ export type Corte = {
   saleUnit: "UNIT" | "WEIGHT";
   price: number | null;
   pricePerKg: number | null;
-  /** Costo de referencia (Product.cost) o último costo de compra — para el margen. */
+  /**
+   * Costo VIGENTE (src/lib/stock/costo.ts), el mismo de Stock y Margen: el cargado a mano
+   * (Product.cost) o, si no hay, el del último ingreso con costo. Es el del margen.
+   */
   cost: number | null;
+  /** Sólo el cargado a mano (Product.cost). Es el que edita el formulario. */
+  costoCargado: number | null;
   /** Góndola explícita (Product.category) o null → se deriva del nombre. */
   category: string | null;
   /** Si true, cada venta descuenta stock con guarda anti-oversell (order-core). */
@@ -73,7 +86,9 @@ function VentaFields({
   pricePerKg,
   unit,
   category,
-  cost,
+  costoCargado,
+  costoVigente,
+  conCostos,
   trackStock,
   idPrefix,
 }: {
@@ -82,7 +97,12 @@ function VentaFields({
   pricePerKg: number | null;
   unit: string;
   category: string | null;
-  cost: number | null;
+  /** El costo cargado a mano: vacío = el margen usa el del último ingreso. */
+  costoCargado: number | null;
+  /** El vigente, para mostrarlo de referencia cuando no hay uno cargado. */
+  costoVigente: number | null;
+  /** Sin costs:read el campo de costo no se muestra ni viaja: guardar no lo toca. */
+  conCostos: boolean;
   trackStock: boolean;
   idPrefix: string;
 }) {
@@ -110,19 +130,24 @@ function VentaFields({
           ))}
         </select>
       </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${idPrefix}-cost`} className="text-xs font-medium text-muted">
-          Costo (para margen)
-        </label>
-        <CampoDecimal
-          id={`${idPrefix}-cost`}
-          name="cost"
-          tipo="importe"
-          valorInicial={cost}
-          placeholder="$ costo"
-          className={inputClass}
-        />
-      </div>
+      {conCostos && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${idPrefix}-cost`} className="text-xs font-medium text-muted">
+            Costo (para margen)
+          </label>
+          {/* Vacío = manda el costo del último ingreso (compra, reposición o despiece). Por eso el
+              campo trae el costo CARGADO y no el vigente: con el vigente, guardar un precio
+              copiaba el costo de la última compra y lo dejaba fijo para siempre. */}
+          <CampoDecimal
+            id={`${idPrefix}-cost`}
+            name="cost"
+            tipo="importe"
+            valorInicial={costoCargado}
+            placeholder={costoCargado == null && costoVigente != null ? `último costo ${fmtMoneyARS(costoVigente, 0)}` : "$ costo"}
+            className={inputClass}
+          />
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         <label htmlFor={selectId} className="text-xs font-medium text-muted">
           Forma de venta
@@ -207,23 +232,34 @@ function VentaFields({
 
 function MargenBadge({ corte }: { corte: Corte }) {
   const m = margenCorte(sellPrice(corte), corte.cost);
-  if (!m) {
+  if (corte.cost == null) {
     return (
       <span className="text-xs text-faint" title="Cargá una compra con costo para ver el margen">
         sin costo
       </span>
     );
   }
+  // El costo vigente a la vista: es el mismo número que usan Stock y Margen.
+  const costo = (
+    <span className="text-xs text-muted tabular-nums">
+      costo {fmtMoneyARS(corte.cost, 0)}
+      {corte.saleUnit === "WEIGHT" ? "/kg" : ""}
+    </span>
+  );
+  if (!m) return costo;
   return (
-    <Badge tone={m.tone} className="tabular-nums">
-      {Math.round(m.pct * 100)}%
-    </Badge>
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      <Badge tone={m.tone} className="tabular-nums">
+        {Math.round(m.pct * 100)}%
+      </Badge>
+      {costo}
+    </span>
   );
 }
 
-function CorteRow({ corte }: { corte: Corte }) {
+function CorteRow({ corte, conCostos }: { corte: Corte; conCostos: boolean }) {
   const [editing, setEditing] = useState(false);
-  const lowStock = corte.stock <= corte.lowStockAt;
+  const lowStock = esStockBajo(corte);
   const price = sellPrice(corte);
   const priceLabel =
     price == null
@@ -262,7 +298,9 @@ function CorteRow({ corte }: { corte: Corte }) {
               pricePerKg={corte.pricePerKg}
               unit={corte.unit}
               category={corte.category}
-              cost={corte.cost}
+              costoCargado={corte.costoCargado}
+              costoVigente={corte.cost}
+              conCostos={conCostos}
               trackStock={corte.trackStock}
               idPrefix={`edit-${corte.id}`}
             />
@@ -326,10 +364,15 @@ function CorteRow({ corte }: { corte: Corte }) {
       </td>
       <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5">
         <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Margen:</span>
-        <MargenBadge corte={corte} />
+        {conCostos ? <MargenBadge corte={corte} /> : <span className="text-xs text-faint">—</span>}
       </td>
       <td className="block sm:table-cell px-0 sm:px-4 py-2 sm:py-2.5 sm:text-right whitespace-nowrap">
         <div className="flex flex-wrap gap-2 sm:justify-end">
+          {corte.movimientos && (
+            <Link href={corte.movimientos} className="chip-btn" aria-label={`Movimientos de ${corte.name}`}>
+              Movimientos
+            </Link>
+          )}
           <form action={toggleProductActive}>
             <input type="hidden" name="id" value={corte.id} />
             <input type="hidden" name="active" value={String(corte.active)} />
@@ -366,9 +409,18 @@ const GONDOLA_HINT: Partial<Record<CorteCategoria, string>> = {
   gourmet: "La línea de almacén premium que acompaña.",
 };
 
-export default function CortesSection({ cortes, catalogHeading }: { cortes: Corte[]; catalogHeading: string }) {
+export default function CortesSection({
+  cortes,
+  catalogHeading,
+  conCostos = true,
+}: {
+  cortes: Corte[];
+  catalogHeading: string;
+  /** ¿Quien mira puede ver costos (costs:read)? Sin ella no se ven ni se editan. */
+  conCostos?: boolean;
+}) {
   const grupos = groupCortes(cortes);
-  const lowStockCount = cortes.filter((c) => c.active && c.stock <= c.lowStockAt).length;
+  const lowStockCount = cortes.filter((c) => c.active && esStockBajo(c)).length;
 
   return (
     <section aria-labelledby="cortes-heading">
@@ -378,7 +430,7 @@ export default function CortesSection({ cortes, catalogHeading }: { cortes: Cort
         </h2>
         <p className="text-sm text-muted mt-1">
           Cada corte, su forma de venta (por kilo o por unidad), su precio y su margen sobre el
-          último costo de compra. Agrupados por góndola.
+          costo vigente: el que cargaste a mano o, si no, el del último ingreso. Agrupados por góndola.
           {lowStockCount > 0 && (
             <span className="ml-1 text-danger font-medium">
               {lowStockCount} con stock bajo.
@@ -418,7 +470,7 @@ export default function CortesSection({ cortes, catalogHeading }: { cortes: Cort
                 </thead>
                 <tbody className="block sm:table-row-group">
                   {items.map((c) => (
-                    <CorteRow key={c.id} corte={c} />
+                    <CorteRow key={c.id} corte={c} conCostos={conCostos} />
                   ))}
                 </tbody>
               </table>
@@ -443,7 +495,7 @@ export default function CortesSection({ cortes, catalogHeading }: { cortes: Cort
               className={CAMPO}
             />
           </div>
-          <VentaFields saleUnit="WEIGHT" price={null} pricePerKg={null} unit="kg" category={null} cost={null} trackStock={true} idPrefix="new-corte" />
+          <VentaFields saleUnit="WEIGHT" price={null} pricePerKg={null} unit="kg" category={null} costoCargado={null} costoVigente={null} conCostos={conCostos} trackStock={true} idPrefix="new-corte" />
           <div className="flex flex-col gap-1">
             <label htmlFor="new-corte-stock" className="text-xs font-medium text-muted">
               Stock inicial
