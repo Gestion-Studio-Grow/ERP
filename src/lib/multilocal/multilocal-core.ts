@@ -15,7 +15,8 @@
 // llama. Las puertas son:
 //   · lectura: src/lib/multilocal/multilocal-actions.ts (cada export arranca con
 //     `exigirCasa`, y los ids de los locales salen SÓLO de las filas de la casa);
-//   · vínculo: src/lib/operador/red-locales-actions.ts (consola de GSG, `requireOperator`).
+//   · vínculo y alta de un local ya dentro de la red: src/lib/operador/red-locales-actions.ts
+//     (consola de GSG, `requireOperator`).
 // Lo cuida forma.test.ts, que además exige que nadie más escriba CarteraCliente.
 //
 // Nada de imports de VALOR de Prisma: lo de Prisma entra como `import type` y el `tx` llega
@@ -39,6 +40,22 @@ import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { businessWallTimeToUtc, dateStrInBusinessTz, dayOfWeekForDate } from "@/lib/datetime";
 import { normalizarNombre } from "@/lib/catalogo/planilla-core";
 import { csvField } from "@/lib/report-csv";
+import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
+import {
+  choqueDePuntoDeVenta,
+  cuitNormalizado,
+  motivoDeChoque,
+  puntosDeVentaUsados,
+} from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
+import { claveDeProducto } from "./traslado-core";
+import {
+  ACCION_CATALOGO_EN_LA_CASA,
+  NOMBRE_APP_CATALOGO,
+  empujarEnTx,
+  leerCatalogo,
+  listaDeLaCasa,
+  type ResultadoEmpuje,
+} from "./catalogo-marca-core";
 
 type Tx = Prisma.TransactionClient;
 
@@ -163,23 +180,44 @@ export async function localesDeLaRed(p: Pick<PuertosRed, "filasDeLaRed" | "metaD
   return locales;
 }
 
+/** Un local cuya lectura falló. El error queda para el log; la pantalla dice qué pasó con él. */
+export interface LocalQueFallo {
+  local: LocalDeLaRed;
+  error: unknown;
+}
+
+/** El recorrido de la red: lo que se pudo leer de cada local, y los locales que fallaron. */
+export interface Recorrido<T> {
+  leidos: { local: LocalDeLaRed; dato: T }[];
+  fallidos: LocalQueFallo[];
+}
+
 /**
  * Recorre la red: UNA transacción por local, con SU GUC, en serie. El piso son N
  * transacciones porque el GUC de RLS es por transacción y leer varios negocios en una sola
  * consulta obligaría a evadir el aislamiento. En serie para cuidar el pool (5 conexiones por
  * instancia, prisma-base.ts): con 5 a 9 locales alcanza; con 30 o más va una caché por casa.
+ *
+ * Un local que falla (la base no contestó a tiempo, una migración que ese local no tiene) NO
+ * tumba la red: queda en `fallidos` y los demás se siguen leyendo. La dueña ve los que se
+ * pudieron leer y un aviso por el que no, en vez de la pantalla genérica de error.
  */
 export async function recorrerLocales<T>(
   p: PuertosRed,
   casaId: string,
   recolectar: (tx: Tx, local: LocalDeLaRed) => Promise<T>,
-): Promise<{ local: LocalDeLaRed; dato: T }[]> {
+): Promise<Recorrido<T>> {
   const locales = await localesDeLaRed(p, casaId);
-  const salida: { local: LocalDeLaRed; dato: T }[] = [];
+  const leidos: { local: LocalDeLaRed; dato: T }[] = [];
+  const fallidos: LocalQueFallo[] = [];
   for (const local of locales) {
-    salida.push({ local, dato: await p.enLocal(local.localTenantId, (tx) => recolectar(tx, local)) });
+    try {
+      leidos.push({ local, dato: await p.enLocal(local.localTenantId, (tx) => recolectar(tx, local)) });
+    } catch (error) {
+      fallidos.push({ local, error });
+    }
   }
-  return salida;
+  return { leidos, fallidos };
 }
 
 /**
@@ -693,7 +731,8 @@ export function matrizDeStock(columnas: readonly ColumnaStock[]): FilaStock[] {
   const filas = new Map<string, FilaStock>();
   columnas.forEach((col, i) => {
     for (const p of col.productos) {
-      const clave = `${normalizarNombre(p.nombre)}|${p.saleUnit}`;
+      // La misma clave con que se cruza un producto en un traslado (traslado-core.ts).
+      const clave = claveDeProducto(p.nombre, p.saleUnit);
       let fila = filas.get(clave);
       if (!fila) {
         fila = {
@@ -1237,4 +1276,222 @@ export function resumenDeLaFicha(nombre: string, locales: readonly LocalEnLaFich
   const n = activos.length;
   const base = `Red ${nombre}: ${n} ${n === 1 ? "local" : "locales"}`;
   return sinPv > 0 ? `${base} · ${sinPv} sin punto de venta` : base;
+}
+
+// ── Abrir un local que ya nace dentro de la red (consola de GSG, paso "¿de qué red?") ──
+//
+// El alta de un local suelto la hace la fábrica de negocios (operator-provisioning-actions.ts).
+// Para una marca, además, el local nuevo tiene que quedar: con el CUIT y el punto de venta que
+// le toca (sin repetir el talonario de otro local del mismo CUIT), vinculado a la casa y con la
+// lista de la casa. Todo va en UNA transacción del operador, justo después del alta, y reintentar
+// es seguro (el vínculo y el empuje son idempotentes).
+//
+// El vínculo y el CUIT + punto de venta son todo o nada. La lista NO los arrastra: si no se puede
+// dejar (la casa tiene dos productos con el mismo nombre, o el local ya tenía catálogo propio), el
+// local queda igual en la red y la lista queda pendiente, dicha con su porqué. Antes, un rechazo
+// de la lista deshacía el vínculo, y "Reintentar" volvía a mandar lo mismo: el local creado quedaba
+// fuera de la red sin salida desde el alta. La lista pendiente se manda después con vista previa,
+// desde la casa (Catálogo y precios de la marca).
+//
+// Sin vista previa el empuje sólo CREA productos (`huella: null`, catalogo-marca-core.ts): esta
+// puerta recibe el id del local por formulario, y un local que ya existía con su catálogo no puede
+// perder sus precios porque alguien lo sumó desde el alta.
+
+export interface PedidoAltaEnRed {
+  casaId: string;
+  localId: string;
+  alias?: string | null;
+  /** El CUIT que escribió el operador; vacío = el de la casa. */
+  cuit?: string | null;
+  /** El punto de venta de ARCA del local; vacío = se carga después en la ficha. */
+  puntoVenta?: string | null;
+  /** "operator:<quien>". */
+  actor: string;
+  /** Id del lote del empuje del catálogo (lo genera la action). */
+  lote: string;
+}
+
+export type ResultadoAltaEnRed =
+  | {
+      ok: true;
+      casa: string;
+      local: string;
+      alias: string;
+      aviso: string | null;
+      cuit: string | null;
+      puntoVenta: number | null;
+      catalogo: ResultadoEmpuje;
+    }
+  | { ok: false; motivo: string };
+
+/** Un rechazo a mitad de la corrida: deshace lo que ya se escribió en la transacción. */
+export class AltaEnRedRechazada extends Error {
+  constructor(motivo: string) {
+    super(motivo);
+    this.name = "AltaEnRedRechazada";
+  }
+}
+
+/**
+ * CUIT y punto de venta del local nuevo, leídos de lo que escribió el operador. PURA.
+ * Sin CUIT escrito, el de la casa. El punto de venta: vacío, o un entero de 1 a 99999 (lo
+ * mismo que acepta la ficha, operator-actions.ts).
+ */
+export function leerFiscalDelAlta(
+  pedido: { cuit?: string | null; puntoVenta?: string | null },
+  cuitDeLaCasa: string | null,
+): { ok: true; cuit: string | null; puntoVenta: number | null } | { ok: false; motivo: string } {
+  const crudo = (pedido.cuit ?? "").trim();
+  let cuit: string | null = cuitNormalizado(cuitDeLaCasa);
+  if (crudo) {
+    const r = interpretarCuitInput(crudo);
+    if (r.accion === "error") return { ok: false, motivo: r.motivo };
+    cuit = r.accion === "set" ? r.cuit : null;
+  }
+  const pv = (pedido.puntoVenta ?? "").trim();
+  if (!pv) return { ok: true, cuit, puntoVenta: null };
+  if (!/^\d{1,5}$/.test(pv) || Number(pv) <= 0) {
+    return { ok: false, motivo: `"${pv}" no es un punto de venta válido: va un número entero de 1 a 99999 (el que ARCA habilitó para este CUIT).` };
+  }
+  if (!cuit) return { ok: false, motivo: "Para cargar el punto de venta hace falta el CUIT: la casa no tiene uno cargado, escribilo." };
+  return { ok: true, cuit, puntoVenta: Number(pv) };
+}
+
+/**
+ * ¿Ese CUIT ya usa ese punto de venta en otro negocio? El motivo del rechazo (con los puntos de
+ * venta que ese CUIT ya usa) o null. Lee con el `tx` del operador; con `bloquear` = toma antes
+ * el MISMO candado por CUIT que la ficha (operator-actions.ts), así dos operadores no se cuelan.
+ */
+export async function choqueFiscalEnTx(
+  tx: Tx,
+  localId: string,
+  cuit: string | null,
+  puntoVenta: number | null,
+  bloquear: boolean,
+): Promise<string | null> {
+  if (!cuit || !puntoVenta) return null;
+  if (bloquear) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`arca-punto-venta:${cuit}`}))`;
+  const otros = await tx.tenant.findMany({
+    where: { arcaCuit: cuit, id: { not: localId } },
+    select: { id: true, name: true, slug: true, arcaCuit: true, arcaPuntoVenta: true },
+  });
+  const otro = choqueDePuntoDeVenta({ tenantId: localId, cuit, puntoVenta }, otros);
+  return otro ? motivoDeChoque(cuit, puntoVenta, otro, puntosDeVentaUsados(localId, cuit, otros)) : null;
+}
+
+/**
+ * El local recién dado de alta entra a la red, en la transacción del operador:
+ *   1. el vínculo casa → local (`vincularEnTx`: sus validaciones, su candado y su auditoría);
+ *   2. el CUIT y el punto de venta del local, con el candado por CUIT y sin repetir talonario;
+ *   3. la lista de la casa, empujada al local (`empujarEnTx`, sin vista previa: sólo crea), con
+ *      auditoría en los dos.
+ * Un rechazo de 1 o 2 TIRA `AltaEnRedRechazada`: la transacción se deshace entera y el operador
+ * ve el porqué. La lista que no se puede dejar no tira: vuelve como `catalogo` "no-aplicable",
+ * con su motivo, y lo demás queda. Sirve también para reintentar: lo hecho no se escribe de nuevo.
+ */
+export async function sumarAltaEnTx(
+  tx: Tx,
+  p: PedidoAltaEnRed,
+  requiereOk: (slug: string) => boolean,
+): Promise<Extract<ResultadoAltaEnRed, { ok: true }>> {
+  const vinculo = await vincularEnTx(tx, { casaId: p.casaId, localId: p.localId, alias: p.alias, actor: p.actor }, requiereOk);
+  if (!vinculo.ok) throw new AltaEnRedRechazada(vinculo.motivo);
+
+  const [casa, local] = await Promise.all([
+    tx.tenant.findUnique({ where: { id: p.casaId }, select: { name: true, slug: true, arcaCuit: true } }),
+    tx.tenant.findUnique({ where: { id: p.localId }, select: { name: true, arcaCuit: true, arcaPuntoVenta: true } }),
+  ]);
+  if (!casa || !local) throw new AltaEnRedRechazada("La casa o el local ya no existen. Recargá la consola.");
+
+  const fiscal = leerFiscalDelAlta(p, casa.arcaCuit);
+  if (!fiscal.ok) throw new AltaEnRedRechazada(fiscal.motivo);
+  const cuitActual = cuitNormalizado(local.arcaCuit);
+  if (cuitActual && fiscal.cuit && cuitActual !== fiscal.cuit) {
+    throw new AltaEnRedRechazada(
+      `«${local.name}» ya tiene otro CUIT cargado (${cuitActual}). No se pisa desde el alta: corregilo en su ficha si hace falta.`,
+    );
+  }
+  if (local.arcaPuntoVenta && fiscal.puntoVenta && local.arcaPuntoVenta !== fiscal.puntoVenta) {
+    throw new AltaEnRedRechazada(
+      `«${local.name}» ya tiene el punto de venta ${local.arcaPuntoVenta}. No se pisa desde el alta: corregilo en su ficha si hace falta.`,
+    );
+  }
+  const choque = await choqueFiscalEnTx(tx, p.localId, fiscal.cuit, fiscal.puntoVenta, true);
+  if (choque) throw new AltaEnRedRechazada(choque);
+
+  const nuevoCuit = cuitActual ?? fiscal.cuit;
+  const nuevoPv = local.arcaPuntoVenta ?? fiscal.puntoVenta;
+  if (nuevoCuit !== cuitActual || nuevoPv !== local.arcaPuntoVenta) {
+    await tx.tenant.update({ where: { id: p.localId }, data: { arcaCuit: nuevoCuit, arcaPuntoVenta: nuevoPv } });
+    await ponerGuc(tx, p.localId);
+    await tx.auditLog.create({
+      data: {
+        tenantId: p.localId,
+        actor: p.actor,
+        action: "fiscal.alta-en-red",
+        entity: "Tenant",
+        entityId: p.localId,
+        changes: {
+          arcaCuit: nuevoCuit,
+          arcaPuntoVenta: nuevoPv,
+          antes: { arcaCuit: local.arcaCuit, arcaPuntoVenta: local.arcaPuntoVenta },
+          casaId: p.casaId,
+        },
+      },
+    });
+  }
+
+  // La lista de la casa, leída con SU GUC; después, escrita en el local con el suyo. Lo que impide
+  // dejarla no deshace el vínculo ni el CUIT: queda pendiente y se dice por qué.
+  await ponerGuc(tx, p.casaId);
+  const lista = listaDeLaCasa(await leerCatalogo(tx, p.casaId));
+  let catalogo: ResultadoEmpuje;
+  if (lista.repetidos.length > 0) {
+    catalogo = {
+      estado: "no-aplicable",
+      motivo:
+        `La lista de ${casa.name} tiene productos con el mismo nombre (${lista.repetidos.join(", ")}). ` +
+        `Hay que renombrar uno en la casa y después mandarla desde «${NOMBRE_APP_CATALOGO}».`,
+    };
+  } else if (lista.incluidos === 0) {
+    catalogo = {
+      estado: "no-aplicable",
+      motivo: `${casa.name} todavía no tiene productos activos con precio: no hay lista para mandar. Cuando la cargue, la manda desde «${NOMBRE_APP_CATALOGO}».`,
+    };
+  } else {
+    await ponerGuc(tx, p.localId);
+    catalogo = await empujarEnTx(tx, {
+      tenantId: p.localId,
+      lista,
+      huella: null,
+      actor: p.actor,
+      casa: { id: p.casaId, nombre: casa.name },
+      por: "Gestión Studio Grow, al abrir el local",
+      lote: p.lote,
+    });
+  }
+  // El resumen en la casa, sólo si la lista cambió algo: reintentar no deja filas de más.
+  if (catalogo.estado === "aplicado") {
+    await ponerGuc(tx, p.casaId);
+    await tx.auditLog.create({
+      data: {
+        tenantId: p.casaId,
+        actor: p.actor,
+        action: ACCION_CATALOGO_EN_LA_CASA,
+        entity: "Product",
+        channel: "admin",
+        changes: { lote: p.lote, origen: "alta-del-local", locales: [{ localId: p.localId, alias: vinculo.alias, resultado: catalogo }] },
+      },
+    });
+  }
+  return {
+    ok: true,
+    casa: casa.name,
+    local: local.name,
+    alias: vinculo.alias,
+    aviso: vinculo.aviso,
+    cuit: nuevoCuit,
+    puntoVenta: nuevoPv,
+    catalogo,
+  };
 }

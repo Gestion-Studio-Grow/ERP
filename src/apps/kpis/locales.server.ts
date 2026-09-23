@@ -5,8 +5,9 @@
 // Estos números no se pueden sacar con UNA operación del `db` del request, como el resto de la
 // carpeta: son datos de OTROS negocios, y cada local se lee en su propia transacción, con su
 // GUC. Esa lectura vive en src/lib/multilocal/multilocal-actions.ts (con `exigirCasa`, los ids
-// sacados de las filas de la casa y `react.cache`): las cuatro apps y la pantalla comparten UNA
-// pasada por local en el mismo request. Acá sólo se la pide y se la dice en palabras.
+// sacados de las filas de la casa y `react.cache`): las apps de la red y su pantalla comparten
+// UNA pasada por local en el mismo request (el Catálogo de la marca y Traslados, la suya). Acá
+// sólo se la pide y se la dice en palabras. Si un local no se pudo leer, el botón lo dice.
 //
 // Lo que sí se respeta de la carpeta:
 //   · la primera lectura es UNA operación del `db` del request, con el negocio en el `where`:
@@ -19,21 +20,57 @@
 
 import { fmtMoneyARS, fmtNumberAR } from "@/components/ui/format";
 import { formatDayLabel } from "@/lib/caja/cierre-diario";
-import type { ResultadoRed, ResultadoStock } from "@/lib/multilocal/multilocal-actions";
+import type {
+  LocalSinLeer,
+  ResultadoCatalogo,
+  ResultadoRed,
+  ResultadoStock,
+  ResultadoTraslados,
+} from "@/lib/multilocal/multilocal-actions";
+import { divergeDeLaLista } from "@/lib/multilocal/catalogo-marca-core";
 import { plural, type ContextoLoader, type DatoKpi, type LoaderKpi } from "./nucleo.server";
 
-/** De dónde salen la red y el stock. El real importa las actions recién al usarlas. */
+/** De dónde salen la red, el stock, el catálogo y los traslados. El real importa las actions recién al usarlas. */
 export interface LectorRed {
   red(): Promise<ResultadoRed>;
   stock(): Promise<ResultadoStock>;
+  catalogo(): Promise<ResultadoCatalogo>;
+  traslados(): Promise<ResultadoTraslados>;
 }
 
 const lectorReal: LectorRed = {
   red: async () => (await import("@/lib/multilocal/multilocal-actions")).redDeLaCasaAction(),
   stock: async () => (await import("@/lib/multilocal/multilocal-actions")).stockDeLaRedAction(),
+  catalogo: async () => (await import("@/lib/multilocal/multilocal-actions")).catalogoDeLaMarcaAction(),
+  traslados: async () => (await import("@/lib/multilocal/multilocal-actions")).trasladosAction(),
 };
 
+/**
+ * " · 1 local sin leer": si un local no se pudo leer, el número es de los demás y el botón lo
+ * dice. Un total que calla que le falta un local es un número que miente.
+ */
+export function sinLeerTexto(sinLeer: readonly LocalSinLeer[]): string {
+  const n = sinLeer.length;
+  return n > 0 ? ` · ${fmtNumberAR(n)} ${plural(n, "local", "locales")} sin leer` : "";
+}
+
 export const SIN_LOCALES = "Todavía no hay locales vinculados: los vincula Gestión Studio Grow.";
+
+/**
+ * Ningún local se pudo leer: el botón no tiene número que dar. "Al día" o "0" con todos los
+ * locales sin leer sería un número que miente; va '—' con el motivo. Con al menos uno leído, el
+ * número es de esos y el detalle nombra cuántos faltan (`sinLeerTexto`).
+ */
+export function ningunoLeido(leidos: number, sinLeer: readonly LocalSinLeer[]): DatoKpi | null {
+  if (leidos > 0 || sinLeer.length === 0) return null;
+  const n = sinLeer.length;
+  return {
+    sinDato:
+      n === 1
+        ? `No se pudo leer ${sinLeer[0].alias} en este momento. Probá de nuevo en un rato.`
+        : `No se pudo leer ninguno de tus ${fmtNumberAR(n)} locales en este momento. Probá de nuevo en un rato.`,
+  };
+}
 
 /**
  * ¿La casa tiene algún local vinculado? Una operación, con el negocio del request en el
@@ -59,6 +96,8 @@ export function crearLoadersLocales(lector: LectorRed): Readonly<Record<string, 
     if (!(await hayLocales(ctx))) return { sinDato: SIN_LOCALES };
     const r = await lector.red();
     if (!r.ok) return { sinDato: r.error };
+    const vacio = ningunoLeido(r.red.length, r.sinLeer);
+    if (vacio) return vacio;
     const { locales, cajasSinCerrar, cobradoHoy } = r.resumen;
     return {
       valor: fmtNumberAR(locales),
@@ -66,7 +105,8 @@ export function crearLoadersLocales(lector: LectorRed): Readonly<Record<string, 
         `${plural(locales, "local", "locales")} · ` +
         (cajasSinCerrar > 0
           ? `${fmtNumberAR(cajasSinCerrar)} con la caja sin cerrar`
-          : "cajas al día"),
+          : "cajas al día") +
+        sinLeerTexto(r.sinLeer),
       ...(ctx.monto ? { monto: `${fmtMoneyARS(cobradoHoy, 0)} cobrado hoy` } : {}),
     };
   };
@@ -76,12 +116,14 @@ export function crearLoadersLocales(lector: LectorRed): Readonly<Record<string, 
     if (!(await hayLocales(ctx))) return { sinDato: SIN_LOCALES };
     const r = await lector.red();
     if (!r.ok) return { sinDato: r.error };
+    const vacio = ningunoLeido(r.red.length, r.sinLeer);
+    if (vacio) return vacio;
     const { actual, destacado } = r.resumen.semana;
     return {
       valor: fmtMoneyARS(actual, 0),
-      detalle: destacado
-        ? `esta semana · ${destacado.alias} ${textoCambio(destacado.cambio)} frente a la anterior`
-        : "esta semana",
+      detalle:
+        (destacado ? `esta semana · ${destacado.alias} ${textoCambio(destacado.cambio)} frente a la anterior` : "esta semana") +
+        sinLeerTexto(r.sinLeer),
     };
   };
 
@@ -90,14 +132,17 @@ export function crearLoadersLocales(lector: LectorRed): Readonly<Record<string, 
     if (!(await hayLocales(ctx))) return { sinDato: SIN_LOCALES };
     const r = await lector.red();
     if (!r.ok) return { sinDato: r.error };
+    const vacio = ningunoLeido(r.red.length, r.sinLeer);
+    if (vacio) return vacio;
     const { cajasSinCerrar: n, pendienteMasViejo } = r.resumen;
-    if (n === 0) return { valor: "Al día", detalle: "todas las cajas cerradas hasta ayer" };
+    const falta = sinLeerTexto(r.sinLeer);
+    if (n === 0) return { valor: "Al día", detalle: `todas las cajas cerradas hasta ayer${falta}` };
     const texto =
       `${plural(n, "local", "locales")} con la caja sin cerrar` +
       (pendienteMasViejo ? ` desde el ${formatDayLabel(pendienteMasViejo)}` : "");
     return {
       valor: fmtNumberAR(n),
-      detalle: texto,
+      detalle: texto + falta,
       alerta: { valor: fmtNumberAR(n), texto },
     };
   };
@@ -107,10 +152,13 @@ export function crearLoadersLocales(lector: LectorRed): Readonly<Record<string, 
     if (!(await hayLocales(ctx))) return { sinDato: SIN_LOCALES };
     const r = await lector.stock();
     if (!r.ok) return { sinDato: r.error };
+    // El número es de los locales leídos (la casa no cuenta en "bajo el mínimo en N locales").
+    const vacio = ningunoLeido(r.locales, r.sinLeer);
+    if (vacio) return vacio;
     const { stockBajo, stockNegativo } = r.resumen;
     const { uno, varios } = ctx.sustantivo;
     const negativos =
-      stockNegativo.productos > 0 ? ` · ${fmtNumberAR(stockNegativo.productos)} en negativo` : "";
+      (stockNegativo.productos > 0 ? ` · ${fmtNumberAR(stockNegativo.productos)} en negativo` : "") + sinLeerTexto(r.sinLeer);
     if (stockBajo.productos === 0) return { valor: "0", detalle: `${varios} bajo el mínimo${negativos}` };
     return {
       valor: fmtNumberAR(stockBajo.productos),
@@ -120,11 +168,53 @@ export function crearLoadersLocales(lector: LectorRed): Readonly<Record<string, 
     };
   };
 
+  /**
+   * "2 locales con precios distintos a la lista". Sale de la MISMA vista previa que muestra la
+   * pantalla (el plan de la planilla de cada local contra la lista de la casa).
+   */
+  const catalogoDeLaMarca: LoaderKpi = async (ctx): Promise<DatoKpi> => {
+    if (!(await hayLocales(ctx))) return { sinDato: SIN_LOCALES };
+    const r = await lector.catalogo();
+    if (!r.ok) return { sinDato: r.error };
+    const vacio = ningunoLeido(r.locales.length, r.sinLeer);
+    if (vacio) return vacio;
+    const distintos = r.locales.filter((l) => divergeDeLaLista(l.vista)).length;
+    const falta = sinLeerTexto(r.sinLeer);
+    if (distintos === 0) return { valor: "Al día", detalle: `todos los locales tienen la lista de la casa${falta}` };
+    return {
+      valor: fmtNumberAR(distintos),
+      detalle: `${plural(distintos, "local", "locales")} con precios distintos a la lista${falta}`,
+    };
+  };
+
+  /** "Hoy: 4 traslados · 182 kg". Sin plata: lo abre también el encargado. */
+  const traslados: LoaderKpi = async (ctx): Promise<DatoKpi> => {
+    if (!(await hayLocales(ctx))) return { sinDato: SIN_LOCALES };
+    const r = await lector.traslados();
+    if (!r.ok) return { sinDato: r.error };
+    // Las ubicaciones son la casa y los locales que se pudieron leer.
+    const vacio = ningunoLeido(r.ubicaciones.filter((u) => !u.esCasa).length, r.sinLeer);
+    if (vacio) return vacio;
+    const { cantidad, kg, unidades } = r.deHoy;
+    const cuanto = [
+      kg > 0 ? `${fmtNumberAR(kg, Number.isInteger(kg) ? 0 : 1)} kg` : "",
+      unidades > 0 ? `${fmtNumberAR(unidades)} ${plural(unidades, "unidad", "unidades")}` : "",
+    ].filter(Boolean);
+    return {
+      valor: fmtNumberAR(cantidad),
+      detalle:
+        (cantidad === 0 ? "traslados hoy" : `${cantidad === 1 ? "traslado" : "traslados"} hoy${cuanto.length > 0 ? ` · ${cuanto.join(" · ")}` : ""}`) +
+        sinLeerTexto(r.sinLeer),
+    };
+  };
+
   return {
     "mis-locales": misLocales,
     "ventas-por-local": ventasPorLocal,
     "cajas-de-los-locales": cajasDeLosLocales,
     "stock-por-local": stockPorLocal,
+    "catalogo-de-la-marca": catalogoDeLaMarca,
+    traslados,
   };
 }
 

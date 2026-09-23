@@ -27,17 +27,25 @@ function texto(status: number, cuerpo: string): Response {
 export async function GET(request: Request) {
   await requireApp("ventas-por-local");
   const casa = await exigirCasa("multilocal:manage");
-  if (!casa.ok) return texto(404, casa.error);
+  if (!casa.ok) return texto(casa.noSeLeyo ? 503 : 404, casa.error);
   try {
     const params = new URL(request.url).searchParams;
     const r = await ventasDeLaRedAction({ desde: params.get("desde"), hasta: params.get("hasta") });
     if (!r.ok) return texto(503, r.error);
+    const caido = r.sinLeer.find((l) => l.localTenantId === params.get("local"));
+    if (caido) return texto(503, `No se pudo leer ${caido.alias} en este momento. Probá de nuevo en un rato.`);
     const eleccion = elegirLocal(
       r.locales.map((l) => l.local),
       params.get("local"),
     );
     if (!eleccion.ok) return texto(404, eleccion.error);
     const elegido = eleccion.local;
+    // Un archivo para la contadora al que le falta un local es peor que ningún archivo: se lo
+    // toma como el total. Si un local no se pudo leer, no se baja nada y se dice cuál.
+    if (!elegido && r.sinLeer.length > 0) {
+      const cuales = r.sinLeer.map((l) => l.alias).join(", ");
+      return texto(503, `No se pudo leer ${cuales} en este momento y el archivo saldría incompleto. Probá de nuevo en un rato.`);
+    }
     const locales = elegido ? r.locales.filter((l) => l.local.localTenantId === elegido.localTenantId) : r.locales;
     const csv = csvVentasDeLaRed({
       casa: r.casa,

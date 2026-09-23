@@ -4,13 +4,16 @@ import { exigirCasa } from "@/lib/multilocal/casa.server";
 import { stockDeLaRedAction } from "@/lib/multilocal/multilocal-actions";
 import { filtrarMatriz, type CeldaStock, type FilaStock } from "@/lib/multilocal/multilocal-core";
 import { Badge, Button, Card, EmptyState, Field, Input, PageContainer, PageHeader, buttonClasses, cn, fmtNumberAR } from "@/components/ui";
-import { NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales } from "../partes";
+import { appPorId } from "@/apps/registro";
+import { appPermitida } from "@/apps/visibles";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales } from "../partes";
 
 export const dynamic = "force-dynamic";
 
 // STOCK POR LOCAL — cada producto en la casa (el obrador) y en cada local: dónde sobra y dónde
-// falta. Desde acá se decide qué mandar a cada local (el botón "trasladar" llega con los
-// traslados, en la ola 3).
+// falta. Desde acá se decide qué mandar a cada local: "Trasladar" abre el traslado con ese
+// producto ya elegido (sólo si la persona puede trasladar).
 //
 // Los productos se cruzan por nombre (sin acentos ni mayúsculas) más la unidad de venta: un
 // renombre en un local lo muestra como otra fila. "Bajo el mínimo" y "en negativo" son las
@@ -55,7 +58,7 @@ export default async function StockPorLocalPage({
     return (
       <PageContainer>
         <PageHeader title={titulo} />
-        <NoEsCasa error={casa.error} />
+        <NoEsCasa error={casa.error} noSeLeyo={casa.noSeLeyo} />
       </PageContainer>
     );
   }
@@ -71,6 +74,8 @@ export default async function StockPorLocalPage({
 
   const sp = await searchParams;
   const q = una(sp.q)?.trim() ?? "";
+  // El atajo a Traslados, con la misma regla que su guardia: un botón que rebota es un callejón.
+  const veTraslados = appPermitida(appPorId("traslados"), await getNegocioApps(user.role));
   const soloBajo = una(sp.bajo) === "1";
   const filas = filtrarMatriz(r.filas, { q, soloBajo });
   const { stockBajo, stockNegativo } = r.resumen;
@@ -89,8 +94,9 @@ export default async function StockPorLocalPage({
         }
       />
       <SolapasLocales activa="stock-por-local" role={user.role} />
+      <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales/stock" />
       {r.locales === 0 ? (
-        <SinLocales />
+        r.sinLeer.length === 0 && <SinLocales />
       ) : (
         <>
           <form method="get" className="mb-lg grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_auto_auto]">
@@ -128,8 +134,8 @@ export default async function StockPorLocalPage({
             />
           ) : (
             <>
-              <Tarjetas filas={filas} columnas={r.columnas} />
-              <Tabla filas={filas} columnas={r.columnas} />
+              <Tarjetas filas={filas} columnas={r.columnas} veTraslados={veTraslados} />
+              <Tabla filas={filas} columnas={r.columnas} veTraslados={veTraslados} />
             </>
           )}
         </>
@@ -138,8 +144,20 @@ export default async function StockPorLocalPage({
   );
 }
 
+/** "Trasladar" con el producto ya elegido en el formulario de traslado. */
+function Trasladar({ f, className }: { f: FilaStock; className?: string }) {
+  return (
+    <Link
+      href={`/admin/locales/traslados?producto=${encodeURIComponent(f.clave)}`}
+      className={buttonClasses("outline", "md", className)}
+    >
+      Trasladar<span className="sr-only"> {f.nombre}</span>
+    </Link>
+  );
+}
+
 /** En el celular: una tarjeta por producto con cada local debajo (sin tabla ancha). */
-function Tarjetas({ filas, columnas }: { filas: FilaStock[]; columnas: Columna[] }) {
+function Tarjetas({ filas, columnas, veTraslados }: { filas: FilaStock[]; columnas: Columna[]; veTraslados: boolean }) {
   return (
     <ul className="space-y-3 md:hidden" aria-label="Stock de cada producto">
       {filas.map((f) => (
@@ -158,6 +176,7 @@ function Tarjetas({ filas, columnas }: { filas: FilaStock[]; columnas: Columna[]
                 </div>
               ))}
             </dl>
+            {veTraslados && columnas.length > 1 && <Trasladar f={f} className="mt-3 w-full" />}
           </Card>
         </li>
       ))}
@@ -166,7 +185,8 @@ function Tarjetas({ filas, columnas }: { filas: FilaStock[]; columnas: Columna[]
 }
 
 /** En pantallas anchas: la matriz producto × local. */
-function Tabla({ filas, columnas }: { filas: FilaStock[]; columnas: Columna[] }) {
+function Tabla({ filas, columnas, veTraslados }: { filas: FilaStock[]; columnas: Columna[]; veTraslados: boolean }) {
+  const conTraslado = veTraslados && columnas.length > 1;
   return (
     <Card flush className="hidden overflow-x-auto md:block">
       <table className="w-full text-sm">
@@ -182,6 +202,11 @@ function Tabla({ filas, columnas }: { filas: FilaStock[]; columnas: Columna[] })
                 {col.esCasa && <span className="block text-xs font-normal">casa</span>}
               </th>
             ))}
+            {conTraslado && (
+              <th scope="col" className="px-4 py-3">
+                <span className="sr-only">Trasladar</span>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -196,6 +221,11 @@ function Tabla({ filas, columnas }: { filas: FilaStock[]; columnas: Columna[] })
                   <Celda c={f.celdas[i]} f={f} />
                 </td>
               ))}
+              {conTraslado && (
+                <td className="px-4 py-2.5 text-right">
+                  <Trasladar f={f} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

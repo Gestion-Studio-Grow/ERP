@@ -15,11 +15,18 @@
 //   · la devolución de una venta anulada o de un pedido reajustado al peso real: vuelve
 //     mercadería a la heladera como AJUSTE positivo porque el enum de stock no tiene un tipo
 //     propio para eso (order-anulacion.ts). Contarla como sobrante escondería faltantes;
-//   · el "Stock inicial" de un alta (alta-producto.ts): no es pérdida ni ganancia.
+//   · el "Stock inicial" de un alta (alta-producto.ts): no es pérdida ni ganancia;
+//   · la salida de un TRASLADO a otro local de la marca (multilocal/traslado-core.ts): la
+//     mercadería no se perdió, se mudó. Sumarla a la merma le diría al obrador que perdió los
+//     10 kg de vacío que mandó a Canning;
+//   · la pieza de entrada de un DESPIECE (carniceria/despiece-registro.ts): la media res no se
+//     perdió, se convirtió en cortes. Sin esto figuraba como "Otro" negativo.
 //
-// LA REGLA. Las devoluciones se reconocen por el PREFIJO de `createdBy`, que escriben
-// order-anulacion.ts y order-actions.ts con constantes exportadas (importadas acá, no
-// re-tipeadas): el texto del `reason` es para leer, no para decidir. El resto se reconoce por
+// LA REGLA. Las devoluciones y los traslados se reconocen por el PREFIJO de `createdBy`, que
+// escriben order-anulacion.ts, order-actions.ts y multilocal/traslado-core.ts con constantes
+// exportadas (importadas acá, no re-tipeadas): el texto del `reason` es para leer, no para
+// decidir. El despiece se reconoce por el prefijo de su motivo (`esMovimientoDeDespiece`, la
+// misma regla del sugerido de compra). El resto se reconoce por
 // la etiqueta del motivo al principio del `reason`, que es `buildReason` = `motivoLabel` +
 // " — nota" (adjustment-core.ts). Lo que no se reconoce cae en OTRO, que se muestra aparte y
 // con signo: no se pierde, y no se mezcla con la merma.
@@ -35,6 +42,8 @@
 import { buildReason, motivoLabel } from "@/lib/stock/adjustment-core";
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { MOTIVO_STOCK_INICIAL } from "@/lib/stock/alta-producto";
+import { TRASLADO_ACTOR_PREFIX } from "@/lib/multilocal/traslado-core";
+import { esMovimientoDeDespiece } from "@/lib/carniceria/despiece";
 
 // ── Qué se lee ──────────────────────────────────────────────────────────────
 
@@ -51,7 +60,13 @@ export function whereAjustesDelPeriodo(tenantId: string, desde: Date, hasta?: Da
 
 export type ClaseDeAjuste = "MERMA" | "FALTANTE" | "SOBRANTE" | "OTRO" | "EXCLUIDO";
 export type MotivoDeMerma = "Merma" | "Vencimiento" | "Rotura" | "Decomiso" | "Consumo interno" | "Degustación";
-export type PorQueExcluido = "devolucion-anulacion" | "devolucion-edicion" | "stock-inicial" | "sin-diferencia";
+export type PorQueExcluido =
+  | "devolucion-anulacion"
+  | "devolucion-edicion"
+  | "traslado"
+  | "despiece"
+  | "stock-inicial"
+  | "sin-diferencia";
 
 export type MovimientoDeAjuste = {
   productId: string | null;
@@ -95,6 +110,8 @@ export function clasificarAjuste(m: MovimientoDeAjuste): Clasificacion {
   const actor = String(m.createdBy ?? "");
   if (actor.startsWith(ANULACION_VENTA_ACTOR_PREFIX)) return { clase: "EXCLUIDO", porQue: "devolucion-anulacion" };
   if (actor.startsWith(EDICION_ACTOR_PREFIX)) return { clase: "EXCLUIDO", porQue: "devolucion-edicion" };
+  if (actor.startsWith(TRASLADO_ACTOR_PREFIX)) return { clase: "EXCLUIDO", porQue: "traslado" };
+  if (esMovimientoDeDespiece(m.reason)) return { clase: "EXCLUIDO", porQue: "despiece" };
 
   const etiqueta = etiquetaDe(m.reason);
   if (etiqueta === MOTIVO_STOCK_INICIAL) return { clase: "EXCLUIDO", porQue: "stock-inicial" };
@@ -193,7 +210,7 @@ export function resumirMerma(
     faltante: renglonVacio(),
     sobrante: renglonVacio(),
     otro: renglonVacio(),
-    excluidos: { "devolucion-anulacion": 0, "devolucion-edicion": 0, "stock-inicial": 0, "sin-diferencia": 0 },
+    excluidos: { "devolucion-anulacion": 0, "devolucion-edicion": 0, traslado: 0, despiece: 0, "stock-inicial": 0, "sin-diferencia": 0 },
     top: [],
     perdidaSinCosto: [],
   };

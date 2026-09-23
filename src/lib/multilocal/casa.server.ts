@@ -20,18 +20,35 @@ import { cache } from "react";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { basePrisma } from "@/lib/prisma-base";
+import { logger } from "@/lib/logger";
 import type { SessionUser } from "@/lib/session";
 import { decidirAcceso } from "./multilocal-core";
 
 /**
  * Lo que puede pedir una pantalla de Mis locales. La dueña (`multilocal:manage`) ve todo; el
- * encargado de la casa (RECEPTION, `stock:read`) ve sólo el stock de los locales, sin plata.
+ * encargado de la casa (RECEPTION) ve el stock de los locales sin plata (`stock:read`) y manda
+ * mercadería de un local a otro (`traslados:manage`).
  */
-export type CapacidadCasa = "multilocal:manage" | "stock:read";
+export type CapacidadCasa = "multilocal:manage" | "stock:read" | "traslados:manage";
 
 export type Casa =
-  | { ok: true; casaId: string; nombre: string; user: SessionUser }
-  | { ok: false; error: string };
+  | {
+      ok: true;
+      casaId: string;
+      nombre: string;
+      /** CUIT de la casa (11 dígitos), o null si no está cargado. Lo usa el traslado. */
+      cuit: string | null;
+      user: SessionUser;
+    }
+  | {
+      ok: false;
+      error: string;
+      /** La base no contestó: no es que el negocio no sea casa, es que no se pudo comprobar. */
+      noSeLeyo?: true;
+    };
+
+const NO_SE_PUDO_COMPROBAR =
+  "No se pudo comprobar qué tiene activado este negocio: la base no contestó. Probá de nuevo en un rato; si sigue, escribinos a Gestión Studio Grow.";
 
 /**
  * Exige que la persona tenga la capability y que el negocio del request sea la casa de una
@@ -45,9 +62,18 @@ export const exigirCasa = cache(async (capability: CapacidadCasa): Promise<Casa>
   const user = await requireCapability(capability);
   const casaId = await getCurrentTenantId();
   // Tenant está fuera de RLS por diseño (es la raíz del aislamiento): se lee con el cliente
-  // base, igual que exigirEstudio. Sólo se toman el nombre y los módulos.
-  const t = await basePrisma.tenant.findUnique({ where: { id: casaId }, select: { name: true, modules: true } });
+  // base, igual que exigirEstudio. Sólo se toman el nombre, los módulos y el CUIT.
+  // Si la base no contesta, la pantalla lo dice (nunca la pantalla genérica de error) y la
+  // guardia queda CERRADA: sin leer los módulos no se abre nada.
+  let t: { name: string; modules: string[]; arcaCuit: string | null } | null;
+  try {
+    t = await basePrisma.tenant.findUnique({ where: { id: casaId }, select: { name: true, modules: true, arcaCuit: true } });
+  } catch (e) {
+    logger.error("mis-locales", "no se pudo leer el negocio para exigirCasa", e, { casaId });
+    return { ok: false, error: NO_SE_PUDO_COMPROBAR, noSeLeyo: true };
+  }
   const acceso = decidirAcceso(t?.modules ?? null, "casa");
   if (!acceso.ok) return acceso;
-  return { ok: true, casaId, nombre: t!.name, user };
+  const cuit = (t!.arcaCuit ?? "").replace(/\D/g, "") || null;
+  return { ok: true, casaId, nombre: t!.name, cuit, user };
 });

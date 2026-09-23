@@ -124,7 +124,30 @@ test("recorrerLocales abre UNA transacción por local, en serie, con el id de la
     async (_tx, local) => local.alias.toUpperCase(),
   );
   assert.deepEqual(abiertas, ["t-canning", "t-lomas"]);
-  assert.deepEqual(r.map((x) => x.dato), ["CANNING", "LOMAS"]);
+  assert.deepEqual(r.leidos.map((x) => x.dato), ["CANNING", "LOMAS"]);
+  assert.deepEqual(r.fallidos, []);
+});
+
+test("un local que falla no tumba la red: los demás se leen y el que falló queda nombrado", async () => {
+  const filas: FilaRed[] = [
+    { id: "1", localTenantId: "t-canning", alias: "Canning", estado: "activa" },
+    { id: "2", localTenantId: "t-lomas", alias: "Lomas", estado: "activa" },
+  ];
+  const caida = Object.assign(new Error("Timed out fetching a new connection from the connection pool"), { code: "P2024" });
+  const p = puertosDe(filas);
+  const r = await recorrerLocales(
+    { ...p, enLocal: async (id, fn) => { if (id === "t-canning") throw caida; return fn({} as never); } },
+    "t-casa",
+    async (_tx, local) => local.alias,
+  );
+  assert.deepEqual(r.leidos.map((x) => x.dato), ["Lomas"], "Lomas se lee aunque Canning falló antes");
+  assert.deepEqual(r.fallidos.map((f) => [f.local.alias, f.error]), [["Canning", caida]]);
+  // Las filas de la red sí son de todos: si ESA lectura falla, falla la pantalla entera (y la
+  // action lo convierte en un aviso, nunca en la pantalla genérica).
+  await assert.rejects(
+    recorrerLocales({ ...p, filasDeLaRed: async () => { throw caida; } }, "t-casa", async () => 1),
+    /Timed out/,
+  );
 });
 
 test("un local pedido desde afuera sólo vale si es de la red: el ajeno da error", () => {

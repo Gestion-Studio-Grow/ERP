@@ -10,6 +10,8 @@
 //   · cada página y cada export de /admin/locales pasa por `requireApp` y por `exigirCasa`;
 //   · nadie fuera de la consola de GSG (y de la cartera del contador, que es la dueña de sus
 //     filas) escribe CarteraCliente, y las escrituras del vínculo sólo las importa la consola;
+//   · `trasladoTransaction` (la transacción que escribe en DOS negocios) sólo la importa
+//     multilocal-actions, donde los dos ids salen de las filas de la red de la casa;
 //   · el número del Inicio no arrastra la base al importarse (los tests de loaders lo cargan).
 // Se lee el código sin comentarios: un comentario que explica la regla no la rompe.
 
@@ -53,7 +55,9 @@ function exportsDe(src: string): { nombre: string; params: string; cuerpo: strin
 }
 
 test("el núcleo de Mis locales y exigirCasa no son 'use server'", () => {
-  assert.equal(esUseServer(leer("src/lib/multilocal/multilocal-core.ts")), false);
+  for (const nucleo of ["multilocal-core.ts", "traslado-core.ts", "catalogo-marca-core.ts"]) {
+    assert.equal(esUseServer(leer(`src/lib/multilocal/${nucleo}`)), false, `${nucleo} es 'use server'`);
+  }
   const casa = leer("src/lib/multilocal/casa.server.ts");
   assert.equal(esUseServer(casa), false);
   assert.match(sinComentarios(casa), /import\s+["']server-only["']/, "casa.server.ts importa la base: server-only");
@@ -78,7 +82,12 @@ test("las actions de la red de locales (consola) arrancan con requireOperator", 
   const src = leer("src/lib/operador/red-locales-actions.ts");
   assert.ok(esUseServer(src));
   const exps = exportsDe(src);
-  assert.deepEqual(exps.map((e) => e.nombre).sort(), ["darDeBajaLocalAction", "vincularLocalAction"]);
+  assert.deepEqual(exps.map((e) => e.nombre).sort(), [
+    "darDeBajaLocalAction",
+    "revisarAltaEnRedAction",
+    "sumarAltaALaRedAction",
+    "vincularLocalAction",
+  ]);
   for (const e of exps) {
     assert.match(e.cuerpo.trim().split("\n")[0], /^const \w+ = await requireOperator\(\)/, `${e.nombre} sin requireOperator`);
   }
@@ -92,10 +101,12 @@ test("cada página y cada exportación de /admin/locales pasa por requireApp y e
     const src = sinComentarios(readFileSync(f, "utf8"));
     const rel = relative(RAIZ, f);
     assert.match(src, /\brequireApp\(\s*["'][a-z-]+["']\s*\)/, `${rel} sin requireApp`);
-    assert.match(src, /\bexigirCasa\(\s*["'](multilocal:manage|stock:read)["']\s*\)/, `${rel} sin exigirCasa`);
+    assert.match(src, /\bexigirCasa\(\s*["'](multilocal:manage|stock:read|traslados:manage)["']\s*\)/, `${rel} sin exigirCasa`);
     // La guardia va ANTES de leer la red: requireApp y exigirCasa preceden a la primera action.
     const guardia = Math.max(src.search(/\brequireApp\(/), src.search(/\bexigirCasa\(/));
-    const lectura = src.search(/\b(redDeLaCasaAction|stockDeLaRedAction|ventasDeLaRedAction)\(/);
+    const lectura = src.search(
+      /\b(redDeLaCasaAction|stockDeLaRedAction|ventasDeLaRedAction|catalogoDeLaMarcaAction|trasladosAction|remitoAction)\(/,
+    );
     assert.ok(lectura === -1 || guardia < lectura, `${rel} lee la red antes de la guardia`);
   }
 });
@@ -114,12 +125,39 @@ test("nadie fuera de la consola de GSG (y de la cartera del contador) escribe Ca
   assert.deepEqual(escriben.filter((f) => !PERMITIDOS.has(f)), [], "escriben CarteraCliente sin permiso");
   assert.ok(escriben.length >= 2, "el test dejó de encontrar las escrituras que sí existen");
 
-  // Las escrituras del vínculo sólo las importa la consola de GSG.
+  // Las escrituras del vínculo (y el alta de un local dentro de la red) sólo las importa la
+  // consola de GSG.
   const importan = fuentes
-    .filter((f) => /\b(vincularEnTx|darDeBajaEnTx)\b/.test(sinComentarios(readFileSync(f, "utf8"))))
+    .filter((f) => /\b(vincularEnTx|darDeBajaEnTx|sumarAltaEnTx)\b/.test(sinComentarios(readFileSync(f, "utf8"))))
     .map((f) => relative(RAIZ, f))
     .filter((f) => !f.endsWith(["multilocal", "multilocal-core.ts"].join(sep)));
   assert.deepEqual(importan, [["src", "lib", "operador", "red-locales-actions.ts"].join(sep)]);
+});
+
+test("trasladoTransaction (escribe en dos negocios) sólo la importa multilocal-actions", () => {
+  const fuentes = archivos(SRC, (n) => /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n));
+  const importan = fuentes
+    .filter((f) => /\btrasladoTransaction\b/.test(sinComentarios(readFileSync(f, "utf8"))))
+    .map((f) => relative(RAIZ, f))
+    .sort();
+  assert.deepEqual(importan, [
+    ["src", "lib", "multilocal", "multilocal-actions.ts"].join(sep),
+    ["src", "lib", "rls.ts"].join(sep),
+  ]);
+  // Las fases sueltas (sobre un `tx` cualquiera) no las usa nadie fuera de rls.ts: se prueban
+  // en los tests, pero en el código van siempre dentro de trasladoTransaction.
+  const fases = fuentes
+    .filter((f) => /\bfasesSobre\b/.test(sinComentarios(readFileSync(f, "utf8"))))
+    .map((f) => relative(RAIZ, f));
+  assert.deepEqual(fases, [["src", "lib", "rls.ts"].join(sep)]);
+  // Y en multilocal-actions la llama sólo la action del traslado, después de elegir el origen y
+  // el destino entre los lugares de la red (validarUbicaciones).
+  const acciones = exportsDe(leer("src/lib/multilocal/multilocal-actions.ts"));
+  const conTraslado = acciones.filter((e) => /\btrasladoTransaction\(/.test(e.cuerpo));
+  assert.deepEqual(conTraslado.map((e) => e.nombre), ["trasladarAction"]);
+  const cuerpo = conTraslado[0].cuerpo;
+  assert.ok(cuerpo.search(/\bvalidarUbicaciones\(/) !== -1 && cuerpo.search(/\bvalidarUbicaciones\(/) < cuerpo.search(/\btrasladoTransaction\(/));
+  assert.ok(cuerpo.search(/\blocalesDeLaRed\(/) < cuerpo.search(/\bvalidarUbicaciones\(/), "los lugares salen de las filas de la casa");
 });
 
 test("el número del Inicio de Mis locales no importa la base al cargarse", () => {

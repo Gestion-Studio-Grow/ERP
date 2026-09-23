@@ -12,12 +12,17 @@
 // ven ni tecleando la URL) y su página y sus actions llaman a `exigirCasa()`. Esconderla no
 // alcanza; un test del registro lo exige.
 //
-// CAPABILITY: Mis locales, Ventas y Cajas son de la dueña (`multilocal:manage`: sólo OWNER).
-// Stock por local la abre también el encargado de la casa (RECEPTION con `stock:read`): es la
-// pantalla desde donde se decide qué mandar a cada local, y no muestra plata.
+// CAPABILITY: Mis locales, Ventas, Cajas y el Catálogo de la marca son de la dueña
+// (`multilocal:manage`: sólo OWNER). Stock por local la abre también el encargado de la casa
+// (RECEPTION con `stock:read`): es la pantalla desde donde se decide qué mandar a cada local, y
+// no muestra plata. Traslados la abre la dueña y el encargado (`traslados:manage`).
+//
+// ESCRITURA (ola 3): el Catálogo de la marca manda la lista de la casa a cada local, y
+// Traslados mueve mercadería entre dos lugares de la red con el mismo CUIT. Las dos son de
+// mostrador (productos por kilo o por unidad).
 //
 // NÚMEROS: los calcula src/apps/kpis/locales.server.ts con UNA pasada por local, compartida
-// por las cuatro apps en el mismo request. La plata va declarada aparte, con reports:read.
+// por las apps en el mismo request. La plata va declarada aparte, con reports:read.
 //
 // Ninguna lleva `menuDeHoy`: no estaban en la barra de hoy (la de CH no cambia).
 
@@ -88,5 +93,35 @@ export const APPS_LOCALES = [
     estado: "lista",
     kpi: { id: "stock-por-local", mide: "Productos bajo el mínimo en los locales, y en cuántos locales." },
     palabras: ["stock", "existencias", "reponer", "faltantes"],
+  },
+  {
+    id: "catalogo-de-la-marca",
+    nombre: "Catálogo y precios de la marca",
+    descripcion: "Una sola lista de productos y precios: la de la casa, mandada a cada local con vista previa.",
+    icono: "catalogo",
+    ruta: "/admin/locales/catalogo",
+    espacio: "locales",
+    capability: "multilocal:manage",
+    modulo: "multilocal",
+    moduloDuro: true,
+    rubro: "mostrador",
+    estado: "lista",
+    kpi: { id: "catalogo-de-la-marca", mide: "Locales con precios o productos distintos a la lista de la casa." },
+    palabras: ["lista de precios", "precios de la marca", "mandar precios", "diferencias", "catalogo"],
+  },
+  {
+    id: "traslados",
+    nombre: "Traslados entre locales",
+    descripcion: "Mandar mercadería de un local a otro de la red, con su remito interno.",
+    icono: "devoluciones",
+    ruta: "/admin/locales/traslados",
+    espacio: "locales",
+    capability: "traslados:manage",
+    modulo: "multilocal",
+    moduloDuro: true,
+    rubro: "mostrador",
+    estado: "lista",
+    kpi: { id: "traslados", mide: "Traslados de hoy entre los locales de la red, y cuántos kilos y unidades se movieron." },
+    palabras: ["traslado", "mandar mercaderia", "remito", "enviar a otro local", "reparto"],
   },
 ] as const satisfies readonly AppDescriptor[];

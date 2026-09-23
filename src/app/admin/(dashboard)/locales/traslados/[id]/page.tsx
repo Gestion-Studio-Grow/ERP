@@ -1,0 +1,90 @@
+import Link from "next/link";
+import { requireApp } from "@/lib/require-app";
+import { exigirCasa } from "@/lib/multilocal/casa.server";
+import { remitoAction } from "@/lib/multilocal/multilocal-actions";
+import { LEYENDA_REMITO, htmlDelRemito, textoCantidad } from "@/lib/multilocal/traslado-core";
+import { fmtDateTimeAr } from "@/lib/datetime";
+import { AvisoError, Card, PageContainer, PageHeader, buttonClasses, fmtCuit } from "@/components/ui";
+import { NoEsCasa } from "../../partes";
+import { ImprimirRemito } from "./ImprimirRemito";
+
+export const dynamic = "force-dynamic";
+
+// REMITO INTERNO de un traslado: lo que salió, de dónde, adónde, cuándo y quién lo cargó, con
+// lugar para las firmas de quien entrega y quien recibe. NO es un documento fiscal ni reemplaza
+// al remito o al COT para circular (la leyenda lo dice arriba y abajo). Si MAGRA necesita COT o
+// remito cárnico entre el obrador y los locales: PROVISIONAL, A CONFIRMAR con su contadora.
+//
+// El remito se busca por su clave en la casa y en los locales de SU red (remitoAction): una
+// clave de otra red da "no existe", igual que una inventada.
+
+export default async function RemitoPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireApp("traslados");
+  const casa = await exigirCasa("traslados:manage");
+  if (!casa.ok) {
+    return (
+      <PageContainer>
+        <PageHeader title="Remito interno" />
+        <NoEsCasa error={casa.error} noSeLeyo={casa.noSeLeyo} />
+      </PageContainer>
+    );
+  }
+  const { id } = await params;
+  const r = await remitoAction(id);
+  const volver = (
+    <Link href="/admin/locales/traslados" className={buttonClasses("outline", "md")}>
+      Volver a traslados
+    </Link>
+  );
+  if (!r.ok) {
+    return (
+      <PageContainer>
+        <PageHeader title="Remito interno" />
+        <AvisoError titulo="No se encontró el remito" comoSeguir={r.error} accion={volver} />
+      </PageContainer>
+    );
+  }
+  const t = r.remito;
+  const cuando = fmtDateTimeAr(new Date(t.fecha));
+
+  return (
+    <PageContainer>
+      <PageHeader title={`Remito interno ${t.codigo}`} description={LEYENDA_REMITO} />
+      <Card className="mb-lg space-y-4">
+        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-muted">Fecha</dt>
+            <dd className="text-strong">{cuando}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Sale de</dt>
+            <dd className="text-strong break-words">{t.origen.nombre}</dd>
+            <dd className="text-xs text-muted">CUIT {fmtCuit(t.origen.cuit)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Va a</dt>
+            <dd className="text-strong break-words">{t.destino.nombre}</dd>
+            <dd className="text-xs text-muted">CUIT {fmtCuit(t.destino.cuit)}</dd>
+          </div>
+        </dl>
+        <ul className="divide-y divide-line border-y border-line" aria-label="Lo que se trasladó">
+          {t.lineas.map((l) => (
+            <li key={`${l.nombre}-${l.saleUnit}`} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+              <span className="text-strong break-words">{l.nombre}</span>
+              <span className="tabular-nums text-strong">{textoCantidad(l.cantidad, l.saleUnit, l.unidad)}</span>
+            </li>
+          ))}
+        </ul>
+        {t.nota && <p className="text-sm text-body">Nota: {t.nota}</p>}
+        <p className="text-xs text-muted">
+          Cargado por {t.por || "la casa"}
+          {t.casa ? ` (${t.casa})` : ""}. Salió del stock de {t.origen.nombre} y entró en el de {t.destino.nombre} en el mismo momento.
+        </p>
+      </Card>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <ImprimirRemito html={htmlDelRemito(t, cuando)} />
+        {volver}
+      </div>
+    </PageContainer>
+  );
+}

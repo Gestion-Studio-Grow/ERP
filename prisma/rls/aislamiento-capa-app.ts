@@ -11,6 +11,13 @@
 //    la extensión de RLS: la de RLS re-despacha sobre el cliente base, así que si
 //    el candado quedara por dentro se saltearía sin hacer ruido.)
 //
+// MIS LOCALES, ESCRITURA (tercera parte, ola 3): el traslado entre dos negocios en UNA
+// transacción con dos fases de GUC (`trasladoTransaction`), su idempotencia con un doble clic
+// real (dos transacciones a la vez con la misma clave), el rechazo de una escritura en la fase
+// equivocada (WITH CHECK, sólo con `app_rls`), el "otro CUIT es una venta", la exclusión de la
+// merma y el empuje del catálogo de la casa a un local. Siembra productos "qa …" en los negocios
+// `qa-ml-*` y los deja en un estado conocido en cada corrida.
+//
 // MIS LOCALES (segunda parte): los ataques a la red de locales, que es el ÚNICO camino por el
 // que un negocio lee datos de otro. Corren con el código real (multilocal-core.ts: el vínculo
 // de la consola, la lectura de la red y la pasada por local) y valen con los dos roles; los que
@@ -19,9 +26,23 @@
 // Con `app_rls` la primera parte no aplica (mide la app con RLS fuera de juego y sin GUC no ve
 // nada) y se saltea diciéndolo. Siembra negocios de prueba con slug `qa-ml-*` (idempotente).
 
+import { randomUUID } from "node:crypto";
 import { basePrisma, RLS_ENFORCEMENT } from "../../src/lib/prisma-base";
 import { prisma } from "../../src/lib/db";
-import { tenantTransaction } from "../../src/lib/rls";
+import { tenantTransaction, trasladoTransaction } from "../../src/lib/rls";
+import { clasificarAjuste } from "../../src/lib/stock/merma-core";
+import {
+  SIN_TRASLADOS,
+  TRASLADO_ACTOR_PREFIX,
+  TrasladoRechazado,
+  claveDeProducto,
+  trasladarEnFases,
+  validarUbicaciones,
+  type ContextoTraslado,
+  type Ubicacion,
+} from "../../src/lib/multilocal/traslado-core";
+import { empujarEnTx, leerCatalogo, listaDeLaCasa, planDelLocal } from "../../src/lib/multilocal/catalogo-marca-core";
+import { AltaEnRedRechazada, sumarAltaEnTx } from "../../src/lib/multilocal/multilocal-core";
 import {
   consultaFilasDeLaRed,
   darDeBajaEnTx,
@@ -66,6 +87,7 @@ async function main() {
     );
   }
   await ataquesMisLocales(exento);
+  if (exento || RLS_ENFORCEMENT) await escrituraMisLocales(exento);
   await basePrisma.$disconnect();
   console.log(fallas === 0 ? "\nTodo bloqueado.\n" : `\n${fallas} FALLA(S)\n`);
   process.exit(fallas === 0 ? 0 : 1);
@@ -321,6 +343,258 @@ async function ataquesMisLocales(exento: boolean) {
     baja.ok && despues.every((l) => l.localTenantId !== ids.local2) && !elegirLocal(despues, ids.local2).ok,
     `${despues.length} local(es) en la red`,
   );
+}
+
+// ── Mis locales, escritura (ola 3) ───────────────────────────────────────────
+
+const CUIT_QA = "20304050607";
+const OTRO_CUIT_QA = "27111111113";
+const ACTOR_TRASLADO = "qa-aislamiento";
+
+/** Deja un producto "qa …" de un negocio con el stock y el precio pedidos (dato de prueba). */
+async function productoQa(tenantId: string, name: string, datos: { stock: number; pricePerKg: number | null }) {
+  return tenantTransaction(
+    async (tx) => {
+      const previo = await tx.product.findFirst({ where: { tenantId, name }, select: { id: true } });
+      const data = { stock: datos.stock, pricePerKg: datos.pricePerKg, saleUnit: "WEIGHT" as const, unit: "kg", active: true, deletedAt: null, trackStock: true };
+      if (previo) return (await tx.product.update({ where: { id: previo.id }, data, select: { id: true } })).id;
+      return (await tx.product.create({ data: { tenantId, name, ...data }, select: { id: true } })).id;
+    },
+    { tenantId },
+  );
+}
+
+const stockQa = (tenantId: string, id: string) =>
+  tenantTransaction(async (tx) => (await tx.product.findFirst({ where: { tenantId, id }, select: { stock: true } }))?.stock ?? null, { tenantId });
+
+async function escrituraMisLocales(exento: boolean) {
+  console.log(`\nMIS LOCALES, ESCRITURA — rol ${exento ? "exento de RLS" : "NO exento (RLS en juego)"} · RLS_ENFORCEMENT=${RLS_ENFORCEMENT ? "on" : "off"}\n`);
+  const ids = Object.fromEntries(
+    await Promise.all(
+      (["casa", "local1", "local2"] as const).map(async (k) => [k, (await basePrisma.tenant.findUniqueOrThrow({ where: { slug: QA[k].slug }, select: { id: true } })).id]),
+    ),
+  ) as Record<"casa" | "local1" | "local2", string>;
+  // CUIT de prueba: la casa y el local 1 comparten; el local 2 es de otro CUIT (una franquicia).
+  await basePrisma.tenant.update({ where: { id: ids.casa }, data: { arcaCuit: CUIT_QA } });
+  await basePrisma.tenant.update({ where: { id: ids.local1 }, data: { arcaCuit: CUIT_QA } });
+  await basePrisma.tenant.update({ where: { id: ids.local2 }, data: { arcaCuit: OTRO_CUIT_QA } });
+  await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local1, alias: "qa Local 1", actor: ACTOR }, () => false));
+  await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local2, alias: "qa Local 2", actor: ACTOR }, () => false));
+  // Estado conocido: se borra lo que dejaron las corridas anteriores en estos negocios de prueba.
+  for (const id of Object.values(ids)) {
+    await tenantTransaction(
+      async (tx) => {
+        await tx.stockMovement.deleteMany({ where: { tenantId: id, createdBy: { startsWith: "traslado:user:qa" } } });
+        await tx.stockMovement.deleteMany({ where: { tenantId: id, createdBy: "user:qa-merma" } });
+        await tx.auditLog.deleteMany({ where: { tenantId: id, actor: { startsWith: "traslado:user:qa" } } });
+        await tx.auditLog.deleteMany({ where: { tenantId: id, actor: "casa:qa" } });
+      },
+      { tenantId: id },
+    );
+  }
+  const vacioCasa = await productoQa(ids.casa, "qa Vacío", { stock: 25, pricePerKg: 12000 });
+  const vacioLocal = await productoQa(ids.local1, "qa vacio", { stock: 0, pricePerKg: 11000 });
+  await productoQa(ids.casa, "qa Asado", { stock: 5, pricePerKg: 9000 });
+
+  const red = await localesDeLaRed(puertos, ids.casa);
+  const ubicaciones: Ubicacion[] = [
+    { id: ids.casa, nombre: "qa casa", esCasa: true, cuit: CUIT_QA },
+    ...red.map((l) => ({ id: l.localTenantId, nombre: l.alias, esCasa: false, cuit: l.arcaCuit })),
+  ];
+  const ctx = (clave: string, destino: string, kg: number): ContextoTraslado => {
+    const v = validarUbicaciones(ubicaciones, ids.casa, destino);
+    if (!v.ok) throw new Error(v.error);
+    return {
+      pedido: { clave, origen: ids.casa, destino, lineas: [{ producto: claveDeProducto("qa Vacío", "WEIGHT"), saleUnit: "WEIGHT", cantidad: kg }], nota: null },
+      origen: v.origen,
+      destino: v.destino,
+      casa: "qa casa",
+      usuarioId: ACTOR_TRASLADO,
+      por: "qa",
+      ahora: new Date(),
+    };
+  };
+  const trasladar = (c: ContextoTraslado) => trasladoTransaction({ origen: c.origen.id, destino: c.destino.id }, (f) => trasladarEnFases(f, c));
+
+  // 1) 10 kg del obrador al local 1: uno baja 10 y el otro sube 10, en una sola transacción.
+  const clave = randomUUID();
+  const t0 = Date.now();
+  const r1 = await trasladar(ctx(clave, ids.local1, 10));
+  const [casaDespues, localDespues] = [await stockQa(ids.casa, vacioCasa), await stockQa(ids.local1, vacioLocal)];
+  chequear("traslado de 10 kg: el obrador baja 10 y el local sube 10", !r1.yaEstaba && casaDespues === 15 && localDespues === 10, `casa ${casaDespues} · local ${localDespues} (${Date.now() - t0} ms)`);
+
+  // 2) La misma clave otra vez (un reintento): "ya estaba", nada se mueve de nuevo.
+  const r2 = await trasladar(ctx(clave, ids.local1, 10));
+  const [casa2, local2] = [await stockQa(ids.casa, vacioCasa), await stockQa(ids.local1, vacioLocal)];
+  chequear("la misma clave otra vez → ya estaba, sin moverse", r2.yaEstaba && casa2 === 15 && local2 === 10, `casa ${casa2} · local ${local2}`);
+
+  // 3) Doble clic real: dos transacciones A LA VEZ con la misma clave → un solo traslado.
+  const doble = randomUUID();
+  const t1 = Date.now();
+  const ambos = await Promise.allSettled([trasladar(ctx(doble, ids.local1, 5)), trasladar(ctx(doble, ids.local1, 5))]);
+  const [casa3, local3] = [await stockQa(ids.casa, vacioCasa), await stockQa(ids.local1, vacioLocal)];
+  const salidas = await tenantTransaction(
+    (tx) => tx.stockMovement.count({ where: { tenantId: ids.casa, createdBy: { startsWith: "traslado:user:qa" }, reason: { contains: doble.replace(/-/g, "").slice(0, 8).toUpperCase() } } }),
+    { tenantId: ids.casa },
+  );
+  chequear(
+    "doble clic (dos a la vez, misma clave) → un solo traslado",
+    ambos.every((x) => x.status === "fulfilled") && salidas === 1 && casa3 === 10 && local3 === 15,
+    `${ambos.map((x) => (x.status === "fulfilled" ? (x.value.yaEstaba ? "ya estaba" : "trasladó") : `falló: ${String((x as PromiseRejectedResult).reason).slice(0, 60)}`)).join(" / ")} · salidas ${salidas} · casa ${casa3} · local ${local3} (${Date.now() - t1} ms)`,
+  );
+
+  // 4) Otro CUIT: es una venta, no un traslado.
+  const venta = validarUbicaciones(ubicaciones, ids.casa, ids.local2);
+  chequear("al local con otro CUIT → rechazo 'es una venta'", !venta.ok && /es una venta/.test(venta.error), venta.ok ? "LO DEJÓ" : venta.error);
+
+  // 5) El destino no tiene el producto → no se mueve NADA (la salida del origen se deshace).
+  const sinProducto = { ...ctx(randomUUID(), ids.local1, 3), destino: { id: ids.local2, nombre: "qa Local 2", esCasa: false, cuit: CUIT_QA } };
+  let rechazo = "";
+  try {
+    await trasladoTransaction({ origen: ids.casa, destino: ids.local2 }, (f) => trasladarEnFases(f, { ...sinProducto, pedido: { ...sinProducto.pedido, destino: ids.local2 } }));
+  } catch (e) {
+    rechazo = e instanceof TrasladoRechazado ? e.message : `otro error: ${(e as Error).message}`;
+  }
+  const casa5 = await stockQa(ids.casa, vacioCasa);
+  chequear("si el destino no tiene el producto, lo que salió del origen vuelve", /no tiene/.test(rechazo) && casa5 === 10, `${rechazo.slice(0, 70)} · casa ${casa5}`);
+
+  // 6) El traslado no es merma: la salida del obrador queda excluida del tablero.
+  const ajuste = await tenantTransaction(
+    (tx) => tx.stockMovement.findFirst({ where: { tenantId: ids.casa, type: "AJUSTE", createdBy: { startsWith: "traslado:user:qa" } }, select: { productId: true, qty: true, reason: true, createdBy: true, unitCost: true } }),
+    { tenantId: ids.casa },
+  );
+  const clase = ajuste ? clasificarAjuste(ajuste) : null;
+  chequear("la salida del traslado no aparece como merma", clase?.clase === "EXCLUIDO" && "porQue" in clase && clase.porQue === "traslado", JSON.stringify(clase));
+  // La lista "Ajustes recientes" de Mermas (ajustes-loader.ts) lee los AJUSTE del negocio. Con el
+  // pedazo de where `SIN_TRASLADOS` (el cambio pedido para ese archivo) sale TODO menos los traslados:
+  // una merma de verdad (dato de prueba, sin tocar el stock) tiene que seguir apareciendo.
+  await tenantTransaction(
+    (tx) =>
+      tx.stockMovement.create({
+        data: { tenantId: ids.casa, productId: vacioCasa, type: "AJUSTE", qty: -0.5, balanceAfter: 0, reason: "qa merma", createdBy: "user:qa-merma" },
+      }),
+    { tenantId: ids.casa },
+  );
+  const ajustes = (sinTraslados: boolean) =>
+    tenantTransaction(
+      (tx) =>
+        tx.stockMovement.findMany({
+          where: { tenantId: ids.casa, type: "AJUSTE", ...(sinTraslados ? SIN_TRASLADOS : {}) },
+          select: { createdBy: true },
+        }),
+      { tenantId: ids.casa },
+    );
+  const [todos, sinTraslados] = await Promise.all([ajustes(false), ajustes(true)]);
+  const esTraslado = (m: { createdBy: string }) => m.createdBy.startsWith(TRASLADO_ACTOR_PREFIX);
+  chequear(
+    "la lista de ajustes con SIN_TRASLADOS deja afuera los traslados y nada más",
+    todos.some(esTraslado) &&
+      !sinTraslados.some(esTraslado) &&
+      sinTraslados.some((m) => m.createdBy === "user:qa-merma") &&
+      sinTraslados.length === todos.filter((m) => !esTraslado(m)).length,
+    `${todos.length} ajustes (${todos.filter(esTraslado).length} de traslados) → ${sinTraslados.length} sin traslados`,
+  );
+
+  // 7) Una escritura en la fase equivocada revienta el WITH CHECK y no deja nada.
+  await (exento
+    ? Promise.resolve(console.log("—     escritura en la fase equivocada → WITH CHECK — SALTEADO: el rol está exento de RLS"))
+    : (async () => {
+        const marca = `qa.fase-equivocada.${randomUUID()}`;
+        let error = "";
+        try {
+          await trasladoTransaction({ origen: ids.casa, destino: ids.local1 }, async (f) => {
+            await f.enOrigen((tx) => tx.auditLog.create({ data: { tenantId: ids.casa, actor: "qa", action: marca, entity: "Traslado" } }));
+            await f.enOrigen((tx) => tx.auditLog.create({ data: { tenantId: ids.local1, actor: "qa", action: marca, entity: "Traslado" } }));
+          });
+        } catch (e) {
+          error = (e as Error).message;
+        }
+        const quedaron = await tenantTransaction((tx) => tx.auditLog.count({ where: { tenantId: ids.casa, action: marca } }), { tenantId: ids.casa });
+        chequear(
+          "escribir la fila del destino en la fase del origen → la base la rechaza y no queda nada",
+          /row-level security|violates|42501/i.test(error) && quedaron === 0,
+          `${error.split("\n").find((l) => /row-level|violates/i.test(l))?.trim().slice(0, 90) ?? error.slice(0, 90)} · filas que quedaron: ${quedaron}`,
+        );
+      })());
+
+  // 8) El catálogo de la casa, empujado al local 1: cambia el precio, crea lo que falta, y la
+  //    segunda vez no escribe nada. Cada escritura con el GUC del local. Sin vista previa (huella
+  //    null, lo que usa el alta) no se le pisa nada a un local que ya tiene su catálogo; con la
+  //    huella de la vista previa (lo que manda la pantalla de la casa), sí.
+  const lista = listaDeLaCasa(await tenantTransaction((tx) => leerCatalogo(tx, ids.casa), { tenantId: ids.casa }));
+  // (El "qa vacio" del local arranca cada corrida en 11000, sembrado arriba: la casa lo tiene a 12000.)
+  const empujar = (huella: string | null) =>
+    tenantTransaction(
+      (tx) => empujarEnTx(tx, { tenantId: ids.local1, lista, huella, actor: "casa:qa", casa: { id: ids.casa, nombre: "qa casa" }, por: "qa", lote: randomUUID() }),
+      { tenantId: ids.local1 },
+    );
+  const sinVista = await empujar(null);
+  const precioSinVista = (await tenantTransaction((tx) => leerCatalogo(tx, ids.local1), { tenantId: ids.local1 })).find((p) => p.id === vacioLocal)?.pricePerKg;
+  chequear(
+    "sin vista previa no se le pisa el precio a un local con catálogo propio",
+    sinVista.estado === "no-aplicable" && precioSinVista === 11000,
+    `${sinVista.estado} · vacío sigue en ${precioSinVista}`,
+  );
+  const vistaPrevia = await tenantTransaction((tx) => planDelLocal(tx, ids.local1, lista), { tenantId: ids.local1 });
+  const e1 = await empujar(vistaPrevia.huella);
+  const catalogoLocal = await tenantTransaction((tx) => leerCatalogo(tx, ids.local1), { tenantId: ids.local1 });
+  const vacio = catalogoLocal.find((p) => p.id === vacioLocal);
+  const asado = catalogoLocal.find((p) => p.name === "qa Asado");
+  chequear(
+    "la lista de la casa en el local: el precio cambia y lo que faltaba se crea (sin stock)",
+    (e1.estado === "aplicado" || e1.estado === "al-dia") && vacio?.pricePerKg === 12000 && asado?.pricePerKg === 9000 && asado?.stock === 0,
+    `${e1.estado} · vacío ${vacio?.pricePerKg} · asado ${asado?.pricePerKg} (stock ${asado?.stock})`,
+  );
+  const e2 = await empujar(vistaPrevia.huella);
+  chequear("la misma lista otra vez no escribe nada", e2.estado === "al-dia", e2.estado);
+
+  // 9) El alta de un local que nace dentro de la red, por el camino de la consola: vínculo, CUIT
+  //    y punto de venta, y la lista de la casa, en UNA transacción; con un punto de venta que ya
+  //    usa otro negocio del mismo CUIT, no queda nada escrito.
+  const nuevo = await basePrisma.tenant.upsert({
+    where: { slug: "qa-ml-local-nuevo" },
+    create: { slug: "qa-ml-local-nuevo", name: "qa local nuevo", modules: [], blueprintId: "generico" },
+    update: { arcaCuit: null, arcaPuntoVenta: null },
+    select: { id: true },
+  });
+  await basePrisma.tenant.update({ where: { id: ids.local1 }, data: { arcaPuntoVenta: 98 } });
+  const fila = await tenantTransaction((tx) => tx.carteraCliente.findFirst({ where: { tenantId: ids.casa, clienteTenantId: nuevo.id, estado: "activa" } }), { tenantId: ids.casa });
+  if (fila) await basePrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId: ids.casa, localId: nuevo.id, actor: ACTOR }));
+  await tenantTransaction((tx) => tx.product.deleteMany({ where: { tenantId: nuevo.id, name: { startsWith: "qa " } } }), { tenantId: nuevo.id });
+  const alta = (puntoVenta: string) =>
+    basePrisma.$transaction(
+      (tx) => sumarAltaEnTx(tx, { casaId: ids.casa, localId: nuevo.id, alias: "qa Nuevo", puntoVenta, actor: ACTOR, lote: randomUUID() }, () => false),
+      { timeout: 20_000 },
+    );
+  let choque = "";
+  try {
+    await alta("98");
+  } catch (e) {
+    choque = e instanceof AltaEnRedRechazada ? e.message : `otro error: ${(e as Error).message}`;
+  }
+  const trasChoque = await basePrisma.tenant.findUniqueOrThrow({ where: { id: nuevo.id }, select: { arcaPuntoVenta: true } });
+  const vinculoTrasChoque = await tenantTransaction(
+    (tx) => tx.carteraCliente.count({ where: { tenantId: ids.casa, clienteTenantId: nuevo.id, estado: "activa" } }),
+    { tenantId: ids.casa },
+  );
+  chequear(
+    "alta en la red con un CUIT + punto de venta ya usado → rechazo y nada escrito",
+    /ya lo usa «qa local 1»/.test(choque) && trasChoque.arcaPuntoVenta === null && vinculoTrasChoque === 0,
+    `${choque.slice(0, 80)} · pv ${trasChoque.arcaPuntoVenta} · vínculos ${vinculoTrasChoque}`,
+  );
+  const t2 = Date.now();
+  const ok = await alta("97");
+  const productosNuevo = await tenantTransaction((tx) => leerCatalogo(tx, nuevo.id), { tenantId: nuevo.id });
+  chequear(
+    "alta en la red: vinculado, con CUIT y punto de venta, y con la lista de la casa",
+    ok.puntoVenta === 97 && ok.cuit === CUIT_QA && ok.catalogo.estado === "aplicado" && productosNuevo.some((p) => p.name === "qa Vacío" && p.pricePerKg === 12000 && p.stock === 0),
+    `pv ${ok.puntoVenta} · cuit ${ok.cuit} · lista ${ok.catalogo.estado} · ${productosNuevo.length} productos (${Date.now() - t2} ms)`,
+  );
+  const otraVez = await alta("97");
+  chequear("reintentar el alta en la red no escribe nada nuevo", otraVez.catalogo.estado === "al-dia", otraVez.catalogo.estado);
+  // Se deja la red como la espera la segunda parte en la próxima corrida (dos locales): el local
+  // nuevo sale de la red por el camino de la consola (queda en baja, con su historia).
+  await basePrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId: ids.casa, localId: nuevo.id, actor: ACTOR }));
 }
 
 main().catch((e) => {

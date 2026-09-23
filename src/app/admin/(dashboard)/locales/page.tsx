@@ -14,7 +14,7 @@ import { Badge, Card, KpiTile, PageContainer, PageHeader, fmtMoneyARS, fmtNumber
 import { appPorId } from "@/apps/registro";
 import { appPermitida } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
-import { AbrirLocal, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, dia, ruteoDeLocales } from "./partes";
+import { AbrirLocal, LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, dia, ruteoDeLocales } from "./partes";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,7 @@ export default async function MisLocalesPage() {
     return (
       <PageContainer>
         <PageHeader title="Mis locales" />
-        <NoEsCasa error={casa.error} />
+        <NoEsCasa error={casa.error} noSeLeyo={casa.noSeLeyo} />
       </PageContainer>
     );
   }
@@ -63,8 +63,9 @@ export default async function MisLocalesPage() {
         description={`Cómo viene hoy, ${dia(r.hoy)}, cada local de tu red. Cada número sale de la caja y el stock de ese local, en este momento.`}
       />
       <SolapasLocales activa="mis-locales" role={user.role} />
+      <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales" />
       {r.red.length === 0 ? (
-        <SinLocales />
+        r.sinLeer.length === 0 && <SinLocales />
       ) : (
         <>
           <Resumen resumen={r.resumen} red={r.red} veStock={veStock} />

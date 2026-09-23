@@ -4,7 +4,7 @@ import { redDeLaCasaAction } from "@/lib/multilocal/multilocal-actions";
 import { direccionDelLocal, type CierreLocal, type LocalConPasada } from "@/lib/multilocal/multilocal-core";
 import { Badge, Card, PageContainer, PageHeader, fmtMoneyARS, fmtNumberAR, type BadgeTone } from "@/components/ui";
 import { fmtDateTimeAr } from "@/lib/datetime";
-import { AbrirLocal, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, dia, ruteoDeLocales } from "../partes";
+import { AbrirLocal, LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, dia, ruteoDeLocales } from "../partes";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,7 @@ export default async function CajasDeLosLocalesPage() {
     return (
       <PageContainer>
         <PageHeader title={titulo} />
-        <NoEsCasa error={casa.error} />
+        <NoEsCasa error={casa.error} noSeLeyo={casa.noSeLeyo} />
       </PageContainer>
     );
   }
@@ -72,8 +72,9 @@ export default async function CajasDeLosLocalesPage() {
         }
       />
       <SolapasLocales activa="cajas-de-los-locales" role={user.role} />
+      <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales/cajas" />
       {r.red.length === 0 ? (
-        <SinLocales />
+        r.sinLeer.length === 0 && <SinLocales />
       ) : (
         <ul className="space-y-4" aria-label="Caja de cada local">
           {orden.map((x) => (

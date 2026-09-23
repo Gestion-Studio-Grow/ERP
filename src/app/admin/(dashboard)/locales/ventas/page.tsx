@@ -19,7 +19,7 @@ import {
   fmtMoneyARS,
   fmtNumberAR,
 } from "@/components/ui";
-import { NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, dia } from "../partes";
+import { LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, dia } from "../partes";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,7 @@ export default async function VentasPorLocalPage({
     return (
       <PageContainer>
         <PageHeader title={titulo} />
-        <NoEsCasa error={casa.error} />
+        <NoEsCasa error={casa.error} noSeLeyo={casa.noSeLeyo} />
       </PageContainer>
     );
   }
@@ -65,9 +65,12 @@ export default async function VentasPorLocalPage({
     );
   }
 
+  // Un local de la red que no se pudo leer no es "un local ajeno": lo explica el aviso de arriba.
+  const pedido = una(sp.local);
+  const caido = r.sinLeer.some((l) => l.localTenantId === pedido);
   const eleccion = elegirLocal(
     r.locales.map((l) => l.local),
-    una(sp.local),
+    caido ? null : pedido,
   );
   const elegido = eleccion.ok ? eleccion.local : null;
   const mostrados = elegido ? r.locales.filter((l) => l.local.localTenantId === elegido.localTenantId) : r.locales;
@@ -92,9 +95,10 @@ export default async function VentasPorLocalPage({
         />
       )}
       {r.aviso && <AvisoError className="mb-lg" tono="aviso" titulo="No se usó el rango pedido" comoSeguir={r.aviso} />}
+      <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales/ventas" />
 
       {r.locales.length === 0 ? (
-        <SinLocales />
+        r.sinLeer.length === 0 && <SinLocales />
       ) : (
         <>
           <form method="get" className="mb-lg grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_1fr_1.4fr_auto]">

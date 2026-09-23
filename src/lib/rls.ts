@@ -39,10 +39,12 @@ export const rlsPrisma = basePrisma.$extends({
       //
       // ⚠️ ACÁ DECÍA "es inocuo porque la app no tiene queries crudas sobre tablas de
       // tenant". ERA FALSO. Hay queries crudas sobre `Product`, `ProductBatch`,
-      // `ProcessingRun` y `User` en cuatro archivos: `carniceria/lotes-actions.ts`,
-      // `carniceria/despiece-actions.ts`, `carniceria/product-extras.ts` y
+      // `ProcessingRun` y `User`, entre otros en `carniceria/lotes-loader.ts`,
+      // `carniceria/lotes-registro.ts`, `carniceria/despiece-loader.ts`,
+      // `carniceria/despiece-registro.ts`, `carniceria/product-extras.ts` y
       // `must-change-password.ts` — la mayoría escritas así a propósito, porque tocan
-      // columnas que el cliente de Prisma todavía no conoce (schema-ahead).
+      // columnas que el cliente de Prisma todavía no conoce (schema-ahead). La lista entera,
+      // siempre al día: `grep -rln '\$queryRaw\|\$executeRaw' src`.
       //
       // Hoy NO hay fuga: se revisaron una por una y todas llevan su `AND "tenantId" = ...`
       // escrito a mano. Pero el comentario viejo le decía al próximo lector que esta clase
@@ -198,4 +200,90 @@ export function bookingTransaction<T>(
     ...opts,
     isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
   });
+}
+
+// ── Traslado: UNA transacción que escribe en DOS negocios ─────────────────────
+//
+// Un traslado de mercadería baja el stock de un local y sube el de otro. Si fueran dos
+// transacciones, un corte entre las dos deja 10 kg de vacío en el aire: salieron del obrador y
+// no llegaron a Canning. Por eso es una sola transacción, y el GUC de RLS se cambia ADENTRO:
+// `set_config(..., true)` vale hasta el final de la transacción y cada sentencia lo relee
+// (medido contra el Postgres local con `app_rls`, prisma/rls/aislamiento-capa-app.ts). Cada fase
+// escribe SÓLO filas de su negocio; una fila del otro negocio escrita en la fase equivocada la
+// rechaza el WITH CHECK de la base (y, con un rol exento de RLS, el candado de la app acota los
+// `where` al negocio de la fase).
+//
+// Serializable con reintentos, como las reservas: dos traslados que leen el mismo stock y lo
+// bajan a la vez no pueden dejar el obrador en negativo, y un doble clic con la misma clave
+// aborta uno (el reintento ve el primero ya escrito y contesta "ya estaba").
+//
+// SIN PROBAR: el GUC por sentencia a través del pooler de Neon en modo transacción. Debería
+// valer lo mismo (la transacción entera va por una sola conexión), pero se verifica en un
+// preview antes de habilitárselo a MAGRA.
+//
+// La importa SÓLO src/lib/multilocal/multilocal-actions.ts (forma.test.ts): los ids de los dos
+// negocios tienen que salir de las filas de la red de la casa, nunca de un formulario.
+
+/** Cliente de transacción de una fase del traslado (el `tx` crudo con el candado del negocio). */
+export type TxTraslado = TxClient;
+
+export interface FasesDeTraslado {
+  /** Corre `fn` con el GUC y el candado del negocio de ORIGEN. */
+  enOrigen<R>(fn: (tx: TxTraslado) => Promise<R>): Promise<R>;
+  /** Corre `fn` con el GUC y el candado del negocio de DESTINO. */
+  enDestino<R>(fn: (tx: TxTraslado) => Promise<R>): Promise<R>;
+}
+
+/**
+ * Las dos fases sobre UNA transacción ya abierta. Van de a una: una fase que arranca mientras
+ * otra sigue corriendo (un `Promise.all` de las dos) mezclaría los GUC de las sentencias, así
+ * que se rechaza en vez de dejarla pasar. Exportada sólo para probarla con una base falsa.
+ */
+export function fasesSobre(tx: TxClient, negocios: { origen: string; destino: string }): FasesDeTraslado {
+  let activa: string | null = null;
+  const fase =
+    (tenantId: string) =>
+    async <R>(fn: (tx: TxTraslado) => Promise<R>): Promise<R> => {
+      if (activa !== null) throw new Error("Las fases de un traslado van de a una: esperá a que termine la anterior.");
+      activa = tenantId;
+      try {
+        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+        const conCandado = scopeTxClient(tx, tenantId);
+        // El contexto del request pasa a ser el de la fase: si algo adentro resolviera el negocio
+        // por el store, ve el de la fase, y `insideTx` impide que la extensión abra otra.
+        return await runInTenantContext(tenantId, async () => await fn(conCandado), { insideTx: true });
+      } finally {
+        activa = null;
+      }
+    };
+  return { enOrigen: fase(negocios.origen), enDestino: fase(negocios.destino) };
+}
+
+/**
+ * Transacción de TRASLADO entre dos negocios: Serializable, con reintentos ante un conflicto y
+ * las dos fases de GUC (`fasesSobre`). Siempre pone el GUC, con el flag de RLS prendido o
+ * apagado: con el rol `app_rls` sin GUC no se ve nada, y con un rol exento no molesta.
+ * Todo o nada: si `fn` tira, no queda escrito nada en ninguno de los dos negocios.
+ */
+export async function trasladoTransaction<T>(
+  negocios: { origen: string; destino: string },
+  fn: (fases: FasesDeTraslado) => Promise<T>,
+  opts?: { maxRetries?: number },
+): Promise<T> {
+  if (!negocios.origen || !negocios.destino || negocios.origen === negocios.destino) {
+    throw new Error("Un traslado necesita dos negocios distintos.");
+  }
+  const maxRetries = opts?.maxRetries ?? DEFAULT_SERIALIZABLE_RETRIES;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await basePrisma.$transaction((tx) => fn(fasesSobre(tx, negocios)), {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        // Un traslado de varias líneas son unas diez sentencias por línea entre los dos negocios.
+        timeout: 15_000,
+      });
+    } catch (e) {
+      if (attempt < maxRetries && isWriteConflict(e)) continue;
+      throw e;
+    }
+  }
 }

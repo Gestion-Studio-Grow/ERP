@@ -1,6 +1,6 @@
 "use client";
 
-// WIZARD DE ALTA DE TENANT — 5 pasos + panel de preview en vivo (RFC-003 §3.1) sobre la fábrica
+// WIZARD DE ALTA DE TENANT — 6 pasos + panel de preview en vivo (RFC-003 §3.1) sobre la fábrica
 // de tenants (ADR-074). CLIENT-SAFE: sólo importa tipos (se borran en build), UI del design system,
 // helpers puros de mapeo y los Server Actions del alta. NADA server-tainted (Prisma, branding,
 // catálogo de plugins) — todo el catálogo llega por props desde el server (page.tsx).
@@ -9,12 +9,28 @@
 // alimenta el preview en vivo, la validación inline (slug/host/email) y los chips de módulos. El
 // commit (`commitTenantAction`) sólo se habilita con el plan sin colisiones, y muestra el estado de
 // la saga (PENDING→ACTIVE) o el fallo compensado, más la entrega segura del bootstrap (fuera de la URL).
+//
+// ¿DE QUÉ RED? Un local de una marca con varios locales (MAGRA Canning) se abre en la MISMA corrida
+// que el alta: apenas la fábrica crea el negocio, `sumarAltaALaRedAction` lo vincula a su casa, le
+// carga el CUIT y el punto de venta (rechaza un par CUIT + punto de venta que ya usa otro negocio) y
+// le deja la lista de precios de la casa. Antes de crear, `revisarAltaEnRedAction` hace el mismo
+// chequeo sin escribir: mientras se carga el paso ("Siguiente" y "Crear" esperan la revisión de LO
+// QUE ESTÁ ESCRITO, no la de antes del último cambio) y otra vez justo antes de crear. Si el paso de
+// la red falla después de crear, el panel lo dice, deja corregir el CUIT y el punto de venta y
+// reintentar (es idempotente), y lleva a las fichas del local y de la casa.
+//
+// La opción "Local de una red" sólo se ofrece si la fábrica da de alta SIN el catálogo de ejemplo
+// del rubro (`altaEnRedDisponible`, lo decide page.tsx): un local de una red nace vacío y recibe la
+// lista de la casa. Si la fábrica sembrara el catálogo de ejemplo, el local quedaría con productos
+// y stock que no existen.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Card, Field, Input, Select, Button, Badge } from "@/components/ui";
+import { Card, Field, Input, Select, Button, Badge, buttonClasses } from "@/components/ui";
 import { BootstrapReveal } from "@/components/BootstrapReveal";
 import { planTenantAction, commitTenantAction } from "@/lib/operator-provisioning-actions";
+import { revisarAltaEnRedAction, sumarAltaALaRedAction, type RevisionAltaEnRed } from "@/lib/operador/red-locales-actions";
+import type { ResultadoAltaEnRed } from "@/lib/multilocal/multilocal-core";
 import {
   suggestMonogram,
   type RawWizardForm,
@@ -30,9 +46,16 @@ export interface WizardData {
   empresaModuleIds: string[];
   accents: { id: string; light: string; dark: string; onLight: string; onDark: string }[];
   isSecondTenant: boolean;
+  /** Casas de una red a las que se puede sumar el local (paso "¿De qué red?"). */
+  casas: { id: string; name: string; cuit: string | null }[];
+  /** ¿La fábrica da de alta sin el catálogo de ejemplo? Si no, "Local de una red" no se ofrece. */
+  altaEnRedDisponible: boolean;
 }
 
-const STEPS = ["Negocio", "Rubro", "Módulos", "Marca + link", "Revisar"] as const;
+const STEPS = ["Negocio", "Rubro", "¿De qué red?", "Módulos", "Marca + link", "Revisar"] as const;
+
+/** Lo que se carga en el paso "¿De qué red?". Sin casa = local suelto, como siempre. */
+type DatosRed = { casaId: string; alias: string; cuit: string; puntoVenta: string };
 
 // ETIQUETAS DE LA SAGA. Dos de estos pasos NO HACEN NADA todavía y por eso no dicen que sí:
 // `HOST_BOUND` e `INVITED` corren sobre `NoopHostBinder` / `NoopInviter`
@@ -67,6 +90,14 @@ export function AltaWizard({ data }: { data: WizardData }) {
   const [slugTouched, setSlugTouched] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [result, setResult] = useState<CommitActionResult | null>(null);
+  const [red, setRedState] = useState<DatosRed>({ casaId: "", alias: "", cuit: "", puntoVenta: "" });
+  // La revisión vale para los datos con que se pidió (`clave`): mientras el operador escribe, la
+  // de antes no habilita nada.
+  const [revisada, setRevisada] = useState<{ clave: string; r: RevisionAltaEnRed } | null>(null);
+  const [revisando, setRevisando] = useState(false);
+  const [altaRed, setAltaRed] = useState<ResultadoAltaEnRed | null>(null);
+  const [sumando, setSumando] = useState(false);
+  const setRed = (patch: Partial<DatosRed>) => setRedState((r) => ({ ...r, ...patch }));
 
   const set = (patch: Partial<RawWizardForm>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -107,6 +138,36 @@ export function AltaWizard({ data }: { data: WizardData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planKey]);
 
+  // Chequeo del paso "¿De qué red?" SIN escribir (casa válida, CUIT + punto de venta libre),
+  // debounced y con id de request igual que el dry-run. El alias no cambia nada del chequeo.
+  const redReq = useRef(0);
+  const redKey = JSON.stringify({ casaId: red.casaId, cuit: red.cuit, puntoVenta: red.puntoVenta });
+  useEffect(() => {
+    const id = ++redReq.current;
+    const sinRed = !red.casaId;
+    const pedido = { ...red };
+    const t = setTimeout(async () => {
+      if (sinRed) {
+        setRevisada(null);
+        setRevisando(false);
+        return;
+      }
+      setRevisando(true);
+      const r = await revisarRed(pedido);
+      if (id === redReq.current) {
+        setRevisada({ clave: redKey, r });
+        setRevisando(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redKey]);
+  // Sólo la revisión de lo que está escrito AHORA cuenta: durante los 350 ms del debounce la de
+  // antes del último cambio no habilita "Siguiente" ni "Crear".
+  const revision = revisada?.clave === redKey ? revisada.r : null;
+  const redOk = !red.casaId || (revision?.ok === true && !revisando);
+  const casaElegida = data.casas.find((c) => c.id === red.casaId) ?? null;
+
   const has = (kind: string) => plan?.collisions.some((c) => c.kind === kind) ?? false;
   const msg = (kind: string) => plan?.collisions.find((c) => c.kind === kind)?.message;
 
@@ -119,13 +180,47 @@ export function AltaWizard({ data }: { data: WizardData }) {
   // servicios y el local de carne nace con agenda de turnos. Bloquea el "Siguiente" Y el
   // "Crear tenant" (se podía saltar el paso yendo directo al final).
   const step1Ok = Boolean(form.rubro?.trim() || form.blueprint?.trim());
-  const canAdvance = step === 0 ? step0Ok : step === 1 ? step1Ok : step === 3 ? step3Ok : true;
-  const canCommit = Boolean(plan?.ok) && step1Ok && !planPending && !committing && !result?.ok;
+  const canAdvance = step === 0 ? step0Ok : step === 1 ? step1Ok : step === 2 ? redOk : step === 4 ? step3Ok : true;
+  const canCommit = Boolean(plan?.ok) && step1Ok && redOk && !planPending && !committing && !result?.ok;
+
+  /**
+   * Suma el local recién creado a la red elegida (idempotente: sirve también para reintentar). El
+   * reintento puede traer otro CUIT o punto de venta, corregidos en el panel del resultado.
+   */
+  async function sumarALaRed(tenantId: string, fiscal?: { cuit: string; puntoVenta: string }) {
+    setSumando(true);
+    try {
+      const fd = new FormData();
+      fd.set("casaId", red.casaId);
+      fd.set("localId", tenantId);
+      fd.set("alias", red.alias.trim() || form.name?.trim() || "");
+      fd.set("cuit", fiscal?.cuit ?? red.cuit);
+      fd.set("puntoVenta", fiscal?.puntoVenta ?? red.puntoVenta);
+      setAltaRed(await sumarAltaALaRedAction(fd));
+    } catch {
+      setAltaRed({ ok: false, motivo: "No se pudo sumar el local a la red: no quedó nada a medias. Probá de nuevo." });
+    } finally {
+      setSumando(false);
+    }
+  }
 
   async function onCommit() {
     setCommitting(true);
     try {
-      setResult(await commitTenantAction(form));
+      // Justo antes de crear, la revisión otra vez contra la base: entre la última revisión y el
+      // clic otro operador pudo haber cargado ese punto de venta. Si no pasa, no se crea nada.
+      if (red.casaId) {
+        const r = await revisarRed(red);
+        setRevisada({ clave: redKey, r });
+        if (!r.ok) return;
+      }
+      // `sinCatalogo`: un local de una red no nace con el catálogo de ejemplo del rubro, nace con la
+      // lista de la casa. La opción sólo se ofrece si la fábrica lo cumple (`altaEnRedDisponible`);
+      // si igual sembrara, el panel del resultado lo avisa y la lista no le pisa esos productos.
+      const conRed: RawWizardForm = red.casaId ? { ...form, sinCatalogo: true } : form;
+      const r = await commitTenantAction(conRed);
+      setResult(r);
+      if (r.ok && r.tenantId && red.casaId) await sumarALaRed(r.tenantId);
     } catch (e) {
       setResult({ ok: false, error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -140,17 +235,43 @@ export function AltaWizard({ data }: { data: WizardData }) {
   return (
     <div className="grid lg:grid-cols-[1fr_20rem] gap-6 items-start">
       <div className="space-y-6 min-w-0">
-        <Stepper step={step} valid={step0Ok} rubroOk={step1Ok} hostOk={step3Ok} plan={plan} />
+        <Stepper step={step} valid={step0Ok} rubroOk={step1Ok} redOk={redOk} hostOk={step3Ok} plan={plan} />
 
         {result ? (
-          <ResultPanel result={result} tenantId={result.tenantId} />
+          <>
+            <ResultPanel result={result} tenantId={result.tenantId} />
+            {casaElegida && result.ok && result.tenantId && (
+              <PanelDeLaRed
+                casa={casaElegida.name}
+                resultado={altaRed}
+                sumando={sumando}
+                sembrado={Boolean(result.outcome?.commit?.catalogSeeded)}
+                casaId={casaElegida.id}
+                localId={result.tenantId}
+                fiscal={{ cuit: red.cuit, puntoVenta: red.puntoVenta }}
+                cuitDeLaCasa={casaElegida.cuit}
+                onReintentar={(fiscal) => sumarALaRed(result.tenantId!, fiscal)}
+              />
+            )}
+          </>
         ) : (
           <>
             {step === 0 && <StepNegocio form={form} set={set} onNameChange={onNameChange} setSlugTouched={setSlugTouched} plan={plan} planPending={planPending} has={has} msg={msg} />}
             {step === 1 && <StepRubro form={form} set={set} data={data} plan={plan} />}
-            {step === 2 && <StepModulos plan={plan} data={data} planPending={planPending} />}
-            {step === 3 && <StepMarca form={form} set={set} data={data} monogram={monogram} theme={theme} accent={accent} has={has} msg={msg} planPending={planPending} />}
-            {step === 4 && <StepRevisar form={form} plan={plan} isSecondTenant={data.isSecondTenant} />}
+            {step === 2 && (
+              <StepRed
+                casas={data.casas}
+                disponible={data.altaEnRedDisponible}
+                red={red}
+                setRed={setRed}
+                nombre={form.name ?? ""}
+                revision={revision}
+                revisando={revisando || (Boolean(red.casaId) && !revision)}
+              />
+            )}
+            {step === 3 && <StepModulos plan={plan} data={data} planPending={planPending} />}
+            {step === 4 && <StepMarca form={form} set={set} data={data} monogram={monogram} theme={theme} accent={accent} has={has} msg={msg} planPending={planPending} />}
+            {step === 5 && <StepRevisar form={form} plan={plan} isSecondTenant={data.isSecondTenant} red={casaElegida ? { casa: casaElegida.name, revision } : null} />}
 
             <div className="flex items-center justify-between gap-3">
               <Button variant="ghost" size="sm" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
@@ -176,23 +297,41 @@ export function AltaWizard({ data }: { data: WizardData }) {
                 Hay validaciones sin resolver — revisá los pasos marcados antes de crear.
               </p>
             )}
+            {!canCommit && step === STEPS.length - 1 && !result && step1Ok && !redOk && !revisando && revision !== null && (
+              <p className="text-xs text-danger" role="alert">
+                El paso «¿De qué red?» no está resuelto: {revision && !revision.ok ? revision.motivo : "elegí la casa o volvé a «Negocio suelto»."}
+              </p>
+            )}
           </>
         )}
       </div>
 
       {/* Panel de preview en vivo (persistente) — el corazón del rediseño (P2/P5/P9). */}
-      <PreviewPanel form={form} plan={plan} planPending={planPending} data={data} monogram={monogram} theme={theme} accent={accent} />
+      <PreviewPanel form={form} plan={plan} planPending={planPending} data={data} monogram={monogram} theme={theme} accent={accent} casa={casaElegida?.name ?? null} />
     </div>
   );
 }
 
+/** El chequeo del paso "¿De qué red?" contra el servidor, sin escribir. Nunca tira. */
+async function revisarRed(red: DatosRed): Promise<RevisionAltaEnRed> {
+  try {
+    const fd = new FormData();
+    fd.set("casaId", red.casaId);
+    fd.set("cuit", red.cuit);
+    fd.set("puntoVenta", red.puntoVenta);
+    return await revisarAltaEnRedAction(fd);
+  } catch {
+    return { ok: false, motivo: "No se pudo revisar ahora. Probá de nuevo en un rato." };
+  }
+}
+
 // --- Barra de progreso -------------------------------------------------------
 
-function Stepper({ step, valid, rubroOk, hostOk, plan }: { step: number; valid: boolean; rubroOk: boolean; hostOk: boolean; plan: ProvisionPlan | null }) {
+function Stepper({ step, valid, rubroOk, redOk, hostOk, plan }: { step: number; valid: boolean; rubroOk: boolean; redOk: boolean; hostOk: boolean; plan: ProvisionPlan | null }) {
   return (
     <nav aria-label="Progreso del alta" className="flex flex-wrap items-center gap-2 text-sm">
       {STEPS.map((label, i) => {
-        const done = i === 0 ? valid : i === 1 ? rubroOk : i === 3 ? hostOk : i < step;
+        const done = i === 0 ? valid : i === 1 ? rubroOk : i === 2 ? redOk && i < step : i === 4 ? hostOk : i < step;
         const current = i === step;
         return (
           <span
@@ -322,7 +461,210 @@ function StepRubro({
   );
 }
 
-// --- Paso 3 · Módulos (preview derivado del motor) ---------------------------
+// --- Paso 3 · ¿De qué red? ---------------------------------------------------
+
+/** "20-30405060-7" para mostrar; el operador lo puede escribir con o sin guiones. */
+function cuitLegible(c: string | null): string {
+  const d = (c ?? "").replace(/\D/g, "");
+  return d.length === 11 ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : d || "sin CUIT";
+}
+
+function StepRed({
+  casas, disponible, red, setRed, nombre, revision, revisando,
+}: {
+  casas: WizardData["casas"]; disponible: boolean; red: DatosRed; setRed: (p: Partial<DatosRed>) => void; nombre: string;
+  revision: RevisionAltaEnRed | null; revisando: boolean;
+}) {
+  const casa = casas.find((c) => c.id === red.casaId) ?? null;
+  const enRed = red.casaId !== "";
+  const sePuede = disponible && casas.length > 0;
+  return (
+    <Card className="p-5 space-y-4">
+      <h2 className="font-medium">¿De qué red?</h2>
+      <p className="text-sm text-muted">
+        Si el local es de una marca con varios locales, elegí su casa: al crearlo queda vinculado a ella, con su
+        CUIT y punto de venta, y con la lista de precios de la casa, en la misma corrida. Si es un negocio suelto,
+        seguí de largo.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="¿De qué red?">
+        <label className={"flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm " + (!enRed ? "border-accent" : "border-line")}>
+          <input type="radio" name="w-red" checked={!enRed} onChange={() => setRed({ casaId: "" })} className="size-4" />
+          Negocio suelto (como hasta hoy)
+        </label>
+        <label
+          className={
+            "flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm " +
+            (enRed ? "border-accent" : "border-line") +
+            (!sePuede ? " opacity-60" : "")
+          }
+        >
+          <input
+            type="radio"
+            name="w-red"
+            checked={enRed}
+            disabled={!sePuede}
+            onChange={() => setRed({ casaId: casas[0]?.id ?? "" })}
+            className="size-4"
+          />
+          Local de una red
+        </label>
+      </div>
+      {!disponible && (
+        <p className="text-xs text-muted" role="note">
+          Todavía no: la fábrica de negocios siembra el catálogo de ejemplo del rubro (productos y stock que no
+          existen), y un local de una red tiene que nacer vacío para recibir la lista de la casa. Se habilita sola
+          cuando la fábrica dé de alta sin catálogo. Mientras tanto, este alta crea un negocio suelto.
+        </p>
+      )}
+      {disponible && casas.length === 0 && (
+        <p className="text-xs text-muted">
+          No hay ninguna casa armada. Para abrir un local dentro de una red, primero activá «Mis locales» en la ficha
+          del negocio que va a ser la casa.
+        </p>
+      )}
+
+      {enRed && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Casa de la red" htmlFor="w-casa" required>
+            <Select id="w-casa" value={red.casaId} onChange={(e) => setRed({ casaId: e.target.value })}>
+              {casas.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Cómo lo llama la casa" htmlFor="w-alias" hint="Vacío = el nombre del negocio.">
+            <Input id="w-alias" value={red.alias} maxLength={60} onChange={(e) => setRed({ alias: e.target.value })} placeholder={nombre || "Canning"} />
+          </Field>
+          <Field label="CUIT" htmlFor="w-red-cuit" hint={`Vacío = el de la casa (${cuitLegible(casa?.cuit ?? null)}).`}>
+            <Input id="w-red-cuit" value={red.cuit} inputMode="numeric" autoComplete="off" onChange={(e) => setRed({ cuit: e.target.value })} placeholder={cuitLegible(casa?.cuit ?? null)} />
+          </Field>
+          <Field label="Punto de venta de ARCA" htmlFor="w-pv" hint="El que ARCA habilitó para este local. Si todavía no lo tiene, dejalo vacío y cargalo después en su ficha.">
+            <Input id="w-pv" value={red.puntoVenta} inputMode="numeric" autoComplete="off" onChange={(e) => setRed({ puntoVenta: e.target.value })} placeholder="Ej: 4" />
+          </Field>
+        </div>
+      )}
+
+      {enRed && (
+        <div aria-live="polite">
+          {revisando ? (
+            <p className="text-xs text-muted">revisando…</p>
+          ) : revision && !revision.ok ? (
+            <p className="text-sm text-danger" role="alert">✗ {revision.motivo}</p>
+          ) : revision?.ok ? (
+            <p className="text-sm text-success">
+              ✓ Va a la red de {revision.casa} · CUIT {cuitLegible(revision.cuit)} ·{" "}
+              {revision.puntoVenta ? `punto de venta ${revision.puntoVenta} (libre)` : "sin punto de venta todavía"}
+            </p>
+          ) : null}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Lo que pasó con la red después de crear el negocio. Si falló, se corrige el CUIT o el punto de
+ * venta y se reintenta desde acá, o se sigue desde las fichas del local y de la casa: el negocio
+ * ya está creado, así que ningún final deja al operador sin camino.
+ */
+function PanelDeLaRed({
+  casa, resultado, sumando, sembrado, casaId, localId, fiscal, cuitDeLaCasa, onReintentar,
+}: {
+  casa: string;
+  resultado: ResultadoAltaEnRed | null;
+  sumando: boolean;
+  sembrado: boolean;
+  casaId: string;
+  localId: string;
+  fiscal: { cuit: string; puntoVenta: string };
+  cuitDeLaCasa: string | null;
+  onReintentar: (fiscal: { cuit: string; puntoVenta: string }) => void;
+}) {
+  const [corregido, setCorregido] = useState(fiscal);
+  const catalogo = resultado?.ok ? resultado.catalogo : null;
+  const fichas = (
+    <div className="flex flex-wrap gap-2">
+      <Link href={`/operador/tenants/${encodeURIComponent(localId)}`} className={buttonClasses("outline", "md")}>
+        Abrir la ficha del local
+      </Link>
+      <Link href={`/operador/tenants/${encodeURIComponent(casaId)}#red`} className={buttonClasses("outline", "md")}>
+        Abrir la red de {casa}
+      </Link>
+    </div>
+  );
+  return (
+    <Card className="p-5 space-y-3">
+      <h2 className="font-medium">Red de {casa}</h2>
+      {sumando || !resultado ? (
+        <p className="text-sm text-muted" aria-live="polite">Sumando el local a la red…</p>
+      ) : resultado.ok ? (
+        <ul className="space-y-1 text-sm" aria-live="polite">
+          <li className="text-success">✓ Vinculado a {resultado.casa} como «{resultado.alias}». Quedó en la auditoría de los dos negocios.</li>
+          <li className={resultado.puntoVenta ? "text-success" : "text-warning"}>
+            {resultado.puntoVenta ? "✓" : "!"} CUIT {cuitLegible(resultado.cuit)} ·{" "}
+            {resultado.puntoVenta ? `punto de venta ${resultado.puntoVenta}` : "sin punto de venta: cargalo en su ficha para que pueda facturar"}
+          </li>
+          {catalogo?.estado === "aplicado" ? (
+            <li className="text-success">
+              ✓ La lista de precios de {casa} quedó cargada ({catalogo.nuevos} productos nuevos
+              {catalogo.cambios > 0 ? `, ${catalogo.cambios} precios` : ""}).
+            </li>
+          ) : catalogo?.estado === "al-dia" ? (
+            <li className="text-success">✓ Ya tenía la lista de precios de {casa}.</li>
+          ) : catalogo ? (
+            <li className="text-warning" role="status">
+              ! La lista de precios quedó pendiente: {catalogo.motivo}
+            </li>
+          ) : null}
+          {resultado.aviso && <li className="text-warning">{resultado.aviso}</li>}
+        </ul>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-danger" role="alert">
+            ✗ El negocio se creó, pero no se sumó a la red (no quedó nada a medias): {resultado.motivo}
+          </p>
+          <p className="text-sm text-muted">
+            Si el problema es el CUIT o el punto de venta, corregilo acá y reintentá. Si es otra cosa, seguí desde las
+            fichas: el vínculo se arma en la tarjeta Red de la casa y el punto de venta, en la ficha del local.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="CUIT" htmlFor="w-red-cuit-2" hint={`Vacío = el de la casa (${cuitLegible(cuitDeLaCasa)}).`}>
+              <Input
+                id="w-red-cuit-2"
+                value={corregido.cuit}
+                inputMode="numeric"
+                autoComplete="off"
+                onChange={(e) => setCorregido((c) => ({ ...c, cuit: e.target.value }))}
+              />
+            </Field>
+            <Field label="Punto de venta de ARCA" htmlFor="w-pv-2" hint="Vacío = se carga después en su ficha.">
+              <Input
+                id="w-pv-2"
+                value={corregido.puntoVenta}
+                inputMode="numeric"
+                autoComplete="off"
+                onChange={(e) => setCorregido((c) => ({ ...c, puntoVenta: e.target.value }))}
+              />
+            </Field>
+          </div>
+          <Button variant="outline" onClick={() => onReintentar(corregido)} disabled={sumando}>
+            Reintentar sumarlo a la red
+          </Button>
+        </div>
+      )}
+      {resultado && !sumando && (!resultado.ok || catalogo?.estado === "no-aplicable" || !resultado.puntoVenta) && fichas}
+      {sembrado && (
+        <p className="rounded-md bg-warning-soft px-3 py-2 text-xs text-warning" role="status">
+          Ojo: el local nació con el catálogo de ejemplo del rubro, con su stock de ejemplo. Hay que sacar esos
+          productos del catálogo del local antes de abrir; si la lista de la casa quedó pendiente, se le manda
+          después desde la casa, en «Catálogo y precios de la marca», con vista previa.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+// --- Paso 4 · Módulos (preview derivado del motor) ---------------------------
 
 function StepModulos({ plan, data, planPending }: { plan: ProvisionPlan | null; data: WizardData; planPending: boolean }) {
   const label = (id: string) => data.moduleCatalog.find((m) => m.id === id)?.label ?? id;
@@ -359,7 +701,7 @@ function StepModulos({ plan, data, planPending }: { plan: ProvisionPlan | null; 
   );
 }
 
-// --- Paso 4 · Marca + link + datos de empresa --------------------------------
+// --- Paso 5 · Marca + link + datos de empresa --------------------------------
 
 function StepMarca({
   form, set, data, monogram, theme, accent, has, msg, planPending,
@@ -435,7 +777,7 @@ function StepMarca({
   );
 }
 
-// --- Paso 5 · Revisar --------------------------------------------------------
+// --- Paso 6 · Revisar --------------------------------------------------------
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -447,8 +789,11 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
 }
 
 function StepRevisar({
-  form, plan, isSecondTenant,
-}: { form: RawWizardForm; plan: ProvisionPlan | null; isSecondTenant: boolean }) {
+  form, plan, isSecondTenant, red,
+}: {
+  form: RawWizardForm; plan: ProvisionPlan | null; isSecondTenant: boolean;
+  red: { casa: string; revision: RevisionAltaEnRed | null } | null;
+}) {
   return (
     <Card className="p-5 space-y-4">
       <h2 className="font-medium">Revisar y crear</h2>
@@ -468,7 +813,24 @@ function StepRevisar({
         <Row k="Módulos" v={`${plan?.modules.length ?? 0} activos`} />
         <Row k="Acento / tema" v={`${form.accentPreset || "default"} · ${form.frontTheme === "dark" ? "oscuro" : "claro"}`} />
         <Row k="Link" v={form.subdomain ? `/${form.subdomain}` : "sin subdominio"} />
+        <Row
+          k="Red"
+          v={
+            red
+              ? `Local de ${red.casa}` +
+                (red.revision?.ok
+                  ? ` · CUIT ${red.revision.cuit ?? "sin cargar"} · ${red.revision.puntoVenta ? `punto de venta ${red.revision.puntoVenta}` : "sin punto de venta"}`
+                  : "")
+              : "Negocio suelto"
+          }
+        />
       </div>
+      {red && (
+        <p className="text-xs text-muted">
+          Al crear, en la misma corrida: queda vinculado a {red.casa} (con auditoría en los dos), con su CUIT y punto de venta,
+          y con la lista de precios de la casa. El stock no se copia: entra por recuento o por un traslado.
+        </p>
+      )}
 
       {plan && plan.objects.length > 0 && (
         <div>
@@ -591,10 +953,10 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
 // --- Panel de preview en vivo ------------------------------------------------
 
 function PreviewPanel({
-  form, plan, planPending, data, monogram, theme, accent,
+  form, plan, planPending, data, monogram, theme, accent, casa,
 }: {
   form: RawWizardForm; plan: ProvisionPlan | null; planPending: boolean; data: WizardData;
-  monogram: string; theme: "light" | "dark"; accent?: WizardData["accents"][number];
+  monogram: string; theme: "light" | "dark"; accent?: WizardData["accents"][number]; casa: string | null;
 }) {
   const bg = accent ? (theme === "dark" ? accent.dark : accent.light) : "var(--surface-sunken)";
   const fg = accent ? (theme === "dark" ? accent.onDark : accent.onLight) : "var(--text-muted)";
@@ -618,6 +980,7 @@ function PreviewPanel({
 
         <div className="flex flex-wrap gap-1.5">
           {plan && <Badge tone="info">{plan.blueprint.label}</Badge>}
+          {casa && <Badge tone="accent">Red de {casa}</Badge>}
         </div>
 
         {plan && plan.modules.length > 0 && (
