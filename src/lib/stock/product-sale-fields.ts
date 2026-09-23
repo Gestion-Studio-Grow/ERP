@@ -8,6 +8,8 @@
 // el campo. Así un form que no conoce estos campos (una integración vieja, un ABM parcial)
 // no pisa el precio ni el flag de un producto existente. `undefined` = no tocar.
 
+import { leerImporte } from "@/lib/pos-peso";
+
 export type SaleUnit = "UNIT" | "WEIGHT";
 
 export type ProductSaleFields = {
@@ -18,11 +20,13 @@ export type ProductSaleFields = {
 };
 
 // Precio válido = número finito > 0. Vacío, 0, negativo o basura → null ("no se vende").
+// El precio se relee con la MISMA regla que la pantalla (`leerImporte`): "$15.900" son quince
+// mil novecientos. Con `Number()` eso era NaN y el precio se guardaba vacío sin avisar.
+// Lo ilegible sigue dando null (el contrato de siempre, con test): la pantalla ya lo marca en
+// rojo antes de enviar, y acá no se inventa un número.
 function positivePriceOrNull(raw: FormDataEntryValue | null): number | null {
-  const s = String(raw ?? "").trim();
-  if (!s) return null;
-  const n = Number(s);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  const l = leerImporte(String(raw ?? ""));
+  return l.estado === "ok" && l.valor > 0 ? l.valor : null;
 }
 
 // Parsea los campos de venta del FormData.

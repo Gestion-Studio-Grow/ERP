@@ -13,10 +13,18 @@
 // Copy neutral de rubro a propósito: el mismo form lo ven una estética, una tienda y una
 // carnicería. "Por peso (kg)" sí, "pesalo" o "cortes" no.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { createProduct, updateProduct, toggleProductActive, deleteProduct } from "@/lib/catalog-actions";
 import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { salePriceOf, type SaleUnit } from "@/lib/stock/product-sale-fields";
+import {
+  leerCantidad,
+  leerImporte,
+  cantidadParaFormulario,
+  importeParaFormulario,
+  formatearCantidad,
+} from "@/lib/pos-peso";
 
 type Product = {
   id: string;
@@ -33,6 +41,163 @@ type Product = {
 
 // Etiqueta de la unidad de venta para mostrar junto al precio.
 const perLabel = (saleUnit: SaleUnit) => (saleUnit === "WEIGHT" ? "/kg" : "/u");
+
+// --- Volver al valor inicial cuando React resetea el formulario ---
+//
+// React 19 resetea el `<form action={fn}>` cuando termina la action: por eso el alta queda en
+// blanco para el producto siguiente. Pero ese reset es el `form.reset()` NATIVO, y sólo
+// devuelve a su valor a los campos NO controlados (`defaultValue`). Un campo con estado propio
+// (`useState`) se queda con lo tipeado. MEDIDO antes de este hook, con estos componentes
+// bundleados (React 19.2.4, Chromium 141, la Server Action reemplazada por una que guarda el
+// FormData): después de dar de alta "Crema A" con stock 10 y precio 15.000, el alta de
+// "Crema B", tipeando sólo el nombre, viajaba con stock=10 y price=15000: un segundo AJUSTE
+// "Stock inicial" que nadie cargó y un precio ajeno. El test que lo corre está en
+// src/lib/stock/alta-producto.test.ts.
+//
+// Este hook escucha el evento `reset` del form que contiene al elemento `id` (el reset nativo
+// lo dispara antes de devolver los campos) y le pide al componente que vuelva a su inicial:
+// el campo controlado se comporta ante el reset igual que uno con `defaultValue`.
+export function useVolverAlResetear(id: string, volver: () => void) {
+  // La función más reciente, sin re-suscribir en cada render (así usa las props vigentes,
+  // como hace `defaultValue`).
+  const volverRef = useRef(volver);
+  useEffect(() => {
+    volverRef.current = volver;
+  });
+  useEffect(() => {
+    const form = document.getElementById(id)?.closest("form");
+    if (!form) return;
+    const alResetear = () => volverRef.current();
+    form.addEventListener("reset", alResetear);
+    return () => form.removeEventListener("reset", alResetear);
+  }, [id]);
+}
+
+// Cómo se muestra un número guardado para editarlo: coma decimal, sin miles (así la misma
+// regla lo relee igual: "12500" y "12500,5", nunca un "12.500" ambiguo). Un importe se
+// muestra a centavos: un costo promedio guardado con más decimales no puede aparecer en rojo
+// y trabar el guardado de un precio.
+function textoParaEditar(tipo: "importe" | "cantidad", valor: number | null): string {
+  if (valor == null) return "";
+  return tipo === "importe" ? importeParaFormulario(valor).replace(".", ",") : formatearCantidad(valor);
+}
+
+// --- Un número del catálogo: precio, costo, stock inicial, aviso de stock bajo ---
+//
+// Eran `<input type="number">`. MEDIDO en Chromium 141 (tabla en pos-peso.ts): tecleado,
+// "12,5" entrega "125" y lo toma como válido. Con el `step="0.01"` que tenía el precio de
+// este catálogo (el de CH), "12.500" también pasaba como válido y `Number("12.500")` lo leía
+// 12,5; con el `step="1"` de los cortes, ese mismo "12.500" quedaba frenado por
+// `stepMismatch`. Acá es un `type="text"` con `inputMode="decimal"` (teclado numérico en el
+// celular) que se lee con la regla del POS: `leerImporte` para plata ("6.543" son miles) y
+// `leerCantidad` para kilos y unidades (coma decimal, gramos). Lo que viaja es un hidden con
+// la forma canónica (punto decimal, sin miles), que el server vuelve a leer igual.
+//
+// Lo ilegible se pinta de rojo y `setCustomValidity` hace que el navegador NO envíe el
+// formulario (medido en Chromium 141 sobre un formulario HTML plano: con el mensaje puesto,
+// el evento submit no sale; sin él, sí). Así "abc" nunca viaja como 0, y si igual llegara,
+// la Server Action lo rechaza con mensaje.
+//
+// El texto vive en estado (hay que leerlo mientras se tipea), así que el reset del form no
+// lo alcanza: `useVolverAlResetear` lo devuelve a `valorInicial` después de cada alta.
+//
+// Sin `className` usa el `Input` del design system (44px de alto); con `className` pinta un
+// `<input>` con esas clases, para los formularios que tienen su propio estilo (cortes).
+export function CampoDecimal({
+  id,
+  name,
+  tipo,
+  valorInicial,
+  placeholder,
+  required,
+  className,
+}: {
+  id: string;
+  name: string;
+  tipo: "importe" | "cantidad";
+  valorInicial: number | null;
+  placeholder?: string;
+  required?: boolean;
+  className?: string;
+}) {
+  const [texto, setTexto] = useState(() => textoParaEditar(tipo, valorInicial));
+  useVolverAlResetear(id, () => setTexto(textoParaEditar(tipo, valorInicial)));
+  const lectura = tipo === "importe" ? leerImporte(texto) : leerCantidad(texto);
+  const invalida = lectura.estado === "invalida";
+  const mensaje =
+    tipo === "importe"
+      ? "Eso no es un importe. Escribilo como 6.543 o 6.543,50."
+      : "Eso no es una cantidad. Escribila con coma si tiene decimales (12,5).";
+
+  useEffect(() => {
+    const el = document.getElementById(id);
+    if (el instanceof HTMLInputElement) el.setCustomValidity(invalida ? mensaje : "");
+  }, [id, invalida, mensaje]);
+
+  const props = {
+    id,
+    type: "text",
+    inputMode: "decimal" as const,
+    autoComplete: "off",
+    value: texto,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setTexto(e.target.value),
+    placeholder,
+    required,
+    "aria-invalid": invalida ? true : undefined,
+    "aria-describedby": invalida ? `${id}-error` : undefined,
+  };
+
+  return (
+    <>
+      {className ? <input {...props} className={className} /> : <Input {...props} />}
+      {invalida && (
+        <span id={`${id}-error`} role="alert" className="mt-1 block text-xs text-danger">
+          {mensaje}
+        </span>
+      )}
+      <input
+        type="hidden"
+        name={name}
+        value={
+          lectura.estado !== "ok"
+            ? ""
+            : tipo === "importe"
+              ? importeParaFormulario(lectura.valor)
+              : cantidadParaFormulario(lectura.valor)
+        }
+      />
+    </>
+  );
+}
+
+// El stock en la edición: se MUESTRA, no se edita. Antes era un input con el número de
+// cuando se abrió la pantalla, y guardar un precio lo reescribía encima de las ventas del
+// medio. Corregirlo es un recuento con motivo, en /admin/ajustes, que queda en el ledger:
+// "Recontar" lleva ahí con el producto y el motivo ya elegidos.
+export function StockSoloLectura({
+  productId,
+  stock,
+  unit,
+}: {
+  productId: string;
+  stock: number;
+  unit: string;
+}) {
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 text-sm text-body">
+      <span>
+        Stock: <span className="tabular-nums">{formatearCantidad(stock)}</span> {unit}
+      </span>
+      <span aria-hidden className="text-faint">·</span>
+      <Link
+        href={`/admin/ajustes?producto=${encodeURIComponent(productId)}&motivo=RECUENTO`}
+        className="inline-flex min-h-11 items-center font-medium text-accent underline-offset-2 hover:underline"
+      >
+        Recontar
+      </Link>
+    </p>
+  );
+}
 
 // --- Campos de venta compartidos por alta y edición ---
 // Manda `saleUnit` (dispara el parseo de precio en la action), el precio que corresponde a
@@ -56,13 +221,18 @@ function SaleFields({
   const [modo, setModo] = useState<SaleUnit>(saleUnit);
   const isWeight = modo === "WEIGHT";
   const priceId = `${idPrefix}-precio`;
+  const selectId = `${idPrefix}-saleUnit`;
+  // El `<select>` vuelve solo a su `defaultValue` con el reset del alta; `modo` es estado y no.
+  // Sin esto, después de dar de alta algo "por peso" el select decía "por unidad" pero el
+  // form seguía mandando `unit=kg` y el precio como `pricePerKg`.
+  useVolverAlResetear(selectId, () => setModo(saleUnit));
 
   return (
     <>
       <label className="text-sm">
         <span className="block text-xs text-muted mb-1">Forma de venta</span>
         <Select
-          id={`${idPrefix}-saleUnit`}
+          id={selectId}
           name="saleUnit"
           defaultValue={saleUnit}
           onChange={(e) => setModo(e.target.value === "WEIGHT" ? "WEIGHT" : "UNIT")}
@@ -90,15 +260,12 @@ function SaleFields({
         <span className="block text-xs text-muted mb-1">
           Precio de venta {isWeight ? "por kg" : "por unidad"}
         </span>
-        <Input
+        <CampoDecimal
           id={priceId}
           key={isWeight ? "kg" : "u"}
           name={isWeight ? "pricePerKg" : "price"}
-          type="number"
-          step="0.01"
-          min="0"
-          inputMode="decimal"
-          defaultValue={(isWeight ? pricePerKg : price) ?? ""}
+          tipo="importe"
+          valorInicial={isWeight ? pricePerKg : price}
           placeholder="Vacío = no se vende"
         />
       </label>
@@ -152,13 +319,19 @@ function ProductRow({ product }: { product: Product }) {
               <span className="block text-xs text-muted mb-1">Nombre</span>
               <Input name="name" defaultValue={product.name} required />
             </label>
-            <label className="text-sm">
+            <div className="text-sm">
               <span className="block text-xs text-muted mb-1">Stock</span>
-              <Input name="stock" type="number" step="0.001" defaultValue={product.stock} required />
-            </label>
+              <StockSoloLectura productId={product.id} stock={product.stock} unit={product.unit} />
+            </div>
             <label className="text-sm">
               <span className="block text-xs text-muted mb-1">Aviso stock bajo</span>
-              <Input name="lowStockAt" type="number" step="0.5" defaultValue={product.lowStockAt} required />
+              <CampoDecimal
+                id={`edit-${product.id}-low`}
+                name="lowStockAt"
+                tipo="cantidad"
+                valorInicial={product.lowStockAt}
+                required
+              />
             </label>
             <SaleFields
               idPrefix={`edit-${product.id}`}
@@ -169,8 +342,8 @@ function ProductRow({ product }: { product: Product }) {
               trackStock={product.trackStock}
             />
             <div className="col-span-2 sm:col-span-4 flex gap-4 sm:gap-3 justify-start sm:justify-end whitespace-nowrap">
-              <button type="submit" className="text-sm font-medium">Guardar</button>
-              <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted">
+              <button type="submit" className="min-h-11 px-2 text-sm font-medium">Guardar</button>
+              <button type="button" onClick={() => setEditing(false)} className="min-h-11 px-2 text-sm text-muted">
                 Cancelar
               </button>
             </div>
@@ -192,7 +365,7 @@ function ProductRow({ product }: { product: Product }) {
       <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm">
         <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Stock:</span>
         <span className={lowStock ? "text-danger font-medium" : "text-body"}>
-          {product.stock} {product.unit}
+          {formatearCantidad(product.stock)} {product.unit}
         </span>
         {lowStock && (
           <span className="ml-2 inline-block rounded-full bg-danger-soft text-danger px-2 py-0.5 text-xs">
@@ -304,11 +477,12 @@ export default function ProductsSection({ products }: { products: Product[] }) {
         </label>
         <label className="text-sm">
           <span className="block text-xs text-muted mb-1">Stock inicial</span>
-          <Input id="new-product-stock" name="stock" type="number" step="0.001" required placeholder="0" />
+          {/* Entra por el ledger como AJUSTE "Stock inicial" (alta-producto.ts). Vacío = 0. */}
+          <CampoDecimal id="new-product-stock" name="stock" tipo="cantidad" valorInicial={null} placeholder="0" />
         </label>
         <label className="text-sm">
           <span className="block text-xs text-muted mb-1">Aviso stock bajo</span>
-          <Input id="new-product-low" name="lowStockAt" type="number" step="0.5" defaultValue={5} />
+          <CampoDecimal id="new-product-low" name="lowStockAt" tipo="cantidad" valorInicial={5} />
         </label>
         <SaleFields
           idPrefix="new-product"

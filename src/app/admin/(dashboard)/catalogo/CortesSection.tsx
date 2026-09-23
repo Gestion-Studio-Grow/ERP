@@ -18,6 +18,11 @@
 import { useState } from "react";
 import { createProduct, updateProduct, toggleProductActive, deleteProduct } from "@/lib/catalog-actions";
 import { Badge, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { formatearCantidad } from "@/lib/pos-peso";
+// Los números del corte (precio, costo, stock inicial, aviso) se tipean con la misma pieza
+// que el catálogo genérico: texto leído con la regla del POS. Ver `CampoDecimal` (y
+// `useVolverAlResetear`, que deja el alta en blanco después de cada corte).
+import { CampoDecimal, StockSoloLectura, useVolverAlResetear } from "./ProductsSection";
 import {
   CORTE_CATEGORIAS,
   categoriaMeta,
@@ -54,6 +59,11 @@ function groupCortes(cortes: Corte[]): { categoria: (typeof CORTE_CATEGORIAS)[nu
 
 const sellPrice = (c: Corte): number | null => (c.saleUnit === "WEIGHT" ? c.pricePerKg : c.price);
 
+// Estilo de los campos de un corte. `h-11`: 44px de alto, el objetivo táctil en el teléfono
+// (antes era `py-1.5`, más bajo que eso, en la pantalla donde se cambian los precios de pie).
+const CAMPO =
+  "h-11 w-full rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus:border-accent aria-invalid:border-danger";
+
 // --- Selector de forma de venta (kg / unidad) compartido por alta y edición ---
 // Cambia qué campo de precio se muestra y manda `saleUnit` (para que la action
 // dispare `parseRetailFields`) + el `unit` coherente ("kg" o el que se tipee).
@@ -79,9 +89,13 @@ function VentaFields({
   const [modo, setModo] = useState<"UNIT" | "WEIGHT">(saleUnit);
   const selectId = `${idPrefix}-saleUnit`;
   const priceId = `${idPrefix}-precio`;
+  // El `<select>` vuelve solo a su `defaultValue` cuando el alta se resetea; `modo` es estado y
+  // no. Medido sin esto (el test de src/lib/stock/alta-producto.test.ts): después de un corte
+  // "por unidad" el select volvía a "Por kilo" pero seguía a la vista "Precio por unidad", y el
+  // corte siguiente viajaba con saleUnit=WEIGHT y unit=unidad.
+  useVolverAlResetear(selectId, () => setModo(saleUnit));
 
-  const inputClass =
-    "rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent";
+  const inputClass = CAMPO;
 
   return (
     <>
@@ -100,14 +114,11 @@ function VentaFields({
         <label htmlFor={`${idPrefix}-cost`} className="text-xs font-medium text-muted">
           Costo (para margen)
         </label>
-        <input
+        <CampoDecimal
           id={`${idPrefix}-cost`}
           name="cost"
-          type="number"
-          step="1"
-          min="0"
-          inputMode="numeric"
-          defaultValue={cost ?? ""}
+          tipo="importe"
+          valorInicial={cost}
           placeholder="$ costo"
           className={inputClass}
         />
@@ -135,14 +146,11 @@ function VentaFields({
             <label htmlFor={priceId} className="text-xs font-medium text-muted">
               Precio por kilo
             </label>
-            <input
+            <CampoDecimal
               id={priceId}
               name="pricePerKg"
-              type="number"
-              step="1"
-              min="0"
-              inputMode="numeric"
-              defaultValue={pricePerKg ?? ""}
+              tipo="importe"
+              valorInicial={pricePerKg}
               placeholder="$/kg"
               className={inputClass}
             />
@@ -166,14 +174,11 @@ function VentaFields({
             <label htmlFor={priceId} className="text-xs font-medium text-muted">
               Precio por unidad
             </label>
-            <input
+            <CampoDecimal
               id={priceId}
               name="price"
-              type="number"
-              step="1"
-              min="0"
-              inputMode="numeric"
-              defaultValue={price ?? ""}
+              tipo="importe"
+              valorInicial={price}
               placeholder="$"
               className={inputClass}
             />
@@ -248,7 +253,7 @@ function CorteRow({ corte }: { corte: Corte }) {
                 name="name"
                 defaultValue={corte.name}
                 required
-                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+                className={CAMPO}
               />
             </div>
             <VentaFields
@@ -261,37 +266,29 @@ function CorteRow({ corte }: { corte: Corte }) {
               trackStock={corte.trackStock}
               idPrefix={`edit-${corte.id}`}
             />
+            {/* El stock NO se edita acá: guardar el precio lo pisaba con el número de cuando se
+                abrió la pantalla, borrando lo vendido en el medio sin dejar movimiento. Se
+                muestra, y "Recontar" lleva al recuento con motivo (queda en el ledger). */}
             <div className="flex flex-col gap-1">
-              <label htmlFor={`edit-${corte.id}-stock`} className="text-xs font-medium text-muted">
-                Stock
-              </label>
-              <input
-                id={`edit-${corte.id}-stock`}
-                name="stock"
-                type="number"
-                step="0.1"
-                defaultValue={corte.stock}
-                required
-                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
-              />
+              <span className="text-xs font-medium text-muted">Stock</span>
+              <StockSoloLectura productId={corte.id} stock={corte.stock} unit={corte.unit} />
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor={`edit-${corte.id}-low`} className="text-xs font-medium text-muted">
                 Aviso stock bajo
               </label>
-              <input
+              <CampoDecimal
                 id={`edit-${corte.id}-low`}
                 name="lowStockAt"
-                type="number"
-                step="0.1"
-                defaultValue={corte.lowStockAt}
+                tipo="cantidad"
+                valorInicial={corte.lowStockAt}
                 required
-                className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+                className={CAMPO}
               />
             </div>
             <div className="flex gap-3 sm:col-span-6 justify-end">
-              <button type="submit" className="text-sm font-medium">Guardar</button>
-              <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted">
+              <button type="submit" className="min-h-11 px-2 text-sm font-medium">Guardar</button>
+              <button type="button" onClick={() => setEditing(false)} className="min-h-11 px-2 text-sm text-muted">
                 Cancelar
               </button>
             </div>
@@ -319,7 +316,7 @@ function CorteRow({ corte }: { corte: Corte }) {
       <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm">
         <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Stock:</span>
         <span className={lowStock ? "text-danger font-medium tabular-nums" : "text-body tabular-nums"}>
-          {corte.stock} {corte.unit}
+          {formatearCantidad(corte.stock)} {corte.unit}
         </span>
         {lowStock && (
           <span className="ml-2 inline-block rounded-full bg-danger-soft text-danger px-2 py-0.5 text-xs">
@@ -443,7 +440,7 @@ export default function CortesSection({ cortes, catalogHeading }: { cortes: Cort
               name="name"
               required
               placeholder="ej: Asado de tira"
-              className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+              className={CAMPO}
             />
           </div>
           <VentaFields saleUnit="WEIGHT" price={null} pricePerKg={null} unit="kg" category={null} cost={null} trackStock={true} idPrefix="new-corte" />
@@ -451,27 +448,26 @@ export default function CortesSection({ cortes, catalogHeading }: { cortes: Cort
             <label htmlFor="new-corte-stock" className="text-xs font-medium text-muted">
               Stock inicial
             </label>
-            <input
+            {/* Entra por el ledger como AJUSTE "Stock inicial" (alta-producto.ts), no por el
+                create. Vacío = 0. */}
+            <CampoDecimal
               id="new-corte-stock"
               name="stock"
-              type="number"
-              step="0.1"
-              required
-              defaultValue={0}
-              className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+              tipo="cantidad"
+              valorInicial={0}
+              className={CAMPO}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="new-corte-low" className="text-xs font-medium text-muted">
               Aviso stock bajo
             </label>
-            <input
+            <CampoDecimal
               id="new-corte-low"
               name="lowStockAt"
-              type="number"
-              step="0.1"
-              defaultValue={5}
-              className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+              tipo="cantidad"
+              valorInicial={5}
+              className={CAMPO}
             />
           </div>
           <div className="sm:col-span-6">

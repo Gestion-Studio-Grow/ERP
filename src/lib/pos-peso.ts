@@ -2,31 +2,34 @@
 // LEER LA CANTIDAD QUE SE TIPEA EN EL MOSTRADOR — peso en kilos o unidades.
 // ============================================================================
 //
-// QUÉ PASABA Y POR QUÉ SE REGALABA LA MERCADERÍA. El campo de cantidad del POS era un
-// `<input type="number" step="0.01">` leído con `Number(e.target.value)`. En Argentina el
-// decimal se escribe con COMA, y un `type="number"` NO acepta la coma: por el algoritmo de
-// saneamiento de valor de HTML, `.value` devuelve la cadena VACÍA cuando lo tipeado no es un
-// número de punto flotante válido.
+// QUÉ PASABA. El campo de cantidad del POS era un `<input type="number" step="0.01">` leído
+// con `Number(e.target.value)`. En Argentina el decimal se escribe con COMA, y un
+// `type="number"` no la entiende. Lo que hace con ella depende de CÓMO llega al campo, y eso
+// explica por qué este mismo comentario afirmó dos cosas distintas en dos versiones.
 //
-// MEDIDO con Chromium, en locale es-AR y en en-US, tecla por tecla (los dos dan lo mismo):
+// MEDIDO el 2026-09-23 con Chromium 141.0.7390.37 (Playwright 1.61.1, /opt/pw-browsers),
+// locale es-AR y en-US (los dos dan lo mismo), `<input type="number" step="0.001" min="0">`:
 //
-//     tipeado    .value      Number(.value)   validity.valid
-//     "1,3"      ""          0                true   ← el kilo trescientos se volvió CERO
-//     "1,234"    ""          0                true   ← y el paquete al vacío también
-//     "1.3"      "1.3"       1.3              true
+//     cómo llega "1,3"                     .value    validity.valid
+//     tecleado (keyboard.type)             "13"      true    ← la coma se TRAGA
+//     keyboard.insertText                  "13"      true
+//     asignado por JS (`el.value = ...`)   ""        true    ← sanitización de HTML
+//     page.fill                            —         Playwright se niega a escribir
 //
-// O sea: el vacío de 1,3 kg a $18.900/kg no se cobraba de más, **se cobraba $0**. La línea
-// entraba con cantidad cero, el total no la sumaba, el botón "Cobrar" quedaba habilitado y
-// el stock ni se movía. Se entregaba la carne y no se cobraba nada, sin una sola validación
-// en contra. `validity.valid` devuelve `true`, así que ni el navegador protesta.
+// Tecleado, que es lo que hace una persona: "4,350" → "4350", "12,5" → "125", "1,234" →
+// "1234". El navegador no protesta (`valid: true`), así que el formulario sale con el
+// número multiplicado por diez, cien o mil según cuántos decimales tenía. La versión
+// anterior de este comentario decía que `.value` quedaba vacío: eso es lo que da ASIGNAR el
+// valor por JS, no tipearlo. No lo medí en Firefox, Safari ni con el teclado en pantalla de
+// un teléfono (ahí ni siquiera sé si aparece la coma): lo único medido es lo de la tabla.
 //
-// (Una versión anterior de este comentario decía que se cobraba diez veces de más, $245.700
-// en vez de $24.570. Era falso: `Number("1,3")` es `NaN`, no `13`, y el input nunca deja
-// llegar la coma. Se midió porque este árbol ya pagó caro las afirmaciones que se repiten
-// hasta que dejan de parecer afirmaciones.)
+// Por eso el arreglo NO depende del navegador: el campo es `type="text"`, se lee con esta
+// función, y el server vuelve a leer con la misma función.
 //
-// Y el `step="0.01"` agrega lo suyo: RECHAZA `1,234` incluso escrito con punto — el peso
-// típico de un paquete al vacío, que se pesa al gramo.
+// Y el `step` agrega lo suyo (misma medición): con `step="0.01"`, "6.543" tecleado queda
+// con `stepMismatch` y el navegador frena el envío —tres decimales con punto, justo la forma
+// del peso al gramo de un paquete al vacío—, mientras que "12.500" pasa como válido y
+// `Number()` lo lee 12,5: doce mil quinientos pesos convertidos en doce con cincuenta.
 //
 // LA REGLA, Y POR QUÉ ES ESTA. Punto y coma valen lo MISMO como separador decimal. El que
 // atiende no sabe (ni tiene por qué saber) qué espera el navegador: escribe `1,3` desde el
@@ -212,7 +215,10 @@ export function leerImporte(raw: string | null | undefined): LecturaImporte {
   const sep = s[corte];
   const cabeza = s.slice(0, corte);
   const cola = s.slice(corte + 1);
-  const miles = /^\d{1,3}([.,]\d{3})*$/;
+  // Grupos de miles: el primero no empieza con 0 ("0,555" no son quinientos cincuenta y cinco
+  // pesos: es un tercer decimal, que en plata no existe, y rebota).
+  const miles = /^(0|[1-9]\d{0,2})([.,]\d{3})*$/;
+  const milesConGrupos = /^[1-9]\d{0,2}([.,]\d{3})+$/;
 
   // Separador colgando mientras se tipea ("12."): vale el entero, no se pinta de rojo.
   if (cola === "") {
@@ -226,7 +232,7 @@ export function leerImporte(raw: string | null | undefined): LecturaImporte {
   const hayOtroSeparador = cabeza.includes(otro);
 
   // Todo el número son grupos de miles: "12.500", "1.234.567". El separador final NO es decimal.
-  if (!hayOtroSeparador && cola.length === 3 && miles.test(s)) {
+  if (!hayOtroSeparador && cola.length === 3 && milesConGrupos.test(s)) {
     return { estado: "ok", valor: Number(s.replace(/[.,]/g, "")) };
   }
 
@@ -249,4 +255,48 @@ export function importeOCero(raw: string | null | undefined): number {
 /** El importe tal como viaja en un `<input type="hidden">`: punto decimal, sin miles. */
 export function importeParaFormulario(valor: number): string {
   return String(redondearCentavos(valor));
+}
+
+// ============================================================================
+// LO QUE LEE EL SERVER — la misma regla, pero lo ilegible se RECHAZA.
+// ============================================================================
+//
+// En pantalla, lo ilegible se pinta de rojo y no deja enviar. Pero la Server Action no
+// confía en la pantalla (un submit sin JS, un formulario viejo en caché, otro llamador): lee
+// otra vez con la MISMA función. Lo que no puede pasar es lo que hacía el `parseNum` de
+// antes —`Number(x.replace(",", "."))`—, que convertía "abc" en NaN y dejaba a cada
+// llamador decidir qué hacer con eso: el recuento (`adjustment-insert.ts`) y la compra
+// (`usableQty` en `purchase-core.ts`) descartaban la línea en silencio, y la persona veía
+// "registrado" sin enterarse de que una línea no entró. Acá hay tres salidas y ninguna es
+// un 0 inventado:
+//
+//   · vacío     → `null`: el llamador decide si el campo es opcional (costo) o no.
+//   · ilegible  → lanza un Error con un mensaje que la persona entiende.
+//   · legible   → el número.
+
+const RECORTE_ECO = 24;
+
+function ecoDe(raw: string | null | undefined): string {
+  const s = String(raw ?? "").trim();
+  return s.length > RECORTE_ECO ? `${s.slice(0, RECORTE_ECO - 1)}…` : s;
+}
+
+/** Cantidad del FormData. `null` si vino vacía; lanza si no es una cantidad. */
+export function cantidadDelFormulario(raw: string | null | undefined, campo: string): number | null {
+  const l = leerCantidad(raw);
+  if (l.estado === "vacio") return null;
+  if (l.estado === "invalida") {
+    throw new Error(`${campo}: "${ecoDe(raw)}" no es una cantidad. Escribila con coma decimal (12,5).`);
+  }
+  return l.valor;
+}
+
+/** Importe del FormData. `null` si vino vacío; lanza si no es plata. */
+export function importeDelFormulario(raw: string | null | undefined, campo: string): number | null {
+  const l = leerImporte(raw);
+  if (l.estado === "vacio") return null;
+  if (l.estado === "invalida") {
+    throw new Error(`${campo}: "${ecoDe(raw)}" no es un importe. Escribilo como $6.543 o $6.543,50.`);
+  }
+  return l.valor;
 }

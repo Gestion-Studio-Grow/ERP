@@ -17,14 +17,15 @@ import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { insertStockAdjustment } from "@/lib/stock/adjustment-insert";
-import { ADJUSTMENT_MOTIVOS, type AdjustmentMotivo } from "@/lib/stock/adjustment-core";
+import {
+  ADJUSTMENT_MOTIVOS,
+  filtroDeAjustables,
+  leerLineasDeAjuste,
+  motivoMode,
+  type AdjustmentMotivo,
+} from "@/lib/stock/adjustment-core";
 
 const ADJ_PATH = "/admin/ajustes";
-
-// Acepta coma o punto decimal (entrada AR). Devuelve NaN si no es numérico.
-function parseNum(raw: FormDataEntryValue | null): number {
-  return Number(String(raw ?? "").trim().replace(",", "."));
-}
 
 function parseMotivo(raw: FormDataEntryValue | null): AdjustmentMotivo {
   const v = String(raw ?? "").trim().toUpperCase();
@@ -38,14 +39,18 @@ function parseMotivo(raw: FormDataEntryValue | null): AdjustmentMotivo {
 // Productos ajustables (activos, no borrados) con su stock actual para el recuento,
 // y los últimos movimientos de AJUSTE para el histórico. Guard de lectura por
 // `catalog:read`.
-export async function getAdjustmentData() {
+//
+// `productoPreelegido` (el `?producto=` del "Recontar" del catálogo) entra a la lista AUNQUE
+// esté inactivo (`filtroDeAjustables`, en el núcleo puro). Nunca sale del tenant: el `where`
+// lleva `tenantId`.
+export async function getAdjustmentData(productoPreelegido?: string) {
   await requireCapability("catalog:read");
   const tenantId = await getCurrentTenantId();
   const [products, recent] = await Promise.all([
     prisma.product.findMany({
-      where: { tenantId, deletedAt: null, active: true },
+      where: { tenantId, deletedAt: null, ...filtroDeAjustables(productoPreelegido) },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, unit: true, stock: true },
+      select: { id: true, name: true, unit: true, stock: true, active: true },
     }),
     prisma.stockMovement.findMany({
       where: { tenantId, type: "AJUSTE" },
@@ -64,12 +69,16 @@ export async function getAdjustmentData() {
   return { products, recent };
 }
 
-// Líneas: arrays paralelos productId[]/value[] (patrón getAll del Core). El `value`
-// se interpreta según el motivo (contado / perdido / delta) recién en el core.
-function parseLines(formData: FormData): { productId: string; value: number }[] {
-  const productIds = formData.getAll("productId").map(String);
-  const values = formData.getAll("value").map(parseNum);
-  return productIds.map((id, i) => ({ productId: id, value: values[i] }));
+// Líneas: arrays paralelos productId[]/value[] (patrón getAll del Core). Se leen con la
+// MISMA regla que la pantalla (`leerLineasDeAjuste`, coma decimal, signo sólo en OTRO) y lo
+// ilegible lanza con mensaje. Antes era `Number(x.replace(",", "."))`: un valor que no era
+// número llegaba NaN y la línea se descartaba sin avisar.
+function parseLines(formData: FormData, motivo: AdjustmentMotivo): { productId: string; value: number }[] {
+  return leerLineasDeAjuste(
+    motivoMode(motivo),
+    formData.getAll("productId").map(String),
+    formData.getAll("value").map(String),
+  );
 }
 
 // --- Registrar un ajuste / merma ---
@@ -87,7 +96,7 @@ export async function createStockAdjustment(formData: FormData) {
     motivo,
     note,
     createdBy: `user:${user.id}`,
-    items: parseLines(formData),
+    items: parseLines(formData, motivo),
   });
 
   await auditAdmin({

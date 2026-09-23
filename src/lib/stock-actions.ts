@@ -22,13 +22,9 @@ import { requireCapability } from "@/lib/authz";
 import { insertStockPurchase, type StockPurchaseKind } from "@/lib/stock/purchase-core";
 import { composeFormalNotes } from "@/lib/stock/formal-order";
 import { parseCashMethod } from "@/lib/comision-liquidacion";
+import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
 
 const STOCK_PATH = "/admin/compras";
-
-// Acepta coma o punto decimal (entrada AR). Devuelve NaN si no es numérico.
-function parseNum(raw: FormDataEntryValue | null): number {
-  return Number(String(raw ?? "").trim().replace(",", "."));
-}
 
 // --- Loader de la pantalla de compras/reposición ---
 //
@@ -57,17 +53,27 @@ export async function getStockData() {
 
 // Parsea las líneas (arrays paralelos productId[]/quantity[]/unitCost[], patrón
 // getAll del Core, igual que order-actions.parseItems) a la forma del core.
+//
+// Se leen con las MISMAS funciones que la pantalla: la cantidad con `cantidadDelFormulario`
+// (coma decimal, gramos) y el costo con `importeDelFormulario` ("6.543" son miles). Antes
+// era `Number(x.replace(",", "."))`: "12.500" de costo se leía 12,5 y un valor ilegible
+// llegaba NaN y la línea se descartaba sin avisar, con el egreso del libro saliendo por
+// menos. Ahora lo ilegible LANZA con un mensaje. En CH esto es plata del libro: el total de
+// la compra es el egreso que se asienta (ver purchase-egreso.test.ts).
 function parseLines(formData: FormData): { productId: string; qty: number; unitCost: number }[] {
   const productIds = formData.getAll("productId").map(String);
-  const quantities = formData.getAll("quantity").map(parseNum);
-  const unitCosts = formData.getAll("unitCost").map(parseNum);
-  return productIds.map((id, i) => ({
-    productId: id,
-    qty: quantities[i],
-    // El costo es opcional (reposición sin costo): un input vacío llega como NaN y
-    // el core lo normaliza a 0.
-    unitCost: Number.isFinite(unitCosts[i]) ? unitCosts[i] : 0,
-  }));
+  const quantities = formData.getAll("quantity").map(String);
+  const unitCosts = formData.getAll("unitCost").map(String);
+  return productIds.map((id, i) => {
+    const qty = cantidadDelFormulario(quantities[i], `Línea ${i + 1}, cantidad`);
+    if (qty == null) throw new Error(`Línea ${i + 1}: falta la cantidad.`);
+    return {
+      productId: id,
+      qty,
+      // El costo es opcional (reposición sin costo): vacío es 0, no un error.
+      unitCost: importeDelFormulario(unitCosts[i], `Línea ${i + 1}, costo`) ?? 0,
+    };
+  });
 }
 
 // --- Registrar una compra / reposición ---

@@ -6,11 +6,13 @@ import { Input, Select, Textarea, buttonClasses } from "@/components/ui";
 import {
   ADJUSTMENT_MOTIVOS,
   adjustmentDelta,
+  leerValorDeAjuste,
   motivoLabel,
   motivoMode,
   requiresNote,
   type AdjustmentMotivo,
 } from "@/lib/stock/adjustment-core";
+import { cantidadParaFormulario } from "@/lib/pos-peso";
 
 // Producto ajustable que llega del loader (getAdjustmentData): con stock/unidad actuales.
 type AdjustableProduct = {
@@ -18,11 +20,19 @@ type AdjustableProduct = {
   name: string;
   unit: string;
   stock: number;
+  // false sólo cuando llega preelegido desde el "Recontar" de un producto dado de baja.
+  active?: boolean;
 };
 
-// Una línea del ajuste en construcción. `value` se interpreta según el motivo
-// (contado / perdido / delta firmado) — la misma regla que el core.
-type Line = { key: number; productId: string; value: number; touched: boolean };
+// Una línea del ajuste en construcción. Se guarda el TEXTO tipeado, no un número: el campo
+// es `type="text"` y se lee con `leerValorDeAjuste` (la misma regla que la Server Action).
+// Con el `type="number"` de antes, tipear "4,350" entregaba "4350" (medido, ver
+// pos-peso.ts) y el recuento dejaba el corte en 4350 kg. El texto se interpreta según el
+// motivo (contado / perdido / delta firmado).
+type Line = { key: number; productId: string; texto: string };
+
+// Lo que viene preelegido desde otra pantalla (el "Recontar" del catálogo).
+export type AjusteInicial = { productId?: string; motivo?: AdjustmentMotivo };
 
 const qtyFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 const signedFmt = new Intl.NumberFormat("es-AR", {
@@ -39,16 +49,23 @@ const MODE_HINT: Record<AdjustmentMotivo, string> = {
   OTRO: "Cargá el ajuste con signo (+ suma, − resta). Requiere una nota que lo explique.",
 };
 
-export default function AjustesForm({ products }: { products: AdjustableProduct[] }) {
-  const [motivo, setMotivo] = useState<AdjustmentMotivo>("RECUENTO");
+export default function AjustesForm({
+  products,
+  inicial,
+}: {
+  products: AdjustableProduct[];
+  inicial?: AjusteInicial;
+}) {
+  const [motivo, setMotivo] = useState<AdjustmentMotivo>(inicial?.motivo ?? "RECUENTO");
   const [note, setNote] = useState("");
   const [lines, setLines] = useState<Line[]>([
-    { key: 1, productId: "", value: 0, touched: false },
+    { key: 1, productId: inicial?.productId ?? "", texto: "" },
   ]);
   const [nextKey, setNextKey] = useState(2);
   // Foco dirigido (mismo flujo sin-mouse que compras/POS): al elegir producto saltamos
-  // al valor; guardamos el id pendiente en un ref para enfocarlo tras el render.
-  const focusRef = useRef<string | null>(null);
+  // al valor; guardamos el id pendiente en un ref para enfocarlo tras el render. Si el
+  // producto ya vino elegido (Recontar), se arranca con el foco en el número a cargar.
+  const focusRef = useRef<string | null>(inicial?.productId ? "val-1" : null);
   const focus = (id: string) => {
     focusRef.current = id;
   };
@@ -68,7 +85,7 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
   }
   function addLine() {
     const key = nextKey;
-    setLines((ls) => [...ls, { key, productId: "", value: 0, touched: false }]);
+    setLines((ls) => [...ls, { key, productId: "", texto: "" }]);
     setNextKey((k) => k + 1);
     return key;
   }
@@ -76,16 +93,21 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
     setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : ls));
   }
 
-  // Delta de una línea (preview): usa el stock que trajo la pantalla. El autoritativo
-  // lo recalcula el core dentro de la transacción con el stock vigente.
-  function lineDelta(l: Line): number {
+  // Lectura de cada línea con el motivo vigente (cambiar de Recuento a Otro cambia qué
+  // significa el mismo texto). Delta = preview con el stock que trajo la pantalla; el
+  // autoritativo lo recalcula el core dentro de la transacción con el stock vigente.
+  const leidas = lines.map((l) => {
     const p = byId.get(l.productId);
-    if (!p || !l.touched) return 0;
-    return adjustmentDelta(mode, l.value, p.stock);
-  }
+    const lectura = leerValorDeAjuste(mode, l.texto);
+    const delta = p && lectura.estado === "ok" ? adjustmentDelta(mode, lectura.valor, p.stock) : 0;
+    return { ...l, p, lectura, delta, invalida: !!p && lectura.estado === "invalida" };
+  });
 
-  const hasValidLine = lines.some((l) => byId.get(l.productId) && lineDelta(l) !== 0);
-  const canSubmit = hasValidLine && (!noteNeeded || note.trim().length > 0);
+  // Una línea ilegible frena TODO el envío, no se descarta: registrar las otras y perder
+  // ésa en silencio es cómo un recuento termina a medias sin que nadie lo sepa.
+  const hayIlegible = leidas.some((l) => l.invalida);
+  const hasValidLine = leidas.some((l) => l.p && l.delta !== 0);
+  const canSubmit = hasValidLine && !hayIlegible && (!noteNeeded || note.trim().length > 0);
 
   if (products.length === 0) {
     return (
@@ -135,9 +157,8 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
 
       {/* Líneas del ajuste */}
       <div className="space-y-2 border-t border-line pt-4">
-        {lines.map((l) => {
-          const p = byId.get(l.productId);
-          const delta = lineDelta(l);
+        {leidas.map((l) => {
+          const { p, delta } = l;
           return (
             <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_120px_auto]">
               <Select
@@ -153,18 +174,21 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
                 <option value="">Elegí un producto…</option>
                 {products.map((prod) => (
                   <option key={prod.id} value={prod.id}>
-                    {prod.name} — hay {qtyFmt.format(prod.stock)} {prod.unit}
+                    {prod.name}
+                    {prod.active === false ? " (inactivo)" : ""} — hay {qtyFmt.format(prod.stock)} {prod.unit}
                   </option>
                 ))}
               </Select>
               <div className="relative">
+                {/* type="text" + inputMode="decimal": coma y punto valen lo mismo. En OTRO el
+                    signo se escribe ("-2,5"); en el resto un "-" se marca como error. */}
                 <Input
                   id={`val-${l.key}`}
-                  type="number"
-                  // OTRO admite negativos (delta firmado); el resto sólo magnitudes ≥ 0.
-                  min={mode === "SIGNED" ? undefined : "0"}
-                  step="0.001"
-                  value={l.touched ? l.value || "" : ""}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={l.texto}
+                  aria-invalid={l.invalida ? true : undefined}
                   aria-label={mode === "COUNT" ? "Cantidad contada" : mode === "LOSS" ? "Cantidad" : "Ajuste (±)"}
                   placeholder={
                     !p
@@ -175,7 +199,7 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
                           ? "Cantidad"
                           : "Ajuste ±"
                   }
-                  onChange={(e) => setLine(l.key, { value: Number(e.target.value), touched: true })}
+                  onChange={(e) => setLine(l.key, { texto: e.target.value })}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -203,18 +227,26 @@ export default function AjustesForm({ products }: { products: AdjustableProduct[
                   type="button"
                   onClick={() => removeLine(l.key)}
                   aria-label="Quitar línea"
-                  className="inline-flex items-center justify-center min-h-6 min-w-6 text-lg leading-none text-muted px-1 hover:text-danger"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-lg leading-none text-muted hover:text-danger sm:min-h-9 sm:min-w-9"
                 >
                   ×
                 </button>
               </div>
+              {l.invalida && (
+                <p role="alert" className="col-span-2 sm:col-span-3 text-xs text-danger">
+                  {mode === "SIGNED"
+                    ? "Eso no es un ajuste. Escribí el número con su signo: -2,5 resta, 2,5 suma."
+                    : "Eso no es una cantidad. Escribila con coma si tiene gramos (4,350)."}
+                </p>
+              )}
               {/* Inputs que viajan a la server action (patrón getAll del Core). Viaja la
-                  línea sólo si tiene producto y un valor cargado; el core recalcula el
-                  delta y descarta los no-op (recuento que coincide con el sistema). */}
-              {p && l.touched && Number.isFinite(l.value) && (
+                  línea sólo si tiene producto y un valor LEGIBLE, en forma canónica (punto
+                  decimal): el server la vuelve a leer con la misma regla. El core recalcula
+                  el delta y descarta los no-op (recuento que coincide con el sistema). */}
+              {p && l.lectura.estado === "ok" && (
                 <>
                   <input type="hidden" name="productId" value={l.productId} />
-                  <input type="hidden" name="value" value={l.value} />
+                  <input type="hidden" name="value" value={cantidadParaFormulario(l.lectura.valor)} />
                 </>
               )}
             </div>

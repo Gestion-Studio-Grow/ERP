@@ -10,6 +10,8 @@ import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { writeProductExtras } from "@/lib/carniceria/product-extras";
 import { parseSaleFields } from "@/lib/stock/product-sale-fields";
+import { crearProductoConStockInicial } from "@/lib/stock/alta-producto";
+import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
 import {
   clearCommissionOverride,
   setCommissionOverride,
@@ -301,47 +303,99 @@ function parseCarniceriaExtras(formData: FormData): { category?: string | null; 
     out.category = c || null;
   }
   if (formData.has("cost")) {
-    const raw = String(formData.get("cost") || "").trim();
-    const n = raw ? Number(raw) : null;
-    out.cost = n && Number.isFinite(n) && n > 0 ? n : null;
+    // Plata: se lee con `leerImporte` ("6.543" son miles). Vacío o 0 = sin costo de
+    // referencia (el margen cae al último costo de compra); ilegible lanza.
+    const n = importeDelFormulario(String(formData.get("cost") ?? ""), "Costo");
+    out.cost = n != null && n > 0 ? n : null;
   }
   return out;
 }
 
-export async function createProduct(formData: FormData) {
-  await requireCapability("catalog:manage");
-  const name = String(formData.get("name") || "").trim();
-  const unit = String(formData.get("unit") || "unidades").trim();
-  const stock = Number(formData.get("stock"));
-  const lowStockAt = Number(formData.get("lowStockAt"));
-  if (!name || Number.isNaN(stock)) return;
-  const created = await prisma.product.create({
-    data: {
-      tenantId: await getCurrentTenantId(),
-      name,
-      unit,
-      stock,
-      lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt,
-      ...parseSaleFields(formData),
-    },
-  });
-  await writeProductExtras(created.id, parseCarniceriaExtras(formData));
-  revalidatePath(CATALOG_PATH);
+// "Aviso stock bajo": una cantidad, con la misma regla que el resto (coma decimal).
+// Vacío → null (el llamador decide); ilegible lanza con mensaje.
+function parseLowStockAt(formData: FormData): number | null {
+  return cantidadDelFormulario(String(formData.get("lowStockAt") ?? ""), "Aviso de stock bajo");
 }
 
+// ALTA. El stock inicial NO se escribe en el `create`: el producto nace en 0 y, si trae
+// stock, se asienta un AJUSTE "Stock inicial" por el ledger en la MISMA transacción
+// (src/lib/stock/alta-producto.ts). Antes el create lo escribía directo y el historial del
+// producto arrancaba sin la fila que explicaba esos kilos.
+//
+// Y antes, un stock ilegible (`Number("abc")` → NaN) hacía `return` SIN AVISAR: ningún
+// error y ningún producto. Ahora un número ilegible lanza con un mensaje; un stock inicial
+// vacío es 0.
+//
+// Todo se lee antes de escribir nada, extras incluidos: si un costo ilegible lanzara recién
+// después del create, el producto quedaría creado con la action en error, y reintentar lo
+// duplicaría.
+export async function createProduct(formData: FormData) {
+  const user = await requireCapability("catalog:manage");
+  const tenantId = await getCurrentTenantId();
+  const name = String(formData.get("name") || "").trim();
+  if (!name) throw new Error("El producto necesita un nombre.");
+  const unit = String(formData.get("unit") || "unidades").trim();
+  const stockInicial = cantidadDelFormulario(String(formData.get("stock") ?? ""), "Stock inicial") ?? 0;
+  const lowStockAt = parseLowStockAt(formData) ?? 5;
+  const venta = parseSaleFields(formData);
+  const extras = parseCarniceriaExtras(formData);
+  const created = await tenantTransaction(
+    (tx) =>
+      crearProductoConStockInicial(tx, {
+        tenantId,
+        name,
+        unit,
+        lowStockAt,
+        venta,
+        stockInicial,
+        createdBy: `user:${user.id}`,
+      }),
+    { tenantId },
+  );
+  await writeProductExtras(created.id, extras);
+  revalidatePath(CATALOG_PATH);
+  // El stock inicial es un movimiento del ledger: aparece en ajustes, compras y el POS.
+  if (created.stock > 0) {
+    revalidatePath("/admin/ajustes");
+    revalidatePath("/admin/compras");
+    revalidatePath("/admin/pedidos");
+  }
+}
+
+// EDICIÓN. NO toca el stock, ni aunque el form lo mande.
+//
+// Antes escribía `stock` con el número que el formulario traía desde que se ABRIÓ la
+// pantalla: si entre que la encargada abría el corte y guardaba el precio nuevo el
+// mostrador vendía, el guardado devolvía el stock al número viejo, sin ningún movimiento en
+// el ledger que lo explicara. El stock sólo cambia por `recordMovement` (ledger.ts); para
+// corregirlo está /admin/ajustes (Recuento), que es adonde lleva el "Recontar" del catálogo.
+//
+// El `where` lleva `tenantId` además del id (mismo criterio que 75c1204): la escritura ya
+// queda acotada por el candado de aplicación y por RLS, pero no depende sólo de ellos.
+// Como en el alta, todo se lee ANTES de escribir: un costo ilegible no deja la edición a medias.
 export async function updateProduct(formData: FormData) {
   await requireCapability("catalog:manage");
-  const id = String(formData.get("id"));
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
+  if (!id) throw new Error("Falta el producto a editar.");
+  if (!name) throw new Error("El producto necesita un nombre.");
   const unit = String(formData.get("unit") || "unidades").trim();
-  const stock = Number(formData.get("stock"));
-  const lowStockAt = Number(formData.get("lowStockAt"));
-  if (!name || Number.isNaN(stock)) return;
-  await prisma.product.update({
-    where: { id },
-    data: { name, unit, stock, lowStockAt: Number.isNaN(lowStockAt) ? 5 : lowStockAt, ...parseSaleFields(formData) },
+  const lowStockAt = parseLowStockAt(formData);
+  const venta = parseSaleFields(formData);
+  const extras = parseCarniceriaExtras(formData);
+  const res = await prisma.product.updateMany({
+    where: { id, tenantId, deletedAt: null },
+    data: {
+      name,
+      unit,
+      // Vacío = no se toca (antes `Number("")` guardaba 0, y el aviso sólo saltaba en cero).
+      ...(lowStockAt != null ? { lowStockAt } : {}),
+      ...venta,
+    },
   });
-  await writeProductExtras(id, parseCarniceriaExtras(formData));
+  if (res.count === 0) throw new Error("No se encontró el producto para guardar los cambios.");
+  await writeProductExtras(id, extras);
   revalidatePath(CATALOG_PATH);
 }
 

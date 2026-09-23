@@ -58,6 +58,11 @@ test("una forma de venta desconocida cae a UNIT (fail-safe)", () => {
   assert.equal(parseSaleFields(form({ saleUnit: "DOCENA", price: "10" })).saleUnit, "UNIT");
 });
 
+test("el precio se lee como se escribe acá: $15.900 son quince mil novecientos", () => {
+  assert.equal(parseSaleFields(form({ saleUnit: "WEIGHT", pricePerKg: "15.900" })).pricePerKg, 15900);
+  assert.equal(parseSaleFields(form({ saleUnit: "UNIT", price: "$ 1.234,50" })).price, 1234.5);
+});
+
 test("acepta decimales en el precio (kg fraccionado, centavos)", () => {
   assert.equal(parseSaleFields(form({ saleUnit: "WEIGHT", pricePerKg: "9500.50" })).pricePerKg, 9500.5);
 });

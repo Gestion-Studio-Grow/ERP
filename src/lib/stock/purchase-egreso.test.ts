@@ -272,3 +272,63 @@ test("el aviso de duplicado de un egreso del sistema NO exige que coincida el me
   );
   assert.match(where, /\{ type, reason: detail, occurredAt, method \}/, "la rama tipeada a mano sí compara el medio");
 });
+
+// ── 4. Lo tipeado en el remito → el egreso del libro ────────────────────────
+//
+// En CH el total de la compra ES el egreso que se asienta. Con los `<input type="number">`
+// de antes, tecleando "12,5" el campo entregaba "125" (MEDIDO en Chromium 141, tabla en
+// pos-peso.ts): la línea entraba diez veces al stock y el egreso salía diez veces más
+// grande. Este test ejecuta el camino que hace hoy la Server Action: leer con las mismas
+// funciones de pos-peso, armar las líneas con purchase-core y decidir el egreso.
+
+import { cantidadDelFormulario, importeDelFormulario } from "../pos-peso";
+import { buildPurchaseLines, purchaseTotal } from "./purchase-core";
+
+function egresoDeUnaLinea(qtyTipeada: string, costoTipeado: string): number | null {
+  const qty = cantidadDelFormulario(qtyTipeada, "Cantidad");
+  const unitCost = importeDelFormulario(costoTipeado, "Costo") ?? 0;
+  assert.ok(qty != null);
+  const lines = buildPurchaseLines(
+    [{ id: "p1", name: "Crema hidratante", unit: "kg" }],
+    [{ productId: "p1", qty, unitCost }],
+  );
+  const d = decidirEgresoDeCompra({ ...BASE, totalCost: purchaseTotal(lines) });
+  return d.asienta ? d.egreso.amount : null;
+}
+
+test("una línea de '12,5' kg a '$6.543' asienta un egreso de $81.787,50", () => {
+  assert.equal(egresoDeUnaLinea("12,5", "$6.543"), 81787.5);
+  // Lo mismo si viaja la forma canónica del hidden (punto decimal, sin miles).
+  assert.equal(egresoDeUnaLinea("12.5", "6543"), 81787.5);
+  // Con centavos y miles juntos, como en la factura del proveedor.
+  assert.equal(egresoDeUnaLinea("12,5", "6.543,00"), 81787.5);
+});
+
+test("lo que asentaba el camino viejo con lo que entregaba el navegador: diez veces más", () => {
+  // "12,5" tecleado en un type="number" → "125" (medido). 125 × 6543 = 817.875.
+  assert.equal(egresoDeUnaLinea("125", "6543"), 817875);
+});
+
+test("un costo ilegible frena la compra con mensaje en vez de asentar un egreso de menos", () => {
+  assert.throws(() => egresoDeUnaLinea("12,5", "6.5.43"), /no es un importe/);
+  assert.throws(() => egresoDeUnaLinea("12,5kg3", "6543"), /no es una cantidad/);
+});
+
+test("la Server Action de compras lee con las funciones de pos-peso, no con Number()", () => {
+  const action = leer("../stock-actions.ts");
+  const desde = action.indexOf("function parseLines");
+  assert.ok(desde > 0, "no encontré parseLines en stock-actions.ts");
+  const cuerpo = action.slice(desde, action.indexOf("\n}\n", desde));
+  assert.match(cuerpo, /cantidadDelFormulario\(/);
+  assert.match(cuerpo, /importeDelFormulario\(/);
+  assert.doesNotMatch(cuerpo, /Number\(/, "volvió un Number() crudo: '12.500' de costo se lee 12,5");
+});
+
+test("el formulario de compras no usa type=number y manda la forma canónica", () => {
+  const form = leer("../../app/admin/(dashboard)/compras/ComprasForm.tsx");
+  // Sin comentarios: el archivo cuenta POR QUÉ dejó el type=number, y eso no es usarlo.
+  const codigo = form.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.doesNotMatch(codigo, /type="number"/, "con type=number el navegador se traga la coma");
+  assert.match(form, /name="quantity" value=\{cantidadParaFormulario\(/);
+  assert.match(form, /importeParaFormulario\(l\.unitCost\)/);
+});

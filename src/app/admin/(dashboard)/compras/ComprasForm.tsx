@@ -4,6 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createStockPurchase } from "@/lib/stock-actions";
 import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import {
+  leerCantidad,
+  leerImporte,
+  cantidadParaFormulario,
+  importeParaFormulario,
+} from "@/lib/pos-peso";
 
 // Producto reponible que llega del loader (getStockData): con stock/unidad actuales.
 type ReplenishableProduct = {
@@ -14,9 +20,16 @@ type ReplenishableProduct = {
   lowStockAt: number;
 };
 
-// Una línea de la entrada en construcción. `qty` es cantidad a ingresar (en la unidad
-// del producto); `unitCost` es el costo de compra unitario (opcional en reposición).
-type Line = { key: number; productId: string; qty: number; unitCost: number };
+// Una línea de la entrada en construcción. Se guarda el TEXTO tipeado de la cantidad (en la
+// unidad del producto) y del costo unitario (opcional en reposición), no un número.
+//
+// Antes eran `<input type="number">` leídos con `Number()`. MEDIDO en Chromium (tabla en
+// pos-peso.ts): tecleando "12,5" kg el campo entrega "125", así que la línea del remito
+// entraba diez veces al stock y el egreso del libro salía diez veces más grande; y un costo
+// "12.500" pasaba como 12,5. Ahora los dos campos son texto: la cantidad se lee con
+// `leerCantidad` (coma decimal, gramos) y el costo con `leerImporte` ("6.543" son seis mil
+// quinientos cuarenta y tres pesos). El server vuelve a leer con las mismas funciones.
+type Line = { key: number; productId: string; qtyText: string; costText: string };
 
 const qtyFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
@@ -46,7 +59,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
   // derivarlo. Asumirlo mal descuadra el arqueo por el importe completo (falta en una columna
   // y sobra en la otra) y además apaga el aviso de duplicado del libro, que compara por medio.
   const [pago, setPago] = useState<"" | "EFECTIVO" | "MP" | "TARJETA">("");
-  const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qty: 0, unitCost: 0 }]);
+  const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qtyText: "", costText: "" }]);
   const [nextKey, setNextKey] = useState(2);
   // Foco dirigido: al elegir producto saltamos a la cantidad; con Enter, al próximo
   // producto (mismo flujo sin-mouse que el POS de venta). Guardamos el id pendiente
@@ -72,7 +85,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
   }
   function addLine() {
     const key = nextKey;
-    setLines((ls) => [...ls, { key, productId: "", qty: 0, unitCost: 0 }]);
+    setLines((ls) => [...ls, { key, productId: "", qtyText: "", costText: "" }]);
     setNextKey((k) => k + 1);
     return key;
   }
@@ -80,11 +93,30 @@ export default function ComprasForm({ products, formal = false }: { products: Re
     setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : ls));
   }
 
-  const totalCost = lines.reduce((s, l) => {
-    if (!byId.get(l.productId) || !(l.qty > 0) || !(l.unitCost > 0)) return s;
+  // Lectura de cada línea. `qty`/`unitCost` valen 0 mientras no haya algo legible; las
+  // marcas `qtyMal`/`costMal` separan "todavía no escribió" de "escribió algo que no es".
+  const leidas = lines.map((l) => {
+    const p = byId.get(l.productId);
+    const q = leerCantidad(l.qtyText);
+    const c = leerImporte(l.costText);
+    return {
+      ...l,
+      p,
+      qty: q.estado === "ok" ? q.valor : 0,
+      unitCost: c.estado === "ok" ? c.valor : 0,
+      qtyMal: !!p && q.estado === "invalida",
+      costMal: !!p && c.estado === "invalida",
+    };
+  });
+
+  const totalCost = leidas.reduce((s, l) => {
+    if (!l.p || !(l.qty > 0) || !(l.unitCost > 0)) return s;
     return s + l.qty * l.unitCost;
   }, 0);
-  const hasValidLine = lines.some((l) => byId.get(l.productId) && l.qty > 0);
+  const hasValidLine = leidas.some((l) => l.p && l.qty > 0);
+  // Una línea con algo ilegible frena el registro entero: si viajaran las otras, el remito
+  // quedaría cargado a medias y el egreso por menos, sin que nadie lo note.
+  const hayIlegible = leidas.some((l) => l.qtyMal || l.costMal);
 
   if (products.length === 0) {
     return (
@@ -183,8 +215,8 @@ export default function ComprasForm({ products, formal = false }: { products: Re
 
       {/* Líneas de la entrada */}
       <div className="space-y-2 border-t border-line pt-4">
-        {lines.map((l) => {
-          const p = byId.get(l.productId);
+        {leidas.map((l) => {
+          const { p } = l;
           const lineTotal = p && l.qty > 0 && l.unitCost > 0 ? l.qty * l.unitCost : 0;
           return (
             <div key={l.key} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2 sm:grid-cols-[1fr_110px_130px_auto]">
@@ -207,12 +239,14 @@ export default function ComprasForm({ products, formal = false }: { products: Re
               <div className="relative">
                 <Input
                   id={`qty-${l.key}`}
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={l.qty || ""}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={l.qtyText}
+                  aria-label="Cantidad"
+                  aria-invalid={l.qtyMal ? true : undefined}
                   placeholder={p ? "Cantidad" : "—"}
-                  onChange={(e) => setLine(l.key, { qty: Number(e.target.value) })}
+                  onChange={(e) => setLine(l.key, { qtyText: e.target.value })}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -229,12 +263,14 @@ export default function ComprasForm({ products, formal = false }: { products: Re
               <div className="relative">
                 <Input
                   id={`cost-${l.key}`}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={l.unitCost || ""}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={l.costText}
+                  aria-label="Costo unitario"
+                  aria-invalid={l.costMal ? true : undefined}
                   placeholder={isCompra ? "Costo u." : "Costo (opcional)"}
-                  onChange={(e) => setLine(l.key, { unitCost: Number(e.target.value) })}
+                  onChange={(e) => setLine(l.key, { costText: e.target.value })}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -267,14 +303,27 @@ export default function ComprasForm({ products, formal = false }: { products: Re
                   ×
                 </button>
               </div>
+              {(l.qtyMal || l.costMal) && (
+                <p role="alert" className="col-span-3 sm:col-span-4 text-xs text-danger">
+                  {l.qtyMal
+                    ? "Eso no es una cantidad. Escribila con coma si tiene decimales (12,5)."
+                    : "Eso no es un costo. Escribilo como 6.543 o 6.543,50."}
+                </p>
+              )}
               {/* Inputs que viajan a la server action (patrón getAll del Core). La
                   cantidad SIEMPRE viaja si hay producto y cantidad; el costo viaja
-                  en paralelo para no desalinear los arrays (vacío → 0 en la acción). */}
+                  en paralelo para no desalinear los arrays (vacío → 0 en la acción).
+                  Viaja la forma CANÓNICA (punto decimal, sin miles), no lo tipeado: el
+                  server la vuelve a leer con las mismas funciones. */}
               {p && l.qty > 0 && (
                 <>
                   <input type="hidden" name="productId" value={l.productId} />
-                  <input type="hidden" name="quantity" value={l.qty} />
-                  <input type="hidden" name="unitCost" value={l.unitCost || ""} />
+                  <input type="hidden" name="quantity" value={cantidadParaFormulario(l.qty)} />
+                  <input
+                    type="hidden"
+                    name="unitCost"
+                    value={l.unitCost > 0 ? importeParaFormulario(l.unitCost) : ""}
+                  />
                 </>
               )}
             </div>
@@ -297,7 +346,7 @@ export default function ComprasForm({ products, formal = false }: { products: Re
           </span>
         </div>
         <RegistrarSubmit
-          disabled={!hasValidLine || (isCompra && pago === "")}
+          disabled={!hasValidLine || hayIlegible || (isCompra && pago === "")}
           label={`Registrar ${isCompra ? "compra" : "reposición"}`}
         />
       </div>

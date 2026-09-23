@@ -1,11 +1,16 @@
 // ============================================================================
-// TEST-GATE · LA COMA QUE COBRABA 10 VECES DE MÁS
+// TEST-GATE · LA COMA QUE EL `<input type="number">` SE TRAGABA
 // ============================================================================
 //
-// El defecto real: `<input type="number">` + `Number(e.target.value)`. Tecleando `1,3` kilos
-// el navegador entregaba `13` y la venta salía por diez veces su valor, sin error y con el
-// botón "Cobrar" habilitado. Estos casos son los que el mostrador tipea de verdad; si alguien
-// vuelve a un parseo ingenuo, el primer bloque se pone rojo.
+// El defecto real: `<input type="number">` + `Number(e.target.value)`. MEDIDO con Chromium
+// 141 (es-AR y en-US, tecla por tecla; tabla completa en la cabecera de pos-peso.ts):
+// tecleando "1,3" el campo entrega "13", "4,350" entrega "4350" y "12,5" entrega "125", con
+// `validity.valid === true`. O sea, el número sale multiplicado y nadie protesta. Estos
+// casos son los que se tipean de verdad; si alguien vuelve a un parseo ingenuo, se ponen
+// rojos.
+//
+// (Una versión anterior de este archivo decía que `.value` quedaba vacío y la línea valía
+// $0. Eso es lo que da asignar el valor por JS, no tipearlo: re-medido, no se sostiene.)
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -24,11 +29,10 @@ function valor(raw: string): number | null {
   return l.estado === "ok" ? l.valor : null;
 }
 
-// ── 1. La coma es decimal (el bug que regalaba la mercadería) ────────────────
+// ── 1. La coma es decimal ────────────────────────────────────────────────────
 //
-// Con el `<input type="number">` viejo, tipear "1,3" dejaba `.value` en la cadena VACÍA
-// —medido con Chromium en es-AR y en en-US, los dos igual— así que `Number(.value)` daba 0.
-// La carne salía del mostrador y la línea valía cero.
+// Con el `<input type="number">` viejo, tipear "1,3" dejaba `.value` en "13" (medido, ver
+// arriba), así que `Number(.value)` daba 13: un kilo trescientos leído como trece kilos.
 
 test("coma decimal: 1,3 kg es 1,3", () => {
   assert.equal(valor("1,3"), 1.3);
@@ -38,20 +42,20 @@ test("punto decimal: 1.3 vale lo mismo que 1,3 (pad numérico del celular)", () 
   assert.equal(valor("1.3"), 1.3);
 });
 
-test("1,3 kg a $18.900/kg se cobra $24.570 — antes se cobraba $0", () => {
+test("1,3 kg a $18.900/kg son $24.570 — el camino viejo daba diez veces más", () => {
   const kg = valor("1,3");
   assert.ok(kg !== null);
   assert.equal(Math.round(kg * 18900 * 100) / 100, 24570);
-  // El camino viejo, reproducido tal cual lo hacía el navegador: `.value` vacío → 0.
-  // No es una tautología decorativa: si alguien vuelve a leer el campo con `Number(value)`
-  // sin parsear, esto es exactamente lo que va a cobrar.
-  const comoLoLeiaElInputNumber = Number("");
-  assert.equal(comoLoLeiaElInputNumber * 18900, 0);
+  // El camino viejo con lo que MEDÍ que entrega el navegador al teclear "1,3": "13".
+  // No es una tautología decorativa: si alguien vuelve a leer un `type="number"` con
+  // `Number(value)`, esto es lo que va a calcular.
+  const loQueEntregabaElInputNumber = "13";
+  assert.equal(Number(loQueEntregabaElInputNumber) * 18900, 245700);
 });
 
 // ── 2. Gramos: el peso típico de un paquete al vacío ─────────────────────────
 
-test("1,234 kg (gramos) entra entero: el step=0.01 viejo lo rechazaba", () => {
+test("1,234 kg (gramos) entra entero", () => {
   assert.equal(valor("1,234"), 1.234);
   assert.equal(valor("1.234"), 1.234);
 });
@@ -154,7 +158,13 @@ test("un peso normal de mostrador no molesta a nadie", () => {
 });
 
 // ── Importes ────────────────────────────────────────────────────────────────
-import { leerImporte, importeOCero, importeParaFormulario } from "./pos-peso";
+import {
+  leerImporte,
+  importeOCero,
+  importeParaFormulario,
+  cantidadDelFormulario,
+  importeDelFormulario,
+} from "./pos-peso";
 
 const ok = (raw: string) => {
   const l = leerImporte(raw);
@@ -182,7 +192,7 @@ test("importe: miles y centavos juntos, como en el extracto", () => {
 });
 
 test("importe: lo que no es plata rebota, no se vuelve 0", () => {
-  for (const raw of ["abc", "-500", "12,345,6", "1,234,56", "12.3456", "1.2.3"]) {
+  for (const raw of ["abc", "-500", "12,345,6", "1,234,56", "12.3456", "1.2.3", "0,555", "0.555", "012.500"]) {
     assert.equal(leerImporte(raw).estado, "invalida", raw);
   }
   assert.equal(leerImporte("").estado, "vacio");
@@ -197,4 +207,53 @@ test("importe: separador colgando mientras se tipea no es error", () => {
 test("importe: viaja al server con punto y sin miles", () => {
   assert.equal(importeParaFormulario(12500), "12500");
   assert.equal(importeParaFormulario(1234.567), "1234.57");
+});
+
+// ── Los casos de la tanda (compras, recuento, alta de producto) ─────────────
+//
+// Los números son los que se tipean en esas pantallas: el recuento de un corte al gramo, la
+// línea del remito en kilos, el costo del proveedor con separador de miles.
+
+test("cantidades de compras y recuento: 4,350 · 12,5 · 1.234,5", () => {
+  assert.equal(valor("4,350"), 4.35);
+  assert.equal(valor("12,5"), 12.5);
+  assert.equal(valor("1.234,5"), 1234.5);
+});
+
+test("importes del proveedor: 6.543 · 6.543,50 · 6543,5 · 12.500", () => {
+  assert.equal(ok("6.543"), 6543);
+  assert.equal(ok("6.543,50"), 6543.5);
+  assert.equal(ok("6543,5"), 6543.5);
+  assert.equal(ok("12.500"), 12500);
+});
+
+
+test("server: lo ilegible se RECHAZA con mensaje, no viaja como 0", () => {
+  assert.throws(() => cantidadDelFormulario("abc", "Cantidad"), /Cantidad: "abc" no es una cantidad/);
+  assert.throws(() => cantidadDelFormulario("-2", "Contado"), /no es una cantidad/);
+  assert.throws(() => importeDelFormulario("6.5.4", "Costo"), /Costo: "6.5.4" no es un importe/);
+  assert.throws(() => importeDelFormulario("12,345,6", "Costo"), /no es un importe/);
+});
+
+test("server: vacío es null (el llamador decide si el campo es opcional)", () => {
+  assert.equal(cantidadDelFormulario("", "Cantidad"), null);
+  assert.equal(cantidadDelFormulario(null, "Cantidad"), null);
+  assert.equal(importeDelFormulario("  ", "Costo"), null);
+});
+
+test("server: lee lo tipeado Y lo canónico que manda el hidden, con el mismo resultado", () => {
+  assert.equal(cantidadDelFormulario("4,350", "Contado"), 4.35);
+  assert.equal(cantidadDelFormulario(cantidadParaFormulario(4.35), "Contado"), 4.35);
+  assert.equal(importeDelFormulario("$6.543", "Costo"), 6543);
+  assert.equal(importeDelFormulario(importeParaFormulario(6543), "Costo"), 6543);
+  // El caso borde del hidden: un importe con centavos viaja "6543.5" y NO se confunde con miles.
+  assert.equal(importeDelFormulario(importeParaFormulario(6543.5), "Costo"), 6543.5);
+  assert.equal(importeDelFormulario(importeParaFormulario(0.05), "Costo"), 0.05);
+});
+
+test("server: el eco de un valor larguísimo se recorta (el mensaje se lee en el teléfono)", () => {
+  assert.throws(
+    () => cantidadDelFormulario("x".repeat(500), "Cantidad"),
+    (e: Error) => e.message.length < 120,
+  );
 });
