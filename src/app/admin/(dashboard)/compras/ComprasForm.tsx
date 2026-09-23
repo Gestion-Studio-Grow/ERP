@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createStockPurchase, type EstadoCompra } from "@/lib/stock-actions";
+import Link from "next/link";
+import { recibirMercaderia, type EstadoRecepcion } from "./actions";
 import { AvisoError, BuscadorCombo, Input, Select, buttonClasses, fmtMoneyARS, fmtCuit } from "@/components/ui";
 import {
   leerCantidad,
@@ -63,23 +64,33 @@ function RegistrarSubmit({ disabled, enviando, label }: { disabled: boolean; env
 //
 // `conCostos`: quien no ve costos (el encargado) recibe sin costo ni medio de pago: carga qué
 // llegó y cuánto, y el proveedor.
+//
+// `cuentaCorriente`: si el negocio puede dejar la compra a cuenta corriente (tiene Cuentas a
+// pagar y quien carga ve costos), con el vencimiento que se propone. `null` = la opción no
+// aparece: un negocio sin Cuentas a pagar (CH hoy) ve el formulario de siempre.
 export default function ComprasForm({
   products,
   proveedores = [],
   formal = false,
   conCostos = true,
+  cuentaCorriente = null,
 }: {
   products: ReplenishableProduct[];
   proveedores?: ProveedorElegible[];
   formal?: boolean;
   conCostos?: boolean;
+  cuentaCorriente?: { venceSugerido: string; dias: number } | null;
 }) {
   const [kind, setKind] = useState<"COMPRA" | "REPOSICION">("COMPRA");
   // Cómo se pagó la compra. Arranca VACÍO a propósito: el sistema venía asumiendo efectivo
   // porque el formulario no preguntaba, y `StockPurchase` no tiene ninguna columna de la que
   // derivarlo. Asumirlo mal descuadra el arqueo por el importe completo (falta en una columna
   // y sobra en la otra) y además apaga el aviso de duplicado del libro, que compara por medio.
-  const [pago, setPago] = useState<"" | "EFECTIVO" | "MP" | "TARJETA">("");
+  const [pago, setPago] = useState<"" | "EFECTIVO" | "MP" | "TARJETA" | "CUENTA_CORRIENTE">("");
+  // A cuenta corriente: el vencimiento arranca en el plazo que se propone (30 días,
+  // provisional) y la factura, vacía. Controlados para que un error no los pierda.
+  const [vence, setVence] = useState(cuentaCorriente?.venceSugerido ?? "");
+  const [factura, setFactura] = useState("");
   const [lines, setLines] = useState<Line[]>([lineaVacia(1)]);
   const [nextKey, setNextKey] = useState(2);
   const [supplierId, setSupplierId] = useState("");
@@ -100,12 +111,14 @@ export default function ComprasForm({
   // Si volvió con error, queda TODO como estaba: por eso `useEnvio` (onSubmit) y no
   // `<form action>`, que vaciaba también ante un error el proveedor escrito, la nota, el CUIT
   // y el N° de orden, y dejaba los desplegables mostrando otra cosa que la que se mandaba.
-  const { estado, enviar, enviando } = useEnvio<EstadoCompra>(async (prev, fd) => {
-    const r = await createStockPurchase(prev, fd);
+  const { estado, enviar, enviando } = useEnvio<EstadoRecepcion>(async (prev, fd) => {
+    const r = await recibirMercaderia(prev, fd);
     if (r?.ok) {
       setLines([lineaVacia(1)]);
       setNextKey(2);
       setPago("");
+      setVence(cuentaCorriente?.venceSugerido ?? "");
+      setFactura("");
       setKind("COMPRA");
       setSupplierId("");
       setVuelta((v) => v + 1);
@@ -120,6 +133,7 @@ export default function ComprasForm({
   );
   const isCompra = kind === "COMPRA";
   const conMaestro = proveedores.length > 0;
+  const aCuenta = isCompra && pago === "CUENTA_CORRIENTE";
 
   // Tras cada render, si hay un foco pendiente lo aplicamos y limpiamos el ref
   // (mutar un ref no dispara re-render, así que no hay cascada).
@@ -166,6 +180,17 @@ export default function ComprasForm({
   // Una línea con algo ilegible frena el registro entero: si viajaran las otras, el remito
   // quedaría cargado a medias y el egreso por menos, sin que nadie lo note.
   const hayIlegible = leidas.some((l) => l.qtyMal || l.costMal);
+  // A cuenta corriente hace falta a quién se le debe (el proveedor de la lista) y cuánto (el
+  // costo): lo mismo que exige el servidor (`decidirDeudaDeCompra`), dicho antes de tocar el botón.
+  const faltaParaCuenta = !aCuenta
+    ? null
+    : !conMaestro
+      ? "sin-maestro"
+      : !supplierId
+        ? "sin-proveedor"
+        : !(totalCost > 0)
+          ? "sin-costo"
+          : null;
 
   if (products.length === 0) {
     return (
@@ -220,6 +245,17 @@ export default function ComprasForm({
       {estado?.ok && (
         <p role="status" className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-strong">
           {estado.mensaje}
+          {estado.deudaId && (
+            <>
+              {" "}
+              <Link
+                href={`/admin/cuentas-a-pagar/${estado.deudaId}`}
+                className="inline-flex min-h-11 items-center font-medium text-accent underline underline-offset-2"
+              >
+                Ver la deuda
+              </Link>
+            </>
+          )}
         </p>
       )}
 
@@ -293,12 +329,57 @@ export default function ComprasForm({
             <option value="EFECTIVO">Efectivo</option>
             <option value="MP">Transferencia / Mercado Pago</option>
             <option value="TARJETA">Tarjeta</option>
+            {cuentaCorriente && <option value="CUENTA_CORRIENTE">A cuenta corriente (queda como deuda)</option>}
           </Select>
           <span className="mt-1 block text-xs text-faint">
-            Con esto sale del libro de caja por la columna correcta. Si se elige mal, el arqueo del
-            día cierra con faltante en una columna y sobrante en la otra por el mismo importe.
+            {aCuenta
+              ? "No sale plata de la caja hoy: la compra queda como deuda con el proveedor en Cuentas a pagar, y sale de la caja cuando la pagues."
+              : "Con esto sale del libro de caja por la columna correcta. Si se elige mal, el arqueo del día cierra con faltante en una columna y sobrante en la otra por el mismo importe."}
           </span>
         </label>
+      )}
+
+      {/* A cuenta corriente: cuándo vence y el número de factura del proveedor, que es como la
+          dueña la reconoce después en Cuentas a pagar. */}
+      {aCuenta && cuentaCorriente && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="block text-muted mb-1">Vence</span>
+            <Input type="date" name="vence" value={vence} onChange={(e) => setVence(e.target.value)} />
+            <span className="mt-1 block text-xs text-faint">
+              Propuesto a {cuentaCorriente.dias} días. Dejalo vacío si no tiene vencimiento.
+            </span>
+          </label>
+          <label className="text-sm">
+            <span className="block text-muted mb-1">N° de factura (opcional)</span>
+            <Input
+              name="factura"
+              value={factura}
+              maxLength={40}
+              autoComplete="off"
+              onChange={(e) => setFactura(e.target.value)}
+              placeholder="Ej.: A 0001-00012345"
+            />
+          </label>
+          {/* Una guía, no un error: dice por qué el botón todavía no se habilita. */}
+          {faltaParaCuenta && (
+            <p aria-live="polite" className="text-sm text-warning sm:col-span-2">
+              {faltaParaCuenta === "sin-maestro" ? (
+                <>
+                  Para dejarla a cuenta corriente, el proveedor tiene que estar cargado en{" "}
+                  <Link href="/admin/proveedores" className="font-medium underline underline-offset-2">
+                    Proveedores
+                  </Link>
+                  : la deuda queda en su ficha.
+                </>
+              ) : faltaParaCuenta === "sin-proveedor" ? (
+                "Elegí el proveedor de la lista: la deuda queda en su ficha."
+              ) : (
+                "Cargá el costo de lo que llegó: sin costo no hay deuda que dejar."
+              )}
+            </p>
+          )}
+        </div>
       )}
 
       {/* Líneas de la entrada */}
@@ -452,7 +533,7 @@ export default function ComprasForm({
         )}
         <RegistrarSubmit
           enviando={enviando}
-          disabled={!hasValidLine || hayIlegible || (conCostos && isCompra && pago === "")}
+          disabled={!hasValidLine || hayIlegible || (conCostos && isCompra && pago === "") || faltaParaCuenta !== null}
           label={`Registrar ${isCompra ? "compra" : "reposición"}`}
         />
       </div>

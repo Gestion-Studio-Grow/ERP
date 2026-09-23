@@ -101,45 +101,80 @@ export async function getSupplier(tenantId: string, id: string) {
 /** La deuda con este proveedor, o el motivo por el que no se puede leer. */
 export type DeudaDeProveedor = { ok: true; abiertas: PayableListItem[]; saldo: number } | { ok: false; motivo: string };
 
+/** Cuántas compras se listan en la ficha; los TOTALES son de todas (aggregate), no de éstas. */
+export const COMPRAS_EN_LA_FICHA = 30;
+/** Cuántas devoluciones se listan en la ficha; el total devuelto es de todas. */
+export const DEVOLUCIONES_EN_LA_FICHA = 50;
+
+/**
+ * Lo devuelto a costo, a partir de los movimientos AGRUPADOS por costo unitario (un `groupBy`:
+ * la base suma, no la pantalla). El registro guarda la cantidad firmada (negativa en una
+ * devolución): se toma la magnitud. Un grupo sin costo no suma pesos. PURA.
+ */
+export function totalDevuelto(grupos: readonly { unitCost: number | null; _sum: { qty: number | null }; _count: { _all: number } }[]): {
+  pesos: number;
+  movimientos: number;
+} {
+  let pesos = 0;
+  let movimientos = 0;
+  for (const g of grupos) {
+    movimientos += g._count._all;
+    if (g.unitCost && g.unitCost > 0) pesos += Math.abs(g._sum.qty ?? 0) * g.unitCost;
+  }
+  return { pesos: Math.round(pesos * 100) / 100, movimientos };
+}
+
 /**
  * LA FICHA: el proveedor, sus compras, su deuda abierta y lo que se le devolvió. Una lectura
  * por cosa, todas del negocio. La deuda sale de Cuentas a pagar (`listPayables`); si esa tabla
  * todavía no está en esta base, la ficha lo dice en vez de caerse.
+ *
+ * LOS TOTALES SALEN DE UN AGGREGATE (QA de la integración de la ola 2): "Compras" contaba las
+ * filas de una lista con tope y "Devuelto" sumaba sólo las devoluciones listadas, así que con
+ * más de 30 compras o 50 devoluciones la ficha mentía por abajo. Ahora cuenta y suma la base
+ * (`aggregate` / `groupBy`); las listas siguen acotadas y la pantalla dice "las últimas N".
  */
 export async function getFichaProveedor(tenantId: string, id: string) {
   const proveedor = await getSupplier(tenantId, id);
   if (!proveedor) return null;
 
-  const [compras, todasLasCompras, deuda] = await Promise.all([
+  const deEsteProveedor = { tenantId, supplierId: id };
+  const [compras, totales, idsDeCompras, deuda] = await Promise.all([
     prisma.stockPurchase.findMany({
-      where: { tenantId, supplierId: id },
+      where: deEsteProveedor,
       orderBy: { createdAt: "desc" },
-      take: 30,
+      take: COMPRAS_EN_LA_FICHA,
       select: { id: true, code: true, kind: true, totalCost: true, createdAt: true, _count: { select: { items: true } } },
     }),
-    // Las devoluciones se buscan contra TODAS sus compras, no sólo las 30 que se listan.
-    prisma.stockPurchase.findMany({ where: { tenantId, supplierId: id }, select: { id: true, code: true } }),
+    prisma.stockPurchase.aggregate({ where: deEsteProveedor, _count: { _all: true }, _sum: { totalCost: true } }),
+    // Las devoluciones se ligan a la compra por un rastro sin clave foránea (`purchaseId` del
+    // registro de stock): hace falta saber cuáles son SUS compras para buscarlas. Sólo ids.
+    prisma.stockPurchase.findMany({ where: deEsteProveedor, select: { id: true, code: true } }),
     leerDeuda(tenantId, id),
   ]);
-  const codigoDeCompra = new Map(todasLasCompras.map((c) => [c.id, c.code]));
-  // Todas las devoluciones (son pocas por proveedor): el total "Devuelto" es de TODAS, y la
-  // lista muestra las últimas 50. Antes el total sumaba sólo las 50 que se listaban.
-  const todasLasDevoluciones = todasLasCompras.length
-    ? await prisma.stockMovement.findMany({
-        where: { tenantId, type: "DEVOLUCION_PROVEEDOR", purchaseId: { in: todasLasCompras.map((c) => c.id) } },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, qty: true, unitCost: true, reason: true, createdAt: true, purchaseId: true, product: { select: { name: true, unit: true } } },
-      })
-    : [];
-  const devuelto = Math.round(todasLasDevoluciones.reduce((s, m) => s + (m.unitCost ? Math.abs(m.qty) * m.unitCost : 0), 0) * 100) / 100;
+  const codigoDeCompra = new Map(idsDeCompras.map((c) => [c.id, c.code]));
+  const deSusCompras = { tenantId, type: "DEVOLUCION_PROVEEDOR" as const, purchaseId: { in: idsDeCompras.map((c) => c.id) } };
+  const [devoluciones, grupos] = idsDeCompras.length
+    ? await Promise.all([
+        prisma.stockMovement.findMany({
+          where: deSusCompras,
+          orderBy: { createdAt: "desc" },
+          take: DEVOLUCIONES_EN_LA_FICHA,
+          select: { id: true, qty: true, unitCost: true, reason: true, createdAt: true, purchaseId: true, product: { select: { name: true, unit: true } } },
+        }),
+        prisma.stockMovement.groupBy({ by: ["unitCost"], where: deSusCompras, _sum: { qty: true }, _count: { _all: true } }),
+      ])
+    : [[], []];
+  const devuelto = totalDevuelto(grupos);
   return {
     proveedor,
     compras,
-    totalDeCompras: todasLasCompras.length,
+    totalDeCompras: totales._count._all,
+    comprado: Math.round((totales._sum.totalCost ?? 0) * 100) / 100,
     deuda,
-    devoluciones: todasLasDevoluciones.slice(0, 50),
-    totalDeDevoluciones: todasLasDevoluciones.length,
-    devuelto,
+    devoluciones,
+    totalDeDevoluciones: devuelto.movimientos,
+    devuelto: devuelto.pesos,
     codigoDeCompra,
   };
 }

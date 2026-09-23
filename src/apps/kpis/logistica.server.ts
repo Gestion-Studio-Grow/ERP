@@ -17,6 +17,10 @@
 //     con `clasificarAjuste`, en pesos con el costo guardado en cada fila.
 //   · Recibir mercadería, Proveedores y Devoluciones: `whereCompras`, `whereProveedoresActivos`
 //     y `whereDevoluciones`, los de sus pantallas.
+//   · Sugerido de compra: `whereSugerido` + `selectDemanda` (suppliers/sugerido.ts), la lectura
+//     de su pantalla, contada con la misma fórmula (`cuantosParaPedir`).
+//   · Lotes y Despiece siguen sin número: sus tablas son de la migración cárnica, que no está
+//     en el cliente de Prisma, y un tile no puede abrir la transacción que pide el SQL crudo.
 //
 // Mermas es la excepción a "una consulta por número" (decisión de plataforma, integración de la
 // ola 2): "N por recepción" y "% de la venta" son dos lecturas más, en paralelo con la de los
@@ -31,6 +35,7 @@ import { clasificarAjuste, whereAjustesDelPeriodo } from "@/lib/stock/merma-core
 import { whereCompras } from "@/lib/stock/purchase-core";
 import { whereDevoluciones } from "@/lib/stock/supplier-return";
 import { whereProveedoresActivos } from "@/lib/suppliers/supplier";
+import { cuantosParaPedir, desdeVentaReciente, selectDemanda, whereSugerido } from "@/lib/suppliers/sugerido";
 import { desdeRecuentoReciente, whereSinContarDesde } from "@/lib/inventario/recuento";
 import { whereVentasCobradas } from "@/lib/order-anulacion";
 import { fmtMoneyARS, fmtNumberAR } from "@/components/ui/format";
@@ -189,6 +194,22 @@ export const proveedores: LoaderKpi = async ({ db, tenantId }) => {
   };
 };
 
+// ── Sugerido de compra ───────────────────────────────────────────────────────
+
+/**
+ * "4 cortes para pedir hoy": los productos que controlan stock con su venta de los últimos 28
+ * días, en UNA consulta (el producto con sus movimientos), contados con la fórmula de la
+ * pantalla. Sin plata: son cantidades. No es alerta: es la agenda de compras del día.
+ */
+export const sugeridoDeCompra: LoaderKpi = async ({ db, tenantId, ahora, sustantivo }) => {
+  const productos = await db.product.findMany({
+    where: whereSugerido(tenantId),
+    select: { id: true, name: true, unit: true, saleUnit: true, stock: true, lowStockAt: true, stockMovements: selectDemanda(desdeVentaReciente(ahora)) },
+  });
+  const n = cuantosParaPedir(productos);
+  return { valor: fmtNumberAR(n), detalle: `${plural(n, sustantivo.uno, sustantivo.varios)} para pedir hoy` };
+};
+
 // ── Devoluciones a proveedor ─────────────────────────────────────────────────
 
 /** "$X devuelto este mes", al costo con que entró cada cosa. Todo el número es plata. */
@@ -209,5 +230,6 @@ export const LOADERS_LOGISTICA: Readonly<Record<string, LoaderKpi>> = {
   mermas,
   "recibir-mercaderia": recibirMercaderia,
   proveedores,
+  "sugerido-de-compra": sugeridoDeCompra,
   "devoluciones-a-proveedor": devolucionesAProveedor,
 };

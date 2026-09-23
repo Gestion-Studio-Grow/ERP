@@ -194,11 +194,17 @@ export default function AjustesForm({
         ))}
       </div>
       <p className="text-xs text-faint">{MODE_HINT[motivo]}</p>
-      {topePesos !== null && mode !== "COUNT" && (
+      {/* El tope vale también para el faltante de un recuento: si no, la merma que frena
+          entraba igual cargada como "Recuento". */}
+      {topePesos !== null && (
         <p className="text-xs text-muted">
-          {conCostos
-            ? `Tu tope por carga es ${fmtMoneyARS(topePesos, 0)} a costo. Si una merma lo pasa, la carga la dueña o el dueño.`
-            : "Tenés un tope por carga. Si una merma es grande, la carga la dueña o el dueño."}
+          {mode === "COUNT"
+            ? conCostos
+              ? `Tu tope por carga es ${fmtMoneyARS(topePesos, 0)} a costo. Si el faltante del recuento lo pasa, lo guarda la dueña o el dueño.`
+              : "Tenés un tope por carga. Si el recuento da un faltante grande, lo guarda la dueña o el dueño."
+            : conCostos
+              ? `Tu tope por carga es ${fmtMoneyARS(topePesos, 0)} a costo. Si una merma lo pasa, la carga la dueña o el dueño.`
+              : "Tenés un tope por carga. Si una merma es grande, la carga la dueña o el dueño."}
         </p>
       )}
 

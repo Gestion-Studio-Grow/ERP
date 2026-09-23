@@ -28,8 +28,8 @@ export type AdjustmentInput = {
   // `contadoA` es la hora en que se contó esa línea (sin ella, se compara contra el stock de
   // ahora, como antes).
   items: { productId: string; value: number; contadoA?: Date | null }[];
-  // Tope en pesos de lo que puede dar de baja esta carga (`topeDeMermaPorCarga`). null/ausente
-  // = sin tope (la dueña).
+  // Tope en pesos de lo que puede dar de baja esta carga (`topeDeMermaPorCarga`), merma o
+  // faltante de un recuento. null/ausente = sin tope (la dueña).
   topePesos?: number | null;
 };
 
@@ -49,7 +49,7 @@ export type InsertedAdjustment = {
   motivo: AdjustmentMotivo;
   applied: number; // líneas que efectivamente movieron stock (delta ≠ 0)
   lineas: LineaAjustada[];
-  /** Lo que dio de baja la carga, a costo (0 en un recuento). */
+  /** Lo que dio de baja la carga, a costo (en un recuento, el faltante). */
   pesosDeBaja: number;
 };
 
@@ -61,11 +61,13 @@ export type InsertedAdjustment = {
 export class TopeDeMermaSuperado extends Error {
   readonly pesos: number;
   readonly tope: number;
-  constructor(pesos: number, tope: number) {
-    super(mensajeDeTope({ pesos, tope }, false, String));
+  readonly motivo: AdjustmentMotivo | undefined;
+  constructor(pesos: number, tope: number, motivo?: AdjustmentMotivo) {
+    super(mensajeDeTope({ pesos, tope }, false, String, motivo));
     this.name = "TopeDeMermaSuperado";
     this.pesos = pesos;
     this.tope = tope;
+    this.motivo = motivo;
   }
 }
 
@@ -196,10 +198,12 @@ export async function ajustarEnTx(tx: LedgerTx, tenantId: string, input: Adjustm
     applied++;
   }
 
-  // El tope se controla ANTES del commit: si la carga lo pasa, no queda nada escrito.
-  const baja = valorDeLaBaja(input.motivo, lineas);
+  // El tope se controla ANTES del commit: si la carga lo pasa, no queda nada escrito. Vale
+  // también para el faltante de un recuento (`valorDeLaBaja`): si no, la merma que el tope
+  // frena entraba igual cargada como "Recuento".
+  const baja = valorDeLaBaja(lineas);
   if (superaElTope(baja.pesos, input.topePesos ?? null)) {
-    throw new TopeDeMermaSuperado(baja.pesos, input.topePesos as number);
+    throw new TopeDeMermaSuperado(baja.pesos, input.topePesos as number, input.motivo);
   }
 
   return { motivo: input.motivo, applied, lineas, pesosDeBaja: baja.pesos };

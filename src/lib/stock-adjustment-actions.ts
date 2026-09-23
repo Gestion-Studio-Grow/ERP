@@ -15,7 +15,8 @@
 //   2. La capability fina de la operación: `stock:adjust` para dar de baja (merma, rotura,
 //      corrección), `stock:count` para recontar. El encargado (RECEPTION) tiene las dos, con
 //      el TOPE de merma por carga (`topeDeMermaPorCarga`), que se controla adentro de la
-//      transacción: si la carga lo pasa, no queda nada escrito.
+//      transacción: si la carga lo pasa, no queda nada escrito. El tope vale también para el
+//      faltante de un recuento, cargado desde Mermas o desde Recuento.
 //
 // Las acciones DEVUELVEN el error en vez de tirarlo: si se escapa, Next en producción lo
 // reemplaza por la pantalla genérica y la persona pierde lo cargado.
@@ -110,7 +111,7 @@ export async function createStockAdjustment(_prev: EstadoAjuste, formData: FormD
         entityId: `ajuste:${motivo}`,
         changes: { motivo, note, lineas: items.length, pesosDeBaja: err.pesos, tope: err.tope, rol: user.role },
       });
-      return { ok: false, error: mensajeDeTope(err, roleHasCapability(user.role, "costs:read"), pesos) };
+      return { ok: false, error: mensajeDeTope(err, roleHasCapability(user.role, "costs:read"), pesos, motivo) };
     }
 
     await auditAdmin({
@@ -137,6 +138,11 @@ export async function createStockAdjustment(_prev: EstadoAjuste, formData: FormD
 //
 // Cada línea trae el contado y la hora del conteo; la diferencia se calcula contra el stock
 // teórico de esa hora. Devuelve el resultado línea por línea (en pesos sólo con costs:read).
+//
+// El FALTANTE del recuento pasa por el mismo tope que la merma (`topeDeMermaPorCarga`): sin
+// eso, el encargado daba de baja por acá lo que el tope le frenaba en Mermas (QA de la
+// integración de la ola 2). Si lo pasa, no se guarda nada, queda auditado el intento y el
+// mensaje no lleva montos para quien no ve costos.
 export async function registrarRecuento(_prev: EstadoAjuste, formData: FormData): Promise<EstadoAjuste> {
   try {
     const user = await requireAppAccion("recuento");
@@ -147,15 +153,28 @@ export async function registrarRecuento(_prev: EstadoAjuste, formData: FormData)
     const note = String(formData.get("note") || "").trim() || null;
     const items = lineasDelFormulario(formData, "RECUENTO");
     if (items.length === 0) return { ok: false, error: "Cargá lo contado de al menos un producto." };
-
-    const result = await insertStockAdjustment(tenantId, {
-      motivo: "RECUENTO",
-      note,
-      createdBy: `user:${user.id}`,
-      items,
-    });
-
     const conCostos = roleHasCapability(user.role, "costs:read");
+
+    let result;
+    try {
+      result = await insertStockAdjustment(tenantId, {
+        motivo: "RECUENTO",
+        note,
+        createdBy: `user:${user.id}`,
+        items,
+        topePesos: topeDeMermaPorCarga(user.role),
+      });
+    } catch (err) {
+      if (!(err instanceof TopeDeMermaSuperado)) throw err;
+      await auditAdmin({
+        action: "adjust-rechazado",
+        entity: "StockMovement",
+        entityId: "recuento",
+        changes: { motivo: "RECUENTO", note, lineas: items.length, pesosDeBaja: err.pesos, tope: err.tope, rol: user.role },
+      });
+      return { ok: false, error: mensajeDeTope(err, conCostos, pesos, "RECUENTO") };
+    }
+
     const contado = new Map(items.map((i) => [i.productId, i.value]));
     const recuento: LineaDeRecuento[] = result.lineas.map((l) => ({
       nombre: l.nombre,
@@ -175,6 +194,8 @@ export async function registrarRecuento(_prev: EstadoAjuste, formData: FormData)
         contados: result.lineas.length,
         conDiferencia: result.applied,
         horaDelConteo: items.some((i) => i.contadoA) ? "por línea" : "al guardar",
+        pesosDeFaltante: result.pesosDeBaja,
+        rol: user.role,
       },
     });
     for (const p of PATHS) revalidatePath(p);

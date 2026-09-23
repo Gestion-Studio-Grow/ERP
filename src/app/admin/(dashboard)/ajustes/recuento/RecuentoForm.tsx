@@ -52,12 +52,18 @@ export default function RecuentoForm({
   conCostos,
   ahoraServidor,
   productoInicial,
+  conTope = false,
 }: {
   gondolas: Gondola[];
   conCostos: boolean;
   /** Hora del servidor al armar la pantalla. SÓLO para mostrar "contado hace N días". */
   ahoraServidor: number;
   productoInicial: string | null;
+  /**
+   * ¿Quien cuenta tiene tope por carga (el encargado)? El faltante del recuento pasa por el
+   * mismo tope que la merma; se avisa antes de contar, sin el monto (no ve costos).
+   */
+  conTope?: boolean;
 }) {
   const inicial = productoInicial ? gondolas.find((g) => g.productos.some((p) => p.id === productoInicial))?.id : undefined;
   const [gondola, setGondola] = useState<string>(inicial ?? gondolas[0]?.id ?? "");
@@ -139,6 +145,11 @@ export default function RecuentoForm({
           <p className="text-xs text-faint">
             La diferencia que ves al lado de cada uno es contra el stock de este momento. Al guardar se calcula con lo que
             había cuando lo contaste.
+          </p>
+        )}
+        {conTope && (
+          <p className="text-xs text-muted">
+            Tenés un tope por carga: si el recuento da un faltante grande, no se guarda y lo guarda la dueña o el dueño.
           </p>
         )}
 

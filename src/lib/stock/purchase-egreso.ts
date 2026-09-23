@@ -24,7 +24,7 @@
 
 import { round2 } from "@/lib/round";
 import type { CashMethod } from "@/lib/caja/cash-register";
-import { isFrozenDay, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { isDayKey, isFrozenDay, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
 
 export type CompraKind = "COMPRA" | "REPOSICION";
 
@@ -34,10 +34,12 @@ export type CompraKind = "COMPRA" | "REPOSICION";
 //   · PAGADA — se le pagó al proveedor ahora. El egreso va al libro HOY.
 //   · CUENTA_CORRIENTE — queda a deber (a 30 días, contra cheque, lo que sea). Hoy NO
 //     salió un peso: asentar un egreso sería mentirle al arqueo, que a fin de día
-//     mostraría un sobrante igual a la factura. El asiento va cuando se PAGA.
+//     mostraría un sobrante igual a la factura. El asiento va cuando se PAGA. En su lugar
+//     nace la DEUDA en Cuentas a pagar, en la misma transacción (`decidirDeudaDeCompra`),
+//     con su vencimiento (día de calendario) y el número de factura del proveedor.
 export type PagoDeCompra =
   | { estado: "PAGADA"; method: CashMethod | null }
-  | { estado: "CUENTA_CORRIENTE" };
+  | { estado: "CUENTA_CORRIENTE"; vence?: DayKey | null; factura?: string | null };
 
 // BACKSTOP, ya no el caso normal.
 //
@@ -191,4 +193,84 @@ export function decidirEgresoDeCompra(input: {
       diferidoPorCierre,
     },
   };
+}
+
+// ── A cuenta corriente: la DEUDA que nace con la compra ─────────────────────
+//
+// Hasta la ola 3 "cuenta corriente" existía en el tipo pero ningún formulario la ofrecía, y
+// `createPayable` no tenía quién la llamara: la compra fiada al proveedor no quedaba escrita en
+// ningún lado, o la dueña la tipeaba aparte en otra pantalla. Ahora la deuda nace en la MISMA
+// transacción que la compra y el stock (purchase-core.ts): si falla una, no queda la otra. La
+// deuda lleva el `purchaseId`, que es lo que busca la devolución a proveedor para descontarle
+// el crédito (supplier-return.ts).
+
+/** Plazo que propone el formulario cuando se compra a cuenta corriente. Provisional a confirmar. */
+export const DIAS_DE_CUENTA_CORRIENTE = 30;
+
+/** Largo máximo del número de factura que se guarda en el detalle de la deuda. */
+export const FACTURA_MAX = 40;
+
+/** El día que es `dias` días después de `hoy` (días de calendario, sin horas). PURA. */
+export function diaMasDias(hoy: DayKey, dias: number): DayKey {
+  const [y, m, d] = hoy.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + Math.trunc(dias))).toISOString().slice(0, 10);
+}
+
+/**
+ * El vencimiento que llega del formulario (`<input type="date">`, "AAAA-MM-DD"). Vacío → `null`
+ * (una deuda sin vencimiento pactado, que Cuentas a pagar muestra como tal); un día que no
+ * existe → "invalido", para frenar con mensaje y no guardar otra fecha. Se acepta un día ya
+ * pasado: una factura que llegó tarde vence cuando dice la factura. PURA.
+ */
+export function leerVencimiento(raw: unknown): DayKey | null | "invalido" {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  return isDayKey(s) ? s : "invalido";
+}
+
+/** El número de factura tal como lo tipearon, recortado; vacío → `null`. PURA. */
+export function leerFactura(raw: unknown): string | null {
+  const s = String(raw ?? "").replace(/\s+/g, " ").trim();
+  return s ? s.slice(0, FACTURA_MAX) : null;
+}
+
+export type DecisionDeuda =
+  | { tipo: "sin-deuda" }
+  | { tipo: "deuda"; amount: number; concept: string; vence: DayKey | null }
+  | { tipo: "rechazo"; error: string };
+
+/**
+ * ¿Qué deuda nace con esta compra? PURA: misma entrada, misma salida. Sólo una COMPRA a cuenta
+ * corriente la genera, y para eso hacen falta tres cosas; si falta una, error con qué hacer (y
+ * no se registra nada: una compra "a cuenta corriente" que entra sin su deuda es plata que
+ * desaparece del sistema):
+ *   · el proveedor del MAESTRO: la deuda es con alguien (`AccountPayable.supplierId` es
+ *     obligatorio) y es lo que la une a la ficha del proveedor;
+ *   · un total mayor a cero: sin costo no hay monto que deber;
+ *   · que sea compra: una reposición interna no se le debe a nadie.
+ * El detalle lleva el número de factura del proveedor (si lo hay) y el de la compra, que es
+ * como la dueña la reconoce en Cuentas a pagar.
+ */
+export function decidirDeudaDeCompra(input: {
+  kind: CompraKind;
+  code: number;
+  supplierId: string | null;
+  totalCost: number;
+  pago: PagoDeCompra;
+}): DecisionDeuda {
+  if (input.pago.estado !== "CUENTA_CORRIENTE") return { tipo: "sin-deuda" };
+  if (input.kind !== "COMPRA") {
+    return { tipo: "rechazo", error: "Una reposición interna no se le debe a nadie: elegí “Compra a proveedor” para dejarla a cuenta corriente." };
+  }
+  if (!input.supplierId) {
+    return { tipo: "rechazo", error: "Para dejarla a cuenta corriente elegí el proveedor de la lista: la deuda queda en su ficha." };
+  }
+  const amount = round2(input.totalCost);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { tipo: "rechazo", error: "Cargá el costo de lo que llegó: sin costo no hay deuda que dejar a cuenta corriente." };
+  }
+  const factura = leerFactura(input.pago.factura);
+  const concept = factura ? `Factura ${factura} · compra #${input.code}` : `Compra #${input.code}`;
+  const vence = input.pago.vence && isDayKey(input.pago.vence) ? input.pago.vence : null;
+  return { tipo: "deuda", amount, concept, vence };
 }

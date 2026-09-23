@@ -130,6 +130,23 @@ export const APPS_LOGISTICA = [
     palabras: ["cuit", "distribuidores", "razon social", "contactos"],
   },
   {
+    // Nueva en la ola 3 (sin menuDeHoy: no estaba en la barra). De mostrador: CH no la ve. La
+    // abre quien recibe la mercadería (el encargado con `stock:receive`), que es quien arma el
+    // pedido; son cantidades, sin costos.
+    id: "sugerido-de-compra",
+    nombre: "Sugerido de compra",
+    descripcion: "Qué pedir hoy y a quién, con el pedido listo para mandar por WhatsApp.",
+    icono: "compras",
+    ruta: "/admin/compras/sugerido",
+    espacio: "stock",
+    capability: "stock:receive",
+    modulo: "inventario",
+    rubro: "mostrador",
+    estado: "lista",
+    kpi: { id: "sugerido-de-compra", mide: "Productos para pedir hoy según lo que se vende y lo que hay." },
+    palabras: ["pedido", "que pedir", "reponer", "reposicion", "faltantes"],
+  },
+  {
     id: "lotes-y-vencimientos",
     nombre: "Lotes y vencimientos",
     descripcion: "Cada lote al vacío con su fecha de vencimiento.",
@@ -137,7 +154,12 @@ export const APPS_LOGISTICA = [
     ruta: "/admin/lotes",
     espacio: "stock",
     capability: "catalog:read",
+    // El encargado del local carga el lote cuando llega la mercadería, como la recibe.
+    capabilityEnMostrador: "stock:receive",
     modulo: "inventario",
+    // "carniceria" = mostrador + migración cárnica aplicada + un rubro que vende perecederos
+    // (el dato `perecederos` del blueprint, ver carniceria/schema-probe.ts). No sólo carnicería:
+    // también fiambrería, verdulería y dietética.
     rubro: "carniceria",
     estado: "lista",
     kpi: {
@@ -151,12 +173,13 @@ export const APPS_LOGISTICA = [
   {
     id: "despiece",
     nombre: "Despiece",
-    descripcion: "De la media res a los cortes: rendimiento y costo por kilo.",
+    descripcion: "De la media res a los cortes: rendimiento y costo de cada corte.",
     icono: "despiece",
     ruta: "/admin/despiece",
     espacio: "stock",
     capability: "catalog:read",
     modulo: "inventario",
+    // Mismo gate que Lotes: migración cárnica + rubro de perecederos.
     rubro: "carniceria",
     estado: "lista",
     kpi: { id: "despiece", mide: "Rendimiento de los despieces de los últimos 30 días." },

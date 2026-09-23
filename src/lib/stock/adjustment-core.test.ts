@@ -27,6 +27,7 @@ import {
   TOPE_MERMA_POR_CARGA,
   type AdjustmentMode,
 } from "./adjustment-core";
+import { rubroConPerecederos } from "@/blueprints/retail/rubros";
 
 test("motivoMode: recuento cuenta, mermas restan, otro es delta firmado", () => {
   assert.equal(motivoMode("RECUENTO"), "COUNT");
@@ -263,18 +264,21 @@ test("las líneas de un recuento traen su hora; el mismo producto dos veces es u
 test("motivos: en servicios los de siempre (CH no cambia); los de perecederos sólo donde se vende comida fresca", () => {
   assert.deepEqual(motivosDeAjuste({ esMostrador: false }), ADJUSTMENT_MOTIVOS);
   assert.deepEqual([...ADJUSTMENT_MOTIVOS], ["RECUENTO", "MERMA", "ROTURA", "VENCIMIENTO", "OTRO"]);
-  const carniceria = motivosDeAjuste({ esMostrador: true, rubroId: "carniceria" });
+  // El dato sale del blueprint (`rubroConPerecederos`), el mismo que prende Lotes y Despiece.
+  const carniceria = motivosDeAjuste({ esMostrador: true, perecederos: rubroConPerecederos("carniceria") });
   for (const m of ["DECOMISO", "CONSUMO_INTERNO", "DEGUSTACION"] as const) {
     assert.ok(carniceria.includes(m), m);
     assert.equal(motivoMode(m), "LOSS", `${m} siempre resta`);
   }
   assert.equal(carniceria[0], "MERMA", "en el mostrador la pantalla arranca en Merma");
   for (const rubroId of ["velas", "padel", null]) {
-    const m = motivosDeAjuste({ esMostrador: true, rubroId });
+    const m = motivosDeAjuste({ esMostrador: true, perecederos: rubroConPerecederos(rubroId) });
     assert.equal(m[0], "MERMA");
     assert.ok(!m.includes("DECOMISO") && !m.includes("DEGUSTACION") && !m.includes("CONSUMO_INTERNO"), `${rubroId}: sin perecederos`);
     assert.ok(m.includes("RECUENTO") && m.includes("OTRO"));
   }
+  // Un negocio de servicios no suma motivos de perecederos aunque le llegue el dato.
+  assert.deepEqual(motivosDeAjuste({ esMostrador: false, perecederos: true }), ADJUSTMENT_MOTIVOS);
   assert.equal(leerMotivo("vencimiento"), "VENCIMIENTO");
   assert.equal(leerMotivo("inventado"), null, "un motivo que no existe NO se convierte en recuento");
 });
@@ -285,20 +289,50 @@ test("tope de merma: la dueña sin tope; recepción hasta $50.000 por carga (pro
   assert.equal(TOPE_MERMA_POR_CARGA, 50_000);
 
   // Merma "vencido" de 2 kg de vacío a $6.543: $13.086 → pasa.
-  const chica = valorDeLaBaja("VENCIMIENTO", [{ delta: -2, costo: 6543 }]);
+  const chica = valorDeLaBaja([{ delta: -2, costo: 6543 }]);
   assert.deepEqual(chica, { pesos: 13086, sinCosto: 0 });
   assert.equal(superaElTope(chica.pesos, topeDeMermaPorCarga("RECEPTION")), false);
 
   // 8 kg de lomo a $9.000 = $72.000 → recepción rechazada, la dueña no.
-  const grande = valorDeLaBaja("MERMA", [{ delta: -8, costo: 9000 }, { delta: -1, costo: null }]);
+  const grande = valorDeLaBaja([{ delta: -8, costo: 9000 }, { delta: -1, costo: null }]);
   assert.deepEqual(grande, { pesos: 72000, sinCosto: 1 });
   assert.equal(superaElTope(grande.pesos, topeDeMermaPorCarga("RECEPTION")), true);
   assert.equal(superaElTope(grande.pesos, topeDeMermaPorCarga("OWNER")), false);
 
-  // Un recuento no es una baja: no cuenta para el tope (lo controla stock:count, no el tope).
-  assert.deepEqual(valorDeLaBaja("RECUENTO", [{ delta: -20, costo: 9000 }]), { pesos: 0, sinCosto: 0 });
   // "Otro" que suma no es baja; "Otro" que resta, sí.
-  assert.deepEqual(valorDeLaBaja("OTRO", [{ delta: 3, costo: 9000 }, { delta: -1, costo: 9000 }]), { pesos: 9000, sinCosto: 0 });
+  assert.deepEqual(valorDeLaBaja([{ delta: 3, costo: 9000 }, { delta: -1, costo: 9000 }]), { pesos: 9000, sinCosto: 0 });
+});
+
+test("tope: el FALTANTE de un recuento cuenta como baja (antes se esquivaba cargándola como Recuento)", () => {
+  // QA de la integración de la ola 2: recepción no podía dar de baja 20 kg de lomo como merma,
+  // pero contando 0 lo lograba igual. Ahora el faltante del recuento pasa por el mismo tope.
+  const faltante = valorDeLaBaja([{ delta: -20, costo: 9000 }]);
+  assert.deepEqual(faltante, { pesos: 180000, sinCosto: 0 });
+  assert.equal(superaElTope(faltante.pesos, topeDeMermaPorCarga("RECEPTION")), true, "recepción: rechazado");
+  assert.equal(superaElTope(faltante.pesos, topeDeMermaPorCarga("OWNER")), false, "la dueña: sin tope");
+  // El sobrante de un producto barato no compensa el faltante de uno caro.
+  const mezclado = valorDeLaBaja([
+    { delta: 500, costo: 100 },
+    { delta: -6, costo: 9000 },
+  ]);
+  assert.deepEqual(mezclado, { pesos: 54000, sinCosto: 0 });
+  assert.equal(superaElTope(mezclado.pesos, topeDeMermaPorCarga("RECEPTION")), true);
+  // Un recuento chico (1 kg de vacío) o que sólo sobra no molesta a nadie.
+  assert.equal(superaElTope(valorDeLaBaja([{ delta: -1, costo: 6543 }]).pesos, TOPE_MERMA_POR_CARGA), false);
+  assert.deepEqual(valorDeLaBaja([{ delta: 3, costo: 9000 }]), { pesos: 0, sinCosto: 0 });
+});
+
+test("tope del recuento: el mensaje habla del faltante y, sin costos, no lleva montos", () => {
+  const fmt = (n: number) => `$${n}`;
+  const baja = { pesos: 180_000, tope: TOPE_MERMA_POR_CARGA };
+  const sinCostos = mensajeDeTope(baja, false, fmt, "RECUENTO");
+  assert.doesNotMatch(sinCostos, /\$|\d/, "ni el faltante ni el tope en pesos");
+  assert.match(sinCostos, /faltante de este recuento pasa tu tope/);
+  assert.match(sinCostos, /No se registró nada/);
+  assert.match(mensajeDeTope(baja, true, fmt, "RECUENTO"), /\$180000.*\$50000/);
+  // Sin motivo (o con una merma) el mensaje de siempre.
+  assert.match(mensajeDeTope(baja, false, fmt), /Esta carga pasa tu tope/);
+  assert.match(mensajeDeTope(baja, false, fmt, "VENCIMIENTO"), /Esta carga pasa tu tope/);
 });
 
 test("tope de merma: el rechazo no le muestra costos a quien no los ve", () => {

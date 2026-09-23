@@ -7,6 +7,7 @@
 // (servicios/boxes/profesionales) o la sección de CORTES del rubro carnicería/retail —
 // que es lo que hace que el panel "se sienta hecho para una carnicería".
 
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import {
@@ -23,7 +24,9 @@ export interface TenantRubro {
   isRetail: boolean;
 }
 
-export async function getCurrentTenantRubro(): Promise<TenantRubro> {
+// Cacheado por request (react.cache): lo leen la página, el gate de Lotes y Despiece
+// (schema-probe.ts) y la barra en el mismo render, y es siempre la misma fila.
+export const getCurrentTenantRubro = cache(async (): Promise<TenantRubro> => {
   const tenantId = await getCurrentTenantId();
   const t = await prisma.tenant.findUnique({
     where: { id: tenantId },
@@ -35,4 +38,4 @@ export async function getCurrentTenantRubro(): Promise<TenantRubro> {
     (blueprintId ? getRetailRubro(blueprintId) : null) ??
     getRetailRubro(resolveRubroIdBySlug(slug) ?? "");
   return { blueprintId, slug, rubro, isRetail: rubro != null };
-}
+});

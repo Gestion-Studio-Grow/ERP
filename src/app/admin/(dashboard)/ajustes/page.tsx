@@ -6,6 +6,7 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { getAdjustmentData } from "@/lib/inventario/ajustes-loader";
 import { fmtShortDate } from "@/lib/datetime";
 import { motivosDeAjuste, topeDeMermaPorCarga, type AdjustmentMotivo } from "@/lib/stock/adjustment-core";
+import { rubroConPerecederos } from "@/blueprints/retail/rubros";
 import AjustesForm, { type AjusteInicial } from "./AjustesForm";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,8 @@ export default async function AjustesPage({
   const user = await requireApp("mermas");
   const [sp, negocio, rubro] = await Promise.all([searchParams, getNegocioApps(user.role), getCurrentTenantRubro()]);
   const { products, recent } = await getAdjustmentData(uno(sp.producto) || undefined);
-  const motivos = motivosDeAjuste({ esMostrador: negocio.esMostrador, rubroId: rubro.rubro?.id ?? null });
+  // Los motivos de perecederos salen del dato del blueprint (el mismo que prende Lotes y Despiece).
+  const motivos = motivosDeAjuste({ esMostrador: negocio.esMostrador, perecederos: rubroConPerecederos(rubro.rubro?.id) });
   const inicial = leerInicial(sp, new Set(products.map((p) => p.id)), motivos);
 
   return (

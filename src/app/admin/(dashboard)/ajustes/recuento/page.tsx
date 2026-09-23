@@ -5,6 +5,7 @@ import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { getRecuentoData } from "@/lib/inventario/ajustes-loader";
+import { topeDeMermaPorCarga } from "@/lib/stock/adjustment-core";
 import { EmptyState, PageHeader, buttonClasses } from "@/components/ui";
 import RecuentoForm from "./RecuentoForm";
 
@@ -67,6 +68,7 @@ export default async function RecuentoPage({
           conCostos={datos.conCostos}
           ahoraServidor={datos.ahoraServidor}
           productoInicial={uno(sp.producto) || null}
+          conTope={topeDeMermaPorCarga(user.role) !== null}
         />
       )}
     </main>

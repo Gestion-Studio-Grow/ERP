@@ -53,6 +53,14 @@ export interface RetailRubro {
   wording: RetailWording;
   /** Módulos del blueprint retail que el rubro usa de forma central. */
   modules: RetailModuleId[];
+  /**
+   * ¿Vende mercadería que VENCE (carne, fiambre, verdura, dietética suelta)? Es lo que prende
+   * en ese negocio lo que sólo tiene sentido con comida fresca: los motivos de merma de
+   * perecederos (decomiso, consumo interno, degustación), Lotes y vencimientos y Despiece. En
+   * una tienda de velas o de pádel esas pantallas son un callejón sin salida. Obligatorio a
+   * propósito: cada rubro nuevo tiene que decidirlo, no heredarlo callado.
+   */
+  perecederos: boolean;
   /** Branding por defecto (BusinessSettings). Provisional; el negocio lo edita. */
   brandingDefaults: TenantBrandingDefaults;
   /** Catálogo semilla del rubro. */
@@ -62,6 +70,7 @@ export interface RetailRubro {
 // --- Carnicería (rubro de `magra`, primera instancia) ---
 const carniceria: RetailRubro = {
   id: "carniceria",
+  perecederos: true,
   // Arquetipo informado por el negocio real de magra (boutique premium de carnes
   // envasadas al vacío, delivery-first): ver docs/preventa/analisis-redes-magra.md.
   // El branding y catálogo REALES de magra viven en su recipe de tenant
@@ -128,6 +137,7 @@ const carniceria: RetailRubro = {
 // --- Verdulería / Frutería ---
 const verduleria: RetailRubro = {
   id: "verduleria",
+  perecederos: true,
   label: "Verdulería",
   wording: {
     catalogHeading: "Frutas y verduras",
@@ -163,6 +173,7 @@ const verduleria: RetailRubro = {
 // --- Dietética / Almacén natural ---
 const dietetica: RetailRubro = {
   id: "dietetica",
+  perecederos: true,
   label: "Dietética",
   wording: {
     catalogHeading: "Nuestros productos",
@@ -197,6 +208,7 @@ const dietetica: RetailRubro = {
 // --- Kiosco / Autoservicio ---
 const kiosco: RetailRubro = {
   id: "kiosco",
+  perecederos: false,
   label: "Kiosco",
   wording: {
     catalogHeading: "Productos",
@@ -230,6 +242,7 @@ const kiosco: RetailRubro = {
 // --- Fiambrería / Quesería ---
 const fiambreria: RetailRubro = {
   id: "fiambreria",
+  perecederos: true,
   label: "Fiambrería",
   wording: {
     catalogHeading: "Fiambres y quesos",
@@ -263,6 +276,7 @@ const fiambreria: RetailRubro = {
 // --- Indumentaria / Boutique ---
 const indumentaria: RetailRubro = {
   id: "indumentaria",
+  perecederos: false,
   label: "Indumentaria",
   wording: {
     catalogHeading: "Colección",
@@ -302,6 +316,7 @@ const indumentaria: RetailRubro = {
 // Precios PROVISIONALES (ARS, mediados 2026), a confirmar por el negocio.
 const velas: RetailRubro = {
   id: "velas",
+  perecederos: false,
   label: "Velas & deco",
   wording: {
     catalogHeading: "La colección",
@@ -359,6 +374,7 @@ const velas: RetailRubro = {
 // catálogo semilla. Precios PROVISIONALES (ARS, mediados 2026) hasta lista real.
 const padel: RetailRubro = {
   id: "padel",
+  perecederos: false,
   label: "Tienda de pádel",
   wording: {
     catalogHeading: "Palas y zapatillas",
@@ -433,6 +449,15 @@ export const GENERIC_RETAIL_WORDING: RetailWording = {
 
 export function getRetailRubro(id: string): RetailRubro | null {
   return RETAIL_RUBROS[id] ?? null;
+}
+
+/**
+ * ¿El rubro vende mercadería que vence? Lo leen los motivos de merma (Mermas) y el gate de Lotes
+ * y Despiece (carniceria/schema-probe.ts), para que las dos cosas salgan del MISMO dato del
+ * blueprint. Rubro desconocido o ausente (un negocio de servicios) → false. PURA.
+ */
+export function rubroConPerecederos(rubroId: string | null | undefined): boolean {
+  return rubroId ? getRetailRubro(rubroId)?.perecederos === true : false;
 }
 
 // ============================================================================

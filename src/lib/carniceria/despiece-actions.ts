@@ -1,151 +1,136 @@
 "use server";
 
 // ============================================================================
-// DESPIECE — server actions (SQL crudo para ProcessingRun/Output + ledger de stock).
-// Tablas de la migración Gate 2. Registrar un despiece: guarda la corrida y sus
-// cortes y SUMA el stock de cada corte (ledger REPOSICION) con su COSTO real (costo/kg
-// vendible) en el movimiento. NO escribe `Product.cost`: ver `createRun`.
-// Degrada a no-op / [] sin schema aplicado (hasCarniceriaSchema gatea la pantalla).
+// DESPIECE — la acción que lo registra (SQL crudo para ProcessingRun/Output, las tablas de la
+// migración Gate 2, y el registro de stock para la pieza y los cortes).
 // ============================================================================
+//
+// Qué cambió en la ola 3, y por qué:
+//   · LA PIEZA DE ENTRADA SALE DEL STOCK. Antes sólo se sumaban los cortes: la media res que
+//     se cortó quedaba en el stock para siempre y el stock valorizado contaba dos veces la
+//     misma carne. Ahora sale con un AJUSTE negativo a su costo por kilo, en la misma
+//     transacción que los cortes (el registro no tiene todavía un tipo "transformación": pide
+//     migración). Los dos llevan el motivo "Despiece #N".
+//   · COSTO POR VALOR RELATIVO DE VENTA (despiece.ts). Antes parejo por kilo: el lomo y el
+//     osobuco al mismo costo. Cambia los márgenes de MAGRA: se le avisa antes de desplegarlo.
+//   · ACTOR REAL Y AUDITORÍA. Firmaba `'user'` sin id; ahora `user:<id>` en la corrida y en
+//     cada movimiento, y queda en la auditoría con la pieza, los cortes y cómo se costeó.
+//   · ERRORES VISIBLES. Antes un `catch {}` tragaba todo y el formulario volvía como si se
+//     hubiera guardado. Ahora dice qué pasó y cómo seguir, sin perder lo cargado.
+//   · CORRELATIVO SIN CARRERA. El número es max+1: dos despieces a la vez chocaban contra el
+//     índice único. Un candado por negocio (pg_advisory_xact_lock) los pone en fila.
+//
+// "use server" publica cada export como endpoint: una sola acción, sin tenantId. La lectura
+// vive en despiece-loader.ts y la escritura en despiece-registro.ts.
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
-import { recordMovement } from "@/lib/stock/ledger";
-import { analyzeDespiece, type DespieceOutput } from "./despiece";
+import { roleHasCapability } from "@/lib/capabilities";
+import { AppNoDisponibleError, requireAppAccion } from "@/lib/require-app";
+import { auditAdmin } from "@/lib/audit-core";
+import { logger } from "@/lib/logger";
+import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
+import { DespieceInvalido, registrarDespieceEnTx } from "./despiece-registro";
+import { motivoDelError } from "./errores";
 
-const DESPIECE_PATH = "/admin/despiece";
+const PATHS = ["/admin/despiece", "/admin/catalogo", "/admin/inventario", "/admin/inventario/movimientos", "/admin/compras/sugerido"];
+const NOMBRE_MAX = 80;
 
-export interface RunRow {
-  id: string;
-  code: number;
-  inputName: string;
-  inputWeightKg: number;
-  inputCost: number;
-  status: string;
-  createdAt: Date;
-  outputs: { name: string; weightKg: number }[];
-  totalOutputKg: number;
-  mermaKg: number;
-  costPerSellableKg: number | null;
-}
+/** Lo que vuelve a la pantalla (`useEnvio`). */
+export type EstadoDespiece = null | { ok: true; mensaje: string } | { ok: false; error: string };
 
-/** Historial de despieces del tenant, con su merma y costo/kg. Degrada a [] sin schema. */
-export async function listRuns(): Promise<RunRow[]> {
+/** Lee un número del formulario; lo ilegible es un error de carga, con el mensaje de pos-peso. */
+function leerNumero(leer: () => number | null): number | null {
   try {
-    await requireCapability("catalog:read");
-    const tenantId = await getCurrentTenantId();
-    return await tenantTransaction(async (tx) => {
-      const runs = await tx.$queryRaw<
-        { id: string; code: number; inputName: string; inputWeightKg: number; inputCost: number; status: string; createdAt: Date }[]
-      >`SELECT "id","code","inputName","inputWeightKg","inputCost","status","createdAt"
-        FROM "ProcessingRun" WHERE "tenantId" = ${tenantId} ORDER BY "code" DESC`;
-      const outs = await tx.$queryRaw<{ runId: string; name: string; weightKg: number }[]>`
-        SELECT "runId","name","weightKg" FROM "ProcessingOutput" WHERE "tenantId" = ${tenantId}`;
-      const byRun = new Map<string, { name: string; weightKg: number }[]>();
-      for (const o of outs) {
-        const list = byRun.get(o.runId) ?? [];
-        list.push({ name: o.name, weightKg: o.weightKg });
-        byRun.set(o.runId, list);
-      }
-      return runs.map((r) => {
-        const outputs = byRun.get(r.id) ?? [];
-        const a = analyzeDespiece({ inputWeightKg: r.inputWeightKg, inputCost: r.inputCost, outputs });
-        return {
-          id: r.id,
-          code: Number(r.code),
-          inputName: r.inputName,
-          inputWeightKg: r.inputWeightKg,
-          inputCost: r.inputCost,
-          status: r.status,
-          createdAt: r.createdAt,
-          outputs,
-          totalOutputKg: a.totalOutputKg,
-          mermaKg: a.mermaKg,
-          costPerSellableKg: a.costPerSellableKg,
-        };
-      });
-    }, { tenantId });
-  } catch {
-    return [];
+    return leer();
+  } catch (err) {
+    throw new DespieceInvalido(err instanceof Error ? err.message : "Hay un número que no se entiende.");
   }
 }
 
-/**
- * Registra un despiece: media res (peso + costo) → cortes (peso c/u). Guarda la corrida
- * y sus outputs y SUMA el stock de cada corte con productId (ledger REPOSICION) con el
- * costo por kilo vendible (prorrateo real) como `unitCost` del movimiento. Todo en UNA
- * transacción. No-op sin schema.
- *
- * NO pisa `Product.cost`. Antes lo escribía en cada corrida, y como el costo vigente
- * (stock/costo.ts) le da prioridad a `Product.cost` sobre el último ingreso, el costo de un
- * despiece viejo le ganaba para siempre a las compras posteriores del mismo corte.
- * `Product.cost` es el que fija la dueña a mano; el del despiece viaja en su REPOSICION, que
- * es un ingreso con costo y el costo vigente ya lo lee (regla 2).
- */
-export async function createRun(formData: FormData): Promise<void> {
-  await requireCapability("catalog:manage");
-  const inputName = String(formData.get("inputName") || "").trim();
-  const inputWeightKg = Number(formData.get("inputWeightKg"));
-  const inputCost = Number(formData.get("inputCost")) || 0;
-  const supplierId = String(formData.get("supplierId") || "").trim() || null;
-  const note = String(formData.get("note") || "").trim() || null;
-  if (!inputName || !Number.isFinite(inputWeightKg) || inputWeightKg <= 0) return;
+const kgFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
-  const names = formData.getAll("outputName").map((v) => String(v).trim());
-  const weights = formData.getAll("outputWeight").map((v) => Number(v));
-  const productIds = formData.getAll("outputProductId").map((v) => String(v).trim());
-  const outputs: (DespieceOutput & { productId: string | null })[] = [];
-  for (let i = 0; i < names.length; i++) {
-    const w = weights[i];
-    if (!names[i] || !Number.isFinite(w) || w <= 0) continue;
-    outputs.push({ name: names[i], weightKg: w, productId: productIds[i] || null });
-  }
-  if (outputs.length === 0) return;
-
-  const analysis = analyzeDespiece({ inputWeightKg, inputCost, outputs });
-
+export async function registrarDespiece(_prev: EstadoDespiece, formData: FormData): Promise<EstadoDespiece> {
   try {
+    const user = await requireAppAccion("despiece");
+    // La pieza sale del stock y los cortes entran con costo: es un ajuste de stock y fija costos.
+    if (!roleHasCapability(user.role, "stock:adjust") || !roleHasCapability(user.role, "costs:read")) {
+      return { ok: false, error: "Tu usuario no puede registrar despieces. Pedíselo a la dueña o al dueño." };
+    }
+    const piezaId = String(formData.get("inputProductId") ?? "").trim();
+    const kilos = leerNumero(() => cantidadDelFormulario(String(formData.get("inputWeightKg") ?? ""), "Peso de la pieza"));
+    const costoTipeado = leerNumero(() => importeDelFormulario(String(formData.get("inputCost") ?? ""), "Costo de la pieza"));
+    const note = String(formData.get("note") ?? "").trim().slice(0, 200) || null;
+
+    const nombres = formData.getAll("outputName").map((v) => String(v).trim().slice(0, NOMBRE_MAX));
+    const pesos = formData.getAll("outputWeight").map(String);
+    const productos = formData.getAll("outputProductId").map((v) => String(v).trim());
+    if (nombres.length !== pesos.length || nombres.length !== productos.length) {
+      throw new DespieceInvalido("Los cortes llegaron incompletos. Recargá la pantalla y volvé a cargarlos.");
+    }
+    // Una fila vacía (sin nombre ni kilos) no es un corte; una a medias es un error de carga.
+    const lineas = nombres
+      .map((name, i) => ({
+        n: i + 1,
+        name,
+        weightKg: leerNumero(() => cantidadDelFormulario(pesos[i], `Corte ${i + 1}, kilos`)) ?? 0,
+        productId: productos[i] || null,
+      }))
+      .filter((l) => l.name || l.weightKg > 0);
+    const aMedias = lineas.find((l) => !l.name || !(l.weightKg > 0));
+    if (aMedias) {
+      throw new DespieceInvalido(aMedias.name ? `Al corte ${aMedias.n} (${aMedias.name}) le faltan los kilos.` : `El corte ${aMedias.n} tiene kilos pero no nombre.`);
+    }
+
     const tenantId = await getCurrentTenantId();
-    await tenantTransaction(async (tx) => {
-      const next = await tx.$queryRaw<{ code: number }[]>`
-        SELECT COALESCE(MAX("code"), 0) + 1 AS code FROM "ProcessingRun" WHERE "tenantId" = ${tenantId}`;
-      const code = Number(next?.[0]?.code ?? 1);
-      const runId = randomUUID();
-      await tx.$executeRaw`
-        INSERT INTO "ProcessingRun"
-          ("id","tenantId","code","supplierId","inputName","inputWeightKg","inputCost","status","note","createdBy","updatedAt")
-        VALUES
-          (${runId}, ${tenantId}, ${code}, ${supplierId}, ${inputName}, ${inputWeightKg}, ${inputCost}, 'DONE', ${note}, 'user', CURRENT_TIMESTAMP)`;
+    const hecho = await tenantTransaction(
+      (tx) =>
+        registrarDespieceEnTx(tx, tenantId, {
+          piezaId,
+          kilos: kilos ?? 0,
+          costoTipeado,
+          note,
+          lineas: lineas.map(({ name, weightKg, productId }) => ({ name, weightKg, productId })),
+          actor: `user:${user.id}`,
+        }),
+      { tenantId },
+    );
 
-      for (let i = 0; i < outputs.length; i++) {
-        const o = outputs[i];
-        const outId = randomUUID();
-        await tx.$executeRaw`
-          INSERT INTO "ProcessingOutput" ("id","tenantId","runId","productId","name","weightKg")
-          VALUES (${outId}, ${tenantId}, ${runId}, ${o.productId}, ${o.name}, ${o.weightKg})`;
-
-        // Corte mapeado a un producto → suma su stock (kg) con su costo real por kilo en el
-        // movimiento. `Product.cost` no se toca (ver el comentario de la función).
-        if (o.productId) {
-          await recordMovement(tx, {
-            tenantId,
-            productId: o.productId,
-            type: "REPOSICION",
-            qty: o.weightKg,
-            unitCost: analysis.costPerSellableKg,
-            reason: `Despiece #${code} — ${inputName}`,
-            createdBy: "user",
-          });
-        }
-      }
-    }, { tenantId });
-    revalidatePath(DESPIECE_PATH);
-    revalidatePath("/admin/catalogo");
-    revalidatePath("/admin/inventario");
-  } catch {
-    // Tabla inexistente (pre-migración) o error → no-op (fail-safe).
+    const a = hecho.plan.analisis;
+    await auditAdmin({
+      action: "create",
+      entity: "ProcessingRun",
+      entityId: hecho.runId,
+      changes: {
+        code: hecho.numero,
+        pieza: hecho.plan.salida.nombre,
+        kilos: a.inputWeightKg,
+        costoPieza: hecho.plan.costoPieza,
+        costeo: a.metodoDeCosteo,
+        mermaKg: a.mermaKg,
+        cortes: a.outputs.map((o) => ({ nombre: o.name, kg: o.weightKg, costoPorKg: o.costPerKg })),
+      },
+    });
+    for (const path of PATHS) revalidatePath(path);
+    return {
+      ok: true,
+      mensaje:
+        `Despiece #${hecho.numero} registrado: salieron ${kgFmt.format(a.inputWeightKg)} kg de ${hecho.plan.salida.nombre} del stock ` +
+        `y ${hecho.plan.entradas.length === 1 ? "entró 1 corte" : `entraron ${hecho.plan.entradas.length} cortes`}.`,
+    };
+  } catch (err) {
+    unstable_rethrow(err);
+    if (err instanceof DespieceInvalido || err instanceof AppNoDisponibleError) return { ok: false, error: err.message };
+    if (motivoDelError(err) === "sin-migracion") {
+      return { ok: false, error: "Despiece todavía no está habilitado en este negocio: falta preparar la base. Avisale a GSG." };
+    }
+    // La guarda de stock del registro (una venta entre la vista previa y el guardado).
+    if (err instanceof Error && err.message.startsWith("Sin stock suficiente")) {
+      return { ok: false, error: `${err.message} Recargá la pantalla para ver el stock de ahora.` };
+    }
+    logger.error("despiece", "no se pudo registrar el despiece", err);
+    return { ok: false, error: "No se pudo registrar el despiece. Probá de nuevo; si sigue pasando, avisale a GSG." };
   }
 }

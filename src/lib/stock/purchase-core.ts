@@ -7,19 +7,25 @@
 // el cálculo.
 //
 // No audita, no revalida, no autoriza: de eso se ocupa la Server Action
-// (stock-actions.ts). Aislamiento multi-tenant: recibe el `tenantId` ya resuelto
+// (compras/actions.ts). Aislamiento multi-tenant: recibe el `tenantId` ya resuelto
 // (fail-closed ADR-015) y lo escribe en cada fila; el read de productos filtra por él.
 
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
-import { recordMovement } from "@/lib/stock/ledger";
+import { recordMovement, type LedgerTx } from "@/lib/stock/ledger";
 import { round2 } from "@/lib/round";
 import { businessWallTimeToUtc, todayInBusinessTz } from "@/lib/datetime";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import type { DayKey } from "@/lib/caja/cierre-diario";
 import type { CashMethod } from "@/lib/caja/cash-register";
+import { createPayable } from "@/lib/debts/payable-service";
+import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
+import { parseCashMethod } from "@/lib/comision-liquidacion";
 import {
+  decidirDeudaDeCompra,
   decidirEgresoDeCompra,
+  leerFactura,
+  leerVencimiento,
   PAGO_POR_DEFECTO,
   type MotivoSinEgreso,
   type PagoDeCompra,
@@ -37,11 +43,10 @@ export type PurchaseInput = {
   notes: string | null;
   createdBy: string; // actor "user:<id>", lo resuelve la Server Action
   items: { productId: string; qty: number; unitCost: number }[];
-  // Cómo se pagó la compra. OPCIONAL a la fuerza, no por comodidad: el formulario de
-  // /admin/compras todavía no lo pregunta y `stock-actions.ts` no puede mandarlo. Si
-  // falta, se aplica `PAGO_POR_DEFECTO` (pagada, medio asumido y MARCADO en el detalle
-  // del asiento). Cuando el formulario capture el medio, este campo pasa a ser
-  // obligatorio y el default se borra.
+  // Cómo se pagó la compra: pagada con un medio, o a cuenta corriente (con vencimiento y
+  // factura), que en vez del egreso crea la deuda. El formulario lo pregunta; si falta (una
+  // reposición, el encargado sin costos, un llamador que no es el formulario), se aplica
+  // `PAGO_POR_DEFECTO` (pagada, medio asumido y MARCADO en el detalle del asiento).
   pago?: PagoDeCompra;
 };
 
@@ -60,12 +65,19 @@ export type PurchaseEgresoResult =
     }
   | { asentado: false; motivo: MotivoSinEgreso | "ya-asentado" };
 
+/**
+ * La deuda que nació con la compra (a cuenta corriente), o `null`. Va en el resultado para que
+ * la acción la audite y la pantalla diga cuánto quedó debiendo y hasta cuándo.
+ */
+export type DeudaDeLaCompra = { payableId: string; amount: number; concept: string; vence: DayKey | null } | null;
+
 export type InsertedPurchase = {
   id: string;
   code: number;
   totalCost: number;
   lines: number;
   egreso: PurchaseEgresoResult;
+  deuda: DeudaDeLaCompra;
 };
 
 // Producto tal como lo ve la aritmética: lo mínimo para snapshotear la línea.
@@ -145,7 +157,8 @@ export function whereCompras(tenantId: string, desde?: Date) {
 // SIN costo y SIN medio de pago, y no mueve la caja. El formulario ya no le muestra esos campos,
 // pero el servidor no puede confiar en eso (un formulario viejo abierto, una llamada armada a
 // mano): lo que llegue de costo o de pago se IGNORA. La regla vivía suelta dentro del
-// "use server" de stock-actions.ts, sin un test que la ejecutara; acá es pura y la acción la usa.
+// "use server" de stock-actions.ts, sin un test que la ejecutara; acá es pura y la acción
+// (compras/actions.ts) la usa.
 
 /**
  * El medio de pago que vale para esta recepción: el elegido, sólo si es una COMPRA y quien la
@@ -153,6 +166,53 @@ export function whereCompras(tenantId: string, desde?: Date) {
  */
 export function medioDeLaRecepcion(kind: StockPurchaseKind, conCostos: boolean, elegido: CashMethod | null): CashMethod | null {
   return kind === "COMPRA" && conCostos ? elegido : null;
+}
+
+/**
+ * Las líneas del remito tal como llegan del formulario (arrays paralelos productId[] /
+ * quantity[] / unitCost[], patrón getAll del Core), leídas con las MISMAS funciones que la
+ * pantalla: la cantidad con coma decimal y gramos, el costo en pesos con "6.543" como miles. Lo
+ * ilegible LANZA con el número de línea: si viajaran las demás, el remito quedaría a medias y el
+ * egreso (o la deuda) por menos. Sin `conCostos` el costo ni se lee (`costoDeLaLinea`). PURA.
+ */
+export function lineasDeLaRecepcion(
+  productIds: readonly string[],
+  quantities: readonly string[],
+  unitCosts: readonly string[],
+  conCostos: boolean,
+): { productId: string; qty: number; unitCost: number }[] {
+  return productIds.map((id, i) => {
+    const qty = cantidadDelFormulario(quantities[i], `Línea ${i + 1}, cantidad`);
+    if (qty == null) throw new Error(`Línea ${i + 1}: falta la cantidad.`);
+    return {
+      productId: id,
+      qty,
+      // El costo es opcional (reposición sin costo): vacío es 0, no un error.
+      unitCost: costoDeLaLinea(conCostos, () => importeDelFormulario(unitCosts[i], `Línea ${i + 1}, costo`)),
+    };
+  });
+}
+
+/** Lo que viaja del formulario sobre cómo se pagó (todo texto crudo, sin validar). */
+export type PagoDelFormulario = { pago: unknown; vence?: unknown; factura?: unknown };
+
+/**
+ * Cómo se pagó ESTA recepción, leído del formulario con la misma regla que el medio: sólo una
+ * COMPRA de quien ve costos informa pago (el encargado no ve el costo, así que no puede dejar
+ * una deuda de un monto que no ve). "CUENTA_CORRIENTE" trae su vencimiento y su factura; un
+ * vencimiento que no es un día lanza con mensaje (no se guarda otra fecha). `null` = no
+ * informa pago (la reposición, el encargado, o un medio que no existe: ahí `purchase-core` cae
+ * a `PAGO_POR_DEFECTO`, que lo marca como asumido). PURA.
+ */
+export function pagoDeLaRecepcion(kind: StockPurchaseKind, conCostos: boolean, form: PagoDelFormulario): PagoDeCompra | null {
+  if (kind !== "COMPRA" || !conCostos) return null;
+  if (String(form.pago ?? "").trim().toUpperCase() === "CUENTA_CORRIENTE") {
+    const vence = leerVencimiento(form.vence);
+    if (vence === "invalido") throw new Error("El vencimiento no es una fecha válida. Elegila en el calendario.");
+    return { estado: "CUENTA_CORRIENTE", vence, factura: leerFactura(form.factura) };
+  }
+  const method = medioDeLaRecepcion(kind, conCostos, parseCashMethod(form.pago));
+  return method ? { estado: "PAGADA", method } : null;
 }
 
 /**
@@ -216,6 +276,9 @@ export function compraRepetida<T extends { code: number; createdAt: Date; huella
 // importe re-tipeado). Una compra con stock adentro y sin egreso es PEOR que las dos
 // cosas por separado: descuadra la caja sin dejar rastro de por qué. Por eso es
 // todo-o-nada, no un "mejor esfuerzo" en una segunda transacción.
+//
+// A CUENTA CORRIENTE, en vez del egreso nace la DEUDA (`createPayable`), también adentro: la
+// compra, el stock y lo que se le debe al proveedor entran juntos o no entra nada.
 export async function insertStockPurchase(
   tenantId: string,
   input: PurchaseInput,
@@ -236,199 +299,244 @@ export async function insertStockPurchase(
   if (lines.length === 0) {
     throw new Error("Ninguno de los productos elegidos es válido para reponer stock.");
   }
-  const totalCost = purchaseTotal(lines);
 
   // Hasta qué día está congelada la caja. Se lee FUERA de la tx (igual que en
   // libro-caja-actions.ts): es una consulta de sólo lectura sobre estado que no cambia
   // dentro de esta operación, y no vale la pena alargar la transacción de escritura.
   const cerradoHasta = await lastClosedDay(tenantId);
   const hoy = todayInBusinessTz();
+
+  return await tenantTransaction(
+    (tx) => registrarCompraEnTx(tx, tenantId, input, { lines, hoy, cerradoHasta, ahora: new Date() }),
+    { tenantId },
+  );
+}
+
+/** Lo que `insertStockPurchase` resuelve antes de abrir la transacción. */
+export type PrevioDeLaCompra = {
+  lines: PurchaseLine[];
+  hoy: DayKey;
+  cerradoHasta: DayKey | null;
+  ahora: Date;
+};
+
+/**
+ * La compra DENTRO de la transacción del llamador. Separada de `insertStockPurchase` para
+ * ejecutarla en los tests contra un doble de transacción (compras/recibir.test.ts): la deuda a
+ * cuenta corriente, que no haya egreso cuando se debe y que una compra a cuenta corriente sin
+ * proveedor no deje nada escrito se prueban con esta función real, no con una copia.
+ */
+export async function registrarCompraEnTx(
+  tx: LedgerTx,
+  tenantId: string,
+  input: PurchaseInput,
+  previo: PrevioDeLaCompra,
+): Promise<InsertedPurchase> {
+  const { lines, hoy, cerradoHasta } = previo;
+  const totalCost = purchaseTotal(lines);
   const pago = input.pago ?? PAGO_POR_DEFECTO;
 
-  const purchase = await tenantTransaction(async (tx) => {
-    // Una compra a la vez por negocio: el correlativo es max(code)+1 y la verificación de
-    // compra repetida lee las recientes; sin este candado, dos envíos simultáneos leían lo
-    // mismo y los dos pasaban (o chocaban contra el @@unique del código con un error crudo).
-    // `pg_advisory_xact_lock` se suelta solo al terminar la transacción.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`compra:${tenantId}`}))`;
+  // Una compra a la vez por negocio: el correlativo es max(code)+1 y la verificación de
+  // compra repetida lee las recientes; sin este candado, dos envíos simultáneos leían lo
+  // mismo y los dos pasaban (o chocaban contra el @@unique del código con un error crudo).
+  // `pg_advisory_xact_lock` se suelta solo al terminar la transacción.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`compra:${tenantId}`}))`;
 
-    // Proveedor del maestro: del negocio y activo, o no se registra nada.
-    let supplierId: string | null = null;
-    let supplier = input.supplier;
-    if (input.supplierId) {
-      const prov = await tx.supplier.findFirst({
-        where: { id: input.supplierId, tenantId, active: true },
-        select: { id: true, name: true },
-      });
-      if (!prov) {
-        throw new Error("El proveedor elegido no existe o está dado de baja. Elegí otro de la lista.");
-      }
-      supplierId = prov.id;
-      supplier = prov.name;
-    }
-
-    const huella = huellaDeCompra({ kind: input.kind, supplierId, supplier, lineas: lines });
-    const recientes = await tx.stockPurchase.findMany({
-      where: {
-        tenantId,
-        createdBy: input.createdBy,
-        createdAt: { gte: new Date(Date.now() - VENTANA_REPETIDA_MS) },
-      },
-      select: {
-        code: true,
-        kind: true,
-        supplierId: true,
-        supplier: true,
-        createdAt: true,
-        items: { select: { productId: true, quantity: true, unitCost: true } },
-      },
+  // Proveedor del maestro: del negocio y activo, o no se registra nada.
+  let supplierId: string | null = null;
+  let supplier = input.supplier;
+  if (input.supplierId) {
+    const prov = await tx.supplier.findFirst({
+      where: { id: input.supplierId, tenantId, active: true },
+      select: { id: true, name: true },
     });
-    const repetida = compraRepetida(
-      huella,
-      recientes.map((r) => ({ ...r, huella: huellaDeCompra({ ...r, lineas: r.items }) })),
-      new Date(),
+    if (!prov) {
+      throw new Error("El proveedor elegido no existe o está dado de baja. Elegí otro de la lista.");
+    }
+    supplierId = prov.id;
+    supplier = prov.name;
+  }
+
+  // A cuenta corriente: se decide ANTES de escribir nada. Una compra "a cuenta corriente" sin
+  // proveedor o sin costo no tiene deuda que dejar, y entrar la mercadería sin la deuda sería
+  // plata que desaparece: se rechaza entera. El código todavía no existe; se valida con 0 y el
+  // detalle definitivo se arma más abajo, con el código real.
+  const previa = decidirDeudaDeCompra({ kind: input.kind, code: 0, supplierId, totalCost, pago });
+  if (previa.tipo === "rechazo") throw new Error(previa.error);
+
+  const huella = huellaDeCompra({ kind: input.kind, supplierId, supplier, lineas: lines });
+  const recientes = await tx.stockPurchase.findMany({
+    where: {
+      tenantId,
+      createdBy: input.createdBy,
+      createdAt: { gte: new Date(previo.ahora.getTime() - VENTANA_REPETIDA_MS) },
+    },
+    select: {
+      code: true,
+      kind: true,
+      supplierId: true,
+      supplier: true,
+      createdAt: true,
+      items: { select: { productId: true, quantity: true, unitCost: true } },
+    },
+  });
+  const repetida = compraRepetida(
+    huella,
+    recientes.map((r) => ({ ...r, huella: huellaDeCompra({ ...r, lineas: r.items }) })),
+    previo.ahora,
+  );
+  if (repetida) {
+    throw new Error(
+      `Esta misma compra ya se registró recién (#${repetida.code}), así que no se cargó de nuevo. ` +
+        "Si de verdad llegó dos veces igual, esperá dos minutos y cargala otra vez.",
     );
-    if (repetida) {
-      throw new Error(
-        `Esta misma compra ya se registró recién (#${repetida.code}), así que no se cargó de nuevo. ` +
-          "Si de verdad llegó dos veces igual, esperá dos minutos y cargala otra vez.",
-      );
-    }
+  }
 
-    // Correlativo legible por tenant: max(code)+1 (mismo criterio que Order), ya sin
-    // carrera por el candado de arriba.
-    const last = await tx.stockPurchase.findFirst({
-      where: { tenantId },
-      orderBy: { code: "desc" },
-      select: { code: true },
-    });
-    const code = (last?.code ?? 0) + 1;
+  // Correlativo legible por tenant: max(code)+1 (mismo criterio que Order), ya sin
+  // carrera por el candado de arriba.
+  const last = await tx.stockPurchase.findFirst({
+    where: { tenantId },
+    orderBy: { code: "desc" },
+    select: { code: true },
+  });
+  const code = (last?.code ?? 0) + 1;
 
-    const created = await tx.stockPurchase.create({
-      data: {
-        tenantId,
-        code,
-        kind: input.kind,
-        supplier,
-        supplierId,
-        notes: input.notes,
-        totalCost,
-        createdBy: input.createdBy,
-        items: {
-          create: lines.map((l) => ({
-            tenantId,
-            productId: l.productId,
-            name: l.name,
-            unit: l.unit,
-            quantity: l.quantity,
-            unitCost: l.unitCost,
-            lineTotal: l.lineTotal,
-          })),
-        },
-      },
-      select: { id: true, code: true },
-    });
-
-    // Reposición de stock vía ledger (`recordMovement`): incremento atómico por
-    // producto + fila del StockMovement (COMPRA o REPOSICION, según el documento) en
-    // la misma transacción. No hace falta guarda (a diferencia de la venta): sumar
-    // existencias siempre es válido. Snapshotea el costo unitario en el movimiento.
-    for (const l of lines) {
-      await recordMovement(tx, {
-        tenantId,
-        productId: l.productId,
-        type: input.kind,
-        qty: l.quantity,
-        unitCost: l.unitCost,
-        purchaseId: created.id,
-        createdBy: input.createdBy,
-        label: l.name,
-      });
-    }
-
-    // ── La plata que salió ──────────────────────────────────────────────────
-    //
-    // La DECISIÓN (¿corresponde?, ¿por qué medio?, ¿con qué fecha contable?) es pura y
-    // está testeada en purchase-egreso.ts. Acá sólo se persiste lo que decidió.
-    const decision = decidirEgresoDeCompra({
+  const created = await tx.stockPurchase.create({
+    data: {
+      tenantId,
+      code,
       kind: input.kind,
-      purchaseId: created.id,
-      code: created.code,
       supplier,
+      supplierId,
+      notes: input.notes,
       totalCost,
-      pago,
-      hoy,
-      cerradoHasta,
+      createdBy: input.createdBy,
+      items: {
+        create: lines.map((l) => ({
+          tenantId,
+          productId: l.productId,
+          name: l.name,
+          unit: l.unit,
+          quantity: l.quantity,
+          unitCost: l.unitCost,
+          lineTotal: l.lineTotal,
+        })),
+      },
+    },
+    select: { id: true, code: true },
+  });
+
+  // Reposición de stock vía ledger (`recordMovement`): incremento atómico por
+  // producto + fila del StockMovement (COMPRA o REPOSICION, según el documento) en
+  // la misma transacción. No hace falta guarda (a diferencia de la venta): sumar
+  // existencias siempre es válido. Snapshotea el costo unitario en el movimiento.
+  for (const l of lines) {
+    await recordMovement(tx, {
+      tenantId,
+      productId: l.productId,
+      type: input.kind,
+      qty: l.quantity,
+      unitCost: l.unitCost,
+      purchaseId: created.id,
+      createdBy: input.createdBy,
+      label: l.name,
+    });
+  }
+
+  // ── Lo que se le debe (a cuenta corriente) ──────────────────────────────
+  //
+  // La deuda lleva el `purchaseId`: con eso la devolución a proveedor la encuentra y le
+  // descuenta el crédito, y la ficha del proveedor la suma en "Le debés". El vencimiento es
+  // un DÍA de calendario: se ancla al mediodía del negocio, así Cuentas a pagar (que lo lee en
+  // hora del negocio) y cualquier lectura en UTC ven el mismo día.
+  let deuda: DeudaDeLaCompra = null;
+  const decisionDeuda = decidirDeudaDeCompra({ kind: input.kind, code: created.code, supplierId, totalCost, pago });
+  if (decisionDeuda.tipo === "deuda" && supplierId) {
+    const payableId = await createPayable(tx, tenantId, {
+      supplierId,
+      amount: decisionDeuda.amount,
+      concept: decisionDeuda.concept,
+      dueDate: decisionDeuda.vence ? businessWallTimeToUtc(decisionDeuda.vence, "12:00") : null,
+      purchaseId: created.id,
+      createdBy: input.createdBy,
+    });
+    deuda = { payableId, amount: decisionDeuda.amount, concept: decisionDeuda.concept, vence: decisionDeuda.vence };
+  }
+
+  // ── La plata que salió ──────────────────────────────────────────────────
+  //
+  // La DECISIÓN (¿corresponde?, ¿por qué medio?, ¿con qué fecha contable?) es pura y
+  // está testeada en purchase-egreso.ts. Acá sólo se persiste lo que decidió.
+  const decision = decidirEgresoDeCompra({
+    kind: input.kind,
+    purchaseId: created.id,
+    code: created.code,
+    supplier,
+    totalCost,
+    pago,
+    hoy,
+    cerradoHasta,
+  });
+
+  // Arranca en el resultado "no se asentó": si corresponde asentar, el valor sólo
+  // sobrevive cuando el pre-chequeo de idempotencia encuentra el asiento ya hecho.
+  let egreso: PurchaseEgresoResult = decision.asienta
+    ? { asentado: false, motivo: "ya-asentado" }
+    : { asentado: false, motivo: decision.motivo };
+
+  if (decision.asienta) {
+    const e = decision.egreso;
+
+    // Idempotencia por la marca `compra:<purchaseId>` en `createdBy` (ver
+    // purchase-egreso.ts sobre por qué la marca va ahí y no en una columna). Hoy
+    // `created.id` es un cuid recién nacido dentro de esta misma tx, así que el
+    // pre-chequeo no puede encontrar nada; existe igual porque es la única guarda que
+    // habría el día que alguien agregue un camino de "re-asentar" o un reintento sobre
+    // una compra ya registrada, y porque un egreso duplicado es plata inventada. El
+    // árbitro a nivel DB —un @@unique como el de A-5— necesitaría la columna
+    // `purchaseId` en CashMovement, que es una migración más (ver el informe).
+    const yaAsentado = await tx.cashMovement.findFirst({
+      where: { tenantId, type: "EGRESO", createdBy: e.createdBy },
+      select: { id: true },
     });
 
-    // Arranca en el resultado "no se asentó": si corresponde asentar, el valor sólo
-    // sobrevive cuando el pre-chequeo de idempotencia encuentra el asiento ya hecho.
-    let egreso: PurchaseEgresoResult = decision.asienta
-      ? { asentado: false, motivo: "ya-asentado" }
-      : { asentado: false, motivo: decision.motivo };
-
-    if (decision.asienta) {
-      const e = decision.egreso;
-
-      // Idempotencia por la marca `compra:<purchaseId>` en `createdBy` (ver
-      // purchase-egreso.ts sobre por qué la marca va ahí y no en una columna). Hoy
-      // `created.id` es un cuid recién nacido dentro de esta misma tx, así que el
-      // pre-chequeo no puede encontrar nada; existe igual porque es la única guarda que
-      // habría el día que alguien agregue un camino de "re-asentar" o un reintento sobre
-      // una compra ya registrada, y porque un egreso duplicado es plata inventada. El
-      // árbitro a nivel DB —un @@unique como el de A-5— necesitaría la columna
-      // `purchaseId` en CashMovement, que es una migración más (ver el informe).
-      const yaAsentado = await tx.cashMovement.findFirst({
-        where: { tenantId, type: "EGRESO", createdBy: e.createdBy },
+    if (!yaAsentado) {
+      // Si hay un turno de mostrador ABIERTO, el asiento se engancha a ese turno:
+      // pagarle al proveedor con la plata del cajón tiene que bajar el efectivo que el
+      // arqueo espera. El arqueo filtra por medio, así que un pago por MP enganchado al
+      // turno no le toca el efectivo. Mismo criterio que `recordCashSaleMovementInTx`.
+      const session = await tx.cashSession.findFirst({
+        where: { tenantId, status: "OPEN" },
         select: { id: true },
       });
 
-      if (!yaAsentado) {
-        // Si hay un turno de mostrador ABIERTO, el asiento se engancha a ese turno:
-        // pagarle al proveedor con la plata del cajón tiene que bajar el efectivo que el
-        // arqueo espera. El arqueo filtra por medio, así que un pago por MP enganchado al
-        // turno no le toca el efectivo. Mismo criterio que `recordCashSaleMovementInTx`.
-        const session = await tx.cashSession.findFirst({
-          where: { tenantId, status: "OPEN" },
-          select: { id: true },
-        });
-
-        const mov = await tx.cashMovement.create({
-          data: {
-            tenantId,
-            sessionId: session?.id ?? null,
-            type: e.type,
-            method: e.method,
-            amount: e.amount,
-            reason: e.reason,
-            // Se ancla al MEDIODÍA de la zona del negocio, igual que el alta manual del
-            // libro: así ningún corrimiento de zona horaria mueve la fila de día.
-            occurredAt: businessWallTimeToUtc(e.dia, "12:00"),
-            createdBy: e.createdBy,
-          },
-          select: { id: true },
-        });
-
-        egreso = {
-          asentado: true,
-          movementId: mov.id,
-          amount: e.amount,
+      const mov = await tx.cashMovement.create({
+        data: {
+          tenantId,
+          sessionId: session?.id ?? null,
+          type: e.type,
           method: e.method,
-          dia: e.dia,
-          medioAsumido: e.medioAsumido,
-          diferidoPorCierre: e.diferidoPorCierre,
-        };
-      }
+          amount: e.amount,
+          reason: e.reason,
+          // Se ancla al MEDIODÍA de la zona del negocio, igual que el alta manual del
+          // libro: así ningún corrimiento de zona horaria mueve la fila de día.
+          occurredAt: businessWallTimeToUtc(e.dia, "12:00"),
+          createdBy: e.createdBy,
+        },
+        select: { id: true },
+      });
+
+      egreso = {
+        asentado: true,
+        movementId: mov.id,
+        amount: e.amount,
+        method: e.method,
+        dia: e.dia,
+        medioAsumido: e.medioAsumido,
+        diferidoPorCierre: e.diferidoPorCierre,
+      };
     }
+  }
 
-    return { ...created, egreso };
-  }, { tenantId });
-
-  return {
-    id: purchase.id,
-    code: purchase.code,
-    totalCost,
-    lines: lines.length,
-    egreso: purchase.egreso,
-  };
+  return { id: created.id, code: created.code, totalCost, lines: lines.length, egreso, deuda };
 }

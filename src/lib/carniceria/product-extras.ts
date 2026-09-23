@@ -13,6 +13,8 @@
 
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { logger } from "@/lib/logger";
+import { motivoDelError } from "./errores";
 
 export interface ProductExtras {
   category: string | null;
@@ -42,15 +44,24 @@ export async function getProductExtras(): Promise<Map<string, ProductExtras>> {
         return [r.id, { category: r.category ?? null, cost: cost != null && Number.isFinite(cost) ? cost : null }];
       }),
     );
-  } catch {
+  } catch (err) {
+    // La pantalla sigue con la góndola derivada del nombre, pero un error real (no "la columna
+    // todavía no existe") queda en el log: antes se tragaba y nadie sabía que faltaban datos.
+    if (motivoDelError(err) !== "sin-migracion") logger.error("product-extras", "no se pudieron leer góndola y costo de catálogo", err);
     return new Map();
   }
 }
 
 /**
- * Escribe `category`/`cost` de un producto (raw UPDATE, scope por tenant). No-op silencioso
- * si las columnas no existen todavía (pre-migración) — así el ABM del catálogo nunca rompe
- * por querer setear un campo que aún no está en la DB. `undefined` = no tocar ese campo.
+ * Escribe `category`/`cost` de un producto (raw UPDATE, scope por tenant), dentro de
+ * `tenantTransaction` con el negocio explícito (con RLS encendido, un UPDATE crudo fuera de la
+ * transacción no ve la fila y no escribe nada, sin error). No-op si las columnas no existen
+ * todavía (pre-migración): así el ABM del catálogo nunca rompe por querer setear un campo que
+ * aún no está en la base. `undefined` = no tocar ese campo.
+ *
+ * Un error REAL tampoco rompe el guardado (el producto ya se guardó en su propia transacción:
+ * tirar acá dejaría la pantalla en error con el producto guardado), pero se loguea: antes se
+ * tragaba igual que la falta de columna.
  */
 export async function writeProductExtras(
   productId: string,
@@ -59,15 +70,20 @@ export async function writeProductExtras(
   if (extras.category === undefined && extras.cost === undefined) return;
   try {
     const tenantId = await getCurrentTenantId();
-    await tenantTransaction(async (tx) => {
-      if (extras.category !== undefined) {
-        await tx.$executeRaw`UPDATE "Product" SET "category" = ${extras.category} WHERE "id" = ${productId} AND "tenantId" = ${tenantId}`;
-      }
-      if (extras.cost !== undefined) {
-        await tx.$executeRaw`UPDATE "Product" SET "cost" = ${extras.cost} WHERE "id" = ${productId} AND "tenantId" = ${tenantId}`;
-      }
-    });
-  } catch {
-    // Columna inexistente (pre-migración) o error de escritura → no-op (fail-safe).
+    await tenantTransaction(
+      async (tx) => {
+        if (extras.category !== undefined) {
+          await tx.$executeRaw`UPDATE "Product" SET "category" = ${extras.category} WHERE "id" = ${productId} AND "tenantId" = ${tenantId}`;
+        }
+        if (extras.cost !== undefined) {
+          await tx.$executeRaw`UPDATE "Product" SET "cost" = ${extras.cost} WHERE "id" = ${productId} AND "tenantId" = ${tenantId}`;
+        }
+      },
+      { tenantId },
+    );
+  } catch (err) {
+    if (motivoDelError(err) !== "sin-migracion") {
+      logger.error("product-extras", "no se pudieron guardar góndola o costo de catálogo", err, { productId });
+    }
   }
 }

@@ -7,7 +7,8 @@ import { getComprasData } from "@/lib/inventario/compras-loader";
 import { esStockBajo } from "@/lib/inventory/valuation";
 import { fmtMoneyARS } from "@/components/ui";
 import { getActiveProfile } from "@/lib/profile-gating";
-import { fmtShortDate } from "@/lib/datetime";
+import { fmtShortDate, todayInBusinessTz } from "@/lib/datetime";
+import { DIAS_DE_CUENTA_CORRIENTE, diaMasDias } from "@/lib/stock/purchase-egreso";
 import ComprasForm from "./ComprasForm";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,15 @@ export default async function ComprasPage() {
   const formal = profile === "enterprise";
   // El enlace a Proveedores, sólo si esta persona puede abrir esa app (la dueña).
   const veProveedores = appPermitida(appPorId("proveedores"), negocio);
+  // "Qué pedir hoy", sólo donde existe (mostrador) y la persona lo puede abrir.
+  const veSugerido = appPermitida(appPorId("sugerido-de-compra"), negocio);
+  // A cuenta corriente sólo si la deuda se va a poder ver y pagar (Cuentas a pagar) y quien
+  // carga ve el costo, que es el monto de la deuda. Un negocio sin Cuentas a pagar (CH hoy)
+  // no ve la opción: su formulario queda como siempre. La acción lo vuelve a verificar.
+  const cuentaCorriente =
+    conCostos && appPermitida(appPorId("cuentas-a-pagar"), negocio)
+      ? { venceSugerido: diaMasDias(todayInBusinessTz(), DIAS_DE_CUENTA_CORRIENTE), dias: DIAS_DE_CUENTA_CORRIENTE }
+      : null;
 
   // Lo que conviene reponer primero: bajo el mínimo, con la definición única (`esStockBajo`:
   // sólo los que controlan stock).
@@ -57,6 +67,16 @@ export default async function ComprasPage() {
             , los elegís de una lista y cada compra queda en su ficha.
           </>
         )}
+        {veSugerido && (
+          <>
+            {" "}
+            Para saber qué pedir y a quién, mirá el{" "}
+            <Link href="/admin/compras/sugerido" className="font-medium text-accent underline underline-offset-2">
+              sugerido de compra
+            </Link>
+            .
+          </>
+        )}
       </p>
 
       {lowStock.length > 0 && (
@@ -70,7 +90,13 @@ export default async function ComprasPage() {
         </div>
       )}
 
-      <ComprasForm products={products} proveedores={proveedores} formal={formal} conCostos={conCostos} />
+      <ComprasForm
+        products={products}
+        proveedores={proveedores}
+        formal={formal}
+        conCostos={conCostos}
+        cuentaCorriente={cuentaCorriente}
+      />
 
       {recent.length > 0 && (
         <>

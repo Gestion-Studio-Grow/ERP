@@ -41,7 +41,7 @@ export default async function FichaProveedorPage({
     );
   }
 
-  const { proveedor: p, compras, totalDeCompras, deuda, devoluciones, totalDeDevoluciones, devuelto, codigoDeCompra } = ficha;
+  const { proveedor: p, compras, totalDeCompras, comprado, deuda, devoluciones, totalDeDevoluciones, devuelto, codigoDeCompra } = ficha;
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8 space-y-8">
@@ -79,10 +79,14 @@ export default async function FichaProveedorPage({
             </Link>
           )}
         </div>
+        {/* Los dos totales son de TODAS las compras y devoluciones (los cuenta la base); las
+            listas de abajo muestran las últimas. */}
         <div className="rounded-lg border border-line p-4">
           <p className="text-sm text-muted">Compras</p>
           <p className="text-2xl font-semibold tabular-nums text-strong">{totalDeCompras}</p>
-          {totalDeCompras > compras.length && <p className="text-xs text-muted">abajo, las últimas {compras.length}</p>}
+          <p className="text-xs text-muted">
+            {fmtMoneyARS(comprado)} en total{totalDeCompras > compras.length ? ` · abajo, las últimas ${compras.length}` : ""}
+          </p>
         </div>
         <div className="rounded-lg border border-line p-4">
           <p className="text-sm text-muted">Devuelto</p>

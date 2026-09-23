@@ -62,9 +62,6 @@ const MOTIVOS_DE_PERECEDEROS: readonly AdjustmentMotivo[] = [
   "OTRO",
 ];
 
-/** Rubros de mostrador que venden comida fresca: los que suman decomiso, consumo interno y degustación. */
-export const RUBROS_PERECEDEROS: readonly string[] = ["carniceria", "fiambreria", "verduleria", "dietetica"];
-
 /** Todos los motivos que el servidor acepta, en cualquier negocio. */
 export const TODOS_LOS_MOTIVOS: readonly AdjustmentMotivo[] = MOTIVOS_DE_PERECEDEROS;
 
@@ -72,10 +69,16 @@ export const TODOS_LOS_MOTIVOS: readonly AdjustmentMotivo[] = MOTIVOS_DE_PERECED
  * Los motivos que ofrece la pantalla de Mermas en este negocio. Un negocio de servicios (CH)
  * ve los de siempre, en su orden; un mostrador arranca en Merma, y si vende comida fresca
  * suma los de perecederos. PURA.
+ *
+ * `perecederos` es el dato del blueprint (`RetailRubro.perecederos`, que resuelve la página con
+ * `rubroConPerecederos`): antes había acá una lista propia de rubros, una segunda verdad que
+ * podía no coincidir con la que prende Lotes y Despiece. Se recibe ya resuelto y no se importa
+ * el blueprint porque este módulo viaja al navegador (el formulario de Mermas lo usa) y el
+ * blueprint arrastra el catálogo semilla de cada rubro.
  */
-export function motivosDeAjuste(negocio: { esMostrador: boolean; rubroId?: string | null }): readonly AdjustmentMotivo[] {
+export function motivosDeAjuste(negocio: { esMostrador: boolean; perecederos?: boolean }): readonly AdjustmentMotivo[] {
   if (!negocio.esMostrador) return ADJUSTMENT_MOTIVOS;
-  return negocio.rubroId && RUBROS_PERECEDEROS.includes(negocio.rubroId) ? MOTIVOS_DE_PERECEDEROS : MOTIVOS_DE_MOSTRADOR;
+  return negocio.perecederos ? MOTIVOS_DE_PERECEDEROS : MOTIVOS_DE_MOSTRADOR;
 }
 
 /** El motivo que llega del formulario, o `null` si no es uno de los que existen. PURA. */
@@ -354,15 +357,18 @@ export function topeDeMermaPorCarga(role: Role): number | null {
 }
 
 /**
- * Cuánto vale lo que da de baja una carga: las líneas que RESTAN, a costo vigente. Un
- * recuento no cuenta (es un conteo, no una baja); una corrección "Otro" que resta, sí. Las
- * líneas sin costo no suman (no se pueden valuar) y se informan aparte. PURA.
+ * Cuánto vale lo que da de baja una carga: las líneas que RESTAN, a costo vigente. Una
+ * corrección "Otro" que resta cuenta, y el FALTANTE de un recuento también.
+ *
+ * Por qué el recuento cuenta (QA de la integración de la ola 2, medido): si el recuento no
+ * pasaba por el tope, la baja que el tope frenaba como merma entraba igual cargada como
+ * "Recuento" en Mermas o desde la app Recuento: contar 0 kg de un corte que tiene 10 lo deja en
+ * 0 igual que una merma de 10 kg, sin que la dueña se entere. El sobrante de un recuento no
+ * compensa el faltante de otro producto (sumar de más lo barato no puede habilitar a dar de baja
+ * lo caro): sólo las líneas que restan. Las líneas sin costo no suman (no se pueden valuar) y se
+ * informan aparte. PURA.
  */
-export function valorDeLaBaja(
-  motivo: AdjustmentMotivo,
-  lineas: readonly { delta: number; costo: number | null }[],
-): { pesos: number; sinCosto: number } {
-  if (motivoMode(motivo) === "COUNT") return { pesos: 0, sinCosto: 0 };
+export function valorDeLaBaja(lineas: readonly { delta: number; costo: number | null }[]): { pesos: number; sinCosto: number } {
   let pesos = 0;
   let sinCosto = 0;
   for (const l of lineas) {
@@ -390,7 +396,15 @@ export function mensajeDeTope(
   baja: { pesos: number; tope: number },
   conCostos: boolean,
   formato: (n: number) => string,
+  motivo?: AdjustmentMotivo,
 ): string {
+  // Un recuento no "carga" nada: lo que pasa el tope es el faltante que encontró. El paso a
+  // seguir también cambia: lo cuenta la dueña (o con ella), no lo "carga".
+  if (motivo !== undefined && motivoMode(motivo) === "COUNT") {
+    const siga = "No se registró nada: pedile a la dueña o al dueño que lo cuente con vos y lo guarde.";
+    if (!conCostos) return `El faltante de este recuento pasa tu tope por carga. ${siga}`;
+    return `El faltante de este recuento vale ${formato(baja.pesos)} a costo y tu tope por carga es ${formato(baja.tope)}. ${siga}`;
+  }
   const siga = "No se registró nada: pedile a la dueña o al dueño que la cargue.";
   if (!conCostos) return `Esta carga pasa tu tope por carga. ${siga}`;
   return `Esta carga da de baja ${formato(baja.pesos)} a costo y tu tope por carga es ${formato(baja.tope)}. ${siga}`;
