@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { alcanceDeAnulacion } from "@/lib/capabilities";
 import { retailWordingForSlug } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
 import { insertOrder, buildOrderLines, orderSubtotal, type OrderPaymentMethod } from "@/lib/order-core";
@@ -25,20 +26,22 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
-import { logger } from "@/lib/logger";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { recordMovement, round3 } from "@/lib/stock/ledger";
 import { round2 } from "@/lib/round";
 import {
   anularVentaInTx,
   AnulacionVentaRechazada,
+  reglasDeAnulacion,
   fronteraDeVenta,
   planEdicionDeLineas,
   mensajeEdicionRechazada,
   deltasDeStock,
   detalleStockAjustadoPorEdicion,
-  MOTIVO_ANULACION_SIN_TEXTO,
   EDICION_ACTOR_PREFIX,
+  wherePedidosAbiertos,
+  wherePedidosCerrados,
+  entregarPedidoGuarded,
 } from "@/lib/order-anulacion";
 import type { $Enums } from "@/generated/prisma/client";
 
@@ -60,18 +63,30 @@ const STATUS_FLOW: Record<OrderStatus, OrderStatus | null> = {
 
 // --- Loader de la pantalla POS / bandeja de pedidos ---
 
+// Cuántos cerrados muestra la bandeja: es historial, no trabajo pendiente.
+const CERRADOS_EN_BANDEJA = 20;
+
 export async function getPosData() {
   await requireCapability("orders:read");
   // Endurecimiento defensivo (cinturón-y-tiradores sobre RLS): filtro `tenantId` EXPLÍCITO en
   // cada read del backoffice. RLS ya aísla en prod, pero el predicado explícito no depende de que
   // el flag esté ON y además ENCIENDE los índices `@@index([tenantId, ...])` que ya existen.
   const tenantId = await getCurrentTenantId();
-  const [orders, products] = await Promise.all([
+  // Abiertos y cerrados en DOS consultas. Antes era una sola con `take: 100` y la separación
+  // se hacía después: con 100 tickets de mostrador en el día, el pedido online de ayer quedaba
+  // fuera del corte y desaparecía de la bandeja. Los abiertos van SIN tope porque son trabajo
+  // pendiente; los `where` salen de order-anulacion.ts (ver ahí el porqué de cada uno).
+  const [abiertos, cerrados, products] = await Promise.all([
     prisma.order.findMany({
-      where: { tenantId },
+      where: wherePedidosAbiertos(tenantId),
       orderBy: { createdAt: "desc" },
-      take: 100,
       include: { items: true },
+    }),
+    prisma.order.findMany({
+      where: wherePedidosCerrados(tenantId),
+      orderBy: { createdAt: "desc" },
+      take: CERRADOS_EN_BANDEJA,
+      select: { id: true, code: true, status: true, customerName: true, total: true, createdAt: true, paid: true },
     }),
     // Solo productos vendibles: activos, no borrados, con algún precio cargado.
     prisma.product.findMany({
@@ -85,7 +100,7 @@ export async function getPosData() {
       select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true },
     }),
   ]);
-  return { orders, products };
+  return { abiertos, cerrados, products };
 }
 
 // --- Creación de orden: el Core compartido vive en `order-core.ts` ---
@@ -344,15 +359,33 @@ export async function placeOnlineOrder(formData: FormData) {
 }
 
 // --- Avanzar estado del pedido ---
-
+//
+// Mueve Pendiente → Confirmado → En preparación → Listo. El último paso, ENTREGAR, no pasa por
+// acá: tiene su propia acción (`entregarPedido`) porque exige el cobro o un "queda a cobrar"
+// dicho a mano. Antes este mismo botón entregaba sin preguntar, el pedido caía a "Cerrados"
+// sin botones y esa plata no llegaba nunca a la caja.
+//
+// El `tenantId` va explícito en la lectura y en la escritura (antes era `findUnique` por id y
+// dependía sólo de RLS), y la escritura es un compare-and-set sobre el estado leído: si otra
+// pestaña ya lo movió, este toque no lo empuja un paso de más.
 export async function advanceOrderStatus(formData: FormData) {
   await requireCapability("orders:manage");
-  const id = String(formData.get("id"));
-  const current = await prisma.order.findUnique({ where: { id }, select: { status: true } });
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) return;
+  const current = await prisma.order.findFirst({ where: { id, tenantId }, select: { status: true } });
   if (!current) return;
   const next = STATUS_FLOW[current.status];
   if (!next) return; // terminal (DELIVERED / CANCELLED): no avanza
-  await prisma.order.update({ where: { id }, data: { status: next } });
+  if (next === "DELIVERED") return; // entregar es `entregarPedido`: pide el cobro
+  const res = await prisma.order.updateMany({
+    where: { id, tenantId, status: current.status },
+    data: { status: next },
+  });
+  if (res.count === 0) {
+    revalidatePath(ORDERS_PATH);
+    return;
+  }
   await auditAdmin({
     action: "update",
     entity: "Order",
@@ -363,6 +396,16 @@ export async function advanceOrderStatus(formData: FormData) {
 }
 
 // --- Marcar cobrado ---
+
+// Cobrar un pedido que otra pestaña ya anuló metía en la caja la plata de una venta que el
+// sistema da por inexistente: la bandeja vieja todavía mostraba el botón. Se lanza ADENTRO de
+// la transacción para que el `paid` que ya se escribió vuelva atrás con todo lo demás.
+class CobroDePedidoAnulado extends Error {
+  constructor(code: number) {
+    super(`El pedido #${code} está anulado: no se cobra.`);
+    this.name = "CobroDePedidoAnulado";
+  }
+}
 
 async function setOrderPaidCore(
   id: string,
@@ -423,9 +466,14 @@ async function setOrderPaidCore(
         });
         const order = await tx.order.findFirst({
           where: { id, tenantId },
-          select: { id: true, code: true, total: true, paymentMethod: true },
+          select: { id: true, code: true, total: true, paymentMethod: true, status: true },
         });
         if (!order) return { tipo: "no-existe" };
+        // Se mira DESPUÉS del updateMany a propósito: si esta tx lo marcó cobrado, la fila ya
+        // quedó bloqueada, así que una anulación que llegue en paralelo espera a que termine y
+        // no hay ventana entre "leí que no estaba anulado" y "lo cobré". (La otra mitad de la
+        // carrera, anular mientras se cobra, la cierra la relectura de anularVentaInTx.)
+        if (order.status === "CANCELLED") throw new CobroDePedidoAnulado(order.code);
         if (res.count === 0) {
           return { tipo: "ya-cobrado", code: order.code, medioRegistrado: order.paymentMethod };
         }
@@ -442,6 +490,10 @@ async function setOrderPaidCore(
       { tenantId },
     );
   } catch (e) {
+    if (e instanceof CobroDePedidoAnulado) {
+      revalidatePath(ORDERS_PATH);
+      return { ok: false, error: e.message };
+    }
     // Defensa que queda de A-5. Con `paid: false` en el filtro, el segundo cobro concurrente
     // espera el lock de la fila y sale por "ya-cobrado" sin llegar a asentar, así que este
     // choque del @@unique del asiento VENTA no debería darse. Si igual se diera, la tx aborta
@@ -485,6 +537,54 @@ export async function cobrarPedido(
   );
 }
 
+// --- Entregar ---
+//
+// Entregar un pedido listo exige una de dos cosas dichas en la pantalla: con qué pagó (se
+// cobra y se entrega en el mismo toque) o «Queda a cobrar» tildado a mano (se entrega y sigue
+// en la bandeja como "Entregado · a cobrar"). Ya cobrado, se entrega directo. La secuencia y
+// su porqué viven en `entregarPedidoGuarded` (order-anulacion.ts, probada con el doble toque);
+// acá sólo se le dan las tres operaciones reales, las tres filtradas por `tenantId`.
+export async function entregarPedido(
+  _prev: OrderActionState,
+  formData: FormData,
+): Promise<OrderActionState> {
+  await requireCapability("orders:manage");
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) return { ok: false, error: "Falta identificar el pedido a entregar." };
+  const quedaACobrar = String(formData.get("quedaACobrar") || "") === "on";
+
+  const r = await entregarPedidoGuarded({
+    medio: String(formData.get("paymentMethod") || ""),
+    quedaACobrar,
+    leer: () =>
+      prisma.order.findFirst({ where: { id, tenantId }, select: { code: true, status: true, paid: true } }),
+    // El MISMO cobro que el botón «Cobrar»: medio obligatorio, frontera del día cerrado,
+    // "sólo lo que no estaba cobrado" y el asiento en la caja en la misma transacción.
+    cobrar: async (medio) =>
+      (await setOrderPaidCore(id, medio)) ?? { ok: false, error: "No se pudo cobrar el pedido." },
+    marcarEntregado: async () =>
+      (
+        await prisma.order.updateMany({
+          where: { id, tenantId, status: "READY" },
+          data: { status: "DELIVERED" },
+        })
+      ).count === 1,
+  });
+
+  revalidatePath(ORDERS_PATH);
+  if (!r.ok) return r;
+  if (r.entregado) {
+    await auditAdmin({
+      action: "update",
+      entity: "Order",
+      entityId: id,
+      changes: { status: { from: "READY", to: "DELIVERED" }, ...(r.quedaACobrar ? { quedaACobrar: true } : {}) },
+    });
+  }
+  return { ok: true, mensaje: r.mensaje };
+}
+
 // --- Anular una venta (lo que antes era "Cancelar") ---
 //
 // Antes esta acción hacía UN `update` de estado y nada más: el pedido decía "Cancelado" y al
@@ -496,14 +596,28 @@ export async function cobrarPedido(
 // "DELIVERED"` → `return` sin decir nada). Desde que la venta de mostrador cobrada nace
 // DELIVERED, rechazar el estado terminal dejaría sin corrección al caso que una carnicería
 // corrige TODOS LOS DÍAS: el paquete decía 1,240 y eran 1,310.
+//
+// QUIÉN ANULA QUÉ. Pide `orders:void`, no `orders:manage`: anular mueve plata hacia atrás. El
+// dueño anula cualquier día que no esté cerrado; recepción, sólo lo cobrado hoy y siempre con
+// motivo (`alcanceDeAnulacion`, capabilities.ts). El motivo y el límite de día se deciden en
+// `reglasDeAnulacion` y en `anularVentaInTx`, puros y probados; acá sólo se les pasa quién es
+// y qué día es hoy en la zona del negocio.
 async function anularVentaCore(
   orderId: string,
-  motivo: string,
+  motivoRaw: string,
   devuelveStock: boolean,
 ): Promise<OrderActionState> {
-  const user = await requireCapability("orders:manage");
+  const user = await requireCapability("orders:void");
   const tenantId = await getCurrentTenantId();
   if (!orderId) return { ok: false, error: "Falta identificar el pedido a anular." };
+
+  const reglas = reglasDeAnulacion({
+    alcance: alcanceDeAnulacion(user.role),
+    motivo: motivoRaw,
+    hoy: dateStrInBusinessTz(new Date()),
+  });
+  if (!reglas.ok) return { ok: false, error: reglas.error };
+  const motivo = reglas.motivo;
 
   // La frontera se lee ANTES de abrir la transacción (no depende de nada que la tx cambie),
   // igual que en el libro y en el cierre diario.
@@ -521,6 +635,7 @@ async function anularVentaCore(
           diaCerradoHasta: cerradoHasta,
           esDiaCerrado: isFrozenDay,
           diaDe: dateStrInBusinessTz,
+          soloDelDia: reglas.soloDelDia,
         }),
       { tenantId },
     );
@@ -540,6 +655,8 @@ async function anularVentaCore(
     return { ok: true, mensaje: "Esa venta ya estaba anulada." };
   }
 
+  // Quién anuló queda en el `actor` del registro (auditAdmin lo toma de la sesión); el rol va
+  // en los cambios para que la dueña distinga, sin cruzar tablas, lo que anuló recepción.
   await auditAdmin({
     action: "update",
     entity: "Order",
@@ -547,6 +664,7 @@ async function anularVentaCore(
     changes: {
       status: "CANCELLED",
       motivo,
+      rol: user.role,
       montoRevertido: resultado.montoRevertido,
       reversaId: resultado.reversaId,
       stockDevuelto: resultado.stockDevuelto,
@@ -569,45 +687,22 @@ async function anularVentaCore(
 }
 
 /**
- * Acción con estado, para la pantalla que pide el MOTIVO (`useActionState`). Es la que
- * conviene cablear: el motivo es lo único que explica la plata faltante seis meses después.
+ * Anular desde la bandeja (`AnularPedidoForm`): el motivo del rechazo —sin motivo, venta de
+ * otro día, día cerrado— llega entero a la pantalla. Firma `(prev, formData)` de
+ * `useActionState`, aunque hoy se invoca directo (el porqué, en CobrarPedidoForm).
  */
 export async function anularVenta(
   _prev: OrderActionState,
   formData: FormData,
 ): Promise<OrderActionState> {
-  const motivo = String(formData.get("motivo") || "").trim() || MOTIVO_ANULACION_SIN_TEXTO;
   // "La mercadería no volvió" es una CASILLA, no el default: en el caso diario —se pesó mal y
   // se rehace la venta— la carne nunca salió del mostrador y tiene que volver al stock.
   const devuelveStock = String(formData.get("stockNoVolvio") || "") !== "on";
-  return anularVentaCore(String(formData.get("id") || "").trim(), motivo, devuelveStock);
-}
-
-/**
- * Compatibilidad con el botón "Cancelar" que YA está vivo en la bandeja
- * (`pedidos/page.tsx`), que postea sin motivo y descarta el valor devuelto. Mantiene la firma
- * `Promise<void>` a propósito: cambiarla rompería el `<form action={...}>` de esa página.
- *
- * **NO LANZA, y es deliberado.** Este botón no tiene diálogo de confirmación y lo aprieta hoy
- * la dueña de la estética, el único tenant vivo. No hay `error.tsx` bajo `src/app/admin/`, así
- * que una excepción acá le vuela la pantalla entera y en producción Next redacta el mensaje:
- * vería un error genérico, sin saber qué pasó ni qué hacer. Un rechazo —hoy sólo uno: el día
- * del asiento ya está cerrado— deja el pedido como estaba y queda en el log; el saldo del día
- * cerrado, que es lo que la guarda protege, no se toca igual.
- *
- * Es una salida de compromiso hasta que la pantalla pase a `anularVenta`, que sí devuelve el
- * motivo para mostrarlo. Mientras tanto: el caso normal (revertir plata y stock) funciona, y
- * el caso raro no rompe nada.
- */
-export async function cancelOrder(formData: FormData): Promise<void> {
-  const id = String(formData.get("id") || "").trim();
-  const r = await anularVentaCore(id, MOTIVO_ANULACION_SIN_TEXTO, true);
-  if (r && !r.ok) {
-    logger.warn("pedidos", "cancelOrder: la anulación se rechazó y la pantalla no puede mostrarlo", {
-      orderId: id,
-      motivo: r.error,
-    });
-  }
+  return anularVentaCore(
+    String(formData.get("id") || "").trim(),
+    String(formData.get("motivo") || ""),
+    devuelveStock,
+  );
 }
 
 // --- Editar las líneas de un pedido todavía no cobrado (el peso real) ---

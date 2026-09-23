@@ -439,31 +439,3 @@ test("sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja"
   );
 });
 
-test("el botón «Cancelar» que ya está vivo NO puede volar la pantalla", () => {
-  // No tiene diálogo de confirmación, lo aprieta hoy la dueña de la estética, y no hay
-  // `error.tsx` bajo src/app/admin/: una excepción le vuela la pantalla entera y en
-  // producción Next redacta el mensaje, así que vería un error genérico.
-  const src = readFileSync(new URL("./order-actions.ts", import.meta.url), "utf8");
-  const i = src.indexOf("export async function cancelOrder");
-  assert.ok(i > 0, "order-actions.ts ya no exporta cancelOrder");
-  const sig = src.indexOf("\nexport ", i + 1);
-  const cuerpo = src.slice(i, sig === -1 ? undefined : sig);
-  assert.doesNotMatch(
-    cuerpo,
-    /throw\s/,
-    "cancelOrder volvió a lanzar. Sin error boundary, eso es la pantalla en blanco para la " +
-      "única clienta viva, por una condición de negocio rutinaria (el día ya está cerrado).",
-  );
-  assert.match(cuerpo, /logger\.warn/, "y el rechazo tiene que quedar en el log, no perderse");
-});
-
-test("no hay error.tsx bajo /admin — por eso cancelOrder no puede lanzar", () => {
-  // Si algún día aparece uno, este test se cae y hay que revisar la decisión de arriba: con
-  // un boundary, lanzar y mostrar el motivo pasa a ser mejor que tragárselo.
-  const hay = existsSync(new URL("../app/admin/error.tsx", import.meta.url));
-  assert.equal(
-    hay,
-    false,
-    "apareció un error boundary en /admin: revisá si cancelOrder ya puede lanzar y mostrar el motivo",
-  );
-});

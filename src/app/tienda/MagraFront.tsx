@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { placeOnlineOrder } from "@/lib/order-actions";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import {
@@ -51,6 +52,18 @@ const money2 = new Intl.NumberFormat("es-AR", { style: "currency", currency: "AR
 const unitPrice = (p: Product) => (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
 const unitLabel = (p: Product) => (p.saleUnit === "WEIGHT" ? "/ kg" : "/ u");
 
+// Clave anti-duplicado del pedido (la lee `placeOnlineOrder`). Con el doble toque del
+// celular —o un reintento de red— los dos envíos llevan la MISMA clave y el servidor devuelve
+// el mismo pedido: no se crea otro ni se descuenta el stock dos veces. Se renueva cuando
+// cambia la bolsa: si el primer envío llegó pero la página de gracias no, el cliente que
+// cambia un corte y reenvía está pidiendo OTRA cosa, y con la clave vieja recibiría el pedido
+// viejo sin enterarse. `randomUUID` sólo existe en https o localhost; afuera, la otra rama.
+function nuevaClaveDePedido(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function MagraFront({ products, branding, tenantKey, content = MAGRA }: Props) {
   // UN SOLO número, el del LOCAL (BusinessSettings.whatsapp): el mismo que abren los botones
   // y el mismo que se muestra escrito en el pie. Antes había dos fuentes —el CTA usaba el
@@ -78,10 +91,14 @@ function MagraFrontContent({
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
+  // La clave se manda sólo con la bolsa llena, así que nunca sale en el HTML del servidor y
+  // generarla distinta en el servidor y en el navegador no rompe la hidratación.
+  const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   function bump(p: Product, dir: 1 | -1) {
     const step = p.saleUnit === "WEIGHT" ? 0.25 : 1;
+    setClaveDePedido(nuevaClaveDePedido());
     setCart((s) => {
       const q = Math.max(0, Math.round(((s[p.id] ?? 0) + dir * step) * 100) / 100);
       const n = { ...s };
@@ -478,6 +495,7 @@ function MagraFrontContent({
 
               {hasItems && (
                 <div className="mf-checkout">
+                  <input type="hidden" name="idempotencyKey" value={claveDePedido} />
                   <label className="mf-field">
                     <span>Nombre y apellido *</span>
                     <input name="customerName" required autoComplete="name" placeholder="Tu nombre" />
@@ -508,9 +526,7 @@ function MagraFrontContent({
 
               <p className="mf-rail-muted">Pagás al recibir: efectivo, débito, crédito, transferencia o Mercado Pago.</p>
 
-              <button type="submit" className="mf-btn mf-btn-oro mf-rail-submit" disabled={!hasItems}>
-                Enviar pedido
-              </button>
+              <BotonEnviarPedido disabled={!hasItems} />
               <button
                 type="button"
                 className="mf-btn mf-btn-wa mf-rail-wa"
@@ -532,6 +548,17 @@ function MagraFrontContent({
         </a>
       )}
     </div>
+  );
+}
+
+// Mientras el pedido viaja, el botón dice que está enviando y no acepta otro toque. La clave
+// anti-duplicado ya garantiza un solo pedido; esto le evita al cliente la duda de si tocó.
+function BotonEnviarPedido({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" className="mf-btn mf-btn-oro mf-rail-submit" disabled={disabled || pending} aria-busy={pending || undefined}>
+      {pending ? "Enviando…" : "Enviar pedido"}
+    </button>
   );
 }
 

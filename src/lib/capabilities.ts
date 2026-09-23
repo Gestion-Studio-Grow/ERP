@@ -29,6 +29,25 @@ export type Capability =
   | "catalog:manage"
   | "orders:read"
   | "orders:manage" // tomar pedidos / vender en mostrador (POS), avanzar y cobrar pedidos
+  // Anular una venta o un pedido: asienta el egreso en la caja y devuelve la mercadería. Va
+  // SEPARADA de `orders:manage` porque mueve plata hacia atrás, y hasta dónde llega depende
+  // del rol: ver `alcanceDeAnulacion` más abajo.
+  | "orders:void"
+  // Stock y compras. Van de a una para poder darle al encargado de un local (hoy RECEPTION:
+  // no hay rol propio sin migrar el enum de Postgres) lo que necesita para recibir, contar y
+  // cargar mermas, sin darle los costos ni las compras. Ninguna habilita nada hasta que una
+  // app la pida: se declaran juntas para que el mapa de roles se decida una sola vez.
+  | "stock:read" // ver el stock, sin costos
+  | "stock:receive" // recibir mercadería
+  | "stock:count" // cargar un recuento
+  | "stock:adjust" // cargar mermas y ajustes (RECEPTION con tope: lo fija la app de Mermas)
+  | "purchasing:manage" // proveedores, pedidos y devoluciones a proveedor
+  | "costs:read" // ver costos y margen
+  // Mis locales (marca con varios locales). La capability sola NO alcanza: las apps exigen
+  // además el módulo `multilocal` asignado y que el negocio sea la casa de la red, igual que
+  // `cartera:manage` con su módulo.
+  | "multilocal:manage"
+  | "traslados:manage" // mandar mercadería de un local a otro de la misma red
   | "coupons:manage"
   | "reminders:manage"
   | "reviews:manage"
@@ -94,6 +113,15 @@ const DEL_DUENIO: Record<Exclude<Capability, keyof typeof NO_SON_DEL_DUENIO>, tr
   "catalog:manage": true,
   "orders:read": true,
   "orders:manage": true,
+  "orders:void": true,
+  "stock:read": true,
+  "stock:receive": true,
+  "stock:count": true,
+  "stock:adjust": true,
+  "purchasing:manage": true,
+  "costs:read": true,
+  "multilocal:manage": true,
+  "traslados:manage": true,
   "coupons:manage": true,
   "reminders:manage": true,
   "reviews:manage": true,
@@ -143,6 +171,19 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     // RECEPTION lo tiene. El catálogo/precios sigue solo-OWNER.
     "orders:read",
     "orders:manage",
+    // Anula, pero sólo lo cobrado hoy y siempre con motivo (`alcanceDeAnulacion`). Sin esto,
+    // corregir una pesada un sábado con cola obligaría a llamar a la dueña; el control va por
+    // lo que queda escrito (quién anuló y por qué), no por pedir su clave.
+    "orders:void",
+    // El encargado del local: ve el stock (sin costos), recibe, cuenta y carga mermas. Los
+    // costos, las compras y los proveedores siguen siendo del dueño.
+    "stock:read",
+    "stock:receive",
+    "stock:count",
+    "stock:adjust",
+    // Traslados entre locales de la misma red: sin el módulo `multilocal` asignado a la casa
+    // no habilita ninguna pantalla.
+    "traslados:manage",
   ],
   // El profesional ve y cierra SU agenda, y cobra SUS turnos (decisión del dueño: cobra y
   // rinde la comisión después). No puede crear, cancelar ni reprogramar: eso es
@@ -152,6 +193,27 @@ export const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
 
 export function roleHasCapability(role: Role, cap: Capability): boolean {
   return ROLE_CAPABILITIES[role].includes(cap);
+}
+
+/**
+ * Hasta dónde llega `orders:void` según quién anula.
+ *
+ * - `soloHoy`: sólo se anula una venta COBRADA HOY (el día del asiento en la caja, en la zona
+ *   del negocio). Una venta de ayer ya forma parte de un arqueo que otra persona puede estar
+ *   contando; corregirla es decisión del dueño.
+ * - `motivoObligatorio`: el motivo es lo único que explica, meses después, por qué falta esa
+ *   plata en la caja.
+ *
+ * El dueño anula cualquier día que no esté cerrado y el motivo le queda opcional. Cualquier
+ * otro rol con la capability recibe el alcance restringido: si mañana se le da `orders:void`
+ * a un rol nuevo, arranca con el límite puesto, no sin él. `null` = no anula.
+ */
+export type AlcanceDeAnulacion = { soloHoy: boolean; motivoObligatorio: boolean };
+
+export function alcanceDeAnulacion(role: Role): AlcanceDeAnulacion | null {
+  if (!roleHasCapability(role, "orders:void")) return null;
+  if (role === "OWNER") return { soloHoy: false, motivoObligatorio: false };
+  return { soloHoy: true, motivoObligatorio: true };
 }
 
 // Ruta "home" de cada rol — a dónde mandarlo cuando entra al panel o cuando

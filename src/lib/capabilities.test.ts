@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { roleHasCapability, ROLE_CAPABILITIES, ALL_CAPABILITIES } from "./capabilities";
+import { roleHasCapability, ROLE_CAPABILITIES, ALL_CAPABILITIES, alcanceDeAnulacion } from "./capabilities";
 
 // ── Quién cobra (decisión del dueño, 2026-09-07) ─────────────────────────────
 //
@@ -46,4 +46,60 @@ test("ningún rol tiene una capacidad que no esté declarada", () => {
       assert.ok(declaradas.has(c), `${rol} tiene "${c}", que no está en ALL_CAPABILITIES`);
     }
   }
+});
+
+// ── Capabilities nuevas del modelo por apps ─────────────────────────────────
+//
+// Se declaran todas juntas y el mapa de roles se decide una sola vez. Lo que se fija acá es
+// QUIÉN tiene cada una; ninguna abre una pantalla hasta que una app la pida.
+
+const NUEVAS = [
+  "orders:void",
+  "stock:read",
+  "stock:receive",
+  "stock:count",
+  "stock:adjust",
+  "purchasing:manage",
+  "costs:read",
+  "multilocal:manage",
+  "traslados:manage",
+] as const;
+
+test("el dueño tiene todas las capabilities nuevas", () => {
+  for (const cap of NUEVAS) {
+    assert.ok(ALL_CAPABILITIES.includes(cap), `${cap} no está declarada`);
+    assert.equal(roleHasCapability("OWNER", cap), true, `falta ${cap} en OWNER`);
+  }
+});
+
+test("recepción es el encargado del local: anula, ve stock, recibe, cuenta y carga mermas", () => {
+  for (const cap of ["orders:void", "stock:read", "stock:receive", "stock:count", "stock:adjust", "traslados:manage"] as const) {
+    assert.equal(roleHasCapability("RECEPTION", cap), true, `RECEPTION necesita ${cap}`);
+  }
+});
+
+test("recepción no ve costos ni maneja compras ni la red de locales", () => {
+  assert.equal(roleHasCapability("RECEPTION", "costs:read"), false, "el encargado ve el stock SIN costos");
+  assert.equal(roleHasCapability("RECEPTION", "purchasing:manage"), false);
+  assert.equal(roleHasCapability("RECEPTION", "multilocal:manage"), false);
+});
+
+test("el profesional no recibe ninguna de las nuevas", () => {
+  for (const cap of NUEVAS) {
+    assert.equal(roleHasCapability("PROFESSIONAL", cap), false, `PROFESSIONAL no debería tener ${cap}`);
+  }
+});
+
+// ── Hasta dónde anula cada rol ──────────────────────────────────────────────
+
+test("el dueño anula cualquier día no cerrado, y el motivo le queda opcional", () => {
+  assert.deepEqual(alcanceDeAnulacion("OWNER"), { soloHoy: false, motivoObligatorio: false });
+});
+
+test("recepción anula sólo lo cobrado hoy y siempre con motivo", () => {
+  assert.deepEqual(alcanceDeAnulacion("RECEPTION"), { soloHoy: true, motivoObligatorio: true });
+});
+
+test("el profesional no anula", () => {
+  assert.equal(alcanceDeAnulacion("PROFESSIONAL"), null);
 });

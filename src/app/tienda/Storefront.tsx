@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import { useFormStatus } from "react-dom";
 import { placeOnlineOrder } from "@/lib/order-actions";
 import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
@@ -49,6 +50,18 @@ type Branding = {
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const money2 = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
+
+// Clave anti-duplicado del pedido (la lee `placeOnlineOrder`). Con el doble toque del
+// celular —o un reintento de red— los dos envíos llevan la MISMA clave y el servidor devuelve
+// el mismo pedido: no se crea otro ni se descuenta el stock dos veces. Se renueva cuando
+// cambia el carrito: si el primer envío llegó pero la página de gracias no, el cliente que
+// cambia algo y reenvía está pidiendo OTRA cosa, y con la clave vieja recibiría el pedido
+// viejo sin enterarse. `randomUUID` sólo existe en https o localhost; afuera, la otra rama.
+function nuevaClaveDePedido(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function unitPriceOf(p: Product): number {
   return (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;
@@ -128,12 +141,16 @@ function StorefrontContent({
   }
   const [cart, setCart] = useState<Record<string, number>>({});
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
+  // El formulario se dibuja sólo con el carrito lleno, así que la clave nunca sale en el HTML
+  // del servidor y generarla distinta en el servidor y en el navegador no rompe la hidratación.
+  const [claveDePedido, setClaveDePedido] = useState(nuevaClaveDePedido);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   // Filtra las "líneas" de marketing (copy.vacioLines) que declaran `section` para no
   // anunciar un mundo sin góndola (QA m-1, 2026-07-07) — ver linesWithStock (pura, testeada).
   const vacioLines = useMemo(() => linesWithStock(copy?.vacioLines ?? [], products), [copy, products]);
 
   function setQty(id: string, qty: number) {
+    setClaveDePedido(nuevaClaveDePedido());
     setCart((c) => {
       const next = { ...c };
       if (qty > 0) next[id] = qty;
@@ -431,6 +448,7 @@ function StorefrontContent({
           {!hasItems && <p style={{ color: T.muted }}>Elegí lo que quieras de la selección con los botones + / −, o encargá por WhatsApp.</p>}
           {hasItems && (
             <form action={placeOnlineOrder} style={{ display: "grid", gap: 16 }}>
+              <input type="hidden" name="idempotencyKey" value={claveDePedido} />
               <div style={{ display: "grid", gap: 6 }}>
                 {lines.map((l) => (
                   <div key={l.p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
@@ -488,7 +506,7 @@ function StorefrontContent({
                 {fulfillment === "DELIVERY" && (<label style={lbl}><span style={lblT}>Dirección *</span><input name="address" required style={inp} placeholder="Calle, número, barrio" /></label>)}
                 <label style={{ ...lbl, gridColumn: "1 / -1" }}><span style={lblT}>Nota</span><input name="notes" style={inp} placeholder={wording.notesPlaceholder} /></label>
               </div>
-              <button type="submit" style={{ ...cta("var(--accent)", "var(--text-on-accent)"), height: 48 }}>{wording.orderCta}</button>
+              <BotonEnviarPedido texto={wording.orderCta} />
               <button type="button" onClick={() => requestWhatsApp(cartMessage)} style={{ ...cta("#fff", "#118648", "1px solid #25D366"), height: 46 }}>Pedir por WhatsApp</button>
               <p style={{ fontSize: 11, color: T.faint, textAlign: "center" }}>Te contactamos para confirmar. El pago se coordina al recibirlo.</p>
             </form>
@@ -694,6 +712,23 @@ function cta(bg: string, color: string, border?: string): CSSProperties {
 // display:inline-flex + minHeight 24 = área táctil AA (WCAG 2.5.8) sin cambiar el look
 // del CTA de texto ("Hacer pedido →" / "Lo quiero →"). Antes medían ~21px de alto.
 const linkCta: CSSProperties = { fontSize: 14, fontWeight: 700, textDecoration: "none", marginTop: 2, display: "inline-flex", alignItems: "center", minHeight: 24 };
+
+// Mientras el pedido viaja, el botón dice que está enviando y no acepta otro toque. La clave
+// anti-duplicado ya garantiza un solo pedido; esto le evita al cliente la duda de si tocó.
+function BotonEnviarPedido({ texto }: { texto: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending || undefined}
+      style={{ ...cta("var(--accent)", "var(--text-on-accent)"), height: 48, ...(pending ? { opacity: 0.7, cursor: "progress" } : null) }}
+    >
+      {pending ? "Enviando…" : texto}
+    </button>
+  );
+}
+
 function qtyBtn(bg: string, color: string): CSSProperties {
   return { height: 34, minWidth: 34, borderRadius: 10, border: "none", background: bg, color, fontWeight: 700, fontSize: 16, cursor: "pointer" };
 }
