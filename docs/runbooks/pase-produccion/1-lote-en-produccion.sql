@@ -1,10 +1,10 @@
 -- =============================================================================
--- PASE A PRODUCCIÓN — lote de 5 migraciones. Se pega en el SQL Editor de Neon, en la
+-- PASE A PRODUCCIÓN — lote de 4 migraciones (lead_campania ya estaba aplicada). Se pega en el SQL Editor de Neon, en la
 -- rama de PRODUCCIÓN, DESPUÉS de crear el branch de respaldo (Branches → Create branch →
 -- "respaldo-2026-09-23").
 -- =============================================================================
 -- Mismo SQL que el ensayo (docs/runbooks/ensayo-neon/1-lote-en-branch.sql), probado sobre una
--- réplica local del estado actual de producción: aplica las 5 en UNA transacción, las
+-- réplica local del estado actual de producción: aplica las 4 en UNA transacción, las
 -- registra en _prisma_migrations con el checksum de Prisma y frena si ya estaban. Si algo
 -- falla no queda nada a medias y el error dice cuál. El código que hoy está en producción
 -- sigue funcionando con la base migrada: el lote sólo AGREGA columnas, tablas e índices.
@@ -13,69 +13,10 @@
 BEGIN;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20260815120000_lead_campania', '20260906120000_add_cash_method_libro_caja', '20260907120000_add_cash_movement_payment_id', '20260907180000_add_appointment_partial_collections', '20260911120000_profesional_cobra_en_mostrador')) THEN
+  IF EXISTS (SELECT 1 FROM _prisma_migrations WHERE migration_name IN ('20260906120000_add_cash_method_libro_caja', '20260907120000_add_cash_movement_payment_id', '20260907180000_add_appointment_partial_collections', '20260911120000_profesional_cobra_en_mostrador')) THEN
     RAISE EXCEPTION 'Alguna migración del lote ya figura en _prisma_migrations: no se vuelve a aplicar encima.';
   END IF;
 END $$;
-
--- ─── 20260815120000_lead_campania · checksum aaa991f3ee1a50ab7c833e5539a79662eb4fd05eaa249d913e542a901a596ee7 ───
--- Contacto captado por una campaña presencial (QR del evento).
--- Vive aparte de "Client": es un contacto de marketing, no una clienta del negocio.
-CREATE TABLE "LeadCampania" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "campania" TEXT NOT NULL,
-    "nombre" TEXT NOT NULL,
-    "apellido" TEXT NOT NULL,
-    "telefono" TEXT NOT NULL,
-    "instagram" TEXT,
-    "aceptaDifusion" BOOLEAN NOT NULL DEFAULT false,
-    "consentimientoEn" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "LeadCampania_pkey" PRIMARY KEY ("id")
-);
-
--- Una inscripción por teléfono y campaña: hace el alta idempotente.
-CREATE UNIQUE INDEX "LeadCampania_tenantId_campania_telefono_key"
-    ON "LeadCampania"("tenantId", "campania", "telefono");
-
-CREATE INDEX "LeadCampania_tenantId_campania_idx"
-    ON "LeadCampania"("tenantId", "campania");
-
-ALTER TABLE "LeadCampania"
-    ADD CONSTRAINT "LeadCampania_tenantId_fkey"
-    FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id")
-    ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- ── AISLAMIENTO: esta migración protege la tabla en el mismo acto ───────────
---
--- Hasta acá, NINGUNA de las 21 migraciones que crean una tabla con `tenantId` prendía RLS.
--- No fue un leak porque `prisma/rls/0001_enable_rls.sql` es data-driven —le pone policy a
--- toda tabla con `tenantId`— y se re-corría después. Pero eso deja la protección dependiendo
--- de que alguien se acuerde: entre `migrate deploy` y el re-run de 0001, la tabla nueva
--- existe sin policy. Para ésta, que todavía no se aplicó a Neon, se emite acá.
---
--- Y no es una tabla cualquiera: `LeadCampania` guarda teléfono y consentimiento de difusión
--- de gente que dejó sus datos en un evento, y hay un export CSV. Es el peor dato del sistema
--- para que se cruce entre negocios.
---
--- MISMA policy `tenant_isolation` que 0001, con el mismo criterio: filtra por el GUC
--- `app.current_tenant_id` que setea `tenantTransaction` por request (`src/lib/rls.ts`).
--- Idempotente (DROP IF EXISTS + CREATE). Fail-closed: sin contexto de tenant no se ve ni se
--- escribe nada. No aplica al owner salvo FORCE RLS — el enforcement real lo da conectar como
--- `app_rls`, igual que en 0001.
-DO $$
-BEGIN
-  EXECUTE 'ALTER TABLE "LeadCampania" ENABLE ROW LEVEL SECURITY';
-  EXECUTE 'DROP POLICY IF EXISTS tenant_isolation ON "LeadCampania"';
-  EXECUTE 'CREATE POLICY tenant_isolation ON "LeadCampania" '
-       || 'USING ("tenantId" = current_setting(''app.current_tenant_id'', true)) '
-       || 'WITH CHECK ("tenantId" = current_setting(''app.current_tenant_id'', true))';
-END $$;
-
-INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-VALUES (gen_random_uuid()::text, 'aaa991f3ee1a50ab7c833e5539a79662eb4fd05eaa249d913e542a901a596ee7', now(), '20260815120000_lead_campania', NULL, NULL, now(), 1);
 
 -- ─── 20260906120000_add_cash_method_libro_caja · checksum c8d8cd3b7bae2c1804a13ce6858beba3f2d4e77adab61843c93fe92b23180427 ───
 -- LIBRO DE CAJA mensual multi-medio (reemplazo de la planilla de Google Sheets de CH Estética).
@@ -256,5 +197,5 @@ VALUES (gen_random_uuid()::text, '019ba69114549b6e531be2eadc52e75b85cc4c17383167
 
 COMMIT;
 
--- Verificación (sólo lectura): 5 filas, todas con finished_at.
-SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20260815120000_lead_campania', '20260906120000_add_cash_method_libro_caja', '20260907120000_add_cash_movement_payment_id', '20260907180000_add_appointment_partial_collections', '20260911120000_profesional_cobra_en_mostrador') ORDER BY migration_name;
+-- Verificación (sólo lectura): 4 filas, todas con finished_at.
+SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name IN ('20260906120000_add_cash_method_libro_caja', '20260907120000_add_cash_movement_payment_id', '20260907180000_add_appointment_partial_collections', '20260911120000_profesional_cobra_en_mostrador') ORDER BY migration_name;
