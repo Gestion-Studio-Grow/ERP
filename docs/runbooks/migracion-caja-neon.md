@@ -64,6 +64,21 @@ Sobre una base local llevada al estado documentado de producción (40 migracione
 
 ## Dos caminos para correrlo
 
+### 0 · Ensayo en un branch de Neon (sin terminal, sin tocar producción)
+
+Antes de la ventana, el mismo lote se prueba sobre una COPIA de producción:
+
+1. Neon → Branches → *Create branch* desde producción, nombre `ensayo-lote`.
+2. SQL Editor → elegir el branch `ensayo-lote` → pegar `docs/runbooks/ensayo-neon/1-lote-en-branch.sql` → *Run*.
+   Aplica las 5 en una transacción: si una falla, no queda nada a medias y el error dice cuál.
+3. Pegar `docs/runbooks/ensayo-neon/2-rls-despues-del-lote.sql` → *Run* (el aislamiento, data-driven).
+4. Si los dos terminan sin error, el domingo es este mismo camino sobre producción. El branch se
+   puede borrar o dejar como base del preview de Vercel (con su propia `DATABASE_URL` de Preview).
+
+Medido en local sobre una réplica del estado previo al lote: las 5 aplican, una segunda corrida
+frena sin tocar nada, el chequeo del build da "base al día, 96 índices" y el RLS queda completo en
+44 tablas. El SQL se genera con `node scripts/ensayo-lote-neon.mjs` y un test falla si quedó viejo.
+
 ### A · Desde el deploy de Vercel (no hace falta terminal)
 
 Es el camino para cuando nadie va a abrir una terminal con la cadena de producción. El build
