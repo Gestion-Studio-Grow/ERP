@@ -79,6 +79,29 @@ export function upgradeTeaserEnabled(
   return truthy(env.UPGRADE_TEASER_ENABLED);
 }
 
+// ============================================================================
+// FLAG DEL INICIO POR APPS — `APPS_INICIO` (ola 1 del modelo por apps).
+// ============================================================================
+//
+// No es un booleano: es la LISTA de negocios (slugs separados por coma, "magra,shinevelas")
+// que ven el Inicio por apps en vez del de hoy, o "*" para todos. Va por negocio y no global
+// porque CH (beauty-spa) está vivo y no cambia su Inicio sin el OK del dueño: con un flag
+// global, prenderlo para el piloto se lo cambiaba también a CH.
+//
+// Sacar un slug devuelve a ese negocio a su Inicio de hoy sin tocar un dato. La decisión
+// "¿este negocio está en la lista?" es `negocioEnAppsInicio` (src/apps/visibles.ts), pura y
+// probada; acá sólo se lee el valor. Lo lee el Inicio (y la paleta de Ctrl/⌘K); el gate por
+// módulo (src/apps/contexto.server.ts) todavía lee `process.env.APPS_INICIO` directo: es la
+// misma variable, pero conviene que pase por acá para que no haya dos lecturas.
+
+/** Valor crudo de `APPS_INICIO` (lista de slugs o "*"), o `undefined` si no está. PURA. */
+export function appsInicioValor(
+  env: Record<string, string | undefined> = process.env,
+): string | undefined {
+  const v = env.APPS_INICIO?.trim();
+  return v ? v : undefined;
+}
+
 /** Parseo booleano compartido de los flags de este archivo (env string → boolean). PURA. */
 function truthy(v: string | undefined): boolean {
   const n = v?.trim().toLowerCase();

@@ -21,6 +21,8 @@ export { profileEditionLabel, PROFILE_EDITION_LABEL } from "./profile-labels";
 export { KpiTile } from "./KpiTile";
 export type { KpiTileProps } from "./KpiTile";
 export { EmptyState } from "./EmptyState";
+export { AvisoError } from "./AvisoError";
+export type { AvisoErrorProps } from "./AvisoError";
 export type { EmptyStateProps } from "./EmptyState";
 export { DataTable } from "./DataTable";
 export type { DataTableProps, DataTableColumn, DataTableSort, SortDirection } from "./DataTable";

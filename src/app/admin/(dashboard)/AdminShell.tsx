@@ -1,68 +1,30 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
 import { type Role } from "@/lib/capabilities";
 import { type Perfil } from "@/modules/perfil";
-import { NAV_ITEM_GROUPS, groupNavItems } from "@/modules/nav-groups";
+import { NAV_GROUPS, type NavGroupId } from "@/modules/nav-groups";
 import { searchNavItems } from "@/modules/nav-search";
-import { menuItemsParaTenant, type ShellItem } from "@/lib/admin-nav-items";
+import type { AppDescriptor } from "@/apps/contract";
+import type { ItemMenuDeHoy } from "@/apps/visibles";
+import { IconoApp } from "@/components/iconos-apps";
 import { ProfileBadge } from "@/components/ui";
 import ThemeToggle from "./ThemeToggle";
+import PaletaApps from "./inicio/PaletaApps";
 
-// Íconos de línea (dirección B): un set chico inline, sin dependencias. Se
-// eligen por href. `currentColor` para que hereden el color del ítem (activo =
-// acento del tenant, inactivo = muted).
+// Íconos de línea: el set vive en src/components/iconos-apps.tsx para que la barra, el
+// Inicio y "App no disponible" dibujen el MISMO ícono por app. Los trazos son los que tenía
+// este archivo, idénticos. `currentColor`: activo = acento del negocio, inactivo = apagado.
 function Icon({ name }: { name: string }) {
-  const p: Record<string, React.ReactNode> = {
-    dashboard: (<><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>),
-    agenda: (<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></>),
-    clientes: (<><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" /></>),
-    espera: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
-    pedidos: (<><path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><path d="M3 6h18M16 10a4 4 0 01-8 0" /></>),
-    caja: (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h4" /></>),
-    // Cierre del día = el cajón YA contado. Comparte la silueta de `caja` (es la misma
-    // plata) y se distingue por el tilde: sin ícono propio caía en el fallback `dashboard`,
-    // que no dice nada, o repetía `caja` y volvía a dejar dos ítems indistinguibles — que
-    // es exactamente lo que el QA marcó.
-    cierre: (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /><path d="M8.5 14.8l2 2 4-4" /></>),
-    catalogo: (<><path d="M4 6h16M4 12h16M4 18h10" /></>),
-    compras: (<><path d="M4 5h2l1.2 11a1.5 1.5 0 001.5 1.3h8.1a1.5 1.5 0 001.5-1.2L20 8H7" /><circle cx="9.5" cy="20" r="1" /><circle cx="17" cy="20" r="1" /><path d="M13 4v4M11 6h4" /></>),
-    ajustes: (<><path d="M4 8h9M17 8h3M4 16h3M11 16h9" /><circle cx="15" cy="8" r="2" /><circle cx="9" cy="16" r="2" /></>),
-    resenas: (<path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 17l-5.3 2.8 1-5.8L3.5 9.2l5.9-.9z" />),
-    recordatorios: (<path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0" />),
-    reportes: (<path d="M5 20V10M12 20V4M19 20v-7" />),
-    facturacion: (<><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6M9 11h6M9 15h4" /></>),
-    auditoria: (<><path d="M9 12l2 2 4-4" /><rect x="4" y="4" width="16" height="16" rx="2" /></>),
-    usuarios: (<><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5M16 11l2 2 3-3.5" /></>),
-    localizacion: (<><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></>),
-    apariencia: (<><path d="M12 3a9 9 0 100 18h1.5a2 2 0 001.4-3.4c-.9-.9-.3-2.6 1-2.6H19a3 3 0 003-3c0-5-4.5-9-10-9z" /><circle cx="7.8" cy="10.5" r="1" /><circle cx="12" cy="7.5" r="1" /><circle cx="16.2" cy="10.5" r="1" /></>),
-    modulos: (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
-    // Ítems Empresa (perfilMin=enterprise). Mismo lenguaje de línea que el resto.
-    "cuentas-a-pagar": (<><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M12 17v-4M10 15l2-2 2 2" /></>),
-    contabilidad: (<><path d="M6 4h11a2 2 0 012 2v14H8a2 2 0 01-2-2z" /><path d="M9 8h7M9 12h7M9 16h4" /></>),
-    devoluciones: (<><path d="M9 14l-4-4 4-4" /><path d="M5 10h9a5 5 0 010 10h-2" /></>),
-    // Rubro carnicería (retail): inventario (cajas apiladas), lotes/vacío (etiqueta),
-    // despiece (cuchilla). Mismo lenguaje de línea.
-    inventario: (<><path d="M3 7l9-4 9 4-9 4-9-4z" /><path d="M3 7v10l9 4 9-4V7M12 11v10" /></>),
-    lotes: (<><path d="M20.6 13.4 13.4 20.6a2 2 0 01-2.8 0l-6.2-6.2a2 2 0 01-.6-1.4V5a1 1 0 011-1h7.6a2 2 0 011.4.6l6.4 6.4a2 2 0 010 2.8z" /><circle cx="8.5" cy="8.5" r="1.2" /></>),
-    despiece: (<><path d="M4 4l9 9M13 13l-2 2-3-3 2-2M13 13l6 6" /><path d="M14 6a3 3 0 104 4z" /></>),
-  };
-  return (
-    <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {p[name] ?? p.dashboard}
-    </svg>
-  );
+  return <IconoApp nombre={name} />;
 }
 
-// `ALL_ITEMS` + el tipo `ShellItem` viven en `@/lib/admin-nav-items` (dato puro,
-// una sola fuente de verdad): esta nav los pinta filtrados por rol × módulo ×
-// perfil × rubro, y el gating por-URL del producto Comerciante (server) mapea ruta →
-// módulo con la MISMA lista, sin duplicarla. Los ítems de rubro viven ahí también y se
-// filtran acá por isRetail/carniceriaReady: `retailOnly`/`carniceriaOnly` MUESTRAN lo de
-// mostrador, `agendaOnly` ESCONDE lo que sólo sirve con turnos.
+// Los ítems de la barra llegan YA decididos desde el layout (server): salen del registro de
+// apps (`appsVisibles` + `proyectarMenuDeHoy`, src/apps/visibles.ts), la misma decisión que
+// usa la guardia de cada página. Acá no queda lógica de visibilidad: sólo se pintan.
 
 const ROLE_LABEL: Record<Role, string> = {
   OWNER: "Dueño/a",
@@ -124,16 +86,28 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
 
 // Nav AGRUPADA en 5 grupos de negocio (ADR-059 D3) — detrás del flag maestro
 // `NAV_GROUPING_ENABLED` (default OFF; el layout server-side lo resuelve y lo
-// pasa como prop `navGrouping`). Reusa `groupNavItems` (S4, `@/modules/nav-groups`)
-// sobre los ítems YA filtrados por rol×módulo, y el MISMO <NavLinks> por grupo
-// (icono / estado activo / acento idénticos a la nav plana legada). `ungrouped`
-// es la red de seguridad de S4: un ítem sin grupo asignado se sigue viendo, no
-// desaparece en silencio. Con el flag OFF este componente ni se monta.
-function NavGroups({ items, onNavigate }: { items: ShellItem[]; onNavigate?: () => void }) {
-  const { groups, ungrouped } = groupNavItems(
-    // Grupo de los 17 base: `NAV_ITEM_GROUPS`. Ítems Empresa: traen su propio `grupo`.
-    items.map((it) => ({ ...it, grupo: NAV_ITEM_GROUPS[it.href] ?? it.grupo })),
-  );
+// pasa como prop `navGrouping`). Cada ítem ya trae su `grupo` desde el registro (el de
+// `NAV_ITEM_GROUPS`, o el propio de los ítems Empresa: lo prueba la paridad de la barra),
+// en el orden de `NAV_GROUPS`, y se pinta con el MISMO <NavLinks> por grupo (icono / estado
+// activo / acento idénticos a la nav plana). `ungrouped` es la red de seguridad: un ítem
+// sin grupo se sigue viendo, no desaparece en silencio. Con el flag OFF ni se monta.
+function agruparMenu(items: readonly ItemMenuDeHoy[]) {
+  const porGrupo = new Map<NavGroupId, ItemMenuDeHoy[]>();
+  const ungrouped: ItemMenuDeHoy[] = [];
+  for (const it of items) {
+    if (!it.grupo) ungrouped.push(it);
+    else porGrupo.set(it.grupo, [...(porGrupo.get(it.grupo) ?? []), it]);
+  }
+  const groups = NAV_GROUPS.filter((g) => porGrupo.has(g.id)).map((g) => ({
+    id: g.id,
+    label: g.label,
+    items: porGrupo.get(g.id)!,
+  }));
+  return { groups, ungrouped };
+}
+
+function NavGroups({ items, onNavigate }: { items: ItemMenuDeHoy[]; onNavigate?: () => void }) {
+  const { groups, ungrouped } = agruparMenu(items);
   return (
     <div className="space-y-4">
       {groups.map((g) => (
@@ -166,18 +140,26 @@ function NavGroups({ items, onNavigate }: { items: ShellItem[]; onNavigate?: () 
 // ACCESIBILIDAD (Gate, ángulo a11y): combobox + listbox con `aria-activedescendant`,
 // recorrible con ↑ ↓ Enter Escape, label real (sr-only), y el conteo de
 // resultados anunciado por `aria-live` para quien navega con lector de pantalla.
+//
+// EN EL PILOTO DEL INICIO POR APPS (`onBuscar` presente) el campo se reemplaza por un botón
+// que abre la paleta de apps (Ctrl/⌘K, la misma búsqueda del Inicio, con la descripción de
+// cada app y todas las que la persona ve, no sólo las de la barra). Así hay UN buscador, no
+// dos que encuentran cosas distintas. Fuera del piloto (CH) esto queda exactamente igual.
 function NavBuscable({
   items,
   navGrouping,
   onNavigate,
   atajoGlobal = false,
+  onBuscar,
 }: {
-  items: ShellItem[];
+  items: ItemMenuDeHoy[];
   navGrouping: boolean;
   onNavigate?: () => void;
   // ¿Esta instancia escucha Ctrl/⌘+K? Solo la del sidebar de escritorio: el cajón
   // móvil monta un segundo <NavBuscable> y dos listeners se pelearían el foco.
   atajoGlobal?: boolean;
+  // Piloto: abre la paleta de apps en vez de buscar en la barra.
+  onBuscar?: () => void;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -254,6 +236,11 @@ function NavBuscable({
     // ENCIMA de los últimos ítems del menú, y el último grupo cortado fuera de la
     // pantalla. Reportado con captura desde un teléfono real.
     <div className="flex flex-1 flex-col min-h-0">
+      {onBuscar ? (
+        <div className="shrink-0 px-1 pb-3">
+          <BotonBuscarApps onClick={onBuscar} />
+        </div>
+      ) : (
       <div className="shrink-0 px-1 pb-3">
         <label htmlFor={`${listboxId}-input`} className="sr-only">
           Buscar en el menú
@@ -299,6 +286,7 @@ function NavBuscable({
           )}
         </div>
       </div>
+      )}
 
       {/* Conteo para lectores de pantalla: sin esto, quien no ve la lista no sabe
           si lo que tipeó encontró algo. */}
@@ -397,66 +385,103 @@ function NavFooter({
   );
 }
 
+// Botón de la barra que abre la paleta de apps (piloto). Dice el atajo para que se aprenda:
+// ⌘K en Mac, Ctrl K en el resto. La plataforma se lee sin romper la hidratación: el
+// servidor (y el primer render del cliente) dicen "Ctrl K" y después se corrige.
+const sinSuscripcion = () => () => {};
+function esMacCliente(): boolean {
+  return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+}
+
+function BotonBuscarApps({ onClick }: { onClick: () => void }) {
+  const esMac = useSyncExternalStore(sinSuscripcion, esMacCliente, () => false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-haspopup="dialog"
+      aria-label="Buscar una app"
+      className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-line bg-surface-sunken pl-2.5 pr-2 text-sm text-faint hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus lg:min-h-0 lg:py-[7px]"
+    >
+      <svg className="w-[15px] h-[15px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+        <circle cx="11" cy="11" r="7" />
+        <path d="M20 20l-3.5-3.5" />
+      </svg>
+      <span className="min-w-0 flex-1 truncate text-left">Buscar…</span>
+      <kbd className="hidden shrink-0 whitespace-nowrap rounded border border-line px-1 font-sans text-[11px] text-faint lg:inline">
+        {esMac ? "⌘K" : "Ctrl K"}
+      </kbd>
+    </button>
+  );
+}
+
 export default function AdminShell({
   children,
   role,
   userName,
   brandName,
   monogram,
-  activeModules = null,
+  menu,
+  apps = [],
+  modoApps = false,
   navGrouping = false,
   activeProfile = null,
   showPublicSite = true,
-  isRetail = false,
-  carniceriaReady = false,
 }: {
   children: React.ReactNode;
   role: Role;
   userName: string;
   brandName: string;
   monogram: string;
+  // La barra, YA decidida en el layout (server) desde el registro de apps: sólo lo que esta
+  // persona puede abrir en este negocio, con el rótulo, ícono, grupo y orden de hoy.
+  menu: ItemMenuDeHoy[];
+  // Piloto del Inicio por apps (`APPS_INICIO`): las apps que la persona ve, para la paleta
+  // de Ctrl/⌘K. Fuera del piloto llega vacío y la barra busca en su menú, como siempre.
+  apps?: readonly AppDescriptor[];
+  modoApps?: boolean;
   // ¿El producto tiene vidriera pública en "/"? Vertical → sí (default). Productos de
   // facturación (Comerciante) → false: se oculta el link "Ver sitio público" del footer.
   showPublicSite?: boolean;
-  // ¿El tenant es de rubro retail/mostrador (Magra)? Habilita los ítems `retailOnly`
-  // (Inventario). Default false → servicios (CH) nunca los ve → nav byte-idéntica.
-  isRetail?: boolean;
-  // ¿Está aplicada la migración cárnica (Gate 2)? Habilita `carniceriaOnly` (Lotes /
-  // Despiece). Default false → sin schema, los ítems ni aparecen. Lo resuelve el layout.
-  carniceriaReady?: boolean;
-  // Ids de módulos activos del tenant, o `null` si el gating está apagado (flag OFF)
-  // → no se gatea por módulo. Se resuelve server-side en el layout.
-  activeModules?: string[] | null;
   // ¿Nav agrupada en 5 grupos (ADR-059 D3)? Default false = nav plana legada. El
   // layout lo resuelve con `navGroupingEnabled()` (flag `NAV_GROUPING_ENABLED`,
   // default OFF). Reversible de un golpe: OFF → shell idéntico al de hoy.
   navGrouping?: boolean;
-  // Perfil activo del tenant (3ª dimensión, ADR-058/059), o `null` si el motor está
-  // apagado (flag `PROFILES_ENABLED` OFF, default) → NO se gatea por perfil. Lo
-  // resuelve `getActiveProfile()` server-side en el layout. Con `null` la nav es
-  // idéntica a la legada (no se suman ítems Empresa). El cliente ve "Comercio"/
-  // "Empresa", nunca lite/enterprise (ADR-059 D7).
+  // Perfil activo del tenant (ADR-058/059), o `null` con el motor apagado (flag
+  // `PROFILES_ENABLED` OFF, default). Acá sólo pinta la insignia de edición: qué ítems
+  // entran por perfil ya lo decidió el layout. El cliente ve "Comercio"/"Empresa", nunca
+  // lite/enterprise (ADR-059 D7).
   activeProfile?: Perfil | null;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  // LA NAV SALE DE UNA SOLA FUNCIÓN, y esa función es testeable sin render.
-  // `menuItemsParaTenant` (src/lib/admin-nav-items.ts) compone los CUATRO ejes —
-  // rol × módulo × perfil × RUBRO— y es la MISMA que ejecuta src/lib/nav-rubro.test.ts
-  // con los ítems y los rubros reales. Acá no queda lógica de visibilidad: si el filtro
-  // volviera a escribirse inline, el test dejaría de cubrir lo que el usuario ve.
-  // Por qué importa el eje RUBRO: el que atiende una carnicería abría un menú con Agenda,
-  // Lista de espera, Reseñas y Recordatorios —cuatro pantallas que en un tenant sin
-  // Service ni Professional no se pueden usar— y le faltaban Inventario y Lotes.
-  const items = menuItemsParaTenant({
-    role,
-    activeModules: activeModules === null ? null : new Set(activeModules),
-    activeProfile,
-    isRetail,
-    carniceriaReady,
-  });
+  const items = menu;
   const roleLabel = ROLE_LABEL[role];
+
+  // PALETA DE APPS (Ctrl/⌘K en todo el panel) — sólo en el piloto. Se guarda dónde estaba
+  // el foco al abrirla para devolverlo al cerrar con Escape o tocando afuera.
+  const [paletaAbierta, setPaletaAbierta] = useState(false);
+  const focoAntesDePaleta = useRef<HTMLElement | null>(null);
+  const abrirPaleta = useCallback(() => {
+    focoAntesDePaleta.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setDrawerOpen(false);
+    setPaletaAbierta(true);
+  }, []);
+  const cerrarPaleta = useCallback((devolverFoco: boolean) => {
+    setPaletaAbierta(false);
+    if (devolverFoco) focoAntesDePaleta.current?.focus();
+  }, []);
+  useEffect(() => {
+    if (!modoApps) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        abrirPaleta();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modoApps, abrirPaleta]);
 
   // Cerrar el cajón al navegar (cambia el pathname) y con Escape.
   //
@@ -480,7 +505,14 @@ export default function AdminShell({
       {/* Sidebar fijo — solo desktop (lg+) */}
       <nav className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5 h-screen sticky top-0">
         <div className="shrink-0 px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
-        <NavBuscable items={items} navGrouping={navGrouping} atajoGlobal />
+        {/* Fuera del piloto, el Ctrl/⌘K de siempre: enfoca el buscador de la barra. En el
+            piloto lo atiende la paleta de apps (efecto de arriba). */}
+        <NavBuscable
+          items={items}
+          navGrouping={navGrouping}
+          atajoGlobal={!modoApps}
+          onBuscar={modoApps ? abrirPaleta : undefined}
+        />
         <NavFooter userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} />
       </nav>
 
@@ -507,6 +539,7 @@ export default function AdminShell({
               items={items}
               navGrouping={navGrouping}
               onNavigate={() => setDrawerOpen(false)}
+              onBuscar={modoApps ? abrirPaleta : undefined}
             />
             <NavFooter
               userName={userName}
@@ -558,6 +591,8 @@ export default function AdminShell({
 
         <div className="flex-1">{children}</div>
       </div>
+
+      {modoApps && <PaletaApps apps={apps} abierta={paletaAbierta} onCerrar={cerrarPaleta} />}
     </div>
   );
 }

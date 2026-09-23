@@ -9,14 +9,15 @@ import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getProductoContexto } from "@/lib/producto";
-import { getActiveModuleIds } from "@/lib/module-gating";
 import { getActiveProfile } from "@/lib/profile-gating";
-import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { hasCarniceriaSchema } from "@/lib/carniceria/schema-probe";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
+import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
+import { appsVisibles, proyectarMenuDeHoy } from "@/apps/visibles";
+import { enInicioPorApps } from "./inicio/piloto";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import AdminThemeScript from "../AdminThemeScript";
@@ -51,27 +52,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // que su lugar es acá. La lectura de la ficha sigue siendo condicional al flag: con el
   // flag OFF no se consulta nada (`null` sin viaje).
   const useSheet = tenantBrandSheetEnabled();
-  const [user, brand, activeModuleIds, activeProfile, productoCtx, rubro, carniceriaReady, sheet, teamPreset] = await Promise.all([
+  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps] = await Promise.all([
     requireUser(),
     getTenantBrand(),
-    // Gating por módulo (ADR-054/055): set activo del tenant, o null si el flag está
-    // apagado → AdminShell no gatea por módulo (solo por rol). Reversible.
-    getActiveModuleIds(),
     // Perfil activo (ADR-058/059): "lite"/"enterprise" o null si `PROFILES_ENABLED`
-    // está OFF (default) → AdminShell no gatea por perfil ni suma ítems Empresa. Reversible.
+    // está OFF (default) → la barra no gatea por perfil ni suma ítems Empresa. Reversible.
     getActiveProfile(),
     // IDENTIDAD POR PRODUCTO (frente identidad-por-producto): producto derivado del tenant
     // (blueprint + módulos), su identidad y su set de módulos asignados.
     getProductoContexto(),
-    // Rubro del tenant (Magra = carnicería/retail): habilita los ítems de mostrador
-    // (Inventario) y cárnicos (Lotes/Despiece). En servicios (CH) queda todo apagado.
-    getCurrentTenantRubro(),
-    // ¿Migración cárnica (Gate 2) aplicada? Gatea Lotes/Despiece. Degrada a false.
+    // Lo que decide qué apps ve cada persona (src/apps/contexto.server.ts): el gate por
+    // módulo del negocio (null = sin gate, idéntico a hoy: CH) y si la migración cárnica
+    // está aplicada. Se largan acá, en la misma tanda, aunque se usen abajo: están
+    // cacheadas por request y `getNegocioApps` (que necesita el rol) las encuentra listas
+    // en vez de esperarlas en serie.
+    getContextoApps(),
     hasCarniceriaSchema(),
     // Ficha de marca (RFC-004-D) — solo si el flag está ON; si no, ni se consulta.
     useSheet ? getBrandSheet() : Promise.resolve(null),
     // Color del equipo elegido en /admin/apariencia (Tenant.accentPreset).
     getTeamAccentPreset(),
+    // ¿Negocio del piloto del Inicio por apps (`APPS_INICIO`)? Sin la variable ni se lee.
+    enInicioPorApps(),
   ]);
 
   // PORTÓN DE CAMBIO FORZADO: si la contraseña del usuario está marcada como temporal (reset del
@@ -149,16 +151,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const brandName = sheet ? sheet.name : (identidad?.nombre ?? brand.name);
   const monogram = sheet ? initialsOf(sheet.name) : (identidad?.monograma ?? brand.monogram);
 
-  // NAV FOCALIZADA POR PRODUCTO (comerciante), independiente del flag global de módulos:
-  // hoy `MODULE_REGISTRY_ENABLED` está OFF → `activeModuleIds` es null → el shell mostraría los
-  // 17 ítems (el "mismo backoffice" que rechazó el dueño). Para Comerciante derivamos el gating
-  // de su set de módulos ASIGNADO (arca/bancos/mercadopago/clients/reports), así ve SOLO su
-  // navegación de facturación (Inicio + Facturación + Clientes + Reportes + config), sin
-  // depender del flag y sin tocar el comportamiento de los verticales (que siguen con el flag).
-  // Si el flag global ya está ON, `activeModuleIds` manda (misma fuente, sin doble verdad).
-  const shellModules =
-    activeModuleIds ??
-    (productoUsaTienda(productoCtx.producto) ? productoCtx.modules : null);
+  // LA BARRA SALE DEL REGISTRO DE APPS, calculada UNA vez acá. `appsVisibles` es la misma
+  // decisión que usa la guardia de cada página (`requireApp`) y el Inicio por apps: rol ×
+  // módulo × rubro × edición. El gate por módulo es POR NEGOCIO (`getContextoApps`):
+  //   · CH y todo negocio fuera del piloto → sin gate, la barra de siempre;
+  //   · Comerciante → su set de módulos asignado, como antes (Inicio + Facturación +
+  //     Clientes + Reportes + config), sin depender del flag global;
+  //   · piloto (`APPS_INICIO` con módulos asignados) → los módulos que tiene activados;
+  //   · `MODULE_REGISTRY_ENABLED` prendido → la resolución global, como antes.
+  // `proyectarMenuDeHoy` deja sólo las pantallas que ya estaban en la barra, con su rótulo,
+  // ícono, grupo y orden de hoy. Que dé EXACTAMENTE la barra de antes (`menuItemsParaTenant`)
+  // lo prueba src/apps/paridad-menu.test.ts en todos los casos: CH no ve un cambio.
+  const negocioApps = await getNegocioApps(user.role);
+  const visibles = appsVisibles(negocioApps);
+  const menu = proyectarMenuDeHoy(visibles);
 
   // DENSIDAD por perfil (ADR-059 D4): el MISMO design system en dos densidades. Comercio
   // (lite) → `data-density="lite"` (espacioso, --density 1.32); Empresa (enterprise) y motor
@@ -190,7 +196,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} activeModules={shellModules ? [...shellModules] : null} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} isRetail={rubro.isRetail} carniceriaReady={carniceriaReady}>
+          {/* `apps` (para el buscador de Ctrl/⌘K) sólo viaja en el piloto: fuera de él la barra
+              busca en su propio menú, como siempre. */}
+          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"}>
             {children}
           </AdminShell>
         </ToastProvider>

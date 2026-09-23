@@ -12,6 +12,8 @@ import { kpisFacturacionAction } from "@/lib/bancos-actions";
 import type { KpisFacturacionBancaria } from "@/lib/bancos-glue";
 import { getFacturacion, type EstadoFiscal } from "@/lib/facturacion-actions";
 import ArcaPill from "./facturacion/bancos/ArcaPill";
+import InicioApps from "./inicio/InicioApps";
+import { enInicioPorApps } from "./inicio/piloto";
 import {
   buttonClasses,
   KpiTile,
@@ -233,6 +235,8 @@ async function RetailHome({
 //                     borde llegan acá, caen al Inicio vertical (genérico y seguro).
 // ─────────────────────────────────────────────────────────────────────────────
 export default async function DashboardPage() {
+  // Inicio por apps sólo en los negocios de APPS_INICIO; CH y el resto, el de hoy (inicio/).
+  if (await enInicioPorApps()) return <InicioApps />;
   const producto = await getProductoActual();
   if (producto === "comerciante") return <InicioComerciante />;
   return <InicioVertical />;
