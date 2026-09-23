@@ -77,6 +77,30 @@ if (esProduccion && (process.env.AUTH_SECRET ?? "").trim() === "") {
   );
 }
 
+// La consola del operador gobierna a TODOS los negocios. Su secreto tiene que existir y ser
+// distinto del de las sesiones de negocio: si no, la sesión de una recepcionista podía abrirla
+// (src/lib/operator-auth.ts, agujero cerrado el 2026-09-23). El código ahora falla cerrado en
+// runtime; este freno lo adelanta al build, para que no se publique una consola que no abre.
+if (esProduccion) {
+  const operador = (process.env.OPERATOR_SECRET ?? "").trim();
+  if (operador === "") {
+    fatal(
+      "Falta OPERATOR_SECRET en Production. La consola de GSG no abre sin él.",
+      `CÓMO SE ARREGLA:
+  Vercel → Settings → Environment Variables → OPERATOR_SECRET (sólo Production), una frase
+  larga inventada, DISTINTA de AUTH_SECRET.`,
+    );
+  }
+  if (operador === (process.env.AUTH_SECRET ?? "").trim()) {
+    fatal(
+      "OPERATOR_SECRET es igual a AUTH_SECRET. Con los dos iguales, la sesión de un negocio abría la consola de todos.",
+      `CÓMO SE ARREGLA:
+  Vercel → Settings → Environment Variables → OPERATOR_SECRET → Edit → otra frase larga,
+  distinta de AUTH_SECRET. Después, Redeploy.`,
+    );
+  }
+}
+
 /**
  * Corre el pre-deploy check contra `url` y devuelve su código:
  * 0 = al día · 1 = la base está atrás del código · 2 (u otro) = no se pudo mirar.

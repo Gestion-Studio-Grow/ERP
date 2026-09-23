@@ -45,7 +45,7 @@ chmodSync(join(STUB_DIR, "npx"), 0o755);
 function corre(env: Record<string, string>) {
   writeFileSync(LLAMADAS, "");
   const base = { ...process.env };
-  for (const k of ["DATABASE_URL", "MIGRATE_DATABASE_URL", "PREDEPLOY_DATABASE_URL", "AUTH_SECRET", "VERCEL_ENV"]) {
+  for (const k of ["DATABASE_URL", "MIGRATE_DATABASE_URL", "PREDEPLOY_DATABASE_URL", "AUTH_SECRET", "OPERATOR_SECRET", "VERCEL_ENV"]) {
     delete base[k];
   }
   const r = spawnSync("node", [SCRIPT], {
@@ -65,6 +65,7 @@ test("una cadena del POOLER frena el build antes de tocar nada", () => {
   const r = corre({
     VERCEL_ENV: "production",
     AUTH_SECRET: "x",
+    OPERATOR_SECRET: "op",
     MIGRATE_DATABASE_URL: "postgresql://u:p@ep-algo-pooler.sa-east-1.aws.neon.tech/neondb",
   });
   assert.equal(r.status, 1, "el build tiene que fallar, no seguir");
@@ -117,6 +118,16 @@ test("que falte un árbitro del dinero FRENA el build", () => {
   assert.match(hastaElProximoPaso, /noConecta\(/, "y no poder mirar TAMBIÉN frena: 2 no es 0");
 });
 
+test("producción sin OPERATOR_SECRET, o igual a AUTH_SECRET, no se publica", () => {
+  const sin = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", DATABASE_URL: HOST_MUERTO });
+  assert.equal(sin.status, 1);
+  assert.match(sin.salida, /Falta OPERATOR_SECRET/);
+  assert.deepEqual(sin.llamadas, [], "frena antes de ejecutar nada");
+  const igual = corre({ VERCEL_ENV: "production", AUTH_SECRET: "mismo", OPERATOR_SECRET: "mismo", DATABASE_URL: HOST_MUERTO });
+  assert.equal(igual.status, 1);
+  assert.match(igual.salida, /igual a AUTH_SECRET/);
+});
+
 test("producción sin AUTH_SECRET no se publica", () => {
   const r = corre({ VERCEL_ENV: "production", DATABASE_URL: HOST_MUERTO });
   assert.equal(r.status, 1);
@@ -125,7 +136,7 @@ test("producción sin AUTH_SECRET no se publica", () => {
 });
 
 test("producción sin ninguna cadena de base no se publica", () => {
-  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x" });
+  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op" });
   assert.equal(r.status, 1);
   assert.match(r.salida, /ni MIGRATE_DATABASE_URL ni DATABASE_URL/);
   assert.ok(!r.llamadas.some((l) => l.startsWith("next")), "y no compila");
@@ -134,7 +145,7 @@ test("producción sin ninguna cadena de base no se publica", () => {
 test("producción SIN migrar igual mira la base, y si no puede, NO publica", () => {
   // El agujero que esto cierra: un merge antes de cargar MIGRATE_DATABASE_URL publicaba
   // código nuevo contra la base vieja, con el build en verde.
-  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", DATABASE_URL: HOST_MUERTO });
+  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", DATABASE_URL: HOST_MUERTO });
   assert.equal(r.status, 1);
   assert.match(r.salida, /no se pudo CONECTAR/i);
   assert.ok(r.llamadas.some((l) => l.includes("predeploy-check.mts")), "corrió el chequeo");
@@ -142,7 +153,7 @@ test("producción SIN migrar igual mira la base, y si no puede, NO publica", () 
 });
 
 test("con migración, un host inalcanzable frena ANTES de migrar", () => {
-  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", MIGRATE_DATABASE_URL: HOST_MUERTO });
+  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", MIGRATE_DATABASE_URL: HOST_MUERTO });
   assert.equal(r.status, 1);
   assert.match(r.salida, /no se pudo CONECTAR/i);
   assert.ok(!r.llamadas.some((l) => l.includes("migrate deploy")), "nunca llegó a migrar");

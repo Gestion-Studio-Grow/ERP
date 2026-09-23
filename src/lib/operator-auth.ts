@@ -18,22 +18,38 @@ function toHex(buffer: ArrayBuffer) {
     .join("");
 }
 
+/**
+ * El secreto del plano del operador.
+ *
+ * EL AGUJERO QUE ESTO CIERRA (2026-09-23). La sesión de un negocio es `userId.HMAC(AUTH_SECRET,
+ * userId)` y la del operador era `payload.HMAC(OPERATOR_SECRET ?? AUTH_SECRET, payload)`, y la
+ * verificación aceptaba CUALQUIER payload con firma válida. Con `OPERATOR_SECRET` sin cargar, o
+ * cargado igual a `AUTH_SECRET`, alcanzaba con copiar la cookie de sesión de una recepcionista a
+ * la cookie `operator_session` para abrir la consola que gobierna a los cuatro negocios.
+ *
+ * Tres cierres, cada uno suficiente por sí solo:
+ *   1. En producción `OPERATOR_SECRET` es obligatoria y DISTINTA de `AUTH_SECRET`: nunca se cae al
+ *      llavero del negocio (antes el fallback valía también en producción).
+ *   2. La firma lleva un prefijo de dominio (`FIRMA_DOMINIO`): aunque los dos secretos fueran el
+ *      mismo, una firma de sesión de negocio no sirve como firma del operador.
+ *   3. `readOperatorToken` exige que el payload sea el sujeto del operador, no cualquier cosa.
+ */
 function operatorSecret(): string {
-  // Secreto propio del plano; cae a AUTH_SECRET solo en dev. En prod debe setearse
-  // OPERATOR_SECRET distinto del de la app del tenant (separación de llaveros).
-  //
-  // FAIL-CLOSED (A-1). Este plano es MÁS sensible que el del tenant: el operador ve
-  // y opera CROSS-TENANT. Un fallback a un string público acá no es un bypass de una
-  // cuenta, es un bypass del plano que gobierna a los cuatro clientes.
-  const secret = process.env.OPERATOR_SECRET ?? process.env.AUTH_SECRET;
-  if (secret) return secret;
+  const propio = process.env.OPERATOR_SECRET;
   if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "OPERATOR_SECRET (o al menos AUTH_SECRET) no está configurado. Es obligatorio en producción: el plano del operador es cross-tenant.",
-    );
+    if (!propio) {
+      throw new Error("OPERATOR_SECRET no está configurado. Es obligatorio en producción: el plano del operador es cross-tenant.");
+    }
+    if (propio === process.env.AUTH_SECRET) {
+      throw new Error("OPERATOR_SECRET no puede ser igual a AUTH_SECRET: la sesión de un negocio abriría la consola de todos.");
+    }
+    return propio;
   }
-  return "dev-operator-secret";
+  return propio ?? process.env.AUTH_SECRET ?? "dev-operator-secret";
 }
+
+/** Separación de dominio de la firma: una firma de sesión de negocio nunca coincide con esta. */
+const FIRMA_DOMINIO = "gsg-operador-v1|";
 
 async function sign(value: string): Promise<string> {
   const key = await crypto.subtle.importKey(
@@ -43,7 +59,7 @@ async function sign(value: string): Promise<string> {
     false,
     ["sign"],
   );
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(FIRMA_DOMINIO + value));
   return toHex(signature);
 }
 
@@ -70,6 +86,9 @@ export async function readOperatorToken(token: string | undefined | null): Promi
   const payload = token.slice(0, sep);
   const signature = token.slice(sep + 1);
   if (!payload || !signature) return null;
+  // Sólo el sujeto del operador: un id de usuario de un negocio no es un operador aunque su firma
+  // valide (ver operatorSecret).
+  if (payload !== OPERATOR_SUBJECT) return null;
   const expected = await sign(payload);
   if (!timingSafeStringEqual(signature, expected)) return null;
   return payload;
