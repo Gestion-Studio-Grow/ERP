@@ -11,6 +11,7 @@ import ResourcesSection from "./ResourcesSection";
 import CouponsSection from "./CouponsSection";
 import AsignacionSection from "./AsignacionSection";
 import CortesSection, { type Corte } from "./CortesSection";
+import PlanillaCortes from "./PlanillaCortes";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,8 @@ export default async function CatalogoPage() {
           vidriera sale de acá.
         </p>
         <div className="space-y-10">
+          {/* Planilla (bajar/subir en Excel): sólo acá, en la rama retail. CH no la ve. */}
+          <PlanillaCortes />
           <CortesSection cortes={cortes} catalogHeading={heading} />
         </div>
       </main>

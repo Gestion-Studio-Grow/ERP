@@ -7,6 +7,10 @@ import { getInventory } from "@/lib/inventario/loader";
 import { classifyCorte, categoriaMeta, CORTE_CATEGORIAS, type CorteCategoria } from "@/lib/carniceria/cortes";
 import { PageHeader, EmptyState, Badge, fmtMoneyARS, buttonClasses } from "@/components/ui";
 import { InventoryTable } from "@/components/inventario/InventoryTable";
+import { getMermaDeLaSemana } from "@/lib/inventario/merma-loader";
+import { cortesEnNegativo, renglonSinCosto, semanaHasta, type Renglon, type ResumenDeMerma, type Semana } from "@/lib/stock/merma-core";
+import { formatearCantidad } from "@/lib/pos-peso";
+import { todayInBusinessTz } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +29,11 @@ function Stat({ label, value, hint, tone = "neutral" }: { label: string; value: 
 // (Magra) además del canal Empresa: un mostrador vive del control de stock. En servicios (CH,
 // no-retail, motor de perfiles OFF) queda EXACTAMENTE como antes ("En preparación") → nav y
 // pantalla byte-idénticas. Read-only; los movimientos (ajuste/merma) viven en /admin/ajustes.
-export default async function InventarioPage() {
+export default async function InventarioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hasta?: string | string[] }>;
+}) {
   await requireCapability("catalog:read");
   const [profile, rubro] = await Promise.all([getActiveProfile(), getCurrentTenantRubro()]);
 
@@ -39,7 +47,15 @@ export default async function InventarioPage() {
     );
   }
 
-  const [{ rows, summary }, extras] = await Promise.all([getInventory(), getProductExtras()]);
+  const [{ rows, summary }, extras, sp] = await Promise.all([getInventory(), getProductExtras(), searchParams]);
+
+  // Merma de la semana y cortes en negativo: sólo retail (MAGRA). El perfil sin rubro retail
+  // ve la pantalla como estaba.
+  const hastaParam = Array.isArray(sp.hasta) ? sp.hasta[0] : sp.hasta;
+  const hoy = todayInBusinessTz();
+  const semana = rubro.isRetail ? semanaHasta(hastaParam, hoy) : null;
+  const merma = semana ? await getMermaDeLaSemana(semana, { rows, extras }) : null;
+  const negativos = rubro.isRetail ? cortesEnNegativo(rows) : [];
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
@@ -54,6 +70,12 @@ export default async function InventarioPage() {
         <Stat label="Stock bajo" value={String(summary.bajoStock)} tone={summary.bajoStock > 0 ? "warning" : "neutral"} hint="en o bajo el umbral" />
         <Stat label="Sin costo" value={String(summary.sinCosto)} hint="valuación incompleta" />
       </div>
+
+      {/* Primero lo que está mal: un corte en negativo es una venta que salió con más de lo
+          que el sistema creía que había. Hay que recontarlo antes de mirar cualquier otra cosa. */}
+      {negativos.length > 0 && <CortesEnNegativo filas={negativos} />}
+
+      {semana && merma && <MermaDeLaSemana semana={semana} merma={merma} hoy={hoy} />}
 
       {/* Acceso al tercer flujo del inventario: ajustes y MERMAS (recuento/rotura). */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-sunken px-4 py-3">
@@ -82,6 +104,157 @@ export default async function InventarioPage() {
 }
 
 type Row = Awaited<ReturnType<typeof getInventory>>["rows"][number];
+
+const recontarHref = (productId: string) =>
+  `/admin/ajustes?producto=${encodeURIComponent(productId)}&motivo=RECUENTO`;
+
+function CortesEnNegativo({ filas }: { filas: Row[] }) {
+  return (
+    <section aria-labelledby="negativos-titulo" className="mb-6 rounded-lg border border-danger/30 bg-danger-soft p-4">
+      <h2 id="negativos-titulo" className="text-base font-semibold text-danger">
+        {filas.length === 1 ? "1 corte en negativo" : `${filas.length} cortes en negativo`}
+      </h2>
+      <p className="mt-1 text-sm text-body">
+        Se vendió más de lo que el sistema tenía cargado. Recontá estos cortes para que el stock vuelva a ser el real.
+      </p>
+      <ul className="mt-3 divide-y divide-line rounded-md border border-line bg-surface-raised">
+        {filas.map((r) => (
+          <li key={r.productId} className="flex items-center justify-between gap-3 px-3 py-2">
+            <span className="text-sm text-strong">
+              {r.name}{" "}
+              <span className="tabular-nums font-medium text-danger">
+                {formatearCantidad(r.stock)} {r.unit}
+              </span>
+            </span>
+            <Link href={recontarHref(r.productId)} className={buttonClasses("outline", "md")}>
+              Recontar
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** "1,5 kg · 3 u" — kilos y unidades no se suman entre sí. */
+function cantidades(r: { kg: number; unidades: number }): string {
+  const partes: string[] = [];
+  if (r.kg !== 0) partes.push(`${formatearCantidad(r.kg)} kg`);
+  if (r.unidades !== 0) partes.push(`${formatearCantidad(r.unidades)} u`);
+  return partes.length > 0 ? partes.join(" · ") : "0";
+}
+
+/** Pesos de un renglón: "sin costo" si no se pudo valuar nada; nunca un $0 inventado. */
+function pesosDe(r: Renglon): string {
+  if (r.movimientos === 0) return fmtMoneyARS(0);
+  if (renglonSinCosto(r)) return "sin costo";
+  return r.sinCosto > 0 ? `${fmtMoneyARS(r.pesos)} + ${r.sinCosto} sin costo` : fmtMoneyARS(r.pesos);
+}
+
+function RenglonMerma({ titulo, detalle, r, tono }: { titulo: string; detalle: string; r: Renglon; tono: "neutral" | "danger" }) {
+  const color = tono === "danger" && r.movimientos > 0 ? "text-danger" : "text-strong";
+  return (
+    <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-3">
+      <span className="min-w-0">
+        <span className={`block text-sm font-medium ${color}`}>{titulo}</span>
+        <span className="block text-xs text-muted">{detalle}</span>
+      </span>
+      <span className="text-right tabular-nums">
+        <span className={`block text-sm font-semibold ${color}`}>{cantidades(r)}</span>
+        <span className={`block text-xs ${renglonSinCosto(r) ? "text-faint" : "text-body"}`}>{pesosDe(r)}</span>
+      </span>
+    </li>
+  );
+}
+
+/** "2026-09-17" → "17/09". */
+const ddmm = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
+
+function MermaDeLaSemana({ semana, merma, hoy }: { semana: Semana; merma: ResumenDeMerma & { truncado: boolean }; hoy: string }) {
+  const pm = merma.mermaPorMotivo;
+  const detalleMerma =
+    (["Merma", "Vencimiento", "Rotura"] as const)
+      .filter((m) => pm[m].kg !== 0 || pm[m].unidades !== 0)
+      .map((m) => `${m}: ${cantidades(pm[m])}`)
+      .join(" · ") || "Merma, vencimiento y rotura";
+  const devoluciones = merma.excluidos["devolucion-anulacion"] + merma.excluidos["devolucion-edicion"];
+  const rango = `del ${ddmm(semana.desde)} al ${ddmm(semana.hasta)}`;
+
+  return (
+    <section aria-labelledby="merma-titulo" className="mb-6 rounded-lg border border-line p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 id="merma-titulo" className="text-base font-semibold text-strong">
+            Merma y faltante {semana.esLaActual ? "de los últimos 7 días" : "de la semana"}
+          </h2>
+          <p className="text-xs text-muted">{rango} · a costo vigente</p>
+        </div>
+        <nav aria-label="Elegir semana" className="flex gap-2">
+          <Link href={`/admin/inventario?hasta=${semana.anterior}`} className={buttonClasses("outline", "md")}>
+            ‹ Anterior
+          </Link>
+          {semana.siguiente && (
+            <Link
+              href={semana.siguiente === hoy ? "/admin/inventario" : `/admin/inventario?hasta=${semana.siguiente}`}
+              className={buttonClasses("outline", "md")}
+            >
+              Siguiente ›
+            </Link>
+          )}
+        </nav>
+      </div>
+
+      <ul className="mt-3 divide-y divide-line rounded-md border border-line">
+        <RenglonMerma titulo="Merma declarada" detalle={detalleMerma} r={merma.merma} tono="neutral" />
+        <RenglonMerma
+          titulo="Faltante de recuento"
+          detalle="Lo que el sistema tenía y al contar no estaba. No se explica: es lo que hay que mirar."
+          r={merma.faltante}
+          tono="danger"
+        />
+        <RenglonMerma titulo="Sobrante de recuento" detalle="Al contar había más de lo cargado." r={merma.sobrante} tono="neutral" />
+        {merma.otro.movimientos > 0 && (
+          <RenglonMerma titulo="Otras correcciones" detalle="Ajustes con motivo Otro, neto con su signo." r={merma.otro} tono="neutral" />
+        )}
+      </ul>
+
+      {merma.top.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-sm font-semibold text-strong">Los cortes que más pierden</h3>
+          <ol className="mt-2 divide-y divide-line rounded-md border border-line">
+            {merma.top.map((c) => (
+              <li key={c.productId} className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-2 text-sm">
+                <span className="text-strong">{c.nombre}</span>
+                <span className="tabular-nums text-body">
+                  {c.merma > 0 && `merma ${formatearCantidad(c.merma)} ${c.kilo ? "kg" : "u"}`}
+                  {c.merma > 0 && c.faltante > 0 && " · "}
+                  {c.faltante > 0 && <span className="text-danger">faltante {formatearCantidad(c.faltante)} {c.kilo ? "kg" : "u"}</span>}
+                  {" · "}
+                  <span className="font-medium text-strong">{fmtMoneyARS(c.pesos)}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+      {merma.perdidaSinCosto.length > 0 && (
+        <p className="mt-2 text-xs text-muted">
+          Con pérdida y sin costo cargado (no se pueden ordenar en pesos):{" "}
+          {merma.perdidaSinCosto.map((c) => `${c.nombre} ${formatearCantidad(c.merma + c.faltante)} ${c.kilo ? "kg" : "u"}`).join(" · ")}.
+        </p>
+      )}
+      {devoluciones > 0 && (
+        <p className="mt-2 text-xs text-faint">
+          No se cuentan {devoluciones === 1 ? "1 devolución" : `${devoluciones} devoluciones`} de ventas anuladas o pedidos
+          reajustados: esa mercadería volvió, no sobró.
+        </p>
+      )}
+      {merma.truncado && (
+        <p className="mt-2 text-xs text-warning">Hay más movimientos de los que entran en este resumen: la semana está incompleta.</p>
+      )}
+    </section>
+  );
+}
 
 function CarniceriaInventory({
   rows,
