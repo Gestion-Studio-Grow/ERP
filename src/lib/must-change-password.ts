@@ -25,10 +25,26 @@ type RawClient = {
 };
 
 // ¿El error es "no existe la columna/tabla" (migración sin aplicar)? Postgres 42703 (columna) /
-// 42P01 (tabla). Ante la duda, cualquier fallo de la lectura se trata como ausente (defensivo).
-function isMissingColumn(e: unknown): boolean {
-  const code = (e as { code?: string })?.code;
-  return code === "42703" || code === "42P01";
+// 42P01 (tabla).
+//
+// CON PRISMA 7 Y EL ADAPTADOR DE PG EL CÓDIGO NO LLEGA ARRIBA. Medido contra Postgres local
+// (2026-09-23): un `$queryRaw` sobre una columna que no existe tira `code: "P2010"` y el 42703
+// viaja en `meta.driverAdapterError.cause.originalCode` (con `kind: "ColumnNotFound"`). Mirar
+// sólo `e.code` daba siempre false: la ficha del negocio en /operador se caía entera en vez de
+// mostrar "pendiente". Se miran las dos formas: la del driver directo y la del adaptador.
+export function isMissingColumn(e: unknown): boolean {
+  const x = e as {
+    code?: string;
+    meta?: { driverAdapterError?: { cause?: { originalCode?: string; kind?: string } } };
+  };
+  if (x?.code === "42703" || x?.code === "42P01") return true;
+  const causa = x?.meta?.driverAdapterError?.cause;
+  return (
+    causa?.originalCode === "42703" ||
+    causa?.originalCode === "42P01" ||
+    causa?.kind === "ColumnNotFound" ||
+    causa?.kind === "TableDoesNotExist"
+  );
 }
 
 // --- ¿Existe la columna? (probe SIN transacción, memoizado) ------------------

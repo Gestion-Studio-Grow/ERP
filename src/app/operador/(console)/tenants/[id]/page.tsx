@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { operatorPrisma } from "@/lib/operator-db";
+import { requireOperator } from "@/lib/operator-session";
 import { getBlueprint } from "@/blueprints";
 import {
   setTenantStatus,
   setTenantPlan,
   setTenantBranding,
   setTenantSubdomain,
-  toggleTenantModule,
   setTenantArcaCuit,
   setTenantArcaPuntoVenta,
   cargarCredencialFiscal,
@@ -23,6 +23,23 @@ import { Card, Field, Input, Select, Textarea, Button, Badge, fmtCuit } from "@/
 import { modoDesdeEnv } from "@/plugins/arca";
 import { operatorReadMustChange } from "@/lib/must-change-password";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
+import { catalogo } from "@/modules/catalog";
+import {
+  appsPorModulo,
+  estadoDeApps,
+  planFijarAsignacion,
+  requiereOkDelDuenio,
+  vistaPreviaDeCambio,
+  MOTIVO_OK_DEL_DUENIO,
+} from "./apps-del-negocio";
+import { flagsDeApps, leerNegocioParaActivar } from "./negocio.server";
+import { AppsDelNegocioCard, type CambioRegistrado, type FilaModuloFicha } from "./AppsDelNegocioCard";
+import {
+  choqueDePuntoDeVenta,
+  listaDePuntosUsados,
+  puntosDeVentaUsados,
+  type NegocioFiscal,
+} from "./candado-punto-venta";
 
 // Estado de la credencial fiscal del tenant (metadata NO sensible). Tolerante a que la
 // migración `TenantFiscalCredential` no esté aplicada aún (Gate 2): si la tabla no existe,
@@ -93,16 +110,65 @@ function ItemAperturaRow({ item }: { item: ItemApertura }) {
   );
 }
 
+// Los "ok" cortos de las acciones viejas (?ok=estado) se dicen enteros; el resto de las
+// acciones ya manda el mensaje armado.
+const OK_CORTOS = new Map<string, string>([
+  ["estado", "Estado guardado."],
+  ["plan", "Plan guardado."],
+  ["branding", "Marca guardada."],
+  ["link", "Subdominio guardado."],
+]);
+
+const ACCIONES_DE_MODULOS = ["module.activate", "module.deactivate", "module.fijar-asignacion"];
+
+/**
+ * Un arreglo de ids de la auditoría (`changes` es JSON libre). `null` si el dato no está: una
+ * fila vieja sin el antes no puede mostrarse como "no tenía ninguno".
+ */
+function idsDe(valor: unknown): string[] | null {
+  return Array.isArray(valor) ? valor.filter((x): x is string => typeof x === "string") : null;
+}
+
+/** Los últimos cambios de módulos del negocio, con el antes y el después que dejó la action. */
+async function historialDeModulos(tenantId: string): Promise<CambioRegistrado[]> {
+  const filas = await operatorPrisma.auditLog.findMany({
+    where: { tenantId, action: { in: ACCIONES_DE_MODULOS } },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { id: true, createdAt: true, actor: true, action: true, changes: true },
+  });
+  return filas.map((f) => {
+    const c = (f.changes && typeof f.changes === "object" && !Array.isArray(f.changes) ? f.changes : {}) as Record<
+      string,
+      unknown
+    >;
+    return {
+      id: f.id,
+      cuando: f.createdAt,
+      actor: f.actor,
+      accion: f.action,
+      modulo: typeof c.modulo === "string" ? c.modulo : null,
+      sumados: idsDe(f.action === "module.fijar-asignacion" ? c.agregados : c.incluidos) ?? [],
+      antes: idsDe(c.antes),
+      // La vidriera del dueño (/admin/modulos) auditaba sólo el resultado, como `modules`.
+      despues: idsDe(c.despues) ?? idsDe(c.modules),
+    };
+  });
+}
+
 // CONFIGURACIÓN POR TENANT (control-plane, ADR-021). Cross-tenant vía operatorPrisma.
 export default async function TenantConfigPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; bootstrap?: string; ok?: string; error?: string }>;
+  searchParams: Promise<{ created?: string; bootstrap?: string; ok?: string; error?: string; modulo?: string }>;
 }) {
+  // Guardia en la página, no sólo en el layout: el layout no se vuelve a ejecutar al navegar
+  // del lado del cliente, y esta ficha lee y cambia datos de cualquier negocio.
+  await requireOperator();
   const { id } = await params;
-  const { created, bootstrap, ok, error } = await searchParams;
+  const { created, bootstrap, ok, error, modulo } = await searchParams;
 
   const tenant = await operatorPrisma.tenant.findUnique({
     where: { id },
@@ -115,7 +181,6 @@ export default async function TenantConfigPage({
   });
   if (!tenant) notFound();
 
-  const active = new Set(tenant!.modules);
   const credFiscal = await credencialFiscalDe(tenant!.id);
 
   // OWNER del tenant + estado de su contraseña temporal (para la tarjeta de reset). Cross-tenant
@@ -185,6 +250,50 @@ export default async function TenantConfigPage({
   const listoParaFacturar = fiscal.listo;
   const apertura = checklistApertura(estadoApertura);
 
+  // Candado fiscal: los otros negocios con este CUIT. Si ya comparten punto de venta (dato
+  // cargado antes del candado), se avisa; y al lado del campo se listan los que ya están usados.
+  const otrosDelCuit: NegocioFiscal[] = tenant!.arcaCuit
+    ? await operatorPrisma.tenant.findMany({
+        where: { arcaCuit: tenant!.arcaCuit, id: { not: tenant!.id } },
+        select: { id: true, name: true, slug: true, arcaCuit: true, arcaPuntoVenta: true },
+      })
+    : [];
+  const choquePv = choqueDePuntoDeVenta(
+    { tenantId: tenant!.id, cuit: tenant!.arcaCuit, puntoVenta: tenant!.arcaPuntoVenta },
+    otrosDelCuit,
+  );
+  const pvUsados = puntosDeVentaUsados(tenant!.id, tenant!.arcaCuit, otrosDelCuit);
+
+  // Apps del negocio: lo que ve hoy, si su asignación lo reproduce con el Inicio por apps, y la
+  // vista previa del módulo que se quiere cambiar (`?modulo=`). Todo sale de apps-del-negocio.ts.
+  const negocio = await leerNegocioParaActivar(tenant!.id);
+  if (!negocio) notFound();
+  const cat = catalogo();
+  const flags = flagsDeApps();
+  const estadoApps = estadoDeApps(negocio!, flags, cat);
+  const fijar = planFijarAsignacion(negocio!, flags, cat);
+  const appsDeCadaModulo = appsPorModulo();
+  const activos = new Set(negocio!.modules);
+  const filasModulos: FilaModuloFicha[] = MODULES.map((m) => ({
+    id: m.id,
+    nombre: m.label,
+    descripcion: m.description,
+    plugin: !!m.plugin,
+    activo: activos.has(m.id),
+    apps: appsDeCadaModulo.get(m.id) ?? 0,
+  }));
+  const moduloPrevia = modulo?.trim() || null;
+  const accionPrevia = moduloPrevia && activos.has(moduloPrevia) ? "desactivar" : "activar";
+  const previa = moduloPrevia
+    ? {
+        moduloId: moduloPrevia,
+        modulo: filasModulos.find((m) => m.id === moduloPrevia) ?? null,
+        accion: accionPrevia,
+        plan: vistaPreviaDeCambio(negocio!, { accion: accionPrevia, modulo: moduloPrevia }, flags, cat),
+      } as const
+    : null;
+  const historial = await historialDeModulos(tenant!.id);
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -212,8 +321,16 @@ export default async function TenantConfigPage({
           )}
         </div>
       )}
-      {ok && <div className="rounded-md bg-success-soft text-success text-sm px-3 py-2">Guardado ({ok}).</div>}
-      {error && <div className="rounded-md bg-danger-soft text-danger text-sm px-3 py-2 whitespace-pre-wrap">{error}</div>}
+      {ok && (
+        <div role="status" className="rounded-md bg-success-soft text-success text-sm px-3 py-2 break-words">
+          {OK_CORTOS.get(ok) ?? ok}
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="rounded-md bg-danger-soft text-danger text-sm px-3 py-2 whitespace-pre-wrap break-words">
+          {error}
+        </div>
+      )}
 
       {/* Listo para abrir — el checklist del local (lo que el alta NO automatiza) */}
       <Card className="p-5 space-y-3">
@@ -357,6 +474,14 @@ export default async function TenantConfigPage({
           </div>
         )}
 
+        {choquePv && (
+          <div role="alert" className="rounded-md bg-danger-soft text-danger text-sm px-3 py-2 break-words">
+            El punto de venta <b>{tenant!.arcaPuntoVenta}</b> de este CUIT también lo tiene «{choquePv.name}»
+            (/{choquePv.slug}). Los dos numeran el mismo talonario en ARCA y las facturas se rechazan: cargale a
+            uno de los dos un punto de venta propio.
+          </div>
+        )}
+
         {cuitCertMismatch && (
           <div role="alert" className="rounded-md bg-danger-soft text-danger text-sm px-3 py-2">
             El CUIT del tenant (<code>{fmtCuit(tenant!.arcaCuit)}</code>) no coincide con el del certificado
@@ -407,6 +532,11 @@ export default async function TenantConfigPage({
           <p id="pv-hint" className="text-xs text-muted">
             El número que ARCA habilitó para este CUIT (1 a 99999). <b>Sin esto no se puede emitir:</b>{" "}
             el sistema cobra la venta y la factura queda sin salir. Dejalo vacío para borrarlo.
+            {pvUsados.length > 0 && (
+              <span className="block mt-1 break-words">
+                Este CUIT ya usa en otros negocios: {listaDePuntosUsados(pvUsados)}. Cada local va con uno propio.
+              </span>
+            )}
           </p>
         </form>
 
@@ -474,37 +604,17 @@ export default async function TenantConfigPage({
         tempPending={ownerTempPending}
       />
 
-      {/* Módulos */}
-      <Card className="p-5 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-medium">Módulos del tenant</h2>
-          <Badge tone="neutral">informativo</Badge>
-        </div>
-        <p className="text-sm text-muted">
-          <b>Hoy esto NO prende ni apaga pantallas.</b> Guarda la intención en el tenant, pero el menú
-          real se decide por el <b>rubro</b> del negocio; el registro de módulos está apagado a nivel
-          plataforma. Tampoco valida que el módulo corresponda al rubro ni sus dependencias. Sirve
-          para dejar registrado qué contrató cada local — no para prometerle una pantalla a un cliente.
-        </p>
-        <div className="grid sm:grid-cols-2 gap-2">
-          {MODULES.map((m) => {
-            const on = active.has(m.id);
-            return (
-              <form key={m.id} action={toggleTenantModule} className="flex items-center justify-between gap-2 rounded-md border border-line p-3">
-                <input type="hidden" name="tenantId" value={tenant!.id} />
-                <input type="hidden" name="module" value={m.id} />
-                <span>
-                  <span className="font-medium text-sm">{m.label}{m.plugin ? " · plugin" : ""}</span>
-                  <span className="block text-xs text-muted">{m.description}</span>
-                </span>
-                <Button type="submit" variant={on ? "solid" : "subtle"} size="sm">
-                  {on ? "Activo" : "Apagado"}
-                </Button>
-              </form>
-            );
-          })}
-        </div>
-      </Card>
+      {/* Apps del negocio: módulos con vista previa, activación auditada y "fijar asignación" */}
+      <AppsDelNegocioCard
+        tenantId={tenant!.id}
+        vistos={negocio!.modules}
+        estado={estadoApps}
+        fijar={fijar}
+        modulos={filasModulos}
+        previa={previa}
+        historial={historial}
+        bloqueo={requiereOkDelDuenio(negocio!.slug) ? MOTIVO_OK_DEL_DUENIO : null}
+      />
     </div>
   );
 }

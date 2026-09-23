@@ -16,11 +16,15 @@
 //   - Bancos (plugin): su fuente de verdad vive junto al plugin
 //     (src/plugins/bancos/module.ts), misma convención que ARCA.
 //   - Cartera (nativo, panel del contador): src/modules/descriptors/cartera.ts.
+//   - Multilocal (nativo, la casa de una marca con varios locales):
+//     src/modules/descriptors/multilocal.ts. Va al final: la consola deriva su lista de
+//     módulos de este orden (operator-config.ts) y así los de siempre no cambian de lugar.
 
 import { ModuleRegistry } from "./registry";
 import { MODULOS_NATIVOS } from "./descriptors/nativos";
 import { mercadopagoModule } from "./descriptors/mercadopago";
 import { carteraModule } from "./descriptors/cartera";
+import { multilocalModule } from "./descriptors/multilocal";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -31,6 +35,7 @@ export const DESCRIPTORES_CATALOGO = [
   mercadopagoModule,
   bancosModule,
   carteraModule,
+  multilocalModule,
 ];
 
 /**

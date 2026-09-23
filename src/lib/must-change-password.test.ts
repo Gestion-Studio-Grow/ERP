@@ -59,3 +59,17 @@ test("set con error real se propaga", async () => {
   const db = fakeRaw({ exec: () => { throw pgError("23505"); } });
   await assert.rejects(() => operatorSetMustChange(db, "u1", true), /23505/);
 });
+
+// Forma MEDIDA con Prisma 7 + @prisma/adapter-pg (ver el comentario de isMissingColumn).
+test("reconoce la columna faltante como la entrega el adaptador de Prisma 7 (P2010)", async () => {
+  const { isMissingColumn } = await import("./must-change-password");
+  const delAdaptador = {
+    code: "P2010",
+    meta: { driverAdapterError: { cause: { originalCode: "42703", kind: "ColumnNotFound", column: "mustChangePassword" } } },
+  };
+  assert.equal(isMissingColumn(delAdaptador), true);
+  assert.equal(isMissingColumn({ code: "P2010", meta: { driverAdapterError: { cause: { originalCode: "42P01", kind: "TableDoesNotExist" } } } }), true);
+  assert.equal(isMissingColumn({ code: "42703" }), true);
+  assert.equal(isMissingColumn({ code: "P2010", meta: { driverAdapterError: { cause: { originalCode: "23505" } } } }), false);
+  assert.equal(await operatorReadMustChange(fakeRaw({ query: () => { throw delAdaptador; } }), "u1"), "pendiente");
+});

@@ -36,30 +36,47 @@ export type ResultadoBancoPruebasArca =
   | { ok: false; modo: ModoArca; error: string };
 
 /**
- * Lee CUIT/punto de venta del tenant si están disponibles; si la columna no
- * existe todavía en Neon (migración fiscal sin aplicar, Gate 2) o cualquier
- * otro error de lectura, cae a los valores de PRUEBA — el banco de pruebas
- * nunca debe fallar por una migración pendiente.
+ * Lee CUIT y punto de venta del negocio para la prueba.
+ *
+ * El punto de venta NO tiene valor por defecto. Antes caía al 1 si faltaba, y eso daba un
+ * falso "anda": la prueba salía con un talonario que no es el del local, mientras la
+ * facturación real, sin punto de venta, no emite (`construirPerfilFiscal` lanza). Y en una
+ * marca con varios locales bajo el mismo CUIT, el 1 es el talonario de OTRO local. Sin punto
+ * de venta cargado, la prueba no corre y dice qué falta y quién lo carga.
+ *
+ * Sin CUIT se sigue usando el CUIT de prueba de ARCA (homologación o stub). Si la lectura
+ * falla, tampoco se inventan datos: se devuelve el error.
  */
 async function datosFiscalesDelTenant(
   tenantId: string,
-): Promise<{ cuit: number; puntoVenta: number }> {
+): Promise<{ ok: true; cuit: number; puntoVenta: number } | { ok: false; error: string }> {
+  let tenant: { arcaCuit: string | null; arcaPuntoVenta: number | null } | null;
   try {
-    const tenant = await prisma.tenant.findUnique({
+    tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
       select: { arcaCuit: true, arcaPuntoVenta: true },
     });
-    return {
-      cuit: tenant?.arcaCuit ? Number(tenant.arcaCuit) : CUIT_DE_PRUEBA,
-      puntoVenta: tenant?.arcaPuntoVenta ?? 1,
-    };
   } catch (e) {
-    logger.info("arca.prueba", "No se pudo leer la config fiscal del tenant; uso valores de prueba", {
+    logger.warn("arca.prueba", "No se pudo leer la config fiscal del tenant; no se emite la prueba", {
       tenantId,
       err: e instanceof Error ? e.message : String(e),
     });
-    return { cuit: CUIT_DE_PRUEBA, puntoVenta: 1 };
+    return {
+      ok: false,
+      error: "No pudimos leer los datos fiscales del negocio, así que no se hizo la prueba. Probá de nuevo en un rato.",
+    };
   }
+  const puntoVenta = tenant?.arcaPuntoVenta ?? null;
+  if (!puntoVenta || puntoVenta <= 0) {
+    return {
+      ok: false,
+      error:
+        "Falta el punto de venta de ARCA de este negocio, así que la prueba no corre: sin él, " +
+        "tampoco sale la factura real. Pedile a Gestión Studio Grow que cargue el punto de venta " +
+        "que ARCA habilitó para tu CUIT.",
+    };
+  }
+  return { ok: true, cuit: tenant?.arcaCuit ? Number(tenant.arcaCuit) : CUIT_DE_PRUEBA, puntoVenta };
 }
 
 /**
@@ -82,7 +99,9 @@ export async function emitirFacturaDePruebaAction(): Promise<ResultadoBancoPrueb
     };
   }
 
-  const { cuit, puntoVenta } = await datosFiscalesDelTenant(tenantId);
+  const datos = await datosFiscalesDelTenant(tenantId);
+  if (!datos.ok) return { ok: false, modo, error: datos.error };
+  const { cuit, puntoVenta } = datos;
   logger.info("arca.prueba", "Emitiendo factura de prueba", { tenantId, modo, cuit, puntoVenta });
 
   try {

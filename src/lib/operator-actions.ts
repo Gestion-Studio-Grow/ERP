@@ -33,6 +33,19 @@ import {
   type OwnerResetResult,
   type OwnerResetRow,
 } from "@/lib/owner-password-reset";
+import { catalogo } from "@/modules/catalog";
+import {
+  mismoConjunto,
+  planFijarAsignacion,
+  validarCambio,
+} from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
+import {
+  choqueDePuntoDeVenta,
+  motivoDeChoque,
+  puntosDeVentaUsados,
+  type NegocioFiscal,
+} from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
+import { flagsDeApps, leerNegocioParaActivar } from "@/app/operador/(console)/tenants/[id]/negocio.server";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -191,6 +204,38 @@ export async function setTenantSubdomain(formData: FormData) {
   redirect(`/operador/tenants/${tenantId}?ok=link`);
 }
 
+// --- Candado: un CUIT no repite punto de venta entre negocios ------------------
+// La regla vive pura en candado-punto-venta.ts. Acá está lo que no se puede testear sin base:
+// leer a los otros negocios del CUIT y serializar a dos operadores que guardan a la vez.
+// Sin el índice UNIQUE(arcaCuit, arcaPuntoVenta), que necesita migración, dos transacciones
+// podrían leer "libre" las dos y escribir el mismo número. El lock de Postgres por CUIT
+// (`pg_advisory_xact_lock`, se suelta solo al terminar la transacción) hace que la segunda
+// espere a la primera y lea lo que ésta escribió (medido en Postgres local: la segunda espera
+// y termina rechazada). Con el pooler de Neon en modo transacción debería comportarse igual,
+// porque el lock vive y muere dentro de la transacción; eso no está medido contra Neon.
+
+type Tx = Prisma.TransactionClient;
+
+async function bloquearCuit(tx: Tx, cuit: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`arca-punto-venta:${cuit}`}))`;
+}
+
+/** El motivo del rechazo si otro negocio ya usa este CUIT con este punto de venta, o null. */
+async function buscarChoque(
+  tx: Tx,
+  tenantId: string,
+  cuit: string | null,
+  puntoVenta: number | null,
+): Promise<string | null> {
+  if (!cuit || !puntoVenta) return null;
+  const otros: NegocioFiscal[] = await tx.tenant.findMany({
+    where: { arcaCuit: cuit, id: { not: tenantId } },
+    select: { id: true, name: true, slug: true, arcaCuit: true, arcaPuntoVenta: true },
+  });
+  const otro = choqueDePuntoDeVenta({ tenantId, cuit, puntoVenta }, otros);
+  return otro ? motivoDeChoque(cuit, puntoVenta, otro, puntosDeVentaUsados(tenantId, cuit, otros)) : null;
+}
+
 // --- CUIT del emisor por tenant (ADR-066) -------------------------------------
 // Setea/limpia `Tenant.arcaCuit`. Va ANTES del certificado: el guard fail-closed
 // compara el CUIT del subject del cert contra este valor (al cargar el cert y al
@@ -223,17 +268,37 @@ export async function setTenantArcaCuit(formData: FormData) {
     // Tabla de credenciales todavía sin aplicar (Gate 2): no hay cert que chequear.
   }
 
-  await operatorPrisma.tenant.update({ where: { id: tenantId }, data: { arcaCuit: nuevoCuit } });
-  await operatorPrisma.auditLog.create({
-    data: {
-      tenantId,
-      actor: `operator:${op}`,
-      action: nuevoCuit ? "fiscal.cuit.set" : "fiscal.cuit.clear",
-      entity: "Tenant",
-      entityId: tenantId,
-      changes: { arcaCuit: nuevoCuit },
-    },
+  // Candado fiscal: si el negocio ya tiene punto de venta, el CUIT nuevo no puede traer un
+  // talonario que otro negocio ya numera. Lectura, chequeo y escritura en una transacción con
+  // el lock del CUIT (`bloquearCuit`).
+  const r = await operatorPrisma.$transaction(async (tx) => {
+    if (nuevoCuit) await bloquearCuit(tx, nuevoCuit);
+    const propio = await tx.tenant.findUnique({
+      where: { id: tenantId },
+      select: { arcaCuit: true, arcaPuntoVenta: true },
+    });
+    if (!propio) return { tipo: "no-existe" as const };
+    const choque = await buscarChoque(tx, tenantId, nuevoCuit, propio.arcaPuntoVenta);
+    if (choque) return { tipo: "choque" as const, motivo: choque };
+
+    await tx.tenant.update({ where: { id: tenantId }, data: { arcaCuit: nuevoCuit } });
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor: `operator:${op}`,
+        action: nuevoCuit ? "fiscal.cuit.set" : "fiscal.cuit.clear",
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { arcaCuit: nuevoCuit, antes: propio.arcaCuit },
+      },
+    });
+    return { tipo: "ok" as const };
   });
+  if (r.tipo === "no-existe") redirect("/operador?error=notfound");
+  if (r.tipo === "choque") {
+    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(r.motivo)}`);
+  }
+
   revalidatePath(`/operador/tenants/${tenantId}`);
   const msg = nuevoCuit ? `CUIT del emisor guardado (${nuevoCuit})${aviso}` : "CUIT del emisor borrado";
   redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(msg)}`);
@@ -269,17 +334,47 @@ export async function setTenantArcaPuntoVenta(formData: FormData) {
     }
   }
 
-  await operatorPrisma.tenant.update({ where: { id: tenantId }, data: { arcaPuntoVenta: punto } });
-  await operatorPrisma.auditLog.create({
-    data: {
-      tenantId,
-      actor: `operator:${op}`,
-      action: punto ? "fiscal.puntoVenta.set" : "fiscal.puntoVenta.clear",
-      entity: "Tenant",
-      entityId: tenantId,
-      changes: { arcaPuntoVenta: punto },
-    },
+  // Candado fiscal: el mismo CUIT no puede repetir punto de venta en otro negocio. Se lee el
+  // CUIT del negocio, se toma su lock y recién ahí se mira a los demás y se escribe.
+  const r = await operatorPrisma.$transaction(async (tx) => {
+    const antes = await tx.tenant.findUnique({ where: { id: tenantId }, select: { arcaCuit: true } });
+    if (!antes) return { tipo: "no-existe" as const };
+    if (punto && antes.arcaCuit) await bloquearCuit(tx, antes.arcaCuit);
+    // Se relee con el lock tomado: el CUIT pudo cambiar en el medio.
+    const propio = await tx.tenant.findUnique({
+      where: { id: tenantId },
+      select: { arcaCuit: true, arcaPuntoVenta: true },
+    });
+    if (!propio) return { tipo: "no-existe" as const };
+    if (propio.arcaCuit !== antes.arcaCuit) return { tipo: "cambio" as const };
+    const choque = await buscarChoque(tx, tenantId, propio.arcaCuit, punto);
+    if (choque) return { tipo: "choque" as const, motivo: choque };
+
+    await tx.tenant.update({ where: { id: tenantId }, data: { arcaPuntoVenta: punto } });
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor: `operator:${op}`,
+        action: punto ? "fiscal.puntoVenta.set" : "fiscal.puntoVenta.clear",
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { arcaPuntoVenta: punto, antes: propio.arcaPuntoVenta, arcaCuit: propio.arcaCuit },
+      },
+    });
+    return { tipo: "ok" as const };
   });
+  if (r.tipo === "no-existe") redirect("/operador?error=notfound");
+  if (r.tipo === "cambio") {
+    redirect(
+      `/operador/tenants/${tenantId}?error=${encodeURIComponent(
+        "El CUIT de este negocio cambió mientras editabas. No se guardó nada: revisá los datos de ahora y cargá el punto de venta de nuevo.",
+      )}`,
+    );
+  }
+  if (r.tipo === "choque") {
+    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(r.motivo)}`);
+  }
+
   revalidatePath(`/operador/tenants/${tenantId}`);
   const msg = punto ? `Punto de venta guardado (${punto})` : "Punto de venta borrado";
   redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(msg)}`);
@@ -419,34 +514,148 @@ export async function resetOwnerPasswordDeTenant(
   return result;
 }
 
-// Toggle de un módulo en `Tenant.modules`. OJO — HOY ESTO ES INFORMATIVO, NO PRENDE PANTALLAS:
-// el registro de módulos está detrás de `MODULE_REGISTRY_ENABLED`, que está apagado (y prenderlo
-// es cross-tenant: dejaría a beauty-spa sin menú). El gating que SÍ manda hoy es el RUBRO
-// (`isRetail` / `carniceriaOnly`). Además esto escribe el array crudo: no valida que el módulo
-// corresponda al rubro ni que estén sus dependencias. Se deja porque el dato queda listo para
-// cuando el registro se encienda, pero la ficha lo etiqueta como informativo para que nadie
-// prometa "le prendo Bancos" y se vaya con la idea de que quedó prendido.
+// --- Módulos del negocio: activación validada, condicional y auditada ------------------
+// `Tenant.modules` decide qué apps ve un negocio del Inicio por apps (APPS_INICIO) y, en el
+// Comerciante, ya decide su menú. Hasta la ola 1 esta action escribía el arreglo crudo: sin
+// validar dependencias ni rubro, sin auditoría, y dos pestañas se pisaban (la segunda borraba
+// lo de la primera sin enterarse). Ahora:
+//   1. el formulario trae la asignación que el operador VIO en la vista previa (`vistos`); si
+//      la base ya no es esa, se rechaza con "cambió mientras editabas" y no se escribe nada;
+//   2. el plan sale de `validarCambio` (planActivar / planDesactivar, más los candados de la
+//      consola: CH sin el OK del dueño, cartera y multilocal juntos);
+//   3. la escritura es condicional sobre el arreglo leído (`modules: { equals }`): si otro la
+//      cambió entre la lectura y acá, no pisa;
+//   4. escritura y auditoría (antes y después) van en la misma transacción: no hay cambio
+//      de módulos sin su rastro.
+
+const CAMBIO_MIENTRAS_EDITABAS =
+  "El negocio cambió mientras editabas: otra pestaña u otra persona le cambió los módulos. " +
+  "No se guardó nada. Revisá la vista previa con los datos de ahora y confirmá de nuevo.";
+
+/** Vuelve a la tarjeta de apps de la ficha con el mensaje (y la vista previa abierta, si hay). */
+function volverAApps(tenantId: string, q: Record<string, string>): never {
+  redirect(`/operador/tenants/${tenantId}?${new URLSearchParams(q).toString()}#apps`);
+}
+
+/** La asignación que el operador vio al armar la vista previa, o `null` si el campo no es válido. */
+function leerVistos(valor: FormDataEntryValue | null): string[] | null {
+  try {
+    const v: unknown = JSON.parse(String(valor ?? ""));
+    return Array.isArray(v) && v.every((x) => typeof x === "string") ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Escribe la asignación nueva SÓLO si la base sigue teniendo la que se leyó, y deja la
+ * auditoría en la misma transacción. `false` = alguien la cambió en el medio.
+ */
+async function escribirModulosAuditado(
+  tenantId: string,
+  leidos: string[],
+  nuevos: string[],
+  audit: { actor: string; action: string; changes: Prisma.InputJsonValue },
+): Promise<boolean> {
+  return operatorPrisma.$transaction(async (tx) => {
+    const r = await tx.tenant.updateMany({
+      where: { id: tenantId, modules: { equals: leidos } },
+      data: { modules: nuevos },
+    });
+    if (r.count !== 1) return false;
+    await tx.auditLog.create({
+      data: { tenantId, entity: "Tenant", entityId: tenantId, ...audit },
+    });
+    return true;
+  });
+}
+
+function nombresDeModulos(ids: readonly string[]): string {
+  const cat = catalogo();
+  return ids.map((id) => `“${cat.buscar(id)?.nombre ?? id}”`).join(", ");
+}
+
 export async function toggleTenantModule(formData: FormData) {
-  await requireOperator();
-  const tenantId = String(formData.get("tenantId") || "");
-  const moduleId = String(formData.get("module") || "");
-  if (!isModuleId(moduleId)) redirect(`/operador/tenants/${tenantId}?error=modulo`);
+  const op = await requireOperator();
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const modulo = String(formData.get("module") || "").trim();
+  const accion = String(formData.get("accion") || "").trim();
+  const vistos = leerVistos(formData.get("vistos"));
+
+  if (!isModuleId(modulo) || (accion !== "activar" && accion !== "desactivar") || vistos === null) {
+    volverAApps(tenantId, { error: "El pedido llegó incompleto. Recargá la ficha y probá de nuevo." });
+  }
 
   const tenant = await operatorPrisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { modules: true },
+    select: { slug: true, blueprintId: true, modules: true },
   });
   if (!tenant) redirect("/operador?error=notfound");
 
-  const current = new Set(tenant!.modules);
-  if (current.has(moduleId)) current.delete(moduleId);
-  else current.add(moduleId);
+  if (!mismoConjunto(tenant.modules, vistos)) {
+    volverAApps(tenantId, { modulo, error: CAMBIO_MIENTRAS_EDITABAS });
+  }
 
-  await operatorPrisma.tenant.update({
-    where: { id: tenantId },
-    data: { modules: Array.from(current) },
+  // Se vuelve a decidir con la base fresca: que el botón estuviera habilitado no prueba nada.
+  const plan = validarCambio(tenant, { accion, modulo }, catalogo());
+  if (!plan.ok) volverAApps(tenantId, { modulo, error: plan.motivo });
+  const nombre = nombresDeModulos([modulo]);
+  if (plan.sinCambios) {
+    volverAApps(tenantId, { ok: `No había nada que cambiar: ${nombre} ya estaba ${accion === "activar" ? "activo" : "apagado"}.` });
+  }
+
+  const guardado = await escribirModulosAuditado(tenantId, tenant.modules, plan.despues, {
+    actor: `operator:${op}`,
+    action: accion === "activar" ? "module.activate" : "module.deactivate",
+    changes: { modulo, accion, incluidos: plan.incluidos, antes: tenant.modules, despues: plan.despues },
   });
+  if (!guardado) volverAApps(tenantId, { modulo, error: CAMBIO_MIENTRAS_EDITABAS });
+
   revalidatePath(`/operador/tenants/${tenantId}`);
   revalidatePath("/operador");
-  redirect(`/operador/tenants/${tenantId}?ok=modulos`);
+  const extra = plan.incluidos.length > 0 ? ` Se activó también: ${nombresDeModulos(plan.incluidos)}.` : "";
+  volverAApps(tenantId, { ok: `${accion === "activar" ? "Activaste" : "Apagaste"} ${nombre}.${extra}` });
+}
+
+// "Fijar asignación actual": suma los módulos mínimos para que, con el Inicio por apps
+// prendido, el negocio vea las apps de su menú de siempre. Es el paso previo a sumarlo a
+// APPS_INICIO. Nunca saca un módulo (eso es un cambio de a uno, con su vista previa). En CH
+// está bloqueado hasta el OK del dueño, y el bloqueo vive acá, no sólo en el botón.
+export async function fijarAsignacionActual(formData: FormData) {
+  const op = await requireOperator();
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const vistos = leerVistos(formData.get("vistos"));
+  if (vistos === null) {
+    volverAApps(tenantId, { error: "El pedido llegó incompleto. Recargá la ficha y probá de nuevo." });
+  }
+
+  const negocio = await leerNegocioParaActivar(tenantId);
+  if (!negocio) redirect("/operador?error=notfound");
+  if (!mismoConjunto(negocio.modules, vistos)) volverAApps(tenantId, { error: CAMBIO_MIENTRAS_EDITABAS });
+
+  const plan = planFijarAsignacion(negocio, flagsDeApps(), catalogo());
+  if (!plan.ok) volverAApps(tenantId, { error: plan.motivo });
+  if (plan.sinCambios) {
+    volverAApps(tenantId, { ok: "No había nada que fijar: con sus módulos ya ve todas las apps de su menú de siempre." });
+  }
+
+  const guardado = await escribirModulosAuditado(tenantId, [...negocio.modules], plan.despues, {
+    actor: `operator:${op}`,
+    action: "module.fijar-asignacion",
+    changes: {
+      agregados: plan.agregados,
+      antes: [...negocio.modules],
+      despues: plan.despues,
+      appsQueNoSeRecuperan: plan.noSeRecuperan.map((x) => x.app.id),
+    },
+  });
+  if (!guardado) volverAApps(tenantId, { error: CAMBIO_MIENTRAS_EDITABAS });
+
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  revalidatePath("/operador");
+  const pendientes =
+    plan.noSeRecuperan.length > 0
+      ? ` Ojo: igual perdería ${plan.noSeRecuperan.map((x) => x.app.nombre).join(", ")}.`
+      : " Con el Inicio por apps no pierde ninguna app de su menú de siempre.";
+  volverAApps(tenantId, { ok: `Asignación fijada: se sumaron ${nombresDeModulos(plan.agregados)}.${pendientes}` });
 }
