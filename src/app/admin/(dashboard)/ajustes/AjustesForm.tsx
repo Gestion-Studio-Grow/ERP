@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createStockAdjustment } from "@/lib/stock-adjustment-actions";
-import { Input, Select, Textarea, buttonClasses } from "@/components/ui";
+import { createStockAdjustment, type EstadoAjuste } from "@/lib/stock-adjustment-actions";
+import { AvisoError, Input, Select, Textarea, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import {
-  ADJUSTMENT_MOTIVOS,
   adjustmentDelta,
   leerValorDeAjuste,
+  marcaDeConteo,
   motivoLabel,
   motivoMode,
   requiresNote,
   type AdjustmentMotivo,
 } from "@/lib/stock/adjustment-core";
 import { cantidadParaFormulario } from "@/lib/pos-peso";
+import { useEnvio } from "@/lib/inventario/envio";
 
 // Producto ajustable que llega del loader (getAdjustmentData): con stock/unidad actuales.
 type AdjustableProduct = {
@@ -29,7 +30,14 @@ type AdjustableProduct = {
 // Con el `type="number"` de antes, tipear "4,350" entregaba "4350" (medido, ver
 // pos-peso.ts) y el recuento dejaba el corte en 4350 kg. El texto se interpreta según el
 // motivo (contado / perdido / delta firmado).
-type Line = { key: number; productId: string; texto: string };
+//
+// `contadoA`: en un recuento, la hora del TELÉFONO en que se empezó a tipear lo contado
+// (`marcaDeConteo`). Al registrar, el formulario agrega la hora del teléfono en ese momento y el
+// servidor usa sólo la diferencia ("se contó hace 12 minutos") para comparar contra el stock que
+// había A ESA HORA, no contra el de cuando se toca "Registrar": si en el medio se vendió, la venta
+// no aparece como sobrante. Ninguna hora sale de cuándo se armó la página: al volver con Atrás,
+// Next muestra la página guardada y esa hora quedaría vieja.
+type Line = { key: number; productId: string; texto: string; contadoA: number | null };
 
 // Lo que viene preelegido desde otra pantalla (el "Recontar" del catálogo).
 export type AjusteInicial = { productId?: string; motivo?: AdjustmentMotivo };
@@ -46,21 +54,43 @@ const MODE_HINT: Record<AdjustmentMotivo, string> = {
   MERMA: "Cargá la cantidad perdida de cada producto. Siempre resta del stock.",
   ROTURA: "Cargá la cantidad rota de cada producto. Siempre resta del stock.",
   VENCIMIENTO: "Cargá la cantidad vencida de cada producto. Siempre resta del stock.",
+  DECOMISO: "Cargá lo que se decomisó (bromatología, cadena de frío). Siempre resta del stock.",
+  CONSUMO_INTERNO: "Cargá lo que consumió el personal. Siempre resta del stock.",
+  DEGUSTACION: "Cargá lo que se dio a probar. Siempre resta del stock.",
   OTRO: "Cargá el ajuste con signo (+ suma, − resta). Requiere una nota que lo explique.",
 };
 
+const lineaVacia = (key: number, productId = ""): Line => ({ key, productId, texto: "", contadoA: null });
+
+// El botón de registrar, con el estado de envío: mientras la acción corre queda deshabilitado,
+// así un segundo toque no registra la misma merma dos veces.
+function RegistrarSubmit({ disabled, enviando }: { disabled: boolean; enviando: boolean }) {
+  return (
+    <button type="submit" disabled={disabled || enviando} className={buttonClasses("solid", "lg")}>
+      {enviando ? "Registrando…" : "Registrar ajuste"}
+    </button>
+  );
+}
+
 export default function AjustesForm({
   products,
+  motivos,
   inicial,
+  topePesos,
+  conCostos,
 }: {
   products: AdjustableProduct[];
+  /** Los motivos que ofrece este negocio (los de siempre, o con los de perecederos). */
+  motivos: readonly AdjustmentMotivo[];
   inicial?: AjusteInicial;
+  /** Tope de merma por carga de quien carga (null = sin tope). */
+  topePesos: number | null;
+  /** ¿Quien carga ve costos? Sin `costs:read` el tope se nombra sin su monto. */
+  conCostos: boolean;
 }) {
-  const [motivo, setMotivo] = useState<AdjustmentMotivo>(inicial?.motivo ?? "RECUENTO");
+  const [motivo, setMotivo] = useState<AdjustmentMotivo>(inicial?.motivo ?? motivos[0] ?? "RECUENTO");
   const [note, setNote] = useState("");
-  const [lines, setLines] = useState<Line[]>([
-    { key: 1, productId: inicial?.productId ?? "", texto: "" },
-  ]);
+  const [lines, setLines] = useState<Line[]>([lineaVacia(1, inicial?.productId ?? "")]);
   const [nextKey, setNextKey] = useState(2);
   // Foco dirigido (mismo flujo sin-mouse que compras/POS): al elegir producto saltamos
   // al valor; guardamos el id pendiente en un ref para enfocarlo tras el render. Si el
@@ -69,6 +99,22 @@ export default function AjustesForm({
   const focus = (id: string) => {
     focusRef.current = id;
   };
+  // La acción devuelve el resultado; si salió bien, el formulario vuelve a empezar (sin las
+  // líneas cargadas): un segundo toque en "Registrar" ya no tiene nada que registrar. Si volvió
+  // con error (el tope, un producto dado de baja), queda todo como estaba: por eso `useEnvio`
+  // (onSubmit) y no `<form action>`, que vaciaba el formulario y dejaba los desplegables de
+  // producto mostrando otra cosa que la que se iba a mandar. Antes de enviar se agrega la hora
+  // del teléfono al tocar Registrar (ver `contadoA`).
+  const { estado, enviar, enviando } = useEnvio<EstadoAjuste>(async (prev, fd) => {
+    fd.set("enviadoA", String(Date.now()));
+    const r = await createStockAdjustment(prev, fd);
+    if (r?.ok) {
+      setLines([lineaVacia(1)]);
+      setNextKey(2);
+      setNote("");
+    }
+    return r;
+  }, null);
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const mode = motivoMode(motivo);
@@ -85,7 +131,7 @@ export default function AjustesForm({
   }
   function addLine() {
     const key = nextKey;
-    setLines((ls) => [...ls, { key, productId: "", texto: "" }]);
+    setLines((ls) => [...ls, lineaVacia(key)]);
     setNextKey((k) => k + 1);
     return key;
   }
@@ -95,7 +141,7 @@ export default function AjustesForm({
 
   // Lectura de cada línea con el motivo vigente (cambiar de Recuento a Otro cambia qué
   // significa el mismo texto). Delta = preview con el stock que trajo la pantalla; el
-  // autoritativo lo recalcula el core dentro de la transacción con el stock vigente.
+  // autoritativo lo recalcula el servidor dentro de la transacción.
   const leidas = lines.map((l) => {
     const p = byId.get(l.productId);
     const lectura = leerValorDeAjuste(mode, l.texto);
@@ -106,7 +152,9 @@ export default function AjustesForm({
   // Una línea ilegible frena TODO el envío, no se descarta: registrar las otras y perder
   // ésa en silencio es cómo un recuento termina a medias sin que nadie lo sepa.
   const hayIlegible = leidas.some((l) => l.invalida);
-  const hasValidLine = leidas.some((l) => l.p && l.delta !== 0);
+  // En un recuento, contar lo mismo que dice el sistema también es un dato (queda registrado
+  // que se contó); en una merma, una línea en 0 no tiene nada que registrar.
+  const hasValidLine = leidas.some((l) => l.p && l.lectura.estado === "ok" && (mode === "COUNT" || l.delta !== 0));
   const canSubmit = hasValidLine && !hayIlegible && (!noteNeeded || note.trim().length > 0);
 
   if (products.length === 0) {
@@ -119,15 +167,25 @@ export default function AjustesForm({
   }
 
   return (
-    <form action={createStockAdjustment} className="rounded-lg border border-line p-4 space-y-4">
+    <form onSubmit={enviar} className="rounded-lg border border-line p-4 space-y-4">
       <input type="hidden" name="motivo" value={motivo} />
 
+      {estado?.ok === false && (
+        <AvisoError titulo="No se registró el ajuste" comoSeguir={estado.error} />
+      )}
+      {estado?.ok && (
+        <p role="status" className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-strong">
+          {estado.mensaje}
+        </p>
+      )}
+
       {/* Motivo del ajuste */}
-      <div className="flex flex-wrap items-center gap-2">
-        {ADJUSTMENT_MOTIVOS.map((m) => (
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Motivo">
+        {motivos.map((m) => (
           <button
             key={m}
             type="button"
+            aria-pressed={m === motivo}
             onClick={() => setMotivo(m)}
             className={`chip-btn text-sm ${m === motivo ? "bg-accent text-on-accent" : ""}`}
           >
@@ -136,6 +194,13 @@ export default function AjustesForm({
         ))}
       </div>
       <p className="text-xs text-faint">{MODE_HINT[motivo]}</p>
+      {topePesos !== null && mode !== "COUNT" && (
+        <p className="text-xs text-muted">
+          {conCostos
+            ? `Tu tope por carga es ${fmtMoneyARS(topePesos, 0)} a costo. Si una merma lo pasa, la carga la dueña o el dueño.`
+            : "Tenés un tope por carga. Si una merma es grande, la carga la dueña o el dueño."}
+        </p>
+      )}
 
       {/* Nota (obligatoria en OTRO) */}
       <label className="block text-sm">
@@ -167,7 +232,8 @@ export default function AjustesForm({
                 aria-label="Producto"
                 value={l.productId}
                 onChange={(e) => {
-                  setLine(l.key, { productId: e.target.value });
+                  // Otro producto es otro conteo: si ya había un número, cuenta desde ahora.
+                  setLine(l.key, { productId: e.target.value, contadoA: l.texto.trim() ? Date.now() : null });
                   if (e.target.value) focus(`val-${l.key}`);
                 }}
               >
@@ -199,7 +265,10 @@ export default function AjustesForm({
                           ? "Cantidad"
                           : "Ajuste ±"
                   }
-                  onChange={(e) => setLine(l.key, { texto: e.target.value })}
+                  onChange={(e) => {
+                    const texto = e.target.value;
+                    setLine(l.key, { texto, contadoA: marcaDeConteo(l, texto, Date.now()) });
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -239,14 +308,20 @@ export default function AjustesForm({
                     : "Eso no es una cantidad. Escribila con coma si tiene gramos (4,350)."}
                 </p>
               )}
-              {/* Inputs que viajan a la server action (patrón getAll del Core). Viaja la
-                  línea sólo si tiene producto y un valor LEGIBLE, en forma canónica (punto
-                  decimal): el server la vuelve a leer con la misma regla. El core recalcula
-                  el delta y descarta los no-op (recuento que coincide con el sistema). */}
+              {/* Inputs que viajan a la server action (patrón getAll del Core, arrays
+                  paralelos). Viaja la línea sólo si tiene producto y un valor LEGIBLE, en
+                  forma canónica (punto decimal): el server la vuelve a leer con la misma regla.
+                  La hora del conteo viaja SIEMPRE con la línea (vacía fuera de un recuento)
+                  para no desalinear los arrays. */}
               {p && l.lectura.estado === "ok" && (
                 <>
                   <input type="hidden" name="productId" value={l.productId} />
                   <input type="hidden" name="value" value={cantidadParaFormulario(l.lectura.valor)} />
+                  <input
+                    type="hidden"
+                    name="contadoA"
+                    value={mode === "COUNT" && l.contadoA !== null ? String(l.contadoA) : ""}
+                  />
                 </>
               )}
             </div>
@@ -261,13 +336,11 @@ export default function AjustesForm({
         </button>
       </div>
 
-      <div className="flex items-center justify-between border-t border-line pt-4">
+      <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
         <p className="text-xs text-faint max-w-xs">
           Cada línea queda registrada en el historial de stock con su motivo.
         </p>
-        <button type="submit" disabled={!canSubmit} className={buttonClasses("solid", "lg")}>
-          Registrar ajuste
-        </button>
+        <RegistrarSubmit disabled={!canSubmit} enviando={enviando} />
       </div>
     </form>
   );

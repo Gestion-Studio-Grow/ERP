@@ -13,11 +13,16 @@
 // del piloto, el operador asigna `inventario` a magra, shinevelas y adosmanos ANTES de
 // prenderles el Inicio por apps.
 //
-// CAPABILITY: la que exige la página hoy. Inventario, Lotes y Despiece la piden en la
-// página; Recibir mercadería y Mermas, en su loader (getStockData / getAdjustmentData):
-// catalog:read. El menú de hoy decía catalog:manage para varias; para los tres roles da
-// lo mismo y el test de paridad lo vigila. Recibir y cargar mermas desde RECEPTION llega en
-// la ola 2 con las capabilities de stock nuevas: ahí se cambia acá, no en otra lista.
+// CAPABILITY: la que decide quién ABRE la app (la aplica `requireApp` en la página y
+// `requireAppAccion` en sus acciones). Las apps que ya estaban en la barra conservan la de hoy
+// (catalog:read): cambiarla a una capability de stock le sumaría Compras y Ajustes a la
+// recepción de CH, que es de servicios y no las ve. Adentro, cada operación pide además su
+// capability fina (stock:read, stock:receive, stock:count, stock:adjust, purchasing:manage) y
+// los costos piden costs:read. Las apps NUEVAS de la ola 2 que son de mostrador (Movimientos y
+// Recuento) usan directo la capability de stock: el rubro ya las deja fuera de CH, y así el
+// encargado (RECEPTION) de un mostrador las abre. Stock, Recibir mercadería y Mermas suman
+// `capabilityEnMostrador`: en un local de mostrador del piloto las abre el encargado con su
+// permiso de stock (sin costos, y la merma con tope); en CH (contexto null) no cuenta.
 //
 // RUBRO: se conserva el de hoy, aunque el catálogo de producto pida más. Mermas y Recibir
 // mercadería no llevan rubro porque CH las ve hoy en su barra, y CH no cambia.
@@ -33,16 +38,45 @@ export const APPS_LOGISTICA = [
     ruta: "/admin/inventario",
     espacio: "stock",
     capability: "catalog:read",
+    capabilityEnMostrador: "stock:read",
     modulo: "inventario",
     rubro: "mostrador",
     estado: "lista",
     kpi: {
       id: "inventario",
-      mide: "Productos bajo el mínimo y productos sin costo.",
-      monto: { mide: "El stock valorizado a costo.", capability: "reports:read" },
+      mide: "Productos bajo el mínimo y productos con stock sin costo.",
+      monto: { mide: "El stock valorizado a costo vigente.", capability: "reports:read" },
     },
     palabras: ["stock", "existencias"],
     menuDeHoy: { etiqueta: "Inventario", orden: 110, moduloDeHoy: "catalog" },
+  },
+  {
+    id: "movimientos",
+    nombre: "Movimientos de un producto",
+    descripcion: "Por qué el stock dice lo que dice: cada entrada y salida con su saldo.",
+    icono: "inventario",
+    ruta: "/admin/inventario/movimientos",
+    espacio: "stock",
+    capability: "stock:read",
+    modulo: "inventario",
+    rubro: "mostrador",
+    estado: "lista",
+    kpi: { id: "movimientos", mide: "Productos en negativo que hay que recontar." },
+    palabras: ["historial de stock", "entradas y salidas", "negativos", "saldo"],
+  },
+  {
+    id: "recuento",
+    nombre: "Recuento",
+    descripcion: "Contar la góndola con el local abierto, sin que la venta del momento ensucie la diferencia.",
+    icono: "ajustes",
+    ruta: "/admin/ajustes/recuento",
+    espacio: "stock",
+    capability: "stock:count",
+    modulo: "inventario",
+    rubro: "mostrador",
+    estado: "lista",
+    kpi: { id: "recuento", mide: "Productos sin contar hace más de 30 días." },
+    palabras: ["contar", "conteo", "planilla", "inventario fisico"],
   },
   {
     id: "recibir-mercaderia",
@@ -52,6 +86,7 @@ export const APPS_LOGISTICA = [
     ruta: "/admin/compras",
     espacio: "stock",
     capability: "catalog:read",
+    capabilityEnMostrador: "stock:receive",
     modulo: "inventario",
     estado: "lista",
     kpi: {
@@ -70,15 +105,29 @@ export const APPS_LOGISTICA = [
     ruta: "/admin/ajustes",
     espacio: "stock",
     capability: "catalog:read",
+    capabilityEnMostrador: "stock:adjust",
     modulo: "inventario",
     estado: "lista",
     kpi: {
       id: "mermas",
-      mide: "Mermas cargadas este mes.",
-      monto: { mide: "La merma del mes en pesos y en porcentaje de la venta.", capability: "reports:read" },
+      mide: "Mermas cargadas este mes, y cuántas cargó recepción.",
+      monto: { mide: "La merma del mes en pesos, a costo, y qué parte de la venta cobrada del mes es.", capability: "reports:read" },
     },
     palabras: ["mermas", "rotura", "recuento", "vencidos"],
     menuDeHoy: { etiqueta: "Ajustes", orden: 140, moduloDeHoy: "catalog" },
+  },
+  {
+    id: "proveedores",
+    nombre: "Proveedores",
+    descripcion: "La ficha de cada proveedor: CUIT, contacto, compras y devoluciones.",
+    icono: "compras",
+    ruta: "/admin/proveedores",
+    espacio: "stock",
+    capability: "purchasing:manage",
+    modulo: "inventario",
+    estado: "lista",
+    kpi: { id: "proveedores", mide: "Proveedores activos y cuántos no tienen CUIT cargado." },
+    palabras: ["cuit", "distribuidores", "razon social", "contactos"],
   },
   {
     id: "lotes-y-vencimientos",
@@ -121,7 +170,7 @@ export const APPS_LOGISTICA = [
     icono: "devoluciones",
     ruta: "/admin/devoluciones-proveedor",
     espacio: "stock",
-    capability: "catalog:manage",
+    capability: "purchasing:manage",
     modulo: "devoluciones-proveedor",
     perfilMin: "enterprise",
     estado: "lista",

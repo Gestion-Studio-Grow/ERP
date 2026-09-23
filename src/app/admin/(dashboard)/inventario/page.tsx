@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { requireCapability } from "@/lib/authz";
-import { getActiveProfile } from "@/lib/profile-gating";
-import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { requireApp } from "@/lib/require-app";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
 import { getProductExtras } from "@/lib/carniceria/product-extras";
 import { getInventory } from "@/lib/inventario/loader";
+import type { InventoryRow } from "@/lib/inventario/valuation";
 import { classifyCorte, categoriaMeta, CORTE_CATEGORIAS, type CorteCategoria } from "@/lib/carniceria/cortes";
 import { PageHeader, EmptyState, Badge, fmtMoneyARS, buttonClasses } from "@/components/ui";
-import { InventoryTable } from "@/components/inventario/InventoryTable";
 import { getMermaDeLaSemana } from "@/lib/inventario/merma-loader";
-import { cortesEnNegativo, renglonSinCosto, semanaHasta, type Renglon, type ResumenDeMerma, type Semana } from "@/lib/stock/merma-core";
+import { cortesEnNegativo, renglonSinCosto, semanaHasta, MOTIVOS_DE_MERMA, type Renglon, type ResumenDeMerma, type Semana } from "@/lib/stock/merma-core";
+import { hrefMovimientos } from "@/lib/inventario/movimientos";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { todayInBusinessTz } from "@/lib/datetime";
 
@@ -25,110 +27,144 @@ function Stat({ label, value, hint, tone = "neutral" }: { label: string; value: 
   );
 }
 
-// Inventario (recuento/valuación, ADR-060 D5). Se enciende para el rubro RETAIL/carnicería
-// (Magra) además del canal Empresa: un mostrador vive del control de stock. En servicios (CH,
-// no-retail, motor de perfiles OFF) queda EXACTAMENTE como antes ("En preparación") → nav y
-// pantalla byte-idénticas. Read-only; los movimientos (ajuste/merma) viven en /admin/ajustes.
+// STOCK (ADR-060 D5): qué hay de cada producto y cuánto vale, a COSTO VIGENTE (el mismo número
+// que el Catálogo y el Margen, stock/costo.ts). Es de mostrador: la guardia de la app
+// (`requireApp`) deja afuera a un negocio de servicios con el mismo criterio que el menú.
+// Quien no tiene `costs:read` (el encargado) ve cantidades, avisos y mermas en kilos, sin un
+// peso: los costos ni se leen para esa persona. Read-only; los movimientos (merma, recuento)
+// viven en sus apps.
 export default async function InventarioPage({
   searchParams,
 }: {
   searchParams: Promise<{ hasta?: string | string[] }>;
 }) {
-  await requireCapability("catalog:read");
-  const [profile, rubro] = await Promise.all([getActiveProfile(), getCurrentTenantRubro()]);
+  const user = await requireApp("inventario");
+  const [{ rows, summary, conCostos }, extras, sp, negocio] = await Promise.all([
+    getInventory(),
+    getProductExtras(),
+    searchParams,
+    getNegocioApps(user.role),
+  ]);
+  const puede = {
+    recontar: appPermitida(appPorId("recuento"), negocio),
+    mermas: appPermitida(appPorId("mermas"), negocio),
+    movimientos: appPermitida(appPorId("movimientos"), negocio),
+  };
 
-  // Gate: retail (Magra) O motor de perfiles encendido. CH (servicios) no cumple ninguno.
-  if (!rubro.isRetail && profile === null) {
-    return (
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <PageHeader title="Inventario" description="Niveles de stock y su valuación." />
-        <EmptyState title="En preparación" description="El inventario valuado se activa junto con las nuevas funciones del panel." />
-      </main>
-    );
-  }
-
-  const [{ rows, summary }, extras, sp] = await Promise.all([getInventory(), getProductExtras(), searchParams]);
-
-  // Merma de la semana y cortes en negativo: sólo retail (MAGRA). El perfil sin rubro retail
-  // ve la pantalla como estaba.
+  // Merma de la semana y productos en negativo (la definición única: controlan stock y
+  // quedaron bajo cero).
   const hastaParam = Array.isArray(sp.hasta) ? sp.hasta[0] : sp.hasta;
   const hoy = todayInBusinessTz();
-  const semana = rubro.isRetail ? semanaHasta(hastaParam, hoy) : null;
-  const merma = semana ? await getMermaDeLaSemana(semana, { rows, extras }) : null;
-  const negativos = rubro.isRetail ? cortesEnNegativo(rows) : [];
+  const semana = semanaHasta(hastaParam, hoy);
+  const merma = await getMermaDeLaSemana(semana, { rows, conCostos });
+  const negativos = cortesEnNegativo(rows.filter((r) => r.negative));
+  const recontarHref = (productId: string) =>
+    puede.recontar
+      ? `/admin/ajustes/recuento?producto=${encodeURIComponent(productId)}`
+      : `/admin/ajustes?producto=${encodeURIComponent(productId)}&motivo=RECUENTO`;
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
       <PageHeader
-        title="Inventario"
-        description="Stock actual y su valuación por corte (solo lectura). La valuación usa el último costo de compra conocido."
+        title="Stock"
+        description={
+          conCostos
+            ? "Stock actual y su valuación por producto, al costo vigente (el mismo que usan el Catálogo y el Margen)."
+            : "Stock actual de cada producto y lo que está bajo el mínimo."
+        }
       />
 
       <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Cortes / productos" value={String(summary.productos)} />
-        <Stat label="Valuación total" value={fmtMoneyARS(summary.valuacionTotal)} />
-        <Stat label="Stock bajo" value={String(summary.bajoStock)} tone={summary.bajoStock > 0 ? "warning" : "neutral"} hint="en o bajo el umbral" />
-        <Stat label="Sin costo" value={String(summary.sinCosto)} hint="valuación incompleta" />
+        <Stat label="Productos" value={String(summary.productos)} />
+        {conCostos && <Stat label="Valuación total" value={fmtMoneyARS(summary.valuacionTotal)} />}
+        <Stat label="Stock bajo" value={String(summary.bajoStock)} tone={summary.bajoStock > 0 ? "warning" : "neutral"} hint="en el mínimo o por debajo" />
+        {conCostos ? (
+          <Stat label="Sin costo" value={String(summary.sinCosto)} hint="con stock y sin costo: valuación incompleta" />
+        ) : (
+          <Stat label="En negativo" value={String(summary.enNegativo)} tone={summary.enNegativo > 0 ? "warning" : "neutral"} hint="hay que recontarlos" />
+        )}
       </div>
 
-      {/* Primero lo que está mal: un corte en negativo es una venta que salió con más de lo
+      {/* Primero lo que está mal: un producto en negativo es una venta que salió con más de lo
           que el sistema creía que había. Hay que recontarlo antes de mirar cualquier otra cosa. */}
-      {negativos.length > 0 && <CortesEnNegativo filas={negativos} />}
+      {negativos.length > 0 && <EnNegativo filas={negativos} recontarHref={recontarHref} puedeRecontar={puede.recontar || puede.mermas} />}
 
-      {semana && merma && <MermaDeLaSemana semana={semana} merma={merma} hoy={hoy} />}
+      <MermaDeLaSemana semana={semana} merma={merma} hoy={hoy} conCostos={conCostos} />
 
-      {/* Acceso al tercer flujo del inventario: ajustes y MERMAS (recuento/rotura). */}
+      {/* Accesos a lo que mueve el stock por fuera de la venta y la compra. */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-sunken px-4 py-3">
         <p className="text-sm text-muted">
-          ¿Recontaste, tiraste algo o se echó a perder? Registrá un <span className="text-body font-medium">ajuste o merma</span> para que el stock quede fiel.
+          ¿Contaste, tiraste algo o se echó a perder? Registralo para que el stock quede fiel.
         </p>
-        <Link href="/admin/ajustes" className={buttonClasses("outline", "sm")}>
-          Registrar ajuste / merma
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {puede.recontar && (
+            <Link href="/admin/ajustes/recuento" className={buttonClasses("outline", "md")}>
+              Recuento
+            </Link>
+          )}
+          {puede.mermas && (
+            <Link href="/admin/ajustes" className={buttonClasses("outline", "md")}>
+              Cargar merma
+            </Link>
+          )}
+          {puede.movimientos && (
+            <Link href="/admin/inventario/movimientos" className={buttonClasses("outline", "md")}>
+              Movimientos
+            </Link>
+          )}
+        </div>
       </div>
 
       {rows.length === 0 ? (
         <EmptyState
-          title="En preparación"
-          description="El inventario valuado (niveles de stock + costo por corte) se muestra cuando cargues productos y compras."
+          title="Todavía no hay productos"
+          description="El stock se muestra cuando cargues productos en el catálogo y registres lo que llega del proveedor."
+          action={
+            <Link href="/admin/compras" className={buttonClasses("solid", "md")}>
+              Recibir mercadería
+            </Link>
+          }
         />
-      ) : rubro.isRetail ? (
-        // Vista por GÓNDOLA para carnicería: cada corte bajo su categoría (explícita o
-        // derivada del nombre), con stock, último costo y valuación. Stock bajo resaltado.
-        <CarniceriaInventory rows={rows} extras={extras} />
       ) : (
-        <InventoryTable rows={rows} />
+        // Vista por GÓNDOLA (Stock es de mostrador): cada producto bajo su categoría (explícita
+        // o derivada del nombre), con stock, costo vigente y valuación. Stock bajo resaltado.
+        <PorGondola rows={rows} extras={extras} conCostos={conCostos} conMovimientos={puede.movimientos} />
       )}
     </main>
   );
 }
 
-type Row = Awaited<ReturnType<typeof getInventory>>["rows"][number];
-
-const recontarHref = (productId: string) =>
-  `/admin/ajustes?producto=${encodeURIComponent(productId)}&motivo=RECUENTO`;
-
-function CortesEnNegativo({ filas }: { filas: Row[] }) {
+function EnNegativo({
+  filas,
+  recontarHref,
+  puedeRecontar,
+}: {
+  filas: InventoryRow[];
+  recontarHref: (id: string) => string;
+  puedeRecontar: boolean;
+}) {
   return (
     <section aria-labelledby="negativos-titulo" className="mb-6 rounded-lg border border-danger/30 bg-danger-soft p-4">
       <h2 id="negativos-titulo" className="text-base font-semibold text-danger">
-        {filas.length === 1 ? "1 corte en negativo" : `${filas.length} cortes en negativo`}
+        {filas.length === 1 ? "1 producto en negativo" : `${filas.length} productos en negativo`}
       </h2>
       <p className="mt-1 text-sm text-body">
-        Se vendió más de lo que el sistema tenía cargado. Recontá estos cortes para que el stock vuelva a ser el real.
+        Se vendió más de lo que el sistema tenía cargado. Recontalos para que el stock vuelva a ser el real.
       </p>
       <ul className="mt-3 divide-y divide-line rounded-md border border-line bg-surface-raised">
         {filas.map((r) => (
-          <li key={r.productId} className="flex items-center justify-between gap-3 px-3 py-2">
+          <li key={r.productId} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
             <span className="text-sm text-strong">
               {r.name}{" "}
               <span className="tabular-nums font-medium text-danger">
                 {formatearCantidad(r.stock)} {r.unit}
               </span>
             </span>
-            <Link href={recontarHref(r.productId)} className={buttonClasses("outline", "md")}>
-              Recontar
-            </Link>
+            {puedeRecontar && (
+              <Link href={recontarHref(r.productId)} className={buttonClasses("outline", "md")}>
+                Recontar
+              </Link>
+            )}
           </li>
         ))}
       </ul>
@@ -151,7 +187,19 @@ function pesosDe(r: Renglon): string {
   return r.sinCosto > 0 ? `${fmtMoneyARS(r.pesos)} + ${r.sinCosto} sin costo` : fmtMoneyARS(r.pesos);
 }
 
-function RenglonMerma({ titulo, detalle, r, tono }: { titulo: string; detalle: string; r: Renglon; tono: "neutral" | "danger" }) {
+function RenglonMerma({
+  titulo,
+  detalle,
+  r,
+  tono,
+  conCostos,
+}: {
+  titulo: string;
+  detalle: string;
+  r: Renglon;
+  tono: "neutral" | "danger";
+  conCostos: boolean;
+}) {
   const color = tono === "danger" && r.movimientos > 0 ? "text-danger" : "text-strong";
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-3">
@@ -161,7 +209,9 @@ function RenglonMerma({ titulo, detalle, r, tono }: { titulo: string; detalle: s
       </span>
       <span className="text-right tabular-nums">
         <span className={`block text-sm font-semibold ${color}`}>{cantidades(r)}</span>
-        <span className={`block text-xs ${renglonSinCosto(r) ? "text-faint" : "text-body"}`}>{pesosDe(r)}</span>
+        {conCostos && (
+          <span className={`block text-xs ${renglonSinCosto(r) ? "text-faint" : "text-body"}`}>{pesosDe(r)}</span>
+        )}
       </span>
     </li>
   );
@@ -170,13 +220,22 @@ function RenglonMerma({ titulo, detalle, r, tono }: { titulo: string; detalle: s
 /** "2026-09-17" → "17/09". */
 const ddmm = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 
-function MermaDeLaSemana({ semana, merma, hoy }: { semana: Semana; merma: ResumenDeMerma & { truncado: boolean }; hoy: string }) {
+function MermaDeLaSemana({
+  semana,
+  merma,
+  hoy,
+  conCostos,
+}: {
+  semana: Semana;
+  merma: ResumenDeMerma & { truncado: boolean };
+  hoy: string;
+  conCostos: boolean;
+}) {
   const pm = merma.mermaPorMotivo;
   const detalleMerma =
-    (["Merma", "Vencimiento", "Rotura"] as const)
-      .filter((m) => pm[m].kg !== 0 || pm[m].unidades !== 0)
+    MOTIVOS_DE_MERMA.filter((m) => pm[m].kg !== 0 || pm[m].unidades !== 0)
       .map((m) => `${m}: ${cantidades(pm[m])}`)
-      .join(" · ") || "Merma, vencimiento y rotura";
+      .join(" · ") || "Merma, vencimiento, rotura, decomiso, consumo interno y degustación";
   const devoluciones = merma.excluidos["devolucion-anulacion"] + merma.excluidos["devolucion-edicion"];
   const rango = `del ${ddmm(semana.desde)} al ${ddmm(semana.hasta)}`;
 
@@ -187,7 +246,10 @@ function MermaDeLaSemana({ semana, merma, hoy }: { semana: Semana; merma: Resume
           <h2 id="merma-titulo" className="text-base font-semibold text-strong">
             Merma y faltante {semana.esLaActual ? "de los últimos 7 días" : "de la semana"}
           </h2>
-          <p className="text-xs text-muted">{rango} · a costo vigente</p>
+          <p className="text-xs text-muted">
+            {rango}
+            {conCostos && " · a costo del día de cada movimiento"}
+          </p>
         </div>
         <nav aria-label="Elegir semana" className="flex gap-2">
           <Link href={`/admin/inventario?hasta=${semana.anterior}`} className={buttonClasses("outline", "md")}>
@@ -205,22 +267,35 @@ function MermaDeLaSemana({ semana, merma, hoy }: { semana: Semana; merma: Resume
       </div>
 
       <ul className="mt-3 divide-y divide-line rounded-md border border-line">
-        <RenglonMerma titulo="Merma declarada" detalle={detalleMerma} r={merma.merma} tono="neutral" />
+        <RenglonMerma titulo="Merma declarada" detalle={detalleMerma} r={merma.merma} tono="neutral" conCostos={conCostos} />
         <RenglonMerma
           titulo="Faltante de recuento"
           detalle="Lo que el sistema tenía y al contar no estaba. No se explica: es lo que hay que mirar."
           r={merma.faltante}
           tono="danger"
+          conCostos={conCostos}
         />
-        <RenglonMerma titulo="Sobrante de recuento" detalle="Al contar había más de lo cargado." r={merma.sobrante} tono="neutral" />
+        <RenglonMerma
+          titulo="Sobrante de recuento"
+          detalle="Al contar había más de lo cargado."
+          r={merma.sobrante}
+          tono="neutral"
+          conCostos={conCostos}
+        />
         {merma.otro.movimientos > 0 && (
-          <RenglonMerma titulo="Otras correcciones" detalle="Ajustes con motivo Otro, neto con su signo." r={merma.otro} tono="neutral" />
+          <RenglonMerma
+            titulo="Otras correcciones"
+            detalle="Ajustes con motivo Otro, neto con su signo."
+            r={merma.otro}
+            tono="neutral"
+            conCostos={conCostos}
+          />
         )}
       </ul>
 
-      {merma.top.length > 0 && (
+      {conCostos && merma.top.length > 0 && (
         <div className="mt-4">
-          <h3 className="text-sm font-semibold text-strong">Los cortes que más pierden</h3>
+          <h3 className="text-sm font-semibold text-strong">Los que más pierden</h3>
           <ol className="mt-2 divide-y divide-line rounded-md border border-line">
             {merma.top.map((c) => (
               <li key={c.productId} className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-2 text-sm">
@@ -237,7 +312,7 @@ function MermaDeLaSemana({ semana, merma, hoy }: { semana: Semana; merma: Resume
           </ol>
         </div>
       )}
-      {merma.perdidaSinCosto.length > 0 && (
+      {conCostos && merma.perdidaSinCosto.length > 0 && (
         <p className="mt-2 text-xs text-muted">
           Con pérdida y sin costo cargado (no se pueden ordenar en pesos):{" "}
           {merma.perdidaSinCosto.map((c) => `${c.nombre} ${formatearCantidad(c.merma + c.faltante)} ${c.kilo ? "kg" : "u"}`).join(" · ")}.
@@ -256,22 +331,26 @@ function MermaDeLaSemana({ semana, merma, hoy }: { semana: Semana; merma: Resume
   );
 }
 
-function CarniceriaInventory({
+function PorGondola({
   rows,
   extras,
+  conCostos,
+  conMovimientos,
 }: {
-  rows: Row[];
+  rows: InventoryRow[];
   extras: Map<string, { category: string | null; cost: number | null }>;
+  conCostos: boolean;
+  conMovimientos: boolean;
 }) {
   const VALID = new Set<CorteCategoria>(CORTE_CATEGORIAS.map((c) => c.id));
-  const catOf = (r: Row): CorteCategoria => {
+  const catOf = (r: InventoryRow): CorteCategoria => {
     const explicit = extras.get(r.productId)?.category;
     if (explicit && VALID.has(explicit as CorteCategoria)) return explicit as CorteCategoria;
     return classifyCorte(r.name);
   };
   const grupos = CORTE_CATEGORIAS.map((c) => ({
     categoria: c,
-    items: rows.filter((r) => catOf(r) === c.id),
+    items: rows.filter((r) => catOf(r) === c.id).sort((a, b) => a.name.localeCompare(b.name, "es")),
   })).filter((g) => g.items.length > 0);
 
   return (
@@ -281,16 +360,17 @@ function CarniceriaInventory({
           <div className="flex items-baseline gap-2 mb-2">
             <span aria-hidden className="text-accent">{categoriaMeta(categoria.id).glyph}</span>
             <h2 className="text-base font-semibold text-strong">{categoria.label}</h2>
-            <span className="text-xs text-faint">{items.length} corte{items.length !== 1 ? "s" : ""}</span>
+            <span className="text-xs text-faint">{items.length} producto{items.length !== 1 ? "s" : ""}</span>
           </div>
           <div className="sm:overflow-x-auto sm:rounded-lg sm:border sm:border-line">
             <table className="block sm:table w-full text-left">
               <thead className="hidden sm:table-header-group">
                 <tr className="border-b bg-surface-sunken text-xs uppercase tracking-wide text-muted">
-                  <th className="px-4 py-2 font-medium">Corte</th>
+                  <th className="px-4 py-2 font-medium">Producto</th>
                   <th className="px-4 py-2 font-medium">Stock</th>
-                  <th className="px-4 py-2 font-medium">Último costo</th>
-                  <th className="px-4 py-2 font-medium text-right">Valuación</th>
+                  {conCostos && <th className="px-4 py-2 font-medium">Costo</th>}
+                  {conCostos && <th className="px-4 py-2 font-medium text-right">Valuación</th>}
+                  {conMovimientos && <th className="px-4 py-2 font-medium"><span className="sr-only">Movimientos</span></th>}
                 </tr>
               </thead>
               <tbody className="block sm:table-row-group">
@@ -300,18 +380,32 @@ function CarniceriaInventory({
                     <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm">
                       <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Stock:</span>
                       <span className={`tabular-nums ${r.belowLowStock ? "text-danger font-medium" : "text-body"}`}>
-                        {r.stock} {r.unit}
+                        {formatearCantidad(r.stock)} {r.unit}
                       </span>
                       {r.belowLowStock && <Badge tone="danger" className="ml-2">Stock bajo</Badge>}
                     </td>
-                    <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm tabular-nums text-body">
-                      <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Costo:</span>
-                      {r.sinCosto ? <span className="text-faint">sin costo</span> : `${fmtMoneyARS(r.unitCost)}/${r.unit}`}
-                    </td>
-                    <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm tabular-nums sm:text-right text-body">
-                      <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Valuación:</span>
-                      {r.sinCosto ? "—" : fmtMoneyARS(r.valuation)}
-                    </td>
+                    {conCostos && (
+                      <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm tabular-nums text-body">
+                        <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Costo:</span>
+                        {r.sinCosto ? <span className="text-faint">sin costo</span> : `${fmtMoneyARS(r.unitCost)}/${r.unit}`}
+                      </td>
+                    )}
+                    {conCostos && (
+                      <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-2.5 text-sm tabular-nums sm:text-right text-body">
+                        <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Valuación:</span>
+                        {r.sinCosto ? "—" : fmtMoneyARS(r.valuation)}
+                      </td>
+                    )}
+                    {conMovimientos && (
+                      <td className="block sm:table-cell px-0 sm:px-4 py-1 sm:py-1.5 text-sm sm:text-right">
+                        <Link
+                          href={hrefMovimientos({ producto: r.productId })}
+                          className="inline-flex min-h-11 items-center text-accent underline-offset-2 hover:underline"
+                        >
+                          Movimientos
+                        </Link>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

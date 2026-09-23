@@ -15,7 +15,6 @@ import { MOTIVO_STOCK_INICIAL } from "./alta-producto";
 import {
   clasificarAjuste,
   cortesEnNegativo,
-  costoDeReferencia,
   esKilo,
   renglonSinCosto,
   resumirMerma,
@@ -83,11 +82,29 @@ test("el Stock inicial de un alta no es sobrante: EXCLUIDO", () => {
 
 // ── Costo y unidad ───────────────────────────────────────────────────────────
 
-test("costo: último de compra primero, si no el del catálogo (despiece), si no null — nunca 0", () => {
-  assert.equal(costoDeReferencia(8000, 7000), 8000);
-  assert.equal(costoDeReferencia(null, 7000), 7000, "corte de despiece: sin compra, con costo de catálogo");
-  assert.equal(costoDeReferencia(0, 0), null);
-  assert.equal(costoDeReferencia(undefined, null), null);
+test("costo: el guardado en la fila manda; si la fila no lo tiene (movimiento viejo), el vigente del producto", () => {
+  const productos = new Map<string, ProductoDeMerma>([
+    ["vacio", { nombre: "Vacío", unidad: "kg", saleUnit: "WEIGHT", costo: 9000 }],
+  ]);
+  // La merma del martes se valúa con el costo del martes (8000), no con el de hoy (9000).
+  const conCosto = resumirMerma([mov({ qty: -2, reason: buildReason("VENCIMIENTO", null), unitCost: 8000 })], productos);
+  assert.equal(conCosto.merma.pesos, 16000);
+  // Una fila de antes de la ola 2 (sin costo) cae al vigente.
+  const vieja = resumirMerma([mov({ qty: -2, reason: buildReason("VENCIMIENTO", null) })], productos);
+  assert.equal(vieja.merma.pesos, 18000);
+});
+
+test("los motivos de perecederos son merma declarada, cada uno con su renglón", () => {
+  for (const m of ["DECOMISO", "CONSUMO_INTERNO", "DEGUSTACION"] as const) {
+    const c = clasificarAjuste(mov({ qty: -1, reason: buildReason(m, "nota") }));
+    assert.equal(c.clase, "MERMA", m);
+  }
+  const r = resumirMerma(
+    [mov({ qty: -0.5, reason: buildReason("DEGUSTACION", null) })],
+    new Map([["vacio", { nombre: "Vacío", unidad: "kg", saleUnit: "WEIGHT", costo: 10000 }]]),
+  );
+  assert.deepEqual(r.mermaPorMotivo["Degustación"], { kg: 0.5, unidades: 0 });
+  assert.equal(r.merma.pesos, 5000);
 });
 
 test("kilos: por forma de venta o por la unidad escrita", () => {

@@ -7,7 +7,12 @@
 // DB; el repositorio (`supplier-repo.ts`) persiste lo que esto valida.
 //
 // CUIT: mismo criterio que el resto del sistema (String de 11 dígitos, sin guiones —
-// `Tenant.arcaCuit`/`Invoice.docNro`). Se valida FORMA (11 dígitos), no dígito verificador.
+// `Tenant.arcaCuit`/`Invoice.docNro`). Se valida la forma Y el dígito verificador con
+// `cuitValido` (src/lib/cuit.ts, el mismo de ARCA): un CUIT con un dígito cambiado es otro
+// contribuyente, y la ficha del proveedor es de donde van a salir la deuda y las
+// devoluciones. Antes sólo se miraba la forma y "30-71234567-9" (verificador mal) entraba.
+
+import { cuitValido } from "@/lib/cuit";
 
 /** Normaliza un CUIT a 11 dígitos sin separadores, o `null` si no tiene 11 dígitos. PURA. */
 export function normalizeTaxId(raw: string | null | undefined): string | null {
@@ -19,6 +24,14 @@ export function normalizeTaxId(raw: string | null | undefined): string | null {
 export function formatTaxId(raw: string | null | undefined): string | null {
   const d = normalizeTaxId(raw);
   return d ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : null;
+}
+
+/**
+ * Los proveedores activos del negocio: los que se ofrecen para elegir al recibir mercadería,
+ * los de la lista de Proveedores y los que cuenta su número en el Inicio. Un solo `where`. PURA.
+ */
+export function whereProveedoresActivos(tenantId: string) {
+  return { tenantId, active: true as const };
 }
 
 export interface SupplierInput {
@@ -42,7 +55,8 @@ export interface NormalizedSupplier {
 
 export type SupplierValidationError =
   | "NAME_REQUIRED" // la razón social no puede estar vacía
-  | "TAXID_INVALID"; // vino un CUIT pero no tiene 11 dígitos
+  | "TAXID_INVALID" // vino un CUIT pero no tiene 11 dígitos
+  | "TAXID_DV_INVALID"; // tiene 11 dígitos pero el verificador no da: está mal tipeado
 
 export type SupplierValidation =
   | { ok: true; value: NormalizedSupplier }
@@ -64,6 +78,7 @@ export function validateSupplierInput(input: SupplierInput): SupplierValidation 
   if (rawTax) {
     taxId = normalizeTaxId(rawTax);
     if (!taxId) return { ok: false, error: "TAXID_INVALID" };
+    if (!cuitValido(taxId)) return { ok: false, error: "TAXID_DV_INVALID" };
   }
 
   return {
@@ -77,6 +92,18 @@ export function validateSupplierInput(input: SupplierInput): SupplierValidation 
       active: input.active ?? true,
     },
   };
+}
+
+/** El error de validación en palabras, con qué hacer. PURA. */
+export function mensajeDeProveedor(e: SupplierValidationError): string {
+  switch (e) {
+    case "NAME_REQUIRED":
+      return "Falta la razón social o el nombre del proveedor.";
+    case "TAXID_INVALID":
+      return "El CUIT tiene que tener 11 números (con o sin guiones). Si no lo tenés, dejalo vacío.";
+    case "TAXID_DV_INVALID":
+      return "Ese CUIT no existe: el último número no corresponde. Revisalo en la factura del proveedor.";
+  }
 }
 
 function emptyToNull(v: string | null | undefined): string | null {

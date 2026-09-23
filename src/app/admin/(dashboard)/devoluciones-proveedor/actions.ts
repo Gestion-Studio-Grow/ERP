@@ -1,70 +1,85 @@
 "use server";
 
+// Registrar una DEVOLUCIÓN a proveedor (D4): todas las líneas y el crédito en UNA transacción
+// (`registrarDevolucion`, supplier-return.ts). Si una línea no sirve, no se escribe nada y la
+// pantalla muestra el error de cada línea. AUTORIDAD SERVER: el costo y lo comprado de cada
+// línea se leen de la compra adentro de la transacción, no del formulario.
+//
+// "use server" publica cada export como endpoint: nada recibe el negocio por parámetro y todo
+// pasa por `requireAppAccion("devoluciones-a-proveedor")` (rol, módulo, edición: la misma regla
+// que la página y el menú).
+
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/lib/authz";
+import { unstable_rethrow } from "next/navigation";
+import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { recordSupplierReturn, alreadyReturnedByProduct } from "@/lib/stock/supplier-return";
-import { validateReturnLine, remainingReturnable } from "@/lib/devoluciones/return-validation";
+import { requireAppAccion } from "@/lib/require-app";
+import { parseCashMethod } from "@/lib/comision-liquidacion";
+import { DevolucionRechazada, registrarDevolucion, type DestinoDelCredito, type ErrorDeLinea } from "@/lib/stock/supplier-return";
 
-// Registrar una DEVOLUCIÓN a proveedor (D4). Cada línea (producto + cantidad) se asienta con
-// el servicio ATÓMICO de S1 (`recordSupplierReturn`): saca del stock (DEVOLUCION_PROVEEDOR) y
-// acredita la deuda del proveedor (Collection PAYABLE) si la compra tiene una cuenta a pagar
-// abierta. AUTORIDAD SERVER: `unitCost` y el tope comprado se leen de la compra, no del
-// cliente; la validación (no devolver más de lo comprado) es la misma regla PURA del form.
-export async function registerReturn(formData: FormData): Promise<void> {
-  const user = await requireCapability("catalog:manage");
-  const tenantId = await getCurrentTenantId();
+export type EstadoDevolucion =
+  | null
+  | { ok: true; mensaje: string }
+  | { ok: false; error: string; errores?: ErrorDeLinea[] };
 
-  const purchaseId = String(formData.get("purchaseId") || "").trim();
-  const motivo = String(formData.get("motivo") || "").trim() || null;
-  if (!purchaseId) return;
+function leerDestino(fd: FormData): DestinoDelCredito | null {
+  const tipo = String(fd.get("destino") ?? "");
+  if (tipo === "deuda") return { tipo: "deuda" };
+  if (tipo === "ninguno") return { tipo: "ninguno" };
+  if (tipo === "caja") {
+    const method = parseCashMethod(fd.get("medio"));
+    return method ? { tipo: "caja", method } : null;
+  }
+  return null;
+}
 
-  // Compra origen (autoridad de unitCost + cantidad comprada por línea).
-  const purchase = await prisma.stockPurchase.findFirst({
-    where: { id: purchaseId, tenantId },
-    include: { items: true },
-  });
-  if (!purchase) return;
-  const itemByProduct = new Map(
-    purchase.items.filter((i) => i.productId).map((i) => [i.productId as string, i]),
-  );
+const pesos = (n: number) => `$${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(n)}`;
 
-  // Cuenta a pagar abierta de esta compra, para acreditarle la devolución (pata financiera D4).
-  const ap = await prisma.accountPayable.findFirst({
-    where: { tenantId, purchaseId, status: "OPEN" },
-    select: { id: true },
-  });
+export async function registrarDevolucionAccion(_prev: EstadoDevolucion, fd: FormData): Promise<EstadoDevolucion> {
+  try {
+    const user = await requireAppAccion("devoluciones-a-proveedor");
+    const tenantId = await getCurrentTenantId();
+    const purchaseId = String(fd.get("purchaseId") ?? "").trim();
+    if (!purchaseId) return { ok: false, error: "Elegí la compra de la que devolvés." };
+    const destino = leerDestino(fd);
+    if (!destino) return { ok: false, error: "Elegí qué pasa con la plata: se descuenta de la deuda, te la devuelven, o sin reintegro." };
+    const motivo = String(fd.get("motivo") ?? "").trim() || null;
+    const productIds = fd.getAll("productId").map(String);
+    const cantidades = fd.getAll("qty").map(String);
+    if (productIds.length !== cantidades.length) {
+      return { ok: false, error: "La devolución llegó incompleta. Volvé a cargarla." };
+    }
 
-  const productIds = formData.getAll("productId").map(String);
-  const qtys = formData.getAll("qty").map((v) => Number(String(v).replace(",", ".")));
-
-  // A-4 · AUTORIDAD SERVER: el tope es comprado − ya_devuelto de esa compra+producto, no lo
-  // comprado a secas. Sin descontar lo ya devuelto, dos devoluciones de 8 sobre una compra de
-  // 10 pasaban ambas. Se leen las devoluciones previas del ledger antes de validar cada línea.
-  const alreadyReturned = await alreadyReturnedByProduct(
-    tenantId,
-    purchaseId,
-    productIds.map((id) => itemByProduct.get(id)?.productId ?? "").filter(Boolean),
-  );
-
-  for (let i = 0; i < productIds.length; i++) {
-    const item = itemByProduct.get(productIds[i]);
-    if (!item) continue;
-    const cap = remainingReturnable(item.quantity, alreadyReturned.get(productIds[i]) ?? 0);
-    const v = validateReturnLine(qtys[i], cap);
-    if (!v.ok) continue;
-    await recordSupplierReturn(tenantId, {
-      productId: productIds[i],
-      qty: v.qty,
-      unitCost: item.unitCost,
+    const r = await registrarDevolucion(tenantId, {
       purchaseId,
-      reason: motivo,
-      label: item.name,
-      payableId: ap?.id ?? null,
+      motivo,
+      lineas: productIds.map((productId, i) => ({ productId, cantidad: cantidades[i] })),
+      destino,
       by: `user:${user.id}`,
     });
-  }
 
-  revalidatePath("/admin/devoluciones-proveedor");
+    await auditAdmin({
+      action: "create",
+      entity: "DevolucionProveedor",
+      entityId: purchaseId,
+      changes: { compra: r.code, lineas: r.lineas, total: r.total, destino: r.destino, saldoDeuda: r.saldoDeuda, motivo },
+    });
+    for (const p of ["/admin/devoluciones-proveedor", "/admin/inventario", "/admin/compras", "/admin/proveedores", "/admin/caja", "/admin/caja/libro"]) {
+      revalidatePath(p);
+    }
+    const plata =
+      r.destino === "deuda"
+        ? `Se descontaron ${pesos(r.total)} de la deuda${r.saldoDeuda !== null ? ` (queda ${pesos(r.saldoDeuda)})` : ""}.`
+        : r.destino === "caja"
+          ? `Entraron ${pesos(r.total)} a la caja.`
+          : "Sin reintegro de plata.";
+    return {
+      ok: true,
+      mensaje: `Devolución de la compra #${r.code} registrada: ${r.lineas === 1 ? "1 producto" : `${r.lineas} productos`} salieron del stock. ${plata}`,
+    };
+  } catch (err) {
+    unstable_rethrow(err);
+    if (err instanceof DevolucionRechazada) return { ok: false, error: err.message, errores: err.errores };
+    return { ok: false, error: err instanceof Error && err.message ? err.message : "No se pudo registrar. Probá de nuevo." };
+  }
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeTaxId, formatTaxId, validateSupplierInput } from "./supplier";
+import { normalizeTaxId, formatTaxId, mensajeDeProveedor, validateSupplierInput } from "./supplier";
 
 // D1 (ADR-060) — validación pura del proveedor maestro, sin DB.
 
@@ -36,9 +36,19 @@ test("validateSupplierInput acepta proveedor mínimo (solo nombre), taxId null",
 });
 
 test("validateSupplierInput normaliza el CUIT cuando viene con guiones", () => {
-  const r = validateSupplierInput({ name: "Prov SA", taxId: "30-71234567-9" });
+  // 30-71234567-1: verificador correcto (módulo 11).
+  const r = validateSupplierInput({ name: "Prov SA", taxId: "30-71234567-1" });
   assert.ok(r.ok);
-  if (r.ok) assert.equal(r.value.taxId, "30712345679");
+  if (r.ok) assert.equal(r.value.taxId, "30712345671");
+});
+
+test("validateSupplierInput rechaza un CUIT de 11 dígitos con el verificador mal (cuit.ts)", () => {
+  // El mismo número con el último dígito cambiado es otro contribuyente (o ninguno).
+  assert.deepEqual(validateSupplierInput({ name: "Prov SA", taxId: "30-71234567-9" }), {
+    ok: false,
+    error: "TAXID_DV_INVALID",
+  });
+  assert.match(mensajeDeProveedor("TAXID_DV_INVALID"), /no existe/);
 });
 
 test("validateSupplierInput rechaza un CUIT con contenido pero inválido (no guarda basura)", () => {

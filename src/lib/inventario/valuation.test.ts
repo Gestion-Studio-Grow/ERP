@@ -1,45 +1,64 @@
+// La vista de Stock sale del MISMO cálculo que el read model: una sola definición de "stock
+// bajo" y de "en negativo", y el costo vigente. Se ejecuta el cálculo real y se mapea.
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInventoryRow, buildInventory, type InventoryInput } from "./valuation";
+import { computeStockValuation, sinCostos, type StockProductInput } from "@/lib/inventory/valuation";
+import { aFilaDeInventario, aResumenDeInventario } from "./valuation";
 
-const P = (over: Partial<InventoryInput>): InventoryInput => ({
-  productId: "p", name: "Prod", unit: "u", stock: 10, unitCost: 100, lowStockAt: 5, ...over,
+const P = (over: Partial<StockProductInput>): StockProductInput => ({
+  id: "p",
+  name: "Prod",
+  unit: "kg",
+  stock: 10,
+  lowStockAt: 5,
+  trackStock: true,
+  ...over,
 });
 
-test("toInventoryRow: valuación = stock × costo, redondeada", () => {
-  const r = toInventoryRow(P({ stock: 3, unitCost: 12000.5 }));
-  assert.equal(r.valuation, 36001.5);
-  assert.equal(r.unitCost, 12000.5);
-  assert.equal(r.sinCosto, false);
+test("la fila de la vista trae lo mismo que el read model: valuación, bajo el mínimo, negativo", () => {
+  const v = computeStockValuation(
+    [
+      P({ id: "a", stock: 2, lowStockAt: 5 }), // bajo el mínimo, $2000
+      P({ id: "b", stock: 10 }), // $5000
+      P({ id: "c", stock: 4, lowStockAt: 5 }), // bajo el mínimo, sin costo
+      P({ id: "d", stock: -0.14 }), // negativo: no se valúa, cuenta como bajo y como negativo
+      P({ id: "e", stock: 1, lowStockAt: 5, trackStock: false }), // no controla stock: nunca "bajo"
+    ],
+    { a: 1000, b: 500, d: 800 },
+  );
+  const filas = new Map(v.rows.map((r) => [r.id, aFilaDeInventario(r)]));
+  assert.deepEqual(filas.get("a"), {
+    productId: "a",
+    name: "Prod",
+    unit: "kg",
+    stock: 2,
+    unitCost: 1000,
+    valuation: 2000,
+    belowLowStock: true,
+    negative: false,
+    sinCosto: false,
+  });
+  assert.equal(filas.get("c")!.sinCosto, true);
+  assert.equal(filas.get("c")!.valuation, 0);
+  assert.equal(filas.get("d")!.negative, true);
+  assert.equal(filas.get("d")!.valuation, 0, "un negativo no resta valor");
+  assert.equal(filas.get("e")!.belowLowStock, false);
+
+  assert.deepEqual(aResumenDeInventario(v.summary), {
+    productos: 5,
+    valuacionTotal: 7000,
+    bajoStock: 3, // a, c, d
+    sinCosto: 2, // c y e tienen stock y no tienen costo (d no tiene stock para valuar)
+    enNegativo: 1,
+  });
 });
 
-test("toInventoryRow: sin costo (null o ≤0) → costo 0, valuación 0, sinCosto true", () => {
-  assert.equal(toInventoryRow(P({ unitCost: null })).valuation, 0);
-  assert.equal(toInventoryRow(P({ unitCost: null })).sinCosto, true);
-  assert.equal(toInventoryRow(P({ unitCost: 0 })).sinCosto, true);
-});
-
-test("toInventoryRow: stock bajo cuando stock ≤ umbral", () => {
-  assert.equal(toInventoryRow(P({ stock: 5, lowStockAt: 5 })).belowLowStock, true);
-  assert.equal(toInventoryRow(P({ stock: 6, lowStockAt: 5 })).belowLowStock, false);
-  assert.equal(toInventoryRow(P({ stock: 0, lowStockAt: 5 })).belowLowStock, true);
-});
-
-test("buildInventory: resumen (productos, valuación total, bajo stock, sin costo)", () => {
-  const { rows, summary } = buildInventory([
-    P({ productId: "a", stock: 2, unitCost: 1000, lowStockAt: 5 }), // valuación 2000, bajo stock
-    P({ productId: "b", stock: 10, unitCost: 500, lowStockAt: 5 }), // valuación 5000
-    P({ productId: "c", stock: 4, unitCost: null, lowStockAt: 5 }), // sin costo, bajo stock
-  ]);
-  assert.equal(rows.length, 3);
-  assert.equal(summary.productos, 3);
-  assert.equal(summary.valuacionTotal, 7000); // 2000 + 5000 + 0
-  assert.equal(summary.bajoStock, 2); // a y c
-  assert.equal(summary.sinCosto, 1); // c
-});
-
-test("buildInventory: vacío → resumen en cero", () => {
-  const { rows, summary } = buildInventory([]);
-  assert.equal(rows.length, 0);
-  assert.deepEqual(summary, { productos: 0, valuacionTotal: 0, bajoStock: 0, sinCosto: 0 });
+test("sin costs:read la vista no lleva un peso, pero sí los avisos", () => {
+  const v = sinCostos(computeStockValuation([P({ id: "a", stock: 2 })], { a: 1000 }));
+  const f = aFilaDeInventario(v.rows[0]);
+  assert.equal(f.unitCost, 0);
+  assert.equal(f.valuation, 0);
+  assert.equal(f.belowLowStock, true);
+  assert.equal(aResumenDeInventario(v.summary).valuacionTotal, 0);
 });

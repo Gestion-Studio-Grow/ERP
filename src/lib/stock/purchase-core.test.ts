@@ -8,7 +8,13 @@ import assert from "node:assert/strict";
 import { round2 } from "@/lib/round";
 import {
   buildPurchaseLines,
+  compraRepetida,
+  costoDeLaLinea,
+  huellaDeCompra,
+  medioDeLaRecepcion,
   purchaseTotal,
+  whereCompras,
+  VENTANA_REPETIDA_MS,
   type PurchaseProduct,
 } from "./purchase-core";
 
@@ -74,4 +80,70 @@ test("purchaseTotal: suma las líneas redondeando (sin arrastrar coma flotante)"
 
 test("purchaseTotal: entrada sin líneas → 0", () => {
   assert.equal(purchaseTotal([]), 0);
+});
+
+// ── Compra repetida (doble envío) ───────────────────────────────────────────
+
+const recepcion = {
+  kind: "COMPRA",
+  supplierId: "prov-x",
+  supplier: "Frigorífico X",
+  lineas: [
+    { productId: "vacio", quantity: 20, unitCost: 0 },
+    { productId: "lomo", quantity: 4.5, unitCost: 0 },
+  ],
+};
+
+test("la misma compra enviada dos veces en dos minutos se reconoce (el orden de las líneas no importa)", () => {
+  const ahora = new Date("2026-09-23T13:00:00Z");
+  const huella = huellaDeCompra(recepcion);
+  const otraVez = huellaDeCompra({ ...recepcion, lineas: [...recepcion.lineas].reverse() });
+  assert.equal(otraVez, huella);
+  const recientes = [{ code: 41, createdAt: new Date(ahora.getTime() - 30_000), huella }];
+  assert.equal(compraRepetida(huella, recientes, ahora)?.code, 41);
+  // Pasada la ventana ya no es un doble toque: es otra entrega.
+  const vieja = [{ code: 41, createdAt: new Date(ahora.getTime() - VENTANA_REPETIDA_MS - 1), huella }];
+  assert.equal(compraRepetida(huella, vieja, ahora), null);
+});
+
+test("otra cantidad, otro proveedor u otro tipo NO es la misma compra", () => {
+  const h = huellaDeCompra(recepcion);
+  assert.notEqual(huellaDeCompra({ ...recepcion, lineas: [{ productId: "vacio", quantity: 19.5, unitCost: 0 }, recepcion.lineas[1]] }), h);
+  assert.notEqual(huellaDeCompra({ ...recepcion, supplierId: "prov-y" }), h);
+  assert.notEqual(huellaDeCompra({ ...recepcion, kind: "REPOSICION" }), h);
+  // Sin proveedor del maestro manda el texto, sin mayúsculas ni espacios de más.
+  assert.equal(
+    huellaDeCompra({ ...recepcion, supplierId: null, supplier: " frigorífico x " }),
+    huellaDeCompra({ ...recepcion, supplierId: null, supplier: "Frigorífico X" }),
+  );
+});
+
+// ── Quién recibe: sin costs:read, sin costo ni medio de pago ────────────────
+
+test("la dueña (con costos): la compra lleva el medio elegido y el costo de cada línea", () => {
+  assert.equal(medioDeLaRecepcion("COMPRA", true, "EFECTIVO"), "EFECTIVO");
+  assert.equal(costoDeLaLinea(true, () => 6543), 6543);
+  assert.equal(costoDeLaLinea(true, () => null), 0, "costo vacío: 0 (reposición sin costo), no un error");
+});
+
+test("el encargado (sin costs:read): el costo y el medio de pago se IGNORAN aunque lleguen", () => {
+  assert.equal(medioDeLaRecepcion("COMPRA", false, "EFECTIVO"), null, "sin medio: la recepción no mueve la caja");
+  assert.equal(costoDeLaLinea(false, () => 6543), 0);
+  // Ni siquiera se lee: un costo ilegible no le rompe la recepción.
+  const ilegible = () => {
+    throw new Error("Línea 1, costo: no es un importe");
+  };
+  assert.equal(costoDeLaLinea(false, ilegible), 0);
+  assert.throws(() => costoDeLaLinea(true, ilegible), /no es un importe/);
+});
+
+test("una reposición no lleva medio de pago, ni de la dueña", () => {
+  assert.equal(medioDeLaRecepcion("REPOSICION", true, "MP"), null);
+  assert.equal(medioDeLaRecepcion("COMPRA", true, null), null, "sin elegir: el backstop de insertStockPurchase decide");
+});
+
+test("el where de las compras es uno: las devolvibles sin fecha y las del mes para el Inicio", () => {
+  assert.deepEqual(whereCompras("t"), { tenantId: "t", kind: "COMPRA" });
+  const desde = new Date("2026-09-01T03:00:00.000Z");
+  assert.deepEqual(whereCompras("t", desde), { tenantId: "t", kind: "COMPRA", createdAt: { gte: desde } });
 });

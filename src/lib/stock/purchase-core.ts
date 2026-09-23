@@ -29,6 +29,10 @@ export type StockPurchaseKind = "COMPRA" | "REPOSICION";
 
 export type PurchaseInput = {
   kind: StockPurchaseKind;
+  // Proveedor del maestro (`Supplier`). Si viene, se valida que sea del negocio y esté activo,
+  // y su razón social se copia en `supplier` (el texto queda como foto de ese momento).
+  supplierId?: string | null;
+  // Proveedor escrito a mano, para el negocio que todavía no cargó su maestro de proveedores.
   supplier: string | null;
   notes: string | null;
   createdBy: string; // actor "user:<id>", lo resuelve la Server Action
@@ -124,6 +128,80 @@ export function purchaseTotal(lines: readonly PurchaseLine[]): number {
   return round2(lines.reduce((s, l) => s + l.lineTotal, 0));
 }
 
+// ── Qué se lee ──────────────────────────────────────────────────────────────
+
+/**
+ * Las COMPRAS del negocio (no las reposiciones), desde `desde` si se da. El mismo `where` para
+ * las compras que se pueden devolver (suppliers/devoluciones.ts) y para el número de Recibir
+ * mercadería del Inicio (compras del mes). PURA.
+ */
+export function whereCompras(tenantId: string, desde?: Date) {
+  return { tenantId, kind: "COMPRA" as const, ...(desde ? { createdAt: { gte: desde } } : {}) };
+}
+
+// ── Una recepción según quién la carga ──────────────────────────────────────
+//
+// El encargado (RECEPTION) recibe mercadería pero no ve costos (`costs:read`): su recepción entra
+// SIN costo y SIN medio de pago, y no mueve la caja. El formulario ya no le muestra esos campos,
+// pero el servidor no puede confiar en eso (un formulario viejo abierto, una llamada armada a
+// mano): lo que llegue de costo o de pago se IGNORA. La regla vivía suelta dentro del
+// "use server" de stock-actions.ts, sin un test que la ejecutara; acá es pura y la acción la usa.
+
+/**
+ * El medio de pago que vale para esta recepción: el elegido, sólo si es una COMPRA y quien la
+ * carga ve costos. Una REPOSICIÓN interna no mueve plata. PURA.
+ */
+export function medioDeLaRecepcion(kind: StockPurchaseKind, conCostos: boolean, elegido: CashMethod | null): CashMethod | null {
+  return kind === "COMPRA" && conCostos ? elegido : null;
+}
+
+/**
+ * El costo unitario de una línea: sin `conCostos` es 0 y el costo que llegó NI SE LEE (`leer` no
+ * se llama: un costo ilegible no le rompe la recepción al encargado). Con costos, vacío es 0 (la
+ * reposición sin costo) y lo ilegible lanza desde `leer`. PURA.
+ */
+export function costoDeLaLinea(conCostos: boolean, leer: () => number | null): number {
+  return conCostos ? (leer() ?? 0) : 0;
+}
+
+// ── Compra repetida ─────────────────────────────────────────────────────────
+//
+// El QA midió que, después de registrar una compra, el formulario quedaba cargado y un segundo
+// toque la registraba dos veces: el stock subía el doble y el egreso salía dos veces de la caja.
+// El formulario ahora se vacía al terminar, pero el servidor no puede depender de eso (un
+// reintento de red, dos pestañas): la MISMA persona registrando la MISMA compra (mismo tipo,
+// proveedor, productos, cantidades y costos) dentro de `VENTANA_REPETIDA_MS` se rechaza con un
+// mensaje que dice cuál fue. Dos entregas idénticas de verdad en dos minutos son rarísimas, y
+// el mensaje dice cómo cargarla igual.
+
+export const VENTANA_REPETIDA_MS = 2 * 60 * 1000;
+
+/** La huella de una compra: lo que la hace "la misma". PURA. */
+export function huellaDeCompra(c: {
+  kind: string;
+  supplierId: string | null;
+  supplier: string | null;
+  lineas: readonly { productId: string | null; quantity: number; unitCost: number }[];
+}): string {
+  const lineas = c.lineas
+    .map((l) => `${l.productId ?? ""}:${Math.round(l.quantity * 1000) / 1000}:${round2(l.unitCost)}`)
+    .sort()
+    .join("|");
+  const prov = c.supplierId ? `id:${c.supplierId}` : `txt:${(c.supplier ?? "").trim().toLowerCase()}`;
+  return `${c.kind}#${prov}#${lineas}`;
+}
+
+/** La compra reciente que es igual a la nueva, o `null`. PURA. */
+export function compraRepetida<T extends { code: number; createdAt: Date; huella: string }>(
+  huella: string,
+  recientes: readonly T[],
+  ahora: Date,
+): T | null {
+  return (
+    recientes.find((r) => r.huella === huella && ahora.getTime() - r.createdAt.getTime() <= VENTANA_REPETIDA_MS) ?? null
+  );
+}
+
 // Valida, snapshotea costos y crea la entrada + sus líneas, INCREMENTANDO el stock
 // de cada producto Y ASENTANDO EL EGRESO EN EL LIBRO DE CAJA, todo en una transacción
 // tenant-aware. El incremento aplica a TODOS los productos de la entrada (independiente
@@ -168,9 +246,57 @@ export async function insertStockPurchase(
   const pago = input.pago ?? PAGO_POR_DEFECTO;
 
   const purchase = await tenantTransaction(async (tx) => {
-    // Correlativo legible por tenant: max(code)+1 (mismo criterio que Order). El
-    // @@unique([tenantId, code]) protege contra choques: una colisión rarísima
-    // lanzaría y se reintenta el alta.
+    // Una compra a la vez por negocio: el correlativo es max(code)+1 y la verificación de
+    // compra repetida lee las recientes; sin este candado, dos envíos simultáneos leían lo
+    // mismo y los dos pasaban (o chocaban contra el @@unique del código con un error crudo).
+    // `pg_advisory_xact_lock` se suelta solo al terminar la transacción.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`compra:${tenantId}`}))`;
+
+    // Proveedor del maestro: del negocio y activo, o no se registra nada.
+    let supplierId: string | null = null;
+    let supplier = input.supplier;
+    if (input.supplierId) {
+      const prov = await tx.supplier.findFirst({
+        where: { id: input.supplierId, tenantId, active: true },
+        select: { id: true, name: true },
+      });
+      if (!prov) {
+        throw new Error("El proveedor elegido no existe o está dado de baja. Elegí otro de la lista.");
+      }
+      supplierId = prov.id;
+      supplier = prov.name;
+    }
+
+    const huella = huellaDeCompra({ kind: input.kind, supplierId, supplier, lineas: lines });
+    const recientes = await tx.stockPurchase.findMany({
+      where: {
+        tenantId,
+        createdBy: input.createdBy,
+        createdAt: { gte: new Date(Date.now() - VENTANA_REPETIDA_MS) },
+      },
+      select: {
+        code: true,
+        kind: true,
+        supplierId: true,
+        supplier: true,
+        createdAt: true,
+        items: { select: { productId: true, quantity: true, unitCost: true } },
+      },
+    });
+    const repetida = compraRepetida(
+      huella,
+      recientes.map((r) => ({ ...r, huella: huellaDeCompra({ ...r, lineas: r.items }) })),
+      new Date(),
+    );
+    if (repetida) {
+      throw new Error(
+        `Esta misma compra ya se registró recién (#${repetida.code}), así que no se cargó de nuevo. ` +
+          "Si de verdad llegó dos veces igual, esperá dos minutos y cargala otra vez.",
+      );
+    }
+
+    // Correlativo legible por tenant: max(code)+1 (mismo criterio que Order), ya sin
+    // carrera por el candado de arriba.
     const last = await tx.stockPurchase.findFirst({
       where: { tenantId },
       orderBy: { code: "desc" },
@@ -183,7 +309,8 @@ export async function insertStockPurchase(
         tenantId,
         code,
         kind: input.kind,
-        supplier: input.supplier,
+        supplier,
+        supplierId,
         notes: input.notes,
         totalCost,
         createdBy: input.createdBy,
@@ -227,7 +354,7 @@ export async function insertStockPurchase(
       kind: input.kind,
       purchaseId: created.id,
       code: created.code,
-      supplier: input.supplier,
+      supplier,
       totalCost,
       pago,
       hoy,

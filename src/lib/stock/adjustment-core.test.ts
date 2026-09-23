@@ -13,6 +13,18 @@ import {
   leerValorDeAjuste,
   leerLineasDeAjuste,
   filtroDeAjustables,
+  horaDelConteo,
+  leerMotivo,
+  marcaDeConteo,
+  mensajeDeTope,
+  motivosDeAjuste,
+  movidoDespuesDe,
+  stockTeorico,
+  superaElTope,
+  topeDeMermaPorCarga,
+  valorDeLaBaja,
+  ADJUSTMENT_MOTIVOS,
+  TOPE_MERMA_POR_CARGA,
   type AdjustmentMode,
 } from "./adjustment-core";
 
@@ -146,4 +158,159 @@ test("pantalla de ajustes: el 'Recontar' de un producto INACTIVO lo trae igual",
   // Los activos siguen todos; de los inactivos, sólo ese id (no se abre la lista entera).
   assert.deepEqual(filtroDeAjustables("p-inactivo"), { OR: [{ active: true }, { id: "p-inactivo" }] });
   assert.deepEqual(filtroDeAjustables(" p-inactivo "), { OR: [{ active: true }, { id: "p-inactivo" }] });
+});
+
+// ── Recuento contra el stock teórico a la hora del conteo ───────────────────
+
+const hora = (hhmm: string) => new Date(`2026-09-23T${hhmm}:00.000-03:00`);
+
+test("criterio de aceptación: se cuenta a las 10:00, a las 10:05 se vende 1 kg, se guarda a las 10:10 → la diferencia es la real", () => {
+  // A las 10:00 el sistema decía 10 kg de vacío y se contaron 9,5 (faltaba medio kilo).
+  // 10:05: venta de 1 kg → el stock quedó en 9. 10:10: se guarda la planilla.
+  const movimientos = [
+    { productId: "vacio", qty: -2, createdAt: hora("09:30") }, // antes del conteo: no cuenta
+    { productId: "vacio", qty: -1, createdAt: hora("10:05") },
+    { productId: "lomo", qty: -3, createdAt: hora("10:06") }, // otro producto: no cuenta
+  ];
+  const stockAlGuardar = 9;
+  const teorico = stockTeorico(stockAlGuardar, movidoDespuesDe(movimientos, "vacio", hora("10:00")));
+  assert.equal(teorico, 10, "lo que el sistema tenía a las 10:00");
+  const delta = adjustmentDelta("COUNT", 9.5, teorico);
+  assert.equal(delta, -0.5, "faltaba medio kilo: eso es lo que se ajusta");
+  assert.equal(stockAlGuardar + delta, 8.5, "y el stock queda en lo contado menos lo vendido después");
+  // Lo de antes (comparar contra el stock al guardar) daba +0,5: la venta aparecía como sobrante.
+  assert.equal(adjustmentDelta("COUNT", 9.5, stockAlGuardar), 0.5);
+});
+
+// La hora del conteo sale de DOS horas del teléfono (cuándo se tipeó y cuándo se tocó Guardar)
+// y de la hora del servidor al recibir. Nunca de cuándo se armó la página.
+const min = 60_000;
+
+test("hora del conteo: 'hace cuánto se contó' medido en el teléfono, restado a la hora del servidor", () => {
+  const ahora = hora("10:31"); // el servidor recibe
+  // El teléfono atrasa 7 minutos: tipeó a las 10:23 de SU reloj y guardó a las 10:24 de SU reloj.
+  const tipeo = hora("10:23").getTime();
+  const envio = hora("10:24").getTime();
+  assert.equal(horaDelConteo(String(tipeo), String(envio), ahora).getTime(), hora("10:30").getTime(), "se contó hace 1 minuto");
+  // Igual con el teléfono adelantado una hora: lo único que cuenta es la diferencia.
+  assert.equal(
+    horaDelConteo(String(tipeo + 60 * min), String(envio + 60 * min), ahora).getTime(),
+    hora("10:30").getTime(),
+  );
+  assert.equal(horaDelConteo(new Date(tipeo).toISOString(), new Date(envio).toISOString(), ahora).getTime(), hora("10:30").getTime(), "también en ISO");
+});
+
+test("hora del conteo: sin hora de envío, sin tipeo o con el reloj para atrás → ahora; más de un día → error", () => {
+  const ahora = hora("10:10");
+  const t = String(hora("10:00").getTime());
+  assert.equal(horaDelConteo("", t, ahora), ahora);
+  assert.equal(horaDelConteo("cualquiera", t, ahora), ahora);
+  assert.equal(horaDelConteo(t, null, ahora), ahora, "un envío sin JavaScript compara contra el stock de ahora, como antes");
+  assert.equal(horaDelConteo(t, String(hora("09:59").getTime()), ahora), ahora, "el reloj del teléfono fue para atrás");
+  assert.throws(() => horaDelConteo(t, String(hora("10:00").getTime() + 25 * 60 * min), ahora), /más de un día/);
+});
+
+test("criterio del revisor: página armada a las 10:00, venta a las 10:20, se vuelve con Atrás a las 10:30 y se cuenta lo que hay", () => {
+  // A las 10:00 el servidor arma la pantalla (el sistema dice 10 kg). Se va a otra pantalla. A
+  // las 10:20 se vende 1 kg (queda 9). A las 10:30 se vuelve con Atrás: Next muestra la página
+  // guardada de las 10:00. Se cuentan 9 kg (lo que hay de verdad) y se guarda a las 10:31.
+  const movimientos = [{ productId: "x", qty: -1, createdAt: hora("10:20") }];
+  const stockAlGuardar = 9;
+  // Teléfono con el reloj en hora. Tipeo a las 10:30, envío a las 10:31.
+  const [linea] = leerLineasDeAjuste("COUNT", ["x"], ["9"], {
+    horas: [String(hora("10:30").getTime())],
+    enviadoA: String(hora("10:31").getTime()),
+    ahora: hora("10:31"),
+  });
+  assert.equal(linea.contadoA?.getTime(), hora("10:30").getTime());
+  const teorico = stockTeorico(stockAlGuardar, movidoDespuesDe(movimientos, "x", linea.contadoA!));
+  assert.equal(teorico, 9, "la venta de las 10:20 fue ANTES de contar: no se descuenta otra vez");
+  assert.equal(adjustmentDelta("COUNT", 9, teorico), 0, "no falta nada");
+
+  // La cuenta de antes: el desfase se medía contra la hora del servidor de cuando se ARMÓ la
+  // página (10:00), y al volver con Atrás se medía a las 10:30 → la hora quedaba 30 min atrás.
+  const desfaseViejo = hora("10:00").getTime() - hora("10:30").getTime();
+  const contadoAViejo = new Date(hora("10:30").getTime() + desfaseViejo);
+  const teoricoViejo = stockTeorico(stockAlGuardar, movidoDespuesDe(movimientos, "x", contadoAViejo));
+  assert.equal(adjustmentDelta("COUNT", 9, teoricoViejo), -1, "así se inventaba un faltante de 1 kg");
+});
+
+test("marca del conteo: arranca con el primer número; seguir tipeando no la mueve; borrar y volver a escribir es contar de nuevo", () => {
+  const t0 = hora("10:00").getTime();
+  const primero = marcaDeConteo(undefined, "9", t0);
+  assert.equal(primero, t0);
+  assert.equal(marcaDeConteo({ texto: "9", contadoA: primero }, "9,5", t0 + 3000), t0, "corregir un dígito no lo mueve");
+  assert.equal(marcaDeConteo({ texto: "9,5", contadoA: t0 }, "", t0 + 5000), null, "vacío: no hay conteo");
+  assert.equal(marcaDeConteo({ texto: "", contadoA: null }, "8", t0 + 20 * min), t0 + 20 * min, "volver a escribir: conteo nuevo");
+});
+
+test("las líneas de un recuento traen su hora; el mismo producto dos veces es un error", () => {
+  const ahora = hora("10:10");
+  const l = leerLineasDeAjuste("COUNT", ["vacio", "lomo"], ["9,5", "3"], {
+    horas: [String(hora("10:00").getTime()), ""],
+    enviadoA: String(hora("10:10").getTime()),
+    ahora,
+  });
+  assert.equal(l[0].contadoA?.getTime(), hora("10:00").getTime());
+  assert.equal(l[1].contadoA, undefined, "sin hora: se compara contra el stock de ahora, como antes");
+  assert.throws(() => leerLineasDeAjuste("COUNT", ["vacio", "vacio"], ["9", "8"]), /ya está contado en la línea 1/);
+  // En una merma, dos líneas del mismo producto son dos pérdidas: se aceptan.
+  assert.equal(leerLineasDeAjuste("LOSS", ["vacio", "vacio"], ["1", "2"]).length, 2);
+});
+
+// ── Motivos y tope de merma ─────────────────────────────────────────────────
+
+test("motivos: en servicios los de siempre (CH no cambia); los de perecederos sólo donde se vende comida fresca", () => {
+  assert.deepEqual(motivosDeAjuste({ esMostrador: false }), ADJUSTMENT_MOTIVOS);
+  assert.deepEqual([...ADJUSTMENT_MOTIVOS], ["RECUENTO", "MERMA", "ROTURA", "VENCIMIENTO", "OTRO"]);
+  const carniceria = motivosDeAjuste({ esMostrador: true, rubroId: "carniceria" });
+  for (const m of ["DECOMISO", "CONSUMO_INTERNO", "DEGUSTACION"] as const) {
+    assert.ok(carniceria.includes(m), m);
+    assert.equal(motivoMode(m), "LOSS", `${m} siempre resta`);
+  }
+  assert.equal(carniceria[0], "MERMA", "en el mostrador la pantalla arranca en Merma");
+  for (const rubroId of ["velas", "padel", null]) {
+    const m = motivosDeAjuste({ esMostrador: true, rubroId });
+    assert.equal(m[0], "MERMA");
+    assert.ok(!m.includes("DECOMISO") && !m.includes("DEGUSTACION") && !m.includes("CONSUMO_INTERNO"), `${rubroId}: sin perecederos`);
+    assert.ok(m.includes("RECUENTO") && m.includes("OTRO"));
+  }
+  assert.equal(leerMotivo("vencimiento"), "VENCIMIENTO");
+  assert.equal(leerMotivo("inventado"), null, "un motivo que no existe NO se convierte en recuento");
+});
+
+test("tope de merma: la dueña sin tope; recepción hasta $50.000 por carga (provisional)", () => {
+  assert.equal(topeDeMermaPorCarga("OWNER"), null);
+  assert.equal(topeDeMermaPorCarga("RECEPTION"), TOPE_MERMA_POR_CARGA);
+  assert.equal(TOPE_MERMA_POR_CARGA, 50_000);
+
+  // Merma "vencido" de 2 kg de vacío a $6.543: $13.086 → pasa.
+  const chica = valorDeLaBaja("VENCIMIENTO", [{ delta: -2, costo: 6543 }]);
+  assert.deepEqual(chica, { pesos: 13086, sinCosto: 0 });
+  assert.equal(superaElTope(chica.pesos, topeDeMermaPorCarga("RECEPTION")), false);
+
+  // 8 kg de lomo a $9.000 = $72.000 → recepción rechazada, la dueña no.
+  const grande = valorDeLaBaja("MERMA", [{ delta: -8, costo: 9000 }, { delta: -1, costo: null }]);
+  assert.deepEqual(grande, { pesos: 72000, sinCosto: 1 });
+  assert.equal(superaElTope(grande.pesos, topeDeMermaPorCarga("RECEPTION")), true);
+  assert.equal(superaElTope(grande.pesos, topeDeMermaPorCarga("OWNER")), false);
+
+  // Un recuento no es una baja: no cuenta para el tope (lo controla stock:count, no el tope).
+  assert.deepEqual(valorDeLaBaja("RECUENTO", [{ delta: -20, costo: 9000 }]), { pesos: 0, sinCosto: 0 });
+  // "Otro" que suma no es baja; "Otro" que resta, sí.
+  assert.deepEqual(valorDeLaBaja("OTRO", [{ delta: 3, costo: 9000 }, { delta: -1, costo: 9000 }]), { pesos: 9000, sinCosto: 0 });
+});
+
+test("tope de merma: el rechazo no le muestra costos a quien no los ve", () => {
+  const fmt = (n: number) => `$${n}`;
+  // RECEPTION carga 1000 kg de vacío a $6.543: la baja es $6.543.000.
+  const baja = { pesos: 6_543_000, tope: TOPE_MERMA_POR_CARGA };
+  const sinCostos = mensajeDeTope(baja, false, fmt);
+  assert.doesNotMatch(sinCostos, /\$|\d/, "ni el monto de la baja ni el tope: de ahí sale el costo por kilo");
+  assert.match(sinCostos, /pasa tu tope/);
+  assert.match(sinCostos, /No se registró nada/);
+  assert.doesNotMatch(sinCostos, /partila/, "no se sugiere partir la carga para esquivar el tope");
+  const conCostos = mensajeDeTope(baja, true, fmt);
+  assert.match(conCostos, /\$6543000/);
+  assert.match(conCostos, /\$50000/);
 });

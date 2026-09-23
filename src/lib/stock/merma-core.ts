@@ -24,21 +24,33 @@
 // " — nota" (adjustment-core.ts). Lo que no se reconoce cae en OTRO, que se muestra aparte y
 // con signo: no se pierde, y no se mezcla con la merma.
 //
-// VALUACIÓN. Kilos y pesos a COSTO VIGENTE: el último costo de compra que muestra la pantalla
-// de Inventario (inventario/loader.ts) y, si el corte no se compró nunca (los que salen de un
-// despiece), el costo de referencia cargado en el catálogo (Product.cost). No es el costo del
-// día de la merma: el ledger no lo guarda para los ajustes (`unitCost` es null ahí). Un corte
-// sin ninguno de los dos se marca "sin costo" y NO se valúa en $0: un cero en la columna de
-// pesos diría "no perdiste nada", y lo que pasa es que no se sabe.
+// VALUACIÓN. Cada movimiento se valúa con el costo GUARDADO EN SU FILA (`unitCost`): desde la
+// ola 2 el ledger estampa el costo vigente en toda salida y los ajustes lo graban al
+// registrarse, así que la merma del martes vale lo que costaba el martes. Los movimientos
+// viejos, sin costo en la fila, caen al costo vigente de hoy (stock/costo.ts), que es lo que
+// muestra la pantalla de Stock. Un corte sin ninguno de los dos se marca "sin costo" y NO se
+// valúa en $0: un cero en la columna de pesos diría "no perdiste nada", y lo que pasa es que
+// no se sabe.
 
 import { buildReason, motivoLabel } from "@/lib/stock/adjustment-core";
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { MOTIVO_STOCK_INICIAL } from "@/lib/stock/alta-producto";
 
+// ── Qué se lee ──────────────────────────────────────────────────────────────
+
+/**
+ * Los AJUSTE de un período `[desde, hasta)` (sin `hasta`, hasta hoy). Es el MISMO `where` para
+ * el tablero de merma de Stock (merma-loader.ts) y para el número de Mermas del Inicio: los dos
+ * leen estas filas y las clasifican con `clasificarAjuste`. PURA.
+ */
+export function whereAjustesDelPeriodo(tenantId: string, desde: Date, hasta?: Date) {
+  return { tenantId, type: "AJUSTE" as const, createdAt: hasta ? { gte: desde, lt: hasta } : { gte: desde } };
+}
+
 // ── Clasificar un movimiento ────────────────────────────────────────────────
 
 export type ClaseDeAjuste = "MERMA" | "FALTANTE" | "SOBRANTE" | "OTRO" | "EXCLUIDO";
-export type MotivoDeMerma = "Merma" | "Vencimiento" | "Rotura";
+export type MotivoDeMerma = "Merma" | "Vencimiento" | "Rotura" | "Decomiso" | "Consumo interno" | "Degustación";
 export type PorQueExcluido = "devolucion-anulacion" | "devolucion-edicion" | "stock-inicial" | "sin-diferencia";
 
 export type MovimientoDeAjuste = {
@@ -47,6 +59,8 @@ export type MovimientoDeAjuste = {
   qty: number;
   reason: string | null;
   createdBy: string;
+  /** Costo guardado en la fila (desde la ola 2). Si falta, se usa el costo vigente del producto. */
+  unitCost?: number | null;
 };
 
 export type Clasificacion =
@@ -54,10 +68,16 @@ export type Clasificacion =
   | { clase: "FALTANTE" | "SOBRANTE" | "OTRO" }
   | { clase: "EXCLUIDO"; porQue: PorQueExcluido };
 
-const MOTIVOS_DE_MERMA: readonly MotivoDeMerma[] = [
+// Los motivos de perecederos (decomiso, consumo interno, degustación) también son merma
+// declarada: la mercadería se fue por una razón conocida. Las etiquetas salen de
+// `motivoLabel`, no se re-tipean.
+export const MOTIVOS_DE_MERMA: readonly MotivoDeMerma[] = [
   motivoLabel("MERMA") as MotivoDeMerma,
   motivoLabel("VENCIMIENTO") as MotivoDeMerma,
   motivoLabel("ROTURA") as MotivoDeMerma,
+  motivoLabel("DECOMISO") as MotivoDeMerma,
+  motivoLabel("CONSUMO_INTERNO") as MotivoDeMerma,
+  motivoLabel("DEGUSTACION") as MotivoDeMerma,
 ];
 const RECUENTO = motivoLabel("RECUENTO");
 
@@ -89,17 +109,6 @@ export function clasificarAjuste(m: MovimientoDeAjuste): Clasificacion {
 }
 
 // ── Costo y unidad ──────────────────────────────────────────────────────────
-
-/**
- * Costo por unidad para valuar: primero el último costo de compra (el de la pantalla de
- * Inventario), si no el de referencia del catálogo. `null` = sin costo. Cero o negativo no
- * es un costo: es un dato que falta.
- */
-export function costoDeReferencia(ultimoCostoDeCompra: number | null | undefined, costoDelCatalogo: number | null | undefined): number | null {
-  if (ultimoCostoDeCompra != null && ultimoCostoDeCompra > 0) return ultimoCostoDeCompra;
-  if (costoDelCatalogo != null && costoDelCatalogo > 0) return costoDelCatalogo;
-  return null;
-}
 
 /** ¿Se cuenta en kilos? Por la forma de venta, o por la unidad escrita si es un kilo. */
 export function esKilo(p: { saleUnit?: string | null; unit?: string | null }): boolean {
@@ -169,7 +178,7 @@ export const TOP_CORTES = 5;
 
 /**
  * Arma el tablero de la semana a partir de los AJUSTE del período y los productos
- * (nombre, unidad y costo ya resuelto con `costoDeReferencia`). PURA.
+ * (nombre, unidad y costo VIGENTE, stock/costo.ts). PURA.
  */
 export function resumirMerma(
   movimientos: readonly MovimientoDeAjuste[],
@@ -177,7 +186,10 @@ export function resumirMerma(
 ): ResumenDeMerma {
   const out: ResumenDeMerma = {
     merma: renglonVacio(),
-    mermaPorMotivo: { Merma: { kg: 0, unidades: 0 }, Vencimiento: { kg: 0, unidades: 0 }, Rotura: { kg: 0, unidades: 0 } },
+    mermaPorMotivo: Object.fromEntries(MOTIVOS_DE_MERMA.map((m) => [m, { kg: 0, unidades: 0 }])) as Record<
+      MotivoDeMerma,
+      { kg: number; unidades: number }
+    >,
     faltante: renglonVacio(),
     sobrante: renglonVacio(),
     otro: renglonVacio(),
@@ -195,7 +207,7 @@ export function resumirMerma(
     }
     const p = m.productId ? productos.get(m.productId) : undefined;
     const kilo = p ? esKilo({ saleUnit: p.saleUnit, unit: p.unidad }) : false;
-    const costo = p?.costo ?? null;
+    const costo = m.unitCost != null && m.unitCost > 0 ? m.unitCost : (p?.costo ?? null);
     const magnitud = Math.abs(m.qty);
 
     if (c.clase === "OTRO") {

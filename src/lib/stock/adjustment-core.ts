@@ -15,15 +15,27 @@
 
 import { round3 } from "@/lib/stock/ledger";
 import { leerCantidad, type LecturaCantidad } from "@/lib/pos-peso";
+import type { Role } from "@/lib/capabilities";
 
 // Motivo del ajuste (categoría). Es lo que hace `reason` obligatorio: siempre hay
 // uno. Cada motivo fija CÓMO se interpreta el número que carga el operador:
 //   RECUENTO    → cuenta física: carga el stock REAL contado (absoluto) y el delta
-//                 sale de la diferencia contra el stock del sistema.
-//   MERMA/ROTURA/VENCIMIENTO → baja: carga la cantidad PERDIDA (magnitud) y siempre resta.
+//                 sale de la diferencia contra el stock TEÓRICO a la hora del conteo.
+//   MERMA/ROTURA/VENCIMIENTO y los de perecederos → baja: carga la cantidad PERDIDA
+//                 (magnitud) y siempre resta.
 //   OTRO        → corrección libre: carga el delta FIRMADO (+ suma / − resta); exige nota.
-export type AdjustmentMotivo = "RECUENTO" | "MERMA" | "ROTURA" | "VENCIMIENTO" | "OTRO";
+export type AdjustmentMotivo =
+  | "RECUENTO"
+  | "MERMA"
+  | "ROTURA"
+  | "VENCIMIENTO"
+  | "DECOMISO"
+  | "CONSUMO_INTERNO"
+  | "DEGUSTACION"
+  | "OTRO";
 
+// Los motivos de siempre, en su orden: es lo que ve un negocio de servicios (CH), igual que
+// antes de que existieran los de perecederos.
 export const ADJUSTMENT_MOTIVOS: readonly AdjustmentMotivo[] = [
   "RECUENTO",
   "MERMA",
@@ -32,7 +44,49 @@ export const ADJUSTMENT_MOTIVOS: readonly AdjustmentMotivo[] = [
   "OTRO",
 ];
 
-// Etiqueta legible del motivo, para el `reason` persistido y la UI.
+// Un mostrador de perecederos (la carnicería, la fiambrería) pierde mercadería por más
+// caminos que "se rompió" o "se venció": el decomiso de bromatología, lo que consume el
+// personal y lo que se da a probar. Sin un motivo propio todo eso iba a "Merma" u "Otro" y
+// el dueño no podía ver cuánto se le iba en degustaciones. En una tienda de velas o de pádel
+// esos motivos no existen: ofrecerlos es ruido. En un mostrador la merma va primero: el
+// recuento tiene su propia app (Recuento, /admin/ajustes/recuento).
+const MOTIVOS_DE_MOSTRADOR: readonly AdjustmentMotivo[] = ["MERMA", "VENCIMIENTO", "ROTURA", "RECUENTO", "OTRO"];
+const MOTIVOS_DE_PERECEDEROS: readonly AdjustmentMotivo[] = [
+  "MERMA",
+  "VENCIMIENTO",
+  "ROTURA",
+  "DECOMISO",
+  "CONSUMO_INTERNO",
+  "DEGUSTACION",
+  "RECUENTO",
+  "OTRO",
+];
+
+/** Rubros de mostrador que venden comida fresca: los que suman decomiso, consumo interno y degustación. */
+export const RUBROS_PERECEDEROS: readonly string[] = ["carniceria", "fiambreria", "verduleria", "dietetica"];
+
+/** Todos los motivos que el servidor acepta, en cualquier negocio. */
+export const TODOS_LOS_MOTIVOS: readonly AdjustmentMotivo[] = MOTIVOS_DE_PERECEDEROS;
+
+/**
+ * Los motivos que ofrece la pantalla de Mermas en este negocio. Un negocio de servicios (CH)
+ * ve los de siempre, en su orden; un mostrador arranca en Merma, y si vende comida fresca
+ * suma los de perecederos. PURA.
+ */
+export function motivosDeAjuste(negocio: { esMostrador: boolean; rubroId?: string | null }): readonly AdjustmentMotivo[] {
+  if (!negocio.esMostrador) return ADJUSTMENT_MOTIVOS;
+  return negocio.rubroId && RUBROS_PERECEDEROS.includes(negocio.rubroId) ? MOTIVOS_DE_PERECEDEROS : MOTIVOS_DE_MOSTRADOR;
+}
+
+/** El motivo que llega del formulario, o `null` si no es uno de los que existen. PURA. */
+export function leerMotivo(raw: unknown): AdjustmentMotivo | null {
+  const v = String(raw ?? "").trim().toUpperCase();
+  return (TODOS_LOS_MOTIVOS as readonly string[]).includes(v) ? (v as AdjustmentMotivo) : null;
+}
+
+// Etiqueta legible del motivo, para el `reason` persistido y la UI. El tablero de merma
+// (merma-core.ts) reconoce la merma por ESTA etiqueta al principio del `reason`: cambiar un
+// texto acá es cambiar cómo se clasifica lo ya registrado.
 export function motivoLabel(m: AdjustmentMotivo): string {
   switch (m) {
     case "RECUENTO":
@@ -43,6 +97,12 @@ export function motivoLabel(m: AdjustmentMotivo): string {
       return "Rotura";
     case "VENCIMIENTO":
       return "Vencimiento";
+    case "DECOMISO":
+      return "Decomiso";
+    case "CONSUMO_INTERNO":
+      return "Consumo interno";
+    case "DEGUSTACION":
+      return "Degustación";
     case "OTRO":
       return "Otro";
   }
@@ -61,6 +121,9 @@ export function motivoMode(m: AdjustmentMotivo): AdjustmentMode {
     case "MERMA":
     case "ROTURA":
     case "VENCIMIENTO":
+    case "DECOMISO":
+    case "CONSUMO_INTERNO":
+    case "DEGUSTACION":
       return "LOSS";
     case "OTRO":
       return "SIGNED";
@@ -131,15 +194,25 @@ export function leerValorDeAjuste(mode: AdjustmentMode, raw: string | null | und
 // lo filtraba callado: se registraba el ajuste de las otras líneas y la persona no se
 // enteraba de que ésa no había entrado. Una línea sin producto (la fila vacía del final) no
 // es un error: no se pidió nada.
+//
+// En un RECUENTO cada línea puede traer además la HORA DEL CONTEO (`horas`, arrays paralelos,
+// en el reloj del TELÉFONO) y el formulario manda la hora del teléfono al tocar Guardar
+// (`enviadoA`): con las dos se sabe hace cuánto se contó cada línea (`horaDelConteo`). El
+// stock contra el que se compara es el que el sistema tenía a esa hora, no el del momento de
+// guardar (ver `stockTeorico`). Y un mismo producto no puede estar dos veces en un recuento:
+// dos conteos del mismo corte se contradicen, y guardar el segundo encima del primero
+// escondería el error.
 export function leerLineasDeAjuste(
   mode: AdjustmentMode,
   productIds: readonly string[],
   values: readonly string[],
-): { productId: string; value: number }[] {
+  opts: { horas?: readonly string[]; enviadoA?: string | null; ahora?: Date } = {},
+): { productId: string; value: number; contadoA?: Date }[] {
   if (productIds.length !== values.length) {
     throw new Error("El ajuste llegó incompleto (productos y valores no coinciden). Volvé a cargarlo.");
   }
-  const out: { productId: string; value: number }[] = [];
+  const out: { productId: string; value: number; contadoA?: Date }[] = [];
+  const vistos = new Map<string, number>();
   productIds.forEach((productId, i) => {
     if (!productId) return;
     const l = leerValorDeAjuste(mode, values[i]);
@@ -151,9 +224,176 @@ export function leerLineasDeAjuste(
         `Línea ${i + 1}: "${String(values[i]).slice(0, 24)}" no es una cantidad. Escribila con coma decimal (4,350).`,
       );
     }
+    if (mode === "COUNT") {
+      const antes = vistos.get(productId);
+      if (antes !== undefined) {
+        throw new Error(`Línea ${i + 1}: ese producto ya está contado en la línea ${antes}. Dejá un solo conteo.`);
+      }
+      vistos.set(productId, i + 1);
+      const hora = opts.horas?.[i];
+      if (hora !== undefined && String(hora).trim() !== "") {
+        out.push({ productId, value: l.valor, contadoA: horaDelConteo(hora, opts.enviadoA, opts.ahora ?? new Date()) });
+        return;
+      }
+    }
     out.push({ productId, value: l.valor });
   });
   return out;
+}
+
+// ── Recuento contra el stock teórico a la hora del conteo ───────────────────
+//
+// POR QUÉ. El recuento se hace con el local abierto: se cuenta a las 10:00, a las 10:05 se
+// vende un kilo y a las 10:10 se guarda la planilla. Comparado contra el stock AL GUARDAR, el
+// kilo vendido aparecía como sobrante (el sistema ya lo había descontado y lo contado lo
+// incluía), y el ajuste le devolvía al stock un kilo que ya se había ido. La comparación
+// correcta es contra lo que el sistema creía que había A LA HORA DEL CONTEO: el stock actual
+// menos todo lo que se movió después (el registro de movimientos es lo único que cambia el
+// stock, así que la cuenta es exacta).
+
+/** Cuánto hacia atrás se acepta una hora de conteo: una planilla se cuenta y se guarda el mismo día. */
+export const VENTANA_DE_CONTEO_MS = 24 * 60 * 60 * 1000;
+
+/** Una hora que manda el teléfono (milisegundos o ISO), o `null` si no se entiende. PURA. */
+function leerHoraDelTelefono(raw: string | number | null | undefined): number | null {
+  const txt = String(raw ?? "").trim();
+  if (!txt) return null;
+  const ms = /^\d+$/.test(txt) ? Number(txt) : Date.parse(txt);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * La hora del conteo, en el reloj del SERVIDOR.
+ *
+ * POR QUÉ ASÍ. El teléfono manda dos horas de SU reloj: cuándo se tipeó lo contado (`tipeo`) y
+ * cuándo se tocó Guardar (`envio`). Lo único que se usa es la diferencia entre las dos, "hace
+ * cuánto se contó", y se le resta a la hora del servidor al recibir. Así no importa si el
+ * teléfono atrasa o adelanta, ni cuándo se armó la página. Antes se corregía el reloj del
+ * teléfono con la hora a la que el servidor había armado la pantalla, y eso fallaba al volver
+ * con Atrás: Next muestra la copia guardada de la página, con la hora de cuando se armó, y el
+ * conteo quedaba corrido hacia atrás todo lo que había pasado (medido por el revisor: una
+ * venta de ANTES del conteo se descontaba otra vez).
+ *
+ * Sin `envio` (un envío sin JavaScript) o sin `tipeo` legible → `ahora`: se compara contra el
+ * stock de ahora, como antes de la ola 2. Si el reloj del teléfono fue para atrás entre el
+ * tipeo y el envío → `ahora` también. Más de un día → error: ese conteo ya no describe el
+ * local. PURA.
+ */
+export function horaDelConteo(
+  tipeo: string | number | null | undefined,
+  envio: string | number | null | undefined,
+  ahora: Date,
+): Date {
+  const t = leerHoraDelTelefono(tipeo);
+  const e = leerHoraDelTelefono(envio);
+  if (t === null || e === null) return ahora;
+  const hace = e - t;
+  if (!(hace > 0)) return ahora;
+  if (hace > VENTANA_DE_CONTEO_MS) {
+    throw new Error("El conteo tiene más de un día. Volvé a contar esos productos y guardalo en el momento.");
+  }
+  return new Date(ahora.getTime() - hace);
+}
+
+/**
+ * Cuándo arranca un conteo en el formulario: con el primer número tipeado en un campo vacío.
+ * Seguir tipeando o corregir un dígito no lo mueve (el conteo se hizo cuando se empezó a
+ * anotar); borrar todo y volver a escribir es contar de nuevo. `ahoraTelefono` es `Date.now()`
+ * del teléfono. PURA.
+ */
+export function marcaDeConteo(
+  anterior: { texto: string; contadoA: number | null } | undefined,
+  texto: string,
+  ahoraTelefono: number,
+): number | null {
+  if (texto.trim() === "") return null;
+  if (anterior && anterior.texto.trim() !== "" && anterior.contadoA !== null) return anterior.contadoA;
+  return ahoraTelefono;
+}
+
+/**
+ * El stock que el sistema tenía a la hora del conteo: el actual menos lo que se movió
+ * después (`movidoDespues` = suma FIRMADA de los movimientos posteriores; una venta resta, así
+ * que restarla la devuelve). PURA.
+ */
+export function stockTeorico(stockActual: number, movidoDespues: number): number {
+  return round3(stockActual - (Number.isFinite(movidoDespues) ? movidoDespues : 0));
+}
+
+/** Suma firmada de los movimientos de un producto posteriores a `desde`. PURA. */
+export function movidoDespuesDe(
+  movimientos: readonly { productId: string | null; qty: number; createdAt: Date }[],
+  productId: string,
+  desde: Date,
+): number {
+  let s = 0;
+  for (const m of movimientos) {
+    if (m.productId === productId && m.createdAt.getTime() > desde.getTime()) s += m.qty;
+  }
+  return round3(s);
+}
+
+// ── Tope de merma por carga ──────────────────────────────────────────────────
+//
+// El encargado (RECEPTION) carga mermas, pero no sin límite: una carga que se lleva más de
+// $50.000 de mercadería la tiene que hacer la dueña. El control es por lo que queda escrito
+// (quién cargó qué y cuánto valía, con el costo guardado en la fila), no por pedir su clave:
+// frenar el cierre de la heladera un sábado para que la dueña tipee una contraseña es peor.
+// El monto es PROVISIONAL A CONFIRMAR con la dueña de MAGRA.
+
+/** Tope de merma por carga para quien no es la dueña, en pesos. Provisional a confirmar. */
+export const TOPE_MERMA_POR_CARGA = 50_000;
+
+/**
+ * Hasta cuánto puede dar de baja en una carga este rol. `null` = sin tope (la dueña). Mismo
+ * criterio que `alcanceDeAnulacion` (capabilities.ts): cualquier rol que no sea OWNER arranca
+ * con el límite puesto. PURA.
+ */
+export function topeDeMermaPorCarga(role: Role): number | null {
+  return role === "OWNER" ? null : TOPE_MERMA_POR_CARGA;
+}
+
+/**
+ * Cuánto vale lo que da de baja una carga: las líneas que RESTAN, a costo vigente. Un
+ * recuento no cuenta (es un conteo, no una baja); una corrección "Otro" que resta, sí. Las
+ * líneas sin costo no suman (no se pueden valuar) y se informan aparte. PURA.
+ */
+export function valorDeLaBaja(
+  motivo: AdjustmentMotivo,
+  lineas: readonly { delta: number; costo: number | null }[],
+): { pesos: number; sinCosto: number } {
+  if (motivoMode(motivo) === "COUNT") return { pesos: 0, sinCosto: 0 };
+  let pesos = 0;
+  let sinCosto = 0;
+  for (const l of lineas) {
+    if (!(l.delta < 0)) continue;
+    if (l.costo === null || !(l.costo > 0)) sinCosto++;
+    else pesos += -l.delta * l.costo;
+  }
+  return { pesos: Math.round(pesos * 100) / 100, sinCosto };
+}
+
+/** ¿La carga pasa el tope? `tope` null = sin tope. PURA. */
+export function superaElTope(pesos: number, tope: number | null): boolean {
+  return tope !== null && pesos > tope;
+}
+
+/**
+ * El mensaje cuando una carga pasa el tope. Los PESOS sólo van para quien ve costos: el
+ * encargado (RECEPTION, sin `costs:read`) que carga "1000 kg de vacío" y lee "da de baja
+ * $6.543.000" acaba de averiguar el costo por kilo, y como no se graba nada lo puede repetir
+ * con cada corte. Por eso quien no ve costos recibe el mismo rechazo sin montos. Tampoco se
+ * sugiere partir la carga: el tope es por carga justamente para que una baja grande pase por la
+ * dueña. PURA.
+ */
+export function mensajeDeTope(
+  baja: { pesos: number; tope: number },
+  conCostos: boolean,
+  formato: (n: number) => string,
+): string {
+  const siga = "No se registró nada: pedile a la dueña o al dueño que la cargue.";
+  if (!conCostos) return `Esta carga pasa tu tope por carga. ${siga}`;
+  return `Esta carga da de baja ${formato(baja.pesos)} a costo y tu tope por carga es ${formato(baja.tope)}. ${siga}`;
 }
 
 // Qué productos ofrece la pantalla de ajustes: los activos, y además el que llega preelegido

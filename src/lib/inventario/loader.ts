@@ -1,38 +1,26 @@
 // ============================================================================
-// Loader de Inventario (niveles + valuación) — cableado al read model de S1.
+// Loader de Stock (niveles + valuación) — cableado al read model de inventario.
 // ============================================================================
 //
-// Mapea el read model de S1 (`@/lib/inventory/inventory-loader.getInventoryValuation`,
-// sobre `Product` + último costo de `StockPurchaseItem`) al CONTRATO DE VISTA de la UI
-// (`./valuation`), para que la pantalla no cambie. S1 ya guarda `catalog:read` y computa la
-// valuación; acá solo se re-nombra a `productId/valuation/belowLowStock/sinCosto`. Read-only.
+// Mapea `getInventoryValuation` (inventory/inventory-loader.ts: productos + costo vigente) al
+// CONTRATO DE VISTA (`./valuation`). El guard (`stock:read`) y la regla de costos (`costs:read`)
+// los aplica el read model; acá sólo se re-nombra. Read-only.
 
 import { getInventoryValuation } from "@/lib/inventory/inventory-loader";
-import type { InventoryRow, InventorySummary } from "./valuation";
+import { aFilaDeInventario, aResumenDeInventario, type InventoryRow, type InventorySummary } from "./valuation";
 
 export interface InventoryReport {
   rows: InventoryRow[];
   summary: InventorySummary;
+  /** ¿Quien mira puede ver costos? Si no, filas y resumen vienen sin un peso. */
+  conCostos: boolean;
 }
 
 export async function getInventory(): Promise<InventoryReport> {
-  const val = await getInventoryValuation(); // guarda catalog:read + scopea por tenant
+  const val = await getInventoryValuation();
   return {
-    rows: val.rows.map((r) => ({
-      productId: r.id,
-      name: r.name,
-      unit: r.unit,
-      stock: r.stock,
-      unitCost: r.unitCost ?? 0,
-      valuation: r.stockValue,
-      belowLowStock: r.lowStock,
-      sinCosto: !r.valued,
-    })),
-    summary: {
-      productos: val.summary.productCount,
-      valuacionTotal: val.summary.totalValue,
-      bajoStock: val.summary.lowStockCount,
-      sinCosto: val.summary.unvaluedCount,
-    },
+    rows: val.rows.map(aFilaDeInventario),
+    summary: aResumenDeInventario(val.summary),
+    conCostos: val.conCostos,
   };
 }
