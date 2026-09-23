@@ -69,7 +69,7 @@ test("A-5 · carrera: pre-check pasa pero el @@unique dispara → InTx propaga P
 });
 
 test("A-5 · frontera: BUG(sin unique) crea 2 asientos; FIX(unique + traducción) deja 1", () => {
-  // Traducción del llamador (setOrderPaid / recordCashSaleMovement): P2002 → already-recorded.
+  // Traducción del llamador (cobrarPedido → setOrderPaidCore / recordCashSaleMovement): P2002 → already-recorded.
   function imputeAttempt(store: { orderId: string; type: string }[], enforceUnique: boolean, preExists: boolean) {
     if (preExists) return "already-recorded";
     const dup = store.some((m) => m.orderId === "ord_1" && m.type === "VENTA");

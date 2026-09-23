@@ -16,6 +16,8 @@ import { retailWordingForSlug } from "@/blueprints/retail";
 import { getStorefrontCopy } from "@/tenants/storefront";
 import { insertOrder, buildOrderLines, orderSubtotal, type OrderPaymentMethod } from "@/lib/order-core";
 import { recordCashSaleMovementInTx } from "@/lib/caja/cash-sale";
+import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro";
+import { permiteVenderSinStock, productosQuePuedenQuedarNegativos } from "@/lib/stock/pos-stock-rules";
 import { tenantTransaction } from "@/lib/rls";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { cantidadOCero } from "@/lib/pos-peso";
@@ -99,12 +101,13 @@ type PaymentMethod = OrderPaymentMethod;
 // Core) de un FormData a la forma que espera insertOrder.
 //
 // La cantidad NO se lee con `Number()`. Con `Number("1,3")` —un kilo trescientos escrito
-// como se escribe en Argentina— sale `NaN`, y con lo que dejaba pasar el `<input
-// type="number">` de antes salía `13`: diez veces el peso y diez veces el precio, sin un
-// solo error de validación. `cantidadOCero` (pos-peso.ts) lee coma y punto como el mismo
-// separador decimal y redondea a gramos. Acá se vuelve a parsear aunque el navegador ya
-// mande el valor canónico: el server NO confía en lo que le llega del cliente, y este mismo
-// `parseItems` lo usa también la vidriera pública, donde el que tipea es un desconocido.
+// como se escribe en Argentina— sale `NaN`; y el `<input type="number">` de antes ni
+// siquiera dejaba llegar la coma: medido en Chromium 141, "1,3" tecleado quedaba "13" y el
+// ticket salía por 13 kg (el detalle, en el campo de cantidad del PosForm y en pos-peso.ts).
+// `cantidadOCero` lee coma y punto como el mismo separador decimal y redondea a gramos. Acá se
+// vuelve a parsear aunque el navegador ya mande el valor canónico: el server NO confía en lo
+// que le llega del cliente, y este mismo `parseItems` lo usa también la vidriera pública,
+// donde el que tipea es un desconocido.
 function parseItems(formData: FormData): { productId: string; qty: number }[] {
   const productIds = formData.getAll("productId").map(String);
   const quantities = formData.getAll("quantity").map((q) => cantidadOCero(String(q)));
@@ -123,15 +126,17 @@ function errorDeAccion(err: unknown, generico: string): { ok: false; error: stri
   return { ok: false, error: err instanceof Error && err.message ? err.message : generico };
 }
 
-// I7 (ADR-064): la imputación de la venta en efectivo a la caja YA NO es una segunda tx
+// I7 (ADR-064): la imputación de la venta cobrada a la caja YA NO es una segunda tx
 // best-effort. Ahora va ATÓMICA con la venta, dentro de la MISMA transacción:
 //  - al CREAR la venta ya cobrada → `insertOrder(..., { imputarCajaActor })` (order+stock+caja
 //    todo-o-nada);
-//  - al marcar cobrado DESPUÉS (`setOrderPaid`) → update del pedido + asiento de caja en una
+//  - al marcar cobrado DESPUÉS (`cobrarPedido`) → update del pedido + asiento de caja en una
 //    sola `tenantTransaction`.
 // Un fallo real de DB en el asiento aborta toda la operación (la venta no queda cobrada sin su
-// movimiento de caja → el arqueo nunca descuadra). Las condiciones benignas (no efectivo / sin
-// caja abierta / ya imputada) vuelven como { recorded:false } sin abortar: la venta se concreta.
+// movimiento de caja → el arqueo nunca descuadra). Las condiciones benignas (no cobrada, medio
+// que el libro no traduce, total <= 0, ya imputada) vuelven como { recorded:false } sin abortar:
+// la venta se concreta. Los tres medios se asientan (MP y transferencia en la columna MP), y sin
+// turno abierto también: con `sessionId` null (leído de caja/cash-sale.ts).
 
 // --- Crear pedido / venta de mostrador (el "checkout" del backoffice) ---
 //
@@ -147,15 +152,19 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
     String(formData.get("fulfillment") || "PICKUP") === "DELIVERY" ? "DELIVERY" : "PICKUP";
   const scheduledRaw = String(formData.get("scheduledFor") || "").trim();
   const paid = String(formData.get("paid")) === "on" || String(formData.get("paid")) === "true";
-  const paymentMethodRaw = String(formData.get("paymentMethod") || "").trim();
-  const paymentMethod: PaymentMethod | null =
-    paymentMethodRaw === "MERCADOPAGO" || paymentMethodRaw === "EFECTIVO" || paymentMethodRaw === "TRANSFERENCIA"
-      ? paymentMethodRaw
-      : null;
+
+  // CON QUÉ SE COBRÓ (MAG-1). Una venta cobrada sin medio ya no se graba como "no cobrada" en
+  // silencio ni cae en EFECTIVO por default: se rechaza y la pantalla dice que falta elegirlo.
+  // La decisión entera vive en `medioDeCobroRequerido` (caja/medio-cobro.ts, probada con
+  // datos); acá sólo se usa el medio que ella devuelve. No va en `insertOrder`: la vidriera y
+  // la ingesta externa no la heredan.
+  const medio = medioDeCobroRequerido({ channel, paid, paymentMethod: formData.get("paymentMethod") });
+  if (!medio.ok) return { ok: false, error: medio.error };
+  const paymentMethod: PaymentMethod | null = medio.paymentMethod;
 
   // FRONTERA DEL DÍA CERRADO. El libro, el cierre diario, las compras, las comisiones, la
   // caja y los turnos rechazan escribir sobre un día ya arqueado y firmado; los DOS caminos de
-  // cobro de este archivo —`createOrder` acá y `setOrderPaid` más abajo— eran los que no la
+  // cobro de este archivo —`createOrder` acá y `cobrarPedido` más abajo— eran los que no la
   // miraban. Cerrar la caja a las 20:00 y cobrar una venta a las 20:05 dejaba el arqueo
   // diciendo 6 movimientos y el libro del mismo día diciendo 8, y el descuadre aparecía recién
   // al mes siguiente, sin forma de saber cuál de las dos cifras era la buena.
@@ -184,7 +193,22 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // del doble clic dentro de la misma pestaña; esto la cierra a nivel base.
   const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
 
-  // I7 (ADR-064): la imputación a caja de la venta en efectivo va ATÓMICA con la orden+stock
+  // MAG-4: qué líneas pueden dejar el stock en negativo en vez de abortar la venta. La unidad
+  // de venta se lee del Product en la base (filtrado por tenant), NUNCA del formulario: el
+  // navegador no decide qué se vende por peso. La regla (`productosQuePuedenQuedarNegativos`,
+  // pos-stock-rules.ts) sólo abre la excepción para lo que se vende por peso en el mostrador;
+  // un pedido ONLINE devuelve la lista vacía y bloquea como siempre. `insertOrder` recibe el
+  // dato ya decidido: no lo infiere, así que la vidriera y la ingesta externa no lo heredan.
+  const items = parseItems(formData);
+  const permitirNegativoPorProducto = productosQuePuedenQuedarNegativos(
+    await prisma.product.findMany({
+      where: { tenantId, id: { in: items.map((l) => l.productId).filter(Boolean) } },
+      select: { id: true, saleUnit: true },
+    }),
+    channel,
+  );
+
+  // I7 (ADR-064): la imputación a caja de la venta cobrada va ATÓMICA con la orden+stock
   // dentro de `insertOrder` (una sola tx, todo-o-nada). `imputarCajaActor` la activa: solo el
   // mostrador imputa caja física. Un fallo de DB al asentar la caja aborta toda la venta (no
   // queda cobrada sin su movimiento → el arqueo nunca descuadra).
@@ -204,9 +228,9 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
         scheduledFor: scheduledRaw ? new Date(scheduledRaw) : null,
         paid,
         paymentMethod,
-        items: parseItems(formData),
+        items,
       },
-      { imputarCajaActor: `user:${user.id}`, idempotencyKey },
+      { imputarCajaActor: `user:${user.id}`, idempotencyKey, permitirNegativoPorProducto },
     );
   } catch (err) {
     // El mensaje de dominio (sin stock, sin precio, sin dirección) llega ENTERO a la pantalla
@@ -346,9 +370,15 @@ async function setOrderPaidCore(
 ): Promise<OrderActionState> {
   const user = await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
-  const method: PaymentMethod =
-    methodRaw === "MERCADOPAGO" || methodRaw === "TRANSFERENCIA" ? methodRaw : "EFECTIVO";
   if (!id) return { ok: false, error: "Falta identificar el pedido a cobrar." };
+
+  // CON QUÉ SE COBRÓ (MAG-1), la misma regla que el alta. Antes acá cualquier valor vacío o
+  // desconocido se convertía en EFECTIVO: el cobro con MP que llegaba sin medio se asentaba
+  // en la columna del cajón. Ahora sin medio no se cobra, y la bandeja lo muestra.
+  const medio = medioDeCobroRequerido({ paid: true, paymentMethod: methodRaw, contexto: "cobro" });
+  if (!medio.ok) return { ok: false, error: medio.error };
+  // `paid: true` garantiza que la regla devolvió un medio; el `!` sólo se lo dice a tsc.
+  const method: PaymentMethod = medio.paymentMethod!;
 
   // MISMA FRONTERA QUE EL ALTA, y por la misma razón. Este camino también escribe una fila en
   // el libro (`recordCashSaleMovementInTx`, abajo) y tampoco la miraba: cobrar un pedido
@@ -366,37 +396,56 @@ async function setOrderPaidCore(
   });
   if (frontera.bloquea) return { ok: false, error: frontera.error };
 
-  // I7 (ADR-064): marcar cobrado + asentar la caja son ATÓMICOS (una sola tx). Antes el update
-  // y la imputación corrían en tx separadas → un fallo de caja dejaba el pedido cobrado sin su
-  // movimiento (arqueo descuadrado). Ahora, si el asiento de caja falla por un error de DB, el
-  // "cobrado" también se revierte. El asiento es idempotente por orderId (no duplica si ya se
-  // imputó al crear la venta) y benigno si no hay caja abierta / no es efectivo (recorded:false).
-  let order: { id: string; code: number; total: number } | null;
+  // I7 (ADR-064): marcar cobrado + asentar la caja son ATÓMICOS (una sola tx). Si el asiento
+  // de caja falla por un error de DB, el "cobrado" también se revierte. El asiento es
+  // idempotente por orderId; sin turno abierto se asienta igual, con sessionId null.
+  //
+  // SÓLO SE COBRA LO QUE NO ESTABA COBRADO. Antes era `tx.order.update({ where: { id } })`,
+  // sin mirar `paid`: el segundo «Cobrar» desde otra pestaña, con otro medio elegido,
+  // reescribía `Order.paymentMethod` (EFECTIVO → MERCADOPAGO) mientras el asiento del libro se
+  // quedaba en EFECTIVO: el asiento VENTA es uno por pedido (el pre-check de
+  // `recordCashSaleMovementInTx` devuelve "already-recorded" y el @@unique(tenantId, orderId,
+  // type) cierra la carrera), así que la tx commiteaba el medio nuevo sin asiento nuevo. Pedido
+  // y libro quedaban diciendo cosas distintas (leído del código; no hay test contra base que lo
+  // reproduzca). Con `updateMany` y `paid: false` en el filtro, el segundo cobro no toca nada
+  // (count 0) y se le dice con qué medio había quedado.
+  type Cobro =
+    | { tipo: "cobrado"; order: { id: string; code: number; total: number } }
+    | { tipo: "ya-cobrado"; code: number; medioRegistrado: string | null }
+    | { tipo: "no-existe" };
+  let cobro: Cobro;
   try {
-    order = await tenantTransaction(
-      async (tx) => {
-        const updated = await tx.order.update({
-          where: { id },
+    cobro = await tenantTransaction(
+      async (tx): Promise<Cobro> => {
+        const res = await tx.order.updateMany({
+          where: { id, tenantId, paid: false },
           data: { paid: true, paymentMethod: method },
-          select: { id: true, code: true, total: true },
         });
+        const order = await tx.order.findFirst({
+          where: { id, tenantId },
+          select: { id: true, code: true, total: true, paymentMethod: true },
+        });
+        if (!order) return { tipo: "no-existe" };
+        if (res.count === 0) {
+          return { tipo: "ya-cobrado", code: order.code, medioRegistrado: order.paymentMethod };
+        }
         await recordCashSaleMovementInTx(tx, tenantId, {
-          orderId: updated.id,
-          orderCode: updated.code,
+          orderId: order.id,
+          orderCode: order.code,
           paid: true,
           paymentMethod: method,
-          total: updated.total,
+          total: order.total,
           actor: `user:${user.id}`,
         });
-        return updated;
+        return { tipo: "cobrado", order: { id: order.id, code: order.code, total: order.total } };
       },
       { tenantId },
     );
   } catch (e) {
-    // A-5: doble-click en "Marcar cobrado" → dos tx concurrentes. Con el @@unique de A-5 migrado,
-    // la 2ª choca P2002 al crear el 2º asiento VENTA y esta tx aborta (su update de `paid` también
-    // revierte, pero la 1ª ya lo dejó cobrado + imputado). Es idempotente: no hay nada que reparar,
-    // no se re-audita ni se muestra un 500. Cualquier otro error se propaga.
+    // Defensa que queda de A-5. Con `paid: false` en el filtro, el segundo cobro concurrente
+    // espera el lock de la fila y sale por "ya-cobrado" sin llegar a asentar, así que este
+    // choque del @@unique del asiento VENTA no debería darse. Si igual se diera, la tx aborta
+    // entera —el `paid` también— y no hay nada que reparar: ni re-auditoría ni un 500.
     if (isUniqueViolation(e, "orderId")) {
       revalidatePath(ORDERS_PATH);
       return { ok: true, mensaje: "Ese pedido ya estaba cobrado." };
@@ -404,35 +453,36 @@ async function setOrderPaidCore(
     return errorDeAccion(e, "No se pudo marcar el pedido como cobrado.");
   }
 
+  if (cobro.tipo === "no-existe") return { ok: false, error: "No se encontró el pedido a cobrar." };
+  if (cobro.tipo === "ya-cobrado") {
+    revalidatePath(ORDERS_PATH);
+    return mensajeYaCobrado({ code: cobro.code, medioRegistrado: cobro.medioRegistrado, medioElegido: method });
+  }
+
+  const { order } = cobro;
   await auditAdmin({ action: "update", entity: "Order", entityId: order.id, changes: { paid: true, method } });
 
   revalidatePath(ORDERS_PATH);
   return { ok: true, mensaje: `Pedido #${order.code} cobrado: ${fmtMoneyARS(order.total)}.` };
 }
 
-/** Acción con estado para la pantalla (`useActionState`): el motivo del rechazo llega entero. */
+/**
+ * Cobrar un pedido desde la bandeja (`CobrarPedidoForm`): el motivo del rechazo —falta elegir
+ * el medio, el día está cerrado, ya estaba cobrado con otro medio— llega entero a la pantalla.
+ * Mantiene la firma `(prev, formData)` de `useActionState`, aunque hoy se invoca directo. Sin relleno: si no vino medio, la regla lo rechaza.
+ *
+ * (`setOrderPaid`, la versión muda que lanzaba y rellenaba con EFECTIVO, se sacó: su único
+ * llamador era el botón viejo de la bandeja, y en un archivo "use server" cada export es un
+ * endpoint público que hay que mantener cerrado.)
+ */
 export async function cobrarPedido(
   _prev: OrderActionState,
   formData: FormData,
 ): Promise<OrderActionState> {
   return setOrderPaidCore(
     String(formData.get("id") || "").trim(),
-    String(formData.get("paymentMethod") || "EFECTIVO").trim(),
+    String(formData.get("paymentMethod") || "").trim(),
   );
-}
-
-/**
- * Compatibilidad con el botón "Cobrar" que ya está en la bandeja (`pedidos/page.tsx`), que
- * descarta el valor devuelto. Mantiene la firma `Promise<void>`: cambiarla rompería ese
- * `<form action={...}>`. El rechazo se LANZA (en producción Next redacta el mensaje), así que
- * la pantalla tiene que pasar a `cobrarPedido`.
- */
-export async function setOrderPaid(formData: FormData): Promise<void> {
-  const r = await setOrderPaidCore(
-    String(formData.get("id") || "").trim(),
-    String(formData.get("paymentMethod") || "EFECTIVO").trim(),
-  );
-  if (r && !r.ok) throw new Error(r.error);
 }
 
 // --- Anular una venta (lo que antes era "Cancelar") ---
@@ -638,6 +688,12 @@ export async function updateOrderItems(
 
         // Stock por DELTA. Va ANTES de reescribir las líneas: si un aumento de peso no tiene
         // stock, `recordMovement` lanza, la tx se aborta entera y el pedido queda como estaba.
+        //
+        // Salvo (MAG-4) cuando el aumento es de un producto POR PESO: el paquete ya se pesó y
+        // está en la mano, y que pese más de lo que el sistema cree es justamente el caso que
+        // esta edición viene a corregir. Ahí la VENTA sale aunque el stock quede en negativo.
+        // La unidad sale de `lines`, que se armó con el Product leído en ESTA tx, no del
+        // formulario. Las devoluciones (delta < 0, AJUSTE positivo) no pasan por la guarda.
         for (const d of deltasDeStock(
           order!.items.map((it) => ({
             productId: it.productId,
@@ -664,6 +720,12 @@ export async function updateOrderItems(
             createdBy: `${EDICION_ACTOR_PREFIX}user:${user.id}`,
             reason: detalleStockAjustadoPorEdicion(order!.code, nombre, d.delta),
             label: nombre,
+            allowNegative:
+              d.delta > 0 &&
+              permiteVenderSinStock({
+                saleUnit: lines.find((l) => l.productId === d.productId)?.saleUnit ?? "",
+                contexto: "EDICION_PESO_REAL",
+              }),
           });
         }
 

@@ -42,9 +42,11 @@ export type InsertedOrder = {
   subtotal: number;
   lines: number;
   // I7 (ADR-064): resultado de la imputación a caja, presente solo si el llamador pidió
-  // imputar (venta de mostrador en efectivo). El asiento se hizo DENTRO de la misma tx que
-  // la orden+stock → atómico. `recorded:false` es una condición benigna (no efectivo / sin
-  // caja abierta / ya imputada), NO un fallo: un fallo de DB habría abortado toda la venta.
+  // imputar (venta de mostrador cobrada, por cualquiera de los tres medios). El asiento se
+  // hizo DENTRO de la misma tx que la orden+stock → atómico. `recorded:false` es una condición
+  // benigna (no cobrada, medio que el libro no traduce, total <= 0, ya imputada), NO un fallo:
+  // un fallo de DB habría abortado toda la venta. Sin turno abierto NO es `recorded:false`: se
+  // asienta con `sessionId` null.
   cashSale?: RecordCashSaleResult;
   // A-1: true cuando este resultado es un pedido PREEXISTENTE devuelto por idempotencia
   // (el reintento/doble-submit NO creó un pedido nuevo ni volvió a descontar stock).
@@ -57,7 +59,18 @@ export type InsertedOrder = {
 // `idempotencyKey` (A-1): clave del cliente para deduplicar el doble-submit / reintento de la
 // vidriera — dos envíos con la misma clave devuelven el MISMO pedido, sin crear otro ni
 // re-descontar stock. La vidriera la genera por carrito; el POS/API no la usan.
-export type InsertOrderOpts = { imputarCajaActor?: string; idempotencyKey?: string | null };
+//
+// `permitirNegativoPorProducto` (MAG-4): ids de los productos que en ESTA venta pueden dejar
+// el stock en negativo en vez de abortarla. La decisión NO se toma acá: la calcula el llamador
+// con la regla `productosQuePuedenQuedarNegativos` (stock/pos-stock-rules.ts), con la unidad
+// de venta leída del Product en la base. Hoy sólo la pasa `createOrder` para la venta de
+// mostrador por peso. Si no llega —vidriera, ingesta externa, cualquier llamador nuevo—, la
+// guarda anti-oversell vale para todas las líneas, como siempre.
+export type InsertOrderOpts = {
+  imputarCajaActor?: string;
+  idempotencyKey?: string | null;
+  permitirNegativoPorProducto?: readonly string[];
+};
 
 // A-2: cuántas veces se reintenta el alta ante una colisión del correlativo por tenant
 // (max(code)+1 bajo concurrencia). Cada reintento recomputa el code; con el @@unique como
@@ -198,6 +211,7 @@ export async function insertOrder(
 
   const subtotal = orderSubtotal(lines);
   const status = input.channel === "ONLINE" ? "PENDING" : "CONFIRMED";
+  const negativoPermitido = new Set(opts?.permitirNegativoPorProducto ?? []);
 
   // Toda la orquestación de guardas (A-1 idempotencia + A-2 colisión de correlativo + tolerancia
   // schema-ahead) vive en `insertOrderGuarded`, con las operaciones de DB INYECTADAS para poder
@@ -263,6 +277,10 @@ export async function insertOrder(
         // afecta 0 filas y lanza, abortando toda la orden — nada de ventas parciales ni
         // stock negativo) Y registra el StockMovement (VENTA) en la misma transacción.
         // Corre DENTRO de la tx de la orden: o se vende, se descuenta y se asienta, o nada.
+        //
+        // Única excepción a la guarda: las líneas que el llamador marcó explícitamente en
+        // `permitirNegativoPorProducto` (MAG-4, el corte por kg vendido en mostrador). Ésas
+        // descuentan aunque el stock quede en negativo, con su VENTA normal en el ledger.
         for (const l of stockDecrementLines(lines)) {
           await recordMovement(tx, {
             tenantId,
@@ -272,15 +290,17 @@ export async function insertOrder(
             orderId: created.id,
             createdBy: "system",
             label: l.name,
+            allowNegative: negativoPermitido.has(l.productId),
           });
         }
 
-        // I7 (ADR-064): FRONTERA ATÓMICA de la venta al contado. Si el mostrador cobró en
-        // efectivo, el asiento de caja va en ESTA MISMA tx (no en una segunda tx best-effort):
-        // o se crea la orden, se descuenta el stock y se asienta la caja, o NADA. Así el arqueo
-        // nunca queda con la venta cobrada pero sin su movimiento (ni al revés). El helper
-        // self-gatea (no efectivo / total<=0 → recorded:false, benigno) y NO lanza salvo por un
-        // error real de DB, que aborta toda la venta (la atomicidad que pide I7).
+        // I7 (ADR-064): FRONTERA ATÓMICA de la venta al contado. Si el mostrador cobró —en
+        // efectivo, MP o transferencia—, el asiento de caja va en ESTA MISMA tx (no en una
+        // segunda tx best-effort): o se crea la orden, se descuenta el stock y se asienta la
+        // caja, o NADA. Así el arqueo nunca queda con la venta cobrada pero sin su movimiento
+        // (ni al revés). El helper self-gatea (no cobrada / sin medio / total<=0 →
+        // recorded:false, benigno) y NO lanza salvo por un error real de DB, que aborta toda
+        // la venta (la atomicidad que pide I7).
         let cashSale: RecordCashSaleResult | undefined;
         if (opts?.imputarCajaActor) {
           cashSale = await recordCashSaleMovementInTx(tx, tenantId, {

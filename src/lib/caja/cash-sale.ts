@@ -133,7 +133,7 @@ export async function recordCashSaleMovementInTx(
   // única guarda mientras el @@unique(tenantId,orderId,type) no esté migrado. (2) El @@unique de
   // A-5 es el árbitro a nivel DB que cierra la carrera del doble-click: si dos submits pasan el
   // pre-check antes de que cualquiera commitee, el `create` de abajo choca P2002 y el LLAMADOR
-  // (setOrderPaid / recordCashSaleMovement) lo trata como "ya imputado". Se busca en CUALQUIER
+  // (cobrarPedido → setOrderPaidCore / recordCashSaleMovement) lo trata como "ya imputado". Se busca en CUALQUIER
   // sesión (o sin sesión): si ya se imputó antes, no se duplica al re-cobrar. Tampoco importa
   // el medio: un pedido cobrado es UNA entrada de plata, por el medio con el que se cobró.
   const existing = await tx.cashMovement.findFirst({

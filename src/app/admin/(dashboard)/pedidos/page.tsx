@@ -1,14 +1,10 @@
-import {
-  getPosData,
-  advanceOrderStatus,
-  setOrderPaid,
-  cancelOrder,
-} from "@/lib/order-actions";
+import { getPosData, advanceOrderStatus, cancelOrder } from "@/lib/order-actions";
 import { fmtMoneyARS, EmptyState, ButtonLink } from "@/components/ui";
 import { fmtShortDate } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import MostradorTabs from "./MostradorTabs";
+import CobrarPedidoForm from "./CobrarPedidoForm";
 import { getProfessionalsWithServices } from "@/lib/actions";
 import { canCurrentUser } from "@/lib/authz";
 import { getCurrentUser } from "@/lib/session";
@@ -138,23 +134,9 @@ export default async function PedidosPage() {
                       </button>
                     </form>
                   )}
-                  {!o.paid && (
-                    <form action={setOrderPaid} className="flex items-center gap-1">
-                      <input type="hidden" name="id" value={o.id} />
-                      <select
-                        name="paymentMethod"
-                        defaultValue="EFECTIVO"
-                        className="rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-xs"
-                      >
-                        <option value="EFECTIVO">Efectivo</option>
-                        <option value="MERCADOPAGO">Mercado Pago</option>
-                        <option value="TRANSFERENCIA">Transferencia</option>
-                      </select>
-                      <button type="submit" className="chip-btn text-xs min-h-8">
-                        Cobrar
-                      </button>
-                    </form>
-                  )}
+                  {/* Sin medio por defecto y con el motivo del rechazo en pantalla: ver
+                      CobrarPedidoForm (antes era un select en EFECTIVO y un botón mudo). */}
+                  {!o.paid && <CobrarPedidoForm id={o.id} code={o.code} />}
                   <form action={cancelOrder}>
                     <input type="hidden" name="id" value={o.id} />
                     <button

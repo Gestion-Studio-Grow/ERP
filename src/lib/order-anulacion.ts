@@ -88,7 +88,7 @@ export const MOTIVO_ANULACION_SIN_TEXTO = "Anulada desde la bandeja de pedidos (
  * ¿Esta venta va a escribir una fila en el libro de caja?
  *
  * Sólo la venta COBRADA con un medio que el libro sabe traducir. Un pedido tomado sin cobrar
- * no toca la caja —se cobra después, con `setOrderPaid`, que sí mira su propia frontera— así
+ * no toca la caja —se cobra después, con `cobrarPedido`, que sí mira su propia frontera— así
  * que frenarlo por un día cerrado sería impedir anotar el pedido de mañana sin proteger nada.
  * Espeja exactamente a `cashSaleEligibility` (caja/cash-sale.ts), que es quien decide de
  * verdad si se asienta.

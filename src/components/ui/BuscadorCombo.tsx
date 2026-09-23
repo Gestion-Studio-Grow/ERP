@@ -8,10 +8,15 @@
 //
 // Contrato: el padre guarda el id elegido; este componente sólo avisa con `onElegir`.
 // `valor` es el id elegido hoy (o "" si ninguno), para mostrar su etiqueta.
+//
+// El teclado lo decide `decidirTecla` (buscador-teclado.ts, puro y probado con datos): el
+// Enter se consume SIEMPRE —el combo vive dentro de formularios que cobran, y un Enter que se
+// escapaba cobraba el ticket— y con el texto vacío no elige nada. Acá sólo se aplica.
 
 import { useId, useMemo, useRef, useState } from "react";
 import { cn } from "./cn";
 import { filtrarOpciones, type OpcionBuscador } from "./buscador-filtro";
+import { decidirTecla } from "./buscador-teclado";
 
 export type { OpcionBuscador } from "./buscador-filtro";
 
@@ -49,6 +54,9 @@ export function BuscadorCombo({
   const [texto, setTexto] = useState("");
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState(0);
+  // Se movió con las flechas desde que se abrió o se tipeó: habilita elegir con Enter aunque
+  // no haya texto (ver `decidirTecla`).
+  const [recorrio, setRecorrio] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const visibles = useMemo(() => filtrarOpciones(opciones, texto, max), [opciones, texto, max]);
@@ -58,6 +66,7 @@ export function BuscadorCombo({
     setTexto("");
     setAbierto(false);
     setActivo(0);
+    setRecorrio(false);
   }
 
   return (
@@ -78,24 +87,29 @@ export function BuscadorCombo({
         onFocus={() => {
           setAbierto(true);
           setTexto("");
+          setActivo(0);
+          setRecorrio(false);
         }}
         onBlur={() => setTimeout(() => setAbierto(false), 120)}
         onChange={(e) => {
           setTexto(e.target.value);
           setAbierto(true);
           setActivo(0);
+          setRecorrio(false);
         }}
         onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setActivo((i) => Math.min(i + 1, visibles.length - 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setActivo((i) => Math.max(i - 1, 0));
-          } else if (e.key === "Enter" && abierto && visibles[activo]) {
-            e.preventDefault();
-            elegir(visibles[activo]);
-          } else if (e.key === "Escape") {
+          const d = decidirTecla(
+            { key: e.key, componiendo: e.nativeEvent.isComposing },
+            { abierto, texto, visibles, activo, recorrio },
+          );
+          if (d.prevenir) e.preventDefault();
+          if (d.tipo === "mover") {
+            setAbierto(true);
+            setActivo(d.activo);
+            setRecorrio(true);
+          } else if (d.tipo === "elegir") {
+            elegir(d.opcion);
+          } else if (d.tipo === "cerrar") {
             setAbierto(false);
             inputRef.current?.blur();
           }

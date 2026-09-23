@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createOrder } from "@/lib/order-actions";
-import { Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
-import { stockShortfall, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
+import { BuscadorCombo, Input, Select, buttonClasses, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
+import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
+import { MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import {
   leerCantidad,
   cantidadParaFormulario,
@@ -26,10 +27,11 @@ type SellableProduct = {
 // Una línea del ticket en construcción.
 //
 // `qtyText` es lo que la persona TIENE TIPEADO, tal cual, no un número. Es la diferencia
-// entre este campo y el que cobraba diez veces de más: guardar el número obliga a parsear en
-// cada tecla y a devolverle al campo una versión "corregida" de lo que escribió —así se
-// perdía la coma— mientras que guardar el texto deja escribir "1," y "1,2" sin pelear, y el
-// número se deriva recién cuando hace falta.
+// entre este campo y el `type="number"` de antes, que se tragaba la coma: "1,3" tecleado
+// quedaba "13" (medido, ver el comentario del campo de cantidad más abajo). Guardar el número
+// obliga a parsear en cada tecla y a devolverle al campo una versión "corregida" de lo que
+// escribió; guardar el texto deja escribir "1," y "1,2" sin pelear, y el número se deriva
+// recién cuando hace falta.
 type Line = { key: number; productId: string; qtyText: string };
 
 /** Clave de idempotencia de ESTE ticket. Ver el comentario de `CobrarSubmit`. */
@@ -63,6 +65,8 @@ function unitPriceOf(p: SellableProduct): number {
 // segunda pestaña del mismo ticket llevan la MISMA clave y se cobran una sola vez.
 // `useFormStatus` no cubría nada de eso: sólo tapa el doble clic dentro de esta pestaña.
 function CobrarSubmit({ disabled, label }: { disabled: boolean; label: string }) {
+  // `label` puede ser "Elegí cómo pagó": el botón deshabilitado dice QUÉ falta, en vez de
+  // quedar gris sin explicación.
   const { pending } = useFormStatus();
   return (
     <button
@@ -101,6 +105,14 @@ export default function PosForm({
   // Caja de mostrador (venta rápida, se cobra en el acto) vs. pedido con retiro/envío.
   const [isOrder, setIsOrder] = useState(false);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
+  // «Cobrado», CONTROLADO. Antes era `defaultChecked={!isOrder}`, que React aplica sólo al
+  // montar: medido en Chromium, después de tocar "Pedido" la casilla seguía tildada. Ahora el
+  // modo lo pone (mostrador → cobrado, pedido → a cobrar) y la persona lo puede cambiar.
+  const [paid, setPaid] = useState(true);
+  // Con qué pagó (MAG-1). Arranca SIN elegir, siempre, y vuelve a vacío después de cada
+  // cobro: ni EFECTIVO por default ni "el último que se usó". Cada venta cobrada con MP que
+  // quedaba en el default aparecía en el cierre como faltante de efectivo por el ticket entero.
+  const [medio, setMedio] = useState<MedioDeCobro | "">("");
   const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qtyText: "" }]);
   const [nextKey, setNextKey] = useState(2);
   // Clave de idempotencia del ticket, en un ref y no en el estado: se crea recién al PRIMER
@@ -119,6 +131,24 @@ export default function PosForm({
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
+  // Opciones del buscador (MAG-8, sólo la parte sin migración): el <select> nativo con
+  // cientos de productos no deja filtrar tipeando en tablet ni en celular. Se busca por el
+  // nombre y también por el detalle (precio y stock), sin tildes y por palabras.
+  const opciones = useMemo<OpcionBuscador[]>(
+    () =>
+      products.map((prod) => {
+        const info = stockById[prod.id];
+        const esPeso = prod.saleUnit === "WEIGHT";
+        const precio = esPeso ? `${fmtMoneyARS(prod.pricePerKg ?? 0)}/kg` : `${fmtMoneyARS(prod.price ?? 0)}/u`;
+        // El disponible sólo si el producto controla stock: si no, el número no manda. Con
+        // coma, como se lee acá: "quedan 3,7 kg", no "3.7".
+        const quedan = info?.trackStock
+          ? ` · quedan ${formatearCantidad(info.stock)} ${esPeso ? "kg" : "u"}`
+          : "";
+        return { id: prod.id, etiqueta: prod.name, detalle: `${precio}${quedan}` };
+      }),
+    [products, stockById],
+  );
   useEffect(() => {
     if (!focusPedido) return;
     document.getElementById(focusPedido.id)?.focus();
@@ -155,9 +185,19 @@ export default function PosForm({
   }, 0);
 
   const hasValidLine = leidas.some((l) => byId.get(l.productId) && l.qty > 0);
-  // Alguna línea pide más de lo que hay (sólo productos con control de stock). Se bloquea el
+  // Dónde se descuenta el stock: el mostrador (la mercadería está en la mano) o un pedido.
+  const contextoStock = isOrder ? "ONLINE" : "COUNTER";
+  const faltanteDe = (l: { productId: string; qty: number }) => {
+    const p = byId.get(l.productId);
+    return p ? faltanteDeLinea(stockById[l.productId], l.qty, { saleUnit: p.saleUnit, contexto: contextoStock }) : null;
+  };
+  // Alguna línea pide más de lo que hay y la regla NO permite venderla igual. Se bloquea el
   // cobro acá para que la persona corrija la cantidad en vez de chocar con el error del server.
-  const hasShortfall = leidas.some((l) => stockShortfall(stockById[l.productId], l.qty) != null);
+  // El corte por kg en el mostrador no entra acá: avisa en su fila y se vende (MAG-4, ver
+  // `permiteVenderSinStock`); el server aplica la misma regla con la unidad leída de la base.
+  const hasShortfall = leidas.some((l) => faltanteDe(l)?.bloquea === true);
+  // Se cobra en el acto pero todavía no se tocó ningún medio.
+  const faltaMedio = paid && !medio;
   // Una línea con producto elegido y cantidad ilegible ("1kg2", "-2") frena el cobro: si se
   // dejara pasar valiendo 0, la línea desaparecería del ticket sin que nadie se entere y se
   // cobraría de menos.
@@ -192,6 +232,10 @@ export default function PosForm({
     showSuccess(r?.mensaje ?? (isOrder ? "Pedido registrado." : "Venta cobrada."));
     setLines([{ key: nextKey, productId: "", qtyText: "" }]);
     setNextKey((k) => k + 1);
+    // El medio vuelve a vacío: el próximo cliente se pregunta de nuevo. Y «Cobrado» vuelve al
+    // del modo (mostrador → cobrado, pedido → a cobrar), que es el default de su casilla.
+    setMedio("");
+    setPaid(!isOrder);
     ticketKey.current = "";
   }
 
@@ -213,21 +257,31 @@ export default function PosForm({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => setIsOrder(false)}
+          onClick={() => {
+            // Sólo al CAMBIAR de modo se pone el «Cobrado» del modo: tocar el que ya está
+            // elegido no le vuelve a tildar lo que la persona destildó.
+            if (!isOrder) return;
+            setIsOrder(false);
+            setPaid(true);
+          }}
           className={`chip-btn text-sm ${!isOrder ? "bg-accent text-on-accent" : ""}`}
         >
           Caja / mostrador
         </button>
         <button
           type="button"
-          onClick={() => setIsOrder(true)}
+          onClick={() => {
+            if (isOrder) return;
+            setIsOrder(true);
+            setPaid(false);
+          }}
           className={`chip-btn text-sm ${isOrder ? "bg-accent text-on-accent" : ""}`}
         >
           Pedido (retiro / envío)
         </button>
         {!isOrder && (
           <span className="text-xs text-faint">
-            Elegí el producto, cargá la cantidad (o el peso) y cobrá. Enter salta al siguiente.
+            Buscá el producto, cargá la cantidad (o el peso), elegí cómo pagó y cobrá. Enter salta al siguiente.
           </span>
         )}
       </div>
@@ -238,49 +292,39 @@ export default function PosForm({
           const p = byId.get(l.productId);
           const isWeight = p?.saleUnit === "WEIGHT";
           const lineTotal = p && l.qty > 0 ? l.qty * unitPriceOf(p) : 0;
-          const short = stockShortfall(stockById[l.productId], l.qty);
+          const faltante = faltanteDe(l);
+          const short = faltante?.bloquea ? faltante : null;
+          const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
           // Aviso del decimal olvidado (la balanza dice 1,300 y la mano teclea "1300").
           // Avisa, no bloquea: existe el mayorista que se lleva 40 kg.
           const aviso = p && !l.invalida ? avisoDeCantidad({ valor: l.qty, saleUnit: p.saleUnit }) : null;
           return (
             <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_128px_auto]">
-              <Select
+              <BuscadorCombo
                 className="col-span-2 sm:col-span-1"
                 id={`prod-${l.key}`}
-                aria-label="Producto"
-                value={l.productId}
-                onChange={(e) => {
-                  setLine(l.key, { productId: e.target.value, qtyText: "" });
-                  if (e.target.value) pedirFoco(`qty-${l.key}`); // saltar a pesar/contar
+                ariaLabel="Producto"
+                placeholder="Buscá el producto…"
+                opciones={opciones}
+                valor={l.productId}
+                onElegir={(productId) => {
+                  // Otro producto: la cantidad se vuelve a cargar (puede pasar de kg a
+                  // unidades). El MISMO producto elegido otra vez no borra lo pesado.
+                  if (productId !== l.productId) setLine(l.key, { productId, qtyText: "" });
+                  pedirFoco(`qty-${l.key}`); // saltar a pesar/contar
                 }}
-              >
-                <option value="">Elegí un producto…</option>
-                {products.map((prod) => {
-                  const info = stockById[prod.id];
-                  return (
-                    <option key={prod.id} value={prod.id}>
-                      {prod.name} —{" "}
-                      {prod.saleUnit === "WEIGHT"
-                        ? `${fmtMoneyARS(prod.pricePerKg ?? 0)}/kg`
-                        : `${fmtMoneyARS(prod.price ?? 0)}/u`}
-                      {/* Disponible sólo si el producto controla stock: si no, el número no manda. */}
-                      {/* Con coma, como se lee acá: "quedan 3,7 kg", no "3.7". */}
-                      {info?.trackStock
-                        ? ` · quedan ${formatearCantidad(info.stock)} ${prod.saleUnit === "WEIGHT" ? "kg" : "u"}`
-                        : ""}
-                    </option>
-                  );
-                })}
-              </Select>
+              />
               <div className="relative">
                 {/* type="text", NO type="number".
-                    Con `type="number"` el navegador descarta la coma antes de que el código
-                    la vea: tipear "1,3" kilos entregaba 13 y la venta salía por diez veces su
-                    valor, sin error y con el botón "Cobrar" habilitado. Y el `step="0.01"`
-                    rechazaba de paso "1,234" — el peso al gramo de un paquete al vacío, que
-                    es lo que se vende acá.
-                    `inputMode="decimal"` deja el teclado numérico en el celular; el parseo
-                    (coma y punto valen lo mismo, precisión de gramos) vive en pos-peso.ts. */}
+                    Con `type="number"` el navegador se traga la coma antes de que el código
+                    la vea. Medido en Chromium 141 (Playwright, es-AR, 412 px) con el PosForm
+                    de 543405f: teclear "1,3" en un vacío a $18.900/kg dejaba el campo en
+                    "13", el total en $245.700 (diez veces el de 1,3 kg) y "Cobrar"
+                    habilitado. Asignar "1,3" por JS, en cambio, deja el campo vacío: eso es
+                    lo que una versión anterior de este comentario tomó por el tipeo.
+                    `inputMode="decimal"` deja el teclado numérico en el celular (no medido
+                    en un teléfono real); el parseo (coma y punto valen lo mismo, precisión
+                    de gramos) vive en pos-peso.ts. */}
                 <Input
                   id={`qty-${l.key}`}
                   type="text"
@@ -314,6 +358,11 @@ export default function PosForm({
               {short && (
                 <p role="alert" className="col-span-2 sm:col-span-3 text-xs text-danger">
                   No alcanza el stock: quedan {formatearCantidad(short.available)} {isWeight ? "kg" : "u"} de {p?.name}.
+                </p>
+              )}
+              {avisoStock && (
+                <p role="status" className="col-span-2 sm:col-span-3 text-xs text-warning">
+                  {avisoStock}
                 </p>
               )}
               {aviso && (
@@ -389,20 +438,69 @@ export default function PosForm({
         </div>
       )}
 
-      {/* Cobro (la venta de mostrador se cobra en el acto) */}
-      <div className="grid gap-3 sm:grid-cols-2 border-t border-line pt-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="paid" defaultChecked={!isOrder} />
+      {/* Cobro (la venta de mostrador se cobra en el acto).
+          Chips y no un select, y NINGUNO elegido de entrada (MAG-1): el select arrancaba en
+          EFECTIVO y si el cliente pagaba con MP y nadie lo tocaba, el libro asentaba plata en
+          el cajón que nunca entró. Un toque más por venta a cambio de que el cierre cuadre.
+          Los valores son string literals (caja/medio-cobro.ts), no el enum de Prisma: esto es
+          un client component. */}
+      <div className="space-y-3 border-t border-line pt-4">
+        <label className="flex min-h-11 w-fit items-center gap-2 text-sm">
+          {/* `key` por modo: React deja como `defaultChecked` el valor con que la casilla se
+              MONTÓ, y el reseteo automático del <form> de React 19 al terminar la acción la
+              vuelve a ese valor. Medido en Chromium: montada en mostrador (tildada) y
+              registrado un pedido, la pantalla mostraba «Cobrado» tildado con el estado en
+              false. Montándola de nuevo al cambiar de modo, su default es el del modo, que es
+              el mismo al que `submit` devuelve `paid` después de cada venta. */}
+          <input
+            key={isOrder ? "cobrado-pedido" : "cobrado-mostrador"}
+            type="checkbox"
+            name="paid"
+            checked={paid}
+            onChange={(e) => setPaid(e.target.checked)}
+            className="h-5 w-5"
+          />
           <span className="text-body">Cobrado</span>
         </label>
-        <label className="text-sm">
-          <span className="block text-muted mb-1">Medio de pago</span>
-          <Select name="paymentMethod" defaultValue="EFECTIVO">
-            <option value="EFECTIVO">Efectivo</option>
-            <option value="MERCADOPAGO">Mercado Pago</option>
-            <option value="TRANSFERENCIA">Transferencia</option>
-          </Select>
-        </label>
+        {paid && (
+          <div
+            role="radiogroup"
+            aria-label="Cómo pagó"
+            className="flex flex-wrap gap-2"
+            onKeyDown={(e) => {
+              // Radios de teclado (patrón WAI-ARIA): las flechas pasan al medio de al lado y lo
+              // eligen, igual que un grupo de radios nativo. Es un toque deliberado, no un
+              // default: sin tecla ni toque, sigue sin haber medio.
+              const paso =
+                e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+              if (!paso) return;
+              e.preventDefault();
+              const n = MEDIOS_DE_COBRO.length;
+              const actual = MEDIOS_DE_COBRO.findIndex((m) => `pos-medio-${m.valor}` === (e.target as HTMLElement).id);
+              const sig = MEDIOS_DE_COBRO[(Math.max(actual, 0) + paso + n) % n];
+              setMedio(sig.valor);
+              document.getElementById(`pos-medio-${sig.valor}`)?.focus();
+            }}
+          >
+            {MEDIOS_DE_COBRO.map((m, i) => (
+              <button
+                key={m.valor}
+                id={`pos-medio-${m.valor}`}
+                type="button"
+                role="radio"
+                aria-checked={medio === m.valor}
+                // Un solo chip en el orden de Tab: el elegido, o el primero si no hay ninguno.
+                tabIndex={(medio ? medio === m.valor : i === 0) ? 0 : -1}
+                onClick={() => setMedio(m.valor)}
+                className={`chip-btn h-11 px-4 text-sm ${medio === m.valor ? "bg-accent text-on-accent" : ""}`}
+              >
+                {m.etiqueta}
+              </button>
+            ))}
+            {/* Sólo viaja si se cobra y se eligió: sin medio, el server rechaza (no asume). */}
+            {medio && <input type="hidden" name="paymentMethod" value={medio} />}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between border-t border-line pt-4">
@@ -413,8 +511,8 @@ export default function PosForm({
           </span>
         </div>
         <CobrarSubmit
-          disabled={!hasValidLine || hasShortfall || hasCantidadInvalida}
-          label={isOrder ? "Registrar pedido" : "Cobrar"}
+          disabled={!hasValidLine || hasShortfall || hasCantidadInvalida || faltaMedio}
+          label={faltaMedio ? "Elegí cómo pagó" : isOrder ? "Registrar pedido" : "Cobrar"}
         />
       </div>
     </form>

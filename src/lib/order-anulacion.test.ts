@@ -311,7 +311,7 @@ test("sin ningún cierre hecho, el mostrador opera exactamente como antes", () =
 
 test("cobrar un pedido ya tomado tiene la MISMA frontera que el alta", () => {
   // El hallazgo que venía en el encargo decía que `createOrder` era el único escritor de
-  // plata sin frontera. `setOrderPaid` —en el mismo archivo— también escribe en el libro
+  // plata sin frontera. `cobrarPedido` —en el mismo archivo— también escribe en el libro
   // (`recordCashSaleMovementInTx`) y tampoco la miraba: sin esto, la salida que el POS le
   // ofrece a la persona ("dejalo sin cobrar y cobralo mañana") se podía usar el MISMO día.
   const r = fronteraDeVenta({
