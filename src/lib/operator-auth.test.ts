@@ -8,6 +8,7 @@ import { createSessionToken, getSessionCookieName } from "./auth";
 import {
   createOperatorToken,
   getOperatorCookieName,
+  leerSesionOperador,
   normalizarNombreOperador,
   operadorDuenio,
   operadoresConfigurados,
@@ -179,7 +180,7 @@ test("producción: sin OPERATOR_SECRET, o igual a AUTH_SECRET, falla cerrado", a
   });
   await conEntorno({ NODE_ENV: "production", AUTH_SECRET: "igual", OPERATOR_SECRET: "igual" }, async () => {
     await assert.rejects(createOperatorToken(), /no puede ser igual a AUTH_SECRET/);
-    await assert.rejects(readOperatorToken(`op|duenio|${Date.now()}.abc`), /no puede ser igual a AUTH_SECRET/);
+    await assert.rejects(readOperatorToken(`op|d|duenio|${Date.now()}.abc`), /no puede ser igual a AUTH_SECRET/);
   });
 });
 
@@ -244,4 +245,56 @@ test("R2: /operador/clave no arma una línea con el nombre del dueño", () => {
   assert.match((r as { motivo: string }).motivo, /reservado/);
   assert.equal(nombreParaLineaNueva("duenio", "duenio").ok, false);
   assert.equal(nombreParaLineaNueva("a|b", "duenio").ok, false);
+});
+
+// ── Segunda refutación: el rol firmado, la clave de espacios y la clave de desarrollo ──────────
+
+test("REPRO esc.ts: una sesión de OPERADORES no se vuelve dueña si OPERADOR_DUENIO pasa a tener su nombre", async () => {
+  const linea = await valorDeClave("clave-de-ana", new Uint8Array(16).fill(6));
+  await conEntorno(
+    { NODE_ENV: "production", AUTH_SECRET: "a".repeat(40), OPERATOR_SECRET: "s".repeat(40), OPERATOR_PASSWORD: "clave-larga-del-duenio", OPERADOR_DUENIO: "tomas", OPERADORES: `ana=${linea}` },
+    async () => {
+      const ana = await verificarOperador("ana", "clave-de-ana");
+      const tok = await createOperatorToken(ana!);
+      assert.deepEqual(await leerSesionOperador(tok), { nombre: "ana", rol: "o", esDuenio: false });
+      // Antes: el mismo token pasaba a leerse como el dueño.
+      await conEntorno({ OPERADOR_DUENIO: "Ana" }, async () => {
+        assert.equal(await leerSesionOperador(tok), null);
+      });
+      // Escenario 2: un operador llamado "duenio" y después se borra OPERADOR_DUENIO.
+      await conEntorno({ OPERADORES: `duenio=${linea}` }, async () => {
+        const tok2 = await createOperatorToken((await verificarOperador("duenio", "clave-de-ana"))!);
+        assert.equal((await leerSesionOperador(tok2))?.esDuenio, false);
+        await conEntorno({ OPERADOR_DUENIO: undefined }, async () => {
+          assert.equal(await leerSesionOperador(tok2), null);
+        });
+      });
+      // Y la sesión del dueño deja de valer si su nombre ya no es el del dueño.
+      const d = await createOperatorToken("tomas");
+      assert.deepEqual(await leerSesionOperador(d), { nombre: "tomas", rol: "d", esDuenio: true });
+      await conEntorno({ OPERADOR_DUENIO: "otro" }, async () => {
+        assert.equal(await leerSesionOperador(d), null);
+      });
+    },
+  );
+});
+
+test("un token con el rol cambiado a mano no vale (el rol va firmado)", async () => {
+  await conEntorno({ ...DEV, OPERADOR_DUENIO: "tomas", OPERADORES: `tomas2=${await valorDeClave("x-clave-larga", new Uint8Array(16).fill(2))}` }, async () => {
+    const tok = await createOperatorToken("tomas2", 1_800_000_000_000);
+    const firma = tok.slice(tok.lastIndexOf(".") + 1);
+    assert.equal(await readOperatorToken(`op|d|tomas2|1800000000000.${firma}`, 1_800_000_000_000), null);
+  });
+});
+
+test("REPRO r12.ts: OPERATOR_PASSWORD de puros espacios no autentica; la clave 'operador' sólo con NODE_ENV=development", async () => {
+  for (const pw of [" ", "\t", "\n", "   "]) {
+    assert.equal(await verificarOperador("", pw, { NODE_ENV: "production", OPERATOR_PASSWORD: pw }), null, JSON.stringify(pw));
+  }
+  for (const nodeEnv of [undefined, "test", "Production", "production", "dev"]) {
+    assert.equal(await verificarOperador("", "operador", { NODE_ENV: nodeEnv }), null, String(nodeEnv));
+  }
+  assert.equal(await verificarOperador("", "operador", { NODE_ENV: "development" }), "duenio");
+  // Una clave real con espacios adentro o alrededor sigue valiendo tal cual.
+  assert.equal(await verificarOperador("", " con espacios ", { NODE_ENV: "production", OPERATOR_PASSWORD: " con espacios " }), "duenio");
 });

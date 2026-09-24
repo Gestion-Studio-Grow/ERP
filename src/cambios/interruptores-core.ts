@@ -160,8 +160,16 @@ export interface PedidoDeInterruptor {
   slugTipeado: string;
 }
 
+/** Quién pide el cambio: lo arma la sesión firmada (src/lib/operator-auth.ts), nunca el formulario. */
+export interface OperadorDelCambio {
+  nombre: string;
+  /** Rol "d" firmado en el token y su nombre igual a OPERADOR_DUENIO hoy. */
+  esDuenio: boolean;
+}
+
 export interface ContextoFresco {
-  operador: string;
+  operador: OperadorDelCambio;
+  /** El nombre del dueño, sólo para el mensaje. */
   duenio: string;
   slug: string | null;
   modulosActuales: readonly string[];
@@ -188,7 +196,8 @@ export function decidirCambioDeInterruptor(pedido: PedidoDeInterruptor, ctx: Con
 
   // El candado de CH va primero: ni siquiera se le cuenta a otro operador si hay algo que cambiar.
   if (requiereOkDelDuenio(ctx.slug)) {
-    if (ctx.operador !== ctx.duenio) {
+    // Por el ROL firmado de la sesión, no por el nombre: un operador de OPERADORES nunca es el dueño.
+    if (!ctx.operador.esDuenio) {
       return {
         ok: false,
         motivo: `Este negocio es un cliente vivo en producción: sólo el dueño de GSG (${ctx.duenio}) puede prender o apagar sus interruptores.`,
@@ -233,12 +242,13 @@ export interface DepsDeCambio {
   leerEstado(tenantId: string): Promise<EstadoInterruptores | null>;
   /**
    * Escribe la fila SÓLO si el negocio sigue como se leyó: los mismos módulos y el interruptor en
-   * el mismo estado. `false` = cambió en el medio y no se escribió.
+   * el mismo estado. `false` = cambió en el medio y no se escribió; `{ motivo }` = no se pudo tomar
+   * el candado del negocio a tiempo (no se escribió).
    */
   escribirSiSigueIgual(
     fila: NuevaFilaDeInterruptor,
     condicion: { modules: readonly string[]; encendido: boolean },
-  ): Promise<boolean>;
+  ): Promise<boolean | { motivo: string }>;
 }
 
 export type ResultadoDeCambio =
@@ -254,7 +264,7 @@ export type ResultadoDeCambio =
  */
 export async function cambiarInterruptorCon(
   deps: DepsDeCambio,
-  operador: string,
+  operador: OperadorDelCambio,
   pedido: PedidoDeInterruptor,
 ): Promise<ResultadoDeCambio> {
   const negocio = await deps.leerNegocio(pedido.tenantId);
@@ -282,10 +292,10 @@ export async function cambiarInterruptorCon(
     tenantId: pedido.tenantId,
     interruptor: decision.interruptor,
     accion: decision.accion,
-    operador,
+    operador: operador.nombre,
     gana: decision.accion === "encender" ? apps.conInicioFrenteAlMenu.gana.map((a) => a.id) : [],
   });
   const escrito = await deps.escribirSiSigueIgual(fila, { modules: negocio.modules, encendido });
-  if (!escrito) return { tipo: "rechazado", motivo: CAMBIO_MIENTRAS_MIRABAS };
+  if (escrito !== true) return { tipo: "rechazado", motivo: escrito === false ? CAMBIO_MIENTRAS_MIRABAS : escrito.motivo };
   return { tipo: "hecho", interruptor: decision.interruptor, accion: decision.accion };
 }

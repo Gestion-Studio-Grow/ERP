@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { operatorPrisma } from "@/lib/operator-db";
-import { requireOperator } from "@/lib/operator-session";
+import { requireSesionOperador } from "@/lib/operator-session";
+import { decidirOperadorParaNegocios } from "@/lib/operador/guardia-negocio-core";
 import { getBlueprint } from "@/blueprints";
 import {
   setTenantStatus,
@@ -178,7 +179,7 @@ export default async function TenantConfigPage({
 }) {
   // Guardia en la página, no sólo en el layout: el layout no se vuelve a ejecutar al navegar
   // del lado del cliente, y esta ficha lee y cambia datos de cualquier negocio.
-  const operador = await requireOperator();
+  const sesion = await requireSesionOperador();
   const { id } = await params;
   const { created, bootstrap, ok, error, modulo } = await searchParams;
 
@@ -287,6 +288,8 @@ export default async function TenantConfigPage({
   const interruptores = await leerInterruptoresDe(tenant!.id);
   const flags = flagsDeApps(interruptores?.estado ?? todosApagados());
   const duenio = operadorDuenio();
+  const paraEsteOperador = decidirOperadorParaNegocios(sesion, [tenant!.slug]);
+  const soloLectura = paraEsteOperador.ok ? null : paraEsteOperador.motivo.replace(" No se hizo nada.", "");
   const estadoApps = estadoDeApps(negocio!, flags, cat);
   const fijar = planFijarAsignacion(negocio!, flags, cat);
   const appsDeCadaModulo = appsPorModulo();
@@ -388,6 +391,16 @@ export default async function TenantConfigPage({
           {apertura.items.map((i) => <ItemAperturaRow key={i.id} item={i} />)}
         </ul>
       </Card>
+
+      {/* CH con un operador que no es el dueño: la ficha se ve, pero nada se puede cambiar. Es la
+          misma regla que aplica cada action en el servidor (requireOperadorParaNegocio); acá sólo
+          se muestra y se deshabilitan los controles. El dueño la ve igual que siempre. */}
+      {soloLectura && (
+        <div role="alert" className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2">
+          <b>Sólo lectura.</b> {soloLectura}
+        </div>
+      )}
+      <fieldset disabled={!!soloLectura} className="contents">
 
       {/* Estado + Plan */}
       <div className="grid md:grid-cols-2 gap-4">
@@ -663,7 +676,7 @@ export default async function TenantConfigPage({
         estado={interruptores?.estado[INICIO_POR_APPS] ?? null}
         apps={estadoApps}
         historial={interruptores?.historial ?? []}
-        candado={requiereOkDelDuenio(negocio!.slug) ? { puedeTocar: operador === duenio, duenio } : null}
+        candado={requiereOkDelDuenio(negocio!.slug) ? { puedeTocar: sesion.esDuenio, duenio } : null}
       />
 
       {/* Apps del negocio: módulos con vista previa, activación auditada y "fijar asignación" */}
@@ -677,6 +690,7 @@ export default async function TenantConfigPage({
         historial={historial}
         bloqueo={requiereOkDelDuenio(negocio!.slug) ? MOTIVO_OK_DEL_DUENIO : null}
       />
+      </fieldset>
     </div>
   );
 }

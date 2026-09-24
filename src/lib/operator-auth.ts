@@ -13,8 +13,8 @@
 //     (si no está, "duenio"). Producción no necesita ninguna variable nueva;
 //   · OPERADORES (opcional) suma operadores con nombre: "nombre=pbkdf2$sal$hash;…", la línea que
 //     arma /operador/clave en el navegador;
-//   · el token es `op|<nombre>|<emitido en ms>` firmado, y vence a las 8 h EN EL SERVIDOR (antes el
-//     vencimiento lo controlaba sólo el navegador con el maxAge de la cookie);
+//   · el token es `op|<rol>|<nombre>|<emitido en ms>` firmado (rol "d" = dueño, "o" = OPERADORES), y
+//     vence a las 8 h EN EL SERVIDOR (antes el vencimiento lo controlaba sólo el navegador);
 //   · un nombre que sale de OPERADORES pierde la sesión en el próximo pedido.
 // Una sesión emitida con el formato anterior ("operator.<firma>") ya no vale: hay que volver a entrar.
 
@@ -38,8 +38,24 @@ const TOLERANCIA_RELOJ_MS = 60 * 1000;
 /** El nombre del dueño si OPERADOR_DUENIO no está (o no es un nombre válido). */
 export const DUENIO_POR_DEFECTO = "duenio";
 
-/** Forma exacta del payload firmado. Cualquier otra cosa (un id de usuario de un negocio) no es un operador. */
-const PAYLOAD = /^op\|([a-z0-9][a-z0-9_-]{0,31})\|(\d{13})$/;
+/**
+ * Forma exacta del payload firmado: `op|<rol>|<nombre>|<emitido>`. Cualquier otra cosa (un id de
+ * usuario de un negocio, o un token de un formato anterior) no es un operador.
+ * El ROL dice CÓMO se entró y va firmado: "d" = el dueño, con OPERATOR_PASSWORD; "o" = un operador de
+ * OPERADORES, con su línea PBKDF2. Un token "o" nunca es dueño, aunque OPERADOR_DUENIO pase a tener
+ * su nombre; un token "d" deja de valer si su nombre ya no es el del dueño.
+ */
+const PAYLOAD = /^op\|([do])\|([a-z0-9][a-z0-9_-]{0,31})\|(\d{13})$/;
+
+/** Cómo entró el operador de esta sesión. */
+export type RolOperador = "d" | "o";
+
+export interface SesionOperador {
+  nombre: string;
+  rol: RolOperador;
+  /** ¿Es el dueño de GSG? Sólo con rol "d" Y su nombre igual a OPERADOR_DUENIO hoy. */
+  esDuenio: boolean;
+}
 
 type Env = Record<string, string | undefined>;
 
@@ -160,26 +176,38 @@ export function operadorHabilitado(nombre: string, env: Env = process.env): bool
   return nombre === operadorDuenio(env) || operadoresConfigurados(env).has(nombre);
 }
 
+/** ¿Una sesión con este rol y este nombre sigue valiendo hoy? */
+function sesionVigente(rol: RolOperador, nombre: string, env: Env): boolean {
+  return rol === "d" ? nombre === operadorDuenio(env) : operadoresConfigurados(env).has(nombre);
+}
+
 // --- Token de sesión --------------------------------------------------------------
 
-/** Token firmado para `nombre`, emitido en `emitido` (ms). Por defecto, el dueño y ahora. */
+/**
+ * Token firmado para `nombre`, emitido en `emitido` (ms). Por defecto, el dueño y ahora. El rol sale
+ * de CÓMO se autentica ese nombre hoy: el del dueño sólo entra con OPERATOR_PASSWORD ("d") y el de
+ * cualquier otro sólo con su línea de OPERADORES ("o"); `operadoresConfigurados` nunca trae el
+ * nombre del dueño, así que los dos caminos no se pisan.
+ */
 export async function createOperatorToken(nombre: string = operadorDuenio(), emitido: number = Date.now()): Promise<string> {
-  if (!NOMBRE_VALIDO.test(nombre) || !operadorHabilitado(nombre)) {
+  const rol: RolOperador = nombre === operadorDuenio() ? "d" : "o";
+  if (!NOMBRE_VALIDO.test(nombre) || !sesionVigente(rol, nombre, process.env)) {
     throw new Error(`"${nombre}" no es un operador habilitado.`);
   }
-  const payload = `op|${nombre}|${String(Math.floor(emitido)).padStart(13, "0")}`;
+  const payload = `op|${rol}|${nombre}|${String(Math.floor(emitido)).padStart(13, "0")}`;
   return `${payload}.${await sign(payload)}`;
 }
 
 /**
- * Verifica la firma y devuelve el NOMBRE del operador, o null. NO toca DB (edge).
- * Rechaza: firma inválida, payload que no sea de operador (la cookie de un negocio), nombre que
- * ya no está habilitado, y sesiones de más de 8 h o emitidas en el futuro.
+ * Verifica la firma y devuelve la SESIÓN del operador (nombre, rol y si es el dueño), o null. NO toca
+ * DB (edge). Rechaza: firma inválida, payload que no sea de operador (la cookie de un negocio o un
+ * token de un formato anterior), una sesión que ya no vale para su rol (ver `sesionVigente`), y
+ * sesiones de más de 8 h o emitidas en el futuro.
  */
-export async function readOperatorToken(
+export async function leerSesionOperador(
   token: string | undefined | null,
   ahora: number = Date.now(),
-): Promise<string | null> {
+): Promise<SesionOperador | null> {
   if (!token) return null;
   const sep = token.lastIndexOf(".");
   if (sep <= 0) return null;
@@ -192,12 +220,22 @@ export async function readOperatorToken(
   if (!m) return null;
   const expected = await sign(payload);
   if (!igualesEnTiempoConstante(signature, expected)) return null;
-  const emitido = Number(m[2]);
+  const emitido = Number(m[3]);
   if (!Number.isFinite(emitido) || emitido > ahora + TOLERANCIA_RELOJ_MS || ahora - emitido > VIGENCIA_SESION_MS) {
     return null;
   }
-  const nombre = m[1];
-  return operadorHabilitado(nombre) ? nombre : null;
+  const rol = m[1] as RolOperador;
+  const nombre = m[2];
+  if (!sesionVigente(rol, nombre, process.env)) return null;
+  return { nombre, rol, esDuenio: rol === "d" && nombre === operadorDuenio() };
+}
+
+/** El NOMBRE del operador del token, o null (lo que usa el portón del proxy). */
+export async function readOperatorToken(
+  token: string | undefined | null,
+  ahora: number = Date.now(),
+): Promise<string | null> {
+  return (await leerSesionOperador(token, ahora))?.nombre ?? null;
 }
 
 // --- Credenciales -----------------------------------------------------------------
@@ -206,12 +244,15 @@ export async function readOperatorToken(
 const VALOR_SENUELO = `pbkdf2$${"0".repeat(32)}$${"0".repeat(64)}`;
 
 function passwordDelDuenio(env: Env): string | undefined {
-  // En dev, sin OPERATOR_PASSWORD, "operador" para probar la consola local sin configurar nada.
-  // Nunca en producción: ahí sin OPERATOR_PASSWORD (o vacía) el dueño no entra, y el build de
+  // En desarrollo, sin OPERATOR_PASSWORD, "operador" para probar la consola local sin configurar
+  // nada. Nunca en producción: ahí sin OPERATOR_PASSWORD (o vacía) el dueño no entra, y el build de
   // producción frena antes (scripts/vercel-build.mjs).
+  // Una variable puesta pero vacía o de puros espacios no es una clave (el build de producción usa
+  // el mismo criterio). La clave de desarrollo, SÓLO con NODE_ENV exactamente "development": no con
+  // la variable ausente, ni "test", ni "Production" mal escrito.
   const propia = env.OPERATOR_PASSWORD;
-  if (propia !== undefined) return propia === "" ? undefined : propia;
-  return env.NODE_ENV !== "production" ? "operador" : undefined;
+  if (propia !== undefined) return propia.trim() === "" ? undefined : propia;
+  return env.NODE_ENV === "development" ? "operador" : undefined;
 }
 
 /**

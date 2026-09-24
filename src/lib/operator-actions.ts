@@ -15,6 +15,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { operatorPrisma } from "@/lib/operator-db";
 import { requireOperator } from "@/lib/operator-session";
+import { operadorParaNegocio, requireOperadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import {
   createOperatorToken,
   getOperatorCookieName,
@@ -96,24 +97,53 @@ export async function operatorLogout() {
 
 // --- Configuración por tenant (control-plane) ---------------------------------
 
-async function updateTenant(tenantId: string, data: Record<string, unknown>) {
-  await requireOperator();
-  await operatorPrisma.tenant.update({ where: { id: tenantId }, data });
+/**
+ * Cambia datos de la fila del negocio y lo AUDITA en la misma transacción (antes no quedaba rastro de
+ * estado, plan, marca ni subdominio), con el actor `operator:<nombre>`. `false` = no existe.
+ */
+async function actualizarTenantAuditado(
+  op: string,
+  tenantId: string,
+  action: string,
+  data: { status?: "TRIAL" | "ACTIVE" | "SUSPENDED"; plan?: string | null; accentPreset?: string | null; frontTheme?: string | null; subdomain?: string | null },
+): Promise<boolean> {
+  const campos = Object.fromEntries(Object.keys(data).map((k) => [k, true])) as Record<keyof typeof data, true>;
+  const hecho = await operatorPrisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+    const antes = await tx.tenant.findUnique({ where: { id: tenantId }, select: campos });
+    if (!antes) return false;
+    await tx.tenant.update({ where: { id: tenantId }, data });
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actor: `operator:${op}`,
+        action,
+        entity: "Tenant",
+        entityId: tenantId,
+        changes: { antes, despues: data } as Prisma.InputJsonValue,
+      },
+    });
+    return true;
+  });
+  if (!hecho) redirect("/operador?error=notfound");
   revalidatePath(`/operador/tenants/${tenantId}`);
   revalidatePath("/operador");
+  return true;
 }
 
 export async function setTenantStatus(formData: FormData) {
   const tenantId = String(formData.get("tenantId") || "");
   const status = String(formData.get("status") || "TRIAL") as "TRIAL" | "ACTIVE" | "SUSPENDED";
-  await updateTenant(tenantId, { status });
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  await actualizarTenantAuditado(op, tenantId, "tenant.status", { status });
   redirect(`/operador/tenants/${tenantId}?ok=estado`);
 }
 
 export async function setTenantPlan(formData: FormData) {
   const tenantId = String(formData.get("tenantId") || "");
   const plan = String(formData.get("plan") || "").trim() || null;
-  await updateTenant(tenantId, { plan });
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  await actualizarTenantAuditado(op, tenantId, "tenant.plan", { plan });
   redirect(`/operador/tenants/${tenantId}?ok=plan`);
 }
 
@@ -121,13 +151,15 @@ export async function setTenantBranding(formData: FormData) {
   const tenantId = String(formData.get("tenantId") || "");
   const accentPreset = String(formData.get("accentPreset") || "").trim() || null;
   const frontTheme = String(formData.get("frontTheme") || "").trim() || null;
-  await updateTenant(tenantId, { accentPreset, frontTheme });
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
+  await actualizarTenantAuditado(op, tenantId, "tenant.branding", { accentPreset, frontTheme });
   redirect(`/operador/tenants/${tenantId}?ok=branding`);
 }
 
 export async function setTenantSubdomain(formData: FormData) {
   const tenantId = String(formData.get("tenantId") || "");
   const subdomain = String(formData.get("subdomain") || "").trim() || null;
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
   // Subdominio único: si choca, devolvemos error legible en vez de romper.
   if (subdomain) {
     const clash = await operatorPrisma.tenant.findFirst({
@@ -138,7 +170,7 @@ export async function setTenantSubdomain(formData: FormData) {
       redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(`El subdominio "${subdomain}" ya está en uso.`)}`);
     }
   }
-  await updateTenant(tenantId, { subdomain });
+  await actualizarTenantAuditado(op, tenantId, "tenant.subdomain", { subdomain });
   redirect(`/operador/tenants/${tenantId}?ok=link`);
 }
 
@@ -179,8 +211,8 @@ async function buscarChoque(
 // compara el CUIT del subject del cert contra este valor (al cargar el cert y al
 // firmar). Acción de operador, AUDITADA. Valida dígito verificador (no solo forma).
 export async function setTenantArcaCuit(formData: FormData) {
-  const op = await requireOperator();
   const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
   const raw = String(formData.get("arcaCuit") || "");
 
   const parsed = interpretarCuitInput(raw);
@@ -250,8 +282,8 @@ export async function setTenantArcaCuit(formData: FormData) {
 // descubre a fin de mes. Va acá, al lado del CUIT, porque son el mismo trámite.
 // Auditada, como el resto de las escrituras fiscales del control-plane.
 export async function setTenantArcaPuntoVenta(formData: FormData) {
-  const op = await requireOperator();
   const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
   const raw = String(formData.get("arcaPuntoVenta") || "").trim();
 
   let punto: number | null = null;
@@ -324,8 +356,8 @@ export async function setTenantArcaPuntoVenta(formData: FormData) {
 // loguea ni se persiste en claro. Requiere la migración `TenantFiscalCredential`
 // aplicada (Gate 2) y `FISCAL_MASTER_KEY` seteada.
 export async function cargarCredencialFiscal(formData: FormData) {
-  const op = await requireOperator();
   const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
   const certPem = String(formData.get("certPem") || "").trim();
   const keyPem = String(formData.get("keyPem") || "").trim();
 
@@ -380,7 +412,9 @@ function operatorResetPort(): OwnerResetPort {
 }
 
 export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetResult> {
-  const op = await requireOperator();
+  const g = await operadorParaNegocio({ id: tenantId });
+  if (!g.ok) return { ok: false, error: g.motivo };
+  const op = g.sesion.nombre;
   const result = await resetOwnerPasswordCore(operatorResetPort(), { tenantId, operatorSubject: op });
   if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
   return result;
@@ -427,7 +461,9 @@ export async function resetOwnerPasswordDeTenant(
   tenantId: string,
   slugTipeado: string,
 ): Promise<OwnerResetResult> {
-  const op = await requireOperator();
+  const g = await operadorParaNegocio({ id: tenantId });
+  if (!g.ok) return { ok: false, error: g.motivo };
+  const op = g.sesion.nombre;
 
   const tenant = await operatorPrisma.tenant.findUnique({
     where: { id: tenantId },
@@ -492,8 +528,8 @@ function nombresDeModulos(ids: readonly string[]): string {
 }
 
 export async function toggleTenantModule(formData: FormData) {
-  const op = await requireOperator();
   const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
   const modulo = String(formData.get("module") || "").trim();
   const accion = String(formData.get("accion") || "").trim();
   const vistos = leerVistos(formData.get("vistos"));
@@ -551,8 +587,8 @@ export async function toggleTenantModule(formData: FormData) {
 // "Trabaja por apps". Nunca saca un módulo (eso es un cambio de a uno, con su vista previa).
 // En CH está bloqueado hasta el OK del dueño, y el bloqueo vive acá, no sólo en el botón.
 export async function fijarAsignacionActual(formData: FormData) {
-  const op = await requireOperator();
   const tenantId = String(formData.get("tenantId") || "").trim();
+  const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
   const vistos = leerVistos(formData.get("vistos"));
   if (vistos === null) {
     volverAApps(tenantId, { error: "El pedido llegó incompleto. Recargá la ficha y probá de nuevo." });

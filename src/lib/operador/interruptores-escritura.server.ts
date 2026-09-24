@@ -20,8 +20,11 @@ import { catalogo } from "@/modules/catalog";
 import { mismoConjunto } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import {
   bloquearAppsDelNegocio,
+  CANDADO_OCUPADO,
+  esCandadoOcupado,
   leerInterruptoresDe,
   leerNegocioParaActivar,
+  opcionesDeTransaccionConCandado,
 } from "@/app/operador/(console)/tenants/[id]/negocio.server";
 import { estadoDesdeFilas, filtroDeFilasValidas, type DepsDeCambio } from "@/cambios/interruptores-core";
 
@@ -32,25 +35,32 @@ export function depsDeCambioReales(): DepsDeCambio {
     registry: catalogo(),
     leerNegocio: leerNegocioParaActivar,
     leerEstado: async (tenantId) => (await leerInterruptoresDe(tenantId))?.estado ?? null,
-    escribirSiSigueIgual: (fila, condicion) =>
-      operatorPrisma.$transaction(async (tx) => {
-        // El GUC del negocio primero: con el rol exento no cambia nada, con `app_rls` es lo que deja
-        // leer y escribir su AuditLog.
-        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${fila.tenantId}, true)`;
-        // El mismo candado que la escritura de módulos: si otro operador está cambiando los módulos
-        // de este negocio, se espera y se relee con lo que dejó.
-        await bloquearAppsDelNegocio(tx, fila.tenantId);
-        const t = await tx.tenant.findUnique({ where: { id: fila.tenantId }, select: { modules: true } });
-        if (!t || !mismoConjunto(t.modules, condicion.modules)) return false;
-        const ultimas = await tx.auditLog.findMany({
-          where: { ...filtroDeFilasValidas(fila.tenantId), entityId: fila.entityId },
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: 1,
-          select: { id: true, entity: true, entityId: true, action: true, actor: true, channel: true, createdAt: true },
-        });
-        if (estadoDesdeFilas(ultimas)[fila.entityId].encendido !== condicion.encendido) return false;
-        await tx.auditLog.create({ data: fila });
-        return true;
-      }),
+    escribirSiSigueIgual: async (fila, condicion) => {
+      try {
+        return await operatorPrisma.$transaction(async (tx) => {
+          // El GUC del negocio primero: con el rol exento no cambia nada, con `app_rls` es lo que
+          // deja leer y escribir su AuditLog.
+          await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${fila.tenantId}, true)`;
+          // El mismo candado que la escritura de módulos: si otro operador está cambiando los
+          // módulos de este negocio, se espera y se relee con lo que dejó.
+          await bloquearAppsDelNegocio(tx, fila.tenantId);
+          const t = await tx.tenant.findUnique({ where: { id: fila.tenantId }, select: { modules: true } });
+          if (!t || !mismoConjunto(t.modules, condicion.modules)) return false;
+          const ultimas = await tx.auditLog.findMany({
+            where: { ...filtroDeFilasValidas(fila.tenantId), entityId: fila.entityId },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 1,
+            select: { id: true, entity: true, entityId: true, action: true, actor: true, channel: true, createdAt: true },
+          });
+          if (estadoDesdeFilas(ultimas)[fila.entityId].encendido !== condicion.encendido) return false;
+          await tx.auditLog.create({ data: fila });
+          return true;
+        }, opcionesDeTransaccionConCandado());
+      } catch (e) {
+        // Si el candado no se pudo tomar a tiempo, un motivo legible en vez del error crudo.
+        if (esCandadoOcupado(e)) return { motivo: CANDADO_OCUPADO };
+        throw e;
+      }
+    },
   };
 }

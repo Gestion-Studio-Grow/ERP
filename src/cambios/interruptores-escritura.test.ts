@@ -88,7 +88,7 @@ test("TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor'", () => 
   assert.ok(escritores.includes("src/lib/operador/interruptores-escritura.server.ts"), escritores.join(", "));
 });
 
-test("TRINQUETE: la escritura real sólo la importa la action (detrás de requireOperator)", () => {
+test("TRINQUETE: la escritura real sólo la importa la action (detrás de la guardia del negocio)", () => {
   const importan = TODOS.filter((f) => /from\s+["'][^"']*interruptores-escritura\.server["']/.test(codigo(f.src))).map(
     (f) => f.archivo,
   );
@@ -96,11 +96,17 @@ test("TRINQUETE: la escritura real sólo la importa la action (detrás de requir
   const action = TODOS.find((f) => f.archivo === "src/lib/operador/interruptores-actions.ts");
   assert.ok(action, "falta la action");
   assert.match(action.src, /^"use server";/);
-  // Un solo endpoint, y lo primero que hace es pedir la sesión de operador.
+  // Un solo endpoint, y lo primero que espera es la sesión de operador con el candado de CH
+  // (el resto de las actions lo exige guardia-negocio.test.ts).
   const exportados = [...codigo(action.src).matchAll(/export\s+(?:async\s+)?(?:function|const)\s+(\w+)/g)].map((m) => m[1]);
   assert.deepEqual(exportados, ["cambiarInterruptor"]);
   const cuerpo = codigo(action.src).split("export async function cambiarInterruptor(formData: FormData) {")[1] ?? "";
-  assert.match(cuerpo.trim().split("\n")[0], /^const op = await requireOperator\(\);$/);
+  assert.ok(cuerpo.indexOf("await") >= 0, "la action no espera nada");
+  assert.equal(
+    cuerpo.indexOf("await requireOperadorParaNegocio({ id: tenantId })"),
+    cuerpo.indexOf("await"),
+    "la primera espera tiene que ser la guardia del negocio",
+  );
 });
 
 // ── 2. Contra Postgres ───────────────────────────────────────────────────────
@@ -157,13 +163,14 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
   const { planFijarAsignacion, vistaPreviaDeCambio, motivoSiPierdeAppsConInicio } = await import(
     "@/app/operador/(console)/tenants/[id]/apps-del-negocio"
   );
-  const { bloquearAppsDelNegocio, escribirModulosConCandado, leerNegocioParaActivar } = await import(
+  const { bloquearAppsDelNegocio, escribirModulosConCandado, leerNegocioParaActivar, CANDADO_OCUPADO } = await import(
     "@/app/operador/(console)/tenants/[id]/negocio.server"
   );
   const { trabajaPorApps, CAMBIO_MIENTRAS_MIRABAS } = await import("./interruptores-core");
   const { catalogo } = await import("@/modules/catalog");
   const { INICIO_POR_APPS } = await import("./interruptores");
 
+  const FACU = { nombre: "facu", esDuenio: false };
   const sufijo = Date.now().toString(36);
   const slugs = { carniceria: `qa-2b-carniceria-${sufijo}`, otro: `qa-2b-otro-${sufijo}`, sinFijar: `qa-2b-sin-fijar-${sufijo}` };
   const BASE_CARNICERIA = ["pos", "catalog", "clients", "reports", "arca"];
@@ -218,7 +225,7 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
     assert.deepEqual(await comoPanel(slugs.carniceria), { estado: false, inicio: false, gate: null });
 
     // Prender con la escritura REAL de la consola.
-    const r = await cambiarInterruptorCon(depsDeCambioReales(), "facu", pedido(carniceria, "encender"));
+    const r = await cambiarInterruptorCon(depsDeCambioReales(), FACU, pedido(carniceria, "encender"));
     assert.deepEqual(r, { tipo: "hecho", interruptor: INICIO_POR_APPS, accion: "encender" });
     const escritas = await filasDe(carniceria.id);
     const ultima = escritas[escritas.length - 1];
@@ -244,12 +251,12 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
     assert.deepEqual(fichaOtro?.historial, []);
 
     // Con apps perdidas, la escritura real no llega a escribir.
-    const rechazo = await cambiarInterruptorCon(depsDeCambioReales(), "facu", pedido(sinFijar, "encender"));
+    const rechazo = await cambiarInterruptorCon(depsDeCambioReales(), FACU, pedido(sinFijar, "encender"));
     assert.equal(rechazo.tipo, "rechazado");
     assert.equal((await filasDe(sinFijar.id)).length, 0);
 
     // Apagar: vuelve el menú de siempre.
-    const r2 = await cambiarInterruptorCon(depsDeCambioReales(), "facu", pedido(carniceria, "apagar"));
+    const r2 = await cambiarInterruptorCon(depsDeCambioReales(), FACU, pedido(carniceria, "apagar"));
     assert.equal(r2.tipo, "hecho");
     assert.deepEqual(await comoPanel(slugs.carniceria), { estado: false, inicio: false, gate: null });
 
@@ -261,7 +268,7 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
     assert.ok(negocioReal);
     const previa = vistaPreviaDeCambio(negocioReal, { accion: "desactivar", modulo: "inventario" }, { registroGlobal: false, enInicioPorApps: false }, catalogo());
     assert.ok(previa.ok && !previa.sinCambios);
-    assert.equal((await cambiarInterruptorCon(depsDeCambioReales(), "facu", pedido(carniceria, "encender"))).tipo, "hecho");
+    assert.equal((await cambiarInterruptorCon(depsDeCambioReales(), FACU, pedido(carniceria, "encender"))).tipo, "hecho");
     const modulos = await escribirModulosConCandado(
       carniceria.id,
       negocioReal.modules,
@@ -290,7 +297,7 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
       { timeout: 20_000 },
     );
     await candadoTomado;
-    const apagar = cambiarInterruptorCon(depsDeCambioReales(), "facu", pedido(carniceria, "apagar"));
+    const apagar = cambiarInterruptorCon(depsDeCambioReales(), FACU, pedido(carniceria, "apagar"));
     await new Promise((ok) => setTimeout(ok, 400));
     let apagarTermino = false;
     void apagar.then(() => (apagarTermino = true));
@@ -330,6 +337,39 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
     soltar2();
     await retiene;
     assert.deepEqual(await sacarLibros, { tipo: "ok" });
+
+    // (d) Si el candado no se libera a tiempo, las dos escrituras contestan un motivo legible (no
+    // un P2028 crudo) y no escriben nada. La espera se achica a 300 ms sólo para este paso.
+    e.CANDADO_APPS_ESPERA_MS = "300";
+    let tomado3!: () => void;
+    let soltar3!: () => void;
+    const tomado3P = new Promise<void>((ok) => (tomado3 = ok));
+    const soltar3P = new Promise<void>((ok) => (soltar3 = ok));
+    const retieneMucho = operatorPrisma.$transaction(
+      async (tx) => {
+        await bloquearAppsDelNegocio(tx, carniceria.id);
+        tomado3();
+        await soltar3P;
+      },
+      { timeout: 20_000 },
+    );
+    try {
+      await tomado3P;
+      const filasAntes = (await filasDe(carniceria.id)).length;
+      const m = await escribirModulosConCandado(carniceria.id, negocioReal.modules, [...negocioReal.modules, "libros"], {
+        actor: "operator:facu",
+        action: "module.activate",
+        changes: { modulo: "libros" },
+      });
+      assert.deepEqual(m, { tipo: "rechazado", motivo: CANDADO_OCUPADO });
+      const i = await cambiarInterruptorCon(depsDeCambioReales(), FACU, pedido(carniceria, "apagar"));
+      assert.deepEqual(i, { tipo: "rechazado", motivo: CANDADO_OCUPADO });
+      assert.equal((await filasDe(carniceria.id)).length, filasAntes, "no se escribió ninguna fila");
+    } finally {
+      soltar3();
+      await retieneMucho;
+      delete e.CANDADO_APPS_ESPERA_MS;
+    }
   } finally {
     delete e.FORCE_TENANT_SLUG;
     if (ids.length > 0) {

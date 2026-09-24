@@ -1,7 +1,8 @@
 "use server";
 
 // Server Actions del WIZARD DE ALTA (consola de operador, RFC-003 §3.1) sobre la fábrica de tenants
-// (ADR-074). Dos acciones, ambas guardadas por `requireOperator()` (plano de operador, ADR-021):
+// (ADR-074). Dos acciones, ambas guardadas por `operadorParaNegocio` (sesión de operador, ADR-021, y
+// candado de CH sobre el slug: sólo el dueño):
 //
 //   1. planTenantAction  — DRY-RUN obligatorio: corre `planProvision` (motor puro) con datos reales
 //                          y devuelve el PLAN para el preview en vivo. NO escribe nada.
@@ -16,7 +17,7 @@
 // dentro del commit y rechaza (`ProvisionBlockedError`) cualquier plan con colisiones.
 
 import { operatorPrisma } from "@/lib/operator-db";
-import { requireOperator } from "@/lib/operator-session";
+import { operadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import { requestIp } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { planProvision } from "@/lib/provisioning/dry-run";
@@ -31,9 +32,14 @@ import type { ProvisionPlan, ProvisionOutcome } from "@/lib/provisioning/types";
 
 /** DRY-RUN obligatorio: arma el plan para el preview en vivo del wizard. Idempotente, no escribe. */
 export async function planTenantAction(raw: RawWizardForm): Promise<ProvisionPlan> {
-  const actor = await requireOperator();
+  const g = await operadorParaNegocio({ slug: String(raw.slug ?? "") });
+  const actor = g.sesion.nombre;
   const input = buildProvisionInput(raw, "dry-run");
-  const plan = await planProvision(input, operatorPlanDeps());
+  const planBase = await planProvision(input, operatorPlanDeps());
+  // Un alta sobre el slug de CH sólo la puede intentar el dueño: el plan lo dice y no deja confirmar.
+  const plan: ProvisionPlan = g.ok
+    ? planBase
+    : { ...planBase, ok: false, collisions: [...planBase.collisions, { kind: "slug-taken", message: g.motivo }] };
   logger.info("operator.provisioning", "dry-run", {
     actor,
     slug: input.slug,
@@ -47,7 +53,9 @@ export async function planTenantAction(raw: RawWizardForm): Promise<ProvisionPla
 
 /** COMMIT: corre la saga real (ADR-074). Sólo procede con plan sin colisiones. Audita quién/qué/cuándo. */
 export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActionResult> {
-  const actor = await requireOperator();
+  const g = await operadorParaNegocio({ slug: String(raw.slug ?? "") });
+  if (!g.ok) return { ok: false, error: g.motivo };
+  const actor = g.sesion.nombre;
   const input = buildProvisionInput(raw, "commit");
   const ip = (await requestIp()) ?? undefined;
 

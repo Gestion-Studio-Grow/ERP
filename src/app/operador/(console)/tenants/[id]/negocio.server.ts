@@ -101,7 +101,35 @@ type Tx = Prisma.TransactionClient;
  * transacción (xact), así que con el pooler de Neon en modo transacción no queda colgado.
  */
 export async function bloquearAppsDelNegocio(tx: Tx, tenantId: string): Promise<void> {
+  // Espera acotada: si otro operador tiene el candado más de lo razonable, se corta con un error
+  // que `esCandadoOcupado` reconoce y la action lo explica, en vez de colgar la transacción.
+  await tx.$executeRaw`SELECT set_config('lock_timeout', ${String(esperaDelCandadoMs())}, true)`;
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`apps:${tenantId}`}))`;
+}
+
+/** Cuánto espera el candado de las apps de un negocio (ms). Ajustable sólo para los tests. */
+function esperaDelCandadoMs(): number {
+  const n = Number(process.env.CANDADO_APPS_ESPERA_MS);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 8_000;
+}
+
+/** Tiempos de las transacciones que toman el candado: arrancar y terminar, con margen sobre la espera. */
+export function opcionesDeTransaccionConCandado(): { maxWait: number; timeout: number } {
+  return { maxWait: 5_000, timeout: esperaDelCandadoMs() + 7_000 };
+}
+
+export const CANDADO_OCUPADO =
+  "Otro operador está cambiando las apps de este negocio en este momento y no terminó a tiempo. " +
+  "No se guardó nada: esperá unos segundos, recargá la ficha y probá de nuevo.";
+
+/**
+ * ¿La transacción se cortó por el candado o por tiempo? `lock_timeout` de Postgres (55P03) o el
+ * vencimiento de la transacción interactiva de Prisma (P2028). Cualquier otro error sigue su curso.
+ */
+export function esCandadoOcupado(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code;
+  const texto = e instanceof Error ? e.message : String(e);
+  return code === "P2028" || /55P03|lock timeout|lock_not_available|canceling statement due to lock timeout/i.test(texto);
 }
 
 /** Los interruptores del negocio leídos DENTRO de una transacción (con el GUC del negocio). */
@@ -132,21 +160,26 @@ export async function escribirModulosConCandado(
   audit: { actor: string; action: string; changes: Prisma.InputJsonValue },
   verificar?: (interruptores: EstadoInterruptores) => string | null,
 ): Promise<ResultadoEscrituraDeModulos> {
-  return operatorPrisma.$transaction(async (tx): Promise<ResultadoEscrituraDeModulos> => {
-    await bloquearAppsDelNegocio(tx, tenantId);
-    const interruptores = await interruptoresEnTx(tx, tenantId);
-    const motivo = verificar?.(interruptores) ?? null;
-    if (motivo) return { tipo: "rechazado", motivo };
-    const r = await tx.tenant.updateMany({
-      where: { id: tenantId, modules: { equals: [...leidos] } },
-      data: { modules: [...nuevos] },
-    });
-    if (r.count !== 1) return { tipo: "cambio" };
-    await tx.auditLog.create({
-      data: { tenantId, entity: "Tenant", entityId: tenantId, ...audit },
-    });
-    return { tipo: "ok" };
-  });
+  try {
+    return await operatorPrisma.$transaction(async (tx): Promise<ResultadoEscrituraDeModulos> => {
+      await bloquearAppsDelNegocio(tx, tenantId);
+      const interruptores = await interruptoresEnTx(tx, tenantId);
+      const motivo = verificar?.(interruptores) ?? null;
+      if (motivo) return { tipo: "rechazado", motivo };
+      const r = await tx.tenant.updateMany({
+        where: { id: tenantId, modules: { equals: [...leidos] } },
+        data: { modules: [...nuevos] },
+      });
+      if (r.count !== 1) return { tipo: "cambio" };
+      await tx.auditLog.create({
+        data: { tenantId, entity: "Tenant", entityId: tenantId, ...audit },
+      });
+      return { tipo: "ok" };
+    }, opcionesDeTransaccionConCandado());
+  } catch (e) {
+    if (esCandadoOcupado(e)) return { tipo: "rechazado", motivo: CANDADO_OCUPADO };
+    throw e;
+  }
 }
 
 /**

@@ -6,7 +6,8 @@
 //
 // Vincular un local a una casa le da a la dueña de la casa la lectura de las ventas, la caja y
 // el stock de ese local. Por eso sólo se hace desde la consola de GSG (plano de operador,
-// ADR-021), cada export arranca con `requireOperator()`, y cada vínculo deja auditoría en la
+// ADR-021), cada export pasa primero por `requireOperadorParaNegocio`/`operadorParaNegocio` (sesión de
+// operador y candado de CH: sólo el dueño), y cada vínculo deja auditoría en la
 // casa Y en el local, en la misma transacción que la fila: o quedan las tres cosas o ninguna.
 //
 // Recibe los ids por formulario, como el resto de la consola (operator-actions.ts): del lado
@@ -37,7 +38,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { operatorPrisma } from "@/lib/operator-db";
-import { requireOperator } from "@/lib/operator-session";
+import { operadorParaNegocio, requireOperadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import { logger } from "@/lib/logger";
 import { requiereOkDelDuenio } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import {
@@ -62,9 +63,9 @@ function campo(formData: FormData, nombre: string): string {
 
 /** Vincula un local a la casa (o le cambia el alias si ya estaba). */
 export async function vincularLocalAction(formData: FormData) {
-  const op = await requireOperator();
   const casaId = campo(formData, "casaId");
   const localId = campo(formData, "localId");
+  const { nombre: op } = await requireOperadorParaNegocio({ id: casaId }, { id: localId });
   const alias = campo(formData, "alias");
   if (!casaId) redirect("/operador?error=notfound");
   if (!localId) volverARed(casaId, { error: "Elegí el local que querés sumar a la red." });
@@ -84,9 +85,9 @@ export async function vincularLocalAction(formData: FormData) {
 
 /** Da de baja el vínculo: la casa deja de ver ese local en el acto. No borra nada. */
 export async function darDeBajaLocalAction(formData: FormData) {
-  const op = await requireOperator();
   const casaId = campo(formData, "casaId");
   const localId = campo(formData, "localId");
+  const { nombre: op } = await requireOperadorParaNegocio({ id: casaId }, { id: localId });
   if (!casaId) redirect("/operador?error=notfound");
   if (!localId) volverARed(casaId, { error: "El pedido llegó incompleto. Recargá la ficha y probá de nuevo." });
 
@@ -112,8 +113,10 @@ export type RevisionAltaEnRed =
  * puede entrar a la red.
  */
 export async function revisarAltaEnRedAction(formData: FormData): Promise<RevisionAltaEnRed> {
-  const op = await requireOperator();
   const casaId = campo(formData, "casaId");
+  const g = await operadorParaNegocio({ id: casaId });
+  if (!g.ok) return { ok: false, motivo: g.motivo };
+  const op = g.sesion.nombre;
   if (!casaId) return { ok: false, motivo: "Elegí la casa de la red." };
   try {
     return await operatorPrisma.$transaction(async (tx) => {
@@ -143,9 +146,11 @@ export async function revisarAltaEnRedAction(formData: FormData): Promise<Revisi
  * idempotente: reintentar (desde el resultado del alta) es seguro.
  */
 export async function sumarAltaALaRedAction(formData: FormData): Promise<ResultadoAltaEnRed> {
-  const op = await requireOperator();
   const casaId = campo(formData, "casaId");
   const localId = campo(formData, "localId");
+  const g = await operadorParaNegocio({ id: casaId }, { id: localId });
+  if (!g.ok) return { ok: false, motivo: g.motivo };
+  const op = g.sesion.nombre;
   if (!casaId || !localId) return { ok: false, motivo: "El pedido llegó incompleto. Abrí la ficha del local y sumalo a la red desde ahí." };
   try {
     const r = await operatorPrisma.$transaction(

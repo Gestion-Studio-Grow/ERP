@@ -78,7 +78,7 @@ test("cada export de multilocal-actions arranca con exigirCasa y ninguno recibe 
   assert.doesNotMatch(codigo, /export\s+(const|let|var|default|\{|\*)/, "sólo se exportan funciones async y tipos");
 });
 
-test("las actions de la red de locales (consola) arrancan con requireOperator", () => {
+test("las actions de la red de locales (consola) esperan primero la guardia del negocio (sesión + candado de CH)", () => {
   const src = leer("src/lib/operador/red-locales-actions.ts");
   assert.ok(esUseServer(src));
   const exps = exportsDe(src);
@@ -89,7 +89,8 @@ test("las actions de la red de locales (consola) arrancan con requireOperator", 
     "vincularLocalAction",
   ]);
   for (const e of exps) {
-    assert.match(e.cuerpo.trim().split("\n")[0], /^const \w+ = await requireOperator\(\)/, `${e.nombre} sin requireOperator`);
+    const primeraEspera = e.cuerpo.slice(e.cuerpo.indexOf("await")).split("\n")[0];
+    assert.match(primeraEspera, /^await (requireOperadorParaNegocio|operadorParaNegocio)\(\{ id: casaId \}/, `${e.nombre} sin la guardia del negocio`);
   }
 });
 

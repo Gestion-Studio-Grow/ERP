@@ -36,6 +36,10 @@ import {
 
 const cat = catalogo();
 
+/** Las sesiones, como las arma el token firmado: un operador de OPERADORES y el dueño. */
+const FACU = { nombre: "facu", esDuenio: false };
+const DUENIO = { nombre: "tomas", esDuenio: true };
+
 // Una carnicería (casa) como las de QA, con la asignación ya fijada: 0 apps perdidas.
 const CARNICERIA_SIN_FIJAR: NegocioParaActivar = {
   id: "t-qa-carniceria",
@@ -118,7 +122,7 @@ test("qa-carniceria: prender 'Trabaja por apps' → la próxima carga ve el Inic
   const b = base([CARNICERIA]);
   assert.equal(b.trabajaPorApps(CARNICERIA.id), false);
 
-  const r = await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "encender"));
+  const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender"));
   assert.deepEqual(r, { tipo: "hecho", interruptor: INICIO_POR_APPS, accion: "encender" });
   // Lo que decide el Inicio (page.tsx: `if (await enInicioPorApps()) return <InicioApps />`) y el
   // gate por módulo de la barra y la guardia.
@@ -126,7 +130,7 @@ test("qa-carniceria: prender 'Trabaja por apps' → la próxima carga ve el Inic
   const conGate = resolverContextoApps(CARNICERIA, { registroGlobal: false, enInicioPorApps: true }, cat);
   assert.equal(conGate?.origen, "piloto");
 
-  const r2 = await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "apagar"));
+  const r2 = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "apagar"));
   assert.equal(r2.tipo, "hecho");
   assert.equal(b.trabajaPorApps(CARNICERIA.id), false);
   assert.equal(resolverContextoApps(CARNICERIA, { registroGlobal: false, enInicioPorApps: false }, cat), null);
@@ -134,7 +138,7 @@ test("qa-carniceria: prender 'Trabaja por apps' → la próxima carga ve el Inic
 
 test("el historial dice el nombre del operador y la hora; la fila es de la consola", async () => {
   const b = base([CARNICERIA]);
-  await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "encender"));
+  await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender"));
   const [fila] = b.filas;
   assert.equal(fila.actor, "operator:facu");
   assert.equal(fila.channel, CANAL_INTERRUPTOR);
@@ -148,9 +152,9 @@ test("el historial dice el nombre del operador y la hora; la fila es de la conso
 
 test("volver a prender lo que ya está prendido no escribe nada", async () => {
   const b = base([CARNICERIA]);
-  await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "encender"));
+  await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender"));
   // Otra pestaña que vio "encendido" y manda encender (formulario viejo): sin cambios, sin fila.
-  const r = await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "encender", { visto: "encendido" }));
+  const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender", { visto: "encendido" }));
   assert.equal(r.tipo, "sin-cambios");
   assert.equal(b.escrituras(), 1);
 });
@@ -159,7 +163,7 @@ test("volver a prender lo que ya está prendido no escribe nada", async () => {
 
 test("beauty-spa: un operador que no es el dueño es rechazado, aunque escriba el slug", async () => {
   const b = base([CH]);
-  const r = await cambiarInterruptorCon(b.deps, "facu", pedido(CH, "encender", { slugTipeado: "beauty-spa" }));
+  const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CH, "encender", { slugTipeado: "beauty-spa" }));
   assert.equal(r.tipo, "rechazado");
   assert.match((r as { motivo: string }).motivo, /sólo el dueño de GSG \(tomas\)/);
   assert.equal(b.escrituras(), 0);
@@ -168,16 +172,23 @@ test("beauty-spa: un operador que no es el dueño es rechazado, aunque escriba e
 test("beauty-spa: el dueño sin tipear el slug (o con otro) es rechazado; con el slug, pasa", async () => {
   const b = base([CH]);
   for (const slugTipeado of ["", "beauty", "magra"]) {
-    const r = await cambiarInterruptorCon(b.deps, "tomas", pedido(CH, "encender", { slugTipeado }));
+    const r = await cambiarInterruptorCon(b.deps, DUENIO, pedido(CH, "encender", { slugTipeado }));
     assert.equal(r.tipo, "rechazado", slugTipeado);
     assert.match((r as { motivo: string }).motivo, /escribí exactamente el slug/);
   }
   assert.equal(b.escrituras(), 0);
-  const ok = await cambiarInterruptorCon(b.deps, "tomas", pedido(CH, "encender", { slugTipeado: " Beauty-Spa " }));
+  const ok = await cambiarInterruptorCon(b.deps, DUENIO, pedido(CH, "encender", { slugTipeado: " Beauty-Spa " }));
   assert.equal(ok.tipo, "hecho");
   // Y apagarlo también es sólo del dueño.
-  const ajeno = await cambiarInterruptorCon(b.deps, "facu", pedido(CH, "apagar", { slugTipeado: "beauty-spa" }));
+  const ajeno = await cambiarInterruptorCon(b.deps, FACU, pedido(CH, "apagar", { slugTipeado: "beauty-spa" }));
   assert.equal(ajeno.tipo, "rechazado");
+});
+
+test("beauty-spa: una sesión de OPERADORES con el nombre del dueño NO es el dueño (manda el rol firmado)", async () => {
+  const b = base([CH]);
+  const r = await cambiarInterruptorCon(b.deps, { nombre: "tomas", esDuenio: false }, pedido(CH, "encender", { slugTipeado: "beauty-spa" }));
+  assert.equal(r.tipo, "rechazado");
+  assert.equal(b.escrituras(), 0);
 });
 
 test("CH sin interruptor: sin gate por módulo, ve lo de hoy (la barra la fija paridad-menu.test.ts)", () => {
@@ -191,7 +202,7 @@ test("CH sin interruptor: sin gate por módulo, ve lo de hoy (la barra la fija p
 test("con apps perdidas > 0 el servidor rechaza, aunque el formulario llegue armado a mano", async () => {
   // La carnicería SIN fijar la asignación: con el Inicio por apps perdería Stock y compras.
   const b = base([CARNICERIA_SIN_FIJAR]);
-  const r = await cambiarInterruptorCon(b.deps, "tomas", pedido(CARNICERIA_SIN_FIJAR, "encender"));
+  const r = await cambiarInterruptorCon(b.deps, DUENIO, pedido(CARNICERIA_SIN_FIJAR, "encender"));
   assert.equal(r.tipo, "rechazado");
   assert.match((r as { motivo: string }).motivo, /perdería \d+ apps? de su menú de siempre: .*Stock/);
   assert.equal(b.escrituras(), 0);
@@ -202,14 +213,14 @@ test("con apps perdidas > 0 el servidor rechaza, aunque el formulario llegue arm
 test("cambió mientras miraba: otro estado, otros módulos o la escritura condicional que no pasa", async () => {
   const b = base([CARNICERIA]);
   // Vio "encendido" pero está apagado.
-  const r1 = await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "apagar"));
+  const r1 = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "apagar"));
   assert.deepEqual(r1, { tipo: "rechazado", motivo: CAMBIO_MIENTRAS_MIRABAS });
   // Vio otros módulos.
-  const r2 = await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "encender", { modulosVistos: ["pos"] }));
+  const r2 = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender", { modulosVistos: ["pos"] }));
   assert.deepEqual(r2, { tipo: "rechazado", motivo: CAMBIO_MIENTRAS_MIRABAS });
   // Entre la lectura y la escritura, otra pestaña lo prendió: la escritura condicional no escribe.
   const deps: DepsDeCambio = { ...b.deps, escribirSiSigueIgual: async () => false };
-  const r3 = await cambiarInterruptorCon(deps, "facu", pedido(CARNICERIA, "encender"));
+  const r3 = await cambiarInterruptorCon(deps, FACU, pedido(CARNICERIA, "encender"));
   assert.deepEqual(r3, { tipo: "rechazado", motivo: CAMBIO_MIENTRAS_MIRABAS });
   assert.equal(b.escrituras(), 0);
 });
@@ -217,14 +228,14 @@ test("cambió mientras miraba: otro estado, otros módulos o la escritura condic
 test("pedidos rotos y negocios que no existen no escriben", async () => {
   const b = base([CARNICERIA]);
   for (const over of [{ interruptor: "otro" }, { accion: "borrar" }, { visto: "quizas" }, { modulosVistos: null }]) {
-    const r = await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "encender", over));
+    const r = await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender", over));
     assert.equal(r.tipo, "rechazado", JSON.stringify(over));
   }
-  assert.deepEqual(await cambiarInterruptorCon(b.deps, "facu", { ...pedido(CARNICERIA, "encender"), tenantId: "no" }), {
+  assert.deepEqual(await cambiarInterruptorCon(b.deps, FACU, { ...pedido(CARNICERIA, "encender"), tenantId: "no" }), {
     tipo: "no-existe",
   });
   const sinLectura: DepsDeCambio = { ...b.deps, leerEstado: async () => null };
-  assert.equal((await cambiarInterruptorCon(sinLectura, "facu", pedido(CARNICERIA, "encender"))).tipo, "rechazado");
+  assert.equal((await cambiarInterruptorCon(sinLectura, FACU, pedido(CARNICERIA, "encender"))).tipo, "rechazado");
   assert.equal(b.escrituras(), 0);
 });
 
@@ -240,7 +251,7 @@ test("una fila forjada con audit() (canal admin, actor de un usuario) se ignora,
   assert.equal(b.trabajaPorApps(CARNICERIA.id), false);
 
   // Prendido de verdad y después una forjada que "apaga": manda la de la consola.
-  await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "encender"));
+  await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender"));
   b.forjar({ tenantId: CARNICERIA.id, entity: ENTIDAD_INTERRUPTOR, entityId: INICIO_POR_APPS, action: "interruptor.apagar", actor: "user:recepcion", channel: "admin" });
   assert.equal(b.trabajaPorApps(CARNICERIA.id), true);
 });
@@ -255,8 +266,8 @@ test("audit() tiene vedada la entidad (también con otra capitalización)", () =
 
 test("la Auditoría del negocio dice 'GSG activó el Inicio por apps', sin JSON ni nombre del operador", async () => {
   const b = base([CARNICERIA]);
-  await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "encender"));
-  await cambiarInterruptorCon(b.deps, "facu", pedido(CARNICERIA, "apagar"));
+  await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "encender"));
+  await cambiarInterruptorCon(b.deps, FACU, pedido(CARNICERIA, "apagar"));
   const textos = b.filas.map(textoDeInterruptorEnAuditoria);
   assert.deepEqual(textos, ["GSG activó el Inicio por apps", "GSG apagó el Inicio por apps"]);
   for (const t of textos) assert.ok(!/facu|\{/.test(t ?? ""), t ?? "");
