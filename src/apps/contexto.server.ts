@@ -3,9 +3,9 @@
 // ============================================================================
 //
 // La decisión es pura y vive en src/apps/visibles.ts; acá sólo se LEE: la fila del tenant,
-// los flags, el perfil y si está la migración cárnica. Todo cacheado por request
-// (`react.cache`): el layout, la guardia de la página y "App no disponible" comparten la
-// misma lectura.
+// los flags, el interruptor "Trabaja por apps", el perfil y si está la migración cárnica.
+// Todo cacheado por request (`react.cache`): el layout, la guardia de la página y "App no
+// disponible" comparten la misma lectura.
 //
 // NO lleva "use server": eso publicaría cada export como endpoint. Es un lector de servidor
 // que llaman páginas, layouts y `requireApp`; nunca recibe un tenantId de afuera: el
@@ -26,7 +26,8 @@ import { getActiveProfile } from "@/lib/profile-gating";
 import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { resolveRubroId } from "@/blueprints/retail/rubros";
 import { catalogo } from "@/modules/catalog";
-import { moduleRegistryEnabled, appsInicioValor } from "@/modules/flags";
+import { moduleRegistryEnabled } from "@/modules/flags";
+import { enInicioPorAppsDelNegocio } from "@/cambios/interruptores.server";
 import {
   resolverContextoApps,
   type ContextoApps,
@@ -57,16 +58,14 @@ const leerTenant = cache(async (): Promise<TenantParaApps | null> => {
 
 /**
  * El gate por módulo del negocio actual. `null` = sin gate, idéntico a hoy: CH y todo
- * negocio fuera de `APPS_INICIO` o con la asignación vacía.
+ * negocio sin el interruptor "Trabaja por apps" o con la asignación vacía. El interruptor se lee
+ * UNA vez por request (src/cambios/interruptores.server.ts), en paralelo con la fila del negocio;
+ * si esa lectura falla, queda apagado.
  */
 export const getContextoApps = cache(async (): Promise<ContextoApps | null> => {
-  const t = await leerTenant();
+  const [t, enInicioPorApps] = await Promise.all([leerTenant(), enInicioPorAppsDelNegocio()]);
   if (!t) return null;
-  return resolverContextoApps(
-    t,
-    { registroGlobal: moduleRegistryEnabled(), appsInicio: appsInicioValor() },
-    catalogo(),
-  );
+  return resolverContextoApps(t, { registroGlobal: moduleRegistryEnabled(), enInicioPorApps }, catalogo());
 });
 
 /** Todo lo que decide qué apps ve una persona con este `role` en el negocio actual. */

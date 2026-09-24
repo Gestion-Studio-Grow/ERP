@@ -1,28 +1,14 @@
-// ¿Este negocio ve el Inicio por apps? Sí si su slug está en `APPS_INICIO` (lista de slugs o
-// "*"). Lo leen la página del Inicio y el layout (para el buscador con Ctrl/⌘K), y con
-// `react.cache` comparten la lectura en el request.
+// ¿Este negocio ve el Inicio por apps? Sí si tiene prendido el interruptor "Trabaja por apps"
+// (src/cambios/interruptores.ts), que se prende y se apaga por negocio desde la consola de GSG, sin
+// deploy. Lo leen la página del Inicio, el layout (para el buscador con Ctrl/⌘K) y las pantallas que
+// cambian con el modelo por apps; todas comparten UNA lectura por request con el gate por módulo
+// (src/apps/contexto.server.ts), porque las dos pasan por `interruptoresDelNegocio`.
 //
-// Sin la variable no se lee nada: CH y todo negocio fuera del piloto siguen exactamente con
-// su Inicio y su barra de hoy, sin una consulta de más. Si leer el negocio falla, se queda
-// en el Inicio de hoy: el nuevo es un piloto y nunca puede dejar a alguien sin Inicio.
+// Reemplaza a la variable de deploy APPS_INICIO, que se retiró: quedaba una segunda palanca que
+// podía prender a CH sin su OK. Si la lectura falla, queda apagado: el Inicio de siempre, que nunca
+// deja a nadie sin Inicio.
 
 import "server-only";
-import { cache } from "react";
-import { negocioEnAppsInicio } from "@/apps/visibles";
-import { negocioActual } from "@/apps/kpis/negocio.server";
-import { appsInicioValor } from "@/modules/flags";
-import { logger } from "@/lib/logger";
+import { enInicioPorAppsDelNegocio } from "@/cambios/interruptores.server";
 
-export const enInicioPorApps = cache(async (): Promise<boolean> => {
-  const valor = appsInicioValor();
-  if (!valor) return false;
-  try {
-    const { slug } = await negocioActual();
-    return negocioEnAppsInicio(slug, valor);
-  } catch (err) {
-    logger.warn("apps", "no se pudo leer el negocio para APPS_INICIO; queda el Inicio de hoy", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return false;
-  }
-});
+export const enInicioPorApps = enInicioPorAppsDelNegocio;

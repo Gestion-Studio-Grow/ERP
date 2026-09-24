@@ -94,7 +94,7 @@ function textoDelGate(estado: EstadoAppsDelNegocio): string {
     case "sin-gate":
       return estado.enInicioPorApps
         ? "Está en el Inicio por apps pero sin módulos asignados: ve todas las apps de hoy, sin filtro. Fijá la asignación para que los módulos decidan."
-        : "Hoy ve el menú de siempre: sus módulos todavía no deciden qué apps ve. Van a decidir cuando GSG lo sume al Inicio por apps (variable APPS_INICIO del deploy).";
+        : "Hoy ve el menú de siempre: sus módulos todavía no deciden qué apps ve. Van a decidir cuando GSG le prenda «Trabaja por apps» (arriba, en esta ficha).";
   }
 }
 
@@ -168,7 +168,7 @@ export function AppsDelNegocioCard({
             <span className="break-words">{nombres(frente.pierde)}.</span>{" "}
             {estado.enInicioPorApps
               ? "Fijá la asignación actual para devolvérselas."
-              : "Fijá la asignación actual antes de sumarlo al Inicio por apps."}
+              : "Fijá la asignación actual antes de prenderle «Trabaja por apps»."}
           </div>
         )}
       </div>

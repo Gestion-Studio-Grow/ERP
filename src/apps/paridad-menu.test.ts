@@ -128,7 +128,7 @@ test("Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignacio
     // El contexto se calcula con la regla REAL, no a mano: Comerciante = producto con tienda.
     const contexto = resolverContextoApps(
       { id: "t-comerciante", slug: "kiosco-prueba", blueprintId: "generico", modules: asignacion.modules },
-      { registroGlobal: false, appsInicio: undefined },
+      { registroGlobal: false, enInicioPorApps: false },
       catalogo(),
     );
     assert.equal(contexto?.origen, "producto", asignacion.nombre);
@@ -163,8 +163,8 @@ test("CH hoy: la barra del OWNER de beauty-spa, ítem por ítem", () => {
   // lo marca. Son las 20 pantallas que CH ve hoy.
   const contexto = resolverContextoApps(
     { id: "t-ch", slug: "beauty-spa", blueprintId: null, modules: [] },
-    // Aun con el piloto prendido para todos, CH no tiene asignación → sin gate.
-    { registroGlobal: false, appsInicio: "*" },
+    // Aun con su interruptor "Trabaja por apps" prendido, CH no tiene asignación → sin gate.
+    { registroGlobal: false, enInicioPorApps: true },
     catalogo(),
   );
   assert.equal(contexto, null);
@@ -199,7 +199,7 @@ test("CH hoy: la barra del OWNER de beauty-spa, ítem por ítem", () => {
 });
 
 test("diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy", () => {
-  // En los negocios del piloto (`APPS_INICIO`) la barra deja de ser la de hoy a propósito:
+  // En los negocios con "Trabaja por apps" prendido la barra deja de ser la de hoy a propósito:
   // Stock, Compras y Ajustes cuelgan de `inventario` (no de `catalog`) y las pantallas de
   // edición, de su módulo (no del perfil). Esto deja escrita la diferencia para que nadie
   // la "arregle" copiando la regla del Comerciante. CH y el Comerciante no la tienen: los
@@ -207,7 +207,7 @@ test("diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el 
   const modules = ["pos", "catalog", "clients", "reports", "arca", "cuentas-a-cobrar"];
   const contexto = resolverContextoApps(
     { id: "t-piloto", slug: "magra", blueprintId: "carniceria", modules },
-    { registroGlobal: false, appsInicio: "magra" },
+    { registroGlobal: false, enInicioPorApps: true },
     catalogo(),
   );
   assert.equal(contexto?.origen, "piloto");

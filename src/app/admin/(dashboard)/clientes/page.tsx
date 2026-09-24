@@ -23,8 +23,8 @@ export const dynamic = "force-dynamic";
 
 export default async function ClientesPage() {
   const user = await requireApp("clientes");
-  // CH (fuera del piloto del Inicio por apps) sigue viendo exactamente la lista de siempre. La
-  // lista con segmentos y la ficha única llegan cuando el negocio se pasa (APPS_INICIO).
+  // CH (sin "Trabaja por apps") sigue viendo exactamente la lista de siempre. La lista con
+  // segmentos y la ficha única llegan cuando GSG le prende el interruptor al negocio.
   if (await enInicioPorApps()) return <ClientesPiloto user={user} />;
 
   const clients = await getClients();

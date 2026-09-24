@@ -18,7 +18,6 @@ import {
   destinoDeVuelta,
   explicarNoDisponible,
   motivoNoDisponible,
-  negocioEnAppsInicio,
   partesDelKpi,
   proyectarMenuDeHoy,
   resolverContextoApps,
@@ -37,12 +36,14 @@ const MAGRA: TenantParaApps = {
   blueprintId: "carniceria",
   modules: ["pos", "catalog", "clients", "reports", "arca"],
 };
-const PILOTO = "magra,shinevelas,adosmanos";
-const SIN_FLAGS = { registroGlobal: false, appsInicio: undefined };
+const SIN_FLAGS = { registroGlobal: false, enInicioPorApps: false };
 
-/** Contexto con la regla real. `appsInicio: null` = la variable no está definida. */
-const ctx = (t: TenantParaApps, appsInicio: string | null = PILOTO) =>
-  resolverContextoApps(t, { registroGlobal: false, appsInicio: appsInicio ?? undefined }, catalogo());
+/**
+ * Contexto con la regla real. `enInicioPorApps` = el interruptor "Trabaja por apps" de ESE negocio
+ * (src/cambios/interruptores.ts); por defecto prendido, que es el caso del piloto.
+ */
+const ctx = (t: TenantParaApps, enInicioPorApps = true) =>
+  resolverContextoApps(t, { registroGlobal: false, enInicioPorApps }, catalogo());
 
 function negocio(over: Partial<NegocioApps> & { role: Role }): NegocioApps {
   return {
@@ -59,27 +60,21 @@ const ids = (apps: readonly AppDescriptor[]) => apps.map((a) => a.id);
 
 // ── El gate es por negocio: null significa sin gate, igual que hoy ────────────
 
-test("APPS_INICIO: lista de slugs o '*'; vacío o ausente no prende a nadie", () => {
-  assert.equal(negocioEnAppsInicio("magra", " Magra , shinevelas "), true);
-  assert.equal(negocioEnAppsInicio("shinevelas", PILOTO), true);
-  assert.equal(negocioEnAppsInicio("beauty-spa", PILOTO), false);
-  // Cada local de MAGRA es otro negocio con su slug: se prende uno por uno.
-  assert.equal(negocioEnAppsInicio("magra-lomas", PILOTO), false);
-  assert.equal(negocioEnAppsInicio("cualquiera", "*"), true);
-  assert.equal(negocioEnAppsInicio("magra", ""), false);
-  assert.equal(negocioEnAppsInicio("magra", undefined), false);
-  assert.equal(negocioEnAppsInicio(null, "*"), false);
+test("el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto", () => {
+  assert.equal(ctx(MAGRA, false), null);
+  assert.equal(ctx(MAGRA, true)?.origen, "piloto");
+  // Cada local de MAGRA es otro negocio con su propio interruptor: prender la casa no toca a Lomas.
+  const LOMAS: TenantParaApps = { ...MAGRA, id: "t-lomas", slug: "magra-lomas" };
+  assert.equal(ctx(LOMAS, false), null);
 });
 
-test("CH queda SIN gate aunque el piloto se prenda para todos: su asignación está vacía", () => {
-  assert.equal(ctx(CH, null), null);
-  assert.equal(ctx(CH, PILOTO), null);
-  assert.equal(ctx(CH, "*"), null);
-  assert.equal(ctx(CH, "beauty-spa"), null);
+test("CH queda SIN gate aun con el interruptor prendido: su asignación está vacía", () => {
+  assert.equal(ctx(CH, false), null);
+  assert.equal(ctx(CH, true), null);
 });
 
-test("magra: sin gate fuera del piloto; en el piloto, sus módulos resueltos", () => {
-  assert.equal(ctx(MAGRA, null), null);
+test("magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos", () => {
+  assert.equal(ctx(MAGRA, false), null);
   const c = ctx(MAGRA);
   assert.equal(c?.origen, "piloto");
   assert.deepEqual([...(c?.modulos ?? [])].sort(), ["arca", "catalog", "clients", "pos", "reports"]);
@@ -95,11 +90,11 @@ test("piloto: un módulo sin su dependencia no habilita nada (resolverActivacion
 
 test("Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo", () => {
   const kiosco: TenantParaApps = { id: "t-k", slug: "kiosco", blueprintId: "generico", modules: nucleoParaProducto("comerciante") };
-  assert.equal(ctx(kiosco, null)?.origen, "producto");
-  assert.equal(resolverContextoApps(CH, { registroGlobal: true, appsInicio: undefined }, catalogo())?.origen, "registro");
+  assert.equal(ctx(kiosco, false)?.origen, "producto");
+  assert.equal(resolverContextoApps(CH, { registroGlobal: true, enInicioPorApps: false }, catalogo())?.origen, "registro");
   // Con el flag global prendido, CH queda con cero módulos: es el riesgo de hoy, no uno nuevo
   // (layout.tsx hace lo mismo con getActiveModuleIds). Por eso sigue apagado.
-  assert.equal(resolverContextoApps(CH, { registroGlobal: true, appsInicio: undefined }, catalogo())?.modulos.size, 0);
+  assert.equal(resolverContextoApps(CH, { registroGlobal: true, enInicioPorApps: false }, catalogo())?.modulos.size, 0);
   assert.equal(resolverContextoApps(MAGRA, SIN_FLAGS, catalogo()), null);
 });
 
@@ -158,7 +153,7 @@ test("Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el d
     modules: [...nucleoParaProducto("comerciante"), "catalog"],
   };
   const comerciante = (perfil: NegocioApps["perfil"]) =>
-    negocio({ role: "OWNER", contexto: ctx(kiosco, null), modulosAsignados: kiosco.modules, perfil });
+    negocio({ role: "OWNER", contexto: ctx(kiosco, false), modulosAsignados: kiosco.modules, perfil });
   assert.equal(motivoNoDisponible(appPorId("recibir-mercaderia"), comerciante(null)), null);
   assert.equal(motivoNoDisponible(appPorId("mermas"), comerciante(null)), null);
   // Edición: sin `libros` asignado, la decide el perfil, como hoy.
@@ -168,7 +163,7 @@ test("Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el d
   assert.equal(motivoNoDisponible(appPorId("facturacion-automatica"), comerciante(null)), null);
   const sinBancos = { ...kiosco, modules: kiosco.modules.filter((m) => m !== "bancos") };
   assert.equal(
-    motivoNoDisponible(appPorId("facturacion-automatica"), negocio({ role: "OWNER", contexto: ctx(sinBancos, null) })),
+    motivoNoDisponible(appPorId("facturacion-automatica"), negocio({ role: "OWNER", contexto: ctx(sinBancos, false) })),
     "modulo",
   );
   // El mismo `catalog` sin `inventario`, en el piloto: Compras no está.
@@ -205,7 +200,7 @@ test("moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante",
   // Comerciante sin `multilocal` sigue cerrada: lee datos de otros negocios.
   const conMenu: AppDescriptor = { ...MIS_LOCALES_PRUEBA, menuDeHoy: { etiqueta: "Prueba", orden: 999, moduloDeHoy: null } };
   const kiosco: TenantParaApps = { id: "t-k", slug: "kiosco", blueprintId: "generico", modules: nucleoParaProducto("comerciante") };
-  const n = negocio({ role: "OWNER", contexto: ctx(kiosco, null), modulosAsignados: kiosco.modules });
+  const n = negocio({ role: "OWNER", contexto: ctx(kiosco, false), modulosAsignados: kiosco.modules });
   assert.equal(n.contexto?.origen, "producto");
   assert.equal(motivoNoDisponible(conMenu, n), "modulo");
 });

@@ -32,7 +32,17 @@ import {
   vistaPreviaDeCambio,
   MOTIVO_OK_DEL_DUENIO,
 } from "./apps-del-negocio";
-import { candidatosEnOtraRed, flagsDeApps, leerNegocioParaActivar, leerRedDeLaFicha } from "./negocio.server";
+import {
+  candidatosEnOtraRed,
+  flagsDeApps,
+  leerInterruptoresDe,
+  leerNegocioParaActivar,
+  leerRedDeLaFicha,
+} from "./negocio.server";
+import { InterruptoresCard } from "./InterruptoresCard";
+import { INICIO_POR_APPS } from "@/cambios/interruptores";
+import { todosApagados } from "@/cambios/interruptores-core";
+import { operadorDuenio } from "@/lib/operator-auth";
 import { RedDeLocalesCard, type CandidatoLocal } from "./RedDeLocalesCard";
 import { MOTIVO_OK_DEL_DUENIO_RED } from "@/lib/multilocal/multilocal-core";
 import { AppsDelNegocioCard, type CambioRegistrado, type FilaModuloFicha } from "./AppsDelNegocioCard";
@@ -168,7 +178,7 @@ export default async function TenantConfigPage({
 }) {
   // Guardia en la página, no sólo en el layout: el layout no se vuelve a ejecutar al navegar
   // del lado del cliente, y esta ficha lee y cambia datos de cualquier negocio.
-  await requireOperator();
+  const operador = await requireOperator();
   const { id } = await params;
   const { created, bootstrap, ok, error, modulo } = await searchParams;
 
@@ -271,7 +281,12 @@ export default async function TenantConfigPage({
   const negocio = await leerNegocioParaActivar(tenant!.id);
   if (!negocio) notFound();
   const cat = catalogo();
-  const flags = flagsDeApps();
+  // El interruptor "Trabaja por apps" de este negocio, leído de la base (antes era una variable
+  // del deploy, retirada). Si no se pudo leer, la vista previa mira como apagado y la tarjeta
+  // no ofrece cambiarlo.
+  const interruptores = await leerInterruptoresDe(tenant!.id);
+  const flags = flagsDeApps(interruptores?.estado ?? todosApagados());
+  const duenio = operadorDuenio();
   const estadoApps = estadoDeApps(negocio!, flags, cat);
   const fijar = planFijarAsignacion(negocio!, flags, cat);
   const appsDeCadaModulo = appsPorModulo();
@@ -638,6 +653,17 @@ export default async function TenantConfigPage({
         bloqueo={requiereOkDelDuenio(negocio!.slug) ? MOTIVO_OK_DEL_DUENIO_RED : null}
         red={red}
         candidatos={candidatosRed}
+      />
+
+      {/* Trabaja por apps: el interruptor por negocio, con vista previa e historial */}
+      <InterruptoresCard
+        tenantId={tenant!.id}
+        slug={tenant!.slug}
+        modulosVistos={negocio!.modules}
+        estado={interruptores?.estado[INICIO_POR_APPS] ?? null}
+        apps={estadoApps}
+        historial={interruptores?.historial ?? []}
+        candado={requiereOkDelDuenio(negocio!.slug) ? { puedeTocar: operador === duenio, duenio } : null}
       />
 
       {/* Apps del negocio: módulos con vista previa, activación auditada y "fijar asignación" */}

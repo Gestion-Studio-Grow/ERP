@@ -124,12 +124,9 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca", alias: ["arca", "afip", "comprobantes", "iva", "factura"] },
   { href: "/admin/reportes", label: "Reportes", icon: "reportes", cap: "reports:read", module: "reports", alias: ["informes", "estadisticas", "rentabilidad", "comisiones", "ingresos"] },
   { href: "/admin/campania", label: "Campañas", icon: "clientes", cap: "clients:read", module: "campanias", alias: ["obsequio", "promociones", "leads", "anotados", "apertura"] },
-  // El ítem SIGUE declarado —la ruta necesita estar en el mapa para el gating por
-  // módulos— pero ya no lo ve nadie: `modules:manage` dejó de estar en las
-  // capacidades del dueño. Aprovisionar módulos es decidir qué producto compró
-  // el cliente, no operación diaria. Cuando exista el rol IMPLEMENTADOR, esa
-  // capacidad se le asigna a él y el ítem reaparece sólo para ese rol.
-  { href: "/admin/modulos", label: "Módulos", icon: "modulos", cap: "modules:manage", alias: ["apps", "tienda de modulos", "activar"] },
+  // "/admin/modulos" (la vidriera de módulos del dueño) se borró en la tanda 2b: exigía
+  // `modules:manage`, que ningún rol tiene, así que nadie la veía. Los módulos de un negocio se
+  // aprovisionan desde la consola de GSG (/operador, ficha del negocio), con su vista previa.
   { href: "/admin/auditoria", label: "Auditoría", icon: "auditoria", cap: "audit:read", alias: ["log", "historial", "quien hizo que", "registro"] },
   { href: "/admin/usuarios", label: "Usuarios", icon: "usuarios", cap: "users:manage", alias: ["empleados", "permisos", "roles", "accesos", "contrasena"] },
   { href: "/admin/localizacion", label: "Localización", icon: "localizacion", cap: "location:manage", alias: ["direccion", "ubicacion", "contacto", "sucursal", "telefono"] },

@@ -22,6 +22,7 @@ import { CIERRE_DIARIO_ENTITY } from "@/lib/caja/frontera-cierre";
 import { ACCION_CAMBIO_DE_PRECIO, ACCION_ETIQUETA_IMPRESA, resumenDeFilaDePrecio } from "@/lib/catalogo/precios-auditoria";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { ACCION_CUPON_DEL_PEDIDO } from "@/lib/venta-reglas";
+import { ENTIDAD_INTERRUPTOR, textoDeInterruptorEnAuditoria } from "@/cambios/interruptores";
 
 const actionLabel: Record<string, string> = {
   create: "Creó",
@@ -63,6 +64,8 @@ const entityLabel: Record<string, string> = {
 // todas es otra tarea.
 function DetalleCambios({ entity, action, changes }: { entity: string; action: string; changes: unknown }) {
   if (!changes) return <span className="text-faint">—</span>;
+  // Un interruptor de GSG (el Inicio por apps): lo dice la columna Acción, sin el detalle interno.
+  if (entity === ENTIDAD_INTERRUPTOR) return <span className="text-faint">—</span>;
   // Un cambio de precio o una etiqueta impresa: "Vacío: $9.000 → $9.900 /kg".
   const precio = resumenDeFilaDePrecio(action, changes, (n) => fmtMoneyARS(n));
   if (precio) return <span className="text-xs text-body">{precio}</span>;
@@ -113,11 +116,17 @@ export default async function AuditoriaPage() {
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-body">
                   <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Quién:</span>
-                  {formatActor(e.actor, userNames)}
+                  {/* Un interruptor de GSG dice "GSG", no el nombre interno del operador. El resto de las
+                      filas, como siempre (CH no ve ningún cambio sin interruptor). */}
+                  {textoDeInterruptorEnAuditoria(e) ? "GSG" : formatActor(e.actor, userNames)}
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5">
-                  {actionLabel[e.action] ?? e.action}{" "}
-                  <span className="text-muted">{entityLabel[e.entity] ?? e.entity}</span>
+                  {textoDeInterruptorEnAuditoria(e) ?? (
+                    <>
+                      {actionLabel[e.action] ?? e.action}{" "}
+                      <span className="text-muted">{entityLabel[e.entity] ?? e.entity}</span>
+                    </>
+                  )}
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-muted">
                   <DetalleCambios entity={e.entity} action={e.action} changes={e.changes} />

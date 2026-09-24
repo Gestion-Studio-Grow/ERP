@@ -48,8 +48,8 @@ function contextoCrm(ctx: ContextoLoader): ContextoCrm {
  * en Reservado", y un turno completado o marcado "no se presentó" sumaba como confirmado: a las
  * 18, con el día resuelto, daba 100% aunque nadie hubiera confirmado nada, y un faltazo subía
  * el número. El total del día ("18 turnos hoy") sigue contando todo menos los cancelados.
- * Es un número del Inicio por apps: CH lo ve sólo si su slug entra en APPS_INICIO (flags.ts),
- * que por diseño no se le prende sin el OK del dueño.
+ * Es un número del Inicio por apps: CH lo ve sólo si se le prende "Trabaja por apps", que en CH
+ * sólo puede prender el operador dueño de GSG (src/cambios/interruptores-core.ts).
  */
 export function resumirAgenda(grupos: readonly { status: string; _count: { _all: number } }[]): DatoKpi {
   const cuantos = (s: string) => grupos.filter((g) => g.status === s).reduce((n, g) => n + g._count._all, 0);

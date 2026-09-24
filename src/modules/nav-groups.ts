@@ -162,7 +162,6 @@ export const NAV_ITEM_GROUPS: Readonly<Record<string, NavGroupId>> = {
   "/admin/usuarios": "configuracion",
   "/admin/localizacion": "configuracion",
   "/admin/apariencia": "configuracion", // tema claro/oscuro + color del equipo (skin Fable)
-  "/admin/modulos": "configuracion",
 };
 
 // ============================================================================
@@ -285,8 +284,8 @@ export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
 //   abrir nadie (`modules:manage` no está en ningún rol: `NO_SON_DEL_DUENIO` en
 //   capabilities.ts). Estos ítems siguen SIN `module` porque son el menú de HOY y tienen que
 //   dar lo mismo que antes. El módulo de cada pantalla vive ahora en el registro de apps
-//   (src/apps/catalogo/finanzas.ts y logistica.ts) y sólo decide en los negocios del
-//   piloto (`APPS_INICIO`). En el Comerciante estas pantallas siguen sin módulo, como acá
+//   (src/apps/catalogo/finanzas.ts y logistica.ts) y sólo decide en los negocios con
+//   "Trabaja por apps" prendido. En el Comerciante estas pantallas siguen sin módulo, como acá
 //   (`menuDeHoy.moduloDeHoy: null`), y sin gate (CH) no cambia nada. Esta lista se borra
 //   en la limpieza posterior a la ola 4.
 export interface EnterpriseNavItem {

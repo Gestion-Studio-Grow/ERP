@@ -4,8 +4,10 @@
 //  - corren sobre `operatorPrisma` (conexión separada, cross-tenant), NUNCA sobre el
 //    prisma de la app del tenant ni por `getCurrentTenantId()` (que es fail-closed).
 //  - están guardadas por `requireOperator()` (sesión de operador, plano separado).
-// El alta envuelve el `provisionTenant` de ADR-019 (no reimplementa nada): la consola
-// es "una envoltura del provisioning" (ADR-021 §3).
+// El alta de negocios vive en operator-provisioning-actions.ts (el wizard de /operador/alta, que
+// envuelve la saga de ADR-074). La acción vieja de alta que vivía acá se borró en la tanda 2b:
+// no tenía llamadores y escribía módulos sin el candado de CH ni la validación de
+// cartera y multilocal.
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -14,14 +16,12 @@ import { Prisma } from "@/generated/prisma/client";
 import { operatorPrisma } from "@/lib/operator-db";
 import { requireOperator } from "@/lib/operator-session";
 import {
-  checkOperatorPassword,
   createOperatorToken,
   getOperatorCookieName,
+  VIGENCIA_SESION_MS,
+  verificarOperador,
 } from "@/lib/operator-auth";
-import { provisionTenant } from "../../scripts/provision-tenant";
-import { resolveBlueprint, getBlueprint } from "@/blueprints";
-import { suggestedAccentForBlueprint, isModuleId } from "@/lib/operator-config";
-import { modulosBaseParaAlta } from "@/lib/provisioning/adapters";
+import { isModuleId } from "@/lib/operator-config";
 import { requestIp } from "@/lib/audit-core";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
@@ -45,11 +45,18 @@ import {
   puntosDeVentaUsados,
   type NegocioFiscal,
 } from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
-import { flagsDeApps, leerNegocioParaActivar, vinculosActivosDe } from "@/app/operador/(console)/tenants/[id]/negocio.server";
+import {
+  flagsDeApps,
+  leerInterruptoresDe,
+  leerNegocioParaActivar,
+  vinculosActivosDe,
+} from "@/app/operador/(console)/tenants/[id]/negocio.server";
+import { todosApagados } from "@/cambios/interruptores-core";
 
 // --- Sesión de operador -------------------------------------------------------
 
 export async function operatorLogin(formData: FormData) {
+  const nombre = String(formData.get("nombre") || "");
   const password = String(formData.get("password") || "");
   const next = String(formData.get("next") || "/operador");
 
@@ -60,18 +67,22 @@ export async function operatorLogin(formData: FormData) {
     redirect(`/operador/login?error=throttled&next=${encodeURIComponent(next)}`);
   }
 
-  if (!checkOperatorPassword(password)) {
+  // Nombre y clave: el dueño con OPERATOR_PASSWORD (nombre vacío = el dueño, el login de siempre)
+  // o un operador de OPERADORES con su línea PBKDF2. El token lleva el nombre y la hora: vence a
+  // las 8 h en el servidor, no sólo en el navegador.
+  const operador = await verificarOperador(nombre, password);
+  if (!operador) {
     loginRateLimiter.fail(key);
     redirect(`/operador/login?error=1&next=${encodeURIComponent(next)}`);
   }
   loginRateLimiter.reset(key);
   const cookieStore = await cookies();
-  cookieStore.set(getOperatorCookieName(), await createOperatorToken(), {
+  cookieStore.set(getOperatorCookieName(), await createOperatorToken(operador), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 8,
+    maxAge: VIGENCIA_SESION_MS / 1000,
   });
   redirect(next.startsWith("/operador") ? next : "/operador");
 }
@@ -80,80 +91,6 @@ export async function operatorLogout() {
   const cookieStore = await cookies();
   cookieStore.delete(getOperatorCookieName());
   redirect("/operador/login");
-}
-
-// --- Alta de tenant desde la consola (envuelve provisionTenant, ADR-019) -------
-
-export async function provisionFromConsole(formData: FormData) {
-  await requireOperator();
-
-  const name = String(formData.get("name") || "").trim();
-  const slug = String(formData.get("slug") || "").trim();
-  const ownerName = String(formData.get("ownerName") || "").trim();
-  const ownerEmail = String(formData.get("ownerEmail") || "").trim();
-  const blueprintFlag = String(formData.get("blueprint") || "").trim();
-  const rubro = String(formData.get("rubro") || "").trim();
-  const plan = String(formData.get("plan") || "trial").trim();
-  const status = String(formData.get("status") || "TRIAL").trim() as "TRIAL" | "ACTIVE" | "SUSPENDED";
-  const accentPreset = String(formData.get("accentPreset") || "").trim() || undefined;
-  const frontTheme = String(formData.get("frontTheme") || "").trim() || undefined;
-  const subdomain = String(formData.get("subdomain") || "").trim() || undefined;
-
-  // Resolución del vertical: --blueprint explícito › rubro (selector, cae al comodín)
-  // › default. Es el mismo criterio que el CLI.
-  let blueprintId: string;
-  if (blueprintFlag) {
-    blueprintId = getBlueprint(blueprintFlag).id;
-  } else if (rubro) {
-    blueprintId = resolveBlueprint(rubro).blueprintId;
-  } else {
-    blueprintId = "servicios";
-  }
-
-  // Módulos: los tildados en el form, o el set base del PRODUCTO que deriva del blueprint
-  // si no se eligió nada (ADR-089: Comerciante nace con su núcleo de facturación, no con el
-  // default de "generico" que traía "Agregar turno"; verticales caen al default legado).
-  const picked = formData.getAll("modules").map(String).filter(isModuleId);
-  const modules = picked.length > 0 ? picked : modulosBaseParaAlta(blueprintId);
-
-  // Acento/tema: si el operador no eligió, cae al sugerido por el preset del rubro.
-  const suggested = suggestedAccentForBlueprint(blueprintId);
-  const effectiveAccent = accentPreset ?? suggested?.accent;
-  const effectiveTheme = frontTheme ?? suggested?.theme;
-
-  const back = (q: string) => redirect(`/operador/alta?${q}`);
-
-  if (!name || !slug || !ownerEmail) {
-    back("error=" + encodeURIComponent("Faltan nombre, slug o email del dueño."));
-  }
-
-  let result;
-  try {
-    result = await provisionTenant(operatorPrisma, {
-      name,
-      slug,
-      owner: { name: ownerName || undefined, email: ownerEmail },
-      blueprint: blueprintId,
-      platform: { status, plan, subdomain, modules, accentPreset: effectiveAccent, frontTheme: effectiveTheme },
-    });
-  } catch (e) {
-    // Acá cae, entre otros, el GATE de RLS (ADR-018): crear el 2º tenant sin RLS
-    // aborta con un error explícito. La consola lo muestra, no lo esconde.
-    back("error=" + encodeURIComponent(e instanceof Error ? e.message : String(e)));
-    return;
-  }
-
-  revalidatePath("/operador");
-  // C-2 · La contraseña de bootstrap YA NO viaja por la URL. Iba en el query string
-  // (`&bootstrap=<clave en claro>`), así que quedaba en el historial del navegador, en
-  // los access-logs de Vercel/CDN y en cualquier proxy intermedio — un secreto de alta
-  // (el OWNER del tenant) registrado en tres lugares que nadie audita.
-  //
-  // Esta acción es LEGACY y ya no tiene llamadores: la superó el wizard, que entrega la
-  // clave fuera de la URL. Se corrige igual en vez de dejarla como trampa para el
-  // próximo que la conecte. Si vuelve a hacer falta mostrarla, se entrega por el valor
-  // de retorno del action, como hace el reset de contraseña.
-  redirect(`/operador/tenants/${result.tenantId}?created=1`);
 }
 
 // --- Configuración por tenant (control-plane) ---------------------------------
@@ -515,7 +452,7 @@ export async function resetOwnerPasswordDeTenant(
 }
 
 // --- Módulos del negocio: activación validada, condicional y auditada ------------------
-// `Tenant.modules` decide qué apps ve un negocio del Inicio por apps (APPS_INICIO) y, en el
+// `Tenant.modules` decide qué apps ve un negocio que trabaja por apps (el interruptor) y, en el
 // Comerciante, ya decide su menú. Hasta la ola 1 esta action escribía el arreglo crudo: sin
 // validar dependencias ni rubro, sin auditoría, y dos pestañas se pisaban (la segunda borraba
 // lo de la primera sin enterarse). Ahora:
@@ -621,9 +558,9 @@ export async function toggleTenantModule(formData: FormData) {
 }
 
 // "Fijar asignación actual": suma los módulos mínimos para que, con el Inicio por apps
-// prendido, el negocio vea las apps de su menú de siempre. Es el paso previo a sumarlo a
-// APPS_INICIO. Nunca saca un módulo (eso es un cambio de a uno, con su vista previa). En CH
-// está bloqueado hasta el OK del dueño, y el bloqueo vive acá, no sólo en el botón.
+// prendido, el negocio vea las apps de su menú de siempre. Es el paso previo a prenderle
+// "Trabaja por apps". Nunca saca un módulo (eso es un cambio de a uno, con su vista previa).
+// En CH está bloqueado hasta el OK del dueño, y el bloqueo vive acá, no sólo en el botón.
 export async function fijarAsignacionActual(formData: FormData) {
   const op = await requireOperator();
   const tenantId = String(formData.get("tenantId") || "").trim();
@@ -636,7 +573,10 @@ export async function fijarAsignacionActual(formData: FormData) {
   if (!negocio) redirect("/operador?error=notfound");
   if (!mismoConjunto(negocio.modules, vistos)) volverAApps(tenantId, { error: CAMBIO_MIENTRAS_EDITABAS });
 
-  const plan = planFijarAsignacion(negocio, flagsDeApps(), catalogo());
+  // El plan mide siempre con y sin el Inicio por apps: el estado del interruptor no lo cambia, pero
+  // se pasa el real para que la lectura sea la misma que la de la ficha.
+  const interruptores = await leerInterruptoresDe(tenantId);
+  const plan = planFijarAsignacion(negocio, flagsDeApps(interruptores?.estado ?? todosApagados()), catalogo());
   if (!plan.ok) volverAApps(tenantId, { error: plan.motivo });
   if (plan.sinCambios) {
     volverAApps(tenantId, { ok: "No había nada que fijar: con sus módulos ya ve todas las apps de su menú de siempre." });

@@ -235,7 +235,8 @@ async function RetailHome({
 //                     borde llegan acá, caen al Inicio vertical (genérico y seguro).
 // ─────────────────────────────────────────────────────────────────────────────
 export default async function DashboardPage() {
-  // Inicio por apps sólo en los negocios de APPS_INICIO; CH y el resto, el de hoy (inicio/).
+  // Inicio por apps sólo con el interruptor "Trabaja por apps" prendido; CH y el resto, el de
+  // hoy (inicio/).
   if (await enInicioPorApps()) return <InicioApps />;
   const producto = await getProductoActual();
   if (producto === "comerciante") return <InicioComerciante />;

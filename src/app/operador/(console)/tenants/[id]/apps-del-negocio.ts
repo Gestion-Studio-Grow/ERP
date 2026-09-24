@@ -6,8 +6,8 @@
 // dado de alta (el alta y la cartera del contador los escriben al crearlo). Hasta la ola 1
 // escribía el arreglo crudo: sin validar dependencias ni rubro, sin auditoría y con dos
 // pestañas pisándose. Mientras los módulos no decidían nada era inocuo; con el Inicio por
-// apps (`APPS_INICIO`) deciden qué apps ve cada negocio, y un clic podía sacarle la Agenda a
-// un cliente sin dejar rastro.
+// apps (el interruptor "Trabaja por apps", src/cambios/interruptores.ts) deciden qué apps ve
+// cada negocio, y un clic podía sacarle la Agenda a un cliente sin dejar rastro.
 //
 // Acá vive la DECISIÓN, pura y testeable sin base:
 //   · el plan del cambio: `planActivar` / `planDesactivar` (src/modules/vista.ts, los mismos
@@ -31,7 +31,6 @@ import { REGISTRO_APPS } from "@/apps/registro";
 import { ordenDeEspacio, ordenDentroDelEspacio } from "@/apps/espacios";
 import {
   appsVisibles,
-  negocioEnAppsInicio,
   resolverContextoApps,
   type ContextoApps,
   type OrigenGate,
@@ -60,10 +59,14 @@ export interface NegocioParaActivar {
   vinculosActivos?: number | null;
 }
 
-/** Los flags del deploy que deciden el gate (se leen del entorno en negocio.server.ts). */
+/**
+ * Lo que decide el gate además de la fila del negocio: el flag global del deploy
+ * (MODULE_REGISTRY_ENABLED) y el interruptor "Trabaja por apps" DE ESTE negocio, leído de la base
+ * (negocio.server.ts). Reemplaza a la variable APPS_INICIO, que se retiró.
+ */
 export interface FlagsDeApps {
   registroGlobal: boolean;
-  appsInicio: string | undefined;
+  enInicioPorApps: boolean;
 }
 
 const ROLES: readonly Role[] = ["OWNER", "RECEPTION", "PROFESSIONAL"];
@@ -75,10 +78,11 @@ const ROLES: readonly Role[] = ["OWNER", "RECEPTION", "PROFESSIONAL"];
  * CH Estética es el único cliente vivo en producción y tiene que ver exactamente lo de hoy.
  * Sus módulos hoy no deciden nada (está fuera del Inicio por apps; su asignación está vacía
  * en la base de QA y según la documentación, sin medir en Neon), pero una asignación a medias
- * es una bomba: el día que entre al Inicio por apps (o
- * que `APPS_INICIO` pase a "*") perdería todas las apps de los módulos que falten. Por eso
- * el candado cubre también los cambios de a un módulo, no sólo "Fijar asignación actual".
- * Sacar un slug de acá es la forma de dar el OK.
+ * es una bomba: el día que se le prenda "Trabaja por apps" perdería todas las apps de los
+ * módulos que falten. Por eso el candado cubre también los cambios de a un módulo, no sólo
+ * "Fijar asignación actual". El interruptor mismo tiene su candado en
+ * src/cambios/interruptores-core.ts: en CH sólo el operador dueño, escribiendo el slug.
+ * Sacar un slug de acá es la forma de dar el OK para los módulos.
  */
 export const REQUIEREN_OK_DEL_DUENIO: ReadonlySet<string> = new Set(["beauty-spa"]);
 
@@ -131,13 +135,9 @@ function choqueDeExcluyentes(modules: readonly string[], registry: ModuleRegistr
  * Mis locales no se haya apagado con locales adentro. Sin el dato (`null`), se rechaza por las
  * dudas; si quien llama no lo leyó (ausente), NO se decide acá.
  *
- * ⚠️ HOY ESTE CANDADO CORRE SÓLO EN LA VISTA PREVIA DE LA FICHA (page.tsx, con
- * `leerNegocioParaActivar`). El confirmar del servidor, `toggleTenantModule` en
- * src/lib/operator-actions.ts, llama a `validarCambio` sin `vinculosActivos` y acá eso pasa
- * de largo: un POST armado a mano o dos operadores sobre la misma casa pueden apagar Mis
- * locales con locales colgando. Se cierra cuando esa action le pase
- * `vinculosActivos: await vinculosActivosDe(tenantId)` (negocio.server.ts); ese archivo es de
- * la consola, no de Mis locales.
+ * Corre en la vista previa de la ficha y también en el confirmar del servidor:
+ * `toggleTenantModule` (src/lib/operator-actions.ts) le pasa
+ * `vinculosActivos: await vinculosActivosDe(tenantId)` con la base fresca.
  */
 function choqueConVinculos(cambio: CambioDeModulo, vinculos: number | null | undefined): string | null {
   if (cambio.modulo !== "multilocal" || vinculos === undefined || vinculos === 0) return null;
@@ -162,13 +162,12 @@ export function mismoConjunto(a: readonly string[], b: readonly string[]): boole
 
 /**
  * Con qué gate se mira al negocio:
- *   · "real": los flags del deploy tal como están (lo que ve apenas se confirma);
- *   · "con-inicio": como si ya estuviera en `APPS_INICIO` (lo que va a ver cuando GSG se lo
- *     prenda);
- *   · "menu-de-siempre": como si NO estuviera en `APPS_INICIO`. Es la vara del "0 apps
- *     perdidas": antes de prenderlo coincide con lo que ve hoy, y después sigue siendo el menú
- *     al que vuelve si se lo saca de la lista. En el Comerciante incluye su gate de producto,
- *     que es su menú de siempre.
+ *   · "real": el interruptor tal como está (lo que ve apenas se confirma);
+ *   · "con-inicio": como si "Trabaja por apps" estuviera prendido (lo que va a ver cuando GSG se
+ *     lo prenda);
+ *   · "menu-de-siempre": como si estuviera apagado. Es la vara del "0 apps perdidas": antes de
+ *     prenderlo coincide con lo que ve hoy, y después sigue siendo el menú al que vuelve si se
+ *     lo apaga. En el Comerciante incluye su gate de producto, que es su menú de siempre.
  */
 type Mirada = "real" | "con-inicio" | "menu-de-siempre";
 
@@ -179,11 +178,10 @@ function contextoDe(
   registry: ModuleRegistry,
   mirada: Mirada,
 ): ContextoApps | null {
-  const appsInicio =
-    mirada === "real" ? flags.appsInicio : mirada === "con-inicio" ? (n.slug ?? undefined) : undefined;
+  const enInicioPorApps = mirada === "real" ? flags.enInicioPorApps : mirada === "con-inicio";
   return resolverContextoApps(
     { id: n.id, slug: n.slug, blueprintId: n.blueprintId, modules },
-    { registroGlobal: flags.registroGlobal, appsInicio },
+    { registroGlobal: flags.registroGlobal, enInicioPorApps },
     registry,
   );
 }
@@ -247,7 +245,7 @@ export type EstadoGate = "sin-gate" | OrigenGate;
 
 export interface EstadoAppsDelNegocio {
   gate: EstadoGate;
-  /** ¿El slug ya está en `APPS_INICIO`? */
+  /** ¿Tiene prendido "Trabaja por apps"? */
   enInicioPorApps: boolean;
   /** Las apps que ve hoy (unión de sus roles). Es la N de "N apps activas". */
   hoy: AppDescriptor[];
@@ -255,8 +253,8 @@ export interface EstadoAppsDelNegocio {
   sinAsignacion: boolean;
   /**
    * Con el Inicio por apps prendido y la asignación de hoy, contra su menú de siempre (sin el
-   * Inicio por apps). Es el chequeo de antes de sumarlo a `APPS_INICIO`: tiene que dar 0 apps
-   * perdidas.
+   * Inicio por apps). Es el chequeo de antes de prender "Trabaja por apps": tiene que dar 0 apps
+   * perdidas (lo exige también el servidor, interruptores-core.ts).
    */
   conInicioFrenteAlMenu: DiferenciaDeApps;
 }
@@ -272,7 +270,7 @@ export function estadoDeApps(
   const conInicio = appsDelNegocio(n, n.modules, contextoDe(n, n.modules, flags, registry, "con-inicio"), apps);
   return {
     gate: ctxHoy ? ctxHoy.origen : "sin-gate",
-    enInicioPorApps: negocioEnAppsInicio(n.slug, flags.appsInicio),
+    enInicioPorApps: flags.enInicioPorApps,
     hoy: appsDelNegocio(n, n.modules, ctxHoy, apps),
     sinAsignacion: n.modules.length === 0,
     conInicioFrenteAlMenu: diferencia(menu, conInicio),

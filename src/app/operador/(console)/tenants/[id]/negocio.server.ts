@@ -2,14 +2,14 @@
 // LECTURA DEL NEGOCIO PARA LA CONSOLA — lo que decide qué apps ve, leído cross-tenant.
 // ============================================================================
 //
-// La ficha del negocio y las actions de módulos necesitan el mismo dato que usa el panel
-// del negocio para decidir sus apps (src/apps/contexto.server.ts), pero leído desde la
-// consola: con `operatorPrisma` y por id, porque acá no hay un negocio "del request".
+// La ficha del negocio y las actions de módulos e interruptores necesitan el mismo dato que
+// usa el panel del negocio para decidir sus apps (src/apps/contexto.server.ts), pero leído
+// desde la consola: con `operatorPrisma` y por id, porque acá no hay un negocio "del request".
 //
 // NO lleva "use server": eso publicaría cada export como endpoint, y éste recibe un
-// tenantId. Lo importan sólo la página de la ficha y operator-actions.ts, que ya pasaron
-// por `requireOperator()`. `server-only` hace que un import desde un client component
-// falle en el build con un mensaje claro.
+// tenantId. Lo importan sólo la página de la ficha, operator-actions.ts e
+// interruptores-escritura.server.ts, detrás de `requireOperator()`. `server-only` hace que un
+// import desde un client component falle en el build con un mensaje claro.
 
 import "server-only";
 import { cache } from "react";
@@ -19,10 +19,75 @@ import { moduleRegistryEnabled, profilesEnabled } from "@/modules/flags";
 import type { Perfil } from "@/modules/perfil";
 import { leerRedEnTx, localesDeOtrasRedes, type RedEnLaFicha } from "@/lib/multilocal/multilocal-core";
 import type { FlagsDeApps, NegocioParaActivar } from "./apps-del-negocio";
+import {
+  ACCION_ENCENDER,
+  esFilaDeInterruptorValida,
+  operadorDeActor,
+  type InterruptorId,
+} from "@/cambios/interruptores";
+import {
+  estadoDesdeFilas,
+  filtroDeFilasValidas,
+  trabajaPorApps,
+  type EstadoInterruptores,
+} from "@/cambios/interruptores-core";
 
-/** Los flags del deploy que deciden el gate por módulo, leídos del entorno. */
-export function flagsDeApps(): FlagsDeApps {
-  return { registroGlobal: moduleRegistryEnabled(), appsInicio: process.env.APPS_INICIO };
+/**
+ * Lo que decide el gate por módulo además de la fila: el flag global del deploy y el interruptor
+ * "Trabaja por apps" de ESTE negocio, ya leído (`leerInterruptoresDe`).
+ */
+export function flagsDeApps(estado: EstadoInterruptores): FlagsDeApps {
+  return { registroGlobal: moduleRegistryEnabled(), enInicioPorApps: trabajaPorApps(estado) };
+}
+
+/** Una fila del historial de interruptores de la ficha: quién (nombre del operador) y cuándo. */
+export interface CambioDeInterruptor {
+  id: string;
+  interruptor: InterruptorId;
+  encendio: boolean;
+  quien: string;
+  cuando: Date;
+}
+
+/**
+ * Los interruptores del negocio leídos desde la consola: el estado (la última fila válida de cada
+ * uno) y los últimos cambios. Va en UNA transacción del operador con el GUC del negocio, así
+ * funciona con el rol exento y con `app_rls` (igual que `leerRedEnTx`). `null` = no se pudo leer:
+ * la ficha lo dice y no ofrece cambiar nada.
+ */
+export async function leerInterruptoresDe(
+  tenantId: string,
+): Promise<{ estado: EstadoInterruptores; historial: CambioDeInterruptor[] } | null> {
+  try {
+    return await operatorPrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+      const select = { id: true, entity: true, entityId: true, action: true, actor: true, channel: true, createdAt: true } as const;
+      const [ultimas, recientes] = await Promise.all([
+        tx.auditLog.findMany({
+          where: filtroDeFilasValidas(tenantId),
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          distinct: ["entityId"],
+          select,
+        }),
+        tx.auditLog.findMany({
+          where: filtroDeFilasValidas(tenantId),
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 10,
+          select,
+        }),
+      ]);
+      const historial = recientes.filter(esFilaDeInterruptorValida).map((f) => ({
+        id: f.id,
+        interruptor: f.entityId as InterruptorId,
+        encendio: f.action === ACCION_ENCENDER,
+        quien: operadorDeActor(f.actor) ?? f.actor,
+        cuando: f.createdAt,
+      }));
+      return { estado: estadoDesdeFilas(ultimas), historial };
+    });
+  } catch {
+    return null;
+  }
 }
 
 /**

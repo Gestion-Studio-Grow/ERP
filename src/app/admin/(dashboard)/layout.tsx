@@ -73,7 +73,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     useSheet ? getBrandSheet() : Promise.resolve(null),
     // Color del equipo elegido en /admin/apariencia (Tenant.accentPreset).
     getTeamAccentPreset(),
-    // ¿Negocio del piloto del Inicio por apps (`APPS_INICIO`)? Sin la variable ni se lee.
+    // ¿Trabaja por apps? El interruptor del negocio: una lectura por request, compartida con
+    // getContextoApps (src/cambios/interruptores.server.ts). Si falla, el menú de siempre.
     enInicioPorApps(),
   ]);
 
@@ -164,7 +165,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   //   · CH y todo negocio fuera del piloto → sin gate, la barra de siempre;
   //   · Comerciante → su set de módulos asignado, como antes (Inicio + Facturación +
   //     Clientes + Reportes + config), sin depender del flag global;
-  //   · piloto (`APPS_INICIO` con módulos asignados) → los módulos que tiene activados;
+  //   · "Trabaja por apps" prendido con módulos asignados → los módulos que tiene activados;
   //   · `MODULE_REGISTRY_ENABLED` prendido → la resolución global, como antes.
   // `proyectarMenuDeHoy` deja sólo las pantallas que ya estaban en la barra, con su rótulo,
   // ícono, grupo y orden de hoy. Que dé EXACTAMENTE la barra de antes (`menuItemsParaTenant`)

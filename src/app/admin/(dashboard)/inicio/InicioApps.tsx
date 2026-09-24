@@ -2,9 +2,9 @@
 // INICIO POR APPS — lo que pide atención hoy y todas las apps de la persona.
 // ============================================================================
 //
-// Reemplaza, en los negocios de `APPS_INICIO`, a los tres inicios armados a mano
-// (InicioComerciante, InicioVertical y el de mostrador de page.tsx). CH y todo negocio
-// fuera de la lista siguen con el suyo, idéntico.
+// Reemplaza, en los negocios con "Trabaja por apps" prendido (src/cambios/interruptores.ts), a
+// los tres inicios armados a mano (InicioComerciante, InicioVertical y el de mostrador de
+// page.tsx). CH y todo negocio con el interruptor apagado siguen con el suyo, idéntico.
 //
 // De arriba abajo:
 //   1. el buscador ("¿Qué querés hacer?", dos letras y Enter);

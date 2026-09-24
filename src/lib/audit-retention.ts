@@ -13,11 +13,14 @@ import type { PrismaClient } from "@/generated/prisma/client";
 // El nombre de la entidad del permiso sale del motor comercial (dato puro, sin Prisma): si
 // alguien lo renombrara allá, la exención no puede quedar apuntando a un nombre viejo.
 import { ENTIDAD_PERMISO } from "./crm/reglas";
+import { ENTIDAD_INTERRUPTOR } from "../cambios/interruptores";
 
 // Entidades de `AuditLog` que la purga nunca borra (ver el comentario en `purgeAuditLogs`).
 // Se definen acá y no se importan de `frontera-cierre.ts` a propósito: ese módulo trae el
 // cliente Prisma del runtime y esto tiene que poder correr con un doble de test.
-export const PURGE_EXEMPT_ENTITIES = ["CierreDiario", "CarteraCliente", "CierreMes", ENTIDAD_PERMISO] as const;
+// "Interruptor" (src/cambios/interruptores.ts) es el estado de los interruptores por negocio: si la
+// purga borrara la fila que lo prendió, a los 18 meses se apagaría solo, sin que nadie lo decida.
+export const PURGE_EXEMPT_ENTITIES = ["CierreDiario", "CarteraCliente", "CierreMes", ENTIDAD_PERMISO, ENTIDAD_INTERRUPTOR] as const;
 
 /** @deprecated Usar `PURGE_EXEMPT_ENTITIES`. Se conserva por compatibilidad de llamadores. */
 export const PURGE_EXEMPT_ENTITY = PURGE_EXEMPT_ENTITIES[0];

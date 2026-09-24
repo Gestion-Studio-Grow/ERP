@@ -23,8 +23,9 @@ import {
 } from "./apps-del-negocio";
 
 const cat = catalogo();
-const SIN_PILOTO: FlagsDeApps = { registroGlobal: false, appsInicio: undefined };
-const PILOTO: FlagsDeApps = { registroGlobal: false, appsInicio: "magra,shinevelas,adosmanos" };
+// El interruptor "Trabaja por apps" del negocio que se mira: apagado o prendido.
+const SIN_PILOTO: FlagsDeApps = { registroGlobal: false, enInicioPorApps: false };
+const PILOTO: FlagsDeApps = { registroGlobal: false, enInicioPorApps: true };
 const ids = (apps: readonly AppDescriptor[]) => apps.map((a) => a.id);
 
 // magra como está en la base de QA (psql erp_qa_apps, 2026-09-23), con la migración cárnica.
@@ -264,7 +265,7 @@ test("fijar en magra suma lo mínimo (inventario, campañas, bancos) y deja 0 ap
   assert.deepEqual(f.frenteAlMenu.pierde, []);
   assert.deepEqual(f.noSeRecuperan, []);
 
-  // Con la asignación fijada, la tarjeta da 0 apps perdidas antes de prender APPS_INICIO...
+  // Con la asignación fijada, la tarjeta da 0 apps perdidas antes de prender "Trabaja por apps"...
   const fijado = { ...MAGRA, modules: f.despues };
   assert.deepEqual(estadoDeApps(fijado, SIN_PILOTO, cat).conInicioFrenteAlMenu.pierde, []);
   // ...y después de prenderlo ve exactamente lo mismo que hoy.

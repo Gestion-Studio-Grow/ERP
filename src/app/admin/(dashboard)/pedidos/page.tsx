@@ -63,10 +63,10 @@ export default async function PedidosPage() {
   // La guardia de la app (rol, módulo pos): esconderla del menú no la protegería. getPosData
   // vuelve a pedir orders:read, como siempre.
   const user = await requireApp("pedidos");
-  // ¿Modelo nuevo? En los negocios del Inicio por apps (`APPS_INICIO`) el mostrador vive en
-  // /admin/vender y esta pantalla es sólo la bandeja. En CH, y en todo negocio fuera del
-  // piloto, la solapa de venta de arriba queda IGUAL que siempre hasta que el dueño apruebe el
-  // cambio. Sacar el slug de APPS_INICIO devuelve un negocio a esta pantalla sin tocar datos.
+  // ¿Modelo nuevo? En los negocios con "Trabaja por apps" prendido el mostrador vive en
+  // /admin/vender y esta pantalla es sólo la bandeja. En CH, y en todo negocio con el
+  // interruptor apagado, la solapa de venta de arriba queda IGUAL que siempre hasta que el dueño
+  // apruebe el cambio. Apagar el interruptor devuelve un negocio a esta pantalla sin tocar datos.
   // Está cacheado por request (el layout ya lo leyó): no suma un viaje a la base.
   const modeloNuevo = await enInicioPorApps();
   // El POS de arriba sólo en el modelo de hoy, y en la MISMA tanda que la bandeja. El snapshot

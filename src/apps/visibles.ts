@@ -12,10 +12,10 @@
 //
 // EL GATE POR MÓDULO ES POR NEGOCIO (`resolverContextoApps`), no global:
 //   · contexto `null` → sin gate por módulo, idéntico a hoy. Es el caso de CH y de todo
-//     negocio fuera del piloto (`APPS_INICIO`) o con la asignación vacía. Ningún conjunto
+//     negocio sin el interruptor "Trabaja por apps" o con la asignación vacía. Ningún conjunto
 //     de módulos por defecto reproduce lo que CH ve hoy, así que prender el gate con
 //     defaults le sacaría pantallas al único cliente en producción.
-//   · piloto (`APPS_INICIO` + asignación no vacía) → los módulos que resuelve
+//   · piloto (interruptor "Trabaja por apps" prendido + asignación no vacía) → los módulos que resuelve
 //     `resolverActivacion` (existen, son del rubro y tienen sus dependencias).
 //   · producto con tienda (Comerciante) → `Tenant.modules` tal cual, como hace hoy el layout,
 //     y con el módulo con que la barra de hoy filtra cada pantalla (`menuDeHoy.moduloDeHoy`):
@@ -57,28 +57,14 @@ export interface TenantParaApps {
 }
 
 /**
- * ¿El negocio está en `APPS_INICIO`? El valor es una lista de slugs separada por comas
- * ("magra,shinevelas,adosmanos") o "*" para todos. Vacío o ausente = ninguno. Sacar un slug
- * devuelve a ese negocio al Inicio y al menú de hoy sin tocar un dato.
- */
-export function negocioEnAppsInicio(slug: string | null, valorFlag: string | undefined): boolean {
-  const v = valorFlag?.trim();
-  if (!slug || !v) return false;
-  if (v === "*") return true;
-  const buscado = slug.trim().toLowerCase();
-  return v
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .some((s) => s === buscado);
-}
-
-/**
  * El gate por módulo de ESTE negocio, o `null` si no hay gate (idéntico a hoy).
- * PURA: recibe la fila del tenant, los flags y el catálogo; no lee nada.
+ * PURA: recibe la fila del tenant, los flags y el catálogo; no lee nada. `enInicioPorApps` es el
+ * interruptor del negocio, ya leído (src/cambios/interruptores.server.ts en el panel,
+ * negocio.server.ts en la consola). Reemplaza a la variable de deploy APPS_INICIO, retirada.
  */
 export function resolverContextoApps(
   t: TenantParaApps,
-  opts: { registroGlobal: boolean; appsInicio: string | undefined },
+  opts: { registroGlobal: boolean; enInicioPorApps: boolean },
   catalogoModulos: ModuleRegistry,
 ): ContextoApps | null {
   const resueltos = () =>
@@ -96,9 +82,10 @@ export function resolverContextoApps(
   if (productoUsaTienda(derivarProducto({ blueprintId: t.blueprintId, modules: [...t.modules] }))) {
     return { origen: "producto", modulos: new Set(t.modules) };
   }
-  // Piloto: sólo con asignación. Un negocio del piloto con `modules` vacío queda sin gate:
-  // vacío no significa "nada", significa "todavía no se fijó" (el caso de CH).
-  if (t.modules.length > 0 && negocioEnAppsInicio(t.slug, opts.appsInicio)) {
+  // Piloto: el interruptor "Trabaja por apps" prendido (src/cambios/interruptores.ts) Y una
+  // asignación. Un negocio con `modules` vacío queda sin gate aunque el interruptor esté
+  // prendido: vacío no significa "nada", significa "todavía no se fijó" (el caso de CH).
+  if (t.modules.length > 0 && opts.enInicioPorApps) {
     return { origen: "piloto", modulos: resueltos() };
   }
   return null;

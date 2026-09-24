@@ -9,7 +9,7 @@
 //   1. TRINQUETE: la cantidad de páginas sin `requireApp` no puede subir. Eran 34 (todas); ver
 //      LIMITE_PAGINAS_SIN_REQUIRE_APP.
 //      Cada frente la agrega en sus páginas; una página nueva sin guardia rompe el test.
-//   2. Toda página pertenece a una app del registro (salvo /admin/modulos, que sale).
+//   2. Toda página pertenece a una app del registro (SIN_APP lista las excepciones; hoy ninguna).
 //   3. Si una página llama a `requireApp`, es con el id de SU app: proteger la app vecina
 //      dejaría la propia abierta.
 //   4. La capability del registro es la que exige la página raíz de cada app: la que pide
@@ -27,16 +27,14 @@ import { appDeRuta } from "./rutas";
 
 /**
  * Páginas en (dashboard) sin requireApp. Sólo puede bajar. Eran 34 al arrancar la ola 1;
- * medido en la integración de la ola 2: 24; en la de la ola 3: 11 (apariencia, auditoria,
- * caja, caja/libro, campania, facturacion/bancos, facturacion/bancos/configuracion,
- * localizacion, modulos, el Inicio y usuarios).
+ * medido en la integración de la ola 2: 24; en la de la ola 3: 11; en la tanda 2b, 10, al
+ * borrarse /admin/modulos (quedan apariencia, auditoria, caja, caja/libro, campania,
+ * facturacion/bancos, facturacion/bancos/configuracion, localizacion, el Inicio y usuarios).
  */
-const LIMITE_PAGINAS_SIN_REQUIRE_APP = 11;
+const LIMITE_PAGINAS_SIN_REQUIRE_APP = 10;
 
 /** Páginas que no son de ninguna app, con el motivo. */
-const SIN_APP: Record<string, string> = {
-  "/admin/modulos": "salió del registro: exige modules:manage y ningún rol la tiene (se borra en la limpieza)",
-};
+const SIN_APP: Record<string, string> = {};
 
 const RAIZ = join(process.cwd(), "src", "app", "admin", "(dashboard)");
 

@@ -436,8 +436,8 @@ export default function AdminShell({
   // La barra, YA decidida en el layout (server) desde el registro de apps: sólo lo que esta
   // persona puede abrir en este negocio, con el rótulo, ícono, grupo y orden de hoy.
   menu: ItemMenuDeHoy[];
-  // Piloto del Inicio por apps (`APPS_INICIO`): las apps que la persona ve, para la paleta
-  // de Ctrl/⌘K. Fuera del piloto llega vacío y la barra busca en su menú, como siempre.
+  // Inicio por apps (interruptor "Trabaja por apps" del negocio): las apps que la persona ve,
+  // para la paleta de Ctrl/⌘K. Con el interruptor apagado llega vacío y la barra busca en su menú, como siempre.
   apps?: readonly AppDescriptor[];
   modoApps?: boolean;
   // ¿El producto tiene vidriera pública en "/"? Vertical → sí (default). Productos de

@@ -7,7 +7,7 @@
 //   · /admin/facturacion/bancos es su propia app (módulo bancos), no Facturación (arca);
 //   · las pantallas de edición (Libros, Fiado, Cuentas a pagar, Devoluciones) no estaban en
 //     ALL_ITEMS, así que `navItemForPath` no las encontraba; ahora sí;
-//   · /admin/modulos salió del registro (nadie tiene `modules:manage`).
+//   · /admin/modulos salió del registro y se borró (nadie tenía `modules:manage`).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,7 +18,6 @@ const id = (path: string) => appDeRuta(path)?.id;
 
 test("para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath", () => {
   for (const item of ALL_ITEMS) {
-    if (item.href === "/admin/modulos") continue;
     const variantes = item.exact
       ? [item.href, `${item.href}/`, `${item.href}?x=1`, `${item.href}#y`]
       : [item.href, `${item.href}/`, `${item.href}/abc`, `${item.href}/abc/def?x=1`, `${item.href}#y`];

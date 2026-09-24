@@ -17,7 +17,7 @@ const MODULOS_MAGRA = ["pos", "catalog", "clients", "reports", "arca", "inventar
 function magra(role: Role): NegocioApps {
   const contexto = resolverContextoApps(
     { id: "t-magra", slug: "magra", blueprintId: "carniceria", modules: MODULOS_MAGRA },
-    { registroGlobal: false, appsInicio: "magra,shinevelas,adosmanos" },
+    { registroGlobal: false, enInicioPorApps: true },
     catalogo(),
   );
   assert.equal(contexto?.origen, "piloto");

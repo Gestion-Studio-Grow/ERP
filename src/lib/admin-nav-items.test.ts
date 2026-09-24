@@ -41,7 +41,7 @@ test("navItemForPath: ruta fuera del set del backoffice no matchea", () => {
 // ── rutaPermitidaParaModulos: whitelist derivada de ALL_ITEMS ────────────────
 
 test("Comerciante: Inicio y config (sin módulo) SIEMPRE permitidos", () => {
-  for (const p of ["/admin", "/admin/auditoria", "/admin/usuarios", "/admin/localizacion", "/admin/apariencia", "/admin/modulos"]) {
+  for (const p of ["/admin", "/admin/auditoria", "/admin/usuarios", "/admin/localizacion", "/admin/apariencia"]) {
     assert.equal(rutaPermitidaParaModulos(p, COMERCIANTE), true, p);
   }
 });
