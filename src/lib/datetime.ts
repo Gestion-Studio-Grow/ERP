@@ -38,6 +38,21 @@ export function businessWallTimeToUtc(dateStr: string, timeStr: string): Date {
   return new Date(naiveUtc.getTime() - offset);
 }
 
+/**
+ * El horario pedido, del `<input type="datetime-local">` ("2026-09-26T10:00"), leído en la
+ * zona del NEGOCIO. Lo ilegible, o una fecha que no existe ("2026-02-30"), es `null`. Lo usan el
+ * alta (`horarioDelFormulario`, order-anulacion.ts) y la pantalla de Vender (la firma del cobro):
+ * la misma lectura de los dos lados.
+ */
+export function horarioDeNegocioDelFormulario(raw: string | null | undefined): Date | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(String(raw ?? "").trim());
+  if (!m) return null;
+  const pared = new Date(`${m[1]}T${m[2]}:00.000Z`);
+  if (Number.isNaN(pared.getTime()) || pared.toISOString().slice(0, 16) !== `${m[1]}T${m[2]}`) return null;
+  const d = businessWallTimeToUtc(m[1], m[2]);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 // Día de la semana (0=domingo..6=sábado) de una fecha de calendario, estable
 // ante la zona (se ancla al mediodía UTC para no cruzar la medianoche).
 export function dayOfWeekForDate(dateStr: string): number {

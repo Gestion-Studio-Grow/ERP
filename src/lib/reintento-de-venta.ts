@@ -34,6 +34,7 @@ import { formatearCantidad } from "@/lib/pos-peso";
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import { aplicarDescuento, esLineaDeEnvio, normalizarCodigoDeCupon, type PedidoDeDescuento } from "@/lib/venta-reglas";
+import { normalizarTelefono } from "@/lib/clientes/telefono";
 import type { VentaTicket } from "@/app/admin/(dashboard)/vender/reglas-venta";
 
 /** Cómo quedó (o pide quedar) la plata de la venta. */
@@ -146,9 +147,6 @@ export type VentaYaGrabada = {
   ticket?: VentaTicket;
 };
 
-function soloDigitos(s: string): string {
-  return s.replace(/\D/g, "");
-}
 function textoComparable(s: string | null): string {
   return (s ?? "").trim().replace(/\s+/g, " ");
 }
@@ -275,7 +273,8 @@ export function compararConLoGrabado(
   const cobro = cobroGrabado(grabada);
   if (!mismoCobro(cobro, pedido.cobro)) no(`Cómo pagó: se grabó ${textoDeCobro(cobro)}; ahora ${textoDeCobro(pedido.cobro)}.`);
 
-  if (soloDigitos(grabada.customerPhone) !== soloDigitos(pedido.telefono)) {
+  // El teléfono con la MISMA clave que la ficha ("+54 9 11 4000-0000" = "11 4000 0000").
+  if (normalizarTelefono(grabada.customerPhone) !== normalizarTelefono(pedido.telefono)) {
     const t = (x: string) => (x.trim() ? x.trim() : "sin teléfono");
     no(`Teléfono del cliente: se grabó ${t(grabada.customerPhone)}; ahora ${t(pedido.telefono)}.`);
   }
@@ -302,6 +301,48 @@ export function compararConLoGrabado(
 
   const todoDeMas = d.length > 0 && d.every((x) => x.aditiva);
   return { diferencias: d, faltante: todoDeMas ? faltante : null };
+}
+
+/**
+ * LA FIRMA de lo pedido: una cadena que es IGUAL para dos envíos si y sólo si el servidor los
+ * trataría como la misma venta (`compararConLoGrabado`). La usa la PANTALLA para saber si un
+ * reintento es la misma venta que la cortada, y por eso vive acá, al lado de la comparación: si
+ * una cambia, la otra se ve en el mismo archivo, y reintento-de-venta.test.ts lo fija.
+ *
+ * Incluye exactamente lo que compara el servidor: productos y peso (por producto, sumados, a
+ * gramos), precios a mano (nombre e importe), cupón (código), descuento PEDIDO (tipo y valor),
+ * cómo se cobra, teléfono (con la clave de la ficha) y, en un pedido, la entrega. NO incluye
+ * nada que dependa del catálogo o de la base: ni precios ni totales (la firma de antes metía el
+ * total a precios de HOY, y al recargar con otro precio decía "Cambiaste la venta" sin que nadie
+ * tocara nada), ni el nombre del cliente.
+ *
+ * La única diferencia a propósito: el servidor compara el descuento a mano en PESOS sobre lo
+ * grabado (es lo único que la fila guarda), y la firma lo compara como se pidió. Un 10 % cambiado
+ * por $1.250 a mano (el mismo monto) es "cambiaste" para la pantalla y "lo mismo" para el
+ * servidor: la pantalla frena lo que la cajera sí cambió; nunca deja pasar algo que el servidor
+ * rechace.
+ */
+export function firmaDelPedido(p: PedidoDelReintento): string {
+  const productos = new Map<string, number>();
+  for (const l of p.productos) productos.set(l.productId, q3((productos.get(l.productId) ?? 0) + l.cantidad));
+  const aMano = new Map<string, number>();
+  for (const m of p.aMano) {
+    const k = `${nombreComparable(m.nombre)}|${round2(m.importe)}`;
+    aMano.set(k, (aMano.get(k) ?? 0) + 1);
+  }
+  const orden = <T,>(m: Map<string, T>) => [...m.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return JSON.stringify([
+    p.canal,
+    orden(productos),
+    orden(aMano),
+    p.cupon ?? "",
+    p.descuento ? [p.descuento.tipo, round2(p.descuento.valor)] : null,
+    p.cobro.tipo === "medio" ? ["medio", p.cobro.medio] : [p.cobro.tipo],
+    normalizarTelefono(p.telefono),
+    p.canal === "ONLINE"
+      ? [p.entrega.tipo, textoComparable(p.entrega.direccion), p.entrega.horario ?? null, textoComparable(p.entrega.notas)]
+      : null,
+  ]);
 }
 
 /** Lo que falta, en palabras: "Entraña 0,95 kg, Bolsa $500,00". */

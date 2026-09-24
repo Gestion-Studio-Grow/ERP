@@ -409,22 +409,26 @@ function FormularioVender({
   // reintento es la misma venta. Cliente y entrega van como viajan: sin la sección abierta no se
   // mandan, y la firma no los cuenta.
   const conDatosDeCliente = isOrder || conCliente;
+  // Lo mismo que viaja en el formulario, firmado con la función del servidor (`firmaDelPedido`):
+  // sin precios, sin total, sin el nombre de la ficha. Recargar con otro precio de catálogo ya
+  // no cambia la firma.
   const firma = firmaDelCobro({
     lineas: leidas.filter((l) => byId.get(l.productId) && l.qty > 0).map((l) => ({ productId: l.productId, cantidad: l.qty })),
     manuales: manualesLeidas.filter((m) => m.valida).map((m) => ({ nombre: m.nombre, importe: m.importe })),
     medio: aCuentaActivo ? "A_CUENTA" : paid ? medio : "SIN_COBRAR",
-    total,
     esPedido: isOrder,
-    cliente: conDatosDeCliente ? { telefono, nombre: nombreCliente } : { telefono: "", nombre: "" },
-    descuento: {
-      cupon: usaCupon ? (cupon.aplicado?.codigo ?? (cupon.codigo.trim().toUpperCase() || null)) : null,
-      monto: descuento.ok ? descuento.descuento : 0,
-    },
+    telefono: conDatosDeCliente ? telefono : "",
+    cupon: usaCupon ? (cupon.aplicado?.codigo ?? cupon.codigo) : null,
+    descuento: conDescuento && !usaCupon && pedidoDescuento.ok ? pedidoDescuento.pedido : null,
     entrega: isOrder
       ? { tipo: fulfillment, direccion: fulfillment === "DELIVERY" ? direccion : "", horario, nota }
       : null,
   });
   const cambioTrasCorte = sinRespuesta !== null && cambioDespuesDelCorte(sinRespuesta.firma, firma);
+  // El reintento de LA MISMA venta en duda. El stock que muestra la pantalla puede ya tener
+  // descontada esa venta (si se grabó): no frena el reintento. Decide el servidor: si está
+  // grabada, la devuelve; si no, valida el stock él, en su transacción.
+  const reintentoDeLaMisma = sinRespuesta !== null && !cambioTrasCorte;
 
   // Lo cargado, lo justo para volver a mostrarlo igual si la pantalla se recarga con un cobro en
   // duda (cobro-sin-conexion.ts, "La duda sobrevive a recargar la pantalla").
@@ -533,6 +537,8 @@ function FormularioVender({
     setNextKey(n);
     setConDescuento(false);
     setDescuentoText("");
+    // «Pagó con» era de la venta entera: con él, el vuelto de lo que falta salía de más.
+    setPagoConText("");
     cupon.limpiar();
     esOtraVenta();
     setSoloLoQueFalta({ code: g.code, texto: textoDelFaltante(f) });
@@ -586,7 +592,7 @@ function FormularioVender({
       // Se guarda el PRIMER envío en duda (un reintento sólo sale si lo cargado es igual).
       if (!sinRespuesta) {
         guardarCobroSinConfirmar(almacenDeSesion(), almacen, {
-          v: 2,
+          v: 3,
           clave,
           firma,
           total,
@@ -823,7 +829,8 @@ function FormularioVender({
             const esPeso = p?.saleUnit === "WEIGHT";
             const lineTotal = totalDeLinea(l);
             const faltante = faltanteDe(l);
-            const falta = faltante?.bloquea ? faltante : null;
+            const falta = faltante?.bloquea && !reintentoDeLaMisma ? faltante : null;
+            const faltaEnDuda = faltante?.bloquea && reintentoDeLaMisma ? faltante : null;
             const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
             const aviso = p && !l.invalida ? avisoDeCantidad({ valor: l.qty, saleUnit: p.saleUnit }) : null;
             return (
@@ -881,6 +888,12 @@ function FormularioVender({
                   <p role="alert" className="col-span-2 sm:col-span-3 text-xs text-danger">
                     Eso no es una cantidad. Escribí el {esPeso ? "peso" : "número"}, con coma si
                     {esPeso ? " tiene gramos (1,240)" : " hace falta"}.
+                  </p>
+                )}
+                {faltaEnDuda && (
+                  <p role="status" className="col-span-2 sm:col-span-3 text-xs text-warning">
+                    Quedan {formatearCantidad(faltaEnDuda.available)} {esPeso ? "kg" : "u"} de {p?.name}, pero puede ser porque
+                    esta misma venta ya se grabó: el reintento lo controla el sistema.
                   </p>
                 )}
                 {falta && (
@@ -1433,7 +1446,7 @@ function FormularioVender({
             <CobrarSubmit
               disabled={
                 !hayLineaValida ||
-                hayFaltante ||
+                (hayFaltante && !reintentoDeLaMisma) ||
                 hayCantidadInvalida ||
                 hayManualInvalida ||
                 faltaMedio ||

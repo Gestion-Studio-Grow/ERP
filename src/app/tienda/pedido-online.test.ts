@@ -18,6 +18,8 @@ import {
   decidirAlta,
   insertOrderGuarded,
   tomarPedidoOnlineGuarded,
+  claveDeLaVidriera,
+  esClaveDeLaVidriera,
   CuponRechazado,
   type InsertedOrder,
   type OrderInput,
@@ -209,6 +211,10 @@ test("«Pedir por WhatsApp»: el mensaje sale con el número del pedido y lo que
 // (`problemasDeLaBolsa`) contra una tienda falsa: 1 kg de vacío en stock, y el alta descuenta
 // con la misma guarda que la base (si no alcanza, aborta).
 
+// Claves como las que manda la tienda, ya en el espacio de la vidriera (`claveDeLaVidriera`).
+const CARRITO_A = "web:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
+const CARRITO_B = "web:0a1b2c3d-4e5f-4a6b-8c7d-8e9f0a1b2c3d";
+
 function tiendaFalsa(stock: number) {
   const m = { stock, pedidos: [] as { id: string; code: number; key: string | null }[], revisiones: 0 };
   const producto = (): ProductoParaBolsa => ({ ...VACIO, stock: m.stock });
@@ -245,13 +251,13 @@ function tiendaFalsa(stock: number) {
 
 test("reintento con la MISMA clave después de llevarse el último kilo: devuelve el pedido ya tomado, no 'no nos alcanza'", async () => {
   const { m, tomar } = tiendaFalsa(1);
-  const primero = await tomar("carrito-A", 1);
+  const primero = await tomar(CARRITO_A, 1);
   assert.equal(primero.tipo, "tomado");
   assert.equal(m.stock, 0);
 
   // La red se cortó después del alta y el celular reenvía: mismo carrito, misma clave.
   m.revisiones = 0;
-  const reintento = await tomar("carrito-A", 1);
+  const reintento = await tomar(CARRITO_A, 1);
   assert.equal(reintento.tipo, "tomado");
   assert.deepEqual(
     reintento.tipo === "tomado" ? [reintento.pedido.id, reintento.pedido.code, reintento.pedido.dedup] : null,
@@ -262,7 +268,7 @@ test("reintento con la MISMA clave después de llevarse el último kilo: devuelv
   assert.equal(m.stock, 0, "el stock se descontó una vez");
 
   // Otro carrito (otra clave) con la misma bolsa sí choca con el stock, en su línea.
-  const otro = await tomar("carrito-B", 1);
+  const otro = await tomar(CARRITO_B, 1);
   assert.equal(otro.tipo, "bolsa");
   assert.match(otro.tipo === "bolsa" ? otro.porLinea.p_vacio : "", /Se agotó/);
   assert.equal(m.pedidos.length, 1);
@@ -337,4 +343,32 @@ test("pesar y ajustar un pedido con envío y cupón: el envío no es base del de
     descuento: 1550,
     porcentaje: 10,
   });
+});
+
+// ── La clave de la vidriera vive en su espacio (seguridad: leer pedidos ajenos) ───────────────
+test("la clave que manda un anónimo: sólo con la forma de las que genera la tienda, y siempre en el espacio web:", () => {
+  // Las dos formas que genera la tienda (MagraFront/ShineFront): UUID, o el respaldo sin randomUUID.
+  assert.equal(claveDeLaVidriera(" 6F1C2A3B-4D5E-4F60-8A7B-9C0D1E2F3A4B "), "web:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b");
+  assert.equal(claveDeLaVidriera("1790245351535-qm3axe609zh"), "web:1790245351535-qm3axe609zh");
+  // Lo que no: la clave de la ingesta externa (secuencial), la de otro espacio, basura, lo larguísimo.
+  for (const mala of ["ext:1001", "1001", "web:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", "k1", "", null, 42, "a".repeat(80)]) {
+    assert.equal(claveDeLaVidriera(mala), null, String(mala));
+  }
+  assert.equal(esClaveDeLaVidriera("web:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"), true);
+  for (const ajena of ["ext:1001", "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", "web:ext:1001", "web:1001"]) {
+    assert.equal(esClaveDeLaVidriera(ajena), false, ajena);
+  }
+});
+
+test("la guarda de la tienda no busca una clave de otro espacio: toma un pedido nuevo en vez de devolver el ajeno", async () => {
+  const buscadas: string[] = [];
+  const ajeno: InsertedOrder = { id: "ord_victima", code: 1, subtotal: 25000, total: 25000, lines: 1, dedup: true };
+  const r = await tomarPedidoOnlineGuarded({
+    idempotencyKey: "ext:1001",
+    buscarPorClave: async (k) => (buscadas.push(k), ajeno),
+    revisarBolsa: async () => ({}),
+    insertar: async () => ({ id: "ord_nuevo", code: 2, subtotal: 25000, total: 25000, lines: 1 }),
+  });
+  assert.deepEqual(buscadas, [], "ni se buscó");
+  assert.ok(r.tipo === "tomado" && r.pedido.id === "ord_nuevo");
 });

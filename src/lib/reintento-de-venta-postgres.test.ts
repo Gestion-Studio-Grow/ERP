@@ -204,7 +204,7 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     assert.equal(await ordenesCon(k7), 1);
 
     // ── Un rechazo de negocio de verdad (sin stock) es "no se cobró": y no quedó nada ─────
-    const antes = await operatorPrisma.order.count({ where: { tenantId } });
+    let antes = await operatorPrisma.order.count({ where: { tenantId } });
     let rechazo: unknown = null;
     try {
       await insertOrder(tenantId, { ...efectivo, customerName: "", items: [{ productId: entrana.id, qty: 2 }] }, { idempotencyKey: `qa-k5-${slug}` });
@@ -214,7 +214,43 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     assert.match(motivoDelRechazoDelAlta(rechazo) ?? "", /^Sin stock suficiente de "Entraña"/);
     assert.equal(await operatorPrisma.order.count({ where: { tenantId } }), antes, "el rechazo no grabó nada");
 
+    // ── La vidriera pública NO encuentra claves de otro espacio (refutador rf-ext) ───────────
+    // Un pedido de la ingesta externa (clave "ext:<número>", secuencial) y una venta del mostrador.
+    const { claveDeLaVidriera, tomarPedidoOnlineGuarded, pedidoConClave } = await import("@/lib/order-core");
+    await insertOrder(tenantId, { ...pedido, customerName: "Laura Víctima", address: "Calle Privada 742" }, { idempotencyKey: "ext:1001" });
+    for (const ajena of ["ext:1001", k1]) {
+      // Lo que hace `placeOnlineOrder` con la clave que manda un anónimo: no tiene la forma → sin clave.
+      assert.equal(claveDeLaVidriera(ajena), null, ajena);
+      // Y aunque llegara tal cual a la guarda, no se busca fuera del espacio `web:`.
+      let tomo = false;
+      const toma = await tomarPedidoOnlineGuarded({
+        idempotencyKey: ajena,
+        buscarPorClave: (k) => pedidoConClave(tenantId, k),
+        revisarBolsa: async () => ({}),
+        insertar: async () => {
+          tomo = true;
+          throw new Error("no se llega a grabar en este test");
+        },
+      });
+      assert.notEqual(toma.tipo, "tomado", `la vidriera encontró ${ajena}`);
+      assert.equal(tomo, true, "se intentó un alta nueva, sin devolver el pedido ajeno");
+    }
+    // La clave propia de la tienda sí se encuentra (el reintento del mismo carrito).
+    const web = claveDeLaVidriera("6F1C2A3B-4D5E-4F60-8A7B-9C0D1E2F3A4B")!;
+    assert.equal(web, "web:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b");
+    const propio = await insertOrder(tenantId, pedido, { idempotencyKey: web });
+    const retoma = await tomarPedidoOnlineGuarded({
+      idempotencyKey: web,
+      buscarPorClave: (k) => pedidoConClave(tenantId, k),
+      revisarBolsa: async () => ({}),
+      insertar: async () => {
+        throw new Error("no tenía que volver a grabar");
+      },
+    });
+    assert.ok(retoma.tipo === "tomado" && retoma.pedido.id === propio.id);
+
     // Todo lo de arriba se leyó y escribió como la app (RLS): el negocio de al lado no ve nada.
+    antes = await operatorPrisma.order.count({ where: { tenantId } });
     assert.equal(await prisma.order.count({ where: { tenantId } }), antes);
   } finally {
     delete e.FORCE_TENANT_SLUG;

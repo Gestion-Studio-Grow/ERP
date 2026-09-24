@@ -25,8 +25,15 @@
 // (reintento-de-venta.ts) y, si no coincide, no graba nada y contesta «ya-grabada-distinta». La
 // firma de acá sirve para no mandar algo que va a volver así, y para decirlo antes.
 
-import { fmtDateTimeAr } from "@/lib/datetime";
-import { tituloDeYaGrabada, detalleDeYaGrabada, type VentaYaGrabada } from "@/lib/reintento-de-venta";
+import { fmtDateTimeAr, horarioDeNegocioDelFormulario } from "@/lib/datetime";
+import type { PedidoDeDescuento } from "@/lib/venta-reglas";
+import {
+  detalleDeYaGrabada,
+  firmaDelPedido,
+  pedidoDelReintento,
+  tituloDeYaGrabada,
+  type VentaYaGrabada,
+} from "@/lib/reintento-de-venta";
 
 /**
  * Cuánto se espera la respuesta del cobro antes de decir que no sabemos si se grabó. Sin tope,
@@ -181,36 +188,48 @@ export function claveParaCobrar(actual: string, nueva: () => string): string {
 // se pide decidir (volver a dejarlo como estaba, o declarar que es otra venta con otra clave).
 
 /**
- * Lo que define un cobro, en una cadena comparable: TODO lo que el servidor compara con lo
- * grabado (`diferenciasConLoGrabado`, reintento-de-venta.ts). La plata y el stock (líneas, medio,
- * total), a QUIÉN (teléfono y nombre: una venta a cuenta es deuda de alguien), CÓMO se descontó
- * (cupón o descuento a mano: un 10 % a mano del mismo monto que un cupón no es el mismo cobro,
- * el cupón gasta un uso) y, en un pedido, la entrega.
+ * La firma de lo que la pantalla va a mandar: arma lo pedido con la MISMA función que usa el
+ * servidor para leer el formulario (`pedidoDelReintento`) y lo firma con `firmaDelPedido`
+ * (reintento-de-venta.ts), que compara exactamente lo que compara el servidor con lo grabado.
+ * Así la pantalla y el servidor no pueden volver a diferir: antes la firma de acá metía el total
+ * a precios de HOY, el nombre del cliente y el MONTO del descuento, y al recargar con otro precio
+ * decía "Cambiaste la venta" y frenaba el reintento sin que nadie hubiera tocado nada.
+ * Recibe lo que viaja en el formulario (lo que no viaja no cuenta).
  */
 export function firmaDelCobro(v: {
+  esPedido: boolean;
   lineas: readonly { productId: string; cantidad: number }[];
   manuales: readonly { nombre: string; importe: number }[];
-  /** El medio, o "A_CUENTA" si queda a cuenta; "" si todavía no se eligió. */
+  /** El medio, "A_CUENTA" si queda a cuenta, "SIN_COBRAR" si no se cobra; "" si no se eligió. */
   medio: string;
-  total: number;
-  esPedido: boolean;
-  cliente: { telefono: string; nombre: string };
-  /** El código del cupón aplicado (o `null`) y el descuento en pesos. */
-  descuento: { cupon: string | null; monto: number };
+  /** El teléfono que viaja ("" si no se abrió el cliente). */
+  telefono: string;
+  /** El código del cupón que viaja, o `null`. */
+  cupon: string | null;
+  /** El descuento a mano como se pidió (tipo y valor), o `null`. */
+  descuento: PedidoDeDescuento | null;
   /** Sólo en un pedido; en la venta, `null`. `horario` tal cual lo da el campo. */
-  entrega: { tipo: string; direccion: string; horario: string; nota: string } | null;
+  entrega: { tipo: "PICKUP" | "DELIVERY"; direccion: string; horario: string; nota: string } | null;
 }): string {
-  const texto = (s: string) => s.trim().replace(/\s+/g, " ");
-  return JSON.stringify([
-    v.esPedido ? "pedido" : "venta",
-    v.lineas.map((l) => [l.productId, l.cantidad]),
-    v.manuales.map((m) => [m.nombre.trim().toLowerCase(), m.importe]),
-    v.medio,
-    v.total,
-    [v.cliente.telefono.replace(/\D/g, ""), texto(v.cliente.nombre).toLowerCase()],
-    [v.descuento.cupon ?? "", v.descuento.monto],
-    v.entrega ? [v.entrega.tipo, texto(v.entrega.direccion), v.entrega.horario, texto(v.entrega.nota)] : null,
-  ]);
+  const aCuenta = v.medio === "A_CUENTA";
+  const cobrada = !aCuenta && v.medio !== "SIN_COBRAR" && v.medio !== "";
+  return firmaDelPedido(
+    pedidoDelReintento(
+      {
+        channel: v.esPedido ? "ONLINE" : "COUNTER",
+        fulfillment: v.entrega?.tipo ?? "PICKUP",
+        customerPhone: v.telefono.trim(),
+        address: v.entrega && v.entrega.tipo === "DELIVERY" ? v.entrega.direccion.trim() || null : null,
+        notes: v.entrega ? v.entrega.nota.trim() || null : null,
+        scheduledFor: v.entrega ? horarioDeNegocioDelFormulario(v.entrega.horario) : null,
+        paid: cobrada,
+        paymentMethod: cobrada ? v.medio : null,
+        items: v.lineas.map((l) => ({ productId: l.productId, qty: l.cantidad })),
+        lineasAMano: v.manuales,
+      },
+      { cupon: v.cupon, descuento: v.descuento ? { pedido: v.descuento } : null, aCuenta },
+    ),
+  );
 }
 
 /** ¿Lo cargado ahora es lo mismo que se mandó cuando se cortó? Si no, no se reintenta así. */
@@ -403,7 +422,8 @@ export type CargadoDelCobro = {
 };
 
 export type CobroSinConfirmar = {
-  v: 2;
+  /** 3: la firma de `firmaDelPedido`. Las de antes (con precios y nombre) no se restauran. */
+  v: 3;
   clave: string;
   firma: string;
   total: number;
@@ -494,7 +514,7 @@ export function leerCobroSinConfirmar(
   try {
     const x = JSON.parse(crudo) as Partial<CobroSinConfirmar> | null;
     const k = x?.cargado as Partial<CargadoDelCobro> | undefined;
-    if (!x || x.v !== 2 || !esTexto(x.clave) || !x.clave || !esTexto(x.firma) || !esNumero(x.total) || !esTexto(x.desde) || !esTexto(x.usuario)) return null;
+    if (!x || x.v !== 3 || !esTexto(x.clave) || !x.clave || !esTexto(x.firma) || !esNumero(x.total) || !esTexto(x.desde) || !esTexto(x.usuario)) return null;
     if (!k || typeof k.esPedido !== "boolean" || !Array.isArray(k.lineas) || !Array.isArray(k.manuales)) return null;
     if (!k.lineas.every((l) => l && esTexto(l.productId) && esTexto(l.qtyText))) return null;
     if (!k.manuales.every((m) => m && esTexto(m.nombre) && esTexto(m.importeText) && esTexto(m.motivo))) return null;

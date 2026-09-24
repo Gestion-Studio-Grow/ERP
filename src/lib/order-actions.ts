@@ -22,6 +22,7 @@ import {
   pedidoConClave,
   tomarPedidoOnlineGuarded,
   motivoDelRechazoDelAlta,
+  claveDeLaVidriera,
   AnulacionDeCuentaRechazada,
   CobroDePedidoAnulado,
   type CobroDePedido,
@@ -534,8 +535,10 @@ export async function placeOnlineOrder(
 
   // A-1: clave de idempotencia del carrito (la genera el cliente por pedido). Con el doble
   // submit del mobile —el camino infeliz #1— los dos envíos traen la MISMA clave → `insertOrder`
-  // devuelve el mismo pedido en vez de crear otro y volver a descontar stock.
-  const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
+  // devuelve el mismo pedido en vez de crear otro y volver a descontar stock. La manda un
+  // desconocido: va al espacio `web:` y sólo si tiene la forma de las que genera la tienda
+  // (`claveDeLaVidriera`); si no, el pedido se toma igual, sin clave.
+  const idempotencyKey = claveDeLaVidriera(formData.get("idempotencyKey"));
 
   const items = parseItems(formData).filter((l) => l.productId && l.qty > 0);
   if (items.length === 0) {

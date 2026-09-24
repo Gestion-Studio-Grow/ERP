@@ -11,7 +11,9 @@ import assert from "node:assert/strict";
 import { Prisma } from "@/generated/prisma/client";
 import {
   compararConLoGrabado,
+  firmaDelPedido,
   pedidoDelReintento,
+  type PedidoDelReintento,
   mensajeDeYaGrabadaIgual,
   textoDeYaGrabada,
   textoDelFaltante,
@@ -25,6 +27,8 @@ import { RechazoDeDominio } from "./rechazo-de-dominio";
 import { RechazoDelStock } from "./stock/ledger";
 import { pedidoDelFormulario } from "./respuesta-al-reintento";
 import { readFileSync } from "node:fs";
+import { aplicarDescuento } from "./venta-reglas";
+import { firmaDelCobro } from "@/app/admin/(dashboard)/vender/cobro-sin-conexion";
 
 // La venta de María, a cuenta: Vacío 1,240 kg a $12.500/kg = $15.500. El nombre de la ficha
 // ("María Pérez") lo puso la base: el reintento no lo manda ni se compara.
@@ -299,4 +303,123 @@ test("a cuenta: si la búsqueda de la ficha FALLA no se dice 'no tiene ficha' (s
   assert.ok(err instanceof Prisma.PrismaClientUnknownRequestError);
   assert.equal(motivoDelRechazoDelAlta(err), null);
   assert.equal(await clienteDelTelefono("t1", "11 4000 0000", { estricto: true, buscar: async () => ({ id: "cli_1" }) }), "cli_1");
+});
+
+// ── LA FIRMA DE LA PANTALLA COMPARA LO MISMO QUE EL SERVIDOR ─────────────────────────────────
+//
+// Para cada par de envíos (A se grabó, B es el reintento): la pantalla dice "es la misma" (misma
+// `firmaDelPedido`) si y sólo si el servidor, comparando B con lo que grabó A, no encuentra
+// diferencias. La única excepción, documentada en `firmaDelPedido`: el mismo descuento pedido de
+// otra forma (10 % o $1.250): la pantalla frena, el servidor no.
+
+const PRECIOS: Record<string, number> = { p_vacio: 12500, p_entrana: 17500 };
+/** Lo que queda grabado si se graba el envío `a` (precios fijos: el reintento no re-cotiza). */
+function grabarPara(a: PedidoDelReintento): VentaGrabadaLeida {
+  const items = [
+    ...a.productos.map((l) => ({ productId: l.productId, name: l.productId, saleUnit: "WEIGHT", quantity: l.cantidad, unitPrice: PRECIOS[l.productId], lineTotal: Math.round(l.cantidad * PRECIOS[l.productId] * 100) / 100 })),
+    ...a.aMano.map((m) => ({ productId: null, name: m.nombre, saleUnit: "UNIT", quantity: 1, unitPrice: m.importe, lineTotal: m.importe })),
+  ];
+  const base = items.reduce((s, it) => s + it.lineTotal, 0);
+  const d = a.cupon ? Math.round(base * 10) / 100 : a.descuento ? aplicarDescuento({ subtotal: base, pedido: a.descuento, topePct: null }) : null;
+  const discount = typeof d === "number" ? d : d && d.ok ? d.descuento : 0;
+  return {
+    channel: a.canal,
+    fulfillment: a.entrega.tipo,
+    customerName: "Mostrador",
+    customerPhone: a.telefono,
+    address: a.entrega.direccion,
+    scheduledFor: a.entrega.horario == null ? null : new Date(a.entrega.horario),
+    notes: a.entrega.notas,
+    discount,
+    total: base - discount,
+    paid: a.cobro.tipo !== "sin-cobrar",
+    paymentMethod: a.cobro.tipo === "medio" ? a.cobro.medio : null,
+    items,
+    cupon: a.cupon,
+  };
+}
+
+test("FIJA: la firma de la pantalla y la comparación del servidor dicen lo mismo, par por par", () => {
+  const efe: Opciones = {};
+  const v = (p: Partial<Envio>, o: Opciones = efe) => envio({ paid: true, paymentMethod: "EFECTIVO", ...p }, o);
+  const pedidoBase: Partial<Envio> = { channel: "ONLINE", fulfillment: "DELIVERY", address: "Av. Mitre 1234", scheduledFor: new Date(sabado), notes: "en milanesas", paid: false, paymentMethod: null };
+  const variantes: PedidoDelReintento[] = [
+    v({}),
+    v({ customerPhone: "+54 9 11 4000-0000" }), // mismo teléfono
+    v({ customerPhone: "11 5000 0000" }),
+    v({ paymentMethod: "MERCADOPAGO" }),
+    envio({}), // a cuenta
+    v({ items: [{ productId: "p_vacio", qty: 1 }, { productId: "p_vacio", qty: 0.24 }] }), // mismo peso en dos renglones
+    v({ items: [{ productId: "p_vacio", qty: 1.3 }] }),
+    v({ items: [{ productId: "p_vacio", qty: 1.24 }, { productId: "p_entrana", qty: 0.95 }] }),
+    v({ lineasAMano: [{ nombre: "Bolsa", importe: 500 }] }),
+    v({ lineasAMano: [{ nombre: " bolsa ", importe: 500 }] }), // el mismo precio a mano
+    v({ lineasAMano: [{ nombre: "Bolsa", importe: 700 }] }),
+    v({}, { cupon: "VERANO10" }),
+    v({}, { cupon: "verano10 " }),
+    v({}, { descuento: { pedido: { tipo: "porcentaje", valor: 10 } } }),
+    v({}, { descuento: { pedido: { tipo: "porcentaje", valor: 5 } } }),
+    envio({ ...pedidoBase }, efe),
+    envio({ ...pedidoBase, address: " Av.  Mitre 1234 " }, efe),
+    envio({ ...pedidoBase, fulfillment: "PICKUP", address: null }, efe),
+    envio({ ...pedidoBase, scheduledFor: null }, efe),
+    envio({ ...pedidoBase, notes: "sin grasa" }, efe),
+  ];
+  let pares = 0;
+  for (const a of variantes) {
+    for (const b of variantes) {
+      const servidor = compararConLoGrabado(grabarPara(a), b).diferencias.length === 0;
+      const pantalla = firmaDelPedido(a) === firmaDelPedido(b);
+      assert.equal(pantalla, servidor, `A=${JSON.stringify(a)}\nB=${JSON.stringify(b)}`);
+      pares++;
+    }
+  }
+  assert.equal(pares, variantes.length ** 2);
+  // La excepción, a propósito: el mismo monto pedido de otra forma.
+  const porc = v({}, { descuento: { pedido: { tipo: "porcentaje", valor: 10 } } });
+  const monto = v({}, { descuento: { pedido: { tipo: "monto", valor: 1550 } } });
+  assert.deepEqual(compararConLoGrabado(grabarPara(porc), monto).diferencias, []);
+  assert.notEqual(firmaDelPedido(porc), firmaDelPedido(monto));
+});
+
+test("FIJA: lo que firma la pantalla (firmaDelCobro) es lo que el servidor lee del formulario (pedidoDelFormulario)", () => {
+  // Un pedido con todo: teléfono, horario, dirección, nota, precio a mano, 5 % a mano.
+  const fd = new FormData();
+  fd.set("channel", "ONLINE");
+  fd.set("fulfillment", "DELIVERY");
+  fd.append("productId", "p_vacio");
+  fd.append("quantity", "2,5");
+  fd.append("manualNombre", "Bolsa");
+  fd.append("manualImporte", "500");
+  fd.append("manualMotivo", "no tiene precio cargado");
+  fd.set("customerPhone", "11 4000 0000");
+  fd.set("customerName", "María");
+  fd.set("address", "Av. Mitre 1234");
+  fd.set("scheduledFor", "2026-09-26T10:00");
+  fd.set("notes", "en milanesas");
+  fd.set("descuentoTipo", "porcentaje");
+  fd.set("descuentoValor", "5");
+  const servidor = firmaDelPedido(pedidoDelFormulario(fd, { channel: "ONLINE", fulfillment: "DELIVERY", scheduledRaw: "2026-09-26T10:00", aCuenta: false }));
+  const pantalla = firmaDelCobro({
+    esPedido: true,
+    lineas: [{ productId: "p_vacio", cantidad: 2.5 }],
+    manuales: [{ nombre: "Bolsa", importe: 500 }],
+    medio: "SIN_COBRAR",
+    telefono: "11 4000 0000",
+    cupon: null,
+    descuento: { tipo: "porcentaje", valor: 5 },
+    entrega: { tipo: "DELIVERY", direccion: "Av. Mitre 1234", horario: "2026-09-26T10:00", nota: "en milanesas" },
+  });
+  assert.equal(pantalla, servidor);
+  // Una venta en efectivo con cupón.
+  const venta = new FormData();
+  venta.append("productId", "p_vacio");
+  venta.append("quantity", "1");
+  venta.set("paid", "on");
+  venta.set("paymentMethod", "EFECTIVO");
+  venta.set("cupon", "VERANO10");
+  assert.equal(
+    firmaDelCobro({ esPedido: false, lineas: [{ productId: "p_vacio", cantidad: 1 }], manuales: [], medio: "EFECTIVO", telefono: "", cupon: "VERANO10", descuento: null, entrega: null }),
+    firmaDelPedido(pedidoDelFormulario(venta, { channel: "COUNTER", fulfillment: "PICKUP", scheduledRaw: "", aCuenta: false })),
+  );
 });

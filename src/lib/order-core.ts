@@ -947,6 +947,34 @@ export async function leerVentaGrabada(tenantId: string, id: string) {
   return { ...o, cupon: reglaDelCupon?.codigo ?? null, reglaDelCupon };
 }
 
+// ── La clave de la vidriera vive en SU espacio ──────────────────────────────────────────────
+//
+// La clave anti-duplicado de la tienda la manda un DESCONOCIDO (no hay sesión). Si el servidor la
+// usaba tal cual, bastaba mandar la clave de OTRO pedido para que `tomarPedidoOnlineGuarded` lo
+// encontrara y "Pedir por WhatsApp" devolviera su nombre, dirección, líneas y total. Y había
+// claves adivinables: la ingesta externa graba "ext:<número del pedido de la tienda externa>"
+// (external-orders.ts), secuencial. Ahora la clave de la vidriera: (1) tiene que tener la forma
+// de las que genera la tienda (un UUID, o el respaldo "<ms>-<azar>" de MagraFront/ShineFront
+// cuando no hay `randomUUID`), y (2) se guarda con el prefijo `web:`, que ningún otro camino
+// usa. Desde la vidriera sólo se puede encontrar un pedido `web:`, y sólo sabiendo su clave
+// completa (122 bits de azar en el UUID).
+
+export const PREFIJO_CLAVE_VIDRIERA = "web:";
+const FORMA_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const FORMA_RESPALDO = /^\d{12,16}-[0-9a-z]{6,16}$/;
+
+/** La clave del formulario de la tienda, ya en el espacio `web:`, o `null` si no tiene la forma. PURA. */
+export function claveDeLaVidriera(raw: unknown): string | null {
+  const k = typeof raw === "string" ? raw.trim() : "";
+  if (!k || k.length > 64) return null;
+  return FORMA_UUID.test(k) || FORMA_RESPALDO.test(k) ? `${PREFIJO_CLAVE_VIDRIERA}${k.toLowerCase()}` : null;
+}
+
+/** ¿Es una clave del espacio de la vidriera? PURA. */
+export function esClaveDeLaVidriera(k: string): boolean {
+  return k.startsWith(PREFIJO_CLAVE_VIDRIERA) && claveDeLaVidriera(k.slice(PREFIJO_CLAVE_VIDRIERA.length)) === k;
+}
+
 export type ResultadoPedidoOnline =
   /** Se tomó el pedido; `dedup` en true si ya estaba tomado con esa clave (un reintento). */
   | { tipo: "tomado"; pedido: InsertedOrder }
@@ -976,7 +1004,10 @@ export async function tomarPedidoOnlineGuarded(ops: {
   revisarBolsa: () => Promise<Record<string, string>>;
   insertar: () => Promise<InsertedOrder>;
 }): Promise<ResultadoPedidoOnline> {
-  if (ops.idempotencyKey) {
+  // Sólo se busca una clave del espacio de la vidriera (`claveDeLaVidriera`): una clave de otro
+  // espacio ("ext:1001" de la ingesta, la de un ticket del mostrador) nunca se encuentra desde
+  // acá, aunque alguien la escriba a mano en el formulario público.
+  if (ops.idempotencyKey && esClaveDeLaVidriera(ops.idempotencyKey)) {
     const previo = await ops.buscarPorClave(ops.idempotencyKey);
     if (previo) return { tipo: "tomado", pedido: previo };
   }

@@ -46,7 +46,7 @@ import {
 } from "@/lib/caja/cierre-diario";
 import { validarMotivo, mensajeMotivoInvalido } from "@/lib/turnos/anulacion";
 import { formatearCantidad, hayLineaPorPeso } from "@/lib/pos-peso";
-import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
+import { dateStrInBusinessTz, fmtTime, horarioDeNegocioDelFormulario } from "@/lib/datetime";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { fmtMoneyARS } from "@/components/ui/format";
 import {
@@ -1186,14 +1186,10 @@ export function verboDelPaso(status: string, opts: { comercio: boolean }): strin
  * las 7 de la mañana. Lo ilegible es `null`: el horario es una preferencia, no frena el pedido.
  */
 export function horarioDelFormulario(raw: string | null | undefined): Date | null {
-  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(String(raw ?? "").trim());
-  if (!m) return null;
-  // Una fecha que no existe ("2026-13-40", "2026-02-30") no se corre a otra: es null. Sin esta
-  // guarda, el formateo de la zona horaria tira con una fecha inválida y se lleva la venta.
-  const pared = new Date(`${m[1]}T${m[2]}:00.000Z`);
-  if (Number.isNaN(pared.getTime()) || pared.toISOString().slice(0, 16) !== `${m[1]}T${m[2]}`) return null;
-  const d = businessWallTimeToUtc(m[1], m[2]);
-  return Number.isNaN(d.getTime()) ? null : d;
+  // Una fecha que no existe ("2026-13-40", "2026-02-30") no se corre a otra: es null. Sin esa
+  // guarda, el formateo de la zona horaria tira con una fecha inválida y se lleva la venta. La
+  // lectura vive en datetime.ts para que la pantalla de Vender lea el horario igual que el alta.
+  return horarioDeNegocioDelFormulario(raw);
 }
 
 const DIA_CORTO = new Intl.DateTimeFormat("es-AR", {

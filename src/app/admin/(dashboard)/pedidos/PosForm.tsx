@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createOrder } from "@/lib/order-actions";
 import { AvisoError, BuscadorCombo, Input, Select, buttonClasses, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
-import { detalleDeYaGrabada, tituloDeYaGrabada, type VentaYaGrabada } from "@/lib/reintento-de-venta";
+import { detalleDeYaGrabada, textoDelFaltante, tituloDeYaGrabada, type VentaYaGrabada } from "@/lib/reintento-de-venta";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import {
@@ -253,6 +253,20 @@ export default function PosForm({
     setPaid(!isOrder);
     setYaGrabada(null);
     ticketKey.current = "";
+  }
+
+  // «Cargar sólo lo que falta»: la venta #N ya está grabada y lo cargado traía DE MÁS (el
+  // servidor calculó qué). El ticket queda con SÓLO eso, el mismo medio, y otra clave: se cobra
+  // aparte, a la vista. Antes, «Empezar de nuevo» lo borraba sin decir que faltaba cobrarlo.
+  function cargarSoloLoQueFalta(g: VentaYaGrabada) {
+    if (!g.faltante) return;
+    let n = nextKey;
+    const nuevas = g.faltante.productos.map((l) => ({ key: n++, productId: l.productId, qtyText: formatearCantidad(l.cantidad) }));
+    setLines(nuevas.length ? nuevas : [{ key: n++, productId: "", qtyText: "" }]);
+    setNextKey(n);
+    setYaGrabada(null);
+    ticketKey.current = "";
+    showSuccess(`Cargado sólo lo que faltaba de la #${g.code}: ${textoDelFaltante(g.faltante)}. Cobralo aparte.`);
   }
 
   // Defensivo: la página ya muestra el estado vacío con la salida al catálogo antes de llegar acá.
@@ -525,14 +539,28 @@ export default function PosForm({
           comoSeguir={
             yaGrabada.anulada
               ? `${detalleDeYaGrabada(yaGrabada)} Para ${yaGrabada.esPedido ? "registrarlo" : "cobrarla"} de nuevo, tocá «Empezar de nuevo» y cargá ${yaGrabada.esPedido ? "el pedido" : "la venta"} otra vez.`
-              : `${detalleDeYaGrabada(yaGrabada)} Si la #${yaGrabada.code} está bien, tocá «Empezar de nuevo»: se limpia este ticket y la ` +
-                `#${yaGrabada.code} queda como está. Si quedó mal, anulala en la bandeja o en Ventas del día y cargá ` +
-                `${yaGrabada.esPedido ? "el pedido" : "la venta"} de nuevo.`
+              : yaGrabada.faltante && yaGrabada.faltante.aMano.length === 0
+                ? `${detalleDeYaGrabada(yaGrabada)} Eso hay que cobrarlo APARTE: tocá «Cargar sólo lo que falta». ` +
+                  `«Empezar de nuevo» limpia el ticket y lo que falta NO queda cobrado.`
+                : `${detalleDeYaGrabada(yaGrabada)} Si la #${yaGrabada.code} está bien, tocá «Empezar de nuevo»: se limpia este ticket y la ` +
+                  `#${yaGrabada.code} queda como está. Si quedó mal, anulala en la bandeja o en Ventas del día y cargá ` +
+                  `${yaGrabada.esPedido ? "el pedido" : "la venta"} de nuevo.`
           }
           accion={
-            <button type="button" onClick={limpiarTicket} className="h-11 px-2 text-sm font-medium text-strong underline">
-              Empezar de nuevo
-            </button>
+            <>
+              {yaGrabada.faltante && yaGrabada.faltante.aMano.length === 0 && !yaGrabada.anulada && (
+                <button
+                  type="button"
+                  onClick={() => cargarSoloLoQueFalta(yaGrabada)}
+                  className="h-11 px-2 text-sm font-medium text-strong underline"
+                >
+                  Cargar sólo lo que falta
+                </button>
+              )}
+              <button type="button" onClick={limpiarTicket} className="h-11 px-2 text-sm text-muted underline">
+                Empezar de nuevo
+              </button>
+            </>
           }
         />
       )}

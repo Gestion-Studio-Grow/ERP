@@ -39,8 +39,8 @@ function guardar(fd) {
 }
 // Lo que el "servidor" arma con lo que llega, como createOrder: lo pedido con
 // \`pedidoDelReintento\` (sin precios ni ficha) y, si se graba, la fila con los precios de la "base".
-const PRECIOS = { p_vacio: ["Vacío", 12500], p_entrana: ["Entraña", 17500] };
-const CATALOGO = new Map(Object.entries(PRECIOS).map(([id, [nombre]]) => [id, { nombre, porPeso: true }]));
+const PRECIOS = { p_vacio: ["Vacío", 12500, "WEIGHT"], p_entrana: ["Entraña", 17500, "WEIGHT"], p_crema: ["Crema", 9000, "UNIT"] };
+const CATALOGO = new Map(Object.entries(PRECIOS).map(([id, [nombre, , u]]) => [id, { nombre, porPeso: u === "WEIGHT" }]));
 const r2 = (n) => Math.round(n * 100) / 100;
 const num = (x) => Number(String(x).replace(",", "."));
 function leer(o) {
@@ -65,7 +65,7 @@ function leer(o) {
 }
 function grabar(input, opts) {
   const items = [
-    ...input.items.map((l) => { const [name, precio] = PRECIOS[l.productId]; return { productId: l.productId, name, saleUnit: "WEIGHT", quantity: l.qty, unitPrice: precio, lineTotal: r2(l.qty * precio) }; }),
+    ...input.items.map((l) => { const [name, precio, saleUnit] = PRECIOS[l.productId]; return { productId: l.productId, name, saleUnit, quantity: l.qty, unitPrice: precio, lineTotal: r2(l.qty * precio) }; }),
     ...input.lineasAMano.map((m) => ({ productId: null, name: m.nombre, saleUnit: "UNIT", quantity: 1, unitPrice: m.importe, lineTotal: m.importe })),
   ];
   const subtotal = r2(items.reduce((s, it) => s + it.lineTotal, 0));
@@ -1350,6 +1350,167 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const ks = await claves(page);
     assert.equal(ks[1], ks[0]);
     assert.notEqual(ks[2], ks[0], "el ticket nuevo, con clave nueva");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  /** Recarga la pestaña con el "servidor" falso como estaba y monta Vender con `extra`. */
+  async function recargar(page: Page, extra: Record<string, unknown>) {
+    const servidor = await page.evaluate(() => ({
+      grabadas: [...(window as unknown as Ventana).__grabadas.entries()],
+      envios: (window as unknown as Ventana).__envios,
+    }));
+    await page.reload();
+    await page.addScriptTag({ content: bundle });
+    await page.evaluate(
+      ([srv, x]) => {
+        const w = window as unknown as Ventana;
+        for (const [k, v] of srv.grabadas) w.__grabadas.set(k, v);
+        w.__envios.push(...srv.envios);
+        w.__montar("vender", 10, x);
+      },
+      [servidor, extra] as const,
+    );
+  }
+
+  test("RF precio: se recarga con el precio de catálogo NUEVO y la duda sigue siendo la misma venta (se reintenta)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    // La dueña subió el Vacío a $13.000/kg: la página recargada trae el catálogo nuevo.
+    await recargar(page, {
+      products: [
+        { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 13000, unit: "kg" },
+        { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 17500, unit: "kg" },
+      ],
+    });
+    await alertaEn(page, "Quedó un cobro sin confirmar").waitFor();
+    assert.equal(await alertaEn(page, "Cambiaste la venta").count(), 0, "el precio no lo cambió la cajera");
+    await page.getByRole("button", { name: "Reintentar cobro $16.120,00" }).click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se cobró dos veces." }).waitFor();
+    const ks = await claves(page);
+    assert.equal(ks[1], ks[0]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("RF2 stock: el envío en duda se llevó la última unidad; al recargar el reintento NO lo frena el stock de la pantalla", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const crema = [{ id: "p_crema", name: "Crema", saleUnit: "UNIT", price: 9000, pricePerKg: null, unit: "u" }];
+    const { page, errores } = await montar("vender", 10, { products: crema, stockById: { p_crema: { stock: 1, trackStock: true } }, rapidos: ["p_crema"] });
+    await page.getByRole("button", { name: "Crema" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $9.000,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    await recargar(page, { products: crema, stockById: { p_crema: { stock: 0, trackStock: true } }, rapidos: ["p_crema"] });
+    await alertaEn(page, "Quedó un cobro sin confirmar").waitFor();
+    assert.equal(await page.getByText("No alcanza el stock").count(), 0);
+    await page.getByRole("status").filter({ hasText: "puede ser porque esta misma venta ya se grabó" }).waitFor();
+    const reintentar = page.getByRole("button", { name: "Reintentar cobro $9.000,00" });
+    assert.equal(await reintentar.isEnabled(), true);
+    await reintentar.click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se cobró dos veces." }).waitFor();
+    // Sin duda de por medio, el stock sí frena: la venta nueva de otra Crema no se puede cobrar.
+    await page.getByRole("button", { name: "Crema" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByText("No alcanza el stock").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Cobrar $9.000,00" }).isDisabled(), true);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("RF3 «Cobrar sólo lo que falta» borra «Pagó con»: el vuelto no sale de la venta entera", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByLabel("Pagó con").fill("50.000");
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $32.125,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    await page.evaluate(() => {
+      for (const g of (window as unknown as Ventana).__grabadas.values()) g.o.items = g.o.items.filter((it) => it.productId === "p_vacio");
+    });
+    await page.getByRole("button", { name: "Reintentar cobro $32.125,00" }).click();
+    await alertaEn(page, "La venta #42 ya se había grabado").waitFor();
+    await page.getByRole("button", { name: "Cobrar sólo lo que falta" }).click();
+    assert.equal(await page.getByLabel("Pagó con").inputValue(), "");
+    assert.equal(await page.getByText(/^Vuelto/).count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("el teléfono se compara como la ficha: «+54 9 11 4000-0000» es el mismo cliente que «11 4000 0000»", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, { aCuentaDisponible: true });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "A cuenta" }).click();
+    await page.locator("#vender-telefono").fill("11 4000 0000");
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.getByText("Cliente: María Pérez").waitFor();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Dejar a cuenta $15.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    await page.locator("#vender-telefono").fill("+54 9 11 4000-0000");
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.getByText("Cliente: María Pérez").waitFor();
+    assert.equal(await alertaEn(page, "Cambiaste la venta").count(), 0);
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42)" }).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("POS de la bandeja: si lo distinto es DE MÁS, «Cargar sólo lo que falta» lo deja para cobrarlo aparte", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pos");
+    await page.locator("#prod-1").fill("Vac");
+    await page.getByRole("option", { name: /Vacío/ }).first().click();
+    await page.locator("#qty-1").fill("1");
+    await page.getByRole("button", { name: "+ Agregar producto" }).click();
+    await page.locator("#prod-2").fill("Entr");
+    await page.getByRole("option", { name: /Entraña/ }).first().click();
+    await page.locator("#qty-2").fill("0,5");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    await page.evaluate(() => {
+      for (const g of (window as unknown as Ventana).__grabadas.values()) g.o.items = g.o.items.filter((it) => it.productId === "p_vacio");
+    });
+    await page.getByRole("button", { name: "Cobrar" }).click();
+    const aviso = page.getByRole("alert").filter({ hasText: "Eso hay que cobrarlo APARTE" });
+    await aviso.waitFor();
+    assert.match((await aviso.textContent()) ?? "", /Lo que agregaste \(Entraña 0,5 kg\) no se registró\./);
+    assert.match((await aviso.textContent()) ?? "", /«Empezar de nuevo» limpia el ticket y lo que falta NO queda cobrado/);
+    await aviso.getByRole("button", { name: "Cargar sólo lo que falta" }).click();
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Cobrar" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 3);
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.deepEqual(envios[2].productId, ["p_entrana"]);
+    assert.notEqual(envios[2].idempotencyKey[0], envios[0].idempotencyKey[0]);
     assert.deepEqual(errores, []);
     await page.close();
   });

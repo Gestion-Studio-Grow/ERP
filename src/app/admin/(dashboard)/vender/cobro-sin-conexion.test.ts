@@ -100,14 +100,15 @@ test("las etiquetas del botón", () => {
 });
 
 // La venta que se cortó: Vacío 1,240 kg en efectivo, $15.500.
-const cortada = {
+type Cobro = Parameters<typeof firmaDelCobro>[0];
+const cortada: Cobro = {
   lineas: [{ productId: "p_vacio", cantidad: 1.24 }],
   manuales: [],
   medio: "EFECTIVO",
-  total: 15500,
   esPedido: false,
-  cliente: { telefono: "", nombre: "" },
-  descuento: { cupon: null, monto: 0 },
+  telefono: "",
+  cupon: null,
+  descuento: null,
   entrega: null,
 };
 
@@ -116,16 +117,16 @@ test("después del corte: sólo es la misma venta si la plata y el stock son los
   // Tal cual (el peso se leyó igual, "1,240" o "1.24"): se reintenta con la misma clave.
   assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...cortada, lineas: [{ productId: "p_vacio", cantidad: 1.24 }] })), false);
   // El nombre de una línea a mano, con otro espacio o mayúscula, sigue siendo lo mismo.
-  const conBolsa = { ...cortada, manuales: [{ nombre: "Bolsa", importe: 500 }], total: 16000 };
+  const conBolsa = { ...cortada, manuales: [{ nombre: "Bolsa", importe: 500 }] };
   assert.equal(cambioDespuesDelCorte(firmaDelCobro(conBolsa), firmaDelCobro({ ...conBolsa, manuales: [{ nombre: " bolsa ", importe: 500 }] })), false);
   // Se sumó un corte: si la cortada se había grabado, el servidor diría "ya estaba registrada"
   // y la Entraña quedaría cobrada sin venta. No es la misma.
-  const conEntrana = { ...cortada, lineas: [...cortada.lineas, { productId: "p_entrana", cantidad: 0.95 }], total: 32125 };
+  const conEntrana = { ...cortada, lineas: [...cortada.lineas, { productId: "p_entrana", cantidad: 0.95 }] };
   assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro(conEntrana)), true);
   // Otro medio: la caja lo contaría en el medio viejo.
-  assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...cortada, medio: "MERCADO_PAGO" })), true);
-  // Un descuento (cambia el total con las mismas líneas).
-  assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...cortada, total: 13950 })), true);
+  assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...cortada, medio: "MERCADOPAGO" })), true);
+  // Un descuento (el pedido: tipo y valor).
+  assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...cortada, descuento: { tipo: "porcentaje", valor: 10 } })), true);
   // Otro peso.
   assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...cortada, lineas: [{ productId: "p_vacio", cantidad: 1.3 }] })), true);
   // Un pedido no es una venta aunque lleve lo mismo.
@@ -149,7 +150,7 @@ test("si cambió después del corte: se dice el total de la cortada y cómo sali
 // el cajero suma B y vuelve la señal. La duda de A no se borra con el intento sin señal.
 test("corte → reintento sin señal → se suma un corte → vuelve la señal: frenado, nunca 'no se cobró'", () => {
   const firmaA = firmaDelCobro(cortada);
-  const firmaAB = firmaDelCobro({ ...cortada, lineas: [...cortada.lineas, { productId: "p_entrana", cantidad: 0.95 }], total: 32125 });
+  const firmaAB = firmaDelCobro({ ...cortada, lineas: [...cortada.lineas, { productId: "p_entrana", cantidad: 0.95 }] });
   // 1. Se mandó A y no volvió respuesta.
   let sinRespuesta = recordarEnvioSinRespuesta(null, { firma: firmaA, total: 15500 });
   const conDuda = (firma: string) => ({ cambio: cambioDespuesDelCorte(sinRespuesta.firma, firma), totalMandado: "$ 15.500,00" });
@@ -211,28 +212,26 @@ test("un rechazo después de un corte no afirma que la cortada no se grabó", ()
 
 // ── Lo que agregó la corrección de raíz (refutador R1–R5) ────────────────────────────────────
 
-test("R1/R2/R4: la firma incluye a QUIÉN, CÓMO se descontó y la entrega", () => {
-  const conMaria = { ...cortada, medio: "A_CUENTA", cliente: { telefono: "11 4000 0000", nombre: "María Pérez" } };
+test("R1/R2/R4: la firma incluye a QUIÉN (por la clave de la ficha), CÓMO se descontó y la entrega; NO el nombre", () => {
+  const conMaria: Cobro = { ...cortada, medio: "A_CUENTA", telefono: "11 4000 0000" };
   const mandada = firmaDelCobro(conMaria);
-  // El mismo teléfono escrito de otra forma y el nombre con otro espacio: la misma venta.
-  assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...conMaria, cliente: { telefono: "1140000000", nombre: " maría  pérez" } })), false);
-  // R1: otro cliente → otra venta (la deuda quedaría en la ficha de María).
-  assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...conMaria, cliente: { telefono: "11 5000 0000", nombre: "Juan Gómez" } })), true);
-  // R4: el cupón cambiado por un 10 % a mano del MISMO monto.
-  const conCupon = { ...cortada, total: 13950, descuento: { cupon: "VERANO10", monto: 1550 } };
-  assert.equal(cambioDespuesDelCorte(firmaDelCobro(conCupon), firmaDelCobro({ ...conCupon, descuento: { cupon: null, monto: 1550 } })), true);
-  // R2: el pedido con otra dirección, otra entrega, otro horario u otra nota.
-  const pedido = { ...cortada, esPedido: true, medio: "SIN_COBRAR", entrega: { tipo: "DELIVERY", direccion: "Av. Mitre 1234", horario: "2026-09-26T10:00", nota: "" } };
-  const firmaPedido = firmaDelCobro(pedido);
-  for (const cambio of [
-    { direccion: "Belgrano 55" },
-    { tipo: "PICKUP" },
-    { horario: "2026-09-26T11:00" },
-    { nota: "sin grasa" },
-  ]) {
-    assert.equal(cambioDespuesDelCorte(firmaPedido, firmaDelCobro({ ...pedido, entrega: { ...pedido.entrega, ...cambio } })), true, JSON.stringify(cambio));
+  // El mismo teléfono escrito de otra forma, también con +54 9: la misma venta (normalizarTelefono).
+  for (const tel of ["1140000000", "+54 9 11 4000-0000", "011 15 4000 0000"]) {
+    assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...conMaria, telefono: tel })), false, tel);
   }
-  assert.equal(cambioDespuesDelCorte(firmaPedido, firmaDelCobro({ ...pedido, entrega: { ...pedido.entrega, direccion: " Av. Mitre  1234 " } })), false);
+  // R1: otro cliente → otra venta (la deuda quedaría en la ficha de María).
+  assert.equal(cambioDespuesDelCorte(mandada, firmaDelCobro({ ...conMaria, telefono: "11 5000 0000" })), true);
+  // R4: el cupón cambiado por un 10 % a mano del MISMO monto.
+  const conCupon: Cobro = { ...cortada, cupon: "VERANO10" };
+  assert.equal(cambioDespuesDelCorte(firmaDelCobro(conCupon), firmaDelCobro({ ...cortada, descuento: { tipo: "porcentaje", valor: 10 } })), true);
+  assert.equal(cambioDespuesDelCorte(firmaDelCobro(conCupon), firmaDelCobro({ ...cortada, cupon: " verano10 " })), false);
+  // R2: el pedido con otra dirección, otra entrega, otro horario u otra nota.
+  const pedido: Cobro = { ...cortada, esPedido: true, medio: "SIN_COBRAR", entrega: { tipo: "DELIVERY", direccion: "Av. Mitre 1234", horario: "2026-09-26T10:00", nota: "" } };
+  const firmaPedido = firmaDelCobro(pedido);
+  for (const cambio of [{ direccion: "Belgrano 55" }, { tipo: "PICKUP" as const }, { horario: "2026-09-26T11:00" }, { nota: "sin grasa" }]) {
+    assert.equal(cambioDespuesDelCorte(firmaPedido, firmaDelCobro({ ...pedido, entrega: { ...pedido.entrega!, ...cambio } })), true, JSON.stringify(cambio));
+  }
+  assert.equal(cambioDespuesDelCorte(firmaPedido, firmaDelCobro({ ...pedido, entrega: { ...pedido.entrega!, direccion: " Av. Mitre  1234 " } })), false);
 });
 
 test("R3: el cobro tiene tope de espera; la respuesta a tiempo pasa, la que no llega es 'sin respuesta'", async () => {
@@ -266,7 +265,7 @@ function almacenFalso(rompe = false): AlmacenDeSesion & { datos: Map<string, str
 }
 
 const enDuda: CobroSinConfirmar = {
-  v: 2,
+  v: 3,
   clave: "k-1",
   firma: firmaDelCobro(cortada),
   total: 15500,
@@ -301,7 +300,7 @@ test("R4/R5: la duda sobrevive a recargar, por negocio; lo ilegible no se invent
   borrarCobroSinConfirmar(a, "magra");
   assert.equal(leerCobroSinConfirmar(a, "magra", CAJERA), null);
   // Ilegible, de otra versión (la de antes, sin usuario) o sin clave: no hay duda que restaurar.
-  for (const crudo of ["{", "null", JSON.stringify({ ...enDuda, v: 1 }), JSON.stringify({ ...enDuda, usuario: undefined }), JSON.stringify({ ...enDuda, clave: "" }), JSON.stringify({ ...enDuda, cargado: { ...enDuda.cargado, lineas: [{ productId: 3 }] } })]) {
+  for (const crudo of ["{", "null", JSON.stringify({ ...enDuda, v: 2 }), JSON.stringify({ ...enDuda, usuario: undefined }), JSON.stringify({ ...enDuda, clave: "" }), JSON.stringify({ ...enDuda, cargado: { ...enDuda.cargado, lineas: [{ productId: 3 }] } })]) {
     a.datos.set(claveDelAlmacen("magra"), crudo);
     assert.equal(leerCobroSinConfirmar(a, "magra", CAJERA), null, crudo);
   }
