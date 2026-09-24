@@ -44,6 +44,7 @@ export default function AppointmentsHistoryList({
     <div>
       <Input
         type="text"
+        aria-label="Buscar en el historial por cliente, profesional o teléfono"
         placeholder="Buscar por cliente, profesional o teléfono…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -51,7 +52,7 @@ export default function AppointmentsHistoryList({
       />
       <div className="space-y-3">
         {filtered.length === 0 && appointments.length > 0 && (
-          <p className="text-sm text-muted">No encontramos turnos con ese criterio.</p>
+          <p className="text-sm text-muted">No encontramos turnos con ese criterio. Probá con otro nombre o con el teléfono.</p>
         )}
         {appointments.length === 0 && (
           <p className="text-sm text-muted">Todavía no hay turnos en el historial.</p>

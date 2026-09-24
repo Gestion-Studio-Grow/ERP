@@ -167,7 +167,9 @@ export default async function ReportesPage({
             <Link
               key={d}
               href={`/admin/reportes?dias=${d}`}
-              className={`rounded-md border px-3 py-1 text-sm transition-colors ${
+              aria-current={active ? "page" : undefined}
+              // 44 px en el celular (se toca con el dedo); en la PC, como siempre.
+              className={`inline-flex h-11 items-center rounded-md border px-3 text-sm transition-colors sm:h-auto sm:py-1 ${
                 active
                   ? "border-line-strong bg-surface-raised font-medium text-strong"
                   : "border-line text-muted hover:border-line-strong"
@@ -180,7 +182,7 @@ export default async function ReportesPage({
         {/* Export CSV del período visible (abre en Excel/Sheets). */}
         <a
           href={`/admin/reportes/export?dias=${data.rangeDays}`}
-          className="ml-auto rounded-md border border-line px-3 py-1 text-sm text-muted transition-colors hover:border-line-strong hover:text-strong"
+          className="ml-auto inline-flex h-11 items-center rounded-md border border-line px-3 text-sm text-muted transition-colors hover:border-line-strong hover:text-strong sm:h-auto sm:py-1"
         >
           ↓ Exportar CSV
         </a>
@@ -418,7 +420,7 @@ export default async function ReportesPage({
                     name="method"
                     defaultValue="EFECTIVO"
                     aria-label="Cómo se le pagó"
-                    className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+                    className="h-11 rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus:border-accent sm:h-auto sm:py-1.5"
                   >
                     <option value="EFECTIVO">Efectivo</option>
                     <option value="MP">Transferencia / MP</option>

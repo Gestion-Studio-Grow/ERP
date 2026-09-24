@@ -100,7 +100,7 @@ export default function ClientesLista({ filas, visitaSingular }: { filas: FilaCl
               onClick={() => setSegmento(s)}
               className={cn(
                 "inline-flex h-11 items-center gap-1.5 rounded-full border px-4 text-sm transition-colors",
-                activo ? "border-accent bg-accent-soft text-accent font-medium" : "border-line bg-surface-raised text-body hover:border-line-strong",
+                activo ? "border-accent bg-accent-soft text-accent-ink font-medium" : "border-line bg-surface-raised text-body hover:border-line-strong",
               )}
             >
               {s === "todos" ? "Todos" : SEGMENTO_ETIQUETA[s]}

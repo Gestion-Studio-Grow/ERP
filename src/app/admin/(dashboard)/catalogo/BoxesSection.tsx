@@ -46,10 +46,10 @@ function BoxRow({ box }: { box: Box }) {
             required
             className="flex-1 rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-sm text-strong focus:border-accent"
           />
-          <button type="submit" className="text-sm font-medium">
+          <button type="submit" className="text-sm font-medium max-sm:min-h-11 max-sm:min-w-11">
             Guardar
           </button>
-          <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted">
+          <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted max-sm:min-h-11 max-sm:min-w-11">
             Cancelar
           </button>
         </form>
@@ -59,16 +59,16 @@ function BoxRow({ box }: { box: Box }) {
             {box.name}
           </span>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setBlocking((v) => !v)} className="chip-btn">
+            <button onClick={() => setBlocking((v) => !v)} className="chip-btn max-sm:min-h-11!">
               Bloquear fechas
             </button>
-            <button onClick={() => setEditing(true)} className="chip-btn">
+            <button onClick={() => setEditing(true)} className="chip-btn max-sm:min-h-11!">
               Editar
             </button>
             <form action={toggleBoxActive}>
               <input type="hidden" name="id" value={box.id} />
               <input type="hidden" name="active" value={String(box.active)} />
-              <button type="submit" className="chip-btn">
+              <button type="submit" className="chip-btn max-sm:min-h-11!">
                 {box.active ? "Desactivar" : "Activar"}
               </button>
             </form>
@@ -88,13 +88,13 @@ function BoxRow({ box }: { box: Box }) {
                   }}
                 >
                   <input type="hidden" name="id" value={box.id} />
-                  <button type="submit" className="font-semibold underline">
+                  <button type="submit" className="font-semibold underline max-sm:min-h-11 max-sm:min-w-11">
                     Sí, eliminar
                   </button>
                 </form>
                 <button
                   type="button"
-                  className="hover:underline"
+                  className="hover:underline max-sm:min-h-11 max-sm:min-w-11"
                   onClick={() => setConfirmandoEliminar(false)}
                 >
                   No
@@ -104,7 +104,7 @@ function BoxRow({ box }: { box: Box }) {
               <button
                 type="button"
                 onClick={() => setConfirmandoEliminar(true)}
-                className="chip-btn chip-btn-danger"
+                className="chip-btn max-sm:min-h-11! chip-btn-danger"
               >
                 Eliminar
               </button>
@@ -134,13 +134,13 @@ function BoxRow({ box }: { box: Box }) {
                     }}
                   >
                     <input type="hidden" name="id" value={b.id} />
-                    <button type="submit" className="font-semibold underline">
+                    <button type="submit" className="font-semibold underline max-sm:min-h-11 max-sm:min-w-11">
                       Sí, cancelar
                     </button>
                   </form>
                   <button
                     type="button"
-                    className="hover:underline"
+                    className="hover:underline max-sm:min-h-11 max-sm:min-w-11"
                     onClick={() => setConfirmandoBloqueoId(null)}
                   >
                     No
@@ -149,7 +149,7 @@ function BoxRow({ box }: { box: Box }) {
               ) : (
                 <button
                   type="button"
-                  className="hover:underline"
+                  className="hover:underline max-sm:min-h-11 max-sm:min-w-11"
                   onClick={() => setConfirmandoBloqueoId(b.id)}
                 >
                   quitar
@@ -192,10 +192,10 @@ function BoxRow({ box }: { box: Box }) {
             />
           </div>
           <div className="col-span-2 flex gap-3">
-            <button type="submit" className="text-sm font-medium">
+            <button type="submit" className="text-sm font-medium max-sm:min-h-11 max-sm:min-w-11">
               Bloquear box
             </button>
-            <button type="button" onClick={() => setBlocking(false)} className="text-sm text-muted">
+            <button type="button" onClick={() => setBlocking(false)} className="text-sm text-muted max-sm:min-h-11 max-sm:min-w-11">
               Cancelar
             </button>
           </div>

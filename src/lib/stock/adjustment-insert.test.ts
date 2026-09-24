@@ -137,3 +137,69 @@ test("un producto que no es del negocio o está borrado frena todo el ajuste", a
   );
   assert.equal(w.escritos.length, 0);
 });
+
+test("reenvío de un recuento ya guardado (borrador cuya respuesta se perdió): se rechaza entero y el stock no se descuenta dos veces", async () => {
+  // Stock 10, se cuentan 8 a las 10:00. El primer Guardar llega (−2, AJUSTE "Recuento" a las
+  // 10:02) pero la respuesta se pierde; el borrador vuelve a mandar lo mismo con su contadoA.
+  const movs: Mov[] = [];
+  const w = mundo([{ id: "vacio", name: "Vacío", stock: 10, costo: 6543 }], movs);
+  const carga = {
+    motivo: "RECUENTO" as const,
+    note: null,
+    createdBy: "user:enc",
+    items: [{ productId: "vacio", value: 8, contadoA: hora("10:00") }],
+  };
+  const r1 = await ajustarEnTx(w.tx, "t-qa", carga);
+  assert.equal(r1.lineas[0].delta, -2);
+  assert.equal(w.stock.get("vacio"), 8);
+  movs.push({ productId: "vacio", type: "AJUSTE", qty: -2, unitCost: 6543, createdAt: hora("10:02"), reason: String(w.escritos[0].reason) });
+
+  await assert.rejects(ajustarEnTx(w.tx, "t-qa", carga), /Vacío ya se recontó después de este conteo/);
+  assert.equal(w.stock.get("vacio"), 8, "sin el rechazo quedaba en 6 con 8 contados");
+  assert.equal(w.escritos.length, 1, "el reenvío no escribe nada");
+});
+
+test("un conteo POSTERIOR al último recuento se guarda; una venta o una merma posterior no lo frena", async () => {
+  const movs: Mov[] = [
+    { productId: "vacio", type: "AJUSTE", qty: -2, unitCost: 6543, createdAt: hora("09:00"), reason: "Recuento" },
+    { productId: "vacio", type: "VENTA", qty: -1, unitCost: 6543, createdAt: hora("10:05") },
+    { productId: "vacio", type: "AJUSTE", qty: -0.5, unitCost: 6543, createdAt: hora("10:06"), reason: "Merma" },
+  ];
+  const w = mundo([{ id: "vacio", name: "Vacío", stock: 6.5, costo: 6543 }], movs);
+  const r = await ajustarEnTx(w.tx, "t-qa", {
+    motivo: "RECUENTO",
+    note: null,
+    createdBy: "user:enc",
+    items: [{ productId: "vacio", value: 7, contadoA: hora("10:00") }],
+  });
+  // Teórico a las 10:00 = 6,5 − (−1 − 0,5) = 8; contado 7 → −1.
+  assert.equal(r.lineas[0].teorico, 8);
+  assert.equal(r.lineas[0].delta, -1);
+});
+
+test("el recuento de otra persona después de mi conteo frena el mío, con los productos nombrados", async () => {
+  const movs: Mov[] = [
+    { productId: "lomo", type: "AJUSTE", qty: 0, unitCost: 9000, createdAt: hora("10:03"), reason: "Recuento — heladera 2" },
+  ];
+  const w = mundo(
+    [
+      { id: "vacio", name: "Vacío", stock: 10, costo: 6543 },
+      { id: "lomo", name: "Lomo", stock: 4, costo: 9000 },
+    ],
+    movs,
+  );
+  await assert.rejects(
+    ajustarEnTx(w.tx, "t-qa", {
+      motivo: "RECUENTO",
+      note: null,
+      createdBy: "user:enc",
+      items: [
+        { productId: "vacio", value: 9, contadoA: hora("10:00") },
+        { productId: "lomo", value: 3, contadoA: hora("10:01") },
+      ],
+    }),
+    (e: unknown) => e instanceof Error && e.message.startsWith("Lomo ya se recontó"),
+  );
+  assert.equal(w.stock.get("vacio"), 10, "nada a medias: tampoco se guarda el Vacío");
+  assert.equal(w.escritos.length, 0);
+});

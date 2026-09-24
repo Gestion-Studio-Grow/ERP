@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { EmptyState, buttonClasses } from "@/components/ui";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { getAdjustmentData } from "@/lib/inventario/ajustes-loader";
@@ -54,9 +57,11 @@ export default async function AjustesPage({
   // Los motivos de perecederos salen del dato del blueprint (el mismo que prende Lotes y Despiece).
   const motivos = motivosDeAjuste({ esMostrador: negocio.esMostrador, perecederos: rubroConPerecederos(rubro.rubro?.id) });
   const inicial = leerInicial(sp, new Set(products.map((p) => p.id)), motivos);
+  // El botón del vacío, sólo si quien carga puede abrir el catálogo (el encargado no).
+  const veCatalogo = appPermitida(appPorId("catalogo"), negocio);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
+    <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">{negocio.esMostrador ? "Mermas" : "Ajustes y mermas"}</h1>
       {negocio.esMostrador ? (
         <p className="text-muted mb-8">
@@ -75,15 +80,33 @@ export default async function AjustesPage({
         </p>
       )}
 
-      {/* La key re-monta el formulario si se llega con otro producto preelegido. */}
-      <AjustesForm
-        key={`${inicial.productId ?? ""}:${inicial.motivo ?? ""}`}
-        products={products}
-        motivos={motivos}
-        inicial={inicial}
-        topePesos={topeDeMermaPorCarga(user.role)}
-        conCostos={roleHasCapability(user.role, "costs:read")}
-      />
+      {products.length === 0 ? (
+        <EmptyState
+          title="Todavía no hay productos"
+          description={
+            veCatalogo
+              ? "Para cargar una merma primero tiene que estar el producto. Cargalo en el catálogo y volvé."
+              : "Para cargar una merma primero tiene que estar el producto. Pedile a la dueña o al dueño que lo cargue en el catálogo."
+          }
+          action={
+            veCatalogo ? (
+              <Link href="/admin/catalogo" className={buttonClasses("solid", "md")}>
+                Ir al catálogo
+              </Link>
+            ) : undefined
+          }
+        />
+      ) : (
+        // La key re-monta el formulario si se llega con otro producto preelegido.
+        <AjustesForm
+          key={`${inicial.productId ?? ""}:${inicial.motivo ?? ""}`}
+          products={products}
+          motivos={motivos}
+          inicial={inicial}
+          topePesos={topeDeMermaPorCarga(user.role)}
+          conCostos={roleHasCapability(user.role, "costs:read")}
+        />
+      )}
 
       {recent.length > 0 && (
         <>

@@ -10,9 +10,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { registrarContacto } from "@/lib/crm-actions";
-import { buttonClasses, cn } from "@/components/ui";
+import { cn } from "@/components/ui";
 import { fmtTime } from "@/lib/datetime";
 import { MOTIVO_ETIQUETA, type MotivoContacto } from "@/lib/crm/reglas";
+import { claseBotonWhatsApp } from "../boton-whatsapp";
 
 export type FilaContactoVista = {
   clientId: string;
@@ -27,7 +28,7 @@ export type FilaContactoVista = {
 };
 
 const TONO: Record<MotivoContacto, string> = {
-  pasada: "bg-accent-soft text-accent",
+  pasada: "bg-accent-soft text-accent-ink",
   resena: "bg-info-soft text-info",
   cumpleanios: "bg-success-soft text-success",
   recuperar: "bg-warning-soft text-warning",
@@ -41,7 +42,7 @@ export default function FilaContacto({ fila }: { fila: FilaContactoVista }) {
     <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 text-sm">
         <p className="flex flex-wrap items-center gap-2">
-          <Link href={`/admin/clientes/${fila.clientId}`} className="font-medium text-strong hover:underline">
+          <Link href={`/admin/clientes/${fila.clientId}`} className="inline-flex min-h-11 items-center font-medium text-strong hover:underline">
             {fila.nombre}
           </Link>
           <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TONO[fila.motivo])}>{MOTIVO_ETIQUETA[fila.motivo]}</span>
@@ -59,7 +60,8 @@ export default function FilaContacto({ fila }: { fila: FilaContactoVista }) {
         href={fila.wa}
         target="_blank"
         rel="noopener noreferrer"
-        className={buttonClasses(contactadaEl ? "outline" : "solid", "md", "whitespace-nowrap")}
+        aria-label={`${contactadaEl ? "WhatsApp de nuevo" : "WhatsApp"} a ${fila.nombre}`}
+        className={claseBotonWhatsApp(contactadaEl ? "outline" : "solid")}
         onClick={async () => {
           // La segunda vez sólo vuelve a abrir el chat: la constancia ya quedó y contarla dos
           // veces le comería un lugar al tope del día.

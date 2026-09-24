@@ -34,12 +34,15 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
   return (
     <ToastContext.Provider value={{ showError, showSuccess }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+      {/* Se apoya ENCIMA de la barra de espacios del celular (piloto): `--alto-barra-inferior` la
+          define layout.tsx y vale 0 sin barra (PC, CH), así que ahí queda en bottom-4 como siempre.
+          El contenedor no captura toques: sólo cada aviso, así no bloquea lo que queda debajo. */}
+      <div className="pointer-events-none fixed bottom-[calc(1rem_+_var(--alto-barra-inferior,0px))] right-4 z-50 flex flex-col gap-2 max-w-sm">
         {toasts.map((t) => (
           <div
             key={t.id}
             role="alert"
-            className={`rounded-md px-4 py-3 text-sm shadow-lg toast-enter ${
+            className={`pointer-events-auto rounded-md px-4 py-3 text-sm shadow-lg toast-enter ${
               t.kind === "error"
                 ? "bg-red-600 text-white"
                 : "bg-neutral-900 text-white"

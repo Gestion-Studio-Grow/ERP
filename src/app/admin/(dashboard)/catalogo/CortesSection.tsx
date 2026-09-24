@@ -18,7 +18,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createProduct, updateProduct, toggleProductActive, deleteProduct } from "@/lib/catalog-actions";
-import { Badge, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { Badge, EmptyState, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { formatearCantidad } from "@/lib/pos-peso";
 // "Stock bajo" tiene UNA definición (la de Stock y la del número del Inicio): controla stock y
 // está en el mínimo o por debajo. Pura y sin Prisma: se puede usar en el cliente.
@@ -33,6 +33,7 @@ import {
   margenCorte,
   type CorteCategoria,
 } from "@/lib/carniceria/cortes";
+import { VOCABULARIO_CARNICERIA, mayuscula, type VocabularioDelCatalogo } from "./vocabulario";
 
 export type Corte = {
   id: string;
@@ -257,7 +258,7 @@ function MargenBadge({ corte }: { corte: Corte }) {
   );
 }
 
-function CorteRow({ corte, conCostos }: { corte: Corte; conCostos: boolean }) {
+function CorteRow({ corte, conCostos, nombre }: { corte: Corte; conCostos: boolean; nombre: string }) {
   const [editing, setEditing] = useState(false);
   const lowStock = esStockBajo(corte);
   const price = sellPrice(corte);
@@ -282,7 +283,7 @@ function CorteRow({ corte, conCostos }: { corte: Corte; conCostos: boolean }) {
             <input type="hidden" name="id" value={corte.id} />
             <div className="flex flex-col gap-1 sm:col-span-2">
               <label htmlFor={`edit-${corte.id}-name`} className="text-xs font-medium text-muted">
-                Corte
+                {nombre}
               </label>
               <input
                 id={`edit-${corte.id}-name`}
@@ -369,18 +370,18 @@ function CorteRow({ corte, conCostos }: { corte: Corte; conCostos: boolean }) {
       <td className="block sm:table-cell px-0 sm:px-4 py-2 sm:py-2.5 sm:text-right whitespace-nowrap">
         <div className="flex flex-wrap gap-2 sm:justify-end">
           {corte.movimientos && (
-            <Link href={corte.movimientos} className="chip-btn" aria-label={`Movimientos de ${corte.name}`}>
+            <Link href={corte.movimientos} className="chip-btn max-sm:min-h-11!" aria-label={`Movimientos de ${corte.name}`}>
               Movimientos
             </Link>
           )}
           <form action={toggleProductActive}>
             <input type="hidden" name="id" value={corte.id} />
             <input type="hidden" name="active" value={String(corte.active)} />
-            <button type="submit" className="chip-btn" aria-label={corte.active ? `Desactivar ${corte.name}` : `Activar ${corte.name}`}>
+            <button type="submit" className="chip-btn max-sm:min-h-11!" aria-label={corte.active ? `Desactivar ${corte.name}` : `Activar ${corte.name}`}>
               {corte.active ? "Activo" : "Inactivo"}
             </button>
           </form>
-          <button onClick={() => setEditing(true)} className="chip-btn">
+          <button onClick={() => setEditing(true)} className="chip-btn max-sm:min-h-11!">
             Editar
           </button>
           <form
@@ -390,7 +391,7 @@ function CorteRow({ corte, conCostos }: { corte: Corte; conCostos: boolean }) {
             }}
           >
             <input type="hidden" name="id" value={corte.id} />
-            <button type="submit" className="chip-btn chip-btn-danger">
+            <button type="submit" className="chip-btn max-sm:min-h-11! chip-btn-danger">
               Eliminar
             </button>
           </form>
@@ -413,12 +414,17 @@ export default function CortesSection({
   cortes,
   catalogHeading,
   conCostos = true,
+  vocabulario = VOCABULARIO_CARNICERIA,
 }: {
   cortes: Corte[];
   catalogHeading: string;
   /** ¿Quien mira puede ver costos (costs:read)? Sin ella no se ven ni se editan. */
   conCostos?: boolean;
+  /** Las palabras y la forma de venta del rubro (`vocabularioDelRubro`). Sin él, carnicería. */
+  vocabulario?: VocabularioDelCatalogo;
 }) {
+  const { uno, varios } = vocabulario;
+  const Uno = mayuscula(uno);
   const grupos = groupCortes(cortes);
   const lowStockCount = cortes.filter((c) => c.active && esStockBajo(c)).length;
 
@@ -429,7 +435,7 @@ export default function CortesSection({
           {catalogHeading || "Catálogo de cortes"}
         </h2>
         <p className="text-sm text-muted mt-1">
-          Cada corte, su forma de venta (por kilo o por unidad), su precio y su margen sobre el
+          Cada {uno}, su forma de venta (por kilo o por unidad), su precio y su margen sobre el
           costo vigente: el que cargaste a mano o, si no, el del último ingreso. Agrupados por góndola.
           {lowStockCount > 0 && (
             <span className="ml-1 text-danger font-medium">
@@ -439,8 +445,23 @@ export default function CortesSection({
         </p>
       </div>
 
+      {/* Vacío: qué hacer y el botón que lleva al alta (está abajo; en el celular, fuera de la
+          pantalla). */}
       {grupos.length === 0 && (
-        <p className="text-sm text-muted mb-6">Todavía no hay cortes cargados. Agregá el primero abajo.</p>
+        <EmptyState
+          className="mb-6"
+          title="El catálogo está vacío"
+          description="Se carga de a uno con el formulario de abajo, o todo junto con la planilla. Lo que cargues aparece en el mostrador y en la tienda."
+          action={
+            <button
+              type="button"
+              onClick={() => document.getElementById("new-corte-name")?.focus()}
+              className={buttonClasses("solid", "md")}
+            >
+              Empezar a cargar
+            </button>
+          }
+        />
       )}
 
       <div className="space-y-8">
@@ -450,9 +471,9 @@ export default function CortesSection({
               <span aria-hidden className="text-accent">{categoria.glyph}</span>
               <h3 className="text-base font-semibold text-strong">{categoria.label}</h3>
               <span className="text-xs text-faint">
-                {items.length} corte{items.length !== 1 ? "s" : ""}
+                {items.length} {items.length === 1 ? uno : varios}
               </span>
-              {GONDOLA_HINT[categoria.id] && (
+              {vocabulario.carniceria && GONDOLA_HINT[categoria.id] && (
                 <span className="text-xs text-muted hidden sm:inline">· {GONDOLA_HINT[categoria.id]}</span>
               )}
             </div>
@@ -460,7 +481,7 @@ export default function CortesSection({
               <table className="block sm:table w-full text-left">
                 <thead className="hidden sm:table-header-group">
                   <tr className="border-b bg-surface-sunken text-xs uppercase tracking-wide text-muted">
-                    <th className="px-4 py-2 font-medium">Corte</th>
+                    <th className="px-4 py-2 font-medium">{Uno}</th>
                     <th className="px-4 py-2 font-medium">Venta</th>
                     <th className="px-4 py-2 font-medium">Precio</th>
                     <th className="px-4 py-2 font-medium">Stock</th>
@@ -470,7 +491,7 @@ export default function CortesSection({
                 </thead>
                 <tbody className="block sm:table-row-group">
                   {items.map((c) => (
-                    <CorteRow key={c.id} corte={c} conCostos={conCostos} />
+                    <CorteRow key={c.id} corte={c} conCostos={conCostos} nombre={Uno} />
                   ))}
                 </tbody>
               </table>
@@ -481,21 +502,23 @@ export default function CortesSection({
 
       {/* Alta de corte */}
       <div className="mt-8 rounded-lg border border-line bg-surface-sunken p-4">
-        <h3 className="text-base font-medium text-strong mb-3">Agregar un corte</h3>
+        {/* En la carnicería, el título de siempre ("un corte"); en los demás rubros el sustantivo
+            solo, porque el artículo cambia con el género ("una prenda"). */}
+        <h3 className="text-base font-medium text-strong mb-3">Agregar {vocabulario.carniceria ? "un corte" : uno}</h3>
         <form action={createProduct} className="grid grid-cols-1 sm:grid-cols-6 items-end gap-2">
           <div className="flex flex-col gap-1 sm:col-span-2">
             <label htmlFor="new-corte-name" className="text-xs font-medium text-muted">
-              Corte
+              {Uno}
             </label>
             <input
               id="new-corte-name"
               name="name"
               required
-              placeholder="ej: Asado de tira"
+              placeholder={vocabulario.carniceria ? "ej: Asado de tira" : "Como lo ve el cliente"}
               className={CAMPO}
             />
           </div>
-          <VentaFields saleUnit="WEIGHT" price={null} pricePerKg={null} unit="kg" category={null} costoCargado={null} costoVigente={null} conCostos={conCostos} trackStock={true} idPrefix="new-corte" />
+          <VentaFields saleUnit={vocabulario.porPeso ? "WEIGHT" : "UNIT"} price={null} pricePerKg={null} unit={vocabulario.porPeso ? "kg" : "unidad"} category={null} costoCargado={null} costoVigente={null} conCostos={conCostos} trackStock={true} idPrefix="new-corte" />
           <div className="flex flex-col gap-1">
             <label htmlFor="new-corte-stock" className="text-xs font-medium text-muted">
               Stock inicial
@@ -524,7 +547,7 @@ export default function CortesSection({
           </div>
           <div className="sm:col-span-6">
             <button type="submit" className={buttonClasses("solid", "md")}>
-              Agregar corte
+              Agregar {uno}
             </button>
           </div>
         </form>

@@ -11,17 +11,19 @@
 // "Stock" es cuánto hay y "Mermas" es lo que se rompió, sin abrir las dos.
 //
 // SEGURIDAD: busca sobre `apps`, que son las que la persona YA ve, calculadas en el servidor
-// (`appsVisibles`). `buscarApps` (src/apps/visibles.ts) no puede hacer aparecer una app
+// (`appsVisibles`). `buscarApps` (src/apps/buscar.ts, sin el registro: no lo trae al navegador) no puede hacer aparecer una app
 // oculta ni tecleando su nombre exacto; lo prueban los tests del registro.
 //
 // ACCESIBILIDAD: combobox con listbox y `aria-activedescendant`, ↑ ↓ Enter Escape, label
-// real, y el conteo de resultados anunciado por `aria-live`. Cada opción mide ≥ 44 px.
+// real, y el conteo de resultados anunciado por `aria-live`. Cada opción mide ≥ 44 px. El
+// foco se ve (contorno del color de foco, no sólo el borde) y Tab sale del buscador en vez
+// de recorrer la lista.
 
 import { useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AppDescriptor } from "@/apps/contract";
-import { buscarApps } from "@/apps/visibles";
+import { buscarApps } from "@/apps/buscar";
 import { IconoApp } from "@/components/iconos-apps";
 
 type Props = {
@@ -111,6 +113,9 @@ export default function BuscadorApps({ apps, modo, alElegir, alEscapar, autoFocu
             role="option"
             aria-selected={i === seleccionado}
             href={app.ruta}
+            // Fuera del orden de Tab: en un combobox las opciones se recorren con ↑ ↓ desde el
+            // campo. Si no, Tab entraba a la lista en vez de seguir a lo próximo del Inicio.
+            tabIndex={-1}
             // Sin esto, el mousedown le saca el foco al campo, el desplegable se cierra y el
             // click se pierde (Safari no enfoca links al hacer click).
             onMouseDown={(e) => e.preventDefault()}
@@ -173,7 +178,7 @@ export default function BuscadorApps({ apps, modo, alElegir, alEscapar, autoFocu
           }}
           onKeyDown={onKeyDown}
           placeholder="¿Qué querés hacer?"
-          className="h-11 w-full rounded-lg border border-line bg-surface-sunken pl-9 pr-11 text-[15px] text-strong placeholder:text-faint focus:border-accent focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+          className="h-11 w-full rounded-lg border border-line bg-surface-sunken pl-9 pr-11 text-[15px] text-strong placeholder:text-faint focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&::-webkit-search-cancel-button]:hidden"
         />
         {buscando && (
           <button
@@ -183,7 +188,7 @@ export default function BuscadorApps({ apps, modo, alElegir, alEscapar, autoFocu
               inputRef.current?.focus();
             }}
             aria-label="Limpiar búsqueda"
-            className="absolute right-0 top-0 grid h-11 w-11 place-items-center text-lg leading-none text-faint hover:text-strong"
+            className="absolute right-0 top-0 grid h-11 w-11 place-items-center rounded-lg text-lg leading-none text-faint hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
           >
             &times;
           </button>

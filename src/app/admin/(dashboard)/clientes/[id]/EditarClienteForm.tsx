@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { updateClient } from "@/lib/client-actions";
 import { useToast } from "../../ToastProvider";
+import { esRedireccionDeNext } from "../../turnos/errores";
 import { Field, Input, Textarea, buttonClasses } from "@/components/ui";
 
 // La ficha del cliente era de sólo lectura: un teléfono mal tipeado no se corregía nunca y
@@ -36,7 +37,12 @@ export default function EditarClienteForm({ cliente }: { cliente: ClienteEditabl
 
   return (
     <form
-      action={async (fd) => {
+      // `onSubmit` y no `action`: React 19 resetea el formulario al terminar CUALQUIER action
+      // (requestFormReset; ver NuevaFicha.tsx), y un rechazo ("ese teléfono ya es de otra ficha")
+      // devolvía los campos a lo guardado, borrando justo lo que había que corregir.
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
         setGuardando(true);
         try {
           const r = await updateClient(fd);
@@ -49,6 +55,11 @@ export default function EditarClienteForm({ cliente }: { cliente: ClienteEditabl
             // puso para corregirlo.
             showError(r.error);
           }
+        } catch (err) {
+          // Con la sesión vencida, la guardia de `updateClient` redirige al login tirando un
+          // NEXT_REDIRECT: se vuelve a tirar para que la navegación siga (errores.ts).
+          if (esRedireccionDeNext(err)) throw err;
+          showError("No se pudieron guardar los cambios. Revisá la conexión y probá de nuevo: lo que cargaste sigue acá.");
         } finally {
           setGuardando(false);
         }

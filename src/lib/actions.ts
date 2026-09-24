@@ -2,7 +2,7 @@
 
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { BUFFER_MIN } from "@/lib/business-config";
 import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
@@ -24,6 +24,7 @@ import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
+import { rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
   aplicarCobroTurnoInTx,
@@ -826,9 +827,30 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
 // validación de choques (assertSlotAvailable), excluyendo el propio turno para
 // que no colisione consigo mismo. Conserva servicio, precio congelado, cupón,
 // estado, pago y notas: solo cambia cuándo (y con quién, si aplica).
-export async function rescheduleAppointment(formData: FormData) {
+// Devuelve el rechazo ({ ok: false, error }) en vez de tirarlo: tirado, en producción Next lo
+// tapaba con un texto en inglés y la recepción no sabía por qué no se movió el turno. El
+// redirect de la guardia (sin sesión o sin permiso) sigue su camino.
+export async function rescheduleAppointment(formData: FormData): Promise<ResultadoAccion> {
   await requireCapability("agenda:manage");
-  if (isDemoSandbox()) return; // modo demo: no persiste (docs/preventa/plan-acceso-sandbox-sin-password.md)
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste (docs/preventa/plan-acceso-sandbox-sin-password.md)
+  try {
+    await reprogramarTurno(formData);
+    return { ok: true };
+  } catch (e) {
+    unstable_rethrow(e);
+    return {
+      ok: false,
+      error: rechazoDeDominio(
+        e,
+        "No se pudo reprogramar el turno. Puede que ese horario se haya ocupado recién: elegí otro, o recargá la página y probá de nuevo.",
+      ),
+    };
+  }
+}
+
+/** El cuerpo de la reprogramación: TIRA los rechazos de dominio (los atrapa la action). */
+async function reprogramarTurno(formData: FormData): Promise<void> {
+  const tenantId = await getCurrentTenantId();
   const appointmentId = String(formData.get("appointmentId"));
   const startsAtIso = String(formData.get("startsAt"));
   // Profesional destino: vacío o igual → se mantiene el actual.
@@ -838,10 +860,12 @@ export async function rescheduleAppointment(formData: FormData) {
     throw new Error("Faltan datos para reprogramar el turno.");
   }
 
-  const appointment = await prisma.appointment.findUniqueOrThrow({
-    where: { id: appointmentId },
+  // El id viene del navegador: el negocio va escrito a mano además de RLS.
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, tenantId },
     include: { service: true },
   });
+  if (!appointment) throw new Error("Ese turno ya no existe. Recargá la agenda.");
 
   // Solo turnos vivos se pueden mover; los terminales (cancelado, completado,
   // no se presentó) no.
@@ -850,11 +874,11 @@ export async function rescheduleAppointment(formData: FormData) {
   }
 
   const targetProfessionalId = newProfessionalId || appointment.professionalId;
-  const professional = await prisma.professional.findUniqueOrThrow({
-    where: { id: targetProfessionalId },
+  const professional = await prisma.professional.findFirst({
+    where: { id: targetProfessionalId, tenantId },
     include: { box: true },
   });
-  if (!professional.active || professional.deletedAt) {
+  if (!professional || !professional.active || professional.deletedAt) {
     throw new Error("Ese profesional ya no está disponible.");
   }
   if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
@@ -1844,6 +1868,8 @@ export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
 // (ver el comentario de la ventana en src/lib/cron/reminder-sweep.ts).
 export type TurnoAConfirmar = {
   id: string;
+  /** La ficha de la clienta: con un teléfono que no es celular, la fila lleva a corregirlo ahí. */
+  clientId: string;
   startsAt: string;
   status: "PENDING" | "CONFIRMED";
   clienta: string;
@@ -1870,6 +1896,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
         startsAt: true,
         status: true,
         reminderSentAt: true,
+        clientId: true,
         client: { select: { name: true, phone: true } },
         service: { select: { name: true } },
         professional: { select: { name: true } },
@@ -1884,6 +1911,7 @@ export async function getMananaConfirmar(): Promise<{ dia: string; turnos: Turno
     dia,
     turnos: turnos.map((t) => ({
       id: t.id,
+      clientId: t.clientId,
       startsAt: t.startsAt.toISOString(),
       status: t.status === "PENDING" ? "PENDING" : "CONFIRMED",
       clienta: t.client.name,

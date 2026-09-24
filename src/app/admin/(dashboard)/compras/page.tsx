@@ -5,7 +5,7 @@ import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getComprasData } from "@/lib/inventario/compras-loader";
 import { esStockBajo } from "@/lib/inventory/valuation";
-import { fmtMoneyARS } from "@/components/ui";
+import { EmptyState, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { fmtShortDate, todayInBusinessTz } from "@/lib/datetime";
 import { DIAS_DE_CUENTA_CORRIENTE, diaMasDias } from "@/lib/stock/purchase-egreso";
@@ -37,6 +37,8 @@ export default async function ComprasPage() {
   const veProveedores = appPermitida(appPorId("proveedores"), negocio);
   // "Qué pedir hoy", sólo donde existe (mostrador) y la persona lo puede abrir.
   const veSugerido = appPermitida(appPorId("sugerido-de-compra"), negocio);
+  // El botón del vacío, sólo si quien recibe puede abrir el catálogo (el encargado no).
+  const veCatalogo = appPermitida(appPorId("catalogo"), negocio);
   // A cuenta corriente sólo si la deuda se va a poder ver y pagar (Cuentas a pagar) y quien
   // carga ve el costo, que es el monto de la deuda. Un negocio sin Cuentas a pagar (CH hoy)
   // no ve la opción: su formulario queda como siempre. La acción lo vuelve a verificar.
@@ -50,7 +52,7 @@ export default async function ComprasPage() {
   const lowStock = products.filter(esStockBajo);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
+    <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">{negocio.esMostrador ? "Recibir mercadería" : "Compras y reposición"}</h1>
       <p className="text-muted mb-8">
         Registrá la entrada de mercadería (compra a proveedor o reposición interna): elegí los
@@ -90,13 +92,31 @@ export default async function ComprasPage() {
         </div>
       )}
 
-      <ComprasForm
-        products={products}
-        proveedores={proveedores}
-        formal={formal}
-        conCostos={conCostos}
-        cuentaCorriente={cuentaCorriente}
-      />
+      {products.length === 0 ? (
+        <EmptyState
+          title="Todavía no hay productos"
+          description={
+            veCatalogo
+              ? "Lo que llega se suma al stock de un producto del catálogo. Cargalos en el catálogo y volvé a registrar la entrada."
+              : "Lo que llega se suma al stock de un producto del catálogo. Pedile a la dueña o al dueño que los cargue."
+          }
+          action={
+            veCatalogo ? (
+              <Link href="/admin/catalogo" className={buttonClasses("solid", "md")}>
+                Ir al catálogo
+              </Link>
+            ) : undefined
+          }
+        />
+      ) : (
+        <ComprasForm
+          products={products}
+          proveedores={proveedores}
+          formal={formal}
+          conCostos={conCostos}
+          cuentaCorriente={cuentaCorriente}
+        />
+      )}
 
       {recent.length > 0 && (
         <>

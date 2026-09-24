@@ -33,7 +33,9 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  sm: "h-9 px-3 text-sm",
+  // `sm` es chico en la PC; en el celular mide 44 px igual que el resto (piso táctil de la casa,
+  // lo mide el gate visual a 412 px). Un botón de 36 px en una fila de tabla es un toque errado.
+  sm: "h-11 sm:h-9 px-3 text-sm",
   md: "h-11 px-5 text-sm tracking-wide",
   lg: "h-12 px-7 text-base",
 };

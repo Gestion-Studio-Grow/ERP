@@ -80,7 +80,7 @@ function InsumosEditor({ service, products }: { service: Service; products: Prod
                 );
               })}
           </div>
-          <button type="submit" className="text-sm font-medium mt-1">
+          <button type="submit" className="text-sm font-medium mt-1 max-sm:min-h-11 max-sm:min-w-11">
             Guardar insumos
           </button>
         </form>
@@ -138,7 +138,7 @@ function RecursosEditor({ service, resources }: { service: Service; resources: R
               );
             })}
           </div>
-          <button type="submit" className="text-sm font-medium mt-1">
+          <button type="submit" className="text-sm font-medium mt-1 max-sm:min-h-11 max-sm:min-w-11">
             Guardar recursos
           </button>
         </form>
@@ -205,10 +205,10 @@ function ServiceRow({
                 className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
               <div className="flex gap-4 sm:gap-3 justify-start sm:justify-end whitespace-nowrap py-1 sm:py-0">
-                <button type="submit" className="text-sm font-medium">
+                <button type="submit" className="text-sm font-medium max-sm:min-h-11 max-sm:min-w-11">
                   Guardar
                 </button>
-                <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted">
+                <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted max-sm:min-h-11 max-sm:min-w-11">
                   Cancelar
                 </button>
               </div>
@@ -240,7 +240,7 @@ function ServiceRow({
             <select
               name="categoryId"
               defaultValue={service.categoryId ?? ""}
-              className="sm:col-span-4 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+              className="sm:col-span-4 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent max-sm:min-h-11"
             >
               <option value="">Sin categoría</option>
               {categories.map((c) => (
@@ -315,7 +315,7 @@ function ServiceRow({
             <input type="hidden" name="active" value={String(service.active)} />
             <button
               type="submit"
-              className={`inline-flex items-center min-h-6 rounded-full px-2.5 py-1 text-xs font-medium ${
+              className={`inline-flex items-center min-h-6 max-sm:min-h-11 rounded-full px-2.5 py-1 text-xs font-medium ${
                 service.active ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
               }`}
             >
@@ -325,13 +325,13 @@ function ServiceRow({
         </td>
         <td className="block sm:table-cell px-0 sm:px-4 py-2 sm:py-2.5 sm:text-right whitespace-nowrap">
           <div className="flex flex-wrap gap-2 sm:justify-end">
-            <button onClick={() => setEditingInsumos((v) => !v)} className="chip-btn">
+            <button onClick={() => setEditingInsumos((v) => !v)} className="chip-btn max-sm:min-h-11!">
               Insumos
             </button>
-            <button onClick={() => setEditingRecursos((v) => !v)} className="chip-btn">
+            <button onClick={() => setEditingRecursos((v) => !v)} className="chip-btn max-sm:min-h-11!">
               Recursos
             </button>
-            <button onClick={() => setEditing(true)} className="chip-btn">
+            <button onClick={() => setEditing(true)} className="chip-btn max-sm:min-h-11!">
               Editar
             </button>
             <form
@@ -346,7 +346,7 @@ function ServiceRow({
               }}
             >
               <input type="hidden" name="id" value={service.id} />
-              <button type="submit" className="chip-btn chip-btn-danger">
+              <button type="submit" className="chip-btn max-sm:min-h-11! chip-btn-danger">
                 Eliminar
               </button>
             </form>

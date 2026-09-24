@@ -52,6 +52,11 @@ const CELDA_TARJETA =
   "flex items-baseline justify-between gap-3 py-0.5 sm:table-cell sm:py-2";
 const ROTULO_MOVIL = "text-xs uppercase tracking-wide text-faint sm:hidden";
 
+// Los días de la navegación: en el celular, toques de 44 px (se cambia de día con el pulgar);
+// desde sm, como siempre.
+const NAV_DIA =
+  "inline-flex min-h-11 items-center rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-raised sm:min-h-0";
+
 function prevDayKey(day: DayKey): DayKey {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
@@ -84,21 +89,21 @@ export default async function CierreCajaPage({
 
       {/* Navegación por día: links, no formularios. */}
       <nav className="mb-6 flex flex-wrap items-center gap-2" aria-label="Elegir el día">
-        <Link href={`${CIERRE_PATH}?dia=${prevDayKey(day)}`} className="rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-raised">
+        <Link href={`${CIERRE_PATH}?dia=${prevDayKey(day)}`} className={NAV_DIA}>
           ← {formatDayLabel(prevDayKey(day))}
         </Link>
-        <span className="rounded-md bg-surface-raised px-3 py-1.5 text-sm font-medium text-strong">
+        <span className="inline-flex min-h-11 items-center rounded-md bg-surface-raised px-3 py-1.5 text-sm font-medium text-strong sm:min-h-0">
           {formatDayLabel(day)}
         </span>
-        <Link href={`${CIERRE_PATH}?dia=${nextDayKey(day)}`} className="rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-raised">
+        <Link href={`${CIERRE_PATH}?dia=${nextDayKey(day)}`} className={NAV_DIA}>
           {formatDayLabel(nextDayKey(day))} →
         </Link>
         {day !== today && (
-          <Link href={CIERRE_PATH} className="rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-raised">
+          <Link href={CIERRE_PATH} className={NAV_DIA}>
             Hoy
           </Link>
         )}
-        <Link href="/admin/caja/libro" className="ml-auto text-sm text-accent hover:underline">
+        <Link href="/admin/caja/libro" className="ml-auto inline-flex min-h-11 items-center text-sm text-accent hover:underline sm:min-h-0">
           Ver el libro del mes →
         </Link>
       </nav>
@@ -264,6 +269,7 @@ export default async function CierreCajaPage({
         <CerrarDiaForm
           key={day}
           day={day}
+          diaLabel={formatDayLabel(day)}
           esperado={{
             EFECTIVO: preview.porMedio.EFECTIVO.expected,
             MP: preview.porMedio.MP.expected,

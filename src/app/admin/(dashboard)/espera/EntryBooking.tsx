@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { findSlotsForWaitlistEntry, bookFromWaitlist } from "@/lib/waitlist-actions";
+import { findSlotsForWaitlistEntry, reservarHuecoLiberado } from "@/lib/waitlist-actions";
 import { fmtTime } from "@/lib/datetime";
 import { Select, buttonClasses } from "@/components/ui";
+import { esRedireccionDeNext, mensajeAccionable } from "../turnos/errores";
 
 type SlotGroup = { professionalId: string; professionalName: string; slots: string[] };
 
 // Widget por anotado: elige una fecha, busca huecos reales para su servicio
 // (respetando profesional preferido si lo hay) y reserva con un clic. La reserva
-// en sí es un form con Server Action (bookFromWaitlist) — al confirmar,
+// en sí es un form con Server Action (reservarHuecoLiberado → bookFromWaitlist) — al confirmar,
 // revalidatePath refresca la lista y el anotado desaparece (pasa a BOOKED).
 export default function EntryBooking({
   entryId,
@@ -34,7 +35,8 @@ export default function EntryBooking({
         const res = await findSlotsForWaitlistEntry(entryId, nextDate);
         setGroups(res);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "No se pudieron buscar horarios.");
+        if (esRedireccionDeNext(e)) throw e;
+        setError(mensajeAccionable(e, "No se pudieron buscar horarios. Revisá la conexión y elegí el día de nuevo."));
       }
     });
   }
@@ -44,7 +46,7 @@ export default function EntryBooking({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="chip-btn text-xs min-h-8"
+        className="chip-btn text-xs min-h-8 max-sm:min-h-11!"
       >
         Buscar horario
       </button>
@@ -58,7 +60,7 @@ export default function EntryBooking({
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-xs text-faint hover:underline"
+          className="text-xs text-muted hover:underline max-sm:min-h-11 max-sm:px-2"
         >
           Cerrar
         </button>
@@ -66,6 +68,7 @@ export default function EntryBooking({
 
       <Select
         value={date}
+        aria-label="Día para buscar horario"
         onChange={(e) => search(e.target.value)}
         className="mb-2"
       >
@@ -78,7 +81,11 @@ export default function EntryBooking({
       </Select>
 
       {isPending && <p className="text-xs text-muted">Buscando horarios…</p>}
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {error && (
+        <p className="text-xs text-danger" role="alert">
+          {error}
+        </p>
+      )}
 
       {!isPending && groups !== null && groups.length === 0 && (
         <p className="text-xs text-muted">
@@ -92,13 +99,34 @@ export default function EntryBooking({
             <p className="text-xs text-muted mb-1">{g.professionalName}</p>
             <div className="flex flex-wrap gap-1.5">
               {g.slots.map((slot) => (
-                <form key={slot} action={bookFromWaitlist}>
+                // `reservarHuecoLiberado` es `bookFromWaitlist` que DEVUELVE el rechazo (horario
+                // ocupado en el medio, profesional dado de baja) en castellano: se dice en el mismo
+                // recuadro. Si no vuelve respuesta, el catch explica qué pudo pasar.
+                <form
+                  key={slot}
+                  action={async (fd) => {
+                    setError("");
+                    try {
+                      const r = await reservarHuecoLiberado(fd);
+                      if (!r.ok) setError(r.error);
+                    } catch (e) {
+                      if (esRedireccionDeNext(e)) throw e;
+                      setError(
+                        mensajeAccionable(
+                          e,
+                          "No se pudo reservar ese horario: puede que alguien lo haya tomado recién. Elegí el día de nuevo y probá con otro.",
+                        ),
+                      );
+                    }
+                  }}
+                >
                   <input type="hidden" name="entryId" value={entryId} />
                   <input type="hidden" name="professionalId" value={g.professionalId} />
                   <input type="hidden" name="startsAt" value={slot} />
                   <button
                     type="submit"
                     className={buttonClasses("outline", "sm")}
+                    aria-label={`Reservar a las ${fmtTime(slot)} con ${g.professionalName}`}
                     title="Reservar este horario para el anotado"
                   >
                     {fmtTime(slot)}

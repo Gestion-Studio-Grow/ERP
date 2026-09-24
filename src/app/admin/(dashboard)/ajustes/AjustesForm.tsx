@@ -157,15 +157,6 @@ export default function AjustesForm({
   const hasValidLine = leidas.some((l) => l.p && l.lectura.estado === "ok" && (mode === "COUNT" || l.delta !== 0));
   const canSubmit = hasValidLine && !hayIlegible && (!noteNeeded || note.trim().length > 0);
 
-  if (products.length === 0) {
-    return (
-      <div className="rounded-lg border border-line bg-surface-sunken p-4 text-sm text-muted">
-        No hay productos cargados todavía. Cargá los productos en el catálogo para poder
-        ajustar su stock.
-      </div>
-    );
-  }
-
   return (
     <form onSubmit={enviar} className="rounded-lg border border-line p-4 space-y-4">
       <input type="hidden" name="motivo" value={motivo} />
@@ -187,7 +178,7 @@ export default function AjustesForm({
             type="button"
             aria-pressed={m === motivo}
             onClick={() => setMotivo(m)}
-            className={`chip-btn text-sm ${m === motivo ? "bg-accent text-on-accent" : ""}`}
+            className={`chip-btn max-sm:min-h-11! text-sm ${m === motivo ? "bg-accent text-on-accent" : ""}`}
           >
             {motivoLabel(m)}
           </button>
@@ -336,7 +327,7 @@ export default function AjustesForm({
         <button
           type="button"
           onClick={() => focus(`prod-${addLine()}`)}
-          className="chip-btn text-sm"
+          className="chip-btn max-sm:min-h-11! text-sm"
         >
           + Agregar producto
         </button>

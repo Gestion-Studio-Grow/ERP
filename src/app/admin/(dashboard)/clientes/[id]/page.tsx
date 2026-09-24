@@ -1,10 +1,11 @@
 import { getClient } from "@/lib/actions";
-import { buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { fmtMoneyARS } from "@/components/ui";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
 import { canCurrentUser } from "@/lib/authz";
-import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { claseBotonWhatsApp } from "../boton-whatsapp";
+import { contactoDeLaFicha } from "../contacto-ficha";
 import { requireApp } from "@/lib/require-app";
 import EditarClienteForm from "./EditarClienteForm";
 import FichaUnica from "./FichaUnica";
@@ -38,30 +39,33 @@ export default async function ClienteDetailPage({
   // `updateClient` (ADR-017 §2.e: ocultar un botón no es seguridad).
   const puedeEditar = await canCurrentUser("clients:manage");
 
-  // Link directo al chat (549 + teléfono normalizado). Null si lo cargado no es un número de
-  // 10 dígitos: no se abre WhatsApp a un número que no es el de ella.
-  const wa = waLinkClienta(client.phone);
+  // Link directo al chat (549 + teléfono normalizado). Si lo cargado no es un celular, no se abre
+  // WhatsApp a un número que no es el de ella: la ficha lo DICE y dice dónde corregirlo, en vez
+  // de que el botón simplemente no esté (contacto-ficha.ts).
+  const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
 
   const totalGastado = client.appointments
     .filter((a) => a.payment?.status === "APPROVED")
     .reduce((sum, a) => sum + (a.payment?.amount ?? 0), 0);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-      <Link href="/admin/clientes" className="text-sm text-muted hover:text-strong hover:underline">
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <Link href="/admin/clientes" className="text-sm text-muted hover:text-strong hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
         ← Clientes
       </Link>
-      <h1 className="text-2xl font-semibold text-strong mt-2 mb-1">{client.name}</h1>
-      <p className="text-muted mb-6 flex flex-wrap items-center gap-2">
-        <span>
+      <h1 className="text-2xl font-semibold text-strong mt-2 mb-1 [overflow-wrap:anywhere]">{client.name}</h1>
+      <p className={`text-muted flex flex-wrap items-center gap-2 ${contacto.tipo === "sin-celular" ? "mb-2" : "mb-6"}`}>
+        {/* Un email largo no empuja la pantalla hacia el costado en el celular: corta donde haga falta. */}
+        <span className="min-w-0 [overflow-wrap:anywhere]">
           {client.phone} {client.email ? `· ${client.email}` : ""}
         </span>
-        {wa && (
+        {contacto.tipo === "whatsapp" && (
           <a
-            href={wa}
+            href={contacto.href}
             target="_blank"
             rel="noopener noreferrer"
-            className={buttonClasses("outline", "md", "whitespace-nowrap")}
+            aria-label={`WhatsApp a ${client.name}`}
+            className={claseBotonWhatsApp("outline")}
           >
             WhatsApp
           </a>
@@ -69,13 +73,14 @@ export default async function ClienteDetailPage({
         {client.isResident != null && (
           <span
             className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              client.isResident ? "bg-accent-soft text-accent" : "bg-surface-sunken text-muted"
+              client.isResident ? "bg-accent-soft text-accent-ink" : "bg-surface-sunken text-muted"
             }`}
           >
             {client.isResident ? "Cliente de la zona (precio local)" : "Sin precio local"}
           </span>
         )}
       </p>
+      {contacto.tipo === "sin-celular" && <p className="mb-6 text-sm text-warning">{contacto.texto}</p>}
 
       {puedeEditar && (
         <div className="mb-8">
@@ -116,7 +121,7 @@ export default async function ClienteDetailPage({
       <div className="space-y-2">
         {client.appointments.map((a) => (
           <div key={a.id} className="rounded-lg border border-line bg-surface-raised px-4 py-3 text-sm">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-x-2">
               <span className="font-medium text-strong">{a.service.name}</span>
               <span className="text-muted">
                 {statusLabel[a.status] ?? a.status}

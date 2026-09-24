@@ -1,9 +1,15 @@
-import { getReviews, togglePublished, deleteReview } from "@/lib/reviews-actions";
+import { getReviews, togglePublished } from "@/lib/reviews-actions";
 import { fmtShortDate } from "@/lib/datetime";
 import { requireApp } from "@/lib/require-app";
 import { fmtNumberAR } from "@/components/ui";
 import { resumirResenasDeLista, type ResumenResenas } from "@/lib/crm/resenas";
 import { enInicioPorApps } from "../inicio/piloto";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { getNegocioApps } from "@/apps/contexto.server";
+import PasoVacio from "../turnos/PasoVacio";
+import EliminarResena from "./EliminarResena";
+import { vacioDeResenas } from "./vacio";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +51,8 @@ function ResumenDeResenas({ r }: { r: ResumenResenas }) {
 }
 
 export default async function ResenasPage() {
-  await requireApp("resenas");
-  const [reviews, piloto] = await Promise.all([getReviews(), enInicioPorApps()]);
+  const user = await requireApp("resenas");
+  const [reviews, piloto, negocio] = await Promise.all([getReviews(), enInicioPorApps(), getNegocioApps(user.role)]);
   const resumen = piloto
     ? resumirResenasDeLista(
         reviews.map((r) => ({ rating: r.rating, published: r.published, professionalId: r.professionalId, profesional: r.professional.name })),
@@ -54,7 +60,7 @@ export default async function ResenasPage() {
     : null;
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Reseñas</h1>
       <p className="text-muted mb-8">
         Publicá las reseñas que quieras mostrar en la web. Por defecto quedan ocultas hasta que las
@@ -67,8 +73,8 @@ export default async function ResenasPage() {
         {reviews.map((r) => (
           <div key={r.id} className="rounded-lg border border-line p-4">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
                   <Stars rating={r.rating} />
                   <span className="font-medium text-sm">{r.clientName}</span>
                   <span className="text-xs text-faint">· {r.professional.name}</span>
@@ -89,25 +95,24 @@ export default async function ResenasPage() {
                 <form action={togglePublished}>
                   <input type="hidden" name="id" value={r.id} />
                   <input type="hidden" name="published" value={String(r.published)} />
-                  <button type="submit" className="chip-btn w-full text-xs min-h-8 sm:w-auto">
+                  <button type="submit" className="chip-btn w-full text-xs min-h-8 sm:w-auto max-sm:min-h-11!">
                     {r.published ? "Ocultar" : "Publicar"}
                   </button>
                 </form>
-                <form action={deleteReview}>
-                  <input type="hidden" name="id" value={r.id} />
-                  <button type="submit" className="chip-btn chip-btn-danger w-full sm:w-auto text-xs min-h-8">
-                    Eliminar
-                  </button>
-                </form>
+                <EliminarResena id={r.id} cliente={r.clientName} />
               </div>
             </div>
           </div>
         ))}
         {reviews.length === 0 && (
-          <p className="text-sm text-muted">
-            Todavía no hay reseñas. Van a aparecer acá cuando los clientes las dejen después de un
-            turno completado.
-          </p>
+          // El siguiente paso es pedirlas desde la bandeja, sólo en el piloto y si esta persona la
+          // puede abrir (vacio.ts): en CH la bandeja no está en la barra.
+          <PasoVacio
+            paso={vacioDeResenas({
+              piloto,
+              bandejaPermitida: appPermitida(appPorId("para-contactar-hoy"), negocio),
+            })}
+          />
         )}
       </div>
     </main>

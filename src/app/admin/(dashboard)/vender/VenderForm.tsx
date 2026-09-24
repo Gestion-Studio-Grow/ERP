@@ -15,6 +15,11 @@
 //   · la clave de idempotencia es una por ticket y se renueva recién cuando el ticket se limpia;
 //   · los rechazos del servidor llegan DEVUELTOS (no lanzados) y se muestran enteros.
 //
+// En el celular el total y el botón de cobrar quedan FIJOS abajo (se ve cuánto es y se cobra sin
+// bajar hasta el final), y lo que no salió se dice AHÍ, al lado del botón, hasta que se resuelva:
+// antes era un aviso de 4 segundos que en el celular tapaba justo el botón y se iba. Sin señal a
+// mitad del cobro, el botón pasa a «Reintentar cobro» con la MISMA venta (cobro-sin-conexion.ts).
+//
 // Todas las reglas de plata (descuento, tope, vuelto, precio a mano) son las de
 // reglas-venta.ts, las MISMAS que aplica el servidor: la pantalla avisa y el servidor decide.
 // Sin imports de valor de Prisma: esto es un client component.
@@ -22,7 +27,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createOrder, buscarClienteParaVenta } from "@/lib/order-actions";
-import { BuscadorCombo, Input, Select, buttonClasses, cn, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
+import { AvisoError, BuscadorCombo, Input, Select, buttonClasses, cn, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import {
@@ -35,7 +40,6 @@ import {
   leerImporte,
 } from "@/lib/pos-peso";
 import { round2 } from "@/lib/round";
-import { useToast } from "../ToastProvider";
 import TicketVenta from "./TicketVenta";
 import FacturarVenta from "../ventas/FacturarVenta";
 import { SIN_FACTURA } from "../ventas/factura";
@@ -51,6 +55,17 @@ import {
   type TopePrecioAMano,
   type VentaTicket,
 } from "./reglas-venta";
+import {
+  antesDeCobrar,
+  avisoDelCobro,
+  cambioDespuesDelCorte,
+  claveParaCobrar,
+  etiquetaDeOtraVenta,
+  etiquetaDeReintento,
+  firmaDelCobro,
+  recordarEnvioSinRespuesta,
+  type EnvioSinRespuesta,
+} from "./cobro-sin-conexion";
 
 type SellableProduct = {
   id: string;
@@ -83,7 +98,7 @@ function isNextRedirect(e: unknown): boolean {
   return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
 }
 
-function CobrarSubmit({ disabled, label }: { disabled: boolean; label: string }) {
+function CobrarSubmit({ disabled, label, pendiente }: { disabled: boolean; label: string; pendiente: string }) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -91,10 +106,16 @@ function CobrarSubmit({ disabled, label }: { disabled: boolean; label: string })
       disabled={disabled || pending}
       className={buttonClasses("solid", "lg", "w-full sm:w-auto disabled:opacity-50")}
     >
-      {pending ? "Cobrando…" : label}
+      {pending ? pendiente : label}
     </button>
   );
 }
+
+/** Lo que no salió en el último intento de cobro. El texto se arma al mostrarlo (según la señal de AHORA). */
+// Lo que se mandó sin respuesta (su firma y su total) NO va acá: se guarda aparte, porque el
+// intento siguiente pisa la falla y la duda sigue (cobro-sin-conexion.ts, "Lo que se mandó y no
+// tuvo respuesta").
+type Falla = { tipo: "sin-senal" } | { tipo: "red" } | { tipo: "rechazo"; error: string };
 
 export default function VenderForm({
   products,
@@ -127,7 +148,6 @@ export default function VenderForm({
   /** Tope del precio a mano de quien vende (null = sin tope). La misma regla que el servidor. */
   topePrecioAMano?: TopePrecioAMano | null;
 }) {
-  const { showError, showSuccess } = useToast();
   const [isOrder, setIsOrder] = useState(pedidoInicial);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
   const [paid, setPaid] = useState(!pedidoInicial);
@@ -158,8 +178,30 @@ export default function VenderForm({
   const [direccion, setDireccion] = useState("");
   const [nota, setNota] = useState("");
 
+  // Lo que no salió en el último intento, a la vista hasta que se resuelva (ver arriba), y si el
+  // navegador tiene señal ahora: cambia el "cuando vuelva la señal" por "tocá Reintentar".
+  const [falla, setFalla] = useState<Falla | null>(null);
+  // El envío que salió y no tuvo respuesta (puede haberse grabado con la clave de este ticket).
+  // Sólo se borra cuando el ticket se limpia o el cajero declara «Es otra venta».
+  const [sinRespuesta, setSinRespuesta] = useState<EnvioSinRespuesta | null>(null);
+  const [enLinea, setEnLinea] = useState(true);
+  useEffect(() => {
+    const leer = () => setEnLinea(navigator.onLine);
+    leer();
+    window.addEventListener("online", leer);
+    window.addEventListener("offline", leer);
+    return () => {
+      window.removeEventListener("online", leer);
+      window.removeEventListener("offline", leer);
+    };
+  }, []);
+
   // La última venta cobrada, con su ticket. No frena la próxima: el formulario ya está limpio.
   const [ultima, setUltima] = useState<{ venta: VentaTicket; pagoCon: number | null } | null>(null);
+  // Lo que salió sin ticket (un pedido, una venta sin cobrar, el reintento que ya estaba
+  // registrado), escrito arriba del formulario. No en el aviso flotante: en el celular tapaba el
+  // botón de cobrar de la venta siguiente.
+  const [confirmacion, setConfirmacion] = useState<string | null>(null);
 
   const [focusPedido, setFocusPedido] = useState<{ id: string; n: number } | null>(null);
   const focusN = useRef(0);
@@ -283,9 +325,23 @@ export default function VenderForm({
   const faltaMedio = paid && !medio && !aCuentaActivo;
   const vuelto = paid && !aCuentaActivo && medio === "EFECTIVO" ? calcularVuelto(total, pagoConText) : null;
 
+  // Lo que define la plata y el stock de este cobro, para saber si un reintento es la misma venta.
+  const firma = firmaDelCobro({
+    lineas: leidas.filter((l) => byId.get(l.productId) && l.qty > 0).map((l) => ({ productId: l.productId, cantidad: l.qty })),
+    manuales: manualesLeidas.filter((m) => m.valida).map((m) => ({ nombre: m.nombre, importe: m.importe })),
+    medio: aCuentaActivo ? "A_CUENTA" : paid ? medio : "SIN_COBRAR",
+    total,
+    esPedido: isOrder,
+  });
+  const cambioTrasCorte = sinRespuesta !== null && cambioDespuesDelCorte(sinRespuesta.firma, firma);
+
   const motivoBloqueo = !hayLineaValida
     ? null
-    : !descuento.ok
+    : cambioTrasCorte
+      ? isOrder
+        ? "Revisá el pedido cortado"
+        : "Revisá la venta cortada"
+      : !descuento.ok
       ? "Revisá el descuento"
       : cuponSinAplicar
         ? "Aplicá el cupón"
@@ -315,7 +371,17 @@ export default function VenderForm({
     setHorario("");
     setDireccion("");
     setNota("");
+    setFalla(null);
+    setSinRespuesta(null);
     ticketKey.current = "";
+  }
+
+  // «Es otra venta»: después del corte, el cajero revisó y lo cargado NO es la venta cortada (o ya
+  // sacó lo que se había grabado). Viaja con otra clave; lo cargado queda como está.
+  function esOtraVenta() {
+    ticketKey.current = "";
+    setFalla(null);
+    setSinRespuesta(null);
   }
 
   async function buscarCliente() {
@@ -337,8 +403,15 @@ export default function VenderForm({
   }
 
   async function submit(fd: FormData) {
-    if (!ticketKey.current) ticketKey.current = nuevaClaveDeTicket();
+    // Sin señal no se manda: el envío quedaría colgado y el cajero no sabría qué pasó.
+    if (antesDeCobrar(navigator.onLine)) {
+      setFalla({ tipo: "sin-senal" });
+      return;
+    }
+    // Un reintento es la MISMA venta: misma clave (cobro-sin-conexion.ts).
+    ticketKey.current = claveParaCobrar(ticketKey.current, nuevaClaveDeTicket);
     fd.set("idempotencyKey", ticketKey.current);
+    setConfirmacion(null);
     fd.set("conTicket", "1");
     const pagoCon = medio === "EFECTIVO" ? leerImporte(pagoConText) : null;
     let r;
@@ -346,43 +419,64 @@ export default function VenderForm({
       r = await createOrder(fd);
     } catch (e) {
       if (isNextRedirect(e)) throw e;
-      showError(
-        "No se pudo registrar la venta. Revisá la conexión y volvé a intentar con el mismo ticket: " +
-          "si ya se había grabado, no se va a cobrar dos veces.",
-      );
+      setFalla({ tipo: "red" });
+      setSinRespuesta((previo) => recordarEnvioSinRespuesta(previo, { firma, total }));
       return;
     }
     if (r && !r.ok) {
-      showError(r.error);
+      setFalla({ tipo: "rechazo", error: r.error });
       return;
     }
-    // El mensaje dice lo que pasó: una venta que quedó sin cobrar no es "Venta cobrada".
-    showSuccess(
-      r?.mensaje ??
-        (isOrder
-          ? "Pedido registrado."
-          : paid
-            ? "Venta cobrada."
-            : "Venta registrada sin cobrar: queda en Pedidos para preparar hasta que se cobre."),
-    );
     // La venta a cuenta también lleva su ticket (dice "Queda a cuenta"): el cliente se lleva
     // la mercadería y la constancia de lo que quedó debiendo.
     if (r?.venta && (r.venta.medio || r.venta.aCuenta)) {
+      // Con ticket, la confirmación es el bloque «Última venta», que queda a la vista. El aviso
+      // flotante de 4 s, en el celular, tapaba el botón de cobrar de la venta siguiente (medido
+      // a 412 px: 138 × 44 px encima del botón).
       setUltima({ venta: r.venta, pagoCon: pagoCon?.estado === "ok" ? pagoCon.valor : null });
+      // El reintento de una venta que ya estaba grabada vuelve con su ticket Y con el aviso de
+      // que no se cobró dos veces (order-actions.ts, rama `dedup`): se dicen las dos cosas.
+      if (r.mensaje) setConfirmacion(r.mensaje);
+    } else {
+      // El mensaje dice lo que pasó: una venta que quedó sin cobrar no es "Venta cobrada".
+      setConfirmacion(
+        r?.mensaje ??
+          (isOrder
+            ? "Pedido registrado."
+            : paid
+              ? "Venta cobrada."
+              : "Venta registrada sin cobrar: queda en Pedidos para preparar hasta que se cobre."),
+      );
     }
     limpiar();
   }
 
+  const aviso = avisoDelCobro({
+    falla,
+    sinRespuesta: sinRespuesta ? { cambio: cambioTrasCorte, totalMandado: fmtMoneyARS(sinRespuesta.total) } : null,
+    enLinea,
+    esPedido: isOrder,
+  });
+
   const etiquetaCobrar = !hayLineaValida
     ? "Cobrar"
     : motivoBloqueo ??
-      (isOrder ? "Registrar pedido" : aCuentaActivo ? `Dejar a cuenta ${fmtMoneyARS(total)}` : `Cobrar ${fmtMoneyARS(total)}`);
+      (aviso?.reintentar
+        ? isOrder
+          ? etiquetaDeReintento(true)
+          : `${etiquetaDeReintento()} ${fmtMoneyARS(total)}`
+        : isOrder
+          ? "Registrar pedido"
+          : aCuentaActivo
+            ? `Dejar a cuenta ${fmtMoneyARS(total)}`
+            : `Cobrar ${fmtMoneyARS(total)}`);
 
   return (
     <div className="space-y-4">
       {ultima && (
         <section
           aria-label="Última venta"
+          aria-live="polite"
           className="rounded-lg border border-success/40 bg-success-soft/40 p-3 space-y-3"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -403,6 +497,18 @@ export default function VenderForm({
           {puedeFacturar && <FacturarVenta key={ultima.venta.id} orderId={ultima.venta.id} inicial={SIN_FACTURA} />}
           <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} />
         </section>
+      )}
+
+      {confirmacion && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-2 rounded-lg border border-success/40 bg-success-soft/40 pl-3 text-sm text-strong"
+        >
+          <p className="py-2">{confirmacion}</p>
+          <button type="button" onClick={() => setConfirmacion(null)} className="h-11 shrink-0 px-3 text-sm text-muted hover:underline">
+            Cerrar
+          </button>
+        </div>
       )}
 
       <form action={submit} className="rounded-lg border border-line p-3 sm:p-4 space-y-4">
@@ -962,31 +1068,60 @@ export default function VenderForm({
           </div>
         )}
 
-        <div className="flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-muted">
-            {descuento.ok && descuento.descuento > 0 && (
-              <p className="tabular-nums">
-                Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
+        {/* Total y cobrar. En el celular, FIJOS abajo mientras se arma el ticket (el pie del
+            formulario los suelta al final); desde sm, el pie de siempre. Lo que no salió va acá
+            arriba del botón, que es donde se está mirando. z-10 y no más: la lista del buscador
+            (z-20) tiene que poder abrirse por encima de la barra. Se apoya ENCIMA de la barra de
+            espacios del celular (`--alto-barra-inferior`, layout.tsx; 0 donde no la hay): con
+            bottom-0 quedaba debajo y tocar «Cobrar» abría la hoja de «Mostrador». */}
+        <div className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 -mx-3 -mb-3 space-y-3 rounded-b-lg border-t border-line bg-surface px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] sm:static sm:z-auto sm:mx-0 sm:mb-0 sm:rounded-none sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:shadow-none">
+          {aviso && (
+            <AvisoError
+              titulo={aviso.titulo}
+              comoSeguir={aviso.comoSeguir}
+              accion={
+                aviso.reintentar ? undefined : cambioTrasCorte ? (
+                  <button type="button" onClick={esOtraVenta} className="h-11 px-2 text-sm font-medium text-strong underline">
+                    {etiquetaDeOtraVenta(isOrder)}
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => setFalla(null)} className="h-11 px-2 text-sm text-muted hover:underline">
+                    Entendido
+                  </button>
+                )
+              }
+            />
+          )}
+          {/* El mismo pie de siempre (total arriba y botón a lo ancho en el celular; en fila desde
+              sm): lo único nuevo es que en el celular queda fijo. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted">
+              {descuento.ok && descuento.descuento > 0 && (
+                <p className="tabular-nums">
+                  Subtotal {fmtMoneyARS(subtotal)} · descuento −{fmtMoneyARS(descuento.descuento)}
+                </p>
+              )}
+              <p>
+                Total{" "}
+                <span className="ml-1 text-2xl font-semibold tabular-nums text-strong">{fmtMoneyARS(total)}</span>
               </p>
-            )}
-            <p>
-              Total{" "}
-              <span className="ml-1 text-2xl font-semibold tabular-nums text-strong">{fmtMoneyARS(total)}</span>
-            </p>
+            </div>
+            <CobrarSubmit
+              disabled={
+                !hayLineaValida ||
+                hayFaltante ||
+                hayCantidadInvalida ||
+                hayManualInvalida ||
+                faltaMedio ||
+                !descuento.ok ||
+                cuponSinAplicar ||
+                faltaFichaACuenta ||
+                cambioTrasCorte
+              }
+              label={etiquetaCobrar}
+              pendiente={isOrder ? "Registrando…" : "Cobrando…"}
+            />
           </div>
-          <CobrarSubmit
-            disabled={
-              !hayLineaValida ||
-              hayFaltante ||
-              hayCantidadInvalida ||
-              hayManualInvalida ||
-              faltaMedio ||
-              !descuento.ok ||
-              cuponSinAplicar ||
-              faltaFichaACuenta
-            }
-            label={etiquetaCobrar}
-          />
         </div>
       </form>
     </div>

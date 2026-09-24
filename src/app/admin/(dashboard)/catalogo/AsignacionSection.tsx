@@ -137,10 +137,10 @@ function ServicioRow({ servicio, profesionales }: { servicio: Svc; profesionales
             </div>
           )}
           <div className="mt-3 flex gap-4">
-            <button type="submit" className="text-sm font-medium">
+            <button type="submit" className="text-sm font-medium max-sm:min-h-11 max-sm:min-w-11">
               Guardar
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="text-sm text-muted">
+            <button type="button" onClick={() => setOpen(false)} className="text-sm text-muted max-sm:min-h-11 max-sm:min-w-11">
               Cancelar
             </button>
           </div>

@@ -80,12 +80,15 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
   );
 }
 
+// Piso táctil de la casa en el celular (44 px, h-11): los controles de la fila se tocan con el
+// dedo en la recepción. En la PC quedan compactos como estaban (`max-sm:` sólo aplica < 640 px).
+const TOQUE_CEL = "max-sm:min-h-11";
 const selectClasses =
-  "rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent";
+  `rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent ${TOQUE_CEL}`;
 const inputClasses =
-  "rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent w-28";
+  `rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent w-28 ${TOQUE_CEL}`;
 const linkButtonClasses =
-  "inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-danger transition-colors";
+  `inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-danger transition-colors ${TOQUE_CEL}`;
 
 function nuevaClave() {
   // uuid del formulario: la clave de idempotencia del cobro. Se renueva tras cada cobro
@@ -167,7 +170,7 @@ function CompletarForm({ appointmentId, saldo, yaOcurrio }: { appointmentId: str
           <p className="text-xs font-medium text-muted">Cobrar el saldo de {fmtMoneyARS(saldo, 0)} con</p>
           <div className="flex flex-wrap items-center gap-2">
             {!dejarSaldo && <MetodoSelect name="method" />}
-            <label className="flex items-center gap-1.5 text-xs text-body">
+            <label className={`flex items-center gap-1.5 text-xs text-body ${TOQUE_CEL}`}>
               <input
                 type="checkbox"
                 name="saldo"
@@ -225,7 +228,11 @@ function CorreccionConMotivo({
       <button
         type="button"
         onClick={() => setAbierto(true)}
-        className={peligro ? linkButtonClasses : "inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-strong transition-colors"}
+        className={
+          peligro
+            ? linkButtonClasses
+            : `inline-flex items-center min-h-6 self-start text-sm text-muted hover:text-strong transition-colors ${TOQUE_CEL}`
+        }
       >
         {etiqueta}
       </button>
@@ -255,13 +262,13 @@ function CorreccionConMotivo({
         maxLength={200}
         placeholder={placeholder}
         aria-label="Motivo"
-        className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+        className={`rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent ${TOQUE_CEL}`}
       />
       <div className="flex items-center gap-3 text-xs">
-        <SubmitButton pendingText="Guardando…" className="font-semibold underline text-danger">
+        <SubmitButton pendingText="Guardando…" className={`font-semibold underline text-danger ${TOQUE_CEL}`}>
           {confirmar}
         </SubmitButton>
-        <button type="button" className="text-muted hover:underline" onClick={() => { setAbierto(false); setError(""); }}>
+        <button type="button" className={`text-muted hover:underline ${TOQUE_CEL} max-sm:min-w-11 max-sm:px-3`} onClick={() => { setAbierto(false); setError(""); }}>
           No
         </button>
       </div>

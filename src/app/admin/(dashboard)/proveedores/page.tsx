@@ -22,24 +22,36 @@ export default async function ProveedoresPage({
   const proveedores = await listSuppliers(tenantId, { includeInactive: conBajas });
   const sinCuit = proveedores.filter((p) => p.active && !p.taxId).length;
 
+  // Primero la lista (es lo que se viene a buscar: el teléfono de uno, su deuda) y el alta
+  // abajo; en el celular, con el alta arriba, había que bajar un formulario entero para llegar
+  // al primer proveedor.
+  const alta = (
+    <section id="nuevo-proveedor" aria-labelledby="alta-titulo" className="scroll-mt-4 rounded-lg border border-line p-4">
+      <h2 id="alta-titulo" className="mb-3 text-base font-semibold text-strong">
+        Nuevo proveedor
+      </h2>
+      <ProveedorForm modo="alta" />
+    </section>
+  );
+
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
       <PageHeader
         title="Proveedores"
         description="A quién le comprás: CUIT, contacto, compras, deuda y devoluciones de cada uno."
         actions={
-          <Link href={conBajas ? "/admin/proveedores" : "/admin/proveedores?bajas=1"} className={buttonClasses("outline", "md")}>
-            {conBajas ? "Sólo los activos" : "Ver también los dados de baja"}
-          </Link>
+          <>
+            {proveedores.length > 0 && (
+              <a href="#nuevo-proveedor" className={buttonClasses("solid", "md")}>
+                Nuevo proveedor
+              </a>
+            )}
+            <Link href={conBajas ? "/admin/proveedores" : "/admin/proveedores?bajas=1"} className={buttonClasses("outline", "md")}>
+              {conBajas ? "Sólo los activos" : "Ver también los dados de baja"}
+            </Link>
+          </>
         }
       />
-
-      <section aria-labelledby="alta-titulo" className="mb-8 rounded-lg border border-line p-4">
-        <h2 id="alta-titulo" className="mb-3 text-base font-semibold text-strong">
-          Nuevo proveedor
-        </h2>
-        <ProveedorForm modo="alta" />
-      </section>
 
       {sinCuit > 0 && (
         <p className="mb-3 text-sm text-warning">
@@ -49,34 +61,45 @@ export default async function ProveedoresPage({
       )}
 
       {proveedores.length === 0 ? (
-        <EmptyState
-          title="Todavía no cargaste proveedores"
-          description="Cargá el primero con el formulario de arriba. Después lo elegís de una lista cada vez que recibís mercadería."
-        />
+        <div className="space-y-6">
+          <EmptyState
+            title="No hay proveedores"
+            description="Cargá el primero acá abajo: después lo elegís de una lista cada vez que recibís mercadería, y su ficha junta compras, deuda y devoluciones."
+            action={
+              <a href="#nuevo-proveedor" className={buttonClasses("solid", "md")}>
+                Cargar el primero
+              </a>
+            }
+          />
+          {alta}
+        </div>
       ) : (
-        <ul className="divide-y divide-line rounded-lg border border-line">
-          {proveedores.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={`/admin/proveedores/${encodeURIComponent(p.id)}`}
-                className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-surface-sunken"
-              >
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-strong">
-                    {p.name} {!p.active && <Badge tone="neutral">Dado de baja</Badge>}
+        <div className="space-y-8">
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {proveedores.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/admin/proveedores/${encodeURIComponent(p.id)}`}
+                  className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-surface-sunken"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-strong">
+                      {p.name} {!p.active && <Badge tone="neutral">Dado de baja</Badge>}
+                    </span>
+                    <span className="block text-xs text-muted">
+                      {p.taxId ? `CUIT ${fmtCuit(p.taxId)}` : "Sin CUIT"}
+                      {p.phone && ` · ${p.phone}`}
+                    </span>
                   </span>
-                  <span className="block text-xs text-muted">
-                    {p.taxId ? `CUIT ${fmtCuit(p.taxId)}` : "Sin CUIT"}
-                    {p.phone && ` · ${p.phone}`}
+                  <span className="text-xs tabular-nums text-muted">
+                    {p._count.purchases === 1 ? "1 compra" : `${p._count.purchases} compras`}
                   </span>
-                </span>
-                <span className="text-xs tabular-nums text-muted">
-                  {p._count.purchases === 1 ? "1 compra" : `${p._count.purchases} compras`}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {alta}
+        </div>
       )}
     </main>
   );

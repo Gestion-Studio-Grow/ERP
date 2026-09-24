@@ -5,6 +5,7 @@
 // de esa línea y no se registra ninguna (todo o nada). Sin imports de servidor.
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { AvisoError, EmptyState, Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { leerCantidad, formatearCantidad } from "@/lib/pos-peso";
 import type { CompraDevolvible } from "@/lib/suppliers/devoluciones";
@@ -21,7 +22,14 @@ function Registrar({ disabled, enviando }: { disabled: boolean; enviando: boolea
   );
 }
 
-export function DevolucionForm({ compras }: { compras: CompraDevolvible[] }) {
+export function DevolucionForm({
+  compras,
+  hrefCompras = null,
+}: {
+  compras: CompraDevolvible[];
+  /** Recibir mercadería, si quien devuelve la puede abrir: es la salida del vacío. */
+  hrefCompras?: string | null;
+}) {
   const [purchaseId, setPurchaseId] = useState("");
   const [cantidades, setCantidades] = useState<Record<string, string>>({});
   const [destino, setDestino] = useState<Destino | "">("");
@@ -48,6 +56,13 @@ export function DevolucionForm({ compras }: { compras: CompraDevolvible[] }) {
       <EmptyState
         title="No hay compras para devolver"
         description="Se devuelve mercadería de una compra a proveedor. Cuando registres compras en Recibir mercadería, van a aparecer acá."
+        action={
+          hrefCompras ? (
+            <Link href={hrefCompras} className={buttonClasses("solid", "md")}>
+              Recibir mercadería
+            </Link>
+          ) : undefined
+        }
       />
     );
   }

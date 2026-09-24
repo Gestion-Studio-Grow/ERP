@@ -4,6 +4,7 @@
 
 import type { Role } from "@/lib/capabilities";
 import { cargarKpi, type ResultadoKpi } from "@/apps/kpis/index.server";
+import { NumeroEsqueleto } from "@/components/ui";
 
 export default async function NumeroKpi({ appId, role }: { appId: string; role: Role }) {
   const resultado = await cargarKpi(appId, role);
@@ -11,12 +12,14 @@ export default async function NumeroKpi({ appId, role }: { appId: string; role: 
   return <NumeroDelTile resultado={resultado} />;
 }
 
-/** Mientras llega el número: un bloque gris del mismo alto, para que la grilla no salte. */
+/**
+ * Mientras llega el número: el esqueleto compartido (src/components/ui/Esqueleto.tsx), del mismo
+ * alto que el número, para que la grilla no salte. El "Calculando…" es para lectores de pantalla.
+ */
 export function NumeroCargando() {
   return (
-    <span className="mt-auto block border-t border-line pt-3" aria-busy="true">
-      <span className="block h-7 w-16 animate-pulse rounded bg-surface-sunken" aria-hidden />
-      <span className="mt-1.5 block h-3.5 w-28 animate-pulse rounded bg-surface-sunken" aria-hidden />
+    <span className="mt-auto block" aria-busy="true">
+      <NumeroEsqueleto />
       <span className="sr-only">Calculando…</span>
     </span>
   );

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import AppointmentRow from "./AppointmentRow";
 import { wallHourMinuteInBusinessTz, fmtTime } from "@/lib/datetime";
+import PasoVacio from "./PasoVacio";
+import type { PasoVacio as Paso } from "./pasos";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
 type Appointment = {
@@ -60,6 +62,8 @@ export default function CalendarGrid({
   canManage = true,
   canCollect = true,
   viewer,
+  sinProfesionales,
+  diaVacio,
 }: {
   professionals: Professional[];
   appointments: Appointment[];
@@ -67,6 +71,13 @@ export default function CalendarGrid({
   canCollect?: boolean;
   /** Quién mira: decide si se dibuja el cobro. La regla la resuelve `puedeCobrarEsteTurno`. */
   viewer?: { role: string; professionalId?: string | null };
+  /**
+   * Qué decir (y a dónde llevar) si no hay profesionales o el día está vacío. Lo decide la página
+   * con `pasos.ts`, porque depende de quién mira y de qué apps puede abrir. Sin esto queda la
+   * línea de antes.
+   */
+  sinProfesionales?: Paso;
+  diaVacio?: Paso;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = appointments.find((a) => a.id === selectedId) ?? null;
@@ -79,7 +90,11 @@ export default function CalendarGrid({
   });
 
   if (professionals.length === 0) {
-    return <p className="text-sm text-muted">No hay profesionales activos.</p>;
+    return sinProfesionales ? (
+      <PasoVacio paso={sinProfesionales} />
+    ) : (
+      <p className="text-sm text-muted">No hay profesionales activos.</p>
+    );
   }
 
   // En pantallas angostas la grilla horizontal no entra (columna por
@@ -92,9 +107,8 @@ export default function CalendarGrid({
   return (
     <div>
       <div className="lg:hidden space-y-3">
-        {sortedAppointments.length === 0 && (
-          <p className="text-sm text-muted">No hay turnos ese día.</p>
-        )}
+        {sortedAppointments.length === 0 &&
+          (diaVacio ? <PasoVacio paso={diaVacio} /> : <p className="text-sm text-muted">No hay turnos ese día.</p>)}
         {sortedAppointments.map((appt) => (
           <div key={appt.id}>
             <p className="text-xs font-medium text-faint mb-1">

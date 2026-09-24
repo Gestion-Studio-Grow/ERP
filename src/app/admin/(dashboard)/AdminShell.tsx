@@ -14,6 +14,7 @@ import { IconoApp } from "@/components/iconos-apps";
 import { ProfileBadge } from "@/components/ui";
 import ThemeToggle from "./ThemeToggle";
 import PaletaApps from "./inicio/PaletaApps";
+import BarraInferior from "./inicio/BarraInferior";
 
 // Íconos de línea: el set vive en src/components/iconos-apps.tsx para que la barra, el
 // Inicio y "App no disponible" dibujen el MISMO ícono por app. Los trazos son los que tenía
@@ -401,14 +402,16 @@ function BotonBuscarApps({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       aria-haspopup="dialog"
       aria-label="Buscar una app"
-      className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-line bg-surface-sunken pl-2.5 pr-2 text-sm text-faint hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus lg:min-h-0 lg:py-[7px]"
+      // `text-muted` y no `text-faint`: en el tema oscuro, faint sobre el fondo hundido daba
+      // 4,44:1 (medido), debajo del 4,5:1 de AA para texto chico.
+      className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-line bg-surface-sunken pl-2.5 pr-2 text-sm text-muted hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus lg:min-h-0 lg:py-[7px]"
     >
       <svg className="w-[15px] h-[15px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
         <circle cx="11" cy="11" r="7" />
         <path d="M20 20l-3.5-3.5" />
       </svg>
       <span className="min-w-0 flex-1 truncate text-left">Buscar…</span>
-      <kbd className="hidden shrink-0 whitespace-nowrap rounded border border-line px-1 font-sans text-[11px] text-faint lg:inline">
+      <kbd className="hidden shrink-0 whitespace-nowrap rounded border border-line px-1 font-sans text-[11px] text-muted lg:inline">
         {esMac ? "⌘K" : "Ctrl K"}
       </kbd>
     </button>
@@ -424,6 +427,7 @@ export default function AdminShell({
   menu,
   apps = [],
   modoApps = false,
+  esMostrador = false,
   navGrouping = false,
   activeProfile = null,
   showPublicSite = true,
@@ -440,6 +444,8 @@ export default function AdminShell({
   // para la paleta de Ctrl/⌘K. Con el interruptor apagado llega vacío y la barra busca en su menú, como siempre.
   apps?: readonly AppDescriptor[];
   modoApps?: boolean;
+  // ¿Local de mostrador? Nombra el primer espacio de la barra de abajo: "Mostrador" o "Recepción".
+  esMostrador?: boolean;
   // ¿El producto tiene vidriera pública en "/"? Vertical → sí (default). Productos de
   // facturación (Comerciante) → false: se oculta el link "Ver sitio público" del footer.
   showPublicSite?: boolean;
@@ -502,19 +508,32 @@ export default function AdminShell({
 
   return (
     <div className="min-h-screen flex bg-surface text-body">
-      {/* Sidebar fijo — solo desktop (lg+) */}
-      <nav className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-line bg-surface-raised px-3 py-5 h-screen sticky top-0">
-        <div className="shrink-0 px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
-        {/* Fuera del piloto, el Ctrl/⌘K de siempre: enfoca el buscador de la barra. En el
-            piloto lo atiende la paleta de apps (efecto de arriba). */}
-        <NavBuscable
-          items={items}
-          navGrouping={navGrouping}
-          atajoGlobal={!modoApps}
-          onBuscar={modoApps ? abrirPaleta : undefined}
-        />
-        <NavFooter userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} />
-      </nav>
+      {/* SALTAR AL CONTENIDO: lo primero que alcanza Tab. Invisible hasta que tiene foco; con
+          teclado evita recorrer toda la barra lateral en cada pantalla. */}
+      <a
+        href="#contenido"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:bg-surface-raised focus:px-4 focus:text-sm focus:font-semibold focus:text-strong focus:shadow-overlay focus:outline-2 focus:outline-offset-2 focus:outline-focus"
+      >
+        Saltar al contenido
+      </a>
+
+      {/* Sidebar fijo — solo desktop (lg+). El fondo va en una columna que se estira con la
+          página y la barra (sticky, alto de pantalla) va adentro: antes el fondo era el de la
+          barra misma y en una página larga, abajo de su alto, se veía el gris de la página. */}
+      <div className="hidden lg:block w-[236px] shrink-0 border-r border-line bg-surface-raised">
+        <nav aria-label="Menú" className="flex flex-col px-3 py-5 h-screen sticky top-0">
+          <div className="shrink-0 px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
+          {/* Fuera del piloto, el Ctrl/⌘K de siempre: enfoca el buscador de la barra. En el
+              piloto lo atiende la paleta de apps (efecto de arriba). */}
+          <NavBuscable
+            items={items}
+            navGrouping={navGrouping}
+            atajoGlobal={!modoApps}
+            onBuscar={modoApps ? abrirPaleta : undefined}
+          />
+          <NavFooter userName={userName} roleLabel={roleLabel} showPublicSite={showPublicSite} />
+        </nav>
+      </div>
 
       {/* Cajón móvil */}
       {drawerOpen && (
@@ -524,13 +543,13 @@ export default function AdminShell({
             onClick={() => setDrawerOpen(false)}
             aria-hidden
           />
-          <nav className="relative w-64 max-w-[80%] bg-surface-raised h-full max-h-[100dvh] px-3 py-5 flex flex-col shadow-overlay">
+          <nav aria-label="Menú" className="relative w-64 max-w-[80%] bg-surface-raised h-full max-h-[100dvh] px-3 py-5 flex flex-col shadow-overlay">
             <div className="shrink-0 px-2 mb-6 flex items-center justify-between">
               <Brand monogram={monogram} name={brandName} />
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Cerrar menú"
-                className="text-2xl leading-none text-muted px-2"
+                className="grid size-11 -mr-2 place-items-center rounded-lg text-2xl leading-none text-muted hover:bg-surface-sunken"
               >
                 ×
               </button>
@@ -554,10 +573,11 @@ export default function AdminShell({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar móvil con hamburguesa */}
         <header className="lg:hidden sticky top-0 z-30 bg-surface-raised/90 backdrop-blur border-b border-line px-4 h-14 flex items-center gap-3">
+          {/* 44 × 44 para el dedo (antes 36): el dibujo es el mismo, crece el área que se toca. */}
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Abrir menú"
-            className="flex flex-col justify-center gap-1.5 w-9 h-9 -ml-1 items-center rounded-md hover:bg-surface-sunken"
+            className="flex flex-col justify-center gap-1.5 w-11 h-11 -ml-2 items-center rounded-md hover:bg-surface-sunken"
           >
             <span className="block h-0.5 w-5 bg-strong" />
             <span className="block h-0.5 w-5 bg-strong" />
@@ -589,9 +609,18 @@ export default function AdminShell({
           </div>
         </header>
 
-        <div className="flex-1">{children}</div>
+        {/* Destino de "Saltar al contenido". `tabIndex={-1}`: recibe el foco del salto sin
+            sumarse al orden de Tab. No es <main>: cada página ya trae el suyo (PageContainer).
+            Abajo deja libre lo que ocupa la barra de espacios del celular (la variable la pone
+            el layout), para que al final del scroll el último botón no quede tapado. Esto NO
+            cubre lo que va pegado abajo mientras se scrollea (un `sticky`): eso se apoya con
+            `bottom-[var(--alto-barra-inferior,0px)]` (ver layout.tsx). */}
+        <div id="contenido" tabIndex={-1} className="flex-1 pb-[var(--alto-barra-inferior,0px)] focus:outline-none">
+          {children}
+        </div>
       </div>
 
+      {modoApps && <BarraInferior apps={apps} esMostrador={esMostrador} onBuscar={abrirPaleta} />}
       {modoApps && <PaletaApps apps={apps} abierta={paletaAbierta} onCerrar={cerrarPaleta} />}
     </div>
   );

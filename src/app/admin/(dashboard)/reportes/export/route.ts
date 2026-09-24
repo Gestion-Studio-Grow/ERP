@@ -21,6 +21,8 @@ import { getTenantBrand } from "@/lib/branding";
 import { leerVentasMostrador } from "@/lib/reports/ventas-mostrador-lectura";
 import { csvVentasMostrador } from "@/lib/reports/ventas-mostrador";
 import { BOM, cabecerasCsv } from "@/lib/libros/csv-ar";
+import { unstable_rethrow } from "next/navigation";
+import { nombreDeArchivo, periodoParaArchivo } from "../nombre-de-archivo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,18 +38,16 @@ export async function GET(request: Request) {
 
     // Un local de MOSTRADOR exporta lo que ve su pantalla: las ventas cobradas del período,
     // por día, medio y producto (ReportesMostrador.tsx). El de servicios sigue igual.
-    const { esMostrador } = await getNegocioApps(user.role);
+    const [{ esMostrador }, brand] = await Promise.all([getNegocioApps(user.role), getTenantBrand()]);
     if (esMostrador) {
       const tenantId = await getCurrentTenantId();
-      const [r, brand] = await Promise.all([
-        leerVentasMostrador(prisma, tenantId, todayInBusinessTz(), rangeDays),
-        getTenantBrand(),
-      ]);
+      const r = await leerVentasMostrador(prisma, tenantId, todayInBusinessTz(), rangeDays);
       const desde = dateStrInBusinessTz(r.desde);
       const hasta = dateStrInBusinessTz(r.hasta);
       return new Response(BOM + csvVentasMostrador(r, { desde, hasta, negocio: brand.name }), {
         status: 200,
-        headers: cabecerasCsv(`ventas-${hasta}-${rangeDays}d.csv`),
+        // "ventas-magra-2026-08-26-al-2026-09-24.csv": qué, de quién y de cuándo.
+        headers: cabecerasCsv(nombreDeArchivo(["ventas", brand.name, ...periodoParaArchivo(desde, hasta)])),
       });
     }
 
@@ -69,19 +69,22 @@ export async function GET(request: Request) {
       kpis: deep.kpis,
     });
 
-    const filename = `reporte-${data.hasta.toISOString().slice(0, 10)}-${rangeDays}d.csv`;
+    // Los días del negocio (hora argentina): `toISOString` daba el de Greenwich y a la noche el
+    // archivo decía mañana.
+    const filename = nombreDeArchivo([
+      "reportes",
+      brand.name,
+      ...periodoParaArchivo(dateStrInBusinessTz(data.desde), dateStrInBusinessTz(data.hasta)),
+    ]);
     // BOM UTF-8 para que Excel en Windows abra los acentos correctamente.
-    return new Response("﻿" + csv, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "no-store",
-      },
-    });
+    return new Response(BOM + csv, { status: 200, headers: cabecerasCsv(filename) });
   } catch (err) {
-    // requireCapability lanza si no está autorizado: no filtramos el detalle.
+    // Una guardia que redirige (sin sesión o sin permiso) no es un error del archivo: se deja pasar.
+    unstable_rethrow(err);
     logger.error("reportes/export", "no se pudo generar el CSV", err);
-    return new Response("No se pudo generar el reporte.", { status: 403 });
+    return new Response("No se pudo generar el reporte. Probá de nuevo en un rato; si sigue, avisanos.", {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+    });
   }
 }

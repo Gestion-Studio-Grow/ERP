@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui";
 import { normalizarTelefono } from "@/lib/clientes/telefono";
+import PasoVacio from "../turnos/PasoVacio";
+import type { PasoVacio as Paso } from "../turnos/pasos";
 
 type Client = {
   id: string;
@@ -19,7 +21,7 @@ function normalize(s: string) {
     .replace(/[̀-ͯ]/g, "");
 }
 
-export default function ClientsList({ clients }: { clients: Client[] }) {
+export default function ClientsList({ clients, vacio }: { clients: Client[]; vacio?: Paso }) {
   const [query, setQuery] = useState("");
 
   // La clave de cada teléfono se calcula una vez por lista, no en cada tecla.
@@ -44,6 +46,7 @@ export default function ClientsList({ clients }: { clients: Client[] }) {
     <>
       <Input
         type="text"
+        aria-label="Buscar cliente por nombre o teléfono"
         placeholder="Buscar por nombre o teléfono…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -69,11 +72,14 @@ export default function ClientsList({ clients }: { clients: Client[] }) {
         {filtered.length === 0 && clients.length > 0 && (
           <p className="text-sm text-muted">No encontramos clientes con ese criterio.</p>
         )}
-        {clients.length === 0 && (
-          <p className="text-sm text-muted">
-            Todavía no hay clientes. Se cargan automáticamente cuando reservan un turno.
-          </p>
-        )}
+        {clients.length === 0 &&
+          (vacio ? (
+            <PasoVacio paso={vacio} />
+          ) : (
+            <p className="text-sm text-muted">
+              Todavía no hay clientes. Se cargan automáticamente cuando reservan un turno.
+            </p>
+          ))}
       </div>
     </>
   );

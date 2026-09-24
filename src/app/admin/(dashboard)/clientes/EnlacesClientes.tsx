@@ -35,7 +35,7 @@ export default async function EnlacesClientes({ role, actual }: { role: Role; ac
             className={cn(
               "inline-flex h-11 shrink-0 items-center rounded-full border px-4 text-sm font-medium transition-colors",
               activo
-                ? "border-accent bg-accent-soft text-accent"
+                ? "border-accent bg-accent-soft text-accent-ink"
                 : "border-line bg-surface-raised text-body hover:border-line-strong",
             )}
           >

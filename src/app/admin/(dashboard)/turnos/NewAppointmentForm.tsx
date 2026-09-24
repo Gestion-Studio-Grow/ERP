@@ -38,6 +38,8 @@ export default function NewAppointmentForm({
   viewer,
   fichas,
   faltazos,
+  abierto = false,
+  fechaInicial = "",
 }: {
   professionals: Professional[];
   origen?: OrigenAlta;
@@ -58,11 +60,18 @@ export default function NewAppointmentForm({
    * desincronizarse. Sin `viewer` se asume que puede: el servidor sigue siendo la autoridad.
    */
   viewer?: { role: string; professionalId?: string | null };
+  /**
+   * Llegar con el alta ya abierta y el día puesto: lo usan los estados vacíos de la agenda
+   * ("Dar un turno", `hrefNuevoTurno` en pasos.ts). La fecha ya viene validada por
+   * `leerNuevoTurno` (hoy o futura). Sin esto, el formulario arranca como siempre.
+   */
+  abierto?: boolean;
+  fechaInicial?: string;
 }) {
-  const [open, setOpen] = useState(origen === "mostrador");
+  const [open, setOpen] = useState(origen === "mostrador" || abierto);
   const [professionalId, setProfessionalId] = useState("");
   const [serviceId, setServiceId] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(fechaInicial);
   const [slots, setSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -185,11 +194,12 @@ export default function NewAppointmentForm({
             : "Nuevo turno (por teléfono o en el local)"}
         </p>
         <button
+          type="button"
           onClick={() => {
             reset();
             if (origen !== "mostrador") setOpen(false);
           }}
-          className="text-sm text-muted hover:text-strong transition-colors"
+          className="text-sm text-muted hover:text-strong transition-colors max-sm:min-h-11 max-sm:px-2"
         >
           {origen === "mostrador" ? "Limpiar" : "Cancelar"}
         </button>
@@ -218,7 +228,8 @@ export default function NewAppointmentForm({
         }}
         className="space-y-3"
       >
-        <div className="grid grid-cols-2 gap-3">
+        {/* Una columna en el celular: con dos, el nombre del servicio y su precio no entraban. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Profesional" htmlFor="na-professional">
             <Select
               id="na-professional"
@@ -288,11 +299,17 @@ export default function NewAppointmentForm({
         </Field>
 
         {date && (
-          <div>
-            {isPending && <p className="text-sm text-muted">Buscando horarios…</p>}
-            {!isPending && slots.length === 0 && (
-              <p className="text-sm text-muted">No hay horarios disponibles ese día.</p>
-            )}
+          <div role="group" aria-labelledby="na-horario">
+            <p id="na-horario" className="mb-1.5 text-sm font-medium text-strong">
+              Horario
+            </p>
+            {!professionalId || !serviceId ? (
+              <p className="text-sm text-muted">Elegí profesional y servicio para ver los horarios libres.</p>
+            ) : isPending ? (
+              <p className="text-sm text-muted">Buscando horarios…</p>
+            ) : slots.length === 0 ? (
+              <p className="text-sm text-muted">No hay horarios libres ese día. Probá con otra fecha u otro profesional.</p>
+            ) : null}
             <div className="grid grid-cols-4 gap-2">
               {slots.map((slot) => {
                 const label = fmtTime(slot);
@@ -301,9 +318,10 @@ export default function NewAppointmentForm({
                   <button
                     key={slot}
                     type="button"
+                    aria-pressed={isSelected}
                     onClick={() => setSelectedSlot(slot)}
                     className={cn(
-                      "rounded-md border px-2 py-1.5 text-sm transition-colors",
+                      "rounded-md border px-2 py-1.5 text-sm transition-colors max-sm:min-h-11",
                       isSelected
                         ? "bg-accent text-on-accent border-accent"
                         : "bg-surface-raised border-line-strong text-body hover:bg-accent-soft"

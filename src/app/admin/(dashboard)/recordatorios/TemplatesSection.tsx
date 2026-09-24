@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { upsertMessageTemplate } from "@/lib/reminders-actions";
 import SubmitButton from "@/components/SubmitButton";
-import { Input, Textarea, buttonClasses } from "@/components/ui";
+import { Field, Input, Textarea, buttonClasses } from "@/components/ui";
 
 // Plantillas de mensaje, una tarjeta colapsada por (tipo, canal). El listado
 // anterior mostraba los 3 formularios abiertos y un párrafo críptico de
@@ -61,6 +61,8 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
   const [body, setBody] = useState(template?.body ?? "");
 
   const title = `${TYPE_LABELS[slot.type]} · ${slot.channel === "EMAIL" ? "Email" : "WhatsApp"}`;
+  // Ids de los labels: uno por tarjeta (tipo + canal), que es única en la pantalla.
+  const idBase = `plantilla-${slot.type}-${slot.channel}`.toLowerCase();
   const isActive = template?.active ?? true;
 
   return (
@@ -69,7 +71,7 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-accent-soft"
+        className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-accent-soft max-sm:min-h-11"
       >
         <span className="text-sm font-medium truncate">{title}</span>
         <span className="flex items-center gap-2">
@@ -94,21 +96,27 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
           <p className="text-xs text-muted">{TYPE_HELP[slot.type]}</p>
 
           {slot.channel === "EMAIL" && (
-            <Input
-              type="text"
-              name="subject"
-              defaultValue={template?.subject ?? ""}
-              placeholder="Asunto del email"
-            />
+            <Field label="Asunto del email" htmlFor={`${idBase}-asunto`}>
+              <Input
+                id={`${idBase}-asunto`}
+                type="text"
+                name="subject"
+                defaultValue={template?.subject ?? ""}
+                placeholder="Asunto del email"
+              />
+            </Field>
           )}
 
-          <Textarea
-            name="body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={3}
-            placeholder="Texto del mensaje…"
-          />
+          <Field label="Texto del mensaje" htmlFor={`${idBase}-texto`}>
+            <Textarea
+              id={`${idBase}-texto`}
+              name="body"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={3}
+              placeholder="Texto del mensaje…"
+            />
+          </Field>
 
           <div>
             <p className="text-xs text-muted mb-1.5">
@@ -120,7 +128,7 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
                   key={v.token}
                   type="button"
                   onClick={() => setBody((b) => (b ? `${b.replace(/\s+$/, "")} ${v.token}` : v.token))}
-                  className="rounded-full border border-line bg-surface-raised px-2.5 py-1 text-xs text-strong hover:border-line-strong"
+                  className="rounded-full border border-line bg-surface-raised px-2.5 py-1 text-xs text-strong hover:border-line-strong max-sm:min-h-11"
                 >
                   <code className="font-mono">{v.token}</code>
                   <span className="text-faint"> → {v.label}</span>
@@ -130,7 +138,7 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-muted">
+            <label className="flex items-center gap-1.5 text-xs text-muted max-sm:min-h-11">
               <input type="checkbox" name="active" defaultChecked={isActive} className="accent-accent" />
               Plantilla activa
             </label>

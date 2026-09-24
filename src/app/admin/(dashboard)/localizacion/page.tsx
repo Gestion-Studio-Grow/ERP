@@ -1,5 +1,5 @@
 import { getBusinessSettingsForAdmin, updateBusinessSettings } from "@/lib/settings-actions";
-import { requireCapability } from "@/lib/authz";
+import { requireApp } from "@/lib/require-app";
 import SubmitButton from "@/components/SubmitButton";
 import { Input, buttonClasses } from "@/components/ui";
 import type { BusinessSettingsRow } from "@/lib/settings";
@@ -41,7 +41,8 @@ export default async function LocalizacionPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   // Config del negocio → solo OWNER (location:manage). El resto cae a la home de su rol.
-  await requireCapability("location:manage");
+  // La guardia de la app (rol, desde el registro): quien no puede ve "App no disponible".
+  await requireApp("datos-del-negocio");
   const [{ row, defaults }, { status }] = await Promise.all([
     getBusinessSettingsForAdmin(),
     searchParams,

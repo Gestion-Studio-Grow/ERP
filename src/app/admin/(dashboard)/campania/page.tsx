@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/lib/authz";
+import { requireApp } from "@/lib/require-app";
 import { fmtDateTime } from "@/lib/datetime";
+import { EmptyState } from "@/components/ui";
+import { leerAnotados } from "./anotados";
 
 export const dynamic = "force-dynamic";
 
@@ -12,18 +14,39 @@ export const dynamic = "force-dynamic";
  * el último que se anotó arriba, que es el que está parado enfrente.
  */
 export default async function CampaniaPage() {
-  await requireCapability("clients:read");
+  // La guardia de la app, como la descarga (export/route.ts): una app oculta no es una app
+  // protegida. Antes la página pedía sólo el permiso (clients:read) y se abría tecleando la URL
+  // aunque el negocio no tuviera la campaña. El permiso lo aplica requireApp desde el registro.
+  await requireApp("campanias");
 
-  const leads = await prisma.leadCampania.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 500,
-  });
+  // Donde la tabla todavía no existe, la pantalla lo dice en vez de caer en la pantalla de
+  // error genérica. Cualquier otra falla sigue (anotados.ts).
+  const anotados = await leerAnotados(() =>
+    prisma.leadCampania.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    }),
+  );
+  if (anotados.estado === "sin-tabla") {
+    return (
+      <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
+        <h1 className="font-serif text-3xl mb-6" style={{ color: "var(--text-strong)" }}>
+          Anotados del obsequio
+        </h1>
+        <EmptyState
+          title="La campaña todavía no está habilitada en este negocio"
+          description="Cuando GSG la habilite, acá se ven quiénes se anotaron desde el QR, con su permiso para recibir novedades."
+        />
+      </main>
+    );
+  }
+  const leads = anotados.leads;
 
   const conDifusion = leads.filter((l) => l.aceptaDifusion).length;
   const conInstagram = leads.filter((l) => l.instagram).length;
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10 flex flex-col gap-8">
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10 flex flex-col gap-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-serif text-3xl" style={{ color: "var(--text-strong)" }}>
@@ -38,7 +61,7 @@ export default async function CampaniaPage() {
         <a
           href="/admin/campania/export"
           download
-          className="shrink-0 rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-strong hover:bg-surface-sunken"
+          className="shrink-0 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center rounded-lg border border-line-strong px-3 py-2 text-sm font-medium text-strong hover:bg-surface-sunken"
         >
           Descargar CSV
         </a>

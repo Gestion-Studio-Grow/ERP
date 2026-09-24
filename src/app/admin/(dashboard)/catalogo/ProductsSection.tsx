@@ -390,7 +390,7 @@ function ProductRow({ product }: { product: Product }) {
           <input type="hidden" name="active" value={String(product.active)} />
           <button
             type="submit"
-            className={`inline-flex items-center min-h-6 rounded-full px-2.5 py-1 text-xs font-medium ${
+            className={`inline-flex items-center min-h-6 max-sm:min-h-11 rounded-full px-2.5 py-1 text-xs font-medium ${
               product.active ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
             }`}
           >
@@ -400,7 +400,7 @@ function ProductRow({ product }: { product: Product }) {
       </td>
       <td className="block sm:table-cell px-0 sm:px-4 py-2 sm:py-2.5 sm:text-right whitespace-nowrap">
         <div className="flex flex-wrap gap-2 sm:justify-end">
-          <button onClick={() => setEditing(true)} className="chip-btn">
+          <button onClick={() => setEditing(true)} className="chip-btn max-sm:min-h-11!">
             Editar
           </button>
           <form
@@ -410,7 +410,7 @@ function ProductRow({ product }: { product: Product }) {
             }}
           >
             <input type="hidden" name="id" value={product.id} />
-            <button type="submit" className="chip-btn chip-btn-danger">
+            <button type="submit" className="chip-btn max-sm:min-h-11! chip-btn-danger">
               Eliminar
             </button>
           </form>

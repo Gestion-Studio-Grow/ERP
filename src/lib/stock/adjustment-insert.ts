@@ -11,8 +11,10 @@ import {
   adjustmentDelta,
   buildReason,
   mensajeDeTope,
+  mensajeDeYaRecontado,
   motivoMode,
   movidoDespuesDe,
+  recontadoDespuesDe,
   requiresNote,
   stockTeorico,
   superaElTope,
@@ -156,9 +158,22 @@ export async function ajustarEnTx(tx: LedgerTx, tenantId: string, input: Adjustm
             productId: { in: ids },
             createdAt: { gt: new Date(Math.min(...horas.map((h) => h.getTime()))) },
           },
-          select: { productId: true, qty: true, createdAt: true },
+          select: { productId: true, qty: true, createdAt: true, type: true, reason: true },
         })
       : [];
+
+  // Recuento con un conteo VIEJO: el producto ya se recontó después de la hora de este conteo
+  // (el mismo recuento reenviado desde un borrador cuya respuesta se perdió, dos pestañas, un
+  // POST a mano, o el recuento de otra persona). Aplicarlo descontaría la misma diferencia otra
+  // vez: el ajuste anterior es posterior a `contadoA`, entra en lo movido después y el teórico
+  // vuelve a subir. Se rechaza TODO (nada a medias), con los productos nombrados; la pantalla,
+  // al recargar, ya no ofrece esos conteos (borrador.ts). Lo lee con las filas bloqueadas.
+  if (mode === "COUNT") {
+    const viejos = wanted.filter((l) => l.contadoA && recontadoDespuesDe(posteriores, l.productId, l.contadoA));
+    if (viejos.length > 0) {
+      throw new Error(mensajeDeYaRecontado([...new Set(viejos.map((l) => byId.get(l.productId)!.name))]));
+    }
+  }
 
   const lineas: LineaAjustada[] = [];
   let applied = 0;

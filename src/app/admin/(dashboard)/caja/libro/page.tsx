@@ -10,6 +10,7 @@
 // al siguiente, y el saldo corrido no se puede pisar.
 
 import Link from "next/link";
+import { requireApp } from "@/lib/require-app";
 import { getLibroCajaData } from "@/lib/libro-caja-actions";
 import {
   CASH_METHODS,
@@ -33,7 +34,7 @@ import {
   EmptyState,
   fmtMoneyARS,
 } from "@/components/ui";
-import { AddLibroEntryForm, DeleteLibroEntryButton } from "./LibroForms";
+import { AddLibroEntryForm, DeleteLibroEntryButton, IrACargarMovimiento } from "./LibroForms";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,10 @@ const FILA_MOVIMIENTO =
 const CELDA_MOVIMIENTO =
   "flex items-baseline justify-between gap-3 py-0.5 sm:table-cell sm:py-2";
 const ROTULO_MOVIL = "text-xs uppercase tracking-wide text-faint sm:hidden";
+
+// Los meses de la navegación: en el celular, toques de 44 px; desde sm, como siempre.
+const NAV_MES =
+  "inline-flex min-h-11 items-center rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-2 sm:min-h-0";
 
 // Fecha de la fila en formato corto (dd/mm), que es como la lee la planilla. Se
 // formatea desde el instante UTC en la zona del negocio: el asiento se ancla al
@@ -74,8 +79,9 @@ export default async function LibroCajaPage({
 }: {
   searchParams: Promise<{ mes?: string }>;
 }) {
+  await requireApp("libro-de-caja");
   const { mes } = await searchParams;
-  // getLibroCajaData aplica requireCapability("orders:read") — guard de la página.
+  // getLibroCajaData aplica además requireCapability("orders:read"), la misma del registro.
   // Un ?mes inválido cae al mes corriente en vez de romper.
   const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = await getLibroCajaData(mes);
   const duplicados = new Set(posiblesDuplicados);
@@ -127,7 +133,7 @@ export default async function LibroCajaPage({
       <nav aria-label="Período" className="mb-6 flex items-center gap-3">
         <Link
           href={`${LIBRO_PATH}?mes=${formatMonthKey(prev.year, prev.month)}`}
-          className="rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-2"
+          className={NAV_MES}
           rel="prev"
         >
           <span className="capitalize">← {formatMonthLabel(prev.year, prev.month)}</span>
@@ -135,7 +141,7 @@ export default async function LibroCajaPage({
         <span className="text-sm font-medium capitalize text-strong">{label}</span>
         <Link
           href={`${LIBRO_PATH}?mes=${formatMonthKey(next.year, next.month)}`}
-          className="rounded-md border border-line px-3 py-1.5 text-sm text-body hover:bg-surface-2"
+          className={NAV_MES}
           rel="next"
         >
           <span className="capitalize">{formatMonthLabel(next.year, next.month)} →</span>
@@ -145,7 +151,7 @@ export default async function LibroCajaPage({
       <ResumenCard summary={summary} label={label} />
 
       {/* Alta de movimiento */}
-      <Card className="mt-6">
+      <Card className="mt-6" id="agregar-movimiento">
         <CardHeader>
           <div>
             <CardTitle>Agregar movimiento</CardTitle>
@@ -177,6 +183,7 @@ export default async function LibroCajaPage({
           <EmptyState
             title="Todavía no hay movimientos en este mes"
             description="Cargá el primero con el formulario de arriba, o cambiá de mes."
+            action={<IrACargarMovimiento />}
           />
         ) : (
           /* TARJETA APILADA EN EL TELÉFONO, TABLA EN LA COMPUTADORA.

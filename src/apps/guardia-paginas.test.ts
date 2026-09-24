@@ -28,10 +28,11 @@ import { appDeRuta } from "./rutas";
 /**
  * Páginas en (dashboard) sin requireApp. Sólo puede bajar. Eran 34 al arrancar la ola 1;
  * medido en la integración de la ola 2: 24; en la de la ola 3: 11; en la tanda 2b, 10, al
- * borrarse /admin/modulos (quedan apariencia, auditoria, caja, caja/libro, campania,
- * facturacion/bancos, facturacion/bancos/configuracion, localizacion, el Inicio y usuarios).
+ * borrarse /admin/modulos; en la tanda 2c, 3 (apariencia, auditoria, caja, caja/libro,
+ * campania, localizacion y usuarios pasaron a requireApp; quedan facturacion/bancos,
+ * facturacion/bancos/configuracion y el Inicio).
  */
-const LIMITE_PAGINAS_SIN_REQUIRE_APP = 10;
+const LIMITE_PAGINAS_SIN_REQUIRE_APP = 3;
 
 /** Páginas que no son de ninguna app, con el motivo. */
 const SIN_APP: Record<string, string> = {};
@@ -101,11 +102,8 @@ const HANDLERS = handlers(RAIZ).map(leer);
  * su primer `requireCapability` con el registro; una página raíz nueva sin capability
  * directa tiene que figurar acá (o pedirla en la página).
  */
-const GUARDIA_EN_EL_LOADER: Record<string, { archivo: string; funcion: string }> = {
-  "/admin/auditoria": { archivo: "src/lib/audit.ts", funcion: "getAuditLog" },
-  "/admin/caja": { archivo: "src/lib/cierre-diario-actions.ts", funcion: "getCierreDiarioData" },
-  "/admin/caja/libro": { archivo: "src/lib/libro-caja-actions.ts", funcion: "getLibroCajaData" },
-};
+// Vacía desde la tanda 2c: auditoria, caja y caja/libro pasaron a requireApp.
+const GUARDIA_EN_EL_LOADER: Record<string, { archivo: string; funcion: string }> = {};
 
 test("GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)", () => {
   // Cuando una página pasa a requireApp, su guardia la pone el registro y la entrada de la

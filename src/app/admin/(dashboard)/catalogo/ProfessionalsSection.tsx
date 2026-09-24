@@ -107,7 +107,7 @@ function WorkingHoursEditor({ professional: p }: { professional: Professional })
             </div>
           );
         })}
-        <button type="submit" className="text-sm font-medium mt-1">
+        <button type="submit" className="text-sm font-medium mt-1 max-sm:min-h-11 max-sm:min-w-11">
           Guardar horario
         </button>
       </form>
@@ -135,7 +135,7 @@ function NovedadesEditor({ professional: p }: { professional: Professional }) {
               </span>
               <form action={deleteProfessionalBlock}>
                 <input type="hidden" name="id" value={b.id} />
-                <button type="submit" className="text-xs text-danger hover:underline">
+                <button type="submit" className="text-xs text-danger hover:underline max-sm:min-h-11 max-sm:min-w-11">
                   Quitar
                 </button>
               </form>
@@ -214,7 +214,7 @@ function CommissionsEditor({ professional: p }: { professional: Professional }) 
                 className="w-20 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
               />
               <span className="text-faint">%</span>
-              <button type="submit" className="text-xs font-medium text-body hover:underline">
+              <button type="submit" className="text-xs font-medium text-body hover:underline max-sm:min-h-11 max-sm:min-w-11">
                 Guardar
               </button>
             </form>
@@ -253,7 +253,7 @@ function ServiceTreePicker({
         const selectedCount = selectedCountIn(g.items);
         return (
           <details key={g.label} className="group" open={selectedCount > 0}>
-            <summary className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer select-none list-none text-sm">
+            <summary className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer select-none list-none text-sm max-sm:min-h-11 max-sm:min-w-11">
               <span className="flex items-center gap-2">
                 <span className="text-faint transition-transform group-open:rotate-90">›</span>
                 {g.label}
@@ -404,8 +404,8 @@ function ProfessionalRow({
   }
 
   const chipBtn =
-    "min-h-10 flex items-center rounded-md border border-line px-3 text-sm text-body active:bg-surface-sunken";
-  const chipBtnActive = "min-h-10 flex items-center rounded-md border border-accent bg-accent px-3 text-sm text-white";
+    "min-h-10 max-sm:min-h-11 flex items-center rounded-md border border-line px-3 text-sm text-body active:bg-surface-sunken";
+  const chipBtnActive = "min-h-10 max-sm:min-h-11 flex items-center rounded-md border border-accent bg-accent px-3 text-sm text-white";
 
   return (
     <div className="rounded-lg border border-line px-4 py-3">
@@ -413,7 +413,7 @@ function ProfessionalRow({
         <span className={p.active ? "font-medium" : "font-medium text-faint line-through"}>
           {p.name}
         </span>
-        <button onClick={() => setEditing(true)} className="inline-flex items-center min-h-6 text-sm text-muted hover:underline shrink-0">
+        <button onClick={() => setEditing(true)} className="inline-flex items-center min-h-6 max-sm:min-h-11 max-sm:min-w-11 max-sm:justify-center text-sm text-muted hover:underline shrink-0">
           Editar
         </button>
       </div>

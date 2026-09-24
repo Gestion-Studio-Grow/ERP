@@ -8,8 +8,9 @@
 //   · qué parte del número ve cada rol: la plata pide reports:read (`partesDelKpi`), y si
 //     el rol no la ve, el loader ni la lee;
 //   · el tope de 1,5 s: un número lento no puede frenar el Inicio entero;
+//   · la FILA: cuántos números se piden a la base a la vez (ver `crearFila`);
 //   · el log de milisegundos de cada tile: es la medición de latencia contra Neon que hoy no
-//     existe (si el p95 por tile pasa de 300 ms, el ajuste es un semáforo por request);
+//     existe (el `ms` es la consulta; la espera en la fila sale aparte, en `espera`);
 //   · qué se muestra cuando no hay número: '—' con el motivo, nunca un 0 inventado.
 //
 // Sin "server-only" a propósito: no importa Prisma ni nada del servidor salvo TIPOS, así los
@@ -86,6 +87,102 @@ export interface LogKpi {
   warn(scope: string, msg: string, ctx?: Record<string, unknown>): void;
 }
 
+/**
+ * Cuántos números se calculan A LA VEZ en un request. Sin fila, el Inicio de un local con
+ * ~30 números los largaba todos juntos contra un pool de 5 conexiones (prisma-base.ts:33) y,
+ * con RLS, cada número es una transacción de 4 viajes (rls.ts:84). MEDIDO (2026-09-24, 30
+ * transacciones como las del Inicio con 80 ms de ida y vuelta, pool de 5): sin fila, todas
+ * llegaban juntas a ~2.060 ms, 10 pasaban el tope de 1,5 s y con 45 números Prisma cortaba 15
+ * por "Unable to start a transaction in the given time" (espera máxima de 2 s por conexión).
+ * Con fila del tamaño del pool, en ESE banco (un solo Inicio, base local detrás de un proxy de
+ * 80 ms, no el laboratorio): el mismo total (~2.065 ms), cada número tarda lo suyo (p95 ≈ 420 ms)
+ * y ninguno pasó el tope. Con una fila más chica que el pool el total crece (4 → 2.720 ms,
+ * 2 → 5.030 ms) sin ganar nada: por eso la fila es el pool. Y es UNA por instancia, no por
+ * request (index.server.ts): el pool se comparte entre requests, la fila también.
+ *
+ * Lo que espera en la fila NO cuenta para el tope de 1,5 s (esperar su turno no es tardar),
+ * pero tiene su propio techo, `TOPE_FILA_MS`: si la base está caída, los últimos de la fila
+ * no se quedan esperando para siempre.
+ */
+export interface FilaKpi {
+  /** Espera un lugar. Devuelve con qué soltarlo, o rechaza con `FilaVencida` pasado el techo. */
+  entrar(): Promise<() => void>;
+}
+
+/** Cuánto puede esperar un número su turno en la fila antes de rendirse sin consultar. */
+export const TOPE_FILA_MS = 5000;
+
+/** El número esperó su turno más de lo que el Inicio puede esperar. No llegó a consultar. */
+export class FilaVencida extends Error {
+  constructor(ms: number) {
+    super(`el número esperó su turno más de ${ms} ms`);
+    this.name = "FilaVencida";
+  }
+}
+
+/**
+ * Una fila con `enParalelo` lugares, en orden de llegada: el primero que pide es el primero
+ * que consulta. Por eso el Inicio pide primero lo que se ve arriba (Mis apps y después los
+ * espacios en orden). Un lugar se suelta UNA sola vez aunque se llame dos veces a `soltar`.
+ * Vive lo que vive la instancia: el lugar se suelta al terminar la consulta, falle o no
+ * (`cargarKpiCon`), y el que no consigue turno se va solo al vencer `topeEsperaMs`.
+ */
+export function crearFila(
+  enParalelo: number,
+  topeEsperaMs: number = TOPE_FILA_MS,
+  temporizador: { poner: (fn: () => void, ms: number) => unknown; sacar: (t: unknown) => void } = {
+    poner: (fn, ms) => setTimeout(fn, ms),
+    sacar: (t) => clearTimeout(t as ReturnType<typeof setTimeout>),
+  },
+): FilaKpi {
+  let libres = Math.max(1, Math.floor(enParalelo));
+  const esperando: { pasar: () => void }[] = [];
+
+  function soltadorUnico(): () => void {
+    let soltado = false;
+    return () => {
+      if (soltado) return;
+      soltado = true;
+      const siguiente = esperando.shift();
+      if (siguiente) siguiente.pasar();
+      else libres++;
+    };
+  }
+
+  return {
+    entrar() {
+      if (libres > 0) {
+        libres--;
+        return Promise.resolve(soltadorUnico());
+      }
+      return new Promise((resolve, reject) => {
+        const turno = {
+          pasar: () => {
+            temporizador.sacar(timer);
+            resolve(soltadorUnico());
+          },
+        };
+        const timer = temporizador.poner(() => {
+          const i = esperando.indexOf(turno);
+          if (i >= 0) esperando.splice(i, 1);
+          reject(new FilaVencida(topeEsperaMs));
+        }, topeEsperaMs);
+        esperando.push(turno);
+      });
+    },
+  };
+}
+
+/**
+ * Cuántos lugares tiene la fila: las conexiones del pool, leídas de la MISMA variable y con el
+ * mismo default que el pool (`DB_CONNECTION_LIMIT`, 5: prisma-base.ts:33). Si alguien agranda
+ * el pool, la fila lo acompaña sin tocar código.
+ */
+export function enParaleloDelPool(valor: string | undefined): number {
+  const n = Number(valor);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 5;
+}
+
 export interface DepsKpi {
   loaders: Readonly<Record<string, LoaderKpi>>;
   /**
@@ -99,6 +196,8 @@ export interface DepsKpi {
   topeMs?: number;
   /** Ids de KPI que se fuerzan a fallar (QA: `KPI_FALLA_FORZADA`). Ver `fallasForzadas`. */
   fallaForzada?: ReadonlySet<string>;
+  /** La fila de la instancia (ver `crearFila`). Sin fila, cada número sale apenas se pide. */
+  fila?: FilaKpi;
 }
 
 /** El tope se venció: el número tardó más de lo que el Inicio puede esperar. */
@@ -170,15 +269,26 @@ export async function cargarKpiCon(
   if (!loader) return null;
 
   const tope = deps.topeMs ?? TOPE_KPI_MS;
-  const t0 = deps.reloj();
-  let estado: "ok" | "sin-numero" | "sin-dato" | "error" | "tope" = "error";
+  const pedido = deps.reloj();
+  // El reloj del tope arranca cuando el número CONSULTA, no cuando se pidió: la espera en la
+  // fila se loguea aparte (`espera`) y tiene su propio techo.
+  let t0 = pedido;
+  let espera: number | undefined;
+  let estado: "ok" | "sin-numero" | "sin-dato" | "error" | "tope" | "fila" = "error";
   let error: string | undefined;
   try {
     if (debeFallar(deps.fallaForzada, kpi.id)) throw new Error("falla forzada por KPI_FALLA_FORZADA");
-    const dato = await conTope(
-      deps.negocio().then((negocio) => loader({ ...negocio, monto: partes.monto })),
-      tope,
-    );
+    const soltar = deps.fila ? await deps.fila.entrar() : undefined;
+    t0 = deps.reloj();
+    if (deps.fila) espera = Math.round(t0 - pedido);
+    // Todo adentro de la promesa: si leer el negocio tira de una, igual se suelta el lugar.
+    const trabajo = Promise.resolve()
+      .then(() => deps.negocio())
+      .then((negocio) => loader({ ...negocio, monto: partes.monto }));
+    // El lugar se suelta cuando la consulta TERMINA, no cuando vence el tope: Prisma no la
+    // cancela y la conexión sigue ocupada. Soltarlo antes metería un número más que el pool.
+    if (soltar) trabajo.then(soltar, soltar);
+    const dato = await conTope(trabajo, tope);
     if (dato === null) {
       estado = "sin-numero";
       return null;
@@ -194,14 +304,24 @@ export async function cargarKpiCon(
     if (partes.monto && dato.monto) resultado.monto = dato.monto;
     return resultado;
   } catch (e) {
-    estado = e instanceof TopeKpiVencido ? "tope" : "error";
+    estado = e instanceof TopeKpiVencido ? "tope" : e instanceof FilaVencida ? "fila" : "error";
     error = e instanceof Error ? e.message : String(e);
     return { estado: "error", motivo: NO_SE_PUDO };
   } finally {
     // Una línea por tile, siempre, con los milisegundos: es lo que permite medir el p95 en
-    // preview. Los que fallan salen como warn para que se vean sin filtrar.
-    const linea = { kpi: kpi.id, ms: Math.round(deps.reloj() - t0), estado, ...(error ? { error } : {}) };
-    if (estado === "error" || estado === "tope") deps.log.warn("kpi", "tile", linea);
+    // preview. `ms` es lo que tardó la consulta; `espera`, lo que esperó su turno en la fila.
+    // Los que fallan salen como warn para que se vean sin filtrar.
+    const fin = deps.reloj();
+    // El que se rindió en la fila no consultó: todo su tiempo fue espera.
+    if (estado === "fila") espera = Math.round(fin - pedido);
+    const linea = {
+      kpi: kpi.id,
+      ms: estado === "fila" ? 0 : Math.round(fin - t0),
+      ...(espera !== undefined ? { espera } : {}),
+      estado,
+      ...(error ? { error } : {}),
+    };
+    if (estado === "error" || estado === "tope" || estado === "fila") deps.log.warn("kpi", "tile", linea);
     else deps.log.info("kpi", "tile", linea);
   }
 }

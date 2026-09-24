@@ -21,7 +21,7 @@ import {
 import { LOADERS_MOSTRADOR, whereVentasDeHoy, resumirPedidos } from "@/apps/kpis/mostrador.server";
 import { cargarKpiCon, type ContextoLoader, type DbKpi } from "@/apps/kpis/nucleo.server";
 import { appPorId } from "@/apps/registro";
-import { leerFiltros, notaDeDescuento, resumenACuenta, resumenDeVentas, ventasCobradasDeVerdad } from "./filtros";
+import { leerFiltros, notaDeDescuento, resumenACuenta, resumenDeVentas, vacioDeVentas, ventasCobradasDeVerdad } from "./filtros";
 
 const HOY = "2026-09-23";
 const DESDE = businessWallTimeToUtc(HOY, "00:00");
@@ -209,4 +209,21 @@ test("la nota del descuento dice lo que se COBRÓ: después de pesar y ajustar, 
   );
   assert.equal(notaDeDescuento({ subtotal: 32625, discount: 3262.5 }, null), "Descuento de $3.262,50 (10 %).");
   assert.equal(notaDeDescuento({ subtotal: 32625, discount: 0 }, "Ana"), null);
+});
+
+test("lista vacía: hoy dice «Todavía no vendiste hoy» con Nueva venta; con filtro, sacarlo; otro día, volver a hoy", () => {
+  const hoy = vacioDeVentas({ esHoy: true, hayFiltro: false, cuando: "hoy", puedeVender: true });
+  assert.equal(hoy.titulo, "Todavía no vendiste hoy");
+  assert.deepEqual(hoy.accion, { etiqueta: "Nueva venta", destino: "vender" });
+  // Quien no vende (sin orders:manage) no recibe un botón que lo mandaría a "App no disponible".
+  assert.equal(vacioDeVentas({ esHoy: true, hayFiltro: false, cuando: "hoy", puedeVender: false }).accion, null);
+
+  const filtro = vacioDeVentas({ esHoy: true, hayFiltro: true, cuando: "hoy", puedeVender: true });
+  assert.equal(filtro.titulo, "No hay ventas cobradas hoy con ese filtro");
+  assert.equal(filtro.accion?.destino, "sacar-filtro");
+
+  // Otro día: «Nueva venta» mentiría (se vendería hoy, no el 22).
+  const otro = vacioDeVentas({ esHoy: false, hayFiltro: false, cuando: "el 22/09", puedeVender: true });
+  assert.equal(otro.titulo, "No hubo ventas cobradas el 22/09");
+  assert.deepEqual(otro.accion, { etiqueta: "Ver las de hoy", destino: "hoy" });
 });

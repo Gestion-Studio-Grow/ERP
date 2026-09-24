@@ -121,7 +121,7 @@ function PanelDetalle({
       aria-selected={tab === id}
       aria-controls={`panel-${id}`}
       onClick={() => setTab(id)}
-      className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+      className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-xs font-medium sm:min-h-0 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
         tab === id ? "bg-surface-raised font-semibold text-strong shadow-xs" : "text-muted hover:text-strong"
       }`}
     >
@@ -358,7 +358,7 @@ export default function ColaRevision({ propuestas }: { propuestas: PropuestaVist
                     <button
                       type="button"
                       onClick={() => seleccionar(p.id)}
-                      className="block max-w-full truncate rounded text-left font-medium text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                      className="block min-h-11 max-w-full truncate rounded text-left font-medium text-strong sm:min-h-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                     >
                       {p.descripcion}
                     </button>

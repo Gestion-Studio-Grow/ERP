@@ -112,6 +112,19 @@ async function main() {
   await seed("seed-qa-tenants.ts");
   await seed("seed-magra.ts");
 
+  // Interruptor "Trabaja por apps" prendido en los negocios del piloto (MAGRA, pádel y velas),
+  // para que el gate mida lo que ven ellos: el Inicio por apps y la barra de espacios del
+  // celular. La estética queda APAGADA, como CH. Es la misma fila que escribe la consola
+  // (entity "Interruptor", actor operator:<nombre>, canal "operador"; ver
+  // src/cambios/interruptores.ts) y va SÓLO contra esta PGlite en memoria: el gate nunca toca
+  // una base real. Lo permite el trinquete de src/cambios/interruptores-escritura.test.ts.
+  await db.query(
+    `INSERT INTO "AuditLog" (id, "tenantId", actor, action, entity, "entityId", channel)
+     SELECT 'qa-int-' || subdomain, id, 'operator:gate-visual', 'interruptor.encender', 'Interruptor', 'inicio-por-apps', 'operador'
+     FROM "Tenant" WHERE subdomain IN ('magra', 'padel', 'velas')`,
+  );
+  log("interruptor 'Trabaja por apps': prendido en magra, padel y velas (estetica apagada, como CH)");
+
   // Fixture (tenant→ownerUserId) para que la auditoría firme la cookie de admin.
   // Query cruda sobre la MISMA instancia PGlite in-process (evita importar el cliente
   // Prisma generado, que es .ts y no se puede importar desde un .mjs de node).

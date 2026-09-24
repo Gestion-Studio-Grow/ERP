@@ -66,7 +66,7 @@ export default async function PorRecuperarPage() {
             return (
               <li key={persona.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 text-sm">
-                  <Link href={`/admin/clientes/${persona.id}`} className="font-medium text-strong hover:underline">
+                  <Link href={`/admin/clientes/${persona.id}`} className="inline-flex min-h-11 items-center font-medium text-strong hover:underline">
                     {persona.nombre}
                   </Link>
                   <p className="text-muted">{explicarSegmento(ev)}</p>
@@ -81,7 +81,7 @@ export default async function PorRecuperarPage() {
                   ) : reciente ? (
                     <span className="text-muted">Contactada {haceDias(diasContacto!)}</span>
                   ) : !celular ? (
-                    <Link href={`/admin/clientes/${persona.id}`} className="text-warning underline">
+                    <Link href={`/admin/clientes/${persona.id}`} className="inline-flex min-h-11 items-center text-warning underline">
                       Sin celular válido: corregilo en su ficha
                     </Link>
                   ) : puedeSumar ? (

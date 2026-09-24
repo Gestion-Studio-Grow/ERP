@@ -162,7 +162,7 @@ export default function DespieceClient({ runs, products }: { runs: RunView[]; pr
         <section className="rounded-lg border border-line p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <h2 className="text-base font-medium text-strong">Cortes obtenidos</h2>
-            <button type="button" onClick={addRow} className="chip-btn min-h-11">+ Agregar corte</button>
+            <button type="button" onClick={addRow} className="chip-btn max-sm:min-h-11! min-h-11">+ Agregar corte</button>
           </div>
           <p className="text-xs text-muted mb-3">
             Elegí el producto para que el corte sume al stock. Hueso y grasa se cargan sin producto: cuentan para el
@@ -201,7 +201,7 @@ export default function DespieceClient({ runs, products }: { runs: RunView[]; pr
                   {/* Viaja la forma canónica (punto decimal): el servidor la vuelve a leer igual. */}
                   <input type="hidden" name="outputWeight" value={pesos[i].estado === "ok" ? cantidadParaFormulario(pesos[i].valor) : r.weight} />
                 </div>
-                <button type="button" onClick={() => removeRow(i)} className="chip-btn chip-btn-danger min-h-11" aria-label={`Quitar el corte ${i + 1}`}>
+                <button type="button" onClick={() => removeRow(i)} className="chip-btn max-sm:min-h-11! chip-btn-danger min-h-11" aria-label={`Quitar el corte ${i + 1}`}>
                   Quitar
                 </button>
               </div>

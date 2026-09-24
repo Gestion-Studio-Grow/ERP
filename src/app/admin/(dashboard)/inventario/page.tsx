@@ -16,12 +16,26 @@ import { todayInBusinessTz } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-function Stat({ label, value, hint, tone = "neutral" }: { label: string; value: string; hint?: string; tone?: "neutral" | "warning" }) {
+function Stat({
+  label,
+  value,
+  hint,
+  tone = "neutral",
+  className = "",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: "neutral" | "warning";
+  className?: string;
+}) {
   const toneClass = tone === "warning" ? "text-warning" : "text-strong";
+  // `min-w-0` + `break-words`: una cifra que no entra en la columna se corta en dos renglones
+  // en vez de estirar la tarjeta y empujar la página de costado.
   return (
-    <div className="rounded-lg border border-line p-4">
+    <div className={`min-w-0 rounded-lg border border-line p-4 ${className}`}>
       <p className="text-sm text-muted">{label}</p>
-      <p className={`text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
+      <p className={`break-words text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
   );
@@ -76,7 +90,16 @@ export default async function InventarioPage({
 
       <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Productos" value={String(summary.productos)} />
-        {conCostos && <Stat label="Valuación total" value={fmtMoneyARS(summary.valuacionTotal)} />}
+        {/* En el celular, la valuación va arriba y a lo ancho: "$ 25.312.480,50" no entra en media
+            pantalla (medido a 412 px: la página quedaba 13 px más ancha que el teléfono). En la PC,
+            en su lugar de siempre. */}
+        {conCostos && (
+          <Stat
+            label="Valuación total"
+            value={fmtMoneyARS(summary.valuacionTotal)}
+            className="order-first col-span-2 lg:order-none lg:col-span-1"
+          />
+        )}
         <Stat label="Stock bajo" value={String(summary.bajoStock)} tone={summary.bajoStock > 0 ? "warning" : "neutral"} hint="en el mínimo o por debajo" />
         {conCostos ? (
           <Stat label="Sin costo" value={String(summary.sinCosto)} hint="con stock y sin costo: valuación incompleta" />

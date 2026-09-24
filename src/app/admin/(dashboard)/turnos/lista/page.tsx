@@ -9,6 +9,8 @@ import { cargarFaltazosPorFicha } from "@/lib/crm/cargas.server";
 import { enInicioPorApps } from "../../inicio/piloto";
 import { esCuentaACobrar, estadoCobroTurno } from "@/lib/turnos/cobros";
 import { seccionDeLista } from "@/lib/turnos/turno-abierto";
+import { todayInBusinessTz } from "@/lib/datetime";
+import { leerNuevoTurno } from "../pasos";
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +83,11 @@ function instanteDeCarga() {
   return new Date();
 }
 
-export default async function TurnosListaPage() {
+export default async function TurnosListaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ nuevo?: string | string[]; fecha?: string | string[] }>;
+}) {
   // La lista (historial completo + alta manual) es gestión de agenda: solo
   // OWNER/RECEPTION. El PROFESSIONAL cae acá a su calendario propio.
   // La app (módulo y rubro, como la barra) y además gestionar la agenda: la lista es más que
@@ -91,6 +97,9 @@ export default async function TurnosListaPage() {
   // Quién mira. Alimenta la misma regla que aplica el servidor al cobrar, para que la fila no
   // ofrezca un cobro que después se rechaza.
   const viewer = { role: user.role, professionalId: user.professionalId };
+  // "Dar un turno" desde un estado vacío de la agenda llega con ?nuevo=1&fecha=… (pasos.ts): el
+  // alta se abre sola y con el día puesto. Sin eso, la lista es la de siempre.
+  const nuevo = leerNuevoTurno(await searchParams, todayInBusinessTz());
   const [appointments, professionals, fichas, faltazos] = await Promise.all([
     getAppointments(),
     getProfessionalsWithServices(),
@@ -123,15 +132,15 @@ export default async function TurnosListaPage() {
   const rest = turnos.filter((a) => seccionDeLista(a, ahora) === "historial");
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex items-center gap-4 mb-1">
         <h1 className="text-2xl font-semibold text-strong">Agenda</h1>
       </div>
       <div className="flex gap-4 text-sm mb-6 border-b border-line">
-        <Link href="/admin/turnos" className="px-1 pb-2 text-muted hover:text-strong">
+        <Link href="/admin/turnos" className="px-1 pb-2 text-muted hover:text-strong max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
           Calendario
         </Link>
-        <Link href="/admin/turnos/lista" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium">
+        <Link href="/admin/turnos/lista" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
           Lista
         </Link>
       </div>
@@ -140,7 +149,13 @@ export default async function TurnosListaPage() {
         confirmá el turno cuando la clienta confirme, y al completarlo se cobra el resto.
       </p>
 
-      <NewAppointmentForm professionals={professionals} fichas={fichas} faltazos={faltazos} />
+      <NewAppointmentForm
+        professionals={professionals}
+        fichas={fichas}
+        faltazos={faltazos}
+        abierto={nuevo.abrir}
+        fechaInicial={nuevo.fecha}
+      />
 
       {sinCerrar.length > 0 && (
         <section className="mb-10">

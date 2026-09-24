@@ -18,6 +18,10 @@ import ClientsList from "./ClientsList";
 import ClientesLista, { type FilaCliente } from "./ClientesLista";
 import EnlacesClientes from "./EnlacesClientes";
 import NuevaFicha from "./NuevaFicha";
+import { vacioDeClientes } from "./vacio";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { getNegocioApps } from "@/apps/contexto.server";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +31,18 @@ export default async function ClientesPage() {
   // segmentos y la ficha única llegan cuando GSG le prende el interruptor al negocio.
   if (await enInicioPorApps()) return <ClientesPiloto user={user} />;
 
-  const clients = await getClients();
+  const [clients, negocio] = await Promise.all([getClients(), getNegocioApps(user.role)]);
+  // Sin clientes, el siguiente paso es dar el primer turno: sólo si puede abrir la agenda y darlo.
+  const vacio = vacioDeClientes({
+    puedeDarTurno: appPermitida(appPorId("agenda"), negocio) && roleHasCapability(user.role, "agenda:manage"),
+  });
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="text-2xl font-semibold text-strong mb-1">Clientes</h1>
       <p className="text-muted mb-6">{clients.length} {clients.length === 1 ? "cliente registrado" : "clientes registrados"}.</p>
 
-      <ClientsList clients={clients} />
+      <ClientsList clients={clients} vacio={vacio} />
     </main>
   );
 }

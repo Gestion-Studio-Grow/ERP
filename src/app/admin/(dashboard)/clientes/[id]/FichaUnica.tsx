@@ -11,10 +11,11 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, KpiTile, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { Badge, KpiTile, fmtMoneyARS } from "@/components/ui";
 import { dateStrInBusinessTz, fmtDateTime, fmtShortDate } from "@/lib/datetime";
 import { roleHasCapability } from "@/lib/capabilities";
-import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { claseBotonWhatsApp } from "../boton-whatsapp";
+import { contactoDeLaFicha } from "../contacto-ficha";
 import type { SessionUser } from "@/lib/session";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
@@ -57,8 +58,8 @@ export default async function FichaUnica({ id, user }: { id: string; user: Sessi
   const { client, resumen, ev } = f;
   const verPlata = roleHasCapability(user.role, "reports:read");
   const puedeEditar = roleHasCapability(user.role, "clients:manage");
-  const wa = waLinkClienta(client.phone);
   const noQuiere = f.permiso?.accion === ACCION_BAJA;
+  const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere, puedeEditar });
   const debe = resumen.saldoTurnos + (resumen.saldoFiado ?? 0);
   const servicios = f.rubro === "servicios";
   const diasCumple = f.cumple ? diasHastaCumple(f.cumple, f.hoy) : null;
@@ -68,16 +69,25 @@ export default async function FichaUnica({ id, user }: { id: string; user: Sessi
       <Link href="/admin/clientes" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-strong hover:underline">
         ← Clientes
       </Link>
-      <h1 className="mt-1 text-2xl font-semibold text-strong">{client.name}</h1>
+      <h1 className="mt-1 text-2xl font-semibold text-strong [overflow-wrap:anywhere]">{client.name}</h1>
+      {/* En el celular: el teléfono, y abajo el botón de WhatsApp a lo ancho — es para lo que se abre
+          la ficha antes de hablar con ella. Si no se le puede escribir, se dice por qué. */}
       <div className="mb-6 mt-1 flex flex-wrap items-center gap-2 text-muted">
-        <span>
+        <span className="min-w-0 [overflow-wrap:anywhere]">
           {client.phone} {client.email ? `· ${client.email}` : ""}
         </span>
-        {wa && !noQuiere && (
-          <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md", "whitespace-nowrap")}>
+        {contacto.tipo === "whatsapp" && (
+          <a
+            href={contacto.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`WhatsApp a ${client.name}`}
+            className={claseBotonWhatsApp("solid")}
+          >
             WhatsApp
           </a>
         )}
+        {contacto.tipo === "sin-celular" && <p className="w-full text-sm text-warning">{contacto.texto}</p>}
         {ev && <Badge tone={ev.segmento === "en-riesgo" ? "warning" : ev.segmento === "perdida" ? "danger" : "neutral"}>{SEGMENTO_ETIQUETA[ev.segmento]}</Badge>}
         {noQuiere && <Badge tone="danger">No quiere mensajes</Badge>}
         {client.isResident && <Badge tone="accent">Cliente de la zona (precio local)</Badge>}

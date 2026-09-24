@@ -13,6 +13,8 @@ import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { hashPassword } from "@/lib/auth-password";
 import type { Role } from "@/lib/capabilities";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { rolAdmitidoEnAlta } from "@/app/admin/(dashboard)/usuarios/roles";
 
 const USERS_PATH = "/admin/usuarios";
 const VALID_ROLES: Role[] = ["OWNER", "RECEPTION", "PROFESSIONAL"];
@@ -45,7 +47,7 @@ export async function getUsers() {
 }
 
 export async function createUser(formData: FormData) {
-  await requireCapability("users:manage");
+  const actor = await requireCapability("users:manage");
   const tenantId = await getCurrentTenantId();
 
   const name = String(formData.get("name") || "").trim();
@@ -58,6 +60,11 @@ export async function createUser(formData: FormData) {
   if (!VALID_ROLES.includes(roleRaw as Role)) backWith("error_role");
   if (password.length < MIN_PASSWORD_LENGTH) backWith("error_password_short");
   const role = roleRaw as Role;
+  // Sólo los roles que la pantalla ofrece en ESTE negocio: sin agenda (mostrador) no hay
+  // Profesional, que entraría a una agenda vacía. La pantalla ya no lo ofrece; esto lo cierra
+  // también para un POST a mano. En servicios (CH) se admiten los tres, como siempre.
+  const { esMostrador } = await getNegocioApps(actor.role);
+  if (!rolAdmitidoEnAlta(role, esMostrador)) backWith("error_role");
 
   // Email único por tenant (schema @@unique). Chequeo previo por UX + defensa
   // ante la carrera con try/catch del constraint.

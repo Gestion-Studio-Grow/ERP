@@ -2,7 +2,7 @@
 
 // Formularios del LIBRO DE CAJA.
 //
-// ⚠️ NO usan `useActionState` + `<form action={...}>`, a diferencia de CajaForms.tsx.
+// ⚠️ NO usan `useActionState` + `<form action={...}>` (CajaForms.tsx tampoco, por lo mismo).
 // El QA de recorrido encontró que por ese camino ~4 de cada 10 guardados quedaban
 // colgados en "Guardando…" para siempre: el server action respondía 200 en menos de
 // 200 ms y la fila QUEDABA ESCRITA en la base, pero el estado del hook nunca se
@@ -23,6 +23,19 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addLibroEntry, deleteLibroEntry, type LibroActionState } from "@/lib/libro-caja-actions";
 import { Field, Input, Select, buttonClasses } from "@/components/ui";
+
+// El redirect de sesión vencida llega como excepción con digest NEXT_REDIRECT: se deja pasar.
+function isNextRedirect(e: unknown): boolean {
+  const digest = (e as { digest?: unknown } | null)?.digest;
+  return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
+}
+
+// Se cortó la señal (o el servidor no contestó) al guardar: no se sabe si la fila quedó
+// escrita. Lo cargado sigue en el formulario y la lista se vuelve a leer, así se ve si llegó.
+// Antes la promesa rechazada se llevaba la pantalla a la de error y con ella lo tipeado.
+const SIN_RESPUESTA_AL_GUARDAR =
+  "No se pudo confirmar si se guardó: revisá la conexión. Lo que cargaste sigue acá; si el movimiento ya " +
+  "aparece en la lista de abajo, se guardó y no hay que cargarlo de nuevo.";
 
 function Mensaje({ state }: { state: LibroActionState }) {
   if (!state) return null;
@@ -91,7 +104,16 @@ export function AddLibroEntryForm({
     const fd = datosActuales(confirmar);
     if (!fd) return;
     startTransition(async () => {
-      const res = await addLibroEntry(null, fd);
+      let res: LibroActionState;
+      try {
+        res = await addLibroEntry(null, fd);
+      } catch (e) {
+        if (isNextRedirect(e)) throw e;
+        setState({ ok: false, error: SIN_RESPUESTA_AL_GUARDAR });
+        setPorConfirmar(false);
+        router.refresh();
+        return;
+      }
       setState(res);
       if (res?.ok) {
         setPorConfirmar(false);
@@ -215,6 +237,27 @@ const ARMADOS = new Set<string>();
 // Borrado de una fila. Form propio por fila: borrar plata es puntual y se audita
 // fila por fila. Dos pasos —la ✕ pregunta, y recién el segundo clic borra— porque
 // no hay deshacer y un toque de más se lleva un movimiento.
+// «Cargar un movimiento» del mes vacío: además de bajar al formulario, deja el foco en el
+// Detalle (el primer campo que se tipea). Un link a "#agregar-movimiento" solo bajaba y, con
+// teclado, dejaba a la persona en la tarjeta. Sin JS (o sin el formulario) queda el link.
+export function IrACargarMovimiento() {
+  return (
+    <a
+      href="#agregar-movimiento"
+      className={buttonClasses("outline", "md")}
+      onClick={(e) => {
+        const detalle = document.getElementById("libro-detail");
+        if (!detalle) return;
+        e.preventDefault();
+        detalle.scrollIntoView({ block: "center" });
+        detalle.focus();
+      }}
+    >
+      Cargar un movimiento
+    </a>
+  );
+}
+
 export function DeleteLibroEntryButton({ id, detail }: { id: string; detail: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -246,7 +289,14 @@ export function DeleteLibroEntryButton({ id, detail }: { id: string; detail: str
     startTransition(async () => {
       const fd = new FormData();
       fd.set("id", id);
-      const res = await deleteLibroEntry(null, fd);
+      let res: LibroActionState;
+      try {
+        res = await deleteLibroEntry(null, fd);
+      } catch (e) {
+        if (isNextRedirect(e)) throw e;
+        res = { ok: false, error: "No se pudo borrar: revisá la conexión y volvé a intentar." };
+        router.refresh();
+      }
       if (res?.ok) {
         setError(null);
         ARMADOS.delete(id);
@@ -276,10 +326,12 @@ export function DeleteLibroEntryButton({ id, detail }: { id: string; detail: str
         aria-label={
           armado ? `Confirmar borrado del movimiento ${detail}` : `Borrar movimiento ${detail}`
         }
+        // En el celular, un toque de 44 px (la ✕ de 20 px al lado del saldo se erraba); desde sm,
+        // la ✕ chica de la tabla, como siempre.
         className={
           armado
-            ? "rounded bg-danger-soft px-1.5 py-0.5 text-xs font-medium text-danger disabled:opacity-50"
-            : "rounded px-1.5 py-0.5 text-xs text-faint hover:bg-danger-soft hover:text-danger disabled:opacity-50"
+            ? "inline-flex min-h-11 min-w-11 items-center justify-center rounded bg-danger-soft px-1.5 py-0.5 text-xs font-medium text-danger disabled:opacity-50 sm:min-h-0 sm:min-w-0"
+            : "inline-flex min-h-11 min-w-11 items-center justify-center rounded px-1.5 py-0.5 text-xs text-faint hover:bg-danger-soft hover:text-danger disabled:opacity-50 sm:min-h-0 sm:min-w-0"
         }
       >
         {pending ? "…" : armado ? "¿Borrar?" : "✕"}

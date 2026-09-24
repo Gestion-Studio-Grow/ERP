@@ -9,7 +9,7 @@
 // La vidriera pública del tenant NO se toca desde acá: su marca es otra capa
 // (theme packs / paleta por tenant). Esto es solo la piel del panel interno.
 
-import { requireCapability } from "@/lib/authz";
+import { requireApp } from "@/lib/require-app";
 import { getTenantBrand, ACCENT_PRESETS, ACCENT_PRESET_LABELS, type AccentPreset } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { PageHeader, SectionGroup } from "@/components/ui";
@@ -18,7 +18,8 @@ import { AccentSelector, ThemeSelector, type Swatch } from "./AparienciaControls
 export const dynamic = "force-dynamic";
 
 export default async function AparienciaPage() {
-  await requireCapability("appearance:manage");
+  // La guardia de la app (rol, desde el registro): quien no puede ve "App no disponible".
+  await requireApp("apariencia");
 
   const [persistido, brand] = await Promise.all([getTeamAccentPreset(), getTenantBrand()]);
   const actual: AccentPreset = persistido ?? brand.preset;

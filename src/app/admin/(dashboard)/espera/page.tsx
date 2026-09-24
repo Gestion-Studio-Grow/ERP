@@ -6,7 +6,7 @@ import {
   cancelWaitlistEntry,
 } from "@/lib/waitlist-actions";
 import { dateStrInBusinessTz, fmtCalendarDateLabel, fmtShortDate, fmtTime, nextBusinessDays } from "@/lib/datetime";
-import { Input, Select, buttonClasses } from "@/components/ui";
+import { EmptyState, Input, Select, buttonClasses } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { cargarHuecosLiberados, nombreDelNegocio } from "@/lib/crm/cargas.server";
@@ -58,7 +58,7 @@ export default async function EsperaPage() {
   const dates = nextBusinessDays(30);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Lista de espera</h1>
       <p className="text-muted mb-8">
         Anotá a quien quiere un turno cuando no hay horario. Cuando se libere un lugar (una
@@ -69,18 +69,19 @@ export default async function EsperaPage() {
 
       {/* Alta */}
       <form
+        id="anotar"
         action={addToWaitlist}
-        className="rounded-lg border border-line p-4 mb-8 grid gap-3 sm:grid-cols-2"
+        className="scroll-mt-24 rounded-lg border border-line p-4 mb-8 grid gap-3 sm:grid-cols-2"
       >
         <div className="sm:col-span-2 text-sm font-medium text-strong">Anotar a alguien</div>
 
         <label className="text-sm">
           <span className="block text-muted mb-1">Nombre *</span>
-          <Input name="clientName" required />
+          <Input name="clientName" autoComplete="off" required />
         </label>
         <label className="text-sm">
           <span className="block text-muted mb-1">Teléfono *</span>
-          <Input name="clientPhone" required />
+          <Input name="clientPhone" type="tel" inputMode="tel" autoComplete="off" required />
         </label>
 
         <label className="text-sm">
@@ -140,7 +141,7 @@ export default async function EsperaPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm">{e.clientName}</span>
+                  <span className="font-medium text-sm [overflow-wrap:anywhere]">{e.clientName}</span>
                   <span className="text-xs text-faint">· {e.clientPhone}</span>
                   {e.status === "NOTIFIED" && (
                     <span className="rounded-full bg-warning-soft text-warning px-2 py-0.5 text-[11px] font-medium">
@@ -164,7 +165,7 @@ export default async function EsperaPage() {
                 {e.status === "WAITING" && (
                   <form action={markWaitlistNotified}>
                     <input type="hidden" name="id" value={e.id} />
-                    <button type="submit" className="chip-btn text-xs min-h-8 w-full sm:w-auto">
+                    <button type="submit" className="chip-btn text-xs min-h-8 w-full sm:w-auto max-sm:min-h-11!">
                       Marcar avisado
                     </button>
                   </form>
@@ -173,7 +174,7 @@ export default async function EsperaPage() {
                   <input type="hidden" name="id" value={e.id} />
                   <button
                     type="submit"
-                    className="chip-btn chip-btn-danger text-xs min-h-8 w-full sm:w-auto"
+                    className="chip-btn chip-btn-danger text-xs min-h-8 w-full sm:w-auto max-sm:min-h-11!"
                   >
                     Quitar
                   </button>
@@ -186,10 +187,15 @@ export default async function EsperaPage() {
         ))}
 
         {entries.length === 0 && (
-          <p className="text-sm text-muted">
-            La lista de espera está vacía. Anotá a alguien arriba cuando no tengas horario para
-            ofrecerle.
-          </p>
+          <EmptyState
+            title="La lista de espera está vacía"
+            description="Cuando alguien quiera un turno y no tengas horario para ofrecerle, anotala: si se libera un lugar, la encontrás acá."
+            action={
+              <a href="#anotar" className={buttonClasses("outline", "md")}>
+                Anotar a alguien
+              </a>
+            }
+          />
         )}
       </div>
     </main>

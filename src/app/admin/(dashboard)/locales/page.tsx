@@ -196,12 +196,17 @@ function TarjetaLocal({ x, hoy, url }: { x: LocalConPasada; hoy: string; url: st
         ) : (
           <>
             <p className="text-xs text-muted">{periodo}</p>
-            <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {/* En el celular, una fila por medio con el monto a la derecha (5 locales se leen de
+                corrido); en la PC, las tres cajitas de siempre. */}
+            <dl className="mt-2 divide-y divide-line rounded-lg border border-line sm:grid sm:grid-cols-3 sm:gap-2 sm:divide-y-0 sm:rounded-none sm:border-0">
               {CASH_METHODS.map((k) => (
-                <div key={k} className="rounded-lg border border-line px-3 py-2">
+                <div
+                  key={k}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-2 sm:block sm:rounded-lg sm:border sm:border-line"
+                >
                   <dt className="text-xs text-muted">{CASH_METHOD_LABEL[k]}</dt>
                   <dd className="text-base font-semibold tabular-nums text-strong">{fmtMoneyARS(caja.porMedio[k].hay)}</dd>
-                  <dd className="text-xs tabular-nums text-faint">
+                  <dd className="basis-full text-right text-xs tabular-nums text-muted sm:text-left">
                     <span className="text-success">+ {fmtMoneyARS(caja.porMedio[k].ingresos)}</span>
                     {" · "}
                     <span className="text-danger">− {fmtMoneyARS(caja.porMedio[k].egresos)}</span>

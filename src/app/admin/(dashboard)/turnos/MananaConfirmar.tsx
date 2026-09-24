@@ -13,11 +13,15 @@
 // Sin imports de valor de Prisma: es un componente cliente. Las fechas llegan como ISO.
 
 import { useState } from "react";
+import Link from "next/link";
 import { confirmarTurno, marcarAvisada, type TurnoAConfirmar } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses } from "@/components/ui";
 import { fmtCalendarDateLabel, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
+import { claseBotonWhatsApp } from "../clientes/boton-whatsapp";
+import PasoVacio from "./PasoVacio";
+import { vacioManana } from "./pasos";
 
 function FilaAConfirmar({ turno }: { turno: TurnoAConfirmar }) {
   const [avisadaEl, setAvisadaEl] = useState(turno.avisadaEl);
@@ -35,14 +39,28 @@ function FilaAConfirmar({ turno }: { turno: TurnoAConfirmar }) {
           {turno.servicio} · {turno.profesional}
         </p>
         {avisadaEl && <p className="text-xs text-success">avisada {fmtTime(avisadaEl)}</p>}
-        {!wa && <p className="text-xs text-warning">El teléfono cargado ({turno.telefono}) no es un celular válido.</p>}
+        {!wa && (
+          <p className="text-xs text-warning">
+            El teléfono cargado ({turno.telefono}) no es un celular válido.{" "}
+            {/* Lleva directo a su ficha, donde se corrige con "Editar datos". */}
+            <Link
+              href={`/admin/clientes/${encodeURIComponent(turno.clientId)}`}
+              className="font-medium underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+            >
+              Corregilo en su ficha
+            </Link>{" "}
+            para poder avisarle.
+          </p>
+        )}
         {error && (
           <p className="text-xs text-danger" role="alert">
             {error}
           </p>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      {/* En el celular los dos botones van a lo ancho, uno abajo del otro: son LA tarea de esta
+          fila y se tocan con el pulgar. */}
+      <div className="flex flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch">
         {wa && (
           // Un <a> de verdad y no `window.open`: el navegador abre WhatsApp en el mismo toque
           // (en el celular, la app) sin bloqueo de ventanas emergentes. El estampado corre en
@@ -51,7 +69,8 @@ function FilaAConfirmar({ turno }: { turno: TurnoAConfirmar }) {
             href={wa}
             target="_blank"
             rel="noopener noreferrer"
-            className={buttonClasses(avisadaEl ? "outline" : "solid", "md", "whitespace-nowrap")}
+            aria-label={`${avisadaEl ? "WhatsApp de nuevo" : "WhatsApp"} a ${turno.clienta}`}
+            className={claseBotonWhatsApp(avisadaEl ? "outline" : "solid")}
             onClick={async () => {
               setError("");
               try {
@@ -69,7 +88,7 @@ function FilaAConfirmar({ turno }: { turno: TurnoAConfirmar }) {
         {turno.status === "PENDING" && (
           <form action={confirmarTurno}>
             <input type="hidden" name="appointmentId" value={turno.id} />
-            <SubmitButton pendingText="Confirmando…" className={buttonClasses("outline", "md", "whitespace-nowrap")}>
+            <SubmitButton pendingText="Confirmando…" className={buttonClasses("outline", "md", "whitespace-nowrap max-sm:w-full")}>
               Confirmar turno
             </SubmitButton>
           </form>
@@ -87,12 +106,14 @@ export default function MananaConfirmar({ dia, turnos }: { dia: string; turnos: 
         <h2 id="manana-confirmar" className="text-base font-medium text-strong">
           Mañana: confirmar <span className="text-muted font-normal">({fmtCalendarDateLabel(dia)})</span>
         </h2>
-        <p className="text-sm text-muted">
-          {turnos.length === 0
-            ? "No hay turnos reservados ni confirmados para mañana."
-            : `${turnos.length} turno${turnos.length === 1 ? "" : "s"}, ${sinAvisar} sin avisar. El botón abre WhatsApp con el recordatorio listo.`}
-        </p>
+        {turnos.length > 0 && (
+          <p className="text-sm text-muted">
+            {`${turnos.length} turno${turnos.length === 1 ? "" : "s"}, ${sinAvisar} sin avisar. El botón abre WhatsApp con el recordatorio listo.`}
+          </p>
+        )}
       </div>
+      {/* Sin turnos no hay nada que confirmar: se ofrece darle uno a quien llame para mañana. */}
+      {turnos.length === 0 && <PasoVacio paso={vacioManana({ dia })} className="m-4" />}
       {turnos.length > 0 && (
         <ul className="divide-y divide-line/60">
           {turnos.map((t) => (

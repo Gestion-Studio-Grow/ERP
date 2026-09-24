@@ -23,6 +23,8 @@ import { LOADERS_KPI } from "./loaders.server";
 import { negocioActual } from "./negocio.server";
 import {
   cargarKpiCon,
+  crearFila,
+  enParaleloDelPool,
   fallasForzadas,
   llevaNumero as llevaNumeroCon,
   pluralDe,
@@ -46,6 +48,16 @@ const negocioKpi = cache(async (): Promise<NegocioKpi> => {
   };
 });
 
+/**
+ * La fila de números de ESTA instancia del servidor, compartida por todos los requests: el pool
+ * de conexiones también es uno por instancia (prisma-base.ts), así que la fila lo acompaña. Con
+ * una fila por request, dos Inicios a la vez ponían 10 números contra 5 conexiones y la espera
+ * por conexión volvía a caer adentro del tope de 1,5 s. Tantos lugares como conexiones tiene el
+ * pool: ver `crearFila` en nucleo.server.ts, con la medición que lo decidió. Sólo retiene un
+ * turno, nunca datos: lo de cada negocio sigue en su transacción con RLS.
+ */
+const filaDeLaInstancia = crearFila(enParaleloDelPool(process.env.DB_CONNECTION_LIMIT));
+
 /** ¿El tile de `app` lleva número para `role`? (declara KPI, el rol lo ve y hay loader). */
 export function llevaNumero(app: AppDescriptor, role: Role): boolean {
   return llevaNumeroCon(app, role, LOADERS_KPI);
@@ -66,5 +78,6 @@ export const cargarKpi = cache((appId: string, role: Role): Promise<ResultadoKpi
     log: logger,
     reloj: () => performance.now(),
     fallaForzada: fallasForzadas(process.env.KPI_FALLA_FORZADA),
+    fila: filaDeLaInstancia,
   });
 });

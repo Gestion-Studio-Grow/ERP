@@ -30,7 +30,6 @@ import { perfilGateAllows, type Perfil } from "@/modules/perfil";
 import { resolverActivacion } from "@/modules/activation";
 import type { ModuleRegistry } from "@/modules/registry";
 import { derivarProducto, productoUsaTienda } from "@/lib/producto-identidad";
-import { searchNavItems } from "@/modules/nav-search";
 import { ENTERPRISE_NAV_ITEMS, NAV_ITEM_GROUPS, type NavGroupId } from "@/modules/nav-groups";
 import type { AppDescriptor, NombreIcono } from "./contract";
 import { ordenDeEspacio, ordenDentroDelEspacio } from "./espacios";
@@ -282,26 +281,9 @@ export function proyectarMenuDeHoy(visibles: readonly AppDescriptor[]): ItemMenu
 
 // ── Buscador ─────────────────────────────────────────────────────────────────
 
-/**
- * Busca entre las apps que la persona YA ve. Recibe la salida de `appsVisibles` (que el
- * servidor calcula y le pasa al cliente): buscar nunca puede hacer aparecer una app oculta,
- * ni tecleando su nombre exacto. Busca por nombre, por las palabras y por el rótulo de hoy
- * ("Ajustes" sigue encontrando Mermas).
- */
-export function buscarApps(visibles: readonly AppDescriptor[], query: string): AppDescriptor[] {
-  const items = visibles
-    .filter((app) => app.enLanzador !== false)
-    .map((app) => ({
-      app,
-      href: app.ruta,
-      label: app.nombre,
-      alias: [
-        ...(app.palabras ?? []),
-        ...(app.menuDeHoy && app.menuDeHoy.etiqueta !== app.nombre ? [app.menuDeHoy.etiqueta] : []),
-      ],
-    }));
-  return searchNavItems(items, query).map((i) => i.app);
-}
+// Vive en ./buscar (sin el registro): el buscador es un client component y, importado desde acá,
+// arrastraba REGISTRO_APPS entero al bundle del navegador en todas las pantallas (CH incluido).
+export { buscarApps } from "./buscar";
 
 // ── "App no disponible": el porqué, a quién pedírsela y por dónde volver ─────
 

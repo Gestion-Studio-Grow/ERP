@@ -1,4 +1,7 @@
 import { requireApp } from "@/lib/require-app";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
 import { getDevolucionesData } from "@/lib/suppliers/devoluciones";
 import { fmtShortDate } from "@/lib/datetime";
 import { formatearCantidad } from "@/lib/pos-peso";
@@ -13,8 +16,9 @@ export const dynamic = "force-dynamic";
 // que tenía el módulo asignado: un callejón sin salida. Ahora, si la app no está, lo dice
 // "App no disponible" con a quién pedírsela; si está, se usa.
 export default async function DevolucionesProveedorPage() {
-  await requireApp("devoluciones-a-proveedor");
-  const { compras, historial } = await getDevolucionesData();
+  const user = await requireApp("devoluciones-a-proveedor");
+  const [{ compras, historial }, negocio] = await Promise.all([getDevolucionesData(), getNegocioApps(user.role)]);
+  const veCompras = appPermitida(appPorId("recibir-mercaderia"), negocio);
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8 space-y-8">
@@ -27,7 +31,7 @@ export default async function DevolucionesProveedorPage() {
         <h2 id="nueva-titulo" className="mb-3 text-lg font-semibold text-strong">
           Nueva devolución
         </h2>
-        <DevolucionForm compras={compras} />
+        <DevolucionForm compras={compras} hrefCompras={veCompras ? "/admin/compras" : null} />
       </section>
 
       <section aria-labelledby="historial-titulo">

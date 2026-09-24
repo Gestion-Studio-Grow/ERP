@@ -38,10 +38,10 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
           className="w-20 rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-sm text-strong focus:border-accent"
         />
         <span className="text-sm text-muted">unidades</span>
-        <button type="submit" className="text-sm font-medium">
+        <button type="submit" className="text-sm font-medium max-sm:min-h-11 max-sm:min-w-11">
           Guardar
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted">
+        <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted max-sm:min-h-11 max-sm:min-w-11">
           Cancelar
         </button>
       </form>
@@ -58,7 +58,7 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setEditing(true)} className="chip-btn">
+        <button onClick={() => setEditing(true)} className="chip-btn max-sm:min-h-11!">
           Editar
         </button>
         <form
@@ -73,7 +73,7 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
           }}
         >
           <input type="hidden" name="id" value={r.id} />
-          <button type="submit" className="chip-btn chip-btn-danger">
+          <button type="submit" className="chip-btn max-sm:min-h-11! chip-btn-danger">
             Eliminar
           </button>
         </form>

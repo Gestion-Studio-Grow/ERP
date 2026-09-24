@@ -20,6 +20,7 @@ import { esMesKey, mesDelNegocio } from "@/lib/libros/fecha-fiscal";
 import { getTenantBrand } from "@/lib/branding";
 import { logger } from "@/lib/logger";
 import { requireApp } from "@/lib/require-app";
+import { nombreDeArchivo } from "../../reportes/nombre-de-archivo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +40,9 @@ export async function GET(request: Request) {
       );
     }
     const body = armarExportLibroIva(libro, { mes, negocio: brand.name });
-    return new Response(BOM + body, { status: 200, headers: cabecerasCsv(`libro-iva-${mes}.csv`) });
+    // "libro-iva-magra-2026-08.csv": en Descargas de la contadora, con varios clientes juntos,
+    // el nombre tiene que decir de quién es.
+    return new Response(BOM + body, { status: 200, headers: cabecerasCsv(nombreDeArchivo(["libro-iva", brand.name, mes])) });
   } catch (err) {
     logger.error("libros/export", "no se pudo generar el Libro IVA", err);
     return new Response("No se pudo armar el Libro IVA. Volvé a intentar en un momento; si sigue, avisanos.", {

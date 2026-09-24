@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireApp } from "@/lib/require-app";
 import { getCajaData } from "@/lib/caja-actions";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
@@ -66,6 +67,9 @@ function movementSignLabel(type: string): "+" | "−" | "" {
 }
 
 export default async function CajaPage() {
+  // La guardia de la app (rol, rubro, edición) va en la página, como en el resto del panel: quien
+  // no puede abrirla ve "App no disponible" en vez de rebotar en silencio desde el loader.
+  await requireApp("caja-del-dia");
   const conCajon = await tieneCajonFisico();
   // Mismo loader que el Cierre del día: la aritmética del resumen es LA MISMA
   // (`buildCierreDiario`), así que lo que se lee acá a las 16 es exactamente lo que va a

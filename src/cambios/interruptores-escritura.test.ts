@@ -27,6 +27,7 @@ const RAIZ = process.cwd();
 const ESCRITORES_PERMITIDOS: Record<string, string> = {
   "src/lib/operador/interruptores-escritura.server.ts": "la escritura condicional de la consola",
   "scripts/provision-tenant.ts": "el alta integrada (todavía no la escribe)",
+  "scripts/qa/visual-audit-gate.mjs": "el gate visual, SÓLO contra su PGlite en memoria (prende el piloto para medirlo)",
 };
 
 /** Quién puede importar la escritura real. */

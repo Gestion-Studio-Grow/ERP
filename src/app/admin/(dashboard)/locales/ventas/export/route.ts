@@ -16,6 +16,8 @@ import { exigirCasa } from "@/lib/multilocal/casa.server";
 import { ventasDeLaRedAction } from "@/lib/multilocal/multilocal-actions";
 import { consolidarPorCuit, csvVentasDeLaRed, elegirLocal } from "@/lib/multilocal/multilocal-core";
 import { logger } from "@/lib/logger";
+import { BOM, cabecerasCsv } from "@/lib/libros/csv-ar";
+import { nombreDeArchivo, periodoParaArchivo } from "../../../reportes/nombre-de-archivo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,15 +55,15 @@ export async function GET(request: Request) {
       locales,
       porCuit: elegido ? [] : consolidarPorCuit(locales),
     });
-    const nombre = `ventas-por-local-${r.rango.desde}-a-${r.rango.hasta}${elegido ? `-${elegido.slug}` : ""}`;
+    // "ventas-por-local-magra-2026-09-01-al-2026-09-24.csv" (o "-canning" si es un solo local).
+    const nombre = nombreDeArchivo([
+      "ventas-por-local",
+      r.casa,
+      ...periodoParaArchivo(r.rango.desde, r.rango.hasta),
+      elegido ? (elegido.alias || elegido.slug) : null,
+    ]);
     // BOM UTF-8 para que Excel en Windows abra los acentos (mismo criterio que el libro de caja).
-    return new Response("\uFEFF" + csv, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${nombre}.csv"`,
-        "Cache-Control": "no-store",
-      },
-    });
+    return new Response(BOM + csv, { headers: cabecerasCsv(nombre) });
   } catch (err) {
     logger.error("locales", "no se pudo generar el archivo de ventas por local", err);
     return texto(500, "No se pudo generar el archivo. Probá de nuevo en un rato; si sigue, avisanos.");

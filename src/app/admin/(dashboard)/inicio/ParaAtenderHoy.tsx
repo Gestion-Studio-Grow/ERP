@@ -11,7 +11,7 @@ import type { AppDescriptor } from "@/apps/contract";
 import type { Role } from "@/lib/capabilities";
 import { cargarKpi } from "@/apps/kpis/index.server";
 import { IconoApp } from "@/components/iconos-apps";
-import { KpiTile } from "@/components/ui";
+import { KpiTile, KpiTileEsqueleto } from "@/components/ui";
 import { AvisoError } from "@/components/ui/AvisoError";
 import { listaDeNombres, paraAtenderHoy } from "./secciones";
 
@@ -25,13 +25,21 @@ function Encabezado() {
   );
 }
 
+/**
+ * Mientras se revisan los números: el mismo esqueleto de tile que el resto del panel
+ * (`KpiTileEsqueleto`), en la misma grilla, así lo que llega no hace saltar la pantalla. El
+ * esqueleto es mudo; la carga se anuncia una vez, con texto, para el lector de pantalla.
+ */
 export function ParaAtenderHoyCargando() {
   return (
     <section aria-labelledby={TITULO_ID} className="mb-xl" aria-busy="true">
       <Encabezado />
-      <p className="rounded-lg border border-line bg-surface-raised px-4 py-3 text-sm text-muted">
+      <p role="status" className="sr-only">
         Revisando lo pendiente…
       </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <KpiTileEsqueleto />
+      </div>
     </section>
   );
 }

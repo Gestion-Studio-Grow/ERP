@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { updateServiceReminderConfig } from "@/lib/reminders-actions";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses } from "@/components/ui";
+import PasoVacio from "../turnos/PasoVacio";
+import { vacioSinServicios } from "../turnos/pasos";
 
 // Árbol de configuración de recordatorios por servicio. Reemplaza el listado
 // plano de un formulario abierto por servicio (con 20+ servicios era un muro):
@@ -40,7 +42,7 @@ function ServiceConfigForm({ service }: { service: Service }) {
       className="flex flex-wrap items-center gap-3 border-t border-line bg-surface-sunken px-3 py-3"
     >
       <input type="hidden" name="id" value={service.id} />
-      <label className="flex items-center gap-1.5 text-sm text-body">
+      <label className="flex items-center gap-1.5 text-sm text-body max-sm:min-h-11">
         <input type="checkbox" name="reminderEnabled" defaultChecked={service.reminderEnabled} className="accent-accent" />
         Recordatorio activado
       </label>
@@ -51,7 +53,8 @@ function ServiceConfigForm({ service }: { service: Service }) {
           name="reminderHoursBefore"
           defaultValue={service.reminderHoursBefore}
           min={1}
-          className="w-16 rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-strong focus:border-accent"
+          inputMode="numeric"
+          className="w-16 rounded-md border border-line-strong bg-surface-raised px-2 py-1 text-strong focus:border-accent max-sm:h-11"
         />
         hs antes
       </label>
@@ -65,7 +68,14 @@ function ServiceConfigForm({ service }: { service: Service }) {
   );
 }
 
-export default function ReminderServicesTree({ services }: { services: Service[] }) {
+export default function ReminderServicesTree({
+  services,
+  abreCatalogo = false,
+}: {
+  services: Service[];
+  /** ¿Quien mira puede abrir el Catálogo? Decide si el estado vacío lleva a cargar servicios. */
+  abreCatalogo?: boolean;
+}) {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [openService, setOpenService] = useState<string | null>(null);
 
@@ -85,7 +95,9 @@ export default function ReminderServicesTree({ services }: { services: Service[]
   }, [services]);
 
   if (services.length === 0) {
-    return <p className="text-sm text-muted">Sin servicios activos.</p>;
+    return (
+      <PasoVacio paso={vacioSinServicios({ abreCatalogo })} />
+    );
   }
 
   return (
@@ -102,7 +114,7 @@ export default function ReminderServicesTree({ services }: { services: Service[]
                 setOpenService(null);
               }}
               aria-expanded={open}
-              className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-accent-soft"
+              className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-accent-soft max-sm:min-h-11"
             >
               <span className="flex items-baseline gap-2 min-w-0">
                 <span className="font-medium text-sm truncate">{g.name}</span>
@@ -129,7 +141,7 @@ export default function ReminderServicesTree({ services }: { services: Service[]
                         type="button"
                         onClick={() => setOpenService(openConfig ? null : s.id)}
                         aria-expanded={openConfig}
-                        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-accent-soft"
+                        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-accent-soft max-sm:min-h-11"
                       >
                         <span className="text-sm truncate">{s.name}</span>
                         <StatusChip service={s} />

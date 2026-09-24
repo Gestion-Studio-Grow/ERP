@@ -107,3 +107,40 @@ export function notaDeCupon(cupon: unknown, descuentoDelPedido?: number): string
   const monto = typeof importe === "number" && importe > 0 ? `: −${fmtMoneyARS(importe)}` : "";
   return `Cupón ${c.codigo}${monto}.`;
 }
+
+/**
+ * La lista vacía dice qué hacer y tiene el botón para hacerlo. PURA.
+ *
+ *   · Con filtro: el filtro es lo que la vacía → sacarlo.
+ *   · Hoy, sin nada: "Todavía no vendiste hoy" → Nueva venta (quien puede vender).
+ *   · Otro día: no hubo ventas ese día → volver a hoy. «Nueva venta» ahí mentiría: la venta se
+ *     haría hoy, no ese día.
+ */
+export function vacioDeVentas(o: {
+  esHoy: boolean;
+  hayFiltro: boolean;
+  /** "hoy" o "el 22/09". */
+  cuando: string;
+  puedeVender: boolean;
+}): { titulo: string; descripcion: string; accion: { etiqueta: string; destino: "sacar-filtro" | "vender" | "hoy" } | null } {
+  if (o.hayFiltro) {
+    return {
+      titulo: `No hay ventas cobradas ${o.cuando} con ese filtro`,
+      descripcion: "Probá con «Todos» en medio y canal.",
+      accion: { etiqueta: "Sacar el filtro", destino: "sacar-filtro" },
+    };
+  }
+  if (o.esHoy) {
+    return {
+      titulo: "Todavía no vendiste hoy",
+      descripcion:
+        "Cada venta que se cobra en el mostrador y cada pedido cobrado aparece acá, para mandar el ticket o anularla si hubo un error.",
+      accion: o.puedeVender ? { etiqueta: "Nueva venta", destino: "vender" } : null,
+    };
+  }
+  return {
+    titulo: `No hubo ventas cobradas ${o.cuando}`,
+    descripcion: "Elegí otro día arriba o mirá las de hoy.",
+    accion: { etiqueta: "Ver las de hoy", destino: "hoy" },
+  };
+}

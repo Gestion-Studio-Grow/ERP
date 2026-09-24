@@ -336,6 +336,36 @@ export function movidoDespuesDe(
   return round3(s);
 }
 
+/**
+ * ¿El producto ya se RECONTÓ después de `desde`? Un AJUSTE cuyo motivo empieza con "Recuento"
+ * (con diferencia o sin ella: el que coincide queda en 0) posterior a la hora de este conteo.
+ * Si pasó, este conteo es viejo: otro recuento (el mismo, reenviado desde un borrador cuya
+ * respuesta se perdió, o el de otra persona) ya fijó el stock después, y aplicarlo descontaría
+ * la misma diferencia otra vez. PURA.
+ */
+export function recontadoDespuesDe(
+  movimientos: readonly { productId: string | null; type?: string; reason?: string | null; createdAt: Date }[],
+  productId: string,
+  desde: Date,
+): boolean {
+  const prefijo = motivoLabel("RECUENTO");
+  return movimientos.some(
+    (m) =>
+      m.productId === productId &&
+      m.type === "AJUSTE" &&
+      typeof m.reason === "string" &&
+      m.reason.startsWith(prefijo) &&
+      m.createdAt.getTime() > desde.getTime(),
+  );
+}
+
+/** El rechazo de un recuento con conteos viejos, con los nombres de los productos. */
+export function mensajeDeYaRecontado(nombres: readonly string[]): string {
+  return nombres.length === 1
+    ? `${nombres[0]} ya se recontó después de este conteo, así que no se guardó nada. Recargá la pantalla: lo que ya quedó guardado no vuelve a aparecer.`
+    : `${nombres.join(", ")} ya se recontaron después de este conteo, así que no se guardó nada. Recargá la pantalla: lo que ya quedó guardado no vuelve a aparecer.`;
+}
+
 // ── Tope de merma por carga ──────────────────────────────────────────────────
 //
 // El encargado (RECEPTION) carga mermas, pero no sin límite: una carga que se lleva más de

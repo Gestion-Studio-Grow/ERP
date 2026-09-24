@@ -12,6 +12,7 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { cargarHuecosLiberados } from "@/lib/crm/cargas.server";
 import { anotadosConHueco } from "@/lib/crm/huecos";
 import { enInicioPorApps } from "../inicio/piloto";
+import { vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -84,22 +85,31 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [{ professionals, appointments, blocksToday }, manana, piloto] = await Promise.all([
+  const [{ professionals, appointments, blocksToday }, manana, piloto, negocio] = await Promise.all([
     getAgendaDay(date),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
+    getNegocioApps(user.role),
   ]);
 
   const label = fmtCalendarDateLabel(date);
+  // Qué se ofrece si la agenda está vacía (pasos.ts): el botón sólo lleva a una pantalla que esta
+  // persona puede abrir, con la misma regla que la guardia de cada página.
+  const sinProfesionales = vacioSinProfesionales({
+    esProfesional: user.role === "PROFESSIONAL",
+    puedeCargarCatalogo: appPermitida(appPorId("catalogo"), negocio),
+  });
+  const diaVacio = vacioDiaSinTurnos({ fecha: date, hoy: today, puedeDarTurno: canManage });
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
       <h1 className="text-2xl font-semibold text-strong mb-1">Agenda</h1>
+      {/* Pestañas: en el celular llevan el alto táctil (44 px) sin cambiar cómo se ven en la PC. */}
       <div className="flex gap-4 text-sm mb-6 border-b border-line">
-        <Link href="/admin/turnos" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium">
+        <Link href="/admin/turnos" className="px-1 pb-2 border-b-2 border-accent text-strong font-medium max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
           Calendario
         </Link>
-        <Link href="/admin/turnos/lista" className="px-1 pb-2 text-muted hover:text-strong">
+        <Link href="/admin/turnos/lista" className="px-1 pb-2 text-muted hover:text-strong max-sm:inline-flex max-sm:min-h-11 max-sm:items-end">
           Lista
         </Link>
       </div>
@@ -133,7 +143,7 @@ export default async function TurnosCalendarPage({
             name="date"
             defaultValue={date}
             aria-label="Ir a una fecha"
-            className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+            className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent max-sm:h-11"
           />
           <button type="submit" className={buttonClasses("outline", "sm")}>
             Ir
@@ -150,7 +160,15 @@ export default async function TurnosCalendarPage({
 
       {manana && <MananaConfirmar dia={manana.dia} turnos={manana.turnos} />}
 
-      <CalendarGrid professionals={professionals} appointments={appointments} canManage={canManage} canCollect={canCollect} viewer={{ role: user.role, professionalId: user.professionalId }} />
+      <CalendarGrid
+        professionals={professionals}
+        appointments={appointments}
+        canManage={canManage}
+        canCollect={canCollect}
+        viewer={{ role: user.role, professionalId: user.professionalId }}
+        sinProfesionales={sinProfesionales}
+        diaVacio={diaVacio}
+      />
     </main>
   );
 }

@@ -11,6 +11,7 @@ import { useState, useTransition } from "react";
 import { avisarHuecoPorWhatsApp, reservarHuecoLiberado } from "@/lib/waitlist-actions";
 import { buttonClasses } from "@/components/ui";
 import { fmtCalendarDateLabel, fmtTime } from "@/lib/datetime";
+import { claseBotonWhatsApp } from "../clientes/boton-whatsapp";
 
 export type AnotadoVista = {
   id: string;
@@ -57,13 +58,14 @@ function FilaAnotado({ hueco, a }: { hueco: HuecoVista; a: AnotadoVista }) {
           </p>
         )}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 max-sm:flex-col max-sm:items-stretch">
         {a.wa && (
           <a
             href={a.wa}
             target="_blank"
             rel="noopener noreferrer"
-            className={buttonClasses(avisado ? "outline" : "solid", "md", "whitespace-nowrap")}
+            aria-label={`${avisado ? "WhatsApp de nuevo" : "WhatsApp"} a ${a.nombre}`}
+            className={claseBotonWhatsApp(avisado ? "outline" : "solid")}
             onClick={async () => {
               setMensaje(null);
               try {
@@ -81,7 +83,7 @@ function FilaAnotado({ hueco, a }: { hueco: HuecoVista; a: AnotadoVista }) {
         <button
           type="button"
           disabled={reservando}
-          className={buttonClasses("outline", "md", "whitespace-nowrap")}
+          className={buttonClasses("outline", "md", "whitespace-nowrap max-sm:w-full")}
           onClick={() =>
             start(async () => {
               setMensaje(null);

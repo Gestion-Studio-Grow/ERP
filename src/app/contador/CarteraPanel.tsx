@@ -218,7 +218,7 @@ export default function CarteraPanel({
                           seleccionar(f.clienteTenantId);
                         }}
                         aria-expanded={activaFila}
-                        className="block w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        className="block min-h-11 w-full rounded-md text-left sm:min-h-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                       >
                         <span className="flex items-center gap-2 font-medium text-strong">
                           {f.alias}

@@ -8,6 +8,9 @@ import { cargarBandeja } from "@/lib/crm/lecturas";
 import { contextoCrm, nombreDelNegocio, urlDelSitio } from "@/lib/crm/cargas.server";
 import { textoContacto } from "@/lib/crm/textos";
 import { CRM_REGLAS } from "@/lib/crm/reglas";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { getNegocioApps } from "@/apps/contexto.server";
 import EnlacesClientes from "../EnlacesClientes";
 import FilaContacto, { type FilaContactoVista } from "./FilaContacto";
 
@@ -23,7 +26,15 @@ export const dynamic = "force-dynamic";
 export default async function ParaContactarHoyPage() {
   const user = await requireApp("para-contactar-hoy");
   const c = await contextoCrm();
-  const [{ bandeja }, negocio, sitio] = await Promise.all([cargarBandeja(prisma, c), nombreDelNegocio(), urlDelSitio()]);
+  const [{ bandeja }, negocio, sitio, apps] = await Promise.all([
+    cargarBandeja(prisma, c),
+    nombreDelNegocio(),
+    urlDelSitio(),
+    getNegocioApps(user.role),
+  ]);
+  // El botón del estado vacío lleva a "Por recuperar" sólo si esta persona la puede abrir: si no,
+  // sería un callejón que termina en "App no disponible".
+  const abreRecuperar = appPermitida(appPorId("clientas-por-recuperar"), apps);
   const verPlata = roleHasCapability(user.role, "reports:read");
   const puedeContactar = roleHasCapability(user.role, "clients:manage");
 
@@ -88,9 +99,11 @@ export default async function ParaContactarHoyPage() {
               : "Cuando alguien cumpla años, deje de venir o haya que pedirle una reseña, aparece acá."
           }
           action={
-            <Link href="/admin/clientes/recuperar" className={buttonClasses("outline", "md")}>
-              Ver clientes por recuperar
-            </Link>
+            abreRecuperar ? (
+              <Link href="/admin/clientes/recuperar" className={buttonClasses("outline", "md")}>
+                Ver clientes por recuperar
+              </Link>
+            ) : undefined
           }
         />
       ) : (

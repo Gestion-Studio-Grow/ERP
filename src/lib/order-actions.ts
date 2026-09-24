@@ -349,7 +349,11 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // rastro) y no se vuelve a tocar el estado.
   if (result.dedup) {
     revalidarMostrador();
-    return { ok: true, mensaje: "Esa venta ya estaba registrada (no se cobró dos veces)." };
+    const mensaje = "Esa venta ya estaba registrada (no se cobró dos veces).";
+    // El reintento después de perder la respuesta también da el ticket (Vender lo pide con
+    // `conTicket`): es la venta que QUEDÓ grabada en el primer envío, leída de la base.
+    if (String(formData.get("conTicket") || "") !== "1") return { ok: true, mensaje };
+    return { ok: true, mensaje, venta: (await ventaParaTicket(tenantId, result.id)) ?? undefined };
   }
 
   // La venta de mostrador COBRADA y RETIRADA ya terminó: nace DELIVERED. **Sólo en rubro
@@ -637,24 +641,35 @@ async function chatDelPedido(tenantId: string, orderId: string, negocio: string)
 //
 // El paso siguiente lo decide `siguienteEstado` (order-anulacion.ts): en comercio, Nuevo pasa
 // directo a Preparando; en servicios (CH) sigue pasando por Confirmado.
-export async function advanceOrderStatus(formData: FormData) {
+
+// Otra pestaña (u otra persona) ya movió el pedido: la bandeja se redibuja con el estado real
+// y la fila lo dice (AvanzarPedidoForm lo lee con `rechazoDeAccion`).
+const YA_CAMBIO_DE_ESTADO = "El pedido ya había cambiado de estado en otra pantalla: la bandeja se actualizó.";
+
+export async function advanceOrderStatus(formData: FormData): Promise<OrderActionState> {
   await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id") || "").trim();
-  if (!id) return;
+  if (!id) return { ok: false, error: "No se encontró el pedido. Recargá la bandeja." };
   const current = await prisma.order.findFirst({ where: { id, tenantId }, select: { status: true } });
-  if (!current) return;
+  if (!current) {
+    revalidarMostrador();
+    return { ok: false, error: YA_CAMBIO_DE_ESTADO };
+  }
   const { isRetail } = await getTenantIdentity();
   // null = terminal (entregado, anulado) o Listo, que se entrega con `entregarPedido` (pide el cobro).
   const next = siguienteEstado(current.status, { comercio: isRetail });
-  if (!next) return;
+  if (!next) {
+    revalidarMostrador();
+    return { ok: false, error: YA_CAMBIO_DE_ESTADO };
+  }
   const res = await prisma.order.updateMany({
     where: { id, tenantId, status: current.status },
     data: { status: next },
   });
   if (res.count === 0) {
     revalidarMostrador();
-    return;
+    return { ok: false, error: YA_CAMBIO_DE_ESTADO };
   }
   await auditAdmin({
     action: "update",
@@ -663,6 +678,7 @@ export async function advanceOrderStatus(formData: FormData) {
     changes: { status: { from: current.status, to: next } },
   });
   revalidarMostrador();
+  return { ok: true };
 }
 
 // --- Marcar cobrado ---

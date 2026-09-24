@@ -37,7 +37,7 @@ export default function ThemeToggle() {
       onClick={toggle}
       aria-label="Cambiar tema"
       title={theme === "dark" ? "Pasar a tema claro" : "Pasar a tema oscuro"}
-      className="grid place-items-center w-9 h-9 rounded-lg text-muted hover:text-strong hover:bg-surface-sunken transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      className="grid place-items-center w-11 h-11 lg:w-9 lg:h-9 rounded-lg text-muted hover:text-strong hover:bg-surface-sunken transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
     >
       {theme === "dark" ? (
         /* sol — estamos en oscuro, el botón ofrece volver al claro */

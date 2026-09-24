@@ -8,6 +8,7 @@ import { getRecuentoData } from "@/lib/inventario/ajustes-loader";
 import { topeDeMermaPorCarga } from "@/lib/stock/adjustment-core";
 import { EmptyState, PageHeader, buttonClasses } from "@/components/ui";
 import RecuentoForm from "./RecuentoForm";
+import { claveDelBorrador } from "./borrador";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ export default async function RecuentoPage({
           ahoraServidor={datos.ahoraServidor}
           productoInicial={uno(sp.producto) || null}
           conTope={topeDeMermaPorCarga(user.role) !== null}
+          claveBorrador={claveDelBorrador(user.tenantId, user.id)}
         />
       )}
     </main>

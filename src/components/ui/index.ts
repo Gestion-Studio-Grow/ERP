@@ -19,6 +19,7 @@ export { ProfileBadge } from "./ProfileBadge";
 export type { ProfileBadgeProps } from "./ProfileBadge";
 export { profileEditionLabel, PROFILE_EDITION_LABEL } from "./profile-labels";
 export { KpiTile } from "./KpiTile";
+export { Esqueleto, KpiTileEsqueleto, NumeroEsqueleto } from "./Esqueleto";
 export type { KpiTileProps } from "./KpiTile";
 export { EmptyState } from "./EmptyState";
 export { AvisoError } from "./AvisoError";

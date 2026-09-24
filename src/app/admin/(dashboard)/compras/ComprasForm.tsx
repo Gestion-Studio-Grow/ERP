@@ -192,15 +192,6 @@ export default function ComprasForm({
           ? "sin-costo"
           : null;
 
-  if (products.length === 0) {
-    return (
-      <div className="rounded-lg border border-line bg-surface-sunken p-4 text-sm text-muted">
-        No hay productos cargados todavía. Cargá los productos en el catálogo para poder
-        registrar compras y reponer su stock.
-      </div>
-    );
-  }
-
   // El proveedor: elegido del maestro si hay, escrito si no. En la orden formal (Empresa) la
   // razón social es el mismo dato.
   const campoProveedor = conMaestro ? (
@@ -263,14 +254,14 @@ export default function ComprasForm({
         <button
           type="button"
           onClick={() => setKind("COMPRA")}
-          className={`chip-btn text-sm ${isCompra ? "bg-accent text-on-accent" : ""}`}
+          className={`chip-btn max-sm:min-h-11! text-sm ${isCompra ? "bg-accent text-on-accent" : ""}`}
         >
           Compra a proveedor
         </button>
         <button
           type="button"
           onClick={() => setKind("REPOSICION")}
-          className={`chip-btn text-sm ${!isCompra ? "bg-accent text-on-accent" : ""}`}
+          className={`chip-btn max-sm:min-h-11! text-sm ${!isCompra ? "bg-accent text-on-accent" : ""}`}
         >
           Reposición / ajuste
         </button>
@@ -514,7 +505,7 @@ export default function ComprasForm({
         <button
           type="button"
           onClick={() => focus(`prod-${addLine()}`)}
-          className="chip-btn text-sm"
+          className="chip-btn max-sm:min-h-11! text-sm"
         >
           + Agregar producto
         </button>

@@ -48,8 +48,9 @@ const emptyKpis: DeepKpis = {
 
 function baseInput(overrides: Partial<ReportCsvInput> = {}): ReportCsvInput {
   return {
-    desde: new Date("2026-04-01T00:00:00.000Z"),
-    hasta: new Date("2026-06-30T00:00:00.000Z"),
+    // Los bordes reales de un período (bordesDelPeriodo): 00:00 y 23:59:59.999 hora argentina.
+    desde: new Date("2026-04-01T03:00:00.000Z"),
+    hasta: new Date("2026-07-01T02:59:59.999Z"),
     rangeDays: 90,
     totalIngresos: 0,
     cantidadPagos: 0,
@@ -67,8 +68,17 @@ test("el CSV es determinista y usa CRLF entre filas", () => {
   assert.equal(buildReportCsv(baseInput()), csv); // mismo input → mismo texto
   assert.ok(csv.includes("\r\n"));
   assert.ok(csv.startsWith("Reporte del negocio"));
-  // El período se emite como fechas ISO cortas.
+  // El período se emite como fechas ISO cortas, en días del negocio.
   assert.ok(csv.includes("2026-04-01 a 2026-06-30"));
+});
+
+test("el período dice el día del NEGOCIO: el borde de las 23:59 no se corre al día siguiente", async () => {
+  const { bordesDelPeriodo } = await import("./report-ingresos");
+  const { businessWallTimeToUtc } = await import("./datetime");
+  const { desde, hasta } = bordesDelPeriodo("2026-09-24", 90, businessWallTimeToUtc);
+  const csv = buildReportCsv(baseInput({ desde, hasta, rangeDays: 90 }));
+  // En UTC decía "a 2026-09-25" a cualquier hora (medido por el revisor de 4E).
+  assert.ok(csv.includes("2026-06-27 a 2026-09-24"), csv.split("\r\n")[1]);
 });
 
 test("un valor con el separador se escapa dentro del CSV armado", () => {

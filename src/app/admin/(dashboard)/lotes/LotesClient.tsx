@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { crearLote, cambiarEstadoDelLote, type EstadoLote } from "@/lib/carniceria/lotes-actions";
-import { AvisoError, Badge, Input, KpiTile, Select, buttonClasses, fmtMoneyARS, type BadgeProps } from "@/components/ui";
+import { AvisoError, Badge, EmptyState, Input, KpiTile, Select, buttonClasses, fmtMoneyARS, type BadgeProps } from "@/components/ui";
 import { useEnvio } from "@/lib/inventario/envio";
 import type { ExpiryState, BatchStatus, BatchSummary } from "@/lib/carniceria/lotes";
 
@@ -61,7 +61,7 @@ function CambiarEstado({ id, code, status }: { id: string; code: string; status:
       <button
         type="submit"
         disabled={enviando}
-        className={`chip-btn min-h-11 ${peligro ? "chip-btn-danger" : ""} disabled:opacity-50`}
+        className={`chip-btn max-sm:min-h-11! min-h-11 ${peligro ? "chip-btn-danger" : ""} disabled:opacity-50`}
         aria-label={aria}
       >
         {texto}
@@ -137,7 +137,22 @@ export default function LotesClient({
       <section aria-labelledby="lotes-tabla">
         <h2 id="lotes-tabla" className="text-lg font-medium text-strong mb-3">Lotes cargados</h2>
         {views.length === 0 ? (
-          <p className="text-sm text-muted">Todavía no hay lotes. {puedeCargar ? "Cargá el primero abajo." : ""}</p>
+          <EmptyState
+            title="Todavía no hay lotes"
+            description={
+              puedeCargar
+                ? "Cargá cada lote al vacío con su vencimiento cuando llega: acá se ordenan por el que vence antes."
+                : "Los lotes los carga quien recibe la mercadería. Cuando haya, se ordenan acá por el que vence antes."
+            }
+            action={
+              puedeCargar ? (
+                // El alta está abajo (en el celular, fuera de la pantalla): el foco lleva hasta ahí.
+                <button type="button" onClick={() => document.getElementById("lote-code")?.focus()} className={buttonClasses("solid", "md")}>
+                  Cargar el primero
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="sm:overflow-x-auto sm:rounded-lg sm:border sm:border-line">
             <table className="block sm:table w-full text-left">

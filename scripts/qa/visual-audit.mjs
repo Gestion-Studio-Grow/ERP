@@ -15,11 +15,22 @@
 // no se falla (evita falsos positivos). Umbral por tamaño (WCAG 1.4.3): grande
 // (≥24px, o ≥18.66px bold) = 3:1; normal = 4.5:1.
 //
-// Touch targets (WCAG 2.5.5 / 2.5.8): controles interactivos STANDALONE (no links
-// dentro de un párrafo) con lado menor < 44px en mobile → falla.
+// Touch targets: botones, selects, switches y summary con lado menor < 44px en el
+// celular → FALLA (antes 24px fallaba y 44px era aviso; desde la ola 4 el piso de la
+// casa es 44px, h-11, para todo lo que se toca con el dedo). `TOQUE_MIN=24` vuelve al
+// piso WCAG 2.5.8 si hiciera falta medir contra el mínimo legal.
 //
 // Overflow: scrollWidth > innerWidth (mobile sobre todo) → falla, y reporta los
 // elementos que se desbordan para poder arreglarlos.
+//
+// RUTAS: las del panel salen del REGISTRO DE APPS (src/apps/registro.ts): toda app lista
+// con ruta fija entra sola al gate, en los negocios de su rubro. Nadie tiene que acordarse
+// de sumarla acá. Si en un negocio la app no está (su página manda a "App no disponible" o
+// al Inicio), se anota como omitida y no se mide: ahí no hay pantalla que mirar. Pero sólo
+// puede faltar una app que tiene con qué faltar (un módulo, un rubro o una edición): una del
+// núcleo que rebota es una regresión y FALLA, no se omite. Las omitidas se listan al final.
+// El registro es TypeScript: se lee con un node hijo con tsx (`--listar-apps`), así el
+// gate sigue corriendo con `node` a secas.
 //
 // USO:
 //   BASE_HOST=localhost PORT=3220 FIXTURE=path/qa-tenants.json \
@@ -27,13 +38,17 @@
 //   OUT_DIR   carpeta de screenshots + report.json (default ./qa-shots/audit)
 //   ONLY      coma-separado: subdominios a auditar (default: todos los del fixture)
 //   GROUPS    coma-separado: public,flow,admin,operador (default: todos)
+//   TOQUE_MIN piso táctil en px en el celular (default 44)
+//   CHROMIUM_PATH  ejecutable de Chromium si Playwright no trae el suyo
 // ============================================================================
 
-import { chromium } from "playwright";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { createHmac } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
+const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
 const BASE_HOST = process.env.BASE_HOST ?? "localhost";
 const PORT = Number(process.env.PORT ?? 3220);
 const OUT_DIR = path.resolve(process.env.OUT_DIR ?? "qa-shots/audit");
@@ -41,31 +56,104 @@ const FIXTURE = process.env.FIXTURE ?? path.resolve("../qa-tenants.json");
 const ONLY = (process.env.ONLY ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 const GROUPS = (process.env.GROUPS ?? "public,flow,admin,operador").split(",").map((s) => s.trim());
 
-const VIEWPORTS = [
+// El celular de referencia de la casa es de 412 px (principios de UX de la ola 4).
+export const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 900 },
-  { name: "mobile", width: 390, height: 844 },
+  { name: "mobile", width: 412, height: 915 },
 ];
 
-// Rutas por grupo. `blueprints` limita a ciertos rubros (undefined = todos).
+const TOQUE_MIN = Number(process.env.TOQUE_MIN ?? 44);
+
+// Rubros de los negocios del gate (blueprintId del fixture) por rubro de app del registro.
+const MOSTRADOR = ["velas", "padel", "carniceria"];
+const BLUEPRINTS_DE_RUBRO = { servicios: ["servicios"], mostrador: MOSTRADOR, carniceria: ["carniceria"] };
+
+// Rutas que no son apps del registro. `blueprints` limita a ciertos rubros (undefined = todos).
 // `auth: "admin"` inyecta cookie de sesión del OWNER del tenant.
-const ROUTES = [
+export const RUTAS_FIJAS = [
   // ── Vidriera pública (sin auth) ──
-  { path: "/", label: "home", group: "public", key: "h1, h2" },
+  { path: "/", label: "home", group: "public" },
   // ── Flujo de reserva / compra ──
-  { path: "/reserva", label: "reserva", group: "flow", blueprints: ["servicios"], key: "h1, h2" },
-  { path: "/tienda", label: "tienda", group: "flow", blueprints: ["velas", "padel", "carniceria"], key: "h1, h2" },
-  // ── Backoffice /admin ──
-  { path: "/admin/login", label: "admin-login", group: "admin", key: 'input[type="password"], input[name="password"]' },
-  { path: "/admin", label: "admin-dashboard", group: "admin", auth: "admin", key: "h1, h2" },
-  { path: "/admin/clientes", label: "admin-clientes", group: "admin", auth: "admin", key: "h1, h2" },
-  { path: "/admin/catalogo", label: "admin-catalogo", group: "admin", auth: "admin", key: "h1, h2" },
-  { path: "/admin/reportes", label: "admin-reportes", group: "admin", auth: "admin", key: "h1, h2" },
-  { path: "/admin/ajustes", label: "admin-ajustes", group: "admin", auth: "admin", key: "h1, h2" },
-  { path: "/admin/apariencia", label: "admin-apariencia", group: "admin", auth: "admin", key: "h1, h2" },
-  { path: "/admin/turnos", label: "admin-turnos", group: "admin", auth: "admin", blueprints: ["servicios"], key: "h1, h2" },
-  { path: "/admin/pedidos", label: "admin-pedidos", group: "admin", auth: "admin", blueprints: ["velas", "padel", "carniceria"], key: "h1, h2" },
-  { path: "/admin/caja", label: "admin-caja", group: "admin", auth: "admin", blueprints: ["velas", "padel", "carniceria"], key: "h1, h2" },
+  { path: "/reserva", label: "reserva", group: "flow", blueprints: ["servicios"] },
+  { path: "/tienda", label: "tienda", group: "flow", blueprints: MOSTRADOR },
+  // ── Backoffice /admin fuera del registro ──
+  { path: "/admin/login", label: "admin-login", group: "admin" },
+  // La pantalla a la que caen todos los rechazos: tiene que verse bien ella también.
+  { path: "/admin/no-disponible?app=facturacion", label: "admin-no-disponible", group: "admin", auth: "admin" },
+  // La Auditoría con un filtro: mide el estado vacío "No hay acciones con estos filtros" y el
+  // formulario de filtros cargado (la del registro se mide sin filtros).
+  { path: "/admin/auditoria?tipo=anulaciones", label: "admin-auditoria-filtrada", group: "admin", auth: "admin" },
 ];
+
+/**
+ * Las rutas del panel que salen del registro: toda app lista, que se ofrece y con ruta fija
+ * (sin segmentos [id]), en los negocios de su rubro. Puro: lo prueba un test con el
+ * registro real (src/app/admin/(dashboard)/inicio/gate-visual.test.ts).
+ */
+export function rutasDelRegistro(apps) {
+  const vistas = new Set();
+  const rutas = [];
+  for (const app of apps) {
+    if (app.estado !== "lista" || app.enLanzador === false) continue;
+    if (!app.ruta.startsWith("/admin") || app.ruta.includes("[")) continue;
+    if (vistas.has(app.ruta)) continue;
+    vistas.add(app.ruta);
+    rutas.push({
+      path: app.ruta,
+      label: `app-${app.id}`,
+      group: "admin",
+      auth: "admin",
+      puedeFaltar: puedeFaltar(app),
+      ...(app.rubro ? { blueprints: BLUEPRINTS_DE_RUBRO[app.rubro] } : {}),
+    });
+  }
+  return rutas;
+}
+
+/**
+ * ¿Hay algo del negocio que pueda dejar a esta app afuera, con la sesión de la dueña (que tiene
+ * todas las capacidades)? Es la regla de `motivoNoDisponible` (src/apps/visibles.ts) sin el rol:
+ * un módulo que el negocio no tiene, un rubro (la carnicería "lista") o una edición. Una app del
+ * núcleo sin nada de eso (Caja del día, Usuarios, Datos del negocio…) está en TODOS los negocios:
+ * si rebota, se rompió algo y el gate no puede darla por omitida.
+ */
+export function puedeFaltar(app) {
+  return app.modulo != null || app.rubro != null || app.perfilMin != null;
+}
+
+/**
+ * Qué hacer con lo que devolvió la navegación: "medir" la pantalla, darla por "omitida" (la app
+ * no está en este negocio y tiene con qué no estar) o "falla" (rebotó una que no puede faltar).
+ */
+export function clasificarAterrizaje(route, aterrizo) {
+  if (!aterrizoFueraDeLaApp(route.path, aterrizo)) return "medir";
+  return route.puedeFaltar ? "omitida" : "falla";
+}
+
+/**
+ * ¿La app no está en este negocio? Su página manda a "App no disponible" (requireApp) o, en un
+ * producto con tienda, el layout la devuelve al Inicio. Ahí no hay pantalla de la app que medir.
+ */
+export function aterrizoFueraDeLaApp(pedida, aterrizo) {
+  const p = pedida.split("?")[0];
+  if (aterrizo === p) return false;
+  if (aterrizo === "/admin/no-disponible" && !p.startsWith("/admin/no-disponible")) return true;
+  return aterrizo === "/admin" && p !== "/admin";
+}
+
+// Lee el registro con un node hijo que carga TypeScript (tsx). Así este script sigue
+// corriendo con `node` a secas desde visual-audit-gate.mjs.
+function leerRegistro() {
+  const r = spawnSync(process.execPath, ["--import", "tsx", fileURLToPath(import.meta.url), "--listar-apps"], {
+    // Desde la raíz del repo: ahí se resuelven `tsx` y el alias @/ del registro, aunque el gate
+    // se haya lanzado desde otra carpeta.
+    cwd: RAIZ,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (r.status !== 0) throw new Error(`no se pudo leer el registro de apps: ${r.stderr || r.error}`);
+  return JSON.parse(r.stdout);
+}
 
 function adminCookie(userId, authSecret) {
   const sig = createHmac("sha256", authSecret).update(userId).digest("hex");
@@ -78,7 +166,7 @@ function operatorCookie(operatorSecret) {
 
 // ── Función in-page: mide contraste, touch targets y overflow. Se serializa y corre
 //    en el navegador (sin acceso a scope de Node). ────────────────────────────────
-function auditInPage() {
+export function auditInPage(toqueMin) {
   const parseColor = (str) => {
     if (!str) return null;
     const m = str.match(/rgba?\(([^)]+)\)/i);
@@ -188,11 +276,12 @@ function auditInPage() {
   }
 
   // ── Touch targets (solo tiene sentido en mobile; el runner filtra por viewport) ──
-  // Piso WCAG 2.5.8 (AA "Target Size Minimum") = 24px. El 44px es AAA (2.5.5) → se
-  // reporta como advisory (comfort), no falla el gate. Se EXIME lo que 2.5.8 exime:
-  // controles nativos del user-agent (checkbox/radio) y links de texto (excepción
-  // "inline"/"in-sentence"). Solo se chequean controles tipo botón/switch/select.
-  const AA_MIN = 24, COMFORT_MIN = 44;
+  // Piso de la casa: 44px (h-11) en todo lo que se toca con el dedo; menos → falla. Se
+  // EXIME lo que WCAG 2.5.8 exime: controles nativos del user-agent (checkbox/radio) y
+  // links de texto (excepción "inline"/"in-sentence"). Solo se chequean controles tipo
+  // botón/switch/select. Entre 24 y el piso se anota además como `touchWarn` (lo que
+  // pasaría con el mínimo legal), para ver cuánto falta.
+  const AA_MIN = 24, COMFORT_MIN = toqueMin;
   const touchFails = [];
   const touchWarn = [];
   const interactive = document.querySelectorAll(
@@ -209,8 +298,8 @@ function auditInPage() {
       text: (el.textContent || el.getAttribute("aria-label") || el.getAttribute("name") || "").trim().slice(0, 40),
       w: Math.round(r.width), h: Math.round(r.height),
     };
-    if (minSide < AA_MIN) touchFails.push(rec);
-    else if (minSide < COMFORT_MIN) touchWarn.push(rec);
+    if (minSide < COMFORT_MIN) touchFails.push(rec);
+    if (minSide >= AA_MIN && minSide < COMFORT_MIN) touchWarn.push(rec);
   }
 
   // ── Overflow horizontal ──
@@ -231,7 +320,9 @@ function auditInPage() {
 }
 
 async function main() {
+  const { chromium } = await import("playwright");
   const fixture = JSON.parse(await readFile(FIXTURE, "utf8"));
+  const ROUTES = [...RUTAS_FIJAS, ...rutasDelRegistro(leerRegistro())];
   const { authSecret, operatorSecret } = fixture;
   // Sin filtro por userId: un tenant sin OWNER (ej. verificación contra PRODUCCIÓN,
   // donde no tenemos ni debemos tener la sesión de admin) igual audita sus superficies
@@ -240,10 +331,12 @@ async function main() {
   if (ONLY.length) tenants = tenants.filter((t) => ONLY.includes(t.subdomain));
 
   await mkdir(OUT_DIR, { recursive: true });
-  process.stdout.write(`\n🎨 Auditoría visual — ${tenants.length} tenants × rutas × {desktop,mobile}\n`);
+  process.stdout.write(`\n🎨 Auditoría visual — ${tenants.length} tenants × ${ROUTES.length} rutas × {desktop,mobile ${VIEWPORTS[1].width}px} · toque ≥ ${TOQUE_MIN}px\n`);
 
-  const browser = await chromium.launch();
+  // CHROMIUM_PATH: un Chromium ya instalado cuando la versión de Playwright no trae el suyo.
+  const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   const report = [];
+  const omitidas = new Set();
 
   for (const t of tenants) {
     // Origin explícito (prod: URL plana `https://<slug>-erp.vercel.app`) o derivado
@@ -258,6 +351,8 @@ async function main() {
     });
     for (const route of routes) {
       for (const vp of VIEWPORTS) {
+        // Omitida en una medida (la app no está en este negocio): tampoco se mide en la otra.
+        if (omitidas.has(`${t.subdomain}|${route.path}`)) continue;
         const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
         if (route.auth === "admin" && t.userId) {
           await ctx.addCookies([{ url: origin, name: "admin_session", value: adminCookie(t.userId, authSecret) }]);
@@ -276,8 +371,23 @@ async function main() {
           if (route.auth === "admin" && landed.startsWith("/admin/login") && route.path !== "/admin/login") {
             entry.redirectedToLogin = true;
           }
+          const destino = clasificarAterrizaje(route, landed);
+          if (destino === "omitida") {
+            entry.omitida = `no está en este negocio (fue a ${landed})`;
+            omitidas.add(`${t.subdomain}|${route.path}`);
+            process.stdout.write(`  · ${id.padEnd(38)} omitida: ${entry.omitida}\n`);
+            report.push(entry); // al reporte igual: el resumen las cuenta y las lista
+            continue;
+          }
+          if (destino === "falla") {
+            // Una app del núcleo que rebota: la pantalla de rechazo no la reemplaza en la medida.
+            entry.rebote = landed;
+            process.stdout.write(`  ✗ ${id.padEnd(38)} REBOTÓ a ${landed}: es del núcleo, tiene que abrir en todos los negocios\n`);
+            report.push(entry);
+            continue;
+          }
           await page.waitForTimeout(350);
-          const a = await page.evaluate(auditInPage);
+          const a = await page.evaluate(auditInPage, TOQUE_MIN);
           entry.contrastFails = a.contrastFails;
           entry.touchFails = vp.name === "mobile" ? a.touchFails : [];
           entry.touchWarn = vp.name === "mobile" ? a.touchWarn : [];
@@ -333,10 +443,20 @@ async function main() {
   const totBlank = report.filter((e) => e.blank).length;
   const totLogin = report.filter((e) => e.redirectedToLogin).length;
   const totErr = report.filter((e) => e.error).length; // navegación/excepción = fallo duro
+  const totOmit = report.filter((e) => e.omitida).length; // no es fallo: la app no está en ese negocio
+  const totRebote = report.filter((e) => e.rebote).length; // app del núcleo que rebotó = fallo duro
   process.stdout.write(`\n──────── Resumen auditoría visual ────────\n`);
-  process.stdout.write(`Contraste AA: ${totC} · Touch: ${totT} · Overflow: ${totO} · HTTP≥400: ${totHttp} · En blanco: ${totBlank} · Rebote a login: ${totLogin} · Errores: ${totErr}\n`);
+  process.stdout.write(`Contraste AA: ${totC} · Touch (<${TOQUE_MIN}px): ${totT} · Overflow: ${totO} · HTTP≥400: ${totHttp} · En blanco: ${totBlank} · Rebote a login: ${totLogin} · Errores: ${totErr} · Rebotes del núcleo: ${totRebote} · Omitidas: ${totOmit}\n`);
+  // Las omitidas, a la vista y por negocio: si una app que debía estar aparece acá, es un hallazgo.
+  const omitidasPorNegocio = new Map();
+  for (const e of report.filter((x) => x.omitida)) {
+    omitidasPorNegocio.set(e.tenant, [...(omitidasPorNegocio.get(e.tenant) ?? []), e.route]);
+  }
+  for (const [negocio, rutas] of omitidasPorNegocio) {
+    process.stdout.write(`  omitidas en ${negocio} (${rutas.length}): ${rutas.join(", ")}\n`);
+  }
   process.stdout.write(`Report: ${path.join(OUT_DIR, "report.json")}\n`);
-  const total = totC + totT + totO + totHttp + totBlank + totLogin + totErr;
+  const total = totC + totT + totO + totHttp + totBlank + totLogin + totErr + totRebote;
   if (total > 0) {
     process.stderr.write(`\n❌ ${total} defecto(s)/fallo(s) de calidad visual — NO publicar.\n`);
     process.exit(1);
@@ -344,4 +464,27 @@ async function main() {
   process.stdout.write(`\n✅ Calidad visual OK (contraste/touch/overflow).\n`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// `--listar-apps`: el modo del node hijo con tsx (ver `leerRegistro`). Imprime el registro y sale.
+async function listarApps() {
+  const { REGISTRO_APPS } = await import("../../src/apps/registro.ts");
+  process.stdout.write(
+    JSON.stringify(
+      REGISTRO_APPS.map((a) => ({
+        id: a.id,
+        ruta: a.ruta,
+        estado: a.estado,
+        rubro: a.rubro,
+        enLanzador: a.enLanzador,
+        modulo: a.modulo,
+        perfilMin: a.perfilMin,
+      })),
+    ),
+  );
+}
+
+// Sólo corre si se lo invoca como script: los tests importan las funciones puras de arriba.
+const esScript = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (esScript) {
+  const tarea = process.argv.includes("--listar-apps") ? listarApps() : main();
+  tarea.catch((e) => { console.error(e); process.exit(1); });
+}

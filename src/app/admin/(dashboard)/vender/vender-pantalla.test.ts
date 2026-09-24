@@ -6,12 +6,14 @@
 // Chromium de Playwright, con las Server Actions reemplazadas por dobles que anotan lo que
 // viaja. Sin Next ni base: lo que se prueba es la pantalla —que el vuelto, el tope del
 // descuento y el motivo del precio a mano se vean y frenen el cobro como dice el servidor— y
-// QUÉ manda al servidor. Sin el CSS de la app: el ancho de 412 px y los toques de 44 px los
-// mide el gate visual con la app construida, no este test.
+// QUÉ manda al servidor. Casi todos corren sin el CSS de la app. Los del celular (la barra de
+// cobrar fija, los toques de la venta de 2 cortes) cargan el CSS REAL, compilado de
+// globals.css con el mismo Tailwind del build, y miden a 412 px; la pantalla entera con el
+// shell la sigue midiendo el gate visual con la app construida.
 
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
@@ -25,9 +27,21 @@ function guardar(fd) {
   window.__envios.push(o);
   return o;
 }
+// Las claves de ticket que el "servidor" ya grabó: un reintento con la misma devuelve lo que
+// contesta createOrder con una clave repetida (A-1), sin grabar otra venta.
+const grabadas = new Set();
 export async function createOrder(fd) {
   const o = guardar(fd);
+  const clave = (o.idempotencyKey || [""])[0];
+  // Se corta la señal DESPUÉS de que el servidor grabó: la respuesta no vuelve.
+  if (window.__respuestaPerdida) {
+    window.__respuestaPerdida = false;
+    grabadas.add(clave);
+    throw new TypeError("Failed to fetch");
+  }
   if (window.__rechazo) return { ok: false, error: window.__rechazo };
+  if (clave && grabadas.has(clave)) return { ok: true, mensaje: "Esa venta ya estaba registrada (no se cobró dos veces)." };
+  if (clave) grabadas.add(clave);
   return {
     ok: true,
     mensaje: "Venta cobrada.",
@@ -42,6 +56,13 @@ export async function createOrder(fd) {
       ...(o.aCuenta ? { aCuenta: true } : {}),
     },
   };
+}
+// «Anular…» de la bandeja: rechaza con el texto del servidor, o se corta la señal.
+export async function anularVenta(_prev, fd) {
+  guardar(fd);
+  if (window.__respuestaPerdida) { window.__respuestaPerdida = false; throw new TypeError("Failed to fetch"); }
+  if (window.__rechazo) return { ok: false, error: window.__rechazo };
+  return { ok: true, mensaje: "Pedido #7 anulado." };
 }
 export async function updateOrderItems(_prev, fd) { guardar(fd); return { ok: true, mensaje: "ajustado" }; }
 export async function buscarClienteParaVenta(tel) { return tel.includes("4000") ? { nombre: "María Pérez" } : null; }
@@ -67,7 +88,15 @@ export async function probarCuponEnPedido(codigo, base) {
   return { ok: false, error: "Ese cupón no existe o no está activo. Revisá cómo está escrito." };
 }
 `;
-const NAVEGACION_FALSA = `export function useRouter() { return { refresh() { window.__refrescos = (window.__refrescos || 0) + 1; } }; }`;
+const NAVEGACION_FALSA = `
+export function useRouter() { return { refresh() { window.__refrescos = (window.__refrescos || 0) + 1; } }; }
+export function usePathname() { return "/admin/vender"; }
+`;
+// La barra de espacios del celular usa <Link>: acá alcanza con un <a> (no se navega).
+const LINK_FALSO = `
+import { createElement } from "react";
+export default function Link({ href, prefetch, ...resto }) { return createElement("a", { href: String(href), ...resto }); }
+`;
 
 const ENTRADA = `
 import { createElement } from "react";
@@ -75,7 +104,16 @@ import { createRoot } from "react-dom/client";
 import ToastProvider from "@/app/admin/(dashboard)/ToastProvider";
 import VenderForm from "@/app/admin/(dashboard)/vender/VenderForm";
 import AjustarPedidoForm from "@/app/admin/(dashboard)/pedidos/AjustarPedidoForm";
+import AnularPedidoForm from "@/app/admin/(dashboard)/pedidos/AnularPedidoForm";
+import BarraInferior from "@/app/admin/(dashboard)/inicio/BarraInferior";
+import { REGISTRO_APPS } from "@/apps/registro";
 window.__envios = [];
+// La barra de espacios REAL del celular (la que el shell monta en todo negocio por apps, MAGRA
+// incluida), con todas las apps: es la que tapaba el botón de cobrar.
+window.__montarBarra = () =>
+  createRoot(document.getElementById("barra")).render(
+    createElement(BarraInferior, { apps: REGISTRO_APPS, esMostrador: true, onBuscar() {} }),
+  );
 const productos = [
   { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg" },
   { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 17500, unit: "kg" },
@@ -90,7 +128,9 @@ const PEDIDOS = {
 window.__montar = (cual, tope, extra) =>
   createRoot(document.getElementById("root")).render(
     createElement(ToastProvider, null,
-      cual === "sin-precios"
+      cual === "anular"
+        ? createElement(AnularPedidoForm, { id: "ord_7", code: 7, paid: true, total: 15500, motivoObligatorio: true })
+        : cual === "sin-precios"
         ? createElement(VenderForm, { products: [], stockById: {}, rapidos: [], negocio: "MAGRA Canning", topeDescuentoPct: tope })
         : cual === "vender" || cual === "pedido"
         ? createElement(VenderForm, { products: productos, stockById: stock, rapidos: ["p_vacio", "p_entrana"], negocio: "MAGRA Canning", topeDescuentoPct: tope, pedidoInicial: cual === "pedido", ...(extra || {}) })
@@ -102,12 +142,14 @@ window.__montar = (cual, tope, extra) =>
 `;
 
 type Envio = Record<string, string[]>;
-type Montaje = "vender" | "pedido" | "sin-precios" | "ajustar" | "ajustar-10kg";
+type Montaje = "vender" | "pedido" | "sin-precios" | "ajustar" | "ajustar-10kg" | "anular";
 type Ventana = {
   __envios: Envio[];
   __rechazo?: string;
+  __respuestaPerdida?: boolean;
   __cupones?: { codigo: string; base: number }[];
   __montar: (cual: Montaje, tope: number | null, extra?: Record<string, unknown>) => void;
+  __montarBarra: () => void;
 };
 
 function rutaDeChromium(porDefecto: () => string): string | null {
@@ -128,9 +170,22 @@ function rutaDeChromium(porDefecto: () => string): string | null {
   return null;
 }
 
+/** El CSS de la app, compilado como en el build (globals.css + Tailwind). "" si no se pudo. */
+async function cssDeLaApp(): Promise<string> {
+  try {
+    const postcss = (await import("postcss")).default;
+    const tailwind = (await import("@tailwindcss/postcss")).default as unknown as (o: { base: string }) => import("postcss").AcceptedPlugin;
+    const archivo = join(RAIZ, "src", "app", "globals.css");
+    return (await postcss([tailwind({ base: RAIZ })]).process(readFileSync(archivo, "utf8"), { from: archivo })).css;
+  } catch {
+    return "";
+  }
+}
+
 describe("Vender en el navegador", { timeout: 120_000 }, () => {
   let browser: Browser | null = null;
   let bundle = "";
+  let css = "";
   let sinNavegador = "";
 
   before(async () => {
@@ -164,8 +219,16 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
             b.onResolve({ filter: /^@\/lib\/order-actions$/ }, () => ({ path: "acciones", namespace: "falso" }));
             b.onResolve({ filter: /^@\/lib\/coupon-actions$/ }, () => ({ path: "cupones", namespace: "falso" }));
             b.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navegacion", namespace: "falso" }));
+            b.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "falso" }));
             b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({
-              contents: a.path === "acciones" ? ACCIONES_FALSAS : a.path === "cupones" ? CUPONES_FALSOS : NAVEGACION_FALSA,
+              contents:
+                a.path === "acciones"
+                  ? ACCIONES_FALSAS
+                  : a.path === "cupones"
+                    ? CUPONES_FALSOS
+                    : a.path === "link"
+                      ? LINK_FALSO
+                      : NAVEGACION_FALSA,
               loader: "js",
               resolveDir: RAIZ,
             }));
@@ -174,6 +237,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
       ],
     });
     bundle = r.outputFiles[0].text;
+    css = await cssDeLaApp();
     browser = await playwright.chromium.launch({ executablePath: chrome });
   });
 
@@ -185,12 +249,23 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     cual: Montaje,
     tope: number | null = 10,
     extra?: Record<string, unknown>,
+    celular?: { encabezado: number; alto: number },
   ): Promise<{ page: Page; errores: string[] }> {
-    const page = await browser!.newPage({ viewport: { width: 412, height: 915 }, locale: "es-AR" });
+    const page = await browser!.newPage({ viewport: { width: 412, height: celular?.alto ?? 915 }, locale: "es-AR" });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
-    await page.setContent('<!doctype html><html lang="es"><body><div id="root"></div></body></html>');
+    // En modo celular: el CSS real y el armado del shell de un negocio por apps —la raíz con
+    // `--alto-barra-inferior` (layout.tsx), el contenido con su padding de abajo (AdminShell) y la
+    // barra de espacios REAL fija abajo—, más, arriba del formulario, lo que ocupa la página de
+    // verdad (barra del shell, título, solapas) para que el formulario no entre en la pantalla.
+    // Las clases de la raíz y del contenido son las mismas de layout.tsx y AdminShell.tsx.
+    await page.setContent(
+      celular
+        ? `<!doctype html><html lang="es"><head><style>${css}</style></head><body class="bg-surface"><div class="min-h-screen bg-surface text-body [--alto-barra-inferior:calc(3.5rem_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]"><div id="contenido" class="flex-1 pb-[var(--alto-barra-inferior,0px)]"><div style="height:${celular.encabezado}px">encabezado</div><div id="root" class="px-4"></div></div><div id="barra"></div></div></body></html>`
+        : '<!doctype html><html lang="es"><body><div id="root"></div></body></html>',
+    );
     await page.addScriptTag({ content: bundle });
+    if (celular) await page.evaluate(() => (window as unknown as Ventana).__montarBarra());
     await page.evaluate(
       ([c, t, x]) => (window as unknown as Ventana).__montar(c as Montaje, t as number | null, x as Record<string, unknown>),
       [cual, tope, extra ?? {}] as const,
@@ -442,6 +517,32 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.close();
   });
 
+  test("anular en la bandeja: el rechazo del servidor y el corte de señal se ven en la fila, sin tirar la pantalla", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("anular");
+    await page.getByRole("button", { name: "Anular…" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__rechazo = "Escribí por qué se anula: recepción no anula sin motivo.";
+    });
+    await page.getByRole("button", { name: "Sí, anular" }).click();
+    await page.getByRole("group").getByRole("alert").filter({ hasText: "Escribí por qué se anula" }).waitFor();
+    assert.equal(await page.getByRole("textbox").getAttribute("aria-invalid"), "true");
+
+    // Con motivo, se corta la señal: el formulario sigue ahí, con el motivo escrito.
+    await page.getByRole("textbox").fill("se pesó mal");
+    await page.evaluate(() => {
+      const w = window as unknown as Ventana;
+      w.__rechazo = undefined;
+      w.__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Sí, anular" }).click();
+    await page.getByRole("group").getByRole("alert").filter({ hasText: "si ya se había anulado, no se anula dos veces" }).waitFor();
+    assert.equal(await page.getByRole("textbox").inputValue(), "se pesó mal");
+    assert.equal((await page.evaluate(() => (window as unknown as Ventana).__envios)).length, 2);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("precio a mano con recepción: un producto del catálogo no se esquiva a mano, y hay un máximo", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("vender", 10, { topePrecioAMano: { bajaPct: 10, maximo: 50000 } });
@@ -479,6 +580,238 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const envio = await page.evaluate(() => (window as unknown as Ventana).__envios[0]);
     assert.equal(envio.productId, undefined, "no viaja ningún producto");
     assert.deepEqual([envio.manualNombre, envio.manualImporte], [["Bondiola"], ["6543.5"]]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("celular 412 px: 2 cortes en 7 toques o menos, con el botón de cobrar a la vista sin bajar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    // 412 × 700: el alto útil de un celular con la barra del navegador. Arriba, 360 px de
+    // encabezado (shell, título y solapas de la pantalla real).
+    for (const camino of ["rápidos", "buscador"] as const) {
+      const { page, errores } = await montar("vender", 10, undefined, { encabezado: 360, alto: 700 });
+      let toques = 0;
+      const tocar = async (l: ReturnType<Page["getByRole"]>) => {
+        toques++;
+        await l.click();
+      };
+      if (camino === "rápidos") {
+        await tocar(page.getByRole("button", { name: "Vacío" }));
+        await page.keyboard.type("1,240");
+        await tocar(page.getByRole("button", { name: "Entraña" }));
+        await page.keyboard.type("0,950");
+      } else {
+        // Sin botones rápidos (un local que recién arranca): buscar, elegir, pesar, Enter.
+        await tocar(page.getByRole("combobox", { name: "Producto" }).first());
+        await page.keyboard.type("vac");
+        await tocar(page.getByRole("option", { name: /Vacío/ }));
+        await page.keyboard.type("1,240");
+        toques++; // el Enter del teclado del celular cuenta como toque
+        await page.keyboard.press("Enter");
+        await page.keyboard.type("entr");
+        await tocar(page.getByRole("option", { name: /Entraña/ }));
+        await page.keyboard.type("0,950");
+      }
+      await tocar(page.getByRole("radio", { name: "Efectivo" }));
+      // El botón está en pantalla SIN scrollear: la barra fija lo trae (Playwright scrollearía
+      // solo al tocarlo, así que se mide antes).
+      const cobrar = page.getByRole("button", { name: "Cobrar $32.125,00" });
+      const caja = await cobrar.boundingBox();
+      assert.ok(caja, "el botón existe");
+      assert.ok(caja.y >= 0 && caja.y + caja.height <= 700, `el botón de cobrar se ve sin bajar (y=${caja.y})`);
+      assert.ok(caja.height >= 44, `toque de 44 px o más (${caja.height})`);
+      // Y no está TAPADO: la barra de espacios del celular está fija abajo (z-40). Lo que hay en
+      // el centro del botón es el botón, no «Mostrador»; y el botón termina arriba de la barra.
+      const barra = await page.getByRole("navigation", { name: "Espacios" }).boundingBox();
+      assert.ok(barra && barra.height >= 56, "la barra de espacios está montada");
+      assert.ok(caja.y + caja.height <= barra.y, `el botón (hasta y=${caja.y + caja.height}) queda arriba de la barra (y=${barra.y})`);
+      const encima = await page.evaluate(
+        ([x, y]) => document.elementFromPoint(x, y)?.closest("button")?.textContent?.trim() ?? "",
+        [caja.x + caja.width / 2, caja.y + caja.height / 2] as const,
+      );
+      assert.equal(encima, "Cobrar $32.125,00", "tocar el centro del botón es tocar Cobrar");
+      const total = page.getByText("$32.125,00", { exact: true });
+      assert.ok(await total.isVisible(), "el total también está en la barra");
+      await tocar(cobrar);
+      await page.getByText("Venta #42 cobrada").waitFor();
+      assert.ok(toques <= 7, `${camino}: ${toques} toques`);
+      // La confirmación es el bloque de la última venta: ningún aviso flotante queda encima del
+      // botón de cobrar de la venta siguiente (el de 4 s lo tapaba).
+      assert.equal(await page.locator(".fixed.bottom-4 > *").count(), 0);
+      const ancho = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(ancho <= 412, `sin scroll horizontal (${ancho})`);
+      assert.deepEqual(errores, []);
+      await page.close();
+    }
+  });
+
+  test("se corta la señal a mitad del cobro: lo cargado queda, se reintenta con la misma venta y no se cobra dos veces", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    const aviso = page.locator("form").getByRole("alert").filter({ hasText: "no sabemos si la venta se grabó" });
+    await aviso.waitFor();
+    assert.match((await aviso.textContent()) ?? "", /no se cobra dos veces/);
+    // Nada se perdió: el peso y el medio siguen ahí.
+    assert.equal(await page.inputValue("#qty-1"), "1,240");
+    assert.equal(await page.getByRole("radio", { name: "Efectivo" }).getAttribute("aria-checked"), "true");
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    // Queda escrito arriba del formulario, no en el aviso flotante que tapaba el botón.
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (no se cobró dos veces)." }).waitFor();
+    assert.equal(await page.locator(".fixed.bottom-4 > *").count(), 0, "ningún aviso flotante");
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.equal(envios.length, 2);
+    assert.equal(envios[0].idempotencyKey[0], envios[1].idempotencyKey[0], "el reintento es la misma venta");
+    // Resuelto: el aviso se va y el ticket queda limpio para el próximo.
+    assert.equal(await aviso.count(), 0);
+    assert.equal(await page.getByRole("radio", { name: "Efectivo" }).getAttribute("aria-checked"), "false");
+
+    // La venta siguiente lleva otra clave.
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Mercado Pago" }).click();
+    await page.getByRole("button", { name: "Cobrar $12.500,00" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length >= 3);
+    const tercera = await page.evaluate(() => (window as unknown as Ventana).__envios[2]);
+    assert.notEqual(tercera.idempotencyKey[0], envios[0].idempotencyKey[0]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("se corta y el cajero suma un corte: no se reintenta con la clave de la cortada; «Es otra venta» estrena clave", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    await page.locator("form").getByRole("alert").filter({ hasText: "no sabemos si la venta se grabó" }).waitFor();
+
+    // Suma la Entraña: el botón ya no invita a "reintentar" con otro monto.
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    const cambio = page.locator("form").getByRole("alert").filter({ hasText: "Cambiaste la venta después del corte." });
+    await cambio.waitFor();
+    assert.match((await cambio.textContent()) ?? "", /era de \$\s?15\.500,00/);
+    assert.equal(await page.getByRole("button", { name: "Revisá la venta cortada" }).isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: /^Reintentar cobro/ }).count(), 0);
+
+    // La deja como estaba: vuelve a ser la misma venta y se ofrece reintentar.
+    await page.getByRole("button", { name: "Quitar línea" }).nth(1).click();
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).waitFor();
+    assert.equal(await cambio.count(), 0);
+
+    // Vuelve a sumarla y, revisado que la cortada se grabó, declara que es otra venta.
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    await page.getByRole("button", { name: "Quitar línea" }).first().click(); // saca el Vacío ya grabado
+    await page.getByRole("button", { name: "Es otra venta" }).click();
+    await page.getByRole("button", { name: "Cobrar $16.625,00" }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.equal(envios.length, 2, "mientras estaba cambiada no viajó nada");
+    assert.notEqual(envios[1].idempotencyKey[0], envios[0].idempotencyKey[0], "otra venta, otra clave");
+    assert.deepEqual(envios[1].productId, ["p_entrana"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("se corta, se reintenta sin señal y se suma un corte: sigue frenado, y al volver la señal no dice 'no se cobró'", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    const alerta = (texto: string) => page.locator("form").getByRole("alert").filter({ hasText: texto });
+    // (1)-(2) Cobra el Vacío y la respuesta se pierde: el "servidor" la grabó.
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    await alerta("no sabemos si la venta se grabó").waitFor();
+
+    // (3) Todavía sin señal, reintenta: no sale nada y la duda NO se borra.
+    await page.context().setOffline(true);
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    await alerta("no sabemos si la venta se grabó").waitFor();
+    assert.equal(await alerta("La venta no se cobró").count(), 0, "no se afirma que no se cobró");
+
+    // (4) Suma la Entraña: frenado, sin «Reintentar» con el total nuevo.
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    await alerta("Cambiaste la venta después del corte.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Revisá la venta cortada" }).isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: /^Reintentar cobro/ }).count(), 0);
+
+    // (5) Vuelve la señal: sigue frenado; nada dice "todavía no se cobró".
+    await page.context().setOffline(false);
+    await page.waitForFunction(() => navigator.onLine);
+    await alerta("Cambiaste la venta después del corte.").waitFor();
+    assert.equal(await alerta("todavía no se cobró").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Revisá la venta cortada" }).isDisabled(), true);
+    assert.equal(await page.evaluate(() => (window as unknown as Ventana).__envios.length), 1, "mientras estaba cambiada no viajó nada");
+
+    // La deja como estaba: se reintenta la MISMA, diciendo que no se sabe, y el servidor no cobra dos veces.
+    await page.getByRole("button", { name: "Quitar línea" }).nth(1).click();
+    await alerta("no sabemos si la venta se grabó").waitFor();
+    assert.equal(await alerta("todavía no se cobró").count(), 0);
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (no se cobró dos veces)." }).waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.equal(envios.length, 2);
+    assert.equal(envios[1].idempotencyKey[0], envios[0].idempotencyKey[0]);
+    assert.deepEqual(envios[1].productId, ["p_vacio"], "viajó sólo lo que se había mandado");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("sin señal antes de cobrar: no se manda nada, se dice, y al volver la señal se cobra", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    await page.getByRole("radio", { name: "Transferencia" }).click();
+    await page.context().setOffline(true);
+    await page.getByRole("button", { name: "Cobrar $16.625,00" }).click();
+    await page.locator("form").getByRole("alert").filter({ hasText: "No hay conexión. La venta no se cobró." }).waitFor();
+    assert.equal(await page.evaluate(() => (window as unknown as Ventana).__envios.length), 0, "no viajó nada");
+    await page.context().setOffline(false);
+    // Volvió la señal: el aviso lo dice (no se mandó nada, no hay duda que aclarar).
+    await page.locator("form").getByRole("alert").filter({ hasText: "Volvió la conexión. La venta todavía no se cobró." }).waitFor();
+    await page.getByRole("button", { name: "Reintentar cobro $16.625,00" }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    assert.equal(await page.evaluate(() => (window as unknown as Ventana).__envios.length), 1);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("el rechazo del servidor queda escrito al lado del botón (no en un aviso que se va) y se puede cerrar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__rechazo = "El día 23/09 ya está cerrado: dejá la venta sin cobrar y cobrala mañana.";
+    });
+    await page.getByRole("button", { name: "Cobrar $12.500,00" }).click();
+    const aviso = page.locator("form").getByRole("alert").filter({ hasText: "ya está cerrado" });
+    await aviso.waitFor();
+    assert.match((await aviso.textContent()) ?? "", /La venta no se cobró/);
+    // Un rechazo no se "reintenta" igual: el botón sigue siendo Cobrar.
+    assert.ok(await page.getByRole("button", { name: "Cobrar $12.500,00" }).isEnabled());
+    await page.getByRole("button", { name: "Entendido" }).click();
+    assert.equal(await aviso.count(), 0);
     assert.deepEqual(errores, []);
     await page.close();
   });

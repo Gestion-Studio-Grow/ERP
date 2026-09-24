@@ -196,7 +196,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           "--tenant-on-accent-dark": accentDark.onAccent,
         } as CSSProperties
       }
-      className="min-h-screen bg-surface text-body"
+      // `--alto-barra-inferior`: lo que ocupa abajo la barra de espacios del celular (sólo en los
+      // negocios que trabajan por apps; 0 en la PC y fuera del piloto). Va acá, en la raíz, y no
+      // en el shell: lo que se fija abajo en una pantalla cuelga de acá y tiene que apoyarse
+      // ENCIMA con `bottom-[var(--alto-barra-inferior,0px)]`. Un `sticky bottom-0` o un `fixed
+      // bottom-*` queda DEBAJO de la barra (z-40) y tocarlo abre un espacio. Hoy lo hace el pie de
+      // cobrar de Vender (VenderForm.tsx), el pie del Recuento y los avisos (ToastProvider.tsx). El alto es
+      // el de la barra entera: botones h-14 + 1px de borde de arriba + la zona segura del celular.
+      className={
+        modoApps
+          ? "min-h-screen bg-surface text-body [--alto-barra-inferior:calc(3.5rem_+_1px_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]"
+          : "min-h-screen bg-surface text-body"
+      }
     >
       {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}
       <AdminThemeScript />
@@ -204,9 +215,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <DemoBanner />
       <GlobalLoadingProvider>
         <ToastProvider>
-          {/* `apps` (para el buscador de Ctrl/⌘K) sólo viaja en el piloto: fuera de él la barra
-              busca en su propio menú, como siempre. */}
-          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"}>
+          {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
+              en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
+          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"}>
             {children}
           </AdminShell>
         </ToastProvider>

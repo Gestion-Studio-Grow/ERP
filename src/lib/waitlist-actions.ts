@@ -14,6 +14,7 @@ import { getAvailableSlots } from "@/lib/actions";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { buscarFichaPorTelefono, entradaAuditoriaEmpate, type EmpateFichas } from "@/lib/clientes/ficha-por-telefono";
 import { unstable_rethrow } from "next/navigation";
+import { rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { whereEsperando } from "@/lib/crm/wheres";
 import type { ResultadoAccion } from "@/lib/actions";
 
@@ -387,11 +388,11 @@ export async function reservarHuecoLiberado(formData: FormData): Promise<Resulta
   } catch (e) {
     // El redirect de la guardia (sin sesión, sin permiso) no es un error: sigue su camino.
     unstable_rethrow(e);
-    const sinCodigo = typeof e === "object" && e !== null && !("code" in e);
-    const mensaje = e instanceof Error ? e.message : "";
     // Los rechazos de dominio son `Error` con el motivo en castellano; uno de Prisma trae
     // `code` y un volcado técnico que no se muestra.
-    if (sinCodigo && mensaje && mensaje.length <= 300) return { ok: false, error: mensaje };
-    return { ok: false, error: "No se pudo reservar ese horario. Probá de nuevo o elegí otro con “Buscar horario”." };
+    return {
+      ok: false,
+      error: rechazoDeDominio(e, "No se pudo reservar ese horario. Probá de nuevo o elegí otro con “Buscar horario”."),
+    };
   }
 }

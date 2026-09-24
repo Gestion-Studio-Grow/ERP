@@ -18,7 +18,15 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { EmptyState, PageContainer, PageHeader, Select, buttonClasses } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
 import FilaVenta from "./FilaVenta";
-import { leerFiltros, notaDeCupon, notaDeDescuento, resumenACuenta, resumenDeVentas, ventasCobradasDeVerdad } from "./filtros";
+import {
+  leerFiltros,
+  notaDeCupon,
+  notaDeDescuento,
+  resumenACuenta,
+  resumenDeVentas,
+  vacioDeVentas,
+  ventasCobradasDeVerdad,
+} from "./filtros";
 import { estadoDeFactura, SIN_FACTURA, type FacturaDeVenta } from "./factura";
 import { puedeAbrirApp } from "../vender/puede-abrir";
 import { ventaDeOrden } from "../vender/reglas-venta";
@@ -180,6 +188,12 @@ export default async function VentasPage({
   // Recepción anula sólo lo de hoy (el servidor lo vuelve a exigir en `anularVenta`).
   const anulaEsteDia = alcance && (!alcance.soloHoy || esHoy) ? { motivoObligatorio: alcance.motivoObligatorio } : null;
   const hayFiltro = filtros.medio !== null || filtros.canal !== null;
+  const vacio = vacioDeVentas({ esHoy, hayFiltro, cuando, puedeVender });
+  const destinoVacio = {
+    "sacar-filtro": esHoy ? "/admin/ventas" : `/admin/ventas?dia=${filtros.dia}`,
+    vender: "/admin/vender",
+    hoy: "/admin/ventas",
+  } as const;
 
   return (
     <PageContainer>
@@ -278,21 +292,17 @@ export default async function VentasPage({
       </section>
 
       {lista.length === 0 ? (
+        // La lista vacía dice qué hacer y trae el botón (vacioDeVentas, filtros.ts).
         <EmptyState
-          title={`No hay ventas cobradas ${cuando}${hayFiltro ? " con ese filtro" : ""}`}
-          description={
-            hayFiltro
-              ? "Probá con «Todos» en medio y canal."
-              : "Las ventas que se cobran en el mostrador y los pedidos cobrados aparecen acá."
-          }
+          title={vacio.titulo}
+          description={vacio.descripcion}
           action={
-            hayFiltro ? (
-              <Link href={esHoy ? "/admin/ventas" : `/admin/ventas?dia=${filtros.dia}`} className={buttonClasses("outline", "md")}>
-                Sacar el filtro
-              </Link>
-            ) : puedeVender ? (
-              <Link href="/admin/vender" className={buttonClasses("solid", "md")}>
-                Ir a Vender
+            vacio.accion ? (
+              <Link
+                href={destinoVacio[vacio.accion.destino]}
+                className={buttonClasses(vacio.accion.destino === "vender" ? "solid" : "outline", "md")}
+              >
+                {vacio.accion.etiqueta}
               </Link>
             ) : undefined
           }

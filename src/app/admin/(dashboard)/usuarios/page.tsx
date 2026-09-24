@@ -1,16 +1,12 @@
 import { getUsers, createUser, setUserActive, resetUserPassword } from "@/lib/user-actions";
-import { requireCapability } from "@/lib/authz";
+import { requireApp } from "@/lib/require-app";
+import { getNegocioApps } from "@/apps/contexto.server";
 import SubmitButton from "@/components/SubmitButton";
 import { Input, Select, Field, buttonClasses } from "@/components/ui";
 import { fmtDateTime } from "@/lib/datetime";
+import { etiquetaDeRol, rolSinPantallas, rolesParaAlta } from "./roles";
 
 export const dynamic = "force-dynamic";
-
-const ROLE_LABEL: Record<string, string> = {
-  OWNER: "Dueño/a",
-  RECEPTION: "Recepción",
-  PROFESSIONAL: "Profesional",
-};
 
 // Feedback de las acciones (redirigen con ?status=...). Verde = ok, rojo = error.
 const STATUS_MESSAGES: Record<string, { text: string; ok: boolean }> = {
@@ -33,13 +29,16 @@ export default async function UsuariosPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  // Solo OWNER (users:manage). El resto cae a la home de su rol.
-  await requireCapability("users:manage");
-  const [users, { status }] = await Promise.all([getUsers(), searchParams]);
+  // Solo OWNER (users:manage, desde el registro de apps). El resto ve "App no disponible".
+  const user = await requireApp("usuarios");
+  const [users, { status }, negocio] = await Promise.all([getUsers(), searchParams, getNegocioApps(user.role)]);
   const banner = status ? STATUS_MESSAGES[status] : undefined;
+  // En un negocio sin agenda no se ofrece el rol Profesional (roles.ts).
+  const { esMostrador } = negocio;
+  const roles = rolesParaAlta(esMostrador);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
+    <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="text-2xl font-semibold mb-1">Usuarios</h1>
       <p className="text-muted mb-6">
         Gente que entra al panel. Cada acción queda registrada en la auditoría con su autor.
@@ -68,9 +67,11 @@ export default async function UsuariosPage({
           </Field>
           <Field label="Rol" htmlFor="nu-role">
             <Select id="nu-role" name="role" required defaultValue="RECEPTION">
-              <option value="OWNER">Dueño/a (todo)</option>
-              <option value="RECEPTION">Recepción (agenda + clientes + cobrar)</option>
-              <option value="PROFESSIONAL">Profesional (solo su agenda)</option>
+              {roles.map((r) => (
+                <option key={r.valor} value={r.valor}>
+                  {r.etiqueta}
+                </option>
+              ))}
             </Select>
           </Field>
           <Field label="Contraseña" htmlFor="nu-password" hint="Mínimo 8 caracteres.">
@@ -92,10 +93,12 @@ export default async function UsuariosPage({
             </SubmitButton>
           </div>
         </form>
-        <p className="mt-3 text-xs text-faint">
-          Un usuario Profesional se vincula a su ficha de profesional (para ver su agenda) desde la
-          base por ahora — el alta acá crea el acceso.
-        </p>
+        {!esMostrador && (
+          <p className="mt-3 text-xs text-muted">
+            Un usuario Profesional se vincula a su ficha de profesional (para ver su agenda) desde la
+            base por ahora — el alta acá crea el acceso.
+          </p>
+        )}
       </section>
 
       {/* Lista */}
@@ -112,7 +115,7 @@ export default async function UsuariosPage({
                   <p className="font-medium">
                     {u.name}{" "}
                     <span className="ml-1 inline-block rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-muted">
-                      {ROLE_LABEL[u.role] ?? u.role}
+                      {etiquetaDeRol(u.role, esMostrador)}
                     </span>
                     {!u.active && (
                       <span className="ml-1 inline-block rounded-full bg-danger-soft px-2 py-0.5 text-xs text-danger">
@@ -121,24 +124,29 @@ export default async function UsuariosPage({
                     )}
                   </p>
                   <p className="text-sm text-muted">{u.email}</p>
-                  <p className="text-xs text-faint mt-1">
+                  <p className="text-xs text-muted mt-1">
                     {u.lastLoginAt
                       ? `Último ingreso: ${fmtDateTime(u.lastLoginAt)}`
                       : "Nunca ingresó"}
                   </p>
+                  {u.active && rolSinPantallas(u.role, esMostrador) && (
+                    <p className="mt-2 max-w-sm text-xs text-warning">
+                      Este negocio no tiene agenda: con el rol Profesional no tiene ninguna pantalla
+                      para abrir. Dalo de baja y crealo de nuevo como Mostrador.
+                    </p>
+                  )}
                 </div>
 
-                <div className="flex flex-col gap-2 min-w-[240px]">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[240px]">
                   {/* Baja / reactivación */}
                   <form action={setUserActive}>
                     <input type="hidden" name="userId" value={u.id} />
                     <input type="hidden" name="active" value={u.active ? "false" : "true"} />
+                    {/* Un botón de verdad (44 px en el celular), no un texto suelto: se toca con el dedo. */}
                     <SubmitButton
                       pendingText="Guardando…"
-                      className={`text-sm transition-colors ${
-                        u.active
-                          ? "text-muted hover:text-danger"
-                          : "text-success hover:text-success"
+                      className={`inline-flex h-11 items-center rounded-md px-3 text-sm transition-colors hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus sm:h-9 ${
+                        u.active ? "text-muted hover:text-danger" : "text-success"
                       }`}
                     >
                       {u.active ? "Dar de baja" : "Reactivar"}
@@ -148,7 +156,7 @@ export default async function UsuariosPage({
                   {/* Reset de contraseña */}
                   <form action={resetUserPassword} className="flex flex-wrap gap-2">
                     <input type="hidden" name="userId" value={u.id} />
-                    <input
+                    <Input
                       type="password"
                       name="password"
                       required
@@ -156,11 +164,11 @@ export default async function UsuariosPage({
                       placeholder="Nueva contraseña"
                       aria-label={`Nueva contraseña para ${u.name}`}
                       autoComplete="new-password"
-                      className="min-w-[9rem] flex-1 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent"
+                      className="min-w-[9rem] flex-1"
                     />
                     <SubmitButton
                       pendingText="…"
-                      className={buttonClasses("outline", "sm", "whitespace-nowrap")}
+                      className={buttonClasses("outline", "md", "whitespace-nowrap")}
                     >
                       Cambiar contraseña
                     </SubmitButton>

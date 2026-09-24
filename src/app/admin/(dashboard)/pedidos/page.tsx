@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getPosData, advanceOrderStatus } from "@/lib/order-actions";
+import { getPosData } from "@/lib/order-actions";
 import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses } from "@/components/ui";
 import { fmtShortDate, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
@@ -9,6 +9,7 @@ import CobrarPedidoForm from "./CobrarPedidoForm";
 import EntregarPedidoForm from "./EntregarPedidoForm";
 import AnularPedidoForm from "./AnularPedidoForm";
 import AjustarPedidoForm from "./AjustarPedidoForm";
+import AvanzarPedidoForm from "./AvanzarPedidoForm";
 import AvisarPorWhatsApp from "./AvisarPorWhatsApp";
 import LinkDePagoPedido from "./LinkDePagoPedido";
 import {
@@ -302,16 +303,15 @@ export default async function PedidosPage() {
                 </div>
 
                 <div className="flex flex-col gap-2 items-stretch sm:items-end whitespace-nowrap">
+                  {/* Si el paso no sale (sin señal, sin permiso), lo dice en la fila en vez de
+                      llevarse la bandeja a la pantalla de error (AvanzarPedidoForm). */}
                   {verbo && (
-                    <form action={advanceOrderStatus}>
-                      <input type="hidden" name="id" value={o.id} />
-                      <button
-                        type="submit"
-                        className={`chip-btn text-xs min-h-8 w-full sm:w-auto${comercio ? " h-11 sm:h-auto" : ""}`}
-                      >
-                        {verbo}
-                      </button>
-                    </form>
+                    <AvanzarPedidoForm
+                      id={o.id}
+                      code={o.code}
+                      verbo={verbo}
+                      className={`chip-btn text-xs min-h-8 w-full sm:w-auto${comercio ? " h-11 sm:h-auto" : ""}`}
+                    />
                   )}
                   {sePuedeAjustar && (
                     <AjustarPedidoForm

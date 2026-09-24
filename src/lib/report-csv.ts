@@ -9,6 +9,7 @@
 
 import type { DeepKpis } from "@/lib/report-kpis";
 import { METODO_LABEL } from "@/lib/report-config";
+import { dateStrInBusinessTz } from "@/lib/datetime";
 
 const SEP = ";";
 
@@ -79,7 +80,9 @@ export function buildReportCsv(input: ReportCsvInput): string {
   lines.push(
     row(
       "Período",
-      `${input.desde.toISOString().slice(0, 10)} a ${input.hasta.toISOString().slice(0, 10)}`,
+      // Días del NEGOCIO: `hasta` es 23:59:59.999 hora argentina (02:59:59.999Z del día
+      // siguiente), y en UTC decía un día de más; el nombre del archivo ya usa el día del negocio.
+      `${dateStrInBusinessTz(input.desde)} a ${dateStrInBusinessTz(input.hasta)}`,
       `${input.rangeDays} días`,
     ),
   );
