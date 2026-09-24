@@ -1073,8 +1073,10 @@ export default function VenderForm({
             arriba del botón, que es donde se está mirando. z-10 y no más: la lista del buscador
             (z-20) tiene que poder abrirse por encima de la barra. Se apoya ENCIMA de la barra de
             espacios del celular (`--alto-barra-inferior`, layout.tsx; 0 donde no la hay): con
-            bottom-0 quedaba debajo y tocar «Cobrar» abría la hoja de «Mostrador». */}
-        <div className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 -mx-3 -mb-3 space-y-3 rounded-b-lg border-t border-line bg-surface px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] sm:static sm:z-auto sm:mx-0 sm:mb-0 sm:rounded-none sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:shadow-none">
+            bottom-0 quedaba debajo y tocar «Cobrar» abría la hoja de «Mostrador». La zona segura
+            del iPhone (la rayita de abajo) se deja UNA vez: si hay barra, ya viene en su alto y el
+            pie no la vuelve a sumar; si no hay, la deja el pie (pie-pegado-zona-segura.test.ts). */}
+        <div className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 -mx-3 -mb-3 space-y-3 rounded-b-lg border-t border-line bg-surface px-3 pt-3 pb-[max(0.75rem,calc(env(safe-area-inset-bottom)_-_var(--alto-barra-inferior,0px)))] shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] sm:static sm:z-auto sm:mx-0 sm:mb-0 sm:rounded-none sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 sm:shadow-none">
           {aviso && (
             <AvisoError
               titulo={aviso.titulo}

@@ -509,8 +509,9 @@ function Planilla({
         </p>
 
         {/* Pegado abajo, al alcance del pulgar: cuánto va de esta góndola y Guardar. En la PC
-            queda en su lugar, al final. */}
-        <div id="recuento-pie" className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 -mx-4 flex items-center justify-between gap-3 border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] sm:static sm:z-auto sm:mx-0 sm:px-0 sm:pb-0 sm:shadow-none">
+            queda en su lugar, al final. La zona segura del iPhone se deja UNA vez: con la barra de
+            espacios ya viene en su alto; sin barra, la deja el pie (pie-pegado-zona-segura.test.ts). */}
+        <div id="recuento-pie" className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 -mx-4 flex items-center justify-between gap-3 border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,calc(env(safe-area-inset-bottom)_-_var(--alto-barra-inferior,0px)))] shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] sm:static sm:z-auto sm:mx-0 sm:px-0 sm:pb-0 sm:shadow-none">
           <p className="min-w-0 text-sm text-muted" aria-live="polite">
             {actual && (
               <span className="block tabular-nums">

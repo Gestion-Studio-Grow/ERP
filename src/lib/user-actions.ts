@@ -12,13 +12,10 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { hashPassword } from "@/lib/auth-password";
-import type { Role } from "@/lib/capabilities";
 import { getNegocioApps } from "@/apps/contexto.server";
-import { rolAdmitidoEnAlta } from "@/app/admin/(dashboard)/usuarios/roles";
+import { MIN_PASSWORD_LENGTH, validarAltaDeUsuario } from "@/app/admin/(dashboard)/usuarios/alta-usuario";
 
 const USERS_PATH = "/admin/usuarios";
-const VALID_ROLES: Role[] = ["OWNER", "RECEPTION", "PROFESSIONAL"];
-const MIN_PASSWORD_LENGTH = 8;
 
 // Redirige de vuelta a la pantalla con un código de feedback (banner). Nunca
 // pasa el detalle crudo del error a la URL.
@@ -50,21 +47,14 @@ export async function createUser(formData: FormData) {
   const actor = await requireCapability("users:manage");
   const tenantId = await getCurrentTenantId();
 
-  const name = String(formData.get("name") || "").trim();
-  const email = String(formData.get("email") || "").trim().toLowerCase();
-  const roleRaw = String(formData.get("role") || "");
-  const password = String(formData.get("password") || "");
-
-  if (!name) backWith("error_name");
-  if (!email || !email.includes("@")) backWith("error_email_invalid");
-  if (!VALID_ROLES.includes(roleRaw as Role)) backWith("error_role");
-  if (password.length < MIN_PASSWORD_LENGTH) backWith("error_password_short");
-  const role = roleRaw as Role;
-  // Sólo los roles que la pantalla ofrece en ESTE negocio: sin agenda (mostrador) no hay
-  // Profesional, que entraría a una agenda vacía. La pantalla ya no lo ofrece; esto lo cierra
-  // también para un POST a mano. En servicios (CH) se admiten los tres, como siempre.
+  // Qué se acepta lo decide `validarAltaDeUsuario` (alta-usuario.ts, probada): nombre, email,
+  // contraseña y, sobre todo, el rol — sólo los que la pantalla ofrece en ESTE negocio. Sin
+  // agenda (mostrador) no hay Profesional, que entraría a una agenda vacía; tampoco por un POST
+  // a mano. En servicios (CH) se admiten los tres, como siempre.
   const { esMostrador } = await getNegocioApps(actor.role);
-  if (!rolAdmitidoEnAlta(role, esMostrador)) backWith("error_role");
+  const alta = validarAltaDeUsuario(formData, esMostrador);
+  if (!alta.ok) backWith(alta.status);
+  const { name, email, role, password } = alta;
 
   // Email único por tenant (schema @@unique). Chequeo previo por UX + defensa
   // ante la carrera con try/catch del constraint.

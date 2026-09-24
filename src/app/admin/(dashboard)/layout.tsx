@@ -203,6 +203,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       // bottom-*` queda DEBAJO de la barra (z-40) y tocarlo abre un espacio. Hoy lo hace el pie de
       // cobrar de Vender (VenderForm.tsx), el pie del Recuento y los avisos (ToastProvider.tsx). El alto es
       // el de la barra entera: botones h-14 + 1px de borde de arriba + la zona segura del celular.
+      // Por eso un pie pegado NO vuelve a sumar la zona segura si hay barra: deja
+      // `max(0.75rem, zona segura − --alto-barra-inferior)` (pie-pegado-zona-segura.test.ts).
       className={
         modoApps
           ? "min-h-screen bg-surface text-body [--alto-barra-inferior:calc(3.5rem_+_1px_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]"

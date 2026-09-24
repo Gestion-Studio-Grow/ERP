@@ -24,7 +24,7 @@ import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
-import { rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
   aplicarCobroTurnoInTx,
@@ -840,9 +840,13 @@ export async function rescheduleAppointment(formData: FormData): Promise<Resulta
     unstable_rethrow(e);
     return {
       ok: false,
+      // Un horario ocupado, un profesional sin box: rechazos de DOMINIO, se muestran con su
+      // motivo. Una caída de la base o un bug no se muestran crudos: el genérico, y el detalle
+      // al log del servidor.
       error: rechazoDeDominio(
         e,
-        "No se pudo reprogramar el turno. Puede que ese horario se haya ocupado recién: elegí otro, o recargá la página y probá de nuevo.",
+        "No se pudo reprogramar el turno. Probá de nuevo; si sigue, avisá a GSG.",
+        "agenda.reprogramar",
       ),
     };
   }
@@ -857,7 +861,7 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   const newProfessionalId = String(formData.get("professionalId") || "").trim();
 
   if (!appointmentId || !startsAtIso) {
-    throw new Error("Faltan datos para reprogramar el turno.");
+    throw new RechazoDeDominio("Faltan datos para reprogramar el turno.");
   }
 
   // El id viene del navegador: el negocio va escrito a mano además de RLS.
@@ -865,12 +869,12 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
     where: { id: appointmentId, tenantId },
     include: { service: true },
   });
-  if (!appointment) throw new Error("Ese turno ya no existe. Recargá la agenda.");
+  if (!appointment) throw new RechazoDeDominio("Ese turno ya no existe. Recargá la agenda.");
 
   // Solo turnos vivos se pueden mover; los terminales (cancelado, completado,
   // no se presentó) no.
   if (appointment.status !== "PENDING" && appointment.status !== "CONFIRMED") {
-    throw new Error("Solo se puede reprogramar un turno pendiente o confirmado.");
+    throw new RechazoDeDominio("Solo se puede reprogramar un turno pendiente o confirmado.");
   }
 
   const targetProfessionalId = newProfessionalId || appointment.professionalId;
@@ -879,15 +883,20 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
     include: { box: true },
   });
   if (!professional || !professional.active || professional.deletedAt) {
-    throw new Error("Ese profesional ya no está disponible.");
+    throw new RechazoDeDominio("Ese profesional ya no está disponible.");
   }
   if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
-    throw new Error("Ese profesional no tiene un box activo asignado.");
+    throw new RechazoDeDominio("Ese profesional no tiene un box activo asignado.");
   }
 
   // La duración la fija el servicio (no cambia al reprogramar): el fin se deriva
   // del nuevo inicio. El box sigue al profesional destino.
   const startsAt = new Date(startsAtIso);
+  // Una fecha que no se puede leer haría tirar un RangeError más abajo (y se vería el genérico):
+  // es un dato del formulario, así que se dice qué corregir.
+  if (Number.isNaN(startsAt.getTime())) {
+    throw new RechazoDeDominio("Ese horario no se pudo leer. Elegí de nuevo el día y la hora.");
+  }
   const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
   const boxId = professional.boxId;
 
@@ -895,7 +904,7 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   const dateStr = dateStrInBusinessTz(startsAt);
   const window = await getWorkingWindow(targetProfessionalId, dateStr);
   if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
-    throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
+    throw new RechazoDeDominio("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
 
   await bookingTransaction(async (tx) => {

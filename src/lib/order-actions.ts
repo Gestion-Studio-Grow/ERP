@@ -71,7 +71,7 @@ import {
   wherePedidosAbiertos,
   wherePedidosCerrados,
   entregarPedidoGuarded,
-  siguienteEstado,
+  avanzarPedidoGuarded,
   horarioDelFormulario,
 } from "@/lib/order-anulacion";
 import {
@@ -641,43 +641,36 @@ async function chatDelPedido(tenantId: string, orderId: string, negocio: string)
 //
 // El paso siguiente lo decide `siguienteEstado` (order-anulacion.ts): en comercio, Nuevo pasa
 // directo a Preparando; en servicios (CH) sigue pasando por Confirmado.
-
-// Otra pestaña (u otra persona) ya movió el pedido: la bandeja se redibuja con el estado real
-// y la fila lo dice (AvanzarPedidoForm lo lee con `rechazoDeAccion`).
-const YA_CAMBIO_DE_ESTADO = "El pedido ya había cambiado de estado en otra pantalla: la bandeja se actualizó.";
-
+//
+// Qué se dice cuando no avanza lo decide `avanzarPedidoGuarded` (order-anulacion.ts, probada):
+// "no encontramos ese pedido" si el id no es de este negocio, "ya había cambiado de estado" si
+// otra pestaña lo movió. AvanzarPedidoForm lo lee con `rechazoDeAccion`.
 export async function advanceOrderStatus(formData: FormData): Promise<OrderActionState> {
   await requireCapability("orders:manage");
   const tenantId = await getCurrentTenantId();
   const id = String(formData.get("id") || "").trim();
   if (!id) return { ok: false, error: "No se encontró el pedido. Recargá la bandeja." };
-  const current = await prisma.order.findFirst({ where: { id, tenantId }, select: { status: true } });
-  if (!current) {
-    revalidarMostrador();
-    return { ok: false, error: YA_CAMBIO_DE_ESTADO };
-  }
   const { isRetail } = await getTenantIdentity();
-  // null = terminal (entregado, anulado) o Listo, que se entrega con `entregarPedido` (pide el cobro).
-  const next = siguienteEstado(current.status, { comercio: isRetail });
-  if (!next) {
-    revalidarMostrador();
-    return { ok: false, error: YA_CAMBIO_DE_ESTADO };
-  }
-  const res = await prisma.order.updateMany({
-    where: { id, tenantId, status: current.status },
-    data: { status: next },
+  const r = await avanzarPedidoGuarded({
+    comercio: isRetail,
+    leer: () => prisma.order.findFirst({ where: { id, tenantId }, select: { status: true } }),
+    escribir: async (from, to) => {
+      const res = await prisma.order.updateMany({
+        where: { id, tenantId, status: from },
+        data: { status: to },
+      });
+      return res.count > 0;
+    },
   });
-  if (res.count === 0) {
-    revalidarMostrador();
-    return { ok: false, error: YA_CAMBIO_DE_ESTADO };
-  }
+  // Salió o no, la bandeja se redibuja con el estado real.
+  revalidarMostrador();
+  if (!r.ok) return { ok: false, error: r.error };
   await auditAdmin({
     action: "update",
     entity: "Order",
     entityId: id,
-    changes: { status: { from: current.status, to: next } },
+    changes: { status: { from: r.from, to: r.to } },
   });
-  revalidarMostrador();
   return { ok: true };
 }
 

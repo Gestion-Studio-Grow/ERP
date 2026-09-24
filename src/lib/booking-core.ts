@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { BUFFER_MIN } from "@/lib/business-config";
 import { businessWallTimeToUtc, dayOfWeekForDate } from "@/lib/datetime";
 import { withBuffer } from "@/lib/booking-slots";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 
 // Cliente de transacción de Prisma (el `tx` que recibe $transaction). Se deriva
 // del tipo de prisma para no importar el namespace generado.
@@ -46,7 +47,7 @@ export async function getWorkingWindow(professionalId: string, date: string) {
 // choques: la usan el alta (bookAppointment), la reprogramación del panel
 // (rescheduleAppointment) y la reprogramación pública (rescheduleMyAppointment).
 // `excludeAppointmentId` deja fuera al propio turno que se está moviendo, para que
-// no choque consigo mismo. Lanza con un mensaje claro ante el primer conflicto; no
+// no choque consigo mismo. Lanza un RechazoDeDominio (su texto se muestra) ante el primer conflicto; no
 // devuelve nada si la franja está libre.
 export async function assertSlotAvailable(
   tx: TxClient,
@@ -78,17 +79,17 @@ export async function assertSlotAvailable(
   });
 
   if (conflicts.some((c) => c.professionalId === professionalId)) {
-    throw new Error("Ese horario ya no está disponible para este profesional. Elegí otro horario.");
+    throw new RechazoDeDominio("Ese horario ya no está disponible para este profesional. Elegí otro horario.");
   }
   if (conflicts.some((c) => c.boxId === boxId)) {
-    throw new Error("El box de este profesional ya está ocupado en ese horario. Elegí otro horario.");
+    throw new RechazoDeDominio("El box de este profesional ya está ocupado en ese horario. Elegí otro horario.");
   }
 
   const boxBlocked = await tx.boxBlock.findFirst({
     where: { boxId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
   });
   if (boxBlocked) {
-    throw new Error(
+    throw new RechazoDeDominio(
       `El box de este profesional no está disponible en ese horario (${boxBlocked.reason}). Elegí otro horario.`
     );
   }
@@ -98,7 +99,7 @@ export async function assertSlotAvailable(
     where: { professionalId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
   });
   if (professionalBlocked) {
-    throw new Error(
+    throw new RechazoDeDominio(
       `El profesional no está disponible en ese horario (${professionalBlocked.reason}). Elegí otro horario.`
     );
   }
@@ -145,7 +146,7 @@ export async function assertSlotAvailable(
     for (const sr of serviceResources) {
       const used = usedByResource.get(sr.resourceId) ?? 0;
       if (used + sr.units > sr.resource.quantity) {
-        throw new Error(
+        throw new RechazoDeDominio(
           `No hay "${sr.resource.name}" disponible en ese horario (capacidad completa). Elegí otro horario.`
         );
       }

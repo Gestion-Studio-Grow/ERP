@@ -1129,6 +1129,42 @@ export function siguienteEstado(status: string, opts: { comercio: boolean }): Pa
   }
 }
 
+// Por qué no avanzó, dicho según lo que pasó. Antes los dos casos decían "cambió de estado en
+// otra pantalla", también cuando el pedido no estaba: la persona recargaba y buscaba un pedido
+// que se había movido, y no había ninguno.
+/** El id no es de un pedido de este negocio (borrado, de otro negocio o un id viejo). */
+export const PEDIDO_NO_ENCONTRADO =
+  "No encontramos ese pedido en este negocio. Recargá la bandeja; si sigue apareciendo, avisá a GSG.";
+/** Otra pestaña (u otra persona) ya lo movió: la bandeja se redibuja con el estado real. */
+export const PEDIDO_YA_CAMBIO_DE_ESTADO =
+  "El pedido ya había cambiado de estado en otra pantalla: la bandeja se actualizó.";
+
+export type ResultadoDeAvance =
+  | { ok: true; from: string; to: PasoDeBandeja }
+  | { ok: false; motivo: "no-existe" | "ya-cambio"; error: string };
+
+/**
+ * El cuerpo de «Confirmar / Preparar / Marcar listo» (`advanceOrderStatus`), con la base
+ * inyectada para probarlo sin servidor. `leer` busca el pedido por id Y negocio; `escribir` es
+ * el compare-and-set (sólo mueve si sigue en `from`) y dice si escribió.
+ */
+export async function avanzarPedidoGuarded<S extends string>(params: {
+  comercio: boolean;
+  leer: () => Promise<{ status: S } | null>;
+  escribir: (from: S, to: PasoDeBandeja) => Promise<boolean>;
+}): Promise<ResultadoDeAvance> {
+  const actual = await params.leer();
+  if (!actual) return { ok: false, motivo: "no-existe", error: PEDIDO_NO_ENCONTRADO };
+  // null = terminal (entregado, anulado) o Listo, que se entrega con `entregarPedido`: el botón
+  // que se tocó era de un estado anterior, así que el pedido cambió en otra pantalla.
+  const to = siguienteEstado(actual.status, { comercio: params.comercio });
+  if (!to) return { ok: false, motivo: "ya-cambio", error: PEDIDO_YA_CAMBIO_DE_ESTADO };
+  if (!(await params.escribir(actual.status, to))) {
+    return { ok: false, motivo: "ya-cambio", error: PEDIDO_YA_CAMBIO_DE_ESTADO };
+  }
+  return { ok: true, from: actual.status, to };
+}
+
 /** El verbo del botón que avanza. */
 export function verboDelPaso(status: string, opts: { comercio: boolean }): string | null {
   switch (siguienteEstado(status, opts)) {

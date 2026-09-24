@@ -14,7 +14,7 @@ import { getAvailableSlots } from "@/lib/actions";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { buscarFichaPorTelefono, entradaAuditoriaEmpate, type EmpateFichas } from "@/lib/clientes/ficha-por-telefono";
 import { unstable_rethrow } from "next/navigation";
-import { rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { whereEsperando } from "@/lib/crm/wheres";
 import type { ResultadoAccion } from "@/lib/actions";
 
@@ -203,28 +203,32 @@ export async function bookFromWaitlist(formData: FormData) {
   const entry = await prisma.waitlistEntry.findFirst({
     where: { id: entryId, tenantId, status: { in: ["WAITING", "NOTIFIED"] } },
   });
-  if (!entry) throw new Error("Ese anotado ya no está disponible para reservar.");
+  if (!entry) throw new RechazoDeDominio("Ese anotado ya no está disponible para reservar.");
 
+  // `findFirst` y no la variante que tira: que no esté es un rechazo con motivo, no un P2025 que
+  // la pantalla sólo podría mostrar como "no se pudo".
   const [service, professional] = await Promise.all([
-    prisma.service.findFirstOrThrow({ where: { id: entry.serviceId, tenantId } }),
-    prisma.professional.findFirstOrThrow({
+    prisma.service.findFirst({ where: { id: entry.serviceId, tenantId } }),
+    prisma.professional.findFirst({
       where: { id: professionalId, tenantId },
       include: { box: true },
     }),
   ]);
 
+  if (!professional) throw new RechazoDeDominio("Ese profesional ya no está disponible.");
+  if (!service) throw new RechazoDeDominio("Ese servicio ya no está disponible.");
   if (!professional.active || professional.deletedAt) {
-    throw new Error("Ese profesional ya no está disponible.");
+    throw new RechazoDeDominio("Ese profesional ya no está disponible.");
   }
   // El servicio también, y acá importa más que en ningún otro camino: un anotado puede
   // llevar SEMANAS en la lista (es su naturaleza), tiempo de sobra para que el catálogo
   // lo desactive o lo borre. Sin esta guarda quedaba un turno agendado contra un servicio
   // dado de baja —con su precio viejo congelado— que recepción tenía que cancelar a mano.
   if (!service.active || service.deletedAt) {
-    throw new Error("Ese servicio ya no está disponible.");
+    throw new RechazoDeDominio("Ese servicio ya no está disponible.");
   }
   if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
-    throw new Error("Ese profesional no tiene un box activo asignado.");
+    throw new RechazoDeDominio("Ese profesional no tiene un box activo asignado.");
   }
   // El profesional tiene que prestar el servicio esperado.
   const prestaElServicio = await prisma.professional.findFirst({
@@ -232,11 +236,11 @@ export async function bookFromWaitlist(formData: FormData) {
     select: { id: true },
   });
   if (!prestaElServicio) {
-    throw new Error("Ese profesional no realiza el servicio de este anotado.");
+    throw new RechazoDeDominio("Ese profesional no realiza el servicio de este anotado.");
   }
 
   const startsAt = new Date(startsAtIso);
-  if (Number.isNaN(startsAt.getTime())) throw new Error("Horario inválido.");
+  if (Number.isNaN(startsAt.getTime())) throw new RechazoDeDominio("Ese horario no se pudo leer. Elegí otro con “Buscar horario”.");
   const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
   const boxId = professional.boxId;
 
@@ -244,7 +248,7 @@ export async function bookFromWaitlist(formData: FormData) {
   const dateStr = dateStrInBusinessTz(startsAt);
   const window = await getWorkingWindow(professionalId, dateStr);
   if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
-    throw new Error("Ese profesional no trabaja en ese horario. Elegí otro.");
+    throw new RechazoDeDominio("Ese profesional no trabaja en ese horario. Elegí otro.");
   }
 
   // El empate de fichas (si lo hay) se audita DESPUÉS de la transacción: la auditoría escribe
@@ -388,11 +392,15 @@ export async function reservarHuecoLiberado(formData: FormData): Promise<Resulta
   } catch (e) {
     // El redirect de la guardia (sin sesión, sin permiso) no es un error: sigue su camino.
     unstable_rethrow(e);
-    // Los rechazos de dominio son `Error` con el motivo en castellano; uno de Prisma trae
-    // `code` y un volcado técnico que no se muestra.
+    // Los rechazos de dominio (`RechazoDeDominio`: "ese horario ya no está disponible") se
+    // muestran con su motivo; una caída de la base o un bug, nunca crudos: el genérico y el log.
     return {
       ok: false,
-      error: rechazoDeDominio(e, "No se pudo reservar ese horario. Probá de nuevo o elegí otro con “Buscar horario”."),
+      error: rechazoDeDominio(
+        e,
+        "No se pudo reservar ese horario. Probá de nuevo; si sigue, avisá a GSG.",
+        "espera.reservar-hueco",
+      ),
     };
   }
 }
