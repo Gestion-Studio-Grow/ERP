@@ -100,6 +100,8 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
               aCuentaDisponible={puedeCuentas && cuentasCorrientesEnabled()}
               puedeFacturar={puedeFacturar}
               topePrecioAMano={topeDePrecioAMano(user.role)}
+              // Separa, en el almacén de la pestaña, el cobro sin confirmar de cada negocio.
+              negocioId={tenantId}
             />
           </div>
         }

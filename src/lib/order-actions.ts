@@ -21,6 +21,7 @@ import {
   anularVentaConSuCuentaEnTx,
   pedidoConClave,
   tomarPedidoOnlineGuarded,
+  motivoDelRechazoDelAlta,
   AnulacionDeCuentaRechazada,
   CobroDePedidoAnulado,
   type CobroDePedido,
@@ -34,6 +35,8 @@ import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } fro
 import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
 import { normalizarCodigoDeCupon, topeDePrecioAMano, CUPON_NO_VALE } from "@/lib/venta-reglas";
+import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
+import { respuestaAlReintento } from "@/lib/respuesta-al-reintento";
 import { frenoDeCupones, rechazoPublicoDelCupon, CUPON_FRENADO } from "@/lib/cupones/prueba-publica";
 import {
   disponibilidadDe,
@@ -171,9 +174,18 @@ function parseItems(formData: FormData): { productId: string; qty: number }[] {
 //
 // `venta`: la venta recién cobrada, para el ticket (WhatsApp o 58 mm). Sólo la pide /admin/vender
 // (`conTicket`); el POS de la bandeja no la usa y no paga la lectura extra.
+//
+// Dos NO que no son "no se cobró" (sólo los devuelve `createOrder`; los demás llamadores leen
+// `error`, que siempre es un texto entero para la persona):
+//   · `ya-grabada-distinta`: la clave de ticket ya estaba grabada y lo que llega NO es lo que se
+//     grabó (o está anulada). No se grabó nada nuevo; `grabada` dice cuál es y qué cambió.
+//   · `sin-confirmar`: falló algo que no es un rechazo de negocio (la base, la conexión, la
+//     transacción al confirmarse). No se sabe si se grabó: se reintenta con la MISMA clave.
 export type OrderActionState =
   | { ok: true; mensaje?: string; venta?: VentaTicket }
-  | { ok: false; error: string }
+  | { ok: false; error: string; tipo?: undefined }
+  | { ok: false; error: string; tipo: "ya-grabada-distinta"; grabada: VentaYaGrabada }
+  | { ok: false; error: string; tipo: "sin-confirmar" }
   | null;
 
 function errorDeAccion(err: unknown, generico: string): { ok: false; error: string } {
@@ -336,24 +348,32 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
       },
     );
   } catch (err) {
-    // El mensaje de dominio (sin stock, sin precio, sin dirección) llega ENTERO a la pantalla
-    // porque se devuelve en vez de lanzarse. Antes el POS mostraba siempre el mismo texto
-    // genérico "revisá el stock", incluso cuando el problema era otro.
-    return errorDeAccion(
-      err,
-      "No se pudo registrar la venta. Revisá las cantidades y volvé a intentar.",
-    );
+    // El rechazo de negocio (sin stock, sin precio, sin dirección) llega ENTERO a la pantalla
+    // porque se devuelve en vez de lanzarse: ése prueba que no se grabó nada.
+    const motivo = motivoDelRechazoDelAlta(err);
+    if (motivo !== null) return { ok: false, error: motivo };
+    // Cualquier otra cosa (la base, la conexión, la transacción que falla AL CONFIRMARSE) NO
+    // prueba que no se grabó: antes volvía como "La venta no se cobró" con el texto crudo de
+    // Prisma, y el cajero la cobraba otra vez con otro ticket. Ahora se dice que no se sabe, y
+    // la pantalla reintenta con la MISMA clave (si se grabó, el reintento la encuentra).
+    logger.error("pedidos", "el alta del mostrador falló por algo que no es un rechazo de negocio", err);
+    return {
+      ok: false,
+      tipo: "sin-confirmar",
+      error:
+        channel === "ONLINE"
+          ? "No pudimos confirmar si el pedido se registró. Antes de cargarlo de nuevo, fijate en Pedidos para preparar; si lo reintentás desde esta pantalla sin cambiarlo, no se registra dos veces."
+          : "No pudimos confirmar si la venta se grabó. Antes de cobrarla de nuevo, fijate en Ventas del día; si la reintentás desde esta pantalla sin cambiarla, no se cobra dos veces.",
+    };
   }
 
-  // Reintento deduplicado: el pedido ya existía. No se re-audita (el alta real ya dejó su
-  // rastro) y no se vuelve a tocar el estado.
+  // Reintento con una clave ya grabada: no se grabó nada nuevo. No se re-audita (el alta real
+  // ya dejó su rastro) y no se vuelve a tocar el estado. Lo que llega se COMPARA con lo grabado
+  // (`respuestaAlReintento`, respuesta-al-reintento.ts): la clave repetida no prueba que sea la
+  // misma venta.
   if (result.dedup) {
     revalidarMostrador();
-    const mensaje = "Esa venta ya estaba registrada (no se cobró dos veces).";
-    // El reintento después de perder la respuesta también da el ticket (Vender lo pide con
-    // `conTicket`): es la venta que QUEDÓ grabada en el primer envío, leída de la base.
-    if (String(formData.get("conTicket") || "") !== "1") return { ok: true, mensaje };
-    return { ok: true, mensaje, venta: (await ventaParaTicket(tenantId, result.id)) ?? undefined };
+    return respuestaAlReintento(tenantId, result, { conTicket: String(formData.get("conTicket") || "") === "1" });
   }
 
   // La venta de mostrador COBRADA y RETIRADA ya terminó: nace DELIVERED. **Sólo en rubro

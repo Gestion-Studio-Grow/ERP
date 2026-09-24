@@ -19,17 +19,23 @@
 // bajar hasta el final), y lo que no salió se dice AHÍ, al lado del botón, hasta que se resuelva:
 // antes era un aviso de 4 segundos que en el celular tapaba justo el botón y se iba. Sin señal a
 // mitad del cobro, el botón pasa a «Reintentar cobro» con la MISMA venta (cobro-sin-conexion.ts).
+// Lo mismo si el servidor no contesta en TIEMPO_MAXIMO_DEL_COBRO_MS o falla por algo que no es un
+// rechazo de negocio. Esa duda queda guardada en la pestaña (sessionStorage, por negocio): si se
+// recarga o se vuelve a Vender, reaparece con lo cargado y la misma clave. Y si el servidor
+// contesta que esa clave ya estaba grabada con OTRA cosa («ya-grabada-distinta»), se dice cuál
+// quedó y qué no se registró, y se ofrece cobrar sólo lo que falta como otra venta.
 //
 // Todas las reglas de plata (descuento, tope, vuelto, precio a mano) son las de
 // reglas-venta.ts, las MISMAS que aplica el servidor: la pantalla avisa y el servidor decide.
 // Sin imports de valor de Prisma: esto es un client component.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useFormStatus } from "react-dom";
 import { createOrder, buscarClienteParaVenta } from "@/lib/order-actions";
 import { AvisoError, BuscadorCombo, Input, Select, buttonClasses, cn, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
-import { MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
+import { MEDIOS_DE_COBRO, leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
+import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 import {
   leerCantidad,
   cantidadParaFormulario,
@@ -56,14 +62,26 @@ import {
   type VentaTicket,
 } from "./reglas-venta";
 import {
+  almacenDeSesion,
   antesDeCobrar,
   avisoDelCobro,
+  avisoDeYaGrabada,
+  borrarCobroSinConfirmar,
   cambioDespuesDelCorte,
   claveParaCobrar,
+  conTiempoMaximo,
+  etiquetaDeCobrarLoQueFalta,
   etiquetaDeOtraVenta,
   etiquetaDeReintento,
+  etiquetaDeVerGrabada,
   firmaDelCobro,
+  guardarCobroSinConfirmar,
+  horaDelEnvio,
+  leerCobroSinConfirmar,
   recordarEnvioSinRespuesta,
+  renovarClaveTrasRechazo,
+  TIEMPO_MAXIMO_DEL_COBRO_MS,
+  type CargadoDelCobro,
   type EnvioSinRespuesta,
 } from "./cobro-sin-conexion";
 
@@ -117,17 +135,7 @@ function CobrarSubmit({ disabled, label, pendiente }: { disabled: boolean; label
 // tuvo respuesta").
 type Falla = { tipo: "sin-senal" } | { tipo: "red" } | { tipo: "rechazo"; error: string };
 
-export default function VenderForm({
-  products,
-  stockById,
-  rapidos,
-  negocio,
-  topeDescuentoPct,
-  pedidoInicial = false,
-  aCuentaDisponible = false,
-  puedeFacturar = false,
-  topePrecioAMano = null,
-}: {
+type PropsDeVender = {
   products: SellableProduct[];
   stockById: Record<string, PosStockInfo>;
   /** Ids de los más vendidos (hasta 8), ya filtrados a lo que hoy se puede vender. */
@@ -147,43 +155,96 @@ export default function VenderForm({
   puedeFacturar?: boolean;
   /** Tope del precio a mano de quien vende (null = sin tope). La misma regla que el servidor. */
   topePrecioAMano?: TopePrecioAMano | null;
-}) {
-  const [isOrder, setIsOrder] = useState(pedidoInicial);
-  const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
-  const [paid, setPaid] = useState(!pedidoInicial);
-  const [medio, setMedio] = useState<MedioDeCobro | "">("");
+  /** El negocio (su id): separa en el almacén de la pestaña el cobro sin confirmar de cada uno. */
+  negocioId?: string;
+};
+
+const sinSuscripcion = () => () => {};
+
+// El servidor no tiene el almacén de la pestaña, y la primera pintura del navegador tiene que
+// ser igual a la del servidor: ésa se arma sin mirar el almacén. Apenas se sabe que se está en el
+// navegador, el formulario se arma de nuevo, ya con el cobro sin confirmar si quedó uno (el mismo
+// arreglo que RecuentoForm). Navegando dentro del panel no hay pintura del servidor: se arma una
+// sola vez, directo con lo guardado.
+export default function VenderForm(props: PropsDeVender) {
+  const enNavegador = useSyncExternalStore(sinSuscripcion, () => true, () => false);
+  return <FormularioVender key={enNavegador ? "navegador" : "servidor"} {...props} enNavegador={enNavegador} />;
+}
+
+/** Las líneas con las que arranca el formulario: las de un cobro sin confirmar, o una vacía. */
+function lineasIniciales(k: CargadoDelCobro | undefined): { lines: Line[]; manuales: LineaManual[]; nextKey: number } {
+  let n = 1;
+  const lines: Line[] = (k?.lineas ?? []).map((l) => ({ key: n++, productId: l.productId, qtyText: l.qtyText }));
+  if (lines.length === 0) lines.push({ key: n++, productId: "", qtyText: "" });
+  const manuales = (k?.manuales ?? []).map((m) => ({ key: n++, nombre: m.nombre, importeText: m.importeText, motivo: m.motivo }));
+  return { lines, manuales, nextKey: n };
+}
+
+function FormularioVender({
+  products,
+  stockById,
+  rapidos,
+  negocio,
+  topeDescuentoPct,
+  pedidoInicial = false,
+  aCuentaDisponible = false,
+  puedeFacturar = false,
+  topePrecioAMano = null,
+  negocioId = "",
+  enNavegador,
+}: PropsDeVender & { enNavegador: boolean }) {
+  // Un cobro que quedó sin confirmar en esta pestaña (se recargó, se volvió de otra pantalla, el
+  // celular descartó la pestaña al ir a la app de MP): el formulario arranca con lo cargado, su
+  // clave y el aviso. Se lee una sola vez, al armar el formulario.
+  const almacen = negocioId || negocio;
+  const [arranque] = useState(() => (enNavegador ? leerCobroSinConfirmar(almacenDeSesion(), almacen) : null));
+  const k = arranque?.cargado;
+  const [inicial] = useState(() => lineasIniciales(k));
+
+  const [isOrder, setIsOrder] = useState(k ? k.esPedido : pedidoInicial);
+  const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">(k?.entrega.tipo ?? "PICKUP");
+  const [paid, setPaid] = useState(k ? k.paid : !pedidoInicial);
+  const [medio, setMedio] = useState<MedioDeCobro | "">(k ? (leerMedioDeCobro(k.medio) ?? "") : "");
   // «A cuenta» no es un medio de cobro: no entra plata. Va aparte del medio para que nunca viaje
   // como `paymentMethod`.
-  const [aCuenta, setACuenta] = useState(false);
-  const [lines, setLines] = useState<Line[]>([{ key: 1, productId: "", qtyText: "" }]);
-  const [manuales, setManuales] = useState<LineaManual[]>([]);
-  const [nextKey, setNextKey] = useState(2);
-  const ticketKey = useRef("");
+  const [aCuenta, setACuenta] = useState(k?.aCuenta ?? false);
+  const [lines, setLines] = useState<Line[]>(inicial.lines);
+  const [manuales, setManuales] = useState<LineaManual[]>(inicial.manuales);
+  const [nextKey, setNextKey] = useState(inicial.nextKey);
+  const ticketKey = useRef(arranque?.clave ?? "");
 
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
-  const [conCliente, setConCliente] = useState(false);
-  const [telefono, setTelefono] = useState("");
-  const [nombreCliente, setNombreCliente] = useState("");
-  const [busqueda, setBusqueda] = useState<"nada" | "buscando" | "encontrado" | "sin-ficha" | "error">("nada");
-  const [conDescuento, setConDescuento] = useState(false);
+  const [conCliente, setConCliente] = useState(k?.conCliente ?? false);
+  const [telefono, setTelefono] = useState(k?.telefono ?? "");
+  const [nombreCliente, setNombreCliente] = useState(k?.nombre ?? "");
+  const [busqueda, setBusqueda] = useState<"nada" | "buscando" | "encontrado" | "sin-ficha" | "error">(
+    k?.fichaEncontrada ? "encontrado" : "nada",
+  );
+  const [conDescuento, setConDescuento] = useState(k?.descuento.abierto ?? false);
   // El cupón es la tercera forma del descuento: uno o el otro, nunca los dos (lo mismo exige el
   // servidor).
-  const [tipoDescuento, setTipoDescuento] = useState<TipoDescuento | "cupon">("porcentaje");
-  const [descuentoText, setDescuentoText] = useState("");
+  const [tipoDescuento, setTipoDescuento] = useState<TipoDescuento | "cupon">(k?.descuento.tipo ?? "porcentaje");
+  const [descuentoText, setDescuentoText] = useState(k?.descuento.texto ?? "");
   const [pagoConText, setPagoConText] = useState("");
   // Los datos del pedido van CONTROLADOS, como todo lo demás del formulario. Sueltos, el reset
   // automático del <form action> de React 19 los borraba también cuando el servidor rechazaba
   // (sin stock, un descuento de más): había que volver a escribir horario, dirección y nota.
-  const [horario, setHorario] = useState("");
-  const [direccion, setDireccion] = useState("");
-  const [nota, setNota] = useState("");
+  const [horario, setHorario] = useState(k?.entrega.horario ?? "");
+  const [direccion, setDireccion] = useState(k?.entrega.direccion ?? "");
+  const [nota, setNota] = useState(k?.entrega.nota ?? "");
 
   // Lo que no salió en el último intento, a la vista hasta que se resuelva (ver arriba), y si el
   // navegador tiene señal ahora: cambia el "cuando vuelva la señal" por "tocá Reintentar".
-  const [falla, setFalla] = useState<Falla | null>(null);
+  const [falla, setFalla] = useState<Falla | null>(arranque ? { tipo: "red" } : null);
   // El envío que salió y no tuvo respuesta (puede haberse grabado con la clave de este ticket).
-  // Sólo se borra cuando el ticket se limpia o el cajero declara «Es otra venta».
-  const [sinRespuesta, setSinRespuesta] = useState<EnvioSinRespuesta | null>(null);
+  // Sólo se borra cuando la duda se resuelve: cobro confirmado, «ya grabada», «Es otra venta».
+  const [sinRespuesta, setSinRespuesta] = useState<EnvioSinRespuesta | null>(
+    arranque ? { firma: arranque.firma, total: arranque.total, desde: arranque.desde, restaurado: true } : null,
+  );
+  // El servidor contestó que la clave ya estaba grabada con OTRA cosa (o anulada): cuál quedó y
+  // qué no se registró. Frena el botón hasta que el cajero elija cómo seguir.
+  const [yaGrabada, setYaGrabada] = useState<VentaYaGrabada | null>(null);
+  const [verGrabada, setVerGrabada] = useState(false);
   const [enLinea, setEnLinea] = useState(true);
   useEffect(() => {
     const leer = () => setEnLinea(navigator.onLine);
@@ -293,7 +354,7 @@ export default function VenderForm({
   // Cupón: la vista previa sale de la regla del alta (`montoDeCupon`); el servidor lo vuelve a
   // decidir y lo consume en la transacción. Sin «Aplicar», no se cobra: el total que dice el
   // botón tiene que ser el que se cobra.
-  const cupon = useCuponDePedido(subtotal);
+  const cupon = useCuponDePedido(subtotal, k ? { codigo: k.descuento.cuponTexto, aplicado: k.descuento.cupon } : undefined);
   const usaCupon = conDescuento && tipoDescuento === "cupon";
   const cuponSinAplicar = usaCupon && cupon.codigo.trim() !== "" && !cupon.aplicado;
   const pedidoDescuento =
@@ -325,19 +386,60 @@ export default function VenderForm({
   const faltaMedio = paid && !medio && !aCuentaActivo;
   const vuelto = paid && !aCuentaActivo && medio === "EFECTIVO" ? calcularVuelto(total, pagoConText) : null;
 
-  // Lo que define la plata y el stock de este cobro, para saber si un reintento es la misma venta.
+  // Lo que define este cobro —TODO lo que el servidor compara con lo grabado—, para saber si un
+  // reintento es la misma venta. Cliente y entrega van como viajan: sin la sección abierta no se
+  // mandan, y la firma no los cuenta.
+  const conDatosDeCliente = isOrder || conCliente;
   const firma = firmaDelCobro({
     lineas: leidas.filter((l) => byId.get(l.productId) && l.qty > 0).map((l) => ({ productId: l.productId, cantidad: l.qty })),
     manuales: manualesLeidas.filter((m) => m.valida).map((m) => ({ nombre: m.nombre, importe: m.importe })),
     medio: aCuentaActivo ? "A_CUENTA" : paid ? medio : "SIN_COBRAR",
     total,
     esPedido: isOrder,
+    cliente: conDatosDeCliente ? { telefono, nombre: nombreCliente } : { telefono: "", nombre: "" },
+    descuento: {
+      cupon: usaCupon ? (cupon.aplicado?.codigo ?? (cupon.codigo.trim().toUpperCase() || null)) : null,
+      monto: descuento.ok ? descuento.descuento : 0,
+    },
+    entrega: isOrder
+      ? { tipo: fulfillment, direccion: fulfillment === "DELIVERY" ? direccion : "", horario, nota }
+      : null,
   });
   const cambioTrasCorte = sinRespuesta !== null && cambioDespuesDelCorte(sinRespuesta.firma, firma);
 
+  // Lo cargado, lo justo para volver a mostrarlo igual si la pantalla se recarga con un cobro en
+  // duda (cobro-sin-conexion.ts, "La duda sobrevive a recargar la pantalla").
+  function cargadoActual(): CargadoDelCobro {
+    return {
+      esPedido: isOrder,
+      lineas: lines.filter((l) => l.productId).map((l) => ({ productId: l.productId, qtyText: l.qtyText })),
+      manuales: manuales.map((m) => ({ nombre: m.nombre, importeText: m.importeText, motivo: m.motivo })),
+      paid,
+      medio,
+      aCuenta,
+      conCliente,
+      telefono,
+      nombre: nombreCliente,
+      fichaEncontrada: busqueda === "encontrado",
+      descuento: {
+        abierto: conDescuento,
+        tipo: tipoDescuento,
+        texto: descuentoText,
+        cupon: cupon.aplicado,
+        cuponTexto: cupon.codigo,
+      },
+      entrega: { tipo: fulfillment, horario, direccion, nota },
+    };
+  }
+
+
   const motivoBloqueo = !hayLineaValida
     ? null
-    : cambioTrasCorte
+    : yaGrabada
+      ? yaGrabada.esPedido
+        ? `Revisá el pedido #${yaGrabada.code}`
+        : `Revisá la venta #${yaGrabada.code}`
+      : cambioTrasCorte
       ? isOrder
         ? "Revisá el pedido cortado"
         : "Revisá la venta cortada"
@@ -373,15 +475,22 @@ export default function VenderForm({
     setNota("");
     setFalla(null);
     setSinRespuesta(null);
+    setYaGrabada(null);
+    setVerGrabada(false);
+    borrarCobroSinConfirmar(almacenDeSesion(), almacen);
     ticketKey.current = "";
   }
 
-  // «Es otra venta»: después del corte, el cajero revisó y lo cargado NO es la venta cortada (o ya
-  // sacó lo que se había grabado). Viaja con otra clave; lo cargado queda como está.
+  // «Es otra venta» / «Cobrar lo que falta como otra venta»: el cajero revisó y lo cargado NO es
+  // la venta cortada o la ya grabada (o ya sacó lo que se había grabado). Viaja con otra clave;
+  // lo cargado queda como está. La duda (o la grabada) queda resuelta: se borra de la pestaña.
   function esOtraVenta() {
     ticketKey.current = "";
     setFalla(null);
     setSinRespuesta(null);
+    setYaGrabada(null);
+    setVerGrabada(false);
+    borrarCobroSinConfirmar(almacenDeSesion(), almacen);
   }
 
   async function buscarCliente() {
@@ -410,21 +519,57 @@ export default function VenderForm({
     }
     // Un reintento es la MISMA venta: misma clave (cobro-sin-conexion.ts).
     ticketKey.current = claveParaCobrar(ticketKey.current, nuevaClaveDeTicket);
-    fd.set("idempotencyKey", ticketKey.current);
+    const clave = ticketKey.current;
+    fd.set("idempotencyKey", clave);
     setConfirmacion(null);
     fd.set("conTicket", "1");
     const pagoCon = medio === "EFECTIVO" ? leerImporte(pagoConText) : null;
-    let r;
+    // Lo que viaja, por si la respuesta no vuelve: queda en duda, en memoria y en la pestaña.
+    const enviado: EnvioSinRespuesta = { firma, total, desde: new Date().toISOString() };
+    const cargado = cargadoActual();
+    const quedaEnDuda = () => {
+      setFalla({ tipo: "red" });
+      setSinRespuesta((previo) => recordarEnvioSinRespuesta(previo, enviado));
+      // Se guarda el PRIMER envío en duda (un reintento sólo sale si lo cargado es igual).
+      if (!sinRespuesta) {
+        guardarCobroSinConfirmar(almacenDeSesion(), almacen, { v: 1, clave, firma, total, desde: enviado.desde!, cargado });
+      }
+    };
+    let espera;
     try {
-      r = await createOrder(fd);
+      espera = await conTiempoMaximo(createOrder(fd), TIEMPO_MAXIMO_DEL_COBRO_MS);
     } catch (e) {
       if (isNextRedirect(e)) throw e;
-      setFalla({ tipo: "red" });
-      setSinRespuesta((previo) => recordarEnvioSinRespuesta(previo, { firma, total }));
+      quedaEnDuda();
       return;
     }
+    // El servidor no contestó a tiempo: no sabemos si se grabó (lo mismo que un corte).
+    if (espera.tipo === "sin-respuesta") {
+      quedaEnDuda();
+      return;
+    }
+    const r = espera.valor;
     if (r && !r.ok) {
+      // Falló algo que no es un rechazo de negocio (la base, la transacción al confirmarse): no
+      // prueba que no se grabó. Se trata como un corte: misma clave para reintentar.
+      if (r.tipo === "sin-confirmar") {
+        quedaEnDuda();
+        return;
+      }
+      // La clave ya estaba grabada con OTRA cosa (o anulada). No se grabó nada nuevo; la duda
+      // quedó resuelta (sabemos cuál quedó). El botón se frena hasta que el cajero elija.
+      if (r.tipo === "ya-grabada-distinta") {
+        setFalla(null);
+        setSinRespuesta(null);
+        borrarCobroSinConfirmar(almacenDeSesion(), almacen);
+        setYaGrabada(r.grabada);
+        setVerGrabada(false);
+        return;
+      }
       setFalla({ tipo: "rechazo", error: r.error });
+      // Rechazo de negocio sin nada en duda: con esta clave no hay nada grabado, así que lo que se
+      // corrija viaja con otra (el porqué, en `renovarClaveTrasRechazo`).
+      if (renovarClaveTrasRechazo(sinRespuesta !== null)) ticketKey.current = "";
       return;
     }
     // La venta a cuenta también lleva su ticket (dice "Queda a cuenta"): el cliente se lleva
@@ -451,12 +596,20 @@ export default function VenderForm({
     limpiar();
   }
 
-  const aviso = avisoDelCobro({
-    falla,
-    sinRespuesta: sinRespuesta ? { cambio: cambioTrasCorte, totalMandado: fmtMoneyARS(sinRespuesta.total) } : null,
-    enLinea,
-    esPedido: isOrder,
-  });
+  const aviso = yaGrabada
+    ? avisoDeYaGrabada(yaGrabada)
+    : avisoDelCobro({
+        falla,
+        sinRespuesta: sinRespuesta
+          ? {
+              cambio: cambioTrasCorte,
+              totalMandado: fmtMoneyARS(sinRespuesta.total),
+              restaurado: sinRespuesta.restaurado ? horaDelEnvio(sinRespuesta.desde) : null,
+            }
+          : null,
+        enLinea,
+        esPedido: isOrder,
+      });
 
   const etiquetaCobrar = !hayLineaValida
     ? "Cobrar"
@@ -481,7 +634,8 @@ export default function VenderForm({
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium text-strong">
-              Venta #{ultima.venta.code} {ultima.venta.aCuenta ? "a cuenta" : "cobrada"} · {fmtMoneyARS(ultima.venta.total)}
+              Venta #{ultima.venta.code} {ultima.venta.anulada ? "ANULADA" : ultima.venta.aCuenta ? "a cuenta" : "cobrada"} ·{" "}
+              {fmtMoneyARS(ultima.venta.total)}
               {ultima.pagoCon != null && ultima.pagoCon >= ultima.venta.total && (
                 <> · vuelto {fmtMoneyARS(round2(ultima.pagoCon - ultima.venta.total))}</>
               )}
@@ -496,6 +650,25 @@ export default function VenderForm({
           </div>
           {puedeFacturar && <FacturarVenta key={ultima.venta.id} orderId={ultima.venta.id} inicial={SIN_FACTURA} />}
           <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} />
+        </section>
+      )}
+
+      {/* La venta que YA estaba grabada con esta clave, como quedó en la base («Ver la venta #N»). */}
+      {yaGrabada?.ticket && verGrabada && (
+        <section
+          aria-label={yaGrabada.esPedido ? `Pedido #${yaGrabada.code} ya registrado` : `Venta #${yaGrabada.code} ya grabada`}
+          className="rounded-lg border border-line-strong p-3 space-y-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="venta-ya-grabada" tabIndex={-1} className="text-sm font-medium text-strong">
+              {yaGrabada.esPedido ? "Pedido" : "Venta"} #{yaGrabada.code} {yaGrabada.anulada ? "ANULADA" : yaGrabada.como} ·{" "}
+              {fmtMoneyARS(yaGrabada.total)}
+            </h2>
+            <button type="button" onClick={() => setVerGrabada(false)} className="h-11 px-3 text-sm text-muted hover:underline">
+              Cerrar
+            </button>
+          </div>
+          <TicketVenta venta={yaGrabada.ticket} negocio={negocio} />
         </section>
       )}
 
@@ -1082,7 +1255,28 @@ export default function VenderForm({
               titulo={aviso.titulo}
               comoSeguir={aviso.comoSeguir}
               accion={
-                aviso.reintentar ? undefined : cambioTrasCorte ? (
+                yaGrabada ? (
+                  <>
+                    <button type="button" onClick={esOtraVenta} className="h-11 px-2 text-sm font-medium text-strong underline">
+                      {etiquetaDeCobrarLoQueFalta(yaGrabada)}
+                    </button>
+                    {yaGrabada.ticket && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVerGrabada(true);
+                          pedirFoco("venta-ya-grabada");
+                        }}
+                        className="h-11 px-2 text-sm text-strong underline"
+                      >
+                        {etiquetaDeVerGrabada(yaGrabada)}
+                      </button>
+                    )}
+                    <button type="button" onClick={limpiar} className="h-11 px-2 text-sm text-muted hover:underline">
+                      Empezar de nuevo
+                    </button>
+                  </>
+                ) : aviso.reintentar ? undefined : cambioTrasCorte ? (
                   <button type="button" onClick={esOtraVenta} className="h-11 px-2 text-sm font-medium text-strong underline">
                     {etiquetaDeOtraVenta(isOrder)}
                   </button>
@@ -1118,7 +1312,8 @@ export default function VenderForm({
                 !descuento.ok ||
                 cuponSinAplicar ||
                 faltaFichaACuenta ||
-                cambioTrasCorte
+                cambioTrasCorte ||
+                yaGrabada !== null
               }
               label={etiquetaCobrar}
               pendiente={isOrder ? "Registrando…" : "Cobrando…"}

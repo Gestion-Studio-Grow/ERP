@@ -17,31 +17,93 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
+import { TIEMPO_MAXIMO_DEL_COBRO_MS, claveDelAlmacen } from "./cobro-sin-conexion";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
+const ORIGEN = "http://localhost:3999/admin/vender";
 
 const ACCIONES_FALSAS = `
+import {
+  comoQuedo,
+  diferenciasConLoGrabado,
+  mensajeDeYaGrabadaIgual,
+  textoDeYaGrabada,
+} from "@/lib/reintento-de-venta";
 function guardar(fd) {
   const o = {};
   for (const k of new Set(fd.keys())) o[k] = fd.getAll(k).map(String);
   window.__envios.push(o);
   return o;
 }
-// Las claves de ticket que el "servidor" ya grabó: un reintento con la misma devuelve lo que
-// contesta createOrder con una clave repetida (A-1), sin grabar otra venta.
-const grabadas = new Set();
+// Lo que el "servidor" arma con lo que llega, en la forma que compara el de verdad
+// (reintento-de-venta.ts): precios de la "base", ficha por teléfono, cupón, descuento, entrega.
+const PRECIOS = { p_vacio: ["Vacío", 12500], p_entrana: ["Entraña", 17500] };
+const r2 = (n) => Math.round(n * 100) / 100;
+const num = (x) => Number(String(x).replace(",", "."));
+function contenido(o) {
+  const uno = (k) => (o[k] || [""])[0];
+  const lineas = (o.productId || []).map((id, i) => ({ productId: id, nombre: (PRECIOS[id] || [id])[0], porPeso: true, cantidad: num(o.quantity[i]), precio: (PRECIOS[id] || [0, 0])[1] }));
+  (o.manualNombre || []).forEach((n, i) => lineas.push({ productId: null, nombre: n, porPeso: false, cantidad: 1, precio: num(o.manualImporte[i]) }));
+  const subtotal = r2(lineas.reduce((s, l) => s + r2(l.cantidad * l.precio), 0));
+  const cupon = uno("cupon").trim().toUpperCase() || null;
+  const valor = uno("descuentoValor") ? num(uno("descuentoValor")) : 0;
+  const descuento = cupon === "VERANO10" ? r2(subtotal * 0.1) : uno("descuentoTipo") === "monto" ? valor : r2((subtotal * valor) / 100);
+  const tel = uno("customerPhone");
+  return {
+    canal: uno("channel") === "ONLINE" ? "ONLINE" : "COUNTER",
+    lineas, descuento, total: r2(subtotal - descuento), cupon,
+    cobro: o.aCuenta ? { tipo: "a-cuenta" } : uno("paid") === "on" && uno("paymentMethod") ? { tipo: "medio", medio: uno("paymentMethod") } : { tipo: "sin-cobrar" },
+    cliente: { telefono: tel, nombre: uno("customerName"), clientId: tel.includes("4000") ? "cli_maria" : tel.includes("5000") ? "cli_juan" : null },
+    entrega: { tipo: uno("fulfillment") === "DELIVERY" ? "DELIVERY" : "PICKUP", direccion: uno("address") || null, horario: uno("scheduledFor") ? Date.parse(uno("scheduledFor")) : null, notas: uno("notes") || null },
+  };
+}
+const cobroComoFila = (c) => c.cobro.tipo === "medio" ? { paid: true, paymentMethod: c.cobro.medio } : { paid: c.cobro.tipo === "a-cuenta", paymentMethod: null };
+function ticketDe(g) {
+  const c = g.c;
+  return {
+    id: "ord_42", code: 42, creada: "2026-09-23T13:15:00.000Z",
+    lineas: c.lineas.map((l) => ({ nombre: l.nombre, cantidad: l.cantidad, porPeso: l.porPeso, precio: l.precio, total: r2(l.cantidad * l.precio), aMano: l.productId == null })),
+    subtotal: r2(c.total + c.descuento), descuento: c.descuento, total: c.total,
+    medio: c.cobro.tipo === "medio" ? c.cobro.medio : null,
+    cliente: c.cliente.nombre || null, telefono: c.cliente.telefono || null, anulada: g.anulada,
+    ...(c.cobro.tipo === "a-cuenta" ? { aCuenta: true } : {}),
+  };
+}
+// Las ventas que el "servidor" ya grabó, por clave de ticket. Un reintento con la misma clave se
+// COMPARA con lo grabado, como createOrder (respuesta-al-reintento.ts): igual → la grabada;
+// distinta o anulada → «ya-grabada-distinta», sin grabar nada.
+const grabadas = new Map();
+window.__grabadas = grabadas;
 export async function createOrder(fd) {
+  if (window.__colgado) { guardar(fd); return new Promise(() => {}); }
   const o = guardar(fd);
   const clave = (o.idempotencyKey || [""])[0];
+  const c = contenido(o);
   // Se corta la señal DESPUÉS de que el servidor grabó: la respuesta no vuelve.
   if (window.__respuestaPerdida) {
     window.__respuestaPerdida = false;
-    grabadas.add(clave);
+    grabadas.set(clave, { c, anulada: false });
     throw new TypeError("Failed to fetch");
   }
+  // Grabó y falló al contestar (la transacción, la conexión): el servidor dice que no sabe.
+  if (window.__sinConfirmar) {
+    window.__sinConfirmar = false;
+    grabadas.set(clave, { c, anulada: false });
+    return { ok: false, tipo: "sin-confirmar", error: "No pudimos confirmar si la venta se grabó. Antes de cobrarla de nuevo, fijate en Ventas del día; si la reintentás desde esta pantalla sin cambiarla, no se cobra dos veces." };
+  }
   if (window.__rechazo) return { ok: false, error: window.__rechazo };
-  if (clave && grabadas.has(clave)) return { ok: true, mensaje: "Esa venta ya estaba registrada (no se cobró dos veces)." };
-  if (clave) grabadas.add(clave);
+  const previa = clave ? grabadas.get(clave) : null;
+  if (previa) {
+    const esPedido = previa.c.canal === "ONLINE";
+    const diferencias = diferenciasConLoGrabado(previa.c, c);
+    const ticket = ticketDe(previa);
+    if (diferencias.length === 0 && !previa.anulada) {
+      return { ok: true, mensaje: mensajeDeYaGrabadaIgual({ code: 42, esPedido, cobrada: previa.c.cobro.tipo === "medio" }), venta: ticket };
+    }
+    const g = { id: "ord_42", code: 42, esPedido, total: previa.c.total, como: comoQuedo(cobroComoFila(previa.c), esPedido), cliente: ticket.cliente, telefono: ticket.telefono, anulada: previa.anulada, diferencias, ticket };
+    return { ok: false, tipo: "ya-grabada-distinta", error: textoDeYaGrabada(g), grabada: g };
+  }
+  if (clave) grabadas.set(clave, { c, anulada: false });
   return {
     ok: true,
     mensaje: "Venta cobrada.",
@@ -65,7 +127,7 @@ export async function anularVenta(_prev, fd) {
   return { ok: true, mensaje: "Pedido #7 anulado." };
 }
 export async function updateOrderItems(_prev, fd) { guardar(fd); return { ok: true, mensaje: "ajustado" }; }
-export async function buscarClienteParaVenta(tel) { return tel.includes("4000") ? { nombre: "María Pérez" } : null; }
+export async function buscarClienteParaVenta(tel) { return tel.includes("4000") ? { nombre: "María Pérez" } : tel.includes("5000") ? { nombre: "Juan Gómez" } : null; }
 export async function registrarAvisoWhatsApp() {}
 export async function placeOnlineOrder() { return null; }
 // Con la facturación apagada: no se emite nada y la fila dice por qué (order-actions.ts).
@@ -143,10 +205,22 @@ window.__montar = (cual, tope, extra) =>
 
 type Envio = Record<string, string[]>;
 type Montaje = "vender" | "pedido" | "sin-precios" | "ajustar" | "ajustar-10kg" | "anular";
+/** Lo que el "servidor" falso tiene grabado por clave (la forma de reintento-de-venta.ts). */
+type Grabada = {
+  anulada: boolean;
+  c: {
+    cobro: { tipo: string; medio?: string };
+    cliente: { telefono: string; nombre: string; clientId: string | null };
+    entrega: { tipo: string; direccion: string | null };
+  };
+};
 type Ventana = {
   __envios: Envio[];
   __rechazo?: string;
   __respuestaPerdida?: boolean;
+  __colgado?: boolean;
+  __sinConfirmar?: boolean;
+  __grabadas: Map<string, Grabada>;
   __cupones?: { codigo: string; base: number }[];
   __montar: (cual: Montaje, tope: number | null, extra?: Record<string, unknown>) => void;
   __montarBarra: () => void;
@@ -250,20 +324,24 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     tope: number | null = 10,
     extra?: Record<string, unknown>,
     celular?: { encabezado: number; alto: number },
+    opciones?: { antes?: (p: Page) => Promise<void> },
   ): Promise<{ page: Page; errores: string[] }> {
     const page = await browser!.newPage({ viewport: { width: 412, height: celular?.alto ?? 915 }, locale: "es-AR" });
     const errores: string[] = [];
     page.on("pageerror", (e) => errores.push(e.message));
+    if (opciones?.antes) await opciones.antes(page);
     // En modo celular: el CSS real y el armado del shell de un negocio por apps —la raíz con
     // `--alto-barra-inferior` (layout.tsx), el contenido con su padding de abajo (AdminShell) y la
     // barra de espacios REAL fija abajo—, más, arriba del formulario, lo que ocupa la página de
     // verdad (barra del shell, título, solapas) para que el formulario no entre en la pantalla.
     // Las clases de la raíz y del contenido son las mismas de layout.tsx y AdminShell.tsx.
-    await page.setContent(
-      celular
+    // Se sirve desde un origen de verdad (localhost, contexto seguro): en about:blank el
+    // navegador no deja usar el sessionStorage, y la duda del cobro vive ahí.
+    const html = celular
         ? `<!doctype html><html lang="es"><head><style>${css}</style></head><body class="bg-surface"><div class="min-h-screen bg-surface text-body [--alto-barra-inferior:calc(3.5rem_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]"><div id="contenido" class="flex-1 pb-[var(--alto-barra-inferior,0px)]"><div style="height:${celular.encabezado}px">encabezado</div><div id="root" class="px-4"></div></div><div id="barra"></div></div></body></html>`
-        : '<!doctype html><html lang="es"><body><div id="root"></div></body></html>',
-    );
+        : '<!doctype html><html lang="es"><body><div id="root"></div></body></html>';
+    await page.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+    await page.goto(ORIGEN);
     await page.addScriptTag({ content: bundle });
     if (celular) await page.evaluate(() => (window as unknown as Ventana).__montarBarra());
     await page.evaluate(
@@ -664,7 +742,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.equal(await page.getByRole("radio", { name: "Efectivo" }).getAttribute("aria-checked"), "true");
     await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
     // Queda escrito arriba del formulario, no en el aviso flotante que tapaba el botón.
-    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (no se cobró dos veces)." }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se cobró dos veces." }).waitFor();
     assert.equal(await page.locator(".fixed.bottom-4 > *").count(), 0, "ningún aviso flotante");
     const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
     assert.equal(envios.length, 2);
@@ -766,7 +844,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await alerta("no sabemos si la venta se grabó").waitFor();
     assert.equal(await alerta("todavía no se cobró").count(), 0);
     await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
-    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (no se cobró dos veces)." }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se cobró dos veces." }).waitFor();
     const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
     assert.equal(envios.length, 2);
     assert.equal(envios[1].idempotencyKey[0], envios[0].idempotencyKey[0]);
@@ -812,6 +890,305 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.ok(await page.getByRole("button", { name: "Cobrar $12.500,00" }).isEnabled());
     await page.getByRole("button", { name: "Entendido" }).click();
     assert.equal(await aviso.count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // ── La corrección de raíz del reintento (refutador R1–R5) ───────────────────────────────────
+  // El "servidor" falso compara con las MISMAS funciones que createOrder
+  // (reintento-de-venta.ts): lo que se prueba acá es qué hace la pantalla con cada respuesta.
+
+  const ALMACEN = claveDelAlmacen("MAGRA Canning");
+  const alertaEn = (page: Page, texto: string | RegExp) => page.locator("form").getByRole("alert").filter({ hasText: texto });
+  const claves = (page: Page) => page.evaluate(() => (window as unknown as Ventana).__envios.map((e) => e.idempotencyKey[0]));
+
+  test("R1 a cuenta: se corta y se cambia el CLIENTE → no se reintenta con la clave de la cortada", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, { aCuentaDisponible: true });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "A cuenta" }).click();
+    await page.locator("#vender-telefono").fill("11 4000 0000");
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.getByText("Cliente: María Pérez").waitFor();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Dejar a cuenta $15.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    // Era a Juan, no a María.
+    await page.locator("#vender-telefono").fill("11 5000 0000");
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.getByText("Cliente: Juan Gómez").waitFor();
+    await alertaEn(page, "Cambiaste la venta después del corte.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Revisá la venta cortada" }).isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: /^Reintentar cobro/ }).count(), 0);
+    assert.equal((await claves(page)).length, 1, "con otro cliente no viajó nada con la clave de la cortada");
+    // Vuelve a María: es la misma venta y se reintenta; el servidor la encuentra.
+    await page.locator("#vender-telefono").fill("11 4000 0000");
+    await page.getByRole("button", { name: "Buscar" }).click();
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se registró dos veces." }).waitFor();
+    const [k1, k2] = await claves(page);
+    assert.equal(k1, k2);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("el servidor contesta «ya grabada con otra cosa»: dice cuál quedó y qué no se registró, y ofrece las salidas", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    assert.notEqual(await page.evaluate((k) => sessionStorage.getItem(k), ALMACEN), null, "la duda quedó en la pestaña");
+    // Lo que el servidor tiene con esa clave NO es lo que la pantalla cree (la grabó en MP otra pestaña).
+    await page.evaluate(() => {
+      for (const g of (window as unknown as Ventana).__grabadas.values()) g.c.cobro = { tipo: "medio", medio: "MERCADOPAGO" };
+    });
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    const aviso = alertaEn(page, "La venta #42 ya se había grabado con $15.500,00 (cobrada en Mercado Pago).");
+    await aviso.waitFor();
+    assert.match((await aviso.textContent()) ?? "", /Lo que cambiaste \(Cómo pagó: se grabó en Mercado Pago; ahora en Efectivo\) no se registró\./);
+    assert.equal(await page.getByRole("button", { name: "Revisá la venta #42" }).isDisabled(), true);
+    assert.equal(await page.getByText("Venta #42 cobrada").count(), 0, "no se muestra como cobrada lo que no se registró");
+    assert.equal(await page.evaluate((k) => sessionStorage.getItem(k), ALMACEN), null, "resuelta la duda, se borra de la pestaña");
+    // Ver la #42: el ticket de lo que quedó grabado.
+    await page.getByRole("button", { name: "Ver la venta #42" }).click();
+    const grabada = page.getByRole("region", { name: "Venta #42 ya grabada" });
+    await grabada.waitFor();
+    assert.match((await grabada.textContent()) ?? "", /Pagó con mercado pago/);
+    // Cobrar lo que falta como otra venta: otra clave, y lo cargado sigue.
+    await page.getByRole("button", { name: "Cobrar lo que falta como otra venta" }).click();
+    assert.equal(await aviso.count(), 0);
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const [k1, k2, k3] = await claves(page);
+    assert.equal(k1, k2, "el reintento viajó con la clave de la cortada");
+    assert.notEqual(k3, k1, "lo que falta, como otra venta, con otra clave");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("la venta con esa clave está ANULADA: se dice, no se muestra como cobrada, y se ofrece cobrarla como otra", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $12.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    await page.evaluate(() => {
+      for (const g of (window as unknown as Ventana).__grabadas.values()) g.anulada = true;
+    });
+    await page.getByRole("button", { name: "Reintentar cobro $12.500,00" }).click();
+    const aviso = alertaEn(page, "La venta #42 ya se había grabado con $12.500,00 (cobrada en Efectivo) y después se anuló.");
+    await aviso.waitFor();
+    assert.match((await aviso.textContent()) ?? "", /No se volvió a cobrar\. Si hay que cobrarla, tocá «Cobrarla como otra venta»\./);
+    assert.equal(await page.getByText("Venta #42 cobrada").count(), 0);
+    await page.getByRole("button", { name: "Ver la venta #42" }).click();
+    assert.match((await page.getByRole("region", { name: "Venta #42 ya grabada" }).textContent()) ?? "", /ANULADA/);
+    await page.getByRole("button", { name: "Cobrarla como otra venta" }).click();
+    await page.getByRole("button", { name: "Cobrar $12.500,00" }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const [k1, , k3] = await claves(page);
+    assert.notEqual(k3, k1);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("R2 pedido: se corta y se cambia la dirección → frenado; y la respuesta «ya registrado» habla de pedido, no de cobro", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pedido");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("2");
+    await page.getByLabel(/Nombre/).fill("María Pérez");
+    await page.getByLabel("Entrega").selectOption("DELIVERY");
+    await page.getByLabel(/Dirección/).fill("Av. Mitre 1234");
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Registrar pedido" }).click();
+    await alertaEn(page, "no sabemos si el pedido se grabó").waitFor();
+    await page.getByLabel(/Dirección/).fill("Belgrano 55");
+    await alertaEn(page, "Cambiaste el pedido después del corte.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Revisá el pedido cortado" }).isDisabled(), true);
+    await page.getByLabel(/Dirección/).fill("Av. Mitre 1234");
+    await page.getByLabel("Entrega").selectOption("PICKUP");
+    await alertaEn(page, "Cambiaste el pedido después del corte.").waitFor();
+    await page.getByLabel("Entrega").selectOption("DELIVERY");
+    await page.getByLabel(/Dirección/).fill("Av. Mitre 1234");
+    assert.equal((await claves(page)).length, 1, "mientras estaba cambiado no viajó nada");
+    // El servidor tiene con esa clave otra dirección (la cargó otra pestaña): lo dice, en palabras de pedido.
+    await page.evaluate(() => {
+      for (const g of (window as unknown as Ventana).__grabadas.values()) g.c.entrega.direccion = "Belgrano 55";
+    });
+    await page.getByRole("button", { name: "Reintentar el pedido" }).click();
+    const aviso = alertaEn(page, "El pedido #42 ya se había registrado con $25.000,00 (sin cobrar, María Pérez).");
+    await aviso.waitFor();
+    const texto = (await aviso.textContent()) ?? "";
+    assert.match(texto, /Lo que cambiaste \(Dirección: se grabó «Belgrano 55»; ahora «Av\. Mitre 1234»\) no se registró\./);
+    assert.match(texto, /«Registrar lo que falta como otro pedido»/);
+    assert.match(texto, /Pedidos para preparar/);
+    assert.doesNotMatch(texto, /no se (volvió a )?cobr|cobrar lo que falta/i);
+    assert.equal(await page.getByRole("button", { name: "Revisá el pedido #42" }).isDisabled(), true);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("R3 el servidor no contesta: a los 25 s deja «Cobrando…» y dice que no sabemos; el reintento lleva la misma clave", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, undefined, undefined, { antes: (p) => p.clock.install() });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__colgado = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    const cobrando = page.getByRole("button", { name: "Cobrando…" });
+    await cobrando.waitFor();
+    await page.clock.runFor(TIEMPO_MAXIMO_DEL_COBRO_MS - 1000);
+    assert.equal(await cobrando.count(), 1, "antes del tope sigue esperando");
+    await page.clock.runFor(1000);
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    assert.equal(await cobrando.count(), 0, "ya no queda gris y sin salida");
+    const reintentar = page.getByRole("button", { name: "Reintentar cobro $15.500,00" });
+    assert.equal(await reintentar.isEnabled(), true);
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__colgado = false;
+    });
+    await reintentar.click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const [k1, k2] = await claves(page);
+    assert.equal(k1, k2, "el reintento es la misma venta");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("R4 se corta con cupón y se lo cambia por un 10 % a mano del mismo monto → no es la misma venta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", null);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Descuento" }).click();
+    await page.getByRole("radio", { name: "Cupón" }).click();
+    await page.locator("#descuento-valor").fill("VERANO10");
+    await page.getByRole("button", { name: "Aplicar" }).click();
+    await page.getByText(/Cupón VERANO10/).waitFor();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $11.250,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    await page.getByRole("radio", { name: "%" }).click();
+    await page.locator("#descuento-valor").fill("10");
+    await alertaEn(page, "Cambiaste la venta después del corte.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Revisá la venta cortada" }).isDisabled(), true);
+    assert.equal((await claves(page)).length, 1);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("R5 se corta y se vuelve a Vender (remonta) o se recarga: la duda vuelve con lo cargado y la MISMA clave", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    const quedo = /^Quedó un cobro sin confirmar: \$\s?15\.500,00, de las \d{2}:\d{2}\. No sabemos si la venta se grabó\./;
+    // (a) Volver a entrar a Vender: la pantalla se desmonta y se monta de nuevo.
+    await page.evaluate(() => {
+      document.getElementById("root")!.remove();
+      const d = document.createElement("div");
+      d.id = "root";
+      document.body.appendChild(d);
+      (window as unknown as Ventana).__montar("vender", 10, {});
+    });
+    await alertaEn(page, "Quedó un cobro sin confirmar").waitFor();
+    assert.match((await alertaEn(page, "Quedó un cobro sin confirmar").locator("p").first().textContent()) ?? "", quedo);
+    assert.equal(await page.inputValue("#qty-1"), "1,240");
+    assert.equal(await page.getByRole("radio", { name: "Efectivo" }).getAttribute("aria-checked"), "true");
+    // (b) Recargar la pestaña (o que el celular la descarte y la vuelva a abrir). El "servidor"
+    // falso vive en la página: se lleva lo que tenía grabado.
+    const servidor = await page.evaluate(() => ({
+      grabadas: [...(window as unknown as Ventana).__grabadas.entries()],
+      envios: (window as unknown as Ventana).__envios,
+    }));
+    await page.reload();
+    await page.addScriptTag({ content: bundle });
+    await page.evaluate((srv) => {
+      const w = window as unknown as Ventana;
+      for (const [k, v] of srv.grabadas) w.__grabadas.set(k, v);
+      w.__envios.push(...srv.envios);
+      w.__montar("vender", 10, {});
+    }, servidor);
+    const aviso = alertaEn(page, "Quedó un cobro sin confirmar");
+    await aviso.waitFor();
+    assert.equal(await page.inputValue("#qty-1"), "1,240");
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se cobró dos veces." }).waitFor();
+    const [k1, k2] = await claves(page);
+    assert.equal(k1, k2, "un cobro, una venta: el reintento después de recargar lleva la clave de la cortada");
+    assert.equal(await page.evaluate((k) => sessionStorage.getItem(k), ALMACEN), null, "confirmado, se borra de la pestaña");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("un error del servidor que no es un rechazo de negocio: 'no sabemos', y el reintento con la misma clave lo encuentra", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__sinConfirmar = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $12.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    assert.equal(await alertaEn(page, "La venta no se cobró").count(), 0);
+    await page.getByRole("button", { name: "Reintentar cobro $12.500,00" }).click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se cobró dos veces." }).waitFor();
+    const [k1, k2] = await claves(page);
+    assert.equal(k1, k2);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("tras un rechazo de negocio sin corte, lo corregido viaja con otra clave (con esa no se grabó nada)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("2");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__rechazo = 'Sin stock suficiente de "Vacío" para descontar 2.';
+    });
+    await page.getByRole("button", { name: "Cobrar $25.000,00" }).click();
+    await alertaEn(page, "La venta no se cobró.").waitFor();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__rechazo = undefined;
+    });
+    await page.getByRole("button", { name: "Entendido" }).click();
+    await page.locator("#qty-1").fill("1");
+    await page.getByRole("button", { name: "Cobrar $12.500,00" }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const [k1, k2] = await claves(page);
+    assert.notEqual(k1, k2);
     assert.deepEqual(errores, []);
     await page.close();
   });

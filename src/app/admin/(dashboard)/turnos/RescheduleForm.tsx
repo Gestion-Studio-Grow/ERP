@@ -104,11 +104,13 @@ export default function RescheduleForm({
             reset();
           } catch (err) {
             if (esRedireccionDeNext(err)) throw err;
-            // No volvió respuesta (se cortó la señal o falló el servidor): qué pudo pasar y cómo seguir.
+            // No volvió respuesta (se cortó la señal o falló el servidor): qué pudo pasar y cómo
+            // seguir. Un horario ocupado NO llega acá: vuelve con su motivo en `r.error`. Sin
+            // respuesta no se sabe si el cambio se guardó, así que primero se mira.
             setError(
               mensajeAccionable(
                 err,
-                "No se pudo reprogramar el turno. Puede que ese horario se haya ocupado recién: elegí otro, o recargá la página y probá de nuevo.",
+                "No volvió respuesta al reprogramar el turno. Revisá la conexión y recargá la página: fijate si el turno ya quedó en el horario nuevo antes de volver a intentar.",
               ),
             );
           }

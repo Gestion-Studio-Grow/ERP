@@ -17,12 +17,13 @@
 
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
-import { recordMovement } from "@/lib/stock/ledger";
+import { recordMovement, RechazoDelStock } from "@/lib/stock/ledger";
 import { recordCashSaleMovementInTx, type RecordCashSaleResult } from "@/lib/caja/cash-sale";
 import { round2 } from "@/lib/round";
 import { isUniqueViolation, isColumnMissing } from "@/lib/prisma-errors";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
 import { logger } from "@/lib/logger";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
 import { createReceivable } from "@/lib/debts/receivable-service";
 import { audit } from "@/lib/audit-core";
@@ -42,6 +43,8 @@ import {
   CUPON_Y_DESCUENTO,
   CUPON_NO_VALE,
   NOMBRE_LINEA_ENVIO,
+  whereCuponDelPedido,
+  leerCuponDelPedido,
   type CuponDelPedido,
   type LineaAMano,
   type PedidoDeDescuento,
@@ -98,13 +101,20 @@ export type InsertedOrder = {
   envio?: number;
   /** Código del cupón que se aplicó (y consumió un uso), si hubo. */
   cupon?: string | null;
+  /**
+   * Sólo con `dedup`: lo que pidió ESTE envío, ya decidido por el alta (líneas con los precios
+   * de la base, descuento, total, medio, cliente con su ficha, entrega). El llamador lo compara
+   * con lo grabado (`diferenciasConLoGrabado`, reintento-de-venta.ts): una clave repetida no
+   * prueba que lo que llega sea lo mismo que se grabó.
+   */
+  solicitado?: AltaDecidida & { clientId: string | null };
 };
 
 /**
  * El cupón no se pudo usar (no existe, venció, se agotó). Lo tira el alta DENTRO de la
  * transacción, así que nada se escribe; el mensaje se muestra tal cual.
  */
-export class CuponRechazado extends Error {
+export class CuponRechazado extends RechazoDeDominio {
   /**
    * true = el código sirve, pero otra compra gastó el uso en el mismo instante: probar de nuevo
    * tiene sentido. La tienda muestra este tal cual y cambia los demás por el texto único
@@ -119,7 +129,7 @@ export class CuponRechazado extends Error {
 }
 
 /** Una línea a mano pasó el tope de quien vende. Se tira dentro de la transacción del alta. */
-export class PrecioAManoRechazado extends Error {
+export class PrecioAManoRechazado extends RechazoDeDominio {
   constructor(mensaje: string) {
     super(mensaje);
     this.name = "PrecioAManoRechazado";
@@ -328,18 +338,18 @@ export function decidirAlta(p: {
   const lines = buildOrderLines(p.products, pedidasValidas(p.input.items));
   const aMano = p.input.lineasAMano ?? [];
   if (lines.length === 0 && aMano.length === 0) {
-    throw new Error("Ninguno de los productos elegidos tiene precio de venta cargado.");
+    throw new RechazoDeDominio("Ninguno de los productos elegidos tiene precio de venta cargado.");
   }
   // Lo que se compra: las líneas con producto (precio de la base) más las de precio a mano.
   const productos = round2(orderSubtotal(lines) + aMano.reduce((s, l) => s + l.importe, 0));
   const cupon = normalizarCodigoDeCupon(p.opts?.cupon) || null;
-  if (cupon && p.opts?.descuento?.pedido) throw new Error(CUPON_Y_DESCUENTO);
+  if (cupon && p.opts?.descuento?.pedido) throw new RechazoDeDominio(CUPON_Y_DESCUENTO);
   const desc = aplicarDescuento({
     subtotal: productos,
     pedido: p.opts?.descuento?.pedido ?? null,
     topePct: p.opts?.descuento?.topePct ?? null,
   });
-  if (!desc.ok) throw new Error(desc.error);
+  if (!desc.ok) throw new RechazoDeDominio(desc.error);
   const envio = p.opts?.envio ? round2(shippingCost(productos, p.input.fulfillment, p.opts.envio)) : 0;
   const subtotal = round2(productos + envio);
   return {
@@ -463,12 +473,12 @@ export async function insertOrder(
   opts?: InsertOrderOpts,
 ): Promise<InsertedOrder> {
   if (input.fulfillment === "DELIVERY" && !input.address) {
-    throw new Error("Para envío a domicilio hace falta la dirección.");
+    throw new RechazoDeDominio("Para envío a domicilio hace falta la dirección.");
   }
 
   const wanted = pedidasValidas(input.items);
   if (wanted.length === 0 && (input.lineasAMano ?? []).length === 0) {
-    throw new Error("Agregá al menos un producto con cantidad al pedido.");
+    throw new RechazoDeDominio("Agregá al menos un producto con cantidad al pedido.");
   }
 
   const products = wanted.length
@@ -484,7 +494,7 @@ export async function insertOrder(
   const clientId = await clienteDelTelefono(tenantId, input.customerPhone);
   // "A cuenta" es la deuda de ALGUIEN: sin ficha no hay a quién cobrarle después.
   if (alta.aCuenta && !clientId) {
-    throw new Error(
+    throw new RechazoDeDominio(
       "Para dejar la venta a cuenta, el cliente tiene que tener ficha: buscalo por su teléfono " +
         "(o dalo de alta en Clientes) y volvé a intentar.",
     );
@@ -564,7 +574,9 @@ export async function insertOrder(
         };
       }, { tenantId }),
   });
-  if (r.dedup) return r;
+  // Reintento con una clave ya grabada: no se grabó nada; se devuelve la grabada JUNTO con lo
+  // que pidió este envío, para que el llamador vea si es lo mismo.
+  if (r.dedup) return { ...r, solicitado: { ...alta, clientId } };
   return {
     ...r,
     descuento: r.descuento ?? alta.descuento,
@@ -845,11 +857,71 @@ export function pedidoConClave(tenantId: string, key: string): Promise<InsertedO
 }
 
 /**
- * ¿Es un rechazo de negocio del alta (un `Error` pelado con un texto para la persona) y no un
- * error de la base? Los de Prisma son subclases con su código: ésos no se muestran.
+ * ¿Es un rechazo de negocio del alta (un `RechazoDeDominio`, o un `Error` pelado con un texto
+ * para la persona) y no un error de la base? Los de Prisma son subclases con su código: ésos no
+ * se muestran. Lo usa la tienda, que igual no dice nada que no quiera decir (reglas-tienda.ts).
  */
 export function esRechazoDelAlta(err: unknown): err is Error {
+  if (err instanceof RechazoDeDominio || err instanceof RechazoDelStock) return Boolean(err.message.trim());
   return err instanceof Error && Object.getPrototypeOf(err) === Error.prototype && Boolean(err.message);
+}
+
+/**
+ * El motivo de un alta del MOSTRADOR que no se hizo, o `null` si no se sabe si se hizo. PURA.
+ *
+ * Es la diferencia entre "la venta no se cobró" y "no sabemos si se grabó", y por eso es más
+ * estricta que `esRechazoDelAlta`: SÓLO un `RechazoDeDominio` (y sus hijos: `CuponRechazado`,
+ * `PrecioAManoRechazado`) o un `RechazoDelStock` (el ledger) prueba que no se grabó nada,
+ * porque lo tira el código del alta antes de escribir o DENTRO de su transacción, que se
+ * deshace entera. Cualquier otra cosa —un error de Prisma, la conexión que se cae, la
+ * transacción que falla AL CONFIRMARSE, un `Error` pelado de una librería o del driver
+ * ("Connection terminated unexpectedly" de `pg` es un `Error` pelado)— puede haber pasado
+ * después del commit: decir "no se cobró" ahí invita a cobrar dos veces.
+ */
+export function motivoDelRechazoDelAlta(err: unknown): string | null {
+  if (!(err instanceof RechazoDeDominio) && !(err instanceof RechazoDelStock)) return null;
+  return err.message.trim() || "No se pudo registrar: revisá lo cargado.";
+}
+
+/**
+ * El pedido grabado con todo lo que compara un reintento (`diferenciasConLoGrabado`) y lo que
+ * muestra su ticket (`ventaDeOrden`). El cupón sale de la fila que el alta escribe en su MISMA
+ * transacción (`registrarCuponDelPedidoEnTx`): si el pedido existe, su cupón está escrito.
+ * No es una action (order-core no es "use server"): recibe el `tenantId` ya resuelto.
+ */
+export async function leerVentaGrabada(tenantId: string, id: string) {
+  const [o, filaCupon] = await Promise.all([
+    prisma.order.findFirst({
+      where: { id, tenantId },
+      select: {
+        id: true,
+        code: true,
+        createdAt: true,
+        status: true,
+        channel: true,
+        fulfillment: true,
+        customerName: true,
+        customerPhone: true,
+        clientId: true,
+        address: true,
+        scheduledFor: true,
+        notes: true,
+        subtotal: true,
+        discount: true,
+        total: true,
+        paid: true,
+        paymentMethod: true,
+        items: {
+          select: { productId: true, name: true, saleUnit: true, quantity: true, unitPrice: true, lineTotal: true },
+          orderBy: { id: "asc" },
+        },
+      },
+    }),
+    prisma.auditLog.findFirst({ where: whereCuponDelPedido(tenantId, id), select: { changes: true } }),
+  ]);
+  if (!o) return null;
+  const reglaDelCupon = leerCuponDelPedido(filaCupon?.changes);
+  return { ...o, cupon: reglaDelCupon?.codigo ?? null, reglaDelCupon };
 }
 
 export type ResultadoPedidoOnline =

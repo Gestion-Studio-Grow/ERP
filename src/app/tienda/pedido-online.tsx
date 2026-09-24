@@ -98,9 +98,17 @@ export type PedidoOnline = ReturnType<typeof usePedidoOnline>;
  * El cupón (tienda y mostrador): lo que se escribió, la vista previa del descuento sobre la bolsa de
  * AHORA (se recalcula con `montoDeCupon` si la bolsa cambia) y el error, si lo hay.
  */
-export function useCuponDePedido(base: number) {
-  const [codigo, setCodigo] = useState("");
-  const [aplicado, setAplicado] = useState<{ codigo: string; tipo: string; valor: number } | null>(null);
+export function useCuponDePedido(
+  base: number,
+  /**
+   * Con qué arranca: lo usa Vender para volver a mostrar igual un cobro que quedó sin confirmar
+   * antes de recargar. Es sólo la vista previa: el alta lo vuelve a decidir (y el reintento lo
+   * compara con lo grabado).
+   */
+  inicial?: { codigo: string; aplicado: { codigo: string; tipo: string; valor: number } | null },
+) {
+  const [codigo, setCodigo] = useState(inicial?.codigo ?? "");
+  const [aplicado, setAplicado] = useState<{ codigo: string; tipo: string; valor: number } | null>(inicial?.aplicado ?? null);
   const [error, setError] = useState<string | null>(null);
   const [probando, setProbando] = useState(false);
 

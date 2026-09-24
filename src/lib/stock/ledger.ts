@@ -112,6 +112,22 @@ export function llevaCostoEstampado(delta: number, unitCost: number | null | und
   return delta < 0 && (unitCost === null || unitCost === undefined);
 }
 
+/**
+ * Un movimiento que el ledger NO aplica (no alcanza el stock, cantidad cero, el producto ya no
+ * está). Lo tira ANTES de escribir su fila y dentro de la transacción del llamador, que se
+ * deshace entera: prueba que no quedó nada grabado. Por eso es una clase propia y no un `Error`
+ * pelado: el alta del mostrador (`motivoDelRechazoDelAlta`, order-core.ts) sólo dice "no se
+ * cobró" ante un rechazo así; ante cualquier otro error dice que no se sabe. No hereda de
+ * `RechazoDeDominio` porque ése arrastra el logger del servidor y este archivo lo importa un
+ * client component (ver la cabecera).
+ */
+export class RechazoDelStock extends Error {
+  constructor(mensaje: string) {
+    super(mensaje);
+    this.name = "RechazoDelStock";
+  }
+}
+
 // Aplica un movimiento de stock DENTRO de la transacción del llamador y registra la
 // fila del ledger. Devuelve el `balanceAfter` (stock resultante).
 //
@@ -128,7 +144,7 @@ export function llevaCostoEstampado(delta: number, unitCost: number | null | und
 export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Promise<number> {
   const delta = signedDelta(args.type, args.qty);
   if (delta === 0) {
-    throw new Error("El movimiento de stock no puede ser de cantidad cero.");
+    throw new RechazoDelStock("El movimiento de stock no puede ser de cantidad cero.");
   }
 
   if (delta < 0 && !args.allowNegative) {
@@ -137,7 +153,7 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
       data: { stock: { increment: delta } },
     });
     if (res.count === 0) {
-      throw new Error(
+      throw new RechazoDelStock(
         `Sin stock suficiente${args.label ? ` de "${args.label}"` : ""} para descontar ${Math.abs(delta)}.`,
       );
     }
@@ -147,7 +163,7 @@ export async function recordMovement(tx: LedgerTx, args: RecordMovementArgs): Pr
       data: { stock: { increment: delta } },
     });
     if (res.count === 0) {
-      throw new Error("No se encontró el producto para registrar el movimiento de stock.");
+      throw new RechazoDelStock("No se encontró el producto para registrar el movimiento de stock.");
     }
   }
 

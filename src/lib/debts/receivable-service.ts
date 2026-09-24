@@ -13,6 +13,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { round2 } from "@/lib/round";
 import { aplicarConAsientoInTx, applyCollectionInTx } from "@/lib/settlement/collection-repo";
@@ -42,7 +43,7 @@ export async function createReceivable(
   input: CreateReceivableInput,
 ) {
   const amount = round2(input.amount);
-  if (!(amount > 0)) throw new Error("El monto del fiado debe ser mayor a 0.");
+  if (!(amount > 0)) throw new RechazoDeDominio("El monto del fiado debe ser mayor a 0.");
   const r = await tx.accountReceivable.create({
     data: {
       tenantId,
