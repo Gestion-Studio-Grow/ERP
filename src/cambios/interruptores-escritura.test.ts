@@ -163,7 +163,8 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
   const { planFijarAsignacion, vistaPreviaDeCambio, motivoSiPierdeAppsConInicio } = await import(
     "@/app/operador/(console)/tenants/[id]/apps-del-negocio"
   );
-  const { bloquearAppsDelNegocio, escribirModulosConCandado, leerNegocioParaActivar, CANDADO_OCUPADO } = await import(
+  const { CANDADO_OCUPADO } = await import("@/lib/operador/corte-de-transaccion");
+  const { bloquearAppsDelNegocio, escribirModulosConCandado, leerNegocioParaActivar } = await import(
     "@/app/operador/(console)/tenants/[id]/negocio.server"
   );
   const { trabajaPorApps, CAMBIO_MIENTRAS_MIRABAS } = await import("./interruptores-core");

@@ -30,16 +30,22 @@ import {
 } from "@/lib/provisioning/console-input";
 import type { ProvisionPlan, ProvisionOutcome } from "@/lib/provisioning/types";
 
+/**
+ * El plan de un alta que este operador no puede hacer (el slug es de CH y no es el dueño): el mismo
+ * dry-run, marcado con la colisión y el motivo, para que el wizard lo muestre y no deje confirmar.
+ */
+async function planRechazado(raw: RawWizardForm, motivo: string): Promise<ProvisionPlan> {
+  const base = await planProvision(buildProvisionInput(raw, "dry-run"), operatorPlanDeps());
+  return { ...base, ok: false, collisions: [...base.collisions, { kind: "slug-taken", message: motivo }] };
+}
+
 /** DRY-RUN obligatorio: arma el plan para el preview en vivo del wizard. Idempotente, no escribe. */
 export async function planTenantAction(raw: RawWizardForm): Promise<ProvisionPlan> {
   const g = await operadorParaNegocio({ slug: String(raw.slug ?? "") });
+  if (!g.ok) return planRechazado(raw, g.motivo);
   const actor = g.sesion.nombre;
   const input = buildProvisionInput(raw, "dry-run");
-  const planBase = await planProvision(input, operatorPlanDeps());
-  // Un alta sobre el slug de CH sólo la puede intentar el dueño: el plan lo dice y no deja confirmar.
-  const plan: ProvisionPlan = g.ok
-    ? planBase
-    : { ...planBase, ok: false, collisions: [...planBase.collisions, { kind: "slug-taken", message: g.motivo }] };
+  const plan = await planProvision(input, operatorPlanDeps());
   logger.info("operator.provisioning", "dry-run", {
     actor,
     slug: input.slug,

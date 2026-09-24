@@ -79,8 +79,8 @@ function toHex(buffer: ArrayBuffer) {
  *      llavero del negocio (antes el fallback valía también en producción).
  *   2. La firma lleva un prefijo de dominio (`FIRMA_DOMINIO`): aunque los dos secretos fueran el
  *      mismo, una firma de sesión de negocio no sirve como firma del operador.
- *   3. `readOperatorToken` exige un payload de operador (`op|<nombre>|<emitido>`) con un nombre
- *      habilitado y dentro de las 8 h: un id de usuario de un negocio nunca tiene esa forma.
+ *   3. `leerSesionOperador` exige un payload de operador (`op|<rol>|<nombre>|<emitido>`) vigente
+ *      para su rol y dentro de las 8 h: un id de usuario de un negocio nunca tiene esa forma.
  */
 function operatorSecret(): string {
   const propio = process.env.OPERATOR_SECRET;

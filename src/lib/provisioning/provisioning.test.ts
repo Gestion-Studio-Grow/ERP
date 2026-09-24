@@ -230,3 +230,12 @@ test("saga: fallo del commit transaccional → propaga y no compensa (no hubo sa
   assert.equal((deps.host as NoopHostBinder).bound.length, 0);
   assert.equal((deps.host as NoopHostBinder).unbound.length, 0);
 });
+
+test("subdominio de la ficha: minúsculas, mismo formato que el alta, vacío = borrarlo", async () => {
+  const { leerSubdominio } = await import("./slug");
+  assert.deepEqual(leerSubdominio("  Magra-Lomas "), { ok: true, subdominio: "magra-lomas" });
+  assert.deepEqual(leerSubdominio("   "), { ok: true, subdominio: null });
+  for (const malo of ["magra.lomas", "magra lomas", "-magra", "magra-", "ma--gra", "mágra", "a".repeat(64)]) {
+    assert.equal(leerSubdominio(malo).ok, false, malo);
+  }
+});

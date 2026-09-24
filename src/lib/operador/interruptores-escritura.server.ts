@@ -3,7 +3,8 @@
 // ============================================================================
 //
 // La única escritura de entity "Interruptor" del código de la app. La llama SÓLO la action de la
-// consola (src/lib/operador/interruptores-actions.ts), después de `requireOperator()`: el trinquete
+// consola (src/lib/operador/interruptores-actions.ts), después de `requireOperadorParaNegocio` (sesión
+// de operador + candado de CH): el trinquete
 // de src/cambios/interruptores-escritura.test.ts falla si otro archivo escribe esa entidad o
 // importa este módulo.
 //
@@ -20,12 +21,11 @@ import { catalogo } from "@/modules/catalog";
 import { mismoConjunto } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import {
   bloquearAppsDelNegocio,
-  CANDADO_OCUPADO,
-  esCandadoOcupado,
   leerInterruptoresDe,
   leerNegocioParaActivar,
   opcionesDeTransaccionConCandado,
 } from "@/app/operador/(console)/tenants/[id]/negocio.server";
+import { motivoDeCorte } from "@/lib/operador/corte-de-transaccion";
 import { estadoDesdeFilas, filtroDeFilasValidas, type DepsDeCambio } from "@/cambios/interruptores-core";
 
 export function depsDeCambioReales(): DepsDeCambio {
@@ -57,8 +57,9 @@ export function depsDeCambioReales(): DepsDeCambio {
           return true;
         }, opcionesDeTransaccionConCandado());
       } catch (e) {
-        // Si el candado no se pudo tomar a tiempo, un motivo legible en vez del error crudo.
-        if (esCandadoOcupado(e)) return { motivo: CANDADO_OCUPADO };
+        // Candado ocupado o base que no respondió: un motivo legible (distinto) en vez del error crudo.
+        const motivo = motivoDeCorte(e);
+        if (motivo) return { motivo };
         throw e;
       }
     },

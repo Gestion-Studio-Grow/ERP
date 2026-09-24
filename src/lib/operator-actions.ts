@@ -3,7 +3,10 @@
 // Server Actions del PLANO DE OPERADOR (control-plane, ADR-021). Todas:
 //  - corren sobre `operatorPrisma` (conexión separada, cross-tenant), NUNCA sobre el
 //    prisma de la app del tenant ni por `getCurrentTenantId()` (que es fail-closed).
-//  - están guardadas por `requireOperator()` (sesión de operador, plano separado).
+//  - las que reciben o afectan un negocio pasan PRIMERO por `requireOperadorParaNegocio` /
+//    `operadorParaNegocio` (src/lib/operador/guardia-negocio.ts): sesión de operador y candado de
+//    CH (sólo el dueño). Lo exige el trinquete de guardia-negocio.test.ts. Sólo el login, el logout
+//    y el reset masivo deshabilitado quedan afuera, con su motivo.
 // El alta de negocios vive en operator-provisioning-actions.ts (el wizard de /operador/alta, que
 // envuelve la saga de ADR-074). La acción vieja de alta que vivía acá se borró en la tanda 2b:
 // no tenía llamadores y escribía módulos sin el candado de CH ni la validación de
@@ -23,6 +26,7 @@ import {
   verificarOperador,
 } from "@/lib/operator-auth";
 import { isModuleId } from "@/lib/operator-config";
+import { leerSubdominio } from "@/lib/provisioning/slug";
 import { requestIp } from "@/lib/audit-core";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
@@ -158,12 +162,17 @@ export async function setTenantBranding(formData: FormData) {
 
 export async function setTenantSubdomain(formData: FormData) {
   const tenantId = String(formData.get("tenantId") || "");
-  const subdomain = String(formData.get("subdomain") || "").trim() || null;
+  const crudo = String(formData.get("subdomain") || "");
   const { nombre: op } = await requireOperadorParaNegocio({ id: tenantId });
-  // Subdominio único: si choca, devolvemos error legible en vez de romper.
+  // En minúsculas y con el mismo formato que el alta: un host no distingue mayúsculas, y "Magra" y
+  // "magra" no pueden ser dos negocios distintos.
+  const leido = leerSubdominio(crudo);
+  if (!leido.ok) redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(leido.motivo)}`);
+  const subdomain = leido.subdominio;
+  // Subdominio único, sin distinguir mayúsculas (puede haber filas viejas cargadas con mayúsculas).
   if (subdomain) {
     const clash = await operatorPrisma.tenant.findFirst({
-      where: { subdomain, id: { not: tenantId } },
+      where: { subdomain: { equals: subdomain, mode: "insensitive" }, id: { not: tenantId } },
       select: { id: true },
     });
     if (clash) {
@@ -388,7 +397,7 @@ export async function cargarCredencialFiscal(formData: FormData) {
 //  4) audita quién/a-quién/cuándo, SIN el valor.
 // Devuelve el claro UNA vez para que la ficha lo muestre con revelado único (BootstrapReveal):
 // no va por la URL ni queda en ningún lado. Si se pierde, se resetea de nuevo.
-// Guardada por `requireOperator()` como el resto del control-plane.
+// Guardada por `operadorParaNegocio` (sesión de operador + candado de CH): en CH sólo el dueño.
 // PORT armado sobre el control-plane (operatorPrisma, cross-tenant / BYPASSRLS). El núcleo
 // (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un doble en memoria.
 function operatorResetPort(): OwnerResetPort {
@@ -618,7 +627,9 @@ export async function fijarAsignacionActual(formData: FormData) {
       appsQueNoSeRecuperan: plan.noSeRecuperan.map((x) => x.app.id),
     },
   });
-  if (guardado.tipo !== "ok") volverAApps(tenantId, { error: CAMBIO_MIENTRAS_EDITABAS });
+  if (guardado.tipo === "cambio") volverAApps(tenantId, { error: CAMBIO_MIENTRAS_EDITABAS });
+  // El candado del negocio ocupado (u otro rechazo): su motivo, igual que en toggleTenantModule.
+  if (guardado.tipo === "rechazado") volverAApps(tenantId, { error: guardado.motivo });
 
   revalidatePath(`/operador/tenants/${tenantId}`);
   revalidatePath("/operador");

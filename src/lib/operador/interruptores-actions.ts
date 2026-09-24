@@ -6,15 +6,15 @@
 //
 // Server Action del plano de operador (ADR-021). Publica UN solo endpoint, `cambiarInterruptor`,
 // que recibe el formulario de la ficha. El operador sale de `requireOperadorParaNegocio` (la cookie
-// firmada con su nombre y su rol; en CH, sólo el dueño), nunca del formulario. Todo lo demás se decide de nuevo con la base fresca en
-// `cambiarInterruptorCon` (src/cambios/interruptores-core.ts):
+// firmada con su nombre y su rol; en CH, sólo el dueño), nunca del formulario. Todo lo demás se
+// decide de nuevo con la base fresca en `cambiarInterruptorCon` (src/cambios/interruptores-core.ts):
 //   · relee el estado y los módulos, y los compara con lo que vio el operador;
 //   · recalcula la vista previa y exige 0 apps perdidas para prender;
-//   · en CH (REQUIEREN_OK_DEL_DUENIO) sólo el operador dueño, escribiendo el slug.
-// La escritura es UNA fila de AuditLog, condicional (interruptores-escritura.server.ts): dentro de
-// la transacción se vuelve a mirar que los módulos y el interruptor sigan como se leyeron. Sin lock
-// ni ventana de horas (simplificación decidida): dos operadores que prenden a la vez dejan dos
-// filas iguales, que es inofensivo.
+//   · en CH (REQUIEREN_OK_DEL_DUENIO) sólo el operador dueño (rol firmado), escribiendo el slug.
+// La escritura es UNA fila de AuditLog, condicional (interruptores-escritura.server.ts): toma el
+// candado de las apps del negocio (el mismo que la escritura de módulos, con espera acotada) y dentro
+// de la transacción vuelve a mirar que los módulos y el interruptor sigan como se leyeron. Sin
+// ventana de horas entre cambios (simplificación decidida).
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";

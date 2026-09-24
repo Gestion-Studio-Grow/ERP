@@ -23,6 +23,23 @@ export function isValidHost(subdomain: string): boolean {
   return HOST_RE.test(subdomain);
 }
 
+/**
+ * El subdominio que carga el operador en la ficha de un negocio: sin espacios, en minúsculas y con
+ * el mismo formato que exige el alta (`isValidHost`), hasta 63 caracteres (una etiqueta DNS). Vacío
+ * = borrarlo (`null`). Un valor inválido vuelve con el motivo: no se corrige en silencio.
+ */
+export function leerSubdominio(raw: string): { ok: true; subdominio: string | null } | { ok: false; motivo: string } {
+  const v = raw.trim().toLowerCase();
+  if (v === "") return { ok: true, subdominio: null };
+  if (v.length > 63 || !isValidHost(v)) {
+    return {
+      ok: false,
+      motivo: `"${raw.trim()}" no es un subdominio válido: van letras minúsculas, números y guiones simples (sin puntos ni espacios, hasta 63).`,
+    };
+  }
+  return { ok: true, subdominio: v };
+}
+
 export function isValidEmail(email: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
 }
