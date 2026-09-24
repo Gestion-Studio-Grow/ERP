@@ -23,7 +23,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
-import { aprobarRevisionEnTx } from "@/lib/emision-cola";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import {
@@ -111,12 +110,6 @@ export interface DetalleImportacion extends ImportacionVista {
 }
 
 export type ResultadoSimple = { ok: true } | { ok: false; error: string };
-
-/**
- * Lo que contesta aprobar un ítem de la cola. `yaFacturada`: la venta detrás del cobro ya tenía
- * su factura; NO se va a emitir la suelta y el ítem quedó no facturable con este motivo.
- */
-export type ResultadoRevision = { ok: true; yaFacturada?: string } | { ok: false; error: string };
 
 // ── Helpers internos (no exportados: "use server" solo exporta async actions) ─
 
@@ -422,31 +415,33 @@ export async function detalleImportacionAction(
 export async function completarRevisionAction(
   movimientoId: string,
   datos: DatosRevision,
-): Promise<ResultadoRevision> {
+): Promise<ResultadoSimple> {
   await requireCapability("billing:manage");
   const tenantId = await getCurrentTenantId();
 
   const validacion = validarDatosRevision(datos);
   if (!validacion.ok) return { ok: false, error: validacion.error };
 
-  // Antes de aprobar se vuelve a mirar la venta detrás del cobro (emision-cola.ts): si el turno o
-  // el pedido se facturó por su camino mientras esto esperaba, NO pasa a emitirse — queda no
-  // facturable con el motivo, y se le dice a la persona.
   const res = await tenantTransaction(
     (tx) =>
-      aprobarRevisionEnTx(tx, tenantId, movimientoId, {
-        docTipo: datos.docTipo,
-        docNro: validacion.docNro,
-        nombreReceptor: datos.nombreReceptor?.trim() || null,
-        descripcionServicio: datos.descripcionServicio?.trim() || null,
+      tx.movimientoImportado.updateMany({
+        where: { id: movimientoId, tenantId, estadoPropuesta: "revision" },
+        data: {
+          docTipo: datos.docTipo,
+          docNro: validacion.docNro,
+          nombreReceptor: datos.nombreReceptor?.trim() || null,
+          descripcionServicio: datos.descripcionServicio?.trim() || null,
+          estadoPropuesta: "auto",
+          motivoRevision: null,
+        },
       }),
     { tenantId },
   );
-  if (res.tipo === "no-esta-en-revision") {
+  if (res.count === 0) {
     return { ok: false, error: "El movimiento no está en revisión (o no existe)." };
   }
   revalidatePath(FACTURACION_PATH);
-  return res.tipo === "ya-facturada" ? { ok: true, yaFacturada: res.motivo } : { ok: true };
+  return { ok: true };
 }
 
 /**

@@ -12,12 +12,6 @@
 import { CriterioBusqueda, MercadoPagoClient, PagoMP } from "./port";
 import { ClasificadorPort } from "./classifier";
 import { ReconciliacionPort } from "./reconciliation";
-import {
-  normalizarReferencia,
-  ventaDeReferencia,
-  type ResolverReferencias,
-  type VentaDeReferencia,
-} from "./core-contract";
 
 /** Factura un pago MP y devuelve el `invoiceId` (o null si no se pudo). */
 export type FacturarPagoMP = (pago: PagoMP, tenantId: string) => Promise<string | null>;
@@ -41,12 +35,6 @@ export interface IngestaDeps {
   clasificador: ClasificadorPort;
   reconciliacion: ReconciliacionPort;
   facturar: FacturarPagoMP;
-  /**
-   * Resuelve las `external_reference` contra los turnos y pedidos del negocio (el Core,
-   * mercadopago-referencias.ts). Sin él, un pago CON referencia no se factura ni se descarta
-   * solo: va a revisión (classifier.ts, paso 0). Los pagos sin referencia no lo necesitan.
-   */
-  resolverReferencias?: ResolverReferencias;
   /** Tope de reintentos de un error transitorio antes de escalar a REVISAR. */
   maxIntentos?: number;
 }
@@ -63,40 +51,19 @@ export interface ResumenIngesta {
 
 const MAX_INTENTOS_DEFAULT = 3;
 
-/**
- * Resuelve de una vez las referencias de un lote de pagos (una página del sincronizado, o el
- * único pago del aviso). Sin resolutor o sin referencias, no consulta nada.
- */
-export async function resolverLote(
-  pagos: readonly PagoMP[],
-  deps: Pick<IngestaDeps, "tenantId" | "resolverReferencias">,
-): Promise<ReadonlyMap<string, VentaDeReferencia> | undefined> {
-  if (!deps.resolverReferencias) return undefined;
-  const refs = [...new Set(pagos.map((p) => normalizarReferencia(p.externalReference)).filter(Boolean))];
-  if (refs.length === 0) return new Map();
-  return deps.resolverReferencias(deps.tenantId, refs);
-}
-
-/**
- * Procesa un único pago (usado por el webhook y por el backfill). Idempotente.
- * `resueltas`: las referencias del lote ya resueltas (el sincronizado las pasa por página); sin
- * ellas, se resuelve la de este pago sola.
- */
+/** Procesa un único pago (usado por el webhook y por el backfill). Idempotente. */
 export async function facturarPagoSiCorresponde(
   pago: PagoMP,
   deps: IngestaDeps,
   resumen: ResumenIngesta,
-  resueltas?: ReadonlyMap<string, VentaDeReferencia>,
 ): Promise<void> {
   if (await deps.reconciliacion.yaProcesado(pago.id)) {
     resumen.saltados++;
     return;
   }
 
-  // Clasificación (§12.1): entre ingesta y facturación. No se factura a ciegas. La venta detrás
-  // de la referencia se resuelve antes: el clasificador es puro y no va a la base.
-  const venta = ventaDeReferencia(pago.externalReference, resueltas ?? (await resolverLote([pago], deps)));
-  const { clasificacion, motivo } = await deps.clasificador.clasificar(pago, deps.tenantId, { venta });
+  // Clasificación (§12.1): entre ingesta y facturación. No se factura a ciegas.
+  const { clasificacion, motivo } = await deps.clasificador.clasificar(pago, deps.tenantId);
 
   if (clasificacion === "NO_FACTURABLE") {
     await deps.reconciliacion.marcarNoFacturable(pago.id, motivo);
@@ -168,11 +135,9 @@ export async function sincronizarPagos(
   let cursor = criterio.cursor;
   do {
     const pagina = await deps.client.listPayments({ ...criterio, cursor });
-    // Las referencias de la página, resueltas en un solo viaje a la base (no uno por pago).
-    const resueltas = await resolverLote(pagina.pagos, deps);
     for (const pago of pagina.pagos) {
       resumen.leidos++;
-      await facturarPagoSiCorresponde(pago, deps, resumen, resueltas);
+      await facturarPagoSiCorresponde(pago, deps, resumen);
     }
     cursor = pagina.nextCursor;
   } while (cursor);

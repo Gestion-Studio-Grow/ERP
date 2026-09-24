@@ -19,11 +19,11 @@
  * webhook de MP ya reintenta solo); un fallo persistente escala a REVISAR.
  */
 
+import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { logger } from "@/lib/logger";
 import { gatewayCobrosPara } from "@/lib/pagos-dispatch";
 import { facturarPagoMP } from "@/lib/invoice-from-mp";
-import { resolverReferenciasMP } from "@/lib/mercadopago-referencias";
 import {
   ClasificadorPorReglas,
   AprendizajeEnMemoria,
@@ -35,7 +35,6 @@ import {
   type CriterioBusqueda,
   type PagoMP,
   type ReconciliacionPort,
-  normalizarReferencia,
 } from "@/plugins/mercadopago";
 import {
   configBancosDesdeTenant,
@@ -152,10 +151,7 @@ export class ReconciliacionMovimientosMP implements ReconciliacionPort {
             monto: pago?.monto ?? 0,
             descripcion: pago?.descripcion ?? `Cobro Mercado Pago ${paymentId}`,
             contraparte: pago?.contraparteNombre ?? null,
-            // La `external_reference` del cobro (el turno o pedido detrás, o el texto del link
-            // manual): la cola la relee al aprobar y al emitir (emision-cola.ts) para no sacar la
-            // segunda factura de una venta. Sin referencia, el id del pago, como antes.
-            referencia: normalizarReferencia(pago?.externalReference) || paymentId,
+            referencia: paymentId,
             clasificacion: pago ? clasificacionDesdeOperacion(pago) : "otro",
             estadoPropuesta: estado,
             motivoRevision: extra.motivo ?? null,
@@ -221,8 +217,8 @@ export function clasificadorConReglasDelDueno(
   opts: { umbralIdentificacion: number; capFacturasMes: number; facturasDelMes: () => Promise<number> },
 ): ClasificadorPort {
   return {
-    async clasificar(pago, tenantId, contexto) {
-      const resultado = await base.clasificar(pago, tenantId, contexto);
+    async clasificar(pago, tenantId) {
+      const resultado = await base.clasificar(pago, tenantId);
       if (resultado.clasificacion !== "FACTURABLE") return resultado;
       if (pago.monto >= opts.umbralIdentificacion) {
         return {
@@ -294,9 +290,6 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
     client: await gatewayCobrosPara(tenantId),
     clasificador,
     reconciliacion,
-    // La venta detrás de cada referencia, contra los turnos y pedidos de ESTE negocio: el mismo
-    // resolutor que usa el aviso (mercadopago-dispatch.ts).
-    resolverReferencias: resolverReferenciasMP,
     facturar: async (pago, tid) => {
       const invoiceId = await facturarPagoMP(pago, tid);
       if (invoiceId) facturasMes = (facturasMes ?? 0) + 1;

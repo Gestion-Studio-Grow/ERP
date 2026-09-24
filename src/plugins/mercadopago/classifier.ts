@@ -15,7 +15,6 @@
  */
 
 import { PagoMP, TipoOperacionMP } from "./port";
-import { normalizarReferencia, type VentaDeReferencia } from "./core-contract";
 
 export type Clasificacion = "FACTURABLE" | "NO_FACTURABLE" | "REVISAR";
 
@@ -27,39 +26,8 @@ export interface ResultadoClasificacion {
   aprendido?: boolean;
 }
 
-/**
- * Lo que el pipeline sabe del pago y el clasificador (puro) no puede averiguar solo: la venta de
- * ESTE negocio detrás de la `external_reference`, resuelta ANTES contra la base (ingest.ts, un
- * lote por página). `venta`: la venta; `null` = no hay venta detrás (sin referencia, texto libre,
- * turno inexistente, pedido de otro negocio); ausente = no se resolvió.
- */
-export interface ContextoClasificacion {
-  venta?: VentaDeReferencia | null;
-}
-
 export interface ClasificadorPort {
-  clasificar(pago: PagoMP, tenantId: string, contexto?: ContextoClasificacion): Promise<ResultadoClasificacion>;
-}
-
-/**
- * El paso 0: qué hacer con un cobro que SÍ tiene un turno o un pedido del negocio detrás. PURA.
- *   · con factura → NO_FACTURABLE: la venta ya tiene la suya, una suelta sería la segunda;
- *   · sin factura → REVISAR, NUNCA NO_FACTURABLE (que es terminal y la dejaría sin factura para
- *     siempre): la persona la factura desde su venta o aprueba la factura suelta en la cola.
- * Una factura RECHAZADA por ARCA no cuenta como factura.
- */
-export function decisionPorVenta(venta: VentaDeReferencia): ResultadoClasificacion {
-  const nombre = `${venta.tipo} ${venta.etiqueta}`;
-  if (venta.facturada) {
-    return { clasificacion: "NO_FACTURABLE", motivo: `Ya facturado con el ${nombre}.`, reglaId: "cobro-ya-facturado" };
-  }
-  const desde = venta.tipo === "pedido" ? "desde Ventas del día («Facturar»)" : "desde el turno";
-  const rechazo = venta.facturaRechazada ? " (ARCA rechazó la que tenía)" : "";
-  return {
-    clasificacion: "REVISAR",
-    motivo: `Cobro del ${nombre} sin factura${rechazo}: facturalo ${desde} o aprobá la factura suelta.`,
-    reglaId: "cobro-sin-factura",
-  };
+  clasificar(pago: PagoMP, tenantId: string): Promise<ResultadoClasificacion>;
 }
 
 /** Una regla: si `cuando(pago)` matchea, aplica `clasificacion`. */
@@ -167,8 +135,6 @@ export interface OpcionesClasificador {
 
 /**
  * Clasificador por reglas (v2). Prioridad:
- *   0. Cobro de un turno/pedido de ESTE negocio (`contexto.venta`): con factura → NO_FACTURABLE;
- *      sin factura → REVISAR. Una referencia que no es venta del negocio sigue a las reglas.
  *   1. Aprendizaje (correcciones previas del comercio).
  *   2. Cuentas propias del comercio (config) → NO_FACTURABLE.
  *   3. Reglas extra del comercio, luego las default.
@@ -190,27 +156,7 @@ export class ClasificadorPorReglas implements ClasificadorPort {
     }
   }
 
-  // El negocio no cambia la decisión de las reglas: la firma del puerto lo trae y acá no se usa.
-  async clasificar(pago: PagoMP, _tenantId?: string, contexto?: ContextoClasificacion): Promise<ResultadoClasificacion> {
-    // 0. La referencia del pago. Va ANTES que todo, incluso del aprendizaje: ninguna corrección
-    // ni regla del comercio puede sacar una factura suelta de una venta que ya tiene la suya.
-    //   · sin referencia, o una que NO es un turno/pedido de este negocio (`venta: null`: texto
-    //     libre del link manual, turno inexistente, pedido de otro negocio) → sigue a las reglas,
-    //     como cualquier venta directa;
-    //   · un turno/pedido del negocio → `decisionPorVenta` (facturado: no; sin factura: revisar);
-    //   · una referencia que nadie resolvió → REVISAR: sin saber si hay una venta detrás no se
-    //     factura suelto (podría ser la segunda) ni se descarta (podría ser la única).
-    if (normalizarReferencia(pago.externalReference)) {
-      if (contexto?.venta === undefined) {
-        return {
-          clasificacion: "REVISAR",
-          motivo: "El cobro trae una referencia que no se pudo verificar contra los turnos y pedidos: revisalo antes de facturar.",
-          reglaId: "referencia-sin-verificar",
-        };
-      }
-      if (contexto.venta) return decisionPorVenta(contexto.venta);
-    }
-
+  async clasificar(pago: PagoMP, _tenantId: string): Promise<ResultadoClasificacion> {
     if (this.aprendizaje) {
       const aprendido = await this.aprendizaje.buscar(pago);
       if (aprendido) {

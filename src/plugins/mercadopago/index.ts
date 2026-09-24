@@ -13,16 +13,8 @@ export type {
   FacturarPorPago,
   CobrarPedidoPorPago,
   ResultadoCobroPedido,
-  ResolverReferencias,
-  VentaDeReferencia,
 } from "./core-contract";
-export {
-  referenciaDePedido,
-  pedidoDeReferencia,
-  normalizarReferencia,
-  ventaDeReferencia,
-  PREFIJO_REFERENCIA_PEDIDO,
-} from "./core-contract";
+export { referenciaDePedido, pedidoDeReferencia, PREFIJO_REFERENCIA_PEDIDO } from "./core-contract";
 export {
   type MercadoPagoClient,
   type MercadoPagoConfig,
@@ -66,11 +58,9 @@ export {
 export {
   ClasificadorPorReglas,
   AprendizajeEnMemoria,
-  decisionPorVenta,
   registrarCorreccion,
   REGLAS_DEFAULT,
   type ClasificadorPort,
-  type ContextoClasificacion,
   type Clasificacion,
   type ResultadoClasificacion,
   type ReglaClasificacion,
