@@ -2,6 +2,7 @@
 // usan la página y los tests.
 
 import { round2 } from "@/lib/round";
+import { esVentaACuenta } from "@/lib/venta-reglas";
 import { leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import { fmtMoneyARS } from "@/components/ui/format";
 
@@ -74,15 +75,21 @@ export function notaDeDescuento(o: { subtotal: number; discount: number }, por: 
 
 /**
  * Las ventas A CUENTA de la lista: saldadas contra la cuenta corriente del cliente, sin medio
- * (`paid` y `paymentMethod` vacío). Son ventas —van en la lista y en la cuenta de arriba, igual
- * que en el número del Inicio— pero su plata no entró: se dicen aparte. PURA.
+ * (`esVentaACuenta`). Son ventas —van en la lista— pero su plata no entró: NO van en la cuenta
+ * de "Ventas cobradas" (`ventasCobradasDeVerdad`), igual que en el número de Vender del Inicio,
+ * y se dicen aparte. PURA.
  */
 export function resumenACuenta(ventas: readonly { total: number; paid?: boolean; paymentMethod: string | null }[]): {
   cantidad: number;
   total: number;
 } {
-  const aCuenta = ventas.filter((v) => v.paid !== false && !v.paymentMethod);
+  const aCuenta = ventas.filter((v) => esVentaACuenta(v));
   return { cantidad: aCuenta.length, total: round2(aCuenta.reduce((s, v) => s + v.total, 0)) };
+}
+
+/** Las ventas de la lista que sí se cobraron (con medio): lo que cuenta "Ventas cobradas". PURA. */
+export function ventasCobradasDeVerdad<T extends { paid?: boolean; paymentMethod: string | null }>(ventas: readonly T[]): T[] {
+  return ventas.filter((v) => !esVentaACuenta(v));
 }
 
 /**

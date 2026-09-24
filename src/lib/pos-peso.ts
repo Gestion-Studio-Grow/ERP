@@ -157,6 +157,25 @@ export function cantidadParaFormulario(valor: number): string {
  * que dice 1,300 y la mano que teclea "1300": la venta se cobra $24 millones y nadie lo ve
  * hasta el arqueo. Un paquete al vacío pesa entre 0,2 y 5 kg; media res ronda los 100.
  */
+/**
+ * Los textos de «ajustar un pedido» según lo que tiene. PURA.
+ *
+ * "Pesar y ajustar" es para el pedido que lleva algo POR PESO (se pesa al envasar). En una
+ * tienda que vende sólo por unidad (Shine, A Dos Manos) el mismo botón corrige cantidades:
+ * ofrecer "Pesar" ahí es pedir algo que no existe. El pedido con una sola línea por peso sigue
+ * diciendo "Pesar y ajustar", como siempre.
+ */
+export function textosDelAjuste(lineas: readonly { saleUnit: string; productId?: string | null }[]): {
+  boton: string;
+  titulo: string;
+  guardar: string;
+} {
+  const hayPeso = lineas.some((l) => l.productId !== null && l.saleUnit === "WEIGHT");
+  return hayPeso
+    ? { boton: "Pesar y ajustar", titulo: "Peso real del pedido", guardar: "Guardar peso real" }
+    : { boton: "Ajustar pedido", titulo: "Cantidades del pedido", guardar: "Guardar cantidades" };
+}
+
 export const KG_SOSPECHOSO = 30;
 
 export function avisoDeCantidad(input: {

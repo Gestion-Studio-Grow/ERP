@@ -9,13 +9,13 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auditAdmin, requestIp } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { canCurrentUser, requireCapability } from "@/lib/authz";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { leerImporte } from "@/lib/pos-peso";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { nextDayKey } from "@/lib/caja/cierre-diario";
-import { aplicarCupon, normalizarCodigoDeCupon, CODIGO_CUPON_MAX, type ResultadoCupon } from "@/lib/venta-reglas";
-import { frenoDeCupones, CUPON_FRENADO } from "@/lib/order-core";
+import { aplicarCupon, normalizarCodigoDeCupon, CODIGO_CUPON_MAX, CUPON_NO_VALE } from "@/lib/venta-reglas";
+import { frenoDeCupones, probarCuponPublico, CUPON_FRENADO } from "@/lib/cupones/prueba-publica";
 
 const CATALOG_PATH = "/admin/catalogo";
 const PROMOCIONES_PATH = "/admin/promociones";
@@ -111,17 +111,29 @@ export type CouponCheck =
 // SIN consumir un uso todavía — eso pasa recién al confirmar la reserva
 // (bookAppointment), dentro de la misma transacción que crea el turno, para
 // que dos personas no puedan gastar el último uso del mismo cupón a la vez.
+//
+// Es la reserva PÚBLICA de CH: pasa por el freno y la regla única de cupones/prueba-publica.ts.
+// Lo que ve la clienta, antes → después:
+//   · código inexistente o apagado: "Cupón inválido." → igual;
+//   · código vencido: "Este cupón ya venció." → "Cupón inválido.";
+//   · código agotado: "Este cupón ya alcanzó el máximo de usos." → "Cupón inválido.";
+//   · 10 intentos fallidos en 10 minutos desde la misma IP: antes seguía contestando; ahora
+//     "Probaste muchos códigos seguidos. Esperá unos minutos y volvé a intentar." (`CUPON_FRENADO`).
+// Un cupón válido se aplica igual que antes, con la misma cuenta del descuento.
 export async function checkCoupon(code: string, price: number): Promise<CouponCheck> {
   const tenantId = await getCurrentTenantId();
-  const normalized = code.trim().toUpperCase();
+  const normalized = String(code ?? "").trim().toUpperCase();
   if (!normalized) return { ok: false, reason: "Ingresá un código." };
 
-  const coupon = await prisma.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalized } } });
-  if (!coupon || !coupon.active) return { ok: false, reason: "Cupón inválido." };
-  if (coupon.expiresAt && coupon.expiresAt < new Date()) return { ok: false, reason: "Este cupón ya venció." };
-  if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
-    return { ok: false, reason: "Este cupón ya alcanzó el máximo de usos." };
-  }
+  const prueba = await probarCuponPublico({
+    freno: frenoDeCupones,
+    tenantId,
+    ip: await requestIp(),
+    ahora: new Date(),
+    leer: () => prisma.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalized } } }),
+  });
+  if (!prueba.ok) return { ok: false, reason: prueba.motivo === "frenado" ? CUPON_FRENADO : "Cupón inválido." };
+  const coupon = prueba.cupon;
 
   const discount = coupon.type === "PERCENT" ? Math.round(price * (coupon.value / 100)) : Math.min(coupon.value, price);
   return { ok: true, coupon: { code: coupon.code, type: coupon.type, value: coupon.value }, discount };
@@ -132,30 +144,53 @@ export type VistaPreviaCupon =
   | { ok: false; error: string };
 
 /**
- * «Aplicar» el cupón en el mostrador o en la tienda: cuánto descontaría sobre `base` (lo que se
- * compra, sin el envío), con la MISMA regla que el alta (`aplicarCupon`). No consume un uso:
- * eso pasa al tomar el pedido, en su transacción, y ahí se vuelve a decidir con la base (este
- * número es una vista previa; la `base` la manda el navegador).
+ * «Aplicar» el cupón en la tienda: cuánto descontaría sobre `base` (lo que se compra, sin el
+ * envío), con la MISMA regla que el alta (`aplicarCupon`). No consume un uso: eso pasa al tomar
+ * el pedido, en su transacción, y ahí se vuelve a decidir con la base (este número es una
+ * vista previa; la `base` la manda el navegador).
  *
  * Pública a propósito, como `checkCoupon`: la usa la tienda, sin sesión. Sólo contesta por un
- * código que ya se conoce; no lista cupones. Y con freno: 10 códigos inexistentes en 10 minutos
- * desde la misma IP y deja de contestar hasta que pase la ventana (`frenoDeCupones`).
+ * código que ya se conoce; no lista cupones. Freno y respuesta única: cupones/prueba-publica.ts.
+ *
+ * La usa también Vender (el mostrador, `useCuponDePedido`). Con una sesión del negocio que puede
+ * vender, contesta el motivo real ("venció el 30/09") y no pasa por el freno: la cajera necesita
+ * el motivo para explicárselo al cliente, y sus errores de tipeo no pueden trabar la tienda que
+ * sale por la misma IP del local.
  */
 export async function probarCuponEnPedido(codigo: string, base: number): Promise<VistaPreviaCupon> {
   const tenantId = await getCurrentTenantId();
   const code = normalizarCodigoDeCupon(codigo);
   if (!code) return { ok: false, error: "Escribí el código del cupón." };
-  // El freno de los códigos inexistentes (order-core.ts): va antes de leer, así un código
-  // adivinado después del freno tampoco contesta.
-  const ip = await requestIp();
-  if (frenoDeCupones.frenado(tenantId, ip)) return { ok: false, error: CUPON_FRENADO };
-  const c = await prisma.coupon.findFirst({
-    where: { tenantId, code },
-    select: { code: true, type: true, value: true, active: true, expiresAt: true, maxUses: true, usedCount: true },
+  const baseLeida = Number.isFinite(base) ? base : 0;
+  const leer = () =>
+    prisma.coupon.findFirst({
+      where: { tenantId, code },
+      select: { code: true, type: true, value: true, active: true, expiresAt: true, maxUses: true, usedCount: true },
+    });
+
+  if (await canCurrentUser("orders:manage")) {
+    const c = await leer();
+    const r = aplicarCupon({ cupon: c, base: baseLeida, ahora: new Date() });
+    if (!r.ok || !c) return r.ok ? { ok: false, error: CUPON_NO_VALE } : r;
+    return { ok: true, codigo: r.codigo, tipo: c.type, valor: c.value, descuento: r.descuento };
+  }
+
+  // Sin compra no se lee nada: si no, una bolsa vacía distinguiría un código bueno de uno malo
+  // ("agregá algo" contra "no existe") sin sumar al freno.
+  if (!(baseLeida > 0)) return { ok: false, error: "Agregá algo a la compra antes de usar el cupón." };
+  const prueba = await probarCuponPublico({
+    freno: frenoDeCupones,
+    tenantId,
+    ip: await requestIp(),
+    ahora: new Date(),
+    leer,
   });
-  if (!c) frenoDeCupones.inexistente(tenantId, ip);
-  const r: ResultadoCupon = aplicarCupon({ cupon: c, base: Number.isFinite(base) ? base : 0, ahora: new Date() });
-  if (!r.ok || !c) return r.ok ? { ok: false, error: "Ese cupón no existe o no está activo." } : r;
+  if (!prueba.ok) return { ok: false, error: prueba.motivo === "frenado" ? CUPON_FRENADO : CUPON_NO_VALE };
+  const c = prueba.cupon;
+  const r = aplicarCupon({ cupon: c, base: baseLeida, ahora: new Date() });
+  // Con el cupón usable y la base positiva, `aplicarCupon` no rechaza; si algún día cambia, la
+  // respuesta hacia afuera sigue siendo la única.
+  if (!r.ok) return { ok: false, error: CUPON_NO_VALE };
   // El tipo y el valor van para que la pantalla recalcule la vista previa cuando cambia la bolsa
   // (`montoDeCupon`). El servidor vuelve a decidir todo al tomar el pedido.
   return { ok: true, codigo: r.codigo, tipo: c.type, valor: c.value, descuento: r.descuento };

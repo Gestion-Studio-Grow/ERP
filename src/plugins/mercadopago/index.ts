@@ -14,7 +14,7 @@ export type {
   CobrarPedidoPorPago,
   ResultadoCobroPedido,
 } from "./core-contract";
-export { referenciaDePedido, pedidoDeReferencia, PREFIJO_REFERENCIA_PEDIDO } from "./core-contract";
+export { referenciaDePedido, pedidoDeReferencia, esVentaDirecta, PREFIJO_REFERENCIA_PEDIDO } from "./core-contract";
 export {
   type MercadoPagoClient,
   type MercadoPagoConfig,

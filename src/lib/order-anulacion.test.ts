@@ -19,7 +19,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { Prisma } from "@/generated/prisma/client";
 import {
   anularVentaInTx,
@@ -51,6 +51,8 @@ function nuevoMundo(opts: {
   occurredAt?: Date;
   stock?: number;
   trackStock?: boolean;
+  /** La fila 'cupon-del-pedido' que escribió el alta (sus `changes`), si la venta usó cupón. */
+  cuponDelPedido?: Record<string, unknown>;
 }) {
   const mundo = {
     order: {
@@ -71,6 +73,14 @@ function nuevoMundo(opts: {
     stockMovements: [] as Fila[],
     stock: opts.stock ?? 10,
     ordersUpdated: 0,
+    // Dos cupones con el MISMO código en dos negocios: la devolución no puede cruzar de negocio.
+    cupones: [
+      { id: "cup_1", tenantId: "t1", code: "VERANO10", usedCount: 1 },
+      { id: "cup_otro", tenantId: "t2", code: "VERANO10", usedCount: 1 },
+    ],
+    auditoria: opts.cuponDelPedido
+      ? [{ tenantId: "t1", entity: "Order", action: "cupon-del-pedido", entityId: "ord_1", changes: opts.cuponDelPedido }]
+      : ([] as { tenantId: string; entity: string; action: string; entityId: string; changes: unknown }[]),
   };
   if (opts.conAsiento !== false) {
     mundo.cashMovements.push({
@@ -89,6 +99,33 @@ function nuevoMundo(opts: {
 
 function txDe(mundo: ReturnType<typeof nuevoMundo>): AnulacionVentaTx {
   const tx = {
+    auditLog: {
+      findFirst: async (args: { where: { tenantId: string; entity: string; action: string; entityId: string } }) =>
+        mundo.auditoria.find(
+          (f) =>
+            f.tenantId === args.where.tenantId &&
+            f.entity === args.where.entity &&
+            f.action === args.where.action &&
+            f.entityId === args.where.entityId,
+        ) ?? null,
+    },
+    coupon: {
+      // Lo que hace Postgres con el `where` de la devolución: negocio, id o código, y usedCount > 0.
+      updateMany: async (args: {
+        where: { tenantId: string; id?: string; code?: string; usedCount: { gt: number } };
+        data: { usedCount: { decrement: number } };
+      }) => {
+        const filas = mundo.cupones.filter(
+          (c) =>
+            c.tenantId === args.where.tenantId &&
+            (args.where.id === undefined || c.id === args.where.id) &&
+            (args.where.code === undefined || c.code === args.where.code) &&
+            c.usedCount > args.where.usedCount.gt,
+        );
+        for (const c of filas) c.usedCount -= args.data.usedCount.decrement;
+        return { count: filas.length };
+      },
+    },
     order: {
       findFirst: async () => (mundo.order ? { ...mundo.order } : null),
       // COMPARE-AND-SET: sólo afecta la fila si todavía no está CANCELLED.
@@ -439,3 +476,53 @@ test("sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja"
   );
 });
 
+// ── El cupón de una venta anulada vuelve a quedar disponible ────────────────
+//
+// Antes: un cupón de UN uso gastado en una venta que después se anulaba quedaba agotado para
+// siempre, aunque la venta ya no existiera. Ahora la anulación devuelve el uso en su misma
+// transacción, y anular dos veces no devuelve dos.
+
+test("anular una venta con cupón devuelve el uso a ESE cupón, y anular otra vez no devuelve otro", async () => {
+  const mundo = nuevoMundo({ cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 2343.6, cuponId: "cup_1" } });
+  const tx = txDe(mundo);
+  const r = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  assert.equal(r.applied, true);
+  if (r.applied) assert.equal(r.cuponDevuelto, "VERANO10");
+  assert.equal(mundo.cupones.find((c) => c.id === "cup_1")!.usedCount, 0, "el uso vuelve");
+  assert.equal(mundo.cupones.find((c) => c.id === "cup_otro")!.usedCount, 1, "el del otro negocio no se toca");
+
+  // El doble clic: el compare-and-set del estado frena la segunda y el cupón no baja otra vez.
+  const otra = await anularVentaInTx(tx, "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  assert.deepEqual(otra, { applied: false, reason: "duplicate" });
+  assert.equal(mundo.cupones.find((c) => c.id === "cup_1")!.usedCount, 0);
+});
+
+test("una fila de cupón vieja (sin id) devuelve por código, dentro del negocio y sin bajar de cero", async () => {
+  const mundo = nuevoMundo({ cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 2343.6 } });
+  mundo.cupones[0].usedCount = 0; // la dueña lo reinició a mano
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  assert.equal(r.applied, true);
+  if (r.applied) assert.equal(r.cuponDevuelto, null, "no había uso que devolver");
+  assert.deepEqual(
+    mundo.cupones.map((c) => c.usedCount),
+    [0, 1],
+    "ni negativo en el propio, ni tocar el del otro negocio con el mismo código",
+  );
+});
+
+test("una venta sin cupón se anula igual y no toca ningún cupón", async () => {
+  const mundo = nuevoMundo({});
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  assert.equal(r.applied, true);
+  if (r.applied) assert.equal(r.cuponDevuelto, null);
+  assert.deepEqual(mundo.cupones.map((c) => c.usedCount), [1, 1]);
+});
+
+test("si la anulación no pasa (día cerrado), el cupón tampoco vuelve", async () => {
+  const mundo = nuevoMundo({
+    occurredAt: new Date("2026-09-15T13:00:00Z"),
+    cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 1, cuponId: "cup_1" },
+  });
+  await assert.rejects(() => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: "2026-09-16" }));
+  assert.equal(mundo.cupones[0].usedCount, 1);
+});

@@ -15,6 +15,7 @@
 
 import { esCuentaACobrar, estadoCobroTurno, type CobroTurno, type PagoLegado } from "@/lib/turnos/cobros";
 import { desglosarCobros } from "@/lib/turnos/anulacion";
+import { esVentaACuenta } from "@/lib/venta-reglas";
 
 export type TurnoDeFicha = {
   id: string;
@@ -28,7 +29,15 @@ export type TurnoDeFicha = {
   profesional: string;
 };
 
-export type PedidoDeFicha = { id: string; status: string; createdAt: Date; total: number; paid: boolean };
+export type PedidoDeFicha = {
+  id: string;
+  status: string;
+  createdAt: Date;
+  total: number;
+  paid: boolean;
+  /** Sin medio y `paid`: venta a cuenta (`esVentaACuenta`), vendida pero no cobrada. */
+  paymentMethod: string | null;
+};
 
 export type FiadoDeFicha = { id: string; saldo: number };
 
@@ -84,7 +93,8 @@ export function resumirFicha(input: {
   for (const p of input.pedidos) {
     if (p.status === "CANCELLED") continue;
     if (!ultimaVisita || p.createdAt.getTime() > ultimaVisita.getTime()) ultimaVisita = p.createdAt;
-    if (p.paid && p.createdAt.getTime() >= desdeAnio) gastadoAnio += p.total;
+    // Cobrado = pagado CON un medio. La venta a cuenta (fiado) todavía no es plata que entró.
+    if (p.paid && !esVentaACuenta(p) && p.createdAt.getTime() >= desdeAnio) gastadoAnio += p.total;
   }
   return {
     proximoTurno,

@@ -85,6 +85,8 @@ function mundoDeVenta(opts: { cobradaEl?: Date | null; creadaEl?: Date; ventaApa
 
 function txDe({ m, venta }: ReturnType<typeof mundoDeVenta>, opts: { ventaAparece?: "despues-del-bloqueo" } = {}) {
   const tx = {
+    // Estas ventas no tienen cupón: la anulación busca la fila del cupón y no la encuentra.
+    auditLog: { findFirst: async () => null },
     order: {
       findFirst: async () => ({ ...m.order }),
       updateMany: async (args: { where: { status?: { not?: string } }; data: { status: string } }) => {

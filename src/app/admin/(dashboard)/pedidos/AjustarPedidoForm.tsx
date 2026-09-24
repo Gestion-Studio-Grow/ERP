@@ -1,6 +1,8 @@
 "use client";
 
-// «Pesar y ajustar»: el pedido de la tienda se pesa al envasar y se cobra el peso real.
+// «Pesar y ajustar»: el pedido de la tienda se pesa al envasar y se cobra el peso real. En un
+// pedido sin nada por peso (una tienda que vende por unidad) es «Ajustar pedido»: el mismo
+// formulario corrige cantidades (`textosDelAjuste`, pos-peso.ts).
 //
 // La vidriera le dice al cliente que "el total puede ajustarse al peso real de cada pieza" y
 // hasta ahora no había botón para hacerlo: `updateOrderItems` existía sin pantalla. El pedido
@@ -21,7 +23,7 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateOrderItems } from "@/lib/order-actions";
-import { leerCantidad, cantidadParaFormulario, formatearCantidad, avisoDeCantidad } from "@/lib/pos-peso";
+import { leerCantidad, cantidadParaFormulario, formatearCantidad, avisoDeCantidad, textosDelAjuste } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { round2 } from "@/lib/round";
 import {
@@ -54,7 +56,7 @@ export default function AjustarPedidoForm({
   subtotal: subtotalAntes,
   descuento,
   cupon = null,
-  etiqueta = "Pesar y ajustar",
+  etiqueta,
 }: {
   id: string;
   code: number;
@@ -65,8 +67,10 @@ export default function AjustarPedidoForm({
   descuento: number;
   /** El cupón con el que se tomó el pedido (`leerCuponDelPedido`), o nada si no tuvo. */
   cupon?: CuponDelPedido | null;
+  /** El texto del botón. Sin él, según las líneas: "Pesar y ajustar" sólo si hay algo por peso. */
   etiqueta?: string;
 }) {
+  const rotulos = textosDelAjuste(items);
   const router = useRouter();
   const { showError, showSuccess } = useToast();
   const [abierto, setAbierto] = useState(false);
@@ -133,7 +137,7 @@ export default function AjustarPedidoForm({
         aria-expanded={false}
         className="chip-btn text-xs h-11 sm:h-auto w-full sm:w-auto"
       >
-        {etiqueta}
+        {etiqueta ?? rotulos.boton}
       </button>
     );
   }
@@ -147,7 +151,7 @@ export default function AjustarPedidoForm({
     >
       <input type="hidden" name="id" value={id} />
       <p id={`${uid}-titulo`} className="text-xs font-medium text-strong">
-        Peso real del pedido #{code}
+        {rotulos.titulo} #{code}
       </p>
       {leidas.map((l, i) => {
         const esPeso = l.saleUnit === "WEIGHT";
@@ -218,7 +222,7 @@ export default function AjustarPedidoForm({
           disabled={pending || hayInvalida || sinLineas}
           className="chip-btn text-xs h-11 sm:h-auto disabled:opacity-50"
         >
-          {pending ? "Guardando…" : "Guardar peso real"}
+          {pending ? "Guardando…" : rotulos.guardar}
         </button>
         <button
           type="button"

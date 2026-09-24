@@ -11,7 +11,8 @@ import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
 import { validateBookingContact } from "@/lib/contact-validation";
 import { fichaQueChoca, normalizarTelefono } from "@/lib/clientes/telefono";
-import { fichasDelTelefono } from "@/lib/clientes/ficha-por-telefono";
+import { crearFichaEnTx } from "@/lib/clientes/crear-ficha";
+import { leerMiTurno } from "@/lib/turnos/mi-turno";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { tenantTransaction } from "@/lib/rls";
 import { enInicioPorApps } from "@/app/admin/(dashboard)/inicio/piloto";
@@ -21,12 +22,10 @@ import type { BookingData } from "@/app/(site)/_ch/types";
 
 // Es un endpoint PÚBLICO ("use server" + lo llama la página del turno, sin sesión): quien
 // tenga el link del turno lo puede invocar. Por eso NO trae la ficha de la clienta —notas,
-// email, teléfono—: la página no la necesita y el link se reenvía por WhatsApp.
+// email, teléfono— ni los datos de la profesional (email, teléfono, comisión): sólo lo que la
+// página muestra (`SELECT_MI_TURNO`, turnos/mi-turno.ts), siempre dentro del negocio.
 export async function getMyAppointment(id: string) {
-  return prisma.appointment.findUnique({
-    where: { id },
-    include: { professional: true, service: true, box: true, payment: true, review: true },
-  });
+  return leerMiTurno(prisma, await getCurrentTenantId(), String(id ?? ""));
 }
 
 export async function createReview(formData: FormData) {
@@ -363,28 +362,16 @@ export async function crearFicha(
     if (!birthDate || Number.isNaN(birthDate.getTime())) return { ok: false, error: "La fecha de cumpleaños no es válida." };
   }
 
-  const clave = normalizarTelefono(phone);
-  const fichas = await prisma.client.findMany({ where: { tenantId }, select: { id: true, name: true, phone: true } });
-  const yaExiste = fichasDelTelefono(fichas, phone)[0];
-  if (yaExiste) {
-    return { ok: false, error: `Ese teléfono ya es de la ficha de ${yaExiste.name} (${yaExiste.phone}).`, existenteId: yaExiste.id };
+  // La búsqueda del duplicado, el alta y el atado de pedidos van en UNA transacción con un
+  // candado por número (crear-ficha.ts dice por qué y cómo).
+  const r = await tenantTransaction((tx) =>
+    crearFichaEnTx(tx, tenantId, { name, phone, email: email || null, notes: notes || null, birthDate }),
+  );
+  if (!r.ok) {
+    const e = r.existente;
+    return { ok: false, error: `Ese teléfono ya es de la ficha de ${e.name} (${e.phone}).`, existenteId: e.id };
   }
-
-  // Los pedidos sin ficha con este MISMO número (escrito como sea): pasan a su historial.
-  const sinFicha = await prisma.order.findMany({ where: { tenantId, clientId: null }, select: { id: true, customerPhone: true } });
-  const pedidos = clave ? sinFicha.filter((o) => normalizarTelefono(o.customerPhone) === clave).map((o) => o.id) : [];
-
-  const id = await tenantTransaction(async (tx) => {
-    const creada = await tx.client.create({
-      data: { tenantId, name, phone, email: email || null, notes: notes || null, birthDate },
-      select: { id: true },
-    });
-    // `clientId: null` en el where: si en el medio otra venta ya lo ató a una ficha, no se pisa.
-    if (pedidos.length > 0) {
-      await tx.order.updateMany({ where: { tenantId, id: { in: pedidos }, clientId: null }, data: { clientId: creada.id } });
-    }
-    return creada.id;
-  });
+  const { id, pedidos } = r;
 
   await auditAdmin({ action: "create", entity: "Client", entityId: id, changes: { name, phone, pedidosVinculados: pedidos } });
   revalidatePath("/admin/clientes");

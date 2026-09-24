@@ -26,7 +26,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { SELECT_INGRESOS, costosVigentesDe } from "@/lib/stock/costo";
 import { whereProductosDeStock } from "@/lib/inventory/valuation";
 import type { CondicionLibro } from "@/lib/libros/libro-iva";
-import { vaSinIva } from "./resultado";
+import { alicuotaDeLasVentas, ivaSinAlicuotaConocida } from "./resultado";
 import { leerCondicion } from "./resultado-lectura";
 import {
   computeProductMargins,
@@ -86,6 +86,8 @@ function margenDeProductos(
 export interface MargenDeHoy {
   condicion: CondicionLibro;
   sinIva: boolean;
+  /** Inscripto de mostrador: los precios van con IVA porque no hay alícuota por producto. */
+  ivaIncluidoSinAlicuota: boolean;
   rows: MarginRow[];
   summary: MarginSummary;
   /** Con el precio de lista por debajo del costo: el número del botón del Inicio. */
@@ -98,14 +100,18 @@ export interface MargenDeHoy {
 export async function leerMargenDeHoy(
   db: DbMargen,
   tenantId: string,
-  opts: { costosDelCatalogo?: ReadonlyMap<string, number> } = {},
+  opts: { costosDelCatalogo?: ReadonlyMap<string, number>; comercio?: boolean } = {},
 ): Promise<MargenDeHoy> {
   const [productos, condicion] = await Promise.all([leerProductos(db, tenantId), leerCondicion(db, tenantId)]);
-  const sinIva = vaSinIva(condicion);
+  // La misma regla que el resultado del mes: sin la alícuota de cada producto, un mostrador
+  // inscripto no puede sacar el IVA con un 21% que no es de todo lo que vende.
+  const comercio = { comercio: opts.comercio ?? false };
+  const sinIva = alicuotaDeLasVentas(condicion, comercio) != null;
   const m = margenDeProductos(productos, opts.costosDelCatalogo ?? new Map(), sinIva);
   return {
     condicion,
     sinIva,
+    ivaIncluidoSinAlicuota: ivaSinAlicuotaConocida(condicion, comercio),
     // Lo que se vende a pérdida, primero: es lo que hay que corregir.
     rows: [...m.rows].sort((a, b) => a.marginPct - b.marginPct),
     summary: summarizeMargins(m.rows),

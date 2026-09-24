@@ -122,7 +122,7 @@ export async function cargarFichaCompleta(id: string) {
         OR: [{ clientId: client.id }, { clientId: null, createdAt: { gte: desdeHistorial(ahora) } }],
       },
       orderBy: { createdAt: "desc" },
-      select: { id: true, code: true, createdAt: true, status: true, total: true, paid: true, channel: true, clientId: true, customerPhone: true },
+      select: { id: true, code: true, createdAt: true, status: true, total: true, paid: true, paymentMethod: true, channel: true, clientId: true, customerPhone: true },
     }),
     cargarFiado(tenantId, client.id),
     prisma.auditLog.findMany({
@@ -153,7 +153,7 @@ export async function cargarFichaCompleta(id: string) {
       servicio: t.service.name,
       profesional: t.professional.name,
     })),
-    pedidos: pedidos.map((p) => ({ id: p.id, status: p.status, createdAt: p.createdAt, total: p.total, paid: p.paid })),
+    pedidos: pedidos.map((p) => ({ id: p.id, status: p.status, createdAt: p.createdAt, total: p.total, paid: p.paid, paymentMethod: p.paymentMethod })),
     fiado: fiado ? fiado.map((f) => ({ id: f.id, saldo: f.saldo })) : null,
     ahora,
   });

@@ -144,13 +144,15 @@ test("Pedidos: '3 abiertos' con el where de la bandeja, y los entregados sin cob
   assert.deepEqual(await pedidos(ctx(vacia.db)), { valor: "0", detalle: "abiertos" }, "sin pedidos: 0 real, sin alerta");
 });
 
-test("'Ventas de hoy' cuenta sólo lo cobrado (paid=true), sin anuladas, desde las 00:00 del negocio", async () => {
+test("'Ventas de hoy' cuenta sólo lo cobrado (paid=true CON medio: sin ventas a cuenta), sin anuladas, desde las 00:00 del negocio", async () => {
   const desde = businessWallTimeToUtc("2026-09-23", "00:00");
   const esperado = {
     tenantId: "t-qa",
     paid: true,
     status: { not: "CANCELLED" },
     createdAt: { gte: desde },
+    // La venta a cuenta queda `paid` sin medio: vendida, no cobrada. Antes sumaba acá.
+    paymentMethod: { not: null },
   };
   assert.deepEqual(whereVentasDeHoy("t-qa", desde), esperado);
 

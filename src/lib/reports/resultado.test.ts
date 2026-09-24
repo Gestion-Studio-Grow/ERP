@@ -3,7 +3,16 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularResultado, mesSinMovimiento, netoDeIva, rubroDeCaja, type HechosDelMes, type MovimientoDeCaja } from "./resultado";
+import {
+  alicuotaDeLasVentas,
+  calcularResultado,
+  ivaSinAlicuotaConocida,
+  mesSinMovimiento,
+  netoDeIva,
+  rubroDeCaja,
+  type HechosDelMes,
+  type MovimientoDeCaja,
+} from "./resultado";
 import { costearLineas, pedidosQueSonVenta, type LineaVendida } from "./costo-vendido";
 import { compraMarker, REINTEGRO_ACTOR_PREFIX } from "@/lib/stock/purchase-egreso";
 import { comisionMarker } from "@/lib/comision-liquidacion";
@@ -102,6 +111,31 @@ test("un Responsable Inscripto ve las ventas sin IVA (21%, como factura el siste
   assert.equal(r.ventas.neto, netoDeIva(25000, "responsable-inscripto"));
   assert.equal(r.ventas.neto, 20661.16);
   assert.equal(netoDeIva(25000, "sin-comprobantes"), 25000, "sin comprobantes no se sabe: se deja como se cobró");
+});
+
+test("un MOSTRADOR inscripto: el IVA NO se saca con un 21% que no es de todo lo vendido, y se dice", () => {
+  // Agosto de la carnicería, inscripta: la carne va al 10,5%. Antes: neto = 25.000 / 1,21 =
+  // 20.661,16 bajo "Menos el IVA (21%)", un neto inventado para cada kilo de carne.
+  const r = calcularResultado(agosto({ condicion: "responsable-inscripto", comercio: true }));
+  assert.equal(r.sinIva, false);
+  assert.equal(r.alicuota, null);
+  assert.equal(r.ivaIncluidoSinAlicuota, true);
+  assert.equal(r.ventas.neto, r.ventas.bruto, "con el IVA incluido, dicho en la pantalla");
+  assert.equal(alicuotaDeLasVentas("responsable-inscripto", { comercio: true }), null);
+});
+
+test("servicios inscripto (CH) sigue igual: 21%, la alícuota general de los servicios", () => {
+  const conDato = calcularResultado(agosto({ condicion: "responsable-inscripto", comercio: false }));
+  const sinDato = calcularResultado(agosto({ condicion: "responsable-inscripto" }));
+  for (const r of [conDato, sinDato]) {
+    assert.equal(r.alicuota, 0.21);
+    assert.equal(r.ventas.neto, 20661.16);
+    assert.equal(r.ivaIncluidoSinAlicuota, false);
+  }
+  // Un monotributista no discrimina IVA, sea mostrador o servicios: no hay nada que decir.
+  const mono = calcularResultado(agosto({ condicion: "monotributo", comercio: true }));
+  assert.deepEqual([mono.alicuota, mono.ivaIncluidoSinAlicuota, mono.ventas.neto], [null, false, 25000]);
+  assert.equal(ivaSinAlicuotaConocida("sin-comprobantes", { comercio: true }), false);
 });
 
 test("turnos cobrados e insumos consumidos: el resultado de un negocio de servicios", () => {

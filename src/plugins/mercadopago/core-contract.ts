@@ -47,6 +47,21 @@ export function pedidoDeReferencia(ref: string | null | undefined): string | nul
   return id && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
 }
 
+/**
+ * ¿Este pago es una VENTA DIRECTA (sin pedido ni turno detrás) y va al camino suelto —clasificar
+ * → reglas del dueño → factura sola o cola de revisión—? Sólo si no trae `external_reference`.
+ * PURA.
+ *
+ * Es el criterio del aviso (`procesarNotificacionPago`) y del sincronizado de la historia
+ * (`ClasificadorPorReglas`), en UN lugar. Antes el sincronizado no lo miraba: un pago aprobado
+ * de un link de pedido ("pedido:<id>") caía en la regla "pago-cobro" y salía una factura suelta,
+ * sin pedido; después «Facturar» en Ventas del día emitía OTRA por la misma venta. Lo mismo con
+ * el pago de un turno (referencia = id del turno), que se factura con el turno.
+ */
+export function esVentaDirecta(ref: string | null | undefined): boolean {
+  return String(ref ?? "").trim() === "";
+}
+
 /** Lo que el Core contesta cuando se le pide cobrar un pedido por un pago acreditado. */
 export type ResultadoCobroPedido =
   | { cobrado: true; code: number; total: number }

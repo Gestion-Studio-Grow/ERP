@@ -18,6 +18,7 @@
 
 import { MercadoPagoClient } from "./port";
 import {
+  esVentaDirecta,
   pedidoDeReferencia,
   type CobrarPedidoPorPago,
   type FacturarPorPago,
@@ -45,6 +46,11 @@ export interface ResultadoNotificacion {
   motivo?: string;
   /** Presente cuando el pago era de un pedido: qué contestó el Core al cobrarlo. */
   pedido?: ResultadoCobroPedido;
+  /**
+   * true = venta directa (sin pedido ni turno, `esVentaDirecta`): el borde la manda al camino
+   * suelto (mercadopago-dispatch.ts). Es el único pago que va ahí.
+   */
+  ventaDirecta?: true;
 }
 
 export async function procesarNotificacionPago(
@@ -64,8 +70,14 @@ export async function procesarNotificacionPago(
     return { procesado: true, facturado: false, invoiceId: null, motivo: `estado ${pago.estado}` };
   }
 
-  if (!pago.externalReference) {
-    return { procesado: true, facturado: false, invoiceId: null, motivo: "pago sin external_reference (appointmentId)" };
+  if (esVentaDirecta(pago.externalReference)) {
+    return {
+      procesado: true,
+      facturado: false,
+      invoiceId: null,
+      motivo: "pago sin external_reference (appointmentId)",
+      ventaDirecta: true,
+    };
   }
 
   // El link de un pedido: se cobra el pedido, con el monto que Mercado Pago dice que se pagó

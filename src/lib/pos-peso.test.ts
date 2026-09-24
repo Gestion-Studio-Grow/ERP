@@ -22,6 +22,7 @@ import {
   avisoDeCantidad,
   redondearCantidad,
   KG_SOSPECHOSO,
+  textosDelAjuste,
 } from "./pos-peso";
 
 function valor(raw: string): number | null {
@@ -273,4 +274,22 @@ test("la vidriera muestra la cantidad con coma", async () => {
   assert.match(magra, /\{formatearCantidad\(l\.q\)\}\{l\.p\.saleUnit/, "la línea del carrito de MAGRA");
   const reglas = readFileSync("src/app/tienda/reglas-tienda.ts", "utf8");
   assert.match(reglas, /formatearCantidad\(/, "el mensaje de WhatsApp, armado en el servidor");
+});
+
+// ── «Pesar y ajustar» sólo si hay algo por peso ─────────────────────────────
+// Shine y A Dos Manos venden sólo por unidad: su pedido no se "pesa". El mismo formulario
+// corrige cantidades y se llama «Ajustar pedido».
+test("textosDelAjuste: 'Pesar y ajustar' con una línea por peso; 'Ajustar pedido' si todo es por unidad", () => {
+  const vela = { productId: "p_vela", saleUnit: "UNIT" };
+  const vacio = { productId: "p_vacio", saleUnit: "WEIGHT" };
+  const envio = { productId: null, saleUnit: "UNIT" };
+  assert.deepEqual(textosDelAjuste([vela, envio]), {
+    boton: "Ajustar pedido",
+    titulo: "Cantidades del pedido",
+    guardar: "Guardar cantidades",
+  });
+  assert.equal(textosDelAjuste([vela, vacio]).boton, "Pesar y ajustar", "con UNA línea por peso, se pesa");
+  assert.equal(textosDelAjuste([vacio]).guardar, "Guardar peso real");
+  // Una línea sin producto (precio a mano o envío) no se ajusta: no cuenta como "por peso".
+  assert.equal(textosDelAjuste([{ productId: null, saleUnit: "WEIGHT" }, vela]).boton, "Ajustar pedido");
 });

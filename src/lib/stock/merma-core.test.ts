@@ -21,6 +21,7 @@ import {
   resumirMerma,
   semanaHasta,
   type MovimientoDeAjuste,
+  whereAjustesRecientes,
   type ProductoDeMerma,
 } from "./merma-core";
 
@@ -246,4 +247,55 @@ test("cortes en negativo: sólo los < 0, del más negativo al menos", () => {
     { name: "Osobuco", stock: 0 },
   ];
   assert.deepEqual(cortesEnNegativo(filas).map((f) => f.name), ["Entraña", "Vacío"]);
+});
+
+// ── "Ajustes recientes" de Mermas: sin traslados y sin la pieza de un despiece ──────────────
+//
+// El `where` se evalúa acá con las reglas de SQL que importan (un NOT sobre NULL da NULL, y la
+// fila se cae), sobre filas de verdad: las que escribe un despiece, un traslado, una merma y un
+// ajuste sin motivo. Medido además contra el Postgres local como app_rls (entrega de la tanda).
+
+type FilaAjuste = { tenantId: string; type: string; createdBy: string; reason: string | null };
+type Cond = Record<string, unknown>;
+/** true / false / null (desconocido), como SQL. */
+function evaluar(w: Cond, f: FilaAjuste): boolean | null {
+  let r: boolean | null = true;
+  const y = (a: boolean | null, b: boolean | null) => (a === false || b === false ? false : a === null || b === null ? null : true);
+  for (const [k, v] of Object.entries(w)) {
+    let x: boolean | null;
+    if (k === "AND") x = (v as Cond[]).reduce<boolean | null>((acc, c) => y(acc, evaluar(c, f)), true);
+    else if (k === "OR") {
+      const vs = (v as Cond[]).map((c) => evaluar(c, f));
+      x = vs.includes(true) ? true : vs.includes(null) ? null : false;
+    } else if (k === "NOT") {
+      const n = evaluar(v as Cond, f);
+      x = n === null ? null : !n;
+    } else {
+      const col = f[k as keyof FilaAjuste];
+      if (v === null) x = col === null;
+      else if (typeof v === "object" && v && "startsWith" in v) x = col === null ? null : String(col).startsWith(String((v as { startsWith: string }).startsWith));
+      else x = col === v;
+    }
+    r = y(r, x);
+  }
+  return r;
+}
+
+test("Ajustes recientes: la pieza de un despiece y un traslado NO aparecen; una merma y un ajuste sin motivo, sí", () => {
+  const filas: (FilaAjuste & { que: string })[] = [
+    { que: "despiece", tenantId: "t", type: "AJUSTE", createdBy: "user:u1", reason: motivoDeDespiece(7, "Media res") },
+    { que: "traslado", tenantId: "t", type: "AJUSTE", createdBy: "traslado:tr1", reason: "Traslado a Canning" },
+    { que: "merma", tenantId: "t", type: "AJUSTE", createdBy: "user:u1", reason: buildReason("ROTURA", "se cayó") },
+    { que: "sin-motivo", tenantId: "t", type: "AJUSTE", createdBy: "user:u1", reason: null },
+    { que: "otro-negocio", tenantId: "t2", type: "AJUSTE", createdBy: "user:u1", reason: buildReason("ROTURA", "x") },
+  ];
+  const w = whereAjustesRecientes("t") as unknown as Cond;
+  assert.deepEqual(
+    filas.filter((f) => evaluar(w, f) === true).map((f) => f.que),
+    ["merma", "sin-motivo"],
+  );
+  // El mismo criterio que el tablero: lo que el where saca, `clasificarAjuste` lo excluye.
+  for (const f of filas.filter((x) => x.que === "despiece" || x.que === "traslado")) {
+    assert.equal(clasificarAjuste({ ...f, productId: "media-res", qty: -100 }).clase, "EXCLUIDO");
+  }
 });

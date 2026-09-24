@@ -60,7 +60,7 @@ function ctx(db: DbKpi, extra: Partial<ContextoLoader> = {}): ContextoLoader {
   };
 }
 
-test("Agenda: '18 turnos hoy · 83% confirmados' con el where de getAgendaDay", async () => {
+test("Agenda: '18 turnos hoy · 77% de los que faltan confirmados' con el where de getAgendaDay", async () => {
   const { db, llamadas } = dbFalsa({
     "appointment.groupBy": [
       { status: "PENDING", _count: { _all: 3 } },
@@ -68,10 +68,34 @@ test("Agenda: '18 turnos hoy · 83% confirmados' con el where de getAgendaDay", 
       { status: "COMPLETED", _count: { _all: 5 } },
     ],
   });
-  assert.deepEqual(await agenda(ctx(db)), { valor: "18", detalle: "turnos hoy · 83% confirmados" });
+  // 10 confirmados de los 13 que faltan. Antes: (18 − 3) / 18 = 83%, con los 5 completados
+  // contados como confirmados.
+  assert.deepEqual(await agenda(ctx(db)), { valor: "18", detalle: "turnos hoy · 77% de los que faltan confirmados" });
   const { desde, hasta } = rangoDelDia("2026-09-23");
   assert.deepEqual(llamadas[0].args.where, whereTurnosDelDia("t-qa", desde, hasta));
   assert.deepEqual(resumirAgenda([]), { valor: "0", detalle: "turnos hoy" });
+});
+
+test("Agenda: completados y 'no se presentó' NO cuentan como confirmados", () => {
+  // A las 18: todo resuelto. Antes daba "100% confirmados" aunque nadie hubiera confirmado.
+  assert.deepEqual(
+    resumirAgenda([
+      { status: "COMPLETED", _count: { _all: 6 } },
+      { status: "NO_SHOW", _count: { _all: 2 } },
+    ]),
+    { valor: "8", detalle: "turnos hoy · no falta ninguno" },
+  );
+  // Un faltazo no sube el %: 1 confirmado de 4 que faltan, haya los faltazos que haya.
+  const conFaltazos = resumirAgenda([
+    { status: "PENDING", _count: { _all: 3 } },
+    { status: "CONFIRMED", _count: { _all: 1 } },
+    { status: "NO_SHOW", _count: { _all: 5 } },
+  ]);
+  assert.deepEqual(conFaltazos, { valor: "9", detalle: "turnos hoy · 25% de los que faltan confirmados" });
+  assert.deepEqual(resumirAgenda([{ status: "CONFIRMED", _count: { _all: 1 } }]), {
+    valor: "1",
+    detalle: "turno hoy · 100% de los que faltan confirmados",
+  });
 });
 
 test("Confirmar mañana: los de getMananaConfirmar sin aviso; Recordatorios: la cobertura, '—' sin turnos", async () => {

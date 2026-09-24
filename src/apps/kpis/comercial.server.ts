@@ -40,13 +40,27 @@ function contextoCrm(ctx: ContextoLoader): ContextoCrm {
 
 // ── Agenda ───────────────────────────────────────────────────────────────────
 
-/** "18 turnos hoy · 83% confirmados". Confirmado = todo lo que no quedó en Reservado. PURA. */
+/**
+ * "18 turnos hoy · 77% de los que faltan confirmados". PURA.
+ *
+ * QUÉ CUENTA COMO CONFIRMADO EN UN DÍA. El % mira los turnos que TODAVÍA FALTAN (Reservados y
+ * Confirmados): es lo que la recepción puede cambiar llamando. Antes era "todo lo que no quedó
+ * en Reservado", y un turno completado o marcado "no se presentó" sumaba como confirmado: a las
+ * 18, con el día resuelto, daba 100% aunque nadie hubiera confirmado nada, y un faltazo subía
+ * el número. El total del día ("18 turnos hoy") sigue contando todo menos los cancelados.
+ * Es un número del Inicio por apps: CH lo ve sólo si su slug entra en APPS_INICIO (flags.ts),
+ * que por diseño no se le prende sin el OK del dueño.
+ */
 export function resumirAgenda(grupos: readonly { status: string; _count: { _all: number } }[]): DatoKpi {
+  const cuantos = (s: string) => grupos.filter((g) => g.status === s).reduce((n, g) => n + g._count._all, 0);
   const total = grupos.reduce((s, g) => s + g._count._all, 0);
-  const reservados = grupos.filter((g) => g.status === "PENDING").reduce((s, g) => s + g._count._all, 0);
   if (total === 0) return { valor: "0", detalle: "turnos hoy" };
-  const pct = Math.round(((total - reservados) / total) * 100);
-  return { valor: fmtNumberAR(total), detalle: `${plural(total, "turno hoy", "turnos hoy")} · ${pct}% confirmados` };
+  const confirmados = cuantos("CONFIRMED");
+  const faltan = cuantos("PENDING") + confirmados;
+  const dia = plural(total, "turno hoy", "turnos hoy");
+  if (faltan === 0) return { valor: fmtNumberAR(total), detalle: `${dia} · no falta ninguno` };
+  const pct = Math.round((confirmados / faltan) * 100);
+  return { valor: fmtNumberAR(total), detalle: `${dia} · ${pct}% de los que faltan confirmados` };
 }
 
 /** El `where` de la agenda del día (`getAgendaDay`), agrupado por estado. */

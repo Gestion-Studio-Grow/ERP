@@ -20,7 +20,7 @@ import { businessWallTimeToUtc } from "@/lib/datetime";
 import { nextDayKey } from "@/lib/caja/cierre-diario";
 import {
   wherePedidosAbiertos,
-  whereVentasCobradas,
+  whereVentasCobradasConMedio,
   whereAnulacionesDelDia,
   resumirAnulaciones,
   porQuien,
@@ -97,8 +97,9 @@ export function resumirPedidos(
  * y "Ingresos hoy" mostraba plata que nunca entró. PURA.
  */
 export function whereVentasDeHoy(tenantId: string, desde: Date): Prisma.OrderWhereInput {
-  // El mismo `where` que la lista de Ventas del día (/admin/ventas) para hoy.
-  return whereVentasCobradas(tenantId, desde);
+  // El mismo `where` que la cuenta "Ventas cobradas" de Ventas del día (/admin/ventas) para hoy:
+  // sin las ventas a cuenta, que se venden pero no se cobran (su plata no entró).
+  return whereVentasCobradasConMedio(tenantId, desde);
 }
 
 /**

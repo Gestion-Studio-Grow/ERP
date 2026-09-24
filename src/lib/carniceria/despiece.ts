@@ -214,6 +214,17 @@ export function esMovimientoDeDespiece(reason: string | null | undefined): boole
 }
 
 /**
+ * El mismo criterio que `esMovimientoDeDespiece`, como `where` para la base: deja AFUERA lo que
+ * escribió un despiece. La salida de la pieza es un AJUSTE negativo (despiece-registro.ts) y sin
+ * esto aparecía en "Ajustes recientes" de Mermas como "−100 kg de media res", que no se perdió:
+ * se convirtió en cortes. El `reason: null` va explícito porque en SQL `NOT (reason LIKE …)` con
+ * un motivo vacío da NULL y la fila se caería del listado sin ser de un despiece. PURA.
+ */
+export function sinDespiece(): { OR: [{ reason: null }, { NOT: { reason: { startsWith: string } } }] } {
+  return { OR: [{ reason: null }, { NOT: { reason: { startsWith: MOTIVO_DESPIECE } } }] };
+}
+
+/**
  * El costo de la pieza de entrada: el que se tipeó o, si quedó vacío, el costo vigente de la
  * pieza en el stock por los kilos que entran (lo que costó al comprarla). `null` si no hay
  * ninguno: el despiece se registra igual, con los cortes sin costo. PURA.

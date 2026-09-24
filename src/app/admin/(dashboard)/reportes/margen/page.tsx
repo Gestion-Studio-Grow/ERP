@@ -67,8 +67,8 @@ export default async function MargenPage({ searchParams }: { searchParams: Promi
   const varios = pluralDe(uno);
   const deN = (n: number, singular: string, plural: string) => `${fmtNumberAR(n)} ${n === 1 ? singular : plural}`;
   const [hoy, resultado] = await Promise.all([
-    leerMargenDeHoy(prisma, tenantId, { costosDelCatalogo }),
-    leerResultadoDelMes(prisma, tenantId, mes, { costosDelCatalogo }),
+    leerMargenDeHoy(prisma, tenantId, { costosDelCatalogo, comercio: negocio.isRetail }),
+    leerResultadoDelMes(prisma, tenantId, mes, { costosDelCatalogo, comercio: negocio.isRetail }),
   ]);
   const vendido = margenDeLoVendido(resultado.lineas, { sinIva: resultado.sinIva });
   const aPerdida = hoy.rows.filter((r) => r.margin < 0);
@@ -79,7 +79,11 @@ export default async function MargenPage({ searchParams }: { searchParams: Promi
   const sinCostoVendido = vendido.filter((r) => r.margen === null).length;
   const anterior = mesVecino(mes, -1);
   const siguiente = mesVecino(mes, 1);
-  const iva = hoy.sinIva ? " Precios sin IVA (21%), porque tu negocio es Responsable Inscripto." : "";
+  const iva = hoy.sinIva
+    ? " Precios sin IVA (21%), porque tu negocio es Responsable Inscripto."
+    : hoy.ivaIncluidoSinAlicuota
+      ? " Precios con IVA incluido: el neto depende de la alícuota de cada producto, que el sistema todavía no guarda, así que el margen real es menor."
+      : "";
 
   const botonCostos = abribles.has("catalogo") ? (
     <Link href="/admin/catalogo" className={buttonClasses("solid", "md")}>

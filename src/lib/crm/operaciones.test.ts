@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ESTADOS_CANCELABLES, esCancelable, whereTurnoCancelable, whereTurnosDeManana, whereEsperando } from "./wheres";
+import { ESTADOS_CANCELABLES, cancelarTurnoVivo, esCancelable, whereTurnoCancelable, whereTurnosDeManana, whereEsperando } from "./wheres";
 import { anotadosConHueco, huecosLiberados, leSirve, type Anotado, type TurnoCancelado } from "./huecos";
 import { idsUnicos, planUnificacion, type FichaAUnificar } from "./unificar";
 import { avisarFaltazos, resumirFicha } from "./ficha";
@@ -24,6 +24,40 @@ test("cancelar: sólo un turno Reservado o Confirmado; completado, ausente o can
   // El where del update lleva el negocio y los estados: un id de otro negocio o un turno
   // cobrado no matchea y el update no toca nada (count 0).
   assert.deepEqual(whereTurnoCancelable("t-qa", "a1"), { id: "a1", tenantId: "t-qa", status: { in: [...ESTADOS_CANCELABLES] } });
+});
+
+test("cancelar EJECUTADO: una base con turnos en todos los estados y de dos negocios; sólo cambian los vivos del negocio", async () => {
+  const turnos = [
+    { id: "p", tenantId: "t-qa", status: "PENDING" },
+    { id: "c", tenantId: "t-qa", status: "CONFIRMED" },
+    { id: "k", tenantId: "t-qa", status: "COMPLETED" },
+    { id: "n", tenantId: "t-qa", status: "NO_SHOW" },
+    { id: "x", tenantId: "t-qa", status: "CANCELLED" },
+    { id: "ajeno", tenantId: "t-otro", status: "PENDING" },
+  ];
+  // Evalúa el `where` como lo evalúa Postgres: id, negocio (si está) y estado dentro de la lista.
+  const db = {
+    appointment: {
+      updateMany: async (a: { where: { id?: string; tenantId?: string; status?: { in?: string[] } }; data: { status: "CANCELLED" } }) => {
+        const hits = turnos.filter(
+          (t) =>
+            (a.where.id === undefined || t.id === a.where.id) &&
+            (a.where.tenantId === undefined || t.tenantId === a.where.tenantId) &&
+            (a.where.status?.in === undefined || a.where.status.in.includes(t.status)),
+        );
+        for (const t of hits) t.status = a.data.status;
+        return { count: hits.length };
+      },
+    },
+  };
+  const cambiados: Record<string, number> = {};
+  for (const id of ["p", "c", "k", "n", "x"]) cambiados[id] = await cancelarTurnoVivo(db as never, "t-qa", id);
+  cambiados.ajeno = await cancelarTurnoVivo(db as never, "t-qa", "ajeno");
+  assert.deepEqual(cambiados, { p: 1, c: 1, k: 0, n: 0, x: 0, ajeno: 0 });
+  assert.deepEqual(
+    turnos.map((t) => `${t.id}:${t.status}`),
+    ["p:CANCELLED", "c:CANCELLED", "k:COMPLETED", "n:NO_SHOW", "x:CANCELLED", "ajeno:PENDING"],
+  );
 });
 
 test("los where de las pantallas llevan el negocio", () => {
@@ -160,8 +194,10 @@ test("ficha única: próximo turno, faltazos, lo que debe (como la agenda) y lo 
       t("h", "COMPLETED", "2024-01-10T13:00:00Z", 10000, 10000), // hace más de un año
     ],
     pedidos: [
-      { id: "o1", status: "DELIVERED", createdAt: new Date("2026-09-15T13:00:00Z"), total: 5000, paid: true },
-      { id: "o2", status: "CANCELLED", createdAt: new Date("2026-09-16T13:00:00Z"), total: 9999, paid: true },
+      { id: "o1", status: "DELIVERED", createdAt: new Date("2026-09-15T13:00:00Z"), total: 5000, paid: true, paymentMethod: "EFECTIVO" },
+      { id: "o2", status: "CANCELLED", createdAt: new Date("2026-09-16T13:00:00Z"), total: 9999, paid: true, paymentMethod: "EFECTIVO" },
+      // A cuenta (fiado): vendida y saldada SIN medio. No entró plata: no es "gastó".
+      { id: "o3", status: "DELIVERED", createdAt: new Date("2026-09-14T13:00:00Z"), total: 7000, paid: true, paymentMethod: null },
     ],
     fiado: [{ id: "f1", saldo: 1500 }],
     ahora,
@@ -170,9 +206,9 @@ test("ficha única: próximo turno, faltazos, lo que debe (como la agenda) y lo 
   assert.equal(r.faltazos, 2);
   assert.equal(r.saldoTurnos, 8000);
   assert.equal(r.saldoFiado, 1500);
-  assert.equal(r.gastadoAnio, 10000 + 4000 + 3000 + 5000);
+  assert.equal(r.gastadoAnio, 10000 + 4000 + 3000 + 5000, "sin los 7000 de la venta a cuenta (antes sumaban)");
   assert.equal(r.visitas, 3);
-  assert.equal(r.pedidos, 1);
+  assert.equal(r.pedidos, 2, "la venta a cuenta sí es un pedido");
   assert.equal(r.ultimaVisita?.toISOString(), "2026-09-15T13:00:00.000Z");
   assert.equal(resumirFicha({ turnos: [], pedidos: [], fiado: null, ahora }).saldoFiado, null, "sin la tabla del fiado: null, no 0");
   assert.equal(avisarFaltazos(2, CRM_REGLAS.faltazosParaAviso), true);

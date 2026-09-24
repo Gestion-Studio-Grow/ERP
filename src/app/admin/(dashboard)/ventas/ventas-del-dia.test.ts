@@ -21,7 +21,7 @@ import {
 import { LOADERS_MOSTRADOR, whereVentasDeHoy, resumirPedidos } from "@/apps/kpis/mostrador.server";
 import { cargarKpiCon, type ContextoLoader, type DbKpi } from "@/apps/kpis/nucleo.server";
 import { appPorId } from "@/apps/registro";
-import { leerFiltros, notaDeDescuento, resumenDeVentas } from "./filtros";
+import { leerFiltros, notaDeDescuento, resumenACuenta, resumenDeVentas, ventasCobradasDeVerdad } from "./filtros";
 
 const HOY = "2026-09-23";
 const DESDE = businessWallTimeToUtc(HOY, "00:00");
@@ -127,8 +127,21 @@ test("anulaciones viejas sin nombre: el de la pantalla (por el usuario) o el rol
   assert.equal(porQuien([]), "");
 });
 
-test("hoy, la lista de ventas cobradas usa el MISMO where que el número de Vender en el Inicio", () => {
-  assert.deepEqual(whereVentasCobradas("t_magra", DESDE), whereVentasDeHoy("t_magra", DESDE));
+test("hoy, el número de Vender del Inicio es la lista de ventas cobradas SIN las ventas a cuenta", () => {
+  // La lista trae también las ventas a cuenta (marcadas); el número y la cuenta "Ventas
+  // cobradas" las dejan afuera: vendidas, no cobradas.
+  assert.deepEqual(whereVentasDeHoy("t_magra", DESDE), { ...whereVentasCobradas("t_magra", DESDE), paymentMethod: { not: null } });
+  const lista = [
+    { id: "efectivo", total: 1000, paid: true, paymentMethod: "EFECTIVO" as string | null },
+    { id: "mp", total: 2000, paid: true, paymentMethod: "MERCADOPAGO" as string | null },
+    { id: "a-cuenta", total: 7000, paid: true, paymentMethod: null as string | null },
+  ];
+  const cobradas = ventasCobradasDeVerdad(lista);
+  assert.deepEqual(cobradas.map((v) => v.id), ["efectivo", "mp"]);
+  // Lo mismo que selecciona el `where` del Inicio (`paymentMethod: { not: null }`) sobre la lista.
+  assert.deepEqual(cobradas, lista.filter((v) => v.paymentMethod !== null));
+  assert.deepEqual(resumenDeVentas(cobradas), { cantidad: 2, total: 3000, promedio: 1500 });
+  assert.deepEqual(resumenACuenta(lista), { cantidad: 1, total: 7000 });
   // Otro día: con tope al día siguiente. Las anuladas siguen en la lista, marcadas.
   const hasta = businessWallTimeToUtc("2026-09-23", "00:00");
   const ayer = businessWallTimeToUtc("2026-09-22", "00:00");

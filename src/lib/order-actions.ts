@@ -9,7 +9,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { auditAdmin, auditPublic } from "@/lib/audit-core";
+import { auditAdmin, auditPublic, requestIp } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { alcanceDeAnulacion } from "@/lib/capabilities";
@@ -33,7 +33,8 @@ import { facturarOrden } from "@/lib/invoice-from-order";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
-import { normalizarCodigoDeCupon, topeDePrecioAMano } from "@/lib/venta-reglas";
+import { normalizarCodigoDeCupon, topeDePrecioAMano, CUPON_NO_VALE } from "@/lib/venta-reglas";
+import { frenoDeCupones, rechazoPublicoDelCupon, CUPON_FRENADO } from "@/lib/cupones/prueba-publica";
 import {
   disponibilidadDe,
   mensajeWhatsAppDelPedido,
@@ -502,6 +503,10 @@ export async function placeOnlineOrder(
   // La tarifa de envío es de la MARCA (storefront.ts): la misma que la vidriera usa para mostrar.
   const envio = getStorefrontCopy(tenant?.slug)?.shipping ?? null;
   const cupon = normalizarCodigoDeCupon(formData.get("cupon")) || null;
+  // El alta también es una puerta para probar códigos: pasa por el mismo freno que «Aplicar»
+  // (cupones/prueba-publica.ts). Frenado, ni se intenta el alta.
+  const ip = cupon ? await requestIp() : undefined;
+  if (cupon && frenoDeCupones.frenado(tenantId, ip)) return { ok: false, error: CUPON_FRENADO, campo: "cupon" };
 
   // El orden de las guardas (clave anti-duplicado, bolsa, alta) vive en
   // `tomarPedidoOnlineGuarded`, con su porqué y su test.
@@ -523,7 +528,10 @@ export async function placeOnlineOrder(
         items,
       }, { idempotencyKey, envio, cupon }),
   });
-  if (toma.tipo === "cupon") return { ok: false, error: toma.error, campo: "cupon" };
+  if (toma.tipo === "cupon") {
+    // Hacia afuera, el texto único ("venció el…" diría que el código existe) y suma al freno.
+    return { ok: false, error: rechazoPublicoDelCupon(toma, frenoDeCupones, tenantId, ip, CUPON_NO_VALE), campo: "cupon" };
+  }
   if (toma.tipo === "bolsa") return { ok: false, error: MENSAJE_BOLSA_CON_PROBLEMAS, porLinea: toma.porLinea };
   if (toma.tipo === "rechazo") return { ok: false, error: toma.error };
   if (toma.tipo === "error") {
@@ -908,6 +916,7 @@ async function anularVentaCore(
       reversaId: resultado.reversaId,
       stockDevuelto: resultado.stockDevuelto,
       ...(cuenta.anulada ? { cuentaCorrienteAnulada: cuenta.monto } : {}),
+      ...(resultado.cuponDevuelto ? { cuponDevuelto: resultado.cuponDevuelto } : {}),
     },
   });
   revalidarMostrador();
@@ -925,6 +934,9 @@ async function anularVentaCore(
     partes.push(
       `Volvió al stock: ${resultado.stockDevuelto.map((d) => `${formatearCantidad(d.qty)} de ${d.name}`).join(", ")}.`,
     );
+  }
+  if (resultado.cuponDevuelto) {
+    partes.push(`El cupón ${resultado.cuponDevuelto} recuperó el uso que había gastado esta venta.`);
   }
   return { ok: true, mensaje: partes.join(" ") };
 }
@@ -1002,7 +1014,7 @@ export async function updateOrderItems(
     mensaje:
       dif === 0
         ? `Pedido #${out.code} actualizado. El total no cambió: ${fmtMoneyARS(out.total)}.`
-        : `Pedido #${out.code} actualizado al peso real: ${fmtMoneyARS(out.antes)} → ${fmtMoneyARS(out.total)} (${dif > 0 ? "+" : "−"}${fmtMoneyARS(Math.abs(dif))}).`,
+        : `Pedido #${out.code} actualizado${out.conPeso ? " al peso real" : ""}: ${fmtMoneyARS(out.antes)} → ${fmtMoneyARS(out.total)} (${dif > 0 ? "+" : "−"}${fmtMoneyARS(Math.abs(dif))}).`,
   };
 }
 

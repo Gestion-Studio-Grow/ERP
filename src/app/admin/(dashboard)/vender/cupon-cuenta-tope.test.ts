@@ -19,9 +19,6 @@ import {
   aplicarCuponEnTx,
   anularCuentaDeLaVentaEnTx,
   anularVentaConSuCuentaEnTx,
-  crearFrenoDeCupones,
-  CUPON_FRENADO,
-  REGLA_CUPONES_INEXISTENTES,
   controlarPreciosAManoEnTx,
   crearOrdenEnTx,
   decidirAlta,
@@ -138,7 +135,8 @@ test("cupón en la venta: se consume con compare-and-set y el total queda con el
   assert.deepEqual(consumo.args.where, whereConsumoDeCupon("t_magra", { id: "cup_1", usedCount: 0 }));
   assert.deepEqual(consumo.args.data, { usedCount: { increment: 1 } });
   // La regla del cupón viaja con el alta, para escribirla junto al pedido.
-  assert.deepEqual(r.cuponDelPedido, { codigo: "VERANO10", tipo: "PERCENT", valor: 10 });
+  // El id de la fila va para que la anulación devuelva el uso a ESE cupón.
+  assert.deepEqual(r.cuponDelPedido, { codigo: "VERANO10", tipo: "PERCENT", valor: 10, cuponId: "cup_1" });
 });
 
 test("la regla del cupón (% o FIJO) se escribe en la transacción del alta, en la fila del pedido; sin cupón, nada", async () => {
@@ -146,7 +144,7 @@ test("la regla del cupón (% o FIJO) se escribe en la transacción del alta, en 
   const alta = decidirAlta({ tenantId: "t_magra", input: VENTA, products: [VACIO], opts: { cupon: "BIENVENIDA" } });
   const { tx } = txCupon(cupon({ code: "BIENVENIDA", type: "FIXED", value: 2000, maxUses: null }));
   const r = await aplicarCuponEnTx(tx, alta, AHORA);
-  assert.deepEqual([r.descuento, r.cuponDelPedido], [2000, { codigo: "BIENVENIDA", tipo: "FIXED", valor: 2000 }]);
+  assert.deepEqual([r.descuento, r.cuponDelPedido], [2000, { codigo: "BIENVENIDA", tipo: "FIXED", valor: 2000, cuponId: "cup_1" }]);
 
   const escritas: Record<string, unknown>[] = [];
   const txAudit = {
@@ -188,22 +186,7 @@ test("cupón al máximo de usos → rechazo; y el último uso no lo gastan dos v
   assert.deepEqual(llamadas.map((l) => l.op), ["findFirst", "updateMany", "findFirst"]);
 });
 
-test("«Aplicar» cupón (público): 10 códigos inexistentes desde la misma IP y se frena; otra IP u otro negocio, no", () => {
-  let reloj = 0;
-  const freno = crearFrenoDeCupones(() => reloj);
-  for (let i = 0; i < 9; i++) freno.inexistente("t_magra", "181.1.1.1");
-  assert.equal(freno.frenado("t_magra", "181.1.1.1"), false, "9 errores todavía contesta");
-  freno.inexistente("t_magra", "181.1.1.1");
-  assert.equal(freno.frenado("t_magra", "181.1.1.1"), true);
-  assert.equal(freno.frenado("t_magra", "181.2.2.2"), false, "otra IP");
-  assert.equal(freno.frenado("t_shine", "181.1.1.1"), false, "otro negocio");
-  // Sin IP (un proxy que no la manda) se agrupa bajo una misma clave: también se frena.
-  for (let i = 0; i < 10; i++) freno.inexistente("t_magra", undefined);
-  assert.equal(freno.frenado("t_magra", null), true);
-  reloj += REGLA_CUPONES_INEXISTENTES.windowMs;
-  assert.equal(freno.frenado("t_magra", "181.1.1.1"), false, "pasada la ventana, se libera");
-  assert.match(CUPON_FRENADO, /Esperá unos minutos/);
-});
+// El freno de los cupones públicos se prueba en src/lib/cupones/prueba-publica.test.ts.
 
 test("un cupón y un descuento a mano no se suman", () => {
   assert.throws(
@@ -336,6 +319,8 @@ function mundoACuenta(over: { issueDate?: Date; cobros?: number } = {}): MundoAC
 
 function txACuenta(m: MundoACuenta) {
   return {
+    // Venta sin cupón: la anulación busca la fila del cupón del pedido y no hay.
+    auditLog: { findFirst: async () => null },
     order: {
       findFirst: async () => structuredClone(m.order),
       updateMany: async (a: { where: { status?: { not?: string } }; data: { status: string } }) => {

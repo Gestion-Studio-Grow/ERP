@@ -391,7 +391,7 @@ test("ajustarPedidoInTx: el pedido de 10 kg con el 10 % pesado a 1 kg guarda 12.
   const { m, tx, registrarStock } = baseDePedido({ subtotal: 125000, discount: 12500, total: 112500, items: DIEZ_KG });
   const r = await ajustarPedidoInTx(tx, "t_magra", argsDelAjuste(1), registrarStock);
   assert.deepEqual(m.actualizacion, { subtotal: 12500, discount: 1250, total: 11250 });
-  assert.deepEqual(r, { code: 7, antes: 112500, descuentoAntes: 12500, subtotal: 12500, descuento: 1250, total: 11250 });
+  assert.deepEqual(r, { code: 7, antes: 112500, descuentoAntes: 12500, subtotal: 12500, descuento: 1250, total: 11250, conPeso: true });
   assert.equal(m.itemsBorrados, 1);
   assert.deepEqual(
     m.itemsNuevos.map((l) => [l.productId, l.quantity, l.unitPrice, l.lineTotal, l.tenantId]),
@@ -441,7 +441,7 @@ test("ajustarPedidoInTx: el pedido de la tienda con el cupón FIJO de $2.000 pes
   });
   const r = await ajustarPedidoInTx(tx, "t_magra", argsDelAjuste(2.4), registrarStock);
   assert.deepEqual(m.actualizacion, { subtotal: 30000, discount: 2000, total: 28000 });
-  assert.deepEqual(r, { code: 7, antes: 18000, descuentoAntes: 2000, subtotal: 30000, descuento: 2000, total: 28000 });
+  assert.deepEqual(r, { code: 7, antes: 18000, descuentoAntes: 2000, subtotal: 30000, descuento: 2000, total: 28000, conPeso: true });
   // La regla se buscó en la fila del pedido, dentro del negocio.
   assert.deepEqual(m.lecturasDeCupon, [whereCuponDelPedido("t_magra", "ord_7")]);
 

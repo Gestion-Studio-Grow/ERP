@@ -65,7 +65,7 @@ import {
   type FichaParaAlta,
 } from "@/lib/clientes/ficha-por-telefono";
 import { diaSiguiente, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
-import { whereTurnoCancelable, whereTurnosDeManana, whereTurnosDelDia } from "@/lib/crm/wheres";
+import { cancelarTurnoVivo, whereTurnosDeManana, whereTurnosDelDia } from "@/lib/crm/wheres";
 import { Prisma } from "@/generated/prisma/client";
 import {
   isDemoSandbox,
@@ -1570,11 +1570,8 @@ export async function cancelAppointment(formData: FormData) {
   if (isDemoSandbox()) return; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") ?? "");
   const tenantId = await getCurrentTenantId();
-  const res = await prisma.appointment.updateMany({
-    where: whereTurnoCancelable(tenantId, appointmentId),
-    data: { status: "CANCELLED" },
-  });
-  if (res.count === 0) {
+  const cambiados = await cancelarTurnoVivo(prisma, tenantId, appointmentId);
+  if (cambiados === 0) {
     logger.warn("agenda", "cancelación rechazada: el turno no está reservado ni confirmado", { appointmentId });
     revalidatePath("/admin/turnos");
     return;

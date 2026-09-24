@@ -29,6 +29,21 @@ export function whereTurnoCancelable(tenantId: string, id: string): Prisma.Appoi
   return { id, tenantId, status: { in: [...ESTADOS_CANCELABLES] } };
 }
 
+/**
+ * La escritura de «Cancelar» (`cancelAppointment`, actions.ts): pasa a CANCELLED sólo el turno de
+ * este negocio que sigue vivo. Devuelve cuántos cambió (0 = no se podía y no se tocó nada). La
+ * condición va en el `where` del update y no en un `if` previo: así también gana la carrera de
+ * dos recepcionistas. Recibe la base para que un test la ejecute.
+ */
+export async function cancelarTurnoVivo(
+  db: { appointment: { updateMany(a: { where: Prisma.AppointmentWhereInput; data: { status: "CANCELLED" } }): Promise<{ count: number }> } },
+  tenantId: string,
+  id: string,
+): Promise<number> {
+  const r = await db.appointment.updateMany({ where: whereTurnoCancelable(tenantId, id), data: { status: "CANCELLED" } });
+  return r.count;
+}
+
 /** Los turnos del día en la agenda (`getAgendaDay` y el número de Agenda): todo menos cancelados. */
 export function whereTurnosDelDia(tenantId: string, desde: Date, hasta: Date): Prisma.AppointmentWhereInput {
   return { tenantId, startsAt: { gte: desde, lt: hasta }, status: { not: "CANCELLED" } };

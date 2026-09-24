@@ -15,6 +15,7 @@
  */
 
 import { PagoMP, TipoOperacionMP } from "./port";
+import { esVentaDirecta, pedidoDeReferencia } from "./core-contract";
 
 export type Clasificacion = "FACTURABLE" | "NO_FACTURABLE" | "REVISAR";
 
@@ -135,6 +136,7 @@ export interface OpcionesClasificador {
 
 /**
  * Clasificador por reglas (v2). Prioridad:
+ *   0. Cobro con pedido o turno detrás (`external_reference`) → NO_FACTURABLE: tiene su factura.
  *   1. Aprendizaje (correcciones previas del comercio).
  *   2. Cuentas propias del comercio (config) → NO_FACTURABLE.
  *   3. Reglas extra del comercio, luego las default.
@@ -156,7 +158,22 @@ export class ClasificadorPorReglas implements ClasificadorPort {
     }
   }
 
-  async clasificar(pago: PagoMP, _tenantId: string): Promise<ResultadoClasificacion> {
+  // El negocio no cambia la decisión de las reglas: la firma del puerto lo trae y acá no se usa.
+  async clasificar(pago: PagoMP): Promise<ResultadoClasificacion> {
+    // 0. Un cobro con pedido o turno detrás NO es una venta suelta: se factura desde su venta
+    // (el pedido con «Facturar» en Ventas del día; el turno, con el turno). Va ANTES que todo,
+    // incluso del aprendizaje: ninguna corrección ni regla del comercio puede hacer que salga
+    // una segunda factura por la misma venta. Es el mismo criterio del aviso (`esVentaDirecta`).
+    if (!esVentaDirecta(pago.externalReference)) {
+      return {
+        clasificacion: "NO_FACTURABLE",
+        motivo: pedidoDeReferencia(pago.externalReference)
+          ? "Cobro de un pedido: se factura desde Ventas del día («Facturar»), no suelto."
+          : "Cobro atado a un turno: se factura con el turno, no suelto.",
+        reglaId: "cobro-con-referencia",
+      };
+    }
+
     if (this.aprendizaje) {
       const aprendido = await this.aprendizaje.buscar(pago);
       if (aprendido) {

@@ -24,7 +24,7 @@ import { requireCapability } from "@/lib/authz";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { logger } from "@/lib/logger";
-import { pidioBaja, permisoTrasUnificar } from "@/lib/crm/constancias";
+import { pidioBaja } from "@/lib/crm/constancias";
 import {
   ACCION_A_BANDEJA,
   ACCION_ALTA,
@@ -34,7 +34,8 @@ import {
   ENTIDAD_PERMISO,
   esMotivoContacto,
 } from "@/lib/crm/reglas";
-import { fotoParaAuditoria, idsUnicos, planUnificacion } from "@/lib/crm/unificar";
+import { idsUnicos } from "@/lib/crm/unificar";
+import { unificarFichasEnTx } from "@/lib/crm/unificar-en-tx";
 
 type Resultado<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -201,74 +202,10 @@ export async function unificarFichas(formData: FormData): Promise<Resultado<{ me
   const [conFiado, eventos] = await Promise.all([hayTablaDeFiado(tenantId), eventosDePermiso(tenantId, [conservaId, ...eliminaIds])]);
 
   try {
-    const r = await tenantTransaction(async (tx) => {
-      const fichas = await tx.client.findMany({
-        where: { tenantId, id: { in: [conservaId, ...eliminaIds] } },
-        select: { id: true, name: true, phone: true, email: true, notes: true, birthDate: true, isResident: true, createdAt: true },
-      });
-      const conserva = fichas.find((f) => f.id === conservaId) ?? null;
-      const eliminadas = fichas.filter((f) => f.id !== conservaId);
-      const plan = planUnificacion(conserva, eliminadas, eliminaIds.length);
-      if (!plan.ok) return plan;
-      // `planUnificacion` ya rechaza la ficha que queda inexistente; esto es para el tipo.
-      if (!conserva) return { ok: false as const, error: "La ficha que queda ya no existe." };
-
-      const turnos = (await tx.appointment.findMany({ where: { tenantId, clientId: { in: eliminaIds } }, select: { id: true } })).map((t) => t.id);
-      const pedidos = (await tx.order.findMany({ where: { tenantId, clientId: { in: eliminaIds } }, select: { id: true } })).map((p) => p.id);
-      const fiado = conFiado
-        ? (await tx.accountReceivable.findMany({ where: { tenantId, clientId: { in: eliminaIds } }, select: { id: true } })).map((d) => d.id)
-        : [];
-
-      if (turnos.length) await tx.appointment.updateMany({ where: { tenantId, id: { in: turnos } }, data: { clientId: conservaId } });
-      if (pedidos.length) await tx.order.updateMany({ where: { tenantId, id: { in: pedidos } }, data: { clientId: conservaId } });
-      if (fiado.length) await tx.accountReceivable.updateMany({ where: { tenantId, id: { in: fiado } }, data: { clientId: conservaId } });
-
-      const antes: Record<string, unknown> = {};
-      for (const k of Object.keys(plan.cambios) as (keyof typeof plan.cambios)[]) antes[k] = conserva[k];
-      if (Object.keys(plan.cambios).length > 0) {
-        await tx.client.update({ where: { id: conservaId }, data: plan.cambios });
-      }
-      await tx.client.deleteMany({ where: { tenantId, id: { in: eliminaIds } } });
-
-      // El permiso de mensajes que queda es el último que expresó la persona en cualquiera de
-      // sus fichas (constancias.ts). Si la última palabra estaba en una duplicada, se copia.
-      const permiso = permisoTrasUnificar(eventos, conservaId, eliminaIds);
-      if (permiso) {
-        await tx.auditLog.create({
-          data: {
-            tenantId,
-            actor,
-            action: permiso,
-            entity: ENTIDAD_PERMISO,
-            entityId: conservaId,
-            changes: { fuente: "unificacion", de: eliminaIds },
-            channel: "admin",
-          },
-        });
-      }
-
-      await tx.auditLog.create({
-        data: {
-          tenantId,
-          actor,
-          action: "unificar",
-          entity: "Client",
-          entityId: conservaId,
-          changes: JSON.parse(
-            JSON.stringify({
-              conserva: { id: conserva.id, name: conserva.name, phone: conserva.phone },
-              eliminadas: eliminadas.map(fotoParaAuditoria),
-              movidos: { turnos, pedidos, fiado },
-              cambios: { antes, despues: plan.cambios },
-              ...(permiso ? { permisoCopiado: permiso } : {}),
-            }),
-          ),
-          channel: "admin",
-        },
-      });
-
-      return { ok: true as const, nombre: conserva.name, turnos: turnos.length, pedidos: pedidos.length, fiado: fiado.length, fichas: eliminadas.length };
-    });
+    // El cuerpo de la transacción vive en crm/unificar-en-tx.ts (y su test lo ejecuta).
+    const r = await tenantTransaction((tx) =>
+      unificarFichasEnTx(tx, tenantId, { conservaId, eliminaIds, actor, conFiado, eventos }),
+    );
     if (!r.ok) return r;
     revalidatePath("/admin/clientes");
     revalidatePath("/admin/clientes/duplicadas");

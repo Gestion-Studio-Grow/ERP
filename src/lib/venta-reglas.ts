@@ -418,13 +418,20 @@ export type ResultadoCupon =
 export const CUPON_Y_DESCUENTO = "Un cupón y un descuento a mano no se suman: usá uno de los dos.";
 
 /**
+ * El rechazo de un código que no se puede usar. Hacia afuera (la tienda) es el ÚNICO texto para
+ * inexistente, apagado, vencido o agotado (cupones/prueba-publica.ts): decir "venció" le
+ * confirmaría a quien prueba códigos que ése existe.
+ */
+export const CUPON_NO_VALE = "Ese cupón no existe o no está activo. Revisá cómo está escrito.";
+
+/**
  * El descuento de un cupón sobre `base` (lo que se compra, sin el envío), o el rechazo con el
  * porqué. PURA. Sin cupón, vencido, inactivo o agotado: rechazo, nunca un descuento de 0 que
  * el cliente descubra después.
  */
 export function aplicarCupon(input: { cupon: CuponLeido | null; base: number; ahora: Date }): ResultadoCupon {
   const c = input.cupon;
-  if (!c || !c.active) return { ok: false, error: "Ese cupón no existe o no está activo. Revisá cómo está escrito." };
+  if (!c || !c.active) return { ok: false, error: CUPON_NO_VALE };
   if (c.expiresAt && c.expiresAt.getTime() < input.ahora.getTime()) {
     return { ok: false, error: `El cupón ${c.code} venció el ${fmtShortDate(c.expiresAt)}.` };
   }
@@ -485,8 +492,12 @@ export function cuponAgotado(c: { maxUses: number | null; usedCount: number }): 
 /** La acción de auditoría que guarda el cupón de un pedido. */
 export const ACCION_CUPON_DEL_PEDIDO = "cupon-del-pedido";
 
-/** El cupón con el que se tomó un pedido, como era al tomarlo. */
-export type CuponDelPedido = { codigo: string; tipo: "PERCENT" | "FIXED"; valor: number };
+/**
+ * El cupón con el que se tomó un pedido, como era al tomarlo. `cuponId` es la fila del cupón
+ * que se gastó: la usa la anulación para devolver ESE uso (`cuponADevolver`), aunque la dueña
+ * haya creado después otro cupón con el mismo código. Las filas escritas antes no lo tienen.
+ */
+export type CuponDelPedido = { codigo: string; tipo: "PERCENT" | "FIXED"; valor: number; cuponId?: string };
 
 /** El `where` de la fila del cupón de uno o varios pedidos, siempre dentro del negocio. PURA. */
 export function whereCuponDelPedido(tenantId: string, orderIds: string | readonly string[]) {
@@ -500,7 +511,13 @@ export function whereCuponDelPedido(tenantId: string, orderIds: string | readonl
 
 /** Lo que se escribe en `changes` de esa fila (lo lee `leerCuponDelPedido`). PURA. */
 export function cambiosDelCuponDelPedido(cupon: CuponDelPedido, monto: number) {
-  return { codigo: cupon.codigo, tipo: cupon.tipo, valor: cupon.valor, monto: round2(monto) };
+  return {
+    codigo: cupon.codigo,
+    tipo: cupon.tipo,
+    valor: cupon.valor,
+    monto: round2(monto),
+    ...(cupon.cuponId ? { cuponId: cupon.cuponId } : {}),
+  };
 }
 
 /**
@@ -515,4 +532,42 @@ export function leerCuponDelPedido(changes: unknown): CuponDelPedido | null {
   if (c.tipo !== "PERCENT" && c.tipo !== "FIXED") return null;
   if (typeof c.valor !== "number" || !Number.isFinite(c.valor) || !(c.valor > 0)) return null;
   return { codigo: c.codigo, tipo: c.tipo, valor: c.valor };
+}
+
+// ── DEVOLVER EL USO del cupón de una venta anulada ───────────────────────────
+//
+// Un cupón de UN uso que se gastó en una venta que después se anuló quedaba agotado: la venta
+// no existe y el cliente no puede volver a usarlo, ni siquiera para rehacer la misma compra
+// (que es justamente lo que se hace cuando se pesó mal). La anulación devuelve el uso en su
+// MISMA transacción (order-anulacion.ts), leyendo la fila que escribió el alta.
+
+/** Qué cupón devolver según la fila del pedido: el id si el alta lo guardó, si no el código. PURA. */
+export function cuponADevolver(changes: unknown): { cuponId: string | null; codigo: string } | null {
+  if (!changes || typeof changes !== "object") return null;
+  const c = changes as { codigo?: unknown; cuponId?: unknown };
+  if (typeof c.codigo !== "string" || !c.codigo) return null;
+  return { cuponId: typeof c.cuponId === "string" && c.cuponId ? c.cuponId : null, codigo: c.codigo };
+}
+
+/**
+ * El `where` que baja en uno el `usedCount` del cupón a devolver, siempre dentro del negocio y
+ * nunca por debajo de cero (`usedCount > 0`: si la dueña lo reinició a mano, no queda negativo).
+ * PURA.
+ */
+export function whereDevolucionDeCupon(tenantId: string, c: { cuponId: string | null; codigo: string }) {
+  return c.cuponId
+    ? { id: c.cuponId, tenantId, usedCount: { gt: 0 } }
+    : { tenantId, code: c.codigo, usedCount: { gt: 0 } };
+}
+
+// ── VENTA A CUENTA: vendida, no cobrada ──────────────────────────────────────
+//
+// La venta «A cuenta» (fiado, order-core.ts) queda `paid` en true y SIN medio: sale de la
+// bandeja de "a cobrar" porque se cobra desde Cuentas a cobrar, pero su plata NO entró. Todo
+// número que diga "cobrado" la tiene que dejar afuera: el de Vender del Inicio y el "Gastó en el
+// último año" de la ficha la sumaban como si fuera plata en la caja.
+
+/** ¿Es una venta a cuenta (saldada sin medio: la plata no entró)? PURA. */
+export function esVentaACuenta(v: { paid?: boolean | null; paymentMethod?: string | null }): boolean {
+  return v.paid !== false && !v.paymentMethod;
 }

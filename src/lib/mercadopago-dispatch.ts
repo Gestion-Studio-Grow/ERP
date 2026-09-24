@@ -35,8 +35,9 @@ export async function manejarNotificacionMP(
     facturar: facturarAppointment,
   });
 
-  // Venta directa (sin turno): entra al pipeline unificado banco + Mercado Pago.
-  if (resultado.procesado && !resultado.facturado && resultado.motivo?.includes("external_reference")) {
+  // Venta directa (sin pedido ni turno, `esVentaDirecta`): entra al pipeline unificado banco +
+  // Mercado Pago. El mismo criterio que usa el sincronizado de la historia (classifier.ts).
+  if (resultado.procesado && !resultado.facturado && resultado.ventaDirecta) {
     const resumen = await procesarPagoStandalone(notif.tenantId, notif.paymentId);
     return {
       procesado: true,

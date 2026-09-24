@@ -16,7 +16,8 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { leerCostosDelCatalogo } from "@/lib/inventory/inventory-loader";
 import { esMesKey, etiquetaDelMes, mesDelNegocio, mesVecino } from "@/lib/libros/fecha-fiscal";
 import { leerResultadoDelMes } from "@/lib/reports/resultado-lectura";
-import { ALICUOTA_GENERAL, mesSinMovimiento } from "@/lib/reports/resultado";
+import { mesSinMovimiento } from "@/lib/reports/resultado";
+import { negocioActual } from "@/apps/kpis/negocio.server";
 import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { AvisoError, EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 
@@ -58,11 +59,13 @@ export default async function ResultadoPage({ searchParams }: { searchParams: Pr
   // Un ?mes inválido o futuro abre el mes anterior: el que ya terminó.
   const mes = esMesKey(pedido) && pedido <= actual ? pedido : mesVecino(actual, -1);
   const tenantId = await getCurrentTenantId();
-  const [costosDelCatalogo, abribles] = await Promise.all([
+  const [costosDelCatalogo, abribles, negocio] = await Promise.all([
     leerCostosDelCatalogo(tenantId),
     appsQuePuedeAbrir(user.role, ["libro-de-caja", "margen", "catalogo", "vender"]),
+    negocioActual(),
   ]);
-  const r = await leerResultadoDelMes(prisma, tenantId, mes, { costosDelCatalogo });
+  // Mostrador o servicios: decide si hay UNA alícuota verdadera para sacar el IVA (resultado.ts).
+  const r = await leerResultadoDelMes(prisma, tenantId, mes, { costosDelCatalogo, comercio: negocio.isRetail });
   const etiqueta = etiquetaDelMes(mes);
   const enCurso = mes === actual;
   const anterior = mesVecino(mes, -1);
@@ -142,6 +145,13 @@ export default async function ResultadoPage({ searchParams }: { searchParams: Pr
               }
             />
           )}
+          {r.ivaIncluidoSinAlicuota && r.ventas.bruto > 0 && (
+            <p className="mb-4 rounded-lg border border-line bg-surface-sunken px-4 py-3 text-sm text-body">
+              Tus ventas van con el IVA incluido. Como Responsable Inscripto ese IVA no es tuyo, pero cuánto es depende de la
+              alícuota de cada producto (la carne, por ejemplo, paga 10,5% y no 21%) y el sistema todavía no la guarda por
+              producto: por eso no se descuenta y el resultado real es menor que el que ves.
+            </p>
+          )}
           {r.condicion === "sin-comprobantes" && r.ventas.bruto > 0 && (
             <p className="mb-4 rounded-lg border border-line bg-surface-sunken px-4 py-3 text-sm text-body">
               Todavía no hay facturas con CAE, así que no se sabe si tu negocio es Responsable Inscripto: las ventas van como
@@ -162,9 +172,9 @@ export default async function ResultadoPage({ searchParams }: { searchParams: Pr
             {r.ventas.turnos !== 0 && (
               <Fila rotulo="Turnos cobrados" detalle={`${fmtNumberAR(r.ventas.turnosCantidad)} cobros, por la fecha del cobro`} monto={r.ventas.turnos} />
             )}
-            {r.sinIva && (
+            {r.sinIva && r.alicuota != null && (
               <Fila
-                rotulo={`Menos el IVA (${pct(ALICUOTA_GENERAL)})`}
+                rotulo={`Menos el IVA (${pct(r.alicuota)})`}
                 detalle="El que cobraste por cuenta de ARCA: no es tuyo. Es la alícuota con la que factura hoy el sistema."
                 monto={-(r.ventas.bruto - r.ventas.neto)}
               />

@@ -81,7 +81,7 @@ export async function leerHechosDelMes(
   db: DbReportes,
   tenantId: string,
   mes: MesKey,
-  opts: { costosDelCatalogo?: ReadonlyMap<string, number> } = {},
+  opts: { costosDelCatalogo?: ReadonlyMap<string, number>; comercio?: boolean } = {},
 ): Promise<HechosDelMes> {
   const [condicion, pedidos, fiados, salidas, turnos, caja] = await Promise.all([
     leerCondicion(db, tenantId),
@@ -159,6 +159,9 @@ export async function leerHechosDelMes(
 
   return {
     condicion,
+    // Lo decide quien llama (la página sabe si el negocio es de mostrador): cambia si hay UNA
+    // alícuota verdadera para sacar el IVA (`alicuotaDeLasVentas`, resultado.ts).
+    ...(opts.comercio !== undefined ? { comercio: opts.comercio } : {}),
     pedidos: pedidosDelMes,
     pedidosACuenta: new Set(fiados.flatMap((f) => (f.orderId ? [f.orderId] : []))),
     salidas: salidasDelMes,
@@ -175,7 +178,7 @@ export async function leerResultadoDelMes(
   db: DbReportes,
   tenantId: string,
   mes: MesKey,
-  opts: { costosDelCatalogo?: ReadonlyMap<string, number> } = {},
+  opts: { costosDelCatalogo?: ReadonlyMap<string, number>; comercio?: boolean } = {},
 ): Promise<ResultadoDelMes> {
   return calcularResultado(await leerHechosDelMes(db, tenantId, mes, opts));
 }

@@ -50,10 +50,12 @@ import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datet
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { fmtMoneyARS } from "@/components/ui/format";
 import {
+  cuponADevolver,
   descuentoDelAjuste,
   envioDeLasLineas,
   leerCuponDelPedido,
   whereCuponDelPedido,
+  whereDevolucionDeCupon,
   type CuponDelPedido,
 } from "@/lib/venta-reglas";
 import type { AlcanceDeAnulacion } from "@/lib/capabilities";
@@ -307,6 +309,8 @@ export type AnularVentaResult =
       /** Kilos/unidades que volvieron al stock, por producto. */
       stockDevuelto: { productId: string; name: string; qty: number }[];
       reversaId: string | null;
+      /** Código del cupón cuyo uso volvió a quedar disponible, o null si la venta no tenía. */
+      cuponDevuelto: string | null;
     }
   | { applied: false; reason: "duplicate" };
 
@@ -456,7 +460,35 @@ export async function anularVentaInTx(
     }
   }
 
-  return { applied: true, code: order!.code, montoRevertido, stockDevuelto, reversaId };
+  // (4) El uso del cupón vuelve. Va DESPUÉS del compare-and-set a propósito: sólo la anulación
+  // que ganó la fila llega acá, así que anular dos veces no devuelve dos usos.
+  const cuponDevuelto = await devolverCuponDelPedidoEnTx(tx, tenantId, args.orderId);
+
+  return { applied: true, code: order!.code, montoRevertido, stockDevuelto, reversaId, cuponDevuelto };
+}
+
+/**
+ * Devuelve el uso del cupón con el que se tomó el pedido, DENTRO de la transacción de la
+ * anulación: si la anulación se deshace, el uso no vuelve. El cupón sale de la fila que
+ * escribió el alta (`registrarCuponDelPedidoEnTx`, order-core.ts), no del descuento: un
+ * descuento a mano no es un cupón. Sin esa fila (venta sin cupón) no toca nada.
+ *
+ * Idempotencia: la da el compare-and-set del estado en `anularVentaInTx` (el que llama). Acá
+ * no hay un segundo candado porque no hace falta uno: el estado CANCELLED es terminal
+ * (`siguienteEstado` no lo mueve) y ningún otro camino llega a esta función.
+ */
+export async function devolverCuponDelPedidoEnTx(
+  tx: AnulacionVentaTx,
+  tenantId: string,
+  orderId: string,
+): Promise<string | null> {
+  const fila = await tx.auditLog.findFirst({ where: whereCuponDelPedido(tenantId, orderId), select: { changes: true } });
+  const c = cuponADevolver(fila?.changes);
+  if (!c) return null;
+  const r = await tx.coupon.updateMany({ where: whereDevolucionDeCupon(tenantId, c), data: { usedCount: { decrement: 1 } } });
+  // Si la dueña borró el cupón (o lo puso en cero a mano), no hay uso que devolver: la
+  // anulación sigue igual, y el resultado dice que no volvió nada.
+  return r.count > 0 ? c.codigo : null;
 }
 
 // ============================================================================
@@ -705,6 +737,8 @@ export type AjustarPedidoResult = {
   subtotal: number;
   descuento: number;
   total: number;
+  /** ¿Quedó alguna línea por peso? Sin ninguna, el mensaje no habla de "peso real". */
+  conPeso: boolean;
 };
 
 /**
@@ -879,6 +913,7 @@ export async function ajustarPedidoInTx(
     subtotal: t.subtotal,
     descuento: t.descuento,
     total: t.total,
+    conPeso: lines.some((l) => l.saleUnit === "WEIGHT"),
   };
 }
 
@@ -1201,6 +1236,16 @@ function rangoDeCreacion(desde: Date, hasta?: Date | null): Prisma.DateTimeFilte
  */
 export function whereVentasCobradas(tenantId: string, desde: Date, hasta?: Date | null): Prisma.OrderWhereInput {
   return { tenantId, paid: true, status: { not: "CANCELLED" }, createdAt: rangoDeCreacion(desde, hasta) };
+}
+
+/**
+ * Las ventas cobradas DE VERDAD de un día: las de `whereVentasCobradas` con un medio de cobro.
+ * Deja afuera la venta a cuenta (`esVentaACuenta`, venta-reglas.ts: `paid` sin medio), que es
+ * venta pero no plata que entró. Es el `where` del número de Vender del Inicio y de la cuenta
+ * "Ventas cobradas" de Ventas del día (que lista igual las ventas a cuenta, marcadas).
+ */
+export function whereVentasCobradasConMedio(tenantId: string, desde: Date, hasta?: Date | null): Prisma.OrderWhereInput {
+  return { ...whereVentasCobradas(tenantId, desde, hasta), paymentMethod: { not: null } };
 }
 
 /** Las ventas cobradas de ese día que después se anularon: siguen en la lista, marcadas. */

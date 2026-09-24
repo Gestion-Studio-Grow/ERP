@@ -31,7 +31,6 @@ import { isFrozenDay } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { anularVentaInTx, fronteraDeVenta, type AnularVentaArgs, type AnularVentaResult } from "@/lib/order-anulacion";
 import { fmtMoneyARS } from "@/components/ui/format";
-import { createRateLimiter } from "@/lib/rate-limit";
 import {
   aplicarCupon,
   aplicarDescuento,
@@ -41,6 +40,7 @@ import {
   cambiosDelCuponDelPedido,
   ACCION_CUPON_DEL_PEDIDO,
   CUPON_Y_DESCUENTO,
+  CUPON_NO_VALE,
   NOMBRE_LINEA_ENVIO,
   type CuponDelPedido,
   type LineaAMano,
@@ -105,9 +105,16 @@ export type InsertedOrder = {
  * transacción, así que nada se escribe; el mensaje se muestra tal cual.
  */
 export class CuponRechazado extends Error {
-  constructor(mensaje: string) {
+  /**
+   * true = el código sirve, pero otra compra gastó el uso en el mismo instante: probar de nuevo
+   * tiene sentido. La tienda muestra este tal cual y cambia los demás por el texto único
+   * (`rechazoPublicoDelCupon`, cupones/prueba-publica.ts).
+   */
+  readonly reintentable: boolean;
+  constructor(mensaje: string, opts: { reintentable?: boolean } = {}) {
     super(mensaje);
     this.name = "CuponRechazado";
+    this.reintentable = opts.reintentable ?? false;
   }
 }
 
@@ -352,31 +359,6 @@ export function decidirAlta(p: {
   };
 }
 
-// ── El freno de «Aplicar» cupón ─────────────────────────────────────────────
-//
-// Probar un cupón es público (la tienda no tiene sesión) y contesta si un código existe: sin
-// freno, alguien podría probar códigos de a miles hasta dar con uno. Se cuentan los códigos que
-// NO existen, por negocio y por IP: 10 en 10 minutos, y hasta que se libere la ventana se
-// contesta que espere. Un código que existe (aunque esté vencido o agotado) no suma: el cliente
-// que se equivoca una letra no se traba. En memoria y por proceso, como el freno del login
-// (rate-limit.ts dice por qué hoy alcanza).
-
-export const REGLA_CUPONES_INEXISTENTES = { max: 10, windowMs: 10 * 60 * 1000 };
-
-export const CUPON_FRENADO = "Probaste muchos códigos seguidos. Esperá unos minutos y volvé a intentar.";
-
-export function crearFrenoDeCupones(now: () => number = Date.now) {
-  const limitador = createRateLimiter(REGLA_CUPONES_INEXISTENTES, now);
-  const clave = (tenantId: string, ip: string | null | undefined) => `cupon:${tenantId}:${ip || "sin-ip"}`;
-  return {
-    frenado: (tenantId: string, ip: string | null | undefined) => limitador.blocked(clave(tenantId, ip)),
-    inexistente: (tenantId: string, ip: string | null | undefined) => limitador.fail(clave(tenantId, ip)),
-  };
-}
-
-/** El freno que usa `probarCuponEnPedido` (coupon-actions.ts). */
-export const frenoDeCupones = crearFrenoDeCupones();
-
 /**
  * El cupón del alta, DENTRO de su transacción: se lee, se decide con `aplicarCupon` y se
  * consume con un compare-and-set sobre el `usedCount` leído (`whereConsumoDeCupon`). Si otra
@@ -403,7 +385,7 @@ export async function aplicarCuponEnTx<T extends Pick<DatosDelAlta, "tenantId" |
       select: { id: true, code: true, type: true, value: true, active: true, expiresAt: true, maxUses: true, usedCount: true },
     });
     const r = aplicarCupon({ cupon: c, base, ahora });
-    if (!r.ok || !c) throw new CuponRechazado(r.ok ? "Ese cupón no existe o no está activo." : r.error);
+    if (!r.ok || !c) throw new CuponRechazado(r.ok ? CUPON_NO_VALE : r.error);
     const consumo = await tx.coupon.updateMany({
       where: whereConsumoDeCupon(alta.tenantId, c),
       data: { usedCount: { increment: 1 } },
@@ -415,11 +397,14 @@ export async function aplicarCuponEnTx<T extends Pick<DatosDelAlta, "tenantId" |
         total: round2(alta.subtotal - r.descuento),
         cuponAplicado: r.codigo,
         // El tipo con la misma lectura que `montoDeCupon`: lo que no es PERCENT es monto fijo.
-        cuponDelPedido: { codigo: r.codigo, tipo: c.type === "PERCENT" ? "PERCENT" : "FIXED", valor: c.value },
+        // El id va para que una anulación devuelva el uso a ESTA fila (`cuponADevolver`).
+        cuponDelPedido: { codigo: r.codigo, tipo: c.type === "PERCENT" ? "PERCENT" : "FIXED", valor: c.value, cuponId: c.id },
       };
     }
   }
-  throw new CuponRechazado("Ese cupón se está usando en otra compra en este mismo momento: probá de nuevo.");
+  throw new CuponRechazado("Ese cupón se está usando en otra compra en este mismo momento: probá de nuevo.", {
+    reintentable: true,
+  });
 }
 
 /**
@@ -872,7 +857,7 @@ export type ResultadoPedidoOnline =
   | { tipo: "tomado"; pedido: InsertedOrder }
   /** Hay líneas que no se pueden pedir así: el aviso de cada una, por producto. */
   | { tipo: "bolsa"; porLinea: Record<string, string> }
-  | { tipo: "cupon"; error: string }
+  | { tipo: "cupon"; error: string; reintentable?: true }
   /** Un rechazo del alta con texto para el cliente (sin precio, sin dirección). */
   | { tipo: "rechazo"; error: string }
   /** Un error de la base: su texto es para el log, no para el cliente. */
@@ -905,7 +890,9 @@ export async function tomarPedidoOnlineGuarded(ops: {
   try {
     return { tipo: "tomado", pedido: await ops.insertar() };
   } catch (err) {
-    if (err instanceof CuponRechazado) return { tipo: "cupon", error: err.message };
+    if (err instanceof CuponRechazado) {
+      return { tipo: "cupon", error: err.message, ...(err.reintentable ? { reintentable: true as const } : {}) };
+    }
     const otraVez = await ops.revisarBolsa().catch(() => ({}) as Record<string, string>);
     if (Object.keys(otraVez).length > 0) return { tipo: "bolsa", porLinea: otraVez };
     if (esRechazoDelAlta(err)) return { tipo: "rechazo", error: err.message };

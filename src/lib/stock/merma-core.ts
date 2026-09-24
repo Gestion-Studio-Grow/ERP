@@ -42,8 +42,8 @@
 import { buildReason, motivoLabel } from "@/lib/stock/adjustment-core";
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { MOTIVO_STOCK_INICIAL } from "@/lib/stock/alta-producto";
-import { TRASLADO_ACTOR_PREFIX } from "@/lib/multilocal/traslado-core";
-import { esMovimientoDeDespiece } from "@/lib/carniceria/despiece";
+import { SIN_TRASLADOS, TRASLADO_ACTOR_PREFIX } from "@/lib/multilocal/traslado-core";
+import { esMovimientoDeDespiece, sinDespiece } from "@/lib/carniceria/despiece";
 
 // ── Qué se lee ──────────────────────────────────────────────────────────────
 
@@ -54,6 +54,15 @@ import { esMovimientoDeDespiece } from "@/lib/carniceria/despiece";
  */
 export function whereAjustesDelPeriodo(tenantId: string, desde: Date, hasta?: Date) {
   return { tenantId, type: "AJUSTE" as const, createdAt: hasta ? { gte: desde, lt: hasta } : { gte: desde } };
+}
+
+/**
+ * Los AJUSTE que lista "Ajustes recientes" en Mermas (ajustes-loader.ts): sin los de un traslado
+ * entre locales y sin la salida de la pieza de un despiece. Son dos de las exclusiones de
+ * `clasificarAjuste` (la misma marca, en la base). PURA.
+ */
+export function whereAjustesRecientes(tenantId: string) {
+  return { tenantId, type: "AJUSTE" as const, AND: [SIN_TRASLADOS, sinDespiece()] };
 }
 
 // ── Clasificar un movimiento ────────────────────────────────────────────────

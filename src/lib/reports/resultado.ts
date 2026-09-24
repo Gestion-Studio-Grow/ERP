@@ -11,8 +11,10 @@
 // LA CUENTA:
 //   VENTAS    = los pedidos del mes cobrados o dejados a cuenta (no anulados) + los turnos
 //               cobrados en el mes (el mismo reloj que Reportes: la fecha del cobro).
-//               Para un Responsable Inscripto, sin IVA (21%, la misma cuenta con la que hoy
-//               factura el sistema, fiscal.ts `calcularImpuestos`).
+//               Para un Responsable Inscripto de SERVICIOS, sin IVA (21%, la alícuota general
+//               de los servicios y la misma con la que hoy factura el sistema, fiscal.ts
+//               `calcularImpuestos`). Para un inscripto de MOSTRADOR, con el IVA incluido y
+//               dicho: ver `alicuotaDeLasVentas`.
 //   COSTO     = lo que costó lo vendido (costo-vendido.ts): el costo guardado en cada venta,
 //               y los insumos que consumieron los servicios.
 //   GASTOS    = los egresos del libro de caja del mes que SON gasto, reconocidos por la marca
@@ -64,6 +66,29 @@ export function vaSinIva(condicion: CondicionLibro): boolean {
 /** Un importe con IVA incluido, sin el IVA (si corresponde). PURA. */
 export function netoDeIva(monto: number, condicion: CondicionLibro): number {
   return vaSinIva(condicion) ? round2(monto / (1 + ALICUOTA_GENERAL)) : round2(monto);
+}
+
+/**
+ * La alícuota con la que se saca el IVA de las ventas del mes, o `null` si no hay que sacar
+ * ninguno o si NO HAY UNA que sea verdad para todo lo vendido. PURA.
+ *
+ * EL CRITERIO (de contador): el IVA que no es del negocio es el de cada producto, con SU
+ * alícuota. En un negocio de SERVICIOS (CH) todo lo que se vende va a la alícuota general, 21%:
+ * dividir por 1,21 da el neto real. En un MOSTRADOR no: la carne vacuna, por ejemplo, va al
+ * 10,5%, y el esquema de hoy no guarda la alícuota de cada producto (ni en `Product` ni en la
+ * línea del pedido). Dividir todo por 1,21 le decía a una carnicería inscripta un neto 8,6%
+ * más chico que el real en cada kilo de carne, bajo el rótulo "Menos el IVA (21%)". Sin el
+ * dato, no se inventa un número: las ventas van con el IVA incluido y la pantalla lo dice.
+ * Arreglarlo de verdad es guardar la alícuota por producto (migración).
+ */
+export function alicuotaDeLasVentas(condicion: CondicionLibro, opts: { comercio: boolean }): number | null {
+  if (!vaSinIva(condicion)) return null;
+  return opts.comercio ? null : ALICUOTA_GENERAL;
+}
+
+/** ¿Es un inscripto cuyo IVA no se puede sacar sin la alícuota de cada producto? PURA. */
+export function ivaSinAlicuotaConocida(condicion: CondicionLibro, opts: { comercio: boolean }): boolean {
+  return vaSinIva(condicion) && opts.comercio;
 }
 
 // ── Qué es cada movimiento del libro para el resultado ───────────────────────
@@ -140,6 +165,11 @@ export function rubroDeCaja(m: MovimientoDeCaja): RubroDeCaja {
 
 export interface HechosDelMes {
   condicion: CondicionLibro;
+  /**
+   * ¿Local de mostrador? Decide si hay UNA alícuota verdadera para sacar el IVA
+   * (`alicuotaDeLasVentas`). Sin el dato, como un negocio de servicios: lo de siempre.
+   */
+  comercio?: boolean;
   /** Pedidos NO anulados creados en el mes. */
   pedidos: readonly PedidoDelPeriodo[];
   /** Ids de los pedidos que tienen una cuenta a cobrar viva (se dejaron a cuenta). */
@@ -158,6 +188,13 @@ export interface ResultadoDelMes {
   condicion: CondicionLibro;
   /** ¿Los importes de ventas van sin IVA? */
   sinIva: boolean;
+  /** La alícuota con la que se sacó el IVA (null = no se sacó). */
+  alicuota: number | null;
+  /**
+   * Inscripto de mostrador: las ventas van CON el IVA incluido porque el esquema no guarda la
+   * alícuota de cada producto. La pantalla lo dice: el resultado real es menor.
+   */
+  ivaIncluidoSinAlicuota: boolean;
   ventas: {
     /** Pedidos cobrados. */
     mostrador: number;
@@ -220,7 +257,9 @@ export function calcularResultado(h: HechosDelMes): ResultadoDelMes {
   const enCuenta = suma(aCuenta, (p) => p.total);
   const turnos = round2(h.turnos.total);
   const bruto = round2(mostrador + enCuenta + turnos);
-  const neto = netoDeIva(bruto, h.condicion);
+  const comercio = { comercio: h.comercio ?? false };
+  const alicuota = alicuotaDeLasVentas(h.condicion, comercio);
+  const neto = alicuota != null ? round2(bruto / (1 + alicuota)) : bruto;
 
   // El costo de la mercadería es SIN IVA siempre que el costo se haya cargado así; hoy el
   // formulario de compras no lo pregunta, así que se toma como se cargó.
@@ -297,7 +336,9 @@ export function calcularResultado(h: HechosDelMes): ResultadoDelMes {
 
   return {
     condicion: h.condicion,
-    sinIva: vaSinIva(h.condicion),
+    sinIva: alicuota != null,
+    alicuota,
+    ivaIncluidoSinAlicuota: ivaSinAlicuotaConocida(h.condicion, comercio),
     ventas: {
       mostrador,
       mostradorCantidad: cobrados.length,

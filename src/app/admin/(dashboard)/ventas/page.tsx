@@ -18,7 +18,7 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { EmptyState, PageContainer, PageHeader, Select, buttonClasses } from "@/components/ui";
 import type { Prisma } from "@/generated/prisma/client";
 import FilaVenta from "./FilaVenta";
-import { leerFiltros, notaDeCupon, notaDeDescuento, resumenACuenta, resumenDeVentas } from "./filtros";
+import { leerFiltros, notaDeCupon, notaDeDescuento, resumenACuenta, resumenDeVentas, ventasCobradasDeVerdad } from "./filtros";
 import { estadoDeFactura, SIN_FACTURA, type FacturaDeVenta } from "./factura";
 import { puedeAbrirApp } from "../vender/puede-abrir";
 import { ventaDeOrden } from "../vender/reglas-venta";
@@ -74,7 +74,8 @@ export default async function VentasPage({
   const puedeFacturar = await puedeAbrirApp("facturacion");
   const esHoy = filtros.dia === hoy;
 
-  // Hoy: desde las 00:00 sin tope (el MISMO `where` que el número del Inicio). Otro día: ese día.
+  // Hoy: desde las 00:00 sin tope (el mismo corte que el número del Inicio). Otro día: ese día.
+  // La lista trae también las ventas a cuenta (marcadas); la cuenta de "cobradas", no.
   const desde = businessWallTimeToUtc(filtros.dia, "00:00");
   const hasta = esHoy ? null : businessWallTimeToUtc(nextDayKey(filtros.dia), "00:00");
   const extra: Prisma.OrderWhereInput = {
@@ -152,7 +153,8 @@ export default async function VentasPage({
     return out;
   };
 
-  const resumen = resumenDeVentas(vigentes);
+  // "Ventas cobradas" cuenta lo que se cobró: la venta a cuenta va en la lista, no en la cuenta.
+  const resumen = resumenDeVentas(ventasCobradasDeVerdad(vigentes));
   const aCuenta = resumenACuenta(vigentes);
 
   // El estado de la factura de cada venta. La tabla de comprobantes se lee SÓLO con la
