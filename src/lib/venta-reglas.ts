@@ -553,11 +553,21 @@ export function cuponADevolver(changes: unknown): { cuponId: string | null; codi
  * El `where` que baja en uno el `usedCount` del cupón a devolver, siempre dentro del negocio y
  * nunca por debajo de cero (`usedCount > 0`: si la dueña lo reinició a mano, no queda negativo).
  * PURA.
+ *
+ * Con `cuponId` (las filas que escribe el alta desde la tanda 2a) va a ESA fila. Las filas viejas
+ * sólo tienen el código: si la dueña borró el cupón y creó otro con el mismo código, buscar por
+ * código le devolvería un uso al cupón NUEVO, que nunca se gastó en este pedido. Por eso, sin id,
+ * sólo cuenta un cupón creado ANTES que el pedido (`createdAt <= pedidoCreadoEl`): uno creado
+ * después no puede ser el que se usó. Si no hay ninguno así, no se devuelve nada.
  */
-export function whereDevolucionDeCupon(tenantId: string, c: { cuponId: string | null; codigo: string }) {
+export function whereDevolucionDeCupon(
+  tenantId: string,
+  c: { cuponId: string | null; codigo: string },
+  pedidoCreadoEl: Date,
+) {
   return c.cuponId
     ? { id: c.cuponId, tenantId, usedCount: { gt: 0 } }
-    : { tenantId, code: c.codigo, usedCount: { gt: 0 } };
+    : { tenantId, code: c.codigo, usedCount: { gt: 0 }, createdAt: { lte: pedidoCreadoEl } };
 }
 
 // ── VENTA A CUENTA: vendida, no cobrada ──────────────────────────────────────

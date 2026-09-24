@@ -75,8 +75,8 @@ function nuevoMundo(opts: {
     ordersUpdated: 0,
     // Dos cupones con el MISMO código en dos negocios: la devolución no puede cruzar de negocio.
     cupones: [
-      { id: "cup_1", tenantId: "t1", code: "VERANO10", usedCount: 1 },
-      { id: "cup_otro", tenantId: "t2", code: "VERANO10", usedCount: 1 },
+      { id: "cup_1", tenantId: "t1", code: "VERANO10", usedCount: 1, createdAt: new Date("2026-09-01T12:00:00Z") },
+      { id: "cup_otro", tenantId: "t2", code: "VERANO10", usedCount: 1, createdAt: new Date("2026-09-01T12:00:00Z") },
     ],
     auditoria: opts.cuponDelPedido
       ? [{ tenantId: "t1", entity: "Order", action: "cupon-del-pedido", entityId: "ord_1", changes: opts.cuponDelPedido }]
@@ -110,9 +110,10 @@ function txDe(mundo: ReturnType<typeof nuevoMundo>): AnulacionVentaTx {
         ) ?? null,
     },
     coupon: {
-      // Lo que hace Postgres con el `where` de la devolución: negocio, id o código, y usedCount > 0.
+      // Lo que hace Postgres con el `where` de la devolución: negocio, id o código, usedCount > 0
+      // y, si viene, creado hasta tal fecha.
       updateMany: async (args: {
-        where: { tenantId: string; id?: string; code?: string; usedCount: { gt: number } };
+        where: { tenantId: string; id?: string; code?: string; usedCount: { gt: number }; createdAt?: { lte: Date } };
         data: { usedCount: { decrement: number } };
       }) => {
         const filas = mundo.cupones.filter(
@@ -120,6 +121,7 @@ function txDe(mundo: ReturnType<typeof nuevoMundo>): AnulacionVentaTx {
             c.tenantId === args.where.tenantId &&
             (args.where.id === undefined || c.id === args.where.id) &&
             (args.where.code === undefined || c.code === args.where.code) &&
+            (args.where.createdAt === undefined || c.createdAt.getTime() <= args.where.createdAt.lte.getTime()) &&
             c.usedCount > args.where.usedCount.gt,
         );
         for (const c of filas) c.usedCount -= args.data.usedCount.decrement;
@@ -508,6 +510,22 @@ test("una fila de cupón vieja (sin id) devuelve por código, dentro del negocio
     [0, 1],
     "ni negativo en el propio, ni tocar el del otro negocio con el mismo código",
   );
+});
+
+test("fila vieja (sin id) y el cupón se borró y se recreó DESPUÉS del pedido con el mismo código: no se le devuelve un uso al nuevo", async () => {
+  const mundo = nuevoMundo({ cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 2343.6 } });
+  // El pedido es del 15/09; la dueña borró VERANO10 y lo volvió a crear el 20/09, y el nuevo ya tiene un uso.
+  mundo.cupones[0] = { id: "cup_nuevo", tenantId: "t1", code: "VERANO10", usedCount: 1, createdAt: new Date("2026-09-20T12:00:00Z") };
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  assert.equal(r.applied, true, "la anulación sigue igual");
+  if (r.applied) assert.equal(r.cuponDevuelto, null);
+  assert.equal(mundo.cupones[0].usedCount, 1, "el uso del cupón nuevo no se toca: no se gastó en este pedido");
+
+  // El mismo caso con el cupón creado ANTES del pedido (el que se usó): el uso sí vuelve.
+  const antes = nuevoMundo({ cuponDelPedido: { codigo: "VERANO10", tipo: "PERCENT", valor: 10, monto: 2343.6 } });
+  const r2 = await anularVentaInTx(txDe(antes), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  if (r2.applied) assert.equal(r2.cuponDevuelto, "VERANO10");
+  assert.equal(antes.cupones[0].usedCount, 0);
 });
 
 test("una venta sin cupón se anula igual y no toca ningún cupón", async () => {

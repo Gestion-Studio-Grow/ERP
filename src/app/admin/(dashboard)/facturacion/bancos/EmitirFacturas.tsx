@@ -102,7 +102,23 @@ export default function EmitirFacturas({
                   {fmtNumberAR(resultado.errores.length)} con error
                 </Badge>
               )}
+              {(resultado.yaFacturadas?.length ?? 0) > 0 && (
+                <Badge tone="neutral" dot>
+                  {fmtNumberAR(resultado.yaFacturadas!.length)} ya facturada
+                  {resultado.yaFacturadas!.length === 1 ? "" : "s"} por su venta
+                </Badge>
+              )}
             </div>
+
+            {/* Cobros de un turno o pedido que se facturaron por su camino mientras esperaban:
+                no se emitió la suelta (sería la segunda factura de la misma venta). */}
+            {(resultado.yaFacturadas?.length ?? 0) > 0 && (
+              <ul className="space-y-1 rounded-md bg-surface-sunken px-3 py-2 text-sm text-strong" role="status">
+                {resultado.yaFacturadas!.map((y) => (
+                  <li key={y.movimientoId}>No se emitió: {y.motivo}</li>
+                ))}
+              </ul>
+            )}
 
             {resultado.capAlcanzado && resultado.mensaje && (
               <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">

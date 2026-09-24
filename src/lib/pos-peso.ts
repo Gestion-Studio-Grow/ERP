@@ -158,6 +158,16 @@ export function cantidadParaFormulario(valor: number): string {
  * hasta el arqueo. Un paquete al vacío pesa entre 0,2 y 5 kg; media res ronda los 100.
  */
 /**
+ * ¿El pedido lleva alguna línea POR PESO que se pueda ajustar? PURA. UN criterio para el texto
+ * del botón (`textosDelAjuste`) y para el mensaje del resultado (`conPeso`, order-anulacion.ts):
+ * una línea sin producto (precio a mano o envío) no se pesa ni se ajusta, así que no cuenta
+ * aunque diga WEIGHT.
+ */
+export function hayLineaPorPeso(lineas: readonly { saleUnit: string; productId: string | null }[]): boolean {
+  return lineas.some((l) => l.productId != null && l.saleUnit === "WEIGHT");
+}
+
+/**
  * Los textos de «ajustar un pedido» según lo que tiene. PURA.
  *
  * "Pesar y ajustar" es para el pedido que lleva algo POR PESO (se pesa al envasar). En una
@@ -165,13 +175,12 @@ export function cantidadParaFormulario(valor: number): string {
  * ofrecer "Pesar" ahí es pedir algo que no existe. El pedido con una sola línea por peso sigue
  * diciendo "Pesar y ajustar", como siempre.
  */
-export function textosDelAjuste(lineas: readonly { saleUnit: string; productId?: string | null }[]): {
+export function textosDelAjuste(lineas: readonly { saleUnit: string; productId: string | null }[]): {
   boton: string;
   titulo: string;
   guardar: string;
 } {
-  const hayPeso = lineas.some((l) => l.productId !== null && l.saleUnit === "WEIGHT");
-  return hayPeso
+  return hayLineaPorPeso(lineas)
     ? { boton: "Pesar y ajustar", titulo: "Peso real del pedido", guardar: "Guardar peso real" }
     : { boton: "Ajustar pedido", titulo: "Cantidades del pedido", guardar: "Guardar cantidades" };
 }

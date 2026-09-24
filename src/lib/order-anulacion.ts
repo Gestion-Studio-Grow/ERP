@@ -45,7 +45,7 @@ import {
   type DayKey,
 } from "@/lib/caja/cierre-diario";
 import { validarMotivo, mensajeMotivoInvalido } from "@/lib/turnos/anulacion";
-import { formatearCantidad } from "@/lib/pos-peso";
+import { formatearCantidad, hayLineaPorPeso } from "@/lib/pos-peso";
 import { businessWallTimeToUtc, dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { fmtMoneyARS } from "@/components/ui/format";
@@ -462,7 +462,7 @@ export async function anularVentaInTx(
 
   // (4) El uso del cupón vuelve. Va DESPUÉS del compare-and-set a propósito: sólo la anulación
   // que ganó la fila llega acá, así que anular dos veces no devuelve dos usos.
-  const cuponDevuelto = await devolverCuponDelPedidoEnTx(tx, tenantId, args.orderId);
+  const cuponDevuelto = await devolverCuponDelPedidoEnTx(tx, tenantId, args.orderId, order!.createdAt);
 
   return { applied: true, code: order!.code, montoRevertido, stockDevuelto, reversaId, cuponDevuelto };
 }
@@ -476,16 +476,23 @@ export async function anularVentaInTx(
  * Idempotencia: la da el compare-and-set del estado en `anularVentaInTx` (el que llama). Acá
  * no hay un segundo candado porque no hace falta uno: el estado CANCELLED es terminal
  * (`siguienteEstado` no lo mueve) y ningún otro camino llega a esta función.
+ *
+ * `pedidoCreadoEl`: para las filas viejas sin `cuponId`, que un cupón recreado DESPUÉS del
+ * pedido con el mismo código no reciba un uso que nunca se gastó en él (`whereDevolucionDeCupon`).
  */
 export async function devolverCuponDelPedidoEnTx(
   tx: AnulacionVentaTx,
   tenantId: string,
   orderId: string,
+  pedidoCreadoEl: Date,
 ): Promise<string | null> {
   const fila = await tx.auditLog.findFirst({ where: whereCuponDelPedido(tenantId, orderId), select: { changes: true } });
   const c = cuponADevolver(fila?.changes);
   if (!c) return null;
-  const r = await tx.coupon.updateMany({ where: whereDevolucionDeCupon(tenantId, c), data: { usedCount: { decrement: 1 } } });
+  const r = await tx.coupon.updateMany({
+    where: whereDevolucionDeCupon(tenantId, c, pedidoCreadoEl),
+    data: { usedCount: { decrement: 1 } },
+  });
   // Si la dueña borró el cupón (o lo puso en cero a mano), no hay uso que devolver: la
   // anulación sigue igual, y el resultado dice que no volvió nada.
   return r.count > 0 ? c.codigo : null;
@@ -913,7 +920,8 @@ export async function ajustarPedidoInTx(
     subtotal: t.subtotal,
     descuento: t.descuento,
     total: t.total,
-    conPeso: lines.some((l) => l.saleUnit === "WEIGHT"),
+    // El mismo criterio que el botón (`textosDelAjuste`): sólo cuentan las líneas con producto.
+    conPeso: hayLineaPorPeso([...lines, ...aMano]),
   };
 }
 

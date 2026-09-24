@@ -57,6 +57,19 @@ test("la página pública del turno recibe lo que muestra y nada de la profesion
   assert.doesNotMatch(JSON.stringify(t), /caro@ch\.com|1140000000|commission|mp_99/);
 });
 
-test("un id de otro negocio no se encuentra", async () => {
-  assert.equal(await leerMiTurno(db as never, "t_magra", "ap_1"), null);
+test("la consulta que arma leerMiTurno va acotada al negocio que recibe (id Y tenantId en el where)", async () => {
+  // Lo que se prueba es lo que `leerMiTurno` le PIDE a la base, no lo que contesta una base falsa:
+  // se captura el argumento real de `findFirst`.
+  const pedidos: { where: unknown }[] = [];
+  const espia = {
+    appointment: {
+      findFirst: async (a: { where: unknown }) => {
+        pedidos.push(a);
+        return null;
+      },
+    },
+  };
+  await leerMiTurno(espia as never, "t_magra", "ap_1");
+  assert.equal(pedidos.length, 1);
+  assert.deepEqual(pedidos[0].where, { id: "ap_1", tenantId: "t_magra" }, "sin el tenantId, el id de otro negocio se encontraría");
 });

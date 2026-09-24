@@ -117,9 +117,12 @@ export type CouponCheck =
 //   · código inexistente o apagado: "Cupón inválido." → igual;
 //   · código vencido: "Este cupón ya venció." → "Cupón inválido.";
 //   · código agotado: "Este cupón ya alcanzó el máximo de usos." → "Cupón inválido.";
-//   · 10 intentos fallidos en 10 minutos desde la misma IP: antes seguía contestando; ahora
-//     "Probaste muchos códigos seguidos. Esperá unos minutos y volvé a intentar." (`CUPON_FRENADO`).
-// Un cupón válido se aplica igual que antes, con la misma cuenta del descuento.
+//   · 10 intentos fallidos en 10 minutos desde la misma IP contra ESTE negocio (el freno cuenta
+//     por negocio + IP): antes seguía contestando; ahora "Probaste muchos códigos seguidos.
+//     Esperá unos minutos y volvé a intentar." (`CUPON_FRENADO`). Límite aceptado: las clientas
+//     que reservan desde el wifi del salón comparten la IP y el cupo (ver `crearFrenoDeCupones`).
+// Un cupón válido se aplica igual que antes, con la misma cuenta del descuento, y la regla de
+// validez es la de siempre (existe, prendido, sin vencer, con usos; un cupón en 0 pasa).
 export async function checkCoupon(code: string, price: number): Promise<CouponCheck> {
   const tenantId = await getCurrentTenantId();
   const normalized = String(code ?? "").trim().toUpperCase();
@@ -131,6 +134,9 @@ export async function checkCoupon(code: string, price: number): Promise<CouponCh
     ip: await requestIp(),
     ahora: new Date(),
     leer: () => prisma.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalized } } }),
+    // La misma regla de validez que tenía la reserva: un cupón en 0 sigue pasando (y
+    // `bookAppointment` lo aplica igual). Sólo cambian el texto y el freno.
+    exigeDescuento: false,
   });
   if (!prueba.ok) return { ok: false, reason: prueba.motivo === "frenado" ? CUPON_FRENADO : "Cupón inválido." };
   const coupon = prueba.cupon;
@@ -184,6 +190,7 @@ export async function probarCuponEnPedido(codigo: string, base: number): Promise
     ip: await requestIp(),
     ahora: new Date(),
     leer,
+    exigeDescuento: true, // los pedidos: `aplicarCupon` ya exigía un descuento cargado
   });
   if (!prueba.ok) return { ok: false, error: prueba.motivo === "frenado" ? CUPON_FRENADO : CUPON_NO_VALE };
   const c = prueba.cupon;

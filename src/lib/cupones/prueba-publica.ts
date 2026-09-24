@@ -44,6 +44,17 @@ export interface FrenoDeCupones {
   fallido(tenantId: string, ip: string | null | undefined): void;
 }
 
+/**
+ * El freno cuenta por (NEGOCIO, IP): la clave lleva los dos, así los fallos contra una tienda no
+ * frenan la reserva de otro negocio aunque salgan de la misma IP.
+ *
+ * LÍMITE CONOCIDO Y ACEPTADO: dentro de un mismo negocio, todos los que salen por la misma IP
+ * pública comparten el cupo. En CH, las clientas que reservan desde el wifi del salón salen por
+ * la IP del salón: 10 códigos mal tipeados en 10 minutos desde ahí frenan a TODAS las del salón
+ * (en ese negocio) hasta que pase la ventana. Un aviso claro ("Esperá unos minutos") y sin
+ * bloquear la reserva (sólo el cupón) es el costo de no tener otra cosa que identifique a quien
+ * prueba sin sesión. Si pasa seguido, la salida es subir `max` para la reserva, no sacar el freno.
+ */
 export function crearFrenoDeCupones(now: () => number = Date.now): FrenoDeCupones {
   const limitador = createRateLimiter(REGLA_CUPONES_FALLIDOS, now);
   // Sin IP (un proxy que no la manda) se agrupa bajo una misma clave: también se frena.
@@ -58,18 +69,24 @@ export function crearFrenoDeCupones(now: () => number = Date.now): FrenoDeCupone
 export const frenoDeCupones = crearFrenoDeCupones();
 
 /**
- * ¿Este cupón se puede usar ahora? Existe, está prendido, no venció, le quedan usos y tiene un
- * descuento cargado. PURA. Es la misma lista de rechazos que `aplicarCupon` (venta-reglas.ts),
- * sin el motivo: hacia afuera el motivo no se dice.
+ * ¿Este cupón se puede usar ahora? Existe, está prendido, no venció y le quedan usos. PURA. Es la
+ * misma lista de rechazos que `aplicarCupon` (venta-reglas.ts), sin el motivo: hacia afuera el
+ * motivo no se dice.
+ *
+ * `exigeDescuento`: el "tiene un descuento cargado" (value > 0) es regla de los PEDIDOS
+ * (`aplicarCupon` ya lo exigía antes de la tanda 2a). La reserva de CH (`checkCoupon`) nunca lo
+ * miró —y `bookAppointment` aplica igual un cupón en 0—, así que ahí va en false: la tanda 2a
+ * cambió en CH el texto y el freno, no qué cupón vale.
  */
 export function cuponUsable(
   c: Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "usedCount" | "value"> | null,
   ahora: Date,
+  opts: { exigeDescuento: boolean },
 ): boolean {
   if (!c || !c.active) return false;
   if (c.expiresAt && c.expiresAt.getTime() < ahora.getTime()) return false;
   if (c.maxUses != null && c.usedCount >= c.maxUses) return false;
-  return c.value > 0;
+  return opts.exigeDescuento ? c.value > 0 : true;
 }
 
 export type PruebaPublica<C> = { ok: true; cupon: C } | { ok: false; motivo: "frenado" | "no-vale" };
@@ -84,10 +101,12 @@ export async function probarCuponPublico<C extends Pick<CuponLeido, "active" | "
   ip: string | null | undefined;
   ahora: Date;
   leer: () => Promise<C | null>;
+  /** Ver `cuponUsable`: true en los pedidos (tienda), false en la reserva de CH. */
+  exigeDescuento: boolean;
 }): Promise<PruebaPublica<C>> {
   if (p.freno.frenado(p.tenantId, p.ip)) return { ok: false, motivo: "frenado" };
   const c = await p.leer();
-  if (!c || !cuponUsable(c, p.ahora)) {
+  if (!c || !cuponUsable(c, p.ahora, { exigeDescuento: p.exigeDescuento })) {
     p.freno.fallido(p.tenantId, p.ip);
     return { ok: false, motivo: "no-vale" };
   }

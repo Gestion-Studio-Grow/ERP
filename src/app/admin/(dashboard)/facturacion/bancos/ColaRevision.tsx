@@ -77,7 +77,12 @@ function PanelDetalle({
         nombreReceptor: nombre,
         descripcionServicio: descripcion,
       });
-      if (res.ok) {
+      if (res.ok && res.yaFacturada) {
+        // La venta detrás del cobro ya se facturó por su camino: no se emite la suelta.
+        showSuccess(`No se va a emitir: ${res.yaFacturada} Quedó como no facturable.`);
+        onResuelta(propuesta.id);
+        router.refresh();
+      } else if (res.ok) {
         showSuccess("Listo: la venta pasó a la cola de emisión.");
         onResuelta(propuesta.id);
         router.refresh();

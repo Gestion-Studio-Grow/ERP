@@ -23,6 +23,7 @@ import {
   redondearCantidad,
   KG_SOSPECHOSO,
   textosDelAjuste,
+  hayLineaPorPeso,
 } from "./pos-peso";
 
 function valor(raw: string): number | null {
@@ -292,4 +293,17 @@ test("textosDelAjuste: 'Pesar y ajustar' con una línea por peso; 'Ajustar pedid
   assert.equal(textosDelAjuste([vacio]).guardar, "Guardar peso real");
   // Una línea sin producto (precio a mano o envío) no se ajusta: no cuenta como "por peso".
   assert.equal(textosDelAjuste([{ productId: null, saleUnit: "WEIGHT" }, vela]).boton, "Ajustar pedido");
+});
+
+test("hayLineaPorPeso: UN criterio para el botón (textosDelAjuste) y el resultado del ajuste (conPeso)", () => {
+  const casos = [
+    [{ productId: "p_vacio", saleUnit: "WEIGHT" }],
+    [{ productId: "p_vela", saleUnit: "UNIT" }],
+    [{ productId: null, saleUnit: "WEIGHT" }, { productId: "p_vela", saleUnit: "UNIT" }],
+    [{ productId: null, saleUnit: "WEIGHT" }, { productId: "p_vacio", saleUnit: "WEIGHT" }],
+    [],
+  ];
+  assert.deepEqual(casos.map(hayLineaPorPeso), [true, false, false, true, false]);
+  // El botón dice "Pesar" exactamente cuando hay línea por peso.
+  for (const c of casos) assert.equal(textosDelAjuste(c).boton === "Pesar y ajustar", hayLineaPorPeso(c));
 });

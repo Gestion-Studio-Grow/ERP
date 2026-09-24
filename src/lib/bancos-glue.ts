@@ -25,7 +25,7 @@
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { runInTenantContext } from "@/lib/tenant-context";
-import { createInvoice } from "@/lib/invoice-core";
+import { emitirMovimientoEnTx } from "@/lib/emision-cola";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
 import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
@@ -615,6 +615,11 @@ export interface ResultadoEmision {
   capAlcanzado: boolean;
   mensaje?: string;
   errores: { movimientoId: string; error: string }[];
+  /**
+   * Cobros de un turno o pedido que, al ir a emitir, ya tenían su factura: no se emitió la suelta
+   * y pasaron a no facturable con este motivo (emision-cola.ts). Vacío si no hubo.
+   */
+  yaFacturadas?: { movimientoId: string; motivo: string }[];
   /** Resumen del despacho a ARCA (solo si ARCA_INVOICING_ENABLED está prendido). */
   despachoArca?: DispatchResumen;
 }
@@ -659,6 +664,7 @@ export async function emitirPropuestas(
     let emitidas = 0;
     let bloqueadas = 0;
     const errores: { movimientoId: string; error: string }[] = [];
+    const yaFacturadas: { movimientoId: string; motivo: string }[] = [];
 
     for (const mov of movimientos) {
       // Cap de facturas del mes (regla comercial del dueño): al 100% se BLOQUEA.
@@ -667,57 +673,37 @@ export async function emitirPropuestas(
         continue;
       }
 
-      // CLAIM idempotente: solo el que pasa auto→emitida factura. Un doble clic o
-      // dos sesiones simultáneas no generan dos comprobantes del mismo movimiento.
-      const claim = await tenantTransaction(
-        (tx) =>
-          tx.movimientoImportado.updateMany({
-            where: { id: mov.id, tenantId, estadoPropuesta: "auto" },
-            data: { estadoPropuesta: "emitida" },
-          }),
-        { tenantId },
-      );
-      if (claim.count === 0) continue; // otro lo agarró (o cambió de estado)
-
+      // Claim auto→emitida, relectura de la venta detrás del cobro (un turno o pedido que se
+      // facturó por su camino mientras esto esperaba no se factura dos veces) y la factura, en
+      // UNA transacción (emision-cola.ts). Si algo tira, vuelve todo atrás y queda `auto`.
       try {
         // El monto del banco es TOTAL IVA-incluido; el Core calcula neto/IVA (ADR-006).
         const montoTotal = Math.abs(toNum(mov.monto));
         const { neto, iva, total } = calcularImpuestos(perfil.condicionIva, montoTotal);
-        const invoiceId = await createInvoice({
-          tenantId,
-          // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
-          // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
-          concepto: 1,
-          fecha: mov.fecha,
-          emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta },
-          receptor: {
-            docTipo: mov.docTipo ?? DOC_TIPO_CONSUMIDOR_FINAL,
-            docNro: Number(mov.docNro ?? 0) || 0,
-            condicionIva: "CONSUMIDOR_FINAL",
-          },
-          neto,
-          iva,
-          total,
-        });
-        await tenantTransaction(
+        const r = await tenantTransaction(
           (tx) =>
-            tx.movimientoImportado.updateMany({
-              where: { id: mov.id, tenantId },
-              data: { invoiceId },
-            }),
+            emitirMovimientoEnTx(tx, tenantId, mov, () => ({
+              tenantId,
+              // Concepto 1 (productos/venta directa), mismo criterio que invoice-from-mp:
+              // concepto 2 (servicios) exigiría fechas de servicio que el extracto no trae.
+              concepto: 1,
+              fecha: mov.fecha,
+              emisor: { cuit: perfil.cuit, condicionIva: perfil.condicionIva, puntoVenta },
+              receptor: {
+                docTipo: mov.docTipo ?? DOC_TIPO_CONSUMIDOR_FINAL,
+                docNro: Number(mov.docNro ?? 0) || 0,
+                condicionIva: "CONSUMIDOR_FINAL",
+              },
+              neto,
+              iva,
+              total,
+            })),
           { tenantId },
         );
-        emitidas++;
+        if (r.tipo === "emitida") emitidas++;
+        else if (r.tipo === "ya-facturada") yaFacturadas.push({ movimientoId: mov.id, motivo: r.motivo });
+        // "tomada": otro la agarró (doble clic, otra sesión) o cambió de estado.
       } catch (err) {
-        // Falló la creación: soltar el claim para que se pueda reintentar.
-        await tenantTransaction(
-          (tx) =>
-            tx.movimientoImportado.updateMany({
-              where: { id: mov.id, tenantId, invoiceId: null },
-              data: { estadoPropuesta: "auto" },
-            }),
-          { tenantId },
-        );
         const mensaje = err instanceof Error ? err.message : String(err);
         errores.push({ movimientoId: mov.id, error: mensaje });
         logger.error("bancos", "no se pudo emitir la factura del movimiento", err, {
@@ -751,6 +737,7 @@ export async function emitirPropuestas(
           }
         : {}),
       errores,
+      ...(yaFacturadas.length > 0 ? { yaFacturadas } : {}),
       ...(despachoArca ? { despachoArca } : {}),
     };
   });
