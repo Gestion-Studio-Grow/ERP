@@ -168,6 +168,27 @@ cumplido es un defecto ALTA (§5).
 
 ## 5. Pendiente de decisión del dueño (no se decide acá)
 
+### 5.0 Decididas por el dueño (2026-09-24)
+
+Texto del dueño: «Ahora estamos usando datos provisionales y vamos a probar ARCA con el cuit que
+tenemos homologado de prueba ya, tenemos el token y lo tenemos que usar, te autorizo a usarlo, y
+d1 d4 te autorizo a que avances».
+
+- **D1 → A.** El dinero pasa a decimal con moneda. Reemplaza a ADR-057 (el ADR nuevo lo escribe
+  el diseño de ENG-011). Orden: ENG-109 (redondeo en un solo lugar) → diseño de la migración
+  (expandir y contraer, con reversa probada) → código por contexto. Aplicar en Neon sigue siendo
+  un paso aparte con el OK del dueño en el momento (CLAUDE.md, migraciones de producción).
+- **D4 → A.** Se toca el circuito fiscal (ENG-019 a ENG-023, ENG-027, R7-F1 y el tipo de
+  comprobante de `catalogos.ts:119-122`), probando contra el simulador y contra homologación, sin
+  cambiar la configuración fiscal de producción de CH.
+- **D7-1 (datos faltantes) → por ahora se sigue con datos provisionales**, marcados «provisional a
+  confirmar» y con su tarea en BACKLOG. Lo fiscal se valida contra homologación antes de usarse de
+  verdad. Las otras cinco contradicciones de D7 siguen abiertas.
+- **ARCA homologación:** autorizado usar el CUIT de prueba homologado y la credencial de prueba que
+  el dueño ya cargó en Vercel (`ARCA_CERT_PEM`/`ARCA_KEY_PEM`, sólo en el servidor). El material
+  nunca pasa por el agente (ADR-041/066). Esta sesión no tiene salida a `*.afip.gov.ar` (la
+  política de red la rechaza con 403): la prueba corre en Vercel desde el banco de pruebas.
+
 Cada decisión con sus opciones y la recomendación del Principal Engineer en una línea. El
 reporte de cierre del §9 (semáforo, riesgos y pendientes) lo devuelve la sesión de auditoría;
 lo que el dueño tiene que decidir queda acá para que no dependa de esa respuesta.
