@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { SiteReplicaData } from "@/tenants/site-replica";
 import { usePedidoOnline } from "./pedido-online";
-import { etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
+import { etiquetaDeDisponibilidad, nuevaClaveDePedido, type Disponibilidad } from "./reglas-tienda";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 
 // Réplica del sitio de un tenant (config por tenant, resuelta por slug — NO un clon
@@ -72,10 +72,10 @@ function SiteReplicaContent({
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   // A-1: clave de idempotencia estable por carga del carrito. El bloque del carrito se renderiza
   // recién cuando el visitante suma productos (interacción de cliente, post-hidratación) → no hay
-  // HTML de servidor para esta clave, así que `crypto.randomUUID()` no genera mismatch de hidratación.
-  const [idempotencyKey] = useState(() =>
-    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-  );
+  // HTML de servidor para esta clave, así que generarla en el cliente no genera mismatch de hidratación.
+  // La misma clave que las otras vidrieras (`nuevaClaveDePedido`): antes el respaldo llevaba un
+  // punto y el servidor no la aceptaba (sin dedup, el doble toque grababa dos pedidos).
+  const [idempotencyKey] = useState(() => nuevaClaveDePedido());
   // El rechazo vuelve con su motivo y el carrito no se pierde (pedido-online.tsx). Esta réplica no
   // ofrece pedir por WhatsApp desde el carrito: sus botones de WhatsApp son de consulta.
   const pedido = usePedidoOnline({ hayWhatsApp: false, alRegistrar: () => setCart({}) });

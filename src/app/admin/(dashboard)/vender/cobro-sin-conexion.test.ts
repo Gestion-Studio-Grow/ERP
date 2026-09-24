@@ -34,6 +34,9 @@ import {
   TIEMPO_MAXIMO_DEL_COBRO_MS,
   type AlmacenDeSesion,
   type CobroSinConfirmar,
+  avisoDeDudaIlegible,
+  avisoDeGrabadaAhoraPorOtroTotal,
+  firmaDeLoCargado,
 } from "./cobro-sin-conexion";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 
@@ -299,11 +302,31 @@ test("R4/R5: la duda sobrevive a recargar, por negocio; lo ilegible no se invent
   // Resuelta, se borra.
   borrarCobroSinConfirmar(a, "magra");
   assert.equal(leerCobroSinConfirmar(a, "magra", CAJERA), null);
-  // Ilegible, de otra versión (la de antes, sin usuario) o sin clave: no hay duda que restaurar.
-  for (const crudo of ["{", "null", JSON.stringify({ ...enDuda, v: 2 }), JSON.stringify({ ...enDuda, usuario: undefined }), JSON.stringify({ ...enDuda, clave: "" }), JSON.stringify({ ...enDuda, cargado: { ...enDuda.cargado, lineas: [{ productId: 3 }] } })]) {
+  // M3: la de la versión anterior (v2, con la firma vieja que metía precios y el nombre) NO se
+  // descarta: vuelve con su clave, su fecha y su usuario, y la firma recalculada de lo cargado.
+  a.datos.set(claveDelAlmacen("magra"), JSON.stringify({ ...enDuda, v: 2, firma: '["venta",[["p_vacio",1.24]],[],"EFECTIVO",15500]' }));
+  const migrada = leerCobroSinConfirmar(a, "magra", CAJERA);
+  assert.deepEqual(migrada, { tipo: "propia", cobro: { ...enDuda, v: 3 } });
+  assert.equal(migrada?.tipo === "propia" && migrada.cobro.firma, firmaDelCobro(cortada), "la firma de la pantalla");
+  // Lo que no se puede leer entero NUNCA se descarta en silencio: vuelve como `ilegible` (con la
+  // fecha si se pudo leer), y la pantalla avisa que hay que revisar Ventas del día.
+  for (const [crudo, desde] of [
+    ["{", null],
+    ["null", null],
+    [JSON.stringify({ ...enDuda, clave: "" }), enDuda.desde],
+    [JSON.stringify({ ...enDuda, v: 1 }), enDuda.desde],
+    [JSON.stringify({ ...enDuda, cargado: { ...enDuda.cargado, lineas: [{ productId: 3 }] } }), enDuda.desde],
+  ] as const) {
     a.datos.set(claveDelAlmacen("magra"), crudo);
-    assert.equal(leerCobroSinConfirmar(a, "magra", CAJERA), null, crudo);
+    assert.deepEqual(leerCobroSinConfirmar(a, "magra", CAJERA), { tipo: "ilegible", desde }, crudo);
   }
+  const ilegible = avisoDeDudaIlegible(enDuda.desde);
+  assert.equal(ilegible.titulo, "En esta pestaña quedó un cobro sin confirmar (del 24/09/2026 13:15) que no se puede mostrar.");
+  assert.match(ilegible.comoSeguir, /Antes de cobrar, fijate en Ventas del día/);
+  assert.equal(avisoDeDudaIlegible(null).titulo, "En esta pestaña quedó un cobro sin confirmar que no se puede mostrar.");
+  // Sin usuario legible no se sabe de quién es: tampoco se descarta.
+  a.datos.set(claveDelAlmacen("magra"), JSON.stringify({ ...enDuda, usuario: undefined }));
+  assert.deepEqual(leerCobroSinConfirmar(a, "magra", CAJERA), { tipo: "ilegible", desde: enDuda.desde });
   // Modo privado / bloqueado: nada tira, la pantalla sigue con la duda en memoria.
   const roto = almacenFalso(true);
   assert.equal(guardarCobroSinConfirmar(roto, "magra", enDuda), false);
@@ -400,4 +423,49 @@ test("«ya grabada»: la salida depende de qué cambió (de más, otra cosa, anu
   assert.doesNotMatch(ap.comoSeguir, /no se (volvió a )?cobr/);
   assert.equal(etiquetaDeCobrarAparte({ ...pedido, faltante: deMas.faltante }), "Registrar sólo lo que falta");
   assert.equal(etiquetaDeVerGrabada(pedido), "Ver el pedido #42");
+});
+
+test("M3: la firma de lo cargado guardado es la que arma la pantalla (a cuenta, cupón, descuento, pedido)", () => {
+  const base = enDuda.cargado;
+  assert.equal(firmaDeLoCargado(base), firmaDelCobro(cortada));
+  // A cuenta con el cliente abierto: firma con el teléfono y sin medio.
+  const aCuenta = { ...base, aCuenta: true, medio: "", conCliente: true, telefono: "11 4000 0000" };
+  assert.equal(firmaDeLoCargado(aCuenta), firmaDelCobro({ ...cortada, medio: "A_CUENTA", telefono: "11 4000 0000" }));
+  // El cupón aplicado viaja por su código; el descuento a mano, como se pidió.
+  const conCupon = { ...base, descuento: { abierto: true, tipo: "cupon" as const, texto: "", cupon: { codigo: "VERANO10", tipo: "PERCENT", valor: 10 }, cuponTexto: "verano10" } };
+  assert.equal(firmaDeLoCargado(conCupon), firmaDelCobro({ ...cortada, cupon: "VERANO10" }));
+  const conPorc = { ...base, descuento: { abierto: true, tipo: "porcentaje" as const, texto: "10", cupon: null, cuponTexto: "" } };
+  assert.equal(firmaDeLoCargado(conPorc), firmaDelCobro({ ...cortada, descuento: { tipo: "porcentaje", valor: 10 } }));
+  // Un pedido con envío: la dirección cuenta sólo con envío.
+  const pedido = { ...base, esPedido: true, paid: false, medio: "", telefono: "11 4000 0000", entrega: { tipo: "DELIVERY" as const, horario: "2026-09-26T10:00", direccion: "Av. Mitre 1234", nota: "" } };
+  assert.equal(
+    firmaDeLoCargado(pedido),
+    firmaDelCobro({ ...cortada, esPedido: true, medio: "SIN_COBRAR", telefono: "11 4000 0000", entrega: { tipo: "DELIVERY", direccion: "Av. Mitre 1234", horario: "2026-09-26T10:00", nota: "" } }),
+  );
+  // Un medio que no existe no es "cobrada" (igual que lo lee el servidor).
+  assert.equal(firmaDelCobro({ ...cortada, medio: "MERCADO_PAGO" }), firmaDelCobro({ ...cortada, medio: "SIN_COBRAR" }));
+});
+
+test("M7 y M5: lo que falta con un producto fuera del catálogo no se ofrece; lo grabado ahora por otro total se dice", () => {
+  const g: VentaYaGrabada = {
+    id: "o1",
+    code: 42,
+    esPedido: false,
+    total: 15500,
+    como: "cobrada en Efectivo",
+    cliente: null,
+    telefono: null,
+    anulada: false,
+    diferencias: ["Entraña 0,95 kg: no está en la grabada."],
+    faltante: { productos: [{ productId: "p_entrana", nombre: "Entraña", porPeso: true, cantidad: 0.95 }], aMano: [] },
+  };
+  const a = avisoDeYaGrabada(g, ["Entraña"]);
+  assert.match(a.comoSeguir, /Entraña ya no está en el catálogo: no se puede cargar solo\./);
+  assert.match(a.comoSeguir, /«Precio a mano»/);
+  assert.doesNotMatch(a.comoSeguir, /«Cobrar sólo lo que falta»/);
+  assert.equal(
+    avisoDeGrabadaAhoraPorOtroTotal({ code: 43, esPedido: false, mandado: 15500, grabado: 16120 }),
+    "La venta #43 se grabó recién ahora (la cortada no había llegado) y quedó por $16.120,00, no por los $15.500,00 que se habían mandado: cambió un precio o un producto del catálogo. Revisá lo cobrado.",
+  );
+  assert.match(avisoDeGrabadaAhoraPorOtroTotal({ code: 7, esPedido: true, mandado: 1, grabado: 2 }), /^El pedido #7 se registró recién ahora/);
 });

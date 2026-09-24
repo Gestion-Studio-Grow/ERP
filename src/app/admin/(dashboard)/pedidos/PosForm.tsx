@@ -258,6 +258,14 @@ export default function PosForm({
   // «Cargar sólo lo que falta»: la venta #N ya está grabada y lo cargado traía DE MÁS (el
   // servidor calculó qué). El ticket queda con SÓLO eso, el mismo medio, y otra clave: se cobra
   // aparte, a la vista. Antes, «Empezar de nuevo» lo borraba sin decir que faltaba cobrarlo.
+  // Lo que falta sólo se puede cargar solo si todos sus productos siguen en el catálogo (el POS
+  // necesita su precio, y el alta no vendería uno que ya no está) y no trae líneas a mano.
+  const faltanteFueraDelCatalogo =
+    yaGrabada?.faltante?.productos.filter((l) => !byId.has(l.productId)).map((l) => l.nombre) ?? [];
+  const faltanteCargable = Boolean(
+    yaGrabada && !yaGrabada.anulada && yaGrabada.faltante && yaGrabada.faltante.aMano.length === 0 && faltanteFueraDelCatalogo.length === 0,
+  );
+
   function cargarSoloLoQueFalta(g: VentaYaGrabada) {
     if (!g.faltante) return;
     let n = nextKey;
@@ -266,7 +274,9 @@ export default function PosForm({
     setNextKey(n);
     setYaGrabada(null);
     ticketKey.current = "";
-    showSuccess(`Cargado sólo lo que faltaba de la #${g.code}: ${textoDelFaltante(g.faltante)}. Cobralo aparte.`);
+    showSuccess(
+      `Cargado sólo lo que faltaba de la #${g.code}: ${textoDelFaltante(g.faltante)}. ${g.esPedido ? "Registralo como otro pedido." : "Cobralo aparte."}`,
+    );
   }
 
   // Defensivo: la página ya muestra el estado vacío con la salida al catálogo antes de llegar acá.
@@ -539,25 +549,28 @@ export default function PosForm({
           comoSeguir={
             yaGrabada.anulada
               ? `${detalleDeYaGrabada(yaGrabada)} Para ${yaGrabada.esPedido ? "registrarlo" : "cobrarla"} de nuevo, tocá «Empezar de nuevo» y cargá ${yaGrabada.esPedido ? "el pedido" : "la venta"} otra vez.`
-              : yaGrabada.faltante && yaGrabada.faltante.aMano.length === 0
-                ? `${detalleDeYaGrabada(yaGrabada)} Eso hay que cobrarlo APARTE: tocá «Cargar sólo lo que falta». ` +
-                  `«Empezar de nuevo» limpia el ticket y lo que falta NO queda cobrado.`
-                : `${detalleDeYaGrabada(yaGrabada)} Si la #${yaGrabada.code} está bien, tocá «Empezar de nuevo»: se limpia este ticket y la ` +
-                  `#${yaGrabada.code} queda como está. Si quedó mal, anulala en la bandeja o en Ventas del día y cargá ` +
-                  `${yaGrabada.esPedido ? "el pedido" : "la venta"} de nuevo.`
+              : faltanteCargable
+                ? yaGrabada.esPedido
+                  ? `${detalleDeYaGrabada(yaGrabada)} Eso hay que registrarlo APARTE, como otro pedido: tocá «Cargar sólo lo que falta». ` +
+                    `«Empezar de nuevo» limpia el ticket y lo que falta NO queda registrado.`
+                  : `${detalleDeYaGrabada(yaGrabada)} Eso hay que cobrarlo APARTE: tocá «Cargar sólo lo que falta». ` +
+                    `«Empezar de nuevo» limpia el ticket y lo que falta NO queda cobrado.`
+                : faltanteFueraDelCatalogo.length > 0
+                  ? `${detalleDeYaGrabada(yaGrabada)} ${faltanteFueraDelCatalogo.join(", ")} ya no está en el catálogo: no se puede cargar solo. ` +
+                    `Si hay que ${yaGrabada.esPedido ? "registrarlo" : "cobrarlo"}, anotalo antes de tocar «Empezar de nuevo».`
+                  : `${detalleDeYaGrabada(yaGrabada)} Si la #${yaGrabada.code} está bien, tocá «Empezar de nuevo»: se limpia este ticket y la ` +
+                    `#${yaGrabada.code} queda como está. Si quedó mal, anulala en la bandeja o en Ventas del día y cargá ` +
+                    `${yaGrabada.esPedido ? "el pedido" : "la venta"} de nuevo.`
           }
           accion={
             <>
-              {yaGrabada.faltante && yaGrabada.faltante.aMano.length === 0 && !yaGrabada.anulada && (
-                <button
-                  type="button"
-                  onClick={() => cargarSoloLoQueFalta(yaGrabada)}
-                  className="h-11 px-2 text-sm font-medium text-strong underline"
-                >
+              {faltanteCargable && (
+                <button type="button" onClick={() => cargarSoloLoQueFalta(yaGrabada)} className={buttonClasses("solid", "md")}>
                   Cargar sólo lo que falta
                 </button>
               )}
-              <button type="button" onClick={limpiarTicket} className="h-11 px-2 text-sm text-muted underline">
+              {/* Un botón que se ve: cuando es la única salida, no puede quedar como un texto gris. */}
+              <button type="button" onClick={limpiarTicket} className={buttonClasses(faltanteCargable ? "outline" : "solid", "md")}>
                 Empezar de nuevo
               </button>
             </>

@@ -37,7 +37,7 @@ import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
 import { normalizarCodigoDeCupon, topeDePrecioAMano, CUPON_NO_VALE } from "@/lib/venta-reglas";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
-import { pedidoDelFormulario, respuestaAlReintento } from "@/lib/respuesta-al-reintento";
+import { pedidoDelFormulario, rechazoDelAltaConClave, respuestaAlReintento } from "@/lib/respuesta-al-reintento";
 import { frenoDeCupones, rechazoPublicoDelCupon, CUPON_FRENADO } from "@/lib/cupones/prueba-publica";
 import {
   disponibilidadDe,
@@ -183,8 +183,10 @@ function parseItems(formData: FormData): { productId: string; qty: number }[] {
 //   · `sin-confirmar`: falló algo que no es un rechazo de negocio (la base, la conexión, la
 //     transacción al confirmarse). No se sabe si se grabó: se reintenta con la MISMA clave.
 export type OrderActionState =
-  | { ok: true; mensaje?: string; venta?: VentaTicket }
-  | { ok: false; error: string; tipo?: undefined }
+  // `yaEstaba`: la venta ya estaba grabada con esta clave y se devolvió ésa (no se grabó nada).
+  | { ok: true; mensaje?: string; venta?: VentaTicket; yaEstaba?: true }
+  // `claveLibre`: un rechazo del alta, y con esta clave NO hay nada grabado (se buscó al rechazar).
+  | { ok: false; error: string; tipo?: undefined; claveLibre?: true }
   | { ok: false; error: string; tipo: "ya-grabada-distinta"; grabada: VentaYaGrabada }
   | { ok: false; error: string; tipo: "sin-confirmar" }
   | null;
@@ -371,7 +373,19 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
     // El rechazo de negocio (sin stock, sin precio, sin dirección) llega ENTERO a la pantalla
     // porque se devuelve en vez de lanzarse: ése prueba que no se grabó nada.
     const motivo = motivoDelRechazoDelAlta(err);
-    if (motivo !== null) return { ok: false, error: motivo };
+    if (motivo !== null) {
+      // ¿Hay una venta con esta clave? Se busca DESPUÉS del rechazo: si un envío anterior con la
+      // misma clave estaba en vuelo (el corte), su transacción tenía tomado el stock y ésta esperó
+      // a que terminara. Si quedó grabada, es un reintento: se contesta con ella. Si no, se dice que
+      // la clave está libre: la pantalla deja de dudar ("puede que ya se grabó") y dice "no se cobró".
+      if (!idempotencyKey) return { ok: false, error: motivo };
+      const r = await rechazoDelAltaConClave(tenantId, idempotencyKey, motivo, {
+        solicitado: pedidoDelFormulario(formData, { channel, fulfillment, scheduledRaw, aCuenta }),
+        conTicket: String(formData.get("conTicket") || "") === "1",
+      });
+      if (r.ok || "tipo" in r) revalidarMostrador();
+      return r;
+    }
     // Cualquier otra cosa (la base, la conexión, la transacción que falla AL CONFIRMARSE) NO
     // prueba que no se grabó: antes volvía como "La venta no se cobró" con el texto crudo de
     // Prisma, y el cajero la cobraba otra vez con otro ticket. Ahora se dice que no se sabe, y

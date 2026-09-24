@@ -65,7 +65,8 @@ function leer(o) {
 }
 function grabar(input, opts) {
   const items = [
-    ...input.items.map((l) => { const [name, precio, saleUnit] = PRECIOS[l.productId]; return { productId: l.productId, name, saleUnit, quantity: l.qty, unitPrice: precio, lineTotal: r2(l.qty * precio) }; }),
+    // Los precios de HOY de la "base" (\`window.__precios\` los cambia, como la dueña en el catálogo).
+    ...input.items.map((l) => { const [name, lista, saleUnit] = PRECIOS[l.productId]; const precio = (window.__precios || {})[l.productId] ?? lista; return { productId: l.productId, name, saleUnit, quantity: l.qty, unitPrice: precio, lineTotal: r2(l.qty * precio) }; }),
     ...input.lineasAMano.map((m) => ({ productId: null, name: m.nombre, saleUnit: "UNIT", quantity: 1, unitPrice: m.importe, lineTotal: m.importe })),
   ];
   const subtotal = r2(items.reduce((s, it) => s + it.lineTotal, 0));
@@ -103,7 +104,9 @@ export async function createOrder(fd) {
     grabadas.set(clave, { o: grabar(input, opts), anulada: false });
     return { ok: false, tipo: "sin-confirmar", error: "No pudimos confirmar si la venta se grabó. Antes de cobrarla de nuevo, fijate en Ventas del día; si la reintentás desde esta pantalla sin cambiarla, no se cobra dos veces." };
   }
-  if (window.__rechazo) return { ok: false, error: window.__rechazo };
+  // Un rechazo de negocio: como createOrder (\`rechazoDelAltaConClave\`), si con esa clave no hay
+  // nada grabado lo dice (\`claveLibre\`).
+  if (window.__rechazo) return { ok: false, error: window.__rechazo, ...(clave && !grabadas.has(clave) ? { claveLibre: true } : {}) };
   const previa = clave ? grabadas.get(clave) : null;
   if (previa) {
     const g = previa.o;
@@ -111,26 +114,15 @@ export async function createOrder(fd) {
     const ticket = ventaDeOrden({ ...g, status: previa.anulada ? "CANCELLED" : g.status });
     const { diferencias, faltante } = compararConLoGrabado(g, pedidoDelReintento(input, opts), CATALOGO);
     if (diferencias.length === 0 && !previa.anulada) {
-      return { ok: true, mensaje: mensajeDeYaGrabadaIgual({ code: 42, esPedido, cobrada: Boolean(g.paid && g.paymentMethod) }), venta: ticket };
+      return { ok: true, mensaje: mensajeDeYaGrabadaIgual({ code: 42, esPedido, cobrada: Boolean(g.paid && g.paymentMethod) }), venta: ticket, yaEstaba: true };
     }
     const grabada = { id: "ord_42", code: 42, esPedido, total: g.total, como: comoQuedo(g, esPedido), cliente: ticket.cliente, telefono: ticket.telefono, anulada: previa.anulada, diferencias: diferencias.map((x) => x.texto), faltante: previa.anulada ? null : faltante, ticket };
     return { ok: false, tipo: "ya-grabada-distinta", error: textoDeYaGrabada(grabada), grabada };
   }
-  if (clave) grabadas.set(clave, { o: grabar(input, opts), anulada: false });
-  return {
-    ok: true,
-    mensaje: "Venta cobrada.",
-    venta: {
-      id: "ord_42", code: 42, creada: "2026-09-23T13:15:00.000Z",
-      lineas: [
-        { nombre: "Vacío", cantidad: 1.24, porPeso: true, precio: 12500, total: 15500, aMano: false },
-        { nombre: "Entraña", cantidad: 0.95, porPeso: true, precio: 17500, total: 16625, aMano: false },
-      ],
-      subtotal: 32125, descuento: 3212.5, total: 28912.5, medio: (o.paymentMethod || [null])[0],
-      cliente: null, telefono: null, anulada: false,
-      ...(o.aCuenta ? { aCuenta: true } : {}),
-    },
-  };
+  // Se graba y se devuelve el ticket de lo GRABADO (con los precios de la "base"), como createOrder.
+  const nueva = grabar(input, opts);
+  if (clave) grabadas.set(clave, { o: nueva, anulada: false });
+  return { ok: true, mensaje: "Venta cobrada.", venta: ventaDeOrden(nueva) };
 }
 // «Anular…» de la bandeja: rechaza con el texto del servidor, o se corta la señal.
 export async function anularVenta(_prev, fd) {
@@ -233,6 +225,7 @@ type Grabada = {
 };
 type Ventana = {
   __envios: Envio[];
+  __precios?: Record<string, number>;
   __rechazo?: string;
   __respuestaPerdida?: boolean;
   __colgado?: boolean;
@@ -1392,7 +1385,8 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     });
     await alertaEn(page, "Quedó un cobro sin confirmar").waitFor();
     assert.equal(await alertaEn(page, "Cambiaste la venta").count(), 0, "el precio no lo cambió la cajera");
-    await page.getByRole("button", { name: "Reintentar cobro $16.120,00" }).click();
+    // M5: el botón dice lo que se MANDÓ ($15.500), no el total a precios de hoy ($16.120).
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
     await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se cobró dos veces." }).waitFor();
     const ks = await claves(page);
     assert.equal(ks[1], ks[0]);
@@ -1511,6 +1505,196 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
     assert.deepEqual(envios[2].productId, ["p_entrana"]);
     assert.notEqual(envios[2].idempotencyKey[0], envios[0].idempotencyKey[0]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  test("M3 una duda guardada por la versión ANTERIOR (v2, firma vieja) se restaura con su clave, no se pierde", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    // Como la dejó la versión anterior: v2 y la firma vieja (con el total y el nombre).
+    await page.evaluate((k) => {
+      const d = JSON.parse(sessionStorage.getItem(k)!);
+      sessionStorage.setItem(k, JSON.stringify({ ...d, v: 2, firma: '["venta",[["p_vacio",1.24]],[],"EFECTIVO",15500,["",""]]' }));
+    }, ALMACEN);
+    await recargar(page, {});
+    await alertaEn(page, "Quedó un cobro sin confirmar").waitFor();
+    assert.equal(await alertaEn(page, "Cambiaste la venta").count(), 0);
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42): no se cobró dos veces." }).waitFor();
+    const ks = await claves(page);
+    assert.equal(ks[1], ks[0], "la clave de la duda vieja se conservó");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("M3 una duda guardada que no se puede leer no se descarta en silencio: se avisa revisar Ventas del día", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.evaluate((k) => sessionStorage.setItem(k, "{roto"), ALMACEN);
+    await recargar(page, {});
+    const aviso = page.getByRole("status").filter({ hasText: "quedó un cobro sin confirmar que no se puede mostrar" });
+    await aviso.waitFor();
+    assert.match((await aviso.textContent()) ?? "", /Antes de cobrar, fijate en Ventas del día/);
+    await aviso.getByRole("button", { name: "Ya revisé" }).click();
+    assert.equal(await aviso.count(), 0);
+    assert.equal(await page.evaluate((k) => sessionStorage.getItem(k), ALMACEN), null);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("M1 un producto que salió del catálogo entre el corte y la recarga sigue en el reintento (y la #42 vuelve)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $32.125,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    await recargar(page, { products: [{ id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg" }] });
+    await alertaEn(page, "Quedó un cobro sin confirmar").waitFor();
+    await page.getByText("Entraña · ya no está en el catálogo (va igual en el reintento)").waitFor();
+    assert.equal(await alertaEn(page, "Cambiaste la venta").count(), 0);
+    await page.getByRole("button", { name: "Reintentar cobro $32.125,00" }).click();
+    await page.getByRole("status").filter({ hasText: "Esa venta ya estaba registrada (#42)" }).waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.deepEqual(envios[1].productId, ["p_vacio", "p_entrana"], "viajó igual que la cortada");
+    assert.equal(envios[1].idempotencyKey[0], envios[0].idempotencyKey[0]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("M7 lo que falta trae un producto que ya no está en el catálogo: no se ofrece cargarlo solo", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $32.125,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    // Se grabó sólo el Vacío, y la Entraña salió del catálogo.
+    await page.evaluate(() => {
+      for (const g of (window as unknown as Ventana).__grabadas.values()) g.o.items = g.o.items.filter((it) => it.productId === "p_vacio");
+    });
+    await recargar(page, { products: [{ id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg" }] });
+    await page.getByRole("button", { name: "Reintentar cobro $32.125,00" }).click();
+    const aviso = alertaEn(page, "La venta #42 ya se había grabado");
+    await aviso.waitFor();
+    assert.match((await aviso.textContent()) ?? "", /Entraña ya no está en el catálogo: no se puede cargar solo\./);
+    assert.equal(await page.getByRole("button", { name: /sólo lo que falta/ }).count(), 0);
+    await page.getByRole("button", { name: "Dejarla así" }).click();
+    assert.equal(await aviso.count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("M4 la duda no estaba grabada y el servidor rechaza por stock: 'no se cobró', sin el 'puede que ya se grabó'", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const crema = [{ id: "p_crema", name: "Crema", saleUnit: "UNIT", price: 9000, pricePerKg: null, unit: "u" }];
+    const { page, errores } = await montar("vender", 10, { products: crema, stockById: { p_crema: { stock: 1, trackStock: true } }, rapidos: ["p_crema"] });
+    await page.getByRole("button", { name: "Crema" }).click();
+    await page.keyboard.type("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $9.000,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    // No se grabó (se cayó antes de llegar) y otra caja se llevó la última.
+    await page.evaluate(() => (window as unknown as Ventana).__grabadas.clear());
+    await recargar(page, { products: crema, stockById: { p_crema: { stock: 0, trackStock: true } }, rapidos: ["p_crema"] });
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__rechazo = 'Sin stock suficiente de "Crema" para descontar 1.';
+    });
+    await page.getByRole("button", { name: "Reintentar cobro $9.000,00" }).click();
+    const aviso = alertaEn(page, "La venta no se cobró.");
+    await aviso.waitFor();
+    assert.match((await aviso.textContent()) ?? "", /Sin stock suficiente de "Crema"/);
+    assert.equal(await page.getByText("puede ser porque esta misma venta ya se grabó").count(), 0);
+    assert.equal(await page.getByText("no sabemos si").count(), 0);
+    assert.equal(await page.getByRole("button", { name: /^Reintentar/ }).count(), 0);
+    assert.equal(await page.evaluate((k) => sessionStorage.getItem(k), ALMACEN), null, "la duda quedó resuelta");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("M5 la duda no estaba grabada y se graba AHORA a precio de hoy: se dice que quedó por otro total", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar $15.500,00" }).click();
+    await alertaEn(page, "no sabemos si la venta se grabó").waitFor();
+    await page.evaluate(() => (window as unknown as Ventana).__grabadas.clear());
+    await recargar(page, {
+      products: [
+        { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 13000, unit: "kg" },
+        { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 17500, unit: "kg" },
+      ],
+    });
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__precios = { p_vacio: 13000 };
+    });
+    await page.getByRole("button", { name: "Reintentar cobro $15.500,00" }).click();
+    await page
+      .getByRole("status")
+      .filter({ hasText: "La venta #42 se grabó recién ahora (la cortada no había llegado) y quedó por $16.120,00, no por los $15.500,00 que se habían mandado" })
+      .waitFor();
+    await page.getByText("Venta #42 cobrada · $16.120,00").waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("M6 POS de la bandeja: en un PEDIDO lo que falta se registra aparte (no se 'cobra'), y «Empezar de nuevo» es un botón visible", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pos");
+    await page.getByRole("button", { name: "Pedido (retiro / envío)" }).click();
+    await page.locator("#prod-1").fill("Vac");
+    await page.getByRole("option", { name: /Vacío/ }).first().click();
+    await page.locator("#qty-1").fill("1,5");
+    await page.locator('input[name="customerName"]').fill("María");
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Registrar pedido" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    await page.evaluate(() => {
+      // Quedó grabado con 1 kg: el medio kilo de más es lo que falta.
+      for (const g of (window as unknown as Ventana).__grabadas.values()) for (const it of g.o.items) it.quantity = 1;
+    });
+    // El nombre del POS de la bandeja no es controlado: React 19 lo vacía al terminar el envío.
+    await page.locator('input[name="customerName"]').fill("María");
+    await page.getByRole("button", { name: "Registrar pedido" }).click();
+    const aviso = page.getByRole("alert").filter({ hasText: "El pedido #42 ya se había registrado" });
+    await aviso.waitFor();
+    const texto = (await aviso.textContent()) ?? "";
+    assert.match(texto, /Eso hay que registrarlo APARTE, como otro pedido/);
+    assert.doesNotMatch(texto, /cobrarlo|cobrado/);
+    const empezar = aviso.getByRole("button", { name: "Empezar de nuevo" });
+    assert.doesNotMatch((await empezar.getAttribute("class")) ?? "", /text-muted/, "no es un texto gris");
+    await empezar.click();
+    assert.equal(await aviso.count(), 0);
     assert.deepEqual(errores, []);
     await page.close();
   });

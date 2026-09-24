@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import { shippingCost } from "@/lib/storefront-shipping";
 import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
-import { etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
+import { nuevaClaveDePedido, etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantImagery } from "@/lib/tenant-layout";
 import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
@@ -133,12 +133,7 @@ export default function ShineFront({ products, branding, copy, imagery, tenantKe
 // el mismo pedido: no se crea otro ni se descuenta el stock dos veces. Se renueva cuando
 // cambia la bolsa: si el primer envío llegó pero la página de gracias no, el cliente que
 // cambia un producto y reenvía está pidiendo OTRA cosa, y con la clave vieja recibiría el
-// pedido viejo sin enterarse. `randomUUID` sólo existe en https o localhost; afuera, la otra rama.
-function nuevaClaveDePedido(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+// pedido viejo sin enterarse. La genera `nuevaClaveDePedido` (reglas-tienda.ts), la misma en todas las vidrieras.
 
 // "Sin stock" / "Últimas unidades", sin el número (lo decide el servidor, reglas-tienda.ts).
 function Disponible({ d }: { d: Disponibilidad | undefined }) {

@@ -214,6 +214,29 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     assert.match(motivoDelRechazoDelAlta(rechazo) ?? "", /^Sin stock suficiente de "Entraña"/);
     assert.equal(await operatorPrisma.order.count({ where: { tenantId } }), antes, "el rechazo no grabó nada");
 
+    // ── M4: rechazo de negocio con clave: ¿quedó algo grabado con ella? ──────────────────────
+    const { rechazoDelAltaConClave } = await import("@/lib/respuesta-al-reintento");
+    const { pedidoDelReintento } = await import("@/lib/reintento-de-venta");
+    const ultima = await operatorPrisma.product.create({
+      data: { tenantId, name: "Crema", saleUnit: "UNIT", price: 9000, unit: "u", trackStock: true, stock: 1 },
+    });
+    const crema = { ...efectivo, items: [{ productId: ultima.id, qty: 1 }] };
+    const kGrabada = `qa-k8-${slug}`;
+    await insertOrder(tenantId, crema, { idempotencyKey: kGrabada, imputarCajaActor: "user:qa" });
+    // Otra clave, sin stock: rechazo; con esa clave no hay nada → `claveLibre` (la pantalla dice "no se cobró").
+    const kNueva = `qa-k9-${slug}`;
+    let sinStock: unknown = null;
+    await insertOrder(tenantId, crema, { idempotencyKey: kNueva, imputarCajaActor: "user:qa" }).catch((e) => (sinStock = e));
+    const motivoStock = motivoDelRechazoDelAlta(sinStock);
+    assert.match(motivoStock ?? "", /^Sin stock suficiente de "Crema"/);
+    assert.deepEqual(
+      await rechazoDelAltaConClave(tenantId, kNueva, motivoStock!, { solicitado: pedidoDelReintento(crema), conTicket: true }),
+      { ok: false, error: motivoStock, claveLibre: true },
+    );
+    // Con la clave de la que SÍ se grabó (el envío cortado ganó el stock): se contesta con ella.
+    const conLaGrabada = await rechazoDelAltaConClave(tenantId, kGrabada, motivoStock!, { solicitado: pedidoDelReintento(crema), conTicket: true });
+    assert.ok(conLaGrabada.ok && conLaGrabada.yaEstaba, JSON.stringify(conLaGrabada));
+
     // ── La vidriera pública NO encuentra claves de otro espacio (refutador rf-ext) ───────────
     // Un pedido de la ingesta externa (clave "ext:<número>", secuencial) y una venta del mostrador.
     const { claveDeLaVidriera, tomarPedidoOnlineGuarded, pedidoConClave } = await import("@/lib/order-core");

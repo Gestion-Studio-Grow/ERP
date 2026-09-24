@@ -954,20 +954,23 @@ export async function leerVentaGrabada(tenantId: string, id: string) {
 // encontrara y "Pedir por WhatsApp" devolviera su nombre, dirección, líneas y total. Y había
 // claves adivinables: la ingesta externa graba "ext:<número del pedido de la tienda externa>"
 // (external-orders.ts), secuencial. Ahora la clave de la vidriera: (1) tiene que tener la forma
-// de las que genera la tienda (un UUID, o el respaldo "<ms>-<azar>" de MagraFront/ShineFront
-// cuando no hay `randomUUID`), y (2) se guarda con el prefijo `web:`, que ningún otro camino
-// usa. Desde la vidriera sólo se puede encontrar un pedido `web:`, y sólo sabiendo su clave
-// completa (122 bits de azar en el UUID).
+// de las que genera la tienda —`nuevaClaveDePedido` (tienda/reglas-tienda.ts), la misma en las
+// cuatro vidrieras: un UUID (también sin `randomUUID`, con `getRandomValues`) o, sin `crypto`,
+// "<ms>-<azar>"—, y (2) se guarda con el prefijo `web:`, que ningún otro camino usa. Desde la
+// vidriera sólo se puede encontrar un pedido `web:`, y sólo sabiendo su clave completa. Se acepta
+// además la forma VIEJA de SiteReplica ("<ms>-0.<dígitos>", la de `Math.random()` con punto)
+// para las pestañas que ya estaban abiertas al publicar esto (reglas-tienda.test.ts).
 
 export const PREFIJO_CLAVE_VIDRIERA = "web:";
 const FORMA_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const FORMA_RESPALDO = /^\d{12,16}-[0-9a-z]{6,16}$/;
+const FORMA_RESPALDO = /^\d{12,16}-[0-9a-z]{6,24}$/;
+const FORMA_RESPALDO_VIEJO = /^\d{12,16}-0\.\d{6,24}$/;
 
 /** La clave del formulario de la tienda, ya en el espacio `web:`, o `null` si no tiene la forma. PURA. */
 export function claveDeLaVidriera(raw: unknown): string | null {
   const k = typeof raw === "string" ? raw.trim() : "";
   if (!k || k.length > 64) return null;
-  return FORMA_UUID.test(k) || FORMA_RESPALDO.test(k) ? `${PREFIJO_CLAVE_VIDRIERA}${k.toLowerCase()}` : null;
+  return FORMA_UUID.test(k) || FORMA_RESPALDO.test(k) || FORMA_RESPALDO_VIEJO.test(k) ? `${PREFIJO_CLAVE_VIDRIERA}${k.toLowerCase()}` : null;
 }
 
 /** ¿Es una clave del espacio de la vidriera? PURA. */

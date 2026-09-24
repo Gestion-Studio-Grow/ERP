@@ -26,7 +26,10 @@
 // firma de acá sirve para no mandar algo que va a volver así, y para decirlo antes.
 
 import { fmtDateTimeAr, horarioDeNegocioDelFormulario } from "@/lib/datetime";
-import type { PedidoDeDescuento } from "@/lib/venta-reglas";
+import { fmtMoneyARS } from "@/components/ui/format";
+import { descuentoDelFormulario, validarLineaAMano, type PedidoDeDescuento } from "@/lib/venta-reglas";
+import { leerMedioDeCobro } from "@/lib/caja/medio-cobro";
+import { leerCantidad } from "@/lib/pos-peso";
 import {
   detalleDeYaGrabada,
   firmaDelPedido,
@@ -212,7 +215,9 @@ export function firmaDelCobro(v: {
   entrega: { tipo: "PICKUP" | "DELIVERY"; direccion: string; horario: string; nota: string } | null;
 }): string {
   const aCuenta = v.medio === "A_CUENTA";
-  const cobrada = !aCuenta && v.medio !== "SIN_COBRAR" && v.medio !== "";
+  // El medio como lo lee el servidor (`leerMedioDeCobro`): uno que no existe no es "cobrada".
+  const medio = aCuenta ? null : leerMedioDeCobro(v.medio);
+  const cobrada = medio !== null;
   return firmaDelPedido(
     pedidoDelReintento(
       {
@@ -223,13 +228,47 @@ export function firmaDelCobro(v: {
         notes: v.entrega ? v.entrega.nota.trim() || null : null,
         scheduledFor: v.entrega ? horarioDeNegocioDelFormulario(v.entrega.horario) : null,
         paid: cobrada,
-        paymentMethod: cobrada ? v.medio : null,
+        paymentMethod: medio,
         items: v.lineas.map((l) => ({ productId: l.productId, qty: l.cantidad })),
         lineasAMano: v.manuales,
       },
       { cupon: v.cupon, descuento: v.descuento ? { pedido: v.descuento } : null, aCuenta },
     ),
   );
+}
+
+/**
+ * La firma de lo cargado que se GUARDÓ con la duda, recalculada con las mismas reglas con que la
+ * pantalla arma el formulario (cantidades con `leerCantidad`, líneas a mano válidas, a cuenta,
+ * cliente sólo si se abrió, cupón o descuento según el tipo, entrega sólo en pedidos). Es lo que
+ * la pantalla firma al restaurar ese mismo cargado. Sirve para las dudas guardadas por una
+ * versión anterior, cuya firma se calculaba de otra forma: se recalcula en vez de descartarlas
+ * (descartar perdía la clave y re-cobrar podía duplicar la venta).
+ */
+export function firmaDeLoCargado(k: CargadoDelCobro): string {
+  const lineas = k.lineas.flatMap((l) => {
+    const c = leerCantidad(l.qtyText);
+    return l.productId && c.estado === "ok" && c.valor > 0 ? [{ productId: l.productId, cantidad: c.valor }] : [];
+  });
+  const manuales = k.manuales.flatMap((m) => {
+    const v = validarLineaAMano({ nombre: m.nombre, importe: m.importeText, motivo: m.motivo });
+    return v.ok ? [{ nombre: m.nombre, importe: v.linea.importe }] : [];
+  });
+  const aCuenta = !k.esPedido && k.paid && k.aCuenta;
+  const usaCupon = k.descuento.abierto && k.descuento.tipo === "cupon";
+  const desc = k.descuento.abierto && !usaCupon ? descuentoDelFormulario(k.descuento.tipo, k.descuento.texto) : null;
+  return firmaDelCobro({
+    esPedido: k.esPedido,
+    lineas,
+    manuales,
+    medio: aCuenta ? "A_CUENTA" : k.paid ? k.medio : "SIN_COBRAR",
+    telefono: k.esPedido || k.conCliente ? k.telefono : "",
+    cupon: usaCupon ? (k.descuento.cupon?.codigo ?? k.descuento.cuponTexto) : null,
+    descuento: desc && desc.ok ? desc.pedido : null,
+    entrega: k.esPedido
+      ? { tipo: k.entrega.tipo, direccion: k.entrega.tipo === "DELIVERY" ? k.entrega.direccion : "", horario: k.entrega.horario, nota: k.entrega.nota }
+      : null,
+  });
 }
 
 /** ¿Lo cargado ahora es lo mismo que se mandó cuando se cortó? Si no, no se reintenta así. */
@@ -359,10 +398,21 @@ export const ETIQUETA_DEJARLA_ASI = "Dejarla así";
  * Qué se dice cuando el servidor contesta «ya-grabada-distinta»: cuál es la que quedó (#N, total,
  * cómo, cliente; si está anulada, se dice), qué NO se registró, y cómo seguir según el caso.
  */
-export function avisoDeYaGrabada(g: VentaYaGrabada): FallaDeCobro {
+export function avisoDeYaGrabada(g: VentaYaGrabada, fueraDelCatalogo: readonly string[] = []): FallaDeCobro {
   const donde = g.esPedido ? "Pedidos para preparar" : "Ventas del día";
-  const aparte = etiquetaDeCobrarAparte(g);
   const detalle = detalleDeYaGrabada(g);
+  // Lo que falta incluye un producto que ya no está en el catálogo: no se puede cargar solo (la
+  // pantalla no tiene su precio y el alta no lo vendería). Se dice, y no se ofrece cargarlo.
+  if (!g.anulada && g.faltante && fueraDelCatalogo.length > 0) {
+    return {
+      titulo: tituloDeYaGrabada(g),
+      comoSeguir:
+        `${detalle} ${fueraDelCatalogo.join(", ")} ya no está en el catálogo: no se puede cargar solo. ` +
+        `Si hay que ${g.esPedido ? "registrarlo" : "cobrarlo"}, tocá «${ETIQUETA_DEJARLA_ASI}» y cargalo como otra ${g.esPedido ? "carga" : "venta"} con «Precio a mano».`,
+      reintentar: false,
+    };
+  }
+  const aparte = etiquetaDeCobrarAparte(g);
   const comoSeguir = g.anulada
     ? `${detalle} Si hay que ${g.esPedido ? "registrarlo" : "cobrarla"}, tocá «${aparte}».`
     : aparte
@@ -401,7 +451,8 @@ export const VENCE_LA_DUDA_MS = 12 * 60 * 60 * 1000;
 /** Lo cargado, lo justo para volver a mostrarlo igual (la firma se recalcula de acá). */
 export type CargadoDelCobro = {
   esPedido: boolean;
-  lineas: { productId: string; qtyText: string }[];
+  /** `nombre`: para mostrar la línea si al volver el producto ya no está en el catálogo. */
+  lineas: { productId: string; qtyText: string; nombre?: string }[];
   manuales: { nombre: string; importeText: string; motivo: string }[];
   paid: boolean;
   medio: string;
@@ -422,7 +473,7 @@ export type CargadoDelCobro = {
 };
 
 export type CobroSinConfirmar = {
-  /** 3: la firma de `firmaDelPedido`. Las de antes (con precios y nombre) no se restauran. */
+  /** 3: la firma de `firmaDelPedido`. Las v2 (firma vieja) se leen igual: la firma se recalcula. */
   v: 3;
   clave: string;
   firma: string;
@@ -490,12 +541,33 @@ export function borrarCobrosSinConfirmarDeLaPestana(almacen: Pick<Storage, "leng
 const esTexto = (x: unknown): x is string => typeof x === "string";
 const esNumero = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 
-/** Lo que se encontró en la pestaña: la duda propia (se restaura) o la de otra persona (se avisa). */
-export type DudaGuardada = { tipo: "propia"; cobro: CobroSinConfirmar } | { tipo: "de-otra-persona"; desde: string };
+/**
+ * Lo que se encontró en la pestaña: la duda propia (se restaura), la de otra persona (se avisa) o
+ * una que no se puede leer entera (se avisa: NUNCA se descarta en silencio, porque detrás puede
+ * haber una venta cobrada).
+ */
+export type DudaGuardada =
+  | { tipo: "propia"; cobro: CobroSinConfirmar }
+  | { tipo: "de-otra-persona"; desde: string }
+  | { tipo: "ilegible"; desde: string | null };
+
+function cargadoLegible(k: Partial<CargadoDelCobro> | undefined): k is CargadoDelCobro {
+  if (!k || typeof k.esPedido !== "boolean" || !Array.isArray(k.lineas) || !Array.isArray(k.manuales)) return false;
+  if (!k.lineas.every((l) => l && esTexto(l.productId) && esTexto(l.qtyText))) return false;
+  if (!k.manuales.every((m) => m && esTexto(m.nombre) && esTexto(m.importeText) && esTexto(m.motivo))) return false;
+  if (!esTexto(k.medio) || !esTexto(k.telefono) || !esTexto(k.nombre) || !k.descuento || !k.entrega) return false;
+  return typeof k.descuento === "object" && typeof k.entrega === "object";
+}
 
 /**
- * La duda guardada de este negocio, o `null` si no hay, si venció (se borra) o si lo guardado no
- * se entiende (otra versión, a medio escribir, tocado a mano): una duda ilegible no se inventa.
+ * La duda guardada de este negocio, o `null` si no hay o si venció (se borra: a las 12 h la venta,
+ * si se grabó, está en Ventas del día).
+ *
+ * La FIRMA se recalcula siempre de lo cargado (`firmaDeLoCargado`), no se lee la guardada: así
+ * una duda guardada por la versión anterior (v2, con la firma vieja que metía precios) se
+ * restaura con su clave, su fecha y su usuario, en vez de perderse. Si lo cargado no se puede
+ * leer (a medio escribir, tocado a mano), la duda no se inventa pero tampoco se calla: vuelve como
+ * `ilegible`, y la pantalla avisa que hay que revisar Ventas del día antes de cobrar.
  */
 export function leerCobroSinConfirmar(
   almacen: AlmacenDeSesion | null,
@@ -510,26 +582,37 @@ export function leerCobroSinConfirmar(
     return null;
   }
   if (!crudo) return null;
-  let c: CobroSinConfirmar;
+  let x: Partial<Omit<CobroSinConfirmar, "v">> & { v?: unknown };
   try {
-    const x = JSON.parse(crudo) as Partial<CobroSinConfirmar> | null;
-    const k = x?.cargado as Partial<CargadoDelCobro> | undefined;
-    if (!x || x.v !== 3 || !esTexto(x.clave) || !x.clave || !esTexto(x.firma) || !esNumero(x.total) || !esTexto(x.desde) || !esTexto(x.usuario)) return null;
-    if (!k || typeof k.esPedido !== "boolean" || !Array.isArray(k.lineas) || !Array.isArray(k.manuales)) return null;
-    if (!k.lineas.every((l) => l && esTexto(l.productId) && esTexto(l.qtyText))) return null;
-    if (!k.manuales.every((m) => m && esTexto(m.nombre) && esTexto(m.importeText) && esTexto(m.motivo))) return null;
-    if (!esTexto(k.medio) || !esTexto(k.telefono) || !esTexto(k.nombre) || !k.descuento || !k.entrega) return null;
-    c = x as CobroSinConfirmar;
+    x = (JSON.parse(crudo) ?? {}) as typeof x;
+    if (typeof x !== "object") x = {};
   } catch {
-    return null;
+    return { tipo: "ilegible", desde: null };
   }
-  const desde = Date.parse(c.desde);
-  if (!Number.isFinite(desde) || quien.ahora - desde > VENCE_LA_DUDA_MS) {
+  const desdeTexto = esTexto(x.desde) && Number.isFinite(Date.parse(x.desde)) ? x.desde : null;
+  if (desdeTexto && quien.ahora - Date.parse(desdeTexto) > VENCE_LA_DUDA_MS) {
     borrarCobroSinConfirmar(almacen, negocio);
     return null;
   }
-  if (c.usuario !== quien.usuario) return { tipo: "de-otra-persona", desde: c.desde };
-  return { tipo: "propia", cobro: c };
+  if (esTexto(x.usuario) && x.usuario !== quien.usuario) return { tipo: "de-otra-persona", desde: desdeTexto ?? "" };
+  const k = x.cargado as Partial<CargadoDelCobro> | undefined;
+  if ((x.v !== 2 && x.v !== 3) || !esTexto(x.clave) || !x.clave || !esNumero(x.total) || !desdeTexto || !esTexto(x.usuario) || !cargadoLegible(k)) {
+    return { tipo: "ilegible", desde: desdeTexto };
+  }
+  return {
+    tipo: "propia",
+    cobro: { v: 3, clave: x.clave, total: x.total, desde: desdeTexto, usuario: x.usuario, cargado: k, firma: firmaDeLoCargado(k) },
+  };
+}
+
+/** El aviso de una duda que no se puede mostrar: no se inventa lo cargado, pero se avisa. */
+export function avisoDeDudaIlegible(desde: string | null): FallaDeCobro {
+  const cuando = cuandoDelEnvio(desde ?? undefined);
+  return {
+    titulo: `En esta pestaña quedó un cobro sin confirmar${cuando ? ` (del ${cuando})` : ""} que no se puede mostrar.`,
+    comoSeguir: "No sabemos si se grabó. Antes de cobrar, fijate en Ventas del día si ya está.",
+    reintentar: false,
+  };
 }
 
 /** Cuándo salió el envío en duda, para el aviso ("24/09/2026 13:15"). */
@@ -542,8 +625,21 @@ export function cuandoDelEnvio(desde: string | undefined): string | null {
 /** El aviso de una duda que dejó otra persona: sin cliente ni lo cargado, sólo cuándo. */
 export function avisoDeDudaDeOtraPersona(desde: string): FallaDeCobro {
   return {
-    titulo: `En esta pestaña quedó un cobro sin confirmar de otra persona (del ${cuandoDelEnvio(desde) ?? "día de hoy"}).`,
+    titulo: `En esta pestaña quedó un cobro sin confirmar de otra persona${cuandoDelEnvio(desde) ? ` (del ${cuandoDelEnvio(desde)})` : ""}.`,
     comoSeguir: "No sabemos si se grabó. Antes de cobrar lo mismo, fijate en Ventas del día.",
     reintentar: false,
   };
+}
+
+/**
+ * Un reintento cuya cortada NO estaba grabada se graba AHORA, con los precios y el catálogo de
+ * hoy. Si el total grabado no es el que se había mandado (y quizá cobrado), se dice en la
+ * confirmación: la cajera tiene que saber que cobró otra cifra.
+ */
+export function avisoDeGrabadaAhoraPorOtroTotal(v: { code: number; esPedido: boolean; mandado: number; grabado: number }): string {
+  const que = v.esPedido ? `El pedido #${v.code} se registró` : `La venta #${v.code} se grabó`;
+  return (
+    `${que} recién ahora (la cortada no había llegado) y quedó por ${fmtMoneyARS(v.grabado)}, no por los ` +
+    `${fmtMoneyARS(v.mandado)} que se habían mandado: cambió un precio o un producto del catálogo. Revisá lo cobrado.`
+  );
 }

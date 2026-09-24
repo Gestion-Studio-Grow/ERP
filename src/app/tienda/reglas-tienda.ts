@@ -182,3 +182,30 @@ export function propuestasConMediosDeLaMarca<T extends { title: string; text: st
   if (!texto) return [...propuestas];
   return propuestas.map((v) => (/medios de pago/i.test(v.title) ? { ...v, title: "Medios de pago", text: texto } : v));
 }
+
+// ── La clave anti-duplicado del pedido (la lee `placeOnlineOrder`) ───────────────────────────
+//
+// UNA sola forma de generarla para todas las vidrieras (Storefront, MagraFront, ShineFront,
+// SiteReplica). Antes cada una tenía la suya, y la de SiteReplica armaba el respaldo como
+// `${Date.now()}-${Math.random()}` —con un punto— que el servidor no acepta (`claveDeLaVidriera`,
+// order-core.ts): sin clave, el doble toque del celular grababa DOS pedidos (medido).
+//
+// `crypto.randomUUID` sólo existe en https o localhost; `crypto.getRandomValues` existe también
+// en http, así que el respaldo sigue siendo un UUID v4 con azar criptográfico. Sólo sin `crypto`
+// (un navegador muy viejo) se usa "<ms>-<azar>", en minúsculas y de 12 caracteres de azar.
+
+/** Una clave nueva de pedido: siempre una forma que acepta `claveDeLaVidriera`. */
+export function nuevaClaveDePedido(
+  c: (Pick<Crypto, "getRandomValues"> & Partial<Pick<Crypto, "randomUUID">>) | null = typeof crypto !== "undefined" ? crypto : null,
+): string {
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  if (c && typeof c.getRandomValues === "function") {
+    const b = c.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40; // versión 4
+    b[8] = (b[8] & 0x3f) | 0x80; // variante RFC 4122
+    const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  }
+  const azar = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`.padEnd(12, "0").slice(0, 12);
+  return `${Date.now()}-${azar}`;
+}

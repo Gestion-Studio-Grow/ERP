@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
-import { etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
+import { nuevaClaveDePedido, etiquetaDeDisponibilidad, type Disponibilidad } from "./reglas-tienda";
 import type { RetailWording } from "@/blueprints/retail";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantLayout, SectionKey, StorefrontPalette } from "@/lib/tenant-layout";
@@ -59,12 +59,7 @@ const money2 = new Intl.NumberFormat("es-AR", { style: "currency", currency: "AR
 // el mismo pedido: no se crea otro ni se descuenta el stock dos veces. Se renueva cuando
 // cambia el carrito: si el primer envío llegó pero la página de gracias no, el cliente que
 // cambia algo y reenvía está pidiendo OTRA cosa, y con la clave vieja recibiría el pedido
-// viejo sin enterarse. `randomUUID` sólo existe en https o localhost; afuera, la otra rama.
-function nuevaClaveDePedido(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+// viejo sin enterarse. La genera `nuevaClaveDePedido` (reglas-tienda.ts), la misma en todas las vidrieras.
 
 function unitPriceOf(p: Product): number {
   return (p.saleUnit === "WEIGHT" ? p.pricePerKg : p.price) ?? 0;

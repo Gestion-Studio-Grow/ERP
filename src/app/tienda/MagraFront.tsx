@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
 import { usePedidoOnline, useCuponDePedido } from "./pedido-online";
-import { etiquetaDeDisponibilidad, propuestasConMediosDeLaMarca, type Disponibilidad } from "./reglas-tienda";
+import { nuevaClaveDePedido, etiquetaDeDisponibilidad, propuestasConMediosDeLaMarca, type Disponibilidad } from "./reglas-tienda";
 import { WhatsAppCtaProvider, useWhatsAppCta } from "@/components/whatsapp-cta";
 import {
   MAGRA,
@@ -71,12 +71,7 @@ const unitLabel = (p: Product) => (p.saleUnit === "WEIGHT" ? "/ kg" : "/ u");
 // el mismo pedido: no se crea otro ni se descuenta el stock dos veces. Se renueva cuando
 // cambia la bolsa: si el primer envío llegó pero la página de gracias no, el cliente que
 // cambia un corte y reenvía está pidiendo OTRA cosa, y con la clave vieja recibiría el pedido
-// viejo sin enterarse. `randomUUID` sólo existe en https o localhost; afuera, la otra rama.
-function nuevaClaveDePedido(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+// viejo sin enterarse. La genera `nuevaClaveDePedido` (reglas-tienda.ts), la misma en todas las vidrieras.
 
 export default function MagraFront({ products, branding, tenantKey, content = MAGRA, envio = null, mediosDePago = null }: Props) {
   // UN SOLO número, el del LOCAL (BusinessSettings.whatsapp): el mismo que abren los botones

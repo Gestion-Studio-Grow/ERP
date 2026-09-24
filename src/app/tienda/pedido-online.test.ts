@@ -27,6 +27,8 @@ import {
 import { getStorefrontCopy } from "@/tenants/storefront";
 import { descuentoDelAjuste, envioDeLasLineas, esLineaDeEnvio, NOMBRE_LINEA_ENVIO, validarLineaAMano } from "@/lib/venta-reglas";
 import { MAGRA } from "@/tenants/magra-content";
+import { nuevaClaveDePedido } from "./reglas-tienda";
+import { readFileSync } from "node:fs";
 import {
   disponibilidadDe,
   etiquetaDeDisponibilidad,
@@ -371,4 +373,26 @@ test("la guarda de la tienda no busca una clave de otro espacio: toma un pedido 
   });
   assert.deepEqual(buscadas, [], "ni se buscó");
   assert.ok(r.tipo === "tomado" && r.pedido.id === "ord_nuevo");
+});
+
+test("M2: todas las vidrieras generan la clave con nuevaClaveDePedido, y el servidor acepta lo que generan", () => {
+  // Con randomUUID (https o localhost), sin él pero con getRandomValues (http), y sin crypto.
+  const conUUID = nuevaClaveDePedido(globalThis.crypto);
+  const sinUUID = nuevaClaveDePedido({ getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+  const sinCrypto = nuevaClaveDePedido(null);
+  for (const k of [conUUID, sinUUID, sinCrypto]) assert.ok(claveDeLaVidriera(k), k);
+  assert.match(sinUUID, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, "UUID v4 con azar criptográfico");
+  assert.match(sinCrypto, /^\d{13}-[0-9a-z]{12}$/);
+  // Mil claves sin crypto: siempre aceptadas, nunca repetidas.
+  const muchas = new Set(Array.from({ length: 1000 }, () => nuevaClaveDePedido(null)));
+  assert.equal(muchas.size, 1000);
+  for (const k of muchas) assert.ok(claveDeLaVidriera(k), k);
+  // La forma VIEJA de SiteReplica (con el punto de Math.random()), de pestañas abiertas antes del cambio.
+  assert.equal(claveDeLaVidriera("1790250166194-0.0180339349025187"), "web:1790250166194-0.0180339349025187");
+  // TRINQUETE: ninguna vidriera arma su propia clave.
+  for (const f of ["Storefront.tsx", "MagraFront.tsx", "ShineFront.tsx", "SiteReplica.tsx"]) {
+    const src = readFileSync(new URL(`./${f}`, import.meta.url), "utf8");
+    assert.match(src, /nuevaClaveDePedido\(\)/, f);
+    assert.doesNotMatch(src, /Math\.random\(\)|randomUUID\(\)/, `${f} arma su propia clave`);
+  }
 });

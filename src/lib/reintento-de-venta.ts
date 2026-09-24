@@ -312,9 +312,14 @@ export function compararConLoGrabado(
  * Incluye exactamente lo que compara el servidor: productos y peso (por producto, sumados, a
  * gramos), precios a mano (nombre e importe), cupón (código), descuento PEDIDO (tipo y valor),
  * cómo se cobra, teléfono (con la clave de la ficha) y, en un pedido, la entrega. NO incluye
- * nada que dependa del catálogo o de la base: ni precios ni totales (la firma de antes metía el
- * total a precios de HOY, y al recargar con otro precio decía "Cambiaste la venta" sin que nadie
- * tocara nada), ni el nombre del cliente.
+ * precios ni totales (la firma de antes metía el total a precios de HOY, y al recargar con otro
+ * precio decía "Cambiaste la venta" sin que nadie tocara nada), ni el nombre del cliente.
+ *
+ * Lo que sí depende de la pantalla es QUÉ líneas le pasa: las que viajan en el formulario. Con un
+ * envío en duda, eso incluye las líneas cuyo producto salió del catálogo después del corte
+ * (VenderForm, `huerfana`): antes se caían del envío y de la firma, y la pantalla decía
+ * "Cambiaste la venta" sola. La firma de una duda guardada se recalcula con las mismas reglas
+ * (`firmaDeLoCargado`, cobro-sin-conexion.ts).
  *
  * La única diferencia a propósito: el servidor compara el descuento a mano en PESOS sobre lo
  * grabado (es lo único que la fila guarda), y la firma lo compara como se pidió. Un 10 % cambiado

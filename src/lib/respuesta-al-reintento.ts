@@ -8,7 +8,7 @@
 // No es "use server": no es un endpoint. Recibe el `tenantId` ya resuelto (fail-closed, ADR-015)
 // por quien lo llama, y lee con el cliente de siempre (RLS del negocio).
 
-import { leerVentaGrabada, type InsertedOrder, type OrderInput } from "@/lib/order-core";
+import { leerVentaGrabada, pedidoConClave, type InsertedOrder, type OrderInput } from "@/lib/order-core";
 import { leerMedioDeCobro } from "@/lib/caja/medio-cobro";
 import { cantidadOCero } from "@/lib/pos-peso";
 import { horarioDelFormulario } from "@/lib/order-anulacion";
@@ -26,7 +26,7 @@ import {
 } from "@/lib/reintento-de-venta";
 
 export type RespuestaAlReintento =
-  | { ok: true; mensaje: string; venta?: VentaTicket }
+  | { ok: true; mensaje: string; venta?: VentaTicket; yaEstaba: true }
   | { ok: false; error: string; tipo: "ya-grabada-distinta"; grabada: VentaYaGrabada }
   | { ok: false; error: string; tipo: "sin-confirmar" };
 
@@ -78,7 +78,7 @@ export async function respuestaAlReintento(
   const { diferencias, faltante } = compararConLoGrabado(grabada, s, catalogo);
   if (diferencias.length === 0 && !ticket.anulada) {
     const mensaje = mensajeDeYaGrabadaIgual({ code: grabada.code, esPedido, cobrada: Boolean(grabada.paid && grabada.paymentMethod) });
-    return o.conTicket ? { ok: true, mensaje, venta: ticket } : { ok: true, mensaje };
+    return o.conTicket ? { ok: true, mensaje, venta: ticket, yaEstaba: true } : { ok: true, mensaje, yaEstaba: true };
   }
   const g: VentaYaGrabada = {
     id: grabada.id,
@@ -129,4 +129,25 @@ export function pedidoDelFormulario(
     descuento: desc.ok && desc.pedido ? { pedido: desc.pedido } : null,
     aCuenta: d.aCuenta,
   });
+}
+
+/**
+ * El alta rechazó por una regla de negocio (sin stock, sin precio): ¿hay una venta con esta
+ * clave? Se busca DESPUÉS del rechazo. Si un envío anterior con la misma clave estaba en vuelo
+ * (el corte), su transacción tenía tomada la fila del stock y la de este envío esperó a que
+ * terminara (READ COMMITTED: el UPDATE espera el candado y vuelve a mirar). Entonces:
+ *   · quedó grabada → es un reintento: se contesta con ella (`respuestaAlReintento`);
+ *   · no hay nada → el rechazo va con `claveLibre`: la pantalla deja de decir "puede que esta
+ *     misma venta ya se grabó" y dice "no se cobró" (refutador M4).
+ * Lo que no cubre: un envío anterior que todavía no empezó su transacción (llegaría después).
+ */
+export async function rechazoDelAltaConClave(
+  tenantId: string,
+  clave: string,
+  motivo: string,
+  o: { solicitado: PedidoDelReintento; conTicket: boolean },
+): Promise<RespuestaAlReintento | { ok: false; error: string; claveLibre: true }> {
+  const previa = await pedidoConClave(tenantId, clave);
+  if (previa) return respuestaAlReintento(tenantId, { ...previa, solicitado: o.solicitado }, { conTicket: o.conTicket });
+  return { ok: false, error: motivo, claveLibre: true };
 }

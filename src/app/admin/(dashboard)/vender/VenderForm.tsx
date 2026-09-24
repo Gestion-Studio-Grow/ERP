@@ -73,6 +73,8 @@ import {
   conTiempoMaximo,
   avisoAntesDeEmpezarDeNuevo,
   avisoDeDudaDeOtraPersona,
+  avisoDeDudaIlegible,
+  avisoDeGrabadaAhoraPorOtroTotal,
   cuandoDelEnvio,
   ETIQUETA_DEJARLA_ASI,
   ETIQUETA_VOLVER_A_CONSULTAR,
@@ -212,7 +214,14 @@ function FormularioVender({
   // La duda que dejó OTRA persona en esta pestaña: no se restaura (ni su cliente ni lo cargado);
   // sólo se avisa, con la fecha, hasta que se toque «Entendido».
   const [dudaAjena, setDudaAjena] = useState(lectura?.tipo === "de-otra-persona" ? lectura.desde : null);
+  // Una duda guardada que no se puede leer entera: no se inventa lo cargado, pero se avisa.
+  const [dudaIlegible, setDudaIlegible] = useState(lectura?.tipo === "ilegible" ? { desde: lectura.desde } : null);
   const k = arranque?.cargado;
+  // Los nombres de los productos de la duda, para mostrar una línea cuyo producto salió del
+  // catálogo entre el corte y la recarga (ver `huerfana`).
+  const [nombresDeLaDuda] = useState<Record<string, string>>(() =>
+    Object.fromEntries((k?.lineas ?? []).map((l) => [l.productId, l.nombre ?? "Un producto"])),
+  );
   const [inicial] = useState(() => lineasIniciales(k));
 
   const [isOrder, setIsOrder] = useState(k ? k.esPedido : pedidoInicial);
@@ -393,7 +402,13 @@ function FormularioVender({
     return p ? faltanteDeLinea(stockById[l.productId], l.qty, { saleUnit: p.saleUnit, contexto: contextoStock }) : null;
   };
 
-  const hayLineaValida = leidas.some((l) => byId.get(l.productId) && l.qty > 0) || manualesLeidas.some((m) => m.valida);
+  // Con un envío en duda, una línea cuyo producto ya no está en el catálogo (lo sacaron entre el
+  // corte y la recarga) SIGUE en el ticket, en la firma y en el envío: el reintento tiene que
+  // viajar igual que la cortada. El servidor busca la clave antes de validar: si estaba grabada,
+  // la devuelve. Sin duda de por medio, esa línea no se vende (no hay precio).
+  const huerfana = (productId: string) => sinRespuesta !== null && productId !== "" && !byId.has(productId);
+  const enviable = (l: { productId: string; qty: number }) => (byId.has(l.productId) || huerfana(l.productId)) && l.qty > 0;
+  const hayLineaValida = leidas.some(enviable) || manualesLeidas.some((m) => m.valida);
   const hayFaltante = leidas.some((l) => faltanteDe(l)?.bloquea === true);
   const hayCantidadInvalida = leidas.some((l) => l.productId && l.invalida);
   // Una línea a mano abierta y a medio llenar frena el cobro: si se dejara pasar, se cobraría
@@ -413,7 +428,7 @@ function FormularioVender({
   // sin precios, sin total, sin el nombre de la ficha. Recargar con otro precio de catálogo ya
   // no cambia la firma.
   const firma = firmaDelCobro({
-    lineas: leidas.filter((l) => byId.get(l.productId) && l.qty > 0).map((l) => ({ productId: l.productId, cantidad: l.qty })),
+    lineas: leidas.filter(enviable).map((l) => ({ productId: l.productId, cantidad: l.qty })),
     manuales: manualesLeidas.filter((m) => m.valida).map((m) => ({ nombre: m.nombre, importe: m.importe })),
     medio: aCuentaActivo ? "A_CUENTA" : paid ? medio : "SIN_COBRAR",
     esPedido: isOrder,
@@ -435,7 +450,9 @@ function FormularioVender({
   function cargadoActual(): CargadoDelCobro {
     return {
       esPedido: isOrder,
-      lineas: lines.filter((l) => l.productId).map((l) => ({ productId: l.productId, qtyText: l.qtyText })),
+      lineas: lines
+        .filter((l) => l.productId)
+        .map((l) => ({ productId: l.productId, qtyText: l.qtyText, nombre: byId.get(l.productId)?.name ?? nombresDeLaDuda[l.productId] })),
       manuales: manuales.map((m) => ({ nombre: m.nombre, importeText: m.importeText, motivo: m.motivo })),
       paid,
       medio,
@@ -585,6 +602,8 @@ function FormularioVender({
     const pagoCon = medio === "EFECTIVO" ? leerImporte(pagoConText) : null;
     // Lo que viaja, por si la respuesta no vuelve: queda en duda, en memoria y en la pestaña.
     const enviado: EnvioSinRespuesta = { firma, total, desde: new Date().toISOString() };
+    // La duda con la que sale este envío (si es un reintento): su total es lo que se había mandado.
+    const enDuda = sinRespuesta;
     const cargado = cargadoActual();
     const quedaEnDuda = () => {
       setFalla({ tipo: "red" });
@@ -633,10 +652,17 @@ function FormularioVender({
         setVerGrabada(false);
         return;
       }
+      // El servidor sabe que con esta clave NO hay nada grabado (la buscó al rechazar): la duda
+      // queda resuelta —la cortada no se había grabado— y el rechazo se dice como es: "no se
+      // cobró", sin el "puede ser que ya se grabó" que mandaba a buscar una venta que no existe.
+      if (r.claveLibre && sinRespuesta) {
+        setSinRespuesta(null);
+        borrarCobroSinConfirmar(almacenDeSesion(), almacen);
+      }
       setFalla({ tipo: "rechazo", error: r.error });
       // Rechazo de negocio sin nada en duda: con esta clave no hay nada grabado, así que lo que se
       // corrija viaja con otra (el porqué, en `renovarClaveTrasRechazo`).
-      if (renovarClaveTrasRechazo(sinRespuesta !== null)) ticketKey.current = "";
+      if (renovarClaveTrasRechazo(sinRespuesta !== null && !r.claveLibre)) ticketKey.current = "";
       return;
     }
     // La venta a cuenta también lleva su ticket (dice "Queda a cuenta"): el cliente se lleva
@@ -660,11 +686,19 @@ function FormularioVender({
               : "Venta registrada sin cobrar: queda en Pedidos para preparar hasta que se cobre."),
       );
     }
+    // Era un reintento y la cortada NO estaba grabada: se grabó AHORA, con los precios y el
+    // catálogo de hoy. Si el total no es el que se había mandado (y quizá cobrado), se dice.
+    if (enDuda && r?.ok && !r.yaEstaba && r.venta && round2(r.venta.total) !== round2(enDuda.total)) {
+      setConfirmacion(avisoDeGrabadaAhoraPorOtroTotal({ code: r.venta.code, esPedido: isOrder, mandado: enDuda.total, grabado: r.venta.total }));
+    }
     limpiar();
   }
 
+  // Lo que falta incluye un producto que ya no está en el catálogo: no se ofrece cargarlo solo.
+  const fueraDelCatalogo = yaGrabada?.faltante?.productos.filter((l) => !byId.has(l.productId)).map((l) => l.nombre) ?? [];
+  const cobrarAparte = yaGrabada && fueraDelCatalogo.length === 0 ? etiquetaDeCobrarAparte(yaGrabada) : null;
   const aviso = yaGrabada
-    ? avisoDeYaGrabada(yaGrabada)
+    ? avisoDeYaGrabada(yaGrabada, fueraDelCatalogo)
     : avisoDelCobro({
         falla,
         sinRespuesta: sinRespuesta
@@ -684,7 +718,9 @@ function FormularioVender({
       (aviso?.reintentar
         ? isOrder
           ? etiquetaDeReintento(true)
-          : `${etiquetaDeReintento()} ${fmtMoneyARS(total)}`
+          : // El reintento de la duda dice lo que se MANDÓ (y quizá se cobró), no el total a
+            // precios de hoy: si estaba grabada, vuelve esa venta con ese total.
+            `${etiquetaDeReintento()} ${fmtMoneyARS(reintentoDeLaMisma && sinRespuesta ? sinRespuesta.total : total)}`
         : isOrder
           ? "Registrar pedido"
           : aCuentaActivo
@@ -749,6 +785,26 @@ function FormularioVender({
             Cerrar
           </button>
         </div>
+      )}
+
+      {dudaIlegible && (
+        <AvisoError
+          tono="aviso"
+          titulo={avisoDeDudaIlegible(dudaIlegible.desde).titulo}
+          comoSeguir={avisoDeDudaIlegible(dudaIlegible.desde).comoSeguir}
+          accion={
+            <button
+              type="button"
+              onClick={() => {
+                borrarCobroSinConfirmar(almacenDeSesion(), almacen);
+                setDudaIlegible(null);
+              }}
+              className="h-11 px-2 text-sm text-muted hover:underline"
+            >
+              Ya revisé
+            </button>
+          }
+        />
       )}
 
       {dudaAjena && (
@@ -826,6 +882,35 @@ function FormularioVender({
         <div className="space-y-2">
           {leidas.map((l) => {
             const p = byId.get(l.productId);
+            // Una línea de la duda cuyo producto salió del catálogo: se muestra, viaja igual en el
+            // reintento y se puede quitar (y entonces ya no es la misma venta).
+            if (!p && huerfana(l.productId)) {
+              return (
+                <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_128px_auto]">
+                  <p className="col-span-2 sm:col-span-1 text-sm text-strong">
+                    {nombresDeLaDuda[l.productId] ?? "Un producto"}{" "}
+                    <span className="text-xs text-warning">· ya no está en el catálogo (va igual en el reintento)</span>
+                  </p>
+                  <span id={`qty-${l.key}`} className="text-right text-sm tabular-nums text-body">
+                    {l.qtyText}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(l.key)}
+                    aria-label="Quitar línea"
+                    className="inline-flex h-11 w-11 items-center justify-center text-lg leading-none text-muted hover:text-danger"
+                  >
+                    ×
+                  </button>
+                  {l.qty > 0 && (
+                    <>
+                      <input type="hidden" name="productId" value={l.productId} />
+                      <input type="hidden" name="quantity" value={cantidadParaFormulario(l.qty)} />
+                    </>
+                  )}
+                </div>
+              );
+            }
             const esPeso = p?.saleUnit === "WEIGHT";
             const lineTotal = totalDeLinea(l);
             const faltante = faltanteDe(l);
@@ -1351,13 +1436,13 @@ function FormularioVender({
               accion={
                 yaGrabada ? (
                   <>
-                    {etiquetaDeCobrarAparte(yaGrabada) && (
+                    {cobrarAparte && (
                       <button
                         type="button"
                         onClick={() => (yaGrabada.faltante && !yaGrabada.anulada ? cargarSoloLoQueFalta(yaGrabada, yaGrabada.faltante) : esOtraVenta())}
                         className="h-11 px-2 text-sm font-medium text-strong underline"
                       >
-                        {etiquetaDeCobrarAparte(yaGrabada)}
+                        {cobrarAparte}
                       </button>
                     )}
                     {yaGrabada.ticket && (
@@ -1372,7 +1457,7 @@ function FormularioVender({
                         {etiquetaDeVerGrabada(yaGrabada)}
                       </button>
                     )}
-                    {!etiquetaDeCobrarAparte(yaGrabada) && (
+                    {!etiquetaDeCobrarAparte(yaGrabada) && fueraDelCatalogo.length === 0 && (
                       <>
                         <a
                           href={yaGrabada.esPedido ? "/admin/pedidos" : "/admin/ventas"}
