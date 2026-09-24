@@ -6,11 +6,15 @@
 
 import { useState } from "react";
 import { Button, Input } from "@/components/ui";
-import { normalizarNombreOperador as normalizar, valorDeClave } from "@/lib/operador/clave-operador";
+import { normalizarNombreOperador as normalizar, nombreParaLineaNueva, valorDeClave } from "@/lib/operador/clave-operador";
 
 const LARGO_MINIMO = 12;
 
-export function GeneradorDeLinea() {
+/**
+ * `nombreDelDuenio`: el del operador dueño (OPERADOR_DUENIO o "duenio"). Está reservado: el dueño
+ * entra sólo con OPERATOR_PASSWORD y el servidor ignora una línea con su nombre (operator-auth.ts).
+ */
+export function GeneradorDeLinea({ nombreDelDuenio }: { nombreDelDuenio: string }) {
   const [nombre, setNombre] = useState("");
   const [clave, setClave] = useState("");
   const [repetida, setRepetida] = useState("");
@@ -21,14 +25,14 @@ export function GeneradorDeLinea() {
   async function generar(e: React.FormEvent) {
     e.preventDefault();
     setLinea(null);
-    const n = normalizar(nombre);
-    if (!n) return setError("El nombre va con letras, números, guion o guion bajo (hasta 32).");
+    const v = nombreParaLineaNueva(nombre, nombreDelDuenio);
+    if (!v.ok) return setError(v.motivo);
     if (clave.length < LARGO_MINIMO) return setError(`La clave tiene que tener al menos ${LARGO_MINIMO} caracteres.`);
     if (clave !== repetida) return setError("Las dos claves no coinciden.");
     setError(null);
     setCalculando(true);
     try {
-      setLinea(`${n}=${await valorDeClave(clave)}`);
+      setLinea(`${v.nombre}=${await valorDeClave(clave)}`);
     } catch {
       setError("Este navegador no pudo calcular la línea. Probá con otro actualizado.");
     } finally {

@@ -29,6 +29,22 @@ export function normalizarNombreOperador(raw: string | null | undefined): string
   return NOMBRE_OPERADOR_VALIDO.test(n) ? n : null;
 }
 
+/**
+ * El nombre para una línea NUEVA de OPERADORES (lo usa /operador/clave). El del dueño está
+ * reservado: el dueño entra sólo con OPERATOR_PASSWORD y el servidor ignora una línea con su nombre.
+ */
+export function nombreParaLineaNueva(
+  raw: string,
+  nombreDelDuenio: string,
+): { ok: true; nombre: string } | { ok: false; motivo: string } {
+  const n = normalizarNombreOperador(raw);
+  if (!n) return { ok: false, motivo: "El nombre va con letras, números, guion o guion bajo (hasta 32)." };
+  if (n === normalizarNombreOperador(nombreDelDuenio)) {
+    return { ok: false, motivo: `«${n}» es el nombre del dueño de GSG y está reservado: elegí otro nombre.` };
+  }
+  return { ok: true, nombre: n };
+}
+
 /** Vueltas de PBKDF2-SHA-256. Fijas: cambiarlas invalida todas las líneas de OPERADORES. */
 export const ITERACIONES_PBKDF2 = 600_000;
 

@@ -106,21 +106,53 @@ export function operadorDuenio(env: Env = process.env): string {
   return normalizarNombreOperador(env.OPERADOR_DUENIO) ?? DUENIO_POR_DEFECTO;
 }
 
+/** Avisos de OPERADORES ya logueados, por valor de la variable: se parsea en cada pedido. */
+const avisados = new Set<string>();
+
+function avisarOperadores(clave: string, mensaje: string): void {
+  if (avisados.has(clave)) return;
+  avisados.add(clave);
+  // Edge-safe: sin el logger del servidor. Nunca se imprime el hash, sólo el nombre.
+  console.warn(JSON.stringify({ level: "warn", scope: "operator-auth", msg: mensaje }));
+}
+
 /**
- * OPERADORES parseada: nombre → "pbkdf2$sal$hash". Separador ";" (o saltos de línea). Una entrada
- * mal formada se ignora entera: nunca habilita a nadie.
+ * OPERADORES parseada: nombre → "pbkdf2$sal$hash". Separador ";" (o saltos de línea). Se ignoran
+ * enteras, y nunca habilitan a nadie:
+ *   · una entrada mal formada;
+ *   · una entrada con el nombre del DUEÑO (comparado normalizado): el dueño se autentica SÓLO con
+ *     OPERATOR_PASSWORD. Si no, cualquiera que lograra sumar su línea como "duenio" quedaba como
+ *     dueño, el único que puede tocar CH;
+ *   · un nombre que aparece DOS veces: se rechazan las dos (ningún orden decide cuál vale).
  */
 export function operadoresConfigurados(env: Env = process.env): Map<string, string> {
-  const out = new Map<string, string>();
+  const duenio = operadorDuenio(env);
+  const vistos = new Map<string, string>();
+  const repetidos = new Set<string>();
   for (const entrada of (env.OPERADORES ?? "").split(/[;\n]/)) {
     const i = entrada.indexOf("=");
     if (i <= 0) continue;
     const nombre = normalizarNombreOperador(entrada.slice(0, i));
     const valor = entrada.slice(i + 1).trim();
     if (!nombre || !FORMATO_LINEA.test(valor)) continue;
-    out.set(nombre, valor);
+    if (nombre === duenio) {
+      avisarOperadores(
+        `duenio:${env.OPERADORES}`,
+        `OPERADORES trae una línea con el nombre del dueño ("${nombre}"): se ignora. El dueño entra sólo con OPERATOR_PASSWORD.`,
+      );
+      continue;
+    }
+    if (vistos.has(nombre)) repetidos.add(nombre);
+    vistos.set(nombre, valor);
   }
-  return out;
+  for (const nombre of repetidos) {
+    vistos.delete(nombre);
+    avisarOperadores(
+      `repetido:${nombre}:${env.OPERADORES}`,
+      `OPERADORES trae a "${nombre}" más de una vez: se ignoran todas sus líneas hasta que quede una sola.`,
+    );
+  }
+  return vistos;
 }
 
 /** ¿Este nombre puede tener una sesión de operador hoy? El dueño siempre; el resto, si está en OPERADORES. */
@@ -175,29 +207,33 @@ const VALOR_SENUELO = `pbkdf2$${"0".repeat(32)}$${"0".repeat(64)}`;
 
 function passwordDelDuenio(env: Env): string | undefined {
   // En dev, sin OPERATOR_PASSWORD, "operador" para probar la consola local sin configurar nada.
-  // Nunca en producción: ahí sin OPERATOR_PASSWORD el dueño sólo entra si está en OPERADORES.
-  return env.OPERATOR_PASSWORD ?? (env.NODE_ENV !== "production" ? "operador" : undefined);
+  // Nunca en producción: ahí sin OPERATOR_PASSWORD (o vacía) el dueño no entra, y el build de
+  // producción frena antes (scripts/vercel-build.mjs).
+  const propia = env.OPERATOR_PASSWORD;
+  if (propia !== undefined) return propia === "" ? undefined : propia;
+  return env.NODE_ENV !== "production" ? "operador" : undefined;
 }
 
 /**
  * ¿Nombre y clave son de un operador? Devuelve el nombre normalizado, o null.
- *   · nombre vacío = el dueño (el login de siempre, sólo con la clave);
- *   · si el nombre está en OPERADORES, se verifica contra su línea PBKDF2;
- *   · si no, y es el dueño, contra OPERATOR_PASSWORD.
+ *   · el DUEÑO (nombre vacío, el login de siempre, o su nombre): SÓLO con OPERATOR_PASSWORD, que
+ *     tiene que existir y no estar vacía. Una línea de OPERADORES con su nombre no cuenta;
+ *   · otro nombre: contra su línea PBKDF2 de OPERADORES.
+ * Una clave vacía nunca entra, por ningún camino.
  */
 export async function verificarOperador(
   nombreTipeado: string,
   clave: string,
   env: Env = process.env,
 ): Promise<string | null> {
-  const nombre = nombreTipeado.trim() === "" ? operadorDuenio(env) : normalizarNombreOperador(nombreTipeado);
-  const linea = nombre ? operadoresConfigurados(env).get(nombre) : undefined;
-  if (nombre && linea) return (await claveCoincide(clave, linea)) ? nombre : null;
-  if (nombre && nombre === operadorDuenio(env)) {
+  const duenio = operadorDuenio(env);
+  const nombre = nombreTipeado.trim() === "" ? duenio : normalizarNombreOperador(nombreTipeado);
+  if (nombre && nombre === duenio) {
     const esperada = passwordDelDuenio(env);
-    return esperada !== undefined && igualesEnTiempoConstante(clave, esperada) ? nombre : null;
+    return clave !== "" && esperada !== undefined && igualesEnTiempoConstante(clave, esperada) ? nombre : null;
   }
+  const linea = nombre ? operadoresConfigurados(env).get(nombre) : undefined;
   // Nombre desconocido: se gasta el mismo trabajo que una verificación real.
-  await claveCoincide(clave, VALOR_SENUELO);
-  return null;
+  const coincide = await claveCoincide(clave, linea ?? VALOR_SENUELO);
+  return nombre && linea && clave !== "" && coincide ? nombre : null;
 }

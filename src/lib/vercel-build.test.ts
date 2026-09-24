@@ -45,7 +45,7 @@ chmodSync(join(STUB_DIR, "npx"), 0o755);
 function corre(env: Record<string, string>) {
   writeFileSync(LLAMADAS, "");
   const base = { ...process.env };
-  for (const k of ["DATABASE_URL", "MIGRATE_DATABASE_URL", "PREDEPLOY_DATABASE_URL", "AUTH_SECRET", "OPERATOR_SECRET", "VERCEL_ENV"]) {
+  for (const k of ["DATABASE_URL", "MIGRATE_DATABASE_URL", "PREDEPLOY_DATABASE_URL", "AUTH_SECRET", "OPERATOR_SECRET", "OPERATOR_PASSWORD", "VERCEL_ENV"]) {
     delete base[k];
   }
   const r = spawnSync("node", [SCRIPT], {
@@ -66,6 +66,7 @@ test("una cadena del POOLER frena el build antes de tocar nada", () => {
     VERCEL_ENV: "production",
     AUTH_SECRET: "x",
     OPERATOR_SECRET: "op",
+    OPERATOR_PASSWORD: "clave-del-duenio",
     MIGRATE_DATABASE_URL: "postgresql://u:p@ep-algo-pooler.sa-east-1.aws.neon.tech/neondb",
   });
   assert.equal(r.status, 1, "el build tiene que fallar, no seguir");
@@ -128,6 +129,28 @@ test("producción sin OPERATOR_SECRET, o igual a AUTH_SECRET, no se publica", ()
   assert.match(igual.salida, /igual a AUTH_SECRET/);
 });
 
+test("producción sin OPERATOR_PASSWORD, o vacía, no se publica (y el valor no se imprime)", () => {
+  for (const clave of [undefined, "", "   "]) {
+    const env: Record<string, string> = { VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", DATABASE_URL: HOST_MUERTO };
+    if (clave !== undefined) env.OPERATOR_PASSWORD = clave;
+    const r = corre(env);
+    assert.equal(r.status, 1, JSON.stringify(clave));
+    assert.match(r.salida, /Falta OPERATOR_PASSWORD/);
+    assert.match(r.salida, /CÓMO SE ARREGLA/);
+    assert.deepEqual(r.llamadas, [], "frena antes de ejecutar nada");
+  }
+  // Con la clave puesta, pasa este freno y el valor no aparece en la salida.
+  const ok = corre({
+    VERCEL_ENV: "production",
+    AUTH_SECRET: "x",
+    OPERATOR_SECRET: "op",
+    OPERATOR_PASSWORD: "clave-secreta-del-duenio-7731",
+    DATABASE_URL: HOST_MUERTO,
+  });
+  assert.doesNotMatch(ok.salida, /Falta OPERATOR_PASSWORD/);
+  assert.doesNotMatch(ok.salida, /clave-secreta-del-duenio-7731/);
+});
+
 test("producción sin AUTH_SECRET no se publica", () => {
   const r = corre({ VERCEL_ENV: "production", DATABASE_URL: HOST_MUERTO });
   assert.equal(r.status, 1);
@@ -136,7 +159,7 @@ test("producción sin AUTH_SECRET no se publica", () => {
 });
 
 test("producción sin ninguna cadena de base no se publica", () => {
-  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op" });
+  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", OPERATOR_PASSWORD: "clave-del-duenio" });
   assert.equal(r.status, 1);
   assert.match(r.salida, /ni MIGRATE_DATABASE_URL ni DATABASE_URL/);
   assert.ok(!r.llamadas.some((l) => l.startsWith("next")), "y no compila");
@@ -145,7 +168,7 @@ test("producción sin ninguna cadena de base no se publica", () => {
 test("producción SIN migrar igual mira la base, y si no puede, NO publica", () => {
   // El agujero que esto cierra: un merge antes de cargar MIGRATE_DATABASE_URL publicaba
   // código nuevo contra la base vieja, con el build en verde.
-  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", DATABASE_URL: HOST_MUERTO });
+  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", OPERATOR_PASSWORD: "clave-del-duenio", DATABASE_URL: HOST_MUERTO });
   assert.equal(r.status, 1);
   assert.match(r.salida, /no se pudo CONECTAR/i);
   assert.ok(r.llamadas.some((l) => l.includes("predeploy-check.mts")), "corrió el chequeo");
@@ -153,7 +176,7 @@ test("producción SIN migrar igual mira la base, y si no puede, NO publica", () 
 });
 
 test("con migración, un host inalcanzable frena ANTES de migrar", () => {
-  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", MIGRATE_DATABASE_URL: HOST_MUERTO });
+  const r = corre({ VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", OPERATOR_PASSWORD: "clave-del-duenio", MIGRATE_DATABASE_URL: HOST_MUERTO });
   assert.equal(r.status, 1);
   assert.match(r.salida, /no se pudo CONECTAR/i);
   assert.ok(!r.llamadas.some((l) => l.includes("migrate deploy")), "nunca llegó a migrar");

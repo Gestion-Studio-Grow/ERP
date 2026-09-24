@@ -13,6 +13,7 @@
 
 import "server-only";
 import { cache } from "react";
+import type { Prisma } from "@/generated/prisma/client";
 import { operatorPrisma } from "@/lib/operator-db";
 import { resolveRubroId, rubroConPerecederos } from "@/blueprints/retail/rubros";
 import { moduleRegistryEnabled, profilesEnabled } from "@/modules/flags";
@@ -88,6 +89,64 @@ export async function leerInterruptoresDe(
   } catch {
     return null;
   }
+}
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * EL candado de las apps de un negocio. Lo toman, dentro de su transacción, TODAS las escrituras que
+ * cambian qué apps ve: los módulos (`escribirModulosConCandado`) y el interruptor "Trabaja por apps"
+ * (src/lib/operador/interruptores-escritura.server.ts). Así una no decide con una foto vieja de la
+ * otra: la segunda espera a que termine la primera y relee. Se suelta solo al cerrar la
+ * transacción (xact), así que con el pooler de Neon en modo transacción no queda colgado.
+ */
+export async function bloquearAppsDelNegocio(tx: Tx, tenantId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`apps:${tenantId}`}))`;
+}
+
+/** Los interruptores del negocio leídos DENTRO de una transacción (con el GUC del negocio). */
+export async function interruptoresEnTx(tx: Tx, tenantId: string): Promise<EstadoInterruptores> {
+  await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+  const filas = await tx.auditLog.findMany({
+    where: filtroDeFilasValidas(tenantId),
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    distinct: ["entityId"],
+    select: { id: true, entity: true, entityId: true, action: true, actor: true, channel: true, createdAt: true },
+  });
+  return estadoDesdeFilas(filas);
+}
+
+export type ResultadoEscrituraDeModulos = { tipo: "ok" } | { tipo: "cambio" } | { tipo: "rechazado"; motivo: string };
+
+/**
+ * Escribe la asignación nueva SÓLO si la base sigue teniendo la que se leyó, con el candado de las
+ * apps del negocio tomado, y deja la auditoría en la misma transacción. `verificar` recibe los
+ * interruptores leídos YA con el candado (no la foto de la pantalla) y puede frenar con un motivo:
+ * la action de módulos lo usa para no sacarle apps a un negocio que trabaja por apps.
+ * "cambio" = alguien cambió los módulos en el medio.
+ */
+export async function escribirModulosConCandado(
+  tenantId: string,
+  leidos: readonly string[],
+  nuevos: readonly string[],
+  audit: { actor: string; action: string; changes: Prisma.InputJsonValue },
+  verificar?: (interruptores: EstadoInterruptores) => string | null,
+): Promise<ResultadoEscrituraDeModulos> {
+  return operatorPrisma.$transaction(async (tx): Promise<ResultadoEscrituraDeModulos> => {
+    await bloquearAppsDelNegocio(tx, tenantId);
+    const interruptores = await interruptoresEnTx(tx, tenantId);
+    const motivo = verificar?.(interruptores) ?? null;
+    if (motivo) return { tipo: "rechazado", motivo };
+    const r = await tx.tenant.updateMany({
+      where: { id: tenantId, modules: { equals: [...leidos] } },
+      data: { modules: [...nuevos] },
+    });
+    if (r.count !== 1) return { tipo: "cambio" };
+    await tx.auditLog.create({
+      data: { tenantId, entity: "Tenant", entityId: tenantId, ...audit },
+    });
+    return { tipo: "ok" };
+  });
 }
 
 /**

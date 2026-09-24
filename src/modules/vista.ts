@@ -2,11 +2,10 @@
 // VISTA DE MÓDULOS PARA EL BACKOFFICE — activar/desactivar por tenant (ADR-054/055).
 // ============================================================================
 //
-// La lógica PURA detrás de la pantalla "Módulos de tu negocio" (/admin/modulos): la
-// vidriera estilo SAP/GSG donde el OWNER de un tenant prende y apaga las apps de su
-// negocio. Es el primer consumidor real de la fundación de módulos por parte del
-// backoffice del propio tenant (hasta ahora la asignación módulo↔tenant solo se
-// tocaba desde la consola de operador).
+// La lógica PURA de activar y desactivar módulos. Nació para la pantalla "Módulos de tu negocio"
+// (/admin/modulos), que se borró en la tanda 2b: exigía `modules:manage` y ningún rol lo tiene.
+// Hoy la usan la ficha del negocio en la consola de GSG (`planActivar` / `planDesactivar`, vía
+// apps-del-negocio.ts) y `vistaModulos`, que queda sin pantalla.
 //
 // Todo PURO (sin Prisma, sin React, sin env): recibe el estado del tenant + el
 // catálogo como dato y devuelve la vista y los "planes" de toggle. Así se testea sin

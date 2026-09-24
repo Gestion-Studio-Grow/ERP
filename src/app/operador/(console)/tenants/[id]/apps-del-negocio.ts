@@ -382,6 +382,22 @@ export function vistaPreviaDeCambio(
   };
 }
 
+/**
+ * Con "Trabaja por apps" prendido, un cambio de módulos que le saque apps que HOY ve (con el Inicio
+ * por apps) se rechaza: es el mismo criterio que para prender el interruptor (0 apps perdidas). Lo
+ * decide la action con el interruptor leído bajo el candado del negocio, no con la pantalla.
+ * `null` = no hay nada que frenar.
+ */
+export function motivoSiPierdeAppsConInicio(previa: VistaPreviaDeCambio, trabajaPorApps: boolean): string | null {
+  if (!previa.ok || previa.sinCambios || !trabajaPorApps || previa.conInicio.pierde.length === 0) return null;
+  const n = previa.conInicio.pierde.length;
+  return (
+    `Este negocio trabaja por apps: con este cambio dejaría de ver ${n} ${n === 1 ? "app" : "apps"} ` +
+    `(${previa.conInicio.pierde.map((a) => a.nombre).join(", ")}). ` +
+    "Si de verdad hay que sacárselas, primero apagá «Trabaja por apps» en esta ficha."
+  );
+}
+
 // ── Fijar la asignación actual ───────────────────────────────────────────────
 
 export type PlanFijar =

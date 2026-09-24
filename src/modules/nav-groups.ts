@@ -280,9 +280,9 @@ export const BACKLOG_SCOPE_ITEM_NAV: readonly BacklogNavItem[] = [
 // - `module`: CORREGIDO (2026-09-23). Esto decía que no había descriptor de catálogo y
 //   que el OWNER los prendería desde `/admin/modulos`. Las dos cosas eran falsas: los cinco
 //   descriptores existen (src/modules/descriptors/nativos.ts: `inventario`, `cuentas-a-pagar`,
-//   `cuentas-a-cobrar`, `libros`, `devoluciones-proveedor`) y `/admin/modulos` no la puede
+//   `cuentas-a-cobrar`, `libros`, `devoluciones-proveedor`) y `/admin/modulos` no la podía
 //   abrir nadie (`modules:manage` no está en ningún rol: `NO_SON_DEL_DUENIO` en
-//   capabilities.ts). Estos ítems siguen SIN `module` porque son el menú de HOY y tienen que
+//   capabilities.ts); se borró en la tanda 2b. Estos ítems siguen SIN `module` porque son el menú de HOY y tienen que
 //   dar lo mismo que antes. El módulo de cada pantalla vive ahora en el registro de apps
 //   (src/apps/catalogo/finanzas.ts y logistica.ts) y sólo decide en los negocios con
 //   "Trabaja por apps" prendido. En el Comerciante estas pantallas siguen sin módulo, como acá

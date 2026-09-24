@@ -154,7 +154,13 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
   const { leerInterruptoresDe } = await import("@/app/operador/(console)/tenants/[id]/negocio.server");
   const { audit } = await import("@/lib/audit-core");
   const { prisma } = await import("@/lib/prisma");
-  const { planFijarAsignacion } = await import("@/app/operador/(console)/tenants/[id]/apps-del-negocio");
+  const { planFijarAsignacion, vistaPreviaDeCambio, motivoSiPierdeAppsConInicio } = await import(
+    "@/app/operador/(console)/tenants/[id]/apps-del-negocio"
+  );
+  const { bloquearAppsDelNegocio, escribirModulosConCandado, leerNegocioParaActivar } = await import(
+    "@/app/operador/(console)/tenants/[id]/negocio.server"
+  );
+  const { trabajaPorApps, CAMBIO_MIENTRAS_MIRABAS } = await import("./interruptores-core");
   const { catalogo } = await import("@/modules/catalog");
   const { INICIO_POR_APPS } = await import("./interruptores");
 
@@ -246,6 +252,84 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
     const r2 = await cambiarInterruptorCon(depsDeCambioReales(), "facu", pedido(carniceria, "apagar"));
     assert.equal(r2.tipo, "hecho");
     assert.deepEqual(await comoPanel(slugs.carniceria), { estado: false, inicio: false, gate: null });
+
+    // ── Módulos e interruptor, con el MISMO candado por negocio ──
+    // (a) Vista vieja: la vista previa de "apagar Stock" se arma con el interruptor apagado; en el
+    // medio otro operador lo prende. La escritura de módulos lee el interruptor bajo el candado y
+    // rechaza sacarle apps que ahora ve (el mismo criterio que para prender).
+    const negocioReal = await leerNegocioParaActivar(carniceria.id);
+    assert.ok(negocioReal);
+    const previa = vistaPreviaDeCambio(negocioReal, { accion: "desactivar", modulo: "inventario" }, { registroGlobal: false, enInicioPorApps: false }, catalogo());
+    assert.ok(previa.ok && !previa.sinCambios);
+    assert.equal((await cambiarInterruptorCon(depsDeCambioReales(), "facu", pedido(carniceria, "encender"))).tipo, "hecho");
+    const modulos = await escribirModulosConCandado(
+      carniceria.id,
+      negocioReal.modules,
+      previa.despues,
+      { actor: "operator:facu", action: "module.deactivate", changes: { modulo: "inventario" } },
+      (i) => motivoSiPierdeAppsConInicio(previa, trabajaPorApps(i)),
+    );
+    assert.equal(modulos.tipo, "rechazado");
+    assert.match((modulos as { motivo: string }).motivo, /trabaja por apps: con este cambio dejaría de ver .*Stock/);
+    const trasRechazo = await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: carniceria.id }, select: { modules: true } });
+    assert.deepEqual([...trasRechazo.modules].sort(), [...negocioReal.modules].sort(), "no se tocó la asignación");
+
+    // (b) Carrera: mientras una escritura de módulos tiene el candado, "apagar" espera, y al entrar
+    // ve los módulos nuevos y rechaza (sin el candado habría decidido con la foto vieja).
+    let tomado!: () => void;
+    let soltar!: () => void;
+    const candadoTomado = new Promise<void>((ok) => (tomado = ok));
+    const podesSoltar = new Promise<void>((ok) => (soltar = ok));
+    const otraEscritura = operatorPrisma.$transaction(
+      async (tx) => {
+        await bloquearAppsDelNegocio(tx, carniceria.id);
+        tomado();
+        await podesSoltar;
+        await tx.tenant.update({ where: { id: carniceria.id }, data: { modules: [...negocioReal.modules, "libros"] } });
+      },
+      { timeout: 20_000 },
+    );
+    await candadoTomado;
+    const apagar = cambiarInterruptorCon(depsDeCambioReales(), "facu", pedido(carniceria, "apagar"));
+    await new Promise((ok) => setTimeout(ok, 400));
+    let apagarTermino = false;
+    void apagar.then(() => (apagarTermino = true));
+    await new Promise((ok) => setTimeout(ok, 50));
+    assert.equal(apagarTermino, false, "apagar tiene que esperar el candado de las apps del negocio");
+    soltar();
+    await otraEscritura;
+    assert.deepEqual(await apagar, { tipo: "rechazado", motivo: CAMBIO_MIENTRAS_MIRABAS });
+    assert.deepEqual(await comoPanel(slugs.carniceria), { estado: true, inicio: true, gate: "piloto" });
+
+    // (c) Y al revés: la escritura de módulos también espera el candado.
+    let tomado2!: () => void;
+    let soltar2!: () => void;
+    const tomado2P = new Promise<void>((ok) => (tomado2 = ok));
+    const soltar2P = new Promise<void>((ok) => (soltar2 = ok));
+    const retiene = operatorPrisma.$transaction(
+      async (tx) => {
+        await bloquearAppsDelNegocio(tx, carniceria.id);
+        tomado2();
+        await soltar2P;
+      },
+      { timeout: 20_000 },
+    );
+    await tomado2P;
+    let modulosTermino = false;
+    const sacarLibros = escribirModulosConCandado(
+      carniceria.id,
+      [...negocioReal.modules, "libros"],
+      negocioReal.modules,
+      { actor: "operator:facu", action: "module.deactivate", changes: { modulo: "libros" } },
+    ).then((x) => {
+      modulosTermino = true;
+      return x;
+    });
+    await new Promise((ok) => setTimeout(ok, 400));
+    assert.equal(modulosTermino, false, "la escritura de módulos tiene que esperar el candado");
+    soltar2();
+    await retiene;
+    assert.deepEqual(await sacarLibros, { tipo: "ok" });
   } finally {
     delete e.FORCE_TENANT_SLUG;
     if (ids.length > 0) {

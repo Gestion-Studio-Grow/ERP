@@ -18,7 +18,11 @@ import { operadorDuenio } from "@/lib/operator-auth";
 import { moduleRegistryEnabled } from "@/modules/flags";
 import { catalogo } from "@/modules/catalog";
 import { mismoConjunto } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
-import { leerInterruptoresDe, leerNegocioParaActivar } from "@/app/operador/(console)/tenants/[id]/negocio.server";
+import {
+  bloquearAppsDelNegocio,
+  leerInterruptoresDe,
+  leerNegocioParaActivar,
+} from "@/app/operador/(console)/tenants/[id]/negocio.server";
 import { estadoDesdeFilas, filtroDeFilasValidas, type DepsDeCambio } from "@/cambios/interruptores-core";
 
 export function depsDeCambioReales(): DepsDeCambio {
@@ -33,6 +37,9 @@ export function depsDeCambioReales(): DepsDeCambio {
         // El GUC del negocio primero: con el rol exento no cambia nada, con `app_rls` es lo que deja
         // leer y escribir su AuditLog.
         await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${fila.tenantId}, true)`;
+        // El mismo candado que la escritura de módulos: si otro operador está cambiando los módulos
+        // de este negocio, se espera y se relee con lo que dejó.
+        await bloquearAppsDelNegocio(tx, fila.tenantId);
         const t = await tx.tenant.findUnique({ where: { id: fila.tenantId }, select: { modules: true } });
         if (!t || !mismoConjunto(t.modules, condicion.modules)) return false;
         const ultimas = await tx.auditLog.findMany({

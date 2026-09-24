@@ -2,7 +2,8 @@
 // GRUPOS DE LA TIENDA DE MÓDULOS — orden + textos de la vidriera (ADR-089 §Decisión 3).
 // ============================================================================
 //
-// Metadata de PRESENTACIÓN de los 6 grupos de proceso de `/admin/modulos`. Es un eje
+// Metadata de PRESENTACIÓN de los 6 grupos de proceso de la vista de módulos (`vistaModulos`; la
+// pantalla /admin/modulos se borró en la tanda 2b). Es un eje
 // DISTINTO de los grupos de NAV (`nav-groups.ts`): acá se ordena la tienda por proceso
 // comercial para evaluar el fit antes de instalar. PURO y client-safe (solo datos/tipos):
 // lo puede importar la page server y cualquier test.

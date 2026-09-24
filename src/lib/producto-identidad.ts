@@ -143,7 +143,8 @@ export function productoHome(p: Producto): string {
  * los verticales tradicionales quedan FUERA → conservan su comportamiento legado, byte-
  * idéntico. Es la señal ÚNICA de "encendido por producto": foco de nav + gating por-URL en
  * `/admin` (Comerciante; Contador y Facturita ya se van por su redirect de casa) y la
- * vidriera agrupada de `/admin/modulos`. Se enciende por identidad de producto, NO por el
+ * vista agrupada de módulos (`vistaModulos`; su pantalla /admin/modulos se borró en la tanda 2b).
+ * Se enciende por identidad de producto, NO por el
  * flag global `MODULE_REGISTRY_ENABLED` (que tocaría a los verticales).
  */
 export function productoUsaTienda(p: Producto): boolean {

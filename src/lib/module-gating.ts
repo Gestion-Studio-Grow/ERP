@@ -2,7 +2,8 @@
 // GATING POR MÓDULO (server) — el "encendido" de la vidriera de módulos (ADR-054/055).
 // ============================================================================
 //
-// Cierra el ciclo de /admin/modulos: cuando la fundación está ENFORCED
+// Nació para cerrar el ciclo de /admin/modulos (la vidriera del dueño, borrada en la tanda 2b:
+// hoy los módulos se asignan desde la consola de GSG). Cuando la fundación está ENFORCED
 // (`MODULE_REGISTRY_ENABLED`), el backoffice ESCONDE las pantallas de los módulos que
 // el tenant tiene apagados — el comportamiento "estilo App Store" que espera el dueño.
 //

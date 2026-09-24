@@ -37,7 +37,7 @@ function cubre(app: AppDescriptor, path: string): boolean {
 
 /**
  * La app dueña de `path`, o `undefined` si ninguna la cubre (p.ej. /admin/modulos, que
- * salió del registro: nadie tiene `modules:manage`).
+ * se borró en la tanda 2b: nadie tenía `modules:manage`).
  */
 export function appDeRuta(
   path: string,

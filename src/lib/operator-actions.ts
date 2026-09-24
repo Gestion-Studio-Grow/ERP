@@ -36,8 +36,9 @@ import {
 import { catalogo } from "@/modules/catalog";
 import {
   mismoConjunto,
+  motivoSiPierdeAppsConInicio,
   planFijarAsignacion,
-  validarCambio,
+  vistaPreviaDeCambio,
 } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import {
   choqueDePuntoDeVenta,
@@ -46,12 +47,12 @@ import {
   type NegocioFiscal,
 } from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
 import {
+  escribirModulosConCandado,
   flagsDeApps,
   leerInterruptoresDe,
   leerNegocioParaActivar,
-  vinculosActivosDe,
 } from "@/app/operador/(console)/tenants/[id]/negocio.server";
-import { todosApagados } from "@/cambios/interruptores-core";
+import { todosApagados, trabajaPorApps } from "@/cambios/interruptores-core";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -458,10 +459,11 @@ export async function resetOwnerPasswordDeTenant(
 // lo de la primera sin enterarse). Ahora:
 //   1. el formulario trae la asignación que el operador VIO en la vista previa (`vistos`); si
 //      la base ya no es esa, se rechaza con "cambió mientras editabas" y no se escribe nada;
-//   2. el plan sale de `validarCambio` (planActivar / planDesactivar, más los candados de la
-//      consola: CH sin el OK del dueño, cartera y multilocal juntos);
-//   3. la escritura es condicional sobre el arreglo leído (`modules: { equals }`): si otro la
-//      cambió entre la lectura y acá, no pisa;
+//   2. el plan sale de `vistaPreviaDeCambio` → `validarCambio` (planActivar / planDesactivar, más
+//      los candados de la consola: CH sin el OK del dueño, cartera y multilocal juntos, Mis locales
+//      con locales colgando) y, si el negocio trabaja por apps, no puede sacarle apps que ve;
+//   3. la escritura es condicional sobre el arreglo leído (`modules: { equals }`) y toma el candado
+//      de las apps del negocio, el mismo que el interruptor (`escribirModulosConCandado`);
 //   4. escritura y auditoría (antes y después) van en la misma transacción: no hay cambio
 //      de módulos sin su rastro.
 
@@ -484,29 +486,6 @@ function leerVistos(valor: FormDataEntryValue | null): string[] | null {
   }
 }
 
-/**
- * Escribe la asignación nueva SÓLO si la base sigue teniendo la que se leyó, y deja la
- * auditoría en la misma transacción. `false` = alguien la cambió en el medio.
- */
-async function escribirModulosAuditado(
-  tenantId: string,
-  leidos: string[],
-  nuevos: string[],
-  audit: { actor: string; action: string; changes: Prisma.InputJsonValue },
-): Promise<boolean> {
-  return operatorPrisma.$transaction(async (tx) => {
-    const r = await tx.tenant.updateMany({
-      where: { id: tenantId, modules: { equals: leidos } },
-      data: { modules: nuevos },
-    });
-    if (r.count !== 1) return false;
-    await tx.auditLog.create({
-      data: { tenantId, entity: "Tenant", entityId: tenantId, ...audit },
-    });
-    return true;
-  });
-}
-
 function nombresDeModulos(ids: readonly string[]): string {
   const cat = catalogo();
   return ids.map((id) => `“${cat.buscar(id)?.nombre ?? id}”`).join(", ");
@@ -523,33 +502,43 @@ export async function toggleTenantModule(formData: FormData) {
     volverAApps(tenantId, { error: "El pedido llegó incompleto. Recargá la ficha y probá de nuevo." });
   }
 
-  const tenant = await operatorPrisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { slug: true, blueprintId: true, modules: true },
-  });
-  if (!tenant) redirect("/operador?error=notfound");
+  // El negocio con todo lo que decide sus apps, vínculos incluidos (el candado de Mis locales):
+  // sin ellos la validación no ve la red, y un POST armado a mano apagaría Mis locales con locales
+  // colgando. Si no se pudieron leer (`null`), el candado rechaza.
+  const negocio = await leerNegocioParaActivar(tenantId);
+  if (!negocio) redirect("/operador?error=notfound");
 
-  if (!mismoConjunto(tenant.modules, vistos)) {
+  if (!mismoConjunto(negocio.modules, vistos)) {
     volverAApps(tenantId, { modulo, error: CAMBIO_MIENTRAS_EDITABAS });
   }
 
   // Se vuelve a decidir con la base fresca: que el botón estuviera habilitado no prueba nada.
-  // Con los vínculos también (el candado de Mis locales): sin ellos `validarCambio` no ve
-  // la red, y un POST armado a mano o una carrera con la vista previa apagaría Mis locales
-  // con locales colgando. Si no se pudieron leer (`null`), el candado rechaza.
-  const plan = validarCambio({ ...tenant, vinculosActivos: await vinculosActivosDe(tenantId) }, { accion, modulo }, catalogo());
+  // La vista previa entera (no sólo el plan): con "Trabaja por apps" prendido hace falta saber qué
+  // apps dejaría de ver.
+  // `conInicio` (lo que se mira abajo) se calcula siempre con el Inicio por apps puesto: no depende
+  // del estado del interruptor, que se lee recién con el candado tomado.
+  const plan = vistaPreviaDeCambio(negocio, { accion, modulo }, flagsDeApps(todosApagados()), catalogo());
   if (!plan.ok) volverAApps(tenantId, { modulo, error: plan.motivo });
   const nombre = nombresDeModulos([modulo]);
   if (plan.sinCambios) {
     volverAApps(tenantId, { ok: `No había nada que cambiar: ${nombre} ya estaba ${accion === "activar" ? "activo" : "apagado"}.` });
   }
 
-  const guardado = await escribirModulosAuditado(tenantId, tenant.modules, plan.despues, {
-    actor: `operator:${op}`,
-    action: accion === "activar" ? "module.activate" : "module.deactivate",
-    changes: { modulo, accion, incluidos: plan.incluidos, antes: tenant.modules, despues: plan.despues },
-  });
-  if (!guardado) volverAApps(tenantId, { modulo, error: CAMBIO_MIENTRAS_EDITABAS });
+  // Con el candado de las apps del negocio: el interruptor se lee ahí adentro, así un "prender" que
+  // corre a la vez no deja a este cambio decidiendo con la foto de antes.
+  const r = await escribirModulosConCandado(
+    tenantId,
+    negocio.modules,
+    plan.despues,
+    {
+      actor: `operator:${op}`,
+      action: accion === "activar" ? "module.activate" : "module.deactivate",
+      changes: { modulo, accion, incluidos: plan.incluidos, antes: [...negocio.modules], despues: plan.despues },
+    },
+    (interruptores) => motivoSiPierdeAppsConInicio(plan, trabajaPorApps(interruptores)),
+  );
+  if (r.tipo === "cambio") volverAApps(tenantId, { modulo, error: CAMBIO_MIENTRAS_EDITABAS });
+  if (r.tipo === "rechazado") volverAApps(tenantId, { modulo, error: r.motivo });
 
   revalidatePath(`/operador/tenants/${tenantId}`);
   revalidatePath("/operador");
@@ -582,7 +571,8 @@ export async function fijarAsignacionActual(formData: FormData) {
     volverAApps(tenantId, { ok: "No había nada que fijar: con sus módulos ya ve todas las apps de su menú de siempre." });
   }
 
-  const guardado = await escribirModulosAuditado(tenantId, [...negocio.modules], plan.despues, {
+  // Sólo suma módulos: no le saca apps a nadie. Igual toma el candado de las apps del negocio.
+  const guardado = await escribirModulosConCandado(tenantId, negocio.modules, plan.despues, {
     actor: `operator:${op}`,
     action: "module.fijar-asignacion",
     changes: {
@@ -592,7 +582,7 @@ export async function fijarAsignacionActual(formData: FormData) {
       appsQueNoSeRecuperan: plan.noSeRecuperan.map((x) => x.app.id),
     },
   });
-  if (!guardado) volverAApps(tenantId, { error: CAMBIO_MIENTRAS_EDITABAS });
+  if (guardado.tipo !== "ok") volverAApps(tenantId, { error: CAMBIO_MIENTRAS_EDITABAS });
 
   revalidatePath(`/operador/tenants/${tenantId}`);
   revalidatePath("/operador");

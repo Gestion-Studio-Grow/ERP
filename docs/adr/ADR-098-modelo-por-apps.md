@@ -9,6 +9,8 @@ depends_on: [ADR-017, ADR-054, ADR-055, ADR-059, ADR-089]
 
 **Estado:** Aceptada (ola 1 del ERP por apps, 2026-09-23) · **Depende de:** ADR-017 (capabilities), ADR-054/055 (módulos y asignación por negocio), ADR-059 (perfiles y nav agrupada), ADR-089 (núcleo + módulos por producto).
 
+> **Nota de reemplazo (2026-09-24, tanda 2b).** Donde este ADR dice `APPS_INICIO` (la variable de deploy con la lista de slugs del piloto), hoy rige el **interruptor "Trabaja por apps"** (`inicio-por-apps`) de cada negocio: una fila de `AuditLog` con `entity = 'Interruptor'`, escrita sólo por la consola de GSG (`src/lib/operador/interruptores-escritura.server.ts`) y leída una vez por request (`src/cambios/interruptores.server.ts`). `resolverContextoApps` recibe `enInicioPorApps: boolean` (`src/apps/visibles.ts:65-92`); la regla de la asignación vacía no cambió. Se prende y se apaga desde la ficha del negocio, sin deploy; en CH sólo el operador dueño, escribiendo el slug; para prender se exigen 0 apps perdidas. `APPS_INICIO` ya no la lee ningún código. `/admin/modulos` también se borró en esa tanda. El texto de abajo se deja como estaba para no reescribir la historia.
+
 > Numeración: se toma el 098. En main la carpeta llega hasta el 089, pero hay ramas sin mergear que ya usan números más altos: del 090 al 096 en `origin/docs/consolidacion-0712` y el 097 en `origin/vertical/torneos`. Medido el 2026-09-23 sobre las 96 refs del repo, con `git ls-tree` de `docs/adr` en cada una. El 098 no aparece en ninguna, ni como archivo ni citado. Si al mergear ya está tomado, se renumera antes de que llegue a main (como en a646d52).
 
 ## Contexto
@@ -61,11 +63,12 @@ Medido en el código el 2026-09-23:
 ## Reversibilidad
 
 - Sacar un slug de `APPS_INICIO` devuelve ese negocio a "sin gate" sin tocar datos.
+  - *(2026-09-24)* Hoy: **Apagar** "Trabaja por apps" en la ficha del negocio hace lo mismo, sin deploy.
 - `requireApp` en una página se revierte con su commit; con contexto `null` sólo agrega el chequeo de rubro y de edición que el menú ya aplicaba.
 
 ## Limpieza (después de la ola 4, con CH dos semanas en el modelo nuevo)
 
-Se borran `ALL_ITEMS`, `ShellItem`, `menuItemsParaTenant`, `navItemForPath`, `rutaPermitidaParaModulos`, `NAV_ITEM_GROUPS`, `NAV_GROUPS`, `BACKLOG_SCOPE_ITEM_NAV`, `ENTERPRISE_NAV_ITEMS`, `ScopeItem.ruta`, `MenuDeHoy` (con `moduloDeHoy`) y `proyectarMenuDeHoy`, `dashboard-mode.ts`, los tres inicios viejos, `/admin/modulos` y los flags `MODULE_REGISTRY_ENABLED`, `NAV_GROUPING_ENABLED` y `APPS_INICIO`. Antes de borrar `moduloDeHoy` se decide con el dueño si el Comerciante pasa a la semántica del piloto.
+Se borran `ALL_ITEMS`, `ShellItem`, `menuItemsParaTenant`, `navItemForPath`, `rutaPermitidaParaModulos`, `NAV_ITEM_GROUPS`, `NAV_GROUPS`, `BACKLOG_SCOPE_ITEM_NAV`, `ENTERPRISE_NAV_ITEMS`, `ScopeItem.ruta`, `MenuDeHoy` (con `moduloDeHoy`) y `proyectarMenuDeHoy`, `dashboard-mode.ts`, los tres inicios viejos, `/admin/modulos` y los flags `MODULE_REGISTRY_ENABLED`, `NAV_GROUPING_ENABLED` y `APPS_INICIO`. *(2026-09-24: `/admin/modulos` y `APPS_INICIO` ya salieron en la tanda 2b.)* Antes de borrar `moduloDeHoy` se decide con el dueño si el Comerciante pasa a la semántica del piloto.
 
 ## Sin medir
 

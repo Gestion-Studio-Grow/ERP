@@ -14,6 +14,7 @@ import {
   appsPorModulo,
   estadoDeApps,
   mismoConjunto,
+  motivoSiPierdeAppsConInicio,
   planFijarAsignacion,
   requiereOkDelDuenio,
   validarCambio,
@@ -353,4 +354,19 @@ test("mismoConjunto: ignora el orden y los repetidos, no los faltantes", () => {
   assert.equal(mismoConjunto(["a", "a", "b"], ["b", "a"]), true);
   assert.equal(mismoConjunto(["a"], ["a", "b"]), false);
   assert.equal(mismoConjunto([], []), true);
+});
+
+test("trabajando por apps, un cambio de módulos que le saca apps que ve se frena; apagado, no", () => {
+  const f = planFijarAsignacion(MAGRA, SIN_PILOTO, cat);
+  assert.ok(f.ok);
+  const fijado = { ...MAGRA, modules: f.despues };
+  const sacarStock = vistaPreviaDeCambio(fijado, { accion: "desactivar", modulo: "inventario" }, PILOTO, cat);
+  const motivo = motivoSiPierdeAppsConInicio(sacarStock, true);
+  assert.ok(motivo);
+  assert.match(motivo, /dejaría de ver .*Stock/);
+  // Con el interruptor apagado el cambio no le saca nada de lo que ve hoy: no se frena acá.
+  assert.equal(motivoSiPierdeAppsConInicio(sacarStock, false), null);
+  // Sumar un módulo nunca se frena.
+  const sumar = vistaPreviaDeCambio(fijado, { accion: "activar", modulo: "libros" }, PILOTO, cat);
+  assert.equal(motivoSiPierdeAppsConInicio(sumar, true), null);
 });

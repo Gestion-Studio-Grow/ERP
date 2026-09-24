@@ -10,12 +10,13 @@ import {
   getOperatorCookieName,
   normalizarNombreOperador,
   operadorDuenio,
+  operadoresConfigurados,
   readOperatorToken,
   VIGENCIA_SESION_MS,
   verificarOperador,
 } from "./operator-auth";
 import { operadorDesdeCookies } from "./operator-session";
-import { valorDeClave } from "./operador/clave-operador";
+import { nombreParaLineaNueva, valorDeClave } from "./operador/clave-operador";
 import { proxy } from "@/proxy";
 
 function conEntorno<T>(env: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
@@ -188,4 +189,59 @@ test("/operador/clave es pública (arma la línea en el navegador); el resto de 
     assert.equal((await proxyA("/operador/clave/x", {})).status, 307);
     assert.equal((await proxyA("/operador/alta", {})).status, 307);
   });
+});
+
+// ── Refutación de la 2b: clave vacía y el nombre del dueño en OPERADORES ────────────────────────
+
+test("R1: una clave vacía nunca entra, ni con OPERATOR_PASSWORD vacía ni por PBKDF2", async () => {
+  // El repro del refutador: antes daba "duenio".
+  assert.equal(await verificarOperador("", "", { NODE_ENV: "production", OPERATOR_PASSWORD: "" }), null);
+  assert.equal(await verificarOperador("duenio", "", { NODE_ENV: "production", OPERATOR_PASSWORD: "" }), null);
+  // Vacía tampoco cae al "operador" de desarrollo: una variable puesta vacía no es "sin configurar".
+  assert.equal(await verificarOperador("", "operador", { NODE_ENV: "development", OPERATOR_PASSWORD: "" }), null);
+  assert.equal(await verificarOperador("", "", { NODE_ENV: "development", OPERATOR_PASSWORD: "" }), null);
+  // Ausente en producción: nadie entra como dueño.
+  assert.equal(await verificarOperador("", "", { NODE_ENV: "production" }), null);
+  // Con clave del dueño cargada, la vacía no coincide.
+  assert.equal(await verificarOperador("", "", { NODE_ENV: "production", OPERATOR_PASSWORD: "la-buena" }), null);
+  // Una línea de OPERADORES armada con la clave vacía tampoco abre.
+  const vacia = `facu=${await valorDeClave("", new Uint8Array(16).fill(1))}`;
+  assert.equal(await verificarOperador("facu", "", { NODE_ENV: "production", OPERADORES: vacia }), null);
+});
+
+test("R2: una línea de OPERADORES con el nombre del dueño se ignora; el dueño entra sólo con OPERATOR_PASSWORD", async () => {
+  const intruso = await valorDeClave("clave-del-intruso", new Uint8Array(16).fill(3));
+  // Con el nombre por defecto y con OPERADOR_DUENIO (comparado normalizado: "TOMÁS" = "tomas").
+  for (const [duenio, linea] of [
+    [undefined, `duenio=${intruso}`],
+    ["Tomás", `TOMAS=${intruso}`],
+    ["tomas", ` Tomás =${intruso}`],
+  ] as const) {
+    const env = { NODE_ENV: "production", OPERATOR_PASSWORD: "la-del-duenio", OPERADOR_DUENIO: duenio, OPERADORES: linea };
+    const nombre = operadorDuenio(env);
+    // El repro del refutador: antes el intruso entraba como dueño y el dueño real quedaba afuera.
+    assert.equal(await verificarOperador(nombre, "clave-del-intruso", env), null, linea);
+    assert.equal(await verificarOperador("", "clave-del-intruso", env), null, linea);
+    assert.equal(await verificarOperador("", "la-del-duenio", env), nombre, linea);
+    assert.equal(operadoresConfigurados(env).has(nombre), false, linea);
+  }
+});
+
+test("R2: un nombre repetido en OPERADORES no entra con ninguna de sus líneas", async () => {
+  const a = await valorDeClave("clave-a", new Uint8Array(16).fill(4));
+  const b = await valorDeClave("clave-b", new Uint8Array(16).fill(5));
+  const env = { NODE_ENV: "production", OPERADORES: `facu=${a};otro=${a};Facu=${b}` };
+  assert.equal(await verificarOperador("facu", "clave-a", env), null);
+  assert.equal(await verificarOperador("facu", "clave-b", env), null);
+  assert.equal(await verificarOperador("otro", "clave-a", env), "otro");
+  assert.deepEqual([...operadoresConfigurados(env).keys()], ["otro"]);
+});
+
+test("R2: /operador/clave no arma una línea con el nombre del dueño", () => {
+  assert.deepEqual(nombreParaLineaNueva("Facu", "tomas"), { ok: true, nombre: "facu" });
+  const r = nombreParaLineaNueva(" Tomás ", "tomas");
+  assert.equal(r.ok, false);
+  assert.match((r as { motivo: string }).motivo, /reservado/);
+  assert.equal(nombreParaLineaNueva("duenio", "duenio").ok, false);
+  assert.equal(nombreParaLineaNueva("a|b", "duenio").ok, false);
 });

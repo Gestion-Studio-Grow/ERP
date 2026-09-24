@@ -14,6 +14,7 @@ import { toggleTenantModule, fijarAsignacionActual } from "@/lib/operator-action
 import { Badge, Button, buttonClasses } from "@/components/ui";
 import type { AppDescriptor } from "@/apps/contract";
 import type { Producto } from "@/lib/producto-identidad";
+import { motivoSiPierdeAppsConInicio } from "./apps-del-negocio";
 import type {
   AccionModulo,
   DiferenciaDeApps,
@@ -121,6 +122,8 @@ export function AppsDelNegocioCard({
   bloqueo: string | null;
 }) {
   const vistosJson = JSON.stringify(vistos);
+  // Si trabaja por apps, un cambio que le saque apps que ve no se ofrece (el servidor lo rechaza igual).
+  const frenoPorInicio = previa ? motivoSiPierdeAppsConInicio(previa.plan, estado.enInicioPorApps) : null;
   const ficha = `/operador/tenants/${tenantId}`;
   const frente = estado.conInicioFrenteAlMenu;
   // La vara del "0 apps perdidas" es el menú sin el Inicio por apps. Antes de prenderlo es
@@ -256,8 +259,13 @@ export function AppsDelNegocioCard({
               )}
             </>
           )}
+          {frenoPorInicio && (
+            <div role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
+              <b>No se puede.</b> {frenoPorInicio}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
-            {previa.plan.ok && !previa.plan.sinCambios && (
+            {previa.plan.ok && !previa.plan.sinCambios && !frenoPorInicio && (
               <form action={toggleTenantModule}>
                 <input type="hidden" name="tenantId" value={tenantId} />
                 <input type="hidden" name="module" value={previa.moduloId} />

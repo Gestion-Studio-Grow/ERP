@@ -74,11 +74,19 @@ test("C-2 · la contraseña de bootstrap no va en el query string", () => {
 test("activar/apagar un módulo en la consola decide con los vínculos leídos de la base", () => {
   const src = leer("src/lib/operator-actions.ts");
   const cuerpo = src.slice(src.indexOf("export async function toggleTenantModule"), src.indexOf("export async function fijarAsignacionActual"));
-  assert.match(
-    cuerpo,
-    /validarCambio\(\{ \.\.\.tenant, vinculosActivos: await vinculosActivosDe\(tenantId\) \}/,
-    "toggleTenantModule tiene que pasarle a validarCambio los vínculos activos: sin ellos, un POST a mano apaga Mis locales con locales colgando.",
-  );
+  // Desde la tanda 2b decide con `vistaPreviaDeCambio(negocio, …)` (que llama a validarCambio con
+  // `n` entero) sobre el negocio de `leerNegocioParaActivar`, que trae los vínculos leídos de la base.
+  assert.match(cuerpo, /const negocio = await leerNegocioParaActivar\(tenantId\);/,
+    "toggleTenantModule tiene que leer el negocio con sus vínculos (leerNegocioParaActivar)");
+  assert.match(cuerpo, /vistaPreviaDeCambio\(negocio, \{ accion, modulo \}/,
+    "y decidir con ESE negocio: sin los vínculos, un POST a mano apaga Mis locales con locales colgando.");
+  const lector = leer("src/app/operador/(console)/tenants/[id]/negocio.server.ts");
+  const leerNegocio = lector.slice(lector.indexOf("export async function leerNegocioParaActivar"), lector.indexOf("export async function vinculosActivosDe"));
+  assert.match(leerNegocio, /vinculosActivosDe\(t\.id\)/, "leerNegocioParaActivar lee los vínculos de la base");
+  assert.match(leerNegocio, /\n\s+vinculosActivos,\n/, "y los devuelve en el negocio");
+  const plan = leer("src/app/operador/(console)/tenants/[id]/apps-del-negocio.ts");
+  const vista = plan.slice(plan.indexOf("export function vistaPreviaDeCambio"));
+  assert.match(vista, /const plan = validarCambio\(n, cambio, registry\);/, "la vista previa valida con el negocio entero");
 });
 
 test("el panel del contador no abre con cartera y Mis locales juntos, y lo dice antes de leer la cartera", () => {

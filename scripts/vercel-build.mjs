@@ -99,6 +99,17 @@ if (esProduccion) {
   distinta de AUTH_SECRET. Después, Redeploy.`,
     );
   }
+  // La clave del operador dueño. Sin ella (o vacía) el código no deja entrar a nadie como dueño
+  // (src/lib/operator-auth.ts: una clave vacía nunca entra), así que el dueño quedaría afuera de la
+  // consola sin aviso. El valor nunca se imprime.
+  if ((process.env.OPERATOR_PASSWORD ?? "").trim() === "") {
+    fatal(
+      "Falta OPERATOR_PASSWORD en Production (o está vacía). El dueño no podría entrar a la consola de GSG.",
+      `CÓMO SE ARREGLA:
+  Vercel → Settings → Environment Variables → OPERATOR_PASSWORD (sólo Production): la clave del
+  dueño para /operador/login, larga y distinta de todo lo demás. Después, Redeploy.`,
+    );
+  }
 }
 
 /**

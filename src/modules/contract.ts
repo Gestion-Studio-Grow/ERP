@@ -61,7 +61,7 @@ export type RubroCompat = "todos" | ModuleId[];
 /**
  * Grupo de PROCESO para ordenar la tienda de módulos (ADR-089 §Decisión 3). Es un eje
  * DISTINTO de los 5 grupos de NAV (`src/modules/nav-groups.ts`): el grupo de tienda ordena
- * la vidriera `/admin/modulos` por proceso comercial (para evaluar el fit antes de instalar);
+ * la vista de módulos (`vistaModulos`; la pantalla /admin/modulos se borró en la tanda 2b) por proceso comercial (para evaluar el fit antes de instalar);
  * la nav agrupa PANTALLAS por área. Se pueden mapear, pero no son lo mismo.
  */
 export type ModuleGroupId =
@@ -159,7 +159,7 @@ export interface ModuleDescriptor {
 
   // ── Metadata de TIENDA (ADR-089, aditiva/opcional — no altera la validación) ──
   //
-  // Enriquece la vidriera `/admin/modulos` para que el implementador/cliente evalúe el
+  // Enriquece la vista de módulos (`vistaModulos`; /admin/modulos se borró en la tanda 2b) para que el implementador/cliente evalúe el
   // FIT antes de instalar. Todo opcional: los descriptores que no la traen siguen válidos
   // (caen a un grupo "otros" y sin scope/resumen/fit). No la mira `validarDescriptor`.
 

@@ -1,21 +1,9 @@
 import { getAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { fmtDateTime } from "@/lib/datetime";
+import { formatActor } from "@/lib/audit-actor";
 
 export const dynamic = "force-dynamic";
-
-// Traduce el `actor` guardado a algo legible. Los registros nuevos guardan
-// `user:<id>` (ADR-017 §2.f); los históricos previos al modelo de usuarios dicen
-// "admin"; los del sitio público, `cliente:<tel>`.
-function formatActor(actor: string, userNames: Map<string, string>): string {
-  if (actor.startsWith("user:")) {
-    return userNames.get(actor.slice(5)) ?? "Usuario eliminado";
-  }
-  if (actor === "admin") return "admin (histórico)";
-  if (actor.startsWith("cliente:")) return `Cliente ${actor.slice(8)}`;
-  if (actor === "cliente") return "Cliente";
-  return actor;
-}
 
 import { resumenCierre } from "@/lib/caja/cierre-resumen";
 import { CIERRE_DIARIO_ENTITY } from "@/lib/caja/frontera-cierre";
@@ -116,9 +104,7 @@ export default async function AuditoriaPage() {
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5 text-body">
                   <span className="sm:hidden text-xs uppercase tracking-wide text-faint mr-1.5">Quién:</span>
-                  {/* Un interruptor de GSG dice "GSG", no el nombre interno del operador. El resto de las
-                      filas, como siempre (CH no ve ningún cambio sin interruptor). */}
-                  {textoDeInterruptorEnAuditoria(e) ? "GSG" : formatActor(e.actor, userNames)}
+                  {formatActor(e.actor, userNames)}
                 </td>
                 <td className="block sm:table-cell px-0 sm:px-4 py-0.5 sm:py-2.5">
                   {textoDeInterruptorEnAuditoria(e) ?? (

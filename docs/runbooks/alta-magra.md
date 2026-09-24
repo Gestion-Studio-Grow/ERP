@@ -284,24 +284,38 @@ otro, la app se niega a responder. Eso está bien y no se "arregla" aflojando el
 
 ---
 
-## Paso 9 — Antes de sumar un negocio a `APPS_INICIO`: **"Fijar asignación actual"** (obligatorio)
+## Paso 9 — Prender "Trabaja por apps" en la ficha del negocio (antes: `APPS_INICIO`)
+
+> **Cambió en la tanda 2b (2026-09-24).** La variable de deploy `APPS_INICIO` se retiró: el código
+> ya no la lee (`src/modules/flags.ts` deja la nota). El Inicio por apps se prende **negocio por
+> negocio desde la consola, sin deploy**, con el interruptor "Trabaja por apps". No hay que tocar
+> Vercel para esto.
 
 Vale para **cualquier** negocio que entre al Inicio por apps: `magra`, cada local nuevo y la
-casa de la configuración B. `APPS_INICIO` es la lista de slugs del piloto; un negocio que está
-ahí ve **sólo las apps de los módulos que tiene asignados**, no su menú de siempre.
+casa de la configuración B. Con el interruptor prendido, el negocio ve **sólo las apps de los
+módulos que tiene asignados**, no su menú de siempre.
 
 1. `/operador` → ficha del negocio → tarjeta **"Apps del negocio"** → **"Fijar asignación
-   actual"**.
-2. La vista previa dice qué apps ganaría o perdería. Confirmar recién cuando diga que **no
+   actual"**. La vista previa dice qué apps ganaría o perdería; confirmar cuando diga que **no
    pierde ninguna** app de su menú de siempre.
-3. Recién después, sumar su slug a `APPS_INICIO` (misma regla del Paso 8: copiar el valor
-   actual, agregar, contar antes de guardar).
+2. Misma ficha, tarjeta **"Trabaja por apps"** → **Prender**. El botón sólo se habilita con
+   **0 apps perdidas**, y el servidor lo vuelve a verificar con la base fresca: si perdería
+   alguna, rechaza aunque el botón se haya salteado.
+3. La próxima vez que entren a su panel ven el Inicio por apps. Queda en el historial de la
+   tarjeta con el nombre del operador y la hora, y en la Auditoría del negocio como
+   «GSG activó el Inicio por apps».
 
-**Por qué es obligatorio (medido en la vista previa de la consola, ola 1):** con la asignación
-que tiene hoy, `magra` al entrar a `APPS_INICIO` **pierde "Campañas" y "Facturación
+**Por qué "Fijar" va primero (medido en la vista previa de la consola, ola 1):** con la
+asignación que tenía, `magra` con el Inicio por apps **perdía "Campañas" y "Facturación
 automática"** (y las de stock si le falta `inventario`). "Fijar" suma los módulos mínimos para
-que vea exactamente su menú de siempre. Sacar un slug de `APPS_INICIO` lo devuelve a su menú de
-siempre sin tocar datos.
+que vea exactamente su menú de siempre.
+
+**Vuelta atrás:** **Apagar** en la misma tarjeta lo devuelve a su menú de siempre en la
+próxima carga, sin tocar datos ni hacer deploy. Mientras está prendido, la consola **no deja
+apagar un módulo que le saque apps que ve**: primero se apaga "Trabaja por apps".
+
+**CH (`beauty-spa`)**: sólo lo puede prender o apagar el operador dueño de GSG, escribiendo el
+slug. Nadie más, aunque tenga acceso a la consola.
 
 ---
 
@@ -314,8 +328,9 @@ siempre sin tocar datos.
 - **Los módulos.** `modules:manage` **no es una capacidad del dueño**, y no es un olvido:
   está excluida en el tipo, con el motivo escrito
   (`src/lib/capabilities.ts:71-82`) — aprovisionar módulos es decidir qué producto compró
-  el cliente, y eso vive del lado del proveedor. El ítem "Módulos" existe en el menú pero
-  **no lo ve nadie** (`src/lib/admin-nav-items.ts:127-132`).
+  el cliente, y eso vive del lado del proveedor. La pantalla `/admin/modulos` y su ítem de
+  menú, que nadie podía abrir, se borraron en la tanda 2b: los módulos se asignan sólo desde
+  la ficha del negocio en `/operador`.
 - **El subdominio** se puede corregir desde la ficha (`setTenantSubdomain`), pero **acordate
   de actualizar también `TENANT_HOST_MAP`**: son dos lugares, y el código no los sincroniza.
 
@@ -359,16 +374,16 @@ puede estar en dos redes ni ser casa de otra. La consola lo rechaza con el motiv
 
 ## B2 — Fijar la asignación de la casa ANTES de sumarla al Inicio por apps (obligatorio)
 
-Es el [Paso 9](#paso-9--antes-de-sumar-un-negocio-a-apps_inicio-fijar-asignación-actual-obligatorio)
+Es el [Paso 9](#paso-9--prender-trabaja-por-apps-en-la-ficha-del-negocio-antes-apps_inicio)
 aplicado a la casa: en su ficha (`/operador/tenants/<id>`), tarjeta **"Apps del negocio"** →
-**"Fijar asignación actual"**. Recién después se suma su slug a `APPS_INICIO`.
+**"Fijar asignación actual"**. Recién después se prende **"Trabaja por apps"** en la misma ficha.
 
-La casa **tiene que estar en `APPS_INICIO`**: las apps de Mis locales se ofrecen en el Inicio
+La casa **tiene que trabajar por apps**: las apps de Mis locales se ofrecen en el Inicio
 por apps (sección "Mis locales") y en el buscador (Ctrl/⌘K). La barra lateral sigue siendo la de
-siempre y no las lista; fuera del piloto sólo se llega tecleando `/admin/locales`.
+siempre y no las lista; con el interruptor apagado sólo se llega tecleando `/admin/locales`.
 
 **Por qué es obligatorio (medido en la vista previa de la consola, ola 1):** con la asignación
-que tiene hoy, `magra` al entrar a `APPS_INICIO` **pierde "Campañas" y "Facturación
+que tenía, `magra` con el Inicio por apps **perdía "Campañas" y "Facturación
 automática"** (y las de stock si le falta `inventario`). "Fijar" suma los módulos mínimos para
 que vea exactamente su menú de siempre. La tarjeta muestra, antes de confirmar, qué apps ganaría
 o perdería.
@@ -379,15 +394,14 @@ Misma tarjeta → módulo **"Mis locales"** → vista previa (suma Mis locales, 
 Cajas de los locales y, en un mostrador, Stock por local) → confirmar. Queda en la auditoría de
 la casa (`module.activate`).
 
-- Estas cuatro apps exigen el módulo **siempre**, aun fuera de `APPS_INICIO`: un negocio sin
+- Estas cuatro apps exigen el módulo **siempre**, aun con "Trabaja por apps" apagado: un negocio sin
   `multilocal` (CH, cualquier local suelto) no las abre ni tecleando la URL ("App no disponible").
 - **No se apaga "Mis locales" con locales vinculados**: primero se dan de baja (B6). Y no se
   prende en un negocio que tenga vínculos de una cartera del contador. La vista previa lo
-  rechaza con el motivo y no ofrece confirmar. **Ojo, hoy:** el botón de confirmar del servidor
-  (`toggleTenantModule`, src/lib/operator-actions.ts) todavía no relee los vínculos, así que el
-  candado vive sólo en la vista previa. Hasta que se cablee, nunca confirmar un cambio de "Mis
-  locales" sin haber visto la vista previa recién cargada, y no trabajar de a dos operadores
-  sobre la misma casa.
+  rechaza con el motivo y no ofrece confirmar, y el confirmar del servidor
+  (`toggleTenantModule`, src/lib/operator-actions.ts) vuelve a leer los vínculos con la base
+  fresca y toma el candado de las apps del negocio (el mismo que "Trabaja por apps"): dos
+  operadores sobre la misma casa se esperan en vez de pisarse.
 
 ## B4 — Vincular cada local
 
