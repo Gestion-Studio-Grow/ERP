@@ -62,7 +62,13 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
 
 ## 1. ALTA: pérdida o alteración de datos
 
-### ENG-001 · `npm run seed` no puede borrar datos de negocios reales · S
+### ENG-001 · `npm run seed` no puede borrar datos de negocios reales · S · **CERRADO 2026-09-24**
+- **Cierre.** Guarda `src/lib/seed/guarda-base.ts` (sólo Postgres local; el `host` de libpq manda;
+  el motivo no muestra la contraseña), borrados con `where: { tenantId }` del negocio de muestra y
+  todo en una transacción (`prisma/seed.ts`), `DEPLOY.md` §4 sin seed contra producción. Criterios
+  1, 2 y 4: `src/lib/seed/guarda-base.test.ts`. Criterio 3: `src/lib/seed/seed-postgres.test.ts`
+  (base propia con todas las migraciones, rol dueño). Evidencia en `.qa/ENG-001/`. El test de base
+  se saltea sin Postgres local hasta que ENG-000 lo lleve a CI.
 - **Qué.** Una guarda que aborta el seed contra producción, borrados con `where: { tenantId }`
   y todo dentro de una transacción.
 - **Por qué.** `prisma/seed.ts:9-17` hace 9 `deleteMany()` sin `where` (Payment, Appointment,

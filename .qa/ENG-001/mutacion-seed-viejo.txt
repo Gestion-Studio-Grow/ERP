@@ -1,0 +1,7 @@
+ANTES (seed viejo, rol dueño): otro negocio
+Box|1
+Client|2
+Seed completo.
+DESPUÉS del seed viejo: otro negocio
+Box|0
+Client|0

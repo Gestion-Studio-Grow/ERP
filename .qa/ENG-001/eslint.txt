@@ -1,0 +1,1 @@
+eslint --max-warnings=0 src/lib/seed/ prisma/seed.ts: exit 0, sin salida

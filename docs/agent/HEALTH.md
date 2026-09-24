@@ -23,21 +23,25 @@ después de ENG-000 (DECISIONS.md DEC-010). Los comandos de la corrección está
 
 ---
 
+## 0. Cierres después de la línea base
+
+| Slice | Cierre | Evidencia | Tendencia |
+|---|---|---|---|
+| ENG-001 · el seed no borra datos de negocios reales | 2026-09-24 | `.qa/ENG-001/`: 10 tests nuevos en verde (9 dentro de la suite completa `npm test` (3.493 tests, 14 fallas previas y ajenas: Caja en el navegador ×8, pies pegados ×2, xlsx ×4); y 1 agregado después en `tests-seed.txt`); mutación con el seed viejo: el otro negocio pasa de 1 box y 2 clientes a 0 | Deuda ALTA: mejor (27 → 26) |
+
 ## 1. Deuda abierta
 
-**Lo más grave:** ENG-001 · `npm run seed` borra pagos, turnos, clientes, productos y servicios
-de los cuatro negocios, sin guarda contra producción y sin transacción (`prisma/seed.ts:9-17`),
-**cuando `DATABASE_URL` usa el rol dueño de las tablas o uno con BYPASSRLS**. Medido con el
-`prisma/seed.ts` real en una base propia con dos negocios: con el rol dueño, las filas de los dos
-negocios quedan en 0 (`$AUD/correccion/seed-como-duenio.txt`); con `app_rls`, el rol de producción,
-no borra nada y falla en el primer insert (`$AUD/correccion/seed-como-app_rls.txt`). El procedimiento
-escrito pide justo la condición peligrosa: `DEPLOY.md:53-57` dice "con `DATABASE_URL` apuntando a
-la base de producción", `prisma migrate deploy` (que necesita el rol dueño) y después `npm run seed`.
-Qué rol tiene el `.env` de quien corre el seed: sin medir.
+**Lo más grave:** ENG-002 · cerrar el turno de caja dos veces seguidas asienta el ajuste de arqueo
+dos veces (15 a 19 de 20 corridas, `src/lib/caja-actions.ts:216-268`): un faltante de $100 queda en
+el libro como $200. Detalle y criterios en `BACKLOG.md`.
+
+*Cerrado (ENG-001):* `npm run seed` borraba pagos, turnos, clientes, productos y servicios de todos
+los negocios con el rol dueño. Ahora se niega con cualquier base que no sea un Postgres local, borra
+sólo el negocio de muestra y lo hace en una transacción (`prisma/seed.ts`, `src/lib/seed/`).
 
 | Severidad | Slices abiertos | Hallazgos antes de deduplicar | Tendencia |
 |---|---|---|---|
-| ALTA | 27 (ENG-001 a ENG-027) + 1 habilitante (ENG-000) | 33 | línea base |
+| ALTA | 26 (ENG-002 a ENG-027) + 1 habilitante (ENG-000) | 33 | mejor (ENG-001 cerrado) |
 | MEDIA | 35 (ENG-101 a ENG-135) | 87 | línea base |
 | BAJA | 10 (ENG-301 a ENG-310) | 29 | línea base |
 | Habilitan mediciones | 5 (ENG-201 a ENG-205) | — | línea base |

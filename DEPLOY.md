@@ -48,14 +48,17 @@ hay que migrarlo a una [Scheduled Function](https://docs.netlify.com/functions/s
 2. Cargar las variables de entorno de la tabla de arriba.
 3. Deploy.
 
-## 4. Primera migración + datos de ejemplo
+## 4. Primera migración
 
-Con `DATABASE_URL` apuntando a la base de producción:
+Con `MIGRATE_DATABASE_URL` apuntando al rol directo de la base de producción (nunca el pooler):
 
 ```bash
 npx prisma migrate deploy   # crea las tablas
-npm run seed                # opcional: carga datos de ejemplo para mostrar
 ```
+
+`npm run seed` **no** va contra producción: borra y recarga el negocio de muestra y sólo corre
+contra un Postgres local (se niega con cualquier otra base, ENG-001). Para datos de demo en una
+base de QA está `npm run seed:qa-tenants`.
 
 ## 5. Después del primer deploy
 

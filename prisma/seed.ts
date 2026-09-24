@@ -1,21 +1,27 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { baseLocalParaSeed } from "../src/lib/seed/guarda-base";
+
+// Datos de ejemplo para desarrollo local. Borra y recarga SÓLO el negocio de muestra, en una
+// transacción, y nunca corre contra una base que no sea de esta máquina (ENG-001).
+const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
+if (!guarda.ok) {
+  console.error(`seed: abortado. ${guarda.motivo}`);
+  process.exit(1);
+}
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  await prisma.payment.deleteMany();
-  await prisma.appointment.deleteMany();
-  await prisma.client.deleteMany();
-  await prisma.serviceProduct.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.service.deleteMany();
-  await prisma.professional.deleteMany();
-  await prisma.boxBlock.deleteMany();
-  await prisma.box.deleteMany();
+  await prisma.$transaction(sembrar, { timeout: 60_000 });
+  console.log("Seed completo.");
+}
 
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+async function sembrar(prisma: Tx) {
   // Todo cuelga de un tenant (ADR-001 / ADR-010 G1). En un alta fresca se crea
   // el tenant primero y cada entidad se le asigna.
   const tenant = await prisma.tenant.upsert({
@@ -24,6 +30,17 @@ async function main() {
     create: { name: "Beauty & Spa", slug: "beauty-spa" },
   });
   const tenantId = tenant.id;
+
+  // Se vacía sólo el negocio de muestra; los demás negocios de la base quedan como estaban.
+  await prisma.payment.deleteMany({ where: { tenantId } });
+  await prisma.appointment.deleteMany({ where: { tenantId } });
+  await prisma.client.deleteMany({ where: { tenantId } });
+  await prisma.serviceProduct.deleteMany({ where: { tenantId } });
+  await prisma.product.deleteMany({ where: { tenantId } });
+  await prisma.service.deleteMany({ where: { tenantId } });
+  await prisma.professional.deleteMany({ where: { tenantId } });
+  await prisma.boxBlock.deleteMany({ where: { tenantId } });
+  await prisma.box.deleteMany({ where: { tenantId } });
 
   const box1 = await prisma.box.create({ data: { tenantId, name: "Box 1" } });
   const box2 = await prisma.box.create({ data: { tenantId, name: "Box 2" } });
@@ -91,8 +108,6 @@ async function main() {
   await prisma.client.create({
     data: { tenantId, name: "Sofía Pérez", phone: "1155667788", email: "sofia@example.com" },
   });
-
-  console.log("Seed completo.");
 }
 
 main()

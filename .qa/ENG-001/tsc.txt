@@ -1,0 +1,2 @@
+npx tsc --noEmit -p .: exit 0, sin salida
+npx tsc -p <tsconfig que incluye prisma/seed.ts (excluido del tsconfig del repo)>: exit 0, sin salida

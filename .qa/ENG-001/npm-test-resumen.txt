@@ -1,0 +1,26 @@
+npm test completo en /home/user/erp (árbol compartido, con cambios sin commit de otros frentes), 2026-09-24 23:28 UTC
+# tests 3493
+# pass 3474
+# fail 14
+# cancelled 0
+# skipped 5
+# duration_ms 88774.039126
+
+Fallas (todas previas a ENG-001; mismas 14 que midió el integrador de R0 antes de este cambio):
+not ok 48 - Caja en el navegador
+not ok 202 - Pies pegados en el iPhone: la zona segura una sola vez
+not ok 3215 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 3238 - lee un xlsx con fechas Date y números number
+not ok 3239 - filas totalmente vacías se descartan
+not ok 3240 - esXlsx reconoce el magic ZIP de un .xlsx real
+
+Tests de ENG-001 (en la suite completa; después se sumó el test "sin host en la URL", 10 en verde con: node --import tsx --test src/lib/seed/*.test.ts):
+ok 2365 - el seed rechaza la base de producción en Neon, directa o por el pooler
+ok 2366 - el seed rechaza cualquier host que no sea esta máquina
+ok 2367 - el parámetro host manda sobre el host de la URL, como en libpq
+ok 2368 - el seed acepta un Postgres local por TCP o por socket
+ok 2369 - sin DATABASE_URL, ilegible o de otro motor, el seed no corre
+ok 2370 - el motivo del rechazo nunca muestra la contraseña
+ok 2371 - prisma/seed.ts verifica la base antes de conectarse y no borra sin negocio
+ok 2372 - el seed contra una base de Neon sale con error y no se conecta
+ok 2373 - el seed con el rol dueño recarga sólo el negocio de muestra: el otro negocio queda igual

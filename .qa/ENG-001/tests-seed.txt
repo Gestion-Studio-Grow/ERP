@@ -1,0 +1,13 @@
+ok 1 - el seed rechaza la base de producción en Neon, directa o por el pooler
+ok 2 - el seed rechaza cualquier host que no sea esta máquina
+ok 3 - el parámetro host manda sobre el host de la URL, como en libpq
+ok 4 - el seed acepta un Postgres local por TCP o por socket
+ok 5 - sin DATABASE_URL, ilegible o de otro motor, el seed no corre
+ok 6 - sin host en la URL el seed no corre: node-postgres tomaría PGHOST, que puede ser remoto
+ok 7 - el motivo del rechazo nunca muestra la contraseña
+ok 8 - prisma/seed.ts verifica la base antes de conectarse y no borra sin negocio
+ok 9 - el seed contra una base de Neon sale con error y no se conecta
+ok 10 - el seed con el rol dueño recarga sólo el negocio de muestra: el otro negocio queda igual
+# tests 10
+# pass 10
+# fail 0
