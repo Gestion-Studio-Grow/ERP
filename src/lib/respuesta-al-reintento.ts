@@ -8,17 +8,20 @@
 // No es "use server": no es un endpoint. Recibe el `tenantId` ya resuelto (fail-closed, ADR-015)
 // por quien lo llama, y lee con el cliente de siempre (RLS del negocio).
 
-import { leerVentaGrabada, type InsertedOrder } from "@/lib/order-core";
-import { montoDeCupon } from "@/lib/venta-reglas";
-import { round2 } from "@/lib/round";
+import { leerVentaGrabada, type InsertedOrder, type OrderInput } from "@/lib/order-core";
+import { leerMedioDeCobro } from "@/lib/caja/medio-cobro";
+import { cantidadOCero } from "@/lib/pos-peso";
+import { horarioDelFormulario } from "@/lib/order-anulacion";
+import { descuentoDelFormulario, lineasAManoDelFormulario } from "@/lib/venta-reglas";
+import { prisma } from "@/lib/prisma";
 import { ventaDeOrden, type VentaTicket } from "@/app/admin/(dashboard)/vender/reglas-venta";
 import {
   comoQuedo,
-  contenidoGrabado,
-  contenidoPedido,
-  diferenciasConLoGrabado,
+  compararConLoGrabado,
   mensajeDeYaGrabadaIgual,
+  pedidoDelReintento,
   textoDeYaGrabada,
+  type PedidoDelReintento,
   type VentaYaGrabada,
 } from "@/lib/reintento-de-venta";
 
@@ -28,16 +31,15 @@ export type RespuestaAlReintento =
   | { ok: false; error: string; tipo: "sin-confirmar" };
 
 /**
- * Se lee la venta GRABADA y se compara con lo que pidió este envío (`result.solicitado`, ya
- * decidido por el alta con los precios de la base y la ficha del teléfono):
+ * Se lee la venta GRABADA y se compara con lo que pidió este envío (`result.solicitado`: sólo lo
+ * que controla quien cobra, sin re-cotizar ni re-buscar la ficha):
  *   · igual y vigente → la grabada, con su ticket leído de la base, como siempre;
- *   · distinta, o anulada → `ya-grabada-distinta`: la grabada (#N, total, cliente, estado) y las
- *     diferencias en palabras. No se graba nada: lo que cambió, si hace falta, se cobra aparte.
+ *   · distinta, o anulada → `ya-grabada-distinta`: la grabada (#N, total, cliente, estado), las
+ *     diferencias en palabras y, si todo lo distinto es "de más", lo que falta cobrar aparte.
+ *     No se graba nada.
  *
- * El descuento de un cupón lo decide la transacción del alta (y lo consume), así que el de este
- * envío se calcula con la regla del cupón GRABADO cuando es el mismo código (`montoDeCupon`, la
- * misma cuenta que hizo el alta, sin volver a mirar los usos: el último lo gastó justamente la
- * grabada); con otro código no se sabe, y la diferencia de cupón ya se dice sola.
+ * La única lectura además de la grabada es el NOMBRE (y la unidad) de un producto que no está en
+ * ella, para decir "Entraña 0,95 kg" en vez de un id. Nunca un precio.
  */
 export async function respuestaAlReintento(
   tenantId: string,
@@ -57,13 +59,23 @@ export async function respuestaAlReintento(
   const esPedido = grabada.channel === "ONLINE";
   const ticket = ventaDeOrden(grabada);
   const s = result.solicitado;
-  const regla = grabada.reglaDelCupon;
-  const descuentoDelCupon =
-    s?.cupon && regla && regla.codigo === s.cupon ? montoDeCupon(regla.tipo, regla.valor, round2(s.subtotal - (s.envio ?? 0))) : null;
-  // Sin lo pedido no se puede decir que es lo mismo: se dice que no se pudo comparar.
-  const diferencias = s
-    ? diferenciasConLoGrabado(contenidoGrabado(grabada), contenidoPedido(s, descuentoDelCupon))
-    : ["No se pudo comparar lo que mandaste con lo grabado."];
+  if (!s) {
+    // Sin lo pedido no se puede decir que es lo mismo (no pasa con `insertOrder`, que siempre lo trae).
+    return {
+      ok: false,
+      tipo: "sin-confirmar",
+      error: "No pudimos comparar lo que mandaste con la venta grabada con este ticket. Fijate en Ventas del día antes de cobrarla de nuevo.",
+    };
+  }
+  const enLaGrabada = new Set(grabada.items.map((it) => it.productId).filter(Boolean));
+  const nuevos = [...new Set(s.productos.map((l) => l.productId))].filter((id) => !enLaGrabada.has(id));
+  const catalogo = new Map(
+    (nuevos.length
+      ? await prisma.product.findMany({ where: { tenantId, id: { in: nuevos } }, select: { id: true, name: true, saleUnit: true } })
+      : []
+    ).map((p) => [p.id, { nombre: p.name, porPeso: p.saleUnit === "WEIGHT" }]),
+  );
+  const { diferencias, faltante } = compararConLoGrabado(grabada, s, catalogo);
   if (diferencias.length === 0 && !ticket.anulada) {
     const mensaje = mensajeDeYaGrabadaIgual({ code: grabada.code, esPedido, cobrada: Boolean(grabada.paid && grabada.paymentMethod) });
     return o.conTicket ? { ok: true, mensaje, venta: ticket } : { ok: true, mensaje };
@@ -77,8 +89,44 @@ export async function respuestaAlReintento(
     cliente: ticket.cliente,
     telefono: ticket.telefono,
     anulada: ticket.anulada,
-    diferencias,
+    diferencias: diferencias.map((x) => x.texto),
+    // Anulada, no hay "lo que falta": lo cargado entero es otra venta.
+    faltante: ticket.anulada ? null : faltante,
     ...(o.conTicket ? { ticket } : {}),
   };
   return { ok: false, tipo: "ya-grabada-distinta", error: textoDeYaGrabada(g), grabada: g };
+}
+
+/**
+ * Lo que pide el formulario de `createOrder`, SÓLO para comparar un reintento con lo grabado
+ * (`pedidoDelReintento`): se lee tal cual, sin validar ni decidir nada, porque la clave se busca
+ * ANTES de validar. No escribe nada: el medio que se GRABA sale de `medioDeCobroRequerido`
+ * adentro de la action (lo exige medio-cobro.test.ts); acá el medio crudo sólo se compara.
+ */
+export function pedidoDelFormulario(
+  formData: FormData,
+  d: { channel: "COUNTER" | "ONLINE"; fulfillment: "PICKUP" | "DELIVERY"; scheduledRaw: string; aCuenta: boolean },
+): PedidoDelReintento {
+  const pagada = !d.aCuenta && (String(formData.get("paid")) === "on" || String(formData.get("paid")) === "true");
+  const desc = descuentoDelFormulario(formData.get("descuentoTipo"), formData.get("descuentoValor"));
+  const aMano = lineasAManoDelFormulario((campo) => formData.getAll(campo).map(String));
+  const cantidades = formData.getAll("quantity").map((q) => cantidadOCero(String(q)));
+  const pedido: OrderInput = {
+    channel: d.channel,
+    fulfillment: d.fulfillment,
+    customerName: "",
+    customerPhone: String(formData.get("customerPhone") || "").trim(),
+    address: String(formData.get("address") || "").trim() || null,
+    notes: String(formData.get("notes") || "").trim() || null,
+    scheduledFor: horarioDelFormulario(d.scheduledRaw),
+    paid: pagada,
+    paymentMethod: pagada ? leerMedioDeCobro(formData.get("paymentMethod")) : null,
+    items: formData.getAll("productId").map((id, i) => ({ productId: String(id), qty: cantidades[i] ?? 0 })),
+    lineasAMano: aMano.ok ? aMano.lineas : [],
+  };
+  return pedidoDelReintento(pedido, {
+    cupon: formData.get("cupon") as string | null,
+    descuento: desc.ok && desc.pedido ? { pedido: desc.pedido } : null,
+    aCuenta: d.aCuenta,
+  });
 }

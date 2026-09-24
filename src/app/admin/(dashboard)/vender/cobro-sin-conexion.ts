@@ -25,7 +25,7 @@
 // (reintento-de-venta.ts) y, si no coincide, no graba nada y contesta «ya-grabada-distinta». La
 // firma de acá sirve para no mandar algo que va a volver así, y para decirlo antes.
 
-import { fmtTime } from "@/lib/datetime";
+import { fmtDateTimeAr } from "@/lib/datetime";
 import { tituloDeYaGrabada, detalleDeYaGrabada, type VentaYaGrabada } from "@/lib/reintento-de-venta";
 
 /**
@@ -120,7 +120,7 @@ export function volvioLaSenal(esPedido = false): FallaDeCobro {
  * dice si ya se puede reintentar. `restaurado`: la duda quedó de antes de recargar o volver a la
  * pantalla (la hora en que se mandó), y el título lo dice.
  */
-export function fallaDeRed(enLinea: boolean, esPedido = false, restaurado: { hora: string; total: string } | null = null): FallaDeCobro {
+export function fallaDeRed(enLinea: boolean, esPedido = false, restaurado: { cuando: string; total: string } | null = null): FallaDeCobro {
   const cosa = esPedido ? "el pedido" : "la venta";
   const boton = `«${etiquetaDeReintento(esPedido)}»`;
   // Un pedido sin cobrar no mueve plata: lo que se evita es que quede dos veces en la bandeja.
@@ -129,7 +129,7 @@ export function fallaDeRed(enLinea: boolean, esPedido = false, restaurado: { hor
     : `si ${cosa} ya se había grabado, no se cobra dos veces`;
   return {
     titulo: restaurado
-      ? `Quedó ${esPedido ? "un pedido" : "un cobro"} sin confirmar: ${restaurado.total}, de las ${restaurado.hora}. No sabemos si ${cosa} se grabó.`
+      ? `Quedó ${esPedido ? "un pedido" : "un cobro"} sin confirmar: ${restaurado.total}, del ${restaurado.cuando}. No sabemos si ${cosa} se grabó.`
       : `Se cortó la conexión y no sabemos si ${cosa} se grabó.`,
     comoSeguir: enLinea
       ? `Lo que cargaste sigue acá. Tocá ${boton}: ${garantia}.`
@@ -274,7 +274,7 @@ export function recordarEnvioSinRespuesta(previo: EnvioSinRespuesta | null, este
  */
 export function avisoDelCobro(e: {
   falla: { tipo: "sin-senal" } | { tipo: "red" } | { tipo: "rechazo"; error: string } | null;
-  /** `restaurado`: la hora en que salió el envío en duda que quedó de antes de recargar. */
+  /** `restaurado`: cuándo salió (fecha y hora) el envío en duda que quedó de antes de recargar. */
   sinRespuesta: { cambio: boolean; totalMandado: string; restaurado?: string | null } | null;
   enLinea: boolean;
   esPedido?: boolean;
@@ -284,7 +284,7 @@ export function avisoDelCobro(e: {
   if (e.falla?.tipo === "rechazo") return rechazoDelServidor(e.falla.error, esPedido, e.sinRespuesta !== null);
   if (e.sinRespuesta) {
     const r = e.sinRespuesta.restaurado;
-    return fallaDeRed(e.enLinea, esPedido, r ? { hora: r, total: e.sinRespuesta.totalMandado } : null);
+    return fallaDeRed(e.enLinea, esPedido, r ? { cuando: r, total: e.sinRespuesta.totalMandado } : null);
   }
   if (e.falla?.tipo === "sin-senal") return e.enLinea ? volvioLaSenal(esPedido) : antesDeCobrar(false, esPedido);
   // "red" sin envío recordado no pasa (se recuerdan juntos); si pasara, se dice lo prudente.
@@ -309,11 +309,21 @@ export function renovarClaveTrasRechazo(hayEnvioEnDuda: boolean): boolean {
 }
 
 // ── La venta ya estaba grabada y lo que llegó no es lo mismo ────────────────────────────────
+//
+// Tres casos, con salidas distintas (lo decide el servidor, `compararConLoGrabado`):
+//   · anulada: lo cargado entero es otra venta → «Cobrarla como otra venta» (clave nueva).
+//   · todo lo distinto es DE MÁS (`faltante`): «Cobrar sólo lo que falta» carga SÓLO eso.
+//   · cualquier otra diferencia (medio, cliente, se sacó algo, otro precio a mano, entrega, un
+//     descuento): NO se ofrece cobrar nada. Cobrar "lo cargado" con otra clave era cobrar la
+//     venta dos veces (refutador R-A). Se muestra la grabada y qué hacer: dejarla así, o anularla
+//     en Ventas del día y volver a consultar (la misma clave: si ya está anulada, se ofrece
+//     cobrarla como otra).
 
-/** Las dos salidas de «ya grabada»: la etiqueta del botón que cobra lo que falta como otra. */
-export function etiquetaDeCobrarLoQueFalta(g: Pick<VentaYaGrabada, "anulada" | "esPedido">): string {
+/** El botón que cobra aparte, o `null` si no hay nada que cobrar aparte. */
+export function etiquetaDeCobrarAparte(g: Pick<VentaYaGrabada, "anulada" | "esPedido" | "faltante">): string | null {
   if (g.anulada) return g.esPedido ? "Registrarlo como otro pedido" : "Cobrarla como otra venta";
-  return g.esPedido ? "Registrar lo que falta como otro pedido" : "Cobrar lo que falta como otra venta";
+  if (g.faltante) return g.esPedido ? "Registrar sólo lo que falta" : "Cobrar sólo lo que falta";
+  return null;
 }
 
 /** "Ver la venta #42" / "Ver el pedido #42". */
@@ -321,19 +331,33 @@ export function etiquetaDeVerGrabada(g: Pick<VentaYaGrabada, "code" | "esPedido"
   return g.esPedido ? `Ver el pedido #${g.code}` : `Ver la venta #${g.code}`;
 }
 
+/** El botón que vuelve a preguntar por la MISMA clave después de anularla en otra pantalla. */
+export const ETIQUETA_VOLVER_A_CONSULTAR = "Ya la anulé: volver a consultar";
+/** El botón que deja la grabada como está y limpia la pantalla. */
+export const ETIQUETA_DEJARLA_ASI = "Dejarla así";
+
 /**
  * Qué se dice cuando el servidor contesta «ya-grabada-distinta»: cuál es la que quedó (#N, total,
- * cómo, cliente; si está anulada, se dice), qué NO se registró, y cómo seguir. No es para
- * reintentar: lo cargado no se va a grabar con esta clave.
+ * cómo, cliente; si está anulada, se dice), qué NO se registró, y cómo seguir según el caso.
  */
 export function avisoDeYaGrabada(g: VentaYaGrabada): FallaDeCobro {
   const donde = g.esPedido ? "Pedidos para preparar" : "Ventas del día";
-  const falta = `«${etiquetaDeCobrarLoQueFalta(g)}»`;
+  const aparte = etiquetaDeCobrarAparte(g);
+  const detalle = detalleDeYaGrabada(g);
   const comoSeguir = g.anulada
-    ? `${detalleDeYaGrabada(g)} Si hay que ${g.esPedido ? "registrarlo" : "cobrarla"}, tocá ${falta}.`
-    : `${detalleDeYaGrabada(g)} Si falta ${g.esPedido ? "registrar" : "cobrar"} algo, dejá acá sólo eso y tocá ${falta}. ` +
-      `Si la #${g.code} quedó mal (otro cliente, otro medio), anulala en ${donde} y cargala de nuevo.`;
+    ? `${detalle} Si hay que ${g.esPedido ? "registrarlo" : "cobrarla"}, tocá «${aparte}».`
+    : aparte
+      ? `${detalle} Tocá «${aparte}»: se carga sólo eso, para ${g.esPedido ? "registrarlo" : "cobrarlo"} aparte. Si no hace falta, tocá «${ETIQUETA_DEJARLA_ASI}».`
+      : `${detalle} Esto no se completa con otra ${g.esPedido ? "carga" : "venta"}. Si la #${g.code} está bien, tocá «${ETIQUETA_DEJARLA_ASI}». ` +
+        `Si quedó mal, anulala en ${donde} y tocá «${ETIQUETA_VOLVER_A_CONSULTAR}».`;
   return { titulo: tituloDeYaGrabada(g), comoSeguir, reintentar: false };
+}
+
+/** Lo que se pregunta antes de «Empezar de nuevo» con un envío en duda. */
+export function avisoAntesDeEmpezarDeNuevo(esPedido = false): string {
+  return esPedido
+    ? "Antes de empezar de nuevo, fijate en Pedidos para preparar si el pedido se registró: si se registró y lo volvés a cargar, queda dos veces."
+    : "Antes de empezar de nuevo, fijate en Ventas del día si la venta se grabó: si se grabó y la volvés a cargar, se cobra dos veces.";
 }
 
 // ── La duda sobrevive a recargar la pantalla ───────────────────────────────────────────────
@@ -341,10 +365,19 @@ export function avisoDeYaGrabada(g: VentaYaGrabada): FallaDeCobro {
 // El envío en duda vivía sólo en la memoria de la pantalla: recargar, ir a otra pantalla y
 // volver, o que el celular descarte la pestaña al ir a la app de Mercado Pago lo borraba, y el
 // cajero cargaba la misma venta con otra clave: un cobro, dos ventas. Ahora se guarda en el
-// `sessionStorage` de la pestaña, por negocio: la clave, la firma, el total y lo cargado mínimo
-// para volver a mostrarlo. Se borra cuando la duda se resuelve (cobro confirmado, «ya grabada»,
-// «Es otra venta», limpiar). Todo acceso al almacén va con try/catch: en modo privado, con el
-// almacén lleno o bloqueado, la pantalla sigue como antes (la duda vive en memoria).
+// `sessionStorage` de la pestaña, por negocio: la clave, la firma, el total, lo cargado mínimo
+// para volver a mostrarlo, QUIÉN la dejó y CUÁNDO.
+//   · Vence a las VENCE_LA_DUDA_MS: al otro día ya no es "un cobro de recién", y la venta, si se
+//     grabó, está en Ventas del día.
+//   · Si la dejó otra persona, no se restaura (no se le muestran el cliente ni lo cargado de
+//     otro): sólo se avisa que quedó una, y de cuándo.
+//   · Se borra cuando la duda se resuelve (cobro confirmado, «ya grabada», «Es otra venta»,
+//     limpiar) y al cerrar sesión (`borrarCobrosSinConfirmarDeLaPestana`).
+// Todo acceso al almacén va con try/catch: en modo privado, con el almacén lleno o bloqueado, la
+// pantalla sigue como antes (la duda vive en memoria).
+
+/** A las 12 horas la duda guardada vence y no se restaura. */
+export const VENCE_LA_DUDA_MS = 12 * 60 * 60 * 1000;
 
 /** Lo cargado, lo justo para volver a mostrarlo igual (la firma se recalcula de acá). */
 export type CargadoDelCobro = {
@@ -370,12 +403,14 @@ export type CargadoDelCobro = {
 };
 
 export type CobroSinConfirmar = {
-  v: 1;
+  v: 2;
   clave: string;
   firma: string;
   total: number;
   /** ISO: cuándo salió el envío. */
   desde: string;
+  /** Quién lo mandó (el id del usuario). */
+  usuario: string;
   cargado: CargadoDelCobro;
 };
 
@@ -383,7 +418,7 @@ export type CobroSinConfirmar = {
 export type AlmacenDeSesion = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 /** El `sessionStorage` de la pestaña, o `null` si no se puede usar (tirar al leerlo es posible). */
-export function almacenDeSesion(): AlmacenDeSesion | null {
+export function almacenDeSesion(): Storage | null {
   try {
     return typeof window !== "undefined" && window.sessionStorage ? window.sessionStorage : null;
   } catch {
@@ -391,9 +426,11 @@ export function almacenDeSesion(): AlmacenDeSesion | null {
   }
 }
 
+const PREFIJO_DEL_ALMACEN = "gsg:vender:cobro-sin-confirmar:";
+
 /** La clave del almacén, una por negocio (el mismo navegador puede atender dos). */
 export function claveDelAlmacen(negocio: string): string {
-  return `gsg:vender:cobro-sin-confirmar:${negocio}`;
+  return `${PREFIJO_DEL_ALMACEN}${negocio}`;
 }
 
 export function guardarCobroSinConfirmar(almacen: AlmacenDeSesion | null, negocio: string, c: CobroSinConfirmar): boolean {
@@ -415,14 +452,36 @@ export function borrarCobroSinConfirmar(almacen: AlmacenDeSesion | null, negocio
   }
 }
 
+/** Al cerrar sesión: las dudas de TODOS los negocios de esta pestaña. */
+export function borrarCobrosSinConfirmarDeLaPestana(almacen: Pick<Storage, "length" | "key" | "removeItem"> | null = almacenDeSesion()): void {
+  if (!almacen) return;
+  try {
+    const claves: string[] = [];
+    for (let i = 0; i < almacen.length; i++) {
+      const k = almacen.key(i);
+      if (k?.startsWith(PREFIJO_DEL_ALMACEN)) claves.push(k);
+    }
+    for (const k of claves) almacen.removeItem(k);
+  } catch {
+    // sin almacén no quedó nada guardado
+  }
+}
+
 const esTexto = (x: unknown): x is string => typeof x === "string";
 const esNumero = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 
+/** Lo que se encontró en la pestaña: la duda propia (se restaura) o la de otra persona (se avisa). */
+export type DudaGuardada = { tipo: "propia"; cobro: CobroSinConfirmar } | { tipo: "de-otra-persona"; desde: string };
+
 /**
- * La duda guardada de este negocio, o `null` si no hay, o si lo guardado no se entiende (otra
- * versión, a medio escribir, tocado a mano): una duda ilegible no se inventa.
+ * La duda guardada de este negocio, o `null` si no hay, si venció (se borra) o si lo guardado no
+ * se entiende (otra versión, a medio escribir, tocado a mano): una duda ilegible no se inventa.
  */
-export function leerCobroSinConfirmar(almacen: AlmacenDeSesion | null, negocio: string): CobroSinConfirmar | null {
+export function leerCobroSinConfirmar(
+  almacen: AlmacenDeSesion | null,
+  negocio: string,
+  quien: { usuario: string; ahora: number },
+): DudaGuardada | null {
   if (!almacen) return null;
   let crudo: string | null;
   try {
@@ -431,23 +490,40 @@ export function leerCobroSinConfirmar(almacen: AlmacenDeSesion | null, negocio: 
     return null;
   }
   if (!crudo) return null;
+  let c: CobroSinConfirmar;
   try {
-    const c = JSON.parse(crudo) as Partial<CobroSinConfirmar> | null;
-    const k = c?.cargado as Partial<CargadoDelCobro> | undefined;
-    if (!c || c.v !== 1 || !esTexto(c.clave) || !c.clave || !esTexto(c.firma) || !esNumero(c.total) || !esTexto(c.desde)) return null;
+    const x = JSON.parse(crudo) as Partial<CobroSinConfirmar> | null;
+    const k = x?.cargado as Partial<CargadoDelCobro> | undefined;
+    if (!x || x.v !== 2 || !esTexto(x.clave) || !x.clave || !esTexto(x.firma) || !esNumero(x.total) || !esTexto(x.desde) || !esTexto(x.usuario)) return null;
     if (!k || typeof k.esPedido !== "boolean" || !Array.isArray(k.lineas) || !Array.isArray(k.manuales)) return null;
     if (!k.lineas.every((l) => l && esTexto(l.productId) && esTexto(l.qtyText))) return null;
     if (!k.manuales.every((m) => m && esTexto(m.nombre) && esTexto(m.importeText) && esTexto(m.motivo))) return null;
     if (!esTexto(k.medio) || !esTexto(k.telefono) || !esTexto(k.nombre) || !k.descuento || !k.entrega) return null;
-    return c as CobroSinConfirmar;
+    c = x as CobroSinConfirmar;
   } catch {
     return null;
   }
+  const desde = Date.parse(c.desde);
+  if (!Number.isFinite(desde) || quien.ahora - desde > VENCE_LA_DUDA_MS) {
+    borrarCobroSinConfirmar(almacen, negocio);
+    return null;
+  }
+  if (c.usuario !== quien.usuario) return { tipo: "de-otra-persona", desde: c.desde };
+  return { tipo: "propia", cobro: c };
 }
 
-/** La hora en que salió el envío en duda, para el aviso ("13:15"). */
-export function horaDelEnvio(desde: string | undefined): string | null {
+/** Cuándo salió el envío en duda, para el aviso ("24/09/2026 13:15"). */
+export function cuandoDelEnvio(desde: string | undefined): string | null {
   if (!desde) return null;
   const d = new Date(desde);
-  return Number.isNaN(d.getTime()) ? null : fmtTime(d);
+  return Number.isNaN(d.getTime()) ? null : fmtDateTimeAr(d);
+}
+
+/** El aviso de una duda que dejó otra persona: sin cliente ni lo cargado, sólo cuándo. */
+export function avisoDeDudaDeOtraPersona(desde: string): FallaDeCobro {
+  return {
+    titulo: `En esta pestaña quedó un cobro sin confirmar de otra persona (del ${cuandoDelEnvio(desde) ?? "día de hoy"}).`,
+    comoSeguir: "No sabemos si se grabó. Antes de cobrar lo mismo, fijate en Ventas del día.",
+    reintentar: false,
+  };
 }

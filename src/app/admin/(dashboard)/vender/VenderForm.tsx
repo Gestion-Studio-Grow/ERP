@@ -45,6 +45,7 @@ import {
   importeParaFormulario,
   leerImporte,
 } from "@/lib/pos-peso";
+import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
 import FacturarVenta from "../ventas/FacturarVenta";
@@ -70,13 +71,17 @@ import {
   cambioDespuesDelCorte,
   claveParaCobrar,
   conTiempoMaximo,
-  etiquetaDeCobrarLoQueFalta,
+  avisoAntesDeEmpezarDeNuevo,
+  avisoDeDudaDeOtraPersona,
+  cuandoDelEnvio,
+  ETIQUETA_DEJARLA_ASI,
+  ETIQUETA_VOLVER_A_CONSULTAR,
+  etiquetaDeCobrarAparte,
   etiquetaDeOtraVenta,
   etiquetaDeReintento,
   etiquetaDeVerGrabada,
   firmaDelCobro,
   guardarCobroSinConfirmar,
-  horaDelEnvio,
   leerCobroSinConfirmar,
   recordarEnvioSinRespuesta,
   renovarClaveTrasRechazo,
@@ -157,6 +162,8 @@ type PropsDeVender = {
   topePrecioAMano?: TopePrecioAMano | null;
   /** El negocio (su id): separa en el almacén de la pestaña el cobro sin confirmar de cada uno. */
   negocioId?: string;
+  /** Quién vende (su id): la duda guardada de otra persona no se restaura. */
+  usuarioId?: string;
 };
 
 const sinSuscripcion = () => () => {};
@@ -191,13 +198,20 @@ function FormularioVender({
   puedeFacturar = false,
   topePrecioAMano = null,
   negocioId = "",
+  usuarioId = "",
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
   // Un cobro que quedó sin confirmar en esta pestaña (se recargó, se volvió de otra pantalla, el
   // celular descartó la pestaña al ir a la app de MP): el formulario arranca con lo cargado, su
   // clave y el aviso. Se lee una sola vez, al armar el formulario.
   const almacen = negocioId || negocio;
-  const [arranque] = useState(() => (enNavegador ? leerCobroSinConfirmar(almacenDeSesion(), almacen) : null));
+  const [lectura] = useState(() =>
+    enNavegador ? leerCobroSinConfirmar(almacenDeSesion(), almacen, { usuario: usuarioId, ahora: Date.now() }) : null,
+  );
+  const arranque = lectura?.tipo === "propia" ? lectura.cobro : null;
+  // La duda que dejó OTRA persona en esta pestaña: no se restaura (ni su cliente ni lo cargado);
+  // sólo se avisa, con la fecha, hasta que se toque «Entendido».
+  const [dudaAjena, setDudaAjena] = useState(lectura?.tipo === "de-otra-persona" ? lectura.desde : null);
   const k = arranque?.cargado;
   const [inicial] = useState(() => lineasIniciales(k));
 
@@ -245,6 +259,11 @@ function FormularioVender({
   // qué no se registró. Frena el botón hasta que el cajero elija cómo seguir.
   const [yaGrabada, setYaGrabada] = useState<VentaYaGrabada | null>(null);
   const [verGrabada, setVerGrabada] = useState(false);
+  // «Empezar de nuevo» con un envío en duda: primero se pregunta (revisar Ventas del día).
+  const [confirmarEmpezar, setConfirmarEmpezar] = useState(false);
+  // Se cargó SÓLO lo que faltaba de una venta ya grabada: se dice arriba del botón.
+  const [soloLoQueFalta, setSoloLoQueFalta] = useState<{ code: number; texto: string } | null>(null);
+  const formulario = useRef<HTMLFormElement | null>(null);
   const [enLinea, setEnLinea] = useState(true);
   useEffect(() => {
     const leer = () => setEnLinea(navigator.onLine);
@@ -477,6 +496,8 @@ function FormularioVender({
     setSinRespuesta(null);
     setYaGrabada(null);
     setVerGrabada(false);
+    setConfirmarEmpezar(false);
+    setSoloLoQueFalta(null);
     borrarCobroSinConfirmar(almacenDeSesion(), almacen);
     ticketKey.current = "";
   }
@@ -490,7 +511,39 @@ function FormularioVender({
     setSinRespuesta(null);
     setYaGrabada(null);
     setVerGrabada(false);
+    setConfirmarEmpezar(false);
     borrarCobroSinConfirmar(almacenDeSesion(), almacen);
+  }
+
+  // «Cobrar sólo lo que falta»: la venta #N ya está grabada y lo cargado trae DE MÁS (el servidor
+  // calculó qué: `faltante`). El ticket queda con SÓLO eso —mismo medio y mismo cliente, sin
+  // descuento (con descuento el servidor no ofrece esta salida)— y viaja con otra clave. Antes
+  // este botón dejaba el carrito entero y cobraba todo otra vez (refutador R-A).
+  function cargarSoloLoQueFalta(g: VentaYaGrabada, f: Faltante) {
+    let n = nextKey;
+    const nuevas: Line[] = f.productos.map((l) => ({ key: n++, productId: l.productId, qtyText: formatearCantidad(l.cantidad) }));
+    const nuevasAMano: LineaManual[] = f.aMano.map((m) => {
+      // El motivo es de la pantalla (el servidor no lo compara): el de la línea igual que ya estaba.
+      const igual = manuales.find((x) => x.nombre.trim().toLowerCase() === m.nombre.trim().toLowerCase() && importeOCero(x.importeText) === m.importe);
+      return { key: n++, nombre: m.nombre, importeText: importeParaFormulario(m.importe), motivo: igual?.motivo ?? "" };
+    });
+    if (nuevas.length === 0) nuevas.push({ key: n++, productId: "", qtyText: "" });
+    setLines(nuevas);
+    setManuales(nuevasAMano);
+    setNextKey(n);
+    setConDescuento(false);
+    setDescuentoText("");
+    cupon.limpiar();
+    esOtraVenta();
+    setSoloLoQueFalta({ code: g.code, texto: textoDelFaltante(f) });
+  }
+
+  // «Ya la anulé: volver a consultar»: la misma clave, lo mismo cargado. El servidor contesta
+  // cómo está AHORA la #N (si la anularon, ofrece cobrarla como otra venta).
+  function volverAConsultar() {
+    setYaGrabada(null);
+    setVerGrabada(false);
+    formulario.current?.requestSubmit();
   }
 
   async function buscarCliente() {
@@ -532,7 +585,15 @@ function FormularioVender({
       setSinRespuesta((previo) => recordarEnvioSinRespuesta(previo, enviado));
       // Se guarda el PRIMER envío en duda (un reintento sólo sale si lo cargado es igual).
       if (!sinRespuesta) {
-        guardarCobroSinConfirmar(almacenDeSesion(), almacen, { v: 1, clave, firma, total, desde: enviado.desde!, cargado });
+        guardarCobroSinConfirmar(almacenDeSesion(), almacen, {
+          v: 2,
+          clave,
+          firma,
+          total,
+          desde: enviado.desde!,
+          usuario: usuarioId,
+          cargado,
+        });
       }
     };
     let espera;
@@ -604,7 +665,7 @@ function FormularioVender({
           ? {
               cambio: cambioTrasCorte,
               totalMandado: fmtMoneyARS(sinRespuesta.total),
-              restaurado: sinRespuesta.restaurado ? horaDelEnvio(sinRespuesta.desde) : null,
+              restaurado: sinRespuesta.restaurado ? cuandoDelEnvio(sinRespuesta.desde) : null,
             }
           : null,
         enLinea,
@@ -684,7 +745,27 @@ function FormularioVender({
         </div>
       )}
 
-      <form action={submit} className="rounded-lg border border-line p-3 sm:p-4 space-y-4">
+      {dudaAjena && (
+        <AvisoError
+          tono="aviso"
+          titulo={avisoDeDudaDeOtraPersona(dudaAjena).titulo}
+          comoSeguir={avisoDeDudaDeOtraPersona(dudaAjena).comoSeguir}
+          accion={
+            <button
+              type="button"
+              onClick={() => {
+                borrarCobroSinConfirmar(almacenDeSesion(), almacen);
+                setDudaAjena(null);
+              }}
+              className="h-11 px-2 text-sm text-muted hover:underline"
+            >
+              Entendido
+            </button>
+          }
+        />
+      )}
+
+      <form ref={formulario} action={submit} className="rounded-lg border border-line p-3 sm:p-4 space-y-4">
         <input type="hidden" name="channel" value={isOrder ? "ONLINE" : "COUNTER"} />
 
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qué se registra">
@@ -1257,9 +1338,15 @@ function FormularioVender({
               accion={
                 yaGrabada ? (
                   <>
-                    <button type="button" onClick={esOtraVenta} className="h-11 px-2 text-sm font-medium text-strong underline">
-                      {etiquetaDeCobrarLoQueFalta(yaGrabada)}
-                    </button>
+                    {etiquetaDeCobrarAparte(yaGrabada) && (
+                      <button
+                        type="button"
+                        onClick={() => (yaGrabada.faltante && !yaGrabada.anulada ? cargarSoloLoQueFalta(yaGrabada, yaGrabada.faltante) : esOtraVenta())}
+                        className="h-11 px-2 text-sm font-medium text-strong underline"
+                      >
+                        {etiquetaDeCobrarAparte(yaGrabada)}
+                      </button>
+                    )}
                     {yaGrabada.ticket && (
                       <button
                         type="button"
@@ -1272,21 +1359,62 @@ function FormularioVender({
                         {etiquetaDeVerGrabada(yaGrabada)}
                       </button>
                     )}
+                    {!etiquetaDeCobrarAparte(yaGrabada) && (
+                      <>
+                        <a
+                          href={yaGrabada.esPedido ? "/admin/pedidos" : "/admin/ventas"}
+                          target="_blank"
+                          rel="noopener"
+                          className="inline-flex h-11 items-center px-2 text-sm text-strong underline"
+                        >
+                          {yaGrabada.esPedido ? "Abrir Pedidos para preparar" : "Abrir Ventas del día"}
+                        </a>
+                        <button type="button" onClick={volverAConsultar} className="h-11 px-2 text-sm text-strong underline">
+                          {ETIQUETA_VOLVER_A_CONSULTAR}
+                        </button>
+                      </>
+                    )}
                     <button type="button" onClick={limpiar} className="h-11 px-2 text-sm text-muted hover:underline">
-                      Empezar de nuevo
+                      {ETIQUETA_DEJARLA_ASI}
                     </button>
                   </>
-                ) : aviso.reintentar ? undefined : cambioTrasCorte ? (
-                  <button type="button" onClick={esOtraVenta} className="h-11 px-2 text-sm font-medium text-strong underline">
-                    {etiquetaDeOtraVenta(isOrder)}
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => setFalla(null)} className="h-11 px-2 text-sm text-muted hover:underline">
-                    Entendido
-                  </button>
-                )
+                ) : confirmarEmpezar ? (
+                  <>
+                    <p className="w-full text-sm text-body">{avisoAntesDeEmpezarDeNuevo(isOrder)}</p>
+                    <button type="button" onClick={limpiar} className="h-11 px-2 text-sm font-medium text-strong underline">
+                      Sí, empezar de nuevo
+                    </button>
+                    <button type="button" onClick={() => setConfirmarEmpezar(false)} className="h-11 px-2 text-sm text-muted hover:underline">
+                      Cancelar
+                    </button>
+                  </>
+                ) : !aviso.reintentar || sinRespuesta ? (
+                  <>
+                    {cambioTrasCorte ? (
+                      <button type="button" onClick={esOtraVenta} className="h-11 px-2 text-sm font-medium text-strong underline">
+                        {etiquetaDeOtraVenta(isOrder)}
+                      </button>
+                    ) : !aviso.reintentar ? (
+                      <button type="button" onClick={() => setFalla(null)} className="h-11 px-2 text-sm text-muted hover:underline">
+                        Entendido
+                      </button>
+                    ) : null}
+                    {/* Con un envío en duda, siempre hay salida: empezar de nuevo, después de revisar. */}
+                    {sinRespuesta && (
+                      <button type="button" onClick={() => setConfirmarEmpezar(true)} className="h-11 px-2 text-sm text-muted hover:underline">
+                        Empezar de nuevo
+                      </button>
+                    )}
+                  </>
+                ) : undefined
               }
             />
+          )}
+          {soloLoQueFalta && !aviso && (
+            <p role="status" className="text-sm text-body">
+              Cargado sólo lo que faltaba de la venta #{soloLoQueFalta.code}: {soloLoQueFalta.texto}. Total a cobrar aparte:{" "}
+              <strong className="tabular-nums text-strong">{fmtMoneyARS(total)}</strong>.
+            </p>
           )}
           {/* El mismo pie de siempre (total arriba y botón a lo ancho en el celular; en fila desde
               sm): lo único nuevo es que en el celular queda fijo. */}

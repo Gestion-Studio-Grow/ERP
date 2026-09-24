@@ -22,7 +22,11 @@ import {
   borrarCobroSinConfirmar,
   claveDelAlmacen,
   conTiempoMaximo,
-  etiquetaDeCobrarLoQueFalta,
+  etiquetaDeCobrarAparte,
+  avisoAntesDeEmpezarDeNuevo,
+  avisoDeDudaDeOtraPersona,
+  borrarCobrosSinConfirmarDeLaPestana,
+  VENCE_LA_DUDA_MS,
   etiquetaDeVerGrabada,
   guardarCobroSinConfirmar,
   leerCobroSinConfirmar,
@@ -262,11 +266,12 @@ function almacenFalso(rompe = false): AlmacenDeSesion & { datos: Map<string, str
 }
 
 const enDuda: CobroSinConfirmar = {
-  v: 1,
+  v: 2,
   clave: "k-1",
   firma: firmaDelCobro(cortada),
   total: 15500,
   desde: "2026-09-24T16:15:00.000Z",
+  usuario: "u-cajera",
   cargado: {
     esPedido: false,
     lineas: [{ productId: "p_vacio", qtyText: "1,240" }],
@@ -283,37 +288,75 @@ const enDuda: CobroSinConfirmar = {
   },
 };
 
+const CAJERA = { usuario: "u-cajera", ahora: Date.parse("2026-09-24T17:00:00.000Z") };
+
 test("R4/R5: la duda sobrevive a recargar, por negocio; lo ilegible no se inventa; el almacén que tira no rompe", () => {
   const a = almacenFalso();
   assert.equal(guardarCobroSinConfirmar(a, "magra", enDuda), true);
-  assert.deepEqual(leerCobroSinConfirmar(a, "magra"), enDuda);
+  assert.deepEqual(leerCobroSinConfirmar(a, "magra", CAJERA), { tipo: "propia", cobro: enDuda });
   // Otro negocio en el mismo navegador no la ve.
-  assert.equal(leerCobroSinConfirmar(a, "shinevelas"), null);
+  assert.equal(leerCobroSinConfirmar(a, "shinevelas", CAJERA), null);
   assert.notEqual(claveDelAlmacen("magra"), claveDelAlmacen("shinevelas"));
   // Resuelta, se borra.
   borrarCobroSinConfirmar(a, "magra");
-  assert.equal(leerCobroSinConfirmar(a, "magra"), null);
-  // Ilegible, de otra versión o sin clave: no hay duda que restaurar.
-  for (const crudo of ["{", "null", JSON.stringify({ ...enDuda, v: 2 }), JSON.stringify({ ...enDuda, clave: "" }), JSON.stringify({ ...enDuda, cargado: { ...enDuda.cargado, lineas: [{ productId: 3 }] } })]) {
+  assert.equal(leerCobroSinConfirmar(a, "magra", CAJERA), null);
+  // Ilegible, de otra versión (la de antes, sin usuario) o sin clave: no hay duda que restaurar.
+  for (const crudo of ["{", "null", JSON.stringify({ ...enDuda, v: 1 }), JSON.stringify({ ...enDuda, usuario: undefined }), JSON.stringify({ ...enDuda, clave: "" }), JSON.stringify({ ...enDuda, cargado: { ...enDuda.cargado, lineas: [{ productId: 3 }] } })]) {
     a.datos.set(claveDelAlmacen("magra"), crudo);
-    assert.equal(leerCobroSinConfirmar(a, "magra"), null, crudo);
+    assert.equal(leerCobroSinConfirmar(a, "magra", CAJERA), null, crudo);
   }
   // Modo privado / bloqueado: nada tira, la pantalla sigue con la duda en memoria.
   const roto = almacenFalso(true);
   assert.equal(guardarCobroSinConfirmar(roto, "magra", enDuda), false);
-  assert.equal(leerCobroSinConfirmar(roto, "magra"), null);
+  assert.equal(leerCobroSinConfirmar(roto, "magra", CAJERA), null);
   assert.doesNotThrow(() => borrarCobroSinConfirmar(roto, "magra"));
-  assert.equal(leerCobroSinConfirmar(null, "magra"), null);
+  assert.equal(leerCobroSinConfirmar(null, "magra", CAJERA), null);
 });
 
-test("R5: la duda restaurada lo dice, con el total y la hora, y ofrece reintentar la MISMA", () => {
-  const a = avisoDelCobro({ falla: { tipo: "red" }, sinRespuesta: { cambio: false, totalMandado: "$ 15.500,00", restaurado: "13:15" }, enLinea: true });
-  assert.equal(a?.titulo, "Quedó un cobro sin confirmar: $ 15.500,00, de las 13:15. No sabemos si la venta se grabó.");
+test("la duda guardada vence a las 12 h, es de quien la dejó y el cierre de sesión la borra", () => {
+  assert.equal(VENCE_LA_DUDA_MS, 12 * 60 * 60 * 1000);
+  const a = almacenFalso();
+  const desde = Date.parse(enDuda.desde);
+  guardarCobroSinConfirmar(a, "magra", enDuda);
+  // A las 11 h 59 min sigue; a las 12 h y un minuto venció, y se borra.
+  assert.equal(leerCobroSinConfirmar(a, "magra", { ...CAJERA, ahora: desde + VENCE_LA_DUDA_MS - 60_000 })?.tipo, "propia");
+  assert.equal(leerCobroSinConfirmar(a, "magra", { ...CAJERA, ahora: desde + VENCE_LA_DUDA_MS + 60_000 }), null);
+  assert.equal(a.datos.size, 0, "la vencida se borró");
+  // De otra persona: no se restaura; sólo se sabe de cuándo (nada del cliente ni de lo cargado).
+  guardarCobroSinConfirmar(a, "magra", { ...enDuda, cargado: { ...enDuda.cargado, telefono: "11 4000 0000", nombre: "María Pérez" } });
+  const ajena = leerCobroSinConfirmar(a, "magra", { ...CAJERA, usuario: "u-otra" });
+  assert.deepEqual(ajena, { tipo: "de-otra-persona", desde: enDuda.desde });
+  const aviso = avisoDeDudaDeOtraPersona(enDuda.desde);
+  assert.equal(aviso.titulo, "En esta pestaña quedó un cobro sin confirmar de otra persona (del 24/09/2026 13:15).");
+  assert.doesNotMatch(`${aviso.titulo} ${aviso.comoSeguir}`, /María|4000|15\.500/);
+  // Cerrar sesión: se borran las dudas de TODOS los negocios de la pestaña, y nada más.
+  const pestana = new Map([
+    [claveDelAlmacen("magra"), "x"],
+    [claveDelAlmacen("shinevelas"), "y"],
+    ["tema", "oscuro"],
+  ]);
+  borrarCobrosSinConfirmarDeLaPestana({
+    get length() {
+      return pestana.size;
+    },
+    key: (i) => [...pestana.keys()][i] ?? null,
+    removeItem: (k) => void pestana.delete(k),
+  });
+  assert.deepEqual([...pestana.keys()], ["tema"]);
+  assert.doesNotThrow(() => borrarCobrosSinConfirmarDeLaPestana(null));
+});
+
+test("R5: la duda restaurada lo dice, con el total, la FECHA y la hora, y ofrece reintentar la MISMA", () => {
+  const a = avisoDelCobro({ falla: { tipo: "red" }, sinRespuesta: { cambio: false, totalMandado: "$ 15.500,00", restaurado: "24/09/2026 13:15" }, enLinea: true });
+  assert.equal(a?.titulo, "Quedó un cobro sin confirmar: $ 15.500,00, del 24/09/2026 13:15. No sabemos si la venta se grabó.");
   assert.match(a?.comoSeguir ?? "", /Tocá «Reintentar cobro»: si la venta ya se había grabado, no se cobra dos veces/);
   assert.equal(a?.reintentar, true);
-  const p = avisoDelCobro({ falla: { tipo: "red" }, sinRespuesta: { cambio: false, totalMandado: "$ 6.250,00", restaurado: "9:05" }, enLinea: true, esPedido: true });
+  const p = avisoDelCobro({ falla: { tipo: "red" }, sinRespuesta: { cambio: false, totalMandado: "$ 6.250,00", restaurado: "24/09/2026 09:05" }, enLinea: true, esPedido: true });
   assert.match(p?.titulo ?? "", /^Quedó un pedido sin confirmar/);
   assert.doesNotMatch(`${p?.titulo} ${p?.comoSeguir}`, /cobr/);
+  // Empezar de nuevo con la duda: primero se manda a revisar.
+  assert.match(avisoAntesDeEmpezarDeNuevo(), /^Antes de empezar de nuevo, fijate en Ventas del día si la venta se grabó/);
+  assert.match(avisoAntesDeEmpezarDeNuevo(true), /Pedidos para preparar/);
 });
 
 test("tras un rechazo de negocio la clave se renueva SÓLO si no hay un envío en duda", () => {
@@ -321,34 +364,41 @@ test("tras un rechazo de negocio la clave se renueva SÓLO si no hay un envío e
   assert.equal(renovarClaveTrasRechazo(true), false, "con un envío en duda: la clave es la única forma de encontrarlo");
 });
 
-test("«ya grabada»: cuál quedó, qué no se registró y las dos salidas; anulada y pedido con sus palabras", () => {
+test("«ya grabada»: la salida depende de qué cambió (de más, otra cosa, anulada); el pedido con sus palabras", () => {
   const g: VentaYaGrabada = {
     id: "o1",
     code: 42,
     esPedido: false,
     total: 15500,
-    como: "a cuenta",
-    cliente: "María Pérez",
-    telefono: "11 4000 0000",
+    como: "cobrada en Mercado Pago",
+    cliente: null,
+    telefono: null,
     anulada: false,
-    diferencias: ["Cliente: se grabó María Pérez (11 4000 0000); ahora Juan Gómez (11 5000 0000)."],
+    diferencias: ["Cómo pagó: se grabó en Mercado Pago; ahora en Efectivo."],
+    faltante: null,
   };
+  // Otra cosa (el medio): NO se ofrece cobrar nada aparte.
   const a = avisoDeYaGrabada(g);
-  assert.equal(a.titulo, "La venta #42 ya se había grabado con $15.500,00 (a cuenta, María Pérez).");
-  assert.match(a.comoSeguir, /^Lo que cambiaste \(Cliente: .*Juan Gómez.*\) no se registró\./);
-  assert.match(a.comoSeguir, /tocá «Cobrar lo que falta como otra venta»/);
-  assert.match(a.comoSeguir, /anulala en Ventas del día/);
+  assert.equal(a.titulo, "La venta #42 ya se había grabado con $15.500,00 (cobrada en Mercado Pago).");
+  assert.match(a.comoSeguir, /^Lo que cambiaste \(Cómo pagó: .*\) no se registró\. Esto no se completa con otra venta\./);
+  assert.match(a.comoSeguir, /Si la #42 está bien, tocá «Dejarla así»\. Si quedó mal, anulala en Ventas del día y tocá «Ya la anulé: volver a consultar»\./);
+  assert.equal(etiquetaDeCobrarAparte(g), null);
   assert.equal(a.reintentar, false);
   assert.equal(etiquetaDeVerGrabada(g), "Ver la venta #42");
+  // Todo de más: se ofrece cobrar SÓLO eso.
+  const deMas = { ...g, diferencias: ["Entraña 0,95 kg: no está en la grabada."], faltante: { productos: [{ productId: "p_entrana", nombre: "Entraña", porPeso: true, cantidad: 0.95 }], aMano: [] } };
+  assert.equal(etiquetaDeCobrarAparte(deMas), "Cobrar sólo lo que falta");
+  assert.match(avisoDeYaGrabada(deMas).comoSeguir, /^Lo que agregaste \(Entraña 0,95 kg\) no se registró\. Tocá «Cobrar sólo lo que falta»: se carga sólo eso/);
+  // Anulada: lo cargado entero es otra venta.
   const anulada = avisoDeYaGrabada({ ...g, anulada: true, diferencias: [], como: "cobrada en Efectivo" });
   assert.match(anulada.titulo, /y después se anuló\.$/);
   assert.match(anulada.comoSeguir, /No se volvió a cobrar\. Si hay que cobrarla, tocá «Cobrarla como otra venta»\./);
-  const pedido = { ...g, esPedido: true, como: "sin cobrar" };
+  // Pedido: sin hablar de cobrar.
+  const pedido = { ...g, esPedido: true, como: "sin cobrar", diferencias: ["Dirección: se grabó «A»; ahora «B»."] };
   const ap = avisoDeYaGrabada(pedido);
   assert.match(ap.titulo, /^El pedido #42 ya se había registrado/);
-  assert.match(ap.comoSeguir, /«Registrar lo que falta como otro pedido»/);
   assert.match(ap.comoSeguir, /Pedidos para preparar/);
   assert.doesNotMatch(ap.comoSeguir, /no se (volvió a )?cobr/);
-  assert.equal(etiquetaDeCobrarLoQueFalta(pedido), "Registrar lo que falta como otro pedido");
+  assert.equal(etiquetaDeCobrarAparte({ ...pedido, faltante: deMas.faltante }), "Registrar sólo lo que falta");
   assert.equal(etiquetaDeVerGrabada(pedido), "Ver el pedido #42");
 });

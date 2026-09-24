@@ -36,7 +36,7 @@ import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
 import { normalizarCodigoDeCupon, topeDePrecioAMano, CUPON_NO_VALE } from "@/lib/venta-reglas";
 import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
-import { respuestaAlReintento } from "@/lib/respuesta-al-reintento";
+import { pedidoDelFormulario, respuestaAlReintento } from "@/lib/respuesta-al-reintento";
 import { frenoDeCupones, rechazoPublicoDelCupon, CUPON_FRENADO } from "@/lib/cupones/prueba-publica";
 import {
   disponibilidadDe,
@@ -223,6 +223,26 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   // tienen que poder cobrarse con asiento) y de la app Cuentas a cobrar (módulo y rol): una app
   // escondida no es una app protegida.
   const aCuenta = String(formData.get("aCuenta") || "") === "1";
+
+  // LA CLAVE DEL TICKET PRIMERO. Si ya hay una venta con esta clave, es un reintento: se compara
+  // lo que pide con lo grabado y se contesta (`respuestaAlReintento`) ANTES de validar nada. Si
+  // se validara antes, el reintento idéntico de una venta ya grabada chocaba con lo que cambió
+  // en el medio (el día se cerró, el producto se desactivó, se apagó una app) y volvía como
+  // "no se cobró" cuando sí se había cobrado. Lo pedido sale tal cual del formulario: acá no se
+  // decide nada ni se lee la base.
+  const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
+  if (idempotencyKey) {
+    const previa = await pedidoConClave(tenantId, idempotencyKey);
+    if (previa) {
+      revalidarMostrador();
+      return respuestaAlReintento(
+        tenantId,
+        { ...previa, solicitado: pedidoDelFormulario(formData, { channel, fulfillment, scheduledRaw, aCuenta }) },
+        { conTicket: String(formData.get("conTicket") || "") === "1" },
+      );
+    }
+  }
+
   if (aCuenta) {
     if (!cuentasCorrientesEnabled()) {
       return {
@@ -288,13 +308,12 @@ export async function createOrder(formData: FormData): Promise<OrderActionState>
   });
   if (frontera.bloquea) return { ok: false, error: frontera.error };
 
-  // Idempotencia del ticket (A-1). La clave la genera el CLIENTE una vez por ticket y la
-  // renueva al limpiarlo, no el server: con una clave fija el mostrador no podría vender dos
-  // veces lo mismo a dos personas distintas (que es lo normal en una carnicería), y sin
-  // ninguna clave el reintento de red, el botón "recargar" del navegador o la segunda pestaña
-  // cobran DOS VECES — con ticket alto y en efectivo. `useFormStatus` sólo cierra la ventana
-  // del doble clic dentro de la misma pestaña; esto la cierra a nivel base.
-  const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
+  // Idempotencia del ticket (A-1): `idempotencyKey`, leída arriba. La clave la genera el CLIENTE
+  // una vez por ticket y la renueva al limpiarlo, no el server: con una clave fija el mostrador
+  // no podría vender dos veces lo mismo a dos personas distintas (que es lo normal en una
+  // carnicería), y sin ninguna clave el reintento de red, el botón "recargar" del navegador o la
+  // segunda pestaña cobran DOS VECES. `insertOrder` la vuelve a buscar primero (la carrera de
+  // dos envíos simultáneos la resuelve el @@unique).
 
   // MAG-4: qué líneas pueden dejar el stock en negativo en vez de abortar la venta. La unidad
   // de venta se lee del Product en la base (filtrado por tenant), NUNCA del formulario: el

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { requireUser } from "@/lib/authz";
-import { logout } from "@/lib/auth-actions";
+import FormCerrarSesion from "../FormCerrarSesion";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
@@ -111,11 +111,11 @@ export default async function NoDisponiblePage({
                 {vuelta.etiqueta}
               </Link>
             )}
-            <form action={logout}>
+            <FormCerrarSesion>
               <button type="submit" className={buttonClasses(vuelta || abrir ? "ghost" : "outline", "md", "w-full")}>
                 Cerrar sesión
               </button>
-            </form>
+            </FormCerrarSesion>
           </div>
         </section>
 

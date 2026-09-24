@@ -6,48 +6,124 @@
 // cortó el wifi, el servidor tardó), la pantalla reintenta con LA MISMA clave, y el alta, al
 // encontrarla, devuelve la venta que ya estaba grabada en vez de grabar otra.
 //
-// Hasta acá, esa devolución NO miraba lo que llegaba. Toda la protección vivía en la pantalla
-// (la firma de cobro-sin-conexion.ts), y la pantalla no cubría todo: se cambiaba el teléfono de
-// una venta A CUENTA después del corte, el reintento viajaba con la misma clave y la deuda
-// quedaba en la ficha del cliente viejo con el mensaje "ya estaba registrada"; se cambiaba la
-// dirección de un pedido y quedaba la vieja. El servidor decía "ya estaba" y nadie se enteraba
-// de que lo que se pidió no era lo que había.
+// El servidor COMPARA lo que pide el reintento con las filas grabadas (`compararConLoGrabado`)
+// y compara SÓLO lo que controla quien cobra:
+//   · los productos y su cantidad o peso, las líneas con precio a mano (nombre e importe);
+//   · el cupón (su código) y el descuento a mano;
+//   · cómo se cobró (el medio, a cuenta o sin cobrar);
+//   · el teléfono del cliente, por sus dígitos;
+//   · en un pedido: entrega, dirección, horario y nota.
+// NUNCA lo que la base decide sola: el precio de catálogo (el reintento no re-cotiza: si la
+// dueña cambió el precio entre el corte y el reintento, es la misma venta), la ficha que se
+// encontró por el teléfono ni el nombre que trae la ficha. Comparar eso daba "Lo que cambiaste"
+// sin que la cajera hubiera tocado nada.
 //
-// Ahora el servidor compara (`diferenciasConLoGrabado`) lo que PIDE el reintento con las filas
-// GRABADAS (el pedido y sus líneas; el cupón, de la fila que el alta escribe en su misma
-// transacción). Sin migración: se compara contra lo que ya está en la base.
-//   · Igual y vigente → se devuelve la grabada, como siempre (con su ticket, leído de la base).
-//   · Distinta, o anulada → NO se graba nada nuevo, y se devuelve «ya-grabada-distinta» con la
-//     venta grabada (#N, total, cliente, estado) y las diferencias EN PALABRAS: la pantalla lo
-//     dice y ofrece cobrar sólo lo que falta como otra venta.
+// Si lo único distinto es que ahora hay MÁS (una línea nueva, más peso de un corte), con el
+// mismo medio, el mismo cliente y sin descuentos de por medio, se calcula lo que falta
+// (`faltante`): la pantalla ofrece cobrar SÓLO eso. Cualquier otra diferencia (se sacó algo,
+// otro medio, otro cliente, otro precio a mano, otra dirección, un descuento) no se "completa"
+// con otra venta: se muestra la grabada y qué hacer (anularla y cobrar de nuevo, o dejarla así).
 //
-// DATO PURO: sin Prisma, sin React. Lo usan la Server Action (order-actions.ts), la pantalla
-// (VenderForm, sólo los tipos y los textos) y los tests.
+// DATO PURO: sin Prisma, sin React. Lo usan el alta (order-core.ts, que arma lo pedido), la
+// respuesta al reintento (respuesta-al-reintento.ts), la pantalla (sólo tipos y textos) y los
+// tests.
 
 import { round2 } from "@/lib/round";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
+import { aplicarDescuento, esLineaDeEnvio, normalizarCodigoDeCupon, type PedidoDeDescuento } from "@/lib/venta-reglas";
 import type { VentaTicket } from "@/app/admin/(dashboard)/vender/reglas-venta";
 
 /** Cómo quedó (o pide quedar) la plata de la venta. */
 export type CobroDeVenta = { tipo: "medio"; medio: string } | { tipo: "a-cuenta" } | { tipo: "sin-cobrar" };
 
-/** Lo que una venta o un pedido DICE, en la forma en que se compara un reintento con lo grabado. */
-export type ContenidoDeVenta = {
+/** Lo que pide un envío, SÓLO en lo que controla quien cobra (sin nada que la base re-decida). */
+export type PedidoDelReintento = {
   canal: "COUNTER" | "ONLINE";
-  /** Con producto: su id. Precio a mano (o envío): `null`, y se reconoce por el nombre. */
-  lineas: readonly { productId: string | null; nombre: string; porPeso: boolean; cantidad: number; precio: number }[];
-  /** En pesos. `null` = no se sabe (un cupón distinto del grabado, que no se evaluó). */
-  descuento: number | null;
-  /** `null` = no se sabe (ídem). */
-  total: number | null;
+  productos: readonly { productId: string; cantidad: number }[];
+  aMano: readonly { nombre: string; importe: number }[];
   /** El código del cupón, normalizado; `null` sin cupón. */
   cupon: string | null;
+  /** El descuento a mano como se pidió (% o $), o `null`. */
+  descuento: PedidoDeDescuento | null;
   cobro: CobroDeVenta;
-  cliente: { telefono: string; nombre: string; clientId: string | null };
+  telefono: string;
   entrega: { tipo: "PICKUP" | "DELIVERY"; direccion: string | null; horario: number | null; notas: string | null };
+};
+
+/**
+ * Lo pedido, desde los mismos datos que recibe el alta (`OrderInput` y sus opciones). PURA: no
+ * lee la base, así que no puede traer nada que la cajera no haya mandado.
+ */
+export function pedidoDelReintento(
+  input: {
+    channel: "COUNTER" | "ONLINE";
+    fulfillment: "PICKUP" | "DELIVERY";
+    customerPhone: string;
+    address: string | null;
+    notes: string | null;
+    scheduledFor: Date | null;
+    paid: boolean;
+    paymentMethod: string | null;
+    items: readonly { productId: string; qty: number }[];
+    lineasAMano?: readonly { nombre: string; importe: number }[];
+  },
+  opts?: { cupon?: string | null; descuento?: { pedido: PedidoDeDescuento } | null; aCuenta?: unknown } | null,
+): PedidoDelReintento {
+  return {
+    canal: input.channel,
+    productos: input.items.filter((l) => l.productId && Number.isFinite(l.qty) && l.qty > 0).map((l) => ({ productId: l.productId, cantidad: l.qty })),
+    aMano: (input.lineasAMano ?? []).map((m) => ({ nombre: m.nombre, importe: m.importe })),
+    cupon: normalizarCodigoDeCupon(opts?.cupon) || null,
+    descuento: opts?.descuento?.pedido ?? null,
+    cobro: opts?.aCuenta
+      ? { tipo: "a-cuenta" }
+      : input.paid && input.paymentMethod
+        ? { tipo: "medio", medio: input.paymentMethod }
+        : { tipo: "sin-cobrar" },
+    telefono: input.customerPhone,
+    entrega: {
+      tipo: input.fulfillment,
+      direccion: input.address,
+      horario: input.scheduledFor ? input.scheduledFor.getTime() : null,
+      notas: input.notes,
+    },
+  };
+}
+
+/** El pedido tal como está en la base (Order + sus líneas + el cupón de su fila de auditoría). */
+export type VentaGrabadaLeida = {
+  channel: string;
+  fulfillment: string;
+  customerName: string;
+  customerPhone: string;
+  address: string | null;
+  scheduledFor: Date | null;
+  notes: string | null;
+  discount: number;
+  total: number;
+  paid: boolean;
+  paymentMethod: string | null;
+  items: readonly { productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal?: number }[];
+  /** El código del cupón con que se grabó (fila `cupon-del-pedido`), o `null`. */
+  cupon: string | null;
+};
+
+/** Lo que falta cobrar como otra venta: lo que el reintento trae DE MÁS que la grabada. */
+export type Faltante = {
+  productos: { productId: string; nombre: string; porPeso: boolean; cantidad: number }[];
+  aMano: { nombre: string; importe: number }[];
+};
+
+/** Una diferencia en palabras, y si es "de más" (se puede cobrar aparte) o no. */
+export type Diferencia = { texto: string; aditiva: boolean };
+
+export type ComparacionConLoGrabado = {
+  diferencias: Diferencia[];
+  /** Sólo si TODAS las diferencias son de más: lo que falta. Si no, `null`. */
+  faltante: Faltante | null;
 };
 
 /** La venta ya grabada, como vuelve a la pantalla cuando el reintento no coincide o está anulada. */
@@ -64,22 +140,20 @@ export type VentaYaGrabada = {
   anulada: boolean;
   /** Lo que pidió el reintento y no es lo grabado, una frase por cosa. Vacío = igual (y anulada). */
   diferencias: string[];
+  /** Lo que se puede cobrar aparte (sólo si todo lo distinto es "de más" y no está anulada). */
+  faltante: Faltante | null;
   /** Lo grabado, para verlo en la pantalla (sólo si la pantalla pidió el ticket). */
   ticket?: VentaTicket;
 };
 
-/** El nombre que ponen el POS y la vidriera cuando no hay cliente (el mismo de reglas-venta.ts). */
-const SIN_CLIENTE = "mostrador";
-
 function soloDigitos(s: string): string {
   return s.replace(/\D/g, "");
 }
-function nombreComparable(s: string): string {
-  const n = s.trim().replace(/\s+/g, " ").toLowerCase();
-  return n === SIN_CLIENTE ? "" : n;
-}
 function textoComparable(s: string | null): string {
   return (s ?? "").trim().replace(/\s+/g, " ");
+}
+function nombreComparable(s: string): string {
+  return textoComparable(s).toLowerCase();
 }
 const q3 = (n: number) => Math.round(n * 1000) / 1000;
 
@@ -89,129 +163,12 @@ function textoDeCobro(c: CobroDeVenta): string {
 function mismoCobro(a: CobroDeVenta, b: CobroDeVenta): boolean {
   return a.tipo === b.tipo && (a.tipo !== "medio" || a.medio === (b as { medio: string }).medio);
 }
-function textoDeCliente(c: ContenidoDeVenta["cliente"]): string {
-  const nombre = nombreComparable(c.nombre) ? c.nombre.trim() : "";
-  const tel = c.telefono.trim();
-  if (nombre && tel) return `${nombre} (${tel})`;
-  return nombre || tel || "sin cliente";
-}
 function textoDeEntrega(t: "PICKUP" | "DELIVERY"): string {
   return t === "DELIVERY" ? "envío a domicilio" : "retira en el local";
 }
 function cantidadDe(l: { porPeso: boolean; cantidad: number }): string {
   return `${formatearCantidad(l.cantidad)} ${l.porPeso ? "kg" : "u"}`;
 }
-function precioDe(l: { porPeso: boolean; precio: number }): string {
-  return `${fmtMoneyARS(l.precio)}${l.porPeso ? "/kg" : ""}`;
-}
-
-type Renglon = { nombre: string; porPeso: boolean; cantidad: number; precio: number; aMano: boolean };
-
-/** Las líneas por producto (o por nombre, las que no tienen), sumando si se repiten. */
-function agrupar(lineas: ContenidoDeVenta["lineas"]): Map<string, Renglon> {
-  const m = new Map<string, Renglon>();
-  for (const l of lineas) {
-    const clave = l.productId ?? `sin-producto:${nombreComparable(l.nombre)}:${round2(l.precio)}`;
-    const previo = m.get(clave);
-    if (previo) previo.cantidad = q3(previo.cantidad + l.cantidad);
-    else m.set(clave, { nombre: l.nombre.trim(), porPeso: l.porPeso, cantidad: q3(l.cantidad), precio: round2(l.precio), aMano: l.productId == null });
-  }
-  return m;
-}
-
-/**
- * Qué pidió el reintento que NO es lo grabado, una frase por cosa ("Cliente: se grabó María
- * Pérez (11 4000 0000); ahora Juan Gómez (11 5000 0000)."). Vacía = es la misma venta. PURA.
- *
- * Se compara TODO lo que define la plata, el stock, la deuda y la entrega: canal, líneas
- * (producto, cantidad o peso, precio), descuento, cupón, total, cómo se cobró (o a cuenta),
- * cliente (teléfono, nombre y ficha) y, en un pedido, entrega, dirección, horario y nota.
- * Los números se comparan redondeados como se graban (pesos a centavos, kilos a gramos); los
- * textos sin espacios de más; el teléfono por sus dígitos ("11 4000-0000" = "1140000000").
- */
-export function diferenciasConLoGrabado(grabado: ContenidoDeVenta, pedido: ContenidoDeVenta): string[] {
-  const d: string[] = [];
-  if (grabado.canal !== pedido.canal) {
-    const que = (c: string) => (c === "ONLINE" ? "un pedido" : "una venta de mostrador");
-    d.push(`Se grabó como ${que(grabado.canal)}; ahora es ${que(pedido.canal)}.`);
-  }
-
-  const g = agrupar(grabado.lineas);
-  const p = agrupar(pedido.lineas);
-  for (const [clave, lg] of g) {
-    const lp = p.get(clave);
-    if (!lp) {
-      d.push(`${lg.nombre}: se grabó ${lg.aMano ? fmtMoneyARS(lg.precio) : cantidadDe(lg)}; ahora no está.`);
-      continue;
-    }
-    if (lg.cantidad !== lp.cantidad) d.push(`${lg.nombre}: se grabó ${cantidadDe(lg)}; ahora ${cantidadDe(lp)}.`);
-    if (lg.precio !== lp.precio) d.push(`${lg.nombre}: se grabó a ${precioDe(lg)}; ahora ${precioDe(lp)}.`);
-  }
-  for (const [clave, lp] of p) {
-    if (!g.has(clave)) d.push(`${lp.nombre} ${lp.aMano ? fmtMoneyARS(lp.precio) : cantidadDe(lp)}: no está en la grabada.`);
-  }
-
-  if ((grabado.cupon ?? "") !== (pedido.cupon ?? "")) {
-    const c = (x: string | null) => (x ? `el cupón ${x}` : "sin cupón");
-    d.push(`Cupón: se grabó ${c(grabado.cupon)}; ahora ${c(pedido.cupon)}.`);
-  }
-  if (grabado.descuento !== null && pedido.descuento !== null && round2(grabado.descuento) !== round2(pedido.descuento)) {
-    d.push(`Descuento: se grabó −${fmtMoneyARS(grabado.descuento)}; ahora −${fmtMoneyARS(pedido.descuento)}.`);
-  }
-  if (grabado.total !== null && pedido.total !== null && round2(grabado.total) !== round2(pedido.total)) {
-    d.push(`Total: se grabó ${fmtMoneyARS(grabado.total)}; ahora ${fmtMoneyARS(pedido.total)}.`);
-  }
-  if (!mismoCobro(grabado.cobro, pedido.cobro)) {
-    d.push(`Cómo pagó: se grabó ${textoDeCobro(grabado.cobro)}; ahora ${textoDeCobro(pedido.cobro)}.`);
-  }
-
-  const cg = grabado.cliente;
-  const cp = pedido.cliente;
-  if (soloDigitos(cg.telefono) !== soloDigitos(cp.telefono) || (cg.clientId ?? null) !== (cp.clientId ?? null)) {
-    d.push(`Cliente: se grabó ${textoDeCliente(cg)}; ahora ${textoDeCliente(cp)}.`);
-  } else if (nombreComparable(cg.nombre) !== nombreComparable(cp.nombre)) {
-    const n = (x: string) => (nombreComparable(x) ? `«${x.trim()}»` : "sin nombre");
-    d.push(`Nombre del cliente: se grabó ${n(cg.nombre)}; ahora ${n(cp.nombre)}.`);
-  }
-
-  const eg = grabado.entrega;
-  const ep = pedido.entrega;
-  if (eg.tipo !== ep.tipo) d.push(`Entrega: se grabó «${textoDeEntrega(eg.tipo)}»; ahora «${textoDeEntrega(ep.tipo)}».`);
-  if (textoComparable(eg.direccion) !== textoComparable(ep.direccion)) {
-    const t = (x: string | null) => (textoComparable(x) ? `«${textoComparable(x)}»` : "sin dirección");
-    d.push(`Dirección: se grabó ${t(eg.direccion)}; ahora ${t(ep.direccion)}.`);
-  }
-  if ((eg.horario ?? null) !== (ep.horario ?? null)) {
-    const t = (x: number | null) => (x == null ? "sin horario" : fmtDateTimeAr(new Date(x)));
-    d.push(`Horario: se grabó ${t(eg.horario)}; ahora ${t(ep.horario)}.`);
-  }
-  if (textoComparable(eg.notas) !== textoComparable(ep.notas)) {
-    const t = (x: string | null) => (textoComparable(x) ? `«${textoComparable(x)}»` : "sin nota");
-    d.push(`Nota: se grabó ${t(eg.notas)}; ahora ${t(ep.notas)}.`);
-  }
-  return d;
-}
-
-// ── De las filas grabadas y de lo que pide el alta, a la forma comparable ───────────────────
-
-/** El pedido tal como está en la base (Order + sus líneas + el cupón de su fila de auditoría). */
-export type VentaGrabadaLeida = {
-  channel: string;
-  fulfillment: string;
-  customerName: string;
-  customerPhone: string;
-  clientId: string | null;
-  address: string | null;
-  scheduledFor: Date | null;
-  notes: string | null;
-  discount: number;
-  total: number;
-  paid: boolean;
-  paymentMethod: string | null;
-  items: readonly { productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number }[];
-  /** El código del cupón con que se grabó (fila `cupon-del-pedido`), o `null`. */
-  cupon: string | null;
-};
 
 /** Cómo quedó la plata de una fila de Order: `paid` sin medio es a cuenta (`esVentaACuenta`). */
 export function cobroGrabado(o: { paid: boolean; paymentMethod: string | null }): CobroDeVenta {
@@ -220,91 +177,139 @@ export function cobroGrabado(o: { paid: boolean; paymentMethod: string | null })
   return { tipo: "sin-cobrar" };
 }
 
-export function contenidoGrabado(o: VentaGrabadaLeida): ContenidoDeVenta {
-  return {
-    canal: o.channel === "ONLINE" ? "ONLINE" : "COUNTER",
-    lineas: o.items.map((it) => ({
-      productId: it.productId,
-      nombre: it.name,
-      porPeso: it.saleUnit === "WEIGHT",
-      cantidad: it.quantity,
-      precio: it.unitPrice,
-    })),
-    descuento: o.discount,
-    total: o.total,
-    cupon: o.cupon,
-    cobro: cobroGrabado(o),
-    cliente: { telefono: o.customerPhone, nombre: o.customerName, clientId: o.clientId },
-    entrega: {
-      tipo: o.fulfillment === "DELIVERY" ? "DELIVERY" : "PICKUP",
-      direccion: o.address,
-      horario: o.scheduledFor ? o.scheduledFor.getTime() : null,
-      notas: o.notes,
-    },
-  };
+/**
+ * Qué pidió el reintento que NO es lo grabado (una frase por cosa, marcada "de más" o no) y, si
+ * todo es de más, lo que falta. PURA. `catalogo` sólo pone el NOMBRE y la unidad de un producto
+ * que no está en la grabada (para decirlo en palabras): nunca un precio.
+ */
+export function compararConLoGrabado(
+  grabada: VentaGrabadaLeida,
+  pedido: PedidoDelReintento,
+  catalogo: ReadonlyMap<string, { nombre: string; porPeso: boolean }> = new Map(),
+): ComparacionConLoGrabado {
+  const d: Diferencia[] = [];
+  const no = (texto: string) => d.push({ texto, aditiva: false });
+  const faltante: Faltante = { productos: [], aMano: [] };
+
+  const canal = grabada.channel === "ONLINE" ? "ONLINE" : "COUNTER";
+  if (canal !== pedido.canal) {
+    const que = (c: string) => (c === "ONLINE" ? "un pedido" : "una venta de mostrador");
+    no(`Se grabó como ${que(canal)}; ahora es ${que(pedido.canal)}.`);
+  }
+
+  // Productos: por id, sumando si se repiten; el peso a gramos.
+  const lineasGrabadas = grabada.items.filter((it) => !esLineaDeEnvio(it));
+  const g = new Map<string, { nombre: string; porPeso: boolean; cantidad: number }>();
+  for (const it of lineasGrabadas) {
+    if (!it.productId) continue;
+    const previo = g.get(it.productId);
+    if (previo) previo.cantidad = q3(previo.cantidad + it.quantity);
+    else g.set(it.productId, { nombre: it.name.trim(), porPeso: it.saleUnit === "WEIGHT", cantidad: q3(it.quantity) });
+  }
+  const p = new Map<string, number>();
+  for (const l of pedido.productos) p.set(l.productId, q3((p.get(l.productId) ?? 0) + l.cantidad));
+  for (const [id, lg] of g) {
+    const cant = p.get(id);
+    if (cant === undefined) no(`${lg.nombre}: se grabó ${cantidadDe(lg)}; ahora no está.`);
+    else if (cant < lg.cantidad) no(`${lg.nombre}: se grabó ${cantidadDe(lg)}; ahora ${cantidadDe({ ...lg, cantidad: cant })}.`);
+    else if (cant > lg.cantidad) {
+      d.push({ texto: `${lg.nombre}: se grabó ${cantidadDe(lg)}; ahora ${cantidadDe({ ...lg, cantidad: cant })}.`, aditiva: true });
+      faltante.productos.push({ productId: id, nombre: lg.nombre, porPeso: lg.porPeso, cantidad: q3(cant - lg.cantidad) });
+    }
+  }
+  for (const [id, cant] of p) {
+    if (g.has(id)) continue;
+    const c = catalogo.get(id) ?? { nombre: "Un producto", porPeso: false };
+    d.push({ texto: `${c.nombre} ${cantidadDe({ porPeso: c.porPeso, cantidad: cant })}: no está en la grabada.`, aditiva: true });
+    faltante.productos.push({ productId: id, nombre: c.nombre, porPeso: c.porPeso, cantidad: cant });
+  }
+
+  // Precio a mano: por nombre e importe, contando cuántas veces.
+  const claveAMano = (nombre: string, importe: number) => `${nombreComparable(nombre)}|${round2(importe)}`;
+  const gm = new Map<string, { nombre: string; importe: number; n: number }>();
+  for (const it of lineasGrabadas) {
+    if (it.productId) continue;
+    const importe = round2(it.lineTotal ?? it.quantity * it.unitPrice);
+    const k = claveAMano(it.name, importe);
+    gm.set(k, { nombre: it.name.trim(), importe, n: (gm.get(k)?.n ?? 0) + 1 });
+  }
+  const pm = new Map<string, { nombre: string; importe: number; n: number }>();
+  for (const m of pedido.aMano) {
+    const k = claveAMano(m.nombre, m.importe);
+    pm.set(k, { nombre: m.nombre.trim(), importe: round2(m.importe), n: (pm.get(k)?.n ?? 0) + 1 });
+  }
+  for (const [k, mg] of gm) {
+    const n = pm.get(k)?.n ?? 0;
+    if (n < mg.n) no(`${mg.nombre} (precio a mano ${fmtMoneyARS(mg.importe)}): se grabó; ahora no está.`);
+  }
+  for (const [k, mp] of pm) {
+    const extra = mp.n - (gm.get(k)?.n ?? 0);
+    if (extra <= 0) continue;
+    d.push({ texto: `${mp.nombre} (precio a mano ${fmtMoneyARS(mp.importe)}): no está en la grabada.`, aditiva: true });
+    for (let i = 0; i < extra; i++) faltante.aMano.push({ nombre: mp.nombre, importe: mp.importe });
+  }
+  const cambiaronLineas = d.length > 0;
+
+  // Descuento: el cupón por su código; el descuento a mano, en pesos sobre lo que se grabó (las
+  // mismas líneas, a los precios de la grabada: el reintento no re-cotiza).
+  const cupon = (x: string | null) => (x ? `el cupón ${x}` : "sin cupón");
+  const cuponGrabado = grabada.cupon ? normalizarCodigoDeCupon(grabada.cupon) : null;
+  if ((cuponGrabado ?? "") !== (pedido.cupon ?? "")) {
+    no(`Cupón: se grabó ${cupon(cuponGrabado)}; ahora ${cupon(pedido.cupon)}.`);
+  } else if (!pedido.cupon) {
+    const base = round2(lineasGrabadas.reduce((s, it) => s + (it.lineTotal ?? round2(it.quantity * it.unitPrice)), 0));
+    const pedidoDesc = pedido.descuento ? aplicarDescuento({ subtotal: base, pedido: pedido.descuento, topePct: null }) : null;
+    const monto = pedidoDesc ? (pedidoDesc.ok ? pedidoDesc.descuento : null) : 0;
+    if (monto === null || round2(monto) !== round2(grabada.discount)) {
+      const ahora = monto === null ? "uno que no se puede aplicar" : `−${fmtMoneyARS(monto)}`;
+      no(`Descuento: se grabó −${fmtMoneyARS(grabada.discount)}; ahora ${ahora}.`);
+    }
+  }
+  // Con descuento o cupón de por medio, lo "de más" no se cobra aparte: el descuento de la
+  // grabada se calculó sobre otras líneas, y el de lo que falta no existe.
+  const hayDescuento = grabada.discount > 0 || pedido.cupon !== null || pedido.descuento !== null;
+  if (cambiaronLineas && hayDescuento) {
+    no(`Descuento: la venta tiene descuento y cambiaron las líneas; lo que se agregó no se puede cobrar aparte con el mismo descuento.`);
+  }
+
+  const cobro = cobroGrabado(grabada);
+  if (!mismoCobro(cobro, pedido.cobro)) no(`Cómo pagó: se grabó ${textoDeCobro(cobro)}; ahora ${textoDeCobro(pedido.cobro)}.`);
+
+  if (soloDigitos(grabada.customerPhone) !== soloDigitos(pedido.telefono)) {
+    const t = (x: string) => (x.trim() ? x.trim() : "sin teléfono");
+    no(`Teléfono del cliente: se grabó ${t(grabada.customerPhone)}; ahora ${t(pedido.telefono)}.`);
+  }
+
+  // La entrega sólo cuenta en un pedido (la venta de mostrador se lleva en el acto).
+  if (canal === "ONLINE" && pedido.canal === "ONLINE") {
+    const tipo = grabada.fulfillment === "DELIVERY" ? "DELIVERY" : "PICKUP";
+    const ep = pedido.entrega;
+    if (tipo !== ep.tipo) no(`Entrega: se grabó «${textoDeEntrega(tipo)}»; ahora «${textoDeEntrega(ep.tipo)}».`);
+    if (textoComparable(grabada.address) !== textoComparable(ep.direccion)) {
+      const t = (x: string | null) => (textoComparable(x) ? `«${textoComparable(x)}»` : "sin dirección");
+      no(`Dirección: se grabó ${t(grabada.address)}; ahora ${t(ep.direccion)}.`);
+    }
+    const horario = grabada.scheduledFor ? grabada.scheduledFor.getTime() : null;
+    if (horario !== (ep.horario ?? null)) {
+      const t = (x: number | null) => (x == null ? "sin horario" : fmtDateTimeAr(new Date(x)));
+      no(`Horario: se grabó ${t(horario)}; ahora ${t(ep.horario)}.`);
+    }
+    if (textoComparable(grabada.notes) !== textoComparable(ep.notas)) {
+      const t = (x: string | null) => (textoComparable(x) ? `«${textoComparable(x)}»` : "sin nota");
+      no(`Nota: se grabó ${t(grabada.notes)}; ahora ${t(ep.notas)}.`);
+    }
+  }
+
+  const todoDeMas = d.length > 0 && d.every((x) => x.aditiva);
+  return { diferencias: d, faltante: todoDeMas ? faltante : null };
 }
 
-/** Lo que el alta decidió para ESTE envío (`AltaDecidida` de order-core.ts, más la ficha). */
-export type AltaPedida = {
-  input: {
-    channel: "COUNTER" | "ONLINE";
-    fulfillment: "PICKUP" | "DELIVERY";
-    customerName: string;
-    customerPhone: string;
-    address: string | null;
-    notes: string | null;
-    scheduledFor: Date | null;
-    paid: boolean;
-    paymentMethod: string | null;
-  };
-  lines: readonly { productId: string; name: string; saleUnit: string; quantity: number; unitPrice: number }[];
-  aMano: readonly { nombre: string; importe: number }[];
-  subtotal: number;
-  descuento: number;
-  total: number;
-  envio?: number;
-  cupon?: string | null;
-  aCuenta?: unknown;
-  clientId: string | null;
-};
-
-/**
- * Lo que pide el reintento, comparable. El descuento de un CUPÓN no lo decide el alta antes de
- * la transacción (lo decide `aplicarCuponEnTx`, que además lo consume): llega en
- * `descuentoDelCupon`, calculado con la regla del cupón grabado cuando es el mismo código, o
- * `null` si es otro (no se sabe cuánto sería, y la diferencia de cupón ya se dice sola).
- */
-export function contenidoPedido(a: AltaPedida, descuentoDelCupon: number | null = null): ContenidoDeVenta {
-  const cupon = a.cupon || null;
-  const descuento = cupon ? descuentoDelCupon : a.descuento;
-  return {
-    canal: a.input.channel,
-    lineas: [
-      ...a.lines.map((l) => ({
-        productId: l.productId,
-        nombre: l.name,
-        porPeso: l.saleUnit === "WEIGHT",
-        cantidad: l.quantity,
-        precio: l.unitPrice,
-      })),
-      ...a.aMano.map((m) => ({ productId: null, nombre: m.nombre, porPeso: false, cantidad: 1, precio: m.importe })),
-    ],
-    descuento,
-    total: descuento === null ? null : round2(a.subtotal - descuento),
-    cupon,
-    cobro: a.aCuenta
-      ? { tipo: "a-cuenta" }
-      : a.input.paid && a.input.paymentMethod
-        ? { tipo: "medio", medio: a.input.paymentMethod }
-        : { tipo: "sin-cobrar" },
-    cliente: { telefono: a.input.customerPhone, nombre: a.input.customerName, clientId: a.clientId },
-    entrega: {
-      tipo: a.input.fulfillment,
-      direccion: a.input.address,
-      horario: a.input.scheduledFor ? a.input.scheduledFor.getTime() : null,
-      notas: a.input.notes,
-    },
-  };
+/** Lo que falta, en palabras: "Entraña 0,95 kg, Bolsa $500,00". */
+export function textoDelFaltante(f: Faltante): string {
+  return [
+    ...f.productos.map((l) => `${l.nombre} ${cantidadDe(l)}`),
+    ...f.aMano.map((m) => `${m.nombre} ${fmtMoneyARS(m.importe)}`),
+  ].join(", ");
 }
 
 // ── Lo que se dice ──────────────────────────────────────────────────────────────────────────
@@ -337,6 +342,7 @@ export function tituloDeYaGrabada(g: VentaYaGrabada): string {
  * que no se volvió a cobrar (ni a registrar).
  */
 export function detalleDeYaGrabada(g: VentaYaGrabada): string {
+  if (g.faltante && !g.anulada) return `Lo que agregaste (${textoDelFaltante(g.faltante)}) no se registró.`;
   if (g.diferencias.length > 0) {
     const lista = g.diferencias.map((x) => x.replace(/\.$/, "")).join("; ");
     return `Lo que cambiaste (${lista}) no se registró.`;

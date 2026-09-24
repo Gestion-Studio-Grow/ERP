@@ -84,10 +84,11 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     assert.ok(!resp1.ok && resp1.tipo === "ya-grabada-distinta");
     assert.equal(resp1.grabada.code, r1.code);
     assert.equal(resp1.grabada.como, "a cuenta");
-    assert.deepEqual(resp1.grabada.diferencias, ["Cliente: se grabó María Pérez (11 4000 0000); ahora Juan Gómez (11 5000 0000)."]);
+    assert.deepEqual(resp1.grabada.diferencias, ["Teléfono del cliente: se grabó 11 4000 0000; ahora 11 5000 0000."]);
+    assert.equal(resp1.grabada.faltante, null, "otra deuda no se 'completa' con otra venta");
     assert.equal(
       resp1.error,
-      `La venta #${r1.code} ya se había grabado con $15.500,00 (a cuenta, María Pérez). Lo que cambiaste (Cliente: se grabó María Pérez (11 4000 0000); ahora Juan Gómez (11 5000 0000)) no se registró.`,
+      `La venta #${r1.code} ya se había grabado con $15.500,00 (a cuenta, María Pérez). Lo que cambiaste (Teléfono del cliente: se grabó 11 4000 0000; ahora 11 5000 0000) no se registró.`,
     );
     // No se grabó nada nuevo: una venta, una deuda (de María), el stock descontado una vez.
     assert.equal(await ordenesCon(k1), 1);
@@ -171,6 +172,36 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     assert.equal(anulada.grabada.anulada, true);
     assert.deepEqual(anulada.grabada.diferencias, []);
     assert.equal(anulada.error, `La venta #${r4.code} ya se había grabado con $11.250,00 (cobrada en Efectivo) y después se anuló. No se volvió a cobrar.`);
+
+    // ── Lo que la base decide sola NO es "lo que cambiaste" (refutador S1, S2, S3) ──────────
+    const k6 = `qa-k6-${slug}`;
+    const ana = { ...efectivo, customerName: "Ana", customerPhone: "11 7000 0000" };
+    const r6 = await insertOrder(tenantId, ana, { idempotencyKey: k6, imputarCajaActor: "user:qa" });
+    // S1: la dueña cambia el precio; S2: aparece la ficha de ese teléfono; S3: desactiva el producto.
+    await operatorPrisma.product.update({ where: { id: vacio.id }, data: { pricePerKg: 13000 } });
+    await operatorPrisma.client.create({ data: { tenantId, name: "Ana", phone: "1170000000" } });
+    await operatorPrisma.product.update({ where: { id: vacio.id }, data: { active: false } });
+    const reintento6 = await insertOrder(tenantId, ana, { idempotencyKey: k6, imputarCajaActor: "user:qa" });
+    assert.equal(reintento6.dedup, true, "la clave se busca antes de validar: no es un rechazo");
+    const resp6 = await respuestaAlReintento(tenantId, reintento6, { conTicket: true });
+    assert.ok(resp6.ok, JSON.stringify(resp6));
+    assert.equal(resp6.mensaje, `Esa venta ya estaba registrada (#${r6.code}): no se cobró dos veces.`);
+    assert.equal(resp6.venta?.total, 12500, "el ticket es lo grabado, al precio de entonces");
+    await operatorPrisma.product.update({ where: { id: vacio.id }, data: { active: true, pricePerKg: 12500 } });
+
+    // ── Todo lo distinto es de más: lo que falta, con el nombre del producto (nunca su precio) ─
+    const k7 = `qa-k7-${slug}`;
+    await insertOrder(tenantId, efectivo, { idempotencyKey: k7, imputarCajaActor: "user:qa" });
+    const conEntrana = await insertOrder(
+      tenantId,
+      { ...efectivo, items: [{ productId: vacio.id, qty: 1 }, { productId: entrana.id, qty: 0.3 }] },
+      { idempotencyKey: k7, imputarCajaActor: "user:qa" },
+    );
+    const resp7 = await respuestaAlReintento(tenantId, conEntrana, { conTicket: true });
+    assert.ok(!resp7.ok && resp7.tipo === "ya-grabada-distinta");
+    assert.deepEqual(resp7.grabada.faltante, { productos: [{ productId: entrana.id, nombre: "Entraña", porPeso: true, cantidad: 0.3 }], aMano: [] });
+    assert.match(resp7.error, /Lo que agregaste \(Entraña 0,3 kg\) no se registró\.$/);
+    assert.equal(await ordenesCon(k7), 1);
 
     // ── Un rechazo de negocio de verdad (sin stock) es "no se cobró": y no quedó nada ─────
     const antes = await operatorPrisma.order.count({ where: { tenantId } });

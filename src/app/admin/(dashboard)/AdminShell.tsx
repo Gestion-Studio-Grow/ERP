@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { logout } from "@/lib/auth-actions";
+import FormCerrarSesion from "../FormCerrarSesion";
 import { type Role } from "@/lib/capabilities";
 import { type Perfil } from "@/modules/perfil";
 import { NAV_GROUPS, type NavGroupId } from "@/modules/nav-groups";
@@ -377,11 +377,11 @@ function NavFooter({
           Ver sitio público →
         </Link>
       )}
-      <form action={logout}>
+      <FormCerrarSesion>
         <button type="submit" className="w-full text-left rounded-md px-2 py-1.5 text-xs text-muted hover:text-accent hover:bg-surface-sunken">
           Cerrar sesión
         </button>
-      </form>
+      </FormCerrarSesion>
     </div>
   );
 }

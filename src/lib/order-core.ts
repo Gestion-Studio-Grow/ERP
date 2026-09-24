@@ -24,6 +24,7 @@ import { isUniqueViolation, isColumnMissing } from "@/lib/prisma-errors";
 import { buscarFichaPorTelefono } from "@/lib/clientes/ficha-por-telefono";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { pedidoDelReintento, type PedidoDelReintento } from "@/lib/reintento-de-venta";
 import { shippingCost, type ShippingConfig } from "@/lib/storefront-shipping";
 import { createReceivable } from "@/lib/debts/receivable-service";
 import { audit } from "@/lib/audit-core";
@@ -102,12 +103,12 @@ export type InsertedOrder = {
   /** Código del cupón que se aplicó (y consumió un uso), si hubo. */
   cupon?: string | null;
   /**
-   * Sólo con `dedup`: lo que pidió ESTE envío, ya decidido por el alta (líneas con los precios
-   * de la base, descuento, total, medio, cliente con su ficha, entrega). El llamador lo compara
-   * con lo grabado (`diferenciasConLoGrabado`, reintento-de-venta.ts): una clave repetida no
-   * prueba que lo que llega sea lo mismo que se grabó.
+   * Sólo con `dedup`: lo que pidió ESTE envío, en lo que controla quien cobra y SIN nada que la
+   * base re-decida (ni precios de catálogo ni ficha: `pedidoDelReintento`). El llamador lo
+   * compara con lo grabado (`compararConLoGrabado`, reintento-de-venta.ts): una clave repetida
+   * no prueba que lo que llega sea lo mismo que se grabó.
    */
-  solicitado?: AltaDecidida & { clientId: string | null };
+  solicitado?: PedidoDelReintento;
 };
 
 /**
@@ -472,6 +473,16 @@ export async function insertOrder(
   input: OrderInput,
   opts?: InsertOrderOpts,
 ): Promise<InsertedOrder> {
+  // LA CLAVE PRIMERO. Si ya hay una venta con esta clave, es un reintento: se devuelve ESA, con
+  // lo que pidió este envío, ANTES de validar o re-cotizar nada. Si se validara antes, el
+  // reintento idéntico de una venta grabada cuyo producto después se desactivó (o cuya ficha ya
+  // no aparece) volvía como rechazo —"no se cobró"— cuando sí se había cobrado.
+  const clave = opts?.idempotencyKey?.trim() || null;
+  if (clave) {
+    const previa = await findOrderByIdempotencyKey(tenantId, clave);
+    if (previa) return { ...previa, solicitado: pedidoDelReintento(input, opts) };
+  }
+
   if (input.fulfillment === "DELIVERY" && !input.address) {
     throw new RechazoDeDominio("Para envío a domicilio hace falta la dirección.");
   }
@@ -491,7 +502,9 @@ export async function insertOrder(
   const alta = decidirAlta({ tenantId, input, products, opts });
 
   const negativoPermitido = new Set(opts?.permitirNegativoPorProducto ?? []);
-  const clientId = await clienteDelTelefono(tenantId, input.customerPhone);
+  // A cuenta la ficha es obligatoria: si la búsqueda FALLA (la base, la red) no se sabe si hay
+  // ficha, y eso no es un rechazo de negocio ("no tiene ficha"): el error sigue de largo.
+  const clientId = await clienteDelTelefono(tenantId, input.customerPhone, { estricto: Boolean(alta.aCuenta) });
   // "A cuenta" es la deuda de ALGUIEN: sin ficha no hay a quién cobrarle después.
   if (alta.aCuenta && !clientId) {
     throw new RechazoDeDominio(
@@ -576,7 +589,7 @@ export async function insertOrder(
   });
   // Reintento con una clave ya grabada: no se grabó nada; se devuelve la grabada JUNTO con lo
   // que pidió este envío, para que el llamador vea si es lo mismo.
-  if (r.dedup) return { ...r, solicitado: { ...alta, clientId } };
+  if (r.dedup) return { ...r, solicitado: pedidoDelReintento(input, opts) };
   return {
     ...r,
     descuento: r.descuento ?? alta.descuento,
@@ -594,12 +607,19 @@ export async function insertOrder(
  *
  * Nunca frena una venta: si la búsqueda falla, el pedido sale sin ficha y queda en el log.
  */
-async function clienteDelTelefono(tenantId: string, telefono: string): Promise<string | null> {
+export async function clienteDelTelefono(
+  tenantId: string,
+  telefono: string,
+  o: { estricto?: boolean; buscar?: (tenantId: string, telefono: string) => Promise<{ id: string } | null> } = {},
+): Promise<string | null> {
   if (!telefono.trim()) return null;
   try {
-    const ficha = await buscarFichaPorTelefono(prisma, tenantId, telefono);
+    const ficha = await (o.buscar ?? ((t, tel) => buscarFichaPorTelefono(prisma, t, tel)))(tenantId, telefono);
     return ficha?.id ?? null;
   } catch (err) {
+    // A cuenta: sin saber si hay ficha no se puede decir "no tiene ficha" (sería un rechazo
+    // falso). Se deja subir el error: `createOrder` lo contesta como "no sabemos".
+    if (o.estricto) throw err;
     logger.warn("pedidos", "no se pudo vincular el pedido con la ficha del cliente", {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -871,9 +891,12 @@ export function esRechazoDelAlta(err: unknown): err is Error {
  *
  * Es la diferencia entre "la venta no se cobró" y "no sabemos si se grabó", y por eso es más
  * estricta que `esRechazoDelAlta`: SÓLO un `RechazoDeDominio` (y sus hijos: `CuponRechazado`,
- * `PrecioAManoRechazado`) o un `RechazoDelStock` (el ledger) prueba que no se grabó nada,
- * porque lo tira el código del alta antes de escribir o DENTRO de su transacción, que se
- * deshace entera. Cualquier otra cosa —un error de Prisma, la conexión que se cae, la
+ * `PrecioAManoRechazado`) o un `RechazoDelStock` (el ledger) prueba que ESTE envío no grabó
+ * nada: lo tira el código del alta antes de escribir o DENTRO de su transacción, que se deshace
+ * entera. Y como `insertOrder` (y `createOrder`) buscan la clave ANTES de validar, si ya había
+ * una venta con esta clave se habría devuelto ésa en vez de rechazar. Lo que NO prueba: que un
+ * envío ANTERIOR con la misma clave, todavía en vuelo, no termine grabándose (eso lo sigue
+ * cuidando la pantalla: `rechazoDelServidor(…, trasCorte)`). Cualquier otra cosa —un error de Prisma, la conexión que se cae, la
  * transacción que falla AL CONFIRMARSE, un `Error` pelado de una librería o del driver
  * ("Connection terminated unexpectedly" de `pg` es un `Error` pelado)— puede haber pasado
  * después del commit: decir "no se cobró" ahí invita a cobrar dos veces.

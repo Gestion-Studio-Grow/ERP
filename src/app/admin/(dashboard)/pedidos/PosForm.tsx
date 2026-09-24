@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createOrder } from "@/lib/order-actions";
-import { BuscadorCombo, Input, Select, buttonClasses, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
+import { AvisoError, BuscadorCombo, Input, Select, buttonClasses, fmtMoneyARS, type OpcionBuscador } from "@/components/ui";
+import { detalleDeYaGrabada, tituloDeYaGrabada, type VentaYaGrabada } from "@/lib/reintento-de-venta";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { MEDIOS_DE_COBRO, type MedioDeCobro } from "@/lib/caja/medio-cobro";
 import {
@@ -120,6 +121,10 @@ export default function PosForm({
   // distinto de cada lado rompería la hidratación) y sobrevive a los reintentos de ESA venta.
   // Se vacía al cobrar bien, así el ticket siguiente nace con una clave nueva.
   const ticketKey = useRef("");
+  // La clave de este ticket ya estaba grabada con OTRA cosa (`ya-grabada-distinta`): no se grabó
+  // nada. Antes sólo salía un aviso que se iba, y como la clave se queda, cada nuevo intento
+  // volvía igual: el ticket quedaba trabado. Ahora se muestra la grabada y la salida.
+  const [yaGrabada, setYaGrabada] = useState<VentaYaGrabada | null>(null);
   // Foco dirigido: al elegir un producto saltamos a pesar/contar; con Enter saltamos
   // al próximo producto. Es lo que hace fluida la atención en mostrador (sin mouse).
   // Cada pedido de foco lleva su número de orden: así el efecto sabe que hay uno
@@ -223,19 +228,30 @@ export default function PosForm({
       );
       return;
     }
+    if (r && !r.ok && r.tipo === "ya-grabada-distinta") {
+      setYaGrabada(r.grabada);
+      return;
+    }
     if (r && !r.ok) {
       // El mensaje viene ENTERO del server (viaja como valor devuelto, no como excepción
       // redactada): dice el día que está cerrado, el producto sin stock o el dato que falta.
+      // Un `sin-confirmar` también llega acá con su texto ("no pudimos confirmar…"): la clave
+      // se queda, y el reintento encuentra la venta si se grabó.
       showError(r.error);
       return;
     }
     showSuccess(r?.mensaje ?? (isOrder ? "Pedido registrado." : "Venta cobrada."));
+    limpiarTicket();
+  }
+
+  // El ticket vacío, con clave nueva. El medio vuelve a vacío: el próximo cliente se pregunta de
+  // nuevo. Y «Cobrado» vuelve al del modo (mostrador → cobrado, pedido → a cobrar).
+  function limpiarTicket() {
     setLines([{ key: nextKey, productId: "", qtyText: "" }]);
     setNextKey((k) => k + 1);
-    // El medio vuelve a vacío: el próximo cliente se pregunta de nuevo. Y «Cobrado» vuelve al
-    // del modo (mostrador → cobrado, pedido → a cobrar), que es el default de su casilla.
     setMedio("");
     setPaid(!isOrder);
+    setYaGrabada(null);
     ticketKey.current = "";
   }
 
@@ -503,6 +519,24 @@ export default function PosForm({
         )}
       </div>
 
+      {yaGrabada && (
+        <AvisoError
+          titulo={tituloDeYaGrabada(yaGrabada)}
+          comoSeguir={
+            yaGrabada.anulada
+              ? `${detalleDeYaGrabada(yaGrabada)} Para ${yaGrabada.esPedido ? "registrarlo" : "cobrarla"} de nuevo, tocá «Empezar de nuevo» y cargá ${yaGrabada.esPedido ? "el pedido" : "la venta"} otra vez.`
+              : `${detalleDeYaGrabada(yaGrabada)} Si la #${yaGrabada.code} está bien, tocá «Empezar de nuevo»: se limpia este ticket y la ` +
+                `#${yaGrabada.code} queda como está. Si quedó mal, anulala en la bandeja o en Ventas del día y cargá ` +
+                `${yaGrabada.esPedido ? "el pedido" : "la venta"} de nuevo.`
+          }
+          accion={
+            <button type="button" onClick={limpiarTicket} className="h-11 px-2 text-sm font-medium text-strong underline">
+              Empezar de nuevo
+            </button>
+          }
+        />
+      )}
+
       <div className="flex items-center justify-between border-t border-line pt-4">
         <div className="text-sm text-muted">
           Total{" "}
@@ -511,8 +545,16 @@ export default function PosForm({
           </span>
         </div>
         <CobrarSubmit
-          disabled={!hasValidLine || hasShortfall || hasCantidadInvalida || faltaMedio}
-          label={faltaMedio ? "Elegí cómo pagó" : isOrder ? "Registrar pedido" : "Cobrar"}
+          disabled={!hasValidLine || hasShortfall || hasCantidadInvalida || faltaMedio || yaGrabada !== null}
+          label={
+            yaGrabada
+              ? `Revisá ${yaGrabada.esPedido ? "el pedido" : "la venta"} #${yaGrabada.code}`
+              : faltaMedio
+                ? "Elegí cómo pagó"
+                : isOrder
+                  ? "Registrar pedido"
+                  : "Cobrar"
+          }
         />
       </div>
     </form>

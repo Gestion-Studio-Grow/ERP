@@ -102,6 +102,8 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
               topePrecioAMano={topeDePrecioAMano(user.role)}
               // Separa, en el almacén de la pestaña, el cobro sin confirmar de cada negocio.
               negocioId={tenantId}
+              // La duda guardada de otra persona no se restaura en esta pestaña.
+              usuarioId={user.id}
             />
           </div>
         }
